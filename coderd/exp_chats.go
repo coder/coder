@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -48,6 +49,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -70,6 +72,8 @@ const (
 	maxChatContextCompressionThreshold            = int32(100)
 	maxSystemPromptLenBytes                       = 131072 // 128 KiB
 )
+
+var allowedReasoningEffortValues = strings.Join(codersdk.ChatModelReasoningEffortValues(), ", ")
 
 // chatGitRef holds the branch, remote origin, and optional chat
 // ID reported by the workspace agent during a git operation.
@@ -333,7 +337,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Param q query string false "Search query. Supports title:<substring> (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:<draft\|open\|merged\|closed> as repeated or comma-separated values, source:<created_by_me\|shared_with_me>, diff_url:<url> (quote values containing colons), pr:<number> (exact PR number match), repo:<owner/repo> (case-insensitive substring match against git remote origin or URL), pr_title:<text> (case-insensitive PR title substring). Bare terms are not supported; use title:<value> for title filtering."
+// @Param q query string false "Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `pr_status:<draft\|open\|merged\|closed>` as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring). Bare terms are not supported; use `title:<value>` for title filtering."
 // @Param label query string false "Filter by label as key:value. Repeat for multiple (AND logic)."
 // @Success 200 {array} codersdk.Chat
 // @Router /api/experimental/chats [get]
@@ -472,7 +476,59 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatRowsWithChildren(chatRows, childRows, diffStatusesByChatID))
+	sdkChats := db2sdk.ChatRowsWithChildren(chatRows, childRows, diffStatusesByChatID)
+	api.enrichChatWithWorkspaceAgentIDs(ctx, sdkChats)
+	httpapi.Write(ctx, rw, http.StatusOK, sdkChats)
+}
+
+// enrichChatWithWorkspaceAgentIDs fills missing AgentIDs for chats with a bound
+// workspace, since chatd persists the binding lazily. Best-effort and
+// response-only; on error the field stays null.
+func (api *API) enrichChatWithWorkspaceAgentIDs(ctx context.Context, chats []codersdk.Chat) {
+	missingChats := make([]*codersdk.Chat, 0, len(chats))
+	var workspaceIDs []uuid.UUID
+	addMissing := func(chat *codersdk.Chat) {
+		if chat.AgentID == nil && chat.WorkspaceID != nil {
+			missingChats = append(missingChats, chat)
+			workspaceIDs = append(workspaceIDs, *chat.WorkspaceID)
+		}
+	}
+	for i := range chats {
+		addMissing(&chats[i])
+		for j := range chats[i].Children {
+			addMissing(&chats[i].Children[j])
+		}
+	}
+
+	slices.SortFunc(workspaceIDs, func(a, b uuid.UUID) int {
+		return cmp.Compare(a.String(), b.String())
+	})
+	ids := slices.Compact(workspaceIDs)
+	rows, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(ctx, ids)
+	if err != nil {
+		return
+	}
+
+	agentsByWorkspace := make(map[uuid.UUID][]database.WorkspaceAgent)
+	for _, row := range rows {
+		agentsByWorkspace[row.WorkspaceID] = append(agentsByWorkspace[row.WorkspaceID], row.WorkspaceAgent)
+	}
+	agentIDs := make(map[uuid.UUID]uuid.UUID, len(agentsByWorkspace))
+	for workspaceID, agents := range agentsByWorkspace {
+		agent, err := agentselect.FindChatAgent(agents)
+		if err != nil {
+			api.Logger.Debug(ctx, "failed to select chat agent for enrichment", slog.F("workspace_id", workspaceID), slog.Error(err))
+			continue
+		}
+		agentIDs[workspaceID] = agent.ID
+	}
+
+	for _, chat := range missingChats {
+		if agentID, ok := agentIDs[*chat.WorkspaceID]; ok {
+			id := agentID
+			chat.AgentID = &id
+		}
+	}
 }
 
 func (api *API) getChatDiffStatusesByChatID(
@@ -519,24 +575,40 @@ func validateChatPlanMode(mode codersdk.ChatPlanMode) bool {
 	}
 }
 
-func parseChatModelOverride(raw string) (*uuid.UUID, error) {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		//nolint:nilnil // Empty site-config value means the override is unset.
-		return nil, nil
-	}
-	modelConfigID, err := uuid.Parse(trimmed)
-	if err != nil {
-		return nil, xerrors.Errorf("parse chat model override: %w", err)
-	}
-	return &modelConfigID, nil
+type parsedChatModelOverride struct {
+	modelConfigID   *uuid.UUID
+	reasoningEffort *string
 }
 
-func formatChatModelOverride(id *uuid.UUID) string {
+func parseChatModelOverride(raw string) (parsedChatModelOverride, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return parsedChatModelOverride{}, nil
+	}
+	rawID, rawEffort, hasEffort := strings.Cut(trimmed, ":")
+	modelConfigID, err := uuid.Parse(rawID)
+	if err != nil {
+		return parsedChatModelOverride{}, xerrors.Errorf("parse chat model override: %w", err)
+	}
+	if hasEffort && rawEffort == "" {
+		return parsedChatModelOverride{}, xerrors.New("parse chat model override: reasoning effort is empty")
+	}
+	parsed := parsedChatModelOverride{modelConfigID: &modelConfigID}
+	if hasEffort {
+		parsed.reasoningEffort = &rawEffort
+	}
+	return parsed, nil
+}
+
+func formatChatModelOverride(id *uuid.UUID, effort *string) string {
 	if id == nil {
 		return ""
 	}
-	return id.String()
+	formatted := id.String()
+	if effort != nil {
+		formatted += ":" + *effort
+	}
+	return formatted
 }
 
 func lookupEnabledChatModelConfigByID(
@@ -549,12 +621,65 @@ func lookupEnabledChatModelConfigByID(
 	return db.GetEnabledChatModelConfigByID(dbauthz.AsChatd(ctx), id)
 }
 
-func validateChatModelOverrideID(
+func parseChatModelCallConfig(options json.RawMessage) (*codersdk.ChatModelCallConfig, error) {
+	callConfig := &codersdk.ChatModelCallConfig{}
+	if len(options) == 0 {
+		return callConfig, nil
+	}
+	if err := json.Unmarshal(options, callConfig); err != nil {
+		return nil, err
+	}
+	return callConfig, nil
+}
+
+func validateChatModelOverrideEffort(
+	modelConfig database.ChatModelConfig,
+	effort *string,
+) (int, *codersdk.Response) {
+	if effort == nil {
+		return 0, nil
+	}
+	if !chatprovider.IsValidReasoningEffort(*effort) {
+		return http.StatusBadRequest, &codersdk.Response{
+			Message: "Invalid reasoning_effort value.",
+			Detail:  "Must be one of none, minimal, low, medium, high, xhigh, max.",
+		}
+	}
+	callConfig, err := parseChatModelCallConfig(modelConfig.Options)
+	if err != nil {
+		return http.StatusInternalServerError, &codersdk.Response{
+			Message: "Internal error validating reasoning effort.",
+			Detail:  err.Error(),
+		}
+	}
+	selectableEfforts := chatprovider.SelectableReasoningEfforts(callConfig.ReasoningEffort)
+	if len(selectableEfforts) == 0 {
+		return http.StatusBadRequest, &codersdk.Response{
+			Message: "Invalid reasoning_effort value.",
+			Detail:  "This model does not support reasoning effort.",
+		}
+	}
+	if !slices.Contains(selectableEfforts, *effort) {
+		return http.StatusBadRequest, &codersdk.Response{
+			Message: "Invalid reasoning_effort value.",
+			Detail:  "Must be one of " + strings.Join(selectableEfforts, ", ") + ".",
+		}
+	}
+	return 0, nil
+}
+
+func validateChatModelOverride(
 	ctx context.Context,
 	db database.Store,
 	id *uuid.UUID,
+	effort *string,
 ) (int, *codersdk.Response) {
 	if id == nil {
+		if effort != nil {
+			return http.StatusBadRequest, &codersdk.Response{
+				Message: "reasoning_effort requires model_config_id.",
+			}
+		}
 		return 0, nil
 	}
 	if *id == uuid.Nil {
@@ -562,31 +687,31 @@ func validateChatModelOverrideID(
 			Message: "Invalid model_config_id.",
 		}
 	}
-	_, err := lookupEnabledChatModelConfigByID(ctx, db, *id)
-	if err == nil {
-		return 0, nil
-	}
-	if xerrors.Is(err, sql.ErrNoRows) {
-		return http.StatusBadRequest, &codersdk.Response{
-			Message: "Invalid model_config_id.",
+	modelConfig, err := lookupEnabledChatModelConfigByID(ctx, db, *id)
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return http.StatusBadRequest, &codersdk.Response{
+				Message: "Invalid model_config_id.",
+			}
+		}
+		return http.StatusInternalServerError, &codersdk.Response{
+			Message: "Internal error validating model config override.",
+			Detail:  err.Error(),
 		}
 	}
-	return http.StatusInternalServerError, &codersdk.Response{
-		Message: "Internal error validating model config override.",
-		Detail:  err.Error(),
-	}
+	return validateChatModelOverrideEffort(modelConfig, effort)
 }
 
 func (api *API) getChatModelOverrideConfig(
 	ctx context.Context,
 	settingName string,
 	getter func(context.Context) (string, error),
-) (*uuid.UUID, bool, error) {
+) (*uuid.UUID, *string, bool, error) {
 	raw, err := getter(ctx)
 	if err != nil {
-		return nil, false, xerrors.Errorf("get %s model override: %w", settingName, err)
+		return nil, nil, false, xerrors.Errorf("get %s model override: %w", settingName, err)
 	}
-	id, err := parseChatModelOverride(raw)
+	parsed, err := parseChatModelOverride(raw)
 	if err != nil {
 		// Degrade malformed values to unset so the admin settings page
 		// remains accessible and the bad value can be cleared.
@@ -597,9 +722,9 @@ func (api *API) getChatModelOverrideConfig(
 			slog.F("raw_value", raw),
 			slog.Error(err),
 		)
-		return nil, true, nil
+		return nil, nil, true, nil
 	}
-	return id, false, nil
+	return parsed.modelConfigID, parsed.reasoningEffort, false, nil
 }
 
 func parseChatModelOverrideContext(raw string) (codersdk.ChatModelOverrideContext, error) {
@@ -638,6 +763,12 @@ func (api *API) chatModelOverrideSiteConfig(
 			getter: api.Database.GetChatTitleGenerationModelOverride,
 			upsert: api.Database.UpsertChatTitleGenerationModelOverride,
 		}, nil
+	case codersdk.ChatModelOverrideContextCompaction:
+		return chatModelOverrideSiteConfig{
+			label:  "compaction",
+			getter: api.Database.GetChatCompactionModelOverride,
+			upsert: api.Database.UpsertChatCompactionModelOverride,
+		}, nil
 	default:
 		return chatModelOverrideSiteConfig{}, xerrors.Errorf(
 			"unknown chat model override context %q",
@@ -649,25 +780,26 @@ func (api *API) chatModelOverrideSiteConfig(
 func (api *API) readChatModelOverrideConfig(
 	ctx context.Context,
 	overrideContext codersdk.ChatModelOverrideContext,
-) (*uuid.UUID, bool, string, error) {
+) (*uuid.UUID, *string, bool, string, error) {
 	siteConfig, err := api.chatModelOverrideSiteConfig(overrideContext)
 	if err != nil {
-		return nil, false, "", err
+		return nil, nil, false, "", err
 	}
-	id, isMalformed, err := api.getChatModelOverrideConfig(ctx, siteConfig.label, siteConfig.getter)
-	return id, isMalformed, siteConfig.label, err
+	id, effort, isMalformed, err := api.getChatModelOverrideConfig(ctx, siteConfig.label, siteConfig.getter)
+	return id, effort, isMalformed, siteConfig.label, err
 }
 
 func (api *API) upsertChatModelOverrideConfig(
 	ctx context.Context,
 	overrideContext codersdk.ChatModelOverrideContext,
 	modelConfigID *uuid.UUID,
+	reasoningEffort *string,
 ) (string, error) {
 	siteConfig, err := api.chatModelOverrideSiteConfig(overrideContext)
 	if err != nil {
 		return "", err
 	}
-	return siteConfig.label, siteConfig.upsert(ctx, formatChatModelOverride(modelConfigID))
+	return siteConfig.label, siteConfig.upsert(ctx, formatChatModelOverride(modelConfigID, reasoningEffort))
 }
 
 var chatPersonalModelOverrideContexts = []codersdk.ChatPersonalModelOverrideContext{
@@ -717,9 +849,14 @@ func parseChatPersonalModelOverrideValue(
 func formatChatPersonalModelOverrideValue(
 	mode codersdk.ChatPersonalModelOverrideMode,
 	modelConfigID string,
+	reasoningEffort *string,
 ) string {
 	if mode == codersdk.ChatPersonalModelOverrideModeModel {
-		return string(mode) + ":" + strings.TrimSpace(modelConfigID)
+		value := string(mode) + ":" + strings.TrimSpace(modelConfigID)
+		if reasoningEffort != nil {
+			value += ":" + *reasoningEffort
+		}
+		return value
 	}
 	return string(mode)
 }
@@ -731,15 +868,18 @@ func chatPersonalModelOverrideResponse(
 ) codersdk.ChatPersonalModelOverride {
 	parsed := parseChatPersonalModelOverrideValue(raw, overrideContext)
 	modelConfigID := ""
+	var reasoningEffort *string
 	if parsed.Mode == codersdk.ChatPersonalModelOverrideModeModel {
 		modelConfigID = parsed.ModelConfigID.String()
+		reasoningEffort = parsed.ReasoningEffort
 	}
 	return codersdk.ChatPersonalModelOverride{
-		Context:       overrideContext,
-		Mode:          parsed.Mode,
-		ModelConfigID: modelConfigID,
-		IsSet:         isSet,
-		IsMalformed:   parsed.Malformed,
+		Context:         overrideContext,
+		Mode:            parsed.Mode,
+		ModelConfigID:   modelConfigID,
+		ReasoningEffort: reasoningEffort,
+		IsSet:           isSet,
+		IsMalformed:     parsed.Malformed,
 	}
 }
 
@@ -751,7 +891,7 @@ func (api *API) chatPersonalModelOverrideDeploymentDefaultResponse(
 	// resources. Users may read these values here because the personal settings
 	// UI must explain what deployment_default resolves to.
 	//nolint:gocritic // System context is required to read deployment config.
-	modelConfigID, isMalformed, _, err := api.readChatModelOverrideConfig(
+	modelConfigID, reasoningEffort, isMalformed, _, err := api.readChatModelOverrideConfig(
 		dbauthz.AsSystemRestricted(ctx),
 		overrideContext,
 	)
@@ -759,9 +899,10 @@ func (api *API) chatPersonalModelOverrideDeploymentDefaultResponse(
 		return codersdk.ChatModelOverrideResponse{}, err
 	}
 	return codersdk.ChatModelOverrideResponse{
-		Context:       overrideContext,
-		ModelConfigID: formatChatModelOverride(modelConfigID),
-		IsMalformed:   isMalformed,
+		Context:         overrideContext,
+		ModelConfigID:   formatChatModelOverride(modelConfigID, nil),
+		ReasoningEffort: reasoningEffort,
+		IsMalformed:     isMalformed,
 	}, nil
 }
 
@@ -946,9 +1087,9 @@ func (api *API) userCanUseChatModelConfig(
 	ctx context.Context,
 	userID uuid.UUID,
 	modelConfigID uuid.UUID,
-) (chatModelConfigUnavailableReason, error) {
+) (database.ChatModelConfig, chatModelConfigUnavailableReason, error) {
 	if modelConfigID == uuid.Nil {
-		return chatModelConfigUnavailableModelNotFoundOrDisabled, nil
+		return database.ChatModelConfig{}, chatModelConfigUnavailableModelNotFoundOrDisabled, nil
 	}
 	//nolint:gocritic // Non-admin users need deployment config validation.
 	model, err := api.Database.GetChatModelConfigByID(
@@ -957,63 +1098,63 @@ func (api *API) userCanUseChatModelConfig(
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
-			return chatModelConfigUnavailableModelNotFoundOrDisabled, nil
+			return database.ChatModelConfig{}, chatModelConfigUnavailableModelNotFoundOrDisabled, nil
 		}
-		return chatModelConfigAvailable, err
+		return database.ChatModelConfig{}, chatModelConfigAvailable, err
 	}
 	if !model.Enabled {
-		return chatModelConfigUnavailableModelNotFoundOrDisabled, nil
+		return database.ChatModelConfig{}, chatModelConfigUnavailableModelNotFoundOrDisabled, nil
 	}
 
 	availability, err := api.getUserChatProviderAvailability(ctx, userID)
 	if err != nil {
-		return chatModelConfigAvailable, err
+		return database.ChatModelConfig{}, chatModelConfigAvailable, err
 	}
 	if model.AIProviderID.Valid {
 		providerID := model.AIProviderID.UUID
 		if _, ok := availability.enabledProviderIDs[providerID]; !ok {
-			return chatModelConfigUnavailableProviderDisabled, nil
+			return database.ChatModelConfig{}, chatModelConfigUnavailableProviderDisabled, nil
 		}
 		providerStatus, ok := availability.providerStatusByID[providerID]
 		if !ok {
-			return chatModelConfigUnavailableProviderDisabled, nil
+			return database.ChatModelConfig{}, chatModelConfigUnavailableProviderDisabled, nil
 		}
 		if !providerStatus.Available {
-			return chatModelConfigUnavailableCredentialsMissing, nil
+			return database.ChatModelConfig{}, chatModelConfigUnavailableCredentialsMissing, nil
 		}
-		return chatModelConfigAvailable, nil
+		return model, chatModelConfigAvailable, nil
 	}
 	// Active configs always carry a provider FK (CHECK
 	// chat_model_configs_ai_provider_required_when_active), so an unset FK
 	// means the config is not usable.
-	return chatModelConfigUnavailableModelNotFoundOrDisabled, nil
+	return database.ChatModelConfig{}, chatModelConfigUnavailableModelNotFoundOrDisabled, nil
 }
 
 func (api *API) validateUserChatModelConfigAvailable(
 	ctx context.Context,
 	userID uuid.UUID,
 	modelConfigID uuid.UUID,
-) (int, *codersdk.Response) {
-	reason, err := api.userCanUseChatModelConfig(ctx, userID, modelConfigID)
+) (database.ChatModelConfig, int, *codersdk.Response) {
+	modelConfig, reason, err := api.userCanUseChatModelConfig(ctx, userID, modelConfigID)
 	if err != nil {
-		return http.StatusInternalServerError, &codersdk.Response{
+		return database.ChatModelConfig{}, http.StatusInternalServerError, &codersdk.Response{
 			Message: "Internal error validating model config override.",
 			Detail:  err.Error(),
 		}
 	}
 	switch reason {
 	case chatModelConfigAvailable:
-		return 0, nil
+		return modelConfig, 0, nil
 	case chatModelConfigUnavailableModelNotFoundOrDisabled:
-		return http.StatusBadRequest, &codersdk.Response{
+		return database.ChatModelConfig{}, http.StatusBadRequest, &codersdk.Response{
 			Message: "Invalid model_config_id: model config not found or disabled.",
 		}
 	case chatModelConfigUnavailableCredentialsMissing:
-		return http.StatusBadRequest, &codersdk.Response{
+		return database.ChatModelConfig{}, http.StatusBadRequest, &codersdk.Response{
 			Message: "Invalid model_config_id: provider credentials unavailable for this model.",
 		}
 	case chatModelConfigUnavailableProviderDisabled:
-		return http.StatusBadRequest, &codersdk.Response{
+		return database.ChatModelConfig{}, http.StatusBadRequest, &codersdk.Response{
 			Message: "Invalid model_config_id: provider is not enabled for this model.",
 		}
 	default:
@@ -1023,7 +1164,7 @@ func (api *API) validateUserChatModelConfigAvailable(
 			slog.F("model_config_id", modelConfigID),
 			slog.F("reason", reason),
 		)
-		return http.StatusBadRequest, &codersdk.Response{
+		return database.ChatModelConfig{}, http.StatusBadRequest, &codersdk.Response{
 			Message: "Invalid model_config_id.",
 		}
 	}
@@ -1120,7 +1261,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 	title := chatprompt.FallbackTitle(titleSource)
 
-	modelConfigID, modelConfigStatus, modelConfigError := api.resolveCreateChatModelConfigID(ctx, apiKey.UserID, req)
+	modelConfigID, personalOverrideEffort, modelConfigStatus, modelConfigError := api.resolveCreateChatModelConfigID(ctx, apiKey.UserID, req)
 	if modelConfigError != nil {
 		httpapi.Write(ctx, rw, modelConfigStatus, *modelConfigError)
 		return
@@ -1236,12 +1377,22 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	reasoningEffort := req.ReasoningEffort
+	if reasoningEffort == nil {
+		reasoningEffort = personalOverrideEffort
+	}
+	if reasoningEffort != nil && !chatprovider.IsValidReasoningEffort(*reasoningEffort) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, invalidReasoningEffortResponse(*reasoningEffort))
+		return
+	}
+
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     req.OrganizationID,
 		OwnerID:            apiKey.UserID,
 		WorkspaceID:        workspaceSelection.WorkspaceID,
 		Title:              title,
 		ModelConfigID:      modelConfigID,
+		ReasoningEffort:    reasoningEffort,
 		PlanMode:           planModeToNullChatPlanMode(req.PlanMode),
 		ClientType:         clientType,
 		SystemPrompt:       req.SystemPrompt,
@@ -2105,6 +2256,10 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 		sdkChat.Children = db2sdk.ChildChatRows(childRows, childDiffStatuses)
 	}
 
+	enriched := []codersdk.Chat{sdkChat}
+	api.enrichChatWithWorkspaceAgentIDs(ctx, enriched)
+	sdkChat = enriched[0]
+
 	httpapi.Write(ctx, rw, http.StatusOK, sdkChat)
 }
 
@@ -2368,9 +2523,11 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if len(agents) == 0 {
+	agent, err := agentselect.FindChatAgent(agents)
+	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: codersdk.ChatGitWatchWorkspaceNoAgentsMessage,
+			Message: codersdk.ChatGitWatchNoEligibleAgentMessage,
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -2378,7 +2535,7 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 	apiAgent, err := db2sdk.WorkspaceAgent(
 		api.DERPMap(),
 		*api.TailnetCoordinator.Load(),
-		agents[0],
+		agent,
 		nil,
 		nil,
 		nil,
@@ -2402,7 +2559,7 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer dialCancel()
 
-	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, agents[0].ID)
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, agent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error dialing workspace agent.",
@@ -2523,9 +2680,11 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if len(agents) == 0 {
+	agent, err := agentselect.FindChatAgent(agents)
+	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Chat workspace has no agents.",
+			Message: codersdk.ChatGitWatchNoEligibleAgentMessage,
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -2533,7 +2692,7 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	apiAgent, err := db2sdk.WorkspaceAgent(
 		api.DERPMap(),
 		*api.TailnetCoordinator.Load(),
-		agents[0],
+		agent,
 		nil,
 		nil,
 		nil,
@@ -2557,7 +2716,7 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer dialCancel()
 
-	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, agents[0].ID)
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, agent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to dial workspace agent.",
@@ -3155,17 +3314,24 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		modelConfigID = *req.ModelConfigID
 	}
 
+	reasoningEffort := req.ReasoningEffort
+	if reasoningEffort != nil && !chatprovider.IsValidReasoningEffort(*reasoningEffort) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, invalidReasoningEffortResponse(*reasoningEffort))
+		return
+	}
+
 	sendResult, sendErr := api.chatDaemon.SendMessage(
 		ctx,
 		chatd.SendMessageOptions{
-			ChatID:        chatID,
-			CreatedBy:     apiKey.UserID,
-			Content:       contentBlocks,
-			ModelConfigID: modelConfigID,
-			APIKeyID:      apiKey.ID,
-			BusyBehavior:  busyBehavior,
-			PlanMode:      sendPlanMode,
-			MCPServerIDs:  req.MCPServerIDs,
+			ChatID:          chatID,
+			CreatedBy:       apiKey.UserID,
+			Content:         contentBlocks,
+			ModelConfigID:   modelConfigID,
+			ReasoningEffort: reasoningEffort,
+			APIKeyID:        apiKey.ID,
+			BusyBehavior:    busyBehavior,
+			PlanMode:        sendPlanMode,
+			MCPServerIDs:    req.MCPServerIDs,
 		},
 	)
 	if sendErr != nil {
@@ -3313,6 +3479,12 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		editModelConfigID = *req.ModelConfigID
 	}
 
+	editReasoningEffort := req.ReasoningEffort
+	if editReasoningEffort != nil && !chatprovider.IsValidReasoningEffort(*editReasoningEffort) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, invalidReasoningEffortResponse(*editReasoningEffort))
+		return
+	}
+
 	editResult, editErr := api.chatDaemon.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
 		CreatedBy:       apiKey.UserID,
@@ -3320,6 +3492,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		Content:         contentBlocks,
 		APIKeyID:        apiKey.ID,
 		ModelConfigID:   editModelConfigID,
+		ReasoningEffort: editReasoningEffort,
 	})
 	if editErr != nil {
 		if maybeWriteLimitErr(ctx, rw, editErr) {
@@ -4615,25 +4788,26 @@ func (api *API) resolveCreateChatModelConfigID(
 	ctx context.Context,
 	userID uuid.UUID,
 	req codersdk.CreateChatRequest,
-) (uuid.UUID, int, *codersdk.Response) {
+) (uuid.UUID, *string, int, *codersdk.Response) {
 	if req.ModelConfigID != nil {
 		if *req.ModelConfigID == uuid.Nil {
-			return uuid.Nil, http.StatusBadRequest, &codersdk.Response{
+			return uuid.Nil, nil, http.StatusBadRequest, &codersdk.Response{
 				Message: "Invalid model config ID.",
 			}
 		}
-		return *req.ModelConfigID, 0, nil
+		return *req.ModelConfigID, nil, 0, nil
 	}
 
 	personalOverridesEnabled, err := api.Database.GetChatPersonalModelOverridesEnabled(ctx)
 	if err != nil {
-		return uuid.Nil, http.StatusInternalServerError, &codersdk.Response{
+		return uuid.Nil, nil, http.StatusInternalServerError, &codersdk.Response{
 			Message: "Failed to resolve chat model config.",
 			Detail:  err.Error(),
 		}
 	}
 	if !personalOverridesEnabled {
-		return api.defaultCreateChatModelConfigID(ctx)
+		id, status, resp := api.defaultCreateChatModelConfigID(ctx)
+		return id, nil, status, resp
 	}
 
 	raw, err := api.Database.GetUserChatPersonalModelOverride(ctx, database.GetUserChatPersonalModelOverrideParams{
@@ -4641,7 +4815,7 @@ func (api *API) resolveCreateChatModelConfigID(
 		Key:    chatd.ChatPersonalModelOverrideKey(codersdk.ChatPersonalModelOverrideContextRoot),
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return uuid.Nil, http.StatusInternalServerError, &codersdk.Response{
+		return uuid.Nil, nil, http.StatusInternalServerError, &codersdk.Response{
 			Message: "Failed to resolve chat model config.",
 			Detail:  err.Error(),
 		}
@@ -4664,19 +4838,19 @@ func (api *API) resolveCreateChatModelConfigID(
 			// For root context, chat_default and the defensive default
 			// case both fall through to the deployment default model below.
 		case codersdk.ChatPersonalModelOverrideModeModel:
-			reason, err := api.userCanUseChatModelConfig(
+			_, reason, err := api.userCanUseChatModelConfig(
 				ctx,
 				userID,
 				parsed.ModelConfigID,
 			)
 			if err != nil {
-				return uuid.Nil, http.StatusInternalServerError, &codersdk.Response{
+				return uuid.Nil, nil, http.StatusInternalServerError, &codersdk.Response{
 					Message: "Failed to resolve chat model config.",
 					Detail:  err.Error(),
 				}
 			}
 			if reason == chatModelConfigAvailable {
-				return parsed.ModelConfigID, 0, nil
+				return parsed.ModelConfigID, parsed.ReasoningEffort, 0, nil
 			}
 			api.Logger.Debug(
 				ctx,
@@ -4695,7 +4869,8 @@ func (api *API) resolveCreateChatModelConfigID(
 		}
 	}
 
-	return api.defaultCreateChatModelConfigID(ctx)
+	id, status, resp := api.defaultCreateChatModelConfigID(ctx)
+	return id, nil, status, resp
 }
 
 func (api *API) defaultCreateChatModelConfigID(
@@ -4923,7 +5098,7 @@ func (api *API) getChatModelOverride(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	modelConfigID, isMalformed, label, err := api.readChatModelOverrideConfig(ctx, overrideContext)
+	modelConfigID, reasoningEffort, isMalformed, label, err := api.readChatModelOverrideConfig(ctx, overrideContext)
 	if err != nil {
 		if label == "" {
 			label = string(overrideContext)
@@ -4936,9 +5111,10 @@ func (api *API) getChatModelOverride(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := codersdk.ChatModelOverrideResponse{
-		Context:       overrideContext,
-		ModelConfigID: formatChatModelOverride(modelConfigID),
-		IsMalformed:   isMalformed,
+		Context:         overrideContext,
+		ModelConfigID:   formatChatModelOverride(modelConfigID, nil),
+		ReasoningEffort: reasoningEffort,
+		IsMalformed:     isMalformed,
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
@@ -4961,22 +5137,34 @@ func (api *API) putChatModelOverride(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	modelConfigID, err := parseChatModelOverride(req.ModelConfigID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid model_config_id.",
-			Detail:  fmt.Sprintf("Value %q is not a valid UUID.", req.ModelConfigID),
-		})
-		return
+	var modelConfigID *uuid.UUID
+	trimmedModelConfigID := strings.TrimSpace(req.ModelConfigID)
+	if trimmedModelConfigID != "" {
+		if strings.Contains(trimmedModelConfigID, ":") {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid model_config_id.",
+				Detail:  fmt.Sprintf("Value %q is not a valid UUID.", req.ModelConfigID),
+			})
+			return
+		}
+		parsedModelConfigID, err := uuid.Parse(trimmedModelConfigID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid model_config_id.",
+				Detail:  fmt.Sprintf("Value %q is not a valid UUID.", req.ModelConfigID),
+			})
+			return
+		}
+		modelConfigID = &parsedModelConfigID
 	}
 
-	status, resp := validateChatModelOverrideID(ctx, api.Database, modelConfigID)
+	status, resp := validateChatModelOverride(ctx, api.Database, modelConfigID, req.ReasoningEffort)
 	if resp != nil {
 		httpapi.Write(ctx, rw, status, *resp)
 		return
 	}
 
-	label, err := api.upsertChatModelOverrideConfig(ctx, overrideContext, modelConfigID)
+	label, err := api.upsertChatModelOverrideConfig(ctx, overrideContext, modelConfigID, req.ReasoningEffort)
 	if err != nil {
 		if label == "" {
 			label = string(overrideContext)
@@ -5154,12 +5342,19 @@ func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http
 	}
 
 	modelConfigID := ""
+	reasoningEffort := req.ReasoningEffort
 	rawModelConfigID := strings.TrimSpace(req.ModelConfigID)
 	switch req.Mode {
 	case codersdk.ChatPersonalModelOverrideModeChatDefault:
 		if rawModelConfigID != "" {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "model_config_id must be empty unless mode is model.",
+			})
+			return
+		}
+		if reasoningEffort != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "reasoning_effort requires mode model.",
 			})
 			return
 		}
@@ -5173,6 +5368,12 @@ func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http
 		if rawModelConfigID != "" {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "model_config_id must be empty unless mode is model.",
+			})
+			return
+		}
+		if reasoningEffort != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "reasoning_effort requires mode model.",
 			})
 			return
 		}
@@ -5197,7 +5398,12 @@ func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http
 			})
 			return
 		}
-		status, resp := api.validateUserChatModelConfigAvailable(ctx, apiKey.UserID, parsedModelConfigID)
+		modelConfig, status, resp := api.validateUserChatModelConfigAvailable(ctx, apiKey.UserID, parsedModelConfigID)
+		if resp != nil {
+			httpapi.Write(ctx, rw, status, *resp)
+			return
+		}
+		status, resp = validateChatModelOverrideEffort(modelConfig, reasoningEffort)
 		if resp != nil {
 			httpapi.Write(ctx, rw, status, *resp)
 			return
@@ -5213,7 +5419,7 @@ func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http
 	if err := api.Database.UpsertUserChatPersonalModelOverride(ctx, database.UpsertUserChatPersonalModelOverrideParams{
 		UserID: apiKey.UserID,
 		Key:    chatd.ChatPersonalModelOverrideKey(overrideContext),
-		Value:  formatChatPersonalModelOverrideValue(req.Mode, modelConfigID),
+		Value:  formatChatPersonalModelOverrideValue(req.Mode, modelConfigID, reasoningEffort),
 	}); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating user personal model override.",
@@ -5238,7 +5444,7 @@ func (api *API) getChatComputerUseProvider(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatComputerUseProviderResponse{
-		Provider: chattool.DefaultComputerUseProvider(provider),
+		Provider: chattool.DefaultComputerUseProvider(codersdk.ChatComputerUseProvider(provider)),
 	})
 }
 
@@ -5254,7 +5460,7 @@ func (api *API) putChatComputerUseProvider(rw http.ResponseWriter, r *http.Reque
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	if !chattool.IsSupportedComputerUseProvider(req.Provider) {
+	if !req.Provider.Valid() {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid computer use provider.",
 			Detail: fmt.Sprintf(
@@ -5266,7 +5472,7 @@ func (api *API) putChatComputerUseProvider(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := api.Database.UpsertChatComputerUseProvider(ctx, req.Provider); err != nil {
+	if err := api.Database.UpsertChatComputerUseProvider(ctx, string(req.Provider)); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating computer use provider.",
 			Detail:  err.Error(),
@@ -5434,6 +5640,9 @@ func (api *API) getChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 	resp.MaxUsesPerRun = max(resp.MaxUsesPerRun, 0)
 	resp.MaxOutputTokens = max(resp.MaxOutputTokens, 0)
+	if resp.ModelConfigID == uuid.Nil {
+		resp.ReasoningEffort = nil
+	}
 	resp.Enabled = api.Experiments.Enabled(codersdk.ExperimentChatAdvisor)
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
@@ -5463,13 +5672,21 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if req.ModelConfigID != uuid.Nil {
+	if req.ModelConfigID == uuid.Nil {
+		if req.ReasoningEffort != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "reasoning_effort requires model_config_id.",
+			})
+			return
+		}
+	} else {
 		// Use system context because GetChatModelConfigByID requires
 		// deployment-config read access, which can be broader than the
-		// handler's explicit update check. The lookup only validates that
-		// the referenced model exists before persisting deployment config.
+		// handler's explicit update check. The lookup validates the model and
+		// any selected reasoning effort before persisting deployment config.
 		//nolint:gocritic // This admin-authorized validation lookup intentionally bypasses read authz.
-		if _, err := api.Database.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), req.ModelConfigID); err != nil {
+		modelConfig, err := api.Database.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), req.ModelConfigID)
+		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: fmt.Sprintf("model_config_id %q does not match any existing model config.", req.ModelConfigID),
@@ -5480,6 +5697,10 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 				Message: "Internal error validating advisor model config.",
 				Detail:  err.Error(),
 			})
+			return
+		}
+		if status, response := validateChatModelOverrideEffort(modelConfig, req.ReasoningEffort); response != nil {
+			httpapi.Write(ctx, rw, status, *response)
 			return
 		}
 	}
@@ -6901,6 +7122,20 @@ func validateChatModelConfigProviderModel(aiProvider database.AIProvider, model 
 	return nil
 }
 
+// inChatModelConfigWriteTx runs fn in a transaction that holds the advisory
+// lock serializing chat model config writes. All writes to the table must go
+// through this helper so concurrent writers cannot act on stale reads, e.g.
+// two creates on an empty deployment both self-promoting to default and
+// violating the idx_chat_model_configs_single_default unique index.
+func (api *API) inChatModelConfigWriteTx(ctx context.Context, fn func(tx database.Store) error) error {
+	return api.Database.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(ctx, database.LockIDChatModelConfigWrites); err != nil {
+			return xerrors.Errorf("acquire chat model config write lock: %w", err)
+		}
+		return fn(tx)
+	}, nil)
+}
+
 func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -7003,7 +7238,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var inserted database.ChatModelConfig
-	err = api.Database.InTx(func(tx database.Store) error {
+	err = api.inChatModelConfigWriteTx(ctx, func(tx database.Store) error {
 		//nolint:gocritic // The route already authorized chat model config updates.
 		lockedAIProvider, err := tx.GetAIProviderByIDForReferenceLock(dbauthz.AsChatd(ctx), insertParams.AIProviderID.UUID)
 		if err != nil {
@@ -7055,7 +7290,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 		inserted = refreshedConfig
 		return nil
-	}, nil)
+	})
 	if err != nil {
 		var providerModelErr *chatModelConfigProviderModelError
 		switch {
@@ -7212,7 +7447,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	// Re-derive the provider type under lock when the model or provider changes.
 	revalidateProviderModel := updateParams.AIProviderID.Valid && (req.AIProviderID != nil || strings.TrimSpace(req.Model) != "")
 	var updated database.ChatModelConfig
-	err = api.Database.InTx(func(tx database.Store) error {
+	err = api.inChatModelConfigWriteTx(ctx, func(tx database.Store) error {
 		if revalidateProviderModel {
 			//nolint:gocritic // The route already authorized chat model config updates.
 			aiProvider, err := tx.GetAIProviderByIDForReferenceLock(dbauthz.AsChatd(ctx), updateParams.AIProviderID.UUID)
@@ -7268,7 +7503,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 		updated = refreshedConfig
 		return nil
-	}, nil)
+	})
 	if err != nil {
 		var providerModelErr *chatModelConfigProviderModelError
 		switch {
@@ -7328,12 +7563,12 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := api.Database.InTx(func(tx database.Store) error {
+	if err := api.inChatModelConfigWriteTx(ctx, func(tx database.Store) error {
 		if err := tx.DeleteChatModelConfigByID(ctx, modelConfigID); err != nil {
 			return err
 		}
 		return ensureDefaultChatModelConfig(ctx, tx)
-	}, nil); err != nil {
+	}); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete chat model config.",
 			Detail:  err.Error(),
@@ -7473,6 +7708,12 @@ func parseChatModelConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID,
 }
 
 func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModelConfig {
+	modelConfig := unmarshalChatModelCallConfig(config.Options)
+	var reasoningEffortConfig *codersdk.ChatModelReasoningEffortConfig
+	if modelConfig != nil {
+		reasoningEffortConfig = modelConfig.ReasoningEffort
+	}
+
 	// Active configs always carry a non-null ai_provider_id (CHECK
 	// chat_model_configs_ai_provider_required_when_active).
 	return codersdk.ChatModelConfig{
@@ -7484,15 +7725,14 @@ func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModelC
 		IsDefault:            config.IsDefault,
 		ContextLimit:         config.ContextLimit,
 		CompressionThreshold: config.CompressionThreshold,
-		ModelConfig:          unmarshalChatModelCallConfig(config.Options),
+		ModelConfig:          modelConfig,
+		ReasoningEfforts:     chatprovider.SelectableReasoningEfforts(reasoningEffortConfig),
 		CreatedAt:            config.CreatedAt,
 		UpdatedAt:            config.UpdatedAt,
 	}
 }
 
-func marshalChatModelCallConfig(
-	modelConfig *codersdk.ChatModelCallConfig,
-) (json.RawMessage, error) {
+func marshalChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) (json.RawMessage, error) {
 	if modelConfig == nil {
 		return json.RawMessage("{}"), nil
 	}
@@ -7506,6 +7746,13 @@ func marshalChatModelCallConfig(
 		return nil, xerrors.Errorf("encode model config: %w", err)
 	}
 	return encoded, nil
+}
+
+func invalidReasoningEffortResponse(value string) codersdk.Response {
+	return codersdk.Response{
+		Message: "Invalid reasoning_effort value.",
+		Detail:  fmt.Sprintf("Invalid value %q, must be one of %s", value, allowedReasoningEffortValues),
+	}
 }
 
 func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) error {
@@ -7533,7 +7780,34 @@ func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) erro
 		}
 	}
 
+	if err := validateChatModelReasoningEffortConfig(modelConfig); err != nil {
+		return err
+	}
+
 	return validateChatModelProviderOptions(modelConfig.ProviderOptions)
+}
+
+// validateChatModelReasoningEffortConfig validates the reasoning_effort
+// config. Values must exactly match the global effort scale, and default
+// must not exceed max.
+func validateChatModelReasoningEffortConfig(modelConfig *codersdk.ChatModelCallConfig) error {
+	config := modelConfig.ReasoningEffort
+	if config == nil {
+		return nil
+	}
+	if config.Default == nil || config.Max == nil {
+		return xerrors.New("reasoning_effort.default and reasoning_effort.max must both be set")
+	}
+	if !chatprovider.IsValidReasoningEffort(*config.Default) {
+		return xerrors.Errorf("reasoning_effort.default %q must be one of %s", *config.Default, allowedReasoningEffortValues)
+	}
+	if !chatprovider.IsValidReasoningEffort(*config.Max) {
+		return xerrors.Errorf("reasoning_effort.max %q must be one of %s", *config.Max, allowedReasoningEffortValues)
+	}
+	if !chatprovider.ReasoningEffortLessOrEqual(*config.Default, *config.Max) {
+		return xerrors.New("reasoning_effort.default must not exceed reasoning_effort.max")
+	}
+	return nil
 }
 
 func validateChatModelProviderOptions(options *codersdk.ChatModelProviderOptions) error {
@@ -7586,6 +7860,7 @@ func isZeroChatModelCallConfig(config *codersdk.ChatModelCallConfig) bool {
 		config.TopK == nil &&
 		config.PresencePenalty == nil &&
 		config.FrequencyPenalty == nil &&
+		config.ReasoningEffort == nil &&
 		isZeroModelCostConfig(config.Cost) &&
 		isZeroChatModelProviderOptions(config.ProviderOptions)
 }

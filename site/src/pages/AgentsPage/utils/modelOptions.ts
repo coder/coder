@@ -253,6 +253,9 @@ export const getModelOptionsFromConfigs = (
 
 		const displayName = config.display_name.trim() || model;
 		const contextLimit = asNumber(config.context_limit);
+		const reasoningEffort = config.model_config?.reasoning_effort;
+		const reasoningEffortDefault = asString(reasoningEffort?.default).trim();
+		const reasoningEfforts = config.reasoning_efforts ?? [];
 		options.push({
 			id: configID,
 			provider,
@@ -262,6 +265,8 @@ export const getModelOptionsFromConfigs = (
 			model,
 			displayName,
 			...(contextLimit !== undefined ? { contextLimit } : {}),
+			...(reasoningEffortDefault ? { reasoningEffortDefault } : {}),
+			...(reasoningEfforts.length > 0 ? { reasoningEfforts } : {}),
 		});
 	}
 

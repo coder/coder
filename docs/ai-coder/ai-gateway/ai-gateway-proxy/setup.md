@@ -1,7 +1,7 @@
 # Setup
 
 AI Gateway Proxy runs inside the Coder control plane (`coderd`), requiring no separate compute to deploy or scale.
-Once enabled, `coderd` runs the `aibridgeproxyd` in-memory and intercepts traffic to supported AI providers, forwarding it to AI Gateway.
+Once enabled, `coderd` runs the AI Gateway Proxy in-process and intercepts traffic to supported AI providers, forwarding it to AI Gateway.
 
 **Required:**
 
@@ -49,6 +49,21 @@ See [Proxy TLS Configuration](#proxy-tls-configuration) for how to generate and 
 The proxy intercepts HTTPS traffic for hostnames matching the base URL of each enabled AI [Provider](../providers.md) configured in AI Gateway.
 All other traffic is tunneled through without decryption.
 
+### Proxy target
+
+Intercepted requests are forwarded to the AI Gateway, configured via [`CODER_AI_GATEWAY_PROXY_TARGET`](../../../reference/cli/server.md#--ai-gateway-proxy-target).
+By default, this is the embedded AI Gateway at `<coderd-access-url>/api/v2/ai-gateway`, and no configuration is needed.
+
+To forward intercepted requests to an AI Gateway that is not embedded in this Coder deployment, set:
+
+```shell
+CODER_AI_GATEWAY_PROXY_TARGET=https://ai-gateway.example.com/
+# or via CLI flag:
+--ai-gateway-proxy-target=https://ai-gateway.example.com/
+```
+
+The target is used as-is: the proxy appends only the provider and request path to it, and the URL must not include query parameters.
+
 For additional configuration options, see the [Coder server configuration](../../../reference/cli/server.md#options).
 
 ## Security Considerations
@@ -79,7 +94,7 @@ Requests to non-allowlisted domains are tunneled through the proxy, but connecti
 The IP validation and TCP connect happen atomically, preventing DNS rebinding attacks where the resolved address could change between the check and the connection.
 To prevent unauthorized use, restrict network access to the proxy so that only authorized clients can connect.
 
-In case the Coder access URL resolves to a private address, it is automatically exempt from this restriction so the proxy can always reach its own deployment.
+In case the AI Gateway [proxy target](#proxy-target) hostname (the Coder access URL by default) resolves to a private address, it is automatically exempt from this restriction so the proxy can always reach the configured AI Gateway.
 If you need to allow access to additional internal networks via the proxy, use the Allowlist CIDRs option ([`CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS`](../../../reference/cli/server.md#--ai-gateway-proxy-allowed-private-cidrs)):
 
 ```shell
@@ -379,7 +394,7 @@ TLS verification can fail on either leg of the connection: between AI Gateway Pr
 
 #### AI Gateway Proxy to Coder
 
-When the Coder access URL uses HTTPS, AI Gateway Proxy must trust the TLS certificate served at that URL (either Coder's
+When the AI Gateway [proxy target](#proxy-target) URL (the Coder access URL by default) uses HTTPS, AI Gateway Proxy must trust the TLS certificate served at that URL (either Coder's
 own certificate or a load balancer's, if TLS is terminated there) to forward intercepted requests to AI Gateway.
 This primarily affects deployments using a self-signed or internal CA, since publicly trusted CAs are typically already
 in the system trust store.
@@ -412,7 +427,7 @@ Gateway. Check that the provider is enabled and its base URL matches the hostnam
 `HTTPS_PROXY` points at the proxy. When interception is working, coderd logs:
 
 ```shell
-routing MITM request to aibridged
+routing MITM request to AI Gateway
 ```
 
 for each intercepted request.

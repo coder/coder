@@ -1,6 +1,6 @@
-import type { FC } from "react";
+import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery } from "react-query";
-import { Navigate, useNavigate } from "react-router";
+import { Navigate, useNavigate, useSearchParams } from "react-router";
 import { deploymentConfig } from "#/api/queries/deployment";
 import {
 	createTemplateFromBuilder,
@@ -11,13 +11,17 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { pageTitle } from "#/utils/page";
 import { TemplateBuilderPageView } from "./TemplateBuilderPageView";
-import type { TemplateBuilderWizardState } from "./wizardState";
-import { toCreateTemplateRequest } from "./wizardState";
+import type {
+	SelectedBaseMeta,
+	TemplateBuilderWizardState,
+} from "./wizardState";
+import { toCreateTemplateRequest, toSelectedBaseMeta } from "./wizardState";
 
 const TemplateBuilderPage: FC = () => {
 	const navigate = useNavigate();
 	const getLink = useLinks();
 	const { permissions } = useAuthenticated();
+	const [searchParams, setSearchParams] = useSearchParams();
 	const { data, error, isLoading } = useQuery(deploymentConfig());
 	const createMutation = useMutation(createTemplateFromBuilder());
 
@@ -28,7 +32,27 @@ const TemplateBuilderPage: FC = () => {
 		enabled: !builderDisabled && !isLoading && permissions.createTemplates,
 	});
 
-	if (isLoading) {
+	// ?base= is the only search param accepted on entry. It is consumed
+	// here: resolved against the available bases, stored in local state,
+	// and removed from the URL before the wizard mounts.
+	const baseParam = searchParams.get("base");
+	const [preselectedBase, setPreselectedBase] = useState<SelectedBaseMeta>();
+	useEffect(() => {
+		if (!baseParam || !basesQuery.data) {
+			return;
+		}
+		const match = basesQuery.data.bases?.find((b) => b.id === baseParam);
+		if (match) {
+			setPreselectedBase(toSelectedBaseMeta(match));
+		}
+		const next = new URLSearchParams(searchParams);
+		next.delete("base");
+		setSearchParams(next, { replace: true });
+	}, [baseParam, basesQuery.data, searchParams, setSearchParams]);
+
+	// Hold the wizard until ?base= has been fully consumed so it mounts
+	// exactly once with its initial state settled.
+	if (isLoading || baseParam) {
 		return <Loader />;
 	}
 
@@ -59,6 +83,7 @@ const TemplateBuilderPage: FC = () => {
 			<TemplateBuilderPageView
 				error={error}
 				basesData={basesQuery.data}
+				preselectedBase={preselectedBase}
 				onCreateTemplate={handleCreate}
 				createError={createMutation.error}
 				isCreating={createMutation.isPending}

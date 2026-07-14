@@ -6,6 +6,7 @@ import { useTemporarySavedState } from "#/components/TemporarySavedState/Tempora
 import { ModelSelector } from "#/pages/AgentsPage/components/ChatElements/ModelSelector";
 import { ModelOverrideAlerts } from "#/pages/AgentsPage/components/ModelOverrideAlerts";
 import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
+import { pickReasoningEffort } from "#/pages/AgentsPage/utils/reasoningEffort";
 import { AgentSettingLayout } from "./AgentSettingLayout";
 
 export interface MutationCallbacks {
@@ -15,11 +16,13 @@ export interface MutationCallbacks {
 
 interface ModelOverrideData {
 	readonly model_config_id: string;
+	readonly reasoning_effort?: string;
 	readonly is_malformed: boolean;
 }
 
 interface UpdateModelOverrideRequest {
 	readonly model_config_id: string;
+	readonly reasoning_effort?: string;
 }
 
 interface SubagentModelOverrideSettingsProps {
@@ -65,6 +68,8 @@ export const SubagentModelOverrideSettings: FC<
 	const isMalformedOverride = modelOverrideData?.is_malformed ?? false;
 	const enabledModelOptions = enabledModelConfigs.map((modelConfig) => {
 		const providerInfo = providerInfoByID.get(modelConfig.ai_provider_id);
+		const reasoningEffort = modelConfig.model_config?.reasoning_effort;
+		const reasoningEfforts = modelConfig.reasoning_efforts ?? [];
 		return {
 			id: modelConfig.id,
 			provider: providerInfo?.provider ?? "",
@@ -74,6 +79,10 @@ export const SubagentModelOverrideSettings: FC<
 			model: modelConfig.model,
 			displayName: modelConfig.display_name.trim() || modelConfig.model,
 			contextLimit: modelConfig.context_limit,
+			...(reasoningEffort?.default
+				? { reasoningEffortDefault: reasoningEffort.default }
+				: {}),
+			...(reasoningEfforts.length > 0 ? { reasoningEfforts } : {}),
 		};
 	});
 
@@ -81,11 +90,15 @@ export const SubagentModelOverrideSettings: FC<
 		enableReinitialize: true,
 		initialValues: {
 			model_config_id: modelOverrideData?.model_config_id ?? "",
+			reasoning_effort: modelOverrideData?.reasoning_effort ?? "",
 		},
 		onSubmit: (values, { resetForm }) => {
 			onSaveModelOverride(
 				{
 					model_config_id: values.model_config_id,
+					...(values.reasoning_effort
+						? { reasoning_effort: values.reasoning_effort }
+						: {}),
 				},
 				{
 					onSuccess: () => {
@@ -101,11 +114,18 @@ export const SubagentModelOverrideSettings: FC<
 	const canSave =
 		hasLoadedModelOverride && !disabled && (form.dirty || isMalformedOverride);
 
+	const selectedModelOption = enabledModelOptions.find(
+		(option) => option.id === form.values.model_config_id,
+	);
+	const selectedReasoningEffort = selectedModelOption
+		? pickReasoningEffort(
+				form.values.reasoning_effort,
+				selectedModelOption.reasoningEfforts ?? [],
+				selectedModelOption.reasoningEffortDefault,
+			)
+		: undefined;
 	const isUnavailableSavedModel =
-		form.values.model_config_id !== "" &&
-		!enabledModelOptions.some(
-			(option) => option.id === form.values.model_config_id,
-		);
+		form.values.model_config_id !== "" && selectedModelOption === undefined;
 
 	return (
 		<AgentSettingLayout
@@ -124,9 +144,20 @@ export const SubagentModelOverrideSettings: FC<
 				<ModelSelector
 					options={enabledModelOptions}
 					value={form.values.model_config_id}
-					onValueChange={(value) =>
-						void form.setFieldValue("model_config_id", value)
-					}
+					onValueChange={(value) => {
+						const option = enabledModelOptions.find(
+							(option) => option.id === value,
+						);
+						void form.setValues({
+							model_config_id: value,
+							reasoning_effort:
+								pickReasoningEffort(
+									"",
+									option?.reasoningEfforts ?? [],
+									option?.reasoningEffortDefault,
+								) ?? "",
+						});
+					}}
 					disabled={isFormDisabled}
 					placeholder={
 						isUnavailableSavedModel ? "Unavailable model" : unsetPlaceholder
@@ -136,6 +167,10 @@ export const SubagentModelOverrideSettings: FC<
 					}
 					className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm"
 					contentClassName="min-w-[18rem]"
+					reasoningEffort={selectedReasoningEffort}
+					onReasoningEffortChange={(value) =>
+						void form.setFieldValue("reasoning_effort", value)
+					}
 				/>
 				<ModelOverrideAlerts
 					isUnavailableSavedModel={isUnavailableSavedModel}
@@ -150,7 +185,10 @@ export const SubagentModelOverrideSettings: FC<
 				variant="outline"
 				type="button"
 				onClick={() => {
-					void form.setFieldValue("model_config_id", "");
+					void form.setValues({
+						model_config_id: "",
+						reasoning_effort: "",
+					});
 				}}
 				disabled={isFormDisabled}
 				className="h-10"

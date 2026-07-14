@@ -218,6 +218,79 @@ export const EditUpdateDisabledUntilDirty: Story = {
 	},
 };
 
+export const ReasoningEffortVisibleWithoutExpanding: Story = {
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+
+		const defaultSelect = canvas.getByRole("combobox", {
+			name: /default reasoning effort/i,
+		});
+		const maxSelect = canvas.getByRole("combobox", {
+			name: /max reasoning effort/i,
+		});
+		await expect(defaultSelect).toBeVisible();
+		await expect(maxSelect).toBeVisible();
+		await expect(defaultSelect).toHaveTextContent("Not set");
+		await expect(maxSelect).toHaveTextContent("Not set");
+
+		await userEvent.type(canvas.getByLabelText(/model identifier/i), "gpt-5");
+		await userEvent.type(canvas.getByLabelText(/context limit/i), "200000");
+
+		await userEvent.click(defaultSelect);
+		for (const option of [
+			"None",
+			"Minimal",
+			"Low",
+			"Medium",
+			"High",
+			"Xhigh",
+			"Max",
+		]) {
+			await expect(
+				await screen.findByRole("option", { name: option }),
+			).toBeInTheDocument();
+		}
+		await userEvent.click(
+			await screen.findByRole("option", { name: "Medium" }),
+		);
+
+		await userEvent.click(maxSelect);
+		await userEvent.click(await screen.findByRole("option", { name: "Max" }));
+
+		await userEvent.click(canvas.getByRole("button", { name: /add model/i }));
+		await expect(args.onCreateModel).toHaveBeenCalledWith(
+			expect.objectContaining({
+				model_config: expect.objectContaining({
+					reasoning_effort: { default: "medium", max: "max" },
+				}),
+			}),
+		);
+	},
+};
+
+export const ReasoningEffortValidationError: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const defaultSelect = canvas.getByRole("combobox", {
+			name: /default reasoning effort/i,
+		});
+		const maxSelect = canvas.getByRole("combobox", {
+			name: /max reasoning effort/i,
+		});
+
+		await userEvent.click(defaultSelect);
+		await userEvent.click(await screen.findByRole("option", { name: "High" }));
+		await userEvent.click(maxSelect);
+		await userEvent.click(await screen.findByRole("option", { name: "Low" }));
+
+		await expect(
+			canvas.getByText(
+				"Default reasoning effort must not exceed the max reasoning effort.",
+			),
+		).toBeVisible();
+	},
+};
+
 export const CostTrackingExpanded: Story = {
 	args: {
 		editingModel: mockGPT5,

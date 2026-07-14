@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -1489,7 +1490,7 @@ func TestResolveConfiguredModelOverride_AcceptsAmbientCredentialsProvider(
 		Enabled:     true,
 	}
 
-	resolvedModelConfig, ok, err := server.resolveConfiguredModelOverride(
+	resolvedModelConfig, _, reasoningEffort, ok, err := server.resolveConfiguredModelOverride(
 		ctx,
 		"plan",
 		modelConfig.ID.String(),
@@ -1514,12 +1515,83 @@ func TestResolveConfiguredModelOverride_AcceptsAmbientCredentialsProvider(
 		modelOverrideFailureModeSoft,
 	)
 	require.NoError(t, err)
+	require.Nil(t, reasoningEffort)
 	require.True(t, ok)
 	require.Equal(t, modelConfig, resolvedModelConfig)
 	require.Empty(t, logSink.entriesAtLevelWithMessage(
 		slog.LevelInfo,
 		"model override credentials are unavailable, ignoring",
 	))
+}
+
+func TestWithResolvedReasoningEffort(t *testing.T) {
+	t.Parallel()
+
+	baseOptions, err := json.Marshal(codersdk.ChatModelCallConfig{
+		MaxOutputTokens: ptr.Ref(int64(123)),
+		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+			Default: ptr.Ref(codersdk.ChatModelReasoningEffortLow),
+			Max:     ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+		},
+	})
+	require.NoError(t, err)
+
+	t.Run("NilEffortReturnsOriginalConfig", func(t *testing.T) {
+		t.Parallel()
+		modelConfig := database.ChatModelConfig{Options: baseOptions}
+		require.Equal(t, modelConfig, withResolvedReasoningEffort(modelConfig, nil))
+	})
+
+	t.Run("InvalidJSONReturnsOriginalConfig", func(t *testing.T) {
+		t.Parallel()
+		modelConfig := database.ChatModelConfig{Options: []byte(`{`)}
+		require.Equal(t, modelConfig, withResolvedReasoningEffort(modelConfig, ptr.Ref(codersdk.ChatModelReasoningEffortHigh)))
+	})
+
+	t.Run("NoReasoningConfigReturnsOriginalConfig", func(t *testing.T) {
+		t.Parallel()
+		modelConfig := database.ChatModelConfig{Options: []byte(`{"max_output_tokens":123}`)}
+		require.Equal(t, modelConfig, withResolvedReasoningEffort(modelConfig, ptr.Ref(codersdk.ChatModelReasoningEffortHigh)))
+	})
+
+	t.Run("ClampsRequestedEffortAndPreservesOtherOptions", func(t *testing.T) {
+		t.Parallel()
+		modelConfig := database.ChatModelConfig{Options: baseOptions}
+
+		got := withResolvedReasoningEffort(modelConfig, ptr.Ref(codersdk.ChatModelReasoningEffortXHigh))
+
+		var callConfig codersdk.ChatModelCallConfig
+		require.NoError(t, json.Unmarshal(got.Options, &callConfig))
+		require.Equal(t, ptr.Ref(int64(123)), callConfig.MaxOutputTokens)
+		require.Equal(t, ptr.Ref(codersdk.ChatModelReasoningEffortHigh), callConfig.ReasoningEffort.Default)
+		require.Equal(t, ptr.Ref(codersdk.ChatModelReasoningEffortHigh), callConfig.ReasoningEffort.Max)
+	})
+}
+
+func TestCreateChildSubagentChat_StoresReasoningEffortOverride(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-effort-override",
+	)
+	ctx = aibridge.WithDelegatedAPIKeyID(ctx, testAPIKeyID(t, server.db, parentChat.OwnerID))
+	child, err := server.createChildSubagentChatWithOptions(
+		ctx,
+		parentChat,
+		"delegate work",
+		"",
+		childSubagentChatOptions{reasoningEffortOverride: ptr.Ref("high")},
+	)
+	require.NoError(t, err)
+
+	childChat, err := db.GetChatByID(ctx, child.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true}, childChat.LastReasoningEffort)
 }
 
 func TestCreateChildSubagentChat_OverrideWorksWhenParentHasNoModel(t *testing.T) {
@@ -2407,7 +2479,7 @@ func TestSpawnAgent_ComputerUseAvailabilityUsesConfiguredProvider(t *testing.T) 
 	ctx := chatdTestContext(t)
 	require.NoError(t, db.UpsertChatComputerUseProvider(
 		ctx,
-		chattool.ComputerUseProviderOpenAI,
+		string(codersdk.ChatComputerUseProviderOpenAI),
 	))
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
@@ -2427,7 +2499,7 @@ func TestSpawnAgent_ComputerUseRejectsMissingConfiguredProvider(t *testing.T) {
 	ctx := chatdTestContext(t)
 	require.NoError(t, db.UpsertChatComputerUseProvider(
 		ctx,
-		chattool.ComputerUseProviderOpenAI,
+		string(codersdk.ChatComputerUseProviderOpenAI),
 	))
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
@@ -2441,7 +2513,7 @@ func TestSpawnAgent_ComputerUseRejectsMissingConfiguredProvider(t *testing.T) {
 	model := insertInternalChatModelConfigForProvider(
 		t,
 		db,
-		chattool.ComputerUseProviderOpenAI,
+		string(codersdk.ChatComputerUseProviderOpenAI),
 		"gpt-4o-mini",
 		true,
 	)
@@ -2849,7 +2921,7 @@ func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 	require.Equal(t, parentChat.AgentID, childChat.AgentID)
 	require.True(t, childChat.Mode.Valid)
 	assert.Equal(t, database.ChatModeComputerUse, childChat.Mode.ChatMode)
-	computerUseModelProvider, computerUseModelName, ok := chattool.DefaultComputerUseModel(chattool.ComputerUseProviderAnthropic)
+	computerUseModelProvider, computerUseModelName, ok := chattool.DefaultComputerUseModel(codersdk.ChatComputerUseProviderAnthropic)
 	require.True(t, ok)
 	assert.NotEqual(t, string(seedProvider.Type), computerUseModelProvider,
 		"computer use model provider must differ from parent model provider")

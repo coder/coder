@@ -122,9 +122,6 @@ importers:
       '@xterm/xterm':
         specifier: 5.5.0
         version: 5.5.0
-      ansi-to-html:
-        specifier: 0.7.2
-        version: 0.7.2
       axios:
         specifier: 1.16.1
         version: 1.16.1
@@ -158,6 +155,9 @@ importers:
       emoji-mart:
         specifier: 5.6.0
         version: 5.6.0
+      fancy-ansi:
+        specifier: 0.1.3
+        version: 0.1.3
       file-saver:
         specifier: 2.0.5
         version: 2.0.5
@@ -3097,11 +3097,6 @@ packages:
     resolution: {integrity: sha512-4Dj6M28JB+oAH8kFkTLUo+a2jwOFkuqb3yucU0CANcRRUbxS0cP0nZYCGjcc3BNXwRIsUVmDGgzawme7zvJHvg==, tarball: https://registry.npmjs.org/ansi-styles/-/ansi-styles-6.2.3.tgz}
     engines: {node: '>=12'}
 
-  ansi-to-html@0.7.2:
-    resolution: {integrity: sha512-v6MqmEpNlxF+POuyhKkidusCHWWkaLcGRURzivcU3I9tv7k4JVhFcnukrM5Rlk2rUywdZuzYAZ+kbZqWCnfN3g==, tarball: https://registry.npmjs.org/ansi-to-html/-/ansi-to-html-0.7.2.tgz}
-    engines: {node: '>=8.0.0'}
-    hasBin: true
-
   any-promise@1.3.0:
     resolution: {integrity: sha512-7UvmKalWRt1wgjL1RrGxoSJW/0QZFIegpeGvZG9kjp8vrRu55XTHbwnqq2GpXm9uLbcuhxm3IqX9OB4MZR1b2A==, tarball: https://registry.npmjs.org/any-promise/-/any-promise-1.3.0.tgz}
 
@@ -3864,9 +3859,6 @@ packages:
     resolution: {integrity: sha512-Q0n9HRi4m6JuGIV1eFlmvJB7ZEVxu93IrMyiMsGC0lrMJMWzRgx6WGquyfQgZVb31vhGgXnfmPNNXmxnOkRBrg==, tarball: https://registry.npmjs.org/encodeurl/-/encodeurl-2.0.0.tgz}
     engines: {node: '>= 0.8'}
 
-  entities@2.2.0:
-    resolution: {integrity: sha512-p92if5Nz619I0w+akJrLZH0MX0Pb5DX39XOwQTtXSdQQOaYH03S1uIQp4mhOZtAXrxq4ViO67YTiLBo2638o9A==, tarball: https://registry.npmjs.org/entities/-/entities-2.2.0.tgz}
-
   entities@6.0.1:
     resolution: {integrity: sha512-aN97NXWF6AWBTahfVOIrB/NShkzi5H7F9r1s9mD3cDj4Ko5f2qhhVoYMibXF7GlLveb/D2ioWay8lxI97Ven3g==, tarball: https://registry.npmjs.org/entities/-/entities-6.0.1.tgz}
     engines: {node: '>=0.12'}
@@ -3954,6 +3946,9 @@ packages:
 
   extend@3.0.2:
     resolution: {integrity: sha512-fjquC59cD7CyW6urNXK0FBufkZcoiGG80wTuPujX590cB5Ttln20E2UB4S/WARVqhXffZl2LNgS+gQdPIIim/g==, tarball: https://registry.npmjs.org/extend/-/extend-3.0.2.tgz}
+
+  fancy-ansi@0.1.3:
+    resolution: {integrity: sha512-tRQVTo5jjdSIiydqgzIIEZpKddzSsfGLsSVt6vWdjVm7fbvDTiQkyoPu6Z3dIPlAM4OZk0jP5jmTCX4G8WGgBw==, tarball: https://registry.npmjs.org/fancy-ansi/-/fancy-ansi-0.1.3.tgz}
 
   fast-equals@5.3.2:
     resolution: {integrity: sha512-6rxyATwPCkaFIL3JLqw8qXqMpIZ942pTX/tbQFkRsDGblS8tNGtlUauA/+mt6RUfqn/4MoEr+WDkYoIQbibWuQ==, tarball: https://registry.npmjs.org/fast-equals/-/fast-equals-5.3.2.tgz}
@@ -9313,10 +9308,6 @@ snapshots:
 
   ansi-styles@6.2.3: {}
 
-  ansi-to-html@0.7.2:
-    dependencies:
-      entities: 2.2.0
-
   any-promise@1.3.0: {}
 
   anymatch@3.1.3:
@@ -10078,8 +10069,6 @@ snapshots:
 
   encodeurl@2.0.0: {}
 
-  entities@2.2.0: {}
-
   entities@6.0.1: {}
 
   error-ex@1.3.2:
@@ -10209,6 +10198,10 @@ snapshots:
       - supports-color
 
   extend@3.0.2: {}
+
+  fancy-ansi@0.1.3:
+    dependencies:
+      escape-html: 1.0.3
 
   fast-equals@5.3.2: {}
 

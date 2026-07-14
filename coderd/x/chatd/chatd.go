@@ -39,8 +39,8 @@ import (
 	"github.com/coder/coder/v2/coderd/util/xjson"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatcost"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
@@ -49,7 +49,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
-	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
@@ -69,6 +68,7 @@ const (
 	homeInstructionLookupTimeout = 5 * time.Second
 	workspaceDialValidationDelay = 5 * time.Second
 	turnStatusLabelWriteTimeout  = 5 * time.Second
+	manualTitlePersistTimeout    = 5 * time.Second
 	// defaultDialTimeout matches the timeout used by ~8 other
 	// server-side AgentConn callers.
 	defaultDialTimeout = 30 * time.Second
@@ -350,6 +350,19 @@ func (p *Server) resolveAdvisorModelOverride(
 		return fallbackModel, fallbackCallConfig, nil
 	}
 
+	if advisorCfg.ReasoningEffort != nil {
+		resolvedEffort := chatprovider.ResolveReasoningEffort(
+			advisorCfg.ReasoningEffort,
+			overrideCallConfig.ReasoningEffort,
+		)
+		if resolvedEffort != nil {
+			overrideCallConfig.ReasoningEffort = &codersdk.ChatModelReasoningEffortConfig{
+				Default: resolvedEffort,
+				Max:     resolvedEffort,
+			}
+		}
+	}
+
 	return overrideModel, overrideCallConfig, nil
 }
 
@@ -398,9 +411,20 @@ func (p *Server) newAdvisorRuntime(
 	}
 
 	advisorCallConfig.MaxOutputTokens = ptr.Ref(maxOutputTokens)
+	// The override resolver pins an explicit advisor effort into the model
+	// config. Fallback models keep their configured default effort.
+	advisorReasoningEffort := chatprovider.ResolveReasoningEffort(
+		nil,
+		advisorCallConfig.ReasoningEffort,
+	)
 	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
 		advisorModel,
 		advisorCallConfig.ProviderOptions,
+	)
+	providerOptions = chatprovider.ApplyReasoningEffort(
+		advisorModel,
+		providerOptions,
+		advisorReasoningEffort,
 	)
 
 	rt, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
@@ -1131,6 +1155,7 @@ type CreateOptions struct {
 	RootChatID         uuid.NullUUID
 	Title              string
 	ModelConfigID      uuid.UUID
+	ReasoningEffort    *string
 	ChatMode           database.NullChatMode
 	PlanMode           database.NullChatPlanMode
 	ClientType         database.ChatClientType
@@ -1157,14 +1182,15 @@ const (
 
 // SendMessageOptions controls user message insertion with busy-state behavior.
 type SendMessageOptions struct {
-	ChatID        uuid.UUID
-	CreatedBy     uuid.UUID
-	Content       []codersdk.ChatMessagePart
-	ModelConfigID uuid.UUID
-	APIKeyID      string
-	BusyBehavior  SendMessageBusyBehavior
-	PlanMode      *database.NullChatPlanMode
-	MCPServerIDs  *[]uuid.UUID
+	ChatID          uuid.UUID
+	CreatedBy       uuid.UUID
+	Content         []codersdk.ChatMessagePart
+	ModelConfigID   uuid.UUID
+	ReasoningEffort *string
+	APIKeyID        string
+	BusyBehavior    SendMessageBusyBehavior
+	PlanMode        *database.NullChatPlanMode
+	MCPServerIDs    *[]uuid.UUID
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -1185,7 +1211,8 @@ type EditMessageOptions struct {
 	// ModelConfigID, when non-zero, overrides the model used for
 	// the replacement user message. When set to uuid.Nil the
 	// original message's model is preserved.
-	ModelConfigID uuid.UUID
+	ModelConfigID   uuid.UUID
+	ReasoningEffort *string
 }
 
 // EditMessageResult contains the replacement user message and chat status.
@@ -1299,7 +1326,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		initialMessages = append(initialMessages, systemMessage(userPromptContent, opts.ModelConfigID))
 	}
 	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, opts.ModelConfigID))
-	initialMessages = append(initialMessages, userMessageWithAPIKeyID(userContent, opts.ModelConfigID, opts.OwnerID, opts.APIKeyID))
+	initialMessages = append(initialMessages, userMessageWithAPIKeyID(userContent, opts.ModelConfigID, opts.OwnerID, opts.APIKeyID, opts.ReasoningEffort))
 
 	result, err := chatstate.CreateChat(ctx, p.db, p.pubsub, chatstate.CreateChatInput{
 		OrganizationID:    opts.OrganizationID,
@@ -1446,7 +1473,7 @@ func (p *Server) SendMessage(
 		// Queue capacity is enforced inside tx.SendMessage; this
 		// wrapper only propagates the typed error.
 		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
-			Message:      userMessageWithAPIKeyID(content, modelConfigID, messageCreatedBy, opts.APIKeyID),
+			Message:      userMessageWithAPIKeyID(content, modelConfigID, messageCreatedBy, opts.APIKeyID, opts.ReasoningEffort),
 			BusyBehavior: busyBehaviorToChatState(busyBehavior),
 		})
 		if err != nil {
@@ -1654,12 +1681,18 @@ func (p *Server) EditMessage(
 			modelOverride = uuid.NullUUID{UUID: opts.ModelConfigID, Valid: true}
 		}
 
+		var reasoningEffortOverride database.NullChatReasoningEffort
+		if opts.ReasoningEffort != nil && *opts.ReasoningEffort != "" {
+			reasoningEffortOverride = database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffort(*opts.ReasoningEffort), Valid: true}
+		}
+
 		editResult, err := tx.EditMessage(chatstate.EditMessageInput{
-			MessageID:             opts.EditedMessageID,
-			CreatedBy:             opts.CreatedBy,
-			Content:               content,
-			ModelConfigIDOverride: modelOverride,
-			APIKeyID:              sql.NullString{String: opts.APIKeyID, Valid: opts.APIKeyID != ""},
+			MessageID:               opts.EditedMessageID,
+			CreatedBy:               opts.CreatedBy,
+			Content:                 content,
+			ModelConfigIDOverride:   modelOverride,
+			ReasoningEffortOverride: reasoningEffortOverride,
+			APIKeyID:                sql.NullString{String: opts.APIKeyID, Valid: opts.APIKeyID != ""},
 		})
 		if err != nil {
 			if errors.Is(err, chatstate.ErrEditedMessageNotUser) {
@@ -2109,21 +2142,6 @@ func (p *Server) ReconcileInvalidStateChat(
 
 const manualTitleMessageWindowLimit = 50
 
-type manualTitleCandidateResult struct {
-	title          string
-	modelConfig    database.ChatModelConfig
-	usage          fantasy.Usage
-	activeAPIKeyID string
-	hasMessages    bool
-}
-
-type manualTitleGenerationError struct {
-	cause          error
-	modelConfig    database.ChatModelConfig
-	usage          fantasy.Usage
-	activeAPIKeyID string
-}
-
 // generatedChatTitle carries the title produced by the detached
 // automatic title-generation goroutine. maybeGenerateChatTitle stores
 // the generated title here so tests can observe it without a database
@@ -2157,14 +2175,6 @@ func (t *generatedChatTitle) Load() (string, bool) {
 	return t.title, true
 }
 
-func (e *manualTitleGenerationError) Error() string {
-	return e.cause.Error()
-}
-
-func (e *manualTitleGenerationError) Unwrap() error {
-	return e.cause
-}
-
 // RegenerateChatTitle regenerates a chat title from the chat's visible
 // messages, persists it when it changes, and broadcasts the update.
 func (p *Server) RegenerateChatTitle(
@@ -2175,15 +2185,11 @@ func (p *Server) RegenerateChatTitle(
 	// keeping chat ownership authorization at the HTTP layer.
 	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	updatedChat, err := p.regenerateChatTitleWithStore(
+	return p.regenerateChatTitleWithStore(
 		chatdCtx,
 		p.db,
 		chat,
 	)
-	if err != nil {
-		return database.Chat{}, p.recordManualTitleGenerationFailure(ctx, chat, err)
-	}
-	return updatedChat, nil
 }
 
 // RenameChatTitle persists a user-supplied chat title.
@@ -2223,57 +2229,20 @@ func (p *Server) ProposeChatTitle(
 ) (string, error) {
 	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	title, err := p.proposeChatTitleWithStore(chatdCtx, p.db, chat)
-	if err != nil {
-		return "", p.recordManualTitleGenerationFailure(ctx, chat, err)
-	}
-	return title, nil
+	return p.generateManualTitleCandidate(chatdCtx, p.db, chat)
 }
 
-func (p *Server) recordManualTitleGenerationFailure(
-	ctx context.Context,
-	chat database.Chat,
-	err error,
-) error {
-	var generationErr *manualTitleGenerationError
-	if !errors.As(err, &generationErr) {
-		return err
-	}
-
-	//nolint:gocritic // Failure accounting still needs chatd-scoped config reads.
-	recordCtx, recordCancel := context.WithTimeout(
-		dbauthz.AsChatd(context.WithoutCancel(ctx)),
-		5*time.Second,
-	)
-	defer recordCancel()
-	if _, _, recordErr := recordManualTitleUsage(
-		recordCtx,
-		p.db,
-		chat,
-		generationErr.modelConfig,
-		generationErr.usage,
-		generationErr.activeAPIKeyID,
-		"",
-	); recordErr != nil {
-		return errors.Join(
-			generationErr,
-			xerrors.Errorf("record manual title usage: %w", recordErr),
-		)
-	}
-	return generationErr
-}
-
-// generateManualTitleCandidate performs only model generation and returns the
-// candidate plus accounting metadata. Endpoint-specific commit paths are
-// responsible for recording usage and deciding whether to persist the title.
+// generateManualTitleCandidate generates a title candidate from the chat's
+// visible messages. It returns "" when the chat has no messages to summarize.
+// Endpoint-specific commit paths decide whether to persist the title.
 // The context may carry the caller's delegated API key for manual title routes.
 func (p *Server) generateManualTitleCandidate(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
-) (manualTitleCandidateResult, error) {
+) (string, error) {
 	if limitErr := p.checkUsageLimit(ctx, store, chat.OwnerID, uuid.NullUUID{UUID: chat.OrganizationID, Valid: true}); limitErr != nil {
-		return manualTitleCandidateResult{}, limitErr
+		return "", limitErr
 	}
 
 	headMessages, err := store.GetChatMessagesByChatIDAscPaginated(
@@ -2285,7 +2254,7 @@ func (p *Server) generateManualTitleCandidate(
 		},
 	)
 	if err != nil {
-		return manualTitleCandidateResult{}, xerrors.Errorf("get head chat messages: %w", err)
+		return "", xerrors.Errorf("get head chat messages: %w", err)
 	}
 	tailMessages, err := store.GetChatMessagesByChatIDDescPaginated(
 		ctx,
@@ -2296,15 +2265,15 @@ func (p *Server) generateManualTitleCandidate(
 		},
 	)
 	if err != nil {
-		return manualTitleCandidateResult{}, xerrors.Errorf("get tail chat messages: %w", err)
+		return "", xerrors.Errorf("get tail chat messages: %w", err)
 	}
 	messages := mergeManualTitleMessages(headMessages, tailMessages)
 	if len(messages) == 0 {
-		return manualTitleCandidateResult{}, nil
+		return "", nil
 	}
 	pasteText, err := titlePasteText(ctx, store, messages)
 	if err != nil {
-		return manualTitleCandidateResult{}, xerrors.Errorf("get pasted-text attachments for manual title: %w", err)
+		return "", xerrors.Errorf("get pasted-text attachments for manual title: %w", err)
 	}
 	modelOpts := modelBuildOptionsFromMessages(messages)
 	// Manual title routes can run over messages that lack API key attribution.
@@ -2316,13 +2285,8 @@ func (p *Server) generateManualTitleCandidate(
 	}
 
 	model, modelConfig, err := p.resolveManualTitleModel(ctx, store, chat, modelOpts)
-	result := manualTitleCandidateResult{
-		modelConfig:    modelConfig,
-		activeAPIKeyID: modelOpts.ActiveAPIKeyID,
-		hasMessages:    true,
-	}
 	if err != nil {
-		return result, err
+		return "", err
 	}
 
 	titleCtx := ctx
@@ -2340,53 +2304,19 @@ func (p *Server) generateManualTitleCandidate(
 		)
 	}
 
-	title, usage, err := generateManualTitle(titleCtx, messages, pasteText, titleModel)
+	title, err := generateManualTitle(
+		titleCtx,
+		messages,
+		pasteText,
+		titleModel,
+		p.titleGenerationProviderOptions(ctx, titleModel, modelConfig),
+	)
 	finishDebugRun(err)
-	result.title = title
-	result.usage = usage
 	if err != nil {
-		wrappedErr := xerrors.Errorf("generate manual title: %w", err)
-		if usage == (fantasy.Usage{}) {
-			return result, wrappedErr
-		}
-		return result, &manualTitleGenerationError{
-			cause:          wrappedErr,
-			modelConfig:    modelConfig,
-			usage:          usage,
-			activeAPIKeyID: modelOpts.ActiveAPIKeyID,
-		}
+		return "", xerrors.Errorf("generate manual title: %w", err)
 	}
 
-	return result, nil
-}
-
-func (p *Server) proposeChatTitleWithStore(
-	ctx context.Context,
-	store database.Store,
-	chat database.Chat,
-) (string, error) {
-	result, err := p.generateManualTitleCandidate(ctx, store, chat)
-	if err != nil {
-		return "", err
-	}
-	if !result.hasMessages {
-		return "", nil
-	}
-
-	recordCtx, recordCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-	defer recordCancel()
-	if _, _, recordErr := recordManualTitleUsage(
-		recordCtx,
-		store,
-		chat,
-		result.modelConfig,
-		result.usage,
-		result.activeAPIKeyID,
-		"",
-	); recordErr != nil {
-		return "", xerrors.Errorf("record manual title usage: %w", recordErr)
-	}
-	return result.title, nil
+	return title, nil
 }
 
 func (p *Server) regenerateChatTitleWithStore(
@@ -2394,31 +2324,22 @@ func (p *Server) regenerateChatTitleWithStore(
 	store database.Store,
 	chat database.Chat,
 ) (database.Chat, error) {
-	result, err := p.generateManualTitleCandidate(ctx, store, chat)
+	title, err := p.generateManualTitleCandidate(ctx, store, chat)
 	if err != nil {
 		return database.Chat{}, err
 	}
-	if !result.hasMessages {
+	if title == "" {
 		return chat, nil
 	}
 
-	recordCtx, recordCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-	defer recordCancel()
+	// Generation already happened; don't let a client disconnect drop the
+	// title write.
+	persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), manualTitlePersistTimeout)
+	defer persistCancel()
 
-	updatedChat, wroteTitle, recordErr := recordManualTitleUsage(
-		recordCtx,
-		store,
-		chat,
-		result.modelConfig,
-		result.usage,
-		result.activeAPIKeyID,
-		result.title,
-	)
-	if recordErr != nil {
-		if result.title != "" {
-			return database.Chat{}, xerrors.Errorf("record manual title usage and update chat title: %w", recordErr)
-		}
-		return database.Chat{}, xerrors.Errorf("record manual title usage: %w", recordErr)
+	updatedChat, wroteTitle, err := persistManualTitle(persistCtx, store, chat, title)
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("update chat title: %w", err)
 	}
 	// Publish only when this regeneration wrote the title. When a
 	// concurrent rename won the race, the rename path already published
@@ -2728,115 +2649,29 @@ func mergeManualTitleMessages(
 	return merged
 }
 
-func fantasyUsageToChatMessageUsage(usage fantasy.Usage) codersdk.ChatMessageUsage {
-	var chatUsage codersdk.ChatMessageUsage
-	if usage.InputTokens != 0 {
-		chatUsage.InputTokens = ptr.Ref(usage.InputTokens)
-	}
-	if usage.OutputTokens != 0 {
-		chatUsage.OutputTokens = ptr.Ref(usage.OutputTokens)
-	}
-	if usage.ReasoningTokens != 0 {
-		chatUsage.ReasoningTokens = ptr.Ref(usage.ReasoningTokens)
-	}
-	if usage.CacheCreationTokens != 0 {
-		chatUsage.CacheCreationTokens = ptr.Ref(usage.CacheCreationTokens)
-	}
-	if usage.CacheReadTokens != 0 {
-		chatUsage.CacheReadTokens = ptr.Ref(usage.CacheReadTokens)
-	}
-	return chatUsage
-}
-
-// recordManualTitleUsage stores token accounting for a manual title
-// generation and, when newTitle is set, persists it only if the chat
-// title still matches the caller's snapshot. The returned bool reports
-// whether the title was actually written; it is false when newTitle is
-// empty, when a concurrent writer changed the title first, or when
-// newTitle matches the current title.
-func recordManualTitleUsage(
+// persistManualTitle writes newTitle only if the chat title still
+// matches the caller's snapshot. The returned bool reports whether the
+// title was actually written; it is false when a concurrent writer
+// changed the title first or when newTitle matches the current title.
+// Token usage for manual title generation is not recorded here; AI
+// Gateway tracks it independently, and writing to chat_messages outside
+// the chatstate state machine would break in-flight task fences.
+func persistManualTitle(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
-	modelConfig database.ChatModelConfig,
-	usage fantasy.Usage,
-	activeAPIKeyID string,
 	newTitle string,
 ) (database.Chat, bool, error) {
-	hasUsage := usage != (fantasy.Usage{})
-	if !hasUsage && newTitle == "" {
-		return chat, false, nil
-	}
-
-	var totalCostMicros *int64
-	if hasUsage {
-		callConfig := codersdk.ChatModelCallConfig{}
-		if len(modelConfig.Options) > 0 {
-			if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
-				return database.Chat{}, false, xerrors.Errorf("parse model call config: %w", err)
-			}
-		}
-		totalCostMicros = chatcost.CalculateTotalCostMicros(
-			fantasyUsageToChatMessageUsage(usage),
-			callConfig.Cost,
-		)
-	}
-
-	// Use a valid empty JSON array for the content column.
-	// MarshalParts returns a null NullRawMessage for empty
-	// slices, which becomes an empty string that PostgreSQL
-	// rejects as invalid JSON.
-	content := "[]"
-
 	updatedChat := chat
 	wroteTitle := false
 	err := store.InTx(func(tx database.Store) error {
 		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chat.ID)
 		if err != nil {
-			return xerrors.Errorf("lock chat for manual title usage: %w", err)
+			return xerrors.Errorf("lock chat for manual title persist: %w", err)
 		}
 		updatedChat = lockedChat
 		wroteTitle = false
-		if hasUsage {
-			messages, err := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-				ChatID:              chat.ID,
-				CreatedBy:           []uuid.UUID{chat.OwnerID},
-				APIKeyID:            []string{activeAPIKeyID},
-				ModelConfigID:       []uuid.UUID{modelConfig.ID},
-				Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-				Content:             []string{content},
-				ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-				Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityModel},
-				InputTokens:         []int64{usage.InputTokens},
-				OutputTokens:        []int64{usage.OutputTokens},
-				TotalTokens:         []int64{usage.TotalTokens},
-				ReasoningTokens:     []int64{usage.ReasoningTokens},
-				CacheCreationTokens: []int64{usage.CacheCreationTokens},
-				CacheReadTokens:     []int64{usage.CacheReadTokens},
-				ContextLimit:        []int64{modelConfig.ContextLimit},
-				Compressed:          []bool{false},
-				TotalCostMicros:     []int64{ptr.NilToDefault(totalCostMicros, 0)},
-				RuntimeMs:           []int64{0},
-			})
-			if err != nil {
-				return xerrors.Errorf("insert manual title usage message: %w", err)
-			}
-			if len(messages) != 1 {
-				return xerrors.Errorf("expected 1 manual title usage message, got %d", len(messages))
-			}
-			if err := tx.SoftDeleteChatMessageByID(ctx, messages[0].ID); err != nil {
-				return xerrors.Errorf("soft delete manual title usage message: %w", err)
-			}
-			if lockedChat.LastModelConfigID != modelConfig.ID {
-				if _, err := tx.UpdateChatLastModelConfigByID(ctx, database.UpdateChatLastModelConfigByIDParams{
-					ID:                chat.ID,
-					LastModelConfigID: lockedChat.LastModelConfigID,
-				}); err != nil {
-					return xerrors.Errorf("restore chat model config after manual title usage: %w", err)
-				}
-			}
-		}
-		if newTitle != "" && lockedChat.Title == chat.Title && newTitle != lockedChat.Title {
+		if lockedChat.Title == chat.Title && newTitle != lockedChat.Title {
 			updatedChat, err = tx.UpdateChatByID(ctx, database.UpdateChatByIDParams{
 				ID:    chat.ID,
 				Title: newTitle,
@@ -2931,6 +2766,7 @@ func appendMessageFields(
 	params.CreatedBy = append(params.CreatedBy, msg.createdBy)
 	params.APIKeyID = append(params.APIKeyID, apiKeyID)
 	params.ModelConfigID = append(params.ModelConfigID, msg.modelConfigID)
+	params.ReasoningEffort = append(params.ReasoningEffort, "")
 	params.Role = append(params.Role, msg.role)
 	params.Content = append(params.Content, string(msg.content.RawMessage))
 	params.ContentVersion = append(params.ContentVersion, msg.contentVersion)
@@ -4542,9 +4378,6 @@ func (p *Server) maybeFinalizeTurnStatusLabelAndPush(
 	switch status {
 	case database.ChatStatusWaiting:
 		p.finalizeSuccessfulTurnStatusLabelAndPush(ctx, chat, status, runResult, logger)
-
-	case database.ChatStatusPending:
-		p.setLastTurnSummaryAsync(ctx, chat, fallbackTurnStatusLabel(status), logger)
 
 	case database.ChatStatusError:
 		p.clearLastTurnSummaryAsync(ctx, chat, logger)

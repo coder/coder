@@ -78,7 +78,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query. Supports title:\u003csubstring\u003e (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:\u003cdraft\\|open\\|merged\\|closed\u003e as repeated or comma-separated values, source:\u003ccreated_by_me\\|shared_with_me\u003e, diff_url:\u003curl\u003e (quote values containing colons), pr:\u003cnumber\u003e (exact PR number match), repo:\u003cowner/repo\u003e (case-insensitive substring match against git remote origin or URL), pr_title:\u003ctext\u003e (case-insensitive PR title substring). Bare terms are not supported; use title:\u003cvalue\u003e for title filtering.",
+                        "description": "Search query. Supports ` + "`" + `title:\u003csubstring\u003e` + "`" + ` (case-insensitive, quote multi-word values), ` + "`" + `archived:bool` + "`" + `, ` + "`" + `has_unread:bool` + "`" + `, ` + "`" + `pr_status:\u003cdraft\\|open\\|merged\\|closed\u003e` + "`" + ` as repeated or comma-separated values, ` + "`" + `source:\u003ccreated_by_me\\|shared_with_me\u003e` + "`" + `, ` + "`" + `diff_url:\u003curl\u003e` + "`" + ` (quote values containing colons), ` + "`" + `pr:\u003cnumber\u003e` + "`" + ` (exact PR number match), ` + "`" + `repo:\u003cowner/repo\u003e` + "`" + ` (case-insensitive substring match against git remote origin or URL), ` + "`" + `pr_title:\u003ctext\u003e` + "`" + ` (case-insensitive PR title substring). Bare terms are not supported; use ` + "`" + `title:\u003cvalue\u003e` + "`" + ` for title filtering.",
                         "name": "q",
                         "in": "query"
                     },
@@ -5520,7 +5520,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "object",
-                        "description": "Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'})",
+                        "description": "Provisioner tags to filter by (JSON of the form ` + "`" + `{'tag1':'value1','tag2':'value2'}` + "`" + `)",
                         "name": "tags",
                         "in": "query"
                     }
@@ -5631,7 +5631,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "object",
-                        "description": "Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'})",
+                        "description": "Provisioner tags to filter by (JSON of the form ` + "`" + `{'tag1':'value1','tag2':'value2'}` + "`" + `)",
                         "name": "tags",
                         "in": "query"
                     },
@@ -7077,7 +7077,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query for filtering tasks. Supports: owner:\u003cusername/uuid/me\u003e, organization:\u003corg-name/uuid\u003e, status:\u003cstatus\u003e",
+                        "description": "Search query for filtering tasks. Supports: ` + "`" + `owner:\u003cusername/uuid/me\u003e` + "`" + `, ` + "`" + `organization:\u003corg-name/uuid\u003e` + "`" + `, ` + "`" + `status:\u003cstatus\u003e` + "`" + `",
                         "name": "q",
                         "in": "query"
                     }
@@ -14897,7 +14897,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "anthropic": {
-                    "description": "Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_* env vars instead.",
+                    "description": "Deprecated: Use Providers with indexed ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_*` + "`" + ` env vars instead.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
@@ -14909,7 +14909,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "bedrock": {
-                    "description": "Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_* env vars instead.",
+                    "description": "Deprecated: Use Providers with indexed ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_*` + "`" + ` env vars instead.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.AIBridgeBedrockConfig"
@@ -14950,7 +14950,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "openai": {
-                    "description": "Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_* env vars instead.",
+                    "description": "Deprecated: Use Providers with indexed ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_*` + "`" + ` env vars instead.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
@@ -14958,7 +14958,7 @@ const docTemplate = `{
                     ]
                 },
                 "providers": {
-                    "description": "Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_\u003cKEY\u003e\nenv vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.",
+                    "description": "Providers holds provider instances populated from ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_\u003cKEY\u003e` + "`" + `\nenv vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.AIProviderConfig"
@@ -15039,6 +15039,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "listen_addr": {
+                    "type": "string"
+                },
+                "target": {
                     "type": "string"
                 },
                 "tls_cert_file": {
@@ -16750,6 +16753,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "last_reasoning_effort": {
+                    "type": "string"
+                },
                 "last_turn_summary": {
                     "type": "string"
                 },
@@ -17692,20 +17698,14 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "waiting",
-                "pending",
                 "running",
-                "paused",
-                "completed",
                 "error",
                 "requires_action",
                 "interrupting"
             ],
             "x-enum-varnames": [
                 "ChatStatusWaiting",
-                "ChatStatusPending",
                 "ChatStatusRunning",
-                "ChatStatusPaused",
-                "ChatStatusCompleted",
                 "ChatStatusError",
                 "ChatStatusRequiresAction",
                 "ChatStatusInterrupting"
@@ -18228,6 +18228,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ChatPlanMode"
                         }
                     ]
+                },
+                "reasoning_effort": {
+                    "type": "string"
                 }
             }
         },
@@ -18286,6 +18289,9 @@ const docTemplate = `{
                 },
                 "plan_mode": {
                     "$ref": "#/definitions/codersdk.ChatPlanMode"
+                },
+                "reasoning_effort": {
+                    "type": "string"
                 },
                 "system_prompt": {
                     "type": "string"
@@ -19054,13 +19060,15 @@ const docTemplate = `{
                 "workspace_apps_api_key",
                 "workspace_apps_token",
                 "oidc_convert",
-                "tailnet_resume"
+                "tailnet_resume",
+                "nats_ca"
             ],
             "x-enum-varnames": [
                 "CryptoKeyFeatureWorkspaceAppsAPIKey",
                 "CryptoKeyFeatureWorkspaceAppsToken",
                 "CryptoKeyFeatureOIDCConvert",
-                "CryptoKeyFeatureTailnetResume"
+                "CryptoKeyFeatureTailnetResume",
+                "CryptoKeyFeatureNATSCA"
             ]
         },
         "codersdk.CustomNotificationContent": {
@@ -19656,6 +19664,9 @@ const docTemplate = `{
                     "description": "ModelConfigID, when set, overrides the model used for the\nreplacement user message and the assistant turn that follows.\nWhen nil the original message's model is preserved.",
                     "type": "string",
                     "format": "uuid"
+                },
+                "reasoning_effort": {
+                    "type": "string"
                 }
             }
         },

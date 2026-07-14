@@ -31,6 +31,7 @@ type AnthropicRequest struct {
 	Tools         []AnthropicRequestTool    `json:"tools,omitempty"`
 	Stream        bool                      `json:"stream,omitempty"`
 	MaxTokens     int                       `json:"max_tokens,omitempty"`
+	OutputConfig  json.RawMessage           `json:"output_config,omitempty"`
 	// TODO: encoding/json ignores inline tags. Add custom UnmarshalJSON to capture unknown keys.
 	Options map[string]interface{} `json:",inline"` //nolint:revive
 }

@@ -71,7 +71,7 @@ Use _code font_ for:
 - Filenames, filename extensions, and paths
 - Folders and directories
 - HTTP verbs, status codes, and content-type values
-- Placeholder variables
+- Placeholder variables (see [Placeholders in angle brackets](#placeholders-in-angle-brackets))
 
 Use _code blocks_ for code samples and other blocks of code. Be sure to indicate
 the language your using to apply the proper syntax highlighting.
@@ -82,6 +82,24 @@ This is a codeblock.
 
 For code that you want users to enter via a command-line interface, use
 `console`, not `bash`.
+
+### Placeholders in angle brackets
+
+Placeholder values written in angle brackets **must** be wrapped in backticks so
+they render as inline code. The documentation site renders Markdown as HTML, so
+an unwrapped placeholder such as `<organization-name>` is parsed as an unknown
+HTML tag and stripped out of the page, so readers never see it.
+
+This applies wherever the text becomes documentation, including the Go CLI help
+strings and Swagger annotations that generate the CLI and API reference.
+
+```text
+# Correct: wrap the placeholder in backticks
+Structured as: `<organization-name>/<team-slug>`.
+
+# Incorrect: the placeholder renders as "Structured as: /."
+Structured as: <organization-name>/<team-slug>.
+```
 
 ### Punctuation
 

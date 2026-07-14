@@ -144,6 +144,7 @@ func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 		api.ExternalAuthConfigs,
 		api.AGPL.Experiments,
 		api.AGPL.AISeatTracker,
+		api.AGPL.Clock,
 	)
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) {

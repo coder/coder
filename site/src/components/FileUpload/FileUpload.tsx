@@ -1,9 +1,9 @@
-import CircularProgress from "@mui/material/CircularProgress";
 import { CloudUploadIcon, FolderIcon, TrashIcon } from "lucide-react";
 import { type DragEvent, type FC, type ReactNode, useRef } from "react";
 import { Button } from "#/components/Button/Button";
 import { useClickable } from "#/hooks/useClickable";
 import { cn } from "#/utils/cn";
+import { Spinner } from "../Spinner/Spinner";
 
 interface FileUploadProps {
 	isUploading: boolean;
@@ -67,7 +67,7 @@ export const FileUpload: FC<FileUploadProps> = ({
 				<div className="flex flex-col items-center gap-2">
 					<div className="flex size-16 items-center justify-center">
 						{isUploading ? (
-							<CircularProgress size={32} />
+							<Spinner size="lg" loading />
 						) : (
 							<CloudUploadIcon className="size-16" />
 						)}

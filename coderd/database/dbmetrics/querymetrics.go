@@ -105,14 +105,6 @@ func (m queryMetricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID)
 	return r0
 }
 
-func (m queryMetricsStore) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
-	start := time.Now()
-	r0, r1 := m.s.AcquireChats(ctx, arg)
-	m.queryLatencies.WithLabelValues("AcquireChats").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AcquireChats").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	r0 := m.s.AcquireLock(ctx, pgAdvisoryXactLock)
@@ -1422,6 +1414,14 @@ func (m queryMetricsStore) GetChatByIDForUpdate(ctx context.Context, id uuid.UUI
 	r0, r1 := m.s.GetChatByIDForUpdate(ctx, id)
 	m.queryLatencies.WithLabelValues("GetChatByIDForUpdate").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatByIDForUpdate").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatCompactionModelOverride(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatCompactionModelOverride(ctx)
+	m.queryLatencies.WithLabelValues("GetChatCompactionModelOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatCompactionModelOverride").Inc()
 	return r0, r1
 }
 
@@ -3582,6 +3582,14 @@ func (m queryMetricsStore) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx cont
 	r0, r1 := m.s.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspaceID)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentsInLatestBuildByWorkspaceID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentsInLatestBuildByWorkspaceID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(ctx context.Context, workspaceIds []uuid.UUID) ([]database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(ctx, workspaceIds)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentsInLatestBuildByWorkspaceIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentsInLatestBuildByWorkspaceIDs").Inc()
 	return r0, r1
 }
 
@@ -6142,6 +6150,14 @@ func (m queryMetricsStore) UpsertChatAutoArchiveDays(ctx context.Context, autoAr
 	r0 := m.s.UpsertChatAutoArchiveDays(ctx, autoArchiveDays)
 	m.queryLatencies.WithLabelValues("UpsertChatAutoArchiveDays").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatAutoArchiveDays").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertChatCompactionModelOverride(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatCompactionModelOverride(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertChatCompactionModelOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatCompactionModelOverride").Inc()
 	return r0
 }
 
