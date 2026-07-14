@@ -209,9 +209,8 @@ func TestCompactionOverride_SetUsable(t *testing.T) {
 	require.Equal(t, overrideConfig.ID, override.modelConfig.ID)
 	require.Equal(t, "openai", override.resolvedProvider)
 	require.Equal(t, "gpt-4.1", override.resolvedModel)
-	// The prepare-time identity must match the built client's identity so
-	// metrics recorded before the client is built (still-over-limit) land
-	// on the same series as metrics recorded by the compact action.
+	// Prepare-time identity must match the built client's so
+	// still-over-limit metrics land on the same series.
 	require.Equal(t, override.resolvedProvider, resolved.ResolvedProvider)
 	require.Equal(t, override.resolvedModel, resolved.ResolvedModel)
 }

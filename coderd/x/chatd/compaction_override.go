@@ -32,44 +32,37 @@ func readCompactionModelOverride(
 	return raw, nil
 }
 
-// compactionModelOverride carries the resolved deployment-wide compaction
-// model override: the model to run compaction summaries with plus the
-// identity metadata debug runs and prompt sanitization need.
+// compactionModelOverride carries the built compaction override model plus
+// the identity metadata debug runs and prompt sanitization need.
 type compactionModelOverride struct {
 	modelConfig      database.ChatModelConfig
 	model            fantasy.LanguageModel
 	resolvedProvider string
 	resolvedModel    string
-	// providerOptions carry the override config's provider options and
-	// resolved reasoning effort for the summary call.
+	// providerOptions include the override's reasoning effort for the
+	// summary call.
 	providerOptions fantasy.ProviderOptions
 }
 
-// resolvedCompactionOverride is the outcome of resolving the compaction
-// model override at prepare time: the override config plus the
-// provider/model identity resolved without building the model client. The
-// identity lets error paths that never build the client (for example the
-// still-over-limit terminal error) attribute metrics to the same model as
-// events recorded by the compact action after the client is built.
+// resolvedCompactionOverride is the compaction override resolved at
+// prepare time. The provider/model identity is resolved without building
+// the model client so metrics recorded before the client exists
+// (still-over-limit) attribute to the same model as the compact action's.
 type resolvedCompactionOverride struct {
 	Config database.ChatModelConfig
-	// ResolvedProvider and ResolvedModel match the identity
-	// buildCompactionOverrideModel resolves for the built client:
-	// ResolveModelWithProviderHint normalizes its hint, so the normalized
-	// provider name and the route's provider-type hint yield the same
-	// result.
+	// ResolvedProvider and ResolvedModel match the built client's
+	// identity: ResolveModelWithProviderHint normalizes its hint, so the
+	// normalized provider name here and the route's raw provider type in
+	// buildCompactionOverrideModel yield the same result.
 	ResolvedProvider string
 	ResolvedModel    string
 }
 
 // resolveCompactionOverrideConfig resolves the stored deployment-wide
-// compaction model override to its model config. Unset, malformed, stale
-// (deleted or disabled config or provider), and credential-less overrides
-// fall back to the chat model (nil override; the shared resolver logs the
-// reason). This runs on every generation prepare because the override's
-// context limit feeds the compaction trigger; the model client is built
-// separately by buildCompactionOverrideModel only when compaction actually
-// runs.
+// compaction model override. Unset, malformed, stale, and credential-less
+// overrides fall back to the chat model (nil override). This runs on every
+// generation prepare because the override's context limit feeds the
+// compaction trigger; the model client is built only when compaction runs.
 func (p *Server) resolveCompactionOverrideConfig(
 	ctx context.Context,
 	chat database.Chat,
@@ -96,8 +89,7 @@ func (p *Server) resolveCompactionOverrideConfig(
 	if err != nil || !overrideSet {
 		return nil, err
 	}
-	// The shared resolver already validated this resolution, so an error
-	// here is unreachable with the same inputs.
+	// Already validated by the shared resolver; failure is unreachable.
 	resolvedProvider, resolvedModel, err := chatprovider.ResolveModelWithProviderHint(
 		modelConfig.Model,
 		providerName,
@@ -116,11 +108,9 @@ func (p *Server) resolveCompactionOverrideConfig(
 }
 
 // buildCompactionOverrideModel resolves the route and constructs the model
-// client for a usable compaction override config. Errors are hard failures:
-// a configured, usable override that cannot be routed or constructed must
-// fail the generation visibly instead of silently compacting with the chat
-// model. Callers invoke this from the compact generation action, so a
-// broken override cannot fail turns that finish without compacting.
+// client for a usable override config. Errors are hard failures: a usable
+// override that cannot be constructed must fail the generation visibly
+// instead of silently compacting with the chat model.
 func (p *Server) buildCompactionOverrideModel(
 	ctx context.Context,
 	chat database.Chat,
@@ -171,9 +161,8 @@ func (p *Server) buildCompactionOverrideModel(
 }
 
 // compactionOverrideProviderOptions converts the override config's call
-// options (provider options plus the admin-resolved reasoning effort folded
-// in by resolveCompactionOverrideConfig) into provider options for the
-// summary call.
+// options, including the admin-resolved reasoning effort, into provider
+// options for the summary call.
 func compactionOverrideProviderOptions(
 	model fantasy.LanguageModel,
 	modelConfig database.ChatModelConfig,

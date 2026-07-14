@@ -184,8 +184,7 @@ func modelOverrideErrorLabel(overrideContext string) string {
 // resolveConfiguredModelOverride returns ok when a usable override is
 // resolved. In hard failure mode, ok is also true for configured but unusable
 // overrides so callers can distinguish them from unset or malformed values.
-// providerName is the normalized provider name of the resolved config; it is
-// only meaningful on the usable-override return.
+// The normalized provider name is only meaningful for a usable override.
 func (p *Server) resolveConfiguredModelOverride(
 	ctx context.Context,
 	overrideContext string,

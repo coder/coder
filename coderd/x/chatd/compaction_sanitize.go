@@ -12,20 +12,17 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 )
 
-// sameCompactionProviderIdentity reports whether the chat model and the
-// compaction override model are backed by the same provider instance.
-// Legacy configs without an AIProviderID compare as different (fail
-// closed), so cross-provider stripping applies.
+// sameCompactionProviderIdentity reports whether the chat and compaction
+// override models share a provider instance. Configs without an
+// AIProviderID compare as different (fail closed).
 func sameCompactionProviderIdentity(chatConfig, overrideConfig database.ChatModelConfig) bool {
 	return chatConfig.AIProviderID.Valid && overrideConfig.AIProviderID.Valid &&
 		chatConfig.AIProviderID.UUID == overrideConfig.AIProviderID.UUID
 }
 
-// sanitizeCompactionPrompt adapts the chat prompt for a compaction model
-// that differs from the chat model. The prompt was built for the chat
-// model, so provider-executed tool history and file parts the compaction
-// provider rejects must not replay to it. The input messages are never
-// mutated; the assistant generation keeps using the original prompt.
+// sanitizeCompactionPrompt adapts a prompt built for the chat model to a
+// differing compaction model. The input messages are never mutated; the
+// assistant generation keeps using the original prompt.
 func sanitizeCompactionPrompt(
 	ctx context.Context,
 	logger slog.Logger,
@@ -61,18 +58,11 @@ func sanitizeCompactionPrompt(
 }
 
 // flattenProviderExecutedToolParts rewrites provider-executed tool calls
-// and results in assistant messages into plain text parts on a copy of
-// messages. Provider-executed blocks carry provider-specific wire shapes and
-// ids (for example Anthropic srvtoolu_... ids) that other providers reject
-// on replay, but their content is still useful to the summary, so it is kept
-// as text instead of dropped. Mirrors flattenProviderExecutedToolParts in
-// coder/mux.
-//
-// Assistant messages are the only legitimate home for provider-executed
-// parts (chatsanitize flags other roles as violations). Anomalous parts in
-// other roles are dropped rather than flattened, because a text part is not
-// valid tool-message content for every provider; messages emptied by that
-// drop are removed.
+// and results in assistant messages into text parts on a copy of messages,
+// keeping their content while shedding provider-specific wire shapes other
+// providers reject on replay. Provider-executed parts outside assistant
+// messages are anomalous and dropped, since a text part is not valid
+// tool-message content everywhere; messages emptied by the drop are removed.
 func flattenProviderExecutedToolParts(
 	ctx context.Context,
 	logger slog.Logger,
@@ -135,9 +125,8 @@ func flattenProviderExecutedToolParts(
 	return out
 }
 
-// stringifyToolResultOutput renders a tool result output as prompt text.
-// Media payloads are summarized instead of inlined so base64 data does not
-// enter the compaction prompt as text.
+// stringifyToolResultOutput renders a tool result as prompt text. Media
+// payloads are summarized so base64 data does not enter the prompt.
 func stringifyToolResultOutput(output fantasy.ToolResultOutputContent) string {
 	switch typed := output.(type) {
 	case fantasy.ToolResultOutputContentText:
@@ -158,8 +147,8 @@ func stringifyToolResultOutput(output fantasy.ToolResultOutputContent) string {
 }
 
 // replaceUnsupportedFileParts swaps file parts the compaction model does
-// not accept for short text placeholders in a copy of messages, so the
-// summary notes the attachment existed instead of silently losing it.
+// not accept for text placeholders in a copy of messages, so the summary
+// notes the attachment existed instead of silently losing it.
 func replaceUnsupportedFileParts(
 	ctx context.Context,
 	logger slog.Logger,

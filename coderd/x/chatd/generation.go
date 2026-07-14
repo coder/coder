@@ -70,12 +70,11 @@ type generationPrepared struct {
 // generationCompaction contains compaction inputs prepared for generation.
 type generationCompaction struct {
 	// Override, when non-nil, is the compaction model override resolved at
-	// prepare time. The override model client is built (and the prompt
-	// sanitized for it) in the compact action path, not at prepare time,
-	// so hard construction failures cannot fail turns that finish without
-	// compacting. ChatModelConfig is the chat model's config, needed to
-	// sanitize the prompt across provider boundaries.
-	Override        *resolvedCompactionOverride
+	// prepare time. Its model client is built in the compact action path,
+	// so construction failures cannot fail turns that never compact.
+	Override *resolvedCompactionOverride
+	// ChatModelConfig is the chat model's config, used to detect provider
+	// changes when sanitizing the compaction prompt.
 	ChatModelConfig database.ChatModelConfig
 
 	Required bool
@@ -756,10 +755,9 @@ func (s *taskStarter) generateCompaction(
 }
 
 // compactionMetricIdentity returns the provider/model labels for compaction
-// metrics. When an override is configured the labels come from the identity
-// resolved at prepare time, so events recorded before the override client
-// is built (the still-over-limit terminal error) carry the same labels as
-// events recorded by the compact action after it swaps in the built client.
+// metrics. Override labels come from prepare-time resolution so events
+// recorded before the override client is built (still-over-limit) match
+// the compact action's own events.
 func compactionMetricIdentity(compaction *generationCompaction) (provider, model string) {
 	if compaction.Override != nil {
 		return compaction.Override.ResolvedProvider, compaction.Override.ResolvedModel

@@ -580,11 +580,9 @@ func (server *Server) prepareGeneration(
 	if override, ok := server.resolveUserCompactionThreshold(ctx, chat.OwnerID, modelConfig.ID); ok {
 		effectiveThreshold = override
 	}
-	// The effective compaction limit is the stricter of the chat model's
-	// and the compaction model's context limits: the history must also fit
-	// the summarizer's window. Post-compaction continuation checks keep
-	// using the chat model's limit (ContextLimitFallback below), since the
-	// follow-up assistant generation runs on the chat model.
+	// The compaction trigger uses the stricter of the chat and override
+	// models' context limits: the history must also fit the summarizer's
+	// window.
 	compactionContextLimit := modelConfig.ContextLimit
 	compactionOverride, err := server.resolveCompactionOverrideConfig(ctx, chat)
 	if err != nil {
@@ -599,11 +597,8 @@ func (server *Server) prepareGeneration(
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)
 	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionContextLimit, effectiveThreshold)
-	// The options carry the chat model; when an override is configured,
-	// generateCompaction builds the override client (a hard failure) and
-	// swaps model, identity, and sanitized prompt in the compact action
-	// path, so a broken override cannot fail turns that finish without
-	// compacting.
+	// The options carry the chat model; generateCompaction swaps in the
+	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
 		Model:                model,
 		Messages:             prompt,

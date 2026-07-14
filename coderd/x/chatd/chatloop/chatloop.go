@@ -281,15 +281,14 @@ type GenerateCompactionOptions struct {
 	ToolName            string
 
 	// ResolvedProvider, ResolvedModel, and ModelConfigID identify the
-	// model that actually generates the summary, which can differ from
-	// the chat model when a compaction model override is configured.
-	// Debug runs record these instead of the parent run's identity.
+	// summary model, which can differ from the chat model when a
+	// compaction override is configured. Debug runs record these.
 	ResolvedProvider string
 	ResolvedModel    string
 	ModelConfigID    uuid.UUID
 
-	// ProviderOptions are provider-specific call options for the summary
-	// model, such as a compaction override's configured reasoning effort.
+	// ProviderOptions carry summary-model call options such as an
+	// override's reasoning effort.
 	ProviderOptions fantasy.ProviderOptions
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)

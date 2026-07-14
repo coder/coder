@@ -26,9 +26,8 @@ func TestCompactionMetricIdentity(t *testing.T) {
 	require.Equal(t, "anthropic", provider)
 	require.Equal(t, "claude-sonnet-4-5", model)
 
-	// With an override configured, metrics use the identity resolved at
-	// prepare time instead of the chat model carried by the options, even
-	// before the override client is built.
+	// With an override, metrics use the prepare-time identity, not the
+	// chat model carried by the options.
 	compaction.Override = &resolvedCompactionOverride{
 		ResolvedProvider: "openai",
 		ResolvedModel:    "gpt-4.1-mini",

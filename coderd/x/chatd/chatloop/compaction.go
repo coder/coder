@@ -64,8 +64,7 @@ type CompactionOptions struct {
 	ChatID              uuid.UUID
 	HistoryTipMessageID int64
 
-	// ResolvedProvider, ResolvedModel, ModelConfigID, and
-	// ProviderOptions describe the model generating the summary; see
+	// Summary model identity and call options; see
 	// GenerateCompactionOptions.
 	ResolvedProvider string
 	ResolvedModel    string
@@ -288,9 +287,8 @@ func startCompactionDebugRun(
 		historyTipMessageID = parentRun.HistoryTipMessageID
 	}
 
-	// The compaction model can differ from the chat model when a
-	// deployment override is configured, so record the summary model's
-	// identity when the caller supplies it.
+	// Prefer the caller-supplied summary model identity; it can differ
+	// from the parent run's chat model under a compaction override.
 	provider := parentRun.Provider
 	if options.ResolvedProvider != "" {
 		provider = options.ResolvedProvider
