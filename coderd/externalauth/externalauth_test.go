@@ -1900,16 +1900,18 @@ func (g *group) doCall(c *call, key string, fn func() (any, error)) {
 			delete(g.m, key)
 		}
 
+		//nolint:errorlint // Avoid changing the original code.
 		if e, ok := c.err.(*panicError); ok {
 			// In order to prevent the waiting channels from being blocked forever,
 			// needs to ensure that this panic cannot be recovered.
+			//nolint:revive // Avoid changing the original code.
 			if len(c.chans) > 0 {
 				go panic(e)
 				select {} // Keep this goroutine around so that it will appear in the crash dump.
 			} else {
 				panic(e)
 			}
-		} else if c.err == errGoexit {
+		} else if c.err == errGoexit { //nolint:revive // Avoid changing the original code.
 			// Already in the process of goexit, no need to call again
 		} else {
 			// Normal return
