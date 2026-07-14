@@ -184,6 +184,7 @@ func modelOverrideErrorLabel(overrideContext string) string {
 // resolveConfiguredModelOverride returns ok when a usable override is
 // resolved. In hard failure mode, ok is also true for configured but unusable
 // overrides so callers can distinguish them from unset or malformed values.
+// The normalized provider name is only meaningful for a usable override.
 func (p *Server) resolveConfiguredModelOverride(
 	ctx context.Context,
 	overrideContext string,
@@ -192,7 +193,7 @@ func (p *Server) resolveConfiguredModelOverride(
 	resolveModelConfig modelOverrideConfigResolver,
 	resolveProviderKeys modelOverrideProviderKeysResolver,
 	failureMode modelOverrideFailureMode,
-) (database.ChatModelConfig, *string, bool, error) {
+) (database.ChatModelConfig, string, *string, bool, error) {
 	parsed, ok := parseModelOverride(raw)
 	if !ok {
 		p.logger.Info(ctx,
@@ -200,10 +201,10 @@ func (p *Server) resolveConfiguredModelOverride(
 			slog.F("override_context", overrideContext),
 			slog.F("raw_model_config_id", strings.TrimSpace(raw)),
 		)
-		return database.ChatModelConfig{}, nil, false, nil
+		return database.ChatModelConfig{}, "", nil, false, nil
 	}
 	if parsed.modelConfigID == uuid.Nil {
-		return database.ChatModelConfig{}, nil, false, nil
+		return database.ChatModelConfig{}, "", nil, false, nil
 	}
 
 	modelConfig, providerName, err := resolveModelConfig(
@@ -215,20 +216,20 @@ func (p *Server) resolveConfiguredModelOverride(
 			label := modelOverrideErrorLabel(overrideContext)
 			switch {
 			case errors.Is(err, sql.ErrNoRows):
-				return database.ChatModelConfig{}, parsed.reasoningEffort, true, xerrors.Errorf(
+				return database.ChatModelConfig{}, "", parsed.reasoningEffort, true, xerrors.Errorf(
 					"%s model override is unavailable: %s",
 					label,
 					parsed.modelConfigID,
 				)
 			case errors.Is(err, errInvalidModelOverrideMetadata):
-				return database.ChatModelConfig{}, parsed.reasoningEffort, true, xerrors.Errorf(
+				return database.ChatModelConfig{}, "", parsed.reasoningEffort, true, xerrors.Errorf(
 					"%s model override metadata is invalid for %s: %w",
 					label,
 					parsed.modelConfigID,
 					err,
 				)
 			default:
-				return database.ChatModelConfig{}, parsed.reasoningEffort, true, xerrors.Errorf(
+				return database.ChatModelConfig{}, "", parsed.reasoningEffort, true, xerrors.Errorf(
 					"resolve %s model override %s: %w",
 					label,
 					parsed.modelConfigID,
@@ -259,19 +260,19 @@ func (p *Server) resolveConfiguredModelOverride(
 				slog.Error(err),
 			)
 		}
-		return database.ChatModelConfig{}, nil, false, nil
+		return database.ChatModelConfig{}, "", nil, false, nil
 	}
 
 	providerKeys, err := resolveProviderKeys(ctx, ownerID, modelConfigAIProviderID(modelConfig))
 	if err != nil {
-		return database.ChatModelConfig{}, nil, false, xerrors.Errorf(
+		return database.ChatModelConfig{}, "", nil, false, xerrors.Errorf(
 			"resolve provider API keys: %w",
 			err,
 		)
 	}
 	if !userCanUseProviderKeys(providerKeys, providerName) {
 		if failureMode == modelOverrideFailureModeHard {
-			return database.ChatModelConfig{}, parsed.reasoningEffort, true, xerrors.Errorf(
+			return database.ChatModelConfig{}, "", parsed.reasoningEffort, true, xerrors.Errorf(
 				"%s model override credentials are unavailable for provider %q",
 				modelOverrideErrorLabel(overrideContext),
 				providerName,
@@ -284,9 +285,9 @@ func (p *Server) resolveConfiguredModelOverride(
 			slog.F("model_config_id", parsed.modelConfigID),
 			slog.F("provider", providerName),
 		)
-		return database.ChatModelConfig{}, nil, false, nil
+		return database.ChatModelConfig{}, "", nil, false, nil
 	}
-	return modelConfig, parsed.reasoningEffort, true, nil
+	return modelConfig, providerName, parsed.reasoningEffort, true, nil
 }
 
 func (p *Server) resolvePersonalSubagentModelConfigID(
@@ -483,7 +484,7 @@ func (p *Server) resolveSubagentModelConfigID(
 			err,
 		)
 	}
-	modelConfig, reasoningEffort, ok, err := p.resolveConfiguredModelOverride(
+	modelConfig, _, reasoningEffort, ok, err := p.resolveConfiguredModelOverride(
 		chatdCtx,
 		string(overrideContext),
 		raw,

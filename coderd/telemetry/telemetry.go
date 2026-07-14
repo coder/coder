@@ -345,28 +345,41 @@ func (r *remoteReporter) deployment() error {
 	scimEnabled := r.options.SCIMEnabled
 	scimUseLegacy := r.options.SCIMUseLegacy
 
+	agentsExperimentValues := make(map[string]json.RawMessage, len(agentsExperiments))
+	for _, exp := range agentsExperiments {
+		agentsExperimentValues[exp.name] = exp.collect(r.ctx, r.options)
+	}
+	agentsExperimentsJSON, err := json.Marshal(agentsExperimentValues)
+	if err != nil {
+		// Best-effort: the field is omitempty, so the deployment report
+		// proceeds without it.
+		r.options.Logger.Warn(r.ctx, "marshal agent experiments telemetry", slog.Error(err))
+		agentsExperimentsJSON = nil
+	}
+
 	data, err := json.Marshal(&Deployment{
-		ID:              r.options.DeploymentID,
-		Architecture:    sysInfo.Architecture,
-		BuiltinPostgres: r.options.BuiltinPostgres,
-		Containerized:   containerized,
-		Config:          r.options.DeploymentConfig,
-		Kubernetes:      os.Getenv("KUBERNETES_SERVICE_HOST") != "",
-		InstallSource:   installSource,
-		Tunnel:          r.options.Tunnel,
-		OSType:          sysInfo.OS.Type,
-		OSFamily:        sysInfo.OS.Family,
-		OSPlatform:      sysInfo.OS.Platform,
-		OSName:          sysInfo.OS.Name,
-		OSVersion:       sysInfo.OS.Version,
-		CPUCores:        runtime.NumCPU(),
-		MemoryTotal:     mem.Total,
-		MachineID:       sysInfo.UniqueID,
-		StartedAt:       r.startedAt,
-		ShutdownAt:      r.shutdownAt,
-		IDPOrgSync:      &idpOrgSync,
-		SCIMEnabled:     &scimEnabled,
-		SCIMUseLegacy:   &scimUseLegacy,
+		ID:                r.options.DeploymentID,
+		Architecture:      sysInfo.Architecture,
+		BuiltinPostgres:   r.options.BuiltinPostgres,
+		Containerized:     containerized,
+		Config:            r.options.DeploymentConfig,
+		Kubernetes:        os.Getenv("KUBERNETES_SERVICE_HOST") != "",
+		InstallSource:     installSource,
+		Tunnel:            r.options.Tunnel,
+		OSType:            sysInfo.OS.Type,
+		OSFamily:          sysInfo.OS.Family,
+		OSPlatform:        sysInfo.OS.Platform,
+		OSName:            sysInfo.OS.Name,
+		OSVersion:         sysInfo.OS.Version,
+		CPUCores:          runtime.NumCPU(),
+		MemoryTotal:       mem.Total,
+		MachineID:         sysInfo.UniqueID,
+		StartedAt:         r.startedAt,
+		ShutdownAt:        r.shutdownAt,
+		IDPOrgSync:        &idpOrgSync,
+		SCIMEnabled:       &scimEnabled,
+		SCIMUseLegacy:     &scimUseLegacy,
+		AgentsExperiments: agentsExperimentsJSON,
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal deployment: %w", err)
@@ -1660,6 +1673,10 @@ type Deployment struct {
 	// enterprise/coderd/scim. Nullable for the same backward compatibility
 	// reason as SCIMEnabled.
 	SCIMUseLegacy *bool `json:"scim_use_legacy"`
+	// AgentsExperiments reports the state of the Coder Agents experiments as
+	// opaque per-experiment JSON, so rotating the reported set is a code-only
+	// change. Omitted by older Coder versions, so it decodes as nil there.
+	AgentsExperiments json.RawMessage `json:"agents_experiments,omitempty"`
 }
 
 type APIKey struct {
@@ -2321,6 +2338,129 @@ const (
 	TelemetryItemKeyHTMLFirstServedAt telemetryItemKey = "html_first_served_at"
 	TelemetryItemKeyTelemetryEnabled  telemetryItemKey = "telemetry_enabled"
 )
+
+// agentsExperiment is one entry in the Deployment.AgentsExperiments field.
+// Edit agentsExperiments to rotate the reported set without schema or
+// telemetry-server changes. Collectors are best-effort: they log and return
+// a degraded payload instead of erroring, so they can never fail a report.
+type agentsExperiment struct {
+	name    string
+	collect func(ctx context.Context, opts Options) json.RawMessage
+}
+
+var agentsExperiments = []agentsExperiment{
+	{name: "virtual_desktop", collect: CollectAgentsVirtualDesktop},
+	{name: "advisor", collect: CollectAgentsAdvisor},
+}
+
+const (
+	// AgentsExperimentAdvisorReuseChatModel reports that the advisor has no active
+	// dedicated model override and reuses the chat model at runtime.
+	AgentsExperimentAdvisorReuseChatModel = "advisor_reuse_chat_model"
+	// AgentsExperimentUnknown reports a value that could not be determined,
+	// e.g. after a transient DB error.
+	AgentsExperimentUnknown = "unknown"
+)
+
+// AgentsVirtualDesktopTelemetry is the value shape for the virtual_desktop
+// entry in Deployment.AgentsExperiments.
+type AgentsVirtualDesktopTelemetry struct {
+	Enabled     bool                       `json:"enabled"`
+	ComputerUse AgentsComputerUseTelemetry `json:"computer_use"`
+}
+
+type AgentsComputerUseTelemetry struct {
+	Provider       string `json:"provider"`
+	ProviderSource string `json:"provider_source"`
+}
+
+// AgentsAdvisorTelemetry is the value shape for the advisor entry in
+// Deployment.AgentsExperiments.
+type AgentsAdvisorTelemetry struct {
+	Enabled         bool   `json:"enabled"`
+	MaxUsesPerRun   int    `json:"max_uses_per_run"`
+	MaxOutputTokens int64  `json:"max_output_tokens"`
+	Provider        string `json:"provider"`
+	Model           string `json:"model"`
+}
+
+// CollectAgentsVirtualDesktop collects the virtual_desktop entry in
+// Deployment.AgentsExperiments. The chat-virtual-desktop experiment gates both
+// the desktop and computer use.
+func CollectAgentsVirtualDesktop(ctx context.Context, opts Options) json.RawMessage {
+	provider, err := opts.Database.GetChatComputerUseProvider(ctx)
+	providerSource := "configured"
+	switch {
+	case err != nil:
+		opts.Logger.Warn(ctx, "get chat computer use provider for telemetry", slog.Error(err))
+		provider = AgentsExperimentUnknown
+		providerSource = AgentsExperimentUnknown
+	case provider == "":
+		provider = string(codersdk.ChatComputerUseProviderAnthropic)
+		providerSource = "default"
+	}
+	val, err := json.Marshal(AgentsVirtualDesktopTelemetry{
+		Enabled: opts.Experiments.Enabled(codersdk.ExperimentChatVirtualDesktop),
+		ComputerUse: AgentsComputerUseTelemetry{
+			Provider:       provider,
+			ProviderSource: providerSource,
+		},
+	})
+	if err != nil {
+		opts.Logger.Warn(ctx, "marshal agent virtual desktop telemetry", slog.Error(err))
+		return nil
+	}
+	return val
+}
+
+// CollectAgentsAdvisor collects the advisor entry in
+// Deployment.AgentsExperiments.
+func CollectAgentsAdvisor(ctx context.Context, opts Options) json.RawMessage {
+	payload := AgentsAdvisorTelemetry{
+		Enabled:  opts.Experiments.Enabled(codersdk.ExperimentChatAdvisor),
+		Provider: AgentsExperimentUnknown,
+		Model:    AgentsExperimentUnknown,
+	}
+	var cfg codersdk.AdvisorConfig
+	raw, err := opts.Database.GetChatAdvisorConfig(ctx)
+	if err != nil {
+		opts.Logger.Warn(ctx, "get chat advisor config for telemetry", slog.Error(err))
+	} else if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		opts.Logger.Warn(ctx, "parse chat advisor config for telemetry", slog.Error(err))
+	} else {
+		payload.MaxUsesPerRun = max(cfg.MaxUsesPerRun, 0)
+		payload.MaxOutputTokens = max(cfg.MaxOutputTokens, 0)
+		payload.Provider, payload.Model = advisorModelTelemetry(ctx, opts.Database, opts.Logger, cfg.ModelConfigID)
+	}
+	val, err := json.Marshal(payload)
+	if err != nil {
+		opts.Logger.Warn(ctx, "marshal agent advisor telemetry", slog.Error(err))
+		return nil
+	}
+	return val
+}
+
+func advisorModelTelemetry(ctx context.Context, db database.Store, log slog.Logger, id uuid.UUID) (provider string, model string) {
+	if id == uuid.Nil {
+		return AgentsExperimentAdvisorReuseChatModel, AgentsExperimentAdvisorReuseChatModel
+	}
+
+	cfg, err := db.GetEnabledChatModelConfigByID(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		// An inactive override; the runtime falls back to the chat model.
+		return AgentsExperimentAdvisorReuseChatModel, AgentsExperimentAdvisorReuseChatModel
+	}
+	if err != nil {
+		log.Warn(ctx, "resolve chat advisor model config for telemetry", slog.Error(err))
+		return AgentsExperimentUnknown, AgentsExperimentUnknown
+	}
+	providerRow, err := db.GetAIProviderByID(ctx, cfg.AIProviderID.UUID)
+	if err != nil {
+		log.Warn(ctx, "resolve chat advisor model provider for telemetry", slog.Error(err))
+		return AgentsExperimentUnknown, cfg.Model
+	}
+	return string(providerRow.Type), cfg.Model
+}
 
 type TelemetryItem struct {
 	Key       string    `json:"key"`

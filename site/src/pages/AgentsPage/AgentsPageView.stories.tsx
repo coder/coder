@@ -187,6 +187,9 @@ const AgentsRouteElement = () => (
 		onSaveTitleGenerationModel={fn()}
 		isSavingTitleGenerationModel={false}
 		isSaveTitleGenerationModelError={false}
+		onSaveCompactionModel={fn()}
+		isSavingCompactionModel={false}
+		isSaveCompactionModelError={false}
 		onSaveExploreModelOverride={fn()}
 		isSavingExploreModelOverride={false}
 		isSaveExploreModelOverrideError={false}

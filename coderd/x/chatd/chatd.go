@@ -39,6 +39,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/xjson"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
@@ -48,7 +49,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
-	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
@@ -350,6 +350,19 @@ func (p *Server) resolveAdvisorModelOverride(
 		return fallbackModel, fallbackCallConfig, nil
 	}
 
+	if advisorCfg.ReasoningEffort != nil {
+		resolvedEffort := chatprovider.ResolveReasoningEffort(
+			advisorCfg.ReasoningEffort,
+			overrideCallConfig.ReasoningEffort,
+		)
+		if resolvedEffort != nil {
+			overrideCallConfig.ReasoningEffort = &codersdk.ChatModelReasoningEffortConfig{
+				Default: resolvedEffort,
+				Max:     resolvedEffort,
+			}
+		}
+	}
+
 	return overrideModel, overrideCallConfig, nil
 }
 
@@ -398,8 +411,8 @@ func (p *Server) newAdvisorRuntime(
 	}
 
 	advisorCallConfig.MaxOutputTokens = ptr.Ref(maxOutputTokens)
-	// The advisor has no per-turn effort selection; its model config's
-	// default effort applies.
+	// The override resolver pins an explicit advisor effort into the model
+	// config. Fallback models keep their configured default effort.
 	advisorReasoningEffort := chatprovider.ResolveReasoningEffort(
 		nil,
 		advisorCallConfig.ReasoningEffort,

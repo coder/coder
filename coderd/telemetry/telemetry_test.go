@@ -20,18 +20,21 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"go.uber.org/mock/gomock"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -292,10 +295,14 @@ func TestTelemetry(t *testing.T) {
 		clock := quartz.NewMock(t)
 		clock.Set(now)
 
-		_, snapshot := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+		deployment, snapshot := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
 			opts.Clock = clock
 			return opts
 		})
+		var agentsExperiments map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(deployment.AgentsExperiments, &agentsExperiments))
+		require.Contains(t, agentsExperiments, "virtual_desktop")
+		require.Contains(t, agentsExperiments, "advisor")
 		require.Len(t, snapshot.ProvisionerJobs, 2)
 		require.Len(t, snapshot.Licenses, 1)
 		require.Len(t, snapshot.Templates, 2)
@@ -313,8 +320,13 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.WorkspaceProxies, 1)
 		require.Len(t, snapshot.WorkspaceModules, 1)
 		require.Len(t, snapshot.Organizations, 1)
-		// We create one item manually above. The other is TelemetryEnabled, created by the snapshotter.
-		require.Len(t, snapshot.TelemetryItems, 2)
+		telemetryItemKeys := slice.Convert(snapshot.TelemetryItems, func(item telemetry.TelemetryItem) string {
+			return item.Key
+		})
+		require.ElementsMatch(t, []string{
+			string(telemetry.TelemetryItemKeyHTMLFirstServedAt),
+			string(telemetry.TelemetryItemKeyTelemetryEnabled),
+		}, telemetryItemKeys)
 		require.Len(t, snapshot.WorkspaceAgentMemoryResourceMonitors, 1)
 		require.Len(t, snapshot.WorkspaceAgentVolumeResourceMonitors, 1)
 		wsa := snapshot.WorkspaceAgents[1]
@@ -2281,5 +2293,230 @@ func TestUserSecretsTelemetry(t *testing.T) {
 			return opts
 		})
 		require.Nil(t, snap2.UserSecretsSummary)
+	})
+}
+
+func TestCollectAgentsVirtualDesktop(t *testing.T) {
+	t.Parallel()
+
+	collect := func(t *testing.T, opts telemetry.Options) telemetry.AgentsVirtualDesktopTelemetry {
+		t.Helper()
+		var payload telemetry.AgentsVirtualDesktopTelemetry
+		require.NoError(t, json.Unmarshal(telemetry.CollectAgentsVirtualDesktop(context.Background(), opts), &payload))
+		return payload
+	}
+
+	t.Run("Default", func(t *testing.T) {
+		t.Parallel()
+
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatComputerUseProvider(gomock.Any()).Return("", nil)
+
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		require.False(t, payload.Enabled)
+		require.EqualValues(t, codersdk.ChatComputerUseProviderAnthropic, payload.ComputerUse.Provider)
+		require.Equal(t, "default", payload.ComputerUse.ProviderSource)
+	})
+
+	t.Run("Configured", func(t *testing.T) {
+		t.Parallel()
+
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatComputerUseProvider(gomock.Any()).Return("openai", nil)
+
+		payload := collect(t, telemetry.Options{
+			Database:    db,
+			Logger:      testutil.Logger(t),
+			Experiments: codersdk.Experiments{codersdk.ExperimentChatVirtualDesktop},
+		})
+		require.True(t, payload.Enabled)
+		require.Equal(t, "openai", payload.ComputerUse.Provider)
+		require.Equal(t, "configured", payload.ComputerUse.ProviderSource)
+	})
+
+	t.Run("QueryError", func(t *testing.T) {
+		t.Parallel()
+
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatComputerUseProvider(gomock.Any()).Return("", sql.ErrConnDone)
+
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.ComputerUse.Provider)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.ComputerUse.ProviderSource)
+	})
+}
+
+func TestCollectAgentsAdvisor(t *testing.T) {
+	t.Parallel()
+
+	collect := func(t *testing.T, opts telemetry.Options) telemetry.AgentsAdvisorTelemetry {
+		t.Helper()
+		var payload telemetry.AgentsAdvisorTelemetry
+		require.NoError(t, json.Unmarshal(telemetry.CollectAgentsAdvisor(context.Background(), opts), &payload))
+		return payload
+	}
+	marshalConfig := func(t *testing.T, cfg codersdk.AdvisorConfig) string {
+		t.Helper()
+		raw, err := json.Marshal(cfg)
+		require.NoError(t, err)
+		return string(raw)
+	}
+
+	t.Run("ReuseChatModel", func(t *testing.T) {
+		t.Parallel()
+
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
+			Return(marshalConfig(t, codersdk.AdvisorConfig{}), nil)
+
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		require.False(t, payload.Enabled)
+		require.Zero(t, payload.MaxUsesPerRun)
+		require.Zero(t, payload.MaxOutputTokens)
+		require.Equal(t, telemetry.AgentsExperimentAdvisorReuseChatModel, payload.Provider)
+		require.Equal(t, telemetry.AgentsExperimentAdvisorReuseChatModel, payload.Model)
+	})
+
+	t.Run("ModelOverride", func(t *testing.T) {
+		t.Parallel()
+
+		modelID := uuid.New()
+		providerID := uuid.New()
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return(marshalConfig(t, codersdk.AdvisorConfig{
+			Enabled:         true,
+			MaxUsesPerRun:   7,
+			MaxOutputTokens: 2048,
+			ModelConfigID:   modelID,
+		}), nil)
+		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).Return(database.ChatModelConfig{
+			Model:        "gpt-6-preview",
+			AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
+		}, nil)
+		db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{
+			Type: database.AIProviderTypeOpenai,
+		}, nil)
+
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		// Stored enabled is ignored; the chat-advisor experiment gates it.
+		require.False(t, payload.Enabled)
+		require.Equal(t, 7, payload.MaxUsesPerRun)
+		require.Equal(t, int64(2048), payload.MaxOutputTokens)
+		require.Equal(t, string(database.AIProviderTypeOpenai), payload.Provider)
+		require.Equal(t, "gpt-6-preview", payload.Model)
+	})
+
+	t.Run("ExperimentEnabled", func(t *testing.T) {
+		t.Parallel()
+
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
+			Return(marshalConfig(t, codersdk.AdvisorConfig{}), nil)
+
+		payload := collect(t, telemetry.Options{
+			Database:    db,
+			Logger:      testutil.Logger(t),
+			Experiments: codersdk.Experiments{codersdk.ExperimentChatAdvisor},
+		})
+		require.True(t, payload.Enabled)
+	})
+
+	t.Run("MalformedJSON", func(t *testing.T) {
+		t.Parallel()
+
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return("not-json", nil)
+
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Model)
+	})
+
+	t.Run("PartialParse", func(t *testing.T) {
+		t.Parallel()
+
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
+			Return(`{"max_uses_per_run": 42, "model_config_id": "not-a-uuid"}`, nil)
+
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		require.Zero(t, payload.MaxUsesPerRun)
+		require.Zero(t, payload.MaxOutputTokens)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Model)
+	})
+
+	t.Run("ClampsNegativeLimits", func(t *testing.T) {
+		t.Parallel()
+
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
+			Return(`{"max_uses_per_run": -3, "max_output_tokens": -99}`, nil)
+
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		require.Zero(t, payload.MaxUsesPerRun)
+		require.Zero(t, payload.MaxOutputTokens)
+	})
+
+	t.Run("InactiveModelConfig", func(t *testing.T) {
+		t.Parallel()
+
+		modelID := uuid.New()
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
+			Return(marshalConfig(t, codersdk.AdvisorConfig{ModelConfigID: modelID}), nil)
+		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).
+			Return(database.ChatModelConfig{}, sql.ErrNoRows)
+
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		require.Equal(t, telemetry.AgentsExperimentAdvisorReuseChatModel, payload.Provider)
+		require.Equal(t, telemetry.AgentsExperimentAdvisorReuseChatModel, payload.Model)
+	})
+
+	t.Run("ConfigFetchError", func(t *testing.T) {
+		t.Parallel()
+
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return("", sql.ErrConnDone)
+
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Model)
+	})
+
+	t.Run("ModelResolveError", func(t *testing.T) {
+		t.Parallel()
+
+		modelID := uuid.New()
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
+			Return(marshalConfig(t, codersdk.AdvisorConfig{ModelConfigID: modelID}), nil)
+		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).
+			Return(database.ChatModelConfig{}, sql.ErrConnDone)
+
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Model)
+	})
+
+	t.Run("ProviderResolveError", func(t *testing.T) {
+		t.Parallel()
+
+		modelID := uuid.New()
+		providerID := uuid.New()
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
+			Return(marshalConfig(t, codersdk.AdvisorConfig{ModelConfigID: modelID}), nil)
+		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).Return(database.ChatModelConfig{
+			Model:        "gpt-6-preview",
+			AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
+		}, nil)
+		db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).
+			Return(database.AIProvider{}, sql.ErrConnDone)
+
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		// The provider is unknown, but the already-resolved model still ships.
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
+		require.Equal(t, "gpt-6-preview", payload.Model)
 	})
 }

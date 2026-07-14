@@ -1116,6 +1116,7 @@ func aiProviderToProto(row database.AIProvider, keys []database.AIProviderKey) (
 			SmallFastModel:  settings.Bedrock.SmallFastModel,
 			RoleArn:         settings.Bedrock.RoleARN,
 			ExternalId:      settings.Bedrock.ExternalID,
+			Protocol:        string(settings.Bedrock.Protocol),
 		}
 	}
 

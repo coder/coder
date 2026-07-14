@@ -51,6 +51,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -5853,6 +5854,218 @@ func singlePartOfType(t *testing.T, msg database.ChatMessage, typ codersdk.ChatM
 	}
 	require.Len(t, matches, 1)
 	return matches[0]
+}
+
+func TestActiveServer_CompactionModelOverride(t *testing.T) {
+	t.Parallel()
+
+	const (
+		compactionSummary = "summary text for compaction"
+		chatModelName     = "claude-sonnet-4-20250514"
+		overrideModelName = "claude-3-5-haiku-latest"
+		thresholdPercent  = int32(70)
+	)
+
+	seedOverrideModel := func(ctx context.Context, t *testing.T, db database.Store, chatModel database.ChatModelConfig, contextLimit int64) database.ChatModelConfig {
+		t.Helper()
+		overrideModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Model:        overrideModelName,
+			AIProviderID: chatModel.AIProviderID,
+			ContextLimit: contextLimit,
+		})
+		lowEffort := "low"
+		overrideModel = updateChatModelCallConfig(t, db, overrideModel, codersdk.ChatModelCallConfig{
+			ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+				Default: &lowEffort,
+				Max:     &lowEffort,
+			},
+		})
+		require.NoError(t, db.UpsertChatCompactionModelOverride(ctx, overrideModel.ID.String()))
+		return overrideModel
+	}
+
+	t.Run("summary routes to the override model and continuation stays on the chat model", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		reg := prometheus.NewRegistry()
+		var streamCount atomic.Int32
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			body := anthropicRequestBody(t, *req)
+			if !req.Stream {
+				if strings.Contains(body, "You are performing a context compaction") {
+					require.Equal(t, overrideModelName, req.Model)
+					// The override config's reasoning effort must reach the
+					// summary request (Anthropic serializes it as
+					// output_config effort).
+					require.Contains(t, string(req.OutputConfig), `"effort":"low"`)
+					return anthropicCompactionResponse(compactionSummary)
+				}
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			require.Equal(t, chatModelName, req.Model)
+			switch streamCount.Add(1) {
+			case 1:
+				return highUsageReadFileResponse("/tmp/a.txt")
+			default:
+				require.Contains(t, body, compactionSummary)
+				require.Empty(t, string(req.OutputConfig),
+					"the override reasoning effort must not leak into chat model generations")
+				return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunksWithCacheUsage(chattest.AnthropicUsage{
+					InputTokens:  20,
+					OutputTokens: 5,
+				}, "continued after compaction")...)
+			}
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+		model = updateChatModelCompressionThreshold(t, db, model, 100, thresholdPercent)
+		overrideModel := seedOverrideModel(ctx, t, db, model, 1_000_000)
+		ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		setupToolExecutionAgentConn(t, mockConn)
+		mockConn.EXPECT().ReadFileLines(gomock.Any(), "/tmp/a.txt", int64(1), int64(0), gomock.Any()).
+			Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 12, TotalLines: 1, LinesRead: 1, Content: "1\tpackage main"}, nil).
+			Times(1)
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+			cfg.PrometheusRegistry = reg
+			cfg.AlwaysEnableDebugLogs = true
+			cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				require.Equal(t, dbAgent.ID, agentID)
+				return mockConn, func() {}, nil
+			}
+		})
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			APIKeyID:       testAPIKeyID(t, db, user.ID),
+			WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+			AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+			Title:          "compaction-override",
+			ModelConfigID:  model.ID,
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("read the file and continue"),
+			},
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		messages := chatMessages(ctx, t, db, chat.ID)
+		promptMessages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		compressed := compressedChatSummarizedMessages(t, append(promptMessages, messages...))
+		require.Len(t, compressed.summaries, 1)
+		require.Contains(t, messageText(t, compressed.summaries[0]), compactionSummary)
+		requireTextPart(t, messages[len(messages)-1], "continued after compaction")
+
+		requireChatdMetricCounter(t, reg, "coderd_chatd_compaction_total", 1, map[string]string{
+			"provider": "anthropic",
+			"model":    overrideModelName,
+			"result":   "success",
+		})
+
+		require.NoError(t, server.Close())
+		debugCtx := testutil.Context(t, testutil.WaitLong)
+		var compactionRun database.ChatDebugRun
+		testutil.Eventually(debugCtx, t, func(ctx context.Context) bool {
+			runs, err := db.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{
+				ChatID:   chat.ID,
+				LimitVal: 100,
+			})
+			if err != nil {
+				return false
+			}
+			for _, run := range runs {
+				if run.Kind == string(chatdebug.KindCompaction) {
+					compactionRun = run
+					return true
+				}
+			}
+			return false
+		}, testutil.IntervalMedium)
+		require.True(t, compactionRun.Provider.Valid)
+		require.Equal(t, "anthropic", compactionRun.Provider.String)
+		require.True(t, compactionRun.Model.Valid)
+		require.Equal(t, overrideModelName, compactionRun.Model.String)
+		require.True(t, compactionRun.ModelConfigID.Valid)
+		require.Equal(t, overrideModel.ID, compactionRun.ModelConfigID.UUID)
+	})
+
+	t.Run("compaction triggers at the stricter override context limit", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		var streamCount atomic.Int32
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			body := anthropicRequestBody(t, *req)
+			if !req.Stream {
+				if strings.Contains(body, "You are performing a context compaction") {
+					require.Equal(t, overrideModelName, req.Model)
+					return anthropicCompactionResponse(compactionSummary)
+				}
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			switch streamCount.Add(1) {
+			case 1:
+				return highUsageReadFileResponse("/tmp/a.txt")
+			default:
+				require.Contains(t, body, compactionSummary)
+				return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunksWithCacheUsage(chattest.AnthropicUsage{
+					InputTokens:  20,
+					OutputTokens: 5,
+				}, "continued after compaction")...)
+			}
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+		// The chat model alone would not compact: 80 tokens of usage is
+		// 8% of its 1000-token limit. The override model's 100-token
+		// limit makes the effective threshold 70 tokens, so compaction
+		// must trigger.
+		model = updateChatModelCompressionThreshold(t, db, model, 1_000, thresholdPercent)
+		seedOverrideModel(ctx, t, db, model, 100)
+		ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		setupToolExecutionAgentConn(t, mockConn)
+		mockConn.EXPECT().ReadFileLines(gomock.Any(), "/tmp/a.txt", int64(1), int64(0), gomock.Any()).
+			Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 12, TotalLines: 1, LinesRead: 1, Content: "1\tpackage main"}, nil).
+			Times(1)
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+			cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				require.Equal(t, dbAgent.ID, agentID)
+				return mockConn, func() {}, nil
+			}
+		})
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			APIKeyID:       testAPIKeyID(t, db, user.ID),
+			WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+			AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+			Title:          "compaction-override-limit",
+			ModelConfigID:  model.ID,
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("read the file and continue"),
+			},
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		messages := chatMessages(ctx, t, db, chat.ID)
+		promptMessages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		compressed := compressedChatSummarizedMessages(t, append(promptMessages, messages...))
+		require.Len(t, compressed.summaries, 1)
+		requireTextPart(t, messages[len(messages)-1], "continued after compaction")
+	})
 }
 
 func TestActiveServer_BasicAssistantGenerationAndPromptPreparation(t *testing.T) {

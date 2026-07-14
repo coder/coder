@@ -28,6 +28,8 @@ const generalOverrideContext: TypesGen.ChatModelOverrideContext = "general";
 const exploreOverrideContext: TypesGen.ChatModelOverrideContext = "explore";
 const titleGenerationOverrideContext: TypesGen.ChatModelOverrideContext =
 	"title_generation";
+const compactionOverrideContext: TypesGen.ChatModelOverrideContext =
+	"compaction";
 
 const chatModelOverrideKey = (context: TypesGen.ChatModelOverrideContext) =>
 	["chat-model-override", context] as const;
@@ -79,6 +81,10 @@ const CoderAgentsPage: FC = () => {
 		...chatModelOverrideQuery(titleGenerationOverrideContext),
 		enabled: canEditDeploymentConfig,
 	});
+	const compactionModelQuery = useQuery({
+		...chatModelOverrideQuery(compactionOverrideContext),
+		enabled: canEditDeploymentConfig,
+	});
 	const modelConfigsQuery = useQuery(chatModelConfigs());
 	const advisorConfigQuery = useQuery({
 		...chatAdvisorConfig(),
@@ -103,6 +109,9 @@ const CoderAgentsPage: FC = () => {
 			queryClient,
 			titleGenerationOverrideContext,
 		),
+	);
+	const saveCompactionModelMutation = useMutation(
+		updateChatModelOverrideMutation(queryClient, compactionOverrideContext),
 	);
 	const saveExploreModelOverrideMutation = useMutation(
 		updateChatModelOverrideMutation(queryClient, exploreOverrideContext),
@@ -141,6 +150,7 @@ const CoderAgentsPage: FC = () => {
 				}
 				generalModelOverrideData={generalModelOverrideQuery.data}
 				titleGenerationModelOverrideData={titleGenerationModelQuery.data}
+				compactionModelOverrideData={compactionModelQuery.data}
 				exploreModelOverrideData={exploreModelOverrideQuery.data}
 				modelConfigsData={modelConfigsQuery.data}
 				providerInfoByID={providerInfoByID}
@@ -161,6 +171,9 @@ const CoderAgentsPage: FC = () => {
 				isSaveTitleGenerationModelError={
 					saveTitleGenerationModelMutation.isError
 				}
+				onSaveCompactionModel={saveCompactionModelMutation.mutate}
+				isSavingCompactionModel={saveCompactionModelMutation.isPending}
+				isSaveCompactionModelError={saveCompactionModelMutation.isError}
 				onSaveExploreModelOverride={saveExploreModelOverrideMutation.mutate}
 				isSavingExploreModelOverride={
 					saveExploreModelOverrideMutation.isPending

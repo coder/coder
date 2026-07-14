@@ -23,6 +23,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -3784,6 +3785,63 @@ func TestCreateChatModelConfig(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, configs, 1)
 		requireChatModelPricing(t, configs[0].ModelConfig, pricing)
+	})
+
+	t.Run("ConcurrentCreatesElectSingleDefault", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
+
+		// Concurrent creators race to self-elect a default while one claims
+		// it via a follow-up update, mirroring a terraform apply. Unserialized,
+		// the losers 409 on the single-default unique index.
+		const creators = 10
+		contextLimit := int64(4096)
+		var claimed codersdk.ChatModelConfig
+		var eg errgroup.Group
+		for i := range creators - 1 {
+			eg.Go(func() error {
+				_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+					AIProviderID: &aiProvider.ID,
+					Model:        fmt.Sprintf("gpt-4o-mini-%d", i),
+					ContextLimit: &contextLimit,
+				})
+				return err
+			})
+		}
+		eg.Go(func() error {
+			created, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+				AIProviderID: &aiProvider.ID,
+				Model:        "gpt-4o",
+				ContextLimit: &contextLimit,
+			})
+			if err != nil {
+				return xerrors.Errorf("create claimed config: %w", err)
+			}
+			claimed, err = client.UpdateChatModelConfig(ctx, created.ID, codersdk.UpdateChatModelConfigRequest{
+				IsDefault: ptr.Ref(true),
+			})
+			if err != nil {
+				return xerrors.Errorf("promote claimed config: %w", err)
+			}
+			return nil
+		})
+		require.NoError(t, eg.Wait())
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		require.Len(t, configs, creators)
+		var defaults []uuid.UUID
+		for _, cfg := range configs {
+			if cfg.IsDefault {
+				defaults = append(defaults, cfg.ID)
+			}
+		}
+		require.Equal(t, []uuid.UUID{claimed.ID}, defaults)
 	})
 
 	t.Run("RejectsNegativePricing", func(t *testing.T) {
@@ -12299,6 +12357,16 @@ func TestChatModelOverrides(t *testing.T) {
 				return db.UpsertChatTitleGenerationModelOverride(dbauthz.AsSystemRestricted(ctx), value)
 			},
 		},
+		{
+			name:    "Compaction",
+			context: codersdk.ChatModelOverrideContextCompaction,
+			dbGet: func(ctx context.Context, db database.Store) (string, error) {
+				return db.GetChatCompactionModelOverride(dbauthz.AsSystemRestricted(ctx))
+			},
+			dbUpsert: func(ctx context.Context, db database.Store, value string) error {
+				return db.UpsertChatCompactionModelOverride(dbauthz.AsSystemRestricted(ctx), value)
+			},
+		},
 	}
 
 	for _, setting := range settings {
@@ -12508,7 +12576,7 @@ func TestChatModelOverrides(t *testing.T) {
 		require.Equal(t, "Invalid chat model override context.", sdkErr.Message)
 		require.Equal(
 			t,
-			`Expected one of general, explore, title_generation. Got "not-a-context".`,
+			`Expected one of general, explore, title_generation, compaction. Got "not-a-context".`,
 			sdkErr.Detail,
 		)
 
@@ -12517,7 +12585,7 @@ func TestChatModelOverrides(t *testing.T) {
 		require.Equal(t, "Invalid chat model override context.", sdkErr.Message)
 		require.Equal(
 			t,
-			`Expected one of general, explore, title_generation. Got "not-a-context".`,
+			`Expected one of general, explore, title_generation, compaction. Got "not-a-context".`,
 			sdkErr.Detail,
 		)
 	})
@@ -13930,13 +13998,21 @@ func TestChatAdvisorConfig_RoundTripModelConfigID(t *testing.T) {
 	adminClient := newChatClient(t)
 	coderdtest.CreateFirstUser(t, adminClient.Client)
 
-	modelConfig := createChatModelConfig(t, adminClient)
+	modelConfig := createAdditionalChatModelConfigWithReasoningEffort(
+		t,
+		adminClient,
+		"openai",
+		"gpt-5.2",
+		codersdk.ChatModelReasoningEffortMedium,
+		codersdk.ChatModelReasoningEffortXHigh,
+	)
 
 	want := codersdk.AdvisorConfig{
 		Enabled:         true,
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 2048,
 		ModelConfigID:   modelConfig.ID,
+		ReasoningEffort: ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
 	}
 
 	err := adminClient.UpdateChatAdvisorConfig(ctx, want)
@@ -13961,6 +14037,44 @@ func TestChatAdvisorConfig_InvalidModelConfigID(t *testing.T) {
 	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 	require.Contains(t, sdkErr.Message, unknownID.String())
 	require.Contains(t, sdkErr.Message, "does not match any existing model config")
+}
+
+func TestChatAdvisorConfig_ReasoningEffortRequiresModelConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newChatClient(t)
+	coderdtest.CreateFirstUser(t, adminClient.Client)
+
+	err := adminClient.UpdateChatAdvisorConfig(ctx, codersdk.UpdateAdvisorConfigRequest{
+		ReasoningEffort: ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+	})
+	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+	require.Equal(t, "reasoning_effort requires model_config_id.", sdkErr.Message)
+}
+
+func TestChatAdvisorConfig_ReasoningEffortMustBeSelectable(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newChatClient(t)
+	coderdtest.CreateFirstUser(t, adminClient.Client)
+	modelConfig := createAdditionalChatModelConfigWithReasoningEffort(
+		t,
+		adminClient,
+		"openai",
+		"gpt-5.2",
+		codersdk.ChatModelReasoningEffortLow,
+		codersdk.ChatModelReasoningEffortMedium,
+	)
+
+	err := adminClient.UpdateChatAdvisorConfig(ctx, codersdk.UpdateAdvisorConfigRequest{
+		ModelConfigID:   modelConfig.ID,
+		ReasoningEffort: ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+	})
+	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+	require.Equal(t, "Invalid reasoning_effort value.", sdkErr.Message)
+	require.Equal(t, "Must be one of none, minimal, low, medium.", sdkErr.Detail)
 }
 
 func TestChatAdvisorConfig_RoundTripZeroValues(t *testing.T) {
@@ -13995,13 +14109,21 @@ func TestChatAdvisorConfig_OverwriteClearsPreviousValues(t *testing.T) {
 	adminClient := newChatClient(t)
 	coderdtest.CreateFirstUser(t, adminClient.Client)
 
-	modelConfig := createChatModelConfig(t, adminClient)
+	modelConfig := createAdditionalChatModelConfigWithReasoningEffort(
+		t,
+		adminClient,
+		"openai",
+		"gpt-5.2",
+		codersdk.ChatModelReasoningEffortMedium,
+		codersdk.ChatModelReasoningEffortXHigh,
+	)
 
 	rich := codersdk.AdvisorConfig{
 		Enabled:         true,
 		MaxUsesPerRun:   5,
 		MaxOutputTokens: 1024,
 		ModelConfigID:   modelConfig.ID,
+		ReasoningEffort: ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
 	}
 	err := adminClient.UpdateChatAdvisorConfig(ctx, rich)
 	require.NoError(t, err)
