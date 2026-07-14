@@ -121,6 +121,8 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		assert.Equal(t, expected.ActivityBumpMillis, got.ActivityBumpMillis)
 		assert.Equal(t, expected.TimeTilAutostopNotifyMillis, got.TimeTilAutostopNotifyMillis)
 		assert.Equal(t, expected.UseClassicParameterFlow, false) // Current default is false
+		assert.True(t, expected.AgentsAllowed)
+		assert.True(t, got.AgentsAllowed)
 
 		require.Len(t, auditor.AuditLogs(), 3)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[0].Action)
@@ -1007,6 +1009,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			ActivityBumpMillis:           ptr.Ref(3 * time.Hour.Milliseconds()),
 			TimeTilAutostopNotifyMillis:  ptr.Ref(5 * time.Minute.Milliseconds()),
 			AllowUserCancelWorkspaceJobs: ptr.Ref(false),
+			AgentsAllowed:                ptr.Ref(false),
 		}
 		// It is unfortunate we need to sleep, but the test can fail if the
 		// updatedAt is too close together.
@@ -1025,6 +1028,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, *req.ActivityBumpMillis, updated.ActivityBumpMillis)
 		assert.Equal(t, *req.TimeTilAutostopNotifyMillis, updated.TimeTilAutostopNotifyMillis)
 		assert.False(t, *req.AllowUserCancelWorkspaceJobs)
+		assert.False(t, updated.AgentsAllowed)
 
 		// Extra paranoid: did it _really_ happen?
 		updated, err = client.Template(ctx, template.ID)
@@ -1038,9 +1042,33 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, *req.ActivityBumpMillis, updated.ActivityBumpMillis)
 		assert.Equal(t, *req.TimeTilAutostopNotifyMillis, updated.TimeTilAutostopNotifyMillis)
 		assert.False(t, *req.AllowUserCancelWorkspaceJobs)
+		assert.False(t, updated.AgentsAllowed)
 
 		require.Len(t, auditor.AuditLogs(), 5)
 		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[4].Action)
+	})
+
+	t.Run("AgentsAllowedAuthorization", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))
+		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, templateAdminClient, owner.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, templateAdminClient, owner.OrganizationID, version.ID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		updated, err := templateAdminClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			AgentsAllowed: ptr.Ref(false),
+		})
+		require.NoError(t, err)
+		assert.False(t, updated.AgentsAllowed)
+
+		_, err = memberClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			AgentsAllowed: ptr.Ref(true),
+		})
+		require.Error(t, err)
 	})
 
 	t.Run("AlreadyExists", func(t *testing.T) {
@@ -1960,6 +1988,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			ctr.Icon = "/icon/original.png"
 			ctr.DefaultTTLMillis = ptr.Ref((24 * time.Hour).Milliseconds())
 			ctr.AllowUserCancelWorkspaceJobs = ptr.Ref(true)
+			ctr.AgentsAllowed = ptr.Ref(false)
 		})
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1975,6 +2004,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, template.Icon, updated.Icon)
 		assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 		assert.Equal(t, template.AllowUserCancelWorkspaceJobs, updated.AllowUserCancelWorkspaceJobs)
+		assert.Equal(t, template.AgentsAllowed, updated.AgentsAllowed)
 		assert.Equal(t, template.RequireActiveVersion, updated.RequireActiveVersion)
 	})
 
@@ -1991,9 +2021,11 @@ func TestPatchTemplateMeta(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.AllowUserCancelWorkspaceJobs = ptr.Ref(true)
+			ctr.AgentsAllowed = ptr.Ref(false)
 			ctr.DefaultTTLMillis = ptr.Ref((24 * time.Hour).Milliseconds())
 		})
 		require.True(t, template.AllowUserCancelWorkspaceJobs)
+		require.False(t, template.AgentsAllowed)
 		require.Equal(t, (24 * time.Hour).Milliseconds(), template.DefaultTTLMillis)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -2006,6 +2038,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Equal(t, newTTL, updated.DefaultTTLMillis)
+		assert.False(t, updated.AgentsAllowed, "omitted agents field must not be overwritten")
 		assert.True(t, updated.AllowUserCancelWorkspaceJobs, "omitted bool field must not be overwritten")
 
 		// Conversely, sending only AllowUserCancelWorkspaceJobs must not zero
@@ -2015,6 +2048,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.False(t, updated.AllowUserCancelWorkspaceJobs)
+		assert.False(t, updated.AgentsAllowed, "unrelated patch must preserve agents field")
 		assert.Equal(t, newTTL, updated.DefaultTTLMillis, "omitted int64 field must not be overwritten")
 	})
 }

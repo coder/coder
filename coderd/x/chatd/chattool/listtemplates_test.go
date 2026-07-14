@@ -714,10 +714,10 @@ func TestListTemplates_AmbiguousTopMatches(t *testing.T) {
 }
 
 //nolint:tparallel,paralleltest // Subtests share a single DB and run sequentially.
-func TestTemplateAllowlistEnforcement(t *testing.T) {
+func TestTemplateAgentsAllowedEnforcement(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
-	db, _ := dbtestutil.NewDB(t)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -726,125 +726,66 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 		OrganizationID: org.ID,
 	})
 
-	t1 := dbgen.Template(t, db, database.Template{
+	allowed := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "template-alpha",
 	})
-	t2 := dbgen.Template(t, db, database.Template{
+	blocked := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 		Name:           "template-beta",
 	})
+	_, err := sqlDB.ExecContext(ctx, `UPDATE templates SET agents_allowed = false WHERE id = $1`, blocked.ID)
+	require.NoError(t, err)
 
 	t.Run("ListTemplates", func(t *testing.T) {
-		t.Run("NoAllowlist", func(t *testing.T) {
-			tool := chattool.ListTemplates(db, uuid.Nil, chattool.ListTemplatesOptions{
-				OwnerID: user.ID,
-			})
-
-			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c1", Name: "list_templates", Input: "{}"})
-			require.NoError(t, err)
-			var result map[string]any
-			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-			templates := result["templates"].([]any)
-			require.Len(t, templates, 2)
+		tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
+			OwnerID: user.ID,
 		})
 
-		t.Run("EmptyAllowlist", func(t *testing.T) {
-			tool := chattool.ListTemplates(db, uuid.Nil, chattool.ListTemplatesOptions{
-				OwnerID:            user.ID,
-				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{} },
-			})
-
-			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c2", Name: "list_templates", Input: "{}"})
-			require.NoError(t, err)
-			var result map[string]any
-			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-			templates := result["templates"].([]any)
-			require.Len(t, templates, 2)
-		})
-
-		t.Run("OneMatch", func(t *testing.T) {
-			tool := chattool.ListTemplates(db, uuid.Nil, chattool.ListTemplatesOptions{
-				OwnerID:            user.ID,
-				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{t1.ID: true} },
-			})
-
-			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c3", Name: "list_templates", Input: "{}"})
-			require.NoError(t, err)
-			var result map[string]any
-			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-			templates := result["templates"].([]any)
-			require.Len(t, templates, 1)
-			m := templates[0].(map[string]any)
-			require.Equal(t, t1.ID.String(), m["id"].(string))
-			require.Equal(t, chattool.NextStepUseRecommended, result["next_step"])
-			require.Equal(t, t1.ID.String(), result["recommended_template_id"])
-		})
-
-		t.Run("NoMatches", func(t *testing.T) {
-			tool := chattool.ListTemplates(db, uuid.Nil, chattool.ListTemplatesOptions{
-				OwnerID:            user.ID,
-				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{uuid.New(): true} },
-			})
-
-			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c4", Name: "list_templates", Input: "{}"})
-			require.NoError(t, err)
-			var result map[string]any
-			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-			templates := result["templates"].([]any)
-			require.Empty(t, templates)
-			require.Equal(t, chattool.NextStepNoTemplates, result["next_step"])
-			_, ok := result["recommended_template_id"]
-			require.False(t, ok)
-		})
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c1", Name: "list_templates", Input: "{}"})
+		require.NoError(t, err)
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		templates := result["templates"].([]any)
+		require.Len(t, templates, 1)
+		template := templates[0].(map[string]any)
+		require.Equal(t, allowed.ID.String(), template["id"])
+		require.NotEqual(t, blocked.ID.String(), template["id"])
 	})
 
 	t.Run("ReadTemplate", func(t *testing.T) {
 		t.Run("Allowed", func(t *testing.T) {
 			tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
-				OwnerID:            user.ID,
-				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{t1.ID: true} },
+				OwnerID: user.ID,
 			})
-			input := `{"template_id":"` + t1.ID.String() + `"}`
-			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c5", Name: "read_template", Input: input})
+			input := `{"template_id":"` + allowed.ID.String() + `"}`
+			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c2", Name: "read_template", Input: input})
 			require.NoError(t, err)
 			require.False(t, resp.IsError)
 			var result map[string]any
 			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-			tmplInfo := result["template"].(map[string]any)
-			require.Equal(t, t1.ID.String(), tmplInfo["id"].(string))
+			template := result["template"].(map[string]any)
+			require.Equal(t, allowed.ID.String(), template["id"])
 		})
 
-		t.Run("Disallowed", func(t *testing.T) {
-			tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
-				OwnerID:            user.ID,
-				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{uuid.New(): true} },
-			})
-			input := `{"template_id":"` + t2.ID.String() + `"}`
-			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c6", Name: "read_template", Input: input})
-			require.NoError(t, err)
-			require.True(t, resp.IsError)
-			require.Contains(t, resp.Content, "not found")
-		})
-
-		t.Run("NoAllowlist", func(t *testing.T) {
+		t.Run("Blocked", func(t *testing.T) {
 			tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
 				OwnerID: user.ID,
 			})
-			input := `{"template_id":"` + t2.ID.String() + `"}`
-			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c7", Name: "read_template", Input: input})
+			input := `{"template_id":"` + blocked.ID.String() + `"}`
+			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c3", Name: "read_template", Input: input})
 			require.NoError(t, err)
-			require.False(t, resp.IsError)
+			require.True(t, resp.IsError)
+			require.Equal(t, "template not available for chat workspaces; use list_templates to find allowed templates", resp.Content)
 		})
 	})
 
+	model := seedModelConfig(t, db)
+
 	t.Run("CreateWorkspace", func(t *testing.T) {
 		t.Run("Allowed", func(t *testing.T) {
-			// CreateWorkspace requires a real chat row so the existing
-			// workspace lookup can fall through to creation.
-			model := seedModelConfig(t, db)
 			chat, err := db.InsertChat(ctx, database.InsertChatParams{
 				OrganizationID:    org.ID,
 				OwnerID:           user.ID,
@@ -857,44 +798,46 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 
 			createCalled := false
 			tool := chattool.CreateWorkspace(db, org.ID, chat.ID, chattool.CreateWorkspaceOptions{
-				OwnerID:            user.ID,
-				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{t1.ID: true} },
-
+				OwnerID: user.ID,
 				CreateFn: func(_ context.Context, _ uuid.UUID, _ codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
 					createCalled = true
 					return codersdk.Workspace{}, nil
 				},
 			})
 
-			input := `{"template_id":"` + t1.ID.String() + `"}`
-			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c8a", Name: "create_workspace", Input: input})
+			input := `{"template_id":"` + allowed.ID.String() + `"}`
+			_, err = tool.Run(ctx, fantasy.ToolCall{ID: "c4", Name: "create_workspace", Input: input})
 			require.NoError(t, err)
-			require.True(t, createCalled, "CreateFn should be called for allowed template")
-			// We don't assert resp.IsError here because CreateWorkspace
-			// does additional work (asOwner, workspace lookup) that
-			// depends on full RBAC setup. The key assertion is that
-			// the allowlist gate passed and CreateFn was invoked.
-			_ = resp
+			require.True(t, createCalled, "CreateFn should be called for an allowed template")
 		})
 
-		t.Run("Disallowed", func(t *testing.T) {
+		t.Run("Blocked", func(t *testing.T) {
+			chat, err := db.InsertChat(ctx, database.InsertChatParams{
+				OrganizationID:    org.ID,
+				OwnerID:           user.ID,
+				LastModelConfigID: model.ID,
+				Title:             "blocked-create",
+				Status:            database.ChatStatusWaiting,
+				ClientType:        database.ChatClientTypeApi,
+			})
+			require.NoError(t, err)
+
 			var createCalled bool
-			tool := chattool.CreateWorkspace(db, org.ID, uuid.New(), chattool.CreateWorkspaceOptions{
-				OwnerID:            user.ID,
-				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{t2.ID: true} },
+			tool := chattool.CreateWorkspace(db, org.ID, chat.ID, chattool.CreateWorkspaceOptions{
+				OwnerID: user.ID,
 				CreateFn: func(_ context.Context, _ uuid.UUID, _ codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
 					createCalled = true
-					t.Fatal("CreateFn should not be called for blocked template")
+					t.Fatal("CreateFn should not be called for a blocked template")
 					return codersdk.Workspace{}, nil
 				},
 			})
 
-			input := `{"template_id":"` + t1.ID.String() + `"}`
-			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c8", Name: "create_workspace", Input: input})
+			input := `{"template_id":"` + blocked.ID.String() + `"}`
+			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c5", Name: "create_workspace", Input: input})
 			require.NoError(t, err)
 			require.True(t, resp.IsError)
 			require.Contains(t, resp.Content, "template not available for chat workspaces")
-			require.False(t, createCalled, "CreateFn should not be called for blocked template")
+			require.False(t, createCalled, "CreateFn should not be called for a blocked template")
 		})
 	})
 }
