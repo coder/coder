@@ -1,7 +1,7 @@
 import * as path from "node:path";
 import { defineConfig } from "@playwright/test";
 import {
-	coderBinary as coderBinaryPath,
+	coderBinary,
 	coderdPProfPort,
 	coderPort,
 	e2eFakeExperiment1,
@@ -32,8 +32,6 @@ export const retries = (() => {
 const localURL = (port: number, path: string): string => {
 	return `http://localhost:${port}${path}`;
 };
-const coderBinary = JSON.stringify(coderBinaryPath);
-
 export default defineConfig({
 	retries,
 	globalSetup: require.resolve("./setup/preflight"),
@@ -83,7 +81,7 @@ export default defineConfig({
 		// loaded CI runners.
 		timeout: 120_000,
 		command: [
-			coderBinary,
+			`"${coderBinary}"`,
 			"server",
 			"--global-config $(mktemp -d -t e2e-XXXXXXXXXX)",
 			`--access-url=http://localhost:${coderPort}`,
