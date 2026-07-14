@@ -1,7 +1,7 @@
 // aibridgepricesgen converts a models.dev api.json snapshot into generated
 // artifacts, selected by -format:
 //
-//   - "prices": a JSON seed file consumable by the AI Bridge cost-control
+//   - "prices": a JSON seed file consumable by the AI Gateway cost-control
 //     loader, sorted by (provider, model) so regenerations produce minimal
 //     diffs.
 //   - "catalog": the frontend known-models JSON, joining the snapshot with

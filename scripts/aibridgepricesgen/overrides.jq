@@ -18,6 +18,7 @@ end
 # claude-mythos-5: not listed on models.dev. Anthropic documents it as sharing
 # claude-fable-5's specs and pricing, so inject it as a copy with its own
 # id and display name.
+# Ref: https://platform.claude.com/docs/en/about-claude/pricing#model-pricing
 | if (.anthropic.models | has("claude-fable-5") | not) then
     error("overrides.jq: claude-fable-5 gone from upstream; the claude-mythos-5 copy has no source")
   elif (.anthropic.models | has("claude-mythos-5")) then
