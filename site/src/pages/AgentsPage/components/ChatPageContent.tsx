@@ -80,7 +80,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 		store,
 		selectIsAwaitingFirstStreamChunk,
 	);
-	const isChatCompleted = !hasStream && chatStatus !== "pending";
+	const isChatCompleted = !hasStream;
 
 	const messages = orderedMessageIDs
 		.map((messageID) => {
@@ -422,8 +422,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		wasEditingRef.current = isEditing;
 	}, [isEditing, resetEditAttachments]);
 
-	const isStreaming =
-		hasStreamState || chatStatus === "running" || chatStatus === "pending";
+	const isStreaming = hasStreamState || chatStatus === "running";
 
 	const inputElement = (
 		<AgentChatInput

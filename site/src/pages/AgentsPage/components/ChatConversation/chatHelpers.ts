@@ -1,5 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import { getWorkspaceAgents } from "#/utils/workspace";
+import { findWorkspaceAgent } from "#/utils/workspace";
 import type { AgentContextUsage } from "../AgentChatInput";
 import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
@@ -96,12 +96,7 @@ export const getWorkspaceAgent = (
 	workspace: TypesGen.Workspace | undefined,
 	workspaceAgentId: string | undefined,
 ): TypesGen.WorkspaceAgent | undefined => {
-	if (!workspace) {
-		return undefined;
-	}
-	const agents = getWorkspaceAgents(workspace);
-	if (agents.length === 0) {
-		return undefined;
-	}
-	return agents.find((agent) => agent.id === workspaceAgentId) ?? agents[0];
+	return workspace && workspaceAgentId
+		? findWorkspaceAgent(workspace, workspaceAgentId)
+		: undefined;
 };

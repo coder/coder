@@ -1490,7 +1490,7 @@ func TestResolveConfiguredModelOverride_AcceptsAmbientCredentialsProvider(
 		Enabled:     true,
 	}
 
-	resolvedModelConfig, reasoningEffort, ok, err := server.resolveConfiguredModelOverride(
+	resolvedModelConfig, _, reasoningEffort, ok, err := server.resolveConfiguredModelOverride(
 		ctx,
 		"plan",
 		modelConfig.ID.String(),

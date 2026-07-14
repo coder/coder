@@ -15,9 +15,9 @@ curl -X GET http://coder-server:8080/api/v2/tasks \
 
 ### Parameters
 
-| Name | In    | Type   | Required | Description                                                                                                         |
-|------|-------|--------|----------|---------------------------------------------------------------------------------------------------------------------|
-| `q`  | query | string | false    | Search query for filtering tasks. Supports: owner:<username/uuid/me>, organization:<org-name/uuid>, status:<status> |
+| Name | In    | Type   | Required | Description                                                                                                               |
+|------|-------|--------|----------|---------------------------------------------------------------------------------------------------------------------------|
+| `q`  | query | string | false    | Search query for filtering tasks. Supports: `owner:<username/uuid/me>`, `organization:<org-name/uuid>`, `status:<status>` |
 
 ### Example responses
 

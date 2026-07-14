@@ -64,6 +64,13 @@ type CompactionOptions struct {
 	ChatID              uuid.UUID
 	HistoryTipMessageID int64
 
+	// Summary model identity and call options; see
+	// GenerateCompactionOptions.
+	ResolvedProvider string
+	ResolvedModel    string
+	ModelConfigID    uuid.UUID
+	ProviderOptions  fantasy.ProviderOptions
+
 	// ToolCallID and ToolName identify the synthetic tool call
 	// used to represent compaction in the message stream.
 	ToolCallID string
@@ -169,6 +176,10 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 		DebugSvc:            opts.DebugSvc,
 		ChatID:              opts.ChatID,
 		HistoryTipMessageID: opts.HistoryTipMessageID,
+		ResolvedProvider:    opts.ResolvedProvider,
+		ResolvedModel:       opts.ResolvedModel,
+		ModelConfigID:       opts.ModelConfigID,
+		ProviderOptions:     opts.ProviderOptions,
 		ToolCallID:          opts.ToolCallID,
 		ToolName:            opts.ToolName,
 		PublishMessagePart:  opts.PublishMessagePart,
@@ -276,6 +287,21 @@ func startCompactionDebugRun(
 		historyTipMessageID = parentRun.HistoryTipMessageID
 	}
 
+	// Prefer the caller-supplied summary model identity; it can differ
+	// from the parent run's chat model under a compaction override.
+	provider := parentRun.Provider
+	if options.ResolvedProvider != "" {
+		provider = options.ResolvedProvider
+	}
+	model := parentRun.Model
+	if options.ResolvedModel != "" {
+		model = options.ResolvedModel
+	}
+	modelConfigID := parentRun.ModelConfigID
+	if options.ModelConfigID != uuid.Nil {
+		modelConfigID = options.ModelConfigID
+	}
+
 	// Use a separate short-lived context for the debug insert so a
 	// slow or locked DB cannot block the model call. Detached from
 	// the parent so cancellation of the compaction run still lets
@@ -288,13 +314,13 @@ func startCompactionDebugRun(
 		ChatID:              options.ChatID,
 		RootChatID:          parentRun.RootChatID,
 		ParentChatID:        parentRun.ParentChatID,
-		ModelConfigID:       parentRun.ModelConfigID,
+		ModelConfigID:       modelConfigID,
 		TriggerMessageID:    parentRun.TriggerMessageID,
 		HistoryTipMessageID: historyTipMessageID,
 		Kind:                chatdebug.KindCompaction,
 		Status:              chatdebug.StatusInProgress,
-		Provider:            parentRun.Provider,
-		Model:               parentRun.Model,
+		Provider:            provider,
+		Model:               model,
 	})
 	createRunCancel()
 	if err != nil {
@@ -307,12 +333,12 @@ func startCompactionDebugRun(
 		ChatID:              options.ChatID,
 		RootChatID:          parentRun.RootChatID,
 		ParentChatID:        parentRun.ParentChatID,
-		ModelConfigID:       parentRun.ModelConfigID,
+		ModelConfigID:       modelConfigID,
 		TriggerMessageID:    parentRun.TriggerMessageID,
 		HistoryTipMessageID: historyTipMessageID,
 		Kind:                chatdebug.KindCompaction,
-		Provider:            parentRun.Provider,
-		Model:               parentRun.Model,
+		Provider:            provider,
+		Model:               model,
 	})
 
 	return compactionCtx, func(runErr error) {
@@ -367,8 +393,9 @@ func generateCompactionSummary(
 	}()
 
 	response, err := model.Generate(summaryCtx, fantasy.Call{
-		Prompt:     summaryPrompt,
-		ToolChoice: &toolChoice,
+		Prompt:          summaryPrompt,
+		ToolChoice:      &toolChoice,
+		ProviderOptions: options.ProviderOptions,
 	})
 	if err != nil {
 		return "", xerrors.Errorf("generate summary text: %w", err)

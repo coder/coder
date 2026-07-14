@@ -1087,8 +1087,6 @@ func turnStatusLabelStateContext(status database.ChatStatus) string {
 	switch status {
 	case database.ChatStatusWaiting:
 		return "The turn finished and the chat is idle."
-	case database.ChatStatusPending:
-		return "Another user message is queued and the chat will continue."
 	case database.ChatStatusRequiresAction:
 		return "The chat is waiting for user input or action."
 	case database.ChatStatusError:
@@ -1102,8 +1100,6 @@ func fallbackTurnStatusLabel(status database.ChatStatus) string {
 	switch status {
 	case database.ChatStatusWaiting:
 		return "Finished latest turn"
-	case database.ChatStatusPending:
-		return "Still working on request"
 	case database.ChatStatusRequiresAction:
 		return "Waiting for user input"
 	case database.ChatStatusError:

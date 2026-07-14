@@ -70,7 +70,7 @@ func (p *Server) resolveTitleGenerationModelOverride(
 		)
 	}
 
-	modelConfig, overrideEffort, overrideSet, err := p.resolveConfiguredModelOverride(
+	modelConfig, _, overrideEffort, overrideSet, err := p.resolveConfiguredModelOverride(
 		ctx,
 		titleGenerationOverrideContext,
 		raw,

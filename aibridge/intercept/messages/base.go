@@ -1,10 +1,14 @@
 package messages
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"strconv"
@@ -17,6 +21,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/shared"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -64,6 +69,22 @@ var bedrockSupportedBetaFlags = map[string]bool{
 	"tool-examples-2025-10-29": true,
 }
 
+// BedrockPRMUserAgent is Coder's AWS Partner Revenue Measurement (PRM)
+// attribution marker for outbound Bedrock requests.
+//
+// It is appended to Bedrock User-Agent headers so AWS can recognize the
+// traffic as Coder-associated Bedrock usage.
+const BedrockPRMUserAgent = "sdk-ua-app-id/APN_1.1%2Fpc_cdfmjwn8i6u8l9fwz8h82e4w3%24"
+
+// bedrockMantleSigningService is the AWS SigV4 service name for mantle.
+const bedrockMantleSigningService = "bedrock-mantle"
+
+func appendBedrockPRMUserAgent(req *http.Request) {
+	if ua := req.Header.Get("User-Agent"); ua != "" {
+		req.Header.Set("User-Agent", ua+" "+BedrockPRMUserAgent)
+	}
+}
+
 // BedrockRuntime carries everything a Bedrock-backed interception needs: the
 // static Bedrock config plus the AWS credentials provider.
 type BedrockRuntime struct {
@@ -109,12 +130,29 @@ func (i *interceptionBase) CorrelatingToolCallID() *string {
 	return i.reqPayload.correlatingToolCallID()
 }
 
+// isBedrockMantle reports whether the interception targets the Bedrock mantle
+// protocol.
+func (i *interceptionBase) isBedrockMantle() bool {
+	return i.bedrock != nil && i.bedrock.Cfg.Protocol == aibconfig.BedrockProtocolMantle
+}
+
+// isBedrockInvokeModel reports whether the interception targets the Bedrock
+// InvokeModel protocol.
+func (i *interceptionBase) isBedrockInvokeModel() bool {
+	return i.bedrock != nil &&
+		(i.bedrock.Cfg.Protocol == "" || i.bedrock.Cfg.Protocol == aibconfig.BedrockProtocolInvokeModel)
+}
+
 func (i *interceptionBase) Model() string {
 	if len(i.reqPayload) == 0 {
 		return "coder-aibridge-unknown"
 	}
 
-	if i.bedrock != nil {
+	// InvokeModel is the only protocol that remaps the model: it replaces the
+	// client's model with the operator-configured one. Every other case (mantle
+	// passthrough, non-Bedrock providers) returns the model the client sent in
+	// the body.
+	if i.isBedrockInvokeModel() {
 		model := i.bedrock.Cfg.Model
 		if i.isSmallFastModel() {
 			model = i.bedrock.Cfg.SmallFastModel
@@ -245,15 +283,29 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 		opts = append(opts, option.WithMiddleware(mw))
 	}
 
-	if i.bedrock != nil {
-		ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	// bedrockCredentialResolutionTimeout bounds the credential
+	// resolution (STS/IRSA) shared by both Bedrock protocols.
+	const bedrockCredentialResolutionTimeout = 30 * time.Second
+
+	if i.isBedrockInvokeModel() {
+		ctx, cancel := context.WithTimeout(ctx, bedrockCredentialResolutionTimeout)
 		defer cancel()
-		bedrockOpts, err := i.withAWSBedrockOptions(ctx)
+		bedrockOpts, err := i.withBedrockInvokeModelOptions(ctx)
 		if err != nil {
 			return anthropic.MessageService{}, err
 		}
 		opts = append(opts, bedrockOpts...)
-		i.augmentRequestForBedrock()
+		i.augmentRequestForBedrockInvokeModel()
+	}
+
+	if i.isBedrockMantle() {
+		ctx, cancel := context.WithTimeout(ctx, bedrockCredentialResolutionTimeout)
+		defer cancel()
+		bedrockOpts, err := i.withBedrockMantleOptions(ctx)
+		if err != nil {
+			return anthropic.MessageService{}, err
+		}
+		opts = append(opts, bedrockOpts...)
 	}
 
 	return anthropic.NewMessageService(opts...), nil
@@ -267,23 +319,18 @@ func (i *interceptionBase) withBody() option.RequestOption {
 	return option.WithRequestBody("application/json", []byte(i.reqPayload))
 }
 
-// withAWSBedrockOptions returns request options for authenticating with AWS Bedrock.
+// withBedrockInvokeModelOptions returns request options for the AWS Bedrock
+// InvokeModel protocol.
 //
 // Credentials come from i.bedrock.Creds. It is a shared credentials cache, so the per-request Retrieve()
 // below is served from that cache and does not re-resolve or re-assume on every request.
-func (i *interceptionBase) withAWSBedrockOptions(ctx context.Context) ([]option.RequestOption, error) {
+func (i *interceptionBase) withBedrockInvokeModelOptions(ctx context.Context) ([]option.RequestOption, error) {
 	if i.bedrock == nil {
 		return nil, xerrors.New("nil bedrock runtime")
 	}
 	cfg := i.bedrock.Cfg
-	if cfg.Region == "" && cfg.BaseURL == "" {
-		return nil, xerrors.New("region or base url required")
-	}
-	if cfg.Model == "" {
-		return nil, xerrors.New("model required")
-	}
-	if cfg.SmallFastModel == "" {
-		return nil, xerrors.New("small fast model required")
+	if err := cfg.Validate(); err != nil {
+		return nil, xerrors.Errorf("bedrock invoke-model config: %w", err)
 	}
 
 	// Fail fast: ensure credentials can be resolved before signing. Served from
@@ -300,9 +347,7 @@ func (i *interceptionBase) withAWSBedrockOptions(ctx context.Context) ([]option.
 
 	var out []option.RequestOption
 	out = append(out, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-		if ua := req.Header.Get("User-Agent"); ua != "" {
-			req.Header.Set("User-Agent", ua+" sdk-ua-app-id/APN_1.1%2Fpc_cdfmjwn8i6u8l9fwz8h82e4w3%24")
-		}
+		appendBedrockPRMUserAgent(req)
 		return next(req)
 	}))
 	out = append(out, bedrock.WithConfig(awsCfg))
@@ -315,11 +360,69 @@ func (i *interceptionBase) withAWSBedrockOptions(ctx context.Context) ([]option.
 	return out, nil
 }
 
-// augmentRequestForBedrock will change the model used for the request since AWS Bedrock doesn't support
+// withBedrockMantleOptions returns request options for the AWS Bedrock mantle
+// endpoint (bedrock-mantle.{region}.api.aws/anthropic/v1/messages). It speaks
+// the native Messages wire format, so this middleware only SigV4-signs the
+// request (service "bedrock-mantle") and forwards it; the response is plain
+// SSE.
+func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]option.RequestOption, error) {
+	if i.bedrock == nil {
+		return nil, xerrors.New("nil bedrock runtime")
+	}
+	cfg := i.bedrock.Cfg
+	if err := cfg.Validate(); err != nil {
+		return nil, xerrors.Errorf("bedrock mantle config: %w", err)
+	}
+
+	// Fail fast: ensure credentials can be resolved before signing. Served from
+	// the shared cache on most requests (no network); on the cold or refresh
+	// path this performs the actual STS/IMDS call.
+	if _, err := i.bedrock.Creds.Retrieve(ctx); err != nil {
+		return nil, xerrors.Errorf("resolve AWS credentials: %w", err)
+	}
+
+	signer := v4.NewSigner()
+	var out []option.RequestOption
+	out = append(out, option.WithBaseURL(cfg.BaseURL))
+	// Appended last so it runs innermost (right before the HTTP send) and signs
+	// the request after all other headers are set.
+	out = append(out, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
+		appendBedrockPRMUserAgent(req)
+
+		creds, err := i.bedrock.Creds.Retrieve(req.Context())
+		if err != nil {
+			return nil, xerrors.Errorf("mantle SigV4: resolve AWS credentials: %w", err)
+		}
+
+		// SigV4 requires a payload hash, so read the body to hash it and then
+		// restore it for the downstream HTTP client to send.
+		var body []byte
+		if req.Body != nil {
+			var err error
+			body, err = io.ReadAll(req.Body)
+			if err != nil {
+				return nil, xerrors.Errorf("mantle SigV4: read request body: %w", err)
+			}
+			_ = req.Body.Close()
+			req.Body = io.NopCloser(bytes.NewReader(body))
+			req.ContentLength = int64(len(body))
+		}
+
+		hash := sha256.Sum256(body)
+		if err := signer.SignHTTP(req.Context(), creds, req, hex.EncodeToString(hash[:]), bedrockMantleSigningService, cfg.Region, time.Now()); err != nil {
+			return nil, xerrors.Errorf("mantle SigV4: sign request: %w", err)
+		}
+		return next(req)
+	}))
+
+	return out, nil
+}
+
+// augmentRequestForBedrockInvokeModel changes the model used for the request since AWS Bedrock doesn't support
 // Anthropics' model names. It also converts adaptive thinking to enabled with a budget for models that
 // don't support adaptive thinking natively, or enabled thinking to adaptive for models that only support
 // adaptive (Opus 4.7+).
-func (i *interceptionBase) augmentRequestForBedrock() {
+func (i *interceptionBase) augmentRequestForBedrockInvokeModel() {
 	if i.bedrock == nil {
 		return
 	}

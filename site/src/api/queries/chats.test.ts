@@ -2201,7 +2201,7 @@ describe("mergeWatchedChatSummary", () => {
 	it("leaves context untouched for non-context events", () => {
 		const context = { dirty: true, dirty_since: "2025-01-02T00:00:00.000Z" };
 		const cachedChat = makeChat("chat-1", {
-			status: "pending",
+			status: "waiting",
 			updated_at: "2025-01-01T00:00:00.000Z",
 			context,
 		});
@@ -2220,7 +2220,7 @@ describe("mergeWatchedChatSummary", () => {
 
 	it("merges fresh status updates without clobbering a newer title snapshot", () => {
 		const cachedChat = makeChat("chat-1", {
-			status: "pending",
+			status: "waiting",
 			title: "Fresh title",
 			last_model_config_id: "model-old",
 			updated_at: "2025-01-01T00:00:00.000Z",
@@ -2314,7 +2314,7 @@ describe("mergeWatchedChatSummary", () => {
 
 	it("compares updated_at values as instants instead of strings", () => {
 		const cachedChat = makeChat("chat-1", {
-			status: "pending",
+			status: "waiting",
 			last_model_config_id: "model-old",
 			updated_at: "2025-01-01T00:00:00.12Z",
 		});
@@ -2342,7 +2342,7 @@ describe("mergeWatchedChatSummary", () => {
 			updated_at: "2025-01-01T00:00:00.000Z",
 		});
 		const watchedChat = makeChat("chat-1", {
-			status: "completed",
+			status: "waiting",
 			title: "Updated title",
 			updated_at: "2025-01-01T00:05:00.000Z",
 		});
@@ -2364,7 +2364,7 @@ describe("mergeWatchedChatSummary", () => {
 			updated_at: "2025-01-01T00:10:00.000Z",
 		});
 		const watchedChat = makeChat("chat-1", {
-			status: "completed",
+			status: "waiting",
 			title: "Newer generated title",
 			updated_at: "2025-01-01T00:05:00.000Z",
 		});
@@ -2414,7 +2414,7 @@ describe("mergeWatchedChatSummary", () => {
 			updated_at: "2025-01-01T00:00:00.000Z",
 		});
 		const watchedChat = makeChat("chat-1", {
-			status: "completed",
+			status: "waiting",
 			title: "Stale title",
 			diff_status: watchedDiffStatus,
 			updated_at: "2025-01-01T00:05:00.000Z",
@@ -2465,7 +2465,7 @@ describe("mergeWatchedChatSummary", () => {
 			updated_at: "2025-01-01T00:10:00.000Z",
 		});
 		const watchedChat = makeChat("chat-1", {
-			status: "completed",
+			status: "waiting",
 			title: "Stale title",
 			diff_status: watchedDiffStatus,
 			updated_at: "2025-01-01T00:05:00.000Z",
@@ -2489,7 +2489,7 @@ describe("mergeWatchedChatSummary", () => {
 			updated_at: "2025-01-01T00:00:00.000Z",
 		});
 		const watchedChat = makeChat("chat-1", {
-			status: "completed",
+			status: "waiting",
 			updated_at: "2025-01-01T00:05:00.000Z",
 		});
 
@@ -2526,7 +2526,7 @@ describe("mergeWatchedChatSummary", () => {
 			updated_at: "2025-01-01T00:00:00.000Z",
 		});
 		const watchedChat = makeChat("chat-1", {
-			status: "completed",
+			status: "waiting",
 			updated_at: "2025-01-01T00:05:00.000Z",
 		});
 
@@ -2544,7 +2544,7 @@ describe("mergeWatchedChatIntoCaches", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		const cachedChat = makeChat(chatId, {
-			status: "pending",
+			status: "waiting",
 			last_model_config_id: "model-old",
 			updated_at: "2025-01-01T00:00:00.000Z",
 		});
@@ -2581,7 +2581,7 @@ describe("mergeWatchedChatIntoCaches", () => {
 		const cachedChild = makeChat(childId, {
 			parent_chat_id: "parent-1",
 			root_chat_id: "parent-1",
-			status: "pending",
+			status: "waiting",
 			last_model_config_id: "model-old",
 			updated_at: "2025-01-01T00:00:00.000Z",
 		});
@@ -2619,7 +2619,7 @@ describe("mergeWatchedChatIntoCaches", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		const cachedChat = makeChat(chatId, {
-			status: "completed",
+			status: "waiting",
 			title: "Fresh title",
 			last_model_config_id: "model-new",
 			workspace_id: "workspace-new",
@@ -2643,7 +2643,7 @@ describe("mergeWatchedChatIntoCaches", () => {
 		});
 
 		expect(readInfiniteChats(queryClient)?.[0]).toMatchObject({
-			status: "completed",
+			status: "waiting",
 			title: "Fresh title",
 			last_model_config_id: "model-new",
 			workspace_id: "workspace-new",
@@ -2653,7 +2653,7 @@ describe("mergeWatchedChatIntoCaches", () => {
 		expect(
 			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId)),
 		).toMatchObject({
-			status: "completed",
+			status: "waiting",
 			title: "Fresh title",
 			last_model_config_id: "model-new",
 			workspace_id: "workspace-new",

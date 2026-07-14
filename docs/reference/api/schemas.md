@@ -435,28 +435,28 @@
 
 ### Properties
 
-| Name                                | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                   |
-|-------------------------------------|----------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `allow_byok`                        | boolean                                                              | false    |              |                                                                                                                                                                               |
-| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              | Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.                                                                                      |
-| `api_dump_dir`                      | string                                                               | false    |              | Api dump dir is the base directory under which each provider's request/response dumps are written, in a subdirectory named after the provider. Empty disables dumping.        |
-| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              | Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.                                                                                      |
-| `budget_period`                     | string                                                               | false    |              |                                                                                                                                                                               |
-| `budget_policy`                     | string                                                               | false    |              | Budget settings for AI Governance cost controls.                                                                                                                              |
-| `circuit_breaker_enabled`           | boolean                                                              | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                            |
-| `circuit_breaker_failure_threshold` | integer                                                              | false    |              |                                                                                                                                                                               |
-| `circuit_breaker_interval`          | integer                                                              | false    |              |                                                                                                                                                                               |
-| `circuit_breaker_max_requests`      | integer                                                              | false    |              |                                                                                                                                                                               |
-| `circuit_breaker_timeout`           | integer                                                              | false    |              |                                                                                                                                                                               |
-| `enabled`                           | boolean                                                              | false    |              |                                                                                                                                                                               |
-| `inject_coder_mcp_tools`            | boolean                                                              | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                  |
-| `max_concurrency`                   | integer                                                              | false    |              |                                                                                                                                                                               |
-| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              | Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.                                                                                      |
-| `providers`                         | array of [codersdk.AIProviderConfig](#codersdkaiproviderconfig)      | false    |              | Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY> env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above. |
-| `rate_limit`                        | integer                                                              | false    |              |                                                                                                                                                                               |
-| `retention`                         | integer                                                              | false    |              |                                                                                                                                                                               |
-| `send_actor_headers`                | boolean                                                              | false    |              |                                                                                                                                                                               |
-| `structured_logging`                | boolean                                                              | false    |              |                                                                                                                                                                               |
+| Name                                | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                     |
+|-------------------------------------|----------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_byok`                        | boolean                                                              | false    |              |                                                                                                                                                                                 |
+| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              | Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.                                                                                      |
+| `api_dump_dir`                      | string                                                               | false    |              | Api dump dir is the base directory under which each provider's request/response dumps are written, in a subdirectory named after the provider. Empty disables dumping.          |
+| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              | Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.                                                                                      |
+| `budget_period`                     | string                                                               | false    |              |                                                                                                                                                                                 |
+| `budget_policy`                     | string                                                               | false    |              | Budget settings for AI Governance cost controls.                                                                                                                                |
+| `circuit_breaker_enabled`           | boolean                                                              | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                              |
+| `circuit_breaker_failure_threshold` | integer                                                              | false    |              |                                                                                                                                                                                 |
+| `circuit_breaker_interval`          | integer                                                              | false    |              |                                                                                                                                                                                 |
+| `circuit_breaker_max_requests`      | integer                                                              | false    |              |                                                                                                                                                                                 |
+| `circuit_breaker_timeout`           | integer                                                              | false    |              |                                                                                                                                                                                 |
+| `enabled`                           | boolean                                                              | false    |              |                                                                                                                                                                                 |
+| `inject_coder_mcp_tools`            | boolean                                                              | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                    |
+| `max_concurrency`                   | integer                                                              | false    |              |                                                                                                                                                                                 |
+| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              | Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.                                                                                      |
+| `providers`                         | array of [codersdk.AIProviderConfig](#codersdkaiproviderconfig)      | false    |              | Providers holds provider instances populated from `CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>` env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above. |
+| `rate_limit`                        | integer                                                              | false    |              |                                                                                                                                                                                 |
+| `retention`                         | integer                                                              | false    |              |                                                                                                                                                                                 |
+| `send_actor_headers`                | boolean                                                              | false    |              |                                                                                                                                                                                 |
+| `structured_logging`                | boolean                                                              | false    |              |                                                                                                                                                                                 |
 
 ## codersdk.AIBridgeListSessionsResponse
 
@@ -551,6 +551,7 @@
   "enabled": true,
   "key_file": "string",
   "listen_addr": "string",
+  "target": "string",
   "tls_cert_file": "string",
   "tls_key_file": "string",
   "upstream_proxy": "string",
@@ -569,6 +570,7 @@
 | `enabled`               | boolean         | false    |              |             |
 | `key_file`              | string          | false    |              |             |
 | `listen_addr`           | string          | false    |              |             |
+| `target`                | string          | false    |              |             |
 | `tls_cert_file`         | string          | false    |              |             |
 | `tls_key_file`          | string          | false    |              |             |
 | `upstream_proxy`        | string          | false    |              |             |
@@ -941,6 +943,7 @@
     "enabled": true,
     "key_file": "string",
     "listen_addr": "string",
+    "target": "string",
     "tls_cert_file": "string",
     "tls_key_file": "string",
     "upstream_proxy": "string",
@@ -3406,9 +3409,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                           |
-|----------------------------------------------------------------------------------------------------|
-| `completed`, `error`, `interrupting`, `paused`, `pending`, `requires_action`, `running`, `waiting` |
+| Value(s)                                                         |
+|------------------------------------------------------------------|
+| `error`, `interrupting`, `requires_action`, `running`, `waiting` |
 
 ## codersdk.ChatStreamActionRequired
 
@@ -5279,9 +5282,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                           |
-|------------------------------------------------------------------------------------|
-| `oidc_convert`, `tailnet_resume`, `workspace_apps_api_key`, `workspace_apps_token` |
+| Value(s)                                                                                      |
+|-----------------------------------------------------------------------------------------------|
+| `nats_ca`, `oidc_convert`, `tailnet_resume`, `workspace_apps_api_key`, `workspace_apps_token` |
 
 ## codersdk.CustomNotificationContent
 
@@ -5633,6 +5636,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "enabled": true,
         "key_file": "string",
         "listen_addr": "string",
+        "target": "string",
         "tls_cert_file": "string",
         "tls_key_file": "string",
         "upstream_proxy": "string",
@@ -6242,6 +6246,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "enabled": true,
       "key_file": "string",
       "listen_addr": "string",
+      "target": "string",
       "tls_cert_file": "string",
       "tls_key_file": "string",
       "upstream_proxy": "string",

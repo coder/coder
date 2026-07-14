@@ -46,7 +46,7 @@ jobs:
       - name: Sync issues
         id: sync
         if: steps.version.outputs.skip != 'true'
-        uses: linear/linear-release-action@0353b5fa8c00326913966f00557d68f8f30b8b6b # v0.7.0
+        uses: linear/linear-release-action@c0cb8354a362c24c6d3e0948f37fd66d07588e3f # v0.14.5
         with:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
           command: sync
@@ -72,7 +72,7 @@ jobs:
 
       - name: Sync issues
         id: sync
-        uses: linear/linear-release-action@0353b5fa8c00326913966f00557d68f8f30b8b6b # v0.7.0
+        uses: linear/linear-release-action@c0cb8354a362c24c6d3e0948f37fd66d07588e3f # v0.14.5
         with:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
           command: sync
@@ -100,7 +100,7 @@ jobs:
 
       - name: Move to Code Freeze
         id: update
-        uses: linear/linear-release-action@0353b5fa8c00326913966f00557d68f8f30b8b6b # v0.7.0
+        uses: linear/linear-release-action@c0cb8354a362c24c6d3e0948f37fd66d07588e3f # v0.14.5
         with:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
           command: update

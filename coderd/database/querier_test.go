@@ -1281,11 +1281,11 @@ func TestChatContextHydration(t *testing.T) {
 	hashH := []byte{0x01, 0x02, 0x03}
 	hashOther := []byte{0xff, 0xee}
 
-	chatNull := newChat(database.ChatStatusWaiting, agent.ID)       // never hydrated
-	chatMatch := newChat(database.ChatStatusRunning, agent.ID)      // already at hashH
-	chatDrift := newChat(database.ChatStatusRunning, agent.ID)      // drifted, active
-	chatTerminal := newChat(database.ChatStatusCompleted, agent.ID) // drifted, terminal
-	chatArchived := newChat(database.ChatStatusRunning, agent.ID)   // drifted, archived
+	chatNull := newChat(database.ChatStatusWaiting, agent.ID)     // never hydrated
+	chatMatch := newChat(database.ChatStatusRunning, agent.ID)    // already at hashH
+	chatDrift := newChat(database.ChatStatusRunning, agent.ID)    // drifted, active
+	chatTerminal := newChat(database.ChatStatusError, agent.ID)   // drifted, terminal
+	chatArchived := newChat(database.ChatStatusRunning, agent.ID) // drifted, archived
 	chatOtherAgent := newChat(database.ChatStatusRunning, otherAgent.ID)
 
 	// Pin starting hashes; chatNull is intentionally left NULL.
@@ -13020,7 +13020,7 @@ func TestChatPinOrderConstraints(t *testing.T) {
 
 		parent, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusCompleted,
+			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
@@ -13030,7 +13030,7 @@ func TestChatPinOrderConstraints(t *testing.T) {
 
 		child, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusCompleted,
+			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
@@ -13051,7 +13051,7 @@ func TestChatPinOrderConstraints(t *testing.T) {
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusCompleted,
+			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
@@ -15546,8 +15546,8 @@ func TestGetChatsSearch(t *testing.T) {
 		{"Composed/SearchAndRepo", database.GetChatsParams{Search: "authentication", RepoQuery: "acme/widget"}, []uuid.UUID{prTitleChat.ID}},
 		{"Composed/SearchAndPRStatus", database.GetChatsParams{Search: "authentication", PullRequestStatuses: []string{"merged"}}, []uuid.UUID{mergedChat.ID}},
 		{"EmptySearch/ReturnsAll", database.GetChatsParams{Search: ""}, allRootIDs},
-		{"WhitespaceSearch/ReturnsAll", database.GetChatsParams{Search: "   "}, allRootIDs},
-		{"TabOnlySearch/ReturnsAll", database.GetChatsParams{Search: "\t\t"}, allRootIDs},
+		{"WhitespaceSearch/ReturnsNothing", database.GetChatsParams{Search: "   "}, nil},
+		{"TabOnlySearch/ReturnsNothing", database.GetChatsParams{Search: "\t\t"}, nil},
 		{"EmptySearch/TitleQueryStillWorks", database.GetChatsParams{Search: "", TitleQuery: "pipeline alpha"}, []uuid.UUID{titleChat.ID}},
 		{"EmptySearch/PRTitleQueryStillWorks", database.GetChatsParams{Search: "", PrTitleQuery: "authentication bug"}, []uuid.UUID{prTitleChat.ID}},
 	}
