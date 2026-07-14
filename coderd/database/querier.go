@@ -13,9 +13,6 @@ import (
 )
 
 type sqlcQuerier interface {
-	// Acquires up to @num_chats pending chats for processing. Uses SKIP LOCKED
-	// to prevent multiple replicas from acquiring the same chat.
-	AcquireChats(ctx context.Context, arg AcquireChatsParams) ([]Chat, error)
 	// Blocks until the lock is acquired.
 	//
 	// This must be called from within a transaction. The lock will be automatically

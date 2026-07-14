@@ -238,18 +238,12 @@ export const ChatStreamingOverridesTurnSummary: Story = {
 				status: "running",
 				last_turn_summary: "Added Docker and Terraform validation",
 			}),
-			buildChat({
-				id: "chat-streaming-pending",
-				title: "Queued continuation",
-				status: "pending",
-				last_turn_summary: "Added Docker and Terraform validation",
-			}),
 		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await expect(canvas.getAllByText("GPT-4o streaming…")).toHaveLength(2);
+		await expect(canvas.getByText("GPT-4o streaming…")).toBeInTheDocument();
 		expect(
 			canvas.queryByText("Added Docker and Terraform validation"),
 		).not.toBeInTheDocument();
@@ -398,41 +392,6 @@ export const RunningDelegatedChat: Story = {
 		const canvas = within(canvasElement);
 		await expect(
 			canvas.getByTestId("agents-tree-executing-child-running"),
-		).toBeInTheDocument();
-	},
-};
-
-export const PendingDelegatedChat: Story = {
-	args: {
-		chats: [
-			buildChat({
-				id: "root-pending",
-				title: "Root agent",
-				children: [
-					buildChat({
-						id: "child-pending",
-						title: "Pending child",
-						status: "pending",
-						parent_chat_id: "root-pending",
-						root_chat_id: "root-pending",
-					}),
-				],
-			}),
-		],
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: {
-				path: "/agents/child-pending",
-				pathParams: { agentId: "child-pending" },
-			},
-			routing: agentsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByTestId("agents-tree-executing-child-pending"),
 		).toBeInTheDocument();
 	},
 };
