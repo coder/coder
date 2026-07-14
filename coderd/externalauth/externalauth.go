@@ -193,7 +193,7 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 	// Prevent parallel refreshes by waiting for the result of any already
 	// in-flight refresh.  Otherwise, the parallel calls will fail with a bad
 	// refresh token error as they can only be used once.
-	key := externalAuthLink.OAuthAccessToken
+	key := c.ID + ":" + externalAuthLink.UserID.String()
 	link, err := c.Group().Do(key, func() (any, error) {
 		return c.innerRefreshToken(ctx, db, externalAuthLink)
 	})
