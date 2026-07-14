@@ -93,7 +93,6 @@ export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
 						<Input
 							id="name"
 							name={nameField.name}
-							// biome-ignore lint/a11y/noAutofocus: focus the primary field on load
 							autoFocus
 							disabled={nameDisabled}
 							value={nameField.value ?? ""}
@@ -105,10 +104,10 @@ export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
 							<span
 								className={cn(
 									"text-xs",
-								workspace.allow_renames
-									? "text-content-warning"
-									: "text-content-secondary",
-							)}
+									workspace.allow_renames
+										? "text-content-warning"
+										: "text-content-secondary",
+								)}
 							>
 								{nameHelperText}
 							</span>
