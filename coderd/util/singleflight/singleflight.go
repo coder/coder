@@ -44,10 +44,13 @@ func (g *Group) Do(key string, fn func() (any, error)) (v any, err error) {
 	g.m[key] = c
 	g.mu.Unlock()
 
+	defer func() {
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		c.wg.Done()
+		delete(g.m, key)
+	}()
+
 	c.val, c.err = fn()
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	c.wg.Done()
-	delete(g.m, key)
 	return c.val, c.err
 }
