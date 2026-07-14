@@ -82,8 +82,8 @@ func (c AWSBedrock) ResolvedProtocol() BedrockProtocol {
 
 // Validate verifies protocol-specific Bedrock configuration.
 func (c AWSBedrock) Validate() error {
-	switch c.Protocol {
-	case "", BedrockProtocolInvokeModel:
+	switch c.ResolvedProtocol() {
+	case BedrockProtocolInvokeModel:
 		if c.Region == "" && c.BaseURL == "" {
 			return xerrors.New("region or base url required")
 		}

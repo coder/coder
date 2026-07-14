@@ -133,14 +133,13 @@ func (i *interceptionBase) CorrelatingToolCallID() *string {
 // isBedrockMantle reports whether the interception targets the Bedrock mantle
 // protocol.
 func (i *interceptionBase) isBedrockMantle() bool {
-	return i.bedrock != nil && i.bedrock.Cfg.Protocol == aibconfig.BedrockProtocolMantle
+	return i.bedrock != nil && i.bedrock.Cfg.ResolvedProtocol() == aibconfig.BedrockProtocolMantle
 }
 
 // isBedrockInvokeModel reports whether the interception targets the Bedrock
 // InvokeModel protocol.
 func (i *interceptionBase) isBedrockInvokeModel() bool {
-	return i.bedrock != nil &&
-		(i.bedrock.Cfg.Protocol == "" || i.bedrock.Cfg.Protocol == aibconfig.BedrockProtocolInvokeModel)
+	return i.bedrock != nil && i.bedrock.Cfg.ResolvedProtocol() == aibconfig.BedrockProtocolInvokeModel
 }
 
 func (i *interceptionBase) Model() string {
