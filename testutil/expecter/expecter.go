@@ -57,6 +57,13 @@ func New(t *testing.T, r io.Reader, name string) *Expecter {
 	logDone := make(chan struct{})
 	out := newStdbuf()
 	logLines := make(chan []byte, 256)
+	// logLines is buffered, so a send succeeds up to its capacity
+	// regardless of whether the drain goroutine below has started
+	// receiving yet. logReady lets the copy goroutine wait for the
+	// drain goroutine to reach its receive loop first, so a burst of
+	// output at startup can't fill the buffer and get silently dropped
+	// before anything is listening.
+	logReady := make(chan struct{})
 
 	ex := &Expecter{
 		t:    t,
@@ -71,6 +78,7 @@ func New(t *testing.T, r io.Reader, name string) *Expecter {
 	go func() {
 		defer close(copyDone)
 		defer close(logLines)
+		<-logReady
 		_, err := io.Copy(logTee{out: out, lines: logLines}, r)
 		ex.Logf("copy done: %v", err)
 		ex.Logf("closing out")
@@ -81,6 +89,7 @@ func New(t *testing.T, r io.Reader, name string) *Expecter {
 	// Log all output as part of test for easier debugging on errors.
 	go func() {
 		defer close(logDone)
+		close(logReady)
 		var buf []byte
 		for chunk := range logLines {
 			buf = append(buf, chunk...)
