@@ -18,21 +18,18 @@ name: audit-docs-paths
 # Why this job is gated (vars.AUDIT_DOCS_PATHS_ENABLED)
 # ----------------------------------------------------
 # The audit needs coder/coder.com, which is a PRIVATE repo. The default
-# GITHUB_TOKEN cannot read it, so the job checks it out with a dedicated
-# GitHub App installation token. Until that App is provisioned and its
-# credentials are stored, the job would fail on every run, so it stays
-# dormant behind a repository variable.
+# GITHUB_TOKEN cannot read another repo, so the coder.com checkout below
+# uses the cdrci2 machine-user token (secrets.CDRCI2_GITHUB_TOKEN), the
+# same org CI credential already used elsewhere in this repo. The job
+# stays dormant behind a repository variable so it can merge without
+# running until an operator has validated it once.
 #
 # To enable
-#   1. Create/allow a GitHub App installed on BOTH coder/coder and
-#      coder/coder.com with Contents: Read. (Issue writes on this repo are
-#      covered by the default GITHUB_TOKEN below; the App is only used for
-#      the cross-repo checkout.)
-#   2. Store its credentials as:
-#        vars.DOCS_AUDIT_APP_ID
-#        secrets.DOCS_AUDIT_APP_PRIVATE_KEY
-#   3. Set the repository variable AUDIT_DOCS_PATHS_ENABLED to 'true'.
-#   4. Trigger once from the Actions UI (workflow_dispatch) to confirm an
+#   1. Confirm secrets.CDRCI2_GITHUB_TOKEN can read coder/coder.com
+#      (cdrci2 is the org CI bot). Issue writes on this repo are covered
+#      by the default GITHUB_TOKEN below, not by this token.
+#   2. Set the repository variable AUDIT_DOCS_PATHS_ENABLED to 'true'.
+#   3. Trigger once from the Actions UI (workflow_dispatch) to confirm an
 #      end-to-end run before relying on the schedule.
 #
 # What it does with findings
@@ -57,8 +54,7 @@ concurrency:
 
 jobs:
   audit-docs-paths:
-    # Dormant until the cross-repo GitHub App credentials are provisioned.
-    # See the header comment for the enable steps.
+    # Dormant until an operator flips the variable. See the header comment.
     if: vars.AUDIT_DOCS_PATHS_ENABLED == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -70,18 +66,6 @@ jobs:
         with:
           egress-policy: audit
 
-      # Token scoped to read the private coder.com repo. The default
-      # GITHUB_TOKEN handles issue writes on this repo; this App token is
-      # only used for the cross-repo checkout below.
-      - name: Generate app token for coder.com checkout
-        id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          app-id: ${{ vars.DOCS_AUDIT_APP_ID }}
-          private-key: ${{ secrets.DOCS_AUDIT_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: coder.com
-
       # coder/coder at the workspace root so the local composite actions
       # under ./.github/actions/* resolve normally.
       - name: Checkout coder/coder
@@ -89,15 +73,17 @@ jobs:
         with:
           persist-credentials: false
 
-      # coder/coder.com beside it. The audit's report path detection keys
-      # off the ".../coder/site/" and ".../coder.com/src/" path segments,
-      # which the absolute --roots below preserve.
+      # coder/coder.com beside it, read with the cdrci2 org CI token
+      # (the default GITHUB_TOKEN can't read another private repo). The
+      # audit's report path detection keys off the ".../coder/site/" and
+      # ".../coder.com/src/" path segments, which the absolute --roots
+      # below preserve.
       - name: Checkout coder/coder.com
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: ${{ github.repository_owner }}/coder.com
           path: coder.com
-          token: ${{ steps.app-token.outputs.token }}
+          token: ${{ secrets.CDRCI2_GITHUB_TOKEN }}
           persist-credentials: false
 
       - name: Set up mise tools
