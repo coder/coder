@@ -337,10 +337,10 @@ func TestRefreshToken(t *testing.T) {
 			"permanent failures should not be retried")
 	})
 
-	// ConcurrentRefreshRace tests that when multiple concurrent requests race to
-	// refresh the same token, they share the same request instead of only one
-	// succeeding and the others using a now-invalid refresh token.
-	t.Run("ConcurrentRefreshRace", func(t *testing.T) {
+	// ConcurrentRefreshGroup tests that when requests try to refresh a token
+	// while another request is pending, they wait on the first caller and share
+	// the result instead of all attempting to perform the refresh.
+	t.Run("ConcurrentRefreshGroup", func(t *testing.T) {
 		t.Parallel()
 
 		ctrl := gomock.NewController(t)
@@ -357,7 +357,7 @@ func TestRefreshToken(t *testing.T) {
 		var refreshCalls atomic.Int64
 		config := &externalauth.Config{
 			InstrumentedOAuth2Config: &testutil.OAuth2Config{
-				// The first call to refresh well succeed and all others will fail.  The
+				// The first call to refresh will succeed and all others will fail.  The
 				// first will wait for all callers to join the group before returning.
 				TokenSourceFunc: func() (*oauth2.Token, error) {
 					if refreshCalls.Add(1) == 1 {
@@ -413,6 +413,59 @@ func TestRefreshToken(t *testing.T) {
 
 		// Only one refresh call should have actually been made.
 		require.Equal(t, int64(1), refreshCalls.Load())
+	})
+
+	// ConcurrentRefreshRace tests what happens a request reads the refresh token
+	// from the database, then another request finishes and updates the token and
+	// releases the refresh group lock before this request can join.
+	//
+	// This request will then fail with `bad_refresh_token` for providers that
+	// have single-use refresh tokens.  It should re-read the token from the
+	// database after making this failed request to check whether the token was
+	// updated by another request and returns that rather than incorrectly
+	// recording in the database that the request failed.
+	t.Run("ConcurrentRefreshRace", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+
+		fake, config, link := setupOauth2Test(t, testConfig{
+			FakeIDPOpts: []oidctest.FakeIDPOpt{
+				oidctest.WithRefresh(func(_ string) error {
+					return &oauth2.RetrieveError{
+						Response: &http.Response{
+							StatusCode: http.StatusOK,
+						},
+						ErrorCode: "bad_refresh_token",
+					}
+				}),
+			},
+			ExternalAuthOpt: func(cfg *externalauth.Config) {},
+		})
+
+		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
+		link.OAuthExpiry = time.Now().Add(time.Hour * -1)
+
+		// Simulate a concurrent winner: when the loser re-reads the
+		// DB, the refresh token has changed (the winner stored a new
+		// one). The loser should return the updated link instead of
+		// caching the failure.
+		winnerLink := link
+		winnerLink.OAuthRefreshToken = "winner-refresh-token"
+		winnerLink.OAuthAccessToken = "winner-access-token"
+		mDB.EXPECT().GetExternalAuthLink(gomock.Any(), database.GetExternalAuthLinkParams{
+			ProviderID: link.ProviderID,
+			UserID:     link.UserID,
+		}).Return(winnerLink, nil).Times(1)
+
+		// UpdateExternalAuthLinkRefreshToken should NOT be called
+		// because the re-read detected the concurrent refresh.
+
+		result, err := config.RefreshToken(ctx, mDB, link)
+		require.NoError(t, err, "loser should succeed using the winner's token")
+		require.Equal(t, "winner-access-token", result.OAuthAccessToken)
+		require.Equal(t, "winner-refresh-token", result.OAuthRefreshToken)
 	})
 
 	// ValidateFailure tests if the token is no longer valid with a 401 response.
