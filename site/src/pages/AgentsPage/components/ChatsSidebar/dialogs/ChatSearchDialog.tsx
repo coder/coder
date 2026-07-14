@@ -220,9 +220,7 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 	// Use search results count when a query is active, otherwise count
 	// recent chats so keyboard navigation works in the default view too.
 	const recentChatsSlice = visibleRecentChats.slice(0, 10);
-	const resultCount = hasQuery
-		? searchResults.length
-		: recentChatsSlice.length;
+	const resultCount = hasQuery ? searchResults.length : recentChatsSlice.length;
 	const safeSelectedChatIndex =
 		selectedChatIndex !== undefined && selectedChatIndex < resultCount
 			? selectedChatIndex
