@@ -2,13 +2,19 @@ package dbgen
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"maps"
+	"math/big"
 	"net"
 	"strings"
 	"testing"
@@ -2223,8 +2229,45 @@ func newCryptoKeySecret(feature database.CryptoKeyFeature) (string, error) {
 		return generateCryptoKey(64)
 	case database.CryptoKeyFeatureTailnetResume:
 		return generateCryptoKey(64)
+	case database.CryptoKeyFeatureNATSCA:
+		return generateCACryptoKeySecret()
 	}
 	return "", xerrors.Errorf("unknown feature: %s", feature)
+}
+
+// generateCACryptoKeySecret generates a self-signed CA certificate and private
+// key as a PEM bundle, matching the secret format that coderd/cryptokeys
+// produces for the nats_ca feature. It intentionally duplicates
+// cryptokeys.generateCASecret rather than calling it: coderd/cryptokeys's
+// internal tests import dbgen, so importing cryptokeys here would create a
+// test-build import cycle.
+func generateCACryptoKeySecret() (string, error) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return "", xerrors.Errorf("generate key: %w", err)
+	}
+	template := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "dbgen-ca"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		MaxPathLenZero:        true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, key.Public(), key)
+	if err != nil {
+		return "", xerrors.Errorf("create certificate: %w", err)
+	}
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		return "", xerrors.Errorf("marshal private key: %w", err)
+	}
+	var secret []byte
+	secret = append(secret, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})...)
+	secret = append(secret, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})...)
+	return string(secret), nil
 }
 
 func generateCryptoKey(length int) (string, error) {

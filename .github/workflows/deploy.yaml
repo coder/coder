@@ -25,7 +25,7 @@ jobs:
       verdict: ${{ steps.check.outputs.verdict }} # DEPLOY or NOOP
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
@@ -54,7 +54,7 @@ jobs:
       packages: write # to retag image as dogfood
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
@@ -65,14 +65,14 @@ jobs:
           persist-credentials: false
 
       - name: GHCR Login
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6.1.0
+        uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
         with:
           role-to-assume: ${{ vars.AWS_DOGFOOD_DEPLOY_ROLE }}
           aws-region: ${{ vars.AWS_DOGFOOD_DEPLOY_REGION }}
@@ -84,7 +84,7 @@ jobs:
           AWS_DOGFOOD_DEPLOY_REGION: ${{ vars.AWS_DOGFOOD_DEPLOY_REGION }}
 
       - name: Set up Flux CLI
-        uses: fluxcd/flux2/action@5adad89dcce7b79f20274ae8e112bcec7bd46764 # v2.8.5
+        uses: fluxcd/flux2/action@f05a280b876a3a1d35a76a91f701e605777853aa # v2.9.1
         with:
           # Keep this and the github action up to date with the version of flux installed in dogfood cluster
           version: "2.8.2"

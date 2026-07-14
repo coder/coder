@@ -69,6 +69,14 @@ type generationPrepared struct {
 
 // generationCompaction contains compaction inputs prepared for generation.
 type generationCompaction struct {
+	// Override, when non-nil, is the compaction model override resolved at
+	// prepare time. Its model client is built in the compact action path,
+	// so construction failures cannot fail turns that never compact.
+	Override *resolvedCompactionOverride
+	// ChatModelConfig is the chat model's config, used to detect provider
+	// changes when sanitizing the compaction prompt.
+	ChatModelConfig database.ChatModelConfig
+
 	Required bool
 	Options  chatloop.GenerateCompactionOptions
 }
@@ -238,6 +246,18 @@ func generationCompactionThreshold(compaction *generationCompaction) int32 {
 	return compaction.Options.ThresholdPercent
 }
 
+// generationCompactionContextLimit returns the context limit the compaction
+// trigger was evaluated against at prepare time (the stricter of the chat and
+// override models' limits). The still-over-limit check must compare against
+// the same limit, otherwise a stricter override loops through repeated
+// compactions instead of surfacing errCompactionStillOverLimit.
+func generationCompactionContextLimit(compaction *generationCompaction) int64 {
+	if compaction == nil {
+		return 0
+	}
+	return compaction.Options.ContextLimit
+}
+
 func unresolvedToolCallsFromHistory(
 	messages []database.ChatMessage,
 	dynamicToolNames map[string]bool,
@@ -324,7 +344,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 				compactionEnabled:          prepared.Compaction != nil,
 				compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
 				compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
-				compactionContextLimit:     prepared.ContextLimitFallback,
+				compactionContextLimit:     generationCompactionContextLimit(prepared.Compaction),
 			})
 		})
 		if err != nil {
@@ -333,9 +353,10 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 				return xerrors.Errorf("decide generation: %w", err)
 			}
 			if errors.Is(err, errCompactionStillOverLimit) && prepared.Compaction != nil {
+				metricProvider, metricModel := compactionMetricIdentity(prepared.Compaction)
 				s.server.metrics.RecordCompaction(
-					compactionProvider(prepared.Compaction.Options),
-					compactionModel(prepared.Compaction.Options),
+					metricProvider,
+					metricModel,
 					false,
 					errCompactionStillOverLimit,
 				)
@@ -683,15 +704,43 @@ func (s *taskStarter) generateCompaction(
 		return s.finishGenerationError(ctx, machine, input, xerrors.New("compaction action missing options"), requireGenerationAttempt(attempt.number))
 	}
 	compactionOpts := prepared.Compaction.Options
+	metricProvider, metricModel := compactionMetricIdentity(prepared.Compaction)
+	if override := prepared.Compaction.Override; override != nil {
+		overrideModel, err := s.server.buildCompactionOverrideModel(ctx, prepared.Chat, override.Config, prepared.ModelBuildOptions)
+		if err != nil {
+			return xerrors.Errorf("build compaction model override: %w", err)
+		}
+		logger := s.server.logger.With(
+			slog.F("chat_id", prepared.Chat.ID),
+			slog.F("owner_id", prepared.Chat.OwnerID),
+		)
+		compactionOpts.Model = overrideModel.model
+		compactionOpts.ResolvedProvider = overrideModel.resolvedProvider
+		compactionOpts.ResolvedModel = overrideModel.resolvedModel
+		compactionOpts.ModelConfigID = overrideModel.modelConfig.ID
+		compactionOpts.ProviderOptions = overrideModel.providerOptions
+		compactionOpts.Messages = sanitizeCompactionPrompt(
+			ctx,
+			logger,
+			compactionOpts.Messages,
+			overrideModel.model,
+			prepared.Compaction.ChatModelConfig,
+			overrideModel.modelConfig,
+		)
+	}
 	compactionOpts.PublishMessagePart = attempt.publish
-	outcome, err := chatloop.GenerateCompaction(ctx, compactionOpts)
+	// Attach the turn debug run so the compaction call records a child
+	// debug run; without it startCompactionDebugRun finds no parent and
+	// skips debug instrumentation entirely.
+	runCtx := input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
+	outcome, err := chatloop.GenerateCompaction(runCtx, compactionOpts)
 	if err != nil {
-		s.server.metrics.RecordCompaction(compactionProvider(compactionOpts), compactionModel(compactionOpts), false, err)
+		s.server.metrics.RecordCompaction(metricProvider, metricModel, false, err)
 		return xerrors.Errorf("generate compaction: %w", err)
 	}
 	if strings.TrimSpace(outcome.SystemSummary) == "" || strings.TrimSpace(outcome.SummaryReport) == "" {
 		err := xerrors.New("compaction produced no summary")
-		s.server.metrics.RecordCompaction(compactionProvider(compactionOpts), compactionModel(compactionOpts), false, err)
+		s.server.metrics.RecordCompaction(metricProvider, metricModel, false, err)
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
 	messages, err := buildCompactionMessages(buildCompactionMessagesInput{
@@ -703,18 +752,29 @@ func (s *taskStarter) generateCompaction(
 		contentVersion: chatprompt.CurrentContentVersion,
 	})
 	if err != nil {
-		s.server.metrics.RecordCompaction(compactionProvider(compactionOpts), compactionModel(compactionOpts), false, err)
+		s.server.metrics.RecordCompaction(metricProvider, metricModel, false, err)
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
 	err = s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionCompact, stepMessagesForCommit{
 		Messages:       messages.Messages,
 		VisibleIndexes: visibleMessageIndexes(messages.Messages),
 	})
-	s.server.metrics.RecordCompaction(compactionProvider(compactionOpts), compactionModel(compactionOpts), err == nil, err)
+	s.server.metrics.RecordCompaction(metricProvider, metricModel, err == nil, err)
 	if err != nil {
 		return xerrors.Errorf("commit generation step: %w", err)
 	}
 	return nil
+}
+
+// compactionMetricIdentity returns the provider/model labels for compaction
+// metrics. Override labels come from prepare-time resolution so events
+// recorded before the override client is built (still-over-limit) match
+// the compact action's own events.
+func compactionMetricIdentity(compaction *generationCompaction) (provider, model string) {
+	if compaction.Override != nil {
+		return compaction.Override.ResolvedProvider, compaction.Override.ResolvedModel
+	}
+	return compactionProvider(compaction.Options), compactionModel(compaction.Options)
 }
 
 func compactionProvider(opts chatloop.GenerateCompactionOptions) string {

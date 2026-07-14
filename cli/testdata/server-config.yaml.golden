@@ -1086,6 +1086,10 @@ ai_gateway_proxy:
   # The address the AI Gateway Proxy will listen on.
   # (default: :8888, type: string)
   listen_addr: :8888
+  # Base URL of the AI Gateway to forward intercepted requests to. Defaults to the
+  # embedded AI Gateway address at the Coder access URL plus /api/v2/ai-gateway.
+  # (default: <unset>, type: string)
+  target: ""
   # Path to the TLS certificate file for the AI Gateway Proxy listener. Must be set
   # together with AI Gateway Proxy TLS Key File.
   # (default: <unset>, type: string)

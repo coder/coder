@@ -88,10 +88,7 @@ type ChatStatus string
 
 const (
 	ChatStatusWaiting        ChatStatus = "waiting"
-	ChatStatusPending        ChatStatus = "pending"
 	ChatStatusRunning        ChatStatus = "running"
-	ChatStatusPaused         ChatStatus = "paused"
-	ChatStatusCompleted      ChatStatus = "completed"
 	ChatStatusError          ChatStatus = "error"
 	ChatStatusRequiresAction ChatStatus = "requires_action"
 	ChatStatusInterrupting   ChatStatus = "interrupting"
@@ -754,6 +751,7 @@ const (
 	ChatModelOverrideContextGeneral         ChatModelOverrideContext = "general"
 	ChatModelOverrideContextExplore         ChatModelOverrideContext = "explore"
 	ChatModelOverrideContextTitleGeneration ChatModelOverrideContext = "title_generation"
+	ChatModelOverrideContextCompaction      ChatModelOverrideContext = "compaction"
 )
 
 // Valid reports whether the override context is one of the supported values.
@@ -761,7 +759,8 @@ func (c ChatModelOverrideContext) Valid() bool {
 	switch c {
 	case ChatModelOverrideContextGeneral,
 		ChatModelOverrideContextExplore,
-		ChatModelOverrideContextTitleGeneration:
+		ChatModelOverrideContextTitleGeneration,
+		ChatModelOverrideContextCompaction:
 		return true
 	default:
 		return false
@@ -774,6 +773,7 @@ func AllChatModelOverrideContexts() []ChatModelOverrideContext {
 		ChatModelOverrideContextGeneral,
 		ChatModelOverrideContextExplore,
 		ChatModelOverrideContextTitleGeneration,
+		ChatModelOverrideContextCompaction,
 	}
 }
 
@@ -906,6 +906,9 @@ type AdvisorConfig struct {
 	// resolved (e.g. the referenced model config was soft-deleted or
 	// its provider was disabled after the admin saved this config).
 	ModelConfigID uuid.UUID `json:"model_config_id" format:"uuid"`
+	// ReasoningEffort overrides the selected advisor model's configured default.
+	// It requires a non-zero ModelConfigID.
+	ReasoningEffort *string `json:"reasoning_effort,omitempty"`
 }
 
 // UpdateAdvisorConfigRequest is the request body for updating advisor
@@ -913,16 +916,36 @@ type AdvisorConfig struct {
 // the request and response shapes are currently identical.
 type UpdateAdvisorConfigRequest = AdvisorConfig
 
+// ChatComputerUseProvider identifies the provider that backs computer use for
+// the virtual desktop.
+type ChatComputerUseProvider string
+
+const (
+	ChatComputerUseProviderAnthropic ChatComputerUseProvider = "anthropic"
+	ChatComputerUseProviderOpenAI    ChatComputerUseProvider = "openai"
+)
+
+// AllChatComputerUseProviders contains every ChatComputerUseProvider value.
+var AllChatComputerUseProviders = []ChatComputerUseProvider{
+	ChatComputerUseProviderAnthropic,
+	ChatComputerUseProviderOpenAI,
+}
+
+// Valid reports whether p is a supported computer use provider.
+func (p ChatComputerUseProvider) Valid() bool {
+	return slices.Contains(AllChatComputerUseProviders, p)
+}
+
 // ChatComputerUseProviderResponse is the response for getting the computer use
 // provider setting.
 type ChatComputerUseProviderResponse struct {
-	Provider string `json:"provider"`
+	Provider ChatComputerUseProvider `json:"provider"`
 }
 
 // UpdateChatComputerUseProviderRequest is the request to update the computer use
 // provider setting.
 type UpdateChatComputerUseProviderRequest struct {
-	Provider string `json:"provider"`
+	Provider ChatComputerUseProvider `json:"provider"`
 }
 
 // ChatDebugLoggingAdminSettings describes the runtime admin setting
@@ -1467,6 +1490,29 @@ type ChatModelCallConfig struct {
 // UnmarshalJSON accepts both the current nested cost object and the previous
 // top-level pricing keys so legacy stored model_config JSON continues to load.
 func (c *ChatModelCallConfig) UnmarshalJSON(data []byte) error {
+	return c.unmarshal(data, json.Unmarshal)
+}
+
+// UnmarshalStrict is UnmarshalJSON except unknown fields are an error instead
+// of being silently dropped. Clients that accept free-form model config JSON
+// (e.g. the Terraform provider) use it to reject settings this SDK version
+// does not recognize before they are lost.
+func (c *ChatModelCallConfig) UnmarshalStrict(data []byte) error {
+	return c.unmarshal(data, func(data []byte, v any) error {
+		dec := json.NewDecoder(bytes.NewReader(data))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(v); err != nil {
+			return err
+		}
+		// Match json.Unmarshal: reject any trailing data after the value.
+		if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+			return xerrors.New("unexpected trailing data after JSON value")
+		}
+		return nil
+	})
+}
+
+func (c *ChatModelCallConfig) unmarshal(data []byte, decode func(data []byte, v any) error) error {
 	type chatModelCallConfigAlias ChatModelCallConfig
 	aux := struct {
 		*chatModelCallConfigAlias
@@ -1477,7 +1523,7 @@ func (c *ChatModelCallConfig) UnmarshalJSON(data []byte) error {
 	}{
 		chatModelCallConfigAlias: (*chatModelCallConfigAlias)(c),
 	}
-	if err := json.Unmarshal(data, &aux); err != nil {
+	if err := decode(data, &aux); err != nil {
 		return err
 	}
 
@@ -1586,7 +1632,7 @@ type ChatDiffContents struct {
 const (
 	ChatGitWatchNoWorkspaceMessage       = "Chat has no workspace to watch."
 	ChatGitWatchWorkspaceNotFoundMessage = "Chat workspace not found."
-	ChatGitWatchWorkspaceNoAgentsMessage = "Chat workspace has no agents."
+	ChatGitWatchNoEligibleAgentMessage   = "No eligible agent found for chat workspace."
 	// ChatGitWatchAgentStatePrefix is the common prefix of the
 	// message produced by ChatGitWatchAgentStateMessage. The CLI
 	// uses it as a mechanical fingerprint for the "agent not yet
@@ -1611,7 +1657,7 @@ func IsChatGitWatchFallbackMessage(msg string) bool {
 	switch trimmed {
 	case ChatGitWatchNoWorkspaceMessage,
 		ChatGitWatchWorkspaceNotFoundMessage,
-		ChatGitWatchWorkspaceNoAgentsMessage:
+		ChatGitWatchNoEligibleAgentMessage:
 		return true
 	}
 	return strings.HasPrefix(trimmed, ChatGitWatchAgentStatePrefix)

@@ -115,6 +115,7 @@ export interface AIBridgeOpenAIConfig {
 export interface AIBridgeProxyConfig {
 	readonly enabled: boolean;
 	readonly listen_addr: string;
+	readonly target: string;
 	readonly tls_cert_file: string;
 	readonly tls_key_file: string;
 	readonly cert_file: string;
@@ -314,6 +315,14 @@ export interface AIProvider {
 }
 
 // From codersdk/aiproviders_bedrock.go
+export type AIProviderBedrockProtocol = "invoke-model" | "mantle";
+
+export const AIProviderBedrockProtocols: AIProviderBedrockProtocol[] = [
+	"invoke-model",
+	"mantle",
+];
+
+// From codersdk/aiproviders_bedrock.go
 /**
  * AIProviderBedrockSettings configures providers that authenticate
  * against AWS Bedrock. AccessKey and AccessKeySecret are write-only:
@@ -362,6 +371,12 @@ export interface AIProviderBedrockSettings {
 	 * update may echo the stored value back).
 	 */
 	readonly external_id?: string;
+	/**
+	 * Protocol selects the Bedrock wire protocol. An empty value resolves to
+	 * AIProviderBedrockProtocolInvokeModel, so existing rows keep the legacy
+	 * behavior.
+	 */
+	readonly protocol?: AIProviderBedrockProtocol;
 }
 
 // From codersdk/aiproviders_bedrock.go
@@ -1063,6 +1078,11 @@ export interface AdvisorConfig {
 	 * its provider was disabled after the admin saved this config).
 	 */
 	readonly model_config_id: string;
+	/**
+	 * ReasoningEffort overrides the selected advisor model's configured default.
+	 * It requires a non-zero ModelConfigID.
+	 */
+	readonly reasoning_effort?: string;
 }
 
 // From codersdk/users.go
@@ -1706,13 +1726,21 @@ export const ChatCompactionThresholdKeyPrefix =
 	"chat_compaction_threshold_pct:";
 
 // From codersdk/chats.go
+export type ChatComputerUseProvider = "anthropic" | "openai";
+
+// From codersdk/chats.go
 /**
  * ChatComputerUseProviderResponse is the response for getting the computer use
  * provider setting.
  */
 export interface ChatComputerUseProviderResponse {
-	readonly provider: string;
+	readonly provider: ChatComputerUseProvider;
 }
+
+export const ChatComputerUseProviders: ChatComputerUseProvider[] = [
+	"anthropic",
+	"openai",
+];
 
 // From codersdk/deployment.go
 export interface ChatConfig {
@@ -2273,7 +2301,8 @@ export const ChatGitWatchAgentStatePrefix = "Agent state is ";
  * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
  * Keep these in sync with coderd/exp_chats.go.
  */
-export const ChatGitWatchNoWorkspaceMessage = "Chat has no workspace to watch.";
+export const ChatGitWatchNoEligibleAgentMessage =
+	"No eligible agent found for chat workspace.";
 
 // From codersdk/chats.go
 /**
@@ -2285,8 +2314,7 @@ export const ChatGitWatchNoWorkspaceMessage = "Chat has no workspace to watch.";
  * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
  * Keep these in sync with coderd/exp_chats.go.
  */
-export const ChatGitWatchWorkspaceNoAgentsMessage =
-	"Chat workspace has no agents.";
+export const ChatGitWatchNoWorkspaceMessage = "Chat has no workspace to watch.";
 
 // From codersdk/chats.go
 /**
@@ -2647,11 +2675,13 @@ export interface ChatModelOpenRouterProviderOptions {
 
 // From codersdk/chats.go
 export type ChatModelOverrideContext =
+	| "compaction"
 	| "explore"
 	| "general"
 	| "title_generation";
 
 export const ChatModelOverrideContexts: ChatModelOverrideContext[] = [
+	"compaction",
 	"explore",
 	"general",
 	"title_generation",
@@ -3010,21 +3040,15 @@ export interface ChatSourcePart {
 
 // From codersdk/chats.go
 export type ChatStatus =
-	| "completed"
 	| "error"
 	| "interrupting"
-	| "paused"
-	| "pending"
 	| "requires_action"
 	| "running"
 	| "waiting";
 
 export const ChatStatuses: ChatStatus[] = [
-	"completed",
 	"error",
 	"interrupting",
-	"paused",
-	"pending",
 	"requires_action",
 	"running",
 	"waiting",
@@ -4179,12 +4203,14 @@ export interface CryptoKey {
 
 // From codersdk/deployment.go
 export type CryptoKeyFeature =
+	| "nats_ca"
 	| "oidc_convert"
 	| "tailnet_resume"
 	| "workspace_apps_api_key"
 	| "workspace_apps_token";
 
 export const CryptoKeyFeatures: CryptoKeyFeature[] = [
+	"nats_ca",
 	"oidc_convert",
 	"tailnet_resume",
 	"workspace_apps_api_key",
@@ -9007,6 +9033,11 @@ export interface UpdateAdvisorConfigRequest {
 	 * its provider was disabled after the admin saved this config).
 	 */
 	readonly model_config_id: string;
+	/**
+	 * ReasoningEffort overrides the selected advisor model's configured default.
+	 * It requires a non-zero ModelConfigID.
+	 */
+	readonly reasoning_effort?: string;
 }
 
 // From codersdk/deployment.go
@@ -9041,7 +9072,7 @@ export interface UpdateChatAutoArchiveDaysRequest {
  * provider setting.
  */
 export interface UpdateChatComputerUseProviderRequest {
-	readonly provider: string;
+	readonly provider: ChatComputerUseProvider;
 }
 
 // From codersdk/chats.go

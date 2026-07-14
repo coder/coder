@@ -134,11 +134,11 @@ func allSubagentDefinitions() []subagentDefinition {
 				if err != nil {
 					return childSubagentChatOptions{}, err
 				}
-				providerKeys, err := p.resolveUserProviderAPIKeysForProviderType(ctx, currentChat.OwnerID, provider)
+				providerKeys, err := p.resolveUserProviderAPIKeysForProviderType(ctx, currentChat.OwnerID, string(provider))
 				if err != nil {
 					return childSubagentChatOptions{}, err
 				}
-				if !userCanUseProviderKeys(providerKeys, provider) {
+				if !userCanUseProviderKeys(providerKeys, string(provider)) {
 					return childSubagentChatOptions{}, xerrors.Errorf(
 						`API key for computer-use provider %q is not configured`,
 						provider,
@@ -304,8 +304,8 @@ func buildSpawnAgentDescription(
 		"After spawning, use wait_agent to retrieve the result. Agents persist " +
 		"after completion; reuse an agent via message_agent for follow-up work " +
 		"when it already has relevant context. Spawned agents are your " +
-		"responsibility: do not abandon one in a working state (pending or " +
-		"running); retrieve its result, redirect it with message_agent, or stop " +
+		"responsibility: do not abandon one in a working state (running); " +
+		"retrieve its result, redirect it with message_agent, or stop " +
 		"it with interrupt_agent."
 	if currentChat.PlanMode.Valid && currentChat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
 		description += " During plan mode, type=\"" + subagentTypeGeneral +

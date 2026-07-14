@@ -174,6 +174,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "enabled": true,
         "key_file": "string",
         "listen_addr": "string",
+        "target": "string",
         "tls_cert_file": "string",
         "tls_key_file": "string",
         "upstream_proxy": "string",

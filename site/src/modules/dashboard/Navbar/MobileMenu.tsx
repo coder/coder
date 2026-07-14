@@ -26,6 +26,10 @@ import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Latency } from "#/components/Latency/Latency";
 import type { ProxyContextValue } from "#/contexts/ProxyContext";
 import { cn } from "#/utils/cn";
+import {
+	type AdminSettingsPermissions,
+	getAdminSettingsItems,
+} from "./adminSettings";
 import { sortProxiesByLatency } from "./proxyUtils";
 
 const itemStyles = {
@@ -34,15 +38,7 @@ const itemStyles = {
 	open: "text-content-primary",
 };
 
-type MobileMenuPermissions = {
-	canViewDeployment: boolean;
-	canViewOrganizations: boolean;
-	canViewAuditLog: boolean;
-	canViewConnectionLog: boolean;
-	canViewHealth: boolean;
-};
-
-type MobileMenuProps = MobileMenuPermissions & {
+type MobileMenuProps = AdminSettingsPermissions & {
 	proxyContextValue?: ProxyContextValue;
 	user?: TypesGen.User;
 	supportLinks?: readonly TypesGen.LinkConfig[];
@@ -206,13 +202,9 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 	);
 };
 
-const AdminSettingsSub: FC<MobileMenuPermissions> = ({
-	canViewDeployment,
-	canViewAuditLog,
-	canViewConnectionLog,
-	canViewHealth,
-}) => {
+const AdminSettingsSub: FC<AdminSettingsPermissions> = (permissions) => {
 	const [open, setOpen] = useState(false);
+	const items = getAdminSettingsItems(permissions);
 
 	return (
 		<Collapsible open={open} onOpenChange={setOpen}>
@@ -231,44 +223,15 @@ const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 				</DropdownMenuItem>
 			</CollapsibleTrigger>
 			<CollapsibleContent>
-				{canViewDeployment && (
+				{items.map((item) => (
 					<DropdownMenuItem
+						key={item.to}
 						asChild
 						className={cn(itemStyles.default, itemStyles.sub)}
 					>
-						<Link to="/deployment">Deployment</Link>
+						<Link to={item.to}>{item.label}</Link>
 					</DropdownMenuItem>
-				)}
-				<DropdownMenuItem
-					asChild
-					className={cn(itemStyles.default, itemStyles.sub)}
-				>
-					<Link to="/organizations">Organizations</Link>
-				</DropdownMenuItem>
-				{canViewAuditLog && (
-					<DropdownMenuItem
-						asChild
-						className={cn(itemStyles.default, itemStyles.sub)}
-					>
-						<Link to="/audit">Audit logs</Link>
-					</DropdownMenuItem>
-				)}
-				{canViewConnectionLog && (
-					<DropdownMenuItem
-						asChild
-						className={cn(itemStyles.default, itemStyles.sub)}
-					>
-						<Link to="/connectionlog">Connection logs</Link>
-					</DropdownMenuItem>
-				)}
-				{canViewHealth && (
-					<DropdownMenuItem
-						asChild
-						className={cn(itemStyles.default, itemStyles.sub)}
-					>
-						<Link to="/health">Healthcheck</Link>
-					</DropdownMenuItem>
-				)}
+				))}
 			</CollapsibleContent>
 		</Collapsible>
 	);

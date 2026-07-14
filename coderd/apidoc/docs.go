@@ -15041,6 +15041,9 @@ const docTemplate = `{
                 "listen_addr": {
                     "type": "string"
                 },
+                "target": {
+                    "type": "string"
+                },
                 "tls_cert_file": {
                     "type": "string"
                 },
@@ -17695,20 +17698,14 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "waiting",
-                "pending",
                 "running",
-                "paused",
-                "completed",
                 "error",
                 "requires_action",
                 "interrupting"
             ],
             "x-enum-varnames": [
                 "ChatStatusWaiting",
-                "ChatStatusPending",
                 "ChatStatusRunning",
-                "ChatStatusPaused",
-                "ChatStatusCompleted",
                 "ChatStatusError",
                 "ChatStatusRequiresAction",
                 "ChatStatusInterrupting"
@@ -19063,13 +19060,15 @@ const docTemplate = `{
                 "workspace_apps_api_key",
                 "workspace_apps_token",
                 "oidc_convert",
-                "tailnet_resume"
+                "tailnet_resume",
+                "nats_ca"
             ],
             "x-enum-varnames": [
                 "CryptoKeyFeatureWorkspaceAppsAPIKey",
                 "CryptoKeyFeatureWorkspaceAppsToken",
                 "CryptoKeyFeatureOIDCConvert",
-                "CryptoKeyFeatureTailnetResume"
+                "CryptoKeyFeatureTailnetResume",
+                "CryptoKeyFeatureNATSCA"
             ]
         },
         "codersdk.CustomNotificationContent": {

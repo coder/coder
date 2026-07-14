@@ -551,6 +551,7 @@
   "enabled": true,
   "key_file": "string",
   "listen_addr": "string",
+  "target": "string",
   "tls_cert_file": "string",
   "tls_key_file": "string",
   "upstream_proxy": "string",
@@ -569,6 +570,7 @@
 | `enabled`               | boolean         | false    |              |             |
 | `key_file`              | string          | false    |              |             |
 | `listen_addr`           | string          | false    |              |             |
+| `target`                | string          | false    |              |             |
 | `tls_cert_file`         | string          | false    |              |             |
 | `tls_key_file`          | string          | false    |              |             |
 | `upstream_proxy`        | string          | false    |              |             |
@@ -941,6 +943,7 @@
     "enabled": true,
     "key_file": "string",
     "listen_addr": "string",
+    "target": "string",
     "tls_cert_file": "string",
     "tls_key_file": "string",
     "upstream_proxy": "string",
@@ -3406,9 +3409,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                           |
-|----------------------------------------------------------------------------------------------------|
-| `completed`, `error`, `interrupting`, `paused`, `pending`, `requires_action`, `running`, `waiting` |
+| Value(s)                                                         |
+|------------------------------------------------------------------|
+| `error`, `interrupting`, `requires_action`, `running`, `waiting` |
 
 ## codersdk.ChatStreamActionRequired
 
@@ -5279,9 +5282,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                           |
-|------------------------------------------------------------------------------------|
-| `oidc_convert`, `tailnet_resume`, `workspace_apps_api_key`, `workspace_apps_token` |
+| Value(s)                                                                                      |
+|-----------------------------------------------------------------------------------------------|
+| `nats_ca`, `oidc_convert`, `tailnet_resume`, `workspace_apps_api_key`, `workspace_apps_token` |
 
 ## codersdk.CustomNotificationContent
 
@@ -5633,6 +5636,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "enabled": true,
         "key_file": "string",
         "listen_addr": "string",
+        "target": "string",
         "tls_cert_file": "string",
         "tls_key_file": "string",
         "upstream_proxy": "string",
@@ -6242,6 +6246,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "enabled": true,
       "key_file": "string",
       "listen_addr": "string",
+      "target": "string",
       "tls_cert_file": "string",
       "tls_key_file": "string",
       "upstream_proxy": "string",

@@ -1280,11 +1280,11 @@ func TestChatContextHydration(t *testing.T) {
 	hashH := []byte{0x01, 0x02, 0x03}
 	hashOther := []byte{0xff, 0xee}
 
-	chatNull := newChat(database.ChatStatusWaiting, agent.ID)       // never hydrated
-	chatMatch := newChat(database.ChatStatusRunning, agent.ID)      // already at hashH
-	chatDrift := newChat(database.ChatStatusRunning, agent.ID)      // drifted, active
-	chatTerminal := newChat(database.ChatStatusCompleted, agent.ID) // drifted, terminal
-	chatArchived := newChat(database.ChatStatusRunning, agent.ID)   // drifted, archived
+	chatNull := newChat(database.ChatStatusWaiting, agent.ID)     // never hydrated
+	chatMatch := newChat(database.ChatStatusRunning, agent.ID)    // already at hashH
+	chatDrift := newChat(database.ChatStatusRunning, agent.ID)    // drifted, active
+	chatTerminal := newChat(database.ChatStatusError, agent.ID)   // drifted, terminal
+	chatArchived := newChat(database.ChatStatusRunning, agent.ID) // drifted, archived
 	chatOtherAgent := newChat(database.ChatStatusRunning, otherAgent.ID)
 
 	// Pin starting hashes; chatNull is intentionally left NULL.
@@ -13019,7 +13019,7 @@ func TestChatPinOrderConstraints(t *testing.T) {
 
 		parent, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusCompleted,
+			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
@@ -13029,7 +13029,7 @@ func TestChatPinOrderConstraints(t *testing.T) {
 
 		child, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusCompleted,
+			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,
@@ -13050,7 +13050,7 @@ func TestChatPinOrderConstraints(t *testing.T) {
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
-			Status:            database.ChatStatusCompleted,
+			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
 			OwnerID:           owner.ID,
 			LastModelConfigID: modelCfg.ID,

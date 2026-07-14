@@ -3,6 +3,8 @@ package config
 import (
 	"time"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/v2/aibridge/keypool"
 )
 
@@ -25,13 +27,34 @@ type Anthropic struct {
 	SendActorHeaders bool
 }
 
+// BedrockProtocol selects which AWS Bedrock wire protocol a provider targets.
+type BedrockProtocol string
+
+const (
+	// BedrockProtocolInvokeModel is the legacy InvokeModel protocol
+	// (bedrock-runtime.{region}.amazonaws.com), which translates the native
+	// Messages request into Bedrock's InvokeModel format. It is the default
+	// for the zero value.
+	BedrockProtocolInvokeModel BedrockProtocol = "invoke-model"
+	// BedrockProtocolMantle is the mantle protocol
+	// (bedrock-mantle.{region}.api.aws/anthropic/v1/messages). It is a
+	// passthrough: the gateway forwards the native Messages request body
+	// unchanged and only applies AWS SigV4 signing (service bedrock-mantle).
+	BedrockProtocolMantle BedrockProtocol = "mantle"
+)
+
 type AWSBedrock struct {
 	Region                     string
 	AccessKey, AccessKeySecret string
 	Model, SmallFastModel      string
-	// If set, requests will be sent to this URL instead of the default AWS Bedrock endpoint
-	// (https://bedrock-runtime.{region}.amazonaws.com).
-	// This is useful for routing requests through a proxy or for testing.
+	// BaseURL configures the upstream Bedrock endpoint.
+	//
+	// For InvokeModel, it is optional. When empty, requests use the default
+	// https://bedrock-runtime.{region}.amazonaws.com endpoint. Set it to route
+	// InvokeModel requests through a proxy or test server.
+	//
+	// For mantle, it is required and must be the Messages API prefix without
+	// /v1/messages, e.g. https://bedrock-mantle.{region}.api.aws/anthropic.
 	BaseURL string
 	// RoleARN, when set, is assumed via STS before calling Bedrock. The base
 	// identity (static keys or the AWS SDK default credential chain, e.g.
@@ -42,6 +65,35 @@ type AWSBedrock struct {
 	// It is meaningful only alongside RoleARN and must match the
 	// sts:ExternalId condition on the target role's trust policy.
 	ExternalID string
+	// Protocol selects the Bedrock wire protocol. The zero value behaves as
+	// BedrockProtocolInvokeModel.
+	Protocol BedrockProtocol
+}
+
+// Validate verifies protocol-specific Bedrock configuration.
+func (c AWSBedrock) Validate() error {
+	switch c.Protocol {
+	case "", BedrockProtocolInvokeModel:
+		if c.Region == "" && c.BaseURL == "" {
+			return xerrors.New("region or base url required")
+		}
+		if c.Model == "" {
+			return xerrors.New("model required")
+		}
+		if c.SmallFastModel == "" {
+			return xerrors.New("small fast model required")
+		}
+	case BedrockProtocolMantle:
+		if c.Region == "" {
+			return xerrors.New("region required")
+		}
+		if c.BaseURL == "" {
+			return xerrors.New("base_url required")
+		}
+	default:
+		return xerrors.Errorf("unknown bedrock protocol: %q", c.Protocol)
+	}
+	return nil
 }
 
 // OpenAI carries configuration for an OpenAI provider.

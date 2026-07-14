@@ -580,20 +580,41 @@ func (server *Server) prepareGeneration(
 	if override, ok := server.resolveUserCompactionThreshold(ctx, chat.OwnerID, modelConfig.ID); ok {
 		effectiveThreshold = override
 	}
+	// The compaction trigger uses the stricter of the chat and override
+	// models' context limits: the history must also fit the summarizer's
+	// window.
+	compactionContextLimit := modelConfig.ContextLimit
+	compactionOverride, err := server.resolveCompactionOverrideConfig(ctx, chat)
+	if err != nil {
+		cleanup()
+		return generationPrepared{}, err
+	}
+	if compactionOverride != nil {
+		if overrideLimit := compactionOverride.Config.ContextLimit; overrideLimit > 0 &&
+			(compactionContextLimit <= 0 || overrideLimit < compactionContextLimit) {
+			compactionContextLimit = overrideLimit
+		}
+	}
+	compactionStepUsage := latestPromptUsage(promptRows)
+	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionContextLimit, effectiveThreshold)
+	// The options carry the chat model; generateCompaction swaps in the
+	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
 		Model:                model,
 		Messages:             prompt,
 		ThresholdPercent:     effectiveThreshold,
-		ContextLimit:         modelConfig.ContextLimit,
-		ContextLimitFallback: modelConfig.ContextLimit,
+		ContextLimit:         compactionContextLimit,
+		ContextLimitFallback: compactionContextLimit,
 		ToolCallID:           compactionToolCallID,
 		ToolName:             "chat_summarized",
 		DebugSvc:             debugSvc,
 		ChatID:               chat.ID,
 		HistoryTipMessageID:  historyTipMessageID,
+		ResolvedProvider:     resolvedProvider,
+		ResolvedModel:        debugModel,
+		ModelConfigID:        modelConfig.ID,
+		StepUsage:            compactionStepUsage,
 	}
-	compactionOptions.StepUsage = latestPromptUsage(promptRows)
-	compactionNeeded := shouldCompactPromptUsage(compactionOptions.StepUsage, modelConfig.ContextLimit, effectiveThreshold)
 
 	// workspaceCtx.currentChatSnapshot may carry a freshly persisted
 	// AgentID/BuildID binding from the getWorkspaceAgent call above.
@@ -626,8 +647,10 @@ func (server *Server) prepareGeneration(
 		ToolNameToConfigID:   toolNameToConfigID,
 		MaxSteps:             maxChatSteps,
 		Compaction: &generationCompaction{
-			Required: compactionNeeded,
-			Options:  compactionOptions,
+			Override:        compactionOverride,
+			ChatModelConfig: modelConfig,
+			Required:        compactionNeeded,
+			Options:         compactionOptions,
 		},
 		Cleanup: cleanup,
 		Debug:   debug,

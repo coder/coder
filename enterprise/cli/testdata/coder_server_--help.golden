@@ -259,6 +259,11 @@ AI GATEWAY PROXY OPTIONS:
           Path to the TLS private key file for the AI Gateway Proxy listener.
           Must be set together with AI Gateway Proxy TLS Certificate File.
 
+      --ai-gateway-proxy-target string, $CODER_AI_GATEWAY_PROXY_TARGET
+          Base URL of the AI Gateway to forward intercepted requests to.
+          Defaults to the embedded AI Gateway address at the Coder access URL
+          plus /api/v2/ai-gateway.
+
       --ai-gateway-proxy-upstream string, $CODER_AI_GATEWAY_PROXY_UPSTREAM
           URL of an upstream HTTP proxy to chain tunneled (non-allowlisted)
           requests through. Format: http://[user:pass@]host:port or

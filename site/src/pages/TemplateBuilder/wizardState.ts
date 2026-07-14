@@ -1,4 +1,5 @@
 import type {
+	TemplateBuilderBase,
 	TemplateBuilderComposeModule,
 	TemplateBuilderComposeRequest,
 	TemplateBuilderCreateTemplateRequest,
@@ -17,6 +18,23 @@ export type SelectedBaseMeta = {
 	hasParameters: boolean;
 	hasPrerequisites: boolean;
 };
+
+/**
+ * Maps an API TemplateBuilderBase to the UI-only SelectedBaseMeta.
+ */
+export function toSelectedBaseMeta(
+	base: TemplateBuilderBase,
+): SelectedBaseMeta {
+	return {
+		id: base.id,
+		name: base.name,
+		iconUrl: base.icon,
+		os: base.os,
+		hasParameters:
+			base.variables?.length > 0 && base.variables?.some((v) => !v.sensitive),
+		hasPrerequisites: Boolean(base.prerequisites?.length),
+	};
+}
 
 /**
  * UI-only metadata for a selected module.
@@ -55,6 +73,23 @@ export const initialWizardState: TemplateBuilderWizardState = {
 	selectedBase: null,
 	selectedModules: [],
 };
+
+/**
+ * Builds the initial wizard state, optionally preselecting a base
+ * template.
+ */
+export function initWizardState(
+	preselectedBase?: SelectedBaseMeta,
+): TemplateBuilderWizardState {
+	if (!preselectedBase) {
+		return initialWizardState;
+	}
+	return {
+		...initialWizardState,
+		baseTemplateId: preselectedBase.id,
+		selectedBase: preselectedBase,
+	};
+}
 
 export type WizardAction =
 	| { type: "SET_BASE"; base: SelectedBaseMeta }
