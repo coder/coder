@@ -28,8 +28,14 @@ func regoInputValue(subject Subject, action policy.Action, object Object) (ast.V
 		ast.StringTerm("object"),
 		ast.NewTerm(object.regoValue()),
 	}
+	// partial marks this as a full evaluation. The policy uses it to select the
+	// full-evaluation implementation of check_all_org_permissions.
+	p := [2]*ast.Term{
+		ast.StringTerm("partial"),
+		ast.BooleanTerm(false),
+	}
 
-	input := ast.NewObject(s, a, o)
+	input := ast.NewObject(s, a, o, p)
 
 	return input, nil
 }
@@ -59,8 +65,14 @@ func regoPartialInputValue(subject Subject, action policy.Action, objectType str
 			}),
 		),
 	}
+	// partial marks this as a partial evaluation. The policy uses it to select
+	// the partial-evaluation implementation of check_all_org_permissions.
+	p := [2]*ast.Term{
+		ast.StringTerm("partial"),
+		ast.BooleanTerm(true),
+	}
 
-	input := ast.NewObject(s, a, o)
+	input := ast.NewObject(s, a, o, p)
 
 	return input, nil
 }

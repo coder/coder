@@ -116,8 +116,9 @@ func TestRegoInputValue(t *testing.T) {
 				Groups: actor.Groups,
 				Scope:  must(actor.Scope.Expand()),
 			},
-			"action": action,
-			"object": obj,
+			"action":  action,
+			"object":  obj,
+			"partial": false,
 		}
 
 		manual, err := regoInputValue(actor, action, obj)
@@ -151,6 +152,7 @@ func TestRegoInputValue(t *testing.T) {
 			"object": map[string]any{
 				"type": obj.Type,
 			},
+			"partial": true,
 		}
 
 		manual, err := regoPartialInputValue(actor, action, obj.Type)

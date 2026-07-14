@@ -107,21 +107,108 @@ default scope_org := 0
 
 scope_org := check_org_permissions([input.subject.scope], "org")
 
+# org_allow_ids is the set of orgs where the subject has a matching *allow*
+# (non-negated) permission for this action and object type. It is built by
+# iterating each role's own `by_org_id` entries exactly once, so the total work
+# is linear in the number of org-scoped permissions rather than quadratic. The
+# previous implementation built a per-org vote map by iterating every role for
+# every membership (O(N^2) in the number of organizations).
+org_allow_ids(roles, key) := {org_id |
+	some role in roles
+	some org_id, perms in role.by_org_id
+	some perm in perms[key]
+	perm.action in [input.action, "*"]
+	perm.resource_type in [input.object.type, "*"]
+	not perm.negate
+}
+
+# org_deny_ids is the set of orgs where the subject has a matching *deny*
+# (negated) permission. A deny wins over an allow within the same org, matching
+# `to_vote`'s "any false => -1" behavior.
+org_deny_ids(roles, key) := {org_id |
+	some role in roles
+	some org_id, perms in role.by_org_id
+	some perm in perms[key]
+	perm.action in [input.action, "*"]
+	perm.resource_type in [input.object.type, "*"]
+	perm.negate
+}
+
+# org_vote resolves a single org's vote from the precomputed allow and deny
+# sets, reproducing `to_vote`'s deny-wins semantics:
+#   -1 (deny)    if the org is in the deny set,
+#    1 (allow)   if the org is in the allow set and not the deny set,
+#    0 (abstain) otherwise.
+# All three arguments are known during partial evaluation (the object's org id
+# is not involved here), so this does no work against unknown values.
+org_vote(org_id, _, deny) := -1 if {
+	org_id in deny
+}
+
+org_vote(org_id, allow, deny) := 1 if {
+	not org_id in deny
+	org_id in allow
+}
+
+org_vote(org_id, allow, deny) := 0 if {
+	not org_id in deny
+	not org_id in allow
+}
+
 # check_all_org_permissions creates a map from org ids to votes at each org
 # level, for each org that the subject is a member of. It doesn't actually check
 # if the object is in the same org. Instead we look up the correct vote from
 # this map based on the object's org id in `check_org_permissions`.
-# For example, the `org_map` will look something like this:
+# For example, the map will look something like this:
 #
 #   {"<org_id_a>": 1, "<org_id_b>": 0, "<org_id_c>": -1}
 #
 # The caller then uses `output[input.object.org_owner]` to get the correct vote.
 #
 # We have to create this map, rather than just getting the vote of the object's
-# org id because the org id _might_ be unknown. In order to make sure that this
+# org id, because the org id _might_ be unknown. In order to make sure that this
 # policy compresses down to simple queries we need to keep unknown values out of
 # comprehensions.
-check_all_org_permissions(roles, key) := {org_id: vote |
+#
+# There are two implementations, selected by `input.partial`:
+#
+#   - Partial evaluation (Prepare, org id unknown): the full map must be built
+#     because the object's org is unknown, so we use the set-based
+#     implementation whose map construction is linear in the number of
+#     organizations rather than quadratic.
+#   - Full evaluation (Authorize, org id known): the caller only needs a single
+#     org's vote, so building the allow/deny sets over every org is wasted work.
+#     We use the original per-membership implementation, which is cheaper for
+#     the common low-org-count Authorize case.
+#
+# `input.partial` is set by the Go authorizer (true for partial evaluation,
+# false/absent for full evaluation) and is a known value in both paths, so OPA
+# prunes the unused branch during compilation.
+check_all_org_permissions(roles, key) := check_all_org_permissions_partial(roles, key) if {
+	input.partial
+}
+
+check_all_org_permissions(roles, key) := check_all_org_permissions_fulleval(roles, key) if {
+	not input.partial
+}
+
+# check_all_org_permissions_partial builds the vote map from precomputed allow
+# and deny sets. Each set is linear in the number of org-scoped permissions, and
+# the map is built by iterating the membership set once with O(1) set lookups
+# per org, keeping the whole construction linear in the number of organizations.
+check_all_org_permissions_partial(roles, key) := vote_map if {
+	allow := org_allow_ids(roles, key)
+	deny := org_deny_ids(roles, key)
+	vote_map := {org_id: org_vote(org_id, allow, deny) |
+		some org_id in org_memberships
+	}
+}
+
+# check_all_org_permissions_fulleval is the original implementation: for each
+# membership org it scans every role's permissions for that org. This is
+# quadratic in org count but has lower fixed overhead, which wins for the
+# known-org full-evaluation (Authorize) path.
+check_all_org_permissions_fulleval(roles, key) := {org_id: vote |
 	org_id := org_memberships[_]
 	allow := {is_allowed |
 		# Iterate over all site permissions in all roles, and check which ones match
