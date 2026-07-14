@@ -95,7 +95,12 @@ func (api *API) templateBuilderBases(rw http.ResponseWriter, r *http.Request) {
 		if iQuickstart != jQuickstart {
 			return iQuickstart
 		}
-		return bases[i].Name < bases[j].Name
+		if bases[i].Name != bases[j].Name {
+			return bases[i].Name < bases[j].Name
+		}
+		// Tiebreak on ID so the order is total and deterministic even if two
+		// bases ever share a display name.
+		return bases[i].ID < bases[j].ID
 	})
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateBuilderBasesResponse{
