@@ -85,7 +85,16 @@ func (api *API) templateBuilderBases(rw http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// The Coder Quickstart base is surfaced first as the recommended starting
+	// point (mirroring its position in the registry); the remaining bases follow
+	// alphabetically by name.
+	const quickstartBaseID = "quickstart"
 	sort.Slice(bases, func(i, j int) bool {
+		iQuickstart := bases[i].ID == quickstartBaseID
+		jQuickstart := bases[j].ID == quickstartBaseID
+		if iQuickstart != jQuickstart {
+			return iQuickstart
+		}
 		return bases[i].Name < bases[j].Name
 	})
 
