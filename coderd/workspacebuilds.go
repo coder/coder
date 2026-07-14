@@ -1272,6 +1272,19 @@ func (api *API) convertWorkspaceBuilds(
 		templateVersionByID[templateVersion.ID] = templateVersion
 	}
 
+	// Build lookup maps once and reuse across all builds to avoid
+	// redundant O(N) map constructions per build. See #27205.
+	lookups := newConvertBuildLookups(
+		workspaceResources,
+		resourceMetadata,
+		resourceAgents,
+		agentApps,
+		agentAppStatuses,
+		agentScripts,
+		agentLogSources,
+		provisionerDaemons,
+	)
+
 	// Should never be nil for API consistency
 	apiBuilds := []codersdk.WorkspaceBuild{}
 	for _, build := range workspaceBuilds {
@@ -1288,19 +1301,12 @@ func (api *API) convertWorkspaceBuilds(
 			return nil, xerrors.New("template version not found")
 		}
 
-		apiBuild, err := api.convertWorkspaceBuild(
+		apiBuild, err := api.convertWorkspaceBuildWithLookups(
 			build,
 			workspace,
 			job,
-			workspaceResources,
-			resourceMetadata,
-			resourceAgents,
-			agentApps,
-			agentAppStatuses,
-			agentScripts,
-			agentLogSources,
 			templateVersion,
-			provisionerDaemons,
+			&lookups,
 		)
 		if err != nil {
 			return nil, xerrors.Errorf("converting workspace build: %w", err)
@@ -1310,6 +1316,67 @@ func (api *API) convertWorkspaceBuilds(
 	}
 
 	return apiBuilds, nil
+}
+
+// convertBuildLookups holds pre-built index maps so that
+// convertWorkspaceBuildWithLookups doesn't rebuild them on every call.
+// See https://github.com/coder/coder/issues/27205.
+type convertBuildLookups struct {
+	resourcesByJobID     map[uuid.UUID][]database.WorkspaceResource
+	metadataByResourceID map[uuid.UUID][]database.WorkspaceResourceMetadatum
+	agentsByResourceID   map[uuid.UUID][]database.WorkspaceAgent
+	appsByAgentID        map[uuid.UUID][]database.WorkspaceApp
+	statusesByAgentID    map[uuid.UUID][]database.WorkspaceAppStatus
+	scriptsByAgentID     map[uuid.UUID][]database.GetWorkspaceAgentScriptsByAgentIDsRow
+	logSourcesByAgentID  map[uuid.UUID][]database.WorkspaceAgentLogSource
+	daemonsByJobID       map[uuid.UUID][]database.ProvisionerDaemon
+}
+
+func newConvertBuildLookups(
+	workspaceResources []database.WorkspaceResource,
+	resourceMetadata []database.WorkspaceResourceMetadatum,
+	resourceAgents []database.WorkspaceAgent,
+	agentApps []database.WorkspaceApp,
+	agentAppStatuses []database.WorkspaceAppStatus,
+	agentScripts []database.GetWorkspaceAgentScriptsByAgentIDsRow,
+	agentLogSources []database.WorkspaceAgentLogSource,
+	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow,
+) convertBuildLookups {
+	l := convertBuildLookups{
+		resourcesByJobID:     make(map[uuid.UUID][]database.WorkspaceResource, len(workspaceResources)),
+		metadataByResourceID: make(map[uuid.UUID][]database.WorkspaceResourceMetadatum, len(resourceMetadata)),
+		agentsByResourceID:   make(map[uuid.UUID][]database.WorkspaceAgent, len(resourceAgents)),
+		appsByAgentID:        make(map[uuid.UUID][]database.WorkspaceApp, len(agentApps)),
+		statusesByAgentID:    make(map[uuid.UUID][]database.WorkspaceAppStatus, len(agentAppStatuses)),
+		scriptsByAgentID:     make(map[uuid.UUID][]database.GetWorkspaceAgentScriptsByAgentIDsRow, len(agentScripts)),
+		logSourcesByAgentID:  make(map[uuid.UUID][]database.WorkspaceAgentLogSource, len(agentLogSources)),
+		daemonsByJobID:       make(map[uuid.UUID][]database.ProvisionerDaemon, len(provisionerDaemons)),
+	}
+	for _, r := range workspaceResources {
+		l.resourcesByJobID[r.JobID] = append(l.resourcesByJobID[r.JobID], r)
+	}
+	for _, m := range resourceMetadata {
+		l.metadataByResourceID[m.WorkspaceResourceID] = append(l.metadataByResourceID[m.WorkspaceResourceID], m)
+	}
+	for _, a := range resourceAgents {
+		l.agentsByResourceID[a.ResourceID] = append(l.agentsByResourceID[a.ResourceID], a)
+	}
+	for _, app := range agentApps {
+		l.appsByAgentID[app.AgentID] = append(l.appsByAgentID[app.AgentID], app)
+	}
+	for _, s := range agentAppStatuses {
+		l.statusesByAgentID[s.AgentID] = append(l.statusesByAgentID[s.AgentID], s)
+	}
+	for _, s := range agentScripts {
+		l.scriptsByAgentID[s.WorkspaceAgentID] = append(l.scriptsByAgentID[s.WorkspaceAgentID], s)
+	}
+	for _, ls := range agentLogSources {
+		l.logSourcesByAgentID[ls.WorkspaceAgentID] = append(l.logSourcesByAgentID[ls.WorkspaceAgentID], ls)
+	}
+	for _, d := range provisionerDaemons {
+		l.daemonsByJobID[d.JobID] = append(l.daemonsByJobID[d.JobID], d.ProvisionerDaemon)
+	}
+	return l
 }
 
 func (api *API) convertWorkspaceBuild(
@@ -1326,48 +1393,39 @@ func (api *API) convertWorkspaceBuild(
 	templateVersion database.TemplateVersion,
 	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow,
 ) (codersdk.WorkspaceBuild, error) {
-	resourcesByJobID := map[uuid.UUID][]database.WorkspaceResource{}
-	for _, resource := range workspaceResources {
-		resourcesByJobID[resource.JobID] = append(resourcesByJobID[resource.JobID], resource)
-	}
-	metadataByResourceID := map[uuid.UUID][]database.WorkspaceResourceMetadatum{}
-	for _, metadata := range resourceMetadata {
-		metadataByResourceID[metadata.WorkspaceResourceID] = append(metadataByResourceID[metadata.WorkspaceResourceID], metadata)
-	}
-	agentsByResourceID := map[uuid.UUID][]database.WorkspaceAgent{}
-	for _, agent := range resourceAgents {
-		agentsByResourceID[agent.ResourceID] = append(agentsByResourceID[agent.ResourceID], agent)
-	}
-	appsByAgentID := map[uuid.UUID][]database.WorkspaceApp{}
-	for _, app := range agentApps {
-		appsByAgentID[app.AgentID] = append(appsByAgentID[app.AgentID], app)
-	}
-	scriptsByAgentID := map[uuid.UUID][]database.GetWorkspaceAgentScriptsByAgentIDsRow{}
-	for _, script := range agentScripts {
-		scriptsByAgentID[script.WorkspaceAgentID] = append(scriptsByAgentID[script.WorkspaceAgentID], script)
-	}
-	logSourcesByAgentID := map[uuid.UUID][]database.WorkspaceAgentLogSource{}
-	for _, logSource := range agentLogSources {
-		logSourcesByAgentID[logSource.WorkspaceAgentID] = append(logSourcesByAgentID[logSource.WorkspaceAgentID], logSource)
-	}
-	provisionerDaemonsForThisWorkspaceBuild := []database.ProvisionerDaemon{}
-	for _, provisionerDaemon := range provisionerDaemons {
-		if provisionerDaemon.JobID != job.ProvisionerJob.ID {
-			continue
-		}
-		provisionerDaemonsForThisWorkspaceBuild = append(provisionerDaemonsForThisWorkspaceBuild, provisionerDaemon.ProvisionerDaemon)
-	}
-	matchedProvisioners := db2sdk.MatchedProvisioners(provisionerDaemonsForThisWorkspaceBuild, job.ProvisionerJob.CreatedAt, provisionerdserver.StaleInterval)
-	statusesByAgentID := map[uuid.UUID][]database.WorkspaceAppStatus{}
-	for _, status := range agentAppStatuses {
-		statusesByAgentID[status.AgentID] = append(statusesByAgentID[status.AgentID], status)
-	}
+	lookups := newConvertBuildLookups(
+		workspaceResources,
+		resourceMetadata,
+		resourceAgents,
+		agentApps,
+		agentAppStatuses,
+		agentScripts,
+		agentLogSources,
+		provisionerDaemons,
+	)
+	return api.convertWorkspaceBuildWithLookups(build, workspace, job, templateVersion, &lookups)
+}
 
-	resources := resourcesByJobID[job.ProvisionerJob.ID]
+// convertWorkspaceBuildWithLookups converts a single workspace build using
+// pre-built lookup maps. This is the inner implementation shared by both
+// convertWorkspaceBuild (single-build callers) and convertWorkspaceBuilds
+// (batch callers). Hoisting map construction into the caller eliminates
+// redundant O(N) work per build in the batch path. See #27205.
+func (api *API) convertWorkspaceBuildWithLookups(
+	build database.WorkspaceBuild,
+	workspace database.Workspace,
+	job database.GetProvisionerJobsByIDsWithQueuePositionRow,
+	templateVersion database.TemplateVersion,
+	lookups *convertBuildLookups,
+) (codersdk.WorkspaceBuild, error) {
+	provisionerDaemonsForThisWorkspaceBuild := lookups.daemonsByJobID[job.ProvisionerJob.ID]
+	matchedProvisioners := db2sdk.MatchedProvisioners(provisionerDaemonsForThisWorkspaceBuild, job.ProvisionerJob.CreatedAt, provisionerdserver.StaleInterval)
+
+	resources := lookups.resourcesByJobID[job.ProvisionerJob.ID]
 	apiResources := make([]codersdk.WorkspaceResource, 0)
 	resourceAgentsMinOrder := map[uuid.UUID]int32{} // map[resource.ID]minOrder
 	for _, resource := range resources {
-		agents := agentsByResourceID[resource.ID]
+		agents := lookups.agentsByResourceID[resource.ID]
 		sort.Slice(agents, func(i, j int) bool {
 			if agents[i].DisplayOrder != agents[j].DisplayOrder {
 				return agents[i].DisplayOrder < agents[j].DisplayOrder
@@ -1381,10 +1439,10 @@ func (api *API) convertWorkspaceBuild(
 		for _, agent := range agents {
 			resourceAgentsMinOrder[resource.ID] = min(resourceAgentsMinOrder[resource.ID], agent.DisplayOrder)
 
-			apps := appsByAgentID[agent.ID]
-			scripts := scriptsByAgentID[agent.ID]
-			statuses := statusesByAgentID[agent.ID]
-			logSources := logSourcesByAgentID[agent.ID]
+			apps := lookups.appsByAgentID[agent.ID]
+			scripts := lookups.scriptsByAgentID[agent.ID]
+			statuses := lookups.statusesByAgentID[agent.ID]
+			logSources := lookups.logSourcesByAgentID[agent.ID]
 			apiAgent, err := db2sdk.WorkspaceAgent(
 				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, db2sdk.Apps(apps, statuses, agent, workspace.OwnerUsername, workspace.WorkspaceTable()), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
@@ -1394,7 +1452,7 @@ func (api *API) convertWorkspaceBuild(
 			}
 			apiAgents = append(apiAgents, apiAgent)
 		}
-		metadata := append(make([]database.WorkspaceResourceMetadatum, 0), metadataByResourceID[resource.ID]...)
+		metadata := append(make([]database.WorkspaceResourceMetadatum, 0), lookups.metadataByResourceID[resource.ID]...)
 		apiResources = append(apiResources, convertWorkspaceResource(resource, apiAgents, metadata))
 	}
 	sort.Slice(apiResources, func(i, j int) bool {
