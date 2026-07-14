@@ -394,6 +394,17 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 		RedirectToLogin:             false,
 		SessionTokenFunc:            nil,
 	})
+
+	// Experiments are deployment-scoped, not user-scoped, so they are
+	// injected regardless of authentication. Pre-auth pages such as
+	// first-user setup rely on them to decide which options to show.
+	if experiments := h.Experiments.Load(); experiments != nil {
+		data, err := json.Marshal(experiments)
+		if err == nil {
+			state.Experiments = html.EscapeString(string(data))
+		}
+	}
+
 	if !ok || apiKey == nil || actor == nil {
 		var cfg codersdk.AppearanceConfig
 		// nolint:gocritic // User is not expected to be signed in.
@@ -503,15 +514,6 @@ func (h *Handler) populateHTMLState(
 				if err == nil {
 					state.Regions = html.EscapeString(string(data))
 				}
-			}
-		})
-	}
-	experiments := h.Experiments.Load()
-	if experiments != nil {
-		wg.Go(func() {
-			data, err := json.Marshal(experiments)
-			if err == nil {
-				state.Experiments = html.EscapeString(string(data))
 			}
 		})
 	}
