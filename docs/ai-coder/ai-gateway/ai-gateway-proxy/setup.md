@@ -56,7 +56,7 @@ By default, this is the embedded AI Gateway at `<coderd-access-url>/api/v2/ai-ga
 
 To forward intercepted requests to an AI Gateway that is not embedded in this Coder deployment, set:
 
-```shell
+```sh
 CODER_AI_GATEWAY_PROXY_TARGET=https://ai-gateway.example.com/
 # or via CLI flag:
 --ai-gateway-proxy-target=https://ai-gateway.example.com/
