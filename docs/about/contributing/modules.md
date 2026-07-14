@@ -168,7 +168,7 @@ output "repo_dir" {
 
 Create `main.test.ts` to test your module features:
 
-```typescript
+```tsx
 import { runTerraformApply, runTerraformInit, testRequiredVariables } from "~test"
 
 describe("git-clone", async () => {
