@@ -246,6 +246,18 @@ func generationCompactionThreshold(compaction *generationCompaction) int32 {
 	return compaction.Options.ThresholdPercent
 }
 
+// generationCompactionContextLimit returns the context limit the compaction
+// trigger was evaluated against at prepare time (the stricter of the chat and
+// override models' limits). The still-over-limit check must compare against
+// the same limit, otherwise a stricter override loops through repeated
+// compactions instead of surfacing errCompactionStillOverLimit.
+func generationCompactionContextLimit(compaction *generationCompaction) int64 {
+	if compaction == nil {
+		return 0
+	}
+	return compaction.Options.ContextLimit
+}
+
 func unresolvedToolCallsFromHistory(
 	messages []database.ChatMessage,
 	dynamicToolNames map[string]bool,
@@ -332,7 +344,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 				compactionEnabled:          prepared.Compaction != nil,
 				compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
 				compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
-				compactionContextLimit:     prepared.ContextLimitFallback,
+				compactionContextLimit:     generationCompactionContextLimit(prepared.Compaction),
 			})
 		})
 		if err != nil {

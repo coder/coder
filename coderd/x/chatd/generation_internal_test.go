@@ -37,6 +37,20 @@ func TestCompactionMetricIdentity(t *testing.T) {
 	require.Equal(t, "gpt-4.1-mini", model)
 }
 
+func TestGenerationCompactionContextLimit(t *testing.T) {
+	t.Parallel()
+
+	require.EqualValues(t, 0, generationCompactionContextLimit(nil))
+
+	// The decision path must see the prepare-time compaction limit (the
+	// stricter of the chat and override models' limits), not the chat
+	// model's limit.
+	compaction := &generationCompaction{
+		Options: chatloop.GenerateCompactionOptions{ContextLimit: 50_000},
+	}
+	require.EqualValues(t, 50_000, generationCompactionContextLimit(compaction))
+}
+
 func TestRecordGenerationFinishFailure(t *testing.T) {
 	t.Parallel()
 
