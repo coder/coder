@@ -168,6 +168,8 @@ type Server struct {
 	createWorkspaceFn              chattool.CreateWorkspaceFn
 	startWorkspaceFn               chattool.StartWorkspaceFn
 	stopWorkspaceFn                chattool.StopWorkspaceFn
+	mintCLITokenFn                 MintCLITokenFn
+	accessURL                      string
 	pubsub                         pubsub.Pubsub
 	webpushDispatcher              webpush.Dispatcher
 	providerAPIKeys                chatprovider.ProviderAPIKeys
@@ -3134,15 +3136,23 @@ type Config struct {
 	CreateWorkspace                chattool.CreateWorkspaceFn
 	StartWorkspace                 chattool.StartWorkspaceFn
 	StopWorkspace                  chattool.StopWorkspaceFn
-	ProviderAPIKeys                chatprovider.ProviderAPIKeys
-	AllowBYOK                      bool
-	AllowBYOKSet                   bool
-	AlwaysEnableDebugLogs          bool
-	WebpushDispatcher              webpush.Dispatcher
-	UsageTracker                   *workspacestats.UsageTracker
-	Clock                          quartz.Clock
-	AIBridgeTransportFactory       *atomic.Pointer[aibridge.TransportFactory]
-	Experiments                    codersdk.Experiments
+	// MintCLIToken mints a short-lived owner token so Coder
+	// Assistant chats can drive the Coder CLI from a bound
+	// workspace. May be nil, which disables CLI credential
+	// injection.
+	MintCLIToken MintCLITokenFn
+	// AccessURL is the deployment access URL injected as CODER_URL
+	// alongside minted CLI tokens.
+	AccessURL                string
+	ProviderAPIKeys          chatprovider.ProviderAPIKeys
+	AllowBYOK                bool
+	AllowBYOKSet             bool
+	AlwaysEnableDebugLogs    bool
+	WebpushDispatcher        webpush.Dispatcher
+	UsageTracker             *workspacestats.UsageTracker
+	Clock                    quartz.Clock
+	AIBridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
+	Experiments              codersdk.Experiments
 
 	PrometheusRegistry prometheus.Registerer
 
@@ -3217,6 +3227,8 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		instructionLookupTimeout:       instructionLookupTimeout,
 		createWorkspaceFn:              cfg.CreateWorkspace,
 		startWorkspaceFn:               cfg.StartWorkspace,
+		mintCLITokenFn:                 cfg.MintCLIToken,
+		accessURL:                      cfg.AccessURL,
 		stopWorkspaceFn:                cfg.StopWorkspace,
 		pubsub:                         ps,
 		webpushDispatcher:              cfg.WebpushDispatcher,

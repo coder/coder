@@ -852,6 +852,8 @@ func New(options *Options) *API {
 				CreateWorkspace:                api.chatCreateWorkspace,
 				StartWorkspace:                 api.chatStartWorkspace,
 				StopWorkspace:                  api.chatStopWorkspace,
+				MintCLIToken:                   api.chatMintCLIToken,
+				AccessURL:                      api.AccessURL.String(),
 				WebpushDispatcher:              options.WebPushDispatcher,
 				UsageTracker:                   options.WorkspaceUsageTracker,
 				PrometheusRegistry:             options.PrometheusRegistry,

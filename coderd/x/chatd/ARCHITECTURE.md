@@ -836,6 +836,8 @@ The owner and organization reads for the user-context block run under `dbauthz.A
 
 The `coder-assistant-page` label is maintained by the client, which `PATCH`es it as the user navigates. Because the value is client-supplied, it is sanitized by `sanitizeCoderAssistantPage` before being embedded in the prompt: only plain absolute paths pass, and values containing whitespace, quotes, backticks, backslashes, or angle brackets are dropped.
 
+When a Coder Assistant chat has a workspace bound, the execute tool injects CLI credentials into every process it starts: `CODER_URL` (the deployment access URL) and `CODER_SESSION_TOKEN`, a short-lived (30 minute) `coder:all` token for the chat owner minted through the `MintCLIToken` config callback (`api.chatMintCLIToken` in coderd). The mint runs under the owner's own RBAC subject, so every CLI call is authorized server-side exactly like any other request by that user; a member cannot perform admin actions through the assistant. The token is minted lazily on the first command of a generation, reused for the rest of that generation, passed only via process environment (never written to disk), and re-minting replaces the previous key for the chat (token name `coder-assistant-<chat ID>`).
+
 Everything else about Coder Assistant chats is standard chat behavior: tools, streaming, and ACLs work the same as for any other chat.
 
 #### Interrupt goroutine

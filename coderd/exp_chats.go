@@ -27,6 +27,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -7886,4 +7887,54 @@ func (api *API) streamChatParts(rw http.ResponseWriter, r *http.Request) {
 	if err := api.chatDaemon.ServeStreamPartsAuthorized(rw, r, chat); err != nil {
 		api.Logger.Named("chat_stream_parts").Debug(ctx, "chat stream parts closed", slog.Error(err))
 	}
+}
+
+// chatAssistantCLITokenLifetime bounds how long a minted Coder
+// Assistant CLI token stays valid. Tokens are re-minted per
+// generation, so a short lifetime limits exposure if a workspace
+// process leaks its environment.
+const chatAssistantCLITokenLifetime = 30 * time.Minute
+
+// chatMintCLIToken mints a short-lived session token for the chat
+// owner so Coder Assistant chats can run the Coder CLI inside a
+// bound workspace. The token carries the owner's full permissions
+// (scope coder:all); every CLI call is authorized server-side
+// exactly like any other request by that user. Re-minting replaces
+// the previous token for the chat so keys do not accumulate.
+func (api *API) chatMintCLIToken(ctx context.Context, ownerID uuid.UUID, chatID uuid.UUID) (string, error) {
+	// Elevate to the chat owner's RBAC subject. Users may create
+	// and delete their own tokens, so no system access is needed.
+	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
+	if err != nil {
+		return "", xerrors.Errorf("load user authorization: %w", err)
+	}
+	ctx = dbauthz.As(ctx, actor)
+
+	tokenName := fmt.Sprintf("coder-assistant-%s", chatID)
+	existing, err := api.Database.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
+		UserID:    ownerID,
+		TokenName: tokenName,
+	})
+	switch {
+	case err == nil:
+		if err := api.Database.DeleteAPIKeyByID(ctx, existing.ID); err != nil {
+			return "", xerrors.Errorf("delete previous assistant CLI token: %w", err)
+		}
+	case errors.Is(err, sql.ErrNoRows):
+	default:
+		return "", xerrors.Errorf("get previous assistant CLI token: %w", err)
+	}
+
+	//nolint:exhaustruct // Optional fields use their zero values; scope defaults to coder:all.
+	cookie, _, err := api.createAPIKey(ctx, apikey.CreateParams{
+		UserID:          ownerID,
+		LoginType:       database.LoginTypeToken,
+		DefaultLifetime: api.DeploymentValues.Sessions.DefaultTokenDuration.Value(),
+		LifetimeSeconds: int64(chatAssistantCLITokenLifetime.Seconds()),
+		TokenName:       tokenName,
+	})
+	if err != nil {
+		return "", xerrors.Errorf("create assistant CLI token: %w", err)
+	}
+	return cookie.Value, nil
 }

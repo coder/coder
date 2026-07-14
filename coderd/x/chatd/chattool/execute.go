@@ -66,6 +66,11 @@ type ExecuteResult struct {
 type ExecuteOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
 	DefaultTimeout   time.Duration
+	// ExtraEnv resolves additional environment variables to set on
+	// every executed process, such as CLI credentials. Resolution
+	// errors fail the tool call so commands never run with partial
+	// credentials. May be nil.
+	ExtraEnv func(context.Context) (map[string]string, error)
 }
 
 // ProcessToolOptions configures a process management tool
@@ -101,7 +106,14 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			return executeTool(ctx, conn, args, options.DefaultTimeout), nil
+			var extraEnv map[string]string
+			if options.ExtraEnv != nil {
+				extraEnv, err = options.ExtraEnv(ctx)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(fmt.Sprintf("resolve command environment: %v", err)), nil
+				}
+			}
+			return executeTool(ctx, conn, args, options.DefaultTimeout, extraEnv), nil
 		},
 	)
 }
@@ -111,15 +123,19 @@ func executeTool(
 	conn workspacesdk.AgentConn,
 	args ExecuteArgs,
 	optTimeout time.Duration,
+	extraEnv map[string]string,
 ) fantasy.ToolResponse {
 	if args.Command == "" {
 		return fantasy.NewTextErrorResponse("command is required")
 	}
 
 	// Build the environment map for the process request.
-	env := make(map[string]string, len(nonInteractiveEnvVars)+1)
+	env := make(map[string]string, len(nonInteractiveEnvVars)+len(extraEnv)+1)
 	env["CODER_CHAT_AGENT"] = "true"
 	for k, v := range nonInteractiveEnvVars {
+		env[k] = v
+	}
+	for k, v := range extraEnv {
 		env[k] = v
 	}
 

@@ -367,6 +367,13 @@ func (server *Server) prepareGeneration(
 	setAdvisorPromptSnapshot(prompt)
 
 	storeChatAttachment := server.newStoreChatAttachmentFunc(&workspaceCtx)
+	// Coder Assistant chats get CLI credentials injected into
+	// executed processes so the assistant can run the Coder CLI as
+	// the chat owner. RBAC is enforced server-side by the token.
+	var executeExtraEnv func(context.Context) (map[string]string, error)
+	if IsCoderAssistantChat(chat.Labels) && server.mintCLITokenFn != nil && server.accessURL != "" {
+		executeExtraEnv = server.coderAssistantCLIEnv(chat)
+	}
 	tools := []fantasy.AgentTool{
 		chattool.ReadFile(chattool.ReadFileOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.WriteFile(chattool.WriteFileOptions{
@@ -383,7 +390,10 @@ func (server *Server) prepareGeneration(
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 			StoreFile:        storeChatAttachment,
 		}),
-		chattool.Execute(chattool.ExecuteOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
+		chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			ExtraEnv:         executeExtraEnv,
+		}),
 		chattool.ProcessOutput(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessList(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessSignal(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),

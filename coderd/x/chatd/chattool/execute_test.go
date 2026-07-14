@@ -63,6 +63,73 @@ func TestExecuteTool(t *testing.T) {
 		assert.Contains(t, resp.Content, "command is required")
 	})
 
+	t.Run("ExtraEnvInjected", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		var gotEnv map[string]string
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				gotEnv = req.Env
+				return workspacesdk.StartProcessResponse{ID: "proc-1"}, nil
+			})
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{Running: false, ExitCode: ptr(0)}, nil).
+			AnyTimes()
+
+		tool := chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			ExtraEnv: func(_ context.Context) (map[string]string, error) {
+				return map[string]string{
+					"CODER_URL":           "https://coder.example.com",
+					"CODER_SESSION_TOKEN": "test-token",
+				}, nil
+			},
+		})
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"true"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		assert.Equal(t, "https://coder.example.com", gotEnv["CODER_URL"])
+		assert.Equal(t, "test-token", gotEnv["CODER_SESSION_TOKEN"])
+		// Base env vars are preserved alongside the extras.
+		assert.Equal(t, "true", gotEnv["CODER_CHAT_AGENT"])
+	})
+
+	t.Run("ExtraEnvError", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		// No StartProcess expectation: resolution failures must
+		// prevent the command from running at all.
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		tool := chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			ExtraEnv: func(_ context.Context) (map[string]string, error) {
+				return nil, xerrors.New("mint failed")
+			},
+		})
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"true"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "resolve command environment")
+		assert.Contains(t, resp.Content, "mint failed")
+	})
+
 	t.Run("AmpersandDetection", func(t *testing.T) {
 		t.Parallel()
 
