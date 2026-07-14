@@ -473,14 +473,14 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	sdkChats := db2sdk.ChatRowsWithChildren(chatRows, childRows, diffStatusesByChatID)
-	api.enrichMissingChatAgentIDs(ctx, sdkChats)
+	api.enrichChatWithWorkspaceAgentIDs(ctx, sdkChats)
 	httpapi.Write(ctx, rw, http.StatusOK, sdkChats)
 }
 
-// enrichMissingChatAgentIDs fills missing AgentIDs for chats with a bound
+// enrichChatWithWorkspaceAgentIDs fills missing AgentIDs for chats with a bound
 // workspace, since chatd persists the binding lazily. Best-effort and
 // response-only; on error the field stays null.
-func (api *API) enrichMissingChatAgentIDs(ctx context.Context, chats []codersdk.Chat) {
+func (api *API) enrichChatWithWorkspaceAgentIDs(ctx context.Context, chats []codersdk.Chat) {
 	missingChats := make([]*codersdk.Chat, 0, len(chats))
 	addMissing := func(chat *codersdk.Chat) {
 		if chat.AgentID == nil && chat.WorkspaceID != nil {
@@ -2164,7 +2164,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	enriched := []codersdk.Chat{sdkChat}
-	api.enrichMissingChatAgentIDs(ctx, enriched)
+	api.enrichChatWithWorkspaceAgentIDs(ctx, enriched)
 	sdkChat = enriched[0]
 
 	httpapi.Write(ctx, rw, http.StatusOK, sdkChat)
