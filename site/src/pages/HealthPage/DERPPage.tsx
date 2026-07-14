@@ -14,7 +14,6 @@ import {
 	TableCell,
 	TableRow,
 } from "#/components/Table/Table";
-import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import {
 	Header,
@@ -224,7 +223,7 @@ const DERPPage: FC = () => {
 									<Button variant="outline" key={region.RegionID} asChild>
 										<Link to={`/health/derp/regions/${region.RegionID}`}>
 											<MapPinIcon
-												className={cn(severityColor(severity as HealthSeverity))}
+												className={severityColor(severity as HealthSeverity)}
 											/>
 											{region.RegionName}
 										</Link>
