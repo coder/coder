@@ -49,14 +49,14 @@ export const SetupPage: FC = () => {
 		const agentIntroPending = (() => {
 			try {
 				return (
-					localStorage.getItem("coder_assistant_enabled") === "true" &&
+					localStorage.getItem("coder_assistant_hidden") !== "true" &&
 					localStorage.getItem("coder_assistant_intro_completed") !== "true"
 				);
 			} catch {
 				return false;
 			}
 		})();
-		if (agentIntroPending) {
+		if (coderAssistantEnabled && agentIntroPending) {
 			return <Navigate to="/setup/agent" replace />;
 		}
 		return setupRequired.current ? (

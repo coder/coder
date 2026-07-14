@@ -26,6 +26,7 @@ import { isCoderAssistantChat } from "#/api/queries/chats";
 import type { Chat, ChatModelConfig } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { isCoderAssistantHidden } from "#/components/CoderAssistant/visibility";
 import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
@@ -137,7 +138,8 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	currentUserId,
 }) => {
 	const { experiments } = useDashboard();
-	const coderAssistantEnabled = experiments.includes("coder-assistant");
+	const coderAssistantEnabled =
+		experiments.includes("coder-assistant") && !isCoderAssistantHidden();
 	const locationSearch = normalizeLocationSearch(location.search);
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 	const [collapsedSections, setCollapsedSections] = useState<

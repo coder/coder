@@ -6,6 +6,10 @@ import {
 } from "#/api/queries/users";
 import type { UpdateUserAppearanceSettingsRequest } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import {
+	isCoderAssistantHidden,
+	setCoderAssistantHidden,
+} from "#/components/CoderAssistant/visibility";
 import { Label } from "#/components/Label/Label";
 import { Loader } from "#/components/Loader/Loader";
 import { Switch } from "#/components/Switch/Switch";
@@ -51,32 +55,27 @@ export const useQueuedAppearanceSubmit = (mutate: MutateAppearanceSettings) => {
 	};
 };
 
-const CODER_ASSISTANT_ENABLED_KEY = "coder_assistant_enabled";
-
-// The Coder Assistant is a per-browser preference stored in
-// localStorage. The provider reads it once at mount, so changes take
-// effect after a page reload.
+// The Coder Assistant is enabled per deployment (coder-assistant
+// experiment) and shown to everyone by default. This is a per-browser
+// preference to hide it. The provider reads it once at mount, so
+// changes take effect after a page reload.
 const CoderAssistantSection: FC = () => {
 	const switchId = useId();
-	const [assistantEnabled, setAssistantEnabled] = useState(() => {
-		try {
-			return localStorage.getItem(CODER_ASSISTANT_ENABLED_KEY) === "true";
-		} catch {
-			return false;
-		}
-	});
+	const [assistantVisible, setAssistantVisible] = useState(
+		() => !isCoderAssistantHidden(),
+	);
 
 	const handleToggle = (checked: boolean) => {
-		setAssistantEnabled(checked);
-		try {
-			localStorage.setItem(CODER_ASSISTANT_ENABLED_KEY, String(checked));
-			if (checked) {
-				// Enabling from settings implies the user is past the intro,
-				// so skip the onboarding flow on future visits.
+		setAssistantVisible(checked);
+		setCoderAssistantHidden(!checked);
+		if (checked) {
+			try {
+				// Re-showing from settings implies the user is past the
+				// intro, so skip the onboarding flow on future visits.
 				localStorage.setItem("coder_assistant_intro_completed", "true");
+			} catch {
+				// Storage may be unavailable in some contexts.
 			}
-		} catch {
-			// Storage may be unavailable in some contexts.
 		}
 	};
 
@@ -85,7 +84,7 @@ const CoderAssistantSection: FC = () => {
 			<div className="flex items-center gap-3">
 				<Switch
 					id={switchId}
-					checked={assistantEnabled}
+					checked={assistantVisible}
 					onCheckedChange={handleToggle}
 				/>
 				<div className="flex flex-col">

@@ -42,6 +42,7 @@ import {
 	resolveModelSelector,
 } from "#/pages/AgentsPage/utils/modelOptions";
 import type { ChatDetailError } from "#/pages/AgentsPage/utils/usageLimitMessage";
+import { isCoderAssistantHidden, setCoderAssistantHidden } from "./visibility";
 
 interface CoderAssistantContextValue {
 	enabled: boolean;
@@ -124,9 +125,7 @@ export const CoderAssistantProvider: FC<
 	PropsWithChildren<{ forceEnabled?: boolean }>
 > = ({ children, forceEnabled }) => {
 	const [enabled, setEnabled] = useState(
-		() =>
-			forceEnabled ||
-			readLocalStorage("coder_assistant_enabled", "false") === "true",
+		() => forceEnabled || !isCoderAssistantHidden(),
 	);
 	const [open, setOpen] = useState(false);
 	const [chatId, setChatIdState] = useState<string | null>(
@@ -333,7 +332,7 @@ export const CoderAssistantProvider: FC<
 	}, []);
 
 	const disable = useCallback(() => {
-		writeLocalStorage("coder_assistant_enabled", "false");
+		setCoderAssistantHidden(true);
 		setEnabled(false);
 		setOpen(false);
 		// Clear the stored chat so re-enabling starts clean and no

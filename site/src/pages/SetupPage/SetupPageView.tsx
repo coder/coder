@@ -159,7 +159,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 	authMethods,
 	showAssistantToggle,
 }) => {
-	const [agentEnabled, setAgentEnabled] = useState(false);
+	const [agentEnabled, setAgentEnabled] = useState(true);
 	const form: FormikContextType<TypesGen.CreateFirstUserRequest> =
 		useFormik<TypesGen.CreateFirstUserRequest>({
 			initialValues: {
@@ -184,14 +184,17 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 			},
 			validationSchema,
 			onSubmit: (values) => {
-				// Persist the Coder Assistant preference alongside form submission.
-				// A fresh setup that enables the agent should always see the
-				// intro, so clear any stale completion flag from a previous
-				// session in this browser.
+				// Persist the Coder Assistant preference alongside form
+				// submission. The assistant is shown by default; opting out
+				// here hides it for this browser. A fresh setup that keeps
+				// the assistant should always see the intro, so clear any
+				// stale completion flag from a previous session.
 				try {
-					localStorage.setItem("coder_assistant_enabled", String(agentEnabled));
 					if (agentEnabled) {
+						localStorage.removeItem("coder_assistant_hidden");
 						localStorage.removeItem("coder_assistant_intro_completed");
+					} else {
+						localStorage.setItem("coder_assistant_hidden", "true");
 					}
 				} catch {
 					// Storage may be unavailable.
