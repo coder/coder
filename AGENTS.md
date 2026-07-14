@@ -75,8 +75,10 @@ symlinks to `AGENTS.md` at the root and in `site/`.
   `make gen`, update `enterprise/audit/table.go` on audit errors, then run
   `make gen` again. Keep `InTx` work on the transaction handle.
 - OAuth2 endpoints must return RFC-compliant errors such as
-  `writeOAuth2Error(...)`; public endpoints that need system access use
-  `dbauthz.AsSystemRestricted`.
+  `writeOAuth2Error(...)`; public OAuth2 endpoints use the scoped
+  `dbauthz.AsSystemOAuth2` context, not `dbauthz.AsSystemRestricted`.
+  Never ship a broad system context to work around an authorization
+  failure; extend the scoped subject or RBAC policy instead.
 - Tests: no `time.Sleep` to mitigate timing issues; use unique
   identifiers in concurrent tests.
 - Commit and PR title format: `type(scope): message`. A scope must be a
