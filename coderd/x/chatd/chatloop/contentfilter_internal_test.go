@@ -26,38 +26,61 @@ func refusalProviderMetadataForTest(category, explanation string) fantasy.Provid
 func TestContentFilterError(t *testing.T) {
 	t.Parallel()
 
-	t.Run("WithRefusalMetadata", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		name        string
+		provider    string
+		metadata    fantasy.ProviderMetadata
+		wantMessage string
+		wantDetail  string
+	}{
+		{
+			name:     "CategoryVerbatim",
+			provider: "anthropic",
+			metadata: refusalProviderMetadataForTest(
+				"harmful_content", "The response was blocked. See https://example.com for help.",
+			),
+			wantMessage: "Anthropic blocked this response under its content policy (harmful_content).",
+			wantDetail:  "The response was blocked. See https://example.com for help.",
+		},
+		{
+			name:        "NoMetadataFallsBackToDefault",
+			provider:    "anthropic",
+			metadata:    nil,
+			wantMessage: "Anthropic blocked this response under its content policy.",
+		},
+		{
+			name:        "WhitespaceCategory",
+			provider:    "anthropic",
+			metadata:    refusalProviderMetadataForTest("   ", ""),
+			wantMessage: "Anthropic blocked this response under its content policy.",
+		},
+		{
+			name:        "UnknownProvider",
+			provider:    "",
+			metadata:    refusalProviderMetadataForTest("cyber", ""),
+			wantMessage: "The AI provider blocked this response under its content policy (cyber).",
+		},
+	}
 
-		err := contentFilterError("anthropic", refusalProviderMetadataForTest(
-			"harmful_content", "The response was blocked. See https://example.com for help.",
-		))
-		require.ErrorIs(t, err, ErrContentFiltered)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		classified := chaterror.Classify(err)
-		require.Equal(t, codersdk.ChatErrorKindContentFilter, classified.Kind)
-		require.Equal(t, "anthropic", classified.Provider)
-		require.False(t, classified.Retryable)
-		require.Equal(t, "Anthropic blocked this response under its content policy (harmful_content).", classified.Message)
-		require.Equal(t, "The response was blocked. See https://example.com for help.", classified.Detail)
-	})
+			err := contentFilterError(tt.provider, tt.metadata)
+			require.ErrorIs(t, err, ErrContentFiltered)
 
-	t.Run("WithoutMetadataFallsBackToDefaultMessage", func(t *testing.T) {
-		t.Parallel()
+			classified := chaterror.Classify(err)
+			require.Equal(t, codersdk.ChatErrorKindContentFilter, classified.Kind)
+			require.Equal(t, tt.provider, classified.Provider)
+			require.False(t, classified.Retryable)
+			require.Equal(t, tt.wantMessage, classified.Message)
+			require.Equal(t, tt.wantDetail, classified.Detail)
 
-		err := contentFilterError("anthropic", nil)
-		require.ErrorIs(t, err, ErrContentFiltered)
-
-		classified := chaterror.Classify(err)
-		require.Equal(t, codersdk.ChatErrorKindContentFilter, classified.Kind)
-		require.False(t, classified.Retryable)
-		require.Equal(t, "Anthropic blocked this response under its content policy.", classified.Message)
-		require.Empty(t, classified.Detail)
-
-		payload := chaterror.TerminalErrorPayload(classified)
-		require.NotNil(t, payload)
-		require.Equal(t, codersdk.ChatErrorKindContentFilter, payload.Kind)
-	})
+			payload := chaterror.TerminalErrorPayload(classified)
+			require.NotNil(t, payload)
+			require.Equal(t, codersdk.ChatErrorKindContentFilter, payload.Kind)
+		})
+	}
 }
 
 func TestGenerateAssistant_ContentFilterRefusal(t *testing.T) {
