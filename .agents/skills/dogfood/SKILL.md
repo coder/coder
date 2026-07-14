@@ -16,7 +16,7 @@ Use the canonical repo guidance for startup, isolation, observability, and clean
 - `.claude/docs/WORKFLOWS.md`
 - `.claude/docs/DEV_ISOLATION.md`
 - `.claude/docs/OBSERVABILITY.md`
-- `.claude/docs/TROUBLESHOOTING.md`
+- `.claude/docs/AGENT_FAILURES.md`
 
 ## Understand the target first
 
