@@ -70,6 +70,16 @@ type AWSBedrock struct {
 	Protocol BedrockProtocol
 }
 
+// ResolvedProtocol returns the configured protocol, mapping the empty value to
+// the legacy InvokeModel protocol so existing providers keep the legacy
+// behavior.
+func (c AWSBedrock) ResolvedProtocol() BedrockProtocol {
+	if c.Protocol == "" {
+		return BedrockProtocolInvokeModel
+	}
+	return c.Protocol
+}
+
 // Validate verifies protocol-specific Bedrock configuration.
 func (c AWSBedrock) Validate() error {
 	switch c.Protocol {
