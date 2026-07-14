@@ -77,6 +77,12 @@ WHERE
 			tv.has_ai_task = sqlc.narg('has_ai_task') :: boolean
 		ELSE true
 	END
+	-- Filter by agents_allowed
+	AND CASE
+		WHEN sqlc.narg('agents_allowed') :: boolean IS NOT NULL THEN
+			t.agents_allowed = sqlc.narg('agents_allowed') :: boolean
+		ELSE true
+	END
 	-- Filter by author_id
 	AND CASE
 		  WHEN @author_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
