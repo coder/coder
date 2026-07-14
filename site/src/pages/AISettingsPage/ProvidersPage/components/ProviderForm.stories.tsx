@@ -93,6 +93,9 @@ export const AddBedrockWithoutStaticCredentials: Story = {
 					accessKey: "",
 					accessKeySecret: "",
 				}),
+				// Formik invokes onSubmit as (values, formikHelpers), so the
+				// second argument must be matched for the assertion to pass.
+				expect.anything(),
 			),
 		);
 	},
