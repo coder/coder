@@ -205,7 +205,16 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 	// refresh token error as they can only be used once.
 	key := c.ID + ":" + externalAuthLink.UserID.String()
 	ch := c.RefreshGroup.DoChan(key, func() (any, error) {
-		return c.innerRefreshToken(ctx, db, externalAuthLink)
+		// Use a detached context so if a request is canceled it does not cancel all
+		// the other requests as well.  Preserve any original deadline.
+		rctx := context.WithoutCancel(ctx)
+		deadline, ok := ctx.Deadline()
+		if ok {
+			var cancel context.CancelFunc
+			rctx, cancel = context.WithDeadline(rctx, deadline)
+			defer cancel()
+		}
+		return c.innerRefreshToken(rctx, db, externalAuthLink)
 	})
 	select {
 	case results := <-ch:

@@ -475,6 +475,106 @@ func TestRefreshToken(t *testing.T) {
 		require.Equal(t, "winner-refresh-token", result.OAuthRefreshToken)
 	})
 
+	// ConcurrentContextCancel tests that if one request is canceled, it does not
+	// cancel other requests waiting on it.
+	t.Run("ConcurrentContextCanceled", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		parallelRequests := 5
+		ch := make(chan string)
+
+		var refreshCalls atomic.Int64
+		ctx := testutil.Context(t, testutil.WaitLong)
+		cancelOnRefresh, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		// Use to know when the first call has started the group, so we know which
+		// context we can cancel.
+		listening := make(chan struct{})
+
+		fake, config, link := setupOauth2Test(t, testConfig{
+			FakeIDPOpts: []oidctest.FakeIDPOpt{
+				oidctest.WithRefresh(func(_ string) error {
+					if refreshCalls.Add(1) == 1 {
+						close(listening)
+						// Wait for all the other calls to be subscribed, to prevent
+						// the test from flaking.
+						subscribed := 1
+						for {
+							<-ch
+							subscribed++
+							if subscribed >= parallelRequests {
+								// Cancel the parent context after refresh succeeds
+								// but before the DB save and validation.
+								cancel()
+								return nil
+							}
+						}
+					}
+					// Should never reach here.
+					return xerrors.New("bad_refresh_token")
+				}),
+				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
+					return jwt.MapClaims{}, nil
+				}),
+			},
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
+				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+				cfg.RefreshGroup = &group{notify: ch}
+			},
+			DB: db,
+		})
+
+		oldAccessToken := link.OAuthAccessToken
+		oldRefreshToken := link.OAuthRefreshToken
+		link.OAuthExpiry = expired
+
+		var wg sync.WaitGroup
+		// Start the first call with the cancelable context.
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ctx := oidc.ClientContext(cancelOnRefresh, fake.HTTPClient(nil))
+			_, err := config.RefreshToken(ctx, db, link)
+			assert.ErrorIs(t, err, context.Canceled)
+		}()
+
+		// Wait for it to start the group, to make sure the callback above is
+		// canceling the right context (if we fire them all at once, any one of them
+		// could start the group).
+		<-listening
+
+		// Now we can fire off the remaining requests.
+		for range parallelRequests - 1 {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				ctx := oidc.ClientContext(ctx, fake.HTTPClient(nil))
+				result, err := config.RefreshToken(ctx, db, link)
+				assert.NoError(t, err)
+				assert.NotEqual(t, oldAccessToken, result.OAuthAccessToken)
+				assert.NotEqual(t, oldRefreshToken, result.OAuthRefreshToken)
+			}()
+		}
+
+		wg.Wait()
+
+		// DB link should have been updated.
+		dbLink, err := db.GetExternalAuthLink(context.Background(), database.GetExternalAuthLinkParams{
+			ProviderID: link.ProviderID,
+			UserID:     link.UserID,
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, oldAccessToken, dbLink.OAuthAccessToken,
+			"DB should have the new access token despite context cancellation")
+		require.NotEqual(t, oldRefreshToken, dbLink.OAuthRefreshToken,
+			"DB should have the new refresh token despite context cancellation")
+
+		// Only one refresh call should have actually been made.
+		require.Equal(t, int64(1), refreshCalls.Load())
+	})
+
 	// ValidateFailure tests if the token is no longer valid with a 401 response.
 	t.Run("ValidateFailure", func(t *testing.T) {
 		t.Parallel()
