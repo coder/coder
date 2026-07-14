@@ -363,7 +363,7 @@ func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server 
 }
 
 // getProxyCertPool returns a cert pool containing the shared MITM certificate.
-// This is used for tests where requests are intercepted by the proxy, so the client
+// This is used for tests where requests are MITM'd by the proxy, so the client
 // needs to trust the MITM certificate to verify the generated certificates.
 func getProxyCertPool(t *testing.T) *x509.CertPool {
 	t.Helper()
@@ -1880,7 +1880,7 @@ func TestUpstreamProxy(t *testing.T) {
 	tests := []struct {
 		name string
 		// tunneled determines whether the request should be tunneled through
-		// the upstream proxy (true) or intercepted by aiproxy (false).
+		// the upstream proxy (true) or MITM'd by aiproxy (false).
 		// When true, the target domain has no configured provider.
 		// When false, the target domain has a configured provider.
 		tunneled bool
@@ -2187,7 +2187,7 @@ func TestUpstreamProxy(t *testing.T) {
 
 // TestProxy_MITM_CustomProvider verifies that a non-builtin provider
 // (e.g. OpenRouter) whose domain is registered as a provider host is correctly
-// intercepted and routed through the proxy to the bridge endpoint.
+// MITM'd and routed through the proxy to the bridge endpoint.
 func TestProxy_MITM_CustomProvider(t *testing.T) {
 	t.Parallel()
 

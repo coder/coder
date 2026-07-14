@@ -1995,7 +1995,7 @@ The address the AI Gateway Proxy will listen on.
 | Environment | <code>$CODER_AI_GATEWAY_PROXY_TARGET</code> |
 | YAML        | <code>ai_gateway_proxy.target</code>        |
 
-Base URL of the AI Gateway to forward intercepted requests to. Defaults to the Coder access URL plus /api/v2/ai-gateway for embedded mode.
+Base URL of the AI Gateway to forward intercepted requests to. Defaults to the embedded AI Gateway address at the Coder access URL plus /api/v2/ai-gateway.
 
 ### --ai-gateway-proxy-tls-cert-file
 

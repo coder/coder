@@ -344,7 +344,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	srv.providerRouter.Store(emptyProviderRouter)
 
 	// Configure upstream proxy for tunneled (non-provider-host) CONNECT requests.
-	// Provider-host domains are intercepted and forwarded to AI Gateway directly,
+	// Provider-host domains are MITM'd and forwarded to AI Gateway directly,
 	// bypassing the upstream proxy.
 	if opts.UpstreamProxy != "" {
 		upstreamURL, err := url.Parse(opts.UpstreamProxy)
@@ -423,7 +423,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	// Apply MITM with authentication only to provider hosts. The host
 	// list is loaded from the atomic router on every CONNECT so a
 	// Reload while inflight requests are in progress takes effect on
-	// the next CONNECT without touching the already intercepted ones.
+	// the next CONNECT without touching the already MITM'd ones.
 	proxy.OnRequest(srv.mitmHostsCondition()).HandleConnectFunc(
 		// Extract Coder token from proxy authentication to forward to aibridged.
 		srv.authMiddleware,
@@ -787,7 +787,7 @@ func newProxyAuthRequiredResponse(req *http.Request) *http.Response {
 }
 
 // tunneledMiddleware is a CONNECT middleware that handles tunneled (non-provider-host)
-// connections. These connections are not intercepted and are tunneled directly to their
+// connections. These connections are not MITM'd and are tunneled directly to their
 // destination. This middleware records metrics for tunneled CONNECT sessions.
 func (s *Server) tunneledMiddleware(host string, _ *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
 	// Record tunneled CONNECT session establishment.

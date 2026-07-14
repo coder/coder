@@ -58,13 +58,12 @@ func newAIBridgeProxyDaemon(coderAPI *coderd.API) (io.Closer, error) {
 		}
 	}
 
-	target := coderAPI.DeploymentValues.AI.BridgeProxyConfig.Target.String()
-	if target == "" {
-		var err error
-		target, err = url.JoinPath(coderAPI.AccessURL.String(), agplaibridge.AIGatewayRootPath)
-		if err != nil {
-			return nil, xerrors.Errorf("build embedded AI Gateway proxy target: %w", err)
-		}
+	target, err := resolveAIGatewayProxyTarget(
+		coderAPI.AccessURL,
+		coderAPI.DeploymentValues.AI.BridgeProxyConfig.Target.String(),
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	srv, err := aibridgeproxyd.New(ctx, logger, aibridgeproxyd.Options{
@@ -100,6 +99,19 @@ func newAIBridgeProxyDaemon(coderAPI *coderd.API) (io.Closer, error) {
 		server:      srv,
 		unsubscribe: unsubscribe,
 	}, nil
+}
+
+// resolveAIGatewayProxyTarget returns the URL to which the aibridgeproxyd should forward requests.
+func resolveAIGatewayProxyTarget(accessURL *url.URL, target string) (string, error) {
+	if target != "" {
+		return target, nil
+	}
+
+	target, err := url.JoinPath(accessURL.String(), agplaibridge.AIGatewayRootPath)
+	if err != nil {
+		return "", xerrors.Errorf("build embedded AI Gateway proxy target: %w", err)
+	}
+	return target, nil
 }
 
 // refreshProxyProviders classifies every ai_providers row as enabled,

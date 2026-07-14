@@ -2133,7 +2133,7 @@ communicating directly.`,
 	}
 	aiGatewayProxyTarget := serpent.Option{
 		Name:        "AI Gateway Proxy Target",
-		Description: "Base URL of the AI Gateway to forward intercepted requests to. Defaults to the Coder access URL plus /api/v2/ai-gateway for embedded mode.",
+		Description: "Base URL of the AI Gateway to forward intercepted requests to. Defaults to the embedded AI Gateway address at the Coder access URL plus /api/v2/ai-gateway.",
 		Flag:        "ai-gateway-proxy-target",
 		Env:         "CODER_AI_GATEWAY_PROXY_TARGET",
 		Value:       &c.AI.BridgeProxyConfig.Target,
