@@ -22,6 +22,7 @@ import (
 	"tailscale.com/ipn/ipnstate"
 
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -307,7 +308,7 @@ func TestSupportBundle(t *testing.T) {
 	})
 }
 
-func TestSupportBundleWorkspaceExtraPaths(t *testing.T) {
+func TestSupportBundleCollectsWorkspaceFiles(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("for some reason, windows fails to remove tempdirs sometimes")
 	}
@@ -336,8 +337,9 @@ func TestSupportBundleWorkspaceExtraPaths(t *testing.T) {
 
 	// The agent resolves requested paths against $HOME (USERPROFILE on
 	// Windows). The agent log dir is separate so collection does not race
-	// live agent logs.
-	home := t.TempDir()
+	// live agent logs. The resolved dir matches the agent's canonicalized
+	// manifest paths (the macOS temp dir is a symlink).
+	home := testutil.TempDirResolved(t)
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	require.NoError(t, os.MkdirAll(filepath.Join(home, "testlogs", "nested"), 0o700))
@@ -358,8 +360,8 @@ func TestSupportBundleWorkspaceExtraPaths(t *testing.T) {
 	// deduplication end to end.
 	inv, root := clitest.New(t,
 		"support", "bundle", workspaceWithAgent.Workspace.Name,
-		"--workspace-extra-path", "$HOME/testlogs/server.log",
-		"--workspace-extra-path", "$HOME/testlogs/**/*.log",
+		"--workspace-file", "$HOME/testlogs/server.log",
+		"--workspace-file", "$HOME/testlogs/**/*.log",
 		"--output-file", bundlePath,
 		"--yes",
 	)
@@ -370,12 +372,12 @@ func TestSupportBundleWorkspaceExtraPaths(t *testing.T) {
 
 	assertBundleContents(t, bundlePath, true, true, []string{secretValue})
 	entries := readZipEntries(t, bundlePath)
-	serverLogEntry := "agent/extra_files/" + archiveFilesPath(filepath.Join(home, "testlogs", "server.log"))
-	nestedLogEntry := "agent/extra_files/" + archiveFilesPath(filepath.Join(home, "testlogs", "nested", "nested.log"))
+	serverLogEntry := "agent/workspace_files/" + agentfiles.BundleFilesArchivePath(filepath.Join(home, "testlogs", "server.log"))
+	nestedLogEntry := "agent/workspace_files/" + agentfiles.BundleFilesArchivePath(filepath.Join(home, "testlogs", "nested", "nested.log"))
 	require.Equal(t, "server log", string(entries[serverLogEntry]))
 	require.Equal(t, "nested log", string(entries[nestedLogEntry]))
-	var manifest workspacesdk.ZipFilesManifest
-	require.NoError(t, json.Unmarshal(entries["agent/extra_files/manifest.json"], &manifest))
+	var manifest workspacesdk.BundleFilesManifest
+	require.NoError(t, json.Unmarshal(entries["agent/workspace_files/manifest.json"], &manifest))
 	require.Equal(t, []string{"$HOME/testlogs/server.log", "$HOME/testlogs/**/*.log"}, manifest.Requested)
 	require.Len(t, manifest.Files, 2, "server.log should be deduplicated across the exact path and the glob")
 }
@@ -388,7 +390,7 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 	defer r.Close()
 	for _, f := range r.File {
 		assertDoesNotContain(t, f, badValues...)
-		if strings.HasPrefix(f.Name, "agent/extra_files/files/") {
+		if strings.HasPrefix(f.Name, "agent/workspace_files/files/") {
 			bs := readBytesFromZip(t, f)
 			require.NotEmpty(t, bs, "workspace log file should not be empty")
 			continue
@@ -569,8 +571,8 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 				continue
 			}
 			require.Contains(t, string(bs), "started up")
-		case "agent/extra_files/manifest.json":
-			var v workspacesdk.ZipFilesManifest
+		case "agent/workspace_files/manifest.json":
+			var v workspacesdk.BundleFilesManifest
 			decodeJSONFromZip(t, f, &v)
 			require.NotEmpty(t, v.Requested, "workspace log file manifest should include requested paths")
 		case "logs.txt":
@@ -686,14 +688,4 @@ func setupSupportBundleTestFixture(
 		}
 	}
 	return r
-}
-
-// archiveFilesPath mirrors the agent's mapping of a cleaned absolute path
-// to its files/ archive entry name, including the Windows drive-colon drop.
-func archiveFilesPath(abs string) string {
-	p := strings.TrimPrefix(filepath.ToSlash(abs), "/")
-	if len(p) >= 2 && p[1] == ':' {
-		p = p[:1] + p[2:]
-	}
-	return "files/" + p
 }

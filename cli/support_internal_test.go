@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"archive/tar"
 	"archive/zip"
 	"bytes"
 	"testing"
@@ -10,7 +11,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestSafeAgentExtraFilesArchiveName(t *testing.T) {
+func TestSafeWorkspaceFilesArchiveEntryName(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
@@ -31,7 +32,7 @@ func TestSafeAgentExtraFilesArchiveName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, ok := safeAgentExtraFilesArchiveName(tt.name)
+			got, ok := safeWorkspaceFilesArchiveEntryName(tt.name)
 			require.Equal(t, tt.ok, ok)
 			if tt.ok {
 				require.Equal(t, tt.name, got)
@@ -40,13 +41,13 @@ func TestSafeAgentExtraFilesArchiveName(t *testing.T) {
 	}
 }
 
-func TestWriteAgentExtraFilesArchive(t *testing.T) {
+func TestWriteWorkspaceFilesArchive(t *testing.T) {
 	t.Parallel()
 
 	t.Run("UnpacksManifestAndFiles", func(t *testing.T) {
 		t.Parallel()
 
-		agentArchive := makeAgentExtraFilesArchive(t,
+		agentArchive := makeWorkspaceFilesArchive(t,
 			"files/server.log", "server log",
 			"manifest.json", `{"files":[{"archive_path":"files/server.log"}]}`,
 			"../escape.log", "should be dropped and recorded",
@@ -54,20 +55,20 @@ func TestWriteAgentExtraFilesArchive(t *testing.T) {
 
 		var bundle bytes.Buffer
 		bundleZip := zip.NewWriter(&bundle)
-		require.NoError(t, writeAgentExtraFilesArchive(agentArchive, bundleZip, supportBundleAgentExtraFilesMaxBytes))
+		require.NoError(t, writeWorkspaceFilesArchive(agentArchive, bundleZip, supportBundleWorkspaceFilesMaxBytes))
 		require.NoError(t, bundleZip.Close())
 
 		entries := testutil.ReadZip(t, bundle.Bytes())
-		require.Equal(t, "server log", string(entries["agent/extra_files/files/server.log"]))
-		require.Contains(t, entries, "agent/extra_files/manifest.json")
-		require.Contains(t, string(entries["agent/extra_files/collection_errors.txt"]), "../escape.log")
+		require.Equal(t, "server log", string(entries["agent/workspace_files/files/server.log"]))
+		require.Contains(t, entries, "agent/workspace_files/manifest.json")
+		require.Contains(t, string(entries["agent/workspace_files/collection_errors.txt"]), "../escape.log")
 		require.Len(t, entries, 3)
 	})
 
 	t.Run("SkipsEntriesBeyondBudget", func(t *testing.T) {
 		t.Parallel()
 
-		agentArchive := makeAgentExtraFilesArchive(t,
+		agentArchive := makeWorkspaceFilesArchive(t,
 			"files/big.log", "this entry is too big",
 			"files/small.log", "ok",
 		)
@@ -75,13 +76,13 @@ func TestWriteAgentExtraFilesArchive(t *testing.T) {
 		var bundle bytes.Buffer
 		bundleZip := zip.NewWriter(&bundle)
 		// A 4 byte budget fits small.log but not big.log.
-		require.NoError(t, writeAgentExtraFilesArchive(agentArchive, bundleZip, 4))
+		require.NoError(t, writeWorkspaceFilesArchive(agentArchive, bundleZip, 4))
 		require.NoError(t, bundleZip.Close())
 
 		entries := testutil.ReadZip(t, bundle.Bytes())
-		require.Equal(t, "ok", string(entries["agent/extra_files/files/small.log"]))
-		require.NotContains(t, entries, "agent/extra_files/files/big.log")
-		errs := string(entries["agent/extra_files/collection_errors.txt"])
+		require.Equal(t, "ok", string(entries["agent/workspace_files/files/small.log"]))
+		require.NotContains(t, entries, "agent/workspace_files/files/big.log")
+		errs := string(entries["agent/workspace_files/collection_errors.txt"])
 		require.Contains(t, errs, "files/big.log")
 		require.Contains(t, errs, "budget")
 	})
@@ -91,27 +92,30 @@ func TestWriteAgentExtraFilesArchive(t *testing.T) {
 
 		var bundle bytes.Buffer
 		bundleZip := zip.NewWriter(&bundle)
-		require.NoError(t, writeAgentExtraFilesArchive([]byte("not a zip"), bundleZip, supportBundleAgentExtraFilesMaxBytes))
+		require.NoError(t, writeWorkspaceFilesArchive([]byte("not a tar"), bundleZip, supportBundleWorkspaceFilesMaxBytes))
 		require.NoError(t, bundleZip.Close())
 
 		entries := testutil.ReadZip(t, bundle.Bytes())
-		require.Contains(t, string(entries["agent/extra_files/collection_errors.txt"]), "open agent extra files archive")
+		require.Contains(t, string(entries["agent/workspace_files/collection_errors.txt"]), "read workspace files archive")
 	})
 }
 
-// makeAgentExtraFilesArchive zips alternating name/content pairs in order.
-func makeAgentExtraFilesArchive(t *testing.T, pairs ...string) []byte {
+// makeWorkspaceFilesArchive tars alternating name/content pairs in order.
+func makeWorkspaceFilesArchive(t *testing.T, pairs ...string) []byte {
 	t.Helper()
 
 	require.Zero(t, len(pairs)%2)
 	var buf bytes.Buffer
-	zw := zip.NewWriter(&buf)
+	tw := tar.NewWriter(&buf)
 	for i := 0; i < len(pairs); i += 2 {
-		entry, err := zw.Create(pairs[i])
-		require.NoError(t, err)
-		_, err = entry.Write([]byte(pairs[i+1]))
+		require.NoError(t, tw.WriteHeader(&tar.Header{
+			Name: pairs[i],
+			Mode: 0o644,
+			Size: int64(len(pairs[i+1])),
+		}))
+		_, err := tw.Write([]byte(pairs[i+1]))
 		require.NoError(t, err)
 	}
-	require.NoError(t, zw.Close())
+	require.NoError(t, tw.Close())
 	return buf.Bytes()
 }

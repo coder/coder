@@ -122,7 +122,7 @@ type AgentConn interface {
 	ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error)
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
 	EditFiles(ctx context.Context, edits FileEditRequest) (FileEditResponse, error)
-	ZipFiles(ctx context.Context, req ZipFilesRequest) ([]byte, error)
+	BundleFiles(ctx context.Context, req BundleFilesRequest) ([]byte, error)
 	SSH(ctx context.Context) (*gonet.TCPConn, error)
 	SSHClient(ctx context.Context) (*ssh.Client, error)
 	SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Client, error)
@@ -463,23 +463,23 @@ func (c *agentConn) DebugManifest(ctx context.Context) ([]byte, error) {
 	return bs, nil
 }
 
-// ZipFilesRequest configures a workspace-side file collection.
-type ZipFilesRequest struct {
+// BundleFilesRequest configures a workspace-side file collection.
+type BundleFilesRequest struct {
 	Paths []string `json:"paths"`
 }
 
-// ZipFilesManifest is the manifest.json of the archive returned by
-// ZipFiles.
-type ZipFilesManifest struct {
-	Requested []string                `json:"requested"`
-	Files     []ZipFilesManifestEntry `json:"files"`
-	Errors    []ZipFilesManifestError `json:"errors"`
-	Truncated bool                    `json:"truncated"`
-	Limits    ZipFilesLimits          `json:"limits"`
+// BundleFilesManifest is the manifest.json of the archive returned by
+// BundleFiles.
+type BundleFilesManifest struct {
+	Requested []string                   `json:"requested"`
+	Files     []BundleFilesManifestEntry `json:"files"`
+	Errors    []BundleFilesManifestError `json:"errors"`
+	Truncated bool                       `json:"truncated"`
+	Limits    BundleFilesLimits          `json:"limits"`
 }
 
-// ZipFilesManifestEntry describes one file collected into the archive.
-type ZipFilesManifestEntry struct {
+// BundleFilesManifestEntry describes one file collected into the archive.
+type BundleFilesManifestEntry struct {
 	Requested    string    `json:"requested"`
 	Path         string    `json:"path"`
 	ArchivePath  string    `json:"archive_path"`
@@ -489,25 +489,26 @@ type ZipFilesManifestEntry struct {
 	Truncated    bool      `json:"truncated"`
 }
 
-// ZipFilesManifestError records a path that could not be collected.
-type ZipFilesManifestError struct {
+// BundleFilesManifestError records a path that could not be collected.
+type BundleFilesManifestError struct {
 	Requested string `json:"requested"`
 	Path      string `json:"path,omitempty"`
 	Reason    string `json:"reason"`
 }
 
-// ZipFilesLimits are the collection limits the agent applied.
-type ZipFilesLimits struct {
+// BundleFilesLimits are the collection limits the agent applied.
+type BundleFilesLimits struct {
 	MaxFiles        int   `json:"max_files"`
 	MaxBytesPerFile int64 `json:"max_bytes_per_file"`
 	MaxTotalBytes   int64 `json:"max_total_bytes"`
 }
 
-// ZipFiles returns a zip archive of explicitly requested workspace files.
-func (c *agentConn) ZipFiles(ctx context.Context, req ZipFilesRequest) ([]byte, error) {
+// BundleFiles returns a tar archive of explicitly requested workspace
+// files.
+func (c *agentConn) BundleFiles(ctx context.Context, req BundleFilesRequest) ([]byte, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/zip-files", req)
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/bundle-files", req)
 	if err != nil {
 		return nil, xerrors.Errorf("do request: %w", err)
 	}

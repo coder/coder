@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -21,6 +20,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -202,8 +202,10 @@ func TestRun(t *testing.T) {
 	})
 }
 
-func TestRunWorkspaceExtraPaths(t *testing.T) {
-	home := t.TempDir()
+func TestRunCollectsWorkspaceFiles(t *testing.T) {
+	// The resolved dir matches the agent's canonicalized manifest paths
+	// (the macOS temp dir is a symlink).
+	home := testutil.TempDirResolved(t)
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	require.NoError(t, os.WriteFile(filepath.Join(home, "workspace-service.log"), []byte("workspace service log"), 0o600))
@@ -218,15 +220,15 @@ func TestRunWorkspaceExtraPaths(t *testing.T) {
 	ws, agt := setupWorkspaceAndAgent(ctx, t, client, db, admin)
 
 	bun, err := support.Run(ctx, &support.Deps{
-		Client:              client,
-		Log:                 testutil.Logger(t).Named("bundle"),
-		WorkspaceID:         ws.ID,
-		AgentID:             agt.ID,
-		WorkspaceExtraPaths: []string{"$HOME/workspace-service.log"},
+		Client:                client,
+		Log:                   testutil.Logger(t).Named("bundle"),
+		WorkspaceID:           ws.ID,
+		AgentID:               agt.ID,
+		WorkspaceFilePatterns: []string{"$HOME/workspace-service.log"},
 	})
 	require.NoError(t, err)
 
-	assertWorkspaceExtraFilesArchive(t, bun.Agent.ExtraFilesArchive, archiveFilesPath(filepath.Join(home, "workspace-service.log")), "workspace service log")
+	assertWorkspaceFilesArchive(t, bun.Agent.WorkspaceFilesArchive, agentfiles.BundleFilesArchivePath(filepath.Join(home, "workspace-service.log")), "workspace service log")
 }
 
 func assertSanitizedDeploymentConfig(t *testing.T, dc *codersdk.DeploymentConfig) {
@@ -312,27 +314,17 @@ func setupWorkspaceAndAgent(ctx context.Context, t *testing.T, client *codersdk.
 	return ws, agt
 }
 
-func assertWorkspaceExtraFilesArchive(t *testing.T, data []byte, wantEntry string, wantContent string) {
+func assertWorkspaceFilesArchive(t *testing.T, data []byte, wantEntry string, wantContent string) {
 	t.Helper()
 
 	require.NotEmpty(t, data)
-	entries := testutil.ReadZip(t, data)
+	entries := testutil.ReadTar(t, data)
 	require.Equal(t, wantContent, string(entries[wantEntry]))
 
-	var manifest workspacesdk.ZipFilesManifest
+	var manifest workspacesdk.BundleFilesManifest
 	require.NoError(t, json.Unmarshal(entries["manifest.json"], &manifest))
 	require.Len(t, manifest.Files, 1)
 	require.Equal(t, wantEntry, manifest.Files[0].ArchivePath)
-}
-
-// archiveFilesPath mirrors the agent's mapping of a cleaned absolute path
-// to its files/ archive entry name, including the Windows drive-colon drop.
-func archiveFilesPath(abs string) string {
-	p := strings.TrimPrefix(filepath.ToSlash(abs), "/")
-	if len(p) >= 2 && p[1] == ':' {
-		p = p[:1] + p[2:]
-	}
-	return "files/" + p
 }
 
 func assertNotNilNotEmpty[T any](t *testing.T, v T, msg string) {

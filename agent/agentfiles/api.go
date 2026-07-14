@@ -14,30 +14,37 @@ import (
 
 // API exposes file-related operations performed through the agent.
 type API struct {
-	logger         slog.Logger
-	filesystem     afero.Fs
-	pathStore      *agentgit.PathStore
-	envInfo        usershell.EnvInfoer
-	zipFilesLimits workspacesdk.ZipFilesLimits
+	logger            slog.Logger
+	filesystem        afero.Fs
+	pathStore         *agentgit.PathStore
+	envInfo           usershell.EnvInfoer
+	bundleFilesLimits workspacesdk.BundleFilesLimits
 }
 
 // Option configures the API.
 type Option func(*API)
 
-// WithZipFilesLimits overrides the zip files collection limits for tests.
-func WithZipFilesLimits(limits workspacesdk.ZipFilesLimits) Option {
+// WithBundleFilesLimits overrides the bundle files collection limits.
+func WithBundleFilesLimits(limits workspacesdk.BundleFilesLimits) Option {
 	return func(api *API) {
-		api.zipFilesLimits = limits
+		api.bundleFilesLimits = limits
 	}
 }
 
-func NewAPI(logger slog.Logger, filesystem afero.Fs, pathStore *agentgit.PathStore, envInfo usershell.EnvInfoer, opts ...Option) *API {
+// WithEnvInfo overrides how the agent user's home directory is resolved.
+func WithEnvInfo(envInfo usershell.EnvInfoer) Option {
+	return func(api *API) {
+		api.envInfo = envInfo
+	}
+}
+
+func NewAPI(logger slog.Logger, filesystem afero.Fs, pathStore *agentgit.PathStore, opts ...Option) *API {
 	api := &API{
-		logger:         logger,
-		filesystem:     filesystem,
-		pathStore:      pathStore,
-		envInfo:        envInfo,
-		zipFilesLimits: defaultZipFilesLimits,
+		logger:            logger,
+		filesystem:        filesystem,
+		pathStore:         pathStore,
+		envInfo:           usershell.SystemEnvInfo{},
+		bundleFilesLimits: defaultBundleFilesLimits,
 	}
 	for _, opt := range opts {
 		opt(api)
@@ -55,7 +62,7 @@ func (api *API) Routes() http.Handler {
 	r.Get("/read-file-lines", api.HandleReadFileLines)
 	r.Post("/write-file", api.HandleWriteFile)
 	r.Post("/edit-files", api.HandleEditFiles)
-	r.Post("/zip-files", api.HandleZipFiles)
+	r.Post("/bundle-files", api.HandleBundleFiles)
 
 	return r
 }
