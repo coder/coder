@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -482,7 +483,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 // response-only; on error the field stays null.
 func (api *API) enrichChatWithWorkspaceAgentIDs(ctx context.Context, chats []codersdk.Chat) {
 	missingChats := make([]*codersdk.Chat, 0, len(chats))
-	workspaceIDs []uuid.UUID
+	var workspaceIDs []uuid.UUID
 	addMissing := func(chat *codersdk.Chat) {
 		if chat.AgentID == nil && chat.WorkspaceID != nil {
 			missingChats = append(missingChats, chat)
@@ -496,7 +497,9 @@ func (api *API) enrichChatWithWorkspaceAgentIDs(ctx context.Context, chats []cod
 		}
 	}
 
-	slices.Sort(workspaceIDs)
+	slices.SortFunc(workspaceIDs, func(a, b uuid.UUID) int {
+		return cmp.Compare(a.String(), b.String())
+	})
 	ids := slices.Compact(workspaceIDs)
 	rows, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(ctx, ids)
 	if err != nil {
