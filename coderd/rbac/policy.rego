@@ -137,15 +137,27 @@ check_all_org_permissions(roles, key) := {org_id: vote |
 	vote := to_vote(allow)
 }
 
-# This check handles the case where the org id is known.
-check_org_permissions(roles, key) := vote if {
+# org_ids_with_vote returns the set of org ids whose aggregated vote for the
+# given permission level (`key`) equals `wanted`. It depends only on the
+# subject's roles and the known action and object type, never on the object's
+# org id, so its value is fully known during partial evaluation.
+org_ids_with_vote(roles, key, wanted) := {org_id |
+	some org_id, vote in check_all_org_permissions(roles, key)
+	vote == wanted
+}
+
+# Handles the case where the object's org id is known to the caller but unknown
+# during partial evaluation. The org id is only tested for membership in a set
+# that is fully known at partial-evaluation time, which lets the query compile
+# to `organization_id = ANY(ARRAY[...])` instead of fanning out to one query per
+# org. This clause only votes to allow; a known org never votes to deny.
+# Org-level denies are folded into the org-member level as a set difference (see
+# `org_member`), so the decision never branches on the unknown org id.
+check_org_permissions(roles, key) := 1 if {
 	# Disallow setting any_org at the same time as an org id.
 	not input.object.any_org
 
-	allow_map := check_all_org_permissions(roles, key)
-
-	# Return only the vote of the object's org.
-	vote := allow_map[input.object.org_owner]
+	input.object.org_owner in org_ids_with_vote(roles, key, 1)
 }
 
 # This check handles the case where we want to know if the user has the
@@ -195,19 +207,49 @@ is_org_member if {
 
 default org_member := 0
 
+# Known org: allow when the subject owns the object, the member level allows,
+# and the org level does not deny. The deny gate is expressed as a set
+# difference (member-allow minus org-deny) whose value is fully known at
+# partial-evaluation time, so the unknown org id appears in only one positive
+# membership test and the decision never branches on it.
+org_member := 1 if {
+	# Object must be jointly owned by the user
+	input.object.owner != ""
+	input.subject.id = input.object.owner
+	not input.object.any_org
+
+	member_allow := org_ids_with_vote(input.subject.roles, "member", 1)
+	org_deny := org_ids_with_vote(input.subject.roles, "org", -1)
+	input.object.org_owner in (member_allow - org_deny)
+}
+
 org_member := vote if {
 	# Object must be jointly owned by the user
 	input.object.owner != ""
 	input.subject.id = input.object.owner
+	input.object.any_org
 	vote := check_org_permissions(input.subject.roles, "member")
 }
 
 default scope_org_member := 0
 
+# Known org: like org_member, scoped to the subject's current scope.
+scope_org_member := 1 if {
+	# Object must be jointly owned by the user
+	input.object.owner != ""
+	input.subject.id = input.object.owner
+	not input.object.any_org
+
+	member_allow := org_ids_with_vote([input.subject.scope], "member", 1)
+	org_deny := org_ids_with_vote([input.subject.scope], "org", -1)
+	input.object.org_owner in (member_allow - org_deny)
+}
+
 scope_org_member := vote if {
 	# Object must be jointly owned by the user
 	input.object.owner != ""
 	input.subject.id = input.object.owner
+	input.object.any_org
 	vote := check_org_permissions([input.subject.scope], "member")
 }
 

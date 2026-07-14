@@ -945,6 +945,49 @@ func TestAuthorizeLevels(t *testing.T) {
 
 			{resource: ResourceWorkspace.WithOwner("not-me"), allow: false},
 		}))
+
+	// A plain member whose member level allows workspace read, but whose org
+	// level denies it in one org. The org-level deny must block the action on
+	// the owned in-org object even though the member level allows it.
+	denyOrg := uuid.New()
+	user = Subject{
+		ID:    "me",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			{
+				Identifier: RoleIdentifier{Name: "member-allow", OrganizationID: defOrg},
+				ByOrgID: map[string]OrgPermissions{
+					defOrg.String(): {
+						Member: []Permission{{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead}},
+					},
+				},
+			},
+			{
+				Identifier: RoleIdentifier{Name: "member-allow-org-deny", OrganizationID: denyOrg},
+				ByOrgID: map[string]OrgPermissions{
+					denyOrg.String(): {
+						Org:    []Permission{{Negate: true, ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead}},
+						Member: []Permission{{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead}},
+					},
+				},
+			},
+		},
+	}
+
+	testAuthorize(t, "OrgDenyBlocksMember", user,
+		cases(func(c authTestCase) authTestCase {
+			c.actions = []policy.Action{policy.ActionRead}
+			return c
+		}, []authTestCase{
+			// Member level allows the owned, in-org object.
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), allow: true},
+			// Org-level deny blocks the owned object even though member allows it.
+			{resource: ResourceWorkspace.InOrg(denyOrg).WithOwner(user.ID), allow: false},
+			// The member grant does not extend to objects the subject does not own.
+			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner("not-me"), allow: false},
+			// Not a member of this org at all.
+			{resource: ResourceWorkspace.InOrg(unusedID).WithOwner(user.ID), allow: false},
+		}))
 }
 
 func TestAuthorizeScope(t *testing.T) {
