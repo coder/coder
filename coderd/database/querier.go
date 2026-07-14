@@ -507,9 +507,6 @@ type sqlcQuerier interface {
 	// non-empty custom prompt implied opting out before the explicit toggle
 	// existed.
 	GetChatSystemPromptConfig(ctx context.Context) (GetChatSystemPromptConfigRow, error)
-	// GetChatTemplateAllowlist returns the JSON-encoded template allowlist.
-	// Returns an empty string when no allowlist has been configured (all templates allowed).
-	GetChatTemplateAllowlist(ctx context.Context) (string, error)
 	GetChatTitleGenerationModelOverride(ctx context.Context) (string, error)
 	// Returns the concatenated text of each user-visible user prompt in a
 	// chat, newest first. Used by the composer to populate the up/down
@@ -1650,7 +1647,6 @@ type sqlcQuerier interface {
 	UpsertChatPlanModeInstructions(ctx context.Context, value string) error
 	UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error
 	UpsertChatSystemPrompt(ctx context.Context, value string) error
-	UpsertChatTemplateAllowlist(ctx context.Context, templateAllowlist string) error
 	UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error
 	UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl string) error
 	// The default proxy is implied and not actually stored in the database.

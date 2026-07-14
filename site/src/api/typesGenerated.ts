@@ -3434,16 +3434,6 @@ export interface ChatSystemPromptResponse {
 }
 
 // From codersdk/chats.go
-/**
- * ChatTemplateAllowlist is the request and response body for the
- * chat template allowlist configuration endpoint. An empty list
- * means all templates are allowed.
- */
-export interface ChatTemplateAllowlist {
-	readonly template_ids: readonly string[];
-}
-
-// From codersdk/chats.go
 export interface ChatTextPart {
 	readonly type: "text";
 	readonly text: string;

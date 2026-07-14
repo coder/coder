@@ -1398,8 +1398,6 @@ func New(options *Options) *API {
 				r.Put("/debug-retention-days", api.putChatDebugRetentionDays)
 				r.Get("/auto-archive-days", api.getChatAutoArchiveDays)
 				r.Put("/auto-archive-days", api.putChatAutoArchiveDays)
-				r.Get("/template-allowlist", api.getChatTemplateAllowlist)
-				r.Put("/template-allowlist", api.putChatTemplateAllowlist)
 			})
 			// TODO(cian): place under /api/experimental/chats/config
 			r.Route("/providers", func(r chi.Router) {
