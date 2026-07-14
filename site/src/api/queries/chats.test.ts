@@ -2325,9 +2325,10 @@ describe("mergeWatchedChatSummary", () => {
 			last_turn_summary: "Old turn",
 			updated_at: "2025-01-01T00:00:00.000Z",
 		});
-		// summary_change and chat_summary_change share the triggering turn's
-		// updated_at, so the timestamps are equal. The summary_change snapshot
-		// still carries a stale whole-chat summary from when the turn finished.
+		// Neither summary write bumps chats.updated_at, so both events replay
+		// the triggering turn's timestamp and arrive with equal updated_at. The
+		// summary_change snapshot still carries a stale whole-chat summary from
+		// when the turn finished.
 		const watchedChat = makeChat("chat-1", {
 			summary: null,
 			last_turn_summary: "New turn",
