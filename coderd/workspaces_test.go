@@ -19,6 +19,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/singleflight"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agenttest"
@@ -1501,6 +1502,7 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -1553,6 +1555,7 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -1601,6 +1604,7 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -1640,6 +1644,7 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				DisplayName:              "GitHub",
 				ValidateURL:              validateSrv.URL,
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -1680,6 +1685,7 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 				ID:                       "fallback-provider",
 				Regex:                    regexp.MustCompile(`fallback\.example\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)

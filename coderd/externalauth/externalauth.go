@@ -19,6 +19,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/oauth2"
 	xgithub "golang.org/x/oauth2/github"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -52,6 +53,12 @@ const (
 	// transient refresh failure across all attempts.
 	defaultRefreshRetryTimeout = 10 * time.Second
 )
+
+// SingleflightGroup exposes a subset of singleflight.Group for easier testing.
+// singleflight.Group should be used instead of implementing this in production.
+type SingleflightGroup interface {
+	Do(key string, fn func() (any, error)) (v any, err error, shared bool)
+}
 
 // Config is used for authentication for Git operations.
 type Config struct {
@@ -142,6 +149,9 @@ type Config struct {
 	// defaultRefreshRetryTimeout. A negative value disables transient-failure
 	// retries entirely, so exactly one refresh attempt is made.
 	RefreshRetryTimeout time.Duration
+
+	// RefreshGroup deduplicates concurrent requests.
+	RefreshGroup SingleflightGroup
 }
 
 // Git returns a Provider for this config if the provider type is a
@@ -194,7 +204,7 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 	// in-flight refresh.  Otherwise, the parallel calls will fail with a bad
 	// refresh token error as they can only be used once.
 	key := c.ID + ":" + externalAuthLink.UserID.String()
-	link, err := c.Group().Do(key, func() (any, error) {
+	link, err, _ := c.RefreshGroup.Do(key, func() (any, error) {
 		return c.innerRefreshToken(ctx, db, externalAuthLink)
 	})
 	if newlink, ok := link.(database.ExternalAuthLink); ok {
@@ -936,6 +946,7 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 			MCPToolAllowRegex:             mcpToolAllow,
 			MCPToolDenyRegex:              mcpToolDeny,
 			CodeChallengeMethodsSupported: slice.StringEnums[promoauth.Oauth2PKCEChallengeMethod](entry.CodeChallengeMethodsSupported),
+			RefreshGroup:                  new(singleflight.Group),
 		}
 
 		if entry.DeviceFlow {

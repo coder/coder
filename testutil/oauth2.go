@@ -10,7 +10,6 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/coder/coder/v2/coderd/promoauth"
-	"github.com/coder/coder/v2/coderd/util/singleflight"
 )
 
 type OAuth2Config struct {
@@ -19,10 +18,6 @@ type OAuth2Config struct {
 
 	httpClientOnce sync.Once
 	httpClient     *http.Client
-
-	Notifier  chan string
-	groupOnce sync.Once
-	group     *singleflight.Group
 }
 
 // Do issues req using a dedicated http.Client per OAuth2Config so a
@@ -33,13 +28,6 @@ func (c *OAuth2Config) Do(_ context.Context, _ promoauth.Oauth2Source, req *http
 		c.httpClient = &http.Client{Transport: &http.Transport{}}
 	})
 	return c.httpClient.Do(req)
-}
-
-func (c *OAuth2Config) Group() *singleflight.Group {
-	c.groupOnce.Do(func() {
-		c.group = singleflight.NewGroup(c.Notifier)
-	})
-	return c.group
 }
 
 func (*OAuth2Config) AuthCodeURL(state string, _ ...oauth2.AuthCodeOption) string {

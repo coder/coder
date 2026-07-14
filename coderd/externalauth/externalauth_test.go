@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -22,6 +23,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/oauth2"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd"
@@ -110,6 +112,7 @@ func TestRefreshToken(t *testing.T) {
 					return nil, xerrors.New("failure")
 				},
 			},
+			RefreshGroup: new(singleflight.Group),
 		}
 
 		_, err := config.RefreshToken(context.Background(), nil, database.ExternalAuthLink{
@@ -374,7 +377,9 @@ func TestRefreshToken(t *testing.T) {
 					}
 					return nil, xerrors.New("bad_refresh_token")
 				},
-				Notifier: ch,
+			},
+			RefreshGroup: &group{
+				notify: ch,
 			},
 		}
 
@@ -1090,6 +1095,7 @@ func TestValidateToken(t *testing.T) {
 			ID:                       "test-validate",
 			Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 			ValidateURL:              validateURL,
+			RefreshGroup:             new(singleflight.Group),
 		}
 	}
 
@@ -1694,6 +1700,7 @@ func setupOauth2Test(t *testing.T, settings testConfig) (*oidctest.FakeIDP, *ext
 		RevokeURL:                     fake.WellknownConfig().RevokeURL,
 		RevokeTimeout:                 1 * time.Second,
 		CodeChallengeMethodsSupported: []promoauth.Oauth2PKCEChallengeMethod{promoauth.PKCEChallengeMethodSha256},
+		RefreshGroup:                  new(singleflight.Group),
 	}
 	settings.ExternalAuthOpt(config)
 
@@ -1769,4 +1776,53 @@ type roundTripper func(req *http.Request) (*http.Response, error)
 
 func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r(req)
+}
+
+var _ externalauth.SingleflightGroup = (*group)(nil)
+
+type call struct {
+	wg  sync.WaitGroup
+	val any
+	err error
+}
+
+// group is like singleflight.Group
+type group struct {
+	mu     sync.Mutex       // protects m
+	m      map[string]*call // lazily initialized
+	notify chan string
+}
+
+// Do ensures there is only one call to fn in flight at a time.  Any calls that
+// come in while it is in flight wait for the original call and get the same
+// results.
+//
+// Blocks if the notifier blocks or is absent.
+func (g *group) Do(key string, fn func() (any, error)) (v any, err error, shared bool) {
+	g.mu.Lock()
+	if g.m == nil {
+		g.m = make(map[string]*call)
+	}
+	if c, ok := g.m[key]; ok {
+		if g.notify != nil {
+			g.notify <- key
+		}
+		g.mu.Unlock()
+		c.wg.Wait()
+		return c.val, c.err, true
+	}
+	c := new(call)
+	c.wg.Add(1)
+	g.m[key] = c
+	g.mu.Unlock()
+
+	defer func() {
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		c.wg.Done()
+		delete(g.m, key)
+	}()
+
+	c.val, c.err = fn()
+	return c.val, c.err, false
 }
