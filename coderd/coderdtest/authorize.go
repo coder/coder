@@ -501,3 +501,60 @@ func AccessControlStorePointer() *atomic.Pointer[dbauthz.AccessControlStore] {
 	acs.Store(&tacs)
 	return acs
 }
+
+// PrepareCountingAuthorizer wraps an Authorizer and counts calls to Prepare,
+// keyed by (subjectID, action, objectType). Tests use it to assert that a
+// request runs OPA partial evaluation exactly once for a given resource,
+// guarding against redundant Prepare calls (for example, a handler preparing a
+// SQL filter that the dbauthz layer then re-prepares). Authorize is delegated
+// unchanged.
+//
+// Unlike RecordingAuthorizer, which records Authorize calls, this records
+// Prepare calls; the built-in caching authorizer does not dedupe Prepare, so
+// the counts reflect every partial evaluation performed. Counts are keyed by
+// subject ID so a test can isolate the prepares made on behalf of a specific
+// user and ignore background work performed under system subjects.
+type PrepareCountingAuthorizer struct {
+	rbac.Authorizer
+
+	mu     sync.Mutex
+	counts map[string]int
+}
+
+var _ rbac.Authorizer = (*PrepareCountingAuthorizer)(nil)
+
+// NewPrepareCountingAuthorizer wraps the given Authorizer. Pass the same kind of
+// authorizer coderdtest uses by default (rbac.NewStrictCachingAuthorizer) so the
+// authorization behavior is unchanged.
+func NewPrepareCountingAuthorizer(wrapped rbac.Authorizer) *PrepareCountingAuthorizer {
+	return &PrepareCountingAuthorizer{
+		Authorizer: wrapped,
+		counts:     make(map[string]int),
+	}
+}
+
+func prepareCountKey(subjectID string, action policy.Action, objectType string) string {
+	return subjectID + "|" + string(action) + "|" + objectType
+}
+
+func (a *PrepareCountingAuthorizer) Prepare(ctx context.Context, subject rbac.Subject, action policy.Action, objectType string) (rbac.PreparedAuthorized, error) {
+	a.mu.Lock()
+	a.counts[prepareCountKey(subject.ID, action, objectType)]++
+	a.mu.Unlock()
+	return a.Authorizer.Prepare(ctx, subject, action, objectType)
+}
+
+// PrepareCount returns the number of Prepare calls recorded for the given
+// subject, action, and object type.
+func (a *PrepareCountingAuthorizer) PrepareCount(subjectID string, action policy.Action, objectType string) int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.counts[prepareCountKey(subjectID, action, objectType)]
+}
+
+// Reset clears all recorded Prepare counts.
+func (a *PrepareCountingAuthorizer) Reset() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.counts = make(map[string]int)
+}
