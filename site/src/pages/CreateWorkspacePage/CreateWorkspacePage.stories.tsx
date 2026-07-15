@@ -63,6 +63,7 @@ const meta: Meta<typeof CreateWorkspacePage> = {
 		spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
 		spyOn(API, "getTemplateVersionPresets").mockResolvedValue(null);
 		spyOn(API, "checkAuthorization").mockResolvedValue({
+			createWorkspaceForUserID: true,
 			createWorkspaceForAny: true,
 			canUpdateTemplate: false,
 		});

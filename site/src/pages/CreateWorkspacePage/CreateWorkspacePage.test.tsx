@@ -7,7 +7,6 @@ import {
 	MockDropdownParameter,
 	MockDynamicParametersResponseWithError,
 	MockMultiSelectParameter,
-	MockPermissions,
 	MockPreviewParameter1,
 	MockPreviewParameter2,
 	MockPreviewParameter7,
@@ -222,7 +221,11 @@ describe("CreateWorkspacePage", () => {
 		vi.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([]);
 		vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
 		vi.spyOn(API, "createWorkspace").mockResolvedValue(MockWorkspace);
-		vi.spyOn(API, "checkAuthorization").mockResolvedValue(MockPermissions);
+		vi.spyOn(API, "checkAuthorization").mockResolvedValue({
+			createWorkspaceForUserID: true,
+			createWorkspaceForAny: true,
+			canUpdateTemplate: false,
+		});
 	});
 
 	afterEach(() => {
