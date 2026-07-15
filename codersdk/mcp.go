@@ -78,29 +78,8 @@ type MCPServerConfig struct {
 	UpdatedAt           time.Time `json:"updated_at" format:"date-time"`
 
 	// Per-user state (populated for non-admin requests).
-	// AuthConnected is kept for backward compatibility and is true
-	// exactly when AuthStatus is "connected".
-	AuthConnected bool                `json:"auth_connected"`
-	AuthStatus    MCPServerAuthStatus `json:"auth_status"`
+	AuthConnected bool `json:"auth_connected"`
 }
-
-// MCPServerAuthStatus describes the calling user's authentication
-// state for an MCP server.
-type MCPServerAuthStatus string
-
-const (
-	// MCPServerAuthStatusConnected means the server is usable: either
-	// it requires no per-user auth or the user's token is valid.
-	MCPServerAuthStatusConnected MCPServerAuthStatus = "connected"
-	// MCPServerAuthStatusNotConnected means the user has not
-	// completed the OAuth2 flow, or the token is expired and could
-	// not be refreshed for a transient reason.
-	MCPServerAuthStatusNotConnected MCPServerAuthStatus = "not_connected"
-	// MCPServerAuthStatusReconnectRequired means a token refresh
-	// failed permanently (e.g. the upstream grant was revoked) and
-	// the user must re-authenticate.
-	MCPServerAuthStatusReconnectRequired MCPServerAuthStatus = "reconnect_required"
-)
 
 // CreateMCPServerConfigRequest is the request to create a new MCP server config.
 type CreateMCPServerConfigRequest struct {

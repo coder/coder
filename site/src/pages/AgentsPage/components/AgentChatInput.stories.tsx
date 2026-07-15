@@ -714,7 +714,6 @@ const sentryMCP = buildMCPServer({
 	availability: "force_on",
 	auth_type: "oauth2",
 	auth_connected: true,
-	auth_status: "connected",
 	enabled: true,
 });
 
@@ -738,11 +737,7 @@ const githubMCP = buildMCPServer({
 	enabled: true,
 });
 
-const githubMCPConnected = {
-	...githubMCP,
-	auth_connected: true,
-	auth_status: "connected",
-} satisfies TypesGen.MCPServerConfig;
+const githubMCPConnected = { ...githubMCP, auth_connected: true };
 
 const mcpDefaults = {
 	onMCPSelectionChange: fn(),
@@ -769,21 +764,6 @@ export const WithMCPNeedingAuth: Story = {
 	},
 };
 
-/** MCP server with a revoked OAuth grant, shows Reconnect button. */
-export const WithMCPReconnectRequired: Story = {
-	args: {
-		...mcpDefaults,
-		mcpServers: [
-			sentryMCP,
-			{
-				...githubMCP,
-				auth_status: "reconnect_required",
-			} satisfies TypesGen.MCPServerConfig,
-		],
-		selectedMCPServerIds: [sentryMCP.id, githubMCP.id],
-	},
-};
-
 /** No MCP servers active — shows only "MCP" label with chevron. */
 export const WithMCPNoneActive: Story = {
 	args: {
@@ -793,7 +773,6 @@ export const WithMCPNoneActive: Story = {
 				...sentryMCP,
 				availability: "default_off",
 				auth_connected: false,
-				auth_status: "not_connected",
 			},
 			{
 				...linearMCP,

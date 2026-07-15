@@ -189,13 +189,13 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 		configByID[c.ID] = c
 	}
 
-	statusMap := make(map[uuid.UUID]codersdk.MCPServerAuthStatus, len(userTokens))
+	tokenMap := make(map[uuid.UUID]bool, len(userTokens))
 	for _, tok := range userTokens {
 		cfg, ok := configByID[tok.MCPServerConfigID]
 		if !ok {
 			continue
 		}
-		statusMap[tok.MCPServerConfigID] = api.mcpServerAuthStatus(ctx, cfg, tok, apiKey.UserID)
+		tokenMap[tok.MCPServerConfigID] = api.refreshMCPUserToken(ctx, cfg, tok, apiKey.UserID)
 	}
 
 	resp := make([]codersdk.MCPServerConfig, 0, len(configs))
@@ -206,16 +206,9 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 		} else {
 			sdkConfig = convertMCPServerConfigRedacted(config)
 		}
-		status := codersdk.MCPServerAuthStatusConnected
 		if config.AuthType == "oauth2" {
-			var ok bool
-			status, ok = statusMap[config.ID]
-			if !ok {
-				status = codersdk.MCPServerAuthStatusNotConnected
-			}
+			sdkConfig.AuthConnected = tokenMap[config.ID]
 		}
-		sdkConfig.AuthStatus = status
-		sdkConfig.AuthConnected = status == codersdk.MCPServerAuthStatusConnected
 		resp = append(resp, sdkConfig)
 	}
 
@@ -524,9 +517,8 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		sdkConfig = convertMCPServerConfigRedacted(config)
 	}
 
-	// Populate the auth status for the calling user. Attempt to
+	// Populate AuthConnected for the calling user. Attempt to
 	// refresh the token so the status is accurate.
-	status := codersdk.MCPServerAuthStatusConnected
 	if config.AuthType == "oauth2" {
 		//nolint:gocritic // Need to check user token for this server.
 		userTokens, err := api.Database.GetMCPServerUserTokensByUserID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
@@ -537,16 +529,13 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		status = codersdk.MCPServerAuthStatusNotConnected
 		for _, tok := range userTokens {
 			if tok.MCPServerConfigID == config.ID {
-				status = api.mcpServerAuthStatus(ctx, config, tok, apiKey.UserID)
+				sdkConfig.AuthConnected = api.refreshMCPUserToken(ctx, config, tok, apiKey.UserID)
 				break
 			}
 		}
 	}
-	sdkConfig.AuthStatus = status
-	sdkConfig.AuthConnected = status == codersdk.MCPServerAuthStatusConnected
 
 	httpapi.Write(ctx, rw, http.StatusOK, sdkConfig)
 }
@@ -1174,30 +1163,28 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// mcpServerAuthStatus determines the calling user's auth status for
-// an oauth2 MCP server, attempting a token refresh so the status is
-// accurate. Permanent refresh failures (e.g. revoked grants) are
-// persisted so subsequent calls skip the provider and report
-// reconnect_required without a network call.
-func (api *API) mcpServerAuthStatus(
+// refreshMCPUserToken attempts to refresh an expired OAuth2 token
+// for the given MCP server config. Returns true when the token is
+// valid (either still fresh or successfully refreshed), false when
+// the token is expired and cannot be refreshed. Permanent refresh
+// failures (e.g. revoked grants) are persisted so subsequent calls
+// skip the provider without a network call.
+func (api *API) refreshMCPUserToken(
 	ctx context.Context,
 	cfg database.MCPServerConfig,
 	tok database.MCPServerUserToken,
 	userID uuid.UUID,
-) codersdk.MCPServerAuthStatus {
+) bool {
 	if cfg.AuthType != "oauth2" {
-		return codersdk.MCPServerAuthStatusConnected
+		return true
 	}
 	if tok.OauthRefreshFailureReason != "" {
-		return codersdk.MCPServerAuthStatusReconnectRequired
+		return false
 	}
 	if tok.RefreshToken == "" {
 		// No refresh token; connected only if not expired (or no
 		// expiry set).
-		if !tok.Expiry.Valid || tok.Expiry.Time.After(time.Now()) {
-			return codersdk.MCPServerAuthStatusConnected
-		}
-		return codersdk.MCPServerAuthStatusNotConnected
+		return !tok.Expiry.Valid || tok.Expiry.Time.After(time.Now())
 	}
 
 	result, err := mcpclient.RefreshOAuth2Token(ctx, cfg, tok)
@@ -1211,7 +1198,7 @@ func (api *API) mcpServerAuthStatus(
 		}
 		// Transient failure; the token is unusable right now but a
 		// later refresh may succeed.
-		return codersdk.MCPServerAuthStatusNotConnected
+		return false
 	}
 
 	if result.Refreshed {
@@ -1243,19 +1230,19 @@ func (api *API) mcpServerAuthStatus(
 		}
 	}
 
-	return codersdk.MCPServerAuthStatusConnected
+	return true
 }
 
 // markMCPTokenRefreshFailure persists a permanent refresh failure so
 // later status checks skip the provider. The updated_at optimistic
 // lock loses to concurrent refreshes: in that case the winner's row
-// determines the status.
+// determines whether the token is still usable.
 func (api *API) markMCPTokenRefreshFailure(
 	ctx context.Context,
 	cfg database.MCPServerConfig,
 	tok database.MCPServerUserToken,
 	refreshErr error,
-) codersdk.MCPServerAuthStatus {
+) bool {
 	//nolint:gocritic // Need system-level write access to persist
 	// the refresh failure.
 	_, err := api.Database.MarkMCPServerUserTokenRefreshFailure(
@@ -1267,7 +1254,7 @@ func (api *API) markMCPTokenRefreshFailure(
 		},
 	)
 	if err == nil {
-		return codersdk.MCPServerAuthStatusReconnectRequired
+		return false
 	}
 
 	if xerrors.Is(err, sql.ErrNoRows) {
@@ -1283,13 +1270,9 @@ func (api *API) markMCPTokenRefreshFailure(
 			},
 		)
 		if readErr == nil {
-			if current.OauthRefreshFailureReason != "" {
-				return codersdk.MCPServerAuthStatusReconnectRequired
-			}
-			if current.AccessToken != "" && (!current.Expiry.Valid || current.Expiry.Time.After(time.Now())) {
-				return codersdk.MCPServerAuthStatusConnected
-			}
-			return codersdk.MCPServerAuthStatusNotConnected
+			return current.OauthRefreshFailureReason == "" &&
+				current.AccessToken != "" &&
+				(!current.Expiry.Valid || current.Expiry.Time.After(time.Now()))
 		}
 		err = readErr
 	}
@@ -1298,7 +1281,7 @@ func (api *API) markMCPTokenRefreshFailure(
 		slog.F("server_slug", cfg.Slug),
 		slog.Error(err),
 	)
-	return codersdk.MCPServerAuthStatusReconnectRequired
+	return false
 }
 
 // parseMCPServerConfigID extracts the MCP server config UUID from the
@@ -1355,19 +1338,8 @@ func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerC
 
 		// Default per-user auth state. Handlers that know the
 		// calling user's token state (list/get) overwrite this.
-		AuthStatus:    defaultMCPServerAuthStatus(config),
 		AuthConnected: config.AuthType != "oauth2",
 	}
-}
-
-// defaultMCPServerAuthStatus returns the auth status assuming no
-// per-user token exists: non-oauth2 servers need no per-user connect
-// step, oauth2 servers start not connected.
-func defaultMCPServerAuthStatus(config database.MCPServerConfig) codersdk.MCPServerAuthStatus {
-	if config.AuthType == "oauth2" {
-		return codersdk.MCPServerAuthStatusNotConnected
-	}
-	return codersdk.MCPServerAuthStatusConnected
 }
 
 // convertMCPServerConfigRedacted is the same as convertMCPServerConfig

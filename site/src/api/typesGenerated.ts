@@ -5577,18 +5577,6 @@ export interface LoginWithPasswordResponse {
 }
 
 // From codersdk/mcp.go
-export type MCPServerAuthStatus =
-	| "connected"
-	| "not_connected"
-	| "reconnect_required";
-
-export const MCPServerAuthStatuses: MCPServerAuthStatus[] = [
-	"connected",
-	"not_connected",
-	"reconnect_required",
-];
-
-// From codersdk/mcp.go
 /**
  * MCPServerConfig represents an admin-configured MCP server.
  */
@@ -5639,11 +5627,8 @@ export interface MCPServerConfig {
 	readonly updated_at: string;
 	/**
 	 * Per-user state (populated for non-admin requests).
-	 * AuthConnected is kept for backward compatibility and is true
-	 * exactly when AuthStatus is "connected".
 	 */
 	readonly auth_connected: boolean;
-	readonly auth_status: MCPServerAuthStatus;
 }
 
 // From codersdk/provisionerdaemons.go

@@ -1986,9 +1986,7 @@ func TestMCPServerConfigsRevokedGrant(t *testing.T) {
 		ToolDenyList:   []string{},
 	})
 	require.NoError(t, err)
-	// Create/update responses must carry a valid auth status even
-	// though they cannot know per-user token state.
-	require.Equal(t, codersdk.MCPServerAuthStatusNotConnected, created.AuthStatus)
+	require.False(t, created.AuthConnected)
 
 	// Seed an expired token whose refresh the provider rejects with
 	// invalid_grant.
@@ -2004,11 +2002,10 @@ func TestMCPServerConfigsRevokedGrant(t *testing.T) {
 	require.NoError(t, err)
 
 	// First list: the refresh fails permanently, so the server is
-	// reported as reconnect_required and the failure is persisted.
+	// reported as not connected and the failure is persisted.
 	configs, err := memberClient.MCPServerConfigs(ctx)
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
-	require.Equal(t, codersdk.MCPServerAuthStatusReconnectRequired, configs[0].AuthStatus)
 	require.False(t, configs[0].AuthConnected)
 	// The oauth2 package may probe both client auth styles, so the
 	// exact count varies; what matters is that it never grows again.
@@ -2031,13 +2028,12 @@ func TestMCPServerConfigsRevokedGrant(t *testing.T) {
 	configs, err = memberClient.MCPServerConfigs(ctx)
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
-	require.Equal(t, codersdk.MCPServerAuthStatusReconnectRequired, configs[0].AuthStatus)
+	require.False(t, configs[0].AuthConnected)
 	require.Equal(t, hitsAfterFirstList, tokenEndpointHits.Load())
 
 	// The single-config endpoint agrees.
 	single, err := memberClient.MCPServerConfigByID(ctx, created.ID)
 	require.NoError(t, err)
-	require.Equal(t, codersdk.MCPServerAuthStatusReconnectRequired, single.AuthStatus)
 	require.False(t, single.AuthConnected)
 	require.Equal(t, hitsAfterFirstList, tokenEndpointHits.Load())
 
@@ -2073,7 +2069,6 @@ func TestMCPServerConfigsRevokedGrant(t *testing.T) {
 	configs, err = memberClient.MCPServerConfigs(ctx)
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
-	require.Equal(t, codersdk.MCPServerAuthStatusConnected, configs[0].AuthStatus)
 	require.True(t, configs[0].AuthConnected)
 	// The token is valid, so no refresh call is made.
 	require.Equal(t, hitsAfterFirstList, tokenEndpointHits.Load())
@@ -2126,7 +2121,6 @@ func TestMCPServerConfigsTransientRefreshFailure(t *testing.T) {
 	configs, err := memberClient.MCPServerConfigs(ctx)
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
-	require.Equal(t, codersdk.MCPServerAuthStatusNotConnected, configs[0].AuthStatus)
 	require.False(t, configs[0].AuthConnected)
 
 	// Transient failures must not destroy the token: a later refresh
