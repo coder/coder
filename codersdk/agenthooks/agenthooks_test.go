@@ -208,12 +208,12 @@ func TestHTTPHandlerRoutesEvents(t *testing.T) {
 	}
 }
 
-func TestHTTPHandlerNoOpHook(t *testing.T) {
+func TestHTTPHandlerNoOpHookDoesNotDecodeData(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
 	t.Cleanup(server.Close)
-	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, nil)
+	response := postEvent(t, server.URL, agenthooks.EventStop, "unused", nil, nil)
 	defer response.Body.Close()
 	require.Equal(t, http.StatusOK, response.StatusCode)
 	var got agenthooks.Response

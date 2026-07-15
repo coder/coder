@@ -130,12 +130,12 @@ func dispatch(ctx context.Context, hooks Hooks, request Request) (Response, erro
 }
 
 func dispatchHook[T any](ctx context.Context, request Request, hook func(context.Context, Meta, T) (Response, error)) (Response, error) {
+	if hook == nil {
+		return Response{}, nil
+	}
 	var data T
 	if err := json.Unmarshal(request.Data, &data); err != nil {
 		return Response{}, xerrors.Errorf("decode %q event data: %w", request.Type, err)
-	}
-	if hook == nil {
-		return Response{}, nil
 	}
 	return hook(ctx, request.Meta, data)
 }

@@ -151,6 +151,9 @@ func TypeMappings(gen *guts.GoParser) error {
 // AgentHookRawMessages preserves arbitrary JSON fields as unknown instead of
 // applying the global json.RawMessage object mapping.
 func AgentHookRawMessages(ts *guts.Typescript) {
+	if _, ok := ts.Node("AgentHookRequest"); !ok {
+		return
+	}
 	unknown := bindings.KeywordUnknown
 	fields := map[string]string{
 		"AgentHookRequest":         "data",
