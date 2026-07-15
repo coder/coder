@@ -332,10 +332,11 @@ func (p *Server) resolveAdvisorModelOverride(
 		return fallbackModel, fallbackCallConfig, nil
 	}
 	overrideModel, err := p.newModel(ctx, modelClientRequest{
-		Chat:         chat,
-		ModelName:    overrideConfig.Model,
-		UserAgent:    chatprovider.UserAgent(),
-		ExtraHeaders: chatprovider.CoderHeaders(chat),
+		Chat:          chat,
+		ModelName:     overrideConfig.Model,
+		UserAgent:     chatprovider.UserAgent(),
+		ExtraHeaders:  chatprovider.CoderHeaders(chat),
+		ConfigOptions: overrideConfig.Options,
 	}, route, modelOpts)
 	if err != nil {
 		if overrideConfig.AIProviderID.Valid {
@@ -2385,10 +2386,11 @@ func (p *Server) prepareManualTitleDebugRun(
 		debugModelErr = routeErr
 	} else {
 		debugModel, debugModelErr = p.newModel(ctx, modelClientRequest{
-			Chat:         chat,
-			ModelName:    modelConfig.Model,
-			UserAgent:    chatprovider.UserAgent(),
-			ExtraHeaders: chatprovider.CoderHeaders(chat),
+			Chat:          chat,
+			ModelName:     modelConfig.Model,
+			UserAgent:     chatprovider.UserAgent(),
+			ExtraHeaders:  chatprovider.CoderHeaders(chat),
+			ConfigOptions: modelConfig.Options,
 		}, route, debugOpts)
 	}
 	switch {
@@ -2579,10 +2581,11 @@ func (p *Server) resolveManualTitleModel(
 		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
 	}
 	model, err := p.newModel(ctx, modelClientRequest{
-		Chat:         chat,
-		ModelName:    config.Model,
-		UserAgent:    chatprovider.UserAgent(),
-		ExtraHeaders: chatprovider.CoderHeaders(chat),
+		Chat:          chat,
+		ModelName:     config.Model,
+		UserAgent:     chatprovider.UserAgent(),
+		ExtraHeaders:  chatprovider.CoderHeaders(chat),
+		ConfigOptions: config.Options,
 	}, route, modelOpts)
 	if err != nil {
 		p.logger.Debug(ctx, "manual title preferred model unavailable",
@@ -2613,10 +2616,11 @@ func (p *Server) resolveFallbackManualTitleModel(
 		return nil, database.ChatModelConfig{}, err
 	}
 	model, err := p.newModel(ctx, modelClientRequest{
-		Chat:         chat,
-		ModelName:    config.Model,
-		UserAgent:    chatprovider.UserAgent(),
-		ExtraHeaders: chatprovider.CoderHeaders(chat),
+		Chat:          chat,
+		ModelName:     config.Model,
+		UserAgent:     chatprovider.UserAgent(),
+		ExtraHeaders:  chatprovider.CoderHeaders(chat),
+		ConfigOptions: config.Options,
 	}, route, modelOpts)
 	if err != nil {
 		return nil, database.ChatModelConfig{}, xerrors.Errorf(
@@ -3901,10 +3905,11 @@ func (p *Server) resolveChatModel(
 	}
 
 	model, debugEnabled, err = p.newDebugAwareModel(ctx, modelClientRequest{
-		Chat:         chat,
-		ModelName:    dbConfig.Model,
-		UserAgent:    chatprovider.UserAgent(),
-		ExtraHeaders: chatprovider.CoderHeaders(chat),
+		Chat:          chat,
+		ModelName:     dbConfig.Model,
+		UserAgent:     chatprovider.UserAgent(),
+		ExtraHeaders:  chatprovider.CoderHeaders(chat),
+		ConfigOptions: dbConfig.Options,
 	}, route, modelOpts)
 	if err != nil {
 		return nil, database.ChatModelConfig{}, aiGatewayModelRoute{}, false, "", "", xerrors.Errorf(

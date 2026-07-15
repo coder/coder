@@ -874,6 +874,30 @@ func CoderHeaders(chat database.Chat) map[string]string {
 	return h
 }
 
+// AnthropicBetaContext1M is the beta token for Anthropic's 1M context window.
+const AnthropicBetaContext1M = "context-1m-2025-08-07"
+
+// HeaderAnthropicBeta names Anthropic's beta feature header.
+const HeaderAnthropicBeta = "Anthropic-Beta"
+
+// BetaHeadersFromCallConfig returns beta feature headers for Anthropic and
+// Bedrock calls.
+func BetaHeadersFromCallConfig(providerName string, config *codersdk.ChatModelCallConfig) map[string]string {
+	if config == nil || config.ProviderOptions == nil || config.ProviderOptions.Anthropic == nil {
+		return nil
+	}
+	enabled := config.ProviderOptions.Anthropic.Context1MEnabled
+	if enabled == nil || !*enabled {
+		return nil
+	}
+	switch NormalizeProvider(providerName) {
+	case fantasyanthropic.Name, fantasybedrock.Name:
+		return map[string]string{HeaderAnthropicBeta: AnthropicBetaContext1M}
+	default:
+		return nil
+	}
+}
+
 // ModelFromConfig resolves a provider/model pair and constructs a fantasy
 // language model client using the provided provider credentials. The
 // userAgent is sent as the User-Agent header on every outgoing LLM

@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 
 	"charm.land/fantasy"
@@ -18,6 +19,9 @@ type modelClientRequest struct {
 	ModelName    string
 	UserAgent    string
 	ExtraHeaders map[string]string
+	// ConfigOptions holds the model config row's Options JSONB; empty for
+	// paths without a config row.
+	ConfigOptions json.RawMessage
 }
 
 type modelBuildOptions struct {

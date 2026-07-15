@@ -52,6 +52,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -6903,6 +6904,62 @@ func TestActiveServer_AnthropicSanitizesProviderToolBeforeRequest(t *testing.T) 
 	require.Contains(t, body, "partial")
 	require.Contains(t, body, "continue")
 	require.Contains(t, body, "redacted-payload")
+}
+
+func TestActiveServer_AnthropicContext1MBetaHeader(t *testing.T) {
+	t.Parallel()
+
+	runChat := func(t *testing.T, callConfig *codersdk.ChatModelCallConfig) []chattest.AnthropicRequest {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		requests := newAnthropicRequestRecorder()
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			requests.record(req)
+			if !req.Stream {
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("done")...)
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+		if callConfig != nil {
+			model = updateChatModelCallConfig(t, db, model, *callConfig)
+		}
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		generationRequests := filterAnthropicStreamingRequests(requests.all())
+		require.NotEmpty(t, generationRequests)
+		return generationRequests
+	}
+
+	t.Run("enabled sends beta header", func(t *testing.T) {
+		t.Parallel()
+
+		generationRequests := runChat(t, &codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
+					Context1MEnabled: ptr.Ref(true),
+				},
+			},
+		})
+		for _, req := range generationRequests {
+			require.Equal(t, chatprovider.AnthropicBetaContext1M, req.Header.Get(chatprovider.HeaderAnthropicBeta))
+		}
+	})
+
+	t.Run("unset omits beta header", func(t *testing.T) {
+		t.Parallel()
+
+		generationRequests := runChat(t, nil)
+		for _, req := range generationRequests {
+			require.Empty(t, req.Header.Get(chatprovider.HeaderAnthropicBeta))
+		}
+	})
 }
 
 func TestActiveServer_AnthropicProviderToolPreRequestGuard(t *testing.T) {
