@@ -13051,7 +13051,7 @@ func (q *sqlQuerier) UpdateChatToolCallExecutionCancelOutcome(ctx context.Contex
 
 const updateChatToolCallExecutionProcess = `-- name: UpdateChatToolCallExecutionProcess :one
 UPDATE chat_tool_call_executions
-SET status = 'running',
+SET status = CASE WHEN status = 'starting' THEN 'running'::chat_tool_call_execution_status ELSE status END,
     process_id = $1::text,
     workspace_agent_id = $2::uuid,
     started_at = $3::timestamptz,
@@ -13060,7 +13060,7 @@ WHERE chat_id = $4::uuid
   AND assistant_message_id = $5::bigint
   AND tool_call_id = $6::text
   AND claim_epoch = $7::bigint
-  AND status = 'starting'
+  AND status IN ('starting', 'cancel_requested', 'detached')
 RETURNING id, chat_id, assistant_message_id, tool_call_id, status, input_sha256, command, background, timeout_secs, claim_epoch, claimed_at, workspace_agent_id, process_id, cancel_signal_sent_at, result_committed_at, created_at, started_at, updated_at
 `
 
@@ -13076,7 +13076,12 @@ type UpdateChatToolCallExecutionProcessParams struct {
 
 // Records the started process on the claim that dispatched it. The
 // claim_epoch guard keeps a superseded claimer from overwriting the
-// process identity recorded by the current claim.
+// process identity recorded by the current claim. An interrupt can
+// move the row out of starting (to cancel_requested or detached)
+// while the dispatch is still in flight; the handle write must
+// still land on those rows, without reverting the interrupt-owned
+// status, so the interrupt reconciler can kill the process instead
+// of resolving it unknown.
 func (q *sqlQuerier) UpdateChatToolCallExecutionProcess(ctx context.Context, arg UpdateChatToolCallExecutionProcessParams) (ChatToolCallExecution, error) {
 	row := q.db.QueryRowContext(ctx, updateChatToolCallExecutionProcess,
 		arg.ProcessID,

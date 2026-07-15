@@ -1429,7 +1429,12 @@ type sqlcQuerier interface {
 	UpdateChatToolCallExecutionCancelOutcome(ctx context.Context, arg UpdateChatToolCallExecutionCancelOutcomeParams) (ChatToolCallExecution, error)
 	// Records the started process on the claim that dispatched it. The
 	// claim_epoch guard keeps a superseded claimer from overwriting the
-	// process identity recorded by the current claim.
+	// process identity recorded by the current claim. An interrupt can
+	// move the row out of starting (to cancel_requested or detached)
+	// while the dispatch is still in flight; the handle write must
+	// still land on those rows, without reverting the interrupt-owned
+	// status, so the interrupt reconciler can kill the process instead
+	// of resolving it unknown.
 	UpdateChatToolCallExecutionProcess(ctx context.Context, arg UpdateChatToolCallExecutionProcessParams) (ChatToolCallExecution, error)
 	// Applies a lifecycle observation. from_statuses restricts which
 	// lifecycle states may be overwritten; interrupt-owned states are

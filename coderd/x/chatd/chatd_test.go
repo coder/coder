@@ -13732,6 +13732,41 @@ func TestChatToolCallExecutionLedgerQueries(t *testing.T) {
 		require.Equal(t, database.ChatToolCallExecutionStatusRunning, row.Status)
 	})
 
+	t.Run("ProcessUpdateAfterInterrupt", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, chat, msg := newLedgerFixture(t)
+		_, agent := seedWorkspaceWithAgent(t, db, chat.OwnerID)
+		agentID := agent.ID
+		insertIntent(ctx, t, db, chat, msg, "call-1", "hash")
+		claimed, err := db.ClaimChatToolCallExecution(ctx, claimParams(chat, msg, "call-1", "hash", time.Time{}))
+		require.NoError(t, err)
+
+		// The interrupt lands while the dispatch is in flight.
+		_, err = db.MarkChatToolCallExecutionsInterrupted(ctx, database.MarkChatToolCallExecutionsInterruptedParams{
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallIds:        []string{"call-1"},
+			UpdatedAt:          dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		// The handle write still lands on the interrupt-owned row
+		// without reverting its status, so the reconciler can kill
+		// the process instead of resolving it unknown.
+		row, err := db.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         "call-1",
+			ClaimEpoch:         claimed.ClaimEpoch,
+			ProcessID:          "proc-late",
+			WorkspaceAgentID:   agentID,
+			StartedAt:          dbtime.Now(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, row.Status)
+		require.Equal(t, "proc-late", row.ProcessID.String)
+	})
+
 	t.Run("StatusTransitionGuard", func(t *testing.T) {
 		t.Parallel()
 		ctx, db, chat, msg := newLedgerFixture(t)
