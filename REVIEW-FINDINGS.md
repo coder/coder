@@ -65,7 +65,12 @@ action list. Caveat: entries written by this build already contain
 
 ### 3. Group shares are not validated at share time
 
-Severity: MEDIUM. Flagged by API and lifecycle reviewers.
+Severity: MEDIUM. Flagged by API and lifecycle reviewers. ACCEPTED as
+intended behavior: group membership changes after the share, so
+eligibility is enforced per-member at access time only; a share to a
+group whose members all currently lack the capability is legitimate
+and grants nothing until a member gains it. The code comment in
+`patchWorkspaceACL` now states this explicitly.
 
 `patchWorkspaceACL` validates `req.UserRoles` against the `use_shared`
 capability but writes `req.GroupRoles` unconditionally. Sharing to a
@@ -162,8 +167,9 @@ Fix on this branch before wider demo or RFC reference:
 3. Fail-closed hardening: `acl_use_gated == false` in `policy.rego`.
 4. Seat-cost copy conditioning (frontend HIGH).
 
-Document-or-fix next: group-share validation (3), experiments accessor
-(4), rolling-deploy sweep (5).
+Document-or-fix next: group-share validation (3): DONE, accepted and
+documented in the handler comment; experiments accessor (4);
+rolling-deploy sweep (5).
 
 RFC backlog (mostly already tracked in the scott-misc assessment):
 refresh cadence caching (6), AI seat reclamation and service-account

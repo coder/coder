@@ -2530,6 +2530,11 @@ func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 	// (acl_use_precondition in the RBAC policy). Reject ineligible users at
 	// share time so shares don't silently grant nothing; access-time
 	// enforcement still applies if the capability is revoked later.
+	//
+	// Group entries are intentionally not validated here: group membership
+	// changes after the share, so eligibility is enforced per-member at
+	// access time only. A share to a group whose members all lack the
+	// capability is accepted and grants nothing until a member gains it.
 	for idStr, role := range req.UserRoles {
 		if role == codersdk.WorkspaceRoleDeleted {
 			continue
