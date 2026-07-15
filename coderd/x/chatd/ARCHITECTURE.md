@@ -871,30 +871,64 @@ When the manager cleans up a runner, the runner must cancel all goroutines it ha
 
 The worker periodically archives old, unused chats.
 
-## Execute tool idempotency
+## Execute tool execution ledger
 
-Task retries re-read the committed history and re-execute unresolved tool calls. Without extra state, every retry of an in-flight `execute` tool call would start another OS process in the workspace, leaving orphaned duplicates. The `chat_tool_call_executions` table prevents this by recording each execute tool call's process, keyed by `(chat_id, tool_call_id)`. The tool call ID is durable in `chat_messages` before execution begins, which makes it a safe idempotency key. The recorded command is diagnostics only and is never used for deduplication.
+Task retries re-read the committed history and re-execute unresolved tool calls. Without extra state, every retry of an in-flight `execute` tool call would start another OS process in the workspace, leaving orphaned duplicates. The `chat_tool_call_executions` table is a durable execution ledger that prevents this. It owns the external process lifecycle, while the core state machine keeps owning chat semantics.
 
-### Reserve and re-attach lifecycle
+**Invariant:** one logical local tool call creates at most one external process. Later attempts re-attach, observe, reconcile cancellation, or return a stable unknown-outcome result. They never silently start another process.
 
-Before starting a process, the execute tool reserves a record with a plain insert. A unique violation on the primary key means another attempt already reserved it; this insert-or-conflict is the compare-and-set that picks exactly one creator even across lease handoffs. The creator calls `StartProcess` and immediately stores the process handle (`process_id`, `workspace_agent_id`, `started_at`) on the record.
+### Identity and lineage
 
-An attempt that finds an existing record re-attaches instead of starting:
+Each row's primary key `id` is the execution ID, a UUID generated when the intent is persisted. It is the stable identity of the (at most one) external process for this call. Rows are unique on the lineage key `(chat_id, assistant_message_id, tool_call_id)`. The assistant message ID is part of the key because provider tool call IDs are not unique across history regenerations: an edited history that regenerates an assistant message reusing a tool call ID gets a new ledger row, and the old row keeps its process identity instead of being reset.
 
-- If the record has a process handle, the tool takes a non-blocking output snapshot first. An exited process yields the real result, even past the deadline. A running process with time left on `started_at` plus the recorded timeout is block-waited for the remainder. A running process past the deadline yields the usual graceful timed-out result with `background_process_id`.
-- Only a definite HTTP 404 from the snapshot (the agent was reached and does not know the process) produces an `is_error` result stating the command may have run but its outcome is unknown, and that it should be re-run only if safe. Transport errors, cancellations, and server errors keep the process retrievable via `process_output`.
-- If the record has no process handle (`process_id` is NULL), a previous attempt died between reserving the row and learning the process ID. The tool never blindly restarts: it waits out a short grace window anchored on the record's creation time in case the reserving attempt is still alive, then commits the unknown-state `is_error` result.
-- Background executes participate identically; re-attaching to a background record returns the usual started-in-background result with the recorded process ID.
+`input_sha256` hashes the persisted tool input. A claim asserts it, so an attempt whose input does not match the row's refuses to dispatch against stale lineage.
 
-The execute timeout is clamped to 4 hours at reserve time and the clamped value is stored on the record so re-attaching attempts agree on the deadline.
+### Status model
 
-### Cleanup
+The `status` column tracks the external process lifecycle:
 
-After `commitGenerationStep` persists the tool results, the worker best-effort deletes the execution records for those calls, outside the commit transaction. Stale rows are harmless because resolved tool calls are never re-executed; `dbpurge` removes leftovers after 7 days.
+| Status | Meaning |
+|---|---|
+| `reserved` | Intent persisted with the assistant message; nothing dispatched. |
+| `starting` | A runner claimed the row (`claim_epoch` advanced, `claimed_at` set); dispatch may be in flight. |
+| `running` | Process identity recorded (`process_id`, `workspace_agent_id`, `started_at`). |
+| `exited` | The tool observed the process exit (fresh wait or re-attach snapshot). |
+| `detached` | The chat moved on and the process was deliberately left alive: background start, timed-out foreground, or interrupted background. |
+| `cancel_requested` | An interrupt resolved the call in chat, but process termination is unconfirmed. `cancel_signal_sent_at` records a delivered kill signal. |
+| `canceled` | Termination confirmed, or nothing was ever dispatched. |
+| `unknown` | The command may have run; the outcome is unobservable. Terminal for auto-restart. |
+| `no_effect` | Validation failed before any external dispatch. |
 
-### Interrupt kill
+Lifecycle status is orthogonal to chat-result commitment. `result_committed_at` is set in the same transaction that commits the call's tool result (real, synthetic-unknown, validation-error, or interrupt-synthetic). Diagnostic states like `cancel_requested` and `unknown` keep their lifecycle truth after the chat has moved on, which is what a later reconciler needs.
 
-After an interrupt commits cancellation results for unresolved local tool calls, the worker loads their execution records and, for each foreground record with a process handle, dials the recorded agent with a short timeout and sends a kill signal. This is best-effort and happens after the interrupt commit, so a slow or unreachable agent never delays the interrupt. Background processes are left running because the model explicitly detached them. The records are deleted afterwards.
+### Atomicity points
+
+Ledger writes that must agree with chat state run inside the same `ChatMachine.Update` transaction as the corresponding message commit, via the transaction-scoped store:
+
+- The assistant-step commit inserts one `reserved` intent per `execute` tool call in the step. A replayed commit conflicts on the lineage key and is a no-op.
+- The tool-result commit sets `result_committed_at` for the executed calls.
+- The interrupt commit maps unresolved calls' rows: background to `detached`, `reserved` to `canceled`, foreground `starting`/`running` to `cancel_requested`. Their synthetic cancellation results commit in the same transaction, which also sets `result_committed_at`.
+
+### Claim and re-attach
+
+Before dispatching, the execute tool claims the row: a compare-and-set that takes a `reserved` intent or a stale `starting` claim (one whose `claimed_at` is older than the staleness window), advancing `claim_epoch`. A row missing entirely (an assistant message that predates the ledger) is claimed by insert. The claimer calls `StartProcess` and records the process identity, guarded by `claim_epoch` so a superseded claimer never overwrites the current claim's process.
+
+An attempt that cannot claim decides from the row's status:
+
+- A fresh `starting` claim is polled until its owner records a process or the claim goes stale; a stale claim yields `unknown`.
+- `running`, `exited`, and `detached` rows with a process handle re-attach via an output snapshot. An exited process yields the real result, even past the deadline, and marks `exited`. A running process with time left is block-waited for the remainder. A running process past the deadline yields the graceful timed-out result with `background_process_id` and marks `detached`.
+- Only a definite HTTP 404 from the snapshot (the agent was reached and does not know the process) marks `unknown` and produces an `is_error` result stating the command may have run but its outcome is unknown. Transport errors, cancellations, and server errors keep the lifecycle state unchanged and the process retrievable via `process_output`.
+- Rows already resolved (`cancel_requested`, `canceled`, `unknown`, `no_effect`) never re-dispatch; the tool returns a stable error result.
+
+The execute timeout is clamped to 4 hours at claim time and the clamped value is stored on the row so re-attaching attempts agree on the deadline.
+
+### Interrupt reconciliation
+
+After the interrupt commit, the worker best-effort reconciles the `cancel_requested` rows: it dials the recorded agent with a short timeout and sends a kill signal. A confirmed outcome (the agent definitively has no such process, or a post-kill snapshot shows exit) resolves the row to `canceled`. A delivered but unconfirmed kill records `cancel_signal_sent_at` and leaves the row `cancel_requested` with its full process identity, so a later reconciler can still act on it. Rows without a recorded process identity resolve to `unknown`. This runs after the commit, so a slow or unreachable agent never delays the interrupt. Background processes are left running because the model explicitly detached them.
+
+### Retention
+
+Rows are never deleted at resolution time; they stay diagnostically useful. `dbpurge` deletes rows older than 7 days, which is safe because the 4-hour timeout clamp means no legitimately live execution reaches that age.
 
 # Stream loop
 

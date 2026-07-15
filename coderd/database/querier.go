@@ -80,6 +80,14 @@ type sqlcQuerier interface {
 	// Calculates the telemetry summary for a given provider, model, and client
 	// combination for telemetry reporting.
 	CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error)
+	// Claims an execution for dispatch. The insert arm covers calls whose
+	// assistant message predates the ledger. The update arm is the
+	// compare-and-set: only a reserved intent or a stale starting claim
+	// can be taken over, and each takeover advances claim_epoch. The
+	// input hash guard refuses to dispatch against a row created for
+	// different input. Zero rows means the row exists but is not
+	// claimable; the caller reads it to decide how to proceed.
+	ClaimChatToolCallExecution(ctx context.Context, arg ClaimChatToolCallExecutionParams) (ChatToolCallExecution, error)
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
@@ -145,7 +153,6 @@ type sqlcQuerier interface {
 	// number of affected rows so callers can detect missing rows without
 	// a follow-up read.
 	DeleteChatQueuedMessageReturningCount(ctx context.Context, arg DeleteChatQueuedMessageReturningCountParams) (int64, error)
-	DeleteChatToolCallExecutions(ctx context.Context, arg DeleteChatToolCallExecutionsParams) error
 	DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) error
 	DeleteChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) error
 	DeleteCryptoKey(ctx context.Context, arg DeleteCryptoKeyParams) (CryptoKey, error)
@@ -192,9 +199,9 @@ type sqlcQuerier interface {
 	// 2. Files whose every referencing chat has been archived for longer
 	//    than the retention period.
 	DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error)
-	// Deletes stale execution records. Rows left behind by attempts that
-	// never cleaned up are harmless because resolved tool calls are never
-	// re-executed; this is the janitor for those leftovers.
+	// Bounded retention for the ledger. The timeout clamp and the task
+	// attempt cap mean no legitimately live execution reaches this age;
+	// everything older is diagnostic history.
 	DeleteOldChatToolCallExecutions(ctx context.Context, beforeTime time.Time) (int64, error)
 	// Deletes chats that have been archived for longer than the given
 	// threshold. Active (non-archived) chats are never deleted.
@@ -1061,10 +1068,10 @@ type sqlcQuerier interface {
 	// sequence) and an explicit created_by reference. Use this when the
 	// queued-message creator differs from the chat owner.
 	InsertChatQueuedMessageWithCreator(ctx context.Context, arg InsertChatQueuedMessageWithCreatorParams) (ChatQueuedMessage, error)
-	// Reserves an execution record for a tool call. The caller detects a
-	// unique violation to learn whether it created the row or a previous
-	// attempt already reserved it.
-	InsertChatToolCallExecution(ctx context.Context, arg InsertChatToolCallExecutionParams) (ChatToolCallExecution, error)
+	// Persists the execution intent for an execute tool call in the same
+	// transaction that commits its assistant message. Conflicts on the
+	// lineage key are no-ops so a replayed commit never resets a row.
+	InsertChatToolCallExecutionIntent(ctx context.Context, arg InsertChatToolCallExecutionIntentParams) error
 	InsertCryptoKey(ctx context.Context, arg InsertCryptoKeyParams) (CryptoKey, error)
 	InsertCustomRole(ctx context.Context, arg InsertCustomRoleParams) (CustomRole, error)
 	InsertDBCryptKey(ctx context.Context, arg InsertDBCryptKeyParams) error
@@ -1210,6 +1217,17 @@ type sqlcQuerier interface {
 	// allocate a new snapshot version in one round trip.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
+	// Maps unresolved executions to their interrupt outcome in the same
+	// transaction that commits the synthetic cancellation results:
+	// background processes are deliberately left alive (detached),
+	// never-dispatched reservations are canceled outright, and
+	// dispatched foreground claims become cancel_requested for the
+	// post-commit reconciler. Rows already in a terminal state keep it.
+	MarkChatToolCallExecutionsInterrupted(ctx context.Context, arg MarkChatToolCallExecutionsInterruptedParams) ([]ChatToolCallExecution, error)
+	// Runs in the same transaction that commits the tool result messages
+	// (real or synthetic). status is untouched so diagnostic states keep
+	// their lifecycle truth after the chat has moved on.
+	MarkChatToolCallExecutionsResultCommitted(ctx context.Context, arg MarkChatToolCallExecutionsResultCommittedParams) error
 	// Flips active, already-hydrated chats for an agent to dirty when the
 	// agent's latest snapshot hash differs from the chat's pinned hash. The
 	// pinned hash is intentionally left untouched; the refresh endpoint
@@ -1402,9 +1420,19 @@ type sqlcQuerier interface {
 	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)
 	UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error)
 	UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitleByIDParams) (Chat, error)
-	// Records the process handle once the process has started. started_at
-	// is set together with process_id.
+	// Resolves a cancel_requested row after a post-commit kill attempt:
+	// canceled when termination was confirmed, unknown when the outcome
+	// is unobservable, or cancel_requested to record a delivered signal
+	// whose effect is unconfirmed.
+	UpdateChatToolCallExecutionCancelOutcome(ctx context.Context, arg UpdateChatToolCallExecutionCancelOutcomeParams) (ChatToolCallExecution, error)
+	// Records the started process on the claim that dispatched it. The
+	// claim_epoch guard keeps a superseded claimer from overwriting the
+	// process identity recorded by the current claim.
 	UpdateChatToolCallExecutionProcess(ctx context.Context, arg UpdateChatToolCallExecutionProcessParams) (ChatToolCallExecution, error)
+	// Applies a lifecycle observation. from_statuses guards the
+	// transition so a stale observer never overwrites a state written by
+	// the current claim owner or the interrupt reconciler.
+	UpdateChatToolCallExecutionStatus(ctx context.Context, arg UpdateChatToolCallExecutionStatusParams) (ChatToolCallExecution, error)
 	UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateChatWorkspaceBindingParams) (Chat, error)
 	UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error)
 	UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleParams) (CustomRole, error)

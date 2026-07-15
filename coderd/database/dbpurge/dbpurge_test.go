@@ -2881,21 +2881,28 @@ func TestDeleteOldChatToolCallExecutions(t *testing.T) {
 		Title:             "test-chat",
 	})
 
+	msg := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID: chat.ID,
+		Role:   database.ChatMessageRoleAssistant,
+	})
+
 	now := dbtime.Now()
-	_, err := db.InsertChatToolCallExecution(ctx, database.InsertChatToolCallExecutionParams{
-		ChatID:      chat.ID,
-		ToolCallID:  "old-call",
-		Command:     "echo old",
-		TimeoutSecs: 10,
-		CreatedAt:   now.Add(-8 * 24 * time.Hour),
+	err := db.InsertChatToolCallExecutionIntent(ctx, database.InsertChatToolCallExecutionIntentParams{
+		ID:                 uuid.New(),
+		ChatID:             chat.ID,
+		AssistantMessageID: msg.ID,
+		ToolCallID:         "old-call",
+		InputSha256:        "hash-old",
+		CreatedAt:          now.Add(-8 * 24 * time.Hour),
 	})
 	require.NoError(t, err)
-	_, err = db.InsertChatToolCallExecution(ctx, database.InsertChatToolCallExecutionParams{
-		ChatID:      chat.ID,
-		ToolCallID:  "new-call",
-		Command:     "echo new",
-		TimeoutSecs: 10,
-		CreatedAt:   now,
+	err = db.InsertChatToolCallExecutionIntent(ctx, database.InsertChatToolCallExecutionIntentParams{
+		ID:                 uuid.New(),
+		ChatID:             chat.ID,
+		AssistantMessageID: msg.ID,
+		ToolCallID:         "new-call",
+		InputSha256:        "hash-new",
+		CreatedAt:          now,
 	})
 	require.NoError(t, err)
 
@@ -2903,8 +2910,8 @@ func TestDeleteOldChatToolCallExecutions(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 1, deleted)
 
-	_, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, ToolCallID: "new-call"})
+	_, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: msg.ID, ToolCallID: "new-call"})
 	require.NoError(t, err)
-	_, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, ToolCallID: "old-call"})
+	_, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: msg.ID, ToolCallID: "old-call"})
 	require.ErrorIs(t, err, sql.ErrNoRows)
 }

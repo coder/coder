@@ -45,6 +45,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -13024,29 +13025,49 @@ func setupWorkspaceContextAgentConn(
 		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
 }
 
-// TestExecuteToolReattachAcrossAttempts simulates a task retry: a
-// previous attempt reserved the execution record and started the
-// process, then died. The new attempt must re-attach to the recorded
-// process instead of starting a second one; the mock controller
-// fails the test on any StartProcess call.
-func TestExecuteToolReattachAcrossAttempts(t *testing.T) {
+// lookupExecutionRow finds the ledger row for a tool call by
+// scanning the chat's assistant messages, since ledger lineage is
+// keyed by assistant message ID.
+func lookupExecutionRow(ctx context.Context, db database.Store, chatID uuid.UUID, toolCallID string) (database.ChatToolCallExecution, bool) {
+	msgs, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chatID, AfterID: 0})
+	if err != nil {
+		return database.ChatToolCallExecution{}, false
+	}
+	for _, msg := range msgs {
+		if msg.Role != database.ChatMessageRoleAssistant {
+			continue
+		}
+		row, getErr := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             chatID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         toolCallID,
+		})
+		if getErr == nil {
+			return row, true
+		}
+	}
+	return database.ChatToolCallExecution{}, false
+}
+
+// TestExecuteToolLedgerLifecycle drives one foreground execute end
+// to end and asserts the ledger row's full lifecycle: the intent is
+// created with the assistant message, the claim dispatches exactly
+// one process, the observed exit is recorded, and the result commit
+// stamps result_committed_at without erasing lifecycle state.
+func TestExecuteToolLedgerLifecycle(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	recordSeeded := make(chan struct{})
 	var streamCount atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("title")
 		}
 		if streamCount.Add(1) == 1 {
-			// Hold the first response until the execution record
-			// exists, so the execute tool always observes it.
-			<-recordSeeded
 			chunk := chattest.OpenAIToolCallChunk("execute", `{"command":"echo hello"}`)
-			chunk.Choices[0].ToolCalls[0].ID = "tc-reattach-1"
+			chunk.Choices[0].ToolCalls[0].ID = "tc-ledger-1"
 			return chattest.OpenAIStreamingResponse(chunk)
 		}
 		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("all done")...)
@@ -13058,13 +13079,20 @@ func TestExecuteToolReattachAcrossAttempts(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 	setupToolExecutionAgentConn(t, mockConn)
+	mockConn.EXPECT().
+		StartProcess(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+			require.Equal(t, "echo hello", req.Command)
+			return workspacesdk.StartProcessResponse{ID: "proc-1", Started: true}, nil
+		}).
+		Times(1)
 	exitCode := 0
 	mockConn.EXPECT().
-		ProcessOutput(gomock.Any(), "proc-previous", gomock.Any()).
+		ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
 		Return(workspacesdk.ProcessOutputResponse{
 			Running:  false,
 			ExitCode: &exitCode,
-			Output:   "hello from previous attempt",
+			Output:   "hello",
 		}, nil).
 		Times(1)
 
@@ -13082,7 +13110,7 @@ func TestExecuteToolReattachAcrossAttempts(t *testing.T) {
 		APIKeyID:       testAPIKeyID(t, db, user.ID),
 		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
 		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
-		Title:          "execute-reattach",
+		Title:          "execute-ledger",
 		ModelConfigID:  model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("run echo hello"),
@@ -13090,47 +13118,28 @@ func TestExecuteToolReattachAcrossAttempts(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Seed the record a dead previous attempt would have left behind.
-	_, err = db.InsertChatToolCallExecution(ctx, database.InsertChatToolCallExecutionParams{
-		ChatID:      chat.ID,
-		ToolCallID:  "tc-reattach-1",
-		Command:     "echo hello",
-		TimeoutSecs: 60,
-		CreatedAt:   time.Now(),
-	})
-	require.NoError(t, err)
-	_, err = db.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
-		ChatID:           chat.ID,
-		ToolCallID:       "tc-reattach-1",
-		ProcessID:        "proc-previous",
-		WorkspaceAgentID: dbAgent.ID,
-		StartedAt:        time.Now(),
-	})
-	require.NoError(t, err)
-	close(recordSeeded)
-
 	chatResult := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 	require.NotEqual(t, database.ChatStatusError, chatResult.Status)
 
 	parts := chatToolParts(ctx, t, db, chat.ID)
 	result := requireToolResultPart(t, parts, "execute")
-	require.Equal(t, "tc-reattach-1", result.ToolCallID)
+	require.Equal(t, "tc-ledger-1", result.ToolCallID)
 	require.False(t, result.IsError)
-	require.Contains(t, string(result.Result), "hello from previous attempt")
+	require.Contains(t, string(result.Result), "hello")
 
-	// The commit cleaned up the execution record.
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		_, getErr := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
-			ChatID:     chat.ID,
-			ToolCallID: "tc-reattach-1",
-		})
-		return errors.Is(getErr, sql.ErrNoRows)
-	}, testutil.IntervalFast)
+	row, ok := lookupExecutionRow(ctx, db, chat.ID, "tc-ledger-1")
+	require.True(t, ok, "ledger row must survive the result commit")
+	require.Equal(t, database.ChatToolCallExecutionStatusExited, row.Status)
+	require.Equal(t, "proc-1", row.ProcessID.String)
+	require.Equal(t, dbAgent.ID, row.WorkspaceAgentID.UUID)
+	require.EqualValues(t, 1, row.ClaimEpoch)
+	require.True(t, row.ResultCommittedAt.Valid, "result commit must stamp the ledger row")
 }
 
 // TestInterruptKillsRecordedExecute asserts that interrupting a chat
 // mid-execute kills the recorded foreground process on the agent and
-// deletes the execution record.
+// resolves the ledger row to canceled once the post-kill snapshot
+// confirms the exit.
 func TestInterruptKillsRecordedExecute(t *testing.T) {
 	t.Parallel()
 
@@ -13170,12 +13179,25 @@ func TestInterruptKillsRecordedExecute(t *testing.T) {
 		ProcessOutput(gomock.Any(), "proc-kill", gomock.Any()).
 		DoAndReturn(func(ctx context.Context, _ string, _ *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
 			select {
+			case <-killed:
+				// The post-kill snapshot confirms the exit so the
+				// reconciler can resolve the row to canceled.
+				exitCode := -1
+				return workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode}, nil
+			default:
+			}
+			select {
 			case <-toolStarted:
 			default:
 				close(toolStarted)
 			}
-			<-ctx.Done()
-			return workspacesdk.ProcessOutputResponse{}, ctx.Err()
+			select {
+			case <-ctx.Done():
+				return workspacesdk.ProcessOutputResponse{}, ctx.Err()
+			case <-killed:
+				exitCode := -1
+				return workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode}, nil
+			}
 		}).
 		AnyTimes()
 	mockConn.EXPECT().
@@ -13228,20 +13250,23 @@ func TestInterruptKillsRecordedExecute(t *testing.T) {
 	require.Equal(t, "tc-exec-kill", result.ToolCallID)
 	require.True(t, result.IsError)
 
-	// The interrupt cleanup removed the execution record.
+	// The reconciler confirmed the kill: the row resolves to
+	// canceled with its process identity and the synthetic result
+	// commit stamped.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		_, getErr := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
-			ChatID:     chat.ID,
-			ToolCallID: "tc-exec-kill",
-		})
-		return errors.Is(getErr, sql.ErrNoRows)
+		row, ok := lookupExecutionRow(ctx, db, chat.ID, "tc-exec-kill")
+		return ok &&
+			row.Status == database.ChatToolCallExecutionStatusCanceled &&
+			row.ProcessID.String == "proc-kill" &&
+			row.CancelSignalSentAt.Valid &&
+			row.ResultCommittedAt.Valid
 	}, testutil.IntervalFast)
 }
 
 // TestInterruptSparesBackgroundExecute asserts that interrupting a
 // chat kills only the foreground execute the model is blocked on. A
 // background execute from the same assistant message keeps running:
-// its record is deleted but its process is never signaled.
+// its ledger row stays detached and its process is never signaled.
 func TestInterruptSparesBackgroundExecute(t *testing.T) {
 	t.Parallel()
 
@@ -13296,12 +13321,23 @@ func TestInterruptSparesBackgroundExecute(t *testing.T) {
 		ProcessOutput(gomock.Any(), "proc-fg", gomock.Any()).
 		DoAndReturn(func(ctx context.Context, _ string, _ *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
 			select {
+			case <-killed:
+				exitCode := -1
+				return workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode}, nil
+			default:
+			}
+			select {
 			case <-foregroundBlocked:
 			default:
 				close(foregroundBlocked)
 			}
-			<-ctx.Done()
-			return workspacesdk.ProcessOutputResponse{}, ctx.Err()
+			select {
+			case <-ctx.Done():
+				return workspacesdk.ProcessOutputResponse{}, ctx.Err()
+			case <-killed:
+				exitCode := -1
+				return workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode}, nil
+			}
 		}).
 		AnyTimes()
 	// The interrupt must never signal the background process.
@@ -13339,14 +13375,13 @@ func TestInterruptSparesBackgroundExecute(t *testing.T) {
 	require.NoError(t, err)
 
 	testutil.TryReceive(ctx, t, foregroundBlocked)
-	// Wait until the background record carries its process handle so
-	// the interrupt observes a fully recorded background execute.
+	// Wait until the background row carries its process handle and
+	// was detached, so the interrupt observes a fully recorded
+	// background execute.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		rec, getErr := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
-			ChatID:     chat.ID,
-			ToolCallID: "tc-exec-bg",
-		})
-		return getErr == nil && rec.Background && rec.ProcessID.Valid
+		rec, ok := lookupExecutionRow(ctx, db, chat.ID, "tc-exec-bg")
+		return ok && rec.Background && rec.ProcessID.Valid &&
+			rec.Status == database.ChatToolCallExecutionStatusDetached
 	}, testutil.IntervalFast)
 
 	queued, err := server.SendMessage(ctx, chatd.SendMessageOptions{
@@ -13369,19 +13404,19 @@ func TestInterruptSparesBackgroundExecute(t *testing.T) {
 		require.True(t, result.IsError)
 	}
 
-	// The interrupt cleanup removed both records: the foreground one
-	// after killing its process, the background one without a kill.
+	// The foreground row resolves to canceled after the confirmed
+	// kill; the background row stays detached with its process
+	// identity, never signaled. Both carry the synthetic result
+	// commit stamp.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		for _, toolCallID := range []string{"tc-exec-bg", "tc-exec-fg"} {
-			_, getErr := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
-				ChatID:     chat.ID,
-				ToolCallID: toolCallID,
-			})
-			if !errors.Is(getErr, sql.ErrNoRows) {
-				return false
-			}
-		}
-		return true
+		fg, fgOK := lookupExecutionRow(ctx, db, chat.ID, "tc-exec-fg")
+		bg, bgOK := lookupExecutionRow(ctx, db, chat.ID, "tc-exec-bg")
+		return fgOK && bgOK &&
+			fg.Status == database.ChatToolCallExecutionStatusCanceled &&
+			fg.ResultCommittedAt.Valid &&
+			bg.Status == database.ChatToolCallExecutionStatusDetached &&
+			bg.ProcessID.String == "proc-bg" &&
+			bg.ResultCommittedAt.Valid
 	}, testutil.IntervalFast)
 }
 
@@ -13484,13 +13519,13 @@ func TestInterruptSparesTimedOutExecute(t *testing.T) {
 
 	testutil.TryReceive(ctx, t, reattachBlocked)
 
-	// The timed-out execute's result committed, so its record is
-	// gone and its tool call is resolved before the interrupt.
-	_, getErr := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
-		ChatID:     chat.ID,
-		ToolCallID: "tc-exec-timeout",
-	})
-	require.ErrorIs(t, getErr, sql.ErrNoRows)
+	// The timed-out execute's result committed and its ledger row
+	// was detached: the process handle went back to the model, so
+	// the row is resolved before the interrupt.
+	row, ok := lookupExecutionRow(ctx, db, chat.ID, "tc-exec-timeout")
+	require.True(t, ok)
+	require.Equal(t, database.ChatToolCallExecutionStatusDetached, row.Status)
+	require.True(t, row.ResultCommittedAt.Valid)
 
 	queued, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
@@ -13512,4 +13547,306 @@ func TestInterruptSparesTimedOutExecute(t *testing.T) {
 	require.Contains(t, string(execResult.Result), "timed out")
 	poResult := requireToolResultPartByCallID(t, parts, "tc-po-reattach")
 	require.True(t, poResult.IsError)
+}
+
+// TestChatToolCallExecutionLedgerQueries exercises the ledger's
+// compare-and-set semantics at the query level: claim ownership,
+// lineage isolation across regenerated assistant messages, the
+// input hash guard, guarded status transitions, and the interrupt
+// mapping.
+func TestChatToolCallExecutionLedgerQueries(t *testing.T) {
+	t.Parallel()
+
+	newLedgerFixture := func(t *testing.T) (context.Context, database.Store, database.Chat, database.ChatMessage) {
+		t.Helper()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+		_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+		mc := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "test-model", ContextLimit: 8192})
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: mc.ID,
+			Title:             "ledger-queries",
+		})
+		msg := dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID: chat.ID,
+			Role:   database.ChatMessageRoleAssistant,
+		})
+		return ctx, db, chat, msg
+	}
+
+	insertIntent := func(ctx context.Context, t *testing.T, db database.Store, chat database.Chat, msg database.ChatMessage, callID, hash string) {
+		t.Helper()
+		err := db.InsertChatToolCallExecutionIntent(ctx, database.InsertChatToolCallExecutionIntentParams{
+			ID:                 uuid.New(),
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         callID,
+			InputSha256:        hash,
+			CreatedAt:          dbtime.Now(),
+		})
+		require.NoError(t, err)
+	}
+
+	claimParams := func(chat database.Chat, msg database.ChatMessage, callID, hash string, staleBefore time.Time) database.ClaimChatToolCallExecutionParams {
+		return database.ClaimChatToolCallExecutionParams{
+			ID:                 uuid.New(),
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         callID,
+			InputSha256:        hash,
+			Command:            "echo hi",
+			TimeoutSecs:        60,
+			Now:                dbtime.Now(),
+			StaleBefore:        staleBefore,
+		}
+	}
+
+	t.Run("ClaimCAS", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, chat, msg := newLedgerFixture(t)
+		insertIntent(ctx, t, db, chat, msg, "call-1", "hash")
+
+		claimed, err := db.ClaimChatToolCallExecution(ctx, claimParams(chat, msg, "call-1", "hash", time.Time{}))
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusStarting, claimed.Status)
+		require.EqualValues(t, 1, claimed.ClaimEpoch)
+
+		// The intent's execution identity survives the claim; the
+		// insert arm's fresh UUID is discarded on conflict.
+		intentRow, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: msg.ID, ToolCallID: "call-1"})
+		require.NoError(t, err)
+		require.Equal(t, intentRow.ID, claimed.ID)
+
+		// A fresh claim is not claimable again.
+		_, err = db.ClaimChatToolCallExecution(ctx, claimParams(chat, msg, "call-1", "hash", time.Time{}))
+		require.ErrorIs(t, err, sql.ErrNoRows)
+
+		// A stale claim is claimable once stale_before passes its
+		// claimed_at, and the takeover advances the epoch.
+		retaken, err := db.ClaimChatToolCallExecution(ctx, claimParams(chat, msg, "call-1", "hash", dbtime.Now().Add(time.Minute)))
+		require.NoError(t, err)
+		require.EqualValues(t, 2, retaken.ClaimEpoch)
+		require.Equal(t, claimed.ID, retaken.ID)
+	})
+
+	t.Run("ClaimMissingRowInserts", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, chat, msg := newLedgerFixture(t)
+
+		claimed, err := db.ClaimChatToolCallExecution(ctx, claimParams(chat, msg, "call-preledger", "hash", time.Time{}))
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusStarting, claimed.Status)
+		require.EqualValues(t, 1, claimed.ClaimEpoch)
+	})
+
+	t.Run("ClaimInputHashGuard", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, chat, msg := newLedgerFixture(t)
+		insertIntent(ctx, t, db, chat, msg, "call-1", "hash-a")
+
+		_, err := db.ClaimChatToolCallExecution(ctx, claimParams(chat, msg, "call-1", "hash-b", time.Time{}))
+		require.ErrorIs(t, err, sql.ErrNoRows)
+
+		row, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: msg.ID, ToolCallID: "call-1"})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusReserved, row.Status)
+	})
+
+	t.Run("LineageIsolation", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, chat, msg := newLedgerFixture(t)
+		regenerated := dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID: chat.ID,
+			Role:   database.ChatMessageRoleAssistant,
+		})
+
+		// A regenerated assistant message reusing a provider tool
+		// call ID gets its own row; the old row keeps its state.
+		insertIntent(ctx, t, db, chat, msg, "call-1", "hash-old")
+		claimed, err := db.ClaimChatToolCallExecution(ctx, claimParams(chat, msg, "call-1", "hash-old", time.Time{}))
+		require.NoError(t, err)
+		insertIntent(ctx, t, db, chat, regenerated, "call-1", "hash-new")
+
+		oldRow, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: msg.ID, ToolCallID: "call-1"})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusStarting, oldRow.Status)
+		require.Equal(t, claimed.ID, oldRow.ID)
+
+		newRow, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: regenerated.ID, ToolCallID: "call-1"})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusReserved, newRow.Status)
+		require.NotEqual(t, oldRow.ID, newRow.ID)
+	})
+
+	t.Run("IntentReplayIsNoop", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, chat, msg := newLedgerFixture(t)
+		insertIntent(ctx, t, db, chat, msg, "call-1", "hash")
+		claimed, err := db.ClaimChatToolCallExecution(ctx, claimParams(chat, msg, "call-1", "hash", time.Time{}))
+		require.NoError(t, err)
+
+		// A replayed intent insert conflicts on lineage and must
+		// not reset the claimed row.
+		insertIntent(ctx, t, db, chat, msg, "call-1", "hash")
+		row, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: msg.ID, ToolCallID: "call-1"})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusStarting, row.Status)
+		require.Equal(t, claimed.ID, row.ID)
+	})
+
+	t.Run("ProcessUpdateEpochGuard", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, chat, msg := newLedgerFixture(t)
+		_, agent := seedWorkspaceWithAgent(t, db, chat.OwnerID)
+		agentID := agent.ID
+		insertIntent(ctx, t, db, chat, msg, "call-1", "hash")
+		claimed, err := db.ClaimChatToolCallExecution(ctx, claimParams(chat, msg, "call-1", "hash", time.Time{}))
+		require.NoError(t, err)
+
+		_, err = db.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         "call-1",
+			ClaimEpoch:         claimed.ClaimEpoch + 1,
+			ProcessID:          "proc-stale",
+			WorkspaceAgentID:   agentID,
+			StartedAt:          dbtime.Now(),
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+
+		row, err := db.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         "call-1",
+			ClaimEpoch:         claimed.ClaimEpoch,
+			ProcessID:          "proc-1",
+			WorkspaceAgentID:   agentID,
+			StartedAt:          dbtime.Now(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusRunning, row.Status)
+	})
+
+	t.Run("StatusTransitionGuard", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, chat, msg := newLedgerFixture(t)
+		insertIntent(ctx, t, db, chat, msg, "call-1", "hash")
+
+		// exited is not reachable from reserved.
+		_, err := db.UpdateChatToolCallExecutionStatus(ctx, database.UpdateChatToolCallExecutionStatusParams{
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         "call-1",
+			Status:             database.ChatToolCallExecutionStatusExited,
+			FromStatuses:       []database.ChatToolCallExecutionStatus{database.ChatToolCallExecutionStatusStarting, database.ChatToolCallExecutionStatusRunning},
+			UpdatedAt:          dbtime.Now(),
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+
+		// no_effect is.
+		row, err := db.UpdateChatToolCallExecutionStatus(ctx, database.UpdateChatToolCallExecutionStatusParams{
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         "call-1",
+			Status:             database.ChatToolCallExecutionStatusNoEffect,
+			FromStatuses:       []database.ChatToolCallExecutionStatus{database.ChatToolCallExecutionStatusReserved},
+			UpdatedAt:          dbtime.Now(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusNoEffect, row.Status)
+	})
+
+	t.Run("InterruptMapping", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, chat, msg := newLedgerFixture(t)
+		_, agent := seedWorkspaceWithAgent(t, db, chat.OwnerID)
+		agentID := agent.ID
+
+		// reserved: nothing dispatched.
+		insertIntent(ctx, t, db, chat, msg, "call-reserved", "hash")
+		// starting: claimed but no process recorded.
+		insertIntent(ctx, t, db, chat, msg, "call-starting", "hash")
+		_, err := db.ClaimChatToolCallExecution(ctx, claimParams(chat, msg, "call-starting", "hash", time.Time{}))
+		require.NoError(t, err)
+		// running: claimed with a recorded process.
+		insertIntent(ctx, t, db, chat, msg, "call-running", "hash")
+		claimed, err := db.ClaimChatToolCallExecution(ctx, claimParams(chat, msg, "call-running", "hash", time.Time{}))
+		require.NoError(t, err)
+		_, err = db.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         "call-running",
+			ClaimEpoch:         claimed.ClaimEpoch,
+			ProcessID:          "proc-running",
+			WorkspaceAgentID:   agentID,
+			StartedAt:          dbtime.Now(),
+		})
+		require.NoError(t, err)
+		// background running: detached by the interrupt instead of
+		// cancel_requested.
+		bgParams := claimParams(chat, msg, "call-bg", "hash", time.Time{})
+		bgParams.Background = true
+		_, err = db.ClaimChatToolCallExecution(ctx, bgParams)
+		require.NoError(t, err)
+
+		callIDs := []string{"call-reserved", "call-starting", "call-running", "call-bg"}
+		rows, err := db.MarkChatToolCallExecutionsInterrupted(ctx, database.MarkChatToolCallExecutionsInterruptedParams{
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallIds:        callIDs,
+			UpdatedAt:          dbtime.Now(),
+		})
+		require.NoError(t, err)
+		byCall := make(map[string]database.ChatToolCallExecution, len(rows))
+		for _, row := range rows {
+			byCall[row.ToolCallID] = row
+		}
+		require.Equal(t, database.ChatToolCallExecutionStatusCanceled, byCall["call-reserved"].Status)
+		require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, byCall["call-starting"].Status)
+		require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, byCall["call-running"].Status)
+		require.Equal(t, database.ChatToolCallExecutionStatusDetached, byCall["call-bg"].Status)
+		// The cancel_requested row keeps its process identity for
+		// the reconciler.
+		require.Equal(t, "proc-running", byCall["call-running"].ProcessID.String)
+
+		err = db.MarkChatToolCallExecutionsResultCommitted(ctx, database.MarkChatToolCallExecutionsResultCommittedParams{
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallIds:        callIDs,
+			ResultCommittedAt:  dbtime.Now(),
+		})
+		require.NoError(t, err)
+		for _, callID := range callIDs {
+			row, getErr := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: msg.ID, ToolCallID: callID})
+			require.NoError(t, getErr)
+			require.True(t, row.ResultCommittedAt.Valid, "result commit stamp for %s", callID)
+		}
+
+		// The cancel outcome CAS resolves only cancel_requested
+		// rows.
+		resolved, err := db.UpdateChatToolCallExecutionCancelOutcome(ctx, database.UpdateChatToolCallExecutionCancelOutcomeParams{
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         "call-running",
+			Status:             database.ChatToolCallExecutionStatusCanceled,
+			CancelSignalSentAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+			UpdatedAt:          dbtime.Now(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusCanceled, resolved.Status)
+		require.True(t, resolved.CancelSignalSentAt.Valid)
+		_, err = db.UpdateChatToolCallExecutionCancelOutcome(ctx, database.UpdateChatToolCallExecutionCancelOutcomeParams{
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         "call-bg",
+			Status:             database.ChatToolCallExecutionStatusCanceled,
+			UpdatedAt:          dbtime.Now(),
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
 }

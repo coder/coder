@@ -14,12 +14,14 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -61,6 +63,10 @@ type generationPrepared struct {
 
 	MaxSteps   int
 	Compaction *generationCompaction
+	// ExecutionRecorder is the execute tool's ledger handle. The
+	// generation step binds it to the assistant message whose tool
+	// calls are about to execute.
+	ExecutionRecorder *executionRecorder
 	// Cleanup is always non-nil when prepareGeneration succeeds.
 	Cleanup func()
 
@@ -129,8 +135,11 @@ var errCompactionStillOverLimit = chaterror.WithClassification(
 )
 
 type generationDecision struct {
-	kind                    generationActionKind
-	localToolCalls          []fantasy.ToolCallContent
+	kind           generationActionKind
+	localToolCalls []fantasy.ToolCallContent
+	// assistantMessageID is the message that issued
+	// localToolCalls; it anchors execution ledger lineage.
+	assistantMessageID      int64
 	pendingDynamicToolCalls []pendingDynamicToolCall
 	finishReason            generationFinishReason
 	promotedMessageID       int64
@@ -183,7 +192,7 @@ type generationDecisionInput struct {
 }
 
 func decideGenerationAction(input generationDecisionInput) (generationDecision, error) {
-	localCalls, dynamicCalls, err := unresolvedToolCallsFromHistory(input.messages, input.dynamicToolNames)
+	assistantMessageID, localCalls, dynamicCalls, err := unresolvedToolCallsFromHistory(input.messages, input.dynamicToolNames)
 	if err != nil {
 		return generationDecision{}, err
 	}
@@ -198,7 +207,12 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 			}
 			dynamicCalls = nil
 		}
-		return generationDecision{kind: generationActionExecuteLocalTools, localToolCalls: localCalls, pendingDynamicToolCalls: dynamicCalls}, nil
+		return generationDecision{
+			kind:                    generationActionExecuteLocalTools,
+			localToolCalls:          localCalls,
+			assistantMessageID:      assistantMessageID,
+			pendingDynamicToolCalls: dynamicCalls,
+		}, nil
 	}
 	if len(dynamicCalls) > 0 {
 		return generationDecision{kind: generationActionEnterRequiresAction, pendingDynamicToolCalls: dynamicCalls}, nil
@@ -258,23 +272,26 @@ func generationCompactionContextLimit(compaction *generationCompaction) int64 {
 	return compaction.Options.ContextLimit
 }
 
+// unresolvedToolCallsFromHistory returns the ID of the latest
+// assistant message together with its tool calls that have no
+// result yet, split into locally executed and dynamic calls.
 func unresolvedToolCallsFromHistory(
 	messages []database.ChatMessage,
 	dynamicToolNames map[string]bool,
-) ([]fantasy.ToolCallContent, []pendingDynamicToolCall, error) {
+) (int64, []fantasy.ToolCallContent, []pendingDynamicToolCall, error) {
 	assistantIndex := lastMessageIndex(messages, func(msg database.ChatMessage) bool {
 		return msg.Role == database.ChatMessageRoleAssistant
 	})
 	if assistantIndex == -1 {
-		return nil, nil, nil
+		return 0, nil, nil, nil
 	}
 	assistantParts, err := chatprompt.ParseContent(messages[assistantIndex])
 	if err != nil {
-		return nil, nil, xerrors.Errorf("parse assistant message: %w", err)
+		return 0, nil, nil, xerrors.Errorf("parse assistant message: %w", err)
 	}
 	handled, err := handledToolCallIDs(messages[assistantIndex+1:])
 	if err != nil {
-		return nil, nil, err
+		return 0, nil, nil, err
 	}
 	localCalls := make([]fantasy.ToolCallContent, 0)
 	dynamicCalls := make([]pendingDynamicToolCall, 0)
@@ -297,7 +314,7 @@ func unresolvedToolCallsFromHistory(
 			ProviderExecuted: part.ProviderExecuted,
 		})
 	}
-	return localCalls, dynamicCalls, nil
+	return messages[assistantIndex].ID, localCalls, dynamicCalls, nil
 }
 
 func hasExclusiveToolCall(toolCalls []fantasy.ToolCallContent, exclusiveToolNames map[string]bool) bool {
@@ -630,7 +647,7 @@ func (s *taskStarter) generateAssistant(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
-	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionGenerateAssistant, messages)
+	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionGenerateAssistant, messages, nil)
 }
 
 func (s *taskStarter) executeLocalTools(
@@ -656,6 +673,9 @@ func (s *taskStarter) executeLocalTools(
 	// subagent traffic through the AI Gateway. prepareGeneration sets it
 	// only on its own context, so re-derive it here for tool execution.
 	toolCtx := withActiveTurnAPIKeyID(ctx, prepared.ModelBuildOptions)
+	if prepared.ExecutionRecorder != nil {
+		prepared.ExecutionRecorder.bindAssistantMessage(decision.assistantMessageID)
+	}
 	outcome, err := chatloop.ExecuteLocalTools(toolCtx, chatloop.ExecuteLocalToolsOptions{
 		Tools:              prepared.Tools,
 		ActiveTools:        prepared.ActiveTools,
@@ -686,25 +706,16 @@ func (s *taskStarter) executeLocalTools(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
-	if err := s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages); err != nil {
-		return err
-	}
-	// The tool results are durable, so any execution records for
-	// these calls are stale. Cleanup is best-effort: leftover rows
-	// are harmless (resolved tool calls are never re-executed) and
-	// dbpurge removes them eventually.
-	s.deleteToolCallExecutionRecords(ctx, input.ChatID, decision.localToolCalls)
-	return nil
+	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages, &stepResultCommit{
+		assistantMessageID: decision.assistantMessageID,
+		toolCallIDs:        localToolCallIDs(decision.localToolCalls),
+	})
 }
 
-// deleteToolCallExecutionRecords removes execution records for
-// committed tool calls. Failures are logged, never propagated. The
-// runner may cancel the task context as soon as the commit's state
-// transition lands, so the delete runs on an uncanceled context with
-// its own bound.
-func (s *taskStarter) deleteToolCallExecutionRecords(ctx context.Context, chatID uuid.UUID, toolCalls []fantasy.ToolCallContent) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-	defer cancel()
+// localToolCallIDs returns the IDs of locally executed tool calls.
+// The result-committed ledger update matches only execute calls;
+// other IDs match no ledger rows.
+func localToolCallIDs(toolCalls []fantasy.ToolCallContent) []string {
 	ids := make([]string, 0, len(toolCalls))
 	for _, call := range toolCalls {
 		if call.ProviderExecuted {
@@ -712,19 +723,7 @@ func (s *taskStarter) deleteToolCallExecutionRecords(ctx context.Context, chatID
 		}
 		ids = append(ids, call.ToolCallID)
 	}
-	if len(ids) == 0 {
-		return
-	}
-	err := s.opts.Store.DeleteChatToolCallExecutions(ctx, database.DeleteChatToolCallExecutionsParams{
-		ChatID:      chatID,
-		ToolCallIds: ids,
-	})
-	if err != nil {
-		s.opts.Logger.Warn(ctx, "failed to delete chat tool call execution records",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
-	}
+	return ids
 }
 
 func (s *taskStarter) generateCompaction(
@@ -796,7 +795,7 @@ func (s *taskStarter) generateCompaction(
 	err = s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionCompact, stepMessagesForCommit{
 		Messages:       messages.Messages,
 		VisibleIndexes: visibleMessageIndexes(messages.Messages),
-	})
+	}, nil)
 	s.server.metrics.RecordCompaction(metricProvider, metricModel, err == nil, err)
 	if err != nil {
 		return xerrors.Errorf("commit generation step: %w", err)
@@ -884,6 +883,14 @@ func (s *taskStarter) beginGenerationAttempt(
 	}, nil
 }
 
+// stepResultCommit identifies tool calls whose results are being
+// committed by a generation step, so their ledger rows can be marked
+// result-committed in the same transaction.
+type stepResultCommit struct {
+	assistantMessageID int64
+	toolCallIDs        []string
+}
+
 func (s *taskStarter) commitGenerationStep(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
@@ -891,6 +898,7 @@ func (s *taskStarter) commitGenerationStep(
 	attempt int64,
 	kind generationActionKind,
 	messages stepMessagesForCommit,
+	resultCommit *stepResultCommit,
 ) error {
 	if len(messages.Messages) == 0 {
 		return s.finishGenerationTurn(ctx, machine, input, generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, requireGenerationAttempt(attempt))
@@ -904,6 +912,21 @@ func (s *taskStarter) commitGenerationStep(
 		commitResult, err := tx.CommitStep(chatstate.CommitStepInput{Messages: messages.Messages})
 		if err != nil {
 			return xerrors.Errorf("tx.CommitStep: %w", err)
+		}
+		now := dbtime.Now()
+		if err := insertExecutionIntents(ctx, store, input.ChatID, commitResult.InsertedMessages, now); err != nil {
+			return xerrors.Errorf("insert execution intents: %w", err)
+		}
+		if resultCommit != nil && len(resultCommit.toolCallIDs) > 0 {
+			err := store.MarkChatToolCallExecutionsResultCommitted(ctx, database.MarkChatToolCallExecutionsResultCommittedParams{
+				ChatID:             input.ChatID,
+				AssistantMessageID: resultCommit.assistantMessageID,
+				ToolCallIds:        resultCommit.toolCallIDs,
+				ResultCommittedAt:  now,
+			})
+			if err != nil {
+				return xerrors.Errorf("mark tool call executions result committed: %w", err)
+			}
 		}
 		insertedMessages = make([]runnerActionMessage, 0, len(commitResult.InsertedMessages))
 		for _, msg := range commitResult.InsertedMessages {
@@ -924,6 +947,41 @@ func (s *taskStarter) commitGenerationStep(
 		Kind:             runnerActionKind(kind),
 		InsertedMessages: insertedMessages,
 	})
+}
+
+// insertExecutionIntents persists an execution ledger intent for
+// every execute tool call in the just-committed assistant messages.
+// Running in the commit transaction makes the intent durable exactly
+// when the assistant message is: a rolled-back step leaves no row,
+// and a replayed commit hits the lineage conflict and changes
+// nothing.
+func insertExecutionIntents(ctx context.Context, store database.Store, chatID uuid.UUID, inserted []database.ChatMessage, now time.Time) error {
+	for _, msg := range inserted {
+		if msg.Role != database.ChatMessageRoleAssistant {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(msg)
+		if err != nil {
+			return xerrors.Errorf("parse assistant message %d: %w", msg.ID, err)
+		}
+		for _, part := range parts {
+			if part.Type != codersdk.ChatMessagePartTypeToolCall || part.ProviderExecuted || part.ToolName != chattool.ExecuteToolName {
+				continue
+			}
+			err := store.InsertChatToolCallExecutionIntent(ctx, database.InsertChatToolCallExecutionIntentParams{
+				ID:                 uuid.New(),
+				ChatID:             chatID,
+				AssistantMessageID: msg.ID,
+				ToolCallID:         part.ToolCallID,
+				InputSha256:        chattool.HashToolInput(string(part.Args)),
+				CreatedAt:          now,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert execution intent for tool call %s: %w", part.ToolCallID, err)
+			}
+		}
+	}
+	return nil
 }
 
 func (s *taskStarter) enterRequiresAction(

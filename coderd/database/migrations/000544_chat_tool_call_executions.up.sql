@@ -1,21 +1,49 @@
--- chat_tool_call_executions tracks in-flight execute tool calls so
--- that a retried task attempt can re-attach to a process started by
--- a previous attempt instead of spawning a duplicate.
-CREATE TABLE chat_tool_call_executions (
-    chat_id            UUID        NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
-    tool_call_id       TEXT        NOT NULL,
-    workspace_agent_id UUID        REFERENCES workspace_agents(id) ON DELETE SET NULL,
-    process_id         TEXT,
-    command            TEXT        NOT NULL,
-    background         BOOLEAN     NOT NULL DEFAULT false,
-    timeout_secs       BIGINT      NOT NULL,
-    created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
-    started_at         TIMESTAMPTZ,
-    PRIMARY KEY (chat_id, tool_call_id)
+-- chat_tool_call_executions is a durable ledger of execute tool call
+-- lifecycles. One logical tool call creates at most one external
+-- process: retried task attempts claim the ledger row instead of
+-- dispatching again, and later attempts re-attach, observe, or
+-- reconcile instead of silently starting another process.
+CREATE TYPE chat_tool_call_execution_status AS ENUM (
+    'reserved',
+    'starting',
+    'running',
+    'exited',
+    'detached',
+    'cancel_requested',
+    'canceled',
+    'unknown',
+    'no_effect'
 );
 
-COMMENT ON COLUMN chat_tool_call_executions.process_id IS 'NULL means the row was reserved but the process handle was never recorded; set together with started_at once the process starts.';
-COMMENT ON COLUMN chat_tool_call_executions.command IS 'Recorded for mismatch diagnostics only; never used for deduplication.';
-COMMENT ON COLUMN chat_tool_call_executions.timeout_secs IS 'The clamped tool timeout at reserve time.';
+CREATE TABLE chat_tool_call_executions (
+    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    chat_id               UUID NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+    assistant_message_id  BIGINT NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
+    tool_call_id          TEXT NOT NULL,
+    status                chat_tool_call_execution_status NOT NULL DEFAULT 'reserved',
+    input_sha256          TEXT NOT NULL,
+    command               TEXT NOT NULL DEFAULT '',
+    background            BOOLEAN NOT NULL DEFAULT false,
+    timeout_secs          BIGINT NOT NULL DEFAULT 0,
+    claim_epoch           BIGINT NOT NULL DEFAULT 0,
+    claimed_at            TIMESTAMPTZ,
+    workspace_agent_id    UUID REFERENCES workspace_agents(id) ON DELETE SET NULL,
+    process_id            TEXT,
+    cancel_signal_sent_at TIMESTAMPTZ,
+    result_committed_at   TIMESTAMPTZ,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    started_at            TIMESTAMPTZ,
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (chat_id, assistant_message_id, tool_call_id)
+);
+
+COMMENT ON COLUMN chat_tool_call_executions.id IS 'Stable execution identity, generated at intent creation. Doubles as the opaque idempotency token sent to the workspace agent.';
+COMMENT ON COLUMN chat_tool_call_executions.assistant_message_id IS 'Lineage: the assistant message that issued the tool call. Provider tool call IDs may repeat across regenerated messages, so identity is (chat_id, assistant_message_id, tool_call_id).';
+COMMENT ON COLUMN chat_tool_call_executions.input_sha256 IS 'SHA-256 of the persisted tool input, asserted at claim time to catch stale lineage.';
+COMMENT ON COLUMN chat_tool_call_executions.command IS 'Recorded at claim time for diagnostics only; never used for deduplication.';
+COMMENT ON COLUMN chat_tool_call_executions.timeout_secs IS 'The clamped tool timeout, recorded at claim time.';
+COMMENT ON COLUMN chat_tool_call_executions.claim_epoch IS 'Incremented on every claim. Guards process-identity writes so a superseded claimer cannot overwrite the current claim.';
+COMMENT ON COLUMN chat_tool_call_executions.cancel_signal_sent_at IS 'Set when an interrupt delivered a kill signal whose effect was not yet confirmed.';
+COMMENT ON COLUMN chat_tool_call_executions.result_committed_at IS 'Set in the transaction that commits the tool result message (real or synthetic). Orthogonal to status, which keeps lifecycle truth.';
 
 CREATE INDEX idx_chat_tool_call_executions_created_at ON chat_tool_call_executions (created_at);

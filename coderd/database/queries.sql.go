@@ -12667,20 +12667,105 @@ func (q *sqlQuerier) UpsertChatUsageLimitUserOverride(ctx context.Context, arg U
 	return i, err
 }
 
-const deleteChatToolCallExecutions = `-- name: DeleteChatToolCallExecutions :exec
-DELETE FROM chat_tool_call_executions
-WHERE chat_id = $1::uuid
-  AND tool_call_id = ANY($2::text[])
+const claimChatToolCallExecution = `-- name: ClaimChatToolCallExecution :one
+INSERT INTO chat_tool_call_executions (
+    id,
+    chat_id,
+    assistant_message_id,
+    tool_call_id,
+    input_sha256,
+    status,
+    command,
+    background,
+    timeout_secs,
+    claim_epoch,
+    claimed_at,
+    created_at,
+    updated_at
+) VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::bigint,
+    $4::text,
+    $5::text,
+    'starting',
+    $6::text,
+    $7::boolean,
+    $8::bigint,
+    1,
+    $9::timestamptz,
+    $9::timestamptz,
+    $9::timestamptz
+)
+ON CONFLICT (chat_id, assistant_message_id, tool_call_id) DO UPDATE SET
+    status = 'starting',
+    command = EXCLUDED.command,
+    background = EXCLUDED.background,
+    timeout_secs = EXCLUDED.timeout_secs,
+    claim_epoch = chat_tool_call_executions.claim_epoch + 1,
+    claimed_at = EXCLUDED.claimed_at,
+    updated_at = EXCLUDED.updated_at
+WHERE chat_tool_call_executions.input_sha256 = EXCLUDED.input_sha256
+  AND (chat_tool_call_executions.status = 'reserved'
+   OR (chat_tool_call_executions.status = 'starting' AND chat_tool_call_executions.claimed_at < $10::timestamptz))
+RETURNING id, chat_id, assistant_message_id, tool_call_id, status, input_sha256, command, background, timeout_secs, claim_epoch, claimed_at, workspace_agent_id, process_id, cancel_signal_sent_at, result_committed_at, created_at, started_at, updated_at
 `
 
-type DeleteChatToolCallExecutionsParams struct {
-	ChatID      uuid.UUID `db:"chat_id" json:"chat_id"`
-	ToolCallIds []string  `db:"tool_call_ids" json:"tool_call_ids"`
+type ClaimChatToolCallExecutionParams struct {
+	ID                 uuid.UUID `db:"id" json:"id"`
+	ChatID             uuid.UUID `db:"chat_id" json:"chat_id"`
+	AssistantMessageID int64     `db:"assistant_message_id" json:"assistant_message_id"`
+	ToolCallID         string    `db:"tool_call_id" json:"tool_call_id"`
+	InputSha256        string    `db:"input_sha256" json:"input_sha256"`
+	Command            string    `db:"command" json:"command"`
+	Background         bool      `db:"background" json:"background"`
+	TimeoutSecs        int64     `db:"timeout_secs" json:"timeout_secs"`
+	Now                time.Time `db:"now" json:"now"`
+	StaleBefore        time.Time `db:"stale_before" json:"stale_before"`
 }
 
-func (q *sqlQuerier) DeleteChatToolCallExecutions(ctx context.Context, arg DeleteChatToolCallExecutionsParams) error {
-	_, err := q.db.ExecContext(ctx, deleteChatToolCallExecutions, arg.ChatID, pq.Array(arg.ToolCallIds))
-	return err
+// Claims an execution for dispatch. The insert arm covers calls whose
+// assistant message predates the ledger. The update arm is the
+// compare-and-set: only a reserved intent or a stale starting claim
+// can be taken over, and each takeover advances claim_epoch. The
+// input hash guard refuses to dispatch against a row created for
+// different input. Zero rows means the row exists but is not
+// claimable; the caller reads it to decide how to proceed.
+func (q *sqlQuerier) ClaimChatToolCallExecution(ctx context.Context, arg ClaimChatToolCallExecutionParams) (ChatToolCallExecution, error) {
+	row := q.db.QueryRowContext(ctx, claimChatToolCallExecution,
+		arg.ID,
+		arg.ChatID,
+		arg.AssistantMessageID,
+		arg.ToolCallID,
+		arg.InputSha256,
+		arg.Command,
+		arg.Background,
+		arg.TimeoutSecs,
+		arg.Now,
+		arg.StaleBefore,
+	)
+	var i ChatToolCallExecution
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.AssistantMessageID,
+		&i.ToolCallID,
+		&i.Status,
+		&i.InputSha256,
+		&i.Command,
+		&i.Background,
+		&i.TimeoutSecs,
+		&i.ClaimEpoch,
+		&i.ClaimedAt,
+		&i.WorkspaceAgentID,
+		&i.ProcessID,
+		&i.CancelSignalSentAt,
+		&i.ResultCommittedAt,
+		&i.CreatedAt,
+		&i.StartedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const deleteOldChatToolCallExecutions = `-- name: DeleteOldChatToolCallExecutions :execrows
@@ -12688,9 +12773,9 @@ DELETE FROM chat_tool_call_executions
 WHERE created_at < $1::timestamptz
 `
 
-// Deletes stale execution records. Rows left behind by attempts that
-// never cleaned up are harmless because resolved tool calls are never
-// re-executed; this is the janitor for those leftovers.
+// Bounded retention for the ledger. The timeout clamp and the task
+// attempt cap mean no legitimately live execution reaches this age;
+// everything older is diagnostic history.
 func (q *sqlQuerier) DeleteOldChatToolCallExecutions(ctx context.Context, beforeTime time.Time) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteOldChatToolCallExecutions, beforeTime)
 	if err != nil {
@@ -12700,46 +12785,59 @@ func (q *sqlQuerier) DeleteOldChatToolCallExecutions(ctx context.Context, before
 }
 
 const getChatToolCallExecution = `-- name: GetChatToolCallExecution :one
-SELECT chat_id, tool_call_id, workspace_agent_id, process_id, command, background, timeout_secs, created_at, started_at FROM chat_tool_call_executions
+SELECT id, chat_id, assistant_message_id, tool_call_id, status, input_sha256, command, background, timeout_secs, claim_epoch, claimed_at, workspace_agent_id, process_id, cancel_signal_sent_at, result_committed_at, created_at, started_at, updated_at FROM chat_tool_call_executions
 WHERE chat_id = $1::uuid
-  AND tool_call_id = $2::text
+  AND assistant_message_id = $2::bigint
+  AND tool_call_id = $3::text
 `
 
 type GetChatToolCallExecutionParams struct {
-	ChatID     uuid.UUID `db:"chat_id" json:"chat_id"`
-	ToolCallID string    `db:"tool_call_id" json:"tool_call_id"`
+	ChatID             uuid.UUID `db:"chat_id" json:"chat_id"`
+	AssistantMessageID int64     `db:"assistant_message_id" json:"assistant_message_id"`
+	ToolCallID         string    `db:"tool_call_id" json:"tool_call_id"`
 }
 
 func (q *sqlQuerier) GetChatToolCallExecution(ctx context.Context, arg GetChatToolCallExecutionParams) (ChatToolCallExecution, error) {
-	row := q.db.QueryRowContext(ctx, getChatToolCallExecution, arg.ChatID, arg.ToolCallID)
+	row := q.db.QueryRowContext(ctx, getChatToolCallExecution, arg.ChatID, arg.AssistantMessageID, arg.ToolCallID)
 	var i ChatToolCallExecution
 	err := row.Scan(
+		&i.ID,
 		&i.ChatID,
+		&i.AssistantMessageID,
 		&i.ToolCallID,
-		&i.WorkspaceAgentID,
-		&i.ProcessID,
+		&i.Status,
+		&i.InputSha256,
 		&i.Command,
 		&i.Background,
 		&i.TimeoutSecs,
+		&i.ClaimEpoch,
+		&i.ClaimedAt,
+		&i.WorkspaceAgentID,
+		&i.ProcessID,
+		&i.CancelSignalSentAt,
+		&i.ResultCommittedAt,
 		&i.CreatedAt,
 		&i.StartedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const getChatToolCallExecutions = `-- name: GetChatToolCallExecutions :many
-SELECT chat_id, tool_call_id, workspace_agent_id, process_id, command, background, timeout_secs, created_at, started_at FROM chat_tool_call_executions
+SELECT id, chat_id, assistant_message_id, tool_call_id, status, input_sha256, command, background, timeout_secs, claim_epoch, claimed_at, workspace_agent_id, process_id, cancel_signal_sent_at, result_committed_at, created_at, started_at, updated_at FROM chat_tool_call_executions
 WHERE chat_id = $1::uuid
-  AND tool_call_id = ANY($2::text[])
+  AND assistant_message_id = $2::bigint
+  AND tool_call_id = ANY($3::text[])
 `
 
 type GetChatToolCallExecutionsParams struct {
-	ChatID      uuid.UUID `db:"chat_id" json:"chat_id"`
-	ToolCallIds []string  `db:"tool_call_ids" json:"tool_call_ids"`
+	ChatID             uuid.UUID `db:"chat_id" json:"chat_id"`
+	AssistantMessageID int64     `db:"assistant_message_id" json:"assistant_message_id"`
+	ToolCallIds        []string  `db:"tool_call_ids" json:"tool_call_ids"`
 }
 
 func (q *sqlQuerier) GetChatToolCallExecutions(ctx context.Context, arg GetChatToolCallExecutionsParams) ([]ChatToolCallExecution, error) {
-	rows, err := q.db.QueryContext(ctx, getChatToolCallExecutions, arg.ChatID, pq.Array(arg.ToolCallIds))
+	rows, err := q.db.QueryContext(ctx, getChatToolCallExecutions, arg.ChatID, arg.AssistantMessageID, pq.Array(arg.ToolCallIds))
 	if err != nil {
 		return nil, err
 	}
@@ -12748,15 +12846,24 @@ func (q *sqlQuerier) GetChatToolCallExecutions(ctx context.Context, arg GetChatT
 	for rows.Next() {
 		var i ChatToolCallExecution
 		if err := rows.Scan(
+			&i.ID,
 			&i.ChatID,
+			&i.AssistantMessageID,
 			&i.ToolCallID,
-			&i.WorkspaceAgentID,
-			&i.ProcessID,
+			&i.Status,
+			&i.InputSha256,
 			&i.Command,
 			&i.Background,
 			&i.TimeoutSecs,
+			&i.ClaimEpoch,
+			&i.ClaimedAt,
+			&i.WorkspaceAgentID,
+			&i.ProcessID,
+			&i.CancelSignalSentAt,
+			&i.ResultCommittedAt,
 			&i.CreatedAt,
 			&i.StartedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -12771,99 +12878,330 @@ func (q *sqlQuerier) GetChatToolCallExecutions(ctx context.Context, arg GetChatT
 	return items, nil
 }
 
-const insertChatToolCallExecution = `-- name: InsertChatToolCallExecution :one
+const insertChatToolCallExecutionIntent = `-- name: InsertChatToolCallExecutionIntent :exec
 INSERT INTO chat_tool_call_executions (
+    id,
     chat_id,
+    assistant_message_id,
     tool_call_id,
-    command,
-    background,
-    timeout_secs,
-    created_at
+    input_sha256,
+    status,
+    created_at,
+    updated_at
 ) VALUES (
     $1::uuid,
-    $2::text,
-    $3::text,
-    $4::boolean,
-    $5::bigint,
+    $2::uuid,
+    $3::bigint,
+    $4::text,
+    $5::text,
+    'reserved',
+    $6::timestamptz,
     $6::timestamptz
-) RETURNING chat_id, tool_call_id, workspace_agent_id, process_id, command, background, timeout_secs, created_at, started_at
+)
+ON CONFLICT (chat_id, assistant_message_id, tool_call_id) DO NOTHING
 `
 
-type InsertChatToolCallExecutionParams struct {
-	ChatID      uuid.UUID `db:"chat_id" json:"chat_id"`
-	ToolCallID  string    `db:"tool_call_id" json:"tool_call_id"`
-	Command     string    `db:"command" json:"command"`
-	Background  bool      `db:"background" json:"background"`
-	TimeoutSecs int64     `db:"timeout_secs" json:"timeout_secs"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+type InsertChatToolCallExecutionIntentParams struct {
+	ID                 uuid.UUID `db:"id" json:"id"`
+	ChatID             uuid.UUID `db:"chat_id" json:"chat_id"`
+	AssistantMessageID int64     `db:"assistant_message_id" json:"assistant_message_id"`
+	ToolCallID         string    `db:"tool_call_id" json:"tool_call_id"`
+	InputSha256        string    `db:"input_sha256" json:"input_sha256"`
+	CreatedAt          time.Time `db:"created_at" json:"created_at"`
 }
 
-// Reserves an execution record for a tool call. The caller detects a
-// unique violation to learn whether it created the row or a previous
-// attempt already reserved it.
-func (q *sqlQuerier) InsertChatToolCallExecution(ctx context.Context, arg InsertChatToolCallExecutionParams) (ChatToolCallExecution, error) {
-	row := q.db.QueryRowContext(ctx, insertChatToolCallExecution,
+// Persists the execution intent for an execute tool call in the same
+// transaction that commits its assistant message. Conflicts on the
+// lineage key are no-ops so a replayed commit never resets a row.
+func (q *sqlQuerier) InsertChatToolCallExecutionIntent(ctx context.Context, arg InsertChatToolCallExecutionIntentParams) error {
+	_, err := q.db.ExecContext(ctx, insertChatToolCallExecutionIntent,
+		arg.ID,
 		arg.ChatID,
+		arg.AssistantMessageID,
 		arg.ToolCallID,
-		arg.Command,
-		arg.Background,
-		arg.TimeoutSecs,
+		arg.InputSha256,
 		arg.CreatedAt,
+	)
+	return err
+}
+
+const markChatToolCallExecutionsInterrupted = `-- name: MarkChatToolCallExecutionsInterrupted :many
+UPDATE chat_tool_call_executions
+SET status = CASE
+        WHEN background THEN 'detached'::chat_tool_call_execution_status
+        WHEN status = 'reserved' THEN 'canceled'::chat_tool_call_execution_status
+        ELSE 'cancel_requested'::chat_tool_call_execution_status
+    END,
+    updated_at = $1::timestamptz
+WHERE chat_id = $2::uuid
+  AND assistant_message_id = $3::bigint
+  AND tool_call_id = ANY($4::text[])
+  AND status IN ('reserved', 'starting', 'running')
+RETURNING id, chat_id, assistant_message_id, tool_call_id, status, input_sha256, command, background, timeout_secs, claim_epoch, claimed_at, workspace_agent_id, process_id, cancel_signal_sent_at, result_committed_at, created_at, started_at, updated_at
+`
+
+type MarkChatToolCallExecutionsInterruptedParams struct {
+	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
+	ChatID             uuid.UUID `db:"chat_id" json:"chat_id"`
+	AssistantMessageID int64     `db:"assistant_message_id" json:"assistant_message_id"`
+	ToolCallIds        []string  `db:"tool_call_ids" json:"tool_call_ids"`
+}
+
+// Maps unresolved executions to their interrupt outcome in the same
+// transaction that commits the synthetic cancellation results:
+// background processes are deliberately left alive (detached),
+// never-dispatched reservations are canceled outright, and
+// dispatched foreground claims become cancel_requested for the
+// post-commit reconciler. Rows already in a terminal state keep it.
+func (q *sqlQuerier) MarkChatToolCallExecutionsInterrupted(ctx context.Context, arg MarkChatToolCallExecutionsInterruptedParams) ([]ChatToolCallExecution, error) {
+	rows, err := q.db.QueryContext(ctx, markChatToolCallExecutionsInterrupted,
+		arg.UpdatedAt,
+		arg.ChatID,
+		arg.AssistantMessageID,
+		pq.Array(arg.ToolCallIds),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatToolCallExecution
+	for rows.Next() {
+		var i ChatToolCallExecution
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.AssistantMessageID,
+			&i.ToolCallID,
+			&i.Status,
+			&i.InputSha256,
+			&i.Command,
+			&i.Background,
+			&i.TimeoutSecs,
+			&i.ClaimEpoch,
+			&i.ClaimedAt,
+			&i.WorkspaceAgentID,
+			&i.ProcessID,
+			&i.CancelSignalSentAt,
+			&i.ResultCommittedAt,
+			&i.CreatedAt,
+			&i.StartedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markChatToolCallExecutionsResultCommitted = `-- name: MarkChatToolCallExecutionsResultCommitted :exec
+UPDATE chat_tool_call_executions
+SET result_committed_at = $1::timestamptz,
+    updated_at = $1::timestamptz
+WHERE chat_id = $2::uuid
+  AND assistant_message_id = $3::bigint
+  AND tool_call_id = ANY($4::text[])
+  AND result_committed_at IS NULL
+`
+
+type MarkChatToolCallExecutionsResultCommittedParams struct {
+	ResultCommittedAt  time.Time `db:"result_committed_at" json:"result_committed_at"`
+	ChatID             uuid.UUID `db:"chat_id" json:"chat_id"`
+	AssistantMessageID int64     `db:"assistant_message_id" json:"assistant_message_id"`
+	ToolCallIds        []string  `db:"tool_call_ids" json:"tool_call_ids"`
+}
+
+// Runs in the same transaction that commits the tool result messages
+// (real or synthetic). status is untouched so diagnostic states keep
+// their lifecycle truth after the chat has moved on.
+func (q *sqlQuerier) MarkChatToolCallExecutionsResultCommitted(ctx context.Context, arg MarkChatToolCallExecutionsResultCommittedParams) error {
+	_, err := q.db.ExecContext(ctx, markChatToolCallExecutionsResultCommitted,
+		arg.ResultCommittedAt,
+		arg.ChatID,
+		arg.AssistantMessageID,
+		pq.Array(arg.ToolCallIds),
+	)
+	return err
+}
+
+const updateChatToolCallExecutionCancelOutcome = `-- name: UpdateChatToolCallExecutionCancelOutcome :one
+UPDATE chat_tool_call_executions
+SET status = $1::chat_tool_call_execution_status,
+    cancel_signal_sent_at = COALESCE($2::timestamptz, cancel_signal_sent_at),
+    updated_at = $3::timestamptz
+WHERE chat_id = $4::uuid
+  AND assistant_message_id = $5::bigint
+  AND tool_call_id = $6::text
+  AND status = 'cancel_requested'
+RETURNING id, chat_id, assistant_message_id, tool_call_id, status, input_sha256, command, background, timeout_secs, claim_epoch, claimed_at, workspace_agent_id, process_id, cancel_signal_sent_at, result_committed_at, created_at, started_at, updated_at
+`
+
+type UpdateChatToolCallExecutionCancelOutcomeParams struct {
+	Status             ChatToolCallExecutionStatus `db:"status" json:"status"`
+	CancelSignalSentAt sql.NullTime                `db:"cancel_signal_sent_at" json:"cancel_signal_sent_at"`
+	UpdatedAt          time.Time                   `db:"updated_at" json:"updated_at"`
+	ChatID             uuid.UUID                   `db:"chat_id" json:"chat_id"`
+	AssistantMessageID int64                       `db:"assistant_message_id" json:"assistant_message_id"`
+	ToolCallID         string                      `db:"tool_call_id" json:"tool_call_id"`
+}
+
+// Resolves a cancel_requested row after a post-commit kill attempt:
+// canceled when termination was confirmed, unknown when the outcome
+// is unobservable, or cancel_requested to record a delivered signal
+// whose effect is unconfirmed.
+func (q *sqlQuerier) UpdateChatToolCallExecutionCancelOutcome(ctx context.Context, arg UpdateChatToolCallExecutionCancelOutcomeParams) (ChatToolCallExecution, error) {
+	row := q.db.QueryRowContext(ctx, updateChatToolCallExecutionCancelOutcome,
+		arg.Status,
+		arg.CancelSignalSentAt,
+		arg.UpdatedAt,
+		arg.ChatID,
+		arg.AssistantMessageID,
+		arg.ToolCallID,
 	)
 	var i ChatToolCallExecution
 	err := row.Scan(
+		&i.ID,
 		&i.ChatID,
+		&i.AssistantMessageID,
 		&i.ToolCallID,
-		&i.WorkspaceAgentID,
-		&i.ProcessID,
+		&i.Status,
+		&i.InputSha256,
 		&i.Command,
 		&i.Background,
 		&i.TimeoutSecs,
+		&i.ClaimEpoch,
+		&i.ClaimedAt,
+		&i.WorkspaceAgentID,
+		&i.ProcessID,
+		&i.CancelSignalSentAt,
+		&i.ResultCommittedAt,
 		&i.CreatedAt,
 		&i.StartedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const updateChatToolCallExecutionProcess = `-- name: UpdateChatToolCallExecutionProcess :one
 UPDATE chat_tool_call_executions
-SET process_id = $1::text,
+SET status = 'running',
+    process_id = $1::text,
     workspace_agent_id = $2::uuid,
-    started_at = $3::timestamptz
+    started_at = $3::timestamptz,
+    updated_at = $3::timestamptz
 WHERE chat_id = $4::uuid
-  AND tool_call_id = $5::text
-RETURNING chat_id, tool_call_id, workspace_agent_id, process_id, command, background, timeout_secs, created_at, started_at
+  AND assistant_message_id = $5::bigint
+  AND tool_call_id = $6::text
+  AND claim_epoch = $7::bigint
+  AND status = 'starting'
+RETURNING id, chat_id, assistant_message_id, tool_call_id, status, input_sha256, command, background, timeout_secs, claim_epoch, claimed_at, workspace_agent_id, process_id, cancel_signal_sent_at, result_committed_at, created_at, started_at, updated_at
 `
 
 type UpdateChatToolCallExecutionProcessParams struct {
-	ProcessID        string    `db:"process_id" json:"process_id"`
-	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	StartedAt        time.Time `db:"started_at" json:"started_at"`
-	ChatID           uuid.UUID `db:"chat_id" json:"chat_id"`
-	ToolCallID       string    `db:"tool_call_id" json:"tool_call_id"`
+	ProcessID          string    `db:"process_id" json:"process_id"`
+	WorkspaceAgentID   uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	StartedAt          time.Time `db:"started_at" json:"started_at"`
+	ChatID             uuid.UUID `db:"chat_id" json:"chat_id"`
+	AssistantMessageID int64     `db:"assistant_message_id" json:"assistant_message_id"`
+	ToolCallID         string    `db:"tool_call_id" json:"tool_call_id"`
+	ClaimEpoch         int64     `db:"claim_epoch" json:"claim_epoch"`
 }
 
-// Records the process handle once the process has started. started_at
-// is set together with process_id.
+// Records the started process on the claim that dispatched it. The
+// claim_epoch guard keeps a superseded claimer from overwriting the
+// process identity recorded by the current claim.
 func (q *sqlQuerier) UpdateChatToolCallExecutionProcess(ctx context.Context, arg UpdateChatToolCallExecutionProcessParams) (ChatToolCallExecution, error) {
 	row := q.db.QueryRowContext(ctx, updateChatToolCallExecutionProcess,
 		arg.ProcessID,
 		arg.WorkspaceAgentID,
 		arg.StartedAt,
 		arg.ChatID,
+		arg.AssistantMessageID,
 		arg.ToolCallID,
+		arg.ClaimEpoch,
 	)
 	var i ChatToolCallExecution
 	err := row.Scan(
+		&i.ID,
 		&i.ChatID,
+		&i.AssistantMessageID,
 		&i.ToolCallID,
-		&i.WorkspaceAgentID,
-		&i.ProcessID,
+		&i.Status,
+		&i.InputSha256,
 		&i.Command,
 		&i.Background,
 		&i.TimeoutSecs,
+		&i.ClaimEpoch,
+		&i.ClaimedAt,
+		&i.WorkspaceAgentID,
+		&i.ProcessID,
+		&i.CancelSignalSentAt,
+		&i.ResultCommittedAt,
 		&i.CreatedAt,
 		&i.StartedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateChatToolCallExecutionStatus = `-- name: UpdateChatToolCallExecutionStatus :one
+UPDATE chat_tool_call_executions
+SET status = $1::chat_tool_call_execution_status,
+    updated_at = $2::timestamptz
+WHERE chat_id = $3::uuid
+  AND assistant_message_id = $4::bigint
+  AND tool_call_id = $5::text
+  AND status = ANY($6::chat_tool_call_execution_status[])
+RETURNING id, chat_id, assistant_message_id, tool_call_id, status, input_sha256, command, background, timeout_secs, claim_epoch, claimed_at, workspace_agent_id, process_id, cancel_signal_sent_at, result_committed_at, created_at, started_at, updated_at
+`
+
+type UpdateChatToolCallExecutionStatusParams struct {
+	Status             ChatToolCallExecutionStatus   `db:"status" json:"status"`
+	UpdatedAt          time.Time                     `db:"updated_at" json:"updated_at"`
+	ChatID             uuid.UUID                     `db:"chat_id" json:"chat_id"`
+	AssistantMessageID int64                         `db:"assistant_message_id" json:"assistant_message_id"`
+	ToolCallID         string                        `db:"tool_call_id" json:"tool_call_id"`
+	FromStatuses       []ChatToolCallExecutionStatus `db:"from_statuses" json:"from_statuses"`
+}
+
+// Applies a lifecycle observation. from_statuses guards the
+// transition so a stale observer never overwrites a state written by
+// the current claim owner or the interrupt reconciler.
+func (q *sqlQuerier) UpdateChatToolCallExecutionStatus(ctx context.Context, arg UpdateChatToolCallExecutionStatusParams) (ChatToolCallExecution, error) {
+	row := q.db.QueryRowContext(ctx, updateChatToolCallExecutionStatus,
+		arg.Status,
+		arg.UpdatedAt,
+		arg.ChatID,
+		arg.AssistantMessageID,
+		arg.ToolCallID,
+		pq.Array(arg.FromStatuses),
+	)
+	var i ChatToolCallExecution
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.AssistantMessageID,
+		&i.ToolCallID,
+		&i.Status,
+		&i.InputSha256,
+		&i.Command,
+		&i.Background,
+		&i.TimeoutSecs,
+		&i.ClaimEpoch,
+		&i.ClaimedAt,
+		&i.WorkspaceAgentID,
+		&i.ProcessID,
+		&i.CancelSignalSentAt,
+		&i.ResultCommittedAt,
+		&i.CreatedAt,
+		&i.StartedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
