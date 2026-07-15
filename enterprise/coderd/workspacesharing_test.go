@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"net/http"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -512,6 +513,77 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 		require.Len(t, acl.Users, 1)
 		require.Equal(t, sharedUser.ID, acl.Users[0].ID)
 	})
+}
+
+// TestWorkspaceSharingDormancySurvivesACL asserts the DESIRED behavior
+// for shared workspaces that go dormant: ACL recipients keep access to
+// the dormant workspace (bounded by the dormant action set), an
+// admin-role recipient can wake it, and the list and direct-access
+// views agree.
+//
+// The test is skipped because DormantRBAC()
+// (coderd/database/modelmethods.go) currently attaches no ACLs, so ACL
+// recipients get 404 on direct access and on wake attempts while the
+// dormant workspace still appears in their list (the list filter is
+// prepared against the non-dormant workspace type and matches the
+// row's intact ACL columns). See
+// finding-dormant-workspace-acl-dropped.md in coder/scott-misc
+// rfcs/gateway-accounts. Remove the skip when DormantRBAC() carries
+// the workspace ACLs.
+func TestWorkspaceSharingDormancySurvivesACL(t *testing.T) {
+	t.Parallel()
+	t.Skip("known bug: DormantRBAC() drops ACLs; see finding-dormant-workspace-acl-dropped.md (scott-misc rfcs/gateway-accounts)")
+
+	client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		},
+	})
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	wsOwnerClient, wsOwner := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	ws := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:        wsOwner.ID,
+		OrganizationID: owner.OrganizationID,
+	}).Do().Workspace
+
+	recipientClient, recipient := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+	// Share with the admin role, the strongest ACL grant.
+	err := wsOwnerClient.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+		UserRoles: map[string]codersdk.WorkspaceRole{
+			recipient.ID.String(): codersdk.WorkspaceRoleAdmin,
+		},
+	})
+	require.NoError(t, err)
+
+	// The recipient can access the active workspace.
+	_, err = recipientClient.Workspace(ctx, ws.ID)
+	require.NoError(t, err)
+
+	// The owner marks the workspace dormant.
+	err = wsOwnerClient.UpdateWorkspaceDormancy(ctx, ws.ID, codersdk.UpdateWorkspaceDormancy{Dormant: true})
+	require.NoError(t, err)
+
+	// The recipient keeps read access to the dormant workspace, matching
+	// what the list already shows them.
+	_, err = recipientClient.Workspace(ctx, ws.ID)
+	require.NoError(t, err)
+	listed, err := recipientClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.True(t, slices.ContainsFunc(listed.Workspaces, func(w codersdk.Workspace) bool {
+		return w.ID == ws.ID
+	}), "dormant shared workspace should appear in the recipient's list")
+
+	// An admin-role recipient holds update, so they can wake the
+	// workspace before the dormancy policy deletes it.
+	err = recipientClient.UpdateWorkspaceDormancy(ctx, ws.ID, codersdk.UpdateWorkspaceDormancy{Dormant: false})
+	require.NoError(t, err)
+
+	_, err = recipientClient.Workspace(ctx, ws.ID)
+	require.NoError(t, err)
 }
 
 // TestWorkspaceSharingUseSharedPrecondition verifies that workspace ACL
