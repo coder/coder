@@ -89,7 +89,7 @@ for membership in a set of allowed org ids instead of looking up its vote:
 The `any_org` path ("can the subject do this in any org?") still uses the full
 `-1`/`0`/`1` vote (the `max` over the vote map), because there is no specific
 object org id to be unknown. So do not assume `org == -1` signals an org-level
-deny for a known org; reconstruct it from `org_ids_with_vote(roles, "org", -1)`
+deny for a known org; reconstruct it from `org_ids_with_vote(role_org_votes, -1)`
 if you need it.
 
 ### Scope
