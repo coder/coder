@@ -78,8 +78,6 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	/** When false, suppresses inline VNC previews while still
 	 * allowing the MonitorIcon variant to render. */
 	showDesktopPreviews?: boolean;
-	/** Maps sub-agent chat IDs to real-time status updates from stream events. */
-	subagentStatusOverrides?: Map<string, string>;
 	/** MCP server config ID associated with this tool call. */
 	mcpServerConfigId?: string;
 	/** Available MCP server configs for icon/name lookup. */
@@ -109,7 +107,6 @@ type ToolRendererProps = {
 	subagentTitles?: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
 	showDesktopPreviews?: boolean;
-	subagentStatusOverrides?: Map<string, string>;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
@@ -467,7 +464,6 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 	subagentTitles,
 	subagentVariants,
 	showDesktopPreviews = true,
-	subagentStatusOverrides,
 }) => {
 	const parsedArgs = parseArgs(args);
 	const rec = asRecord(result);
@@ -489,11 +485,7 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 	const resultSubagentStatus = rec
 		? asString(rec.status || rec.subagent_status)
 		: "";
-	let streamSubagentStatus = "";
-	if (chatId) {
-		streamSubagentStatus = subagentStatusOverrides?.get(chatId) || "";
-	}
-	const subagentStatus = streamSubagentStatus || resultSubagentStatus;
+	const subagentStatus = resultSubagentStatus;
 	const report = rec ? asString(rec.report) : "";
 	const recordingFileId = rec ? asString(rec.recording_file_id) : "";
 	const thumbnailFileId = rec ? asString(rec.thumbnail_file_id) : "";
@@ -1091,7 +1083,6 @@ export const Tool = memo(
 		subagentTitles,
 		subagentVariants,
 		showDesktopPreviews,
-		subagentStatusOverrides,
 		mcpServerConfigId,
 		mcpServers,
 		onImplementPlan,
@@ -1137,7 +1128,6 @@ export const Tool = memo(
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
 					showDesktopPreviews={showDesktopPreviews}
-					subagentStatusOverrides={subagentStatusOverrides}
 					mcpServerConfigId={mcpServerConfigId}
 					mcpServers={mcpServers}
 					onImplementPlan={onImplementPlan}

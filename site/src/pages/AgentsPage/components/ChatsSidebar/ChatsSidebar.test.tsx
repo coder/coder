@@ -102,7 +102,6 @@ const defaultSidebarFilters: AgentSidebarFilters = {
 
 const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	chats: [buildChat({ id: "chat-1", title: "Chat One" })],
-	chatErrorReasons: {},
 	modelOptions: [],
 	modelConfigs: [],
 	onArchiveAgent: vi.fn(),
@@ -140,11 +139,13 @@ describe("ChatsSidebar sections", () => {
 							title: "Shared chat",
 							owner_id: "sharing-user-id",
 							shared: true,
+							has_unread: true,
 						}),
 						buildChat({
 							id: "owned-shared-chat",
 							title: "Owned shared chat",
 							shared: true,
+							has_unread: true,
 							updated_at: new Date().toISOString(),
 						}),
 						buildChat({
@@ -168,6 +169,10 @@ describe("ChatsSidebar sections", () => {
 		const todaySection = screen.getByTestId("agents-section-toggle-Today");
 		const ownedNode = screen.getByTestId("agents-tree-node-owned-chat");
 
+		expect(screen.queryByTestId("unread-indicator-shared-chat")).toBeNull();
+		expect(
+			screen.getByTestId("unread-indicator-owned-shared-chat"),
+		).toBeVisible();
 		expect(pinnedSection).toHaveTextContent("Pinned (1)");
 		expect(sharedSection).toHaveTextContent("Shared with you (1)");
 		expect(todaySection).toHaveTextContent("Today (2)");

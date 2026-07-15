@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
-import { createChatStore } from "./ChatConversation/chatStore";
+import { createChatStreamStore } from "./ChatConversation/chatStreamStore";
 import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
 import { ChatPageTimeline } from "./ChatPageContent";
 
@@ -27,30 +27,27 @@ const buildMessage = (
 	content,
 });
 
-const buildThinkingSpacerStore = () => {
-	const store = createChatStore();
-
-	store.replaceMessages([
-		buildMessage(1, "user", [{ type: "text", text: "Read the source files" }]),
-		buildMessage(2, "assistant", [
-			{
-				type: "reasoning",
-				text: "I should think before answering.",
-			},
-		]),
-		// A following message is needed so the spacer renders.
-		buildMessage(3, "user", [{ type: "text", text: "Any progress?" }]),
-	]);
-
-	return store;
-};
+const thinkingSpacerMessages = [
+	buildMessage(1, "user", [{ type: "text", text: "Read the source files" }]),
+	buildMessage(2, "assistant", [
+		{
+			type: "reasoning",
+			text: "I should think before answering.",
+		},
+	]),
+	// A following message is needed so the spacer renders.
+	buildMessage(3, "user", [{ type: "text", text: "Any progress?" }]),
+];
 
 export const SpacerVisibleWhenNotStreaming: Story = {
-	render: () => {
-		const store = buildThinkingSpacerStore();
-
-		return <ChatPageTimeline store={store} persistedError={undefined} />;
-	},
+	render: () => (
+		<ChatPageTimeline
+			store={createChatStreamStore()}
+			chatStatus="waiting"
+			messages={thinkingSpacerMessages}
+			persistedError={undefined}
+		/>
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		canvas.getByRole("button", { name: /thinking/i });
@@ -60,8 +57,8 @@ export const SpacerVisibleWhenNotStreaming: Story = {
 
 export const DurableUnresolvedWorkspaceToolRuns: Story = {
 	render: () => {
-		const store = createChatStore();
-		store.replaceMessages([
+		const store = createChatStreamStore();
+		const messages = [
 			buildMessage(1, "user", [{ type: "text", text: "Create a workspace" }]),
 			buildMessage(2, "assistant", [
 				{
@@ -71,12 +68,16 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 					args: { name: "dev" },
 				},
 			]),
-		]);
-		store.setChatStatus("running");
+		];
 
 		return (
 			<ChatWorkspaceContext value={{ workspaceId: "workspace-1" }}>
-				<ChatPageTimeline store={store} persistedError={undefined} />
+				<ChatPageTimeline
+					store={store}
+					chatStatus="running"
+					messages={messages}
+					persistedError={undefined}
+				/>
 			</ChatWorkspaceContext>
 		);
 	},
@@ -89,18 +90,19 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 };
 
 export const HiddenAssistantPlaceholderDoesNotRender: Story = {
-	render: () => {
-		const store = createChatStore();
-
-		store.replaceMessages([
-			buildMessage(1, "user", [{ type: "text", text: "Run the command" }]),
-			buildMessage(2, "assistant", [{ type: "text", text: "Done." }]),
-			buildMessage(3, "assistant", []),
-			buildMessage(4, "user", [{ type: "text", text: "Thanks!" }]),
-		]);
-
-		return <ChatPageTimeline store={store} persistedError={undefined} />;
-	},
+	render: () => (
+		<ChatPageTimeline
+			store={createChatStreamStore()}
+			chatStatus="waiting"
+			messages={[
+				buildMessage(1, "user", [{ type: "text", text: "Run the command" }]),
+				buildMessage(2, "assistant", [{ type: "text", text: "Done." }]),
+				buildMessage(3, "assistant", []),
+				buildMessage(4, "user", [{ type: "text", text: "Thanks!" }]),
+			]}
+			persistedError={undefined}
+		/>
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.queryByText("Message has no renderable content.")).toBeNull();

@@ -7,15 +7,14 @@ import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import {
-	selectIsAwaitingFirstStreamChunk,
+	isAwaitingFirstStreamChunk,
 	selectReconnectState,
 	selectRetryState,
-	selectStreamError,
 	selectStreamState,
-	selectSubagentStatusOverrides,
+	selectTransientError,
 	useChatSelector,
-	type useChatStore,
-} from "./chatStore";
+	type useChatStreamStore,
+} from "./chatStreamStore";
 import { deriveLiveStatus, type LiveStatusModel } from "./liveStatusModel";
 import { StreamingOutput } from "./StreamingOutput";
 import { buildStreamTools } from "./streamState";
@@ -28,7 +27,7 @@ const shouldRenderStreamingSection = (liveStatus: LiveStatusModel): boolean =>
 	liveStatus.phase === "reconnecting" ||
 	liveStatus.hasAccumulatedOutput;
 
-type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
+type ChatStreamStoreHandle = ReturnType<typeof useChatStreamStore>["store"];
 
 interface LiveStreamTailContentProps {
 	isTranscriptEmpty: boolean;
@@ -37,7 +36,6 @@ interface LiveStreamTailContentProps {
 	liveStatus: LiveStatusModel;
 	subagentTitles: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
-	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
@@ -49,7 +47,6 @@ export const LiveStreamTailContent = ({
 	liveStatus,
 	subagentTitles,
 	subagentVariants,
-	subagentStatusOverrides,
 	urlTransform,
 	mcpServers,
 }: LiveStreamTailContentProps) => {
@@ -88,7 +85,6 @@ export const LiveStreamTailContent = ({
 					liveStatus={liveStatus}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
-					subagentStatusOverrides={subagentStatusOverrides}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 				/>
@@ -112,7 +108,10 @@ export const LiveStreamTailContent = ({
 };
 
 interface LiveStreamTailProps {
-	store: ChatStoreHandle;
+	store: ChatStreamStoreHandle;
+	chatStatus: TypesGen.ChatStatus;
+	actionRequired?: TypesGen.ChatStreamActionRequired;
+	latestMessage: TypesGen.ChatMessage | undefined;
 	persistedError: ChatDetailError | undefined;
 	isTranscriptEmpty: boolean;
 	subagentTitles: Map<string, string>;
@@ -123,6 +122,9 @@ interface LiveStreamTailProps {
 
 export const LiveStreamTail = ({
 	store,
+	chatStatus,
+	actionRequired,
+	latestMessage,
 	persistedError,
 	isTranscriptEmpty,
 	subagentTitles,
@@ -131,28 +133,33 @@ export const LiveStreamTail = ({
 	mcpServers,
 }: LiveStreamTailProps) => {
 	const streamState = useChatSelector(store, selectStreamState);
-	const streamError = useChatSelector(store, selectStreamError);
+	const transientError = useChatSelector(store, selectTransientError);
 	const retryState = useChatSelector(store, selectRetryState);
 	const reconnectState = useChatSelector(store, selectReconnectState);
-	const isAwaitingFirstStreamChunk = useChatSelector(
-		store,
-		selectIsAwaitingFirstStreamChunk,
-	);
-	const subagentStatusOverrides = useChatSelector(
-		store,
-		selectSubagentStatusOverrides,
+	const awaitingFirstStreamChunk = isAwaitingFirstStreamChunk(
+		chatStatus,
+		streamState,
+		latestMessage,
 	);
 	const streamTools = buildStreamTools(
 		streamState?.toolCalls,
 		streamState?.toolResults,
 	);
+	const unsupportedActionError: ChatDetailError | null = actionRequired
+		? {
+				kind: "generic",
+				message:
+					"This agent requested client-side tools that Coder Agents cannot execute yet.",
+				detail: `${actionRequired.tool_calls.length} pending tool call${actionRequired.tool_calls.length === 1 ? "" : "s"}.`,
+			}
+		: null;
 	const liveStatus = deriveLiveStatus({
 		streamState,
 		retryState,
 		reconnectState,
-		streamError,
-		persistedError: persistedError ?? null,
-		isAwaitingFirstStreamChunk,
+		streamError: transientError,
+		persistedError: unsupportedActionError ?? persistedError ?? null,
+		isAwaitingFirstStreamChunk: awaitingFirstStreamChunk,
 	});
 
 	return (
@@ -163,7 +170,6 @@ export const LiveStreamTail = ({
 			liveStatus={liveStatus}
 			subagentTitles={subagentTitles}
 			subagentVariants={subagentVariants}
-			subagentStatusOverrides={subagentStatusOverrides}
 			urlTransform={urlTransform}
 			mcpServers={mcpServers}
 		/>

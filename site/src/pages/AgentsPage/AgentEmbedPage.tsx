@@ -19,10 +19,6 @@ import {
 	bootstrapChatEmbedSession,
 	EmbedContext,
 } from "./components/EmbedContext";
-import {
-	type ChatDetailError,
-	chatDetailErrorsEqual,
-} from "./utils/usageLimitMessage";
 
 type BootstrapMessage = {
 	type: "coder:vscode-auth-bootstrap";
@@ -102,45 +98,7 @@ const AgentEmbedPage: FC = () => {
 
 	const inFlightBootstrapRef = useRef<Promise<unknown> | null>(null);
 
-	const [chatErrorReasons, setChatErrorReasons] = useState<
-		Record<string, ChatDetailError>
-	>({});
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-
-	const setChatErrorReason = (chatId: string, reason: ChatDetailError) => {
-		const trimmedMessage = reason.message.trim();
-		if (!chatId || !trimmedMessage) {
-			return;
-		}
-		const nextReason: ChatDetailError = {
-			...reason,
-			message: trimmedMessage,
-		};
-		setChatErrorReasons((current) => {
-			const existing = current[chatId];
-			if (chatDetailErrorsEqual(existing, nextReason)) {
-				return current;
-			}
-			return {
-				...current,
-				[chatId]: nextReason,
-			};
-		});
-	};
-
-	const clearChatErrorReason = (chatId: string) => {
-		if (!chatId) {
-			return;
-		}
-		setChatErrorReasons((current) => {
-			if (!(chatId in current)) {
-				return current;
-			}
-			const next = { ...current };
-			delete next[chatId];
-			return next;
-		});
-	};
 
 	const requestArchiveAgent = (_chatId: string) => {};
 
@@ -222,9 +180,6 @@ const AgentEmbedPage: FC = () => {
 	};
 
 	const outletContext: AgentsOutletContext = {
-		chatErrorReasons,
-		setChatErrorReason,
-		clearChatErrorReason,
 		requestArchiveAgent,
 		requestUnarchiveAgent,
 		requestPinAgent: () => {},

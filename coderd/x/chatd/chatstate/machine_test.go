@@ -23,6 +23,12 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+type publisherFunc func(string, []byte) error
+
+func (f publisherFunc) Publish(channel string, payload []byte) error {
+	return f(channel, payload)
+}
+
 // testFixture bundles the resources every integration test needs:
 // a database, a publisher recorder, a user/org/model triple, and
 // helper accessors. It is intentionally NOT a generic chatd test
@@ -256,6 +262,38 @@ func TestChatMachine_UpdatePublishesAfterCommit(t *testing.T) {
 		}
 	}
 	require.True(t, found, "expected one chat:update message after commit")
+}
+
+func TestChatMachine_UpdateReturnsPublishErrorAfterCommit(t *testing.T) {
+	t.Parallel()
+
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+	before := f.readChat(ctx, t, created.Chat.ID)
+	publishErr := xerrors.New("publish failed")
+	publisher := publisherFunc(func(string, []byte) error { return publishErr })
+	m := chatstate.NewChatMachine(f.DB, publisher, created.Chat.ID)
+
+	err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		message := userTextMessage("committed", f.User.ID, f.Model.ID)
+		message.APIKeyID = f.apiKeyID()
+		_, err := tx.SendMessage(chatstate.SendMessageInput{
+			Message:      message,
+			BusyBehavior: chatstate.BusyBehaviorQueue,
+		})
+		return err
+	})
+	require.ErrorIs(t, err, publishErr)
+
+	after := f.readChat(ctx, t, created.Chat.ID)
+	require.Greater(t, after.SnapshotVersion, before.SnapshotVersion,
+		"state transition remains committed when post-commit publication fails")
+	messages, err := f.DB.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID: created.Chat.ID,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, messages, "committed message remains durable after publication failure")
 }
 
 func TestChatMachine_FailedUpdate_PublishesNothing(t *testing.T) {

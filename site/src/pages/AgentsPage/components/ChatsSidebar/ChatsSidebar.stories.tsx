@@ -98,7 +98,6 @@ const meta: Meta<typeof ChatsSidebar> = {
 	component: ChatsSidebar,
 	decorators: [withAuthProvider, withDashboardProvider],
 	args: {
-		chatErrorReasons: {},
 		modelOptions: defaultModelOptions,
 		modelConfigs: defaultModelConfigs,
 		onArchiveAgent: fn(),
@@ -223,9 +222,9 @@ export const SharedUnreadChat: Story = {
 		const canvas = within(canvasElement);
 
 		await expect(canvas.getByLabelText("Shared chat")).toBeInTheDocument();
-		await expect(
-			canvas.getByTestId("unread-indicator-shared-unread-chat"),
-		).toBeInTheDocument();
+		expect(
+			canvas.queryByTestId("unread-indicator-shared-unread-chat"),
+		).not.toBeInTheDocument();
 	},
 };
 

@@ -11,7 +11,7 @@ import {
 import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { v4 as uuidv4 } from "uuid";
-import { chatDiffContentsKey } from "#/api/queries/chats";
+import { invalidateCachedChatDiff } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type {
 	AgentChatSendShortcut,
@@ -33,7 +33,7 @@ import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
 } from "./components/AgentsSkeletons";
-import type { useChatStore } from "./components/ChatConversation/chatStore";
+import type { useChatStreamStore } from "./components/ChatConversation/chatStreamStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
 import type { PendingAttachment } from "./components/ChatPageContent";
@@ -70,7 +70,7 @@ import {
 } from "./utils/sidebarTabStorage";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
-type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
+type ChatStreamStoreHandle = ReturnType<typeof useChatStreamStore>["store"];
 
 type ChatOwnerInfo = {
 	name?: string;
@@ -115,6 +115,8 @@ interface AgentChatPageViewProps {
 	organizationId: string | undefined;
 	chatTitle: string | undefined;
 	parentChat: TypesGen.Chat | undefined;
+	chatStatus: TypesGen.ChatStatus;
+	actionRequired?: TypesGen.ChatStreamActionRequired;
 	persistedError: ChatDetailError | undefined;
 	isArchived: boolean;
 	isSharedChat: boolean;
@@ -125,7 +127,7 @@ interface AgentChatPageViewProps {
 	chatBuildId?: string;
 
 	// Store handle.
-	store: ChatStoreHandle;
+	store: ChatStreamStoreHandle;
 
 	// Editing state.
 	editing: EditingState;
@@ -208,6 +210,8 @@ interface AgentChatPageViewProps {
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
 	onFetchMoreMessages: () => void;
+	messages: readonly TypesGen.ChatMessage[];
+	queuedMessages: readonly TypesGen.ChatQueuedMessage[];
 	messageCount: number;
 
 	urlTransform?: UrlTransform;
@@ -315,6 +319,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	organizationId,
 	chatTitle,
 	parentChat,
+	chatStatus,
+	actionRequired,
 	persistedError,
 	isArchived,
 	isSharedChat,
@@ -378,6 +384,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	onFetchMoreMessages,
+	messages,
+	queuedMessages,
 	messageCount,
 	urlTransform,
 	mcpServers,
@@ -403,10 +411,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const handleRefresh = () => {
 		const sent = gitWatcher.refresh();
 		if (sent && agentId) {
-			void queryClient.invalidateQueries({
-				queryKey: chatDiffContentsKey(agentId),
-				exact: true,
-			});
+			void invalidateCachedChatDiff(queryClient, agentId);
 		}
 		return sent;
 	};
@@ -901,6 +906,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							<div className="px-4" data-chat-scroll-content>
 								<ChatPageTimeline
 									store={store}
+									chatStatus={chatStatus}
+									actionRequired={actionRequired}
+									messages={messages}
 									persistedError={persistedError}
 									onEditUserMessage={
 										isOtherUserReadOnly
@@ -923,9 +931,12 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						</ChatScrollContainer>
 						<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 							<ChatPageInput
+								chatStatus={chatStatus}
 								organizationId={organizationId}
 								sendShortcut={sendShortcut}
 								store={store}
+								messages={messages}
+								queuedMessages={queuedMessages}
 								compressionThreshold={compressionThreshold}
 								onSend={editing.handleSendFromInput}
 								onDeleteQueuedMessage={handleDeleteQueuedMessage}

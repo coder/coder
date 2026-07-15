@@ -1,8 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "react-query";
-import { chatKey } from "#/api/queries/chats";
+import { invalidateCachedChat } from "#/api/queries/chats";
 import { invalidateWorkspaceMutationQueries } from "#/api/queries/workspaces";
-import { type ChatStore, useChatSelector } from "./chatStore";
+import type * as TypesGen from "#/api/typesGenerated";
+import { type ChatStreamStore, useChatSelector } from "./chatStreamStore";
 import type { StreamState } from "./types";
 
 type ChatToolResult = Pick<
@@ -20,7 +21,8 @@ const selectStreamToolResults = (state: {
 	state.streamState?.toolResults ?? null;
 
 interface UseChatToolInvalidationsOptions {
-	store: ChatStore;
+	store: ChatStreamStore;
+	messages: readonly TypesGen.ChatMessage[];
 	chatID: string | undefined;
 	organizationName: string;
 	username: string;
@@ -39,12 +41,37 @@ const WORKSPACE_MUTATION_TOOL_NAMES = new Set([
  */
 export function useChatToolInvalidations({
 	store,
+	messages,
 	chatID,
 	organizationName,
 	username,
 }: UseChatToolInvalidationsOptions): void {
 	const queryClient = useQueryClient();
-	const toolResults = useChatSelector(store, selectStreamToolResults);
+	const streamToolResults = useChatSelector(store, selectStreamToolResults);
+	const toolResults = useMemo(() => {
+		const byID = new Map<string, ChatToolResult>();
+		for (const result of Object.values(streamToolResults ?? {})) {
+			byID.set(result.id, result);
+		}
+		for (const message of messages) {
+			for (const part of message.content ?? []) {
+				if (
+					part.type !== "tool-result" ||
+					part.provider_executed ||
+					!part.tool_call_id ||
+					!part.tool_name
+				) {
+					continue;
+				}
+				byID.set(part.tool_call_id, {
+					id: part.tool_call_id,
+					name: part.tool_name,
+					isStreaming: false,
+				});
+			}
+		}
+		return Array.from(byID.values());
+	}, [messages, streamToolResults]);
 	const processedToolCallIdsRef = useRef<Set<string>>(new Set());
 	const chatIDRef = useRef(chatID);
 
@@ -54,7 +81,7 @@ export function useChatToolInvalidations({
 			processedToolCallIdsRef.current.clear();
 		}
 
-		if (!toolResults || !chatID) {
+		if (!chatID) {
 			processedToolCallIdsRef.current.clear();
 			return;
 		}
@@ -62,7 +89,7 @@ export function useChatToolInvalidations({
 		let shouldInvalidateChat = false;
 		let shouldInvalidateWorkspace = false;
 
-		for (const toolResult of Object.values(toolResults)) {
+		for (const toolResult of toolResults) {
 			if (
 				toolResult.isStreaming ||
 				processedToolCallIdsRef.current.has(toolResult.id)
@@ -87,9 +114,7 @@ export function useChatToolInvalidations({
 		}
 
 		if (shouldInvalidateChat) {
-			void queryClient.invalidateQueries({
-				queryKey: chatKey(chatID),
-			});
+			void invalidateCachedChat(queryClient, chatID);
 		}
 
 		if (shouldInvalidateWorkspace) {

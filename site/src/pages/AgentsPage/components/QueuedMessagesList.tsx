@@ -5,7 +5,7 @@ import {
 	PencilIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+import { type FC, useState } from "react";
 import type { ChatMessagePart, ChatQueuedMessage } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -91,80 +91,32 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 		id: number;
 		action: "delete" | "promote";
 	} | null>(null);
-	const [optimisticallyHiddenIDs, setOptimisticallyHiddenIDs] = useState<
-		ReadonlySet<number>
-	>(new Set());
 
-	const hideItemOptimistically = (id: number) => {
-		setOptimisticallyHiddenIDs((current) => {
-			if (current.has(id)) {
-				return current;
-			}
-			const next = new Set(current);
-			next.add(id);
-			return next;
-		});
+	const clearBusyItem = (id: number) => {
+		setBusyItem((current) => (current?.id === id ? null : current));
 	};
-
-	const restoreHiddenItem = (id: number) => {
-		setOptimisticallyHiddenIDs((current) => {
-			if (!current.has(id)) {
-				return current;
-			}
-			const next = new Set(current);
-			next.delete(id);
-			return next;
-		});
-	};
-
-	useEffect(() => {
-		const liveIDs = new Set(messages.map((message) => message.id));
-		setOptimisticallyHiddenIDs((current) => {
-			if (current.size === 0) {
-				return current;
-			}
-			let didChange = false;
-			const next = new Set<number>();
-			for (const id of current) {
-				if (liveIDs.has(id)) {
-					next.add(id);
-					continue;
-				}
-				didChange = true;
-			}
-			return didChange ? next : current;
-		});
-	}, [messages]);
 
 	const handleDelete = async (id: number) => {
 		setBusyItem({ id, action: "delete" });
-		hideItemOptimistically(id);
 		try {
 			await onDelete(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
 		} catch {
-			restoreHiddenItem(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
+			// The mutation owns rollback and reconciliation.
 		}
+		clearBusyItem(id);
 	};
 
 	const handlePromote = async (id: number) => {
 		setBusyItem({ id, action: "promote" });
-		hideItemOptimistically(id);
 		try {
 			await onPromote(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
 		} catch {
-			restoreHiddenItem(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
+			// The mutation owns rollback and reconciliation.
 		}
+		clearBusyItem(id);
 	};
 
-	const visibleItems = items.filter(
-		(item) => !optimisticallyHiddenIDs.has(item.id),
-	);
-
-	if (visibleItems.length === 0) {
+	if (items.length === 0) {
 		return null;
 	}
 
@@ -177,7 +129,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 				className,
 			)}
 		>
-			{visibleItems.map((item, index) => {
+			{items.map((item, index) => {
 				const isEditing = item.id === editingMessageID;
 				const isFirst = index === 0;
 				const isItemBusy = busyItem !== null && busyItem.id === item.id;

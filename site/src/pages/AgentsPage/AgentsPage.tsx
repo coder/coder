@@ -12,27 +12,21 @@ import {
 	useSearchParams,
 } from "react-router";
 import { toast } from "sonner";
-import { API, watchChats } from "#/api/api";
+import { API } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import {
-	addChildToParentInCache,
 	applyChatArchiveStateToCaches,
 	archiveChat,
-	cancelChatListRefetches,
-	chatDiffContentsKey,
-	chatKey,
+	type ChatListProjection,
 	chatModelConfigs,
 	chatModels,
-	chatsByWorkspaceKeyPrefix,
+	getCachedChat,
 	infiniteChats,
 	invalidateChatListQueries,
-	mergeWatchedChatIntoCaches,
 	pinChat,
-	prependToInfiniteChatsCache,
 	proposeChatTitle,
-	readInfiniteChatsCache,
-	removeChildFromParentInCache,
 	reorderPinnedChat,
+	repairChatMetadataAfterMutation,
 	unarchiveChat,
 	unpinChat,
 	updateChatTitle,
@@ -53,11 +47,11 @@ import {
 	getDefaultOrganizationName,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
-import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
+import { useChatProjectionHints } from "./hooks/useChatProjectionHints";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
 	ArchiveAndDeleteError,
@@ -67,30 +61,14 @@ import {
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
-import { maybePlayChime } from "./utils/chime";
 import {
 	getModelOptionsFromConfigs,
 	providerInfoByIDFromUserConfigs,
 } from "./utils/modelOptions";
 import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
-import {
-	type ChatDetailError,
-	chatDetailErrorsEqual,
-} from "./utils/usageLimitMessage";
 
 export type { AgentsOutletContext } from "./AgentsPageView";
-
-const FILTER_MEMBERSHIP_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
-	"diff_status_change",
-	"status_change",
-]);
-
-export const shouldInvalidateFilteredChatList = (
-	chat: TypesGen.Chat,
-	eventKind: TypesGen.ChatWatchEventKind,
-): boolean =>
-	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
 
 const AgentsPage: FC = () => {
 	useAgentsPWA();
@@ -176,49 +154,12 @@ const AgentsPage: FC = () => {
 	const personalModelOverridesQuery = useQuery(
 		userChatPersonalModelOverrides(),
 	);
-	const [chatErrorReasons, setChatErrorReasons] = useState<
-		Record<string, ChatDetailError>
-	>({});
-	const setChatErrorReason = (chatId: string, reason: ChatDetailError) => {
-		const trimmedMessage = reason.message.trim();
-		if (!chatId || !trimmedMessage) {
-			return;
-		}
-		const nextReason: ChatDetailError = {
-			...reason,
-			message: trimmedMessage,
-		};
-		setChatErrorReasons((current) => {
-			const existing = current[chatId];
-			if (chatDetailErrorsEqual(existing, nextReason)) {
-				return current;
-			}
-			return {
-				...current,
-				[chatId]: nextReason,
-			};
-		});
-	};
-	const clearChatErrorReason = (chatId: string) => {
-		if (!chatId) {
-			return;
-		}
-		setChatErrorReasons((current) => {
-			if (!(chatId in current)) {
-				return current;
-			}
-			const next = { ...current };
-			delete next[chatId];
-			return next;
-		});
-	};
 
 	const archiveChatBase = archiveChat(queryClient);
 	const archiveAgentMutation = useMutation({
 		...archiveChatBase,
 		onSuccess: (data, chatId) => {
 			archiveChatBase.onSuccess(data, chatId);
-			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
 			clearPersistedRightPanelState(chatId);
 		},
@@ -243,17 +184,9 @@ const AgentsPage: FC = () => {
 			),
 		onSuccess: ({ chatId, workspaceId, deleteBuild }) => {
 			applyChatArchiveStateToCaches(queryClient, chatId, true);
-			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
 			clearPersistedRightPanelState(chatId);
-			void invalidateChatListQueries(queryClient);
-			void queryClient.invalidateQueries({
-				queryKey: chatKey(chatId),
-				exact: true,
-			});
-			void queryClient.invalidateQueries({
-				queryKey: chatsByWorkspaceKeyPrefix,
-			});
+			void repairChatMetadataAfterMutation(queryClient, chatId);
 			void invalidateWorkspaceMutationQueries(queryClient, {
 				organizationName,
 				username: user.username,
@@ -265,7 +198,8 @@ const AgentsPage: FC = () => {
 				deleteBuild,
 			);
 		},
-		onError: (error, { workspaceId }) => {
+		onError: (error, { chatId, workspaceId }) => {
+			void repairChatMetadataAfterMutation(queryClient, chatId);
 			notifyArchiveAndDeleteFailed(
 				queryClient.getQueryData<TypesGen.Workspace>(
 					workspaceByIdKey(workspaceId),
@@ -333,7 +267,16 @@ const AgentsPage: FC = () => {
 		chatModelsQuery.data,
 		providerInfoByIDFromUserConfigs(chatProviderConfigsQuery.data),
 	);
-	const chatList = chatsQuery.data?.pages.flat() ?? [];
+	const chatList: ChatListProjection[] = (
+		chatsQuery.data?.pages.flat() ?? []
+	).map((chat) => ({
+		...chat,
+		has_unread: chat.owner_id === user.id && chat.has_unread,
+		children: chat.children?.map((child) => ({
+			...child,
+			has_unread: child.owner_id === user.id && child.has_unread,
+		})),
+	}));
 	const isArchiving =
 		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
 	const archivingChatId =
@@ -345,7 +288,7 @@ const AgentsPage: FC = () => {
 			: undefined);
 	// A chat in any of these statuses has an in-flight run that
 	// archiving would interrupt, so ask for confirmation first.
-	const isActiveChat = (chat: TypesGen.Chat | undefined) =>
+	const isActiveChat = (chat: ChatListProjection | undefined) =>
 		chat?.status === "running" ||
 		chat?.status === "interrupting" ||
 		chat?.status === "requires_action";
@@ -354,7 +297,7 @@ const AgentsPage: FC = () => {
 			return;
 		}
 		const chat =
-			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId)) ??
+			getCachedChat(queryClient, chatId) ??
 			chatList.find((candidate) => candidate.id === chatId);
 		if (chat === undefined || isActiveChat(chat)) {
 			setPendingArchiveChatId(chatId);
@@ -373,10 +316,9 @@ const AgentsPage: FC = () => {
 		});
 	};
 
-	// Track the active chat ID in a ref so the watchChats
-	// WebSocket handler can read it without re-subscribing
-	// on every navigation.
+	// Archive callbacks read the active chat at callback time.
 	const activeChatIDRef = useRef(agentId);
+	useChatProjectionHints(agentId);
 	const navigateAfterArchive = (archivedChatId: string) => {
 		const activeChatId = activeChatIDRef.current;
 		if (
@@ -385,12 +327,11 @@ const AgentsPage: FC = () => {
 				archivedChatId,
 				// Read root_chat_id from the per-chat cache, which
 				// survives WebSocket eviction of sub-agents (only the
-				// parent's chatKey is removed). This must be read at
+				// parent's exact detail is removed). This must be read at
 				// callback time so it reflects the user's current
 				// location.
 				activeChatId
-					? queryClient.getQueryData<TypesGen.Chat>(chatKey(activeChatId))
-							?.root_chat_id
+					? getCachedChat(queryClient, activeChatId)?.root_chat_id
 					: undefined,
 			)
 		) {
@@ -422,9 +363,8 @@ const AgentsPage: FC = () => {
 						queryFn: () => API.getWorkspaceBuilds(workspaceId),
 					}),
 				() =>
-					readInfiniteChatsCache(queryClient)?.find(
-						(chat) => chat.id === chatId,
-					)?.created_at,
+					getCachedChat(queryClient, chatId)?.created_at ??
+					chatList.find((chat) => chat.id === chatId)?.created_at,
 			);
 			if (action === "proceed") {
 				archiveAndDeleteMutation.mutate(
@@ -523,126 +463,6 @@ const AgentsPage: FC = () => {
 		});
 		void invalidateChatListQueries(queryClient);
 	}, [agentId, queryClient]);
-	useEffect(() => {
-		return createReconnectingWebSocket({
-			connect() {
-				const ws = watchChats();
-
-				ws.addEventListener("message", (event) => {
-					if (event.parseError) {
-						console.warn("Failed to parse chat watch event:", event.parseError);
-						return;
-					}
-					const chatEvent = event.parsedMessage;
-					const updatedChat = chatEvent.chat;
-					// The old membership is only available before the cache write below.
-					const prevStatus = readInfiniteChatsCache(queryClient)?.find(
-						(chat) => chat.id === updatedChat.id,
-					)?.status;
-					// Only play the chime for top-level chats, not sub-agents.
-					if (!updatedChat.parent_chat_id) {
-						maybePlayChime(
-							prevStatus,
-							updatedChat.status,
-							updatedChat.id,
-							activeChatIDRef.current,
-						);
-					}
-
-					if (chatEvent.kind === "deleted") {
-						// Drop the chat from the flat root list (root or
-						// cascade via root_chat_id) and from any parent's
-						// embedded children (individual child archive).
-						updateInfiniteChatsCache(queryClient, (chats) =>
-							chats.filter(
-								(c) =>
-									c.id !== updatedChat.id && c.root_chat_id !== updatedChat.id,
-							),
-						);
-						removeChildFromParentInCache(queryClient, updatedChat.id);
-						queryClient.removeQueries({
-							queryKey: chatKey(updatedChat.id),
-							exact: true,
-						});
-						return;
-					}
-					if (chatEvent.kind === "diff_status_change") {
-						// Only refetch the diff file contents. The chat's
-						// diff_status field is already written into the
-						// chatKey and infinite-list caches below.
-						void queryClient.invalidateQueries({
-							queryKey: chatDiffContentsKey(updatedChat.id),
-							exact: true,
-						});
-					}
-					// Merge watch payloads by event kind so stale field
-					// snapshots do not clobber fresher cached metadata.
-
-					// Cancel in-flight list and per-chat refetches so
-					// they cannot overwrite the cache update below with
-					// stale server data. This matters when a title_change
-					// event races with a refetch triggered by
-					// createChat.onSuccess or the onOpen invalidation:
-					// the refetch may have been issued before the async
-					// title generation finished, so its response carries
-					// the fallback title.
-					void cancelChatListRefetches(queryClient);
-					// Only cancel a per-chat refetch when the cache
-					// already has data. Cancelling a first-time fetch
-					// reverts the query to pending/idle with no data
-					// and no retry, which AgentChatPage shows as
-					// "Chat not found".
-					if (queryClient.getQueryData(chatKey(updatedChat.id))) {
-						void queryClient.cancelQueries({
-							queryKey: chatKey(updatedChat.id),
-							exact: true,
-						});
-					}
-
-					if (chatEvent.kind === "created") {
-						if (updatedChat.parent_chat_id) {
-							// Child chat: add to its parent's children
-							// array. If the parent is not in any loaded
-							// page, the child is silently dropped.
-							addChildToParentInCache(
-								queryClient,
-								updatedChat,
-								updatedChat.parent_chat_id,
-							);
-						} else {
-							prependToInfiniteChatsCache(queryClient, updatedChat);
-							void invalidateChatListQueries(queryClient);
-						}
-					} else {
-						mergeWatchedChatIntoCaches(queryClient, updatedChat, {
-							eventKind: chatEvent.kind,
-							activeChatId: activeChatIDRef.current,
-						});
-						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
-							void invalidateChatListQueries(queryClient);
-						}
-						if (chatEvent.kind === "context_dirty") {
-							// The watch payload carries only the lightweight
-							// context flags (the merge above applies them);
-							// refetch the open chat to pull the pinned
-							// resources the single-chat GET computes. Only the
-							// active chat has an observer, so other chats are
-							// merely marked stale.
-							void queryClient.invalidateQueries({
-								queryKey: chatKey(updatedChat.id),
-								exact: true,
-							});
-						}
-					}
-				});
-				return ws;
-			},
-			onOpen() {
-				void invalidateChatListQueries(queryClient);
-			},
-		});
-	}, [queryClient]);
-
 	useAgentsPageKeybindings({
 		onNewAgent: handleNewAgent,
 		onToggleSearch: () => setIsSearchDialogOpen((open) => !open),
@@ -682,9 +502,6 @@ const AgentsPage: FC = () => {
 				onCollapseSidebar={() => setIsSidebarCollapsed(true)}
 				isSidebarCollapsed={isSidebarCollapsed}
 				onExpandSidebar={() => setIsSidebarCollapsed(false)}
-				chatErrorReasons={chatErrorReasons}
-				setChatErrorReason={setChatErrorReason}
-				clearChatErrorReason={clearChatErrorReason}
 				requestArchiveAgent={requestArchiveAgent}
 				requestUnarchiveAgent={requestUnarchiveAgent}
 				requestArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}

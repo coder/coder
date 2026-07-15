@@ -11,12 +11,8 @@ import {
 } from "./components/ChatsSidebar/ChatsSidebar";
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
 import type { AgentSidebarFilters } from "./utils/agentSidebarFilters";
-import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 export interface AgentsOutletContext {
-	chatErrorReasons: Record<string, ChatDetailError>;
-	setChatErrorReason: (chatId: string, reason: ChatDetailError) => void;
-	clearChatErrorReason: (chatId: string) => void;
 	requestArchiveAgent: (chatId: string) => void;
 	requestUnarchiveAgent: (chatId: string) => void;
 	requestArchiveAndDeleteWorkspace: (
@@ -57,9 +53,6 @@ interface AgentsPageViewProps {
 	onCollapseSidebar: () => void;
 	isSidebarCollapsed: boolean;
 	onExpandSidebar: () => void;
-	chatErrorReasons: Record<string, ChatDetailError>;
-	setChatErrorReason: (chatId: string, reason: ChatDetailError) => void;
-	clearChatErrorReason: (chatId: string) => void;
 	requestArchiveAgent: (chatId: string) => void;
 	requestUnarchiveAgent: (chatId: string) => void;
 	requestArchiveAndDeleteWorkspace: (
@@ -99,9 +92,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	onCollapseSidebar,
 	isSidebarCollapsed,
 	onExpandSidebar,
-	chatErrorReasons,
-	setChatErrorReason,
-	clearChatErrorReason,
 	requestArchiveAgent,
 	requestUnarchiveAgent,
 	requestArchiveAndDeleteWorkspace,
@@ -129,15 +119,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	const isSettingsDetail = isSettingsPanel && Boolean(sidebarView.section);
 	const isAnalytics = sidebarView.panel === "analytics";
 
-	// The sidebar expects plain string error messages, but the outlet
-	// context now carries structured ChatDetailError objects.
-	const sidebarChatErrorReasons = Object.fromEntries(
-		Object.entries(chatErrorReasons).map(([chatId, error]) => [
-			chatId,
-			error.message,
-		]),
-	);
-
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
 	// State for the shared rename-chat dialog. Lifted here so both the
@@ -146,9 +127,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		useState<TypesGen.Chat | null>(null);
 
 	const outletContextValue: AgentsOutletContext = {
-		chatErrorReasons,
-		setChatErrorReason,
-		clearChatErrorReason,
 		requestArchiveAgent,
 		requestUnarchiveAgent,
 		requestArchiveAndDeleteWorkspace,
@@ -185,7 +163,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 				<ChatsSidebar
 					chats={chatList}
 					currentUserId={currentUserId}
-					chatErrorReasons={sidebarChatErrorReasons}
 					modelOptions={catalogModelOptions}
 					modelConfigs={modelConfigs}
 					onArchiveAgent={requestArchiveAgent}

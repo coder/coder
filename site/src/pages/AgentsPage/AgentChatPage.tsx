@@ -13,7 +13,12 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { useOutletContext, useParams } from "react-router";
+import {
+	useLocation,
+	useNavigate,
+	useOutletContext,
+	useParams,
+} from "react-router";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import {
@@ -26,7 +31,6 @@ import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
-	chatKey,
 	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
 	chatModels,
@@ -34,9 +38,11 @@ import {
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
+	evictChatFamilyAfterAccessLoss,
 	interruptChat,
 	mcpServerConfigs,
 	promoteChatQueuedMessage,
+	updateCachedChat,
 	updateChatPlanMode,
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
@@ -77,12 +83,9 @@ import {
 	getWorkspaceAgent,
 } from "./components/ChatConversation/chatHelpers";
 import {
-	type ChatStore,
-	type ChatStoreState,
-	selectChatStatus,
-	useChatSelector,
-	useChatStore,
-} from "./components/ChatConversation/chatStore";
+	type ChatStreamStore,
+	useChatStreamStore,
+} from "./components/ChatConversation/chatStreamStore";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import {
@@ -137,86 +140,32 @@ export function getPersistedDraftInputValue(
 	).text;
 }
 
-/** @internal Exported for testing. */
-export const restoreOptimisticRequestSnapshot = (
-	store: Pick<
-		ChatStore,
-		| "batch"
-		| "setChatStatus"
-		| "setQueuedMessages"
-		| "setStreamError"
-		| "setStreamState"
-	>,
-	snapshot: Pick<
-		ChatStoreState,
-		"chatStatus" | "queuedMessages" | "streamError" | "streamState"
-	>,
-): void => {
-	store.batch(() => {
-		store.setQueuedMessages(snapshot.queuedMessages);
-		store.setChatStatus(snapshot.chatStatus);
-		store.setStreamState(snapshot.streamState);
-		store.setStreamError(snapshot.streamError);
-	});
-};
-
 /**
  * Runs the optimistic queued-message promotion flow.
  *
  * The promote endpoint returns 202 Accepted with no message body, so the
- * actual user message is delivered via SSE or the messages REST endpoint.
- * Suppress the promoted ID so the transient reordered queue published by
- * the running-case backend does not flash the message back into the
- * visible queue. Roll back queue, status, and suppression on API error.
+ * actual user message and complete queue are reconciled through React Query.
+ * This helper retains only the transient execution presentation changes.
  *
  * @internal Exported for testing.
  */
 export const runPromoteQueuedMessage = async (params: {
 	id: number;
 	store: Pick<
-		ChatStore,
-		| "batch"
-		| "clearStreamError"
-		| "clearStreamState"
-		| "getSnapshot"
-		| "setChatStatus"
-		| "setQueuedMessages"
-		| "setStreamError"
-		| "setStreamState"
-		| "suppressQueuedMessageID"
-		| "unsuppressQueuedMessageID"
+		ChatStreamStore,
+		"batch" | "clearStreamState" | "clearTransientError"
 	>;
 	promoteQueuedMessage: (id: number) => Promise<void>;
-	agentId: string | undefined;
-	clearChatErrorReason: (chatID: string) => void;
 	handleUsageLimitError: (error: unknown) => void;
 }): Promise<void> => {
-	const {
-		id,
-		store,
-		promoteQueuedMessage,
-		agentId,
-		clearChatErrorReason,
-		handleUsageLimitError,
-	} = params;
-	const previousSnapshot = store.getSnapshot();
+	const { id, store, promoteQueuedMessage, handleUsageLimitError } = params;
 	store.batch(() => {
-		store.suppressQueuedMessageID(id);
-		store.setQueuedMessages(
-			previousSnapshot.queuedMessages.filter((message) => message.id !== id),
-		);
 		store.clearStreamState();
-		store.clearStreamError();
-		store.setChatStatus("running");
+		store.clearTransientError();
 	});
-	if (agentId) {
-		clearChatErrorReason(agentId);
-	}
 	try {
 		await promoteQueuedMessage(id);
 	} catch (error) {
-		store.unsuppressQueuedMessageID(id);
-		restoreOptimisticRequestSnapshot(store, previousSnapshot);
 		handleUsageLimitError(error);
 		throw error;
 	}
@@ -612,26 +561,12 @@ export function useConversationEditingState(deps: {
 	};
 }
 
-const getPersistedDetailError = ({
-	chatStatus,
-	chatRecord,
-	cachedError,
-}: {
-	chatStatus: TypesGen.ChatStatus | null;
-	chatRecord: TypesGen.Chat | undefined;
-	cachedError: ChatDetailError | undefined;
-}): ChatDetailError | undefined => {
-	if (cachedError?.kind === "usage_limit") {
-		return cachedError;
-	}
-	if (chatStatus !== "error") {
-		return undefined;
-	}
-	if (cachedError) {
-		return cachedError;
-	}
-	return normalizeChatErrorPayload(chatRecord?.last_error);
-};
+const getPersistedDetailError = (
+	chatRecord: TypesGen.Chat | undefined,
+): ChatDetailError | undefined =>
+	chatRecord?.status === "error"
+		? normalizeChatErrorPayload(chatRecord.last_error)
+		: undefined;
 
 /**
  * Resolves the effective compaction threshold for a model configuration,
@@ -706,10 +641,11 @@ const _agentFieldGuard: Record<keyof _UncoveredAgentFields, true> = {};
 
 const AgentChatPage: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
+	const location = useLocation();
+	const navigate = useNavigate();
+	const [accessLostChatID, setAccessLostChatID] = useState<string | null>(null);
+	const chatAccessLost = accessLostChatID === agentId;
 	const {
-		chatErrorReasons,
-		setChatErrorReason,
-		clearChatErrorReason,
 		requestArchiveAgent,
 		requestArchiveAndDeleteWorkspace,
 		requestUnarchiveAgent,
@@ -758,11 +694,36 @@ const AgentChatPage: FC = () => {
 
 	const chatQuery = useQuery({
 		...chat(agentId ?? ""),
-		enabled: Boolean(agentId),
+		enabled: Boolean(agentId) && !chatAccessLost,
 	});
+	useEffect(() => {
+		if (
+			!agentId ||
+			!isApiError(chatQuery.error) ||
+			(chatQuery.error.response?.status !== 403 &&
+				chatQuery.error.response?.status !== 404)
+		) {
+			return;
+		}
+		setAccessLostChatID(agentId);
+		evictChatFamilyAfterAccessLoss(queryClient, agentId);
+		if (!location.pathname.includes("/embed")) {
+			navigate(
+				{ pathname: "/agents", search: location.search },
+				{ replace: true },
+			);
+		}
+	}, [
+		agentId,
+		chatQuery.error,
+		location.pathname,
+		location.search,
+		navigate,
+		queryClient,
+	]);
 	const chatMessagesQuery = useInfiniteQuery({
 		...chatMessagesForInfiniteScroll(agentId ?? ""),
-		enabled: Boolean(agentId),
+		enabled: Boolean(agentId) && !chatAccessLost,
 	});
 	const parentChatID = getParentChatID(chatQuery.data);
 	const parentChatQuery = useQuery({
@@ -966,38 +927,8 @@ const AgentChatPage: FC = () => {
 		return getDefaultMCPSelection(mcpServers);
 	})();
 
-	// Flatten paginated messages into chronological order.
-	// Pages arrive newest-first per page, and pages[0] is the
-	// most recent page.
-	const chatMessagesList = (() => {
-		const pages = chatMessagesQuery.data?.pages;
-		if (!pages || pages.length === 0) return undefined;
-		// Collect all messages and deduplicate by ID.
-		// Cross-page duplication can occur when upsertCacheMessages
-		// writes a message into page 0 while the same ID still
-		// exists in a later page. Last occurrence wins so the
-		// most up-to-date content is preserved.
-		const all = pages.flatMap((p) => p.messages);
-		const byID = new Map(all.map((m) => [m.id, m]));
-		const deduped = Array.from(byID.values());
-		// Sort ascending by ID for chronological order.
-		deduped.sort((a, b) => a.id - b.id);
-		return deduped;
-	})();
-
-	// Queued messages are only in the first page (most recent).
-	const chatQueuedMessages = chatMessagesQuery.data?.pages[0]?.queued_messages;
-
-	// Build a synthetic ChatMessagesResponse from the flattened
-	// data for backward compat with useChatStore.
-	const chatMessagesData: TypesGen.ChatMessagesResponse | undefined =
-		chatMessagesList
-			? {
-					messages: chatMessagesList,
-					queued_messages: chatQueuedMessages ?? [],
-					has_more: chatMessagesQuery.data?.pages.at(-1)?.has_more ?? false,
-				}
-			: undefined;
+	const chatMessages = chatMessagesQuery.data?.messages;
+	const chatQueuedMessages = chatMessagesQuery.data?.queuedMessages;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
 	// Destructure mutation results directly so the React Compiler
@@ -1052,7 +983,7 @@ const AgentChatPage: FC = () => {
 				chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
 			),
 		);
-		queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), (previousChat) =>
+		updateCachedChat(queryClient, chatId, (previousChat) =>
 			previousChat ? { ...previousChat, plan_mode: planMode } : previousChat,
 		);
 	};
@@ -1074,23 +1005,14 @@ const AgentChatPage: FC = () => {
 	};
 
 	const aiGatewayDisabled = !useAIGatewayEnabled();
-	const { store, clearStreamError, upsertCacheMessages } = useChatStore({
+	const { store, clearTransientError } = useChatStreamStore({
 		chatID: agentId,
-		chatMessages: chatMessagesList,
+		chatMessages,
 		chatRecord,
-		chatMessagesData,
-		chatQueuedMessages,
-		setChatErrorReason,
-		clearChatErrorReason,
+		isSharedViewer: isViewerNotOwner,
 		aiGatewayDisabled,
 	});
-	const liveChatStatus =
-		useChatSelector(store, selectChatStatus) ?? chatRecord?.status ?? null;
-	const persistedError = getPersistedDetailError({
-		chatStatus: liveChatStatus,
-		chatRecord,
-		cachedError: agentId ? chatErrorReasons[agentId] : undefined,
-	});
+	const persistedError = getPersistedDetailError(chatRecord);
 
 	// Git watcher: runs regardless of sidebar visibility, but only
 	// connects when the workspace agent is in the "connected" state
@@ -1104,6 +1026,7 @@ const AgentChatPage: FC = () => {
 	// with the server state those tools may have changed.
 	useChatToolInvalidations({
 		store,
+		messages: chatMessages ?? [],
 		chatID: agentId,
 		organizationName,
 		username: currentUser.username,
@@ -1221,8 +1144,7 @@ const AgentChatPage: FC = () => {
 				kind: "usage_limit",
 				message: formatUsageLimitMessage(error.response.data),
 			};
-			store.setStreamError(reason);
-			setChatErrorReason(agentId, reason);
+			store.setTransientError(reason);
 		} else if (isApiError(error)) {
 			const detail = error.response?.data?.detail?.trim() || undefined;
 			const reason: ChatDetailError = {
@@ -1230,8 +1152,7 @@ const AgentChatPage: FC = () => {
 				message: getErrorMessage(error, "An unexpected error occurred."),
 				...(detail ? { detail } : {}),
 			};
-			store.setStreamError(reason);
-			setChatErrorReason(agentId, reason);
+			store.setTransientError(reason);
 		}
 	};
 
@@ -1239,7 +1160,7 @@ const AgentChatPage: FC = () => {
 		if (!agentId || isInterruptPending) {
 			return;
 		}
-		void interrupt();
+		void interrupt(undefined).catch(handleUsageLimitError);
 	};
 
 	const handleWorkspaceChange = (nextWorkspaceId: string | null) => {
@@ -1255,26 +1176,13 @@ const AgentChatPage: FC = () => {
 		);
 	};
 
-	const handleDeleteQueuedMessage = async (id: number) => {
-		const previousQueuedMessages = store.getSnapshot().queuedMessages;
-		store.setQueuedMessages(
-			previousQueuedMessages.filter((message) => message.id !== id),
-		);
-		try {
-			await deleteQueuedMessage(id);
-		} catch (error) {
-			store.setQueuedMessages(previousQueuedMessages);
-			throw error;
-		}
-	};
+	const handleDeleteQueuedMessage = (id: number) => deleteQueuedMessage(id);
 
 	const handlePromoteQueuedMessage = (id: number) =>
 		runPromoteQueuedMessage({
 			id,
 			store,
 			promoteQueuedMessage,
-			agentId,
-			clearChatErrorReason,
 			handleUsageLimitError,
 		});
 
@@ -1351,28 +1259,16 @@ const AgentChatPage: FC = () => {
 				}
 			: undefined;
 
-	// Signal ready only after the store has synced fetched messages,
-	// so the DOM actually contains them when the parent scrolls.
+	// Signal ready after the canonical message projection has rendered.
 	const chatReadyFiredRef = useRef<string | null>(null);
-	const storeMessageCount = useChatSelector(store, (s) => s.messagesByID.size);
-	const fetchedMessageCount = chatMessagesList?.length ?? 0;
+	const messageCount = chatMessages?.length ?? 0;
 	useEffect(() => {
-		if (
-			chatReadyFiredRef.current === agentId ||
-			!chatMessagesQuery.isSuccess ||
-			storeMessageCount < fetchedMessageCount
-		) {
+		if (chatReadyFiredRef.current === agentId || !chatMessagesQuery.isSuccess) {
 			return;
 		}
 		chatReadyFiredRef.current = agentId ?? null;
 		onChatReady();
-	}, [
-		onChatReady,
-		storeMessageCount,
-		fetchedMessageCount,
-		chatMessagesQuery.isSuccess,
-		agentId,
-	]);
+	}, [onChatReady, chatMessagesQuery.isSuccess, agentId]);
 
 	// Primitives extracted from proxy/workspace so the compiler
 	// tracks stable strings, not object identity.
@@ -1469,7 +1365,7 @@ const AgentChatPage: FC = () => {
 		]);
 
 		if (editedMessageID !== undefined) {
-			const originalEditedMessage = chatMessagesList?.find(
+			const originalEditedMessage = chatMessages?.find(
 				(existingMessage) => existingMessage.id === editedMessageID,
 			);
 			const originalModelConfigID = originalEditedMessage?.model_config_id;
@@ -1502,14 +1398,8 @@ const AgentChatPage: FC = () => {
 						attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
 					})
 				: undefined;
-			const previousSnapshot = store.getSnapshot();
-			clearChatErrorReason(agentId);
-			clearStreamError();
-			store.batch(() => {
-				store.setQueuedMessages([]);
-				store.setChatStatus("running");
-				store.clearStreamState();
-			});
+			clearTransientError();
+			store.clearStreamState();
 			await submitEditAndScroll({
 				editMessage,
 				editArgs: {
@@ -1518,10 +1408,7 @@ const AgentChatPage: FC = () => {
 					req: request,
 				},
 				scrollToBottom: scrollToBottomRef.current,
-				onError: (error) => {
-					restoreOptimisticRequestSnapshot(store, previousSnapshot);
-					handleUsageLimitError(error);
-				},
+				onError: handleUsageLimitError,
 			});
 			if (editSelectedModelConfigID) {
 				localStorage.setItem(
@@ -1548,8 +1435,7 @@ const AgentChatPage: FC = () => {
 					}
 				: {}),
 		};
-		clearChatErrorReason(agentId);
-		clearStreamError();
+		clearTransientError();
 		scrollToBottomRef.current?.();
 
 		// Don't clear stream state before the POST completes.
@@ -1569,19 +1455,6 @@ const AgentChatPage: FC = () => {
 		// WebSocket stream.
 		if (!response.queued) {
 			store.clearStreamState();
-			// Optimistically set status to "running" so the
-			// Thinking indicator appears immediately.
-			// The server accepted the message (not queued),
-			// so it will start processing. The WebSocket
-			// status:running event no-ops via the
-			// setChatStatus guard. If the server transitions
-			// to error/pending instead, the WebSocket event
-			// overrides this optimistic value.
-			store.setChatStatus("running");
-			if (response.message) {
-				store.upsertDurableMessage(response.message);
-				upsertCacheMessages([response.message]);
-			}
 		}
 		if (selectedModelConfigID) {
 			localStorage.setItem(lastModelConfigIDStorageKey, selectedModelConfigID);
@@ -1623,7 +1496,7 @@ const AgentChatPage: FC = () => {
 		});
 	};
 
-	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
+	if (!chatAccessLost && (chatQuery.isLoading || chatMessagesQuery.isLoading)) {
 		return (
 			<AgentChatPageLoadingView
 				sendShortcut={getAgentChatSendShortcut(
@@ -1652,7 +1525,7 @@ const AgentChatPage: FC = () => {
 		);
 	}
 
-	if (!chatQuery.data || !chatMessagesQuery.data?.pages?.length || !agentId) {
+	if (!chatQuery.data || !chatMessagesQuery.data || !agentId) {
 		return (
 			<AgentChatPageNotFoundView
 				titleElement={titleElement}
@@ -1673,6 +1546,8 @@ const AgentChatPage: FC = () => {
 			organizationId={chatQuery.data?.organization_id}
 			chatTitle={chatTitle}
 			parentChat={parentChat}
+			chatStatus={chatQuery.data.status}
+			actionRequired={chatQuery.data.action_required}
 			persistedError={persistedError}
 			isArchived={isArchived}
 			isSharedChat={isSharedChat}
@@ -1749,7 +1624,9 @@ const AgentChatPage: FC = () => {
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
 			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
 			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
-			messageCount={storeMessageCount}
+			messages={chatMessages ?? []}
+			queuedMessages={chatQueuedMessages ?? []}
+			messageCount={messageCount}
 			desktopChatId={desktopEnabled ? agentId : undefined}
 			mcpServers={mcpServers}
 			selectedMCPServerIds={effectiveMCPServerIds}

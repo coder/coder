@@ -22,15 +22,12 @@ import {
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
 import {
-	selectChatStatus,
+	isAwaitingFirstStreamChunk,
 	selectHasStreamState,
-	selectIsAwaitingFirstStreamChunk,
-	selectMessagesByID,
-	selectOrderedMessageIDs,
-	selectQueuedMessages,
+	selectStreamState,
 	useChatSelector,
-	type useChatStore,
-} from "./ChatConversation/chatStore";
+	type useChatStreamStore,
+} from "./ChatConversation/chatStreamStore";
 import { LiveStreamTail } from "./ChatConversation/LiveStreamTail";
 import {
 	buildSubagentMaps,
@@ -40,14 +37,13 @@ import {
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { ModelSelectorOption } from "./ChatElements";
 
-type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
-
-const isChatMessage = (
-	message: TypesGen.ChatMessage | undefined,
-): message is TypesGen.ChatMessage => Boolean(message);
+type ChatStreamStoreHandle = ReturnType<typeof useChatStreamStore>["store"];
 
 interface ChatPageTimelineProps {
-	store: ChatStoreHandle;
+	store: ChatStreamStoreHandle;
+	chatStatus: TypesGen.ChatStatus;
+	actionRequired?: TypesGen.ChatStreamActionRequired;
+	messages: readonly TypesGen.ChatMessage[];
 	persistedError: ChatDetailError | undefined;
 	onEditUserMessage?: (
 		messageId: number,
@@ -63,6 +59,9 @@ interface ChatPageTimelineProps {
 
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	store,
+	chatStatus,
+	actionRequired,
+	messages,
 	persistedError,
 	onEditUserMessage,
 	editingMessageId,
@@ -72,29 +71,15 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	mcpServers,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
-	const messagesByID = useChatSelector(store, selectMessagesByID);
-	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
-	const chatStatus = useChatSelector(store, selectChatStatus);
-	const hasStream = useChatSelector(store, selectHasStreamState);
-	const isAwaitingFirstStreamChunk = useChatSelector(
-		store,
-		selectIsAwaitingFirstStreamChunk,
+	const streamState = useChatSelector(store, selectStreamState);
+	const hasStream = streamState !== null;
+	const awaitingFirstStreamChunk = isAwaitingFirstStreamChunk(
+		chatStatus,
+		streamState,
+		messages.at(-1),
 	);
 	const isChatCompleted = !hasStream;
 
-	const messages = orderedMessageIDs
-		.map((messageID) => {
-			const message = messagesByID.get(messageID);
-			if (!message && process.env.NODE_ENV !== "production") {
-				console.warn(
-					`[ChatPageContent] orderedMessageIDs contains ID ${messageID} ` +
-						"not found in messagesByID. This may indicate a store/cache " +
-						"desync bug.",
-				);
-			}
-			return message;
-		})
-		.filter(isChatMessage);
 	const pendingToolCallIDs = getPendingToolCallIDs(messages, chatStatus);
 	const parsedMessages = parseMessagesWithMergedTools(messages, {
 		pendingToolCallIDs,
@@ -127,13 +112,16 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 					isChatCompleted={isChatCompleted}
 					hasActiveStream={hasStream}
-					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
+					isAwaitingFirstStreamChunk={awaitingFirstStreamChunk}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 					showDesktopPreviews={false}
 				/>
 				<LiveStreamTail
 					store={store}
+					chatStatus={chatStatus}
+					actionRequired={actionRequired}
+					latestMessage={messages.at(-1)}
 					persistedError={persistedError}
 					isTranscriptEmpty={parsedMessages.length === 0}
 					subagentTitles={subagentTitles}
@@ -152,9 +140,12 @@ export type PendingAttachment = {
 };
 
 interface ChatPageInputProps {
+	chatStatus: TypesGen.ChatStatus;
 	// Organization that owns this chat. Used to scope file uploads.
 	organizationId: string | undefined;
-	store: ChatStoreHandle;
+	store: ChatStreamStoreHandle;
+	messages: readonly TypesGen.ChatMessage[];
+	queuedMessages: readonly TypesGen.ChatQueuedMessage[];
 	compressionThreshold: number | undefined;
 	onSend: (
 		message: string,
@@ -229,8 +220,11 @@ interface ChatPageInputProps {
 }
 
 export const ChatPageInput: FC<ChatPageInputProps> = ({
+	chatStatus,
 	organizationId,
 	store,
+	messages,
+	queuedMessages,
 	compressionThreshold,
 	onSend,
 	sendShortcut,
@@ -285,25 +279,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	attachedWorkspace,
 	folder,
 }) => {
-	const messagesByID = useChatSelector(store, selectMessagesByID);
-	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
-	const chatStatus = useChatSelector(store, selectChatStatus);
-	const queuedMessages = useChatSelector(store, selectQueuedMessages);
 
-	const messages = orderedMessageIDs
-		.map((messageID) => {
-			const message = messagesByID.get(messageID);
-			if (!message && process.env.NODE_ENV !== "production") {
-				console.warn(
-					`[ChatPageContent] orderedMessageIDs contains ID ${messageID} ` +
-						"not found in messagesByID. This may indicate a store/cache " +
-						"desync bug.",
-				);
-			}
-			return message;
-		})
-		.filter(isChatMessage);
 	// Source the composer's prompt-history cycle from the dedicated /prompts endpoint.
 	const { data: promptsData } = useQuery(chatPromptsQuery(chatId ?? ""));
 	const userPromptHistory: readonly string[] =

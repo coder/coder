@@ -3,9 +3,10 @@ import type { FC, PropsWithChildren } from "react";
 import { act } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { chat } from "#/api/queries/chats";
 import { getWorkspaceQuotaQueryKey } from "#/api/queries/workspaceQuota";
 import { workspacesQueryKeyPrefix } from "#/api/queries/workspaces";
-import { createChatStore } from "./chatStore";
+import { createChatStreamStore } from "./chatStreamStore";
 import type { StreamState } from "./types";
 import { useChatToolInvalidations } from "./useChatToolInvalidations";
 
@@ -39,7 +40,7 @@ const createStreamState = (
 });
 
 const createTestStore = (initial: StreamState | null = null) => {
-	const store = createChatStore();
+	const store = createChatStreamStore();
 	store.setStreamState(initial);
 
 	return {
@@ -82,6 +83,7 @@ describe("useChatToolInvalidations", () => {
 			(props: { chatID: string; organizationName: string; username: string }) =>
 				useChatToolInvalidations({
 					store,
+					messages: [],
 					...props,
 				}),
 			{
@@ -106,7 +108,8 @@ describe("useChatToolInvalidations", () => {
 
 		await waitFor(() => {
 			expect(invalidateSpy).toHaveBeenCalledWith({
-				queryKey: ["chats", "chat-1"],
+				queryKey: chat("chat-1").queryKey,
+				exact: true,
 			});
 			expect(invalidateSpy).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -144,7 +147,8 @@ describe("useChatToolInvalidations", () => {
 		});
 
 		expect(invalidateSpy).not.toHaveBeenCalledWith({
-			queryKey: ["chats", "chat-1"],
+			queryKey: chat("chat-1").queryKey,
+			exact: true,
 		});
 	});
 
@@ -183,7 +187,8 @@ describe("useChatToolInvalidations", () => {
 
 		await waitFor(() => {
 			expect(invalidateSpy).toHaveBeenCalledWith({
-				queryKey: ["chats", "chat-1"],
+				queryKey: chat("chat-1").queryKey,
+				exact: true,
 			});
 			expect(invalidateSpy).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -250,7 +255,8 @@ describe("useChatToolInvalidations", () => {
 		await waitFor(() => {
 			expect(invalidateSpy).toHaveBeenCalledTimes(6);
 			expect(invalidateSpy).toHaveBeenCalledWith({
-				queryKey: ["chats", "chat-2"],
+				queryKey: chat("chat-2").queryKey,
+				exact: true,
 			});
 		});
 	});
@@ -277,6 +283,43 @@ describe("useChatToolInvalidations", () => {
 		});
 	});
 
+	it("processes completed durable tool results after preview handoff", async () => {
+		const { store } = createTestStore(null);
+		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+		const messages = [
+			{
+				id: 1,
+				chat_id: "chat-1",
+				created_at: "2025-01-01T00:00:00Z",
+				role: "tool" as const,
+				content: [
+					{
+						type: "tool-result" as const,
+						tool_call_id: "create-workspace-durable",
+						tool_name: "create_workspace",
+						result: { workspace_name: "dev" },
+					},
+				],
+			},
+		];
+
+		renderHook(
+			() =>
+				useChatToolInvalidations({
+					store,
+					messages,
+					chatID: "chat-1",
+					organizationName: ORGANIZATION_NAME,
+					username: USERNAME,
+				}),
+			{ wrapper: createWrapper(queryClient) },
+		);
+
+		await waitFor(() => {
+			expect(invalidateSpy).toHaveBeenCalledTimes(3);
+		});
+	});
+
 	it("does nothing when streamState is null", () => {
 		const { store } = createTestStore(null);
 		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
@@ -285,6 +328,7 @@ describe("useChatToolInvalidations", () => {
 			() =>
 				useChatToolInvalidations({
 					store,
+					messages: [],
 					chatID: "chat-1",
 					organizationName: ORGANIZATION_NAME,
 					username: USERNAME,

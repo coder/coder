@@ -1,22 +1,17 @@
 import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChatQueuedMessage } from "#/api/typesGenerated";
-import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
 import { MockUserOwner, MockWorkspace } from "#/testHelpers/entities";
 import {
 	draftInputStorageKeyPrefix,
 	getPersistedDraftInputValue,
 	getWorkspaceOptionsWithLinkedWorkspace,
-	restoreOptimisticRequestSnapshot,
-	runPromoteQueuedMessage,
 	submitEditAndScroll,
 	useConversationEditingState,
 	waitForPendingChatSettingsSyncs,
 } from "./AgentChatPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
-import { createChatStore } from "./components/ChatConversation/chatStore";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import {
 	clearPersistedSidebarTabId,
@@ -171,116 +166,6 @@ describe("getPersistedDraftInputValue", () => {
 
 	it("returns empty string when localStorage has no draft", () => {
 		expect(getPersistedDraftInputValue(chatID)).toBe("");
-	});
-});
-
-describe("restoreOptimisticRequestSnapshot", () => {
-	it("restores queued messages, stream output, status, and stream error", () => {
-		const store = createChatStore();
-		store.setQueuedMessages([
-			{
-				id: 9,
-				chat_id: "chat-abc-123",
-				created_at: "2025-01-01T00:00:00.000Z",
-				content: [{ type: "text" as const, text: "queued" }],
-			},
-		]);
-		store.setChatStatus("running");
-		store.applyMessagePart({ type: "text", text: "partial response" });
-		store.setStreamError({ kind: "generic", message: "old error" });
-		const previousSnapshot = store.getSnapshot();
-
-		store.batch(() => {
-			store.setQueuedMessages([]);
-			store.setChatStatus("waiting");
-			store.clearStreamState();
-			store.clearStreamError();
-		});
-
-		restoreOptimisticRequestSnapshot(store, previousSnapshot);
-
-		const restoredSnapshot = store.getSnapshot();
-		expect(restoredSnapshot.queuedMessages).toEqual(
-			previousSnapshot.queuedMessages,
-		);
-		expect(restoredSnapshot.chatStatus).toBe(previousSnapshot.chatStatus);
-		expect(restoredSnapshot.streamState).toBe(previousSnapshot.streamState);
-		expect(restoredSnapshot.streamError).toEqual(previousSnapshot.streamError);
-	});
-});
-
-describe("runPromoteQueuedMessage", () => {
-	const buildQueuedMessage = (
-		id: number,
-		text: string,
-		chatID = "chat-1",
-	): ChatQueuedMessage => ({
-		...MockChatQueuedMessage,
-		id,
-		chat_id: chatID,
-		content: [{ type: "text", text }],
-	});
-
-	it("suppresses the promoted ID and removes it optimistically", async () => {
-		const store = createChatStore();
-		const a = buildQueuedMessage(1, "A");
-		const b = buildQueuedMessage(2, "B");
-		const c = buildQueuedMessage(3, "C");
-		store.setQueuedMessages([a, b, c]);
-		store.setChatStatus("running");
-
-		const promote = vi.fn(async (_id: number) => undefined);
-		const clearChatErrorReason = vi.fn();
-		const handleUsageLimitError = vi.fn();
-
-		await runPromoteQueuedMessage({
-			id: b.id,
-			store,
-			promoteQueuedMessage: promote,
-			agentId: "chat-1",
-			clearChatErrorReason,
-			handleUsageLimitError,
-		});
-
-		expect(promote).toHaveBeenCalledWith(b.id);
-
-		const snapshot = store.getSnapshot();
-		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id, c.id]);
-		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(true);
-		expect(snapshot.chatStatus).toBe("running");
-	});
-
-	it("rolls back queue and status, clears suppression, and rethrows on API error", async () => {
-		const store = createChatStore();
-		const a = buildQueuedMessage(1, "A");
-		const b = buildQueuedMessage(2, "B");
-		store.setQueuedMessages([a, b]);
-		store.setChatStatus("waiting");
-
-		const apiError = new Error("boom");
-		const promote = vi.fn(async (_id: number) => {
-			throw apiError;
-		});
-		const clearChatErrorReason = vi.fn();
-		const handleUsageLimitError = vi.fn();
-
-		await expect(
-			runPromoteQueuedMessage({
-				id: b.id,
-				store,
-				promoteQueuedMessage: promote,
-				agentId: "chat-1",
-				clearChatErrorReason,
-				handleUsageLimitError,
-			}),
-		).rejects.toBe(apiError);
-
-		expect(handleUsageLimitError).toHaveBeenCalledWith(apiError);
-
-		const snapshot = store.getSnapshot();
-		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id, b.id]);
-		expect(snapshot.chatStatus).toBe("waiting");
-		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(false);
 	});
 });
 

@@ -1,11 +1,11 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
-import { shouldInvalidateFilteredChatList } from "./AgentsPage";
 import {
 	emptyInputStorageKey,
 	useEmptyStateDraft,
 } from "./components/AgentCreateForm";
+import { shouldInvalidateFilteredChatList } from "./hooks/chatProjectionHints";
 import {
 	persistedAttachmentsStorageKey,
 	useFileAttachments,

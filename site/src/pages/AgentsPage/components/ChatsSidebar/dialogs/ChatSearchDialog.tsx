@@ -66,6 +66,7 @@ type ChatSearchDialogProps = {
 	readonly onOpenChange: (open: boolean) => void;
 	readonly focusInputOnOpen?: boolean;
 	readonly location: Location;
+	readonly currentUserId: string;
 	readonly recentChats?: readonly Chat[];
 };
 
@@ -76,6 +77,7 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 	onOpenChange,
 	focusInputOnOpen = true,
 	location,
+	currentUserId,
 	recentChats = [],
 }) => {
 	const contentRef = useRef<HTMLDivElement | null>(null);
@@ -117,6 +119,7 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 					onOpenChange={onOpenChange}
 					location={location}
 					inputRef={inputRef}
+					currentUserId={currentUserId}
 					recentChats={recentChats}
 				/>
 			</DialogContent>
@@ -159,6 +162,7 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 	onOpenChange,
 	location,
 	inputRef,
+	currentUserId,
 	recentChats = [],
 }) => {
 	const navigate = useNavigate();
@@ -426,6 +430,7 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 			</div>
 
 			<ChatSearchResults
+				currentUserId={currentUserId}
 				chats={searchQuery.data}
 				recentChats={recentChats}
 				error={searchQuery.error}

@@ -11,7 +11,6 @@ export interface ChatTreeContextValue {
 	readonly expandedById: Record<string, boolean>;
 	readonly modelOptions: readonly ModelSelectorOption[];
 	readonly modelConfigs: readonly ChatModelConfig[];
-	readonly chatErrorReasons: Record<string, string>;
 	readonly activeChatId: string | undefined;
 	readonly isArchiving: boolean;
 	readonly archivingChatId: string | null;

@@ -1,5 +1,10 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
-import { type ComponentProps, type FC, useRef } from "react";
+import {
+	type ComponentProps,
+	type FC,
+	useRef,
+	useSyncExternalStore,
+} from "react";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
@@ -26,10 +31,7 @@ import {
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
 } from "./AgentChatPageView";
-import {
-	createChatStore,
-	useChatSelector,
-} from "./components/ChatConversation/chatStore";
+import { createChatStreamStore } from "./components/ChatConversation/chatStreamStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
@@ -110,6 +112,47 @@ const agentsRouting = [
 // default props on each render, accepting only the overrides each
 // story cares about.
 // ---------------------------------------------------------------------------
+type StoryMessageStore = {
+	getSnapshot: () => readonly TypesGen.ChatMessage[];
+	subscribe: (listener: () => void) => () => void;
+	setMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
+};
+
+const storyMessagesByStore = new WeakMap<
+	ReturnType<typeof createChatStreamStore>,
+	StoryMessageStore
+>();
+
+const createStoryMessageStore = (
+	initialMessages: readonly TypesGen.ChatMessage[],
+): StoryMessageStore => {
+	let messages = initialMessages;
+	const listeners = new Set<() => void>();
+	return {
+		getSnapshot: () => messages,
+		subscribe: (listener) => {
+			listeners.add(listener);
+			return () => listeners.delete(listener);
+		},
+		setMessages: (nextMessages) => {
+			messages = nextMessages;
+			for (const listener of listeners) {
+				listener();
+			}
+		},
+	};
+};
+
+const setStoryMessages = (
+	store: ReturnType<typeof createChatStreamStore>,
+	messages: readonly TypesGen.ChatMessage[],
+) => {
+	storyMessagesByStore.get(store)?.setMessages(messages);
+};
+
+const getStoryMessages = (store: ReturnType<typeof createChatStreamStore>) =>
+	storyMessagesByStore.get(store)?.getSnapshot() ?? [];
+
 type StoryProps = Omit<
 	Partial<ComponentProps<typeof AgentChatPageView>>,
 	"editing"
@@ -117,21 +160,30 @@ type StoryProps = Omit<
 	editing?: Partial<ComponentProps<typeof AgentChatPageView>["editing"]>;
 };
 
+const emptyStoryMessages: readonly TypesGen.ChatMessage[] = [];
+const subscribeToNoStoryMessages = () => () => undefined;
+const getNoStoryMessages = () => emptyStoryMessages;
+
 const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
-	const defaultStoreRef = useRef(createChatStore());
+	const defaultStoreRef = useRef(createChatStreamStore());
 	const defaultScrollContainerRef = useRef<HTMLDivElement | null>(null);
 	const defaultScrollToBottomRef = useRef<(() => void) | null>(null);
 	const store = overrides.store ?? defaultStoreRef.current;
-	const messageCount = useChatSelector(
-		store,
-		(state) => state.messagesByID.size,
+	const storyMessageStore = storyMessagesByStore.get(store);
+	const storyMessages = useSyncExternalStore(
+		storyMessageStore?.subscribe ?? subscribeToNoStoryMessages,
+		storyMessageStore?.getSnapshot ?? getNoStoryMessages,
+		storyMessageStore?.getSnapshot ?? getNoStoryMessages,
 	);
+	const messages = overrides.messages ?? storyMessages;
 
 	const props = {
 		agentId: AGENT_ID,
 		sendShortcut: "enter" as const,
 		organizationId: "test-org-id",
 		chatTitle: "Help me refactor",
+		chatStatus: overrides.chatStatus ?? "waiting",
+		actionRequired: overrides.actionRequired,
 		persistedError: undefined as ChatDetailError | undefined,
 		parentChat: undefined as TypesGen.Chat | undefined,
 		isArchived: false,
@@ -184,7 +236,9 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		modelCount: 1,
 		...overrides,
 		store,
-		messageCount: overrides.messageCount ?? messageCount,
+		messages,
+		queuedMessages: overrides.queuedMessages ?? [],
+		messageCount: overrides.messageCount ?? messages.length,
 		editing: buildEditing(editing),
 	};
 	return <AgentChatPageView {...props} />;
@@ -852,11 +906,10 @@ const buildMessage = (
 
 const buildStoreWithMessages = (
 	msgs: TypesGen.ChatMessage[],
-	status: TypesGen.ChatStatus = "waiting",
+	_status: TypesGen.ChatStatus = "waiting",
 ) => {
-	const store = createChatStore();
-	store.replaceMessages(msgs);
-	store.setChatStatus(status);
+	const store = createChatStreamStore();
+	storyMessagesByStore.set(store, createStoryMessageStore(msgs));
 	return store;
 };
 
@@ -1057,26 +1110,11 @@ const waitForIntersectionObserverTick = async () => {
 	});
 };
 
-/** Helper that extracts the current messages array from a store. */
-const getStoreMessages = (
-	store: ReturnType<typeof createChatStore>,
-): TypesGen.ChatMessage[] => {
-	const snapshot = store.getSnapshot();
-	const messages: TypesGen.ChatMessage[] = [];
-	for (const id of snapshot.orderedMessageIDs) {
-		const message = snapshot.messagesByID.get(id);
-		if (message) {
-			messages.push(message);
-		}
-	}
-	return messages;
-};
-
 const prependOlderMessages = (
-	store: ReturnType<typeof createChatStore>,
+	store: ReturnType<typeof createChatStreamStore>,
 	count: number,
 ) => {
-	const existing = getStoreMessages(store);
+	const existing = getStoryMessages(store);
 	const oldestMessage = existing[0];
 	const oldestID = oldestMessage?.id ?? 1;
 	const olderMessages = Array.from({ length: count }, (_, index) => {
@@ -1088,17 +1126,39 @@ const prependOlderMessages = (
 				: `Older answer ${Math.abs(id)}.`;
 		return buildMessage(id, role, text);
 	});
-	store.replaceMessages([...olderMessages, ...existing]);
+	setStoryMessages(store, [...olderMessages, ...existing]);
 };
 
 const resetScrollStoryStore = (
-	store: ReturnType<typeof createChatStore>,
+	store: ReturnType<typeof createChatStreamStore>,
 	// Default to a transcript long enough to overflow the 600px decorator so the
 	// inverse-scroll stories exercise the fetch threshold immediately.
 	count = 80,
 ) => {
-	store.replaceMessages(buildLongConversation(count));
-	store.setChatStatus("waiting");
+	setStoryMessages(store, buildLongConversation(count));
+};
+
+/** Canonical action-required detail renders the explicit unsupported product state. */
+export const UnsupportedActionRequired: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			chatStatus="requires_action"
+			actionRequired={{
+				tool_calls: [
+					{
+						tool_call_id: "dynamic-call-1",
+						tool_name: "dynamic_tool",
+						args: "{}",
+					},
+				],
+			}}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/coder agents cannot execute yet/i)).toBeVisible();
+		expect(canvas.getByText(/1 pending tool call/i)).toBeVisible();
+	},
 };
 
 const inverseScrollStore = buildStoreWithMessages(buildLongConversation(80));
@@ -1204,6 +1264,7 @@ export const ScrollToBottomButtonWorksWithInverseScroll: Story = {
 		).toBeNull();
 
 		scrollToHistoryTop(scrollContainer);
+		await waitForIntersectionObserverTick();
 
 		await waitFor(() => {
 			expect(
@@ -1424,8 +1485,7 @@ export const StickyUserMessageClipUpdatesWhilePinned: Story = {
 	decorators: scrollStoryDecorators,
 	render: () => <StoryAgentChatPageView store={stickyClipUpdateStore} />,
 	play: async ({ canvasElement }) => {
-		stickyClipUpdateStore.replaceMessages(buildTallStickyConversation(30));
-		stickyClipUpdateStore.setChatStatus("waiting");
+		setStoryMessages(stickyClipUpdateStore, buildTallStickyConversation(30));
 		const canvas = within(canvasElement);
 		const scrollContainer = canvas.getByTestId("scroll-container");
 
@@ -1489,8 +1549,8 @@ export const StickyUserMessageClipUpdatesWhilePinned: Story = {
 		// Grow the transcript at the newest end. While pinned, scrollTop stays
 		// at 0 so no scroll event fires; only the content ResizeObserver can
 		// drive the recompute.
-		stickyClipUpdateStore.replaceMessages([
-			...getStoreMessages(stickyClipUpdateStore),
+		setStoryMessages(stickyClipUpdateStore, [
+			...getStoryMessages(stickyClipUpdateStore),
 			buildMessage(31, "assistant", "Freshly streamed reply. ".repeat(80)),
 			buildMessage(32, "assistant", "More freshly streamed reply. ".repeat(80)),
 		]);

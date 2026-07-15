@@ -10,13 +10,12 @@ import {
 import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import {
-	chatDiffContentsKey,
-	chatKey,
-	chatMessagesKey,
+	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
 	chatModelsKey,
-	chatPromptsKey,
-	chatsKey,
+	chatPromptsQuery,
+	chat as chatQuery,
+	chatQueryKeys,
 	mcpServerConfigsKey,
 } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
@@ -50,9 +49,6 @@ const AgentChatPageLayout: FC = () => {
 				<Outlet
 					context={
 						{
-							chatErrorReasons: {},
-							setChatErrorReason: () => {},
-							clearChatErrorReason: () => {},
 							requestArchiveAgent: () => {},
 							requestArchiveAndDeleteWorkspace: (
 								_chatId: string,
@@ -249,20 +245,20 @@ const buildQueries = (
 		diff_status: diffStatus,
 	};
 	return [
-		{ key: chatKey(CHAT_ID), data: chatWithDiffStatus },
+		{ key: chatQuery(CHAT_ID).queryKey, data: chatWithDiffStatus },
 		{
-			key: chatMessagesKey(CHAT_ID),
+			key: chatMessagesForInfiniteScroll(CHAT_ID).queryKey,
 			data: { pages: [messagesData], pageParams: [undefined] },
 		},
 		{
-			key: chatPromptsKey(CHAT_ID),
+			key: chatPromptsQuery(CHAT_ID).queryKey,
 			data: {
 				prompts: extractPromptsFromMessages(messagesData.messages),
 			} satisfies TypesGen.ChatPromptsResponse,
 		},
-		{ key: chatsKey, data: [chatWithDiffStatus] },
+		{ key: chatQueryKeys.all, data: [chatWithDiffStatus] },
 		{
-			key: chatDiffContentsKey(CHAT_ID),
+			key: chatQueryKeys.diffContents(CHAT_ID),
 			data: {
 				chat_id: CHAT_ID,
 				diff: opts?.diffUrl ? sampleDiff : undefined,
@@ -1237,7 +1233,9 @@ export const WithMessageHistory: Story = {
 
 		await changeReasoningEffort("{ArrowRight}");
 		await editLastMessage();
-		await user.click(canvas.getByRole("button", { name: "Save Edit" }));
+		const firstSaveButton = canvas.getByRole("button", { name: "Save Edit" });
+		await waitFor(() => expect(firstSaveButton).toBeEnabled());
+		await user.click(firstSaveButton);
 		await waitFor(() => {
 			expect(API.experimental.editChatMessage).toHaveBeenCalledTimes(1);
 			expect(
@@ -1247,7 +1245,9 @@ export const WithMessageHistory: Story = {
 
 		await editLastMessage();
 		await changeReasoningEffort("{ArrowLeft}");
-		await user.click(canvas.getByRole("button", { name: "Save Edit" }));
+		const secondSaveButton = canvas.getByRole("button", { name: "Save Edit" });
+		await waitFor(() => expect(secondSaveButton).toBeEnabled());
+		await user.click(secondSaveButton);
 		await waitFor(() => {
 			expect(API.experimental.editChatMessage).toHaveBeenCalledTimes(2);
 		});

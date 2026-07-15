@@ -286,7 +286,7 @@ export const ChatSharingPopoverContent: FC<ChatSharingPopoverContentProps> = ({
 			</div>
 
 			<div className="flex flex-col gap-4">
-				{mutationError && <ErrorAlert error={mutationError} />}
+				{mutationError instanceof Error && <ErrorAlert error={mutationError} />}
 				{aclQuery.error && <ErrorAlert error={aclQuery.error} />}
 
 				{aclQuery.isLoading ? (

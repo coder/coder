@@ -14,7 +14,6 @@ export { isSettingsView, sidebarViewFromPath } from "./sidebarView";
 
 interface ChatsSidebarProps {
 	chats: readonly Chat[];
-	chatErrorReasons: Record<string, string>;
 	modelOptions: readonly ModelSelectorOption[];
 	modelConfigs: readonly ChatModelConfig[];
 	onArchiveAgent: (chatId: string) => void;
@@ -56,7 +55,6 @@ interface ChatsSidebarProps {
 export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	const {
 		chats,
-		chatErrorReasons,
 		modelOptions,
 		modelConfigs,
 		onArchiveAgent,
@@ -122,7 +120,6 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
 			<ChatsPanel
 				chats={chats}
-				chatErrorReasons={chatErrorReasons}
 				modelOptions={modelOptions}
 				modelConfigs={modelConfigs}
 				onArchiveAgent={onArchiveAgent}
@@ -162,6 +159,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				onCollapse={onCollapse}
 			/>
 			<ChatSearchDialog
+				currentUserId={currentUserId}
 				open={isSearchDialogOpen}
 				onOpenChange={onSearchDialogOpenChange}
 				location={location}

@@ -22,6 +22,7 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useOrganizationsFilterMenu } from "#/modules/tableFiltering/options";
 import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
 import { pageTitle } from "#/utils/page";
+import { useChatProjectionHints } from "../AgentsPage/hooks/useChatProjectionHints";
 import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
 import { BatchUpdateModalForm } from "./BatchUpdateModalForm";
 import { useBatchActions } from "./batchActions";
@@ -82,6 +83,7 @@ const WorkspacesPage: FC = () => {
 		},
 	});
 	const { permissions, user: me } = useAuthenticated();
+	useChatProjectionHints(undefined, permissions.createChat);
 	const templatesQuery = useQuery(templates());
 	const workspacePermissionsQuery = useQuery(
 		workspacePermissionsByOrganization(

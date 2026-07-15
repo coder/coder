@@ -11,6 +11,7 @@ import { shortRelativeTime } from "#/utils/time";
 import { getChatDisplayConfig } from "../tree/statusConfig";
 
 type ChatSearchResultsProps = {
+	readonly currentUserId: string;
 	readonly chats: readonly Chat[] | undefined;
 	readonly recentChats: readonly Chat[];
 	readonly error: unknown;
@@ -35,6 +36,7 @@ const SCROLL_AREA_PROPS = {
 };
 
 export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
+	currentUserId,
 	chats,
 	recentChats,
 	error,
@@ -46,6 +48,13 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 	isRefreshing,
 	onDismiss,
 }) => {
+	const ownerUnreadOnly = (chat: Chat): Chat =>
+		chat.owner_id === currentUserId || !chat.has_unread
+			? chat
+			: { ...chat, has_unread: false };
+	const visibleChats = chats?.map(ownerUnreadOnly);
+	const visibleRecentChats = recentChats.map(ownerUnreadOnly);
+
 	if (error) {
 		return (
 			<div className="min-h-[260px]">
@@ -60,7 +69,7 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 	if (!hasQuery) {
 		return (
 			<DefaultView
-				recentChats={recentChats}
+				recentChats={visibleRecentChats}
 				location={location}
 				listboxId={listboxId}
 				selectedChatIndex={selectedChatIndex}
@@ -100,7 +109,7 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 				</p>
 				<ScrollArea {...SCROLL_AREA_PROPS}>
 					<ChatSearchResultsList
-						chats={chats}
+						chats={visibleChats}
 						location={location}
 						listboxId={listboxId}
 						selectedChatIndex={selectedChatIndex}

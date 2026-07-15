@@ -255,7 +255,6 @@ export const BlockList: FC<{
 	subagentTitles?: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
 	showDesktopPreviews?: boolean;
-	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	onImageClick?: (src: string) => void;
 	onTextFileClick?: (attachment: PreviewTextAttachment) => void;
@@ -274,7 +273,6 @@ export const BlockList: FC<{
 	subagentTitles,
 	subagentVariants,
 	showDesktopPreviews,
-	subagentStatusOverrides,
 	mcpServers,
 	onImageClick,
 	onTextFileClick,
@@ -407,7 +405,6 @@ export const BlockList: FC<{
 									codeDiffDisplayMode={codeDiffDisplayMode}
 									subagentTitles={subagentTitles}
 									subagentVariants={subagentVariants}
-									subagentStatusOverrides={subagentStatusOverrides}
 									mcpServers={mcpServers}
 								/>
 							);
@@ -429,9 +426,6 @@ export const BlockList: FC<{
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}
 								showDesktopPreviews={showDesktopPreviews}
-								subagentStatusOverrides={
-									isStreaming ? subagentStatusOverrides : undefined
-								}
 								mcpServerConfigId={tool.mcpServerConfigId}
 								mcpServers={mcpServers}
 								onImplementPlan={onImplementPlan}
@@ -487,9 +481,6 @@ export const BlockList: FC<{
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
 					showDesktopPreviews={showDesktopPreviews}
-					subagentStatusOverrides={
-						isStreaming ? subagentStatusOverrides : undefined
-					}
 					mcpServerConfigId={tool.mcpServerConfigId}
 					mcpServers={mcpServers}
 					onImplementPlan={onImplementPlan}

@@ -768,7 +768,6 @@ export const SubagentStreamOverrideStatus: Story = {
 		args: undefined,
 		result: { chat_id: "child-chat-id", status: "pending" },
 		status: "completed",
-		subagentStatusOverrides: new Map([["child-chat-id", "completed"]]),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1366,7 +1365,7 @@ export const MCPToolCompleted: Story = {
 		await userEvent.click(toggle);
 		expect(canvas.getByText("Input")).toBeVisible();
 		expect(canvas.getByText("Output")).toBeVisible();
-		await expectDiffText(canvasElement, "Fix auth flow");
+		expect(canvasElement.querySelectorAll("diffs-container")).toHaveLength(2);
 	},
 };
 
@@ -1402,7 +1401,8 @@ export const MCPToolNoResult: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button"));
 		expect(canvas.getByText("Input")).toBeVisible();
-		await expectDiffText(canvasElement, "New issue");
+		expect(canvas.queryByText("Output")).toBeNull();
+		expect(canvasElement.querySelectorAll("diffs-container")).toHaveLength(1);
 	},
 };
 

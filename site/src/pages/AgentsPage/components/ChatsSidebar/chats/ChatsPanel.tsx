@@ -65,9 +65,26 @@ const UNREAD_SECTION_KEY = "Unread";
 const READ_SECTION_KEY = "Read";
 const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 
+const normalizeSharedUnreadForViewer = (
+	chat: Chat,
+	currentUserId: string,
+): Chat => {
+	const children = chat.children?.map((child) =>
+		normalizeSharedUnreadForViewer(child, currentUserId),
+	);
+	const hasUnread =
+		chat.shared && chat.owner_id !== currentUserId ? false : chat.has_unread;
+	const childrenUnchanged =
+		children === undefined ||
+		children.every((child, index) => child === chat.children?.[index]);
+	if (hasUnread === chat.has_unread && childrenUnchanged) {
+		return chat;
+	}
+	return { ...chat, has_unread: hasUnread, children };
+};
+
 interface ChatsPanelProps {
 	readonly chats: readonly Chat[];
-	readonly chatErrorReasons: Record<string, string>;
 	readonly modelOptions: readonly ModelSelectorOption[];
 	readonly modelConfigs: readonly ChatModelConfig[];
 	readonly onArchiveAgent: (chatId: string) => void;
@@ -103,7 +120,6 @@ interface ChatsPanelProps {
 
 export const ChatsPanel: FC<ChatsPanelProps> = ({
 	chats,
-	chatErrorReasons,
 	modelOptions,
 	modelConfigs,
 	onArchiveAgent,
@@ -139,10 +155,13 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		Record<string, boolean>
 	>({});
 
-	const chatTree = buildChatTree(chats);
+	const displayChats = chats.map((chat) =>
+		normalizeSharedUnreadForViewer(chat, currentUserId),
+	);
+	const chatTree = buildChatTree(displayChats);
 	const chatById = chatTree.chatById;
 	const visibleChatIDs = collectVisibleChatIDs({
-		chats,
+		chats: displayChats,
 		search: "",
 		tree: chatTree,
 	});
@@ -299,7 +318,6 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		expandedById,
 		modelOptions,
 		modelConfigs,
-		chatErrorReasons,
 		activeChatId,
 		isArchiving,
 		archivingChatId,

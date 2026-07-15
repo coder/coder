@@ -18,7 +18,6 @@ const defaultArgs: React.ComponentProps<typeof LiveStreamTailContent> = {
 	streamTools: [],
 	liveStatus: buildLiveStatus(),
 	subagentTitles: new Map(),
-	subagentStatusOverrides: new Map(),
 };
 
 const meta: Meta<typeof LiveStreamTailContent> = {
