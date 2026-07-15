@@ -1,0 +1,223 @@
+package chatd_test
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"sync"
+	"sync/atomic"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agenthooks"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
+	"github.com/coder/coder/v2/testutil"
+)
+
+func TestPostToolUseHookResponsesCommitWithResults(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	var modelCalls atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if modelCalls.Add(1) == 1 {
+			first := chattest.OpenAIToolCallChunk("read_file", `{"path":"/tmp/first.txt"}`)
+			first.Choices[0].ToolCalls[0].ID = "call_first"
+			second := chattest.OpenAIToolCallChunk("read_file", `{"path":"/tmp/second.txt"}`).Choices[0].ToolCalls[0]
+			second.ID = "call_second"
+			second.Index = 1
+			first.Choices[0].ToolCalls = append(first.Choices[0].ToolCalls, second)
+			return chattest.OpenAIStreamingResponse(first)
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	var mu sync.Mutex
+	var received []agenthooks.PostToolUseData
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request agenthooks.Request
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		if request.Type != agenthooks.EventPostToolUse {
+			_, err := w.Write([]byte(`{}`))
+			require.NoError(t, err)
+			return
+		}
+		decoded, err := request.Decode()
+		require.NoError(t, err)
+		data := decoded.(*agenthooks.PostToolUseData)
+		mu.Lock()
+		received = append(received, *data)
+		index := len(received)
+		mu.Unlock()
+
+		messages := chatMessages(ctx, t, db, request.Meta.ChatID)
+		for _, message := range messages {
+			require.NotEqual(t, database.ChatMessageRoleTool, message.Role)
+		}
+		if index == 1 {
+			_, err = w.Write([]byte(`{"model_context":"lint feedback","user_message":"tool notice","allowed_tools":["read_file"]}`))
+		} else {
+			_, err = w.Write([]byte(`{}`))
+		}
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), gomock.Any(), int64(1), int64(0), gomock.Any()).
+		Return(workspacesdk.ReadFileLinesResponse{
+			Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data",
+		}, nil).
+		Times(2)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		APIKeyID:       testAPIKeyID(t, db, user.ID),
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "post-tool-use-responses",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("read both files"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	mu.Lock()
+	require.Len(t, received, 2)
+	require.Equal(t, "call_first", received[0].ToolUseID)
+	require.Equal(t, "call_second", received[1].ToolUseID)
+	require.Equal(t, "read_file", received[0].ToolName)
+	require.Empty(t, received[0].ToolError)
+	require.Contains(t, string(received[0].ToolResponse), "data")
+	mu.Unlock()
+
+	var toolResults, modelContexts, userMessages int
+	for _, message := range chatMessages(ctx, t, db, chat.ID) {
+		parts, err := chatprompt.ParseContent(message)
+		require.NoError(t, err)
+		if message.Role == database.ChatMessageRoleTool {
+			toolResults++
+		}
+		if len(parts) == 1 && parts[0].Text == "lint feedback" {
+			modelContexts++
+			require.Equal(t, database.ChatMessageVisibilityModel, message.Visibility)
+		}
+		if len(parts) == 1 && parts[0].Text == "tool notice" {
+			userMessages++
+			require.Equal(t, database.ChatMessageVisibilityUser, message.Visibility)
+		}
+	}
+	require.Equal(t, 2, toolResults)
+	require.Equal(t, 1, modelContexts)
+	require.Equal(t, 1, userMessages)
+	updated, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.JSONEq(t, `["read_file"]`, string(updated.HookAllowedTools.RawMessage))
+}
+
+func TestPostToolUseHookFailureCommitsResultThenErrors(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		chunk := chattest.OpenAIToolCallChunk("read_file", `{"path":"/tmp/file.txt"}`)
+		chunk.Choices[0].ToolCalls[0].ID = "call_failure"
+		return chattest.OpenAIStreamingResponse(chunk)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request agenthooks.Request
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		if request.Type == agenthooks.EventPostToolUse {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		_, err := w.Write([]byte(`{}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), "/tmp/file.txt", int64(1), int64(0), gomock.Any()).
+		Return(workspacesdk.ReadFileLinesResponse{
+			Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data",
+		}, nil)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		APIKeyID:       testAPIKeyID(t, db, user.ID),
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "post-tool-use-failure",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("read the file"),
+		},
+	})
+	require.NoError(t, err)
+	failed := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+
+	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chat.ID), "read_file")
+	require.Contains(t, string(result.Result), "data")
+	rows, err := db.ListChatHookDispatchesByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	var postDispatch database.ChatHookDispatch
+	for _, row := range rows {
+		if row.Event == string(agenthooks.EventPostToolUse) {
+			postDispatch = row
+			break
+		}
+	}
+	require.NotEqual(t, uuid.Nil, postDispatch.ID)
+	require.Equal(t, "http_error", postDispatch.Result)
+	require.Equal(t, "call_failure", postDispatch.ToolUseID.String)
+	lastError := chatLastErrorMessage(failed.LastError)
+	require.Contains(t, lastError, "hook dispatch failed: post_tool_use: http_error")
+	require.Contains(t, lastError, postDispatch.ID.String())
+}

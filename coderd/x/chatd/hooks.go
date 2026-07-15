@@ -108,6 +108,72 @@ func (p *Server) dispatchPreToolUse(
 	})
 }
 
+func (p *Server) dispatchPostToolUse(
+	ctx context.Context,
+	chat database.Chat,
+	turnID *uuid.UUID,
+	toolResult fantasy.ToolResultContent,
+) (agenthooks.Response, error) {
+	var workspaceID *uuid.UUID
+	if chat.WorkspaceID.Valid {
+		workspaceID = &chat.WorkspaceID.UUID
+	}
+	data := agenthooks.PostToolUseData{
+		ToolUseID: toolResult.ToolCallID,
+		ToolName:  toolResult.ToolName,
+	}
+	switch output := toolResult.Result.(type) {
+	case fantasy.ToolResultOutputContentError:
+		if output.Error != nil {
+			data.ToolError = output.Error.Error()
+		}
+	case *fantasy.ToolResultOutputContentError:
+		if output != nil && output.Error != nil {
+			data.ToolError = output.Error.Error()
+		}
+	default:
+		encoded, err := json.Marshal(toolResult.Result)
+		if err != nil {
+			return agenthooks.Response{}, xerrors.Errorf("marshal post_tool_use response: %w", err)
+		}
+		data.ToolResponse = encoded
+	}
+	toolUseID := toolResult.ToolCallID
+	return p.hookDispatcher.Dispatch(ctx, chathooks.Event{
+		Type:        agenthooks.EventPostToolUse,
+		ChatID:      chat.ID,
+		OwnerID:     chat.OwnerID,
+		WorkspaceID: workspaceID,
+		TurnID:      turnID,
+		ToolUseID:   &toolUseID,
+		Data:        data,
+	})
+}
+
+func (p *Server) dispatchPostToolUseResults(
+	ctx context.Context,
+	chat database.Chat,
+	turnID *uuid.UUID,
+	content []fantasy.Content,
+) ([]agenthooks.Response, error) {
+	if p.hookDispatcher == nil || !p.hookDispatcher.Enabled() {
+		return nil, nil
+	}
+	responses := make([]agenthooks.Response, 0, len(content))
+	for _, block := range content {
+		toolResult, ok := asToolResultContent(block)
+		if !ok || toolResult.ProviderExecuted {
+			continue
+		}
+		response, err := p.dispatchPostToolUse(ctx, chat, turnID, toolResult)
+		if err != nil {
+			return responses, err
+		}
+		responses = append(responses, response)
+	}
+	return responses, nil
+}
+
 func (p *Server) preflightToolCalls(
 	ctx context.Context,
 	chat database.Chat,
@@ -504,7 +570,7 @@ func hookTurnID(turnID *uuid.UUID) uuid.NullUUID {
 	return uuid.NullUUID{UUID: *turnID, Valid: true}
 }
 
-func applyPreToolUseResponseMessages(
+func applyHookResponseMessages(
 	messages stepMessagesForCommit,
 	responses []agenthooks.Response,
 	modelConfigID uuid.UUID,

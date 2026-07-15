@@ -699,7 +699,7 @@ func (s *taskStarter) generateAssistant(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
-	messages, endChat, err := applyPreToolUseResponseMessages(messages, preflight.Responses, prepared.ModelConfigID, turnID)
+	messages, endChat, err := applyHookResponseMessages(messages, preflight.Responses, prepared.ModelConfigID, turnID)
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
@@ -736,7 +736,7 @@ func (s *taskStarter) commitPreToolUseDeniedResults(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
-	messages, endChat, err := applyPreToolUseResponseMessages(messages, preflight.Responses, prepared.ModelConfigID, activeTurnID(prepared.Messages))
+	messages, endChat, err := applyHookResponseMessages(messages, preflight.Responses, prepared.ModelConfigID, activeTurnID(prepared.Messages))
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
@@ -799,6 +799,8 @@ func (s *taskStarter) executeLocalTools(
 	for _, denied := range preflight.Denied {
 		outcome.Step.Content = append(outcome.Step.Content, denied)
 	}
+	turnID := activeTurnID(prepared.Messages)
+	postResponses, postDispatchErr := s.server.dispatchPostToolUseResults(ctx, prepared.Chat, turnID, outcome.Step.Content)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:      prepared.ModelConfigID,
 		modelCallConfig:    prepared.ModelConfig,
@@ -810,14 +812,22 @@ func (s *taskStarter) executeLocalTools(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
-	messages, endChat, err := applyPreToolUseResponseMessages(messages, preflight.Responses, prepared.ModelConfigID, activeTurnID(prepared.Messages))
+	responses := make([]agenthooks.Response, 0, len(preflight.Responses)+len(postResponses))
+	responses = append(responses, preflight.Responses...)
+	responses = append(responses, postResponses...)
+	messages, endChat, err := applyHookResponseMessages(messages, responses, prepared.ModelConfigID, turnID)
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
+	var postCommitErr error
+	if postDispatchErr != nil {
+		postCommitErr = generationHookDispatchError(agenthooks.EventPostToolUse, postDispatchErr)
+	}
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages, generationCommitHooks{
-		Responses: preflight.Responses,
-		Overrides: preflight.Overrides,
-		EndChat:   endChat,
+		Responses:         responses,
+		Overrides:         preflight.Overrides,
+		PostCommitEndChat: endChat,
+		PostCommitError:   postCommitErr,
 	})
 }
 
@@ -979,9 +989,11 @@ func (s *taskStarter) beginGenerationAttempt(
 }
 
 type generationCommitHooks struct {
-	Responses []agenthooks.Response
-	Overrides map[string]json.RawMessage
-	EndChat   bool
+	Responses         []agenthooks.Response
+	Overrides         map[string]json.RawMessage
+	EndChat           bool
+	PostCommitEndChat bool
+	PostCommitError   error
 }
 
 func (s *taskStarter) commitGenerationStep(
@@ -1038,6 +1050,15 @@ func (s *taskStarter) commitGenerationStep(
 	if err != nil {
 		return normalizeTaskTransitionError(err, "commit generation step")
 	}
+	if hooks.PostCommitError != nil || hooks.PostCommitEndChat {
+		input.HistoryVersion = committed.HistoryVersion
+		postCommitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), postCommitWatchPublishTimeout)
+		defer cancel()
+		if hooks.PostCommitError != nil {
+			return s.finishGenerationError(postCommitCtx, machine, input, hooks.PostCommitError, requireGenerationAttempt(attempt))
+		}
+		return s.endGenerationChat(postCommitCtx, machine, input, requireGenerationAttempt(attempt))
+	}
 	if hooks.EndChat {
 		input.DebugTurn.RecordOutcome(chatdebug.StatusCompleted)
 		s.server.scheduleArchiveDebugCleanup(ctx, []database.Chat{committed})
@@ -1058,7 +1079,7 @@ func (s *taskStarter) enterRequiresAction(
 	prepared generationPrepared,
 	preflight preToolUseExecutionResult,
 ) error {
-	messages, endChat, err := applyPreToolUseResponseMessages(stepMessagesForCommit{}, preflight.Responses, prepared.ModelConfigID, activeTurnID(prepared.Messages))
+	messages, endChat, err := applyHookResponseMessages(stepMessagesForCommit{}, preflight.Responses, prepared.ModelConfigID, activeTurnID(prepared.Messages))
 	if err != nil {
 		return err
 	}
@@ -1170,6 +1191,35 @@ func recordGenerationFinishFailure(turn *runnerDebugTurn, err error) {
 		return
 	}
 	turn.RecordOutcome(chatdebug.StatusError)
+}
+
+func (s *taskStarter) endGenerationChat(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	fence generationAttemptFence,
+) error {
+	var committed database.Chat
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
+			return xerrors.Errorf("load chat for generation: %w", err)
+		}
+		if _, err := tx.EndChat(chatstate.EndChatInput{}); err != nil {
+			return xerrors.Errorf("tx.EndChat: %w", err)
+		}
+		chat, err := store.GetChatByID(ctx, input.ChatID)
+		if err != nil {
+			return xerrors.Errorf("load ended chat: %w", err)
+		}
+		committed = chat
+		return nil
+	})
+	if err != nil {
+		return normalizeTaskTransitionError(err, "end generation chat")
+	}
+	input.DebugTurn.RecordOutcome(chatdebug.StatusCompleted)
+	s.server.scheduleArchiveDebugCleanup(ctx, []database.Chat{committed})
+	return s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindDeleted)
 }
 
 func (s *taskStarter) finishGenerationTurn(
