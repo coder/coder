@@ -746,7 +746,9 @@ jobs:
           if command -v cygpath >/dev/null 2>&1; then
             cache_dir="$(cygpath -u "${cache_dir}")"
           fi
-          find "${cache_dir}" -type f -mmin +90 -delete
+          find "${cache_dir}" -mindepth 2 -maxdepth 2 \
+            \( -name '*-a' -o -name '*-d' \) \
+            -mmin +90 -exec rm -rf {} +
 
   test-go-pg-17:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
