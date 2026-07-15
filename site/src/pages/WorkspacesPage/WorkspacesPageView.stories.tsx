@@ -196,12 +196,43 @@ export const CannotCreateWorkspace: Story = {
 		workspaces: [],
 		count: 0,
 		canCreateWorkspace: false,
-		canCreateTemplate: false,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.queryByRole("button", { name: /new workspace/i })).toBeNull();
 		await canvas.findByText(/don't have permission to create workspaces/i);
+	},
+};
+
+export const CannotCreateWorkspaceWithWorkspaces: Story = {
+	args: {
+		workspaces: allWorkspaces,
+		count: allWorkspaces.length,
+		canCreateWorkspace: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText(allWorkspaces[0].name);
+		expect(canvas.queryByRole("button", { name: /new workspace/i })).toBeNull();
+	},
+};
+
+export const CannotCreateWorkspaceWithFilter: Story = {
+	args: {
+		workspaces: [],
+		count: 0,
+		canCreateWorkspace: false,
+		filterState: {
+			...defaultFilterProps,
+			filter: { ...defaultFilterProps.filter, used: true },
+		},
+	},
+	// The no-permission empty state takes priority over the filter empty
+	// state.
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText(/don't have permission to create workspaces/i);
+		expect(canvas.queryByText(/no results matched your search/i)).toBeNull();
 	},
 };
 
@@ -262,6 +293,7 @@ export const OwnerHasNoWorkspaces: Story = {
 		workspaces: [],
 		count: 0,
 		canCreateTemplate: true,
+		canCreateWorkspace: true,
 	},
 };
 
@@ -271,6 +303,7 @@ export const OwnerHasNoWorkspacesAndNoTemplates: Story = {
 		templates: [],
 		count: 0,
 		canCreateTemplate: true,
+		canCreateWorkspace: true,
 	},
 };
 
@@ -279,6 +312,7 @@ export const UserHasNoWorkspaces: Story = {
 		workspaces: [],
 		count: 0,
 		canCreateTemplate: false,
+		canCreateWorkspace: true,
 	},
 };
 
@@ -288,6 +322,7 @@ export const UserHasNoWorkspacesAndNoTemplates: Story = {
 		templates: [],
 		count: 0,
 		canCreateTemplate: false,
+		canCreateWorkspace: true,
 	},
 };
 
