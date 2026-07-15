@@ -7,9 +7,12 @@ import "context"
 type attemptKeepaliveKey struct{}
 
 // WithAttemptKeepalive returns a context carrying kick, a function
-// that resets the owning task attempt's idle watchdog. Tools call
-// KickAttemptKeepalive after each successful agent round-trip to
-// signal that the attempt is making progress.
+// that resets the owning task attempt's idle watchdog. Only the
+// execute and process_output tools call KickAttemptKeepalive, after
+// each successful process-API round-trip, to signal that a
+// potentially long-running command is making progress. Other
+// workspace tools finish well within the idle window and
+// deliberately do not extend it.
 func WithAttemptKeepalive(ctx context.Context, kick func()) context.Context {
 	if kick == nil {
 		return ctx
