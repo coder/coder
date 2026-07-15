@@ -15,7 +15,6 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 import { FormField } from "#/components/FormField/FormField";
-import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
@@ -353,13 +352,13 @@ const SecretValueField: FC<SecretValueFieldProps> = ({
 				{required ? <RequiredFieldLabel>Value</RequiredFieldLabel> : "Value"}
 			</Label>
 			<div className="flex flex-col gap-2 sm:flex-row sm:items-start">
-				<Input
+				<Textarea
 					id={field.id}
 					name={field.name}
-					type="text"
 					value={value}
 					placeholder={placeholder}
 					autoComplete="off"
+					rows={4}
 					aria-required={required}
 					aria-invalid={displayField.error}
 					aria-describedby={
@@ -371,9 +370,9 @@ const SecretValueField: FC<SecretValueFieldProps> = ({
 					}
 					disabled={clearValueRequested}
 					className={cn(
-						"placeholder:text-content-disabled sm:flex-1",
+						"placeholder:text-content-disabled sm:flex-1 font-mono",
 						displayField.error && "border-border-destructive",
-						maskTypedValue && "[-webkit-text-security:circle]",
+						maskTypedValue && "[-webkit-text-security:disc]",
 					)}
 					onFocus={(event) => {
 						if (isShowingSavedValue) {
