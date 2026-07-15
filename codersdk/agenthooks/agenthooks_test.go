@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -308,7 +309,24 @@ func TestHTTPHandlerAcceptsTrailingSlashAudience(t *testing.T) {
 	require.Equal(t, http.StatusOK, response.StatusCode)
 }
 
-func postEvent(t *testing.T, target string, eventType agenthooks.EventType, data any, updateRequest func(*agenthooks.Request), updateClaims func(*agenthooks.Claims)) *http.Response {
+// A TLS-terminating proxy forwards over plain HTTP with the original
+// scheme in X-Forwarded-Proto; the https audience must still verify.
+func TestHTTPHandlerHonorsForwardedProto(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
+	t.Cleanup(server.Close)
+	httpsAudience := "https" + strings.TrimPrefix(server.URL, "http")
+	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
+		claims.Audience = httpsAudience
+	}, func(r *http.Request) {
+		r.Header.Set("X-Forwarded-Proto", "https, http")
+	})
+	defer response.Body.Close()
+	require.Equal(t, http.StatusOK, response.StatusCode)
+}
+
+func postEvent(t *testing.T, target string, eventType agenthooks.EventType, data any, updateRequest func(*agenthooks.Request), updateClaims func(*agenthooks.Claims), updateHTTPRequest ...func(*http.Request)) *http.Response {
 	t.Helper()
 
 	dataJSON, err := json.Marshal(data)
@@ -339,6 +357,9 @@ func postEvent(t *testing.T, target string, eventType agenthooks.EventType, data
 	httpRequest, err := http.NewRequestWithContext(t.Context(), http.MethodPost, target, bytes.NewReader(body))
 	require.NoError(t, err)
 	httpRequest.Header.Set("Authorization", "Bearer "+token)
+	for _, update := range updateHTTPRequest {
+		update(httpRequest)
+	}
 	response, err := http.DefaultClient.Do(httpRequest)
 	require.NoError(t, err)
 	return response

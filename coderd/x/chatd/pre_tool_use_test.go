@@ -277,7 +277,7 @@ func TestPreToolUseHookDynamicAllowResponse(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	consumer := preToolUseConsumer(t, func(data agenthooks.PreToolUseData) string {
 		require.Equal(t, "call_dynamic_allow", data.ToolUseID)
-		return `{"permission":{"decision":"allow","input_override":{"query":"redacted"}},"model_context":"dynamic context","user_message":"dynamic notice","allowed_tools":[]}`
+		return `{"permission":{"decision":"allow","input_override":{"query":"redacted"}},"model_context":"dynamic context","user_message":"dynamic notice","allowed_tools":["my_dynamic_tool"]}`
 	})
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
@@ -302,7 +302,7 @@ func TestPreToolUseHookDynamicAllowResponse(t *testing.T) {
 		action, err = db.GetChatByID(ctx, chat.ID)
 		return err == nil && action.Status == database.ChatStatusRequiresAction
 	}, testutil.IntervalFast)
-	require.JSONEq(t, `[]`, string(action.HookAllowedTools.RawMessage))
+	require.JSONEq(t, `["my_dynamic_tool"]`, string(action.HookAllowedTools.RawMessage))
 	call := requireToolCallPart(t, chatToolParts(ctx, t, db, chat.ID), "my_dynamic_tool")
 	require.JSONEq(t, `{"query":"redacted"}`, string(call.Args))
 	promptMessages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
@@ -1008,6 +1008,67 @@ func TestPreToolUseHookDynamicDeny(t *testing.T) {
 	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chat.ID), "my_dynamic_tool")
 	require.True(t, result.IsError)
 	require.Contains(t, string(result.Result), "DENIED: dynamic denied")
+}
+
+// A hook allowed_tools policy that excludes a dynamic tool must make a
+// model-emitted call to it resolve as an inactive tool instead of
+// parking the chat in requires_action.
+func TestHookAllowedToolsExcludesDynamicTool(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	var modelCalls atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if modelCalls.Add(1) == 1 {
+			chunk := chattest.OpenAIToolCallChunk("my_dynamic_tool", `{"query":"test"}`)
+			chunk.Choices[0].ToolCalls[0].ID = "call_excluded_dynamic"
+			return chattest.OpenAIStreamingResponse(chunk)
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("replanned")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request agenthooks.Request
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		body := `{}`
+		if request.Type == agenthooks.EventUserPromptSubmit {
+			body = `{"allowed_tools":["read_file"]}`
+		}
+		_, err := w.Write([]byte(body))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		APIKeyID:       testAPIKeyID(t, db, user.ID),
+		Title:          "allowed-tools-excludes-dynamic",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("call the dynamic tool"),
+		},
+		DynamicTools: dynamicToolJSON(t, "my_dynamic_tool"),
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	chatResult, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.JSONEq(t, `["read_file"]`, string(chatResult.HookAllowedTools.RawMessage))
+	require.False(t, chatResult.RequiresActionDeadlineAt.Valid)
+	require.Equal(t, int32(2), modelCalls.Load())
+	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chat.ID), "my_dynamic_tool")
+	require.True(t, result.IsError)
+	require.Contains(t, string(result.Result), "Tool not active in this turn")
 }
 
 func preToolUseConsumer(t *testing.T, response func(agenthooks.PreToolUseData) string) *httptest.Server {

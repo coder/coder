@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"golang.org/x/xerrors"
 )
@@ -99,11 +100,26 @@ func requestAudience(r *http.Request) string {
 		if r.TLS != nil {
 			requestURL.Scheme = "https"
 		}
+		// A TLS-terminating proxy forwards over plain HTTP and reports
+		// the original scheme in X-Forwarded-Proto. Trusting it cannot
+		// admit foreign tokens: the audience is signature-protected and
+		// Coder only signs https audiences.
+		if proto := forwardedProto(r); proto != "" {
+			requestURL.Scheme = proto
+		}
 	}
 	if requestURL.Host == "" {
 		requestURL.Host = r.Host
 	}
 	return canonicalAudience(requestURL.String())
+}
+
+func forwardedProto(r *http.Request) string {
+	proto := r.Header.Get("X-Forwarded-Proto")
+	// Each proxy hop may append its own value; the first entry is the
+	// client-facing scheme the audience was signed with.
+	proto, _, _ = strings.Cut(proto, ",")
+	return strings.ToLower(strings.TrimSpace(proto))
 }
 
 // canonicalAudience drops a bare "/" path so that root-path hook URLs

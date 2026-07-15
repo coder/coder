@@ -576,6 +576,11 @@ func (server *Server) prepareGeneration(
 	if chat.HookAllowedTools.Valid {
 		filterToolNameMap(builtinToolNames, hookAllowedNames)
 		filterToolNameMap(exclusiveToolNames, hookAllowedNames)
+		// Keep dynamic-tool classification in sync with the filtered
+		// definitions: a model-emitted call to an excluded dynamic tool
+		// must resolve as an inactive tool instead of parking the chat
+		// in requires_action.
+		filterToolNameMap(dynamicToolNames, hookAllowedNames)
 	}
 
 	var requestedEffort *string

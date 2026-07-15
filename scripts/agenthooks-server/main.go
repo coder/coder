@@ -1,7 +1,7 @@
 // agenthooks-server is a reference consumer for Coder agent lifecycle hooks.
-// It logs each verified event as one JSON object per line. When a TLS terminator
-// forwards plain HTTP with X-Forwarded-Proto: https, the server reconstructs the
-// HTTPS audience required by coderd.
+// It logs each verified event as one JSON object per line. The SDK handler
+// honors X-Forwarded-Proto, so a TLS terminator can forward plain HTTP and
+// the HTTPS audience required by coderd still verifies.
 package main
 
 import (
@@ -170,7 +170,7 @@ func run() error {
 	handler := agenthooks.NewHTTPHandler([]byte(cfg.secret), hooks)
 	server := &http.Server{
 		Addr:              cfg.listen,
-		Handler:           forwardedHTTPSHandler(handler),
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -190,20 +190,6 @@ func run() error {
 		return xerrors.Errorf("serve lifecycle hooks: %w", err)
 	}
 	return nil
-}
-
-func forwardedHTTPSHandler(handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		if r.TLS == nil && r.Header.Get("X-Forwarded-Proto") == "https" {
-			proxied := r.Clone(r.Context())
-			requestURL := *r.URL
-			requestURL.Scheme = "https"
-			proxied.URL = &requestURL
-			handler.ServeHTTP(rw, proxied)
-			return
-		}
-		handler.ServeHTTP(rw, r)
-	})
 }
 
 func parseFlags() (config, error) {

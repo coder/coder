@@ -27,7 +27,7 @@ Changing deployment options requires the normal `coder server` configuration rol
 Use a dedicated secret and rotate it through your existing secret-management process.
 Coder requires the configured URL to use HTTPS.
 A TLS terminator can forward the request to a consumer over plain HTTP on a trusted local network.
-It must preserve the original `Host` header and set `X-Forwarded-Proto: https` for the reference consumer's audience check.
+It must preserve the original `Host` header and set `X-Forwarded-Proto: https` for the SDK handler's audience check.
 
 ## Handle lifecycle events
 
@@ -75,13 +75,13 @@ Return any `2xx` status with an empty body for a no-op response.
 An empty JSON object has the same effect.
 If the response has a body, return a JSON object with these optional fields.
 
-| Field           | Effect                                                                                                                                                     |
-|-----------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `permission`    | Allows or denies mutable input for `user_prompt_submit` and `pre_tool_use` only.                                                                           |
-| `model_context` | Adds text visible to the model. The value is limited to 16&nbsp;KiB.                                                                                       |
-| `user_message`  | Adds a system message visible to the user.                                                                                                                 |
-| `allowed_tools` | Replaces the chat's hook tool policy. Omit the field to preserve the policy, return `[]` to restrict all tools, or return names to allow only those tools. |
-| `end_chat`      | Ends the chat when `true`.                                                                                                                                 |
+| Field           | Effect                                                                                                                                                                                                                                                                |
+|-----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `permission`    | Allows or denies mutable input for `user_prompt_submit` and `pre_tool_use` only.                                                                                                                                                                                      |
+| `model_context` | Adds text visible to the model. The value is limited to 16&nbsp;KiB.                                                                                                                                                                                                  |
+| `user_message`  | Adds a system message visible to the user.                                                                                                                                                                                                                            |
+| `allowed_tools` | Replaces the chat's hook tool policy. Omit the field to preserve the policy, return `[]` to restrict all tools, or return names to allow only those tools. The policy applies from the next generation step onward, and a call to an excluded tool fails as inactive. |
+| `end_chat`      | Ends the chat when `true`.                                                                                                                                                                                                                                            |
 
 The `permission.decision` value supports `allow` and `deny`.
 The `ask` value isn't supported and causes the dispatch to fail closed.
