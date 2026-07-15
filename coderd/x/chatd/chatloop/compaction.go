@@ -58,6 +58,7 @@ type CompactionOptions struct {
 	ThresholdPercent    int32
 	ContextLimit        int64
 	SummaryPrompt       string
+	SummaryHint         string
 	SystemSummaryPrefix string
 	Persist             func(context.Context, CompactionResult) error
 	DebugSvc            *chatdebug.Service
@@ -172,6 +173,7 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 		ThresholdPercent:    opts.ThresholdPercent,
 		ContextLimit:        opts.ContextLimit,
 		SummaryPrompt:       opts.SummaryPrompt,
+		SummaryHint:         opts.SummaryHint,
 		SystemSummaryPrefix: opts.SystemSummaryPrefix,
 		DebugSvc:            opts.DebugSvc,
 		ChatID:              opts.ChatID,
@@ -368,11 +370,13 @@ func generateCompactionSummary(
 ) (summary string, err error) {
 	summaryPrompt := make([]fantasy.Message, 0, len(messages)+1)
 	summaryPrompt = append(summaryPrompt, messages...)
+	summaryParts := []fantasy.MessagePart{fantasy.TextPart{Text: options.SummaryPrompt}}
+	if strings.TrimSpace(options.SummaryHint) != "" {
+		summaryParts = append(summaryParts, fantasy.TextPart{Text: options.SummaryHint})
+	}
 	summaryPrompt = append(summaryPrompt, fantasy.Message{
-		Role: fantasy.MessageRoleUser,
-		Content: []fantasy.MessagePart{
-			fantasy.TextPart{Text: options.SummaryPrompt},
-		},
+		Role:    fantasy.MessageRoleUser,
+		Content: summaryParts,
 	})
 	toolChoice := fantasy.ToolChoiceNone
 

@@ -77,6 +77,38 @@ func (p *Server) dispatchSessionStart(
 	})
 }
 
+func (p *Server) dispatchCompactionHook(
+	ctx context.Context,
+	chat database.Chat,
+	turnID *uuid.UUID,
+	eventType agenthooks.EventType,
+	data any,
+) (agenthooks.Response, error) {
+	if p.hookDispatcher == nil || !p.hookDispatcher.Enabled() {
+		return agenthooks.Response{}, nil
+	}
+	var workspaceID *uuid.UUID
+	if chat.WorkspaceID.Valid {
+		workspaceID = &chat.WorkspaceID.UUID
+	}
+	return p.hookDispatcher.Dispatch(ctx, chathooks.Event{
+		Type:        eventType,
+		ChatID:      chat.ID,
+		OwnerID:     chat.OwnerID,
+		WorkspaceID: workspaceID,
+		TurnID:      turnID,
+		Data:        data,
+	})
+}
+
+func (p *Server) dispatchPreCompact(ctx context.Context, chat database.Chat, turnID *uuid.UUID) (agenthooks.Response, error) {
+	return p.dispatchCompactionHook(ctx, chat, turnID, agenthooks.EventPreCompact, agenthooks.PreCompactData{})
+}
+
+func (p *Server) dispatchPostCompact(ctx context.Context, chat database.Chat, turnID *uuid.UUID) (agenthooks.Response, error) {
+	return p.dispatchCompactionHook(ctx, chat, turnID, agenthooks.EventPostCompact, agenthooks.PostCompactData{})
+}
+
 func (p *Server) dispatchStop(
 	ctx context.Context,
 	chat database.Chat,

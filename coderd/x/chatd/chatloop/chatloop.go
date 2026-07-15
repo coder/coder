@@ -270,6 +270,7 @@ type GenerateCompactionOptions struct {
 	ContextLimit         int64
 	ContextLimitFallback int64
 	SummaryPrompt        string
+	SummaryHint          string
 	SystemSummaryPrefix  string
 	StepUsage            fantasy.Usage
 	StepMetadata         fantasy.ProviderMetadata

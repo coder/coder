@@ -875,6 +875,12 @@ func (s *taskStarter) generateCompaction(
 			overrideModel.modelConfig,
 		)
 	}
+	turnID := activeTurnID(prepared.Messages)
+	preResponse, err := s.server.dispatchPreCompact(ctx, prepared.Chat, turnID)
+	if err != nil {
+		return generationHookDispatchError(agenthooks.EventPreCompact, err)
+	}
+	compactionOpts.SummaryHint = preResponse.ModelContext
 	compactionOpts.PublishMessagePart = attempt.publish
 	// Attach the turn debug run so the compaction call records a child
 	// debug run; without it startCompactionDebugRun finds no parent and
@@ -902,15 +908,119 @@ func (s *taskStarter) generateCompaction(
 		s.server.metrics.RecordCompaction(metricProvider, metricModel, false, err)
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
-	err = s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionCompact, stepMessagesForCommit{
+	persistedPreResponse := preResponse
+	persistedPreResponse.ModelContext = ""
+	commitMessages, preEndChat, err := applyHookResponseMessages(stepMessagesForCommit{
 		Messages:       messages.Messages,
 		VisibleIndexes: visibleMessageIndexes(messages.Messages),
-	}, generationCommitHooks{})
+	}, []agenthooks.Response{persistedPreResponse}, prepared.ModelConfigID, turnID)
+	if err != nil {
+		s.server.metrics.RecordCompaction(metricProvider, metricModel, false, err)
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+	}
+	compacted, err := commitCompactionStep(ctx, machine, input, attempt.number, commitMessages, preResponse)
 	s.server.metrics.RecordCompaction(metricProvider, metricModel, err == nil, err)
 	if err != nil {
 		return xerrors.Errorf("commit generation step: %w", err)
 	}
-	return nil
+
+	input.HistoryVersion = compacted.HistoryVersion
+	postCommitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), postCommitWatchPublishTimeout)
+	defer cancel()
+	postResponse, err := s.server.dispatchPostCompact(postCommitCtx, compacted, turnID)
+	if err != nil {
+		return s.finishGenerationError(postCommitCtx, machine, input, generationHookDispatchError(agenthooks.EventPostCompact, err), generationAttemptNotRequired)
+	}
+	return s.applyPostCompactResponse(postCommitCtx, machine, input, compacted, prepared.ModelConfigID, turnID, postResponse, preEndChat)
+}
+
+func commitCompactionStep(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	attempt int64,
+	messages stepMessagesForCommit,
+	preResponse agenthooks.Response,
+) (database.Chat, error) {
+	var committed database.Chat
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		if _, err := loadChatForGeneration(ctx, store, input, requireGenerationAttempt(attempt)); err != nil {
+			return xerrors.Errorf("load chat for generation: %w", err)
+		}
+		if err := applyHookAllowedTools(ctx, store, input.ChatID, preResponse); err != nil {
+			return err
+		}
+		if _, err := tx.CommitStep(chatstate.CommitStepInput{Messages: messages.Messages}); err != nil {
+			return xerrors.Errorf("tx.CommitStep: %w", err)
+		}
+		chat, err := store.GetChatByID(ctx, input.ChatID)
+		if err != nil {
+			return xerrors.Errorf("load committed chat: %w", err)
+		}
+		committed = chat
+		return nil
+	})
+	if err != nil {
+		return database.Chat{}, normalizeTaskTransitionError(err, "commit compaction step")
+	}
+	return committed, nil
+}
+
+func (s *taskStarter) applyPostCompactResponse(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	compacted database.Chat,
+	modelConfigID uuid.UUID,
+	turnID *uuid.UUID,
+	response agenthooks.Response,
+	preEndChat bool,
+) error {
+	prefixMessages, err := hookPrefixMessages(response, modelConfigID, turnID)
+	if err != nil {
+		return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
+	}
+	endChat := preEndChat || response.EndChat
+	committed := compacted
+	if len(prefixMessages) > 0 || response.AllowedTools != nil || endChat {
+		err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+			if _, err := loadChatForGeneration(ctx, store, input, generationAttemptNotRequired); err != nil {
+				return xerrors.Errorf("load chat for post_compact response: %w", err)
+			}
+			if err := applyHookAllowedTools(ctx, store, input.ChatID, response); err != nil {
+				return err
+			}
+			if endChat {
+				if _, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages}); err != nil {
+					return xerrors.Errorf("tx.EndChat: %w", err)
+				}
+			} else if len(prefixMessages) > 0 {
+				if _, err := tx.CommitStep(chatstate.CommitStepInput{Messages: prefixMessages}); err != nil {
+					return xerrors.Errorf("commit post_compact messages: %w", err)
+				}
+			}
+			chat, err := store.GetChatByID(ctx, input.ChatID)
+			if err != nil {
+				return xerrors.Errorf("load post_compact chat: %w", err)
+			}
+			committed = chat
+			return nil
+		})
+		if err != nil {
+			return normalizeTaskTransitionError(err, "apply post_compact response")
+		}
+	}
+	if endChat {
+		input.StopNudges.reset()
+		input.DebugTurn.RecordOutcome(chatdebug.StatusCompleted)
+		s.server.scheduleArchiveDebugCleanup(ctx, []database.Chat{committed})
+		return s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindDeleted)
+	}
+	s.routeStateHint(ctx, stateUpdateFromChat(committed))
+	return s.afterGenerationOutcome(ctx, generationOutcome{
+		Chat: committed,
+		Kind: runnerActionKind(generationActionCompact),
+	})
 }
 
 // compactionMetricIdentity returns the provider/model labels for compaction
@@ -1060,9 +1170,9 @@ func (s *taskStarter) commitGenerationStep(
 		postCommitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), postCommitWatchPublishTimeout)
 		defer cancel()
 		if hooks.PostCommitError != nil {
-			return s.finishGenerationError(postCommitCtx, machine, input, hooks.PostCommitError, requireGenerationAttempt(attempt))
+			return s.finishGenerationError(postCommitCtx, machine, input, hooks.PostCommitError, generationAttemptNotRequired)
 		}
-		return s.endGenerationChat(postCommitCtx, machine, input, requireGenerationAttempt(attempt))
+		return s.endGenerationChat(postCommitCtx, machine, input, generationAttemptNotRequired)
 	}
 	if hooks.EndChat {
 		input.DebugTurn.RecordOutcome(chatdebug.StatusCompleted)
