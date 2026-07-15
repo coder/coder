@@ -14,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -180,6 +181,73 @@ func generationHookDispatchError(eventType agenthooks.EventType, dispatchErr err
 		Message: message,
 		Kind:    codersdk.ChatErrorKindHookDispatchFailed,
 	})
+}
+
+type generationHookResponseResult struct {
+	Chat             database.Chat
+	InsertedMessages []database.ChatMessage
+	Ended            bool
+}
+
+func applyGenerationHookResponse(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	chat database.Chat,
+	turnID *uuid.UUID,
+	response agenthooks.Response,
+) (generationHookResponseResult, error) {
+	if turnID == nil && (response.ModelContext != "" || response.UserMessage != "") {
+		return generationHookResponseResult{}, xerrors.New("session_start response messages require an active turn")
+	}
+
+	var prefixMessages []chatstate.Message
+	var err error
+	if turnID != nil {
+		prefixMessages, err = hookPrefixMessages(response, chat.LastModelConfigID, *turnID)
+		if err != nil {
+			return generationHookResponseResult{}, err
+		}
+	}
+
+	var result generationHookResponseResult
+	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		if _, err := loadChatForGeneration(ctx, store, input, generationAttemptNotRequired); err != nil {
+			return xerrors.Errorf("load chat for session_start response: %w", err)
+		}
+		if err := applyHookAllowedTools(ctx, store, input.ChatID, response); err != nil {
+			return err
+		}
+		if response.EndChat {
+			ended, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages})
+			if err != nil {
+				return xerrors.Errorf("end chat from session_start: %w", err)
+			}
+			result.InsertedMessages = ended.InsertedMessages
+			result.Ended = true
+		} else {
+			inserted, err := tx.CommitMessages(prefixMessages)
+			if err != nil {
+				return xerrors.Errorf("insert session_start response messages: %w", err)
+			}
+			result.InsertedMessages = inserted
+		}
+		result.Chat, err = store.GetChatByID(ctx, input.ChatID)
+		if err != nil {
+			return xerrors.Errorf("reload chat after session_start response: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return generationHookResponseResult{}, normalizeTaskTransitionError(err, "apply session_start response")
+	}
+	return result, nil
+}
+
+func (s *taskStarter) finishGenerationHookEnd(ctx context.Context, input chatWorkerTaskStartInput, result generationHookResponseResult) error {
+	input.DebugTurn.RecordOutcome(chatdebug.StatusCompleted)
+	s.server.scheduleArchiveDebugCleanup(ctx, []database.Chat{result.Chat})
+	return s.publishWatchAndRoute(ctx, result.Chat, codersdk.ChatWatchEventKindDeleted)
 }
 
 func hookPrefixMessages(response agenthooks.Response, modelConfigID, turnID uuid.UUID) ([]chatstate.Message, error) {

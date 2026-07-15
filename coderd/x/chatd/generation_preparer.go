@@ -9,6 +9,7 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -24,6 +25,41 @@ import (
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+func filterHookAllowedTools(
+	hookAllowedTools pqtype.NullRawMessage,
+	tools []fantasy.AgentTool,
+	providerTools []chatloop.ProviderTool,
+) ([]fantasy.AgentTool, []chatloop.ProviderTool, map[string]struct{}, bool, error) {
+	if !hookAllowedTools.Valid {
+		return tools, providerTools, nil, false, nil
+	}
+	var names []string
+	if err := json.Unmarshal(hookAllowedTools.RawMessage, &names); err != nil {
+		return nil, nil, nil, false, xerrors.Errorf("decode hook allowed tools: %w", err)
+	}
+	allowed := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		allowed[name] = struct{}{}
+	}
+	tools = slices.DeleteFunc(tools, func(tool fantasy.AgentTool) bool {
+		_, ok := allowed[tool.Info().Name]
+		return !ok
+	})
+	providerTools = slices.DeleteFunc(providerTools, func(tool chatloop.ProviderTool) bool {
+		_, ok := allowed[tool.Definition.GetName()]
+		return !ok
+	})
+	return tools, providerTools, allowed, true, nil
+}
+
+func filterToolNameMap(names map[string]bool, allowed map[string]struct{}) {
+	for name := range names {
+		if _, ok := allowed[name]; !ok {
+			delete(names, name)
+		}
+	}
+}
 
 func (server *Server) prepareGeneration(
 	ctx context.Context,
@@ -530,6 +566,17 @@ func (server *Server) prepareGeneration(
 			cleanup()
 			return generationPrepared{}, err
 		}
+	}
+
+	tools, providerTools, hookAllowedNames, hookRestricted, err := filterHookAllowedTools(chat.HookAllowedTools, tools, providerTools)
+	if err != nil {
+		cleanup()
+		return generationPrepared{}, err
+	}
+	if hookRestricted {
+		filterToolNameMap(builtinToolNames, hookAllowedNames)
+		filterToolNameMap(dynamicToolNames, hookAllowedNames)
+		filterToolNameMap(exclusiveToolNames, hookAllowedNames)
 	}
 
 	var requestedEffort *string

@@ -1674,13 +1674,14 @@ func (p *Server) EditMessage(
 
 	turnID := uuid.New()
 	contentParts := opts.Content
-	var hookResponse agenthooks.Response
+	var sessionStartResponse, hookResponse agenthooks.Response
 	if p.hookDispatcher != nil && p.hookDispatcher.Enabled() {
 		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return EditMessageResult{}, xerrors.Errorf("load chat for edit hooks: %w", err)
 		}
-		if _, err := p.dispatchSessionStart(ctx, chat, &turnID, sessionStartSourceClear); err != nil {
+		sessionStartResponse, err = p.dispatchSessionStart(ctx, chat, &turnID, sessionStartSourceClear)
+		if err != nil {
 			return EditMessageResult{}, p.handleAPIDispatchError(ctx, opts.ChatID, agenthooks.EventSessionStart, err)
 		}
 		hookResponse, err = p.dispatchUserPromptSubmit(ctx, chat, turnID, contentParts)
@@ -1769,14 +1770,22 @@ func (p *Server) EditMessage(
 		if modelOverride.Valid {
 			modelConfigID = modelOverride.UUID
 		}
-		prefixMessages, err := hookPrefixMessages(hookResponse, modelConfigID, turnID)
+		sessionStartMessages, err := hookPrefixMessages(sessionStartResponse, modelConfigID, turnID)
 		if err != nil {
+			return err
+		}
+		promptMessages, err := hookPrefixMessages(hookResponse, modelConfigID, turnID)
+		if err != nil {
+			return err
+		}
+		prefixMessages := slices.Concat(sessionStartMessages, promptMessages)
+		if err := applyHookAllowedTools(ctx, store, opts.ChatID, sessionStartResponse); err != nil {
 			return err
 		}
 		if err := applyHookAllowedTools(ctx, store, opts.ChatID, hookResponse); err != nil {
 			return err
 		}
-		if hookResponse.EndChat {
+		if sessionStartResponse.EndChat || hookResponse.EndChat {
 			if _, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages}); err != nil {
 				return err
 			}

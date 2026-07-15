@@ -4,11 +4,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -16,6 +19,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agenthooks"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -79,4 +86,197 @@ func TestSessionStartDispatchSources(t *testing.T) {
 	require.Equal(t, sessionStartSourceResume, resume.data.Source)
 	require.Equal(t, resume.request.Meta.DispatchID, resume.claims.JTI)
 	require.NotEqual(t, startup.claims.JTI, resume.claims.JTI)
+}
+
+func TestSessionStartDispatchFailureFinishesGeneration(t *testing.T) {
+	t.Parallel()
+	f := newTaskTestFixture(t)
+	chat := f.createRunningChat(t)
+	workerID := uuid.New()
+	runnerID := uuid.New()
+	chat = f.acquireChat(t, chat.ID, workerID, runnerID)
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(consumer.Close)
+	dispatcher := chathooks.New(
+		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		f.db,
+		consumer.Client(),
+		consumer.URL,
+		"test-hook-secret-32-bytes-minimum!!",
+		time.Second,
+		"test-deployment",
+		"test-version",
+		prometheus.NewRegistry(),
+	)
+	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
+	starter.server.hookDispatcher = dispatcher
+	ctx := testutil.Context(t, testutil.WaitLong)
+	debugTurn := newRunnerDebugTurn(ctx, starter.opts.Logger)
+	defer debugTurn.Finalize(ctx)
+	var dispatched atomic.Bool
+	err := starter.StartGeneration(ctx, chatWorkerTaskStartInput{
+		ChatID:                 chat.ID,
+		WorkerID:               workerID,
+		RunnerID:               runnerID,
+		HistoryVersion:         chat.HistoryVersion,
+		GenerationAttempt:      chat.GenerationAttempt,
+		Status:                 database.ChatStatusRunning,
+		DebugTurn:              debugTurn,
+		SessionStartDispatched: &dispatched,
+	})
+	require.NoError(t, err)
+	updated, err := f.db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusError, updated.Status)
+	var chatErr codersdk.ChatError
+	require.NoError(t, json.Unmarshal(updated.LastError.RawMessage, &chatErr))
+	require.Equal(t, codersdk.ChatErrorKindHookDispatchFailed, chatErr.Kind)
+	require.Contains(t, chatErr.Message, "hook dispatch failed: session_start: http_error (dispatch ")
+	require.False(t, chatErr.Retryable)
+}
+
+func TestApplyGenerationHookResponse(t *testing.T) {
+	t.Parallel()
+	f := newTaskTestFixture(t)
+	chat := f.createRunningChat(t)
+	workerID := uuid.New()
+	runnerID := uuid.New()
+	chat = f.acquireChat(t, chat.ID, workerID, runnerID)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	messages, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	require.NotEmpty(t, messages)
+	turnID := messages[len(messages)-1].TurnID.UUID
+	input := chatWorkerTaskStartInput{
+		ChatID:         chat.ID,
+		WorkerID:       workerID,
+		RunnerID:       runnerID,
+		HistoryVersion: chat.HistoryVersion,
+		Status:         database.ChatStatusRunning,
+	}
+	result, err := applyGenerationHookResponse(
+		ctx,
+		chatstate.NewChatMachine(f.db, f.pubsub, chat.ID),
+		input,
+		chat,
+		&turnID,
+		agenthooks.Response{
+			ModelContext: "model context",
+			UserMessage:  "user notice",
+			AllowedTools: []string{"read_file"},
+		},
+	)
+	require.NoError(t, err)
+	require.False(t, result.Ended)
+	require.Len(t, result.InsertedMessages, 2)
+
+	promptRows, err := f.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, "model context", hookMessageTextInternal(t, promptRows[len(promptRows)-1]))
+	require.Equal(t, database.ChatMessageVisibilityModel, promptRows[len(promptRows)-1].Visibility)
+	allRows, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	userNotice := allRows[len(allRows)-1]
+	require.Equal(t, database.ChatMessageRoleSystem, userNotice.Role)
+	require.Equal(t, database.ChatMessageVisibilityUser, userNotice.Visibility)
+	require.Equal(t, "user notice", hookMessageTextInternal(t, userNotice))
+	require.JSONEq(t, `["read_file"]`, string(result.Chat.HookAllowedTools.RawMessage))
+}
+
+func TestApplyGenerationHookResponseEndChat(t *testing.T) {
+	t.Parallel()
+	f := newTaskTestFixture(t)
+	chat := f.createRunningChat(t)
+	workerID := uuid.New()
+	runnerID := uuid.New()
+	chat = f.acquireChat(t, chat.ID, workerID, runnerID)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	messages, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	turnID := messages[len(messages)-1].TurnID.UUID
+	result, err := applyGenerationHookResponse(
+		ctx,
+		chatstate.NewChatMachine(f.db, f.pubsub, chat.ID),
+		chatWorkerTaskStartInput{
+			ChatID:         chat.ID,
+			WorkerID:       workerID,
+			RunnerID:       runnerID,
+			HistoryVersion: chat.HistoryVersion,
+			Status:         database.ChatStatusRunning,
+		},
+		chat,
+		&turnID,
+		agenthooks.Response{UserMessage: "ended by hook", EndChat: true},
+	)
+	require.NoError(t, err)
+	require.True(t, result.Ended)
+	require.True(t, result.Chat.Archived)
+	require.Equal(t, database.ChatStatusWaiting, result.Chat.Status)
+	require.False(t, result.Chat.WorkerID.Valid)
+	require.False(t, result.Chat.RunnerID.Valid)
+	require.Len(t, result.InsertedMessages, 1)
+}
+
+func hookMessageTextInternal(t *testing.T, message database.ChatMessage) string {
+	t.Helper()
+	parts, err := chatprompt.ParseContent(message)
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	return parts[0].Text
+}
+
+func TestFilterHookAllowedTools(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		allowed        pqtype.NullRawMessage
+		wantTools      []string
+		wantProviders  []string
+		wantRestricted bool
+	}{
+		{
+			name:          "null",
+			wantTools:     []string{"read_file", "dynamic_tool"},
+			wantProviders: []string{"web_search"},
+		},
+		{
+			name:           "empty",
+			allowed:        pqtype.NullRawMessage{RawMessage: []byte(`[]`), Valid: true},
+			wantTools:      []string{},
+			wantProviders:  []string{},
+			wantRestricted: true,
+		},
+		{
+			name:           "subset",
+			allowed:        pqtype.NullRawMessage{RawMessage: []byte(`["dynamic_tool","web_search"]`), Valid: true},
+			wantTools:      []string{"dynamic_tool"},
+			wantProviders:  []string{"web_search"},
+			wantRestricted: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			tools := []fantasy.AgentTool{newTestAgentTool("read_file"), newTestAgentTool("dynamic_tool")}
+			providerTools := []chatloop.ProviderTool{{
+				Definition: fantasy.ProviderDefinedTool{ID: "web_search", Name: "web_search"},
+			}}
+			tools, providerTools, _, restricted, err := filterHookAllowedTools(test.allowed, tools, providerTools)
+			require.NoError(t, err)
+			require.Equal(t, test.wantRestricted, restricted)
+			toolNames := make([]string, 0, len(tools))
+			for _, tool := range tools {
+				toolNames = append(toolNames, tool.Info().Name)
+			}
+			providerNames := make([]string, 0, len(providerTools))
+			for _, tool := range providerTools {
+				providerNames = append(providerNames, tool.Definition.GetName())
+			}
+			require.Equal(t, test.wantTools, toolNames)
+			require.Equal(t, test.wantProviders, providerNames)
+		})
+	}
 }

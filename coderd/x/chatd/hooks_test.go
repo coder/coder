@@ -341,7 +341,7 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 		claims, err := agenthooks.Verify(r.Header.Get("Authorization"), []byte("test-hook-secret-32-bytes-minimum!!"))
 		require.NoError(t, err)
 		received = append(received, receivedHook{request: request, claims: claims})
-		response := `{}`
+		response := `{"model_context":"clear context","user_message":"clear notice","allowed_tools":["read_file"]}`
 		if request.Type == agenthooks.EventUserPromptSubmit {
 			response = `{"permission":{"decision":"allow","input_override":{"prompt":"edited override"}}}`
 		}
@@ -371,6 +371,27 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 	require.Equal(t, agenthooks.EventUserPromptSubmit, received[1].request.Type)
 	require.Equal(t, received[1].request.Meta.DispatchID, received[1].claims.JTI)
 	require.NotEqual(t, received[0].claims.JTI, received[1].claims.JTI)
+	rows, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	var foundNotice bool
+	for _, row := range rows {
+		if row.Role == database.ChatMessageRoleSystem && row.Visibility == database.ChatMessageVisibilityUser && hookMessageText(t, row) == "clear notice" {
+			foundNotice = true
+		}
+	}
+	require.True(t, foundNotice)
+	promptRows, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	var foundContext bool
+	for _, row := range promptRows {
+		if row.Visibility == database.ChatMessageVisibilityModel && hookMessageText(t, row) == "clear context" {
+			foundContext = true
+		}
+	}
+	require.True(t, foundContext)
+	updated, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.JSONEq(t, `["read_file"]`, string(updated.HookAllowedTools.RawMessage))
 }
 
 func TestSendMessageHooksDisabled(t *testing.T) {

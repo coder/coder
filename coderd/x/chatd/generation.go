@@ -320,8 +320,10 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if err != nil {
 			return xerrors.Errorf("load generation state: %w", err)
 		}
-		if input.SessionStartDispatched != nil && input.SessionStartDispatched.CompareAndSwap(false, true) {
-			_, err := s.server.dispatchSessionStart(ctx, chat, activeTurnID(messages), sessionStartSource(messages))
+		if s.server.hookDispatcher != nil && s.server.hookDispatcher.Enabled() &&
+			input.SessionStartDispatched != nil && input.SessionStartDispatched.CompareAndSwap(false, true) {
+			turnID := activeTurnID(messages)
+			response, err := s.server.dispatchSessionStart(ctx, chat, turnID, sessionStartSource(messages))
 			if err != nil {
 				return s.finishGenerationError(
 					ctx,
@@ -331,6 +333,15 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 					generationAttemptNotRequired,
 				)
 			}
+			result, err := applyGenerationHookResponse(ctx, machine, input, chat, turnID, response)
+			if err != nil {
+				return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
+			}
+			if result.Ended {
+				return s.finishGenerationHookEnd(ctx, input, result)
+			}
+			input.HistoryVersion = result.Chat.HistoryVersion
+			continue
 		}
 		prepareInput := generationPrepareInput{
 			Chat:     chat,
