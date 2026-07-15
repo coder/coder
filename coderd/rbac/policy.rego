@@ -157,7 +157,13 @@ check_org_permissions(roles, key) := 1 if {
 	# Disallow setting any_org at the same time as an org id.
 	not input.object.any_org
 
-	input.object.org_owner in org_ids_with_vote(roles, key, 1)
+	allow := org_ids_with_vote(roles, key, 1)
+
+	# `allow` is fully known during partial evaluation. Guarding on its size keeps
+	# an empty set from emitting an unsatisfiable `org_owner in set()` residual
+	# (partial eval drops the whole branch instead).
+	count(allow) > 0
+	input.object.org_owner in allow
 }
 
 # This check handles the case where we want to know if the user has the
@@ -220,7 +226,12 @@ org_member := 1 if {
 
 	member_allow := org_ids_with_vote(input.subject.roles, "member", 1)
 	org_deny := org_ids_with_vote(input.subject.roles, "org", -1)
-	input.object.org_owner in (member_allow - org_deny)
+	allowed := member_allow - org_deny
+
+	# See check_org_permissions: guard on the ground set size so an empty set
+	# does not emit an unsatisfiable residual.
+	count(allowed) > 0
+	input.object.org_owner in allowed
 }
 
 org_member := vote if {
@@ -242,7 +253,12 @@ scope_org_member := 1 if {
 
 	member_allow := org_ids_with_vote([input.subject.scope], "member", 1)
 	org_deny := org_ids_with_vote([input.subject.scope], "org", -1)
-	input.object.org_owner in (member_allow - org_deny)
+	allowed := member_allow - org_deny
+
+	# See check_org_permissions: guard on the ground set size so an empty set
+	# does not emit an unsatisfiable residual.
+	count(allowed) > 0
+	input.object.org_owner in allowed
 }
 
 scope_org_member := vote if {
