@@ -1340,6 +1340,40 @@ func (tx *Tx) FinishError(input FinishErrorInput) (FinishErrorResult, error) {
 	return FinishErrorResult{}, nil
 }
 
+// FailIdleInput configures [Tx.FailIdle].
+type FailIdleInput struct {
+	LastError string
+}
+
+// FailIdleResult is returned by [Tx.FailIdle].
+type FailIdleResult struct{}
+
+// FailIdle moves a waiting chat to error without requiring runner ownership.
+func (tx *Tx) FailIdle(input FailIdleInput) (FailIdleResult, error) {
+	chat, _, err := tx.requireFromAllowed(TransitionFailIdle)
+	if err != nil {
+		return FailIdleResult{}, err
+	}
+	lastError, err := json.Marshal(codersdk.ChatError{
+		Message: input.LastError,
+		Kind:    codersdk.ChatErrorKindGeneric,
+	})
+	if err != nil {
+		return FailIdleResult{}, xerrors.Errorf("encode last error: %w", err)
+	}
+	if _, err := tx.applyExecutionState(executionStateUpdate{
+		Status:                   database.ChatStatusError,
+		Archived:                 false,
+		WorkerID:                 chat.WorkerID,
+		RunnerID:                 chat.RunnerID,
+		LastError:                pqtype.NullRawMessage{RawMessage: lastError, Valid: true},
+		RequiresActionDeadlineAt: sql.NullTime{},
+	}); err != nil {
+		return FailIdleResult{}, xerrors.Errorf("set error: %w", err)
+	}
+	return FailIdleResult{}, nil
+}
+
 // CancelRequiresActionInput configures [Tx.CancelRequiresAction].
 type CancelRequiresActionInput struct {
 	Reason string
