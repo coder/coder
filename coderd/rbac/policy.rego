@@ -353,9 +353,11 @@ shared_use_orgs := {org_id |
 # use_shared action in their policy action set. The flag is derived from
 # the object type in Go (rbac.ACLUseGated) and passed as a known input
 # field. Types that do not declare use_shared rely on ACL-only grants by
-# design and are unaffected.
+# design and are unaffected. The comparison is an explicit == false so an
+# input path that omits the field fails closed (undefined) instead of
+# passing the precondition.
 acl_use_precondition if {
-	not input.object.acl_use_gated
+	input.object.acl_use_gated == false
 }
 
 acl_use_precondition if {
