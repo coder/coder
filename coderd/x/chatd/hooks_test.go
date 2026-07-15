@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -407,6 +408,40 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 	updated, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.JSONEq(t, `["read_file"]`, string(updated.HookAllowedTools.RawMessage))
+}
+
+func TestEditMessageInvalidTargetSkipsHooks(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	apiKeyID := testAPIKeyID(t, db, user.ID)
+	var dispatched atomic.Int32
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		dispatched.Add(1)
+		_, err := w.Write([]byte(`{}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+	server := newHookTestServer(t, db, ps, consumer)
+
+	_, err := server.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: 999999,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edit of nothing")},
+		APIKeyID:        apiKeyID,
+	})
+	require.ErrorIs(t, err, chatd.ErrEditedMessageNotFound)
+	require.Zero(t, dispatched.Load(), "invalid edit targets must not dispatch hooks")
+	dispatches, err := db.ListChatHookDispatchesByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Empty(t, dispatches)
 }
 
 func TestSendMessageHooksDisabled(t *testing.T) {

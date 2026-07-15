@@ -1691,6 +1691,23 @@ func resolveFallbackModelConfigID(
 	return defaultConfig.ID, nil
 }
 
+func validateEditTarget(ctx context.Context, store database.Store, chatID uuid.UUID, messageID int64) error {
+	target, err := store.GetChatMessageByID(ctx, messageID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrEditedMessageNotFound
+		}
+		return xerrors.Errorf("get edited message: %w", err)
+	}
+	if target.ChatID != chatID || target.Deleted {
+		return ErrEditedMessageNotFound
+	}
+	if target.Role != database.ChatMessageRoleUser {
+		return ErrEditedMessageNotUser
+	}
+	return nil
+}
+
 // EditMessage replaces an earlier user message and discards the
 // active-history suffix through chatstate.EditMessage. Model-config
 // override validation and usage-limit admission run in the same
@@ -1719,6 +1736,12 @@ func (p *Server) EditMessage(
 		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return EditMessageResult{}, xerrors.Errorf("load chat for edit hooks: %w", err)
+		}
+		// Reject invalid edit targets before dispatching so hook
+		// consumers never observe prompts for edits that cannot
+		// happen. The transaction below revalidates under lock.
+		if err := validateEditTarget(ctx, p.db, opts.ChatID, opts.EditedMessageID); err != nil {
+			return EditMessageResult{}, err
 		}
 		sessionStartResponse, err = p.dispatchSessionStart(ctx, chat, &turnID, sessionStartSourceClear)
 		if err != nil {
