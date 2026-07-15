@@ -49,7 +49,7 @@ func TestPreToolUseHookAllow(t *testing.T) {
 		},
 		{
 			name:         "override",
-			response:     `{"permission":{"decision":"allow","input_override":{"path":"/tmp/after.txt"}}}`,
+			response:     `{"permission":{"decision":"allow","input_override":{"path":"/tmp/after.txt"}},"user_message":"tool approved","allowed_tools":["read_file"]}`,
 			expectedPath: "/tmp/after.txt",
 			decision:     "allow",
 		},
@@ -124,6 +124,20 @@ func TestPreToolUseHookAllow(t *testing.T) {
 			require.Equal(t, tt.decision != "", dispatch.Decision.Valid)
 			if tt.decision != "" {
 				require.Equal(t, tt.decision, dispatch.Decision.String)
+			}
+			if tt.name == "override" {
+				chatResult, err := db.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.JSONEq(t, `["read_file"]`, string(chatResult.HookAllowedTools.RawMessage))
+				var foundUserMessage bool
+				for _, message := range chatMessages(ctx, t, db, chat.ID) {
+					parts, err := chatprompt.ParseContent(message)
+					require.NoError(t, err)
+					if len(parts) == 1 && parts[0].Text == "tool approved" {
+						foundUserMessage = true
+					}
+				}
+				require.True(t, foundUserMessage)
 			}
 			require.JSONEq(t, `{"path":"/tmp/before.txt"}`, string(dispatch.OriginalInput.RawMessage))
 		})
@@ -213,6 +227,213 @@ func TestPreToolUseHookDeny(t *testing.T) {
 	require.True(t, openAIMessagesContain(modelMessages, "Do not read secrets."))
 	dispatch := preToolUseDispatch(t, db, chat.ID)
 	require.Equal(t, "deny", dispatch.Decision.String)
+}
+
+func TestPreToolUseHookEndChat(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	var modelCalls atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		modelCalls.Add(1)
+		chunk := chattest.OpenAIToolCallChunk("my_dynamic_tool", `{}`)
+		chunk.Choices[0].ToolCalls[0].ID = "call_end_chat"
+		return chattest.OpenAIStreamingResponse(chunk)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	consumer := preToolUseConsumer(t, func(data agenthooks.PreToolUseData) string {
+		require.Equal(t, "call_end_chat", data.ToolUseID)
+		return `{"end_chat":true}`
+	})
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		APIKeyID:       testAPIKeyID(t, db, user.ID),
+		Title:          "pre-tool-use-end-chat",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("stop before the tool"),
+		},
+		DynamicTools: dynamicToolJSON(t, "my_dynamic_tool"),
+	})
+	require.NoError(t, err)
+
+	var archived database.Chat
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		archived, err = db.GetChatByID(ctx, chat.ID)
+		return err == nil && archived.Archived && archived.Status == database.ChatStatusWaiting
+	}, testutil.IntervalFast)
+	require.Equal(t, int32(1), modelCalls.Load())
+	require.False(t, archived.RequiresActionDeadlineAt.Valid)
+	call := requireToolCallPart(t, chatToolParts(ctx, t, db, chat.ID), "my_dynamic_tool")
+	require.Equal(t, "call_end_chat", call.ToolCallID)
+}
+
+func TestPreToolUseHookDispatchFailure(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		statusCode int
+		response   string
+		result     string
+	}{
+		{
+			name:       "http error",
+			statusCode: http.StatusInternalServerError,
+			result:     "http_error",
+		},
+		{
+			name:     "ask protocol error",
+			response: `{"permission":{"decision":"ask"}}`,
+			result:   "protocol_error",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, ps := dbtestutil.NewDB(t)
+			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				if !req.Stream {
+					return chattest.OpenAINonStreamingResponse("title")
+				}
+				chunk := chattest.OpenAIToolCallChunk("my_dynamic_tool", `{}`)
+				chunk.Choices[0].ToolCalls[0].ID = "call_failure"
+				return chattest.OpenAIStreamingResponse(chunk)
+			})
+			user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+			consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var request agenthooks.Request
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+				if request.Type != agenthooks.EventPreToolUse {
+					_, err := w.Write([]byte(`{}`))
+					require.NoError(t, err)
+					return
+				}
+				if tt.statusCode != 0 {
+					w.WriteHeader(tt.statusCode)
+					return
+				}
+				_, err := w.Write([]byte(tt.response))
+				require.NoError(t, err)
+			}))
+			t.Cleanup(consumer.Close)
+
+			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+				cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+			})
+			chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID: org.ID,
+				OwnerID:        user.ID,
+				APIKeyID:       testAPIKeyID(t, db, user.ID),
+				Title:          "pre-tool-use-failure",
+				ModelConfigID:  model.ID,
+				InitialUserContent: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("fail before commit"),
+				},
+				DynamicTools: dynamicToolJSON(t, "my_dynamic_tool"),
+			})
+			require.NoError(t, err)
+			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+
+			failed, err := db.GetChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+			dispatch := preToolUseDispatch(t, db, chat.ID)
+			require.Equal(t, tt.result, dispatch.Result)
+			lastError := chatLastErrorMessage(failed.LastError)
+			require.Contains(t, lastError, "hook dispatch failed: pre_tool_use: "+tt.result)
+			require.Contains(t, lastError, dispatch.ID.String())
+			messages := chatMessages(ctx, t, db, chat.ID)
+			require.Len(t, messages, 1)
+			require.Equal(t, database.ChatMessageRoleUser, messages[0].Role)
+		})
+	}
+}
+
+func TestPreToolUseHookFailureAbortsWholeStep(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		first := chattest.OpenAIToolCallChunk("my_dynamic_tool", `{"value":1}`)
+		first.Choices[0].ToolCalls[0].ID = "call_first"
+		second := chattest.OpenAIToolCallChunk("my_dynamic_tool", `{"value":2}`).Choices[0].ToolCalls[0]
+		second.ID = "call_second"
+		second.Index = 1
+		first.Choices[0].ToolCalls = append(first.Choices[0].ToolCalls, second)
+		return chattest.OpenAIStreamingResponse(first)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request agenthooks.Request
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		if request.Type != agenthooks.EventPreToolUse {
+			_, err := w.Write([]byte(`{}`))
+			require.NoError(t, err)
+			return
+		}
+		decoded, err := request.Decode()
+		require.NoError(t, err)
+		data := decoded.(*agenthooks.PreToolUseData)
+		if data.ToolUseID == "call_first" {
+			_, err = w.Write([]byte(`{"permission":{"decision":"allow","input_override":{"value":1}}}`))
+			require.NoError(t, err)
+			return
+		}
+		require.Equal(t, "call_second", data.ToolUseID)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(consumer.Close)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		APIKeyID:       testAPIKeyID(t, db, user.ID),
+		Title:          "pre-tool-use-atomic-failure",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("call both tools"),
+		},
+		DynamicTools: dynamicToolJSON(t, "my_dynamic_tool"),
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+
+	messages := chatMessages(ctx, t, db, chat.ID)
+	require.Len(t, messages, 1)
+	rows, err := db.ListChatHookDispatchesByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	var toolRows []database.ChatHookDispatch
+	for _, row := range rows {
+		if row.Event == string(agenthooks.EventPreToolUse) {
+			toolRows = append(toolRows, row)
+		}
+	}
+	require.Len(t, toolRows, 2)
+	require.Equal(t, "call_first", toolRows[0].ToolUseID.String)
+	require.Equal(t, "allow", toolRows[0].Decision.String)
+	require.Equal(t, "call_second", toolRows[1].ToolUseID.String)
+	require.Equal(t, "http_error", toolRows[1].Result)
 }
 
 func TestPreToolUseHookResumeFallback(t *testing.T) {
