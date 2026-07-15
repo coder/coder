@@ -361,7 +361,7 @@ func (server *Server) prepareGeneration(
 	setAdvisorPromptSnapshot(prompt)
 
 	storeChatAttachment := server.newStoreChatAttachmentFunc(&workspaceCtx)
-	executionRecorder := server.newExecutionRecorder(chat.ID, &workspaceCtx)
+	executionRecorder := server.newExecutionRecorder(chat.ID)
 	tools := []fantasy.AgentTool{
 		chattool.ReadFile(chattool.ReadFileOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.WriteFile(chattool.WriteFileOptions{
@@ -379,7 +379,7 @@ func (server *Server) prepareGeneration(
 			StoreFile:        storeChatAttachment,
 		}),
 		chattool.Execute(chattool.ExecuteOptions{
-			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConnAndAgent,
 			Logger:           server.logger,
 			Recorder:         executionRecorder,
 		}),

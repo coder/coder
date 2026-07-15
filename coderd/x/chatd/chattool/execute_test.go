@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -618,8 +619,8 @@ func TestExecuteTool(t *testing.T) {
 	t.Run("GetWorkspaceConnError", func(t *testing.T) {
 		t.Parallel()
 		tool := chattool.Execute(chattool.ExecuteOptions{
-			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
-				return nil, xerrors.New("workspace offline")
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, uuid.UUID, error) {
+				return nil, uuid.Nil, xerrors.New("workspace offline")
 			},
 		})
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -715,11 +716,13 @@ func TestDetectFileDump(t *testing.T) {
 }
 
 // newExecuteTool creates an Execute tool wired to the given mock.
+var testAgentID = uuid.New()
+
 func newExecuteTool(t *testing.T, mockConn *agentconnmock.MockAgentConn) fantasy.AgentTool {
 	t.Helper()
 	return chattool.Execute(chattool.ExecuteOptions{
-		GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
-			return mockConn, nil
+		GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, uuid.UUID, error) {
+			return mockConn, testAgentID, nil
 		},
 	})
 }
@@ -793,7 +796,7 @@ func (f *fakeRecorder) Get(_ context.Context, toolCallID string) (chattool.Execu
 	return rec, nil
 }
 
-func (f *fakeRecorder) RecordStart(ctx context.Context, toolCallID string, claimEpoch int64, processID string) error {
+func (f *fakeRecorder) RecordStart(ctx context.Context, toolCallID string, claimEpoch int64, processID string, agentID uuid.UUID) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.recordStartCalled = true
@@ -859,8 +862,8 @@ func (f *fakeRecorder) record(toolCallID string) chattool.ExecutionRecord {
 func newRecordedExecuteTool(t *testing.T, mockConn *agentconnmock.MockAgentConn, recorder chattool.ExecutionRecorder) fantasy.AgentTool {
 	t.Helper()
 	return chattool.Execute(chattool.ExecuteOptions{
-		GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
-			return mockConn, nil
+		GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, uuid.UUID, error) {
+			return mockConn, testAgentID, nil
 		},
 		Recorder: recorder,
 	})

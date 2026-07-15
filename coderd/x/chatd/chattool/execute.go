@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -204,7 +205,7 @@ type ExecutionRecorder interface {
 	// RecordStart stores the process identity on the claim that
 	// dispatched it and moves the row to running. claimEpoch must
 	// be the epoch returned by the Claim that owns the dispatch.
-	RecordStart(ctx context.Context, toolCallID string, claimEpoch int64, processID string) error
+	RecordStart(ctx context.Context, toolCallID string, claimEpoch int64, processID string, agentID uuid.UUID) error
 	// MarkTerminal applies a lifecycle observation (exited,
 	// detached, unknown, or no_effect). Observations never
 	// overwrite states written by the interrupt reconciler.
@@ -213,7 +214,11 @@ type ExecutionRecorder interface {
 
 // ExecuteOptions configures the execute tool.
 type ExecuteOptions struct {
-	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
+	// GetWorkspaceConn returns the workspace connection together
+	// with the ID of the agent behind it, captured atomically so
+	// ledger writes attribute the process to the agent that
+	// actually served the dispatch.
+	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, uuid.UUID, error)
 	DefaultTimeout   time.Duration
 	// Logger records ledger observability events. The zero Logger
 	// is a valid no-op.
@@ -223,6 +228,10 @@ type ExecuteOptions struct {
 	// duplicate process. A nil Recorder disables idempotent
 	// starts.
 	Recorder ExecutionRecorder
+	// connAgentID is the agent behind the conn returned by
+	// GetWorkspaceConn, captured with it and carried to ledger
+	// writes on this options copy.
+	connAgentID uuid.UUID
 }
 
 // ProcessToolOptions configures a process management tool
@@ -254,10 +263,11 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
 			}
-			conn, err := options.GetWorkspaceConn(ctx)
+			conn, agentID, err := options.GetWorkspaceConn(ctx)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
+			options.connAgentID = agentID
 			return executeTool(ctx, conn, args, options, call), nil
 		},
 	)
@@ -569,7 +579,7 @@ func recordProcessStart(ctx context.Context, options ExecuteOptions, toolCallID 
 	}
 	recordCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), recordWriteTimeout)
 	defer cancel()
-	if err := options.Recorder.RecordStart(recordCtx, toolCallID, claimEpoch, processID); err != nil {
+	if err := options.Recorder.RecordStart(recordCtx, toolCallID, claimEpoch, processID, options.connAgentID); err != nil {
 		options.Logger.Warn(ctx, "failed to record execute process start",
 			slog.F("tool_call_id", toolCallID),
 			slog.F("process_id", processID),

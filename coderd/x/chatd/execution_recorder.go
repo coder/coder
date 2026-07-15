@@ -24,10 +24,9 @@ import (
 // messages, so the assistant message ID keeps every regeneration on
 // its own row.
 type executionRecorder struct {
-	db           database.Store
-	chatID       uuid.UUID
-	workspaceCtx *turnWorkspaceContext
-	logger       slog.Logger
+	db     database.Store
+	chatID uuid.UUID
+	logger slog.Logger
 
 	mu sync.Mutex
 	// assistantMessageID is the lineage anchor for all recorder
@@ -38,12 +37,11 @@ type executionRecorder struct {
 
 var _ chattool.ExecutionRecorder = (*executionRecorder)(nil)
 
-func (server *Server) newExecutionRecorder(chatID uuid.UUID, workspaceCtx *turnWorkspaceContext) *executionRecorder {
+func (server *Server) newExecutionRecorder(chatID uuid.UUID) *executionRecorder {
 	return &executionRecorder{
-		db:           server.db,
-		chatID:       chatID,
-		workspaceCtx: workspaceCtx,
-		logger:       server.logger,
+		db:     server.db,
+		chatID: chatID,
+		logger: server.logger,
 	}
 }
 
@@ -142,14 +140,13 @@ func (r *executionRecorder) Get(ctx context.Context, toolCallID string) (chattoo
 // pinned to an agent that is no longer the latest one. The claim
 // epoch guard means a superseded claimer cannot overwrite the
 // current claim's identity.
-func (r *executionRecorder) RecordStart(ctx context.Context, toolCallID string, claimEpoch int64, processID string) error {
+func (r *executionRecorder) RecordStart(ctx context.Context, toolCallID string, claimEpoch int64, processID string, agentID uuid.UUID) error {
 	msgID, err := r.lineage()
 	if err != nil {
 		return err
 	}
-	agentID, ok := r.workspaceCtx.connAgentID()
-	if !ok {
-		return xerrors.New("no cached workspace connection to attribute the process to")
+	if agentID == uuid.Nil {
+		return xerrors.New("no workspace agent to attribute the process to")
 	}
 	_, err = r.db.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
 		ChatID:             r.chatID,

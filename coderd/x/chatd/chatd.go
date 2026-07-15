@@ -806,20 +806,6 @@ func (c *turnWorkspaceContext) workspaceAgentIDForConn(
 	)
 }
 
-// connAgentID returns the ID of the agent behind the currently
-// cached workspace connection, reporting false when none is cached.
-// Unlike workspaceAgentIDForConn, it never re-resolves the latest
-// agent, so it stays accurate when the connection was dialed to a
-// pinned agent that is no longer the latest one.
-func (c *turnWorkspaceContext) connAgentID() (uuid.UUID, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.conn == nil || !c.agentLoaded || c.agent.ID == uuid.Nil {
-		return uuid.Nil, false
-	}
-	return c.agent.ID, true
-}
-
 // getWorkspaceConnLocked returns the cached connection when it still matches
 // the current workspace. When the workspace changed, it clears the stale
 // cached state and returns the release func for the caller to run after
@@ -946,8 +932,19 @@ func (c *turnWorkspaceContext) externalAgentPreflightError(
 }
 
 func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspacesdk.AgentConn, error) {
+	conn, _, err := c.getWorkspaceConnAndAgent(ctx)
+	return conn, err
+}
+
+// getWorkspaceConnAndAgent returns the workspace connection together
+// with the ID of the agent behind it, captured in the same lock
+// section that resolved the connection. Callers that attribute
+// side effects to an agent (the execute ledger) must use this
+// pairing instead of re-reading the shared cache after dispatch,
+// which a concurrent tool may have rebound.
+func (c *turnWorkspaceContext) getWorkspaceConnAndAgent(ctx context.Context) (workspacesdk.AgentConn, uuid.UUID, error) {
 	if c.server.agentConnFn == nil {
-		return nil, xerrors.New("workspace agent connector is not configured")
+		return nil, uuid.Nil, xerrors.New("workspace agent connector is not configured")
 	}
 
 	for attempt := 0; attempt < 2; attempt++ {
@@ -983,7 +980,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 				}
 			}
 			c.trackWorkspaceUsage(ctx, chatSnapshot)
-			return currentConn, nil
+			return currentConn, agentID, nil
 		}
 		if staleRelease != nil {
 			staleRelease()
@@ -991,10 +988,10 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 
 		chatSnapshot, agent, err := c.ensureWorkspaceAgent(ctx)
 		if err != nil {
-			return nil, err
+			return nil, uuid.Nil, err
 		}
 		if err := c.externalAgentPreflightError(ctx, chatSnapshot, agent); err != nil {
-			return nil, err
+			return nil, uuid.Nil, err
 		}
 
 		// Wrap the dial in a timeout to bound the time spent
@@ -1027,7 +1024,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 		if err != nil {
 			if xerrors.Is(err, errChatHasNoWorkspaceAgent) {
 				c.clearCachedWorkspaceState()
-				return nil, err
+				return nil, uuid.Nil, err
 			}
 			// Surface the dial timeout sentinel only when the
 			// parent context is still alive. If the parent was
@@ -1035,9 +1032,9 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			// propagate unchanged so the chatloop can detect it.
 			if ctx.Err() == nil && errors.Is(context.Cause(dialCtx), errChatDialTimeout) {
 				c.clearCachedWorkspaceState()
-				return nil, c.latestWorkspaceAgentRecoveryError(ctx, chatSnapshot.WorkspaceID.UUID)
+				return nil, uuid.Nil, c.latestWorkspaceAgentRecoveryError(ctx, chatSnapshot.WorkspaceID.UUID)
 			}
-			return nil, err
+			return nil, uuid.Nil, err
 		}
 		agentConn := dialResult.Conn
 		agentRelease := dialResult.Release
@@ -1047,7 +1044,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 				if agentRelease != nil {
 					agentRelease()
 				}
-				return nil, xerrors.Errorf("get latest workspace build: %w", err)
+				return nil, uuid.Nil, xerrors.Errorf("get latest workspace build: %w", err)
 			}
 
 			switchedAgent, err := c.server.db.GetWorkspaceAgentByID(ctx, dialResult.AgentID)
@@ -1055,7 +1052,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 				if agentRelease != nil {
 					agentRelease()
 				}
-				return nil, xerrors.Errorf("get workspace agent by id: %w", err)
+				return nil, uuid.Nil, xerrors.Errorf("get workspace agent by id: %w", err)
 			}
 
 			updatedChat, err := c.persistBuildAgentBinding(
@@ -1068,7 +1065,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 				if agentRelease != nil {
 					agentRelease()
 				}
-				return nil, err
+				return nil, uuid.Nil, err
 			}
 			chatSnapshot = updatedChat
 
@@ -1114,19 +1111,20 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 				slog.F("agent_id", dialResult.AgentID),
 			)
 			c.trackWorkspaceUsage(ctx, chatSnapshot)
-			return agentConn, nil
+			return agentConn, dialResult.AgentID, nil
 		}
 		currentConn = c.conn
+		raceAgentID := c.agent.ID
 		c.mu.Unlock()
 
 		if agentRelease != nil {
 			agentRelease()
 		}
 		c.trackWorkspaceUsage(ctx, chatSnapshot)
-		return currentConn, nil
+		return currentConn, raceAgentID, nil
 	}
 
-	return nil, xerrors.New("chat workspace changed while connecting")
+	return nil, uuid.Nil, xerrors.New("chat workspace changed while connecting")
 }
 
 // AgentConnFunc provides access to workspace agent connections.

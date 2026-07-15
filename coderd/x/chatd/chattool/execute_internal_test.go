@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -82,8 +83,8 @@ func runForegroundWithOutput(t *testing.T, output string) ExecuteResult {
 		}, nil)
 
 	tool := Execute(ExecuteOptions{
-		GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
-			return mockConn, nil
+		GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, uuid.UUID, error) {
+			return mockConn, uuid.New(), nil
 		},
 	})
 	ctx := testutil.Context(t, testutil.WaitMedium)
