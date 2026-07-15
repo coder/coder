@@ -427,19 +427,14 @@ func LicensesEntitlements(
 	// feature value and the over-limit warnings below observe it.
 	if hasAIGovernanceAddon && featureArguments.WorkspaceCapableUserCountFn != nil {
 		capableCount, err := featureArguments.WorkspaceCapableUserCountFn(ctx)
-		if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
-			// If the context is canceled, we want to bail the entire
-			// LicensesEntitlements call.
+		if err != nil {
+			// A failed seat count aborts the entitlements computation,
+			// matching the legacy active-user-count error semantics. The
+			// caller keeps the previous entitlements, so a failure yields a
+			// stale count rather than a silently different one.
 			return entitlements, xerrors.Errorf("count workspace capable users: %w", err)
 		}
-		if err != nil {
-			// Fall back to the legacy active user count rather than failing
-			// the entitlements computation.
-			entitlements.Errors = append(entitlements.Errors,
-				fmt.Sprintf("Error counting workspace-capable users: %s", err.Error()))
-		} else {
-			featureArguments.ActiveUserCount = capableCount
-		}
+		featureArguments.ActiveUserCount = capableCount
 	}
 
 	// Now the license specific warnings and errors are added to the entitlements.

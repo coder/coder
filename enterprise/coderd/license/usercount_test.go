@@ -318,17 +318,19 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			require.Equal(t, int64(3), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
 		})
 
-		t.Run("FnErrorFallsBack", func(t *testing.T) {
-			entitlements, err := license.LicensesEntitlements(ctx, now, []database.License{addonLicense()}, enablements, coderdenttest.Keys, license.FeatureArguments{
+		t.Run("FnErrorPropagates", func(t *testing.T) {
+			// A failed capable count aborts the computation, matching the
+			// legacy active-user-count error semantics; the caller keeps
+			// the previous entitlements rather than seeing a silently
+			// different count.
+			_, err := license.LicensesEntitlements(ctx, now, []database.License{addonLicense()}, enablements, coderdenttest.Keys, license.FeatureArguments{
 				ActiveUserCount: 7,
 				WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 					return 0, xerrors.New("boom")
 				},
 			})
-			require.NoError(t, err)
-			require.Equal(t, int64(7), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
-			require.Len(t, entitlements.Errors, 1)
-			require.Contains(t, entitlements.Errors[0], "Error counting workspace-capable users")
+			require.ErrorContains(t, err, "count workspace capable users")
+			require.ErrorContains(t, err, "boom")
 		})
 
 		t.Run("ContextCanceledBails", func(t *testing.T) {
