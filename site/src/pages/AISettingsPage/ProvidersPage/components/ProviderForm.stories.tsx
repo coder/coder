@@ -189,7 +189,7 @@ export const AddBedrockProtocolSwitchKeepsSaveEnabled: Story = {
 		initialValues: {
 			type: "bedrock",
 			name: "bedrock",
-			baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
+			baseUrl: "https://bedrock-runtime.eu-west-1.amazonaws.com",
 			model: "anthropic.claude-sonnet-4-5",
 			smallFastModel: "anthropic.claude-haiku-4-5",
 		},
@@ -209,6 +209,9 @@ export const AddBedrockProtocolSwitchKeepsSaveEnabled: Story = {
 		// endpoint error.
 		await waitFor(() => {
 			expect(canvas.queryByLabelText(/^model\s*\*?$/i)).not.toBeInTheDocument();
+			expect(canvas.getByLabelText(/^endpoint\s*\*?$/i)).toHaveValue(
+				"https://bedrock-mantle.eu-west-1.api.aws/anthropic",
+			);
 			expect(submit).toBeEnabled();
 		});
 	},
