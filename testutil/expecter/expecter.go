@@ -46,12 +46,9 @@ func New(t *testing.T, r io.Reader, name string) *Expecter {
 	logDone := make(chan struct{})
 	out := newStdbuf()
 	logLines := make(chan []byte, 256)
-	// logLines is buffered, so a send succeeds up to its capacity
-	// regardless of whether the drain goroutine below has started
-	// receiving yet. logReady lets the copy goroutine wait for the
-	// drain goroutine to reach its receive loop first, so a burst of
-	// output at startup can't fill the buffer and get silently dropped
-	// before anything is listening.
+	// Wait for drain goroutine to reach its receive loop first,
+	// so a burst of output at startup can't fill the buffer and
+	// get silently dropped before anythign is listening.
 	logReady := make(chan struct{})
 
 	ex := &Expecter{
