@@ -575,7 +575,6 @@ func (server *Server) prepareGeneration(
 	}
 	if chat.HookAllowedTools.Valid {
 		filterToolNameMap(builtinToolNames, hookAllowedNames)
-		filterToolNameMap(dynamicToolNames, hookAllowedNames)
 		filterToolNameMap(exclusiveToolNames, hookAllowedNames)
 	}
 
