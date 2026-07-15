@@ -100,7 +100,10 @@ instead of a snapshot.
 
 ### 5. Rolling-deploy window can strand new orgs without bridge access
 
-Severity: MEDIUM. Flagged by roles and licensing reviewers.
+Severity: N/A. ACCEPTED as out of scope: Coder does not officially
+support rolling deploys, so the old-binary-creates-org-after-migration
+window cannot occur in a supported upgrade (all replicas stop, migrate,
+then start on the new binary). No sweep or runbook note needed.
 
 Migration 000541 backfills `organization-ai-gateway-access` into
 existing orgs. In a rolling deploy, an old binary can create an org
@@ -179,7 +182,8 @@ Document-or-fix next: group-share validation (3): DONE, accepted and
 documented in the handler comment; experiments accessor (4): DONE,
 downgraded and recorded as a scott-misc finding (pre-existing,
 process-static experiments make it latent-only); rolling-deploy sweep
-(5).
+(5): DONE, accepted as out of scope since rolling deploys are not
+officially supported.
 
 RFC backlog (mostly already tracked in the scott-misc assessment):
 refresh cadence caching (6), AI seat reclamation and service-account
