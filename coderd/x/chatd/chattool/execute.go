@@ -942,6 +942,7 @@ func reattachProcess(
 			rec.ProcessID,
 		), nil
 	}
+	KickAttemptKeepalive(ctx)
 
 	if !resp.Running {
 		// The process finished while no attempt was watching.

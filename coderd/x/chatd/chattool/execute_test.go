@@ -1126,7 +1126,11 @@ func TestExecuteToolRecorder(t *testing.T) {
 			}, nil)
 
 		tool := newRecordedExecuteTool(t, mockConn, recorder)
-		ctx := testutil.Context(t, testutil.WaitMedium)
+		kicks := 0
+		ctx := chattool.WithAttemptKeepalive(
+			testutil.Context(t, testutil.WaitMedium),
+			func() { kicks++ },
+		)
 		resp, err := tool.Run(ctx, fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "execute",
@@ -1142,6 +1146,9 @@ func TestExecuteToolRecorder(t *testing.T) {
 		assert.Equal(t, "build failed", result.Output)
 		assert.Empty(t, result.BackgroundProcessID)
 		assert.Equal(t, chattool.ExecutionStatusExited, recorder.record("call-1").Status)
+		// The successful re-attach snapshot is an agent round-trip
+		// and must reset the attempt idle watchdog.
+		assert.Equal(t, 1, kicks)
 	})
 
 	t.Run("ReattachRunningPastDeadline", func(t *testing.T) {
