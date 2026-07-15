@@ -54,7 +54,7 @@ Because no individual user owns the workspace, there are no personal
 credentials to expose and the shared environment is not affected when any user
 leaves the team or the organization.
 
-```shell
+```sh
 # On-call example — substitute a name that fits your use case
 coder users create \
   --username oncall-sre \
@@ -66,7 +66,7 @@ coder users create \
 Generate a long-lived API token so you can create and manage workspaces on
 behalf of the service account:
 
-```shell
+```sh
 coder tokens create \
   --user oncall-sre \
   --name oncall-automation \
@@ -85,7 +85,7 @@ Manager).
 
 Authenticate as the service account and create the workspace:
 
-```shell
+```sh
 export CODER_SESSION_TOKEN="<token-from-step-2>"
 
 coder create oncall-sre/oncall-workspace \
@@ -105,7 +105,7 @@ coder create oncall-sre/oncall-workspace \
 
 Use `coder sharing share` to grant access to users who need the workspace:
 
-```shell
+```sh
 coder sharing share oncall-sre/oncall-workspace --user alice
 ```
 
@@ -115,19 +115,19 @@ workspace apps, starting and stopping the workspace, and viewing logs and stats.
 To grant `admin` permissions (which includes all `use` permissions as well as renaming, updating, and inviting
 others to join with the `use` role):
 
-```shell
+```sh
 coder sharing share oncall-sre/oncall-workspace --user alice:admin
 ```
 
 To share with multiple users at once:
 
-```shell
+```sh
 coder sharing share oncall-sre/oncall-workspace --user alice:admin,bob
 ```
 
 To share with an entire Coder group:
 
-```shell
+```sh
 coder sharing share oncall-sre/oncall-workspace --group sre-oncall
 ```
 
@@ -140,7 +140,7 @@ coder sharing share oncall-sre/oncall-workspace --group sre-oncall
 
 When team membership changes, remove outgoing users and add incoming ones:
 
-```shell
+```sh
 # Remove outgoing user
 coder sharing remove oncall-sre/oncall-workspace --user alice
 
@@ -153,7 +153,7 @@ coder sharing share oncall-sre/oncall-workspace --user carol
 
 Verify current sharing status at any time:
 
-```shell
+```sh
 coder sharing status oncall-sre/oncall-workspace
 ```
 
@@ -165,7 +165,7 @@ cron job.
 
 ### Rotation script
 
-```shell
+```sh
 #!/bin/bash
 # rotate-access.sh
 # Usage: ./rotate-access.sh <outgoing-user> <incoming-user>
@@ -199,7 +199,7 @@ in Okta or Azure AD), you can skip manual share/remove commands entirely:
 
 1. Share the workspace with the group once:
 
-   ```shell
+   ```sh
    coder sharing share oncall-sre/oncall-workspace --group sre-oncall
    ```
 
@@ -211,7 +211,7 @@ in Okta or Azure AD), you can skip manual share/remove commands entirely:
 
 Shared users can find workspaces shared with them:
 
-```shell
+```sh
 # List all shared workspaces you can access, including your own
 coder list --search shared:true
 

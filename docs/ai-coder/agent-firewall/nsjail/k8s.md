@@ -97,7 +97,7 @@ spec:
 User namespaces are often disabled (`user.max_user_namespaces=0`) on Bottlerocket
 nodes. Check and enable user namespaces:
 
-```bash
+```sh
 # Check current value
 sysctl user.max_user_namespaces
 
@@ -108,7 +108,7 @@ sysctl -w user.max_user_namespaces=65536
 If `sysctl -w` is not allowed, configure it via Bottlerocket bootstrap settings
 when creating the node group (e.g., in Terraform):
 
-```hcl
+```tf
 bootstrap_extra_args = <<-EOT
   [settings.kernel.sysctl]
   "user.max_user_namespaces" = "65536"

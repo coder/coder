@@ -27,7 +27,7 @@ You can install our extension manually in VS Code using the command palette.
 Launch VS Code Quick Open (Ctrl+P), paste the following command, and press
 enter.
 
-```text
+```txt
 ext install coder.coder-remote
 ```
 
@@ -137,7 +137,7 @@ Web or using the workspace's terminal.
 
 1. Add the `vsix` extension files to the same folder as your Dockerfile.
 
-   ```shell
+   ```sh
    ~/images/base
     ➜  ls -l
     -rw-r--r-- 1 coder coder       0 Aug 1 19:23 Dockerfile
@@ -147,7 +147,7 @@ Web or using the workspace's terminal.
 1. In the Dockerfile, add instructions to make a folder and to copy the `vsix`
    files into the newly created folder.
 
-   ```Dockerfile
+   ```dockerfile
    FROM codercom/enterprise-base:ubuntu
 
    # Run below commands as root user

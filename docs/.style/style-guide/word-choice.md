@@ -200,7 +200,7 @@ Two rationales apply:
 
 **Do**:
 
-```markdown
+```md
 ## Learn more
 
 - [Configure SSH access](./ssh.md)
@@ -209,7 +209,7 @@ Two rationales apply:
 
 **Don't**:
 
-```markdown
+```md
 ## Next steps
 
 - [Configure SSH access](./ssh.md)

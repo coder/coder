@@ -167,7 +167,7 @@ curl https://coder.example.com/api/v2/tasks/me/my-task/logs \
 
 **Chats API**. You open a one-way WebSocket connection:
 
-```text
+```txt
 GET wss://coder.example.com/api/experimental/chats/{chat}/stream
 ```
 

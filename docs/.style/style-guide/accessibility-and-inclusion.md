@@ -24,7 +24,7 @@ Skipping a level breaks the outline.
 
 **Do**:
 
-```markdown
+```md
 # Configure your workspace
 
 This page walks through the configuration options exposed on a Coder workspace.
@@ -52,7 +52,7 @@ Define them in the template or in the workspace's parameters.
 
 **Don't**:
 
-```markdown
+```md
 # Configure your workspace
 
 # Configure your environment
@@ -129,7 +129,7 @@ Captions follow the image in a `<small>` tag.
 Aim for one or two sentences that convey the same information a sighted reader would extract from the image.
 Lead with the subject, not "An image of" or "A screenshot showing".
 
-```markdown
+```md
 ![Template Insights dashboard with weekly active users and connection latency charts](../../images/admin/templates/template-insights.png)
 
 <small>The Template Insights dashboard with active-user and connection-latency widgets.</small>
@@ -144,7 +144,7 @@ For complex diagrams that can't be summarized in alt text, provide a longer desc
 Mark images that carry no information beyond visual decoration with empty alt text.
 Empty alt text tells the screen reader to skip the image rather than announce a meaningless filename.
 
-```markdown
+```md
 ![](../../images/decorative/divider.png)
 ```
 

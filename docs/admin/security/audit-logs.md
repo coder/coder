@@ -183,7 +183,7 @@ You may choose to run a `VACUUM` or `VACUUM FULL` operation on the audit logs ta
 - **Run during a planned maintenance window** to ensure ample time for the operation to complete and minimize impact to users
 - **Stop all running instances of `coderd`** to prevent connection errors while the table is locked. The actual steps for this will depend on your particular deployment setup. For example, if your `coderd` deployment is running on Kubernetes:
 
-  ```bash
+  ```sh
   kubectl scale deployment coder --replicas=0 -n coder
   ```
 
@@ -199,7 +199,7 @@ You may choose to run a `VACUUM` or `VACUUM FULL` operation on the audit logs ta
 
 After the vacuum completes, scale coderd back up:
 
-```bash
+```sh
 kubectl scale deployment coder --replicas= -n coder
 ```
 

@@ -11,7 +11,7 @@ so the agent itself stays alive under resource pressure.
   the nice value below its current value. In Kubernetes, add
   it to the container's security context:
 
-  ```hcl
+  ```tf
   container {
     security_context {
       capabilities {
@@ -62,7 +62,7 @@ workloads.
 The following Kubernetes template snippet enables process
 priority management on the workspace container:
 
-```hcl
+```tf
 resource "kubernetes_deployment" "workspace" {
   # ... other configuration
 
@@ -138,7 +138,7 @@ runs another Coder agent.
 The agent logs whether process priority management is active
 at startup. Look for these lines in the agent log:
 
-```text
+```txt
 "process priority management enabled"
 "process priority management not enabled (linux-only)"
 ```

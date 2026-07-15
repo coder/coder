@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/oauth2"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"tailscale.com/tailcfg"
@@ -3736,6 +3737,7 @@ func TestWorkspaceAgentsExternalAuthExpiresAt(t *testing.T) {
 				Regex: regexp.MustCompile(`.*`),
 				Type:  codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				// ValidateURL intentionally omitted: tokens are always valid.
+				RefreshGroup: new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, ownerClient)

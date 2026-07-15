@@ -25,7 +25,7 @@ choose a template from the
 
 1. Use the `template init` command to initialize your choice of image:
 
-   ```shell
+   ```sh
    coder template init --id kubernetes-devcontainer
    ```
 
@@ -34,7 +34,7 @@ choose a template from the
 
 1. `cd` into the directory and push the template to your Coder deployment:
 
-   ```shell
+   ```sh
    cd kubernetes-devcontainer && coder templates push
    ```
 
@@ -52,7 +52,7 @@ choose a template from the
 
    - CLI:
 
-   ```shell
+   ```sh
    coder templates push <template-name> -d <path to folder containing main.tf>
    ```
 
@@ -65,7 +65,7 @@ choose a template from the
 
       - To zip the files through the command line:
 
-        ```shell
+        ```sh
         zip templates.zip Dockerfile main.tf
         ```
 

@@ -13,7 +13,7 @@ This rule covers H1 through H6 and matches the way the heading reads aloud.
 
 **Do**:
 
-```markdown
+```md
 # Configure your workspace
 ## Set up SSH access
 ### Connect through JetBrains Toolbox
@@ -21,7 +21,7 @@ This rule covers H1 through H6 and matches the way the heading reads aloud.
 
 **Don't**:
 
-```markdown
+```md
 # Configure Your Workspace
 ## Set Up SSH Access
 ### Connect Through JetBrains Toolbox
@@ -38,7 +38,7 @@ Reserve gerund-leading headings for the rare case where neither alternative read
 
 **Do**:
 
-```markdown
+```md
 ## Install Coder
 ## Installation
 ## Configure your workspace
@@ -47,7 +47,7 @@ Reserve gerund-leading headings for the rare case where neither alternative read
 
 **Don't**:
 
-```markdown
+```md
 ## Installing Coder
 ## Configuring your workspace
 ```
@@ -80,7 +80,7 @@ The rule has scoped exceptions:
 
 **Do**:
 
-```markdown
+```md
 ## What's a workspace
 ## Quick reference
 ## What does the `panic!` macro do?
@@ -89,7 +89,7 @@ The rule has scoped exceptions:
 
 **Don't**:
 
-```markdown
+```md
 ## What's a workspace?
 ## Quick reference!
 ## Workspaces are great!

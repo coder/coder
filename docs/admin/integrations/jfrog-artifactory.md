@@ -56,7 +56,7 @@ To set this up, follow these steps:
 1. Add a new [external authentication](../external-auth/index.md) to Coder by setting these
    environment variables in a manner consistent with your Coder deployment. Replace `JFROG_URL` with your JFrog Artifactory base URL:
 
-   ```env
+   ```dotenv
    # JFrog Artifactory External Auth
    CODER_EXTERNAL_AUTH_1_ID="jfrog"
    CODER_EXTERNAL_AUTH_1_TYPE="jfrog"

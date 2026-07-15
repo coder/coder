@@ -6,7 +6,7 @@ Programmatic API for Coder Agents (the user-facing "Coder Agents" / "Chats" prod
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/experimental/chats \
   -H 'Accept: application/json' \
@@ -238,7 +238,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/experimental/chats \
   -H 'Content-Type: application/json' \
@@ -511,7 +511,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/experimental/chats/files?organization=497f6eca-6276-4993-bfeb-53cbbbba6f08 \
   -H 'Accept: application/json' \
@@ -550,7 +550,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/experimental/chats/files/{file} \
   -H 'Coder-Session-Token: API_KEY'
@@ -578,7 +578,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/experimental/chats/models \
   -H 'Accept: application/json' \
@@ -631,7 +631,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/experimental/chats/watch \
   -H 'Accept: application/json' \
@@ -770,7 +770,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/experimental/chats/{chat} \
   -H 'Accept: application/json' \
@@ -1001,7 +1001,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/experimental/chats/{chat} \
   -H 'Content-Type: application/json' \
@@ -1047,7 +1047,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/experimental/chats/{chat}/context \
   -H 'Accept: application/json' \
@@ -1278,7 +1278,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/diff \
   -H 'Accept: application/json' \
@@ -1322,7 +1322,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/experimental/chats/{chat}/interrupt \
   -H 'Accept: application/json' \
@@ -1553,7 +1553,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/messages \
   -H 'Accept: application/json' \
@@ -1750,7 +1750,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/experimental/chats/{chat}/messages \
   -H 'Content-Type: application/json' \
@@ -1970,7 +1970,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/experimental/chats/{chat}/messages/{message} \
   -H 'Content-Type: application/json' \
@@ -2115,7 +2115,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/prompts \
   -H 'Accept: application/json' \
@@ -2166,7 +2166,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/experimental/chats/{chat}/reconcile-invalid \
   -H 'Accept: application/json' \
@@ -2397,7 +2397,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/stream \
   -H 'Accept: application/json' \
@@ -2687,7 +2687,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/stream/desktop \
   -H 'Coder-Session-Token: API_KEY'
@@ -2716,7 +2716,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/stream/git \
   -H 'Accept: application/json' \
@@ -2766,7 +2766,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/experimental/chats/{chat}/title/regenerate \
   -H 'Accept: application/json' \

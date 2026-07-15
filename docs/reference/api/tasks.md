@@ -4,7 +4,7 @@
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/tasks \
   -H 'Accept: application/json' \
@@ -87,7 +87,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/tasks/{user} \
   -H 'Content-Type: application/json' \
@@ -179,7 +179,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/tasks/{user}/{task} \
   -H 'Accept: application/json' \
@@ -258,7 +258,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/tasks/{user}/{task} \
   -H 'Coder-Session-Token: API_KEY'
@@ -285,7 +285,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/tasks/{user}/{task}/input \
   -H 'Content-Type: application/json' \
@@ -322,7 +322,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/tasks/{user}/{task}/logs \
   -H 'Accept: application/json' \
@@ -369,7 +369,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/pause \
   -H 'Accept: application/json' \
@@ -615,7 +615,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/resume \
   -H 'Accept: application/json' \
@@ -861,7 +861,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/send \
   -H 'Content-Type: application/json' \
@@ -898,7 +898,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/tasks/{task}/log-snapshot?format=agentapi \
   -H 'Content-Type: application/json' \
