@@ -13,6 +13,7 @@ import type {
 export type SelectedBaseMeta = {
 	id: string;
 	name: string;
+	description?: string;
 	iconUrl?: string;
 	os?: string;
 	hasParameters: boolean;
@@ -28,11 +29,30 @@ export function toSelectedBaseMeta(
 	return {
 		id: base.id,
 		name: base.name,
+		description: base.description,
 		iconUrl: base.icon,
 		os: base.os,
 		hasParameters:
 			base.variables?.length > 0 && base.variables?.some((v) => !v.sensitive),
 		hasPrerequisites: Boolean(base.prerequisites?.length),
+	};
+}
+
+/**
+ * Derives editable customization defaults from the selected base template.
+ * Empty base values fall through to the fields' existing placeholders.
+ */
+export function baseCustomizationDefaults(base: SelectedBaseMeta): {
+	name: string;
+	displayName: string;
+	description: string;
+	icon: string;
+} {
+	return {
+		name: base.id,
+		displayName: base.name,
+		description: base.description ?? "",
+		icon: base.iconUrl ?? "",
 	};
 }
 
@@ -88,6 +108,7 @@ export function initWizardState(
 		...initialWizardState,
 		baseTemplateId: preselectedBase.id,
 		selectedBase: preselectedBase,
+		...baseCustomizationDefaults(preselectedBase),
 	};
 }
 
@@ -120,12 +141,17 @@ export function wizardReducer(
 	switch (action.type) {
 		case "SET_BASE": {
 			const baseChanged = state.baseTemplateId !== action.base.id;
+			if (!baseChanged) {
+				return { ...state, selectedBase: action.base };
+			}
+			// Changing the base clears base variable values and re-seeds the
+			// customization fields with defaults derived from the new base.
 			return {
 				...state,
 				baseTemplateId: action.base.id,
 				selectedBase: action.base,
-				// Clear base variable values when base changes.
-				baseVariableValues: baseChanged ? {} : state.baseVariableValues,
+				baseVariableValues: {},
+				...baseCustomizationDefaults(action.base),
 			};
 		}
 		case "SET_BASE_VARIABLES":
@@ -168,14 +194,13 @@ export function wizardReducer(
 				hasProvisioners: action.value,
 			};
 		case "RESET_CUSTOMIZATIONS":
+			// Reset only organization and provisioner detection so re-entering the
+			// step re-runs org auto-select cleanly. The base-derived fields are
+			// left intact (they are re-seeded by SET_BASE when the base changes).
 			return {
 				...state,
 				organizationId: undefined,
 				hasProvisioners: undefined,
-				name: "",
-				displayName: "",
-				description: "",
-				icon: "",
 			};
 		case "RESET":
 			return initialWizardState;

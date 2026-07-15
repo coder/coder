@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
+import type { TemplateBuilderBase } from "#/api/typesGenerated";
 import {
+	baseCustomizationDefaults,
 	initialWizardState,
+	initWizardState,
 	moduleHasConfigurableVars,
+	type SelectedBaseMeta,
 	type TemplateBuilderWizardState,
 	toComposeRequest,
 	toCreateTemplateRequest,
+	toSelectedBaseMeta,
 	type WizardAction,
 	wizardReducer,
 } from "./wizardState";
@@ -32,6 +37,90 @@ describe("wizardReducer", () => {
 			]);
 			expect(state.baseTemplateId).toBe("docker");
 			expect(state.selectedBase?.name).toBe("Docker");
+		});
+
+		it("seeds customization defaults from the selected base", () => {
+			const state = reduce([
+				{
+					type: "SET_BASE",
+					base: {
+						id: "docker",
+						name: "Docker Containers",
+						description: "Run workspaces as Docker containers",
+						iconUrl: "/icon/docker.png",
+						hasParameters: false,
+						hasPrerequisites: false,
+					},
+				},
+			]);
+			expect(state.name).toBe("docker");
+			expect(state.displayName).toBe("Docker Containers");
+			expect(state.description).toBe("Run workspaces as Docker containers");
+			expect(state.icon).toBe("/icon/docker.png");
+		});
+
+		it("re-seeds customization defaults when the base changes", () => {
+			const state = reduce([
+				{
+					type: "SET_BASE",
+					base: {
+						id: "docker",
+						name: "Docker Containers",
+						description: "Docker",
+						iconUrl: "/icon/docker.png",
+						hasParameters: false,
+						hasPrerequisites: false,
+					},
+				},
+				{
+					type: "SET_BASE",
+					base: {
+						id: "aws-linux",
+						name: "AWS Linux",
+						description: "AWS EC2 Linux",
+						iconUrl: "/icon/aws.svg",
+						hasParameters: false,
+						hasPrerequisites: false,
+					},
+				},
+			]);
+			expect(state.name).toBe("aws-linux");
+			expect(state.displayName).toBe("AWS Linux");
+			expect(state.description).toBe("AWS EC2 Linux");
+			expect(state.icon).toBe("/icon/aws.svg");
+		});
+
+		it("preserves customization edits when same base is re-selected", () => {
+			const state = reduce([
+				{
+					type: "SET_BASE",
+					base: {
+						id: "docker",
+						name: "Docker Containers",
+						description: "Docker",
+						iconUrl: "/icon/docker.png",
+						hasParameters: false,
+						hasPrerequisites: false,
+					},
+				},
+				{
+					type: "SET_CUSTOMIZATION",
+					field: "displayName",
+					value: "My Custom Name",
+				},
+				{
+					type: "SET_BASE",
+					base: {
+						id: "docker",
+						name: "Docker Containers",
+						description: "Docker",
+						iconUrl: "/icon/docker.png",
+						hasParameters: false,
+						hasPrerequisites: false,
+					},
+				},
+			]);
+			expect(state.displayName).toBe("My Custom Name");
 		});
 
 		it("clears base variable values when base changes", () => {
@@ -270,6 +359,38 @@ describe("wizardReducer", () => {
 		});
 	});
 
+	describe("RESET_CUSTOMIZATIONS", () => {
+		it("clears org and provisioner state but keeps base-derived fields", () => {
+			const state = reduce([
+				{
+					type: "SET_BASE",
+					base: {
+						id: "docker",
+						name: "Docker Containers",
+						description: "Docker",
+						iconUrl: "/icon/docker.png",
+						hasParameters: false,
+						hasPrerequisites: false,
+					},
+				},
+				{
+					type: "SET_CUSTOMIZATION",
+					field: "organizationId",
+					value: "org-123",
+				},
+				{ type: "SET_HAS_PROVISIONERS", value: true },
+				{ type: "RESET_CUSTOMIZATIONS" },
+			]);
+			expect(state.organizationId).toBeUndefined();
+			expect(state.hasProvisioners).toBeUndefined();
+			// Base-derived fields survive so re-entering the step stays filled.
+			expect(state.name).toBe("docker");
+			expect(state.displayName).toBe("Docker Containers");
+			expect(state.description).toBe("Docker");
+			expect(state.icon).toBe("/icon/docker.png");
+		});
+	});
+
 	describe("RESET", () => {
 		it("returns to initial state", () => {
 			const state = reduce([
@@ -430,5 +551,85 @@ describe("toCreateTemplateRequest", () => {
 		expect(request.display_name).toBeUndefined();
 		expect(request.description).toBeUndefined();
 		expect(request.icon).toBeUndefined();
+	});
+});
+
+describe("toSelectedBaseMeta", () => {
+	const makeBase = (
+		overrides: Partial<TemplateBuilderBase> = {},
+	): TemplateBuilderBase => ({
+		id: "docker",
+		name: "Docker Containers",
+		description: "Run workspaces as Docker containers",
+		icon: "/icon/docker.png",
+		os: "linux",
+		variables: [],
+		prerequisites: "",
+		...overrides,
+	});
+
+	it("carries description and icon through to the UI metadata", () => {
+		const meta = toSelectedBaseMeta(makeBase());
+		expect(meta.description).toBe("Run workspaces as Docker containers");
+		expect(meta.iconUrl).toBe("/icon/docker.png");
+		expect(meta.name).toBe("Docker Containers");
+		expect(meta.id).toBe("docker");
+	});
+});
+
+describe("baseCustomizationDefaults", () => {
+	it("maps base metadata to editable customization defaults", () => {
+		const base: SelectedBaseMeta = {
+			id: "aws-linux",
+			name: "AWS Linux",
+			description: "AWS EC2 Linux",
+			iconUrl: "/icon/aws.svg",
+			hasParameters: false,
+			hasPrerequisites: false,
+		};
+		expect(baseCustomizationDefaults(base)).toEqual({
+			name: "aws-linux",
+			displayName: "AWS Linux",
+			description: "AWS EC2 Linux",
+			icon: "/icon/aws.svg",
+		});
+	});
+
+	it("falls back to empty strings for missing description and icon", () => {
+		const base: SelectedBaseMeta = {
+			id: "scratch",
+			name: "Scratch",
+			hasParameters: false,
+			hasPrerequisites: false,
+		};
+		expect(baseCustomizationDefaults(base)).toEqual({
+			name: "scratch",
+			displayName: "Scratch",
+			description: "",
+			icon: "",
+		});
+	});
+});
+
+describe("initWizardState", () => {
+	it("returns the initial state without a preselected base", () => {
+		expect(initWizardState()).toEqual(initialWizardState);
+	});
+
+	it("seeds base and customization defaults from a preselected base", () => {
+		const state = initWizardState({
+			id: "docker",
+			name: "Docker Containers",
+			description: "Docker",
+			iconUrl: "/icon/docker.png",
+			hasParameters: false,
+			hasPrerequisites: false,
+		});
+		expect(state.baseTemplateId).toBe("docker");
+		expect(state.selectedBase?.id).toBe("docker");
+		expect(state.name).toBe("docker");
+		expect(state.displayName).toBe("Docker Containers");
+		expect(state.description).toBe("Docker");
+		expect(state.icon).toBe("/icon/docker.png");
 	});
 });
