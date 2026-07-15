@@ -14,6 +14,7 @@ import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ThinkingDisplayMode } from "#/api/typesGenerated";
 
+import { Alert, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import {
@@ -77,6 +78,18 @@ const getChatMessageTextContent = (
 
 	return textContent.length > 0 ? textContent : undefined;
 };
+
+const HookNotice: FC<{ message: string; urlTransform?: UrlTransform }> = ({
+	message,
+	urlTransform,
+}) => (
+	<Alert className="my-1">
+		<div className="flex flex-col gap-1">
+			<AlertTitle>Lifecycle hook</AlertTitle>
+			<Response urlTransform={urlTransform}>{message}</Response>
+		</div>
+	</Alert>
+);
 
 const ReasoningDisclosure = memo<{
 	id: string;
@@ -591,6 +604,18 @@ const ChatMessageItem = memo<{
 		if (displayState.shouldHide) {
 			return null;
 		}
+		if (message.role === "system") {
+			return (
+				<div
+					className={cn(
+						isAfterEditingMessage && "opacity-40 pointer-events-none",
+						"transition-opacity duration-200",
+					)}
+				>
+					<HookNotice message={parsed.markdown} urlTransform={urlTransform} />
+				</div>
+			);
+		}
 
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
@@ -1091,6 +1116,10 @@ function computeLastInChainFlags(
 	let nextVisibleIsUser = true;
 	for (let i = displayMessages.length - 1; i >= 0; i--) {
 		const entry = displayMessages[i];
+		if (entry.message.role === "system") {
+			nextVisibleIsUser = true;
+			continue;
+		}
 		if (entry.message.role !== "user") {
 			flags[i] = nextVisibleIsUser;
 		}
