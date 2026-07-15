@@ -4294,6 +4294,47 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "debugLoggingEnabled",
 		},
 		{
+			Name:        "Chat: Hook URL",
+			Description: "HTTPS URL to receive chat agent lifecycle hook events. Hooks are disabled when unset.",
+			Flag:        "chat-hook-url",
+			Env:         "CODER_CHAT_HOOK_URL",
+			Value:       &c.AI.Chat.HookURL,
+			Default:     "",
+			Group:       &deploymentGroupChat,
+			YAML:        "hookURL",
+		},
+		{
+			Name:        "Chat: Hook Secret",
+			Description: "Shared secret used to sign chat agent lifecycle hook JWTs.",
+			Flag:        "chat-hook-secret",
+			Env:         "CODER_CHAT_HOOK_SECRET",
+			Value:       &c.AI.Chat.HookSecret,
+			Default:     "",
+			Group:       &deploymentGroupChat,
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+		},
+		{
+			Name:        "Chat: Hook Timeout",
+			Description: "Maximum time to wait for a chat agent lifecycle hook response.",
+			Flag:        "chat-hook-timeout",
+			Env:         "CODER_CHAT_HOOK_TIMEOUT",
+			Value:       &c.AI.Chat.HookTimeout,
+			Default:     (1500 * time.Millisecond).String(),
+			Group:       &deploymentGroupChat,
+			YAML:        "hookTimeout",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Chat: Hook Enabled",
+			Description: "Whether to dispatch chat agent lifecycle hooks when a hook URL is configured.",
+			Flag:        "chat-hook-enabled",
+			Env:         "CODER_CHAT_HOOK_ENABLED",
+			Value:       &c.AI.Chat.HookEnabled,
+			Default:     "true",
+			Group:       &deploymentGroupChat,
+			YAML:        "hookEnabled",
+		},
+		{
 			Name:        "Chat: AI Gateway Routing Enabled",
 			Description: "Deprecated: AI Gateway routing is now the only routing path. Setting this value has no effect. This option will be removed in a future release.",
 			Flag:        "chat-ai-gateway-routing-enabled",
@@ -4975,8 +5016,12 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize    serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
-	DebugLoggingEnabled serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
+	AcquireBatchSize    serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
+	DebugLoggingEnabled serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
+	HookURL             serpent.URL      `json:"hook_url" typescript:",notnull"`
+	HookSecret          serpent.String   `json:"hook_secret" typescript:",notnull"`
+	HookTimeout         serpent.Duration `json:"hook_timeout" typescript:",notnull"`
+	HookEnabled         serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
 	// Deprecated: AI Gateway routing is now the only routing path. Setting this
 	// value has no effect. This option will be removed in a future release.
 	AIGatewayRoutingEnabled serpent.Bool `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`

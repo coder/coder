@@ -995,7 +995,23 @@
   },
   "chat": {
     "acquire_batch_size": 0,
-    "debug_logging_enabled": true
+    "debug_logging_enabled": true,
+    "hook_enabled": true,
+    "hook_secret": "string",
+    "hook_timeout": 0,
+    "hook_url": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
+    }
   }
 }
 ```
@@ -2349,16 +2365,36 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "acquire_batch_size": 0,
-  "debug_logging_enabled": true
+  "debug_logging_enabled": true,
+  "hook_enabled": true,
+  "hook_secret": "string",
+  "hook_timeout": 0,
+  "hook_url": {
+    "forceQuery": true,
+    "fragment": "string",
+    "host": "string",
+    "omitHost": true,
+    "opaque": "string",
+    "path": "string",
+    "rawFragment": "string",
+    "rawPath": "string",
+    "rawQuery": "string",
+    "scheme": "string",
+    "user": {}
+  }
 }
 ```
 
 ### Properties
 
-| Name                    | Type    | Required | Restrictions | Description |
-|-------------------------|---------|----------|--------------|-------------|
-| `acquire_batch_size`    | integer | false    |              |             |
-| `debug_logging_enabled` | boolean | false    |              |             |
+| Name                    | Type                       | Required | Restrictions | Description |
+|-------------------------|----------------------------|----------|--------------|-------------|
+| `acquire_batch_size`    | integer                    | false    |              |             |
+| `debug_logging_enabled` | boolean                    | false    |              |             |
+| `hook_enabled`          | boolean                    | false    |              |             |
+| `hook_secret`           | string                     | false    |              |             |
+| `hook_timeout`          | integer                    | false    |              |             |
+| `hook_url`              | [serpent.URL](#serpenturl) | false    |              |             |
 
 ## codersdk.ChatContext
 
@@ -5688,7 +5724,23 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       },
       "chat": {
         "acquire_batch_size": 0,
-        "debug_logging_enabled": true
+        "debug_logging_enabled": true,
+        "hook_enabled": true,
+        "hook_secret": "string",
+        "hook_timeout": 0,
+        "hook_url": {
+          "forceQuery": true,
+          "fragment": "string",
+          "host": "string",
+          "omitHost": true,
+          "opaque": "string",
+          "path": "string",
+          "rawFragment": "string",
+          "rawPath": "string",
+          "rawQuery": "string",
+          "scheme": "string",
+          "user": {}
+        }
       }
     },
     "allow_workspace_renames": true,
@@ -6298,7 +6350,23 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     },
     "chat": {
       "acquire_batch_size": 0,
-      "debug_logging_enabled": true
+      "debug_logging_enabled": true,
+      "hook_enabled": true,
+      "hook_secret": "string",
+      "hook_timeout": 0,
+      "hook_url": {
+        "forceQuery": true,
+        "fragment": "string",
+        "host": "string",
+        "omitHost": true,
+        "opaque": "string",
+        "path": "string",
+        "rawFragment": "string",
+        "rawPath": "string",
+        "rawQuery": "string",
+        "scheme": "string",
+        "user": {}
+      }
     }
   },
   "allow_workspace_renames": true,
