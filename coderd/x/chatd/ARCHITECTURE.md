@@ -1245,3 +1245,29 @@ The loop should not terminate just because:
 - pubsub drops a notification;
 - the relay has no parts yet for the requested episode;
 - the relay connection reconnects.
+
+# Slack MCP server management tools and proposals
+
+Chats bound to a Slack thread (the `slackd`/`slack_thread` labels, see the Slack thread status maintenance goroutine section) get three MCP management tools in addition to the Slack tools, implemented in `chattool/mcpservers.go` and appended by `appendSlackTools`:
+
+- `list_mcp_servers` lists the MCP server configs visible to the chat owner (enabled global configs plus the owner's personal configs), with per-chat enablement (`chat.mcp_server_ids`, or `force_on` + enabled) and per-owner authentication status. Plan-mode turns only get this tool.
+- `enable_mcp_server` appends an existing server to `chat.mcp_server_ids` through `Server.AddChatMCPServerID`, the validated update path (ownership validation, snapshot bump, pubsub notify) also used by `SendMessage`. The server's MCP tools become available on the next generation step, because the generation preparer connects `chat.mcp_server_ids` at turn preparation time.
+- `propose_mcp_server` proposes creating a new **personal** MCP server. It posts a confirmation card to the bound Slack thread and persists an `mcp_server_proposals` row; nothing is created until the requesting user accepts the proposal on the dashboard.
+
+The tools receive their dependencies (database, access URL, enable-for-chat callback, Slack thread coordinates) through `chattool.MCPServerToolsOptions`, injected by chatd because chattool cannot import chatd.
+
+## Requesting user
+
+The requesting user is recorded on the proposal as a Coder user id (`requester_id`), resolved at row-creation time and never LLM-supplied. slackd stamps the triggering Slack sender id on the ingested message metadata; the propose tool resolves that Slack identity to a Coder user with the same resolution used for chat-owner routing (external auth link, or the configured fallback owner), verifies that it owns the proposing chat, and stores the resolved UUID. Accept and reject on the dashboard are restricted to the requester. Cancel clicks from Slack resolve the clicking Slack user the same way and compare it against the stored requester; resolution failures fail closed.
+
+## Proposal lifecycle
+
+Proposals live in the `mcp_server_proposals` table (`pending`/`accepted`/`rejected`, 24h TTL, lazily pruned) because accept/reject POSTs can hit any coderd replica. The endpoints are implemented by `slackd.ProposalsAPI` (`coderd/x/slackd/mcpproposals.go`), which coderd always constructs and mounts, even when the Slack integration is disabled (lookups then simply 404):
+
+- `GET /api/v2/mcp-server-proposals/{id}` returns the proposed config for the review page. Secrets from the stored request are never returned.
+- `POST /api/v2/mcp-server-proposals/{id}/accept` accepts idempotently: a `SELECT ... FOR UPDATE` row lock serializes concurrent accepts, so at most one MCP server config is created per proposal, and repeated POSTs return the recorded config. On the accepting transition the personal config is created inside the transaction (including OAuth2 discovery + Dynamic Client Registration for oauth2 requests without explicit credentials; the discovery flow is duplicated from `coderd/mcp.go`), and after commit the server is enabled for the proposing chat, the Slack card is updated, and the chat is notified with a `[system]` message (busy behavior: interrupt). Unauthenticated oauth2 configs start an auth poll (3s cadence, 5min timeout) that reports success or a reminder once.
+- `POST /api/v2/mcp-server-proposals/{id}/reject` marks a pending proposal rejected under the same row lock, updates the card, and notifies the chat.
+
+All three endpoints authorize against the proposal's requester; other users get a 403 that does not identify the required user.
+
+The Slack card's Cancel button shares the reject semantics: slackd handles `block_actions` interactions over Socket Mode, acks them, and routes `mcp_proposal_cancel` clicks to the same row-locked reject transition. Review is a URL button linking to `/mcp-proposals/{id}` on the dashboard; its interactions are acked and ignored.

@@ -1007,6 +1007,18 @@ export interface APIKeyWithOwner extends APIKey {
 	readonly username: string;
 }
 
+// From codersdk/mcpserverproposals.go
+/**
+ * AcceptMCPServerProposalResponse is returned by the proposal accept
+ * endpoint. When ConnectURL is set and Authenticated is false, the
+ * frontend redirects to ConnectURL to finish OAuth2 authentication.
+ */
+export interface AcceptMCPServerProposalResponse {
+	readonly mcp_server_config_id: string;
+	readonly authenticated: boolean;
+	readonly connect_url?: string;
+}
+
 // From healthsdk/healthsdk.go
 /**
  * AccessURLReport shows the results of performing a HTTP_GET to the /healthz endpoint through the configured access URL.
@@ -5644,6 +5656,55 @@ export interface MCPServerConfigsOptions {
 	 */
 	readonly Scope: MCPServerConfigScope;
 }
+
+// From codersdk/mcpserverproposals.go
+/**
+ * MCPServerProposal is a chat-initiated proposal to create a personal
+ * MCP server. Secrets from the proposed config are never returned;
+ * has_* booleans report which auth material was provided.
+ */
+export interface MCPServerProposal {
+	readonly id: string;
+	readonly chat_id: string;
+	readonly status: MCPServerProposalStatus;
+	readonly created_at: string;
+	readonly display_name: string;
+	readonly slug: string;
+	readonly description?: string;
+	readonly icon_url?: string;
+	readonly url: string;
+	readonly transport: string;
+	readonly auth_type: string;
+	readonly tool_allow_list?: readonly string[];
+	readonly tool_deny_list?: readonly string[];
+	/**
+	 * Which auth material the proposal carries. The values themselves
+	 * are never returned.
+	 */
+	readonly has_oauth2_client_credentials: boolean;
+	readonly has_api_key: boolean;
+	readonly has_custom_headers: boolean;
+	/**
+	 * CreateDisabled reports that the server would be created in a
+	 * disabled state.
+	 */
+	readonly create_disabled?: boolean;
+	/**
+	 * Populated once the proposal is accepted.
+	 */
+	readonly mcp_server_config_id?: string;
+	readonly authenticated: boolean;
+	readonly connect_url?: string;
+}
+
+// From codersdk/mcpserverproposals.go
+export type MCPServerProposalStatus = "accepted" | "pending" | "rejected";
+
+export const MCPServerProposalStatuses: MCPServerProposalStatus[] = [
+	"accepted",
+	"pending",
+	"rejected",
+];
 
 // From codersdk/provisionerdaemons.go
 /**

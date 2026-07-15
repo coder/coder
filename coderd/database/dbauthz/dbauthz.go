@@ -1704,6 +1704,17 @@ func scopedOrgRoleIdentifiers(names []string, orgID uuid.UUID) []rbac.RoleIdenti
 	return out
 }
 
+// authorizeMCPServerProposal authorizes access to an MCP server
+// proposal through the chat it belongs to: whoever may perform the
+// action on the chat may perform it on the proposal.
+func (q *querier) authorizeMCPServerProposal(ctx context.Context, action policy.Action, proposal database.MCPServerProposal) error {
+	chat, err := q.db.GetChatByID(ctx, proposal.ChatID)
+	if err != nil {
+		return err
+	}
+	return q.authorizeContext(ctx, action, chat)
+}
+
 func (q *querier) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
 	// AcquireChats is a system-level operation used by the chat processor.
 	// Authorization is done at the system level, not per-user.
@@ -2228,6 +2239,15 @@ func (q *querier) DeleteExpiredAPIKeys(ctx context.Context, arg database.DeleteE
 	}
 
 	return q.db.DeleteExpiredAPIKeys(ctx, arg)
+}
+
+func (q *querier) DeleteExpiredMCPServerProposals(ctx context.Context, createdBefore time.Time) error {
+	// Requires DELETE across all chats: expired proposals may belong to
+	// any chat.
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat); err != nil {
+		return err
+	}
+	return q.db.DeleteExpiredMCPServerProposals(ctx, createdBefore)
 }
 
 func (q *querier) DeleteExternalAuthLink(ctx context.Context, arg database.DeleteExternalAuthLinkParams) error {
@@ -4076,6 +4096,30 @@ func (q *querier) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID)
 		return nil, err
 	}
 	return q.db.GetMCPServerConfigsByIDs(ctx, ids)
+}
+
+func (q *querier) GetMCPServerProposalByID(ctx context.Context, id uuid.UUID) (database.MCPServerProposal, error) {
+	proposal, err := q.db.GetMCPServerProposalByID(ctx, id)
+	if err != nil {
+		return database.MCPServerProposal{}, err
+	}
+	if err := q.authorizeMCPServerProposal(ctx, policy.ActionRead, proposal); err != nil {
+		return database.MCPServerProposal{}, err
+	}
+	return proposal, nil
+}
+
+func (q *querier) GetMCPServerProposalByIDForUpdate(ctx context.Context, id uuid.UUID) (database.MCPServerProposal, error) {
+	proposal, err := q.db.GetMCPServerProposalByIDForUpdate(ctx, id)
+	if err != nil {
+		return database.MCPServerProposal{}, err
+	}
+	// The locking read precedes a status transition, so require update
+	// access on the chat.
+	if err := q.authorizeMCPServerProposal(ctx, policy.ActionUpdate, proposal); err != nil {
+		return database.MCPServerProposal{}, err
+	}
+	return proposal, nil
 }
 
 func (q *querier) GetMCPServerUserToken(ctx context.Context, arg database.GetMCPServerUserTokenParams) (database.MCPServerUserToken, error) {
@@ -6172,6 +6216,19 @@ func (q *querier) InsertMCPServerConfig(ctx context.Context, arg database.Insert
 	return q.db.InsertMCPServerConfig(ctx, arg)
 }
 
+func (q *querier) InsertMCPServerProposal(ctx context.Context, arg database.InsertMCPServerProposalParams) (database.MCPServerProposal, error) {
+	// Proposals belong to a chat; creating one requires update access
+	// on that chat.
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.MCPServerProposal{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.MCPServerProposal{}, err
+	}
+	return q.db.InsertMCPServerProposal(ctx, arg)
+}
+
 func (q *querier) InsertMemoryResourceMonitor(ctx context.Context, arg database.InsertMemoryResourceMonitorParams) (database.WorkspaceAgentMemoryResourceMonitor, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
 		return database.WorkspaceAgentMemoryResourceMonitor{}, err
@@ -7610,6 +7667,17 @@ func (q *querier) UpdateMCPServerConfig(ctx context.Context, arg database.Update
 		return database.MCPServerConfig{}, err
 	}
 	return q.db.UpdateMCPServerConfig(ctx, arg)
+}
+
+func (q *querier) UpdateMCPServerProposalStatus(ctx context.Context, arg database.UpdateMCPServerProposalStatusParams) (database.MCPServerProposal, error) {
+	proposal, err := q.db.GetMCPServerProposalByID(ctx, arg.ID)
+	if err != nil {
+		return database.MCPServerProposal{}, err
+	}
+	if err := q.authorizeMCPServerProposal(ctx, policy.ActionUpdate, proposal); err != nil {
+		return database.MCPServerProposal{}, err
+	}
+	return q.db.UpdateMCPServerProposalStatus(ctx, arg)
 }
 
 func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {

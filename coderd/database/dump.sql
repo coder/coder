@@ -2485,6 +2485,29 @@ CREATE TABLE mcp_server_configs (
 
 COMMENT ON COLUMN mcp_server_configs.owner_id IS 'When set, the MCP server config is personal to this user and hidden from all other users. NULL means deployment-wide.';
 
+CREATE TABLE mcp_server_proposals (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    chat_id uuid NOT NULL,
+    requester_id uuid NOT NULL,
+    channel text NOT NULL,
+    thread_ts text NOT NULL,
+    message_ts text NOT NULL,
+    request jsonb NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    mcp_server_config_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    accepted_at timestamp with time zone,
+    CONSTRAINT mcp_server_proposals_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'accepted'::text, 'rejected'::text])))
+);
+
+COMMENT ON TABLE mcp_server_proposals IS 'Pending MCP server proposals created by the propose_mcp_server chat tool for Slack-bound chats. A proposal is accepted or rejected by the requesting user through the dashboard, or cancelled from Slack.';
+
+COMMENT ON COLUMN mcp_server_proposals.requester_id IS 'Coder user the proposing Slack sender resolved to, recorded at proposal creation. Only this user may accept, reject, or cancel the proposal.';
+
+COMMENT ON COLUMN mcp_server_proposals.request IS 'The proposed MCP server config as JSON. May contain secrets (api key values, custom headers); never returned verbatim through the API.';
+
+COMMENT ON COLUMN mcp_server_proposals.mcp_server_config_id IS 'The MCP server config created when the proposal was accepted. NULL while pending or rejected.';
+
 CREATE TABLE mcp_server_user_tokens (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     mcp_server_config_id uuid NOT NULL,
@@ -4350,6 +4373,9 @@ ALTER TABLE ONLY licenses
 ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY mcp_server_proposals
+    ADD CONSTRAINT mcp_server_proposals_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY mcp_server_user_tokens
     ADD CONSTRAINT mcp_server_user_tokens_mcp_server_config_id_user_id_key UNIQUE (mcp_server_config_id, user_id);
 
@@ -4801,6 +4827,8 @@ CREATE INDEX idx_mcp_server_configs_owner_id ON mcp_server_configs USING btree (
 
 CREATE UNIQUE INDEX idx_mcp_server_configs_owner_slug ON mcp_server_configs USING btree (owner_id, slug) WHERE (owner_id IS NOT NULL);
 
+CREATE INDEX idx_mcp_server_proposals_chat_id ON mcp_server_proposals USING btree (chat_id);
+
 CREATE INDEX idx_mcp_server_user_tokens_user_id ON mcp_server_user_tokens USING btree (user_id);
 
 CREATE INDEX idx_notification_messages_status ON notification_messages USING btree (status);
@@ -5234,6 +5262,15 @@ ALTER TABLE ONLY mcp_server_configs
 
 ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY mcp_server_proposals
+    ADD CONSTRAINT mcp_server_proposals_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY mcp_server_proposals
+    ADD CONSTRAINT mcp_server_proposals_mcp_server_config_id_fkey FOREIGN KEY (mcp_server_config_id) REFERENCES mcp_server_configs(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY mcp_server_proposals
+    ADD CONSTRAINT mcp_server_proposals_requester_id_fkey FOREIGN KEY (requester_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY mcp_server_user_tokens
     ADD CONSTRAINT mcp_server_user_tokens_access_token_key_id_fkey FOREIGN KEY (access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);

@@ -398,6 +398,7 @@ func (server *Server) prepareGeneration(
 			resolvePlanPath: resolvePlanPathForTools,
 			storeFile:       storeChatAttachment,
 			isPlanModeTurn:  isPlanModeTurn,
+			slackSenderID:   latestSlackSenderID(promptRows),
 		})
 	}
 

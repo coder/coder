@@ -6,8 +6,10 @@ import (
 	"strings"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -37,6 +39,11 @@ const (
 	// part at persistence time; slackd uses it to exclude the chat's
 	// own replies from thread ingestion.
 	MetadataKeySlackPostedMessageTS = "slack_posted_message_ts"
+	// MetadataKeySlackSenderID is the content-part metadata key that
+	// stores the Slack user id of the sender whose message triggered
+	// the submission. slackd stamps it on the header part so the MCP
+	// proposal tool can resolve the Coder requester at row creation.
+	MetadataKeySlackSenderID = "slack_sender_id"
 )
 
 // slackSendMessageToolName is the name of the chattool Slack tool
@@ -111,8 +118,56 @@ func (p *Server) appendSlackTools(
 		ThreadTS: threadTS,
 		Logger:   p.logger,
 	}
-	if opts.isPlanModeTurn {
-		return append(tools, chattool.SlackReadOnlyTools(slackOpts)...)
+	mcpOpts := chattool.MCPServerToolsOptions{
+		DB:               p.db,
+		Logger:           p.logger,
+		ChatID:           opts.chat.ID,
+		ChatOwnerID:      opts.chat.OwnerID,
+		AccessURL:        p.accessURL,
+		SlackAPI:         p.slackAPI,
+		Channel:          channel,
+		ThreadTS:         threadTS,
+		SlackSenderID:    opts.slackSenderID,
+		ResolveSlackUser: p.slackUserResolver,
+		ChatMCPServerIDs: func(ctx context.Context) ([]uuid.UUID, error) {
+			chat, err := p.db.GetChatByID(ctx, opts.chat.ID)
+			if err != nil {
+				return nil, err
+			}
+			return chat.MCPServerIDs, nil
+		},
+		EnableMCPServer: func(ctx context.Context, serverID uuid.UUID) error {
+			_, err := p.AddChatMCPServerID(ctx, opts.chat.ID, serverID)
+			return err
+		},
 	}
-	return append(tools, chattool.SlackTools(slackOpts)...)
+	if opts.isPlanModeTurn {
+		tools = append(tools, chattool.SlackReadOnlyTools(slackOpts)...)
+		return append(tools, chattool.MCPServerReadOnlyTools(mcpOpts)...)
+	}
+	tools = append(tools, chattool.SlackTools(slackOpts)...)
+	return append(tools, chattool.MCPServerTools(mcpOpts)...)
+}
+
+// latestSlackSenderID returns the Slack user id stamped on the newest
+// user message, i.e. the sender of the message that started the
+// current turn. It returns "" when no message carries the metadata
+// (e.g. chats predating sender stamping).
+func latestSlackSenderID(prompt []database.ChatMessage) string {
+	for i := len(prompt) - 1; i >= 0; i-- {
+		msg := prompt[i]
+		if msg.Role != database.ChatMessageRoleUser || !msg.Content.Valid {
+			continue
+		}
+		var parts []codersdk.ChatMessagePart
+		if err := json.Unmarshal(msg.Content.RawMessage, &parts); err != nil {
+			continue
+		}
+		for _, part := range parts {
+			if sender := part.Metadata[MetadataKeySlackSenderID]; sender != "" {
+				return sender
+			}
+		}
+	}
+	return ""
 }

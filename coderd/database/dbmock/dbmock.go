@@ -963,6 +963,20 @@ func (mr *MockStoreMockRecorder) DeleteExpiredAPIKeys(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredAPIKeys", reflect.TypeOf((*MockStore)(nil).DeleteExpiredAPIKeys), ctx, arg)
 }
 
+// DeleteExpiredMCPServerProposals mocks base method.
+func (m *MockStore) DeleteExpiredMCPServerProposals(ctx context.Context, createdBefore time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteExpiredMCPServerProposals", ctx, createdBefore)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteExpiredMCPServerProposals indicates an expected call of DeleteExpiredMCPServerProposals.
+func (mr *MockStoreMockRecorder) DeleteExpiredMCPServerProposals(ctx, createdBefore any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredMCPServerProposals", reflect.TypeOf((*MockStore)(nil).DeleteExpiredMCPServerProposals), ctx, createdBefore)
+}
+
 // DeleteExternalAuthLink mocks base method.
 func (m *MockStore) DeleteExternalAuthLink(ctx context.Context, arg database.DeleteExternalAuthLinkParams) error {
 	m.ctrl.T.Helper()
@@ -4391,6 +4405,36 @@ func (m *MockStore) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUI
 func (mr *MockStoreMockRecorder) GetMCPServerConfigsByIDs(ctx, ids any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerConfigsByIDs", reflect.TypeOf((*MockStore)(nil).GetMCPServerConfigsByIDs), ctx, ids)
+}
+
+// GetMCPServerProposalByID mocks base method.
+func (m *MockStore) GetMCPServerProposalByID(ctx context.Context, id uuid.UUID) (database.MCPServerProposal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMCPServerProposalByID", ctx, id)
+	ret0, _ := ret[0].(database.MCPServerProposal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMCPServerProposalByID indicates an expected call of GetMCPServerProposalByID.
+func (mr *MockStoreMockRecorder) GetMCPServerProposalByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerProposalByID", reflect.TypeOf((*MockStore)(nil).GetMCPServerProposalByID), ctx, id)
+}
+
+// GetMCPServerProposalByIDForUpdate mocks base method.
+func (m *MockStore) GetMCPServerProposalByIDForUpdate(ctx context.Context, id uuid.UUID) (database.MCPServerProposal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMCPServerProposalByIDForUpdate", ctx, id)
+	ret0, _ := ret[0].(database.MCPServerProposal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMCPServerProposalByIDForUpdate indicates an expected call of GetMCPServerProposalByIDForUpdate.
+func (mr *MockStoreMockRecorder) GetMCPServerProposalByIDForUpdate(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerProposalByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetMCPServerProposalByIDForUpdate), ctx, id)
 }
 
 // GetMCPServerUserToken mocks base method.
@@ -7941,6 +7985,21 @@ func (mr *MockStoreMockRecorder) InsertMCPServerConfig(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertMCPServerConfig", reflect.TypeOf((*MockStore)(nil).InsertMCPServerConfig), ctx, arg)
 }
 
+// InsertMCPServerProposal mocks base method.
+func (m *MockStore) InsertMCPServerProposal(ctx context.Context, arg database.InsertMCPServerProposalParams) (database.MCPServerProposal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertMCPServerProposal", ctx, arg)
+	ret0, _ := ret[0].(database.MCPServerProposal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertMCPServerProposal indicates an expected call of InsertMCPServerProposal.
+func (mr *MockStoreMockRecorder) InsertMCPServerProposal(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertMCPServerProposal", reflect.TypeOf((*MockStore)(nil).InsertMCPServerProposal), ctx, arg)
+}
+
 // InsertMemoryResourceMonitor mocks base method.
 func (m *MockStore) InsertMemoryResourceMonitor(ctx context.Context, arg database.InsertMemoryResourceMonitorParams) (database.WorkspaceAgentMemoryResourceMonitor, error) {
 	m.ctrl.T.Helper()
@@ -10141,6 +10200,21 @@ func (m *MockStore) UpdateMCPServerConfig(ctx context.Context, arg database.Upda
 func (mr *MockStoreMockRecorder) UpdateMCPServerConfig(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMCPServerConfig", reflect.TypeOf((*MockStore)(nil).UpdateMCPServerConfig), ctx, arg)
+}
+
+// UpdateMCPServerProposalStatus mocks base method.
+func (m *MockStore) UpdateMCPServerProposalStatus(ctx context.Context, arg database.UpdateMCPServerProposalStatusParams) (database.MCPServerProposal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateMCPServerProposalStatus", ctx, arg)
+	ret0, _ := ret[0].(database.MCPServerProposal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateMCPServerProposalStatus indicates an expected call of UpdateMCPServerProposalStatus.
+func (mr *MockStoreMockRecorder) UpdateMCPServerProposalStatus(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMCPServerProposalStatus", reflect.TypeOf((*MockStore)(nil).UpdateMCPServerProposalStatus), ctx, arg)
 }
 
 // UpdateMemberRoles mocks base method.

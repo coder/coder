@@ -585,6 +585,14 @@ func (m queryMetricsStore) DeleteExpiredAPIKeys(ctx context.Context, arg databas
 	return r0, r1
 }
 
+func (m queryMetricsStore) DeleteExpiredMCPServerProposals(ctx context.Context, createdBefore time.Time) error {
+	start := time.Now()
+	r0 := m.s.DeleteExpiredMCPServerProposals(ctx, createdBefore)
+	m.queryLatencies.WithLabelValues("DeleteExpiredMCPServerProposals").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteExpiredMCPServerProposals").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteExternalAuthLink(ctx context.Context, arg database.DeleteExternalAuthLinkParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteExternalAuthLink(ctx, arg)
@@ -2366,6 +2374,22 @@ func (m queryMetricsStore) GetMCPServerConfigsByIDs(ctx context.Context, ids []u
 	r0, r1 := m.s.GetMCPServerConfigsByIDs(ctx, ids)
 	m.queryLatencies.WithLabelValues("GetMCPServerConfigsByIDs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerConfigsByIDs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetMCPServerProposalByID(ctx context.Context, id uuid.UUID) (database.MCPServerProposal, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetMCPServerProposalByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetMCPServerProposalByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerProposalByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetMCPServerProposalByIDForUpdate(ctx context.Context, id uuid.UUID) (database.MCPServerProposal, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetMCPServerProposalByIDForUpdate(ctx, id)
+	m.queryLatencies.WithLabelValues("GetMCPServerProposalByIDForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerProposalByIDForUpdate").Inc()
 	return r0, r1
 }
 
@@ -4241,6 +4265,14 @@ func (m queryMetricsStore) InsertMCPServerConfig(ctx context.Context, arg databa
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertMCPServerProposal(ctx context.Context, arg database.InsertMCPServerProposalParams) (database.MCPServerProposal, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertMCPServerProposal(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertMCPServerProposal").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertMCPServerProposal").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertMemoryResourceMonitor(ctx context.Context, arg database.InsertMemoryResourceMonitorParams) (database.WorkspaceAgentMemoryResourceMonitor, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertMemoryResourceMonitor(ctx, arg)
@@ -5382,6 +5414,14 @@ func (m queryMetricsStore) UpdateMCPServerConfig(ctx context.Context, arg databa
 	r0, r1 := m.s.UpdateMCPServerConfig(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateMCPServerConfig").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateMCPServerConfig").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateMCPServerProposalStatus(ctx context.Context, arg database.UpdateMCPServerProposalStatusParams) (database.MCPServerProposal, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateMCPServerProposalStatus(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateMCPServerProposalStatus").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateMCPServerProposalStatus").Inc()
 	return r0, r1
 }
 

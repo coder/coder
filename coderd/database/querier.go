@@ -160,6 +160,7 @@ type sqlcQuerier interface {
 	DeleteCryptoKey(ctx context.Context, arg DeleteCryptoKeyParams) (CryptoKey, error)
 	DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error
 	DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) (int64, error)
+	DeleteExpiredMCPServerProposals(ctx context.Context, createdBefore time.Time) error
 	DeleteExternalAuthLink(ctx context.Context, arg DeleteExternalAuthLinkParams) error
 	DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) (GroupAIBudget, error)
 	DeleteGroupByID(ctx context.Context, id uuid.UUID) error
@@ -638,6 +639,10 @@ type sqlcQuerier interface {
 	GetMCPServerConfigBySlug(ctx context.Context, slug string) (MCPServerConfig, error)
 	GetMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error)
 	GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID) ([]MCPServerConfig, error)
+	GetMCPServerProposalByID(ctx context.Context, id uuid.UUID) (MCPServerProposal, error)
+	// Locks the proposal row so concurrent accept/reject transitions across
+	// coderd replicas serialize on the row lock.
+	GetMCPServerProposalByIDForUpdate(ctx context.Context, id uuid.UUID) (MCPServerProposal, error)
 	GetMCPServerUserToken(ctx context.Context, arg GetMCPServerUserTokenParams) (MCPServerUserToken, error)
 	GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]MCPServerUserToken, error)
 	// Must be called from within a transaction. The row lock is released
@@ -1095,6 +1100,7 @@ type sqlcQuerier interface {
 	InsertInboxNotification(ctx context.Context, arg InsertInboxNotificationParams) (InboxNotification, error)
 	InsertLicense(ctx context.Context, arg InsertLicenseParams) (License, error)
 	InsertMCPServerConfig(ctx context.Context, arg InsertMCPServerConfigParams) (MCPServerConfig, error)
+	InsertMCPServerProposal(ctx context.Context, arg InsertMCPServerProposalParams) (MCPServerProposal, error)
 	InsertMemoryResourceMonitor(ctx context.Context, arg InsertMemoryResourceMonitorParams) (WorkspaceAgentMemoryResourceMonitor, error)
 	// Inserts any group by name that does not exist. All new groups are given
 	// a random uuid, are inserted into the same organization. They have the default
@@ -1437,6 +1443,7 @@ type sqlcQuerier interface {
 	UpdateInactiveUsersToDormant(ctx context.Context, arg UpdateInactiveUsersToDormantParams) ([]UpdateInactiveUsersToDormantRow, error)
 	UpdateInboxNotificationReadStatus(ctx context.Context, arg UpdateInboxNotificationReadStatusParams) error
 	UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPServerConfigParams) (MCPServerConfig, error)
+	UpdateMCPServerProposalStatus(ctx context.Context, arg UpdateMCPServerProposalStatusParams) (MCPServerProposal, error)
 	UpdateMemberRoles(ctx context.Context, arg UpdateMemberRolesParams) (OrganizationMember, error)
 	UpdateMemoryResourceMonitor(ctx context.Context, arg UpdateMemoryResourceMonitorParams) error
 	UpdateNotificationTemplateMethodByID(ctx context.Context, arg UpdateNotificationTemplateMethodByIDParams) (NotificationTemplate, error)

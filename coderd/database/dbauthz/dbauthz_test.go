@@ -1911,6 +1911,49 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().InsertMCPServerConfig(gomock.Any(), arg).Return(config, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(config)
 	}))
+	s.Run("GetMCPServerProposalByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		proposal := testutil.Fake(s.T(), faker, database.MCPServerProposal{ChatID: chat.ID})
+		dbm.EXPECT().GetMCPServerProposalByID(gomock.Any(), proposal.ID).Return(proposal, nil).AnyTimes()
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		check.Args(proposal.ID).Asserts(chat, policy.ActionRead).Returns(proposal)
+	}))
+	s.Run("GetMCPServerProposalByIDForUpdate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		proposal := testutil.Fake(s.T(), faker, database.MCPServerProposal{ChatID: chat.ID})
+		dbm.EXPECT().GetMCPServerProposalByIDForUpdate(gomock.Any(), proposal.ID).Return(proposal, nil).AnyTimes()
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		check.Args(proposal.ID).Asserts(chat, policy.ActionUpdate).Returns(proposal)
+	}))
+	s.Run("InsertMCPServerProposal", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.InsertMCPServerProposalParams{
+			ID:      uuid.New(),
+			ChatID:  chat.ID,
+			Request: json.RawMessage(`{}`),
+		}
+		proposal := testutil.Fake(s.T(), faker, database.MCPServerProposal{ID: arg.ID, ChatID: chat.ID})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().InsertMCPServerProposal(gomock.Any(), arg).Return(proposal, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(proposal)
+	}))
+	s.Run("UpdateMCPServerProposalStatus", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		proposal := testutil.Fake(s.T(), faker, database.MCPServerProposal{ChatID: chat.ID})
+		arg := database.UpdateMCPServerProposalStatusParams{
+			ID:     proposal.ID,
+			Status: "rejected",
+		}
+		dbm.EXPECT().GetMCPServerProposalByID(gomock.Any(), proposal.ID).Return(proposal, nil).AnyTimes()
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpdateMCPServerProposalStatus(gomock.Any(), arg).Return(proposal, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(proposal)
+	}))
+	s.Run("DeleteExpiredMCPServerProposals", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		createdBefore := dbtime.Now()
+		dbm.EXPECT().DeleteExpiredMCPServerProposals(gomock.Any(), createdBefore).Return(nil).AnyTimes()
+		check.Args(createdBefore).Asserts(rbac.ResourceChat, policy.ActionDelete)
+	}))
 	s.Run("UpdateChatMCPServerIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpdateChatMCPServerIDsParams{

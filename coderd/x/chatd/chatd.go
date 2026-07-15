@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -169,6 +170,8 @@ type Server struct {
 	startWorkspaceFn               chattool.StartWorkspaceFn
 	stopWorkspaceFn                chattool.StopWorkspaceFn
 	slackAPI                       chattool.SlackAPI
+	slackUserResolver              func(context.Context, string) (uuid.UUID, error)
+	accessURL                      *url.URL
 	pubsub                         pubsub.Pubsub
 	webpushDispatcher              webpush.Dispatcher
 	providerAPIKeys                chatprovider.ProviderAPIKeys
@@ -1652,6 +1655,49 @@ func chatdModelConfigLookupContext(ctx context.Context) context.Context {
 	return dbauthz.AsChatd(ctx)
 }
 
+// AddChatMCPServerID appends an MCP server to the chat's enabled MCP
+// server IDs through the validated update path (ownership validation,
+// snapshot bump, pubsub notify). Appending an already-enabled server
+// is a no-op. Explore child chats keep their spawn-time snapshot
+// immutable, matching SendMessage.
+func (p *Server) AddChatMCPServerID(ctx context.Context, chatID, serverID uuid.UUID) (database.Chat, error) {
+	var updated database.Chat
+	machine := p.newChatMachine(chatID)
+	err := machine.Update(ctx, func(_ *chatstate.Tx, store database.Store) error {
+		chat, err := store.GetChatByID(ctx, chatID)
+		if err != nil {
+			return xerrors.Errorf("load chat: %w", err)
+		}
+		if chat.Archived {
+			return ErrChatArchived
+		}
+		if isExploreSubagentMode(chat.Mode) {
+			return xerrors.New("explore subagent chats keep their MCP server snapshot immutable")
+		}
+		if slices.Contains(chat.MCPServerIDs, serverID) {
+			updated = chat
+			return nil
+		}
+		ids := append(slices.Clone(chat.MCPServerIDs), serverID)
+		if err := validateMCPServerIDOwnership(ctx, store, chat.OwnerID, ids); err != nil {
+			return err
+		}
+		updated, err = store.UpdateChatMCPServerIDs(ctx, database.UpdateChatMCPServerIDsParams{
+			ID:           chatID,
+			MCPServerIDs: ids,
+		})
+		if err != nil {
+			return xerrors.Errorf("update chat mcp server ids: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return database.Chat{}, err
+	}
+	p.publishChatPubsubEvent(updated, codersdk.ChatWatchEventKindStatusChange, nil)
+	return updated, nil
+}
+
 // validateMCPServerIDOwnership rejects MCP server IDs that do not
 // exist, are disabled, or refer to a personal server owned by someone
 // other than the chat owner. Enabled global servers are always allowed.
@@ -3005,7 +3051,15 @@ type Config struct {
 	// SlackAPI is the Slack Web API client used by the Slack chat
 	// tools. Nil when the Slack integration is not configured; the
 	// Slack tools are then never offered.
-	SlackAPI                 chattool.SlackAPI
+	SlackAPI chattool.SlackAPI
+	// AccessURL is the deployment access URL, used by the MCP server
+	// management tools to build OAuth2 connect and proposal review
+	// URLs.
+	AccessURL *url.URL
+	// SlackUserResolver maps a Slack user id to the Coder user id
+	// selected by slackd's chat-owner routing. The MCP proposal tool
+	// invokes it at proposal creation time.
+	SlackUserResolver        func(context.Context, string) (uuid.UUID, error)
 	ProviderAPIKeys          chatprovider.ProviderAPIKeys
 	AllowBYOK                bool
 	AllowBYOKSet             bool
@@ -3091,6 +3145,8 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		startWorkspaceFn:               cfg.StartWorkspace,
 		stopWorkspaceFn:                cfg.StopWorkspace,
 		slackAPI:                       cfg.SlackAPI,
+		slackUserResolver:              cfg.SlackUserResolver,
+		accessURL:                      cfg.AccessURL,
 		pubsub:                         ps,
 		webpushDispatcher:              cfg.WebpushDispatcher,
 		providerAPIKeys:                cfg.ProviderAPIKeys,
@@ -3748,6 +3804,10 @@ type rootChatToolsOptions struct {
 	resolvePlanPath func(context.Context) (string, string, error)
 	storeFile       chattool.StoreFileFunc
 	isPlanModeTurn  bool
+	// slackSenderID is the Slack user id of the sender of the message
+	// that started the current turn, resolved from ingested message
+	// metadata. Empty for non-slackd chats.
+	slackSenderID string
 }
 
 func (p *Server) loadPlanModeInstructions(

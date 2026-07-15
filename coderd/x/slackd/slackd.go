@@ -62,6 +62,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
@@ -84,6 +85,10 @@ const (
 	// that stores the Slack timestamp of a reply the chat posted via
 	// the slack_send_message tool.
 	MetadataKeySlackPostedMessageTS = chatd.MetadataKeySlackPostedMessageTS
+	// MetadataKeySlackSenderID is the content-part metadata key that
+	// stores the Slack sender id so chatd can resolve the requesting
+	// Coder user at MCP proposal creation.
+	MetadataKeySlackSenderID = chatd.MetadataKeySlackSenderID
 
 	// Reconnection backoff bounds for the Socket Mode run loop.
 	reconnectBackoffFloor = time.Second
@@ -123,7 +128,26 @@ Slack messages use mrkdwn, not standard markdown:
 - <http://example.com|link text> = links
 - user mentions must be <@USER_ID> (e.g. <@U01UBAM2C4D>), never @username
 - never use headings (#) or double asterisks (**text**)
-- keep replies concise; messages over 3000 characters are truncated`
+- keep replies concise; messages over 3000 characters are truncated
+
+You can access external services via MCP servers. You may use existing
+servers or create new ones via the propose_mcp_server tool. 
+
+- propose_mcp_server proposes a NEW server. It only posts a
+  confirmation card to the thread; nothing is created until the
+  requesting user accepts it on a Coder page. Before proposing a server,
+  always find a reliable source for its configuration, preferably the
+  connected service's official MCP documentation. Use that source to
+  determine the endpoint, authentication, and transport. Never guess
+  configuration from memory or an unverified source. Prefer
+  streamable_http over sse; use sse only when a reliable source shows
+  that streamable HTTP is unavailable. Call the tool, then END YOUR TURN
+  and wait for the [system] message reporting the outcome. Proposed servers
+  are personal to the requesting user, not the whole deployment: no other
+  users can access them. Be proactive about proposing new servers. For example,
+  if a user mentions that they'd like to access a new service but you don't have
+  an MCP server for it, propose one - don't ask for permission. The user can
+  reject the proposal, so there's no downside to proposing one right away.`
 
 // ChatSubmitter is the subset of *chatd.Server used by slackd.
 type ChatSubmitter interface {
@@ -147,6 +171,8 @@ type WebAPI interface {
 	AuthTestContext(ctx context.Context) (*slack.AuthTestResponse, error)
 	GetUserInfoContext(ctx context.Context, user string) (*slack.User, error)
 	GetConversationRepliesContext(ctx context.Context, params *slack.GetConversationRepliesParameters) ([]slack.Message, bool, string, error)
+	UpdateMessageContext(ctx context.Context, channelID, timestamp string, options ...slack.MsgOption) (string, string, string, error)
+	PostEphemeralContext(ctx context.Context, channelID, userID string, options ...slack.MsgOption) (string, error)
 }
 
 // socketClientAdapter adapts *socketmode.Client to SocketClient.
@@ -180,6 +206,12 @@ type Options struct {
 	// tests. When nil they are built from BotToken and AppToken.
 	SocketClient SocketClient
 	WebAPI       WebAPI
+
+	// Proposals handles MCP server proposal state transitions. When
+	// set, slackd routes Cancel button clicks (received over Socket
+	// Mode) to it. The HTTP accept/reject endpoints are mounted by
+	// coderd on the same instance.
+	Proposals *ProposalsAPI
 }
 
 // Server runs the Slack Socket Mode listener. Use New followed by
@@ -193,6 +225,7 @@ type Server struct {
 	providerID string
 	socket     SocketClient
 	webAPI     WebAPI
+	proposals  *ProposalsAPI
 
 	closeCtx    context.Context
 	closeCancel context.CancelFunc
@@ -246,6 +279,7 @@ func New(opts Options) (*Server, error) {
 		providerID:   opts.ExternalAuthProviderID,
 		socket:       socket,
 		webAPI:       webAPI,
+		proposals:    opts.Proposals,
 		closeCtx:     ctx,
 		closeCancel:  cancel,
 		backoffFloor: reconnectBackoffFloor,
@@ -329,6 +363,23 @@ func (s *Server) handleEvent(ctx context.Context, evt socketmode.Event) {
 		s.logger.Info(ctx, "slack socket mode connected")
 	case socketmode.EventTypeConnectionError:
 		s.logger.Warn(ctx, "slack socket mode connection error", slog.F("data", fmt.Sprintf("%v", evt.Data)))
+	case socketmode.EventTypeInteractive:
+		// Ack immediately; interactive payloads are handled
+		// asynchronously and Slack retries unacked requests.
+		if evt.Request != nil {
+			if err := s.socket.Ack(*evt.Request); err != nil {
+				s.logger.Warn(ctx, "acknowledge slack interactive event", slog.Error(err))
+			}
+		}
+		callback, ok := evt.Data.(slack.InteractionCallback)
+		if !ok || callback.Type != slack.InteractionTypeBlockActions {
+			return
+		}
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			s.handleBlockActions(ctx, callback)
+		}()
 	case socketmode.EventTypeEventsAPI:
 		// Ack immediately: Slack redelivers unacked events, and
 		// redelivery is handled by event-id dedup anyway.
@@ -553,12 +604,37 @@ const (
 // Coder accounts) and unusable linked users fail closed instead of
 // falling back.
 func (s *Server) resolveOwner(ctx context.Context, slackUserID string) (database.User, ownerResolution, error) {
-	if s.providerID == "" || slackUserID == "" {
-		owner, err := s.fallbackOwner(ctx)
+	return resolveSlackSender(ctx, s.logger, s.db, s.providerID, s.ownerID, slackUserID)
+}
+
+// NewSlackUserResolver returns a resolver mapping Slack user ids to
+// Coder user ids using the same resolution as slackd's chat-owner
+// routing (external auth link, or the configured fallback owner). The
+// MCP proposal Cancel flow uses it to authorize clicks against the
+// proposal's requester.
+func NewSlackUserResolver(logger slog.Logger, db database.Store, providerID string, fallbackOwnerID uuid.UUID) func(ctx context.Context, slackUserID string) (uuid.UUID, error) {
+	return func(ctx context.Context, slackUserID string) (uuid.UUID, error) {
+		// The resolver is shared with chatd tools, whose context carries the
+		// narrower chatd identity. Slack user mapping requires slackd's user
+		// read permission regardless of which caller invokes the resolver.
+		ctx = dbauthz.AsSlackd(ctx) //nolint:gocritic // Slack identity resolution is internal slackd work.
+		user, _, err := resolveSlackSender(ctx, logger, db, providerID, fallbackOwnerID, slackUserID)
+		if err != nil {
+			return uuid.Nil, err
+		}
+		return user.ID, nil
+	}
+}
+
+// resolveSlackSender implements Server.resolveOwner as a package
+// function so the MCP proposal Cancel flow can reuse it.
+func resolveSlackSender(ctx context.Context, logger slog.Logger, db database.Store, providerID string, fallbackOwnerID uuid.UUID, slackUserID string) (database.User, ownerResolution, error) {
+	if providerID == "" || slackUserID == "" {
+		owner, err := fallbackOwner(ctx, db, fallbackOwnerID)
 		return owner, ownerResolutionFallback, err
 	}
-	users, err := s.db.GetUsersByExternalAuthProviderUserID(ctx, database.GetUsersByExternalAuthProviderUserIDParams{
-		ProviderID:     s.providerID,
+	users, err := db.GetUsersByExternalAuthProviderUserID(ctx, database.GetUsersByExternalAuthProviderUserIDParams{
+		ProviderID:     providerID,
 		ExternalUserID: slackUserID,
 	})
 	if err != nil {
@@ -566,14 +642,14 @@ func (s *Server) resolveOwner(ctx context.Context, slackUserID string) (database
 	}
 	switch len(users) {
 	case 0:
-		s.logger.Debug(ctx, "slack sender has no linked coder user, using fallback chat owner",
+		logger.Debug(ctx, "slack sender has no linked coder user, using fallback chat owner",
 			slog.F("slack_user_id", slackUserID))
-		owner, err := s.fallbackOwner(ctx)
+		owner, err := fallbackOwner(ctx, db, fallbackOwnerID)
 		return owner, ownerResolutionFallback, err
 	case 1:
 		owner := users[0]
 		if err := validateOwner(owner); err != nil {
-			s.logger.Warn(ctx, "slack sender is linked to an unusable coder user",
+			logger.Warn(ctx, "slack sender is linked to an unusable coder user",
 				slog.F("slack_user_id", slackUserID),
 				slog.F("owner_id", owner.ID),
 				slog.Error(err))
@@ -584,7 +660,7 @@ func (s *Server) resolveOwner(ctx context.Context, slackUserID string) (database
 		// Never pick among multiple linked accounts, even when only
 		// one of them is active: selection would depend on row order
 		// or status filtering rather than the user's intent.
-		s.logger.Warn(ctx, "slack sender is linked to multiple coder users, failing closed",
+		logger.Warn(ctx, "slack sender is linked to multiple coder users, failing closed",
 			slog.F("slack_user_id", slackUserID),
 			slog.F("linked_users", len(users)))
 		return database.User{}, "", xerrors.Errorf("slack user %q is linked to %d coder users; refusing to pick one", slackUserID, len(users))
@@ -594,10 +670,10 @@ func (s *Server) resolveOwner(ctx context.Context, slackUserID string) (database
 // fallbackOwner loads and validates the configured chat owner. The
 // fallback owner passes through the same usability checks as a linked
 // owner.
-func (s *Server) fallbackOwner(ctx context.Context) (database.User, error) {
-	owner, err := s.db.GetUserByID(ctx, s.ownerID)
+func fallbackOwner(ctx context.Context, db database.Store, ownerID uuid.UUID) (database.User, error) {
+	owner, err := db.GetUserByID(ctx, ownerID)
 	if err != nil {
-		return database.User{}, xerrors.Errorf("get configured chat owner %s: %w", s.ownerID, err)
+		return database.User{}, xerrors.Errorf("get configured chat owner %s: %w", ownerID, err)
 	}
 	if err := validateOwner(owner); err != nil {
 		return database.User{}, xerrors.Errorf("configured chat owner %s: %w", owner.ID, err)
@@ -740,7 +816,13 @@ func (s *Server) interruptSiblingChats(ctx context.Context, labels map[string]st
 // of the generation turn to it. The key is looked up in the database
 // on every call; nothing owner-specific is cached in process memory.
 func (s *Server) ensureAPIKeyID(ctx context.Context, ownerID uuid.UUID) (string, error) {
-	keys, err := s.db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
+	return ensureAPIKeyID(ctx, s.db, ownerID)
+}
+
+// ensureAPIKeyID implements Server.ensureAPIKeyID as a package
+// function so the MCP proposal handlers can reuse it.
+func ensureAPIKeyID(ctx context.Context, db database.Store, ownerID uuid.UUID) (string, error) {
+	keys, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
 		LoginType:      database.LoginTypeToken,
 		UserID:         ownerID,
 		IncludeExpired: false,
@@ -779,7 +861,7 @@ func (s *Server) ensureAPIKeyID(ctx context.Context, ownerID uuid.UUID) (string,
 	// mint keys simultaneously, so include the random key id in the
 	// name. A later event deterministically picks among them.
 	params.TokenName = "slackd-" + params.ID
-	inserted, err := s.db.InsertAPIKey(ctx, params)
+	inserted, err := db.InsertAPIKey(ctx, params)
 	if err != nil {
 		return "", xerrors.Errorf("insert api key: %w", err)
 	}
@@ -927,9 +1009,12 @@ func (s *Server) buildContent(
 		ev.Channel, threadLine)
 
 	parts := []codersdk.ChatMessagePart{{
-		Type:     codersdk.ChatMessagePartTypeText,
-		Text:     header,
-		Metadata: map[string]string{MetadataKeySlackEventID: eventID},
+		Type: codersdk.ChatMessagePartTypeText,
+		Text: header,
+		Metadata: map[string]string{
+			MetadataKeySlackEventID:  eventID,
+			MetadataKeySlackSenderID: ev.User,
+		},
 	}}
 	for _, msg := range unseen {
 		parts = append(parts, codersdk.ChatMessagePart{

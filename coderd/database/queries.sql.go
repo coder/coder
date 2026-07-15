@@ -17795,6 +17795,180 @@ func (q *sqlQuerier) UpsertMCPServerUserToken(ctx context.Context, arg UpsertMCP
 	return i, err
 }
 
+const deleteExpiredMCPServerProposals = `-- name: DeleteExpiredMCPServerProposals :exec
+DELETE FROM
+    mcp_server_proposals
+WHERE
+    created_at < $1::timestamptz
+`
+
+func (q *sqlQuerier) DeleteExpiredMCPServerProposals(ctx context.Context, createdBefore time.Time) error {
+	_, err := q.db.ExecContext(ctx, deleteExpiredMCPServerProposals, createdBefore)
+	return err
+}
+
+const getMCPServerProposalByID = `-- name: GetMCPServerProposalByID :one
+SELECT
+    id, chat_id, requester_id, channel, thread_ts, message_ts, request, status, mcp_server_config_id, created_at, accepted_at
+FROM
+    mcp_server_proposals
+WHERE
+    id = $1::uuid
+`
+
+func (q *sqlQuerier) GetMCPServerProposalByID(ctx context.Context, id uuid.UUID) (MCPServerProposal, error) {
+	row := q.db.QueryRowContext(ctx, getMCPServerProposalByID, id)
+	var i MCPServerProposal
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.RequesterID,
+		&i.Channel,
+		&i.ThreadTs,
+		&i.MessageTs,
+		&i.Request,
+		&i.Status,
+		&i.MCPServerConfigID,
+		&i.CreatedAt,
+		&i.AcceptedAt,
+	)
+	return i, err
+}
+
+const getMCPServerProposalByIDForUpdate = `-- name: GetMCPServerProposalByIDForUpdate :one
+SELECT
+    id, chat_id, requester_id, channel, thread_ts, message_ts, request, status, mcp_server_config_id, created_at, accepted_at
+FROM
+    mcp_server_proposals
+WHERE
+    id = $1::uuid
+FOR UPDATE
+`
+
+// Locks the proposal row so concurrent accept/reject transitions across
+// coderd replicas serialize on the row lock.
+func (q *sqlQuerier) GetMCPServerProposalByIDForUpdate(ctx context.Context, id uuid.UUID) (MCPServerProposal, error) {
+	row := q.db.QueryRowContext(ctx, getMCPServerProposalByIDForUpdate, id)
+	var i MCPServerProposal
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.RequesterID,
+		&i.Channel,
+		&i.ThreadTs,
+		&i.MessageTs,
+		&i.Request,
+		&i.Status,
+		&i.MCPServerConfigID,
+		&i.CreatedAt,
+		&i.AcceptedAt,
+	)
+	return i, err
+}
+
+const insertMCPServerProposal = `-- name: InsertMCPServerProposal :one
+INSERT INTO mcp_server_proposals (
+    id,
+    chat_id,
+    requester_id,
+    channel,
+    thread_ts,
+    message_ts,
+    request
+) VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::uuid,
+    $4::text,
+    $5::text,
+    $6::text,
+    $7::jsonb
+)
+RETURNING
+    id, chat_id, requester_id, channel, thread_ts, message_ts, request, status, mcp_server_config_id, created_at, accepted_at
+`
+
+type InsertMCPServerProposalParams struct {
+	ID          uuid.UUID       `db:"id" json:"id"`
+	ChatID      uuid.UUID       `db:"chat_id" json:"chat_id"`
+	RequesterID uuid.UUID       `db:"requester_id" json:"requester_id"`
+	Channel     string          `db:"channel" json:"channel"`
+	ThreadTs    string          `db:"thread_ts" json:"thread_ts"`
+	MessageTs   string          `db:"message_ts" json:"message_ts"`
+	Request     json.RawMessage `db:"request" json:"request"`
+}
+
+func (q *sqlQuerier) InsertMCPServerProposal(ctx context.Context, arg InsertMCPServerProposalParams) (MCPServerProposal, error) {
+	row := q.db.QueryRowContext(ctx, insertMCPServerProposal,
+		arg.ID,
+		arg.ChatID,
+		arg.RequesterID,
+		arg.Channel,
+		arg.ThreadTs,
+		arg.MessageTs,
+		arg.Request,
+	)
+	var i MCPServerProposal
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.RequesterID,
+		&i.Channel,
+		&i.ThreadTs,
+		&i.MessageTs,
+		&i.Request,
+		&i.Status,
+		&i.MCPServerConfigID,
+		&i.CreatedAt,
+		&i.AcceptedAt,
+	)
+	return i, err
+}
+
+const updateMCPServerProposalStatus = `-- name: UpdateMCPServerProposalStatus :one
+UPDATE
+    mcp_server_proposals
+SET
+    status = $1::text,
+    mcp_server_config_id = $2::uuid,
+    accepted_at = $3::timestamptz
+WHERE
+    id = $4::uuid
+RETURNING
+    id, chat_id, requester_id, channel, thread_ts, message_ts, request, status, mcp_server_config_id, created_at, accepted_at
+`
+
+type UpdateMCPServerProposalStatusParams struct {
+	Status            string        `db:"status" json:"status"`
+	MCPServerConfigID uuid.NullUUID `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	AcceptedAt        sql.NullTime  `db:"accepted_at" json:"accepted_at"`
+	ID                uuid.UUID     `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateMCPServerProposalStatus(ctx context.Context, arg UpdateMCPServerProposalStatusParams) (MCPServerProposal, error) {
+	row := q.db.QueryRowContext(ctx, updateMCPServerProposalStatus,
+		arg.Status,
+		arg.MCPServerConfigID,
+		arg.AcceptedAt,
+		arg.ID,
+	)
+	var i MCPServerProposal
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.RequesterID,
+		&i.Channel,
+		&i.ThreadTs,
+		&i.MessageTs,
+		&i.Request,
+		&i.Status,
+		&i.MCPServerConfigID,
+		&i.CreatedAt,
+		&i.AcceptedAt,
+	)
+	return i, err
+}
+
 const acquireNotificationMessages = `-- name: AcquireNotificationMessages :many
 WITH acquired AS (
     UPDATE

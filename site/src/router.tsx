@@ -49,6 +49,9 @@ const CliAuthPage = lazy(() => import("./pages/CliAuthPage/CliAuthPage"));
 const CliInstallPage = lazy(
 	() => import("./pages/CliInstallPage/CliInstallPage"),
 );
+const MCPProposalPage = lazy(
+	() => import("./pages/MCPProposalPage/MCPProposalPage"),
+);
 const AccountPage = lazy(
 	() => import("./pages/UserSettingsPage/AccountPage/AccountPage"),
 );
@@ -586,6 +589,11 @@ export const router = createBrowserRouter(
 					<Route
 						path="/external-auth/:provider"
 						element={<ExternalAuthPage />}
+					/>
+
+					<Route
+						path="/mcp-proposals/:proposal"
+						element={<MCPProposalPage />}
 					/>
 
 					<Route path="/workspaces" element={<WorkspacesPage />} />

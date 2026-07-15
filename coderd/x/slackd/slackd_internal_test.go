@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
 	"github.com/slack-go/slack/socketmode"
@@ -23,8 +24,10 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
@@ -85,6 +88,53 @@ type fakeWebAPI struct {
 	repliesPageSize int
 	repliesErr      error
 	repliesCalls    []slack.GetConversationRepliesParameters
+
+	// updateCalls records UpdateMessageContext invocations;
+	// ephemeralCalls records PostEphemeralContext invocations.
+	updateCalls    []fakeMessageUpdate
+	ephemeralCalls []fakeEphemeralPost
+}
+
+// fakeMessageUpdate captures one UpdateMessageContext call.
+type fakeMessageUpdate struct {
+	Channel string
+	TS      string
+	Options []slack.MsgOption
+}
+
+// fakeEphemeralPost captures one PostEphemeralContext call.
+type fakeEphemeralPost struct {
+	Channel string
+	User    string
+	Options []slack.MsgOption
+}
+
+func (f *fakeWebAPI) UpdateMessageContext(_ context.Context, channelID, timestamp string, options ...slack.MsgOption) (respChannel, respTS, respText string, err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.updateCalls = append(f.updateCalls, fakeMessageUpdate{Channel: channelID, TS: timestamp, Options: options})
+	return channelID, timestamp, "", nil
+}
+
+func (f *fakeWebAPI) PostEphemeralContext(_ context.Context, channelID, userID string, options ...slack.MsgOption) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.ephemeralCalls = append(f.ephemeralCalls, fakeEphemeralPost{Channel: channelID, User: userID, Options: options})
+	return "", nil
+}
+
+// updates returns a snapshot of the recorded message updates.
+func (f *fakeWebAPI) updates() []fakeMessageUpdate {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]fakeMessageUpdate(nil), f.updateCalls...)
+}
+
+// ephemerals returns a snapshot of the recorded ephemeral posts.
+func (f *fakeWebAPI) ephemerals() []fakeEphemeralPost {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]fakeEphemeralPost(nil), f.ephemeralCalls...)
 }
 
 func (f *fakeWebAPI) AuthTestContext(context.Context) (*slack.AuthTestResponse, error) {
@@ -292,6 +342,35 @@ func linkSlackIdentity(t *testing.T, db database.Store, providerID string, userI
 	})
 }
 
+func TestNewSlackUserResolverUsesSlackdAuthorization(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	owner, _ := seedOwner(t, db)
+	const (
+		providerID  = "slack-test"
+		slackUserID = "USENDER"
+	)
+	linkSlackIdentity(t, db, providerID, owner.ID, slackUserID)
+
+	authorizedDB := dbauthz.New(
+		db,
+		rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
+		slogtest.Make(t, nil),
+		nil,
+	)
+	resolver := NewSlackUserResolver(
+		slogtest.Make(t, nil),
+		authorizedDB,
+		providerID,
+		uuid.New(),
+	)
+
+	resolvedID, err := resolver(dbauthz.AsChatd(t.Context()), slackUserID)
+	require.NoError(t, err)
+	require.Equal(t, owner.ID, resolvedID)
+}
+
 func TestHandleMentionCreatesChatForNewThread(t *testing.T) {
 	t.Parallel()
 
@@ -324,6 +403,8 @@ func TestHandleMentionCreatesChatForNewThread(t *testing.T) {
 	// The system prompt carries the bot's own Slack identity so the
 	// model can recognize inline @bot mentions as referring to itself.
 	assert.Contains(t, create.SystemPrompt, "You appear in Slack as @bot (user id <@UBOT>)")
+	assert.Contains(t, create.SystemPrompt, "always find a reliable source for its configuration")
+	assert.Contains(t, create.SystemPrompt, "streamable_http over sse")
 	assert.Equal(t, map[string]string{
 		LabelSlackd:      "true",
 		LabelSlackThread: "C1:100.1",

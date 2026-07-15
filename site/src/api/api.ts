@@ -449,6 +449,7 @@ const userSkillPath = (user: string, name: string) =>
 const userAIProviderKeysPath = (user = "me") =>
 	`/api/experimental/users/${encodeURIComponent(user)}/ai-provider-keys`;
 const mcpServerConfigsPath = "/api/experimental/mcp/servers";
+const mcpServerProposalsPath = "/api/v2/mcp-server-proposals";
 
 type ChatCostDateParams = {
 	start_date?: string;
@@ -3280,6 +3281,31 @@ class ApiMethods {
 
 	deleteAIGatewayKey = async (id: string): Promise<void> => {
 		await this.axios.delete(`${aiGatewayPath}/keys/${encodeURIComponent(id)}`);
+	};
+
+	getMCPServerProposal = async (
+		id: string,
+	): Promise<TypesGen.MCPServerProposal> => {
+		const response = await this.axios.get<TypesGen.MCPServerProposal>(
+			`${mcpServerProposalsPath}/${encodeURIComponent(id)}`,
+		);
+		return response.data;
+	};
+
+	acceptMCPServerProposal = async (
+		id: string,
+	): Promise<TypesGen.AcceptMCPServerProposalResponse> => {
+		const response =
+			await this.axios.post<TypesGen.AcceptMCPServerProposalResponse>(
+				`${mcpServerProposalsPath}/${encodeURIComponent(id)}/accept`,
+			);
+		return response.data;
+	};
+
+	rejectMCPServerProposal = async (id: string): Promise<void> => {
+		await this.axios.post(
+			`${mcpServerProposalsPath}/${encodeURIComponent(id)}/reject`,
+		);
 	};
 }
 

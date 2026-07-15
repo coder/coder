@@ -844,9 +844,18 @@ func New(options *Options) *API {
 			// configuration logs a warning inside parseSlackConfig
 			// and disables the integration.
 			slackCfg, slackEnabled := parseSlackConfig(api.ctx, options.Logger, options.DeploymentValues, options.ExternalAuthConfigs)
-			var slackAPI chattool.SlackAPI
+			var (
+				slackAPI          chattool.SlackAPI
+				slackUserResolver func(context.Context, string) (uuid.UUID, error)
+			)
 			if slackEnabled {
 				slackAPI = slackCfg.client
+				slackUserResolver = slackd.NewSlackUserResolver(
+					options.Logger.Named("slackd-resolver"),
+					options.Database,
+					slackCfg.externalAuthProviderID,
+					slackCfg.ownerID,
+				)
 			}
 			api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
 				Logger:                         options.Logger.Named("chatd"),
@@ -867,6 +876,8 @@ func New(options *Options) *API {
 				StartWorkspace:                 api.chatStartWorkspace,
 				StopWorkspace:                  api.chatStopWorkspace,
 				SlackAPI:                       slackAPI,
+				SlackUserResolver:              slackUserResolver,
+				AccessURL:                      options.AccessURL,
 				WebpushDispatcher:              options.WebPushDispatcher,
 				UsageTracker:                   options.WorkspaceUsageTracker,
 				PrometheusRegistry:             options.PrometheusRegistry,
@@ -877,12 +888,50 @@ func New(options *Options) *API {
 			if !options.ChatWorkerDisabled {
 				api.chatDaemon.Start()
 			}
+			mcpProposalsOpts := slackd.ProposalsAPIOptions{
+				Logger:     options.Logger.Named("mcpproposals"),
+				Database:   options.Database,
+				Chat:       api.chatDaemon,
+				AccessURL:  options.AccessURL,
+				HTTPClient: options.HTTPClient,
+				// nolint:gocritic // Proposal card updates, chat
+				// notifications, and auth polling run with slackd's
+				// scoped identity.
+				BackgroundCtx: dbauthz.AsSlackd(api.ctx),
+			}
+			if slackEnabled {
+				mcpProposalsOpts.WebAPI = slackCfg.client
+				mcpProposalsOpts.ResolveSlackUser = slackUserResolver
+			}
+			mcpProposals, err := slackd.NewProposalsAPI(mcpProposalsOpts)
+			if err != nil {
+				options.Logger.Critical(api.ctx, "construct mcp proposals api", slog.Error(err))
+			} else {
+				api.mcpProposals = mcpProposals
+			}
 			if slackEnabled {
 				if err := api.startSlackd(options, slackCfg); err != nil {
 					// New cannot return an error, so surface it loudly
 					// and run without the Slack integration.
 					options.Logger.Critical(api.ctx, "slack integration disabled", slog.Error(err))
 				}
+			}
+		}
+		// The proposal routes are always mounted; without chatd (and
+		// therefore without slackd) no proposals can be created, so
+		// lookups simply 404.
+		if api.mcpProposals == nil {
+			mcpProposals, err := slackd.NewProposalsAPI(slackd.ProposalsAPIOptions{
+				Logger:    options.Logger.Named("mcpproposals"),
+				Database:  options.Database,
+				AccessURL: options.AccessURL,
+				// nolint:gocritic // See above.
+				BackgroundCtx: dbauthz.AsSlackd(api.ctx),
+			})
+			if err != nil {
+				options.Logger.Critical(api.ctx, "construct mcp proposals api", slog.Error(err))
+			} else {
+				api.mcpProposals = mcpProposals
 			}
 		}
 		gitSyncLogger := options.Logger.Named("gitsync")
@@ -1468,6 +1517,12 @@ func New(options *Options) *API {
 			httpmw.ReportCLITelemetry(api.Logger, options.Telemetry),
 		)
 		r.Get("/", apiRoot)
+		r.Route("/mcp-server-proposals/{mcpProposal}", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", api.getMCPServerProposal)
+			r.Post("/accept", api.acceptMCPServerProposal)
+			r.Post("/reject", api.rejectMCPServerProposal)
+		})
 		// All CSP errors will be logged
 		r.Post("/csp/reports", api.logReportCSPViolations)
 
@@ -2340,6 +2395,10 @@ type API struct {
 	// slackDaemon submits Slack app mentions to chats. Nil unless the
 	// Slack integration is fully configured and chatd is running.
 	slackDaemon *slackd.Server
+	// mcpProposals implements the MCP server proposal endpoints and
+	// the Slack Cancel-button flow. Always constructed so the routes
+	// exist even when the Slack integration is disabled.
+	mcpProposals *slackd.ProposalsAPI
 	// gitSyncWorker refreshes stale chat diff statuses in the background.
 	gitSyncWorker *gitsync.Worker
 	// AISeatTracker records AI seat usage.
@@ -2461,6 +2520,7 @@ func (api *API) startSlackd(options *Options, cfg *slackConfig) error {
 		BotToken:               cfg.botToken,
 		AppToken:               cfg.appToken,
 		WebAPI:                 cfg.client,
+		Proposals:              api.mcpProposals,
 	})
 	if err != nil {
 		return xerrors.Errorf("construct slackd: %w", err)
@@ -2530,6 +2590,9 @@ func (api *API) Close() error {
 	}
 	if api.slackDaemon != nil {
 		api.slackDaemon.Close()
+	}
+	if api.mcpProposals != nil {
+		api.mcpProposals.Close()
 	}
 	api.metricsCache.Close()
 	if api.updateChecker != nil {

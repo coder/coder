@@ -5448,6 +5448,24 @@ type MCPServerConfig struct {
 	OwnerID uuid.NullUUID `db:"owner_id" json:"owner_id"`
 }
 
+// Pending MCP server proposals created by the propose_mcp_server chat tool for Slack-bound chats. A proposal is accepted or rejected by the requesting user through the dashboard, or cancelled from Slack.
+type MCPServerProposal struct {
+	ID     uuid.UUID `db:"id" json:"id"`
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+	// Coder user the proposing Slack sender resolved to, recorded at proposal creation. Only this user may accept, reject, or cancel the proposal.
+	RequesterID uuid.UUID `db:"requester_id" json:"requester_id"`
+	Channel     string    `db:"channel" json:"channel"`
+	ThreadTs    string    `db:"thread_ts" json:"thread_ts"`
+	MessageTs   string    `db:"message_ts" json:"message_ts"`
+	// The proposed MCP server config as JSON. May contain secrets (api key values, custom headers); never returned verbatim through the API.
+	Request json.RawMessage `db:"request" json:"request"`
+	Status  string          `db:"status" json:"status"`
+	// The MCP server config created when the proposal was accepted. NULL while pending or rejected.
+	MCPServerConfigID uuid.NullUUID `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	CreatedAt         time.Time     `db:"created_at" json:"created_at"`
+	AcceptedAt        sql.NullTime  `db:"accepted_at" json:"accepted_at"`
+}
+
 type MCPServerUserToken struct {
 	ID                uuid.UUID      `db:"id" json:"id"`
 	MCPServerConfigID uuid.UUID      `db:"mcp_server_config_id" json:"mcp_server_config_id"`

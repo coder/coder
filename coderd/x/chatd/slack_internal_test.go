@@ -7,6 +7,7 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/slack-go/slack"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
@@ -87,10 +88,14 @@ func TestAppendSlackTools(t *testing.T) {
 		"slack_react_to_message",
 		"slack_get_thread_replies",
 		"slack_get_user_info",
+		"list_mcp_servers",
+		"enable_mcp_server",
+		"propose_mcp_server",
 	}
 	readOnlySlackToolNames := []string{
 		"slack_get_thread_replies",
 		"slack_get_user_info",
+		"list_mcp_servers",
 	}
 
 	appended := func(server *Server, labels database.StringMap, planTurn bool) []string {
@@ -142,6 +147,55 @@ func TestAppendSlackTools(t *testing.T) {
 			LabelSlackd:      "true",
 			LabelSlackThread: "no-separator",
 		}, false))
+	})
+}
+
+func TestLatestSlackSenderID(t *testing.T) {
+	t.Parallel()
+
+	msg := func(role database.ChatMessageRole, parts []codersdk.ChatMessagePart) database.ChatMessage {
+		raw, err := json.Marshal(parts)
+		require.NoError(t, err)
+		return database.ChatMessage{
+			Role:    role,
+			Content: pqtype.NullRawMessage{RawMessage: raw, Valid: true},
+		}
+	}
+	stamped := func(sender string) database.ChatMessage {
+		return msg(database.ChatMessageRoleUser, []codersdk.ChatMessagePart{{
+			Type:     codersdk.ChatMessagePartTypeText,
+			Text:     "header",
+			Metadata: map[string]string{MetadataKeySlackSenderID: sender},
+		}})
+	}
+	plain := msg(database.ChatMessageRoleUser, []codersdk.ChatMessagePart{{
+		Type: codersdk.ChatMessagePartTypeText,
+		Text: "no metadata",
+	}})
+	assistant := msg(database.ChatMessageRoleAssistant, []codersdk.ChatMessagePart{{
+		Type:     codersdk.ChatMessagePartTypeText,
+		Text:     "assistant",
+		Metadata: map[string]string{MetadataKeySlackSenderID: "UASSISTANT"},
+	}})
+
+	t.Run("NewestUserMessageWins", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, "U2", latestSlackSenderID([]database.ChatMessage{
+			stamped("U1"), stamped("U2"),
+		}))
+	})
+
+	t.Run("SkipsUnstampedAndNonUserMessages", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, "U1", latestSlackSenderID([]database.ChatMessage{
+			stamped("U1"), plain, assistant,
+		}))
+	})
+
+	t.Run("EmptyWithoutStampedMessages", func(t *testing.T) {
+		t.Parallel()
+		require.Empty(t, latestSlackSenderID([]database.ChatMessage{plain, assistant}))
+		require.Empty(t, latestSlackSenderID(nil))
 	})
 }
 
