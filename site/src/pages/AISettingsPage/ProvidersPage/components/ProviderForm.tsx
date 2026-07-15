@@ -101,7 +101,7 @@ const defaultInitialValues: ProviderFormValues = {
 
 // Base URL prefills used when switching the Bedrock protocol. The region is
 // preserved from whatever the user already entered, falling back to us-east-1.
-const BEDROCK_MANTLE_DEFAULT_REGION = "us-east-1";
+const BEDROCK_DEFAULT_REGION = "us-east-1";
 const bedrockInvokeModelBaseUrl = (region: string) =>
 	`https://bedrock-runtime.${region}.amazonaws.com`;
 const bedrockMantleBaseUrl = (region: string) =>
@@ -431,7 +431,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	const handleBedrockProtocolChange = (protocol: AIProviderBedrockProtocol) => {
 		const region =
 			parseBedrockRegionFromBaseUrl(form.values.baseUrl) ??
-			BEDROCK_MANTLE_DEFAULT_REGION;
+			BEDROCK_DEFAULT_REGION;
 		const baseUrl =
 			protocol === "mantle"
 				? bedrockMantleBaseUrl(region)
@@ -609,7 +609,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 							className="w-full"
 							placeholder={
 								isMantle
-									? bedrockMantleBaseUrl(BEDROCK_MANTLE_DEFAULT_REGION)
+									? bedrockMantleBaseUrl(BEDROCK_DEFAULT_REGION)
 									: baseUrlPlaceholder(form.values.type)
 							}
 						/>
