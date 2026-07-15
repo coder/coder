@@ -176,11 +176,6 @@ func (tx *Tx) insertMessages(messages []Message) ([]database.ChatMessage, error)
 	return inserted, nil
 }
 
-// CommitMessages persists pre-generation rows without changing execution state.
-func (tx *Tx) CommitMessages(messages []Message) ([]database.ChatMessage, error) {
-	return tx.insertMessages(messages)
-}
-
 // clearQueue deletes all queued messages on the chat and returns the
 // IDs that were deleted in queue order.
 func (tx *Tx) clearQueue() ([]int64, error) {

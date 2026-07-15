@@ -22,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agenthooks"
 )
 
 // generationPrepareInput contains the committed state used to prepare one
@@ -313,6 +312,37 @@ func hasExclusiveToolCall(toolCalls []fantasy.ToolCallContent, exclusiveToolName
 	return false
 }
 
+func (s *taskStarter) startGenerationSession(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	chat database.Chat,
+	messages []database.ChatMessage,
+) (result sessionStartResult, dispatched bool, err error) {
+	dispatched, complete, err := input.SessionStart.claim(ctx)
+	if err != nil {
+		return sessionStartResult{}, false, errors.Join(errTaskExpectedExit, xerrors.Errorf("claim session_start: %w", err))
+	}
+	if !dispatched {
+		return sessionStartResult{Chat: chat}, false, nil
+	}
+
+	completed := false
+	// Only task cancellation hands session startup to a replacement task.
+	defer func() { complete(completed || ctx.Err() == nil) }()
+	turnID := activeTurnID(messages)
+	response, err := s.server.dispatchSessionStart(ctx, chat, turnID, sessionStartSource(messages))
+	if err != nil {
+		return sessionStartResult{}, true, sessionStartDispatchError(err)
+	}
+	result, err = applySessionStartResponse(ctx, machine, input, chat, turnID, response)
+	if err != nil {
+		return sessionStartResult{}, true, err
+	}
+	completed = true
+	return result, true, nil
+}
+
 func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskStartInput) error {
 	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
 	for {
@@ -320,28 +350,21 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if err != nil {
 			return xerrors.Errorf("load generation state: %w", err)
 		}
-		if s.server.hookDispatcher != nil && s.server.hookDispatcher.Enabled() &&
-			input.SessionStartDispatched != nil && input.SessionStartDispatched.CompareAndSwap(false, true) {
-			turnID := activeTurnID(messages)
-			response, err := s.server.dispatchSessionStart(ctx, chat, turnID, sessionStartSource(messages))
+		if s.server.hookDispatcher != nil && s.server.hookDispatcher.Enabled() {
+			result, dispatched, err := s.startGenerationSession(ctx, machine, input, chat, messages)
 			if err != nil {
-				return s.finishGenerationError(
-					ctx,
-					machine,
-					input,
-					generationHookDispatchError(agenthooks.EventSessionStart, err),
-					generationAttemptNotRequired,
-				)
-			}
-			result, err := applyGenerationHookResponse(ctx, machine, input, chat, turnID, response)
-			if err != nil {
+				if errors.Is(err, errTaskExpectedExit) {
+					return err
+				}
 				return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 			}
-			if result.Ended {
-				return s.finishGenerationHookEnd(ctx, input, result)
+			if dispatched {
+				if result.Ended {
+					return s.finishSessionStartEnd(ctx, input, result)
+				}
+				input.HistoryVersion = result.Chat.HistoryVersion
+				continue
 			}
-			input.HistoryVersion = result.Chat.HistoryVersion
-			continue
 		}
 		prepareInput := generationPrepareInput{
 			Chat:     chat,

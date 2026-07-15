@@ -30,13 +30,13 @@ func filterHookAllowedTools(
 	hookAllowedTools pqtype.NullRawMessage,
 	tools []fantasy.AgentTool,
 	providerTools []chatloop.ProviderTool,
-) ([]fantasy.AgentTool, []chatloop.ProviderTool, map[string]struct{}, bool, error) {
+) ([]fantasy.AgentTool, []chatloop.ProviderTool, map[string]struct{}, error) {
 	if !hookAllowedTools.Valid {
-		return tools, providerTools, nil, false, nil
+		return tools, providerTools, nil, nil
 	}
 	var names []string
 	if err := json.Unmarshal(hookAllowedTools.RawMessage, &names); err != nil {
-		return nil, nil, nil, false, xerrors.Errorf("decode hook allowed tools: %w", err)
+		return nil, nil, nil, xerrors.Errorf("decode hook allowed tools: %w", err)
 	}
 	allowed := make(map[string]struct{}, len(names))
 	for _, name := range names {
@@ -50,7 +50,7 @@ func filterHookAllowedTools(
 		_, ok := allowed[tool.Definition.GetName()]
 		return !ok
 	})
-	return tools, providerTools, allowed, true, nil
+	return tools, providerTools, allowed, nil
 }
 
 func filterToolNameMap(names map[string]bool, allowed map[string]struct{}) {
@@ -568,12 +568,12 @@ func (server *Server) prepareGeneration(
 		}
 	}
 
-	tools, providerTools, hookAllowedNames, hookRestricted, err := filterHookAllowedTools(chat.HookAllowedTools, tools, providerTools)
+	tools, providerTools, hookAllowedNames, err := filterHookAllowedTools(chat.HookAllowedTools, tools, providerTools)
 	if err != nil {
 		cleanup()
 		return generationPrepared{}, err
 	}
-	if hookRestricted {
+	if chat.HookAllowedTools.Valid {
 		filterToolNameMap(builtinToolNames, hookAllowedNames)
 		filterToolNameMap(dynamicToolNames, hookAllowedNames)
 		filterToolNameMap(exclusiveToolNames, hookAllowedNames)

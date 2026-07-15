@@ -3,6 +3,7 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -62,7 +63,41 @@ type chatWorkerTaskStartInput struct {
 	Status                   database.ChatStatus
 	RequiresActionDeadlineAt sql.NullTime
 	DebugTurn                *runnerDebugTurn
-	SessionStartDispatched   *atomic.Bool
+	SessionStart             *sessionStartTracker
+}
+
+type sessionStartTracker struct {
+	mu        sync.Mutex
+	completed bool
+	inFlight  chan struct{}
+}
+
+func (t *sessionStartTracker) claim(ctx context.Context) (bool, func(bool), error) {
+	for {
+		t.mu.Lock()
+		if t.completed {
+			t.mu.Unlock()
+			return false, nil, nil
+		}
+		if t.inFlight == nil {
+			t.inFlight = make(chan struct{})
+			t.mu.Unlock()
+			return true, func(completed bool) {
+				t.mu.Lock()
+				t.completed = completed
+				close(t.inFlight)
+				t.inFlight = nil
+				t.mu.Unlock()
+			}, nil
+		}
+		inFlight := t.inFlight
+		t.mu.Unlock()
+		select {
+		case <-inFlight:
+		case <-ctx.Done():
+			return false, nil, ctx.Err()
+		}
+	}
 }
 
 // chatWorkerOptions configures a chatWorker.

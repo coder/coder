@@ -79,18 +79,6 @@ const getChatMessageTextContent = (
 	return textContent.length > 0 ? textContent : undefined;
 };
 
-const HookNotice: FC<{ message: string; urlTransform?: UrlTransform }> = ({
-	message,
-	urlTransform,
-}) => (
-	<Alert className="my-1">
-		<div className="flex flex-col gap-1">
-			<AlertTitle>Lifecycle hook</AlertTitle>
-			<Response urlTransform={urlTransform}>{message}</Response>
-		</div>
-	</Alert>
-);
-
 const ReasoningDisclosure = memo<{
 	id: string;
 	text: string;
@@ -612,7 +600,12 @@ const ChatMessageItem = memo<{
 						"transition-opacity duration-200",
 					)}
 				>
-					<HookNotice message={parsed.markdown} urlTransform={urlTransform} />
+					<Alert className="my-1">
+						<div className="flex flex-col gap-1">
+							<AlertTitle>Lifecycle hook</AlertTitle>
+							<Response urlTransform={urlTransform}>{parsed.markdown}</Response>
+						</div>
+					</Alert>
 				</div>
 			);
 		}

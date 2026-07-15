@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"sync/atomic"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -52,13 +51,13 @@ type runner struct {
 	hasAcceptedState    bool
 	latestState         runnerStateUpdate
 
-	activeTaskID           taskInstanceID
-	activeTaskSet          bool
-	tasks                  map[taskInstanceID]*taskRecord
-	tasksByIndex           map[taskIndexKey]taskInstanceID
-	localLocks             *localLockSet
-	debugTurn              *runnerDebugTurn
-	sessionStartDispatched atomic.Bool
+	activeTaskID  taskInstanceID
+	activeTaskSet bool
+	tasks         map[taskInstanceID]*taskRecord
+	tasksByIndex  map[taskIndexKey]taskInstanceID
+	localLocks    *localLockSet
+	debugTurn     *runnerDebugTurn
+	sessionStart  sessionStartTracker
 }
 
 func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts chatWorkerOptions) *runner {
@@ -229,7 +228,7 @@ func (r *runner) spawnTaskIfNeeded(kind taskKind, state runnerStateUpdate) {
 		Status:                   state.Status,
 		RequiresActionDeadlineAt: state.RequiresActionDeadlineAt,
 		DebugTurn:                r.debugTurn,
-		SessionStartDispatched:   &r.sessionStartDispatched,
+		SessionStart:             &r.sessionStart,
 	}
 	go r.runTask(taskCtx, kind, key, input, done)
 }
