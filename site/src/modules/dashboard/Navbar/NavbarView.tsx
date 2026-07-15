@@ -128,7 +128,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 				<div className="hidden md:block">
 					<DeploymentDropdown
 						canViewAuditLog={canViewAuditLog}
-						canViewOrganizations={canViewOrganizations}
 						canViewDeployment={canViewDeployment}
 						canViewConnectionLog={canViewConnectionLog}
 						canViewAIBridge={canViewAIBridge}
@@ -152,6 +151,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 						user={user}
 						buildInfo={buildInfo}
 						supportLinks={supportLinks?.filter((link) => !isNavbarLink(link))}
+						canViewOrganizations={canViewOrganizations}
 						onSignOut={onSignOut}
 					/>
 				</div>

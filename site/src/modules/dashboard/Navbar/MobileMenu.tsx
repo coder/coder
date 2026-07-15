@@ -39,6 +39,7 @@ const itemStyles = {
 };
 
 type MobileMenuProps = AdminSettingsPermissions & {
+	canViewOrganizations: boolean;
 	proxyContextValue?: ProxyContextValue;
 	user?: TypesGen.User;
 	supportLinks?: readonly TypesGen.LinkConfig[];
@@ -51,6 +52,7 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 	proxyContextValue,
 	user,
 	supportLinks,
+	canViewOrganizations,
 	onSignOut,
 	...permissions
 }) => {
@@ -97,6 +99,7 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 				<UserSettingsSub
 					user={user}
 					supportLinks={supportLinks}
+					canViewOrganizations={canViewOrganizations}
 					onSignOut={onSignOut}
 				/>
 			</DropdownMenuContent>
@@ -240,12 +243,14 @@ const AdminSettingsSub: FC<AdminSettingsPermissions> = (permissions) => {
 type UserSettingsSubProps = {
 	user?: TypesGen.User;
 	supportLinks?: readonly TypesGen.LinkConfig[];
+	canViewOrganizations: boolean;
 	onSignOut: () => void;
 };
 
 const UserSettingsSub: FC<UserSettingsSubProps> = ({
 	user,
 	supportLinks,
+	canViewOrganizations,
 	onSignOut,
 }) => {
 	const [open, setOpen] = useState(false);
@@ -277,6 +282,14 @@ const UserSettingsSub: FC<UserSettingsSubProps> = ({
 				>
 					<Link to="/settings/account">Account</Link>
 				</DropdownMenuItem>
+				{canViewOrganizations && (
+					<DropdownMenuItem
+						asChild
+						className={cn(itemStyles.default, itemStyles.sub)}
+					>
+						<Link to="/organizations">Organizations</Link>
+					</DropdownMenuItem>
+				)}
 				<DropdownMenuItem
 					className={cn(itemStyles.default, itemStyles.sub)}
 					onClick={onSignOut}

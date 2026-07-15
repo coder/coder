@@ -292,4 +292,21 @@ export const AISpendHiddenOnNegativeLimit: Story = {
 	},
 };
 
+export const WithOrganizations: Story = {
+	args: {
+		canViewOrganizations: true,
+	},
+	parameters: {
+		queries: [{ key: meAISpendKey, data: mockAISpend }],
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("shows the organizations item", async () => {
+			await openDropdown(canvasElement);
+			expect(
+				screen.getByRole("menuitem", { name: "Organizations" }),
+			).toBeInTheDocument();
+		});
+	},
+};
+
 export { Example as UserDropdown };
