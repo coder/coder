@@ -1454,6 +1454,11 @@ func (p *Server) SendMessage(
 		if err != nil {
 			return SendMessageResult{}, xerrors.Errorf("load chat for user_prompt_submit: %w", err)
 		}
+		// Reject archived chats before dispatching so consumers never
+		// observe prompts the transaction below would refuse anyway.
+		if chat.Archived {
+			return SendMessageResult{}, ErrChatArchived
+		}
 		hookResponse, err = p.dispatchUserPromptSubmit(ctx, chat, turnID, contentParts)
 		if err != nil {
 			return SendMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, err)
@@ -1737,9 +1742,13 @@ func (p *Server) EditMessage(
 		if err != nil {
 			return EditMessageResult{}, xerrors.Errorf("load chat for edit hooks: %w", err)
 		}
-		// Reject invalid edit targets before dispatching so hook
-		// consumers never observe prompts for edits that cannot
-		// happen. The transaction below revalidates under lock.
+		// Reject archived chats and invalid edit targets before
+		// dispatching so hook consumers never observe prompts for
+		// edits that cannot happen. The transaction below revalidates
+		// under lock.
+		if chat.Archived {
+			return EditMessageResult{}, ErrChatArchived
+		}
 		if err := validateEditTarget(ctx, p.db, opts.ChatID, opts.EditedMessageID); err != nil {
 			return EditMessageResult{}, err
 		}

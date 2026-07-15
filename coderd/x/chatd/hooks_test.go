@@ -438,10 +438,36 @@ func TestEditMessageInvalidTargetSkipsHooks(t *testing.T) {
 		APIKeyID:        apiKeyID,
 	})
 	require.ErrorIs(t, err, chatd.ErrEditedMessageNotFound)
-	require.Zero(t, dispatched.Load(), "invalid edit targets must not dispatch hooks")
-	dispatches, err := db.ListChatHookDispatchesByChatID(ctx, chat.ID)
+
+	// dbgen.Chat ignores seed.Archived; archive explicitly.
+	archived := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	_, err = db.ArchiveChatByID(ctx, archived.ID)
 	require.NoError(t, err)
-	require.Empty(t, dispatches)
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:   archived.ID,
+		Content:  []codersdk.ChatMessagePart{codersdk.ChatMessageText("send to archived")},
+		APIKeyID: apiKeyID,
+	})
+	require.ErrorIs(t, err, chatd.ErrChatArchived)
+	_, err = server.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          archived.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: 1,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edit archived")},
+		APIKeyID:        apiKeyID,
+	})
+	require.ErrorIs(t, err, chatd.ErrChatArchived)
+
+	require.Zero(t, dispatched.Load(), "invalid targets must not dispatch hooks")
+	for _, chatID := range []uuid.UUID{chat.ID, archived.ID} {
+		dispatches, err := db.ListChatHookDispatchesByChatID(ctx, chatID)
+		require.NoError(t, err)
+		require.Empty(t, dispatches)
+	}
 }
 
 func TestSendMessageHooksDisabled(t *testing.T) {
