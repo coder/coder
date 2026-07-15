@@ -44,6 +44,14 @@ func TestTemplateBuilderBases(t *testing.T) {
 
 		specs := []baseSpec{
 			{
+				// Quickstart exposes no builder variables today: its base.json
+				// declares none. Locking that here flags drift if it changes,
+				// e.g. if it later exposes a container_image selector.
+				id:           "quickstart",
+				expectedOS:   "linux",
+				hasVariables: false,
+			},
+			{
 				id:           "docker",
 				expectedOS:   "linux",
 				hasVariables: true,
