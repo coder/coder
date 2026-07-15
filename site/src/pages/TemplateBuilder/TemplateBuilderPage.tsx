@@ -86,7 +86,7 @@ const TemplateBuilderPage: FC = () => {
 				preselectedBase={preselectedBase}
 				onCreateTemplate={handleCreate}
 				createError={createMutation.error}
-				isCreating={createMutation.isPending}
+				isCreating={createMutation.isPending || createMutation.isSuccess}
 				onClearCreateError={() => createMutation.reset()}
 			/>
 		</>
