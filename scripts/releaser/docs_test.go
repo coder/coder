@@ -58,3 +58,28 @@ func TestUpdateCalendarLatestReleaseVersionPrefix(t *testing.T) {
 		})
 	}
 }
+
+// TestUpdateCalendarNotReleasedRowName checks that a "Not Released" row is
+// promoted to "Mainline" with a major.minor "Release name" link (patch
+// omitted) once its minor version is released.
+func TestUpdateCalendarNotReleasedRowName(t *testing.T) {
+	t.Parallel()
+
+	rows := []calendarRow{{
+		ReleaseName:   "2.36",
+		Major:         2,
+		Minor:         36,
+		Status:        "Not Released",
+		LatestRelease: "N/A",
+	}}
+
+	got := updateCalendar(rows, version{Major: 2, Minor: 36, Patch: 0}, "mainline")
+
+	if got[0].Status != "Mainline" {
+		t.Errorf("Status = %q, want %q", got[0].Status, "Mainline")
+	}
+	const want = "[2.36](https://coder.com/changelog/coder-2-36)"
+	if got[0].ReleaseName != want {
+		t.Fatalf("ReleaseName = %q, want %q", got[0].ReleaseName, want)
+	}
+}
