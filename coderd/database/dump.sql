@@ -1922,6 +1922,30 @@ CREATE UNLOGGED TABLE chat_heartbeats (
 
 COMMENT ON TABLE chat_heartbeats IS 'Ephemeral runner ownership leases for runnable chats. The table is unlogged because losing heartbeat rows after a crash is safe: missing heartbeats are treated as stale ownership and cause workers to reacquire runnable chats.';
 
+CREATE TABLE chat_hook_dispatches (
+    id uuid NOT NULL,
+    chat_id uuid NOT NULL,
+    event text NOT NULL,
+    turn_id uuid,
+    tool_use_id text,
+    owner_id uuid NOT NULL,
+    workspace_id uuid,
+    started_at timestamp with time zone NOT NULL,
+    finished_at timestamp with time zone,
+    result text DEFAULT 'pending'::text NOT NULL,
+    http_status integer,
+    decision text,
+    input_override jsonb,
+    original_input jsonb,
+    model_context text,
+    user_message text,
+    allowed_tools jsonb,
+    end_chat boolean,
+    error text
+);
+
+COMMENT ON TABLE chat_hook_dispatches IS 'One row per lifecycle hook webhook dispatch; id is the wire-protocol dispatch_id (JWT jti).';
+
 CREATE TABLE chat_messages (
     id bigint NOT NULL,
     chat_id uuid NOT NULL,
@@ -2076,6 +2100,7 @@ CREATE TABLE chats (
     context_dirty_resources jsonb,
     context_error text DEFAULT ''::text NOT NULL,
     last_reasoning_effort chat_reasoning_effort,
+    hook_allowed_tools jsonb,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
@@ -2098,6 +2123,8 @@ COMMENT ON COLUMN chats.context_dirty_resources IS 'Deterministic prefix of reso
 COMMENT ON COLUMN chats.context_error IS 'Snapshot-level error copied from the pinned snapshot (count cap exceeded, watcher degraded, etc.). Empty when healthy.';
 
 COMMENT ON COLUMN chats.last_reasoning_effort IS 'Stores the most recent message effort once per-turn selection is wired.';
+
+COMMENT ON COLUMN chats.hook_allowed_tools IS 'Tool names the hook consumer allows for this chat; NULL means no restriction. Applied as an intersection with the configured tool set.';
 
 CREATE TABLE users (
     id uuid NOT NULL,
@@ -2194,7 +2221,8 @@ CREATE VIEW chats_expanded AS
     c.context_aggregate_hash,
     c.context_dirty_since,
     c.context_dirty_resources,
-    c.context_error
+    c.context_error,
+    c.hook_allowed_tools
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));
@@ -4269,6 +4297,9 @@ ALTER TABLE ONLY chat_files
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_pkey PRIMARY KEY (chat_id, runner_id);
 
+ALTER TABLE ONLY chat_hook_dispatches
+    ADD CONSTRAINT chat_hook_dispatches_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
 
@@ -4726,6 +4757,10 @@ CREATE INDEX idx_chat_files_org ON chat_files USING btree (organization_id);
 
 CREATE INDEX idx_chat_files_owner ON chat_files USING btree (owner_id);
 
+CREATE INDEX idx_chat_hook_dispatches_chat_id ON chat_hook_dispatches USING btree (chat_id);
+
+CREATE INDEX idx_chat_hook_dispatches_started_at ON chat_hook_dispatches USING btree (started_at);
+
 CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);
 
 CREATE INDEX idx_chat_messages_chat_created ON chat_messages USING btree (chat_id, created_at);
@@ -5103,6 +5138,9 @@ ALTER TABLE ONLY chat_files
 
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_hook_dispatches
+    ADD CONSTRAINT chat_hook_dispatches_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE SET NULL;

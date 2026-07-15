@@ -4986,6 +4986,7 @@ type Chat struct {
 	ContextDirtySince        sql.NullTime            `db:"context_dirty_since" json:"context_dirty_since"`
 	ContextDirtyResources    pqtype.NullRawMessage   `db:"context_dirty_resources" json:"context_dirty_resources"`
 	ContextError             string                  `db:"context_error" json:"context_error"`
+	HookAllowedTools         pqtype.NullRawMessage   `db:"hook_allowed_tools" json:"hook_allowed_tools"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
@@ -5095,6 +5096,29 @@ type ChatHeartbeat struct {
 	ChatID      uuid.UUID `db:"chat_id" json:"chat_id"`
 	RunnerID    uuid.UUID `db:"runner_id" json:"runner_id"`
 	HeartbeatAt time.Time `db:"heartbeat_at" json:"heartbeat_at"`
+}
+
+// One row per lifecycle hook webhook dispatch; id is the wire-protocol dispatch_id (JWT jti).
+type ChatHookDispatch struct {
+	ID            uuid.UUID             `db:"id" json:"id"`
+	ChatID        uuid.UUID             `db:"chat_id" json:"chat_id"`
+	Event         string                `db:"event" json:"event"`
+	TurnID        uuid.NullUUID         `db:"turn_id" json:"turn_id"`
+	ToolUseID     sql.NullString        `db:"tool_use_id" json:"tool_use_id"`
+	OwnerID       uuid.UUID             `db:"owner_id" json:"owner_id"`
+	WorkspaceID   uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
+	StartedAt     time.Time             `db:"started_at" json:"started_at"`
+	FinishedAt    sql.NullTime          `db:"finished_at" json:"finished_at"`
+	Result        string                `db:"result" json:"result"`
+	HttpStatus    sql.NullInt32         `db:"http_status" json:"http_status"`
+	Decision      sql.NullString        `db:"decision" json:"decision"`
+	InputOverride pqtype.NullRawMessage `db:"input_override" json:"input_override"`
+	OriginalInput pqtype.NullRawMessage `db:"original_input" json:"original_input"`
+	ModelContext  sql.NullString        `db:"model_context" json:"model_context"`
+	UserMessage   sql.NullString        `db:"user_message" json:"user_message"`
+	AllowedTools  pqtype.NullRawMessage `db:"allowed_tools" json:"allowed_tools"`
+	EndChat       sql.NullBool          `db:"end_chat" json:"end_chat"`
+	Error         sql.NullString        `db:"error" json:"error"`
 }
 
 type ChatMessage struct {
@@ -5207,6 +5231,8 @@ type ChatTable struct {
 	ContextError string `db:"context_error" json:"context_error"`
 	// Stores the most recent message effort once per-turn selection is wired.
 	LastReasoningEffort NullChatReasoningEffort `db:"last_reasoning_effort" json:"last_reasoning_effort"`
+	// Tool names the hook consumer allows for this chat; NULL means no restriction. Applied as an intersection with the configured tool set.
+	HookAllowedTools pqtype.NullRawMessage `db:"hook_allowed_tools" json:"hook_allowed_tools"`
 }
 
 type ChatUsageLimitConfig struct {
