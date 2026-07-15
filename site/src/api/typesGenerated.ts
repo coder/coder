@@ -1171,6 +1171,178 @@ export interface AgentFirewallSessionLogsResponse {
 	readonly results: readonly AgentFirewallLog[];
 }
 
+// From agenthooks/types.go
+/**
+ * Claims describes the JWT minted by coderd for a lifecycle hook dispatch.
+ */
+export interface AgentHookClaims {
+	readonly iss: string;
+	readonly sub: string;
+	readonly aud: string;
+	readonly iat: number;
+	readonly nbf: number;
+	readonly exp: number;
+	readonly jti: string;
+	readonly type: AgentHookEventType;
+	readonly body_sha256: string;
+}
+
+// From agenthooks/types.go
+export type AgentHookEventType =
+	| "post_compact"
+	| "post_tool_use"
+	| "pre_compact"
+	| "pre_tool_use"
+	| "session_start"
+	| "stop"
+	| "user_prompt_submit";
+
+export const AgentHookEventTypes: AgentHookEventType[] = [
+	"post_compact",
+	"post_tool_use",
+	"pre_compact",
+	"pre_tool_use",
+	"session_start",
+	"stop",
+	"user_prompt_submit",
+];
+
+// From agenthooks/http.go
+/**
+ * Hooks lets a consumer implement only the lifecycle events it uses.
+ */
+export interface AgentHookHooks {
+	// Function type detected, and unsupported. Leaving the type as unknown
+	readonly SessionStart: unknown;
+	// Function type detected, and unsupported. Leaving the type as unknown
+	readonly UserPromptSubmit: unknown;
+	// Function type detected, and unsupported. Leaving the type as unknown
+	readonly PreToolUse: unknown;
+	// Function type detected, and unsupported. Leaving the type as unknown
+	readonly PostToolUse: unknown;
+	// Function type detected, and unsupported. Leaving the type as unknown
+	readonly PreCompact: unknown;
+	// Function type detected, and unsupported. Leaving the type as unknown
+	readonly PostCompact: unknown;
+	// Function type detected, and unsupported. Leaving the type as unknown
+	readonly Stop: unknown;
+}
+
+// From agenthooks/types.go
+/**
+ * Meta contains fields common to every lifecycle hook event.
+ */
+export interface AgentHookMeta {
+	readonly dispatch_id: string;
+	readonly schema_version: number;
+	readonly chat_id: string;
+	readonly owner_id: string;
+	readonly workspace_id?: string;
+	readonly turn_id?: string;
+}
+
+// From agenthooks/types.go
+/**
+ * Permission controls whether mutable hook input may proceed.
+ */
+export interface AgentHookPermission {
+	readonly decision: AgentHookPermissionDecision;
+	readonly reason?: string;
+	readonly input_override?: unknown;
+}
+
+// From agenthooks/types.go
+export type AgentHookPermissionDecision = "allow" | "ask" | "deny";
+
+export const AgentHookPermissionDecisions: AgentHookPermissionDecision[] = [
+	"allow",
+	"ask",
+	"deny",
+];
+
+// From agenthooks/types.go
+/**
+ * PostCompactData is emitted after chat compaction.
+ */
+export interface AgentHookPostCompactData {}
+
+// From agenthooks/types.go
+/**
+ * PostToolUseData describes a completed or failed tool call.
+ */
+export interface AgentHookPostToolUseData {
+	readonly tool_use_id: string;
+	readonly tool_name: string;
+	readonly tool_response?: unknown;
+	readonly tool_error?: string;
+}
+
+// From agenthooks/types.go
+/**
+ * PreCompactData is emitted before chat compaction.
+ */
+export interface AgentHookPreCompactData {}
+
+// From agenthooks/types.go
+/**
+ * PreToolUseData describes a tool call before execution.
+ */
+export interface AgentHookPreToolUseData {
+	readonly tool_use_id: string;
+	readonly tool_name: string;
+	readonly tool_input: unknown;
+}
+
+// From agenthooks/types.go
+/**
+ * Request is the body coderd posts to the configured lifecycle hook URL.
+ */
+export interface AgentHookRequest {
+	readonly type: AgentHookEventType;
+	readonly meta: AgentHookMeta;
+	readonly data: unknown;
+}
+
+// From agenthooks/types.go
+/**
+ * Response is returned by a lifecycle hook consumer.
+ */
+export interface AgentHookResponse {
+	readonly permission?: AgentHookPermission;
+	readonly model_context?: string;
+	readonly user_message?: string;
+	readonly allowed_tools?: readonly string[];
+	readonly end_chat?: boolean;
+}
+
+// From agenthooks/types.go
+/**
+ * SchemaVersion is the current lifecycle hook request schema version.
+ */
+export const AgentHookSchemaVersion = 1;
+
+// From agenthooks/types.go
+/**
+ * SessionStartData describes the start or resumption of a chat session.
+ */
+export interface AgentHookSessionStartData {
+	readonly source: string;
+}
+
+// From agenthooks/types.go
+/**
+ * StopData is emitted when the model stops a turn.
+ */
+export interface AgentHookStopData {}
+
+// From agenthooks/types.go
+/**
+ * UserPromptSubmitData contains the submitted user prompt.
+ */
+export interface AgentHookUserPromptSubmitData {
+	readonly prompt: string;
+}
+
 // From codersdk/workspacebuilds.go
 export interface AgentScriptTiming {
 	readonly started_at: string;

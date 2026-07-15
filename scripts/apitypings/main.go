@@ -26,6 +26,7 @@ func main() {
 	generateDirectories := map[string]string{
 		"github.com/coder/coder/v2/codersdk":                  "",
 		"github.com/coder/coder/v2/coderd/healthcheck/health": "Health",
+		"github.com/coder/coder/v2/codersdk/agenthooks":       "AgentHook",
 		"github.com/coder/coder/v2/codersdk/healthsdk":        "",
 	}
 	for dir, prefix := range generateDirectories {
@@ -78,6 +79,7 @@ func TSMutations(ts *guts.Typescript) {
 		config.NotNullMaps,
 		FixSerpentStruct,
 		DiscriminatedChatMessagePart,
+		AgentHookRawMessages,
 		// Prefer enums as types
 		config.EnumAsTypes,
 		// Enum list generator
@@ -144,6 +146,39 @@ func TypeMappings(gen *guts.GoParser) error {
 	}
 
 	return nil
+}
+
+// AgentHookRawMessages preserves arbitrary JSON fields as unknown instead of
+// applying the global json.RawMessage object mapping.
+func AgentHookRawMessages(ts *guts.Typescript) {
+	unknown := bindings.KeywordUnknown
+	fields := map[string]string{
+		"AgentHookRequest":         "data",
+		"AgentHookPreToolUseData":  "tool_input",
+		"AgentHookPostToolUseData": "tool_response",
+		"AgentHookPermission":      "input_override",
+	}
+	for typeName, fieldName := range fields {
+		node, ok := ts.Node(typeName)
+		if !ok {
+			panic(fmt.Sprintf("agent hook type %q was not generated", typeName))
+		}
+		iface, ok := node.(*bindings.Interface)
+		if !ok {
+			panic(fmt.Sprintf("agent hook type %q is not an interface", typeName))
+		}
+		found := false
+		for _, field := range iface.Fields {
+			if field.Name == fieldName {
+				field.Type = &unknown
+				found = true
+				break
+			}
+		}
+		if !found {
+			panic(fmt.Sprintf("agent hook field %q.%s was not generated", typeName, fieldName))
+		}
+	}
 }
 
 // DiscriminatedChatMessagePart splits the flat ChatMessagePart
