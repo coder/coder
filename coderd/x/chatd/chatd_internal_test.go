@@ -2534,10 +2534,18 @@ func TestGetWorkspaceConn_DialTimeoutDisconnectedRecoveryThreshold(t *testing.T)
 		}
 	}
 
+	buildTimedOutAgent := func(now time.Time) database.WorkspaceAgent {
+		return database.WorkspaceAgent{
+			CreatedAt:                now.Add(-10 * time.Minute),
+			ConnectionTimeoutSeconds: 60,
+		}
+	}
+
 	testCases := []struct {
-		name       string
-		buildAgent func(now time.Time) database.WorkspaceAgent
-		wantErr    error
+		name                 string
+		buildAgent           func(now time.Time) database.WorkspaceAgent
+		staleExternalBinding bool
+		wantErr              error
 	}{
 		{
 			name:       "RecentDisconnectReturnsDialTimeout",
@@ -2550,14 +2558,15 @@ func TestGetWorkspaceConn_DialTimeoutDisconnectedRecoveryThreshold(t *testing.T)
 			wantErr:    errChatAgentDisconnected,
 		},
 		{
-			name: "NeverConnectedTimeoutEscalates",
-			buildAgent: func(now time.Time) database.WorkspaceAgent {
-				return database.WorkspaceAgent{
-					CreatedAt:                now.Add(-10 * time.Minute),
-					ConnectionTimeoutSeconds: 60,
-				}
-			},
-			wantErr: errChatAgentNeverConnected,
+			name:       "NeverConnectedTimeoutEscalates",
+			buildAgent: buildTimedOutAgent,
+			wantErr:    errChatAgentNeverConnected,
+		},
+		{
+			name:                 "StaleExternalBindingUsesLatestInternalAgent",
+			buildAgent:           buildTimedOutAgent,
+			staleExternalBinding: true,
+			wantErr:              errChatAgentNeverConnected,
 		},
 		{
 			name: "NeverConnectedWithinTimeoutStaysSoft",
@@ -2607,15 +2616,28 @@ func TestGetWorkspaceConn_DialTimeoutDisconnectedRecoveryThreshold(t *testing.T)
 			delayTrap := clock.Trap().NewTimer("chatd", dialValidationDelayTimerTag)
 			defer delayTrap.Close()
 			now := clock.Now()
-			agent := tc.buildAgent(now)
-			agent.ID = agentID
-
-			db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
-				Return(agent, nil).
-				Times(2)
-			db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
-				Return([]database.WorkspaceAgent{agent}, nil).
+			boundAgent := tc.buildAgent(now)
+			boundAgent.ID = agentID
+			latestAgent := boundAgent
+			latestAgent.ID = uuid.New()
+			latestAgentLookups := 1
+			if tc.staleExternalBinding {
+				boundAgent.ResourceID = uuid.New()
+				latestAgent.ResourceID = uuid.Nil
+				latestAgentLookups++
+				db.EXPECT().GetWorkspaceResourceByID(gomock.Any(), boundAgent.ResourceID).
+					Return(database.WorkspaceResource{Type: chattool.ExternalAgentResourceType}, nil).
+					AnyTimes()
+			}
+			db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), boundAgent.ID).
+				Return(boundAgent, nil).
 				Times(1)
+			db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), latestAgent.ID).
+				Return(latestAgent, nil).
+				Times(1)
+			db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+				Return([]database.WorkspaceAgent{latestAgent}, nil).
+				Times(latestAgentLookups)
 
 			server := &Server{
 				db:                             db,
