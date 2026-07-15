@@ -131,9 +131,9 @@ ships beyond prototype.
   `permission-based-licensing` experiment and an AI Governance add-on
   license are both active. Condition or soften the copy.
 - MEDIUM (rego, latent): `not input.object.acl_use_gated` in
-  `policy.rego` passes when the field is undefined, not just false. All
-  current input paths set the field, but one missed future path would
-  fail open. Change to `input.object.acl_use_gated == false`.
+  `policy.rego` passes when the field is undefined, not just false.
+  FIXED: changed to `input.object.acl_use_gated == false`, which is
+  undefined (fail-closed) when the field is omitted.
 - MEDIUM (licensing): a `WorkspaceCapableUserCountFn` error silently
   falls back to the legacy (higher) count with only an entitlements
   error string; persistent failure means silent over-counting. Consider
@@ -175,7 +175,8 @@ Fix on this branch before wider demo or RFC reference:
    the admin ACL action set.
 2. Dormant decision (finding 1): pick a direction, implement, fix the
    two contradicting comments.
-3. Fail-closed hardening: `acl_use_gated == false` in `policy.rego`.
+3. Fail-closed hardening: `acl_use_gated == false` in `policy.rego`:
+   DONE.
 4. Seat-cost copy conditioning (frontend HIGH).
 
 Document-or-fix next: group-share validation (3): DONE, accepted and
