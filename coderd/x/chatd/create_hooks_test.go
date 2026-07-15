@@ -16,6 +16,7 @@ import (
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agenthooks"
 	"github.com/coder/coder/v2/testutil"
@@ -62,7 +63,11 @@ func TestCreateChatUserPromptSubmitHook(t *testing.T) {
 		user, org, model := seedChatDependencies(t, db)
 		server, requests := newCreateHookTestServer(t, db, ps, http.StatusOK, `{"permission":{"decision":"allow","input_override":{"prompt":"redacted"}}}`)
 
-		chat, err := server.CreateChat(ctx, createHookOptions(t, db, user.ID, org.ID, model.ID, "secret"))
+		// Mirror the HTTP layer: the fallback title derives from the
+		// original prompt before hooks run.
+		opts := createHookOptions(t, db, user.ID, org.ID, model.ID, "secret")
+		opts.Title = chatprompt.FallbackTitle(chatprompt.TitleText(opts.InitialUserContent, nil))
+		chat, err := server.CreateChat(ctx, opts)
 		require.NoError(t, err)
 		request := testutil.RequireReceive(ctx, t, requests)
 		require.NotNil(t, request.Meta.TurnID)
@@ -70,6 +75,19 @@ func TestCreateChatUserPromptSubmitHook(t *testing.T) {
 		initialUser := messages[len(messages)-1]
 		require.Equal(t, "redacted", hookMessageText(t, initialUser))
 		require.Equal(t, uuid.NullUUID{UUID: *request.Meta.TurnID, Valid: true}, initialUser.TurnID)
+		require.Equal(t, "redacted", chat.Title, "prompt-derived title must be recomputed from the override")
+	})
+
+	t.Run("override keeps explicit title", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		server, _ := newCreateHookTestServer(t, db, ps, http.StatusOK, `{"permission":{"decision":"allow","input_override":{"prompt":"redacted"}}}`)
+
+		chat, err := server.CreateChat(ctx, createHookOptions(t, db, user.ID, org.ID, model.ID, "secret"))
+		require.NoError(t, err)
+		require.Equal(t, "create hook test", chat.Title)
 	})
 
 	t.Run("response messages", func(t *testing.T) {

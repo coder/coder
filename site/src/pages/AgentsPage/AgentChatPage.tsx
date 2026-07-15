@@ -1563,6 +1563,15 @@ const AgentChatPage: FC = () => {
 			handleUsageLimitError(error);
 			throw error;
 		}
+		// A lifecycle hook ended the chat instead of accepting the
+		// message: there is no message to insert and the chat is
+		// archived, so skip the running-state optimism and refetch
+		// chat metadata to reflect the ended chat.
+		if (response.ended) {
+			store.clearStreamState();
+			void queryClient.invalidateQueries({ queryKey: chatKey(agentId) });
+			return;
+		}
 		// When the server accepts the message immediately (not
 		// queued), clear the stream and insert the user's message
 		// so it appears in the timeline without waiting for the

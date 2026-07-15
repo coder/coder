@@ -1318,7 +1318,17 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			return database.Chat{}, err
 		}
 		if overridden {
+			// The HTTP layer derives the fallback title from the
+			// original prompt before hooks run. When the title matches
+			// that derivation, recompute it from the override so a
+			// redacted prompt does not leak through the title and the
+			// auto-titling equality gate still matches the persisted
+			// message. Explicit titles are left untouched.
+			originalTitle := chatprompt.FallbackTitle(chatprompt.TitleText(contentParts, nil))
 			contentParts = []codersdk.ChatMessagePart{codersdk.ChatMessageText(override)}
+			if opts.Title == originalTitle {
+				opts.Title = chatprompt.FallbackTitle(chatprompt.TitleText(contentParts, nil))
+			}
 		}
 	}
 
