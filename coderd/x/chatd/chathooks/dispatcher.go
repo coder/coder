@@ -359,12 +359,35 @@ func validateResponse(eventType agenthooks.EventType, response agenthooks.Respon
 		if len(inputOverride) == 0 || bytes.Equal(inputOverride, []byte("null")) {
 			return xerrors.New("allow decision requires input_override")
 		}
+		if eventType == agenthooks.EventUserPromptSubmit {
+			if err := validateUserPromptSubmitOverride(inputOverride); err != nil {
+				return err
+			}
+		}
 	case agenthooks.PermissionDeny:
 		return nil
 	case agenthooks.PermissionAsk:
 		return xerrors.New("ask decision is not supported")
 	default:
 		return xerrors.Errorf("invalid permission decision %q", response.Permission.Decision)
+	}
+	return nil
+}
+
+func validateUserPromptSubmitOverride(input json.RawMessage) error {
+	var override struct {
+		Prompt *string `json:"prompt"`
+	}
+	decoder := json.NewDecoder(bytes.NewReader(input))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&override); err != nil {
+		return xerrors.Errorf("user_prompt_submit input_override must be {\"prompt\": string}: %w", err)
+	}
+	if override.Prompt == nil {
+		return xerrors.New("user_prompt_submit input_override must be {\"prompt\": string}")
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return xerrors.New("user_prompt_submit input_override must contain one JSON object")
 	}
 	return nil
 }

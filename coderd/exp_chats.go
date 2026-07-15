@@ -3335,6 +3335,15 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if sendErr != nil {
+		var denied *chatd.UserPromptDeniedError
+		if errors.As(sendErr, &denied) {
+			message := denied.UserMessage
+			if message == "" {
+				message = "Chat message denied by lifecycle hook."
+			}
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: message})
+			return
+		}
 		if maybeWriteLimitErr(ctx, rw, sendErr) {
 			return
 		}

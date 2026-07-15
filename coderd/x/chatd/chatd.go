@@ -1403,7 +1403,27 @@ func (p *Server) SendMessage(
 		return SendMessageResult{}, xerrors.Errorf("invalid busy behavior %q", opts.BusyBehavior)
 	}
 
-	content, err := chatprompt.MarshalParts(opts.Content)
+	turnID := uuid.New()
+	contentParts := opts.Content
+	if p.hookDispatcher != nil && p.hookDispatcher.Enabled() {
+		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
+		if err != nil {
+			return SendMessageResult{}, xerrors.Errorf("load chat for user_prompt_submit: %w", err)
+		}
+		response, err := p.dispatchUserPromptSubmit(ctx, chat, turnID, contentParts)
+		if err != nil {
+			return SendMessageResult{}, err
+		}
+		override, overridden, err := userPromptOverride(response)
+		if err != nil {
+			return SendMessageResult{}, err
+		}
+		if overridden {
+			contentParts = []codersdk.ChatMessagePart{codersdk.ChatMessageText(override)}
+		}
+	}
+
+	content, err := chatprompt.MarshalParts(contentParts)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
 	}
@@ -1474,8 +1494,10 @@ func (p *Server) SendMessage(
 
 		// Queue capacity is enforced inside tx.SendMessage; this
 		// wrapper only propagates the typed error.
+		message := userMessageWithAPIKeyID(content, modelConfigID, messageCreatedBy, opts.APIKeyID, opts.ReasoningEffort)
+		message.TurnID = uuid.NullUUID{UUID: turnID, Valid: true}
 		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
-			Message:      userMessageWithAPIKeyID(content, modelConfigID, messageCreatedBy, opts.APIKeyID, opts.ReasoningEffort),
+			Message:      message,
 			BusyBehavior: busyBehaviorToChatState(busyBehavior),
 		})
 		if err != nil {
