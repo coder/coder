@@ -47,9 +47,6 @@ jobs:
         with:
           install-args: "go"
 
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
-
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/coder/whichtests go:gotest.tools/gotestsum
 

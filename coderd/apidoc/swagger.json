@@ -15396,7 +15396,8 @@
 				"config",
 				"usage_limit",
 				"missing_key",
-				"provider_disabled"
+				"provider_disabled",
+				"content_filter"
 			],
 			"x-enum-varnames": [
 				"ChatErrorKindGeneric",
@@ -15408,7 +15409,8 @@
 				"ChatErrorKindConfig",
 				"ChatErrorKindUsageLimit",
 				"ChatErrorKindMissingKey",
-				"ChatErrorKindProviderDisabled"
+				"ChatErrorKindProviderDisabled",
+				"ChatErrorKindContentFilter"
 			]
 		},
 		"codersdk.ChatFileMetadata": {
