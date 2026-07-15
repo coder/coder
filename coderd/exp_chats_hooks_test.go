@@ -1,10 +1,13 @@
 package coderd_test
 
 import (
+	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -12,7 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agenthooks"
 	"github.com/coder/coder/v2/testutil"
@@ -89,4 +94,193 @@ func TestPostChatsInitialPromptHookErrors(t *testing.T) {
 			require.ErrorIs(t, err, sql.ErrNoRows)
 		})
 	}
+}
+
+func TestChatLifecycleHooksWorkedExample(t *testing.T) {
+	t.Parallel()
+
+	const (
+		secret            = "test-hook-secret-32-bytes-minimum!!"
+		deniedToolCallID  = "call_denied"
+		allowedToolCallID = "call_allowed"
+	)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	var modelCalls atomic.Int32
+	secondModelRequest := make(chan []byte, 1)
+	thirdModelRequest := make(chan []byte, 1)
+	modelURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("Lifecycle hooks")
+		}
+		switch modelCalls.Add(1) {
+		case 1:
+			chunk := chattest.OpenAIToolCallChunk("read_secret", `{"path":"/tmp/secret"}`)
+			chunk.Choices[0].ToolCalls[0].ID = deniedToolCallID
+			return chattest.OpenAIStreamingResponse(chunk)
+		case 2:
+			secondModelRequest <- bytes.Clone(req.RawBody)
+			chunk := chattest.OpenAIToolCallChunk("search_docs", `{"query":"customer secret"}`)
+			chunk.Choices[0].ToolCalls[0].ID = allowedToolCallID
+			return chattest.OpenAIStreamingResponse(chunk)
+		default:
+			if modelCalls.Load() == 3 {
+				thirdModelRequest <- bytes.Clone(req.RawBody)
+			}
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+		}
+	})
+
+	hookEvents := make(chan agenthooks.EventType, 16)
+	recordHook := func(event agenthooks.EventType) {
+		hookEvents <- event
+	}
+	consumer := httptest.NewServer(agenthooks.NewHTTPHandler([]byte(secret), agenthooks.Hooks{
+		SessionStart: func(context.Context, agenthooks.Meta, agenthooks.SessionStartData) (agenthooks.Response, error) {
+			recordHook(agenthooks.EventSessionStart)
+			return agenthooks.Response{}, nil
+		},
+		UserPromptSubmit: func(context.Context, agenthooks.Meta, agenthooks.UserPromptSubmitData) (agenthooks.Response, error) {
+			recordHook(agenthooks.EventUserPromptSubmit)
+			return agenthooks.Response{}, nil
+		},
+		PreToolUse: func(_ context.Context, _ agenthooks.Meta, tool agenthooks.PreToolUseData) (agenthooks.Response, error) {
+			recordHook(agenthooks.EventPreToolUse)
+			switch tool.ToolUseID {
+			case deniedToolCallID:
+				return agenthooks.Response{Permission: &agenthooks.Permission{
+					Decision: agenthooks.PermissionDeny,
+					Reason:   "secret reads are blocked",
+				}}, nil
+			case allowedToolCallID:
+				return agenthooks.Response{Permission: &agenthooks.Permission{
+					Decision:      agenthooks.PermissionAllow,
+					InputOverride: json.RawMessage(`{"query":"public documentation"}`),
+				}}, nil
+			default:
+				return agenthooks.Response{}, nil
+			}
+		},
+		PostToolUse: func(context.Context, agenthooks.Meta, agenthooks.PostToolUseData) (agenthooks.Response, error) {
+			recordHook(agenthooks.EventPostToolUse)
+			return agenthooks.Response{
+				ModelContext: "The approved search result is safe to use.",
+				UserMessage:  "Search result approved by policy.",
+			}, nil
+		},
+		Stop: func(context.Context, agenthooks.Meta, agenthooks.StopData) (agenthooks.Response, error) {
+			recordHook(agenthooks.EventStop)
+			return agenthooks.Response{}, nil
+		},
+	}))
+	t.Cleanup(consumer.Close)
+
+	client, db := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+		require.NoError(t, opts.DeploymentValues.AI.Chat.HookURL.Set(consumer.URL))
+		opts.DeploymentValues.AI.Chat.HookSecret = serpent.String(secret)
+		opts.DeploymentValues.AI.Chat.HookTimeout = serpent.Duration(time.Second)
+		opts.DeploymentValues.AI.Chat.HookEnabled = serpent.Bool(true)
+	})
+	user := coderdtest.CreateFirstUser(t, client.Client)
+	model := createChatModelConfigWithBaseURL(t, client, modelURL)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: user.OrganizationID,
+		ModelConfigID:  &model.ID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "Find the deployment documentation.",
+		}},
+		UnsafeDynamicTools: []codersdk.DynamicTool{
+			{
+				Name:        "read_secret",
+				Description: "Read a secret file.",
+				InputSchema: json.RawMessage(`{"type":"object"}`),
+			},
+			{
+				Name:        "search_docs",
+				Description: "Search public documentation.",
+				InputSchema: json.RawMessage(`{"type":"object"}`),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	var stored database.Chat
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		stored, err = db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		return err == nil && stored.Status == database.ChatStatusRequiresAction
+	}, testutil.IntervalFast)
+	require.Equal(t, int32(2), modelCalls.Load())
+	require.Contains(t, string(testutil.RequireReceive(ctx, t, secondModelRequest)), "DENIED: secret reads are blocked")
+
+	messages, err := client.GetChatMessages(ctx, chat.ID, nil)
+	require.NoError(t, err)
+	var allowedCall *codersdk.ChatMessagePart
+	for _, message := range messages.Messages {
+		for i := range message.Content {
+			part := &message.Content[i]
+			if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolCallID == allowedToolCallID {
+				allowedCall = part
+			}
+		}
+	}
+	require.NotNil(t, allowedCall)
+	require.JSONEq(t, `{"query":"public documentation"}`, string(allowedCall.Args))
+
+	err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+		Results: []codersdk.ToolResult{{
+			ToolCallID: allowedToolCallID,
+			Output:     json.RawMessage(`{"matches":["agent hooks"]}`),
+		}},
+	})
+	require.NoError(t, err)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		stored, err = db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		return err == nil && stored.Status == database.ChatStatusWaiting
+	}, testutil.IntervalFast)
+	require.Contains(t, string(testutil.RequireReceive(ctx, t, thirdModelRequest)), "The approved search result is safe to use.")
+
+	rows, err := db.ListChatHookDispatchesByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+	require.NoError(t, err)
+	require.Len(t, rows, 6)
+	assertDispatch := func(event agenthooks.EventType, toolUseID, result, decision string) database.ChatHookDispatch {
+		t.Helper()
+		for _, row := range rows {
+			if row.Event != string(event) || row.ToolUseID.String != toolUseID {
+				continue
+			}
+			require.Equal(t, result, row.Result)
+			require.True(t, row.FinishedAt.Valid)
+			require.Equal(t, int32(http.StatusOK), row.HttpStatus.Int32)
+			require.Equal(t, decision != "", row.Decision.Valid)
+			if decision != "" {
+				require.Equal(t, decision, row.Decision.String)
+			}
+			return row
+		}
+		require.FailNow(t, "hook dispatch not found", "event=%s tool_use_id=%s", event, toolUseID)
+		return database.ChatHookDispatch{}
+	}
+	assertDispatch(agenthooks.EventUserPromptSubmit, "", "ok", "")
+	assertDispatch(agenthooks.EventSessionStart, "", "ok", "")
+	denied := assertDispatch(agenthooks.EventPreToolUse, deniedToolCallID, "denied", "deny")
+	require.Equal(t, "secret reads are blocked", denied.DecisionReason.String)
+	allowed := assertDispatch(agenthooks.EventPreToolUse, allowedToolCallID, "ok", "allow")
+	require.JSONEq(t, `{"query":"public documentation"}`, string(allowed.InputOverride.RawMessage))
+	post := assertDispatch(agenthooks.EventPostToolUse, allowedToolCallID, "ok", "")
+	require.Equal(t, "The approved search result is safe to use.", post.ModelContext.String)
+	assertDispatch(agenthooks.EventStop, "", "ok", "")
+
+	seenEvents := make([]agenthooks.EventType, 0, len(rows))
+	for range rows {
+		seenEvents = append(seenEvents, testutil.RequireReceive(ctx, t, hookEvents))
+	}
+	require.ElementsMatch(t, []agenthooks.EventType{
+		agenthooks.EventUserPromptSubmit,
+		agenthooks.EventSessionStart,
+		agenthooks.EventPreToolUse,
+		agenthooks.EventPreToolUse,
+		agenthooks.EventPostToolUse,
+		agenthooks.EventStop,
+	}, seenEvents)
 }
