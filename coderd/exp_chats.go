@@ -51,6 +51,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -3344,7 +3345,21 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: message})
 			return
 		}
+		var hookErr *chathooks.DispatchError
+		if errors.As(sendErr, &hookErr) {
+			httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+				Message: "Chat lifecycle hook dispatch failed.",
+				Detail:  sendErr.Error(),
+			})
+			return
+		}
 		if maybeWriteLimitErr(ctx, rw, sendErr) {
+			return
+		}
+		if errors.Is(sendErr, chatstate.ErrChatNotRoot) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Hook end_chat can only archive a root chat.",
+			})
 			return
 		}
 		if xerrors.Is(sendErr, chatd.ErrChatArchived) {
@@ -3389,6 +3404,11 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			Message: "Failed to create chat message.",
 			Detail:  chaterror.FormatDiagnosticDetail(sendErr),
 		})
+		return
+	}
+
+	if sendResult.Ended {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.CreateChatMessageResponse{Ended: true})
 		return
 	}
 
@@ -3504,11 +3524,32 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		ReasoningEffort: editReasoningEffort,
 	})
 	if editErr != nil {
+		var denied *chatd.UserPromptDeniedError
+		if errors.As(editErr, &denied) {
+			message := denied.UserMessage
+			if message == "" {
+				message = "Chat message denied by lifecycle hook."
+			}
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: message})
+			return
+		}
+		var hookErr *chathooks.DispatchError
+		if errors.As(editErr, &hookErr) {
+			httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+				Message: "Chat lifecycle hook dispatch failed.",
+				Detail:  editErr.Error(),
+			})
+			return
+		}
 		if maybeWriteLimitErr(ctx, rw, editErr) {
 			return
 		}
 
 		switch {
+		case errors.Is(editErr, chatstate.ErrChatNotRoot):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Hook end_chat can only archive a root chat.",
+			})
 		case xerrors.Is(editErr, chatd.ErrChatArchived):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Cannot edit messages in an archived chat.",
@@ -3544,12 +3585,16 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if editResult.Ended {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.EditChatMessageResponse{Ended: true})
+		return
+	}
+
 	// Link any user-uploaded files referenced in the edited
 	// message to the chat (best-effort; cap enforced in SQL).
 	unlinked, capExceeded := api.linkFilesToChat(ctx, chat.ID, fileIDs)
-	response := codersdk.EditChatMessageResponse{
-		Message: convertChatMessage(editResult.Message),
-	}
+	message := convertChatMessage(editResult.Message)
+	response := codersdk.EditChatMessageResponse{Message: &message}
 	if len(unlinked) > 0 {
 		if capExceeded {
 			response.Warnings = append(response.Warnings, fileLinkCapWarning(len(unlinked)))

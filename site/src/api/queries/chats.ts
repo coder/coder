@@ -1407,13 +1407,19 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 		response: TypesGen.EditChatMessageResponse,
 		variables: EditChatMessageMutationArgs,
 	) => {
+		// message is absent when a lifecycle hook ended the chat
+		// instead of committing the edit.
+		const responseMessage = response.message;
+		if (!responseMessage) {
+			return;
+		}
 		queryClient.setQueryData<
 			InfiniteData<TypesGen.ChatMessagesResponse> | undefined
 		>(chatMessagesKey(chatId), (current) =>
 			reconcileEditedMessageInCache({
 				currentData: current,
 				optimisticMessageId: variables.messageId,
-				responseMessage: response.message,
+				responseMessage,
 			}),
 		);
 	},

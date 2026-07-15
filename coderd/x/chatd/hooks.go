@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"strings"
 
@@ -70,6 +72,40 @@ func (p *Server) dispatchUserPromptSubmit(
 		return agenthooks.Response{}, &UserPromptDeniedError{UserMessage: response.UserMessage}
 	}
 	return response, nil
+}
+
+func (p *Server) handleUserPromptDispatchError(ctx context.Context, chatID uuid.UUID, dispatchErr error) error {
+	var structured *chathooks.DispatchError
+	if !errors.As(dispatchErr, &structured) {
+		return dispatchErr
+	}
+	lastError := fmt.Sprintf(
+		"hook dispatch failed: %s: %s (dispatch %s)",
+		agenthooks.EventUserPromptSubmit,
+		structured.Class,
+		structured.DispatchID,
+	)
+	var failedChat database.Chat
+	machine := p.newChatMachine(chatID)
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		if _, err := tx.FailIdle(chatstate.FailIdleInput{LastError: lastError}); err != nil {
+			return err
+		}
+		chat, err := store.GetChatByID(ctx, chatID)
+		if err != nil {
+			return xerrors.Errorf("reload chat after hook failure: %w", err)
+		}
+		failedChat = chat
+		return nil
+	})
+	if errors.Is(err, chatstate.ErrTransitionNotAllowed) {
+		return dispatchErr
+	}
+	if err != nil {
+		return errors.Join(dispatchErr, xerrors.Errorf("fail idle chat after hook dispatch: %w", err))
+	}
+	p.publishChatPubsubEvent(failedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+	return dispatchErr
 }
 
 func hookPrefixMessages(response agenthooks.Response, modelConfigID, turnID uuid.UUID) ([]chatstate.Message, error) {

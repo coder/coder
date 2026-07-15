@@ -275,6 +275,15 @@ func TestDispatcherProtocolErrors(t *testing.T) {
 			},
 		},
 		{
+			name:      "invalid user prompt override shape",
+			eventType: agenthooks.EventUserPromptSubmit,
+			data:      agenthooks.UserPromptSubmitData{Prompt: "question"},
+			responseBody: mustJSON(t, agenthooks.Response{Permission: &agenthooks.Permission{
+				Decision:      agenthooks.PermissionAllow,
+				InputOverride: json.RawMessage(`{"unexpected":"value"}`),
+			}}),
+		},
+		{
 			name:      "ask decision",
 			eventType: agenthooks.EventUserPromptSubmit,
 			data:      agenthooks.UserPromptSubmitData{Prompt: "question"},

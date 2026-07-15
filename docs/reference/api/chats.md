@@ -1800,6 +1800,7 @@ Experimental: this endpoint is subject to change.
 
 ```json
 {
+  "ended": true,
   "message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
@@ -2016,6 +2017,7 @@ Experimental: this endpoint is subject to change.
 
 ```json
 {
+  "ended": true,
   "message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [

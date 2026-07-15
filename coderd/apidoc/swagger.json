@@ -16491,6 +16491,9 @@
 		"codersdk.CreateChatMessageResponse": {
 			"type": "object",
 			"properties": {
+				"ended": {
+					"type": "boolean"
+				},
 				"message": {
 					"$ref": "#/definitions/codersdk.ChatMessage"
 				},
@@ -17877,6 +17880,9 @@
 		"codersdk.EditChatMessageResponse": {
 			"type": "object",
 			"properties": {
+				"ended": {
+					"type": "boolean"
+				},
 				"message": {
 					"$ref": "#/definitions/codersdk.ChatMessage"
 				},

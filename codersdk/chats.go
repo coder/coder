@@ -634,15 +634,15 @@ type CreateChatMessageResponse struct {
 	Message       *ChatMessage       `json:"message,omitempty"`
 	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
 	Queued        bool               `json:"queued"`
+	Ended         bool               `json:"ended"`
 	Warnings      []string           `json:"warnings,omitempty"`
 }
 
 // EditChatMessageResponse is the response from editing a message in a chat.
-// Edits are always synchronous (no queueing), so the message is returned
-// directly.
 type EditChatMessageResponse struct {
-	Message  ChatMessage `json:"message"`
-	Warnings []string    `json:"warnings,omitempty"`
+	Message  *ChatMessage `json:"message,omitempty"`
+	Ended    bool         `json:"ended"`
+	Warnings []string     `json:"warnings,omitempty"`
 }
 
 // UploadChatFileResponse is the response from uploading a chat file.

@@ -4460,6 +4460,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "ended": true,
   "message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
@@ -4622,6 +4623,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name             | Type                                                     | Required | Restrictions | Description |
 |------------------|----------------------------------------------------------|----------|--------------|-------------|
+| `ended`          | boolean                                                  | false    |              |             |
 | `message`        | [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |             |
 | `queued`         | boolean                                                  | false    |              |             |
 | `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |             |
@@ -7073,6 +7075,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
+  "ended": true,
   "message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
@@ -7164,6 +7167,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 | Name       | Type                                         | Required | Restrictions | Description |
 |------------|----------------------------------------------|----------|--------------|-------------|
+| `ended`    | boolean                                      | false    |              |             |
 | `message`  | [codersdk.ChatMessage](#codersdkchatmessage) | false    |              |             |
 | `warnings` | array of string                              | false    |              |             |
 

@@ -18255,6 +18255,9 @@ const docTemplate = `{
         "codersdk.CreateChatMessageResponse": {
             "type": "object",
             "properties": {
+                "ended": {
+                    "type": "boolean"
+                },
                 "message": {
                     "$ref": "#/definitions/codersdk.ChatMessage"
                 },
@@ -19691,6 +19694,9 @@ const docTemplate = `{
         "codersdk.EditChatMessageResponse": {
             "type": "object",
             "properties": {
+                "ended": {
+                    "type": "boolean"
+                },
                 "message": {
                     "$ref": "#/definitions/codersdk.ChatMessage"
                 },

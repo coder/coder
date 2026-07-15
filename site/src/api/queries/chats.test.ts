@@ -1266,7 +1266,7 @@ describe("mutation invalidation scope", () => {
 			},
 		);
 		mutation.onSuccess(
-			{ message: responseMessage },
+			{ message: responseMessage, ended: false },
 			{ messageId: 3, optimisticMessage, req: editReq },
 		);
 

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"syscall"
@@ -45,6 +46,7 @@ const (
 	resultTimeout         = "timeout"
 	resultConnectionError = "connection_error"
 	resultOverCapacity    = "over_capacity"
+	resultInternalError   = "internal_error"
 )
 
 type store interface {
@@ -61,6 +63,28 @@ type Event struct {
 	TurnID      *uuid.UUID
 	ToolUseID   *uuid.UUID
 	Data        any
+}
+
+// DispatchError identifies a failed lifecycle hook dispatch.
+type DispatchError struct {
+	Class      string
+	DispatchID uuid.UUID
+	Err        error
+}
+
+func (e *DispatchError) Error() string {
+	return e.Err.Error()
+}
+
+func (e *DispatchError) Unwrap() error {
+	return e.Err
+}
+
+func newDispatchError(class string, dispatchID uuid.UUID, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &DispatchError{Class: class, DispatchID: dispatchID, Err: err}
 }
 
 // Dispatcher posts lifecycle events to the configured webhook.
@@ -142,7 +166,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (agenthooks.Resp
 	}
 
 	if err := d.insert(ctx, event, dispatchID, startedAt); err != nil {
-		return agenthooks.Response{}, xerrors.Errorf("insert chat hook dispatch: %w", err)
+		return agenthooks.Response{}, newDispatchError(resultInternalError, dispatchID, xerrors.Errorf("insert chat hook dispatch: %w", err))
 	}
 
 	response, outcome := d.prepareAndPost(ctx, event, dispatchID)
@@ -151,11 +175,11 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (agenthooks.Resp
 	if finalizeErr != nil {
 		d.logger.Error(context.WithoutCancel(ctx), "failed to finalize chat hook dispatch", slog.Error(finalizeErr))
 		if outcome.err != nil {
-			return agenthooks.Response{}, errors.Join(outcome.err, finalizeErr)
+			return agenthooks.Response{}, newDispatchError(outcome.result, dispatchID, errors.Join(outcome.err, finalizeErr))
 		}
-		return agenthooks.Response{}, finalizeErr
+		return agenthooks.Response{}, newDispatchError(resultInternalError, dispatchID, finalizeErr)
 	}
-	return response, outcome.err
+	return response, newDispatchError(outcome.result, dispatchID, outcome.err)
 }
 
 func (d *Dispatcher) finishWithoutPost(
@@ -169,15 +193,15 @@ func (d *Dispatcher) finishWithoutPost(
 	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), finalizeTimeout)
 	defer cancel()
 	if err := d.insert(persistCtx, event, dispatchID, startedAt); err != nil {
-		return agenthooks.Response{}, errors.Join(dispatchErr, xerrors.Errorf("insert chat hook dispatch: %w", err))
+		return agenthooks.Response{}, newDispatchError(result, dispatchID, errors.Join(dispatchErr, xerrors.Errorf("insert chat hook dispatch: %w", err)))
 	}
 	outcome := dispatchOutcome{result: result, err: dispatchErr}
 	finalizeErr := d.finalize(ctx, dispatchID, outcome)
 	d.metrics.observe(event.Type, result, agenthooks.Response{}, time.Since(startedAt))
 	if finalizeErr != nil {
-		return agenthooks.Response{}, errors.Join(dispatchErr, finalizeErr)
+		return agenthooks.Response{}, newDispatchError(result, dispatchID, errors.Join(dispatchErr, finalizeErr))
 	}
-	return agenthooks.Response{}, dispatchErr
+	return agenthooks.Response{}, newDispatchError(result, dispatchID, dispatchErr)
 }
 
 func (d *Dispatcher) insert(ctx context.Context, event Event, dispatchID uuid.UUID, startedAt time.Time) error {
@@ -302,8 +326,13 @@ func (d *Dispatcher) post(
 			continue
 		}
 
-		// net/http only accepts three-digit response status codes.
-		status = sql.NullInt32{Int32: int32(httpResponse.StatusCode), Valid: true} //nolint:gosec
+		statusCode := int64(httpResponse.StatusCode)
+		if statusCode < math.MinInt32 || statusCode > math.MaxInt32 {
+			_ = httpResponse.Body.Close()
+			cancel()
+			return agenthooks.Response{}, sql.NullInt32{}, resultProtocolError, xerrors.Errorf("lifecycle hook returned invalid HTTP status %d", httpResponse.StatusCode)
+		}
+		status = sql.NullInt32{Int32: int32(statusCode), Valid: true}
 		if httpResponse.StatusCode < http.StatusOK || httpResponse.StatusCode >= http.StatusMultipleChoices {
 			_ = httpResponse.Body.Close()
 			cancel()

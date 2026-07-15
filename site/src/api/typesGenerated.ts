@@ -3811,6 +3811,7 @@ export interface CreateChatMessageResponse {
 	readonly message?: ChatMessage;
 	readonly queued_message?: ChatQueuedMessage;
 	readonly queued: boolean;
+	readonly ended: boolean;
 	readonly warnings?: readonly string[];
 }
 
@@ -4878,11 +4879,10 @@ export interface EditChatMessageRequest {
 // From codersdk/chats.go
 /**
  * EditChatMessageResponse is the response from editing a message in a chat.
- * Edits are always synchronous (no queueing), so the message is returned
- * directly.
  */
 export interface EditChatMessageResponse {
-	readonly message: ChatMessage;
+	readonly message?: ChatMessage;
+	readonly ended: boolean;
 	readonly warnings?: readonly string[];
 }
 

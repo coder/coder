@@ -1416,7 +1416,7 @@ func (p *Server) SendMessage(
 		}
 		hookResponse, err = p.dispatchUserPromptSubmit(ctx, chat, turnID, contentParts)
 		if err != nil {
-			return SendMessageResult{}, err
+			return SendMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, err)
 		}
 		override, overridden, err := userPromptOverride(hookResponse)
 		if err != nil {
@@ -1682,7 +1682,7 @@ func (p *Server) EditMessage(
 		}
 		hookResponse, err = p.dispatchUserPromptSubmit(ctx, chat, turnID, contentParts)
 		if err != nil {
-			return EditMessageResult{}, err
+			return EditMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, err)
 		}
 		override, overridden, err := userPromptOverride(hookResponse)
 		if err != nil {
