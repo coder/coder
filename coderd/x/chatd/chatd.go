@@ -1454,10 +1454,28 @@ func (p *Server) SendMessage(
 		if err != nil {
 			return SendMessageResult{}, xerrors.Errorf("load chat for user_prompt_submit: %w", err)
 		}
-		// Reject archived chats before dispatching so consumers never
-		// observe prompts the transaction below would refuse anyway.
+		// Mirror the transaction's admission checks (archived, usage
+		// limit, model config, queue capacity) before dispatching so
+		// consumers never observe prompts for sends the API rejects.
+		// The transaction below remains authoritative under lock.
 		if chat.Archived {
 			return SendMessageResult{}, ErrChatArchived
+		}
+		if err := p.checkUsageLimit(ctx, p.db, chat.OwnerID, uuid.NullUUID{UUID: chat.OrganizationID, Valid: true}); err != nil {
+			return SendMessageResult{}, err
+		}
+		if _, err := resolveSendMessageModelConfigID(ctx, p.db, chat, opts.ModelConfigID); err != nil {
+			return SendMessageResult{}, err
+		}
+		// A non-empty queue means every valid state routes the send
+		// through the capacity-checked queue path, so an at-cap count
+		// always rejects in the transaction too.
+		queuedCount, err := p.db.CountChatQueuedMessages(ctx, opts.ChatID)
+		if err != nil {
+			return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
+		}
+		if queuedCount >= chatstate.MaxQueueSize {
+			return SendMessageResult{}, &chatstate.MessageQueueFullError{Max: chatstate.MaxQueueSize}
 		}
 		hookResponse, err = p.dispatchUserPromptSubmit(ctx, chat, turnID, contentParts)
 		if err != nil {
@@ -1696,6 +1714,37 @@ func resolveFallbackModelConfigID(
 	return defaultConfig.ID, nil
 }
 
+// validateModelConfigOverride validates an optional model-config
+// override so the caller sees ErrInvalidModelConfigID instead of a
+// foreign-key error from the message-insert path.
+func validateModelConfigOverride(
+	ctx context.Context,
+	store database.Store,
+	requested uuid.UUID,
+) (uuid.NullUUID, error) {
+	if requested == uuid.Nil {
+		return uuid.NullUUID{}, nil
+	}
+	if _, err := store.GetChatModelConfigByID(
+		chatdModelConfigLookupContext(ctx),
+		requested,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return uuid.NullUUID{}, xerrors.Errorf(
+				"%w: %s",
+				ErrInvalidModelConfigID,
+				requested,
+			)
+		}
+		return uuid.NullUUID{}, xerrors.Errorf(
+			"get requested model config %s: %w",
+			requested,
+			err,
+		)
+	}
+	return uuid.NullUUID{UUID: requested, Valid: true}, nil
+}
+
 func validateEditTarget(ctx context.Context, store database.Store, chatID uuid.UUID, messageID int64) error {
 	target, err := store.GetChatMessageByID(ctx, messageID)
 	if err != nil {
@@ -1742,14 +1791,20 @@ func (p *Server) EditMessage(
 		if err != nil {
 			return EditMessageResult{}, xerrors.Errorf("load chat for edit hooks: %w", err)
 		}
-		// Reject archived chats and invalid edit targets before
-		// dispatching so hook consumers never observe prompts for
-		// edits that cannot happen. The transaction below revalidates
-		// under lock.
+		// Mirror the transaction's admission checks (archived, usage
+		// limit, edit target, model config) before dispatching so hook
+		// consumers never observe prompts for edits the API rejects.
+		// The transaction below remains authoritative under lock.
 		if chat.Archived {
 			return EditMessageResult{}, ErrChatArchived
 		}
+		if err := p.checkUsageLimit(ctx, p.db, chat.OwnerID, uuid.NullUUID{UUID: chat.OrganizationID, Valid: true}); err != nil {
+			return EditMessageResult{}, err
+		}
 		if err := validateEditTarget(ctx, p.db, opts.ChatID, opts.EditedMessageID); err != nil {
+			return EditMessageResult{}, err
+		}
+		if _, err := validateModelConfigOverride(ctx, p.db, opts.ModelConfigID); err != nil {
 			return EditMessageResult{}, err
 		}
 		sessionStartResponse, err = p.dispatchSessionStart(ctx, chat, &turnID, sessionStartSourceClear)
@@ -1813,29 +1868,9 @@ func (p *Server) EditMessage(
 		}
 		editedMsg = target
 
-		// Validate the optional model-config override up front so
-		// the user sees ErrInvalidModelConfigID instead of a
-		// foreign-key error from the message-insert path.
-		var modelOverride uuid.NullUUID
-		if opts.ModelConfigID != uuid.Nil {
-			if _, err := store.GetChatModelConfigByID(
-				chatdModelConfigLookupContext(ctx),
-				opts.ModelConfigID,
-			); err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					return xerrors.Errorf(
-						"%w: %s",
-						ErrInvalidModelConfigID,
-						opts.ModelConfigID,
-					)
-				}
-				return xerrors.Errorf(
-					"get requested model config %s: %w",
-					opts.ModelConfigID,
-					err,
-				)
-			}
-			modelOverride = uuid.NullUUID{UUID: opts.ModelConfigID, Valid: true}
+		modelOverride, err := validateModelConfigOverride(ctx, store, opts.ModelConfigID)
+		if err != nil {
+			return err
 		}
 
 		modelConfigID := target.ModelConfigID.UUID

@@ -1,6 +1,7 @@
 package chatd_test
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -21,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agenthooks"
 	"github.com/coder/coder/v2/testutil"
@@ -464,6 +466,117 @@ func TestEditMessageInvalidTargetSkipsHooks(t *testing.T) {
 
 	require.Zero(t, dispatched.Load(), "invalid targets must not dispatch hooks")
 	for _, chatID := range []uuid.UUID{chat.ID, archived.ID} {
+		dispatches, err := db.ListChatHookDispatchesByChatID(ctx, chatID)
+		require.NoError(t, err)
+		require.Empty(t, dispatches)
+	}
+}
+
+func TestPromptHooksAdmissionPreflight(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	apiKeyID := testAPIKeyID(t, db, user.ID)
+	var dispatched atomic.Int32
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		dispatched.Add(1)
+		_, err := w.Write([]byte(`{}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+	server := newHookTestServer(t, db, ps, consumer)
+
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("bad model")},
+		ModelConfigID: uuid.New(),
+		APIKeyID:      apiKeyID,
+	})
+	require.ErrorIs(t, err, chatd.ErrInvalidModelConfigID)
+
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("original")})
+	require.NoError(t, err)
+	inserted, err := db.InsertChatMessages(ctx, chatd.BuildSingleUserChatMessageInsertParams(
+		chat.ID, apiKeyID, content, database.ChatMessageVisibilityBoth, model.ID, chatprompt.CurrentContentVersion, user.ID,
+	))
+	require.NoError(t, err)
+	require.Len(t, inserted, 1)
+	_, err = server.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: inserted[0].ID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("bad model edit")},
+		ModelConfigID:   uuid.New(),
+		APIKeyID:        apiKeyID,
+	})
+	require.ErrorIs(t, err, chatd.ErrInvalidModelConfigID)
+
+	busy := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Status:            database.ChatStatusRunning,
+	})
+	queuedContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")})
+	require.NoError(t, err)
+	for range chatstate.MaxQueueSize {
+		_, err = db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+			ChatID:        busy.ID,
+			Content:       queuedContent.RawMessage,
+			ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+			CreatedBy:     user.ID,
+			APIKeyID:      sql.NullString{String: apiKeyID, Valid: true},
+		})
+		require.NoError(t, err)
+	}
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:   busy.ID,
+		Content:  []codersdk.ChatMessagePart{codersdk.ChatMessageText("queue full")},
+		APIKeyID: apiKeyID,
+	})
+	require.ErrorIs(t, err, chatstate.ErrMessageQueueFull)
+
+	// Deployment-wide, so the limit scenarios must run last.
+	_, err = db.UpsertChatUsageLimitConfig(ctx, database.UpsertChatUsageLimitConfigParams{
+		Enabled:            true,
+		DefaultLimitMicros: 100,
+		Period:             string(codersdk.ChatUsageLimitPeriodDay),
+	})
+	require.NoError(t, err)
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("assistant")})
+	require.NoError(t, err)
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:          chat.ID,
+		ModelConfigID:   uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:            database.ChatMessageRoleAssistant,
+		ContentVersion:  chatprompt.CurrentContentVersion,
+		Content:         assistantContent,
+		TotalCostMicros: sql.NullInt64{Int64: 100, Valid: true},
+	})
+	var limitErr *chatd.UsageLimitExceededError
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:   chat.ID,
+		Content:  []codersdk.ChatMessagePart{codersdk.ChatMessageText("over limit")},
+		APIKeyID: apiKeyID,
+	})
+	require.ErrorAs(t, err, &limitErr)
+	_, err = server.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: inserted[0].ID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("over limit edit")},
+		APIKeyID:        apiKeyID,
+	})
+	require.ErrorAs(t, err, &limitErr)
+
+	require.Zero(t, dispatched.Load(), "admission-rejected prompts must not dispatch hooks")
+	for _, chatID := range []uuid.UUID{chat.ID, busy.ID} {
 		dispatches, err := db.ListChatHookDispatchesByChatID(ctx, chatID)
 		require.NoError(t, err)
 		require.Empty(t, dispatches)
