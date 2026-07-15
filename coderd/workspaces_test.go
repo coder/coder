@@ -66,22 +66,24 @@ func TestWorkspacesListSingleAuthorizePrepare(t *testing.T) {
 	t.Parallel()
 
 	authz := coderdtest.NewPrepareCountingAuthorizer(rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()))
-	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerDaemon: true,
-		Authorizer:               authz,
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		Authorizer: authz,
 	})
 	owner := coderdtest.CreateFirstUser(t, client)
-	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
-	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	// Seed one workspace directly in the database. The authorization path the
+	// handler takes does not depend on how the workspace was built, so dbfake
+	// avoids the cost of a provisioner and real build.
+	dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:        owner.UserID,
+		OrganizationID: owner.OrganizationID,
+	}).Do()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	// Reset immediately before the measured request so setup prepares (template
-	// and workspace creation) are excluded. Counts are keyed by subject ID, so
-	// background work under system subjects is ignored.
+	// Reset immediately before the measured request so setup prepares are
+	// excluded. Counts are keyed by subject ID, so background work under system
+	// subjects is ignored.
 	authz.Reset()
 	res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
