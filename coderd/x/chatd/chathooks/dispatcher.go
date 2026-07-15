@@ -305,13 +305,18 @@ func (d *Dispatcher) post(
 		// net/http only accepts three-digit response status codes.
 		status = sql.NullInt32{Int32: int32(httpResponse.StatusCode), Valid: true} //nolint:gosec
 		responseBody, readErr := io.ReadAll(io.LimitReader(httpResponse.Body, maxResponseBodyBytes+1))
-		closeErr := httpResponse.Body.Close()
+		attemptErr := attemptCtx.Err()
+		_ = httpResponse.Body.Close()
 		cancel()
 		if readErr != nil {
-			return agenthooks.Response{}, status, resultProtocolError, xerrors.Errorf("read lifecycle hook response: %w", readErr)
-		}
-		if closeErr != nil {
-			return agenthooks.Response{}, status, resultProtocolError, xerrors.Errorf("close lifecycle hook response: %w", closeErr)
+			switch {
+			case isTimeoutError(attemptErr), isTimeoutError(readErr), errors.Is(readErr, context.Canceled):
+				return agenthooks.Response{}, status, resultTimeout, xerrors.Errorf("read lifecycle hook response: %w", readErr)
+			case isConnectionError(readErr):
+				return agenthooks.Response{}, status, resultConnectionError, xerrors.Errorf("read lifecycle hook response: %w", readErr)
+			default:
+				return agenthooks.Response{}, status, resultProtocolError, xerrors.Errorf("read lifecycle hook response: %w", readErr)
+			}
 		}
 		if httpResponse.StatusCode < http.StatusOK || httpResponse.StatusCode >= http.StatusMultipleChoices {
 			return agenthooks.Response{}, status, resultHTTPError, xerrors.Errorf("lifecycle hook returned HTTP status %d", httpResponse.StatusCode)

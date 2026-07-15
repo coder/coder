@@ -116,11 +116,13 @@ func TestDispatcherAllowInputOverride(t *testing.T) {
 
 	db, _ := dbtestutil.NewDB(t)
 	toolInput := json.RawMessage(`{"path":"before"}`)
+	toolUseID := uuid.New()
 	event := newTestEvent(t, db, agenthooks.EventPreToolUse, agenthooks.PreToolUseData{
-		ToolUseID: uuid.New(),
+		ToolUseID: toolUseID,
 		ToolName:  "edit",
 		ToolInput: toolInput,
 	})
+	event.ToolUseID = &toolUseID
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, err := w.Write([]byte(`{"permission":{"decision":"allow","input_override":{"path":"after"}}}`))
 		assert.NoError(t, err)
@@ -137,6 +139,7 @@ func TestDispatcherAllowInputOverride(t *testing.T) {
 
 	row := singleDispatch(t, db, event.ChatID)
 	require.Equal(t, resultOK, row.Result)
+	require.Equal(t, toolUseID.String(), row.ToolUseID.String)
 	require.JSONEq(t, `{"path":"after"}`, string(row.InputOverride.RawMessage))
 	require.JSONEq(t, `{"path":"before"}`, string(row.OriginalInput.RawMessage))
 }
@@ -148,8 +151,10 @@ func TestDispatcherTimeoutNoRetry(t *testing.T) {
 	event := newTestEvent(t, db, agenthooks.EventStop, agenthooks.StopData{})
 	var requests atomic.Int32
 	release := make(chan struct{})
-	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		requests.Add(1)
+		w.WriteHeader(http.StatusOK)
+		assert.NoError(t, http.NewResponseController(w).Flush())
 		<-release
 	}))
 	t.Cleanup(server.Close)
@@ -163,7 +168,7 @@ func TestDispatcherTimeoutNoRetry(t *testing.T) {
 
 	row := singleDispatch(t, db, event.ChatID)
 	require.Equal(t, resultTimeout, row.Result)
-	require.False(t, row.HttpStatus.Valid)
+	require.Equal(t, int32(http.StatusOK), row.HttpStatus.Int32)
 	require.True(t, row.Error.Valid)
 }
 
