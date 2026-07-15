@@ -181,6 +181,39 @@ export const AddBedrockSwitchToMantle: Story = {
 	},
 };
 
+// Switching protocol must not leave a stale endpoint validation error that
+// keeps Save disabled. Protocol and base URL are updated atomically, so after
+// switching a fully valid config keeps the submit button enabled.
+export const AddBedrockProtocolSwitchKeepsSaveEnabled: Story = {
+	args: {
+		initialValues: {
+			type: "bedrock",
+			name: "bedrock",
+			baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
+			model: "anthropic.claude-sonnet-4-5",
+			smallFastModel: "anthropic.claude-haiku-4-5",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const submit = canvas.getByRole("button", { name: /add provider/i });
+
+		// Switch InvokeModel -> Mantle.
+		await userEvent.click(canvas.getByRole("combobox", { name: /protocol/i }));
+		await userEvent.click(
+			await screen.findByRole("option", { name: /mantle/i }),
+		);
+
+		// The endpoint is rewritten to a valid mantle URL and the model fields
+		// drop out, so the form stays valid and Save is not disabled by a stale
+		// endpoint error.
+		await waitFor(() => {
+			expect(canvas.queryByLabelText(/^model\s*\*?$/i)).not.toBeInTheDocument();
+			expect(submit).toBeEnabled();
+		});
+	},
+};
+
 // Regression coverage for CODAGT-626. The create form must accept Bedrock
 // configurations whose credentials come from the AWS environment (IAM
 // role, instance profile, AWS_PROFILE) instead of static access keys.

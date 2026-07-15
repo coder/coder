@@ -429,16 +429,14 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	// Switching protocols rewrites the base URL to the matching host, keeping
 	// the region the user already entered so they do not retype it.
 	const handleBedrockProtocolChange = (protocol: AIProviderBedrockProtocol) => {
-		void form.setFieldValue("protocol", protocol);
 		const region =
 			parseBedrockRegionFromBaseUrl(form.values.baseUrl) ??
 			BEDROCK_MANTLE_DEFAULT_REGION;
-		void form.setFieldValue(
-			"baseUrl",
+		const baseUrl =
 			protocol === "mantle"
 				? bedrockMantleBaseUrl(region)
-				: bedrockInvokeModelBaseUrl(region),
-		);
+				: bedrockInvokeModelBaseUrl(region);
+		void form.setValues({ ...form.values, protocol, baseUrl });
 	};
 
 	const isMantle = form.values.protocol === "mantle";
