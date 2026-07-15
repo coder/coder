@@ -29,11 +29,15 @@ func CountWorkspaceCapableUsers(ctx context.Context, db database.Store, authoriz
 		return 0, xerrors.Errorf("get active users authorization roles: %w", err)
 	}
 
-	// Users with identical role and group sets always produce the same
-	// authorization outcome because the subject ID and the object owner
-	// are the same user in every check. Deduplicate on that signature so
-	// evaluation cost scales with the number of unique role sets, not
-	// the number of users.
+	// Users with identical role sets always produce the same authorization
+	// outcome: the subject ID and the object owner are the same user in
+	// every check, and the objects carry no ACLs, so group membership
+	// (which only influences authorization through object ACL matching)
+	// cannot change the result. Deduplicate on the role signature so
+	// evaluation cost scales with the number of unique role sets, not the
+	// number of users. TestWorkspaceCreateIgnoresGroups enforces the
+	// group-independence assumption; if it ever breaks, groups must be
+	// added back to the subject, the signature, and the query.
 	capableBySignature := make(map[string]bool)
 	var count int64
 	for _, row := range rows {
@@ -70,11 +74,14 @@ func canCreateWorkspace(ctx context.Context, db database.Store, authorizer rbac.
 	}
 
 	subject := rbac.Subject{
-		Type:   rbac.SubjectTypeUser,
-		ID:     row.ID.String(),
-		Roles:  roles,
-		Groups: row.Groups,
-		Scope:  rbac.ScopeAll,
+		Type:  rbac.SubjectTypeUser,
+		ID:    row.ID.String(),
+		Roles: roles,
+		// Groups are deliberately omitted: they only influence
+		// authorization through object ACL matching, and the objects
+		// below carry no ACLs. Keeping them off the subject keeps the
+		// role-only dedupe signature honest.
+		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
 	// Site-wide grants (e.g. the owner role) authorize workspace creation
@@ -103,15 +110,12 @@ func canCreateWorkspace(ctx context.Context, db database.Store, authorizer rbac.
 	return false, nil
 }
 
-// authorizationSignature returns a canonical key for the user's role and
-// group sets. Two users with equal signatures are interchangeable for
+// authorizationSignature returns a canonical key for the user's role set.
+// Two users with equal signatures are interchangeable for
 // workspace-create evaluation.
 func authorizationSignature(row database.GetActiveUsersAuthorizationRolesRow) string {
 	roles := make([]string, len(row.Roles))
 	copy(roles, row.Roles)
 	sort.Strings(roles)
-	groups := make([]string, len(row.Groups))
-	copy(groups, row.Groups)
-	sort.Strings(groups)
-	return strings.Join(roles, "\x00") + "\x01" + strings.Join(groups, "\x00")
+	return strings.Join(roles, "\x00")
 }
