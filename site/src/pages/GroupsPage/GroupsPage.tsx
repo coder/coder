@@ -1,12 +1,10 @@
-import { PlusIcon } from "lucide-react";
 import { type FC, useEffect } from "react";
 import { useQuery } from "react-query";
-import { Link as RouterLink, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { paginatedGroupsByOrganization } from "#/api/queries/groups";
 import { organizationsPermissions } from "#/api/queries/organizations";
-import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { useFilter } from "#/components/Filter/Filter";
 import { Loader } from "#/components/Loader/Loader";
@@ -100,15 +98,6 @@ const GroupsPage: FC = () => {
 						{showOrganizations ? "organization" : "deployment"}.
 					</SettingsHeaderDescription>
 				</SettingsHeader>
-
-				{groupsEnabled && permissions.createGroup && (
-					<Button asChild>
-						<RouterLink to="create">
-							<PlusIcon className="size-icon-sm" />
-							Create group
-						</RouterLink>
-					</Button>
-				)}
 			</div>
 
 			<GroupsPageView

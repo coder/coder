@@ -1,7 +1,9 @@
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
+import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router";
 import type { GroupWithAICostControl } from "#/api/api";
+import { organizationsPermissions } from "#/api/queries/organizations";
 import { AIBudgetUsage } from "#/components/AIBudgetUsage/AIBudgetUsage";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
@@ -28,6 +30,7 @@ import {
 } from "#/components/TableLoader/TableLoader";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
+import { useGroupsSettings } from "#/pages/GroupsPage/GroupsPageProvider";
 import { docs } from "#/utils/docs";
 import { InfoIconTooltip } from "./InfoIconTooltip";
 
@@ -50,6 +53,16 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	filterProps,
 	groupsQuery,
 }) => {
+	const { organization } = useGroupsSettings();
+	const permissionsQuery = useQuery({
+		...organizationsPermissions([organization?.id ?? ""]),
+		enabled: Boolean(organization),
+	});
+
+	// We can safely assume the organization is defined, since its non-nullness is
+	// already made in the GroupsPage parent component before GroupsPageView is rendered
+	const permissions = permissionsQuery.data?.[organization!.id];
+
 	if (!groupsEnabled) {
 		return (
 			<PaywallPremium
@@ -62,7 +75,18 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 
 	return (
 		<div className="flex flex-col gap-4">
-			<GroupsFilter {...filterProps} />
+			<div className="flex flex-row justify-between">
+				<GroupsFilter {...filterProps} />
+				{groupsEnabled && permissions?.createGroup && (
+					<Button asChild>
+						<RouterLink to="create">
+							<PlusIcon className="size-icon-sm" />
+							Create group
+						</RouterLink>
+					</Button>
+				)}
+			</div>
+
 			<PaginationContainer query={groupsQuery} paginationUnitLabel="groups">
 				<Table aria-label="Groups">
 					<TableHeader>
