@@ -928,15 +928,12 @@ func executeBackground(
 		ClientToken: rec.ID,
 	})
 	if err != nil {
-		// The request may or may not have reached the agent, so
-		// the honest lifecycle outcome is unobservable. A start
-		// cut short by the generation context being canceled (an
-		// interrupt) records nothing: the interrupt commit owns
-		// the transition and its reconciler can resolve the
-		// dispatch through the agent's token index.
-		if ctx.Err() == nil {
-			markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
-		}
+		// The request may or may not have reached the agent. The
+		// row stays starting: the token is durable, so a later
+		// attempt resolves the dispatch through the agent's token
+		// index (adopting the process or safely re-dispatching)
+		// instead of dead-ending on a terminal status. An
+		// interrupt likewise resolves it through its reconciler.
 		return errorResult(enrichStartError(fmt.Sprintf("start background process: %v", err)))
 	}
 	logStartIdempotency(ctx, options.Logger, resp, toolCallID)
@@ -1040,15 +1037,12 @@ func executeForeground(
 		ClientToken: rec.ID,
 	})
 	if err != nil {
-		// The request may or may not have reached the agent, so
-		// the honest lifecycle outcome is unobservable. A start
-		// cut short by the generation context being canceled (an
-		// interrupt) records nothing: the interrupt commit owns
-		// the transition and its reconciler can resolve the
-		// dispatch through the agent's token index.
-		if ctx.Err() == nil {
-			markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
-		}
+		// The request may or may not have reached the agent. The
+		// row stays starting: the token is durable, so a later
+		// attempt resolves the dispatch through the agent's token
+		// index (adopting the process or safely re-dispatching)
+		// instead of dead-ending on a terminal status. An
+		// interrupt likewise resolves it through its reconciler.
 		return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err)))
 	}
 	logStartIdempotency(ctx, options.Logger, resp, toolCallID)

@@ -2000,7 +2000,7 @@ func TestExecuteToolRecorder(t *testing.T) {
 		assert.Zero(t, recorder.claimCalls)
 	})
 
-	t.Run("StartErrorMarksUnknown", func(t *testing.T) {
+	t.Run("StartErrorKeepsRowRecoverable", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
@@ -2024,7 +2024,11 @@ func TestExecuteToolRecorder(t *testing.T) {
 		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 		assert.False(t, result.Success)
 		assert.Contains(t, result.Error, "start process")
-		assert.Equal(t, chattool.ExecutionStatusUnknown, recorder.record("call-1").Status)
+		// The request may have reached the agent, and the token is
+		// durable. The row stays starting so a retry resolves the
+		// dispatch through the token probe instead of dead-ending
+		// on a terminal unknown.
+		assert.Equal(t, chattool.ExecutionStatusStarting, recorder.record("call-1").Status)
 	})
 
 	t.Run("BackgroundStartMarksDetached", func(t *testing.T) {
