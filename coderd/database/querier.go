@@ -655,7 +655,6 @@ type sqlcQuerier interface {
 	// belong to @organization_id, on or after period_start until NOW. The spend
 	// limit is null when the group has no configured budget.
 	// The period_start parameter is normalized to its UTC calendar day.
-	// Only return groups from @group_ids that belong to @organization_id.
 	GetOrganizationGroupsAISpend(ctx context.Context, arg GetOrganizationGroupsAISpendParams) ([]GetOrganizationGroupsAISpendRow, error)
 	GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]GetOrganizationIDsByMemberIDsRow, error)
 	GetOrganizationResourceCountByID(ctx context.Context, organizationID uuid.UUID) (GetOrganizationResourceCountByIDRow, error)

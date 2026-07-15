@@ -117,7 +117,7 @@ LEFT JOIN group_ai_budgets budget ON budget.group_id = groups.id
 LEFT JOIN ai_user_daily_spend spend
 	ON spend.effective_group_id = groups.id
 	AND spend.day >= ((@period_start::timestamptz) AT TIME ZONE 'UTC')::date
--- Only return groups from @group_ids that belong to @organization_id.
 WHERE groups.organization_id = @organization_id
 	AND groups.id = ANY(@group_ids::uuid[])
-GROUP BY groups.id, budget.spend_limit_micros;
+GROUP BY groups.id, budget.spend_limit_micros
+ORDER BY groups.id;

@@ -3217,7 +3217,9 @@ func TestOrganizationGroupsAISpend(t *testing.T) {
 		client, owner := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{DeploymentValues: dv},
 			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{},
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
 			},
 		})
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -3227,6 +3229,7 @@ func TestOrganizationGroupsAISpend(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "AI Gateway is a Premium feature")
 	})
 
 	t.Run("RequiresExperiment", func(t *testing.T) {
@@ -3238,7 +3241,8 @@ func TestOrganizationGroupsAISpend(t *testing.T) {
 			Options: &coderdtest.Options{DeploymentValues: dv},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
+					codersdk.FeatureTemplateRBAC: 1,
+					codersdk.FeatureAIBridge:     1,
 				},
 			},
 		})
@@ -3249,6 +3253,7 @@ func TestOrganizationGroupsAISpend(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "ai-gateway-cost-control")
 	})
 
 	t.Run("MissingGroupIDs", func(t *testing.T) {
@@ -3265,6 +3270,25 @@ func TestOrganizationGroupsAISpend(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("InclusiveMaxGroupIDs", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "inclusive-max-group-ids-group"})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Given: 100 group_ids, exactly at the cap.
+		ids := make([]uuid.UUID, 100)
+		for i := range ids {
+			ids[i] = uuid.New()
+		}
+
+		// When: querying spend.
+		_, err := adminClient.OrganizationGroupsAISpend(ctx, group.OrganizationID, ids)
+
+		// Then: request succeeds.
+		require.NoError(t, err)
 	})
 
 	t.Run("TooManyGroupIDs", func(t *testing.T) {

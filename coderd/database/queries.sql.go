@@ -2582,6 +2582,7 @@ LEFT JOIN ai_user_daily_spend spend
 WHERE groups.organization_id = $2
 	AND groups.id = ANY($3::uuid[])
 GROUP BY groups.id, budget.spend_limit_micros
+ORDER BY groups.id
 `
 
 type GetOrganizationGroupsAISpendParams struct {
@@ -2601,7 +2602,6 @@ type GetOrganizationGroupsAISpendRow struct {
 // belong to @organization_id, on or after period_start until NOW. The spend
 // limit is null when the group has no configured budget.
 // The period_start parameter is normalized to its UTC calendar day.
-// Only return groups from @group_ids that belong to @organization_id.
 func (q *sqlQuerier) GetOrganizationGroupsAISpend(ctx context.Context, arg GetOrganizationGroupsAISpendParams) ([]GetOrganizationGroupsAISpendRow, error) {
 	rows, err := q.db.QueryContext(ctx, getOrganizationGroupsAISpend, arg.PeriodStart, arg.OrganizationID, pq.Array(arg.GroupIds))
 	if err != nil {

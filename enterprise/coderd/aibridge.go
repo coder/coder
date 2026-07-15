@@ -878,6 +878,13 @@ func (api *API) deleteUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// currentAIBudgetWindow returns the current AI budget period window based on
+// the configured budget period.
+func (api *API) currentAIBudgetWindow() (budget.PeriodWindow, error) {
+	period := codersdk.NewAIBudgetPeriodFromString(api.DeploymentValues.AI.BridgeConfig.BudgetPeriod)
+	return budget.CurrentPeriod(api.Clock.Now(), period)
+}
+
 // @Summary Get user AI spend
 // @ID get-user-ai-spend
 // @Security CoderSessionToken
@@ -891,8 +898,7 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 	logger := api.Logger.With(slog.F("user_id", user.ID))
 
-	period := codersdk.NewAIBudgetPeriodFromString(api.DeploymentValues.AI.BridgeConfig.BudgetPeriod)
-	periodWindow, err := budget.CurrentPeriod(api.Clock.Now(), period)
+	periodWindow, err := api.currentAIBudgetWindow()
 	if err != nil {
 		logger.Error(ctx, "failed to compute AI budget period", slog.Error(err))
 		httpapi.InternalServerError(rw, err)
@@ -944,12 +950,13 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get organization groups AI spend
+// @Description Returns AI spend limits and aggregate spend for the requested groups. Unknown or unreadable group IDs are silently omitted.
 // @ID get-organization-groups-ai-spend
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
-// @Param group_ids query string true "Comma-separated list of group IDs"
+// @Param group_ids query string true "Comma-separated list of group IDs (maximum 100)"
 // @Success 200 {object} codersdk.OrganizationGroupsAISpend
 // @Router /api/v2/organizations/{organization}/groups/ai/spend [get]
 func (api *API) organizationGroupsAISpend(rw http.ResponseWriter, r *http.Request) {
@@ -978,8 +985,7 @@ func (api *API) organizationGroupsAISpend(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	period := codersdk.NewAIBudgetPeriodFromString(api.DeploymentValues.AI.BridgeConfig.BudgetPeriod)
-	periodWindow, err := budget.CurrentPeriod(api.Clock.Now(), period)
+	periodWindow, err := api.currentAIBudgetWindow()
 	if err != nil {
 		logger.Error(ctx, "failed to compute AI budget period", slog.Error(err))
 		httpapi.InternalServerError(rw, err)
