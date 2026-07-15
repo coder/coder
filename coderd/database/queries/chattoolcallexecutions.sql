@@ -157,10 +157,19 @@ WHERE chat_id = @chat_id::uuid
 RETURNING *;
 
 -- name: DeleteOldChatToolCallExecutions :execrows
--- Age-based retention of ledger history. Deleting a row never
--- affects a still-running detached process, which stays addressable
--- through the process handle in its committed tool result; dedup
--- protection is not needed at this age because no attempt can still
--- be re-executing a call this old.
+-- Age-based retention of ledger history, deleted in bounded batches
+-- to keep transactions short. Deleting a row never affects a
+-- still-running detached process, which stays addressable through
+-- the process handle in its committed tool result; dedup protection
+-- is not needed at this age because no attempt can still be
+-- re-executing a call this old.
+WITH deletable AS (
+    SELECT id
+    FROM chat_tool_call_executions
+    WHERE created_at < @before_time::timestamptz
+    ORDER BY created_at ASC
+    LIMIT @limit_count::int
+)
 DELETE FROM chat_tool_call_executions
-WHERE created_at < @before_time::timestamptz;
+USING deletable
+WHERE chat_tool_call_executions.id = deletable.id;

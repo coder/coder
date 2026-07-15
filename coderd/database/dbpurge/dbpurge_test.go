@@ -2906,7 +2906,10 @@ func TestDeleteOldChatToolCallExecutions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	deleted, err := db.DeleteOldChatToolCallExecutions(ctx, now.Add(-7*24*time.Hour))
+	deleted, err := db.DeleteOldChatToolCallExecutions(ctx, database.DeleteOldChatToolCallExecutionsParams{
+		BeforeTime: now.Add(-7 * 24 * time.Hour),
+		LimitCount: 1000,
+	})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, deleted)
 

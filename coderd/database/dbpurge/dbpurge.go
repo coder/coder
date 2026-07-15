@@ -54,7 +54,8 @@ const (
 	// Execution ledger rows are kept after resolution as diagnostic
 	// history; rows this old can no longer be re-executed by any
 	// attempt, so deleting them only discards diagnostics.
-	chatToolCallExecutionRetention = 7 * 24 * time.Hour
+	chatToolCallExecutionRetention  = 7 * 24 * time.Hour
+	chatToolCallExecutionsBatchSize = 1000
 )
 
 type Option func(*instance)
@@ -294,7 +295,10 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		}
 
 		deleteChatToolCallExecutionsBefore := start.Add(-chatToolCallExecutionRetention)
-		purgedChatToolCallExecutions, err := tx.DeleteOldChatToolCallExecutions(ctx, deleteChatToolCallExecutionsBefore)
+		purgedChatToolCallExecutions, err := tx.DeleteOldChatToolCallExecutions(ctx, database.DeleteOldChatToolCallExecutionsParams{
+			BeforeTime: deleteChatToolCallExecutionsBefore,
+			LimitCount: chatToolCallExecutionsBatchSize,
+		})
 		if err != nil {
 			return xerrors.Errorf("failed to delete old chat tool call executions: %w", err)
 		}

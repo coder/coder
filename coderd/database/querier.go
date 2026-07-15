@@ -199,12 +199,13 @@ type sqlcQuerier interface {
 	// 2. Files whose every referencing chat has been archived for longer
 	//    than the retention period.
 	DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error)
-	// Age-based retention of ledger history. Deleting a row never
-	// affects a still-running detached process, which stays addressable
-	// through the process handle in its committed tool result; dedup
-	// protection is not needed at this age because no attempt can still
-	// be re-executing a call this old.
-	DeleteOldChatToolCallExecutions(ctx context.Context, beforeTime time.Time) (int64, error)
+	// Age-based retention of ledger history, deleted in bounded batches
+	// to keep transactions short. Deleting a row never affects a
+	// still-running detached process, which stays addressable through
+	// the process handle in its committed tool result; dedup protection
+	// is not needed at this age because no attempt can still be
+	// re-executing a call this old.
+	DeleteOldChatToolCallExecutions(ctx context.Context, arg DeleteOldChatToolCallExecutionsParams) (int64, error)
 	// Deletes chats that have been archived for longer than the given
 	// threshold. Active (non-archived) chats are never deleted.
 	// All chat-scoped child tables are removed via ON DELETE CASCADE.

@@ -2345,11 +2345,11 @@ func (q *querier) DeleteOldChatFiles(ctx context.Context, arg database.DeleteOld
 	return q.db.DeleteOldChatFiles(ctx, arg)
 }
 
-func (q *querier) DeleteOldChatToolCallExecutions(ctx context.Context, beforeTime time.Time) (int64, error) {
+func (q *querier) DeleteOldChatToolCallExecutions(ctx context.Context, arg database.DeleteOldChatToolCallExecutionsParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
 		return 0, err
 	}
-	return q.db.DeleteOldChatToolCallExecutions(ctx, beforeTime)
+	return q.db.DeleteOldChatToolCallExecutions(ctx, arg)
 }
 
 func (q *querier) DeleteOldChats(ctx context.Context, arg database.DeleteOldChatsParams) (int64, error) {

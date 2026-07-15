@@ -12769,17 +12769,31 @@ func (q *sqlQuerier) ClaimChatToolCallExecution(ctx context.Context, arg ClaimCh
 }
 
 const deleteOldChatToolCallExecutions = `-- name: DeleteOldChatToolCallExecutions :execrows
+WITH deletable AS (
+    SELECT id
+    FROM chat_tool_call_executions
+    WHERE created_at < $1::timestamptz
+    ORDER BY created_at ASC
+    LIMIT $2::int
+)
 DELETE FROM chat_tool_call_executions
-WHERE created_at < $1::timestamptz
+USING deletable
+WHERE chat_tool_call_executions.id = deletable.id
 `
 
-// Age-based retention of ledger history. Deleting a row never
-// affects a still-running detached process, which stays addressable
-// through the process handle in its committed tool result; dedup
-// protection is not needed at this age because no attempt can still
-// be re-executing a call this old.
-func (q *sqlQuerier) DeleteOldChatToolCallExecutions(ctx context.Context, beforeTime time.Time) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteOldChatToolCallExecutions, beforeTime)
+type DeleteOldChatToolCallExecutionsParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+// Age-based retention of ledger history, deleted in bounded batches
+// to keep transactions short. Deleting a row never affects a
+// still-running detached process, which stays addressable through
+// the process handle in its committed tool result; dedup protection
+// is not needed at this age because no attempt can still be
+// re-executing a call this old.
+func (q *sqlQuerier) DeleteOldChatToolCallExecutions(ctx context.Context, arg DeleteOldChatToolCallExecutionsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldChatToolCallExecutions, arg.BeforeTime, arg.LimitCount)
 	if err != nil {
 		return 0, err
 	}

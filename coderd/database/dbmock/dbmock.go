@@ -1237,18 +1237,18 @@ func (mr *MockStoreMockRecorder) DeleteOldChatFiles(ctx, arg any) *gomock.Call {
 }
 
 // DeleteOldChatToolCallExecutions mocks base method.
-func (m *MockStore) DeleteOldChatToolCallExecutions(ctx context.Context, beforeTime time.Time) (int64, error) {
+func (m *MockStore) DeleteOldChatToolCallExecutions(ctx context.Context, arg database.DeleteOldChatToolCallExecutionsParams) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteOldChatToolCallExecutions", ctx, beforeTime)
+	ret := m.ctrl.Call(m, "DeleteOldChatToolCallExecutions", ctx, arg)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DeleteOldChatToolCallExecutions indicates an expected call of DeleteOldChatToolCallExecutions.
-func (mr *MockStoreMockRecorder) DeleteOldChatToolCallExecutions(ctx, beforeTime any) *gomock.Call {
+func (mr *MockStoreMockRecorder) DeleteOldChatToolCallExecutions(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldChatToolCallExecutions", reflect.TypeOf((*MockStore)(nil).DeleteOldChatToolCallExecutions), ctx, beforeTime)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldChatToolCallExecutions", reflect.TypeOf((*MockStore)(nil).DeleteOldChatToolCallExecutions), ctx, arg)
 }
 
 // DeleteOldChats mocks base method.
