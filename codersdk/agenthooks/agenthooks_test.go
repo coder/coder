@@ -273,6 +273,27 @@ func TestHTTPHandlerRejectsMismatches(t *testing.T) {
 	}
 }
 
+func TestResponseAllowedToolsWireShape(t *testing.T) {
+	t.Parallel()
+
+	// The tri-state contract: absent preserves the tool policy, an
+	// empty array restricts all tools.
+	unset, err := json.Marshal(agenthooks.Response{})
+	require.NoError(t, err)
+	require.NotContains(t, string(unset), "allowed_tools")
+
+	restrictAll, err := json.Marshal(agenthooks.Response{AllowedTools: &[]string{}})
+	require.NoError(t, err)
+	require.Contains(t, string(restrictAll), `"allowed_tools":[]`)
+
+	var decoded agenthooks.Response
+	require.NoError(t, json.Unmarshal([]byte(`{"allowed_tools":null}`), &decoded))
+	require.Nil(t, decoded.AllowedTools)
+	require.NoError(t, json.Unmarshal([]byte(`{"allowed_tools":[]}`), &decoded))
+	require.NotNil(t, decoded.AllowedTools)
+	require.Empty(t, *decoded.AllowedTools)
+}
+
 func TestHTTPHandlerAcceptsTrailingSlashAudience(t *testing.T) {
 	t.Parallel()
 

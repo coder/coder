@@ -170,7 +170,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (agenthooks.Resp
 	}
 
 	response, outcome := d.prepareAndPost(ctx, event, dispatchID)
-	finalizeErr := d.finalize(ctx, event.Type, dispatchID, outcome)
+	finalizeErr := d.finalize(ctx, event, dispatchID, outcome)
 	d.metrics.observe(event.Type, outcome.result, outcome.response, time.Since(startedAt))
 	if finalizeErr != nil {
 		d.logger.Error(context.WithoutCancel(ctx), "failed to finalize chat hook dispatch", slog.Error(finalizeErr))
@@ -196,7 +196,7 @@ func (d *Dispatcher) finishWithoutPost(
 		return agenthooks.Response{}, newDispatchError(result, dispatchID, errors.Join(dispatchErr, xerrors.Errorf("insert chat hook dispatch: %w", err)))
 	}
 	outcome := dispatchOutcome{result: result, err: dispatchErr}
-	finalizeErr := d.finalize(ctx, event.Type, dispatchID, outcome)
+	finalizeErr := d.finalize(ctx, event, dispatchID, outcome)
 	d.metrics.observe(event.Type, result, agenthooks.Response{}, time.Since(startedAt))
 	if finalizeErr != nil {
 		return agenthooks.Response{}, newDispatchError(result, dispatchID, errors.Join(dispatchErr, finalizeErr))
@@ -486,12 +486,12 @@ func dataValue[T any](value any) (T, bool) {
 	return zero, false
 }
 
-func (d *Dispatcher) finalize(ctx context.Context, eventType agenthooks.EventType, dispatchID uuid.UUID, outcome dispatchOutcome) error {
+func (d *Dispatcher) finalize(ctx context.Context, event Event, dispatchID uuid.UUID, outcome dispatchOutcome) error {
 	response := outcome.response
 	if outcome.err != nil {
 		d.logger.Warn(context.WithoutCancel(ctx), "chat hook dispatch failed",
 			slog.F("dispatch_id", dispatchID),
-			slog.F("event", eventType),
+			slog.F("event", event.Type),
 			slog.F("result", outcome.result),
 			slog.Error(outcome.err),
 		)
@@ -507,7 +507,7 @@ func (d *Dispatcher) finalize(ctx context.Context, eventType agenthooks.EventTyp
 		if response.Permission.InputOverride != nil {
 			inputOverride = pqtype.NullRawMessage{RawMessage: bytes.Clone(response.Permission.InputOverride), Valid: true}
 		}
-	} else if eventType == agenthooks.EventPreToolUse && outcome.result == resultOK {
+	} else if event.Type == agenthooks.EventPreToolUse && outcome.result == resultOK {
 		decision = sql.NullString{String: string(agenthooks.PermissionAllow), Valid: true}
 	}
 	allowedTools := pqtype.NullRawMessage{}
@@ -535,6 +535,8 @@ func (d *Dispatcher) finalize(ctx context.Context, eventType agenthooks.EventTyp
 		EndChat:        sql.NullBool{Bool: response.EndChat, Valid: response.EndChat},
 		Error:          nullError(outcome.err),
 		ID:             dispatchID,
+		ChatID:         event.ChatID,
+		OwnerID:        event.OwnerID,
 	})
 	if err != nil {
 		return xerrors.Errorf("finalize chat hook dispatch: %w", err)

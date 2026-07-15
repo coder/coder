@@ -2705,7 +2705,20 @@ func (q *querier) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, 
 }
 
 func (q *querier) FinalizeChatHookDispatch(ctx context.Context, arg database.FinalizeChatHookDispatchParams) (database.ChatHookDispatch, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if errors.Is(err, sql.ErrNoRows) {
+		// user_prompt_submit dispatches for CreateChat finalize before any
+		// chat row exists; scope the check to the dispatch owner like
+		// InsertChatHookDispatch does.
+		if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).AnyOrganization()); err != nil {
+			return database.ChatHookDispatch{}, err
+		}
+		return q.db.FinalizeChatHookDispatch(ctx, arg)
+	}
+	if err != nil {
+		return database.ChatHookDispatch{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
 		return database.ChatHookDispatch{}, err
 	}
 	return q.db.FinalizeChatHookDispatch(ctx, arg)

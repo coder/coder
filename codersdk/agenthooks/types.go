@@ -109,11 +109,12 @@ type Response struct {
 	Permission   *Permission `json:"permission,omitempty"`
 	ModelContext string      `json:"model_context,omitempty"`
 	UserMessage  string      `json:"user_message,omitempty"`
-	// AllowedTools has no omitempty: an empty array must survive
-	// marshaling because it means "restrict all tools", while null
-	// or absent means "leave the tool policy unchanged".
-	AllowedTools []string `json:"allowed_tools"`
-	EndChat      bool     `json:"end_chat,omitempty"`
+	// AllowedTools is a pointer so consumers can express the tri-state
+	// contract: absent or null leaves the tool policy unchanged, an
+	// empty array restricts all tools, and a non-empty array restricts
+	// exposure to those names.
+	AllowedTools *[]string `json:"allowed_tools,omitempty"`
+	EndChat      bool      `json:"end_chat,omitempty"`
 }
 
 // Permission controls whether mutable hook input may proceed.

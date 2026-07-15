@@ -215,18 +215,16 @@ func TestSendMessageUserPromptSubmitQueue(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued override")}, queuedParts)
+	// The hook prefix must not enter active history while the prompt is
+	// only queued: it rides on the queued row until promotion.
 	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 	require.NoError(t, err)
-	var prefixMessage *database.ChatMessage
 	for i := range messages {
-		if messages[i].TurnID == result.QueuedMessage.TurnID {
-			prefixMessage = &messages[i]
-			break
-		}
+		require.NotEqual(t, messages[i].TurnID, result.QueuedMessage.TurnID,
+			"queued prompt's turn must have no history rows before promotion")
 	}
-	require.NotNil(t, prefixMessage)
-	require.Equal(t, database.ChatMessageVisibilityModel, prefixMessage.Visibility)
-	require.Equal(t, "queued context", hookMessageText(t, *prefixMessage))
+	require.True(t, result.QueuedMessage.HookPrefix.Valid)
+	require.Contains(t, string(result.QueuedMessage.HookPrefix.RawMessage), "queued context")
 }
 
 func TestSendMessageUserPromptSubmitQueuedRejections(t *testing.T) {

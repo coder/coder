@@ -246,7 +246,9 @@ func (tx *Tx) requireQueueCapacity() error {
 
 // insertQueuedMessage inserts a queued user message. created_by falls
 // back to chats.owner_id only when the message does not supply one.
-func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.ChatQueuedMessage, error) {
+// Hook prefix messages ride on the queued row and enter history only
+// when the queued prompt is promoted.
+func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, hookPrefix []Message) (database.ChatQueuedMessage, error) {
 	createdBy := ownerFallback
 	if m.CreatedBy.Valid {
 		createdBy = m.CreatedBy.UUID
@@ -254,6 +256,10 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.
 	rawContent := m.Content.RawMessage
 	if !m.Content.Valid || len(rawContent) == 0 {
 		rawContent = json.RawMessage("null")
+	}
+	encodedPrefix, err := encodeQueuedHookPrefix(hookPrefix)
+	if err != nil {
+		return database.ChatQueuedMessage{}, err
 	}
 	if err := tx.requireQueueCapacity(); err != nil {
 		return database.ChatQueuedMessage{}, err
@@ -266,7 +272,79 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.
 		ReasoningEffort: m.ReasoningEffort,
 		CreatedBy:       createdBy,
 		APIKeyID:        m.APIKeyID,
+		HookPrefix:      encodedPrefix,
 	})
+}
+
+// queuedHookPrefixMessage is the persisted shape of one lifecycle hook
+// prefix message stored on a queued row until promotion. The turn ID is
+// not stored: prefix rows always adopt the queued prompt's turn.
+type queuedHookPrefixMessage struct {
+	Role           database.ChatMessageRole       `json:"role"`
+	Content        json.RawMessage                `json:"content"`
+	Visibility     database.ChatMessageVisibility `json:"visibility"`
+	ModelConfigID  *uuid.UUID                     `json:"model_config_id,omitempty"`
+	CreatedBy      *uuid.UUID                     `json:"created_by,omitempty"`
+	ContentVersion int16                          `json:"content_version"`
+}
+
+func encodeQueuedHookPrefix(prefix []Message) (pqtype.NullRawMessage, error) {
+	if len(prefix) == 0 {
+		return pqtype.NullRawMessage{}, nil
+	}
+	encoded := make([]queuedHookPrefixMessage, 0, len(prefix))
+	for _, m := range prefix {
+		e := queuedHookPrefixMessage{
+			Role:           m.Role,
+			Visibility:     m.Visibility,
+			ContentVersion: m.ContentVersion,
+		}
+		if m.Content.Valid {
+			e.Content = m.Content.RawMessage
+		}
+		if m.ModelConfigID.Valid {
+			id := m.ModelConfigID.UUID
+			e.ModelConfigID = &id
+		}
+		if m.CreatedBy.Valid {
+			id := m.CreatedBy.UUID
+			e.CreatedBy = &id
+		}
+		encoded = append(encoded, e)
+	}
+	raw, err := json.Marshal(encoded)
+	if err != nil {
+		return pqtype.NullRawMessage{}, xerrors.Errorf("marshal queued hook prefix: %w", err)
+	}
+	return pqtype.NullRawMessage{RawMessage: raw, Valid: true}, nil
+}
+
+func decodeQueuedHookPrefix(q database.ChatQueuedMessage) ([]Message, error) {
+	if !q.HookPrefix.Valid {
+		return nil, nil
+	}
+	var encoded []queuedHookPrefixMessage
+	if err := json.Unmarshal(q.HookPrefix.RawMessage, &encoded); err != nil {
+		return nil, xerrors.Errorf("unmarshal queued hook prefix: %w", err)
+	}
+	messages := make([]Message, 0, len(encoded))
+	for _, e := range encoded {
+		m := Message{
+			Role:           e.Role,
+			Content:        pqtype.NullRawMessage{RawMessage: e.Content, Valid: len(e.Content) > 0},
+			Visibility:     e.Visibility,
+			TurnID:         q.TurnID,
+			ContentVersion: e.ContentVersion,
+		}
+		if e.ModelConfigID != nil {
+			m.ModelConfigID = uuid.NullUUID{UUID: *e.ModelConfigID, Valid: true}
+		}
+		if e.CreatedBy != nil {
+			m.CreatedBy = uuid.NullUUID{UUID: *e.CreatedBy, Valid: true}
+		}
+		messages = append(messages, m)
+	}
+	return messages, nil
 }
 
 // messageFromQueuedRow synthesizes a Message from a stored queued row,
@@ -487,10 +565,7 @@ func (tx *Tx) sendMessageDirect(chat database.Chat, prefix []Message, m Message)
 }
 
 func (tx *Tx) sendMessageE1(chat database.Chat, prefix []Message, m Message) (SendMessageResult, error) {
-	if _, err := tx.insertMessages(prefix); err != nil {
-		return SendMessageResult{}, xerrors.Errorf("insert prefix messages: %w", err)
-	}
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, m)
+	queued, err := tx.insertQueuedMessage(chat.OwnerID, m, prefix)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}
@@ -502,8 +577,12 @@ func (tx *Tx) sendMessageE1(chat database.Chat, prefix []Message, m Message) (Se
 	if err != nil {
 		return SendMessageResult{}, err
 	}
+	headPrefix, err := decodeQueuedHookPrefix(head)
+	if err != nil {
+		return SendMessageResult{}, err
+	}
 	promoted := messageFromQueuedRow(head)
-	inserted, err := tx.insertMessages(append(cancels, promoted))
+	inserted, err := tx.insertMessages(append(append(cancels, headPrefix...), promoted))
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert promoted queued head: %w", err)
 	}
@@ -537,10 +616,7 @@ func (tx *Tx) sendMessageQueueAndSetStatus(
 	lastError pqtype.NullRawMessage,
 	deadline sql.NullTime,
 ) (SendMessageResult, error) {
-	if _, err := tx.insertMessages(prefix); err != nil {
-		return SendMessageResult{}, xerrors.Errorf("insert prefix messages: %w", err)
-	}
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, m)
+	queued, err := tx.insertQueuedMessage(chat.OwnerID, m, prefix)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}
@@ -564,10 +640,10 @@ func (tx *Tx) sendMessageInterruptRequiresAction(chat database.Chat, prefix []Me
 	if err != nil {
 		return SendMessageResult{}, err
 	}
-	if _, err := tx.insertMessages(append(cancels, prefix...)); err != nil {
+	if _, err := tx.insertMessages(cancels); err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert requires-action cancellations: %w", err)
 	}
-	return tx.sendMessageQueueAndSetStatus(chat, nil, m, database.ChatStatusRunning, chat.LastError, sql.NullTime{})
+	return tx.sendMessageQueueAndSetStatus(chat, prefix, m, database.ChatStatusRunning, chat.LastError, sql.NullTime{})
 }
 
 // EditMessageInput configures [Tx.EditMessage].
@@ -815,15 +891,19 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 	if err != nil {
 		return PromoteQueuedMessageResult{}, err
 	}
+	targetPrefix, err := decodeQueuedHookPrefix(target)
+	if err != nil {
+		return PromoteQueuedMessageResult{}, err
+	}
 	promotedMsg := messageFromQueuedRow(target)
-	inserted, err := tx.insertMessages(append(cancels, promotedMsg))
+	inserted, err := tx.insertMessages(append(append(cancels, targetPrefix...), promotedMsg))
 	if err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("insert promoted queued message: %w", err)
 	}
-	if len(inserted) != len(cancels)+1 {
+	if len(inserted) != len(cancels)+len(targetPrefix)+1 {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf(
 			"insert promoted queued message: expected %d rows, got %d",
-			len(cancels)+1, len(inserted),
+			len(cancels)+len(targetPrefix)+1, len(inserted),
 		)
 	}
 	if _, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
@@ -842,7 +922,7 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 	}); err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("set running: %w", err)
 	}
-	cancellations := inserted[:len(inserted)-1]
+	cancellations := inserted[:len(cancels)]
 	insertedUserMsg := inserted[len(inserted)-1]
 	return PromoteQueuedMessageResult{
 		QueuedMessage:        target,
@@ -1301,8 +1381,12 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("get queue head: %w", err)
 	}
+	headPrefix, err := decodeQueuedHookPrefix(head)
+	if err != nil {
+		return FinishInterruptionResult{}, err
+	}
 	promotedMsg := messageFromQueuedRow(head)
-	insertedHead, err := tx.insertMessages([]Message{promotedMsg})
+	insertedHead, err := tx.insertMessages(append(headPrefix, promotedMsg))
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
 	}
@@ -1324,8 +1408,8 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	}
 	insertedPartial = append(insertedPartial, insertedHead...)
 	var promoted *database.ChatMessage
-	if len(insertedHead) == 1 {
-		promoted = &insertedHead[0]
+	if len(insertedHead) > 0 {
+		promoted = &insertedHead[len(insertedHead)-1]
 	}
 	return FinishInterruptionResult{
 		InsertedMessages: insertedPartial,
@@ -1371,8 +1455,12 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 	if err != nil {
 		return FinishTurnResult{}, err
 	}
+	headPrefix, err := decodeQueuedHookPrefix(head)
+	if err != nil {
+		return FinishTurnResult{}, err
+	}
 	promotedMsg := messageFromQueuedRow(head)
-	inserted, err := tx.insertMessages(append(cancels, promotedMsg))
+	inserted, err := tx.insertMessages(append(append(cancels, headPrefix...), promotedMsg))
 	if err != nil {
 		return FinishTurnResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
 	}

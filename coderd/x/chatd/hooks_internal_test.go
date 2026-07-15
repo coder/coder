@@ -186,7 +186,7 @@ func TestApplySessionStartResponse(t *testing.T) {
 		agenthooks.Response{
 			ModelContext: "model context",
 			UserMessage:  "user notice",
-			AllowedTools: []string{"read_file"},
+			AllowedTools: &[]string{"read_file"},
 		},
 	)
 	require.NoError(t, err)

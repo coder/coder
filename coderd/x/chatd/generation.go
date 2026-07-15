@@ -329,8 +329,11 @@ func (s *taskStarter) startGenerationSession(
 	}
 
 	completed := false
-	// Only task cancellation hands session startup to a replacement task.
-	defer func() { complete(completed || ctx.Err() == nil) }()
+	// Any exit before the response is applied re-arms the tracker so a
+	// replacement task re-dispatches session_start. Marking the claim
+	// completed on failure would silently drop hook effects such as
+	// allowed_tools or model_context for the rest of the runner epoch.
+	defer func() { complete(completed) }()
 	turnID := activeTurnID(messages)
 	response, err := s.server.dispatchSessionStart(ctx, chat, turnID, sessionStartSource(messages))
 	if err != nil {

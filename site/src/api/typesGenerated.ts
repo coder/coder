@@ -1312,11 +1312,12 @@ export interface AgentHookResponse {
 	readonly model_context?: string;
 	readonly user_message?: string;
 	/**
-	 * AllowedTools has no omitempty: an empty array must survive
-	 * marshaling because it means "restrict all tools", while null
-	 * or absent means "leave the tool policy unchanged".
+	 * AllowedTools is a pointer so consumers can express the tri-state
+	 * contract: absent or null leaves the tool policy unchanged, an
+	 * empty array restricts all tools, and a non-empty array restricts
+	 * exposure to those names.
 	 */
-	readonly allowed_tools: readonly string[];
+	readonly allowed_tools?: string[];
 	readonly end_chat?: boolean;
 }
 

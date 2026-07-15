@@ -623,6 +623,8 @@ func recordPreToolUseDecision(
 		DecisionReason: sql.NullString{String: reason, Valid: reason != ""},
 		InputOverride:  nullRawMessage(override),
 		ID:             dispatchID,
+		ChatID:         chatID,
+		OwnerID:        ownerID,
 	})
 	require.NoError(t, err)
 }

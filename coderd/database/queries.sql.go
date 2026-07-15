@@ -5230,6 +5230,8 @@ SET
 	end_chat = $11::boolean,
 	error = $12::text
 WHERE id = $13::uuid
+	AND chat_id = $14::uuid
+	AND owner_id = $15::uuid
 RETURNING id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason
 `
 
@@ -5247,6 +5249,8 @@ type FinalizeChatHookDispatchParams struct {
 	EndChat        sql.NullBool          `db:"end_chat" json:"end_chat"`
 	Error          sql.NullString        `db:"error" json:"error"`
 	ID             uuid.UUID             `db:"id" json:"id"`
+	ChatID         uuid.UUID             `db:"chat_id" json:"chat_id"`
+	OwnerID        uuid.UUID             `db:"owner_id" json:"owner_id"`
 }
 
 func (q *sqlQuerier) FinalizeChatHookDispatch(ctx context.Context, arg FinalizeChatHookDispatchParams) (ChatHookDispatch, error) {
@@ -5264,6 +5268,8 @@ func (q *sqlQuerier) FinalizeChatHookDispatch(ctx context.Context, arg FinalizeC
 		arg.EndChat,
 		arg.Error,
 		arg.ID,
+		arg.ChatID,
+		arg.OwnerID,
 	)
 	var i ChatHookDispatch
 	err := row.Scan(
@@ -8283,7 +8289,7 @@ func (q *sqlQuerier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]Get
 }
 
 const getChatQueuedMessageByID = `-- name: GetChatQueuedMessageByID :one
-SELECT id, chat_id, content, created_at, model_config_id, api_key_id, position, created_by, reasoning_effort, turn_id FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, api_key_id, position, created_by, reasoning_effort, turn_id, hook_prefix FROM chat_queued_messages
 WHERE id = $1::bigint AND chat_id = $2::uuid
 `
 
@@ -8306,12 +8312,13 @@ func (q *sqlQuerier) GetChatQueuedMessageByID(ctx context.Context, arg GetChatQu
 		&i.CreatedBy,
 		&i.ReasoningEffort,
 		&i.TurnID,
+		&i.HookPrefix,
 	)
 	return i, err
 }
 
 const getChatQueuedMessageHead = `-- name: GetChatQueuedMessageHead :one
-SELECT id, chat_id, content, created_at, model_config_id, api_key_id, position, created_by, reasoning_effort, turn_id FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, api_key_id, position, created_by, reasoning_effort, turn_id, hook_prefix FROM chat_queued_messages
 WHERE chat_id = $1::uuid
 ORDER BY position ASC, id ASC
 LIMIT 1
@@ -8332,12 +8339,13 @@ func (q *sqlQuerier) GetChatQueuedMessageHead(ctx context.Context, chatID uuid.U
 		&i.CreatedBy,
 		&i.ReasoningEffort,
 		&i.TurnID,
+		&i.HookPrefix,
 	)
 	return i, err
 }
 
 const getChatQueuedMessages = `-- name: GetChatQueuedMessages :many
-SELECT id, chat_id, content, created_at, model_config_id, api_key_id, position, created_by, reasoning_effort, turn_id FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, api_key_id, position, created_by, reasoning_effort, turn_id, hook_prefix FROM chat_queued_messages
 WHERE chat_id = $1
 ORDER BY created_at ASC, id ASC
 `
@@ -8362,6 +8370,7 @@ func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID
 			&i.CreatedBy,
 			&i.ReasoningEffort,
 			&i.TurnID,
+			&i.HookPrefix,
 		); err != nil {
 			return nil, err
 		}
@@ -8377,7 +8386,7 @@ func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID
 }
 
 const getChatQueuedMessagesByPosition = `-- name: GetChatQueuedMessagesByPosition :many
-SELECT id, chat_id, content, created_at, model_config_id, api_key_id, position, created_by, reasoning_effort, turn_id FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, api_key_id, position, created_by, reasoning_effort, turn_id, hook_prefix FROM chat_queued_messages
 WHERE chat_id = $1::uuid
 ORDER BY position ASC, id ASC
 `
@@ -8403,6 +8412,7 @@ func (q *sqlQuerier) GetChatQueuedMessagesByPosition(ctx context.Context, chatID
 			&i.CreatedBy,
 			&i.ReasoningEffort,
 			&i.TurnID,
+			&i.HookPrefix,
 		); err != nil {
 			return nil, err
 		}
@@ -10153,7 +10163,7 @@ SELECT
     chats.owner_id
 FROM chats
 WHERE chats.id = $1::uuid
-RETURNING id, chat_id, content, created_at, model_config_id, api_key_id, position, created_by, reasoning_effort, turn_id
+RETURNING id, chat_id, content, created_at, model_config_id, api_key_id, position, created_by, reasoning_effort, turn_id, hook_prefix
 `
 
 type InsertChatQueuedMessageParams struct {
@@ -10189,12 +10199,13 @@ func (q *sqlQuerier) InsertChatQueuedMessage(ctx context.Context, arg InsertChat
 		&i.CreatedBy,
 		&i.ReasoningEffort,
 		&i.TurnID,
+		&i.HookPrefix,
 	)
 	return i, err
 }
 
 const insertChatQueuedMessageWithCreator = `-- name: InsertChatQueuedMessageWithCreator :one
-INSERT INTO chat_queued_messages (chat_id, turn_id, content, model_config_id, reasoning_effort, api_key_id, created_by)
+INSERT INTO chat_queued_messages (chat_id, turn_id, content, model_config_id, reasoning_effort, api_key_id, created_by, hook_prefix)
 VALUES (
     $1::uuid,
     $2::uuid,
@@ -10202,9 +10213,10 @@ VALUES (
     $4::uuid,
     $5::chat_reasoning_effort,
     $6::text,
-    $7::uuid
+    $7::uuid,
+    $8::jsonb
 )
-RETURNING id, chat_id, content, created_at, model_config_id, api_key_id, position, created_by, reasoning_effort, turn_id
+RETURNING id, chat_id, content, created_at, model_config_id, api_key_id, position, created_by, reasoning_effort, turn_id, hook_prefix
 `
 
 type InsertChatQueuedMessageWithCreatorParams struct {
@@ -10215,6 +10227,7 @@ type InsertChatQueuedMessageWithCreatorParams struct {
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 	APIKeyID        sql.NullString          `db:"api_key_id" json:"api_key_id"`
 	CreatedBy       uuid.UUID               `db:"created_by" json:"created_by"`
+	HookPrefix      pqtype.NullRawMessage   `db:"hook_prefix" json:"hook_prefix"`
 }
 
 // Inserts a queued message that carries a position (from the default
@@ -10229,6 +10242,7 @@ func (q *sqlQuerier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg
 		arg.ReasoningEffort,
 		arg.APIKeyID,
 		arg.CreatedBy,
+		arg.HookPrefix,
 	)
 	var i ChatQueuedMessage
 	err := row.Scan(
@@ -10242,6 +10256,7 @@ func (q *sqlQuerier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg
 		&i.CreatedBy,
 		&i.ReasoningEffort,
 		&i.TurnID,
+		&i.HookPrefix,
 	)
 	return i, err
 }
@@ -10709,7 +10724,7 @@ WHERE id = (
     ORDER BY cqm.created_at ASC, cqm.id ASC
     LIMIT 1
 )
-RETURNING id, chat_id, content, created_at, model_config_id, api_key_id, position, created_by, reasoning_effort, turn_id
+RETURNING id, chat_id, content, created_at, model_config_id, api_key_id, position, created_by, reasoning_effort, turn_id, hook_prefix
 `
 
 func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error) {
@@ -10726,6 +10741,7 @@ func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID)
 		&i.CreatedBy,
 		&i.ReasoningEffort,
 		&i.TurnID,
+		&i.HookPrefix,
 	)
 	return i, err
 }

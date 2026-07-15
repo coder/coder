@@ -1269,10 +1269,12 @@ func (s *MethodTestSuite) TestChats() {
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(dispatch)
 	}))
 	s.Run("FinalizeChatHookDispatch", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		arg := testutil.Fake(s.T(), faker, database.FinalizeChatHookDispatchParams{})
-		dispatch := testutil.Fake(s.T(), faker, database.ChatHookDispatch{ID: arg.ID})
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := testutil.Fake(s.T(), faker, database.FinalizeChatHookDispatchParams{ChatID: chat.ID})
+		dispatch := testutil.Fake(s.T(), faker, database.ChatHookDispatch{ID: arg.ID, ChatID: chat.ID})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().FinalizeChatHookDispatch(gomock.Any(), arg).Return(dispatch, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(dispatch)
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(dispatch)
 	}))
 	s.Run("UpdateChatHookAllowedTools", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})

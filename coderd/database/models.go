@@ -5181,6 +5181,7 @@ type ChatQueuedMessage struct {
 	// Stores the selected effort until the queued row is promoted.
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 	TurnID          uuid.NullUUID           `db:"turn_id" json:"turn_id"`
+	HookPrefix      pqtype.NullRawMessage   `db:"hook_prefix" json:"hook_prefix"`
 }
 
 type ChatTable struct {

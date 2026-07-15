@@ -36,6 +36,8 @@ SET
 	end_chat = sqlc.narg('end_chat')::boolean,
 	error = sqlc.narg('error')::text
 WHERE id = @id::uuid
+	AND chat_id = @chat_id::uuid
+	AND owner_id = @owner_id::uuid
 RETURNING *;
 
 -- name: DeleteOldChatHookDispatches :execrows

@@ -2024,7 +2024,8 @@ CREATE TABLE chat_queued_messages (
     "position" bigint DEFAULT nextval('chat_queued_messages_position_seq'::regclass) NOT NULL,
     created_by uuid NOT NULL,
     reasoning_effort chat_reasoning_effort,
-    turn_id uuid
+    turn_id uuid,
+    hook_prefix jsonb
 );
 
 COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'Stores the selected effort until the queued row is promoted.';
