@@ -735,6 +735,19 @@ jobs:
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
+      - name: Trim Go build cache
+        if: github.ref == 'refs/heads/main' && success()
+        shell: bash
+        # Go retains build cache files for five days. Keep only entries used by
+        # this run before actions/cache saves the restored cache.
+        run: |
+          set -euo pipefail
+          cache_dir="$(go env GOCACHE)"
+          if command -v cygpath >/dev/null 2>&1; then
+            cache_dir="$(cygpath -u "${cache_dir}")"
+          fi
+          find "${cache_dir}" -type f -mmin +90 -delete
+
   test-go-pg-17:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs:
