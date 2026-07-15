@@ -2523,6 +2523,19 @@ func (s *MethodTestSuite) TestOrganization() {
 
 		check.Args(arg).Asserts(mem, policy.ActionRead)
 	}))
+	s.Run("PaginatedOrganizationGroups", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{})
+		g := testutil.Fake(s.T(), faker, database.Group{OrganizationID: o.ID})
+		arg := database.PaginatedOrganizationGroupsParams{OrganizationID: o.ID, LimitOpt: 0}
+		rows := []database.PaginatedOrganizationGroupsRow{{
+			Group:                   g,
+			OrganizationName:        o.Name,
+			OrganizationDisplayName: o.DisplayName,
+			Count:                   1,
+		}}
+		dbm.EXPECT().PaginatedOrganizationGroups(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceGroup.InOrg(o.ID), policy.ActionRead).Returns(rows)
+	}))
 	s.Run("PaginatedOrganizationMembers", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		o := testutil.Fake(s.T(), faker, database.Organization{})
 		u := testutil.Fake(s.T(), faker, database.User{})

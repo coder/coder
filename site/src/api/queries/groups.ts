@@ -3,6 +3,7 @@ import {
 	API,
 	type GroupMembersResponseWithAICostControl,
 	type GroupWithAICostControl,
+	type PaginatedGroupsResponseWithAICostControl,
 } from "#/api/api";
 import { isApiError } from "#/api/errors";
 import type {
@@ -40,6 +41,38 @@ export const groupsByOrganization = (organization: string) => {
 		queryFn: () => API.getGroupsByOrganization(organization),
 	} satisfies UseQueryOptions<GroupWithAICostControl[]>;
 };
+
+const getPaginatedGroupsByOrganizationQueryKey = (
+	organization: string,
+	req?: UsersRequest,
+) => {
+	const base = ["organization", organization, "paginated-groups"];
+	return req ? [...base, req] : base;
+};
+
+export function paginatedGroupsByOrganization(
+	organization: string,
+	searchParams: URLSearchParams,
+): UsePaginatedQueryOptions<
+	PaginatedGroupsResponseWithAICostControl,
+	UsersRequest
+> {
+	return {
+		searchParams,
+		queryPayload: ({ limit, offset }) => {
+			return {
+				limit,
+				offset,
+				q: prepareQuery(searchParams.get("filter") ?? ""),
+			};
+		},
+
+		queryKey: ({ payload }) =>
+			getPaginatedGroupsByOrganizationQueryKey(organization, payload),
+		queryFn: ({ payload }) =>
+			API.getOrganizationPaginatedGroups(organization, payload),
+	};
+}
 
 const getRootGroupQueryKey = (organization: string, groupName: string) => [
 	"organization",

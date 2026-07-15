@@ -89,6 +89,37 @@ WHERE
 LIMIT NULLIF(@limit_opt :: int, 0)
 ;
 
+-- name: PaginatedOrganizationGroups :many
+SELECT
+		sqlc.embed(groups),
+		organizations.name AS organization_name,
+		organizations.display_name AS organization_display_name,
+		COUNT(*) OVER() AS count
+FROM
+		groups
+INNER JOIN
+		organizations ON groups.organization_id = organizations.id
+WHERE
+		true
+		AND CASE
+				WHEN @organization_id:: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+						groups.organization_id = @organization_id
+				ELSE true
+		END
+		-- Filter by group name or display name (substring, case-insensitive).
+		AND CASE WHEN @search :: text != '' THEN (
+				groups.name ILIKE concat('%', @search, '%')
+				OR groups.display_name ILIKE concat('%', @search, '%')
+			)
+			ELSE true
+		END
+ORDER BY
+		-- Deterministic and consistent ordering of all groups. This is to ensure consistent pagination.
+		LOWER(groups.name) ASC OFFSET @offset_opt
+LIMIT
+		-- A null limit means "no limit", so 0 means return all
+		NULLIF(@limit_opt :: int, 0);
+
 -- name: InsertGroup :one
 INSERT INTO groups (
 	id,

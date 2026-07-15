@@ -512,6 +512,14 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Get("/members", api.groupMembersByOrganization)
 			})
 		})
+		r.Route("/organizations/{organization}/paginated-groups", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.templateRBACEnabledMW,
+				httpmw.ExtractOrganizationParam(api.Database),
+			)
+			r.Get("/", api.paginatedGroups)
+		})
 		r.Route("/provisionerkeys", func(r chi.Router) {
 			r.Use(
 				httpmw.ExtractProvisionerDaemonAuthenticated(httpmw.ExtractProvisionerAuthConfig{

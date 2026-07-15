@@ -9,6 +9,9 @@ import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import type { useFilter } from "#/components/Filter/Filter";
+import { GroupsFilter } from "#/components/Filter/GroupsFilter";
+import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
@@ -24,14 +27,19 @@ import {
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
+import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
 import { docs } from "#/utils/docs";
 import { InfoIconTooltip } from "./InfoIconTooltip";
 
 type GroupsPageViewProps = {
-	groups: GroupWithAICostControl[] | undefined;
+	groups: readonly GroupWithAICostControl[] | undefined;
 	canCreateGroup: boolean;
 	groupsEnabled: boolean;
 	showAIBudget: boolean;
+	filterProps: { filter: ReturnType<typeof useFilter> };
+	groupsQuery: PaginationResultInfo & {
+		isPlaceholderData: boolean;
+	};
 };
 
 export const GroupsPageView: FC<GroupsPageViewProps> = ({
@@ -39,6 +47,8 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	canCreateGroup,
 	groupsEnabled,
 	showAIBudget,
+	filterProps,
+	groupsQuery,
 }) => {
 	if (!groupsEnabled) {
 		return (
@@ -51,37 +61,42 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	}
 
 	return (
-		<Table aria-label="Groups">
-			<TableHeader>
-				<TableRow>
-					<TableHead className="w-2/5">Name</TableHead>
-					<TableHead className={showAIBudget ? "w-1/5" : "w-3/5"}>
-						Users
-					</TableHead>
-					{showAIBudget && (
-						<TableHead className="w-2/5">
-							<div className="flex items-center gap-1">
-								AI budget
-								<InfoIconTooltip message="Current AI spend compared to the group's AI budget for the active period." />
-							</div>
-						</TableHead>
-					)}
-					<TableHead className="w-auto" />
-				</TableRow>
-			</TableHeader>
-			<TableBody>
-				<GroupsTableBody
-					groups={groups}
-					canCreateGroup={canCreateGroup}
-					showAIBudget={showAIBudget}
-				/>
-			</TableBody>
-		</Table>
+		<div className="flex flex-col gap-4">
+			<GroupsFilter {...filterProps} />
+			<PaginationContainer query={groupsQuery} paginationUnitLabel="groups">
+				<Table aria-label="Groups">
+					<TableHeader>
+						<TableRow>
+							<TableHead className="w-2/5">Name</TableHead>
+							<TableHead className={showAIBudget ? "w-1/5" : "w-3/5"}>
+								Users
+							</TableHead>
+							{showAIBudget && (
+								<TableHead className="w-2/5">
+									<div className="flex items-center gap-1">
+										AI budget
+										<InfoIconTooltip message="Current AI spend compared to the group's AI budget for the active period." />
+									</div>
+								</TableHead>
+							)}
+							<TableHead className="w-auto" />
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						<GroupsTableBody
+							groups={groups}
+							canCreateGroup={canCreateGroup}
+							showAIBudget={showAIBudget}
+						/>
+					</TableBody>
+				</Table>
+			</PaginationContainer>
+		</div>
 	);
 };
 
 interface GroupsTableBodyProps {
-	groups: GroupWithAICostControl[] | undefined;
+	groups: readonly GroupWithAICostControl[] | undefined;
 	canCreateGroup: boolean;
 	showAIBudget: boolean;
 }

@@ -6593,6 +6593,12 @@ export interface OrganizationSyncSettings {
 	readonly organization_assign_default: boolean;
 }
 
+// From codersdk/groups.go
+export interface PaginatedGroupsResponse {
+	readonly groups: readonly Group[];
+	readonly count: number;
+}
+
 // From codersdk/organizations.go
 export interface PaginatedMembersRequest {
 	readonly limit?: number;

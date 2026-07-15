@@ -9260,6 +9260,51 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | » `[any property]`            | array of string | false    |              |                                                                                                                                                                                     |
 | `organization_assign_default` | boolean         | false    |              | Organization assign default will ensure the default org is always included for every user, regardless of their claims. This preserves legacy behavior.                              |
 
+## codersdk.PaginatedGroupsResponse
+
+```json
+{
+  "count": 0,
+  "groups": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_service_account": true,
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "source": "user",
+      "total_member_count": 0
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                      | Required | Restrictions | Description |
+|----------|-------------------------------------------|----------|--------------|-------------|
+| `count`  | integer                                   | false    |              |             |
+| `groups` | array of [codersdk.Group](#codersdkgroup) | false    |              |             |
+
 ## codersdk.PaginatedMembersResponse
 
 ```json

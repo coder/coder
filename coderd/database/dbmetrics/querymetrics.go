@@ -4865,6 +4865,14 @@ func (m queryMetricsStore) OrganizationMembers(ctx context.Context, arg database
 	return r0, r1
 }
 
+func (m queryMetricsStore) PaginatedOrganizationGroups(ctx context.Context, arg database.PaginatedOrganizationGroupsParams) ([]database.PaginatedOrganizationGroupsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.PaginatedOrganizationGroups(ctx, arg)
+	m.queryLatencies.WithLabelValues("PaginatedOrganizationGroups").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PaginatedOrganizationGroups").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) PaginatedOrganizationMembers(ctx context.Context, arg database.PaginatedOrganizationMembersParams) ([]database.PaginatedOrganizationMembersRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.PaginatedOrganizationMembers(ctx, arg)

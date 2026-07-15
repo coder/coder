@@ -9174,6 +9174,21 @@ func (mr *MockStoreMockRecorder) PGLocks(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PGLocks", reflect.TypeOf((*MockStore)(nil).PGLocks), ctx)
 }
 
+// PaginatedOrganizationGroups mocks base method.
+func (m *MockStore) PaginatedOrganizationGroups(ctx context.Context, arg database.PaginatedOrganizationGroupsParams) ([]database.PaginatedOrganizationGroupsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PaginatedOrganizationGroups", ctx, arg)
+	ret0, _ := ret[0].([]database.PaginatedOrganizationGroupsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PaginatedOrganizationGroups indicates an expected call of PaginatedOrganizationGroups.
+func (mr *MockStoreMockRecorder) PaginatedOrganizationGroups(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PaginatedOrganizationGroups", reflect.TypeOf((*MockStore)(nil).PaginatedOrganizationGroups), ctx, arg)
+}
+
 // PaginatedOrganizationMembers mocks base method.
 func (m *MockStore) PaginatedOrganizationMembers(ctx context.Context, arg database.PaginatedOrganizationMembersParams) ([]database.PaginatedOrganizationMembersRow, error) {
 	m.ctrl.T.Helper()

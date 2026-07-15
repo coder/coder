@@ -5405,6 +5405,58 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/organizations/{organization}/paginated-groups": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get groups by organization (paginated)",
+                "operationId": "get-groups-by-organization-paginated",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search query",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PaginatedGroupsResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/organizations/{organization}/paginated-members": {
             "get": {
                 "produces": [
@@ -21749,6 +21801,20 @@ const docTemplate = `{
                 "organization_assign_default": {
                     "description": "AssignDefault will ensure the default org is always included\nfor every user, regardless of their claims. This preserves legacy behavior.",
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.PaginatedGroupsResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Group"
+                    }
                 }
             }
         },

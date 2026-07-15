@@ -48,6 +48,11 @@ type GroupMembersResponse struct {
 	Count int           `json:"count"`
 }
 
+type PaginatedGroupsResponse struct {
+	Groups []Group `json:"groups"`
+	Count  int     `json:"count"`
+}
+
 func (g Group) IsEveryone() bool {
 	return g.ID == g.OrganizationID
 }
@@ -132,6 +137,26 @@ func (c *Client) GroupByOrgAndName(ctx context.Context, orgID uuid.UUID, name st
 		return Group{}, ReadBodyAsError(res)
 	}
 	var resp Group
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GroupsPaginated lists filtered and paginated groups in an organization.
+func (c *Client) GroupsPaginated(ctx context.Context, orgID uuid.UUID, req UsersRequest) (PaginatedGroupsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/paginated-groups", orgID.String()),
+		nil,
+		req.Pagination.asRequestOption(),
+		req.asRequestOption(),
+	)
+	if err != nil {
+		return PaginatedGroupsResponse{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return PaginatedGroupsResponse{}, ReadBodyAsError(res)
+	}
+	var resp PaginatedGroupsResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

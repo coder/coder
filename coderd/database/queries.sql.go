@@ -14860,6 +14860,92 @@ func (q *sqlQuerier) InsertMissingGroups(ctx context.Context, arg InsertMissingG
 	return items, nil
 }
 
+const paginatedOrganizationGroups = `-- name: PaginatedOrganizationGroups :many
+SELECT
+		groups.id, groups.name, groups.organization_id, groups.avatar_url, groups.quota_allowance, groups.display_name, groups.source, groups.chat_spend_limit_micros,
+		organizations.name AS organization_name,
+		organizations.display_name AS organization_display_name,
+		COUNT(*) OVER() AS count
+FROM
+		groups
+INNER JOIN
+		organizations ON groups.organization_id = organizations.id
+WHERE
+		true
+		AND CASE
+				WHEN $1:: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+						groups.organization_id = $1
+				ELSE true
+		END
+		-- Filter by group name or display name (substring, case-insensitive).
+		AND CASE WHEN $2 :: text != '' THEN (
+				groups.name ILIKE concat('%', $2, '%')
+				OR groups.display_name ILIKE concat('%', $2, '%')
+			)
+			ELSE true
+		END
+ORDER BY
+		-- Deterministic and consistent ordering of all groups. This is to ensure consistent pagination.
+		LOWER(groups.name) ASC OFFSET $3
+LIMIT
+		-- A null limit means "no limit", so 0 means return all
+		NULLIF($4 :: int, 0)
+`
+
+type PaginatedOrganizationGroupsParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Search         string    `db:"search" json:"search"`
+	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+type PaginatedOrganizationGroupsRow struct {
+	Group                   Group  `db:"group" json:"group"`
+	OrganizationName        string `db:"organization_name" json:"organization_name"`
+	OrganizationDisplayName string `db:"organization_display_name" json:"organization_display_name"`
+	Count                   int64  `db:"count" json:"count"`
+}
+
+func (q *sqlQuerier) PaginatedOrganizationGroups(ctx context.Context, arg PaginatedOrganizationGroupsParams) ([]PaginatedOrganizationGroupsRow, error) {
+	rows, err := q.db.QueryContext(ctx, paginatedOrganizationGroups,
+		arg.OrganizationID,
+		arg.Search,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PaginatedOrganizationGroupsRow
+	for rows.Next() {
+		var i PaginatedOrganizationGroupsRow
+		if err := rows.Scan(
+			&i.Group.ID,
+			&i.Group.Name,
+			&i.Group.OrganizationID,
+			&i.Group.AvatarURL,
+			&i.Group.QuotaAllowance,
+			&i.Group.DisplayName,
+			&i.Group.Source,
+			&i.Group.ChatSpendLimitMicros,
+			&i.OrganizationName,
+			&i.OrganizationDisplayName,
+			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateGroupByID = `-- name: UpdateGroupByID :one
 UPDATE
 	groups

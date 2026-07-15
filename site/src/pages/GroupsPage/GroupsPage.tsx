@@ -1,19 +1,21 @@
 import { PlusIcon } from "lucide-react";
 import { type FC, useEffect } from "react";
 import { useQuery } from "react-query";
-import { Link as RouterLink } from "react-router";
+import { Link as RouterLink, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import { groupsByOrganization } from "#/api/queries/groups";
+import { paginatedGroupsByOrganization } from "#/api/queries/groups";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { useFilter } from "#/components/Filter/Filter";
 import { Loader } from "#/components/Loader/Loader";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -29,9 +31,14 @@ const GroupsPage: FC = () => {
 	// the cost-control feature is stable.
 	const aibridgeVisible =
 		Boolean(aibridge) && experiments.includes("ai-gateway-cost-control");
-	const groupsQuery = useQuery({
-		...groupsByOrganization(organization?.name ?? ""),
-		enabled: Boolean(organization),
+	const [searchParams, setSearchParams] = useSearchParams();
+	const groupsQuery = usePaginatedQuery(
+		paginatedGroupsByOrganization(organization?.name ?? "", searchParams),
+	);
+	const filter = useFilter({
+		searchParams,
+		onSearchParamsChange: setSearchParams,
+		onUpdate: groupsQuery.goToFirstPage,
 	});
 	const permissionsQuery = useQuery({
 		...organizationsPermissions([organization?.id ?? ""]),
@@ -105,10 +112,12 @@ const GroupsPage: FC = () => {
 			</div>
 
 			<GroupsPageView
-				groups={groupsQuery.data}
+				groups={groupsQuery.data?.groups}
 				canCreateGroup={permissions.createGroup}
 				groupsEnabled={groupsEnabled}
 				showAIBudget={aibridgeVisible}
+				filterProps={{ filter }}
+				groupsQuery={groupsQuery}
 			/>
 		</div>
 	);

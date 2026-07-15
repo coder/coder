@@ -222,6 +222,11 @@ export type GroupMembersResponseWithAICostControl = Omit<
 	"users"
 > &
 	Readonly<{ users: readonly GroupMemberWithAICostControl[] }>;
+export type PaginatedGroupsResponseWithAICostControl = Omit<
+	TypesGen.PaginatedGroupsResponse,
+	"groups"
+> &
+	Readonly<{ groups: readonly GroupWithAICostControl[] }>;
 
 export function watchInboxNotifications(
 	params?: WatchInboxNotificationsParams,
@@ -2236,6 +2241,22 @@ class ApiMethods {
 		const response = await this.axios.get(
 			`/api/v2/organizations/${organization}/groups`,
 		);
+		return response.data;
+	};
+
+	/**
+	 * @param organization Can be the organization's ID or name
+	 * @param options Pagination and search options
+	 */
+	getOrganizationPaginatedGroups = async (
+		organization: string,
+		options?: TypesGen.UsersRequest,
+	): Promise<PaginatedGroupsResponseWithAICostControl> => {
+		const url = getURLWithSearchParams(
+			`/api/v2/organizations/${organization}/paginated-groups`,
+			options,
+		);
+		const response = await this.axios.get(url);
 		return response.data;
 	};
 
