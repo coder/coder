@@ -2,6 +2,8 @@ DROP VIEW IF EXISTS chats_expanded;
 
 DROP TABLE chat_hook_dispatches;
 
+ALTER TABLE chat_queued_messages DROP COLUMN turn_id;
+ALTER TABLE chat_messages DROP COLUMN turn_id;
 ALTER TABLE chats DROP COLUMN hook_allowed_tools;
 
 CREATE VIEW chats_expanded AS

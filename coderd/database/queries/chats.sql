@@ -831,6 +831,7 @@ updated_chat AS (
 )
 INSERT INTO chat_messages (
     chat_id,
+    turn_id,
     created_by,
     api_key_id,
     model_config_id,
@@ -852,6 +853,7 @@ INSERT INTO chat_messages (
 )
 SELECT
     @chat_id::uuid,
+    NULLIF(UNNEST(@turn_id::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
     NULLIF(UNNEST(@created_by::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
     NULLIF(UNNEST(@api_key_id::text[]), ''),
     NULLIF(UNNEST(@model_config_id::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
@@ -1779,9 +1781,10 @@ RETURNING
 -- Legacy queue insertion path. When no caller-supplied creator exists,
 -- preserve the created_by invariant by attributing the queued row to the
 -- chat owner.
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, api_key_id, created_by)
+INSERT INTO chat_queued_messages (chat_id, turn_id, content, model_config_id, reasoning_effort, api_key_id, created_by)
 SELECT
     @chat_id::uuid,
+    sqlc.narg('turn_id')::uuid,
     @content::jsonb,
     sqlc.narg('model_config_id')::uuid,
     sqlc.narg('reasoning_effort')::chat_reasoning_effort,
@@ -2790,9 +2793,10 @@ SELECT NOW()::timestamptz AS now;
 -- Inserts a queued message that carries a position (from the default
 -- sequence) and an explicit created_by reference. Use this when the
 -- queued-message creator differs from the chat owner.
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, api_key_id, created_by)
+INSERT INTO chat_queued_messages (chat_id, turn_id, content, model_config_id, reasoning_effort, api_key_id, created_by)
 VALUES (
     @chat_id::uuid,
+    sqlc.narg('turn_id')::uuid,
     @content::jsonb,
     sqlc.narg('model_config_id')::uuid,
     sqlc.narg('reasoning_effort')::chat_reasoning_effort,

@@ -232,6 +232,7 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.
 	}
 	return tx.store.InsertChatQueuedMessageWithCreator(tx.ctx, database.InsertChatQueuedMessageWithCreatorParams{
 		ChatID:          tx.chatID,
+		TurnID:          m.TurnID,
 		Content:         rawContent,
 		ModelConfigID:   m.ModelConfigID,
 		ReasoningEffort: m.ReasoningEffort,
@@ -247,6 +248,7 @@ func messageFromQueuedRow(q database.ChatQueuedMessage) Message {
 		Role:            database.ChatMessageRoleUser,
 		Content:         pqtype.NullRawMessage{RawMessage: q.Content, Valid: q.Content != nil},
 		Visibility:      database.ChatMessageVisibilityBoth,
+		TurnID:          q.TurnID,
 		ModelConfigID:   q.ModelConfigID,
 		ReasoningEffort: q.ReasoningEffort,
 		CreatedBy:       uuid.NullUUID{UUID: q.CreatedBy, Valid: true},
@@ -579,6 +581,7 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 		Role:            database.ChatMessageRoleUser,
 		Content:         input.Content,
 		Visibility:      target.Visibility,
+		TurnID:          target.TurnID,
 		ModelConfigID:   modelConfig,
 		ReasoningEffort: reasoningEffort,
 		CreatedBy:       uuid.NullUUID{UUID: input.CreatedBy, Valid: true},

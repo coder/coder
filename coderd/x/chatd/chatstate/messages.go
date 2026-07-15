@@ -21,6 +21,7 @@ type Message struct {
 	Role                database.ChatMessageRole
 	Content             pqtype.NullRawMessage
 	Visibility          database.ChatMessageVisibility
+	TurnID              uuid.NullUUID
 	ModelConfigID       uuid.NullUUID
 	ReasoningEffort     database.NullChatReasoningEffort
 	CreatedBy           uuid.NullUUID
@@ -48,6 +49,7 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 	n := len(messages)
 	params := database.InsertChatMessagesParams{
 		ChatID:              chatID,
+		TurnID:              make([]uuid.UUID, n),
 		CreatedBy:           make([]uuid.UUID, n),
 		ModelConfigID:       make([]uuid.UUID, n),
 		ReasoningEffort:     make([]string, n),
@@ -68,6 +70,7 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 		RuntimeMs:           make([]int64, n),
 	}
 	for i, m := range messages {
+		params.TurnID[i] = nullUUIDOrNil(m.TurnID)
 		params.CreatedBy[i] = nullUUIDOrNil(m.CreatedBy)
 		params.ModelConfigID[i] = nullUUIDOrNil(m.ModelConfigID)
 		if m.ReasoningEffort.Valid {

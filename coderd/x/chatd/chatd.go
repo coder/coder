@@ -2765,6 +2765,7 @@ func appendMessageFields(
 	msg chatMessage,
 	apiKeyID string,
 ) {
+	params.TurnID = append(params.TurnID, uuid.Nil)
 	params.CreatedBy = append(params.CreatedBy, msg.createdBy)
 	params.APIKeyID = append(params.APIKeyID, apiKeyID)
 	params.ModelConfigID = append(params.ModelConfigID, msg.modelConfigID)

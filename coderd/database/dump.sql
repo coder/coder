@@ -1970,7 +1970,8 @@ CREATE TABLE chat_messages (
     provider_response_id text,
     api_key_id text,
     revision bigint NOT NULL,
-    reasoning_effort chat_reasoning_effort
+    reasoning_effort chat_reasoning_effort,
+    turn_id uuid
 );
 
 COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
@@ -2021,7 +2022,8 @@ CREATE TABLE chat_queued_messages (
     api_key_id text,
     "position" bigint DEFAULT nextval('chat_queued_messages_position_seq'::regclass) NOT NULL,
     created_by uuid NOT NULL,
-    reasoning_effort chat_reasoning_effort
+    reasoning_effort chat_reasoning_effort,
+    turn_id uuid
 );
 
 COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'Stores the selected effort until the queued row is promoted.';

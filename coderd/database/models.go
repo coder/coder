@@ -5147,6 +5147,7 @@ type ChatMessage struct {
 	Revision            int64                 `db:"revision" json:"revision"`
 	// Stores the selected effort for the turn triggered by this message.
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
+	TurnID          uuid.NullUUID           `db:"turn_id" json:"turn_id"`
 }
 
 type ChatModelConfig struct {
@@ -5178,6 +5179,7 @@ type ChatQueuedMessage struct {
 	CreatedBy     uuid.UUID       `db:"created_by" json:"created_by"`
 	// Stores the selected effort until the queued row is promoted.
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
+	TurnID          uuid.NullUUID           `db:"turn_id" json:"turn_id"`
 }
 
 type ChatTable struct {

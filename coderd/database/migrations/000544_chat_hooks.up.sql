@@ -4,6 +4,8 @@
 DROP VIEW IF EXISTS chats_expanded;
 
 ALTER TABLE chats ADD COLUMN hook_allowed_tools jsonb;
+ALTER TABLE chat_messages ADD COLUMN turn_id uuid;
+ALTER TABLE chat_queued_messages ADD COLUMN turn_id uuid;
 
 COMMENT ON COLUMN chats.hook_allowed_tools IS 'Tool names the hook consumer allows for this chat; NULL means no restriction. Applied as an intersection with the configured tool set.';
 
