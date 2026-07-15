@@ -15097,6 +15097,14 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "network_calls": {
+                    "description": "NetworkCalls summarizes the tool/network calls made during the session.\nA nil value means network call monitoring was not active for the\nsession, which the UI surfaces as \"Disabled\".",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgeSessionNetworkCallSummary"
+                        }
+                    ]
+                },
                 "providers": {
                     "type": "array",
                     "items": {
@@ -15112,6 +15120,20 @@ const docTemplate = `{
                 },
                 "token_usage_summary": {
                     "$ref": "#/definitions/codersdk.AIBridgeSessionTokenUsageSummary"
+                }
+            }
+        },
+        "codersdk.AIBridgeSessionNetworkCallSummary": {
+            "type": "object",
+            "properties": {
+                "blocked": {
+                    "type": "integer"
+                },
+                "errored": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },

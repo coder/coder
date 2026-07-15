@@ -121,6 +121,11 @@ Alias: also available at /api/v2/aibridge/sessions for backward compatibility.
       "models": [
         "string"
       ],
+      "network_calls": {
+        "blocked": 0,
+        "errored": 0,
+        "total": 0
+      },
       "providers": [
         "string"
       ],

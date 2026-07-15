@@ -140,8 +140,26 @@ export interface AIBridgeSession {
 	readonly ended_at?: string;
 	readonly threads: number;
 	readonly token_usage_summary: AIBridgeSessionTokenUsageSummary;
+	/**
+	 * NetworkCalls summarizes the tool/network calls made during the session.
+	 * A nil value means network call monitoring was not active for the
+	 * session, which the UI surfaces as "Disabled".
+	 */
+	readonly network_calls?: AIBridgeSessionNetworkCallSummary;
 	readonly last_prompt?: string;
 	readonly last_active_at: string;
+}
+
+// From codersdk/aibridge.go
+/**
+ * AIBridgeSessionNetworkCallSummary aggregates the tool/network calls made
+ * during a session. Blocked counts calls denied by policy; Errored counts
+ * calls that failed to complete.
+ */
+export interface AIBridgeSessionNetworkCallSummary {
+	readonly total: number;
+	readonly blocked: number;
+	readonly errored: number;
 }
 
 // From codersdk/aibridge.go

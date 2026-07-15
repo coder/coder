@@ -515,6 +515,13 @@ LEFT JOIN LATERAL (
 	ORDER BY up.created_at DESC, up.id DESC
 	LIMIT 1
 ) slp ON true
+-- TODO(aibridge network calls): add a LEFT JOIN LATERAL over
+-- aibridge_tool_usages (keyed by sr.interception_ids, mirroring the token
+-- aggregation above) to compute total / blocked / errored network call counts
+-- per session, then expose them as columns for db2sdk.AIBridgeSession to map
+-- onto AIBridgeSession.NetworkCalls. The count expressions already exist in
+-- CalculateAIBridgeInterceptionsTelemetrySummary (injected filters and
+-- invocation_error IS NOT NULL).
 ORDER BY
 	sp.last_active_at DESC,
 	sp.session_id DESC

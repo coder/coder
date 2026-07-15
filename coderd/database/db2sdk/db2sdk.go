@@ -1113,6 +1113,10 @@ func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSess
 			CacheReadInputTokens:  row.CacheReadInputTokens,
 			CacheWriteInputTokens: row.CacheWriteInputTokens,
 		},
+		// TODO(aibridge network calls): populate session.NetworkCalls with the
+		// total/blocked/errored tool call counts once ListAIBridgeSessions
+		// aggregates them from aibridge_tool_usages. Left nil for now so the
+		// field serializes as omitted and the UI renders "Disabled".
 	}
 	// Ensure non-nil slices for JSON serialization.
 	if session.Providers == nil {

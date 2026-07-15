@@ -2198,6 +2198,13 @@ type ListAIBridgeSessionsRow struct {
 // Pagination-first strategy: identify the page of sessions cheaply via a
 // single GROUP BY scan, then do expensive lateral joins (tokens, prompts,
 // first-interception metadata) only for the ~page-size result set.
+// TODO(aibridge network calls): add a LEFT JOIN LATERAL over
+// aibridge_tool_usages (keyed by sr.interception_ids, mirroring the token
+// aggregation above) to compute total / blocked / errored network call counts
+// per session, then expose them as columns for db2sdk.AIBridgeSession to map
+// onto AIBridgeSession.NetworkCalls. The count expressions already exist in
+// CalculateAIBridgeInterceptionsTelemetrySummary (injected filters and
+// invocation_error IS NOT NULL).
 func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeSessionsParams) ([]ListAIBridgeSessionsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAIBridgeSessions,
 		arg.AfterSessionID,
