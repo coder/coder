@@ -212,7 +212,7 @@ const makeBedrockSchema = (editing: boolean) =>
 				otherwise: (schema) =>
 					schema.matches(
 						BEDROCK_CANONICAL_URL_REGEX,
-						"Endpoint must be a standard AWS Bedrock URL.",
+						"Endpoint must be a Bedrock InvokeModel URL (https://bedrock-runtime.{region}.amazonaws.com).",
 					),
 			})
 			.required("Endpoint is required"),
