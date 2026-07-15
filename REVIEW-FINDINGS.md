@@ -136,8 +136,10 @@ ships beyond prototype.
   undefined (fail-closed) when the field is omitted.
 - MEDIUM (licensing): a `WorkspaceCapableUserCountFn` error silently
   falls back to the legacy (higher) count with only an entitlements
-  error string; persistent failure means silent over-counting. Consider
-  a distinct, visible warning.
+  error string. FIXED: count errors now abort the entitlements
+  computation, matching the legacy `GetActiveUserCount` error
+  semantics; the caller keeps the previous entitlements (stale count)
+  instead of a silently different one.
 - MEDIUM (lifecycle, pre-existing): AI Governance seats are
   lifetime-cumulative (`GetActiveAISeatCount` has no time window) and
   do not exclude service accounts, unlike `GetActiveUserCount`.
