@@ -29408,18 +29408,7 @@ SELECT
 			WHERE
 				user_id = users.id
 		)
-	) :: text[] AS roles,
-	-- All groups the user is in.
-	(
-		SELECT
-			array_agg(
-				group_members.group_id :: text
-			)
-		FROM
-			group_members
-		WHERE
-			user_id = users.id
-	) :: text[] AS groups
+	) :: text[] AS roles
 FROM
 	users
 WHERE
@@ -29430,16 +29419,17 @@ WHERE
 `
 
 type GetActiveUsersAuthorizationRolesRow struct {
-	ID     uuid.UUID `db:"id" json:"id"`
-	Roles  []string  `db:"roles" json:"roles"`
-	Groups []string  `db:"groups" json:"groups"`
+	ID    uuid.UUID `db:"id" json:"id"`
+	Roles []string  `db:"roles" json:"roles"`
 }
 
 // Returns the authorization roles (site and org-scoped, including implied
-// member roles and organization default roles) plus group memberships for
-// every user eligible for license seat counting: active, not deleted, and
-// neither a system user nor a service account. Used by permission-based
-// license seat counting to evaluate workspace-create capability.
+// member roles and organization default roles) for every user eligible for
+// license seat counting: active, not deleted, and neither a system user nor
+// a service account. Used by permission-based license seat counting to
+// evaluate workspace-create capability. Group memberships are intentionally
+// not returned: they only influence authorization through object ACL
+// matching, and the seat-count evaluation uses objects without ACLs.
 func (q *sqlQuerier) GetActiveUsersAuthorizationRoles(ctx context.Context) ([]GetActiveUsersAuthorizationRolesRow, error) {
 	rows, err := q.db.QueryContext(ctx, getActiveUsersAuthorizationRoles)
 	if err != nil {
@@ -29449,7 +29439,7 @@ func (q *sqlQuerier) GetActiveUsersAuthorizationRoles(ctx context.Context) ([]Ge
 	var items []GetActiveUsersAuthorizationRolesRow
 	for rows.Next() {
 		var i GetActiveUsersAuthorizationRolesRow
-		if err := rows.Scan(&i.ID, pq.Array(&i.Roles), pq.Array(&i.Groups)); err != nil {
+		if err := rows.Scan(&i.ID, pq.Array(&i.Roles)); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

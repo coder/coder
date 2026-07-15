@@ -333,10 +333,12 @@ type sqlcQuerier interface {
 	GetActivePresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error)
 	GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	// Returns the authorization roles (site and org-scoped, including implied
-	// member roles and organization default roles) plus group memberships for
-	// every user eligible for license seat counting: active, not deleted, and
-	// neither a system user nor a service account. Used by permission-based
-	// license seat counting to evaluate workspace-create capability.
+	// member roles and organization default roles) for every user eligible for
+	// license seat counting: active, not deleted, and neither a system user nor
+	// a service account. Used by permission-based license seat counting to
+	// evaluate workspace-create capability. Group memberships are intentionally
+	// not returned: they only influence authorization through object ACL
+	// matching, and the seat-count evaluation uses objects without ACLs.
 	GetActiveUsersAuthorizationRoles(ctx context.Context) ([]GetActiveUsersAuthorizationRolesRow, error)
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
 	// For PG Coordinator HTMLDebug
