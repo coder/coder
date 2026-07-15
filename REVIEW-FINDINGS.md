@@ -10,7 +10,15 @@ merge to main.
 
 ### 1. Dormant shared workspaces are broken; comments claim the opposite
 
-Severity: HIGH. Flagged by lifecycle and rego reviewers.
+Severity: HIGH. Flagged by lifecycle and rego reviewers. The broken
+behavior is pre-existing on main: `DormantRBAC()` is unchanged by this
+branch, and the list/GET inconsistency for ACL recipients reproduces
+there (list filter is prepared against type `workspace` with ACL
+clauses; direct access evaluates the ACL-less dormant object). What
+this branch introduced is only the contradiction: the dormant
+`use_shared` grant and comments claiming recipients keep access through
+dormancy, which the pre-existing `DormantRBAC()` makes impossible. The
+grant is inert.
 
 `DormantRBAC()` (`coderd/database/modelmethods.go`) attaches no ACLs, so
 ACL recipients get 403 on a dormant shared workspace. The workspaces
