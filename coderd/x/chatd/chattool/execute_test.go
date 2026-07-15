@@ -773,9 +773,6 @@ func (f *fakeRecorder) Claim(_ context.Context, toolCallID string, inputSHA256 s
 		rec.Timeout = timeout
 		rec.ClaimEpoch++
 		rec.ClaimedAt = time.Now()
-		if rec.CreatedAt.IsZero() {
-			rec.CreatedAt = time.Now()
-		}
 		f.records[toolCallID] = rec
 		return rec, true, nil
 	}
@@ -939,7 +936,6 @@ func TestExecuteToolRecorder(t *testing.T) {
 			ProcessID: "proc-1",
 			Command:   "sleep 5",
 			Timeout:   time.Minute,
-			CreatedAt: time.Now(),
 			StartedAt: time.Now(),
 		})
 
@@ -985,7 +981,6 @@ func TestExecuteToolRecorder(t *testing.T) {
 			ProcessID: "proc-1",
 			Command:   "make build",
 			Timeout:   time.Second,
-			CreatedAt: time.Now().Add(-time.Hour),
 			StartedAt: time.Now().Add(-time.Hour),
 		})
 
@@ -1027,7 +1022,6 @@ func TestExecuteToolRecorder(t *testing.T) {
 			ProcessID: "proc-1",
 			Command:   "sleep 600",
 			Timeout:   time.Second,
-			CreatedAt: time.Now().Add(-time.Hour),
 			StartedAt: time.Now().Add(-time.Hour),
 		})
 
@@ -1067,7 +1061,6 @@ func TestExecuteToolRecorder(t *testing.T) {
 			ProcessID: "proc-1",
 			Command:   "rm -rf ./build",
 			Timeout:   time.Minute,
-			CreatedAt: time.Now(),
 			StartedAt: time.Now(),
 		})
 
@@ -1099,7 +1092,6 @@ func TestExecuteToolRecorder(t *testing.T) {
 			ProcessID: "proc-1",
 			Command:   "echo hi",
 			Timeout:   time.Minute,
-			CreatedAt: time.Now(),
 			StartedAt: time.Now(),
 		})
 
@@ -1138,7 +1130,6 @@ func TestExecuteToolRecorder(t *testing.T) {
 			Command:    "npm run dev",
 			Background: true,
 			Timeout:    time.Minute,
-			CreatedAt:  time.Now(),
 			StartedAt:  time.Now(),
 		})
 
@@ -1160,6 +1151,40 @@ func TestExecuteToolRecorder(t *testing.T) {
 		assert.Equal(t, "proc-1", result.BackgroundProcessID)
 	})
 
+	t.Run("WaitSnapshot404MarksUnknown", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{ID: "proc-1", Started: true}, nil)
+		gomock.InOrder(
+			mockConn.EXPECT().
+				ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+				Return(workspacesdk.ProcessOutputResponse{}, xerrors.New("transport failure")),
+			// The recovery snapshot reaches the agent, which
+			// definitively does not know the process anymore.
+			mockConn.EXPECT().
+				ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+				Return(workspacesdk.ProcessOutputResponse{}, notFoundError(t)),
+		)
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "no longer known")
+		assert.NotContains(t, resp.Content, "background_process_id")
+		assert.Equal(t, chattool.ExecutionStatusUnknown, recorder.record("call-1").Status)
+	})
+
 	t.Run("StaleStartingClaimUnknown", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
@@ -1170,7 +1195,6 @@ func TestExecuteToolRecorder(t *testing.T) {
 			Command:    "echo hi",
 			Timeout:    time.Minute,
 			ClaimEpoch: 1,
-			CreatedAt:  time.Now().Add(-2 * time.Minute),
 			ClaimedAt:  time.Now().Add(-2 * time.Minute),
 		})
 
@@ -1198,7 +1222,6 @@ func TestExecuteToolRecorder(t *testing.T) {
 			Command:    "echo hi",
 			Timeout:    time.Minute,
 			ClaimEpoch: 1,
-			CreatedAt:  time.Now(),
 			ClaimedAt:  time.Now(),
 		})
 		// The owning claim records the handle while this attempt

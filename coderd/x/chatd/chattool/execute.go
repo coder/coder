@@ -182,12 +182,8 @@ type ExecutionRecord struct {
 	// ClaimEpoch guards process-identity writes; it advances on
 	// every claim takeover.
 	ClaimEpoch int64
-	CreatedAt  time.Time
 	ClaimedAt  time.Time
 	StartedAt  time.Time
-	// ResultCommitted reports whether a tool result (real or
-	// synthetic) was committed for this call.
-	ResultCommitted bool
 }
 
 // ExecutionRecorder is the tool's view of the execution ledger.
@@ -465,10 +461,7 @@ func reattachProcess(
 		var sdkErr *codersdk.Error
 		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
 			markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
-			return fantasy.NewTextErrorResponse(fmt.Sprintf(
-				"process %s is no longer known to the workspace agent; the command may have run, but its result was lost and the outcome is unknown. Re-run the command only if it is safe to run twice.",
-				rec.ProcessID,
-			))
+			return processLostResponse(rec.ProcessID)
 		}
 		return errorResultWithProcess(
 			fmt.Sprintf("re-attach to process: %v; use process_output with ID %s to retry", err, rec.ProcessID),
@@ -511,10 +504,24 @@ func reattachProcess(
 
 	cmdCtx, cancelWait := context.WithDeadline(ctx, deadline)
 	defer cancelWait()
-	result := waitForProcess(cmdCtx, ctx, conn, rec.ProcessID, rec.Timeout)
+	result, lost := waitForProcess(cmdCtx, ctx, conn, rec.ProcessID, rec.Timeout)
+	if lost {
+		markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
+		return processLostResponse(rec.ProcessID)
+	}
 	result.WallDurationMs = time.Since(rec.StartedAt).Milliseconds()
 	markWaitOutcome(ctx, options, toolCallID, result)
 	return marshalResult(result)
+}
+
+// processLostResponse is the stable result for a process the agent
+// was reached about but no longer knows: the command may have run,
+// but its outcome is unobservable.
+func processLostResponse(processID string) fantasy.ToolResponse {
+	return fantasy.NewTextErrorResponse(fmt.Sprintf(
+		"process %s is no longer known to the workspace agent; the command may have run, but its result was lost and the outcome is unknown. Re-run the command only if it is safe to run twice.",
+		processID,
+	))
 }
 
 // executeBackground starts a process in the background and
@@ -640,7 +647,11 @@ func executeForeground(
 	}
 	recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ID)
 
-	result := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)
+	result, lost := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)
+	if lost {
+		markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
+		return processLostResponse(resp.ID)
+	}
 	result.WallDurationMs = time.Since(start).Milliseconds()
 	markWaitOutcome(ctx, options, toolCallID, result)
 
@@ -667,14 +678,17 @@ func truncateOutput(output string) string {
 // waitForProcess blocks until the process exits or the context
 // expires. On any error (timeout or transport), it tries a
 // non-blocking snapshot to recover. Total wall time may exceed
-// timeout by up to snapshotTimeout if recovery is needed.
+// timeout by up to snapshotTimeout if recovery is needed. lost
+// reports that the agent was reached and definitively does not
+// know the process, so the result is gone and the returned
+// ExecuteResult carries no re-attachable handle.
 func waitForProcess(
 	ctx context.Context,
 	parentCtx context.Context,
 	conn workspacesdk.AgentConn,
 	processID string,
 	timeout time.Duration,
-) ExecuteResult {
+) (result ExecuteResult, lost bool) {
 	// Block until the process exits or the context is
 	// canceled.
 	resp, err := conn.ProcessOutput(ctx, processID, &workspacesdk.ProcessOutputOptions{
@@ -696,6 +710,10 @@ func waitForProcess(
 		defer bgCancel()
 		resp, err = conn.ProcessOutput(bgCtx, processID, nil)
 		if err != nil {
+			var sdkErr *codersdk.Error
+			if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+				return ExecuteResult{Success: false, ExitCode: -1}, true
+			}
 			errMsg := fmt.Sprintf("get process output: %v; use process_output with ID %s to retry", origErr, processID)
 			if timedOut {
 				errMsg = fmt.Sprintf("command timed out after %s; failed to get output: %v", timeout, err)
@@ -705,7 +723,7 @@ func waitForProcess(
 				ExitCode:            -1,
 				Error:               errMsg,
 				BackgroundProcessID: processID,
-			}
+			}, false
 		}
 
 		// Snapshot succeeded. If the process finished, return
@@ -721,7 +739,7 @@ func waitForProcess(
 				Output:    output,
 				ExitCode:  exitCode,
 				Truncated: resp.Truncated,
-			}
+			}, false
 		}
 
 		// Process still running, return partial output.
@@ -737,7 +755,7 @@ func waitForProcess(
 			Error:               errMsg,
 			Truncated:           resp.Truncated,
 			BackgroundProcessID: processID,
-		}
+		}, false
 	}
 
 	// The server-side wait may return before the
@@ -757,7 +775,7 @@ func waitForProcess(
 			Error:               fmt.Sprintf("command timed out after %s", timeout),
 			Truncated:           resp.Truncated,
 			BackgroundProcessID: processID,
-		}
+		}, false
 	}
 
 	exitCode := 0
@@ -770,7 +788,7 @@ func waitForProcess(
 		Output:    output,
 		ExitCode:  exitCode,
 		Truncated: resp.Truncated,
-	}
+	}, false
 }
 
 // errorResult builds a ToolResponse from an ExecuteResult with

@@ -79,12 +79,6 @@ WHERE chat_id = @chat_id::uuid
   AND assistant_message_id = @assistant_message_id::bigint
   AND tool_call_id = @tool_call_id::text;
 
--- name: GetChatToolCallExecutions :many
-SELECT * FROM chat_tool_call_executions
-WHERE chat_id = @chat_id::uuid
-  AND assistant_message_id = @assistant_message_id::bigint
-  AND tool_call_id = ANY(@tool_call_ids::text[]);
-
 -- name: UpdateChatToolCallExecutionProcess :one
 -- Records the started process on the claim that dispatched it. The
 -- claim_epoch guard keeps a superseded claimer from overwriting the
@@ -103,9 +97,9 @@ WHERE chat_id = @chat_id::uuid
 RETURNING *;
 
 -- name: UpdateChatToolCallExecutionStatus :one
--- Applies a lifecycle observation. from_statuses guards the
--- transition so a stale observer never overwrites a state written by
--- the current claim owner or the interrupt reconciler.
+-- Applies a lifecycle observation. from_statuses restricts which
+-- lifecycle states may be overwritten; interrupt-owned states are
+-- never listed, so tool observations cannot clobber them.
 UPDATE chat_tool_call_executions
 SET status = @status::chat_tool_call_execution_status,
     updated_at = @updated_at::timestamptz
@@ -163,8 +157,10 @@ WHERE chat_id = @chat_id::uuid
 RETURNING *;
 
 -- name: DeleteOldChatToolCallExecutions :execrows
--- Bounded retention for the ledger. The timeout clamp and the task
--- attempt cap mean no legitimately live execution reaches this age;
--- everything older is diagnostic history.
+-- Age-based retention of ledger history. Deleting a row never
+-- affects a still-running detached process, which stays addressable
+-- through the process handle in its committed tool result; dedup
+-- protection is not needed at this age because no attempt can still
+-- be re-executing a call this old.
 DELETE FROM chat_tool_call_executions
 WHERE created_at < @before_time::timestamptz;

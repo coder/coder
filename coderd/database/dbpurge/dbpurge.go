@@ -51,9 +51,9 @@ const (
 	// Chat debug run deletions can cascade into steps with large JSONB
 	// payloads, so they use the same conservative batch size.
 	chatDebugRunsBatchSize = 1000
-	// Execution records are normally deleted right after their tool
-	// results commit; rows this old were left behind by attempts that
-	// died before cleanup and are safe to remove.
+	// Execution ledger rows are kept after resolution as diagnostic
+	// history; rows this old can no longer be re-executed by any
+	// attempt, so deleting them only discards diagnostics.
 	chatToolCallExecutionRetention = 7 * 24 * time.Hour
 )
 

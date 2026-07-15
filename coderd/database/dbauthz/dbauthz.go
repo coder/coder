@@ -3550,17 +3550,6 @@ func (q *querier) GetChatToolCallExecution(ctx context.Context, arg database.Get
 	return q.db.GetChatToolCallExecution(ctx, arg)
 }
 
-func (q *querier) GetChatToolCallExecutions(ctx context.Context, arg database.GetChatToolCallExecutionsParams) ([]database.ChatToolCallExecution, error) {
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return nil, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
-		return nil, err
-	}
-	return q.db.GetChatToolCallExecutions(ctx, arg)
-}
-
 func (q *querier) GetChatUsageLimitConfig(ctx context.Context) (database.ChatUsageLimitConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return database.ChatUsageLimitConfig{}, err

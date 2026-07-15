@@ -199,9 +199,11 @@ type sqlcQuerier interface {
 	// 2. Files whose every referencing chat has been archived for longer
 	//    than the retention period.
 	DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error)
-	// Bounded retention for the ledger. The timeout clamp and the task
-	// attempt cap mean no legitimately live execution reaches this age;
-	// everything older is diagnostic history.
+	// Age-based retention of ledger history. Deleting a row never
+	// affects a still-running detached process, which stays addressable
+	// through the process handle in its committed tool result; dedup
+	// protection is not needed at this age because no attempt can still
+	// be re-executing a call this old.
 	DeleteOldChatToolCallExecutions(ctx context.Context, beforeTime time.Time) (int64, error)
 	// Deletes chats that have been archived for longer than the given
 	// threshold. Active (non-archived) chats are never deleted.
@@ -486,7 +488,6 @@ type sqlcQuerier interface {
 	GetChatTemplateAllowlist(ctx context.Context) (string, error)
 	GetChatTitleGenerationModelOverride(ctx context.Context) (string, error)
 	GetChatToolCallExecution(ctx context.Context, arg GetChatToolCallExecutionParams) (ChatToolCallExecution, error)
-	GetChatToolCallExecutions(ctx context.Context, arg GetChatToolCallExecutionsParams) ([]ChatToolCallExecution, error)
 	GetChatUsageLimitConfig(ctx context.Context) (ChatUsageLimitConfig, error)
 	GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (GetChatUsageLimitGroupOverrideRow, error)
 	GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (GetChatUsageLimitUserOverrideRow, error)
@@ -1429,9 +1430,9 @@ type sqlcQuerier interface {
 	// claim_epoch guard keeps a superseded claimer from overwriting the
 	// process identity recorded by the current claim.
 	UpdateChatToolCallExecutionProcess(ctx context.Context, arg UpdateChatToolCallExecutionProcessParams) (ChatToolCallExecution, error)
-	// Applies a lifecycle observation. from_statuses guards the
-	// transition so a stale observer never overwrites a state written by
-	// the current claim owner or the interrupt reconciler.
+	// Applies a lifecycle observation. from_statuses restricts which
+	// lifecycle states may be overwritten; interrupt-owned states are
+	// never listed, so tool observations cannot clobber them.
 	UpdateChatToolCallExecutionStatus(ctx context.Context, arg UpdateChatToolCallExecutionStatusParams) (ChatToolCallExecution, error)
 	UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateChatWorkspaceBindingParams) (Chat, error)
 	UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error)

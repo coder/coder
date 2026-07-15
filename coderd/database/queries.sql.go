@@ -12773,9 +12773,11 @@ DELETE FROM chat_tool_call_executions
 WHERE created_at < $1::timestamptz
 `
 
-// Bounded retention for the ledger. The timeout clamp and the task
-// attempt cap mean no legitimately live execution reaches this age;
-// everything older is diagnostic history.
+// Age-based retention of ledger history. Deleting a row never
+// affects a still-running detached process, which stays addressable
+// through the process handle in its committed tool result; dedup
+// protection is not needed at this age because no attempt can still
+// be re-executing a call this old.
 func (q *sqlQuerier) DeleteOldChatToolCallExecutions(ctx context.Context, beforeTime time.Time) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteOldChatToolCallExecutions, beforeTime)
 	if err != nil {
@@ -12821,61 +12823,6 @@ func (q *sqlQuerier) GetChatToolCallExecution(ctx context.Context, arg GetChatTo
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const getChatToolCallExecutions = `-- name: GetChatToolCallExecutions :many
-SELECT id, chat_id, assistant_message_id, tool_call_id, status, input_sha256, command, background, timeout_secs, claim_epoch, claimed_at, workspace_agent_id, process_id, cancel_signal_sent_at, result_committed_at, created_at, started_at, updated_at FROM chat_tool_call_executions
-WHERE chat_id = $1::uuid
-  AND assistant_message_id = $2::bigint
-  AND tool_call_id = ANY($3::text[])
-`
-
-type GetChatToolCallExecutionsParams struct {
-	ChatID             uuid.UUID `db:"chat_id" json:"chat_id"`
-	AssistantMessageID int64     `db:"assistant_message_id" json:"assistant_message_id"`
-	ToolCallIds        []string  `db:"tool_call_ids" json:"tool_call_ids"`
-}
-
-func (q *sqlQuerier) GetChatToolCallExecutions(ctx context.Context, arg GetChatToolCallExecutionsParams) ([]ChatToolCallExecution, error) {
-	rows, err := q.db.QueryContext(ctx, getChatToolCallExecutions, arg.ChatID, arg.AssistantMessageID, pq.Array(arg.ToolCallIds))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ChatToolCallExecution
-	for rows.Next() {
-		var i ChatToolCallExecution
-		if err := rows.Scan(
-			&i.ID,
-			&i.ChatID,
-			&i.AssistantMessageID,
-			&i.ToolCallID,
-			&i.Status,
-			&i.InputSha256,
-			&i.Command,
-			&i.Background,
-			&i.TimeoutSecs,
-			&i.ClaimEpoch,
-			&i.ClaimedAt,
-			&i.WorkspaceAgentID,
-			&i.ProcessID,
-			&i.CancelSignalSentAt,
-			&i.ResultCommittedAt,
-			&i.CreatedAt,
-			&i.StartedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const insertChatToolCallExecutionIntent = `-- name: InsertChatToolCallExecutionIntent :exec
@@ -13170,9 +13117,9 @@ type UpdateChatToolCallExecutionStatusParams struct {
 	FromStatuses       []ChatToolCallExecutionStatus `db:"from_statuses" json:"from_statuses"`
 }
 
-// Applies a lifecycle observation. from_statuses guards the
-// transition so a stale observer never overwrites a state written by
-// the current claim owner or the interrupt reconciler.
+// Applies a lifecycle observation. from_statuses restricts which
+// lifecycle states may be overwritten; interrupt-owned states are
+// never listed, so tool observations cannot clobber them.
 func (q *sqlQuerier) UpdateChatToolCallExecutionStatus(ctx context.Context, arg UpdateChatToolCallExecutionStatusParams) (ChatToolCallExecution, error) {
 	row := q.db.QueryRowContext(ctx, updateChatToolCallExecutionStatus,
 		arg.Status,

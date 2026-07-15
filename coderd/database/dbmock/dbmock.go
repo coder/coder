@@ -3343,21 +3343,6 @@ func (mr *MockStoreMockRecorder) GetChatToolCallExecution(ctx, arg any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatToolCallExecution", reflect.TypeOf((*MockStore)(nil).GetChatToolCallExecution), ctx, arg)
 }
 
-// GetChatToolCallExecutions mocks base method.
-func (m *MockStore) GetChatToolCallExecutions(ctx context.Context, arg database.GetChatToolCallExecutionsParams) ([]database.ChatToolCallExecution, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatToolCallExecutions", ctx, arg)
-	ret0, _ := ret[0].([]database.ChatToolCallExecution)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatToolCallExecutions indicates an expected call of GetChatToolCallExecutions.
-func (mr *MockStoreMockRecorder) GetChatToolCallExecutions(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatToolCallExecutions", reflect.TypeOf((*MockStore)(nil).GetChatToolCallExecutions), ctx, arg)
-}
-
 // GetChatUsageLimitConfig mocks base method.
 func (m *MockStore) GetChatUsageLimitConfig(ctx context.Context) (database.ChatUsageLimitConfig, error) {
 	m.ctrl.T.Helper()

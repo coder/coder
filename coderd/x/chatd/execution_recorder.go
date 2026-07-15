@@ -238,14 +238,12 @@ func (r *executionRecorder) MarkTerminal(ctx context.Context, toolCallID string,
 
 func executionRecordFromRow(row database.ChatToolCallExecution) chattool.ExecutionRecord {
 	rec := chattool.ExecutionRecord{
-		ID:              row.ID.String(),
-		Status:          chattool.ExecutionStatus(row.Status),
-		Command:         row.Command,
-		Background:      row.Background,
-		Timeout:         time.Duration(row.TimeoutSecs) * time.Second,
-		ClaimEpoch:      row.ClaimEpoch,
-		CreatedAt:       row.CreatedAt,
-		ResultCommitted: row.ResultCommittedAt.Valid,
+		ID:         row.ID.String(),
+		Status:     chattool.ExecutionStatus(row.Status),
+		Command:    row.Command,
+		Background: row.Background,
+		Timeout:    time.Duration(row.TimeoutSecs) * time.Second,
+		ClaimEpoch: row.ClaimEpoch,
 	}
 	if row.ProcessID.Valid {
 		rec.ProcessID = row.ProcessID.String

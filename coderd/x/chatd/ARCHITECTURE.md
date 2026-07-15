@@ -916,7 +916,7 @@ Before dispatching, the execute tool claims the row: a compare-and-set that take
 An attempt that cannot claim decides from the row's status:
 
 - A fresh `starting` claim is polled until its owner records a process or the claim goes stale; a stale claim yields `unknown`.
-- `running`, `exited`, and `detached` rows with a process handle re-attach via an output snapshot. An exited process yields the real result, even past the deadline, and marks `exited`. A running process with time left is block-waited for the remainder. A running process past the deadline yields the graceful timed-out result with `background_process_id` and marks `detached`.
+- Background rows with a process handle return the started-in-background result directly; output retrieval stays with `process_output`. Foreground `running`, `exited`, and `detached` rows re-attach via an output snapshot. An exited process yields the real result, even past the deadline, and marks `exited`. A running process with time left is block-waited for the remainder. A running process past the deadline yields the graceful timed-out result with `background_process_id` and marks `detached`.
 - Only a definite HTTP 404 from the snapshot (the agent was reached and does not know the process) marks `unknown` and produces an `is_error` result stating the command may have run but its outcome is unknown. Transport errors, cancellations, and server errors keep the lifecycle state unchanged and the process retrievable via `process_output`.
 - Rows already resolved (`cancel_requested`, `canceled`, `unknown`, `no_effect`) never re-dispatch; the tool returns a stable error result.
 
@@ -928,7 +928,7 @@ After the interrupt commit, the worker best-effort reconciles the `cancel_reques
 
 ### Retention
 
-Rows are never deleted at resolution time; they stay diagnostically useful. `dbpurge` deletes rows older than 7 days, which is safe because the 4-hour timeout clamp means no legitimately live execution reaches that age.
+Rows are never deleted at resolution time; they stay diagnostically useful. `dbpurge` deletes rows older than 7 days. Deletion only discards ledger history: a still-running detached process is unaffected and stays addressable through the process handle in its committed tool result, and no attempt can still be re-executing a call that old.
 
 # Stream loop
 

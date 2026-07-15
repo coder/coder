@@ -1025,14 +1025,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatToolCallExecution(gomock.Any(), arg).Return(row, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(row)
 	}))
-	s.Run("GetChatToolCallExecutions", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		arg := database.GetChatToolCallExecutionsParams{ChatID: chat.ID, AssistantMessageID: 1, ToolCallIds: []string{"call-1"}}
-		rows := []database.ChatToolCallExecution{testutil.Fake(s.T(), faker, database.ChatToolCallExecution{ChatID: chat.ID, ToolCallID: "call-1"})}
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().GetChatToolCallExecutions(gomock.Any(), arg).Return(rows, nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(rows)
-	}))
 	s.Run("UpdateChatToolCallExecutionProcess", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpdateChatToolCallExecutionProcessParams{ChatID: chat.ID, AssistantMessageID: 1, ToolCallID: "call-1", ClaimEpoch: 1, ProcessID: "proc-1", WorkspaceAgentID: uuid.New(), StartedAt: dbtime.Now()}
