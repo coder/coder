@@ -133,7 +133,7 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 				// the host of the AccessURL but ultimately as long as our redirect
 				// url omits a host we're ensuring that we're routing to a path
 				// local to the application.
-				redirect = uriFromURL(redirect)
+				redirect = URIFromURL(redirect)
 			}
 
 			// When dynamic redirect URIs are enabled, validate the request Host
@@ -532,13 +532,25 @@ func ExtractOAuth2ProviderAppSecret(db database.Store) func(http.Handler) http.H
 	}
 }
 
-func uriFromURL(u string) string {
+// URIFromURL reduces a redirect URL down to a safe, relative path plus query
+// string local to this application. Any scheme and host are dropped, since
+// preserving them would allow an open redirect to another site. Opaque URLs
+// (e.g. "javascript:..." or "data:...") are rejected outright and collapse to
+// "/", since their content isn't a hierarchical path we can safely reduce.
+func URIFromURL(u string) string {
 	uri, err := url.Parse(u)
-	if err != nil {
+	if err != nil || uri.Opaque != "" {
 		return "/"
 	}
 
-	return uri.RequestURI()
+	// A path with two or more leading slashes (e.g. "///evil.com") is
+	// interpreted by some browsers as protocol-relative, so collapse any
+	// leading slashes down to exactly one.
+	path := "/" + strings.TrimLeft(uri.EscapedPath(), "/")
+	if uri.RawQuery != "" {
+		return path + "?" + uri.RawQuery
+	}
+	return path
 }
 
 // buildDynamicRedirectURI constructs the OIDC redirect_uri from the incoming
