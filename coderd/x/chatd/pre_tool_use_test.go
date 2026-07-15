@@ -12,16 +12,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd"
-	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -95,7 +92,7 @@ func TestPreToolUseHookAllow(t *testing.T) {
 
 			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-				cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+				cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 				cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 					require.Equal(t, dbAgent.ID, agentID)
 					return mockConn, func() {}, nil
@@ -119,7 +116,7 @@ func TestPreToolUseHookAllow(t *testing.T) {
 			require.Equal(t, int32(1), hookCalls.Load())
 			call := requireToolCallPart(t, chatToolParts(ctx, t, db, chat.ID), "read_file")
 			require.JSONEq(t, `{"path":"`+tt.expectedPath+`"}`, string(call.Args))
-			dispatch := preToolUseDispatch(t, db, chat.ID)
+			dispatch := lifecycleDispatch(t, db, chat.ID, agenthooks.EventPreToolUse)
 			require.Equal(t, "call_non_uuid", dispatch.ToolUseID.String)
 			require.Equal(t, tt.decision != "", dispatch.Decision.Valid)
 			if tt.decision != "" {
@@ -179,7 +176,7 @@ func TestPreToolUseHookDeny(t *testing.T) {
 	setupToolExecutionAgentConn(t, mockConn)
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
 			return mockConn, func() {}, nil
@@ -230,7 +227,7 @@ func TestPreToolUseHookDeny(t *testing.T) {
 	for _, row := range dispatchRows {
 		require.NotEqual(t, string(agenthooks.EventPostToolUse), row.Event)
 	}
-	dispatch := preToolUseDispatch(t, db, chat.ID)
+	dispatch := lifecycleDispatch(t, db, chat.ID, agenthooks.EventPreToolUse)
 	require.Equal(t, "deny", dispatch.Decision.String)
 }
 
@@ -254,7 +251,7 @@ func TestPreToolUseSkipsProviderExecutedTools(t *testing.T) {
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
-		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 	})
 	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "search for coder")
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
@@ -285,7 +282,7 @@ func TestPreToolUseHookDynamicAllowResponse(t *testing.T) {
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 	})
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -353,7 +350,7 @@ func TestPreToolUseHookEndChat(t *testing.T) {
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 	})
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -433,7 +430,7 @@ func TestPreToolUseHookDispatchFailure(t *testing.T) {
 
 			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-				cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+				cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 			})
 			chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 				OrganizationID: org.ID,
@@ -451,7 +448,7 @@ func TestPreToolUseHookDispatchFailure(t *testing.T) {
 
 			failed, err := db.GetChatByID(ctx, chat.ID)
 			require.NoError(t, err)
-			dispatch := preToolUseDispatch(t, db, chat.ID)
+			dispatch := lifecycleDispatch(t, db, chat.ID, agenthooks.EventPreToolUse)
 			require.Equal(t, tt.result, dispatch.Result)
 			lastError := chatLastErrorMessage(failed.LastError)
 			require.Contains(t, lastError, "hook dispatch failed: pre_tool_use: "+tt.result)
@@ -504,7 +501,7 @@ func TestPreToolUseHookFailureAbortsWholeStep(t *testing.T) {
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 	})
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -579,7 +576,7 @@ func TestPreToolUseHookResumeRecordedDeny(t *testing.T) {
 	setupToolExecutionAgentConn(t, mockConn)
 	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
 			return mockConn, func() {}, nil
@@ -674,7 +671,7 @@ func TestPreToolUseHookResumeFallback(t *testing.T) {
 
 	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
 			return mockConn, func() {}, nil
@@ -685,7 +682,7 @@ func TestPreToolUseHookResumeFallback(t *testing.T) {
 
 	require.Equal(t, int32(1), hookCalls.Load())
 	require.Equal(t, int32(1), modelCalls.Load())
-	dispatch := preToolUseDispatch(t, db, chatID)
+	dispatch := lifecycleDispatch(t, db, chatID, agenthooks.EventPreToolUse)
 	require.Equal(t, "allow", dispatch.Decision.String)
 	call := requireToolCallPart(t, chatToolParts(ctx, t, db, chatID), "read_file")
 	require.JSONEq(t, `{"path":"/tmp/resume.txt"}`, string(call.Args))
@@ -790,7 +787,7 @@ func TestPreToolUseHookDynamicDeny(t *testing.T) {
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 	})
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -834,32 +831,4 @@ func preToolUseConsumer(t *testing.T, response func(agenthooks.PreToolUseData) s
 	}))
 	t.Cleanup(consumer.Close)
 	return consumer
-}
-
-func newPreToolUseDispatcher(t *testing.T, db database.Store, consumer *httptest.Server) *chathooks.Dispatcher {
-	t.Helper()
-	return chathooks.New(
-		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-		db,
-		consumer.Client(),
-		consumer.URL,
-		"test-hook-secret-32-bytes-minimum!!",
-		time.Second,
-		"test-deployment",
-		"test-version",
-		prometheus.NewRegistry(),
-	)
-}
-
-func preToolUseDispatch(t *testing.T, db database.Store, chatID uuid.UUID) database.ChatHookDispatch {
-	t.Helper()
-	rows, err := db.ListChatHookDispatchesByChatID(t.Context(), chatID)
-	require.NoError(t, err)
-	for _, row := range rows {
-		if row.Event == string(agenthooks.EventPreToolUse) {
-			return row
-		}
-	}
-	require.FailNow(t, "pre_tool_use dispatch not found")
-	return database.ChatHookDispatch{}
 }

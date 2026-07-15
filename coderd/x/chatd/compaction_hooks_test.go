@@ -183,7 +183,7 @@ func startCompactionHookChat(
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
-		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
 			return mockConn, func() {}, nil

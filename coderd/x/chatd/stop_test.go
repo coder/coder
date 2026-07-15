@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -41,7 +40,7 @@ func TestStopHookNoOpFinishesTurn(t *testing.T) {
 	})
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 	})
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -95,7 +94,7 @@ func TestStopHookNudgeContinuesOnce(t *testing.T) {
 	})
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 	})
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -146,7 +145,7 @@ func TestStopHookDispatchFailureErrorsChat(t *testing.T) {
 	})
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 	})
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -184,7 +183,7 @@ func TestStopHookEndChatArchives(t *testing.T) {
 	})
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 	})
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -223,17 +222,4 @@ func stopConsumer(t *testing.T, response func() (int, string)) *httptest.Server 
 	}))
 	t.Cleanup(consumer.Close)
 	return consumer
-}
-
-func lifecycleDispatch(t *testing.T, db database.Store, chatID uuid.UUID, event agenthooks.EventType) database.ChatHookDispatch {
-	t.Helper()
-	rows, err := db.ListChatHookDispatchesByChatID(t.Context(), chatID)
-	require.NoError(t, err)
-	for _, row := range rows {
-		if row.Event == string(event) {
-			return row
-		}
-	}
-	require.FailNow(t, "lifecycle dispatch not found", "event: %s", event)
-	return database.ChatHookDispatch{}
 }

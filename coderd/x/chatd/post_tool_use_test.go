@@ -105,7 +105,7 @@ func TestPostToolUseHookResponsesCommitWithResults(t *testing.T) {
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
 			return mockConn, func() {}, nil
@@ -221,7 +221,7 @@ func TestPostToolUseHookDynamicResult(t *testing.T) {
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 	})
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -282,7 +282,7 @@ func TestPostToolUseHookDynamicFailureCommitsResultThenErrors(t *testing.T) {
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 	})
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -358,7 +358,7 @@ func TestPostToolUseHookFailureCommitsResultThenErrors(t *testing.T) {
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
 			return mockConn, func() {}, nil

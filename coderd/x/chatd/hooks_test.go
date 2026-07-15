@@ -99,9 +99,9 @@ func TestSendMessageUserPromptSubmitHook(t *testing.T) {
 	})
 }
 
-func newHookTestServer(t *testing.T, db database.Store, ps dbpubsub.Pubsub, consumer *httptest.Server) *chatd.Server {
+func newHookDispatcher(t *testing.T, db database.Store, consumer *httptest.Server) *chathooks.Dispatcher {
 	t.Helper()
-	dispatcher := chathooks.New(
+	return chathooks.New(
 		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		db,
 		consumer.Client(),
@@ -112,9 +112,26 @@ func newHookTestServer(t *testing.T, db database.Store, ps dbpubsub.Pubsub, cons
 		"test-version",
 		prometheus.NewRegistry(),
 	)
+}
+
+func newHookTestServer(t *testing.T, db database.Store, ps dbpubsub.Pubsub, consumer *httptest.Server) *chatd.Server {
+	t.Helper()
 	return newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
-		cfg.HookDispatcher = dispatcher
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 	})
+}
+
+func lifecycleDispatch(t *testing.T, db database.Store, chatID uuid.UUID, event agenthooks.EventType) database.ChatHookDispatch {
+	t.Helper()
+	rows, err := db.ListChatHookDispatchesByChatID(t.Context(), chatID)
+	require.NoError(t, err)
+	for _, row := range rows {
+		if row.Event == string(event) {
+			return row
+		}
+	}
+	require.FailNow(t, "lifecycle dispatch not found", "event: %s", event)
+	return database.ChatHookDispatch{}
 }
 
 func TestSendMessageUserPromptSubmitPassthrough(t *testing.T) {

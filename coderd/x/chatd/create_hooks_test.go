@@ -42,7 +42,7 @@ func TestCreateChatUserPromptSubmitHook(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, &agenthooks.UserPromptSubmitData{Prompt: "passthrough"}, data)
 
-		messages := createHookMessages(ctx, t, db, chat.ID)
+		messages := chatMessages(ctx, t, db, chat.ID)
 		initialUser := messages[len(messages)-1]
 		require.Equal(t, database.ChatMessageRoleUser, initialUser.Role)
 		require.Equal(t, database.ChatMessageVisibilityBoth, initialUser.Visibility)
@@ -61,7 +61,7 @@ func TestCreateChatUserPromptSubmitHook(t *testing.T) {
 		require.NoError(t, err)
 		request := testutil.RequireReceive(ctx, t, requests)
 		require.NotNil(t, request.Meta.TurnID)
-		messages := createHookMessages(ctx, t, db, chat.ID)
+		messages := chatMessages(ctx, t, db, chat.ID)
 		initialUser := messages[len(messages)-1]
 		require.Equal(t, "redacted", hookMessageText(t, initialUser))
 		require.Equal(t, uuid.NullUUID{UUID: *request.Meta.TurnID, Valid: true}, initialUser.TurnID)
@@ -89,7 +89,7 @@ func TestCreateChatUserPromptSubmitHook(t *testing.T) {
 		require.Equal(t, "prompt", hookMessageText(t, initialUser))
 		require.Equal(t, initialUser.TurnID, modelContext.TurnID)
 
-		userMessages := createHookMessages(ctx, t, db, chat.ID)
+		userMessages := chatMessages(ctx, t, db, chat.ID)
 		require.GreaterOrEqual(t, len(userMessages), 2)
 		userNotice := userMessages[len(userMessages)-2]
 		require.Equal(t, database.ChatMessageRoleSystem, userNotice.Role)
@@ -168,7 +168,7 @@ func TestCreateChatHooksDisabledUnchanged(t *testing.T) {
 
 	chat, err := server.CreateChat(ctx, createHookOptions(t, db, user.ID, org.ID, model.ID, "unchanged"))
 	require.NoError(t, err)
-	messages := createHookMessages(ctx, t, db, chat.ID)
+	messages := chatMessages(ctx, t, db, chat.ID)
 	initialUser := messages[len(messages)-1]
 	require.False(t, initialUser.TurnID.Valid)
 	require.Equal(t, "unchanged", hookMessageText(t, initialUser))
@@ -215,13 +215,6 @@ func createHookOptions(
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)},
 		APIKeyID:           testAPIKeyID(t, db, userID),
 	}
-}
-
-func createHookMessages(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID) []database.ChatMessage {
-	t.Helper()
-	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chatID})
-	require.NoError(t, err)
-	return messages
 }
 
 func requireCreateHookChatMissing(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID) {

@@ -25,7 +25,8 @@ import (
 	"github.com/coder/coder/v2/codersdk/agenthooks"
 )
 
-// UserPromptDeniedError reports a consumer denial without persisting the prompt.
+// UserPromptDeniedError reports that a lifecycle hook rejected a prompt
+// without persisting it.
 type UserPromptDeniedError struct {
 	UserMessage string
 }
@@ -50,6 +51,26 @@ const (
 	sessionStartSourceClear   = "clear"
 )
 
+func lifecycleHookEvent(
+	chat database.Chat,
+	turnID *uuid.UUID,
+	eventType agenthooks.EventType,
+	data any,
+) chathooks.Event {
+	var workspaceID *uuid.UUID
+	if chat.WorkspaceID.Valid {
+		workspaceID = &chat.WorkspaceID.UUID
+	}
+	return chathooks.Event{
+		Type:        eventType,
+		ChatID:      chat.ID,
+		OwnerID:     chat.OwnerID,
+		WorkspaceID: workspaceID,
+		TurnID:      turnID,
+		Data:        data,
+	}
+}
+
 func (p *Server) dispatchLifecycleHook(
 	ctx context.Context,
 	chat database.Chat,
@@ -60,18 +81,7 @@ func (p *Server) dispatchLifecycleHook(
 	if p.hookDispatcher == nil || !p.hookDispatcher.Enabled() {
 		return agenthooks.Response{}, nil
 	}
-	var workspaceID *uuid.UUID
-	if chat.WorkspaceID.Valid {
-		workspaceID = &chat.WorkspaceID.UUID
-	}
-	return p.hookDispatcher.Dispatch(ctx, chathooks.Event{
-		Type:        eventType,
-		ChatID:      chat.ID,
-		OwnerID:     chat.OwnerID,
-		WorkspaceID: workspaceID,
-		TurnID:      turnID,
-		Data:        data,
-	})
+	return p.hookDispatcher.Dispatch(ctx, lifecycleHookEvent(chat, turnID, eventType, data))
 }
 
 func (p *Server) dispatchSessionStart(
@@ -106,24 +116,14 @@ func (p *Server) dispatchPreToolUse(
 	turnID *uuid.UUID,
 	toolCall fantasy.ToolCallContent,
 ) (agenthooks.Response, error) {
-	var workspaceID *uuid.UUID
-	if chat.WorkspaceID.Valid {
-		workspaceID = &chat.WorkspaceID.UUID
-	}
 	toolUseID := toolCall.ToolCallID
-	return p.hookDispatcher.Dispatch(ctx, chathooks.Event{
-		Type:        agenthooks.EventPreToolUse,
-		ChatID:      chat.ID,
-		OwnerID:     chat.OwnerID,
-		WorkspaceID: workspaceID,
-		TurnID:      turnID,
-		ToolUseID:   &toolUseID,
-		Data: agenthooks.PreToolUseData{
-			ToolUseID: toolUseID,
-			ToolName:  toolCall.ToolName,
-			ToolInput: json.RawMessage(toolCall.Input),
-		},
+	event := lifecycleHookEvent(chat, turnID, agenthooks.EventPreToolUse, agenthooks.PreToolUseData{
+		ToolUseID: toolUseID,
+		ToolName:  toolCall.ToolName,
+		ToolInput: json.RawMessage(toolCall.Input),
 	})
+	event.ToolUseID = &toolUseID
+	return p.hookDispatcher.Dispatch(ctx, event)
 }
 
 func (p *Server) dispatchPostToolUseData(
@@ -132,20 +132,10 @@ func (p *Server) dispatchPostToolUseData(
 	turnID *uuid.UUID,
 	data agenthooks.PostToolUseData,
 ) (agenthooks.Response, error) {
-	var workspaceID *uuid.UUID
-	if chat.WorkspaceID.Valid {
-		workspaceID = &chat.WorkspaceID.UUID
-	}
 	toolUseID := data.ToolUseID
-	return p.hookDispatcher.Dispatch(ctx, chathooks.Event{
-		Type:        agenthooks.EventPostToolUse,
-		ChatID:      chat.ID,
-		OwnerID:     chat.OwnerID,
-		WorkspaceID: workspaceID,
-		TurnID:      turnID,
-		ToolUseID:   &toolUseID,
-		Data:        data,
-	})
+	event := lifecycleHookEvent(chat, turnID, agenthooks.EventPostToolUse, data)
+	event.ToolUseID = &toolUseID
+	return p.hookDispatcher.Dispatch(ctx, event)
 }
 
 func (p *Server) dispatchPostToolUse(
@@ -404,24 +394,8 @@ func (p *Server) dispatchUserPromptSubmit(
 	turnID uuid.UUID,
 	parts []codersdk.ChatMessagePart,
 ) (agenthooks.Response, error) {
-	if p.hookDispatcher == nil || !p.hookDispatcher.Enabled() {
-		return agenthooks.Response{}, nil
-	}
-
-	var workspaceID *uuid.UUID
-	if chat.WorkspaceID.Valid {
-		workspaceID = &chat.WorkspaceID.UUID
-	}
-	response, err := p.hookDispatcher.Dispatch(ctx, chathooks.Event{
-		Type:        agenthooks.EventUserPromptSubmit,
-		ChatID:      chat.ID,
-		OwnerID:     chat.OwnerID,
-		WorkspaceID: workspaceID,
-		TurnID:      &turnID,
-		ToolUseID:   nil,
-		Data: agenthooks.UserPromptSubmitData{
-			Prompt: promptText(parts),
-		},
+	response, err := p.dispatchLifecycleHook(ctx, chat, &turnID, agenthooks.EventUserPromptSubmit, agenthooks.UserPromptSubmitData{
+		Prompt: promptText(parts),
 	})
 	if err != nil {
 		return agenthooks.Response{}, err
@@ -595,23 +569,33 @@ func hookTurnID(turnID *uuid.UUID) uuid.NullUUID {
 	return uuid.NullUUID{UUID: *turnID, Valid: true}
 }
 
+func hookResponseMessages(
+	responses []agenthooks.Response,
+	modelConfigID uuid.UUID,
+	turnID *uuid.UUID,
+) ([]chatstate.Message, bool, error) {
+	var messages []chatstate.Message
+	endChat := false
+	for _, response := range responses {
+		responseMessages, err := hookPrefixMessages(response, modelConfigID, turnID)
+		if err != nil {
+			return nil, false, err
+		}
+		messages = append(messages, responseMessages...)
+		endChat = endChat || response.EndChat
+	}
+	return messages, endChat, nil
+}
+
 func applyHookResponseMessages(
 	messages stepMessagesForCommit,
 	responses []agenthooks.Response,
 	modelConfigID uuid.UUID,
 	turnID *uuid.UUID,
 ) (stepMessagesForCommit, bool, error) {
-	var prefix []chatstate.Message
-	endChat := false
-	for _, response := range responses {
-		if response.ModelContext != "" || response.UserMessage != "" {
-			responseMessages, err := hookPrefixMessages(response, modelConfigID, turnID)
-			if err != nil {
-				return stepMessagesForCommit{}, false, err
-			}
-			prefix = append(prefix, responseMessages...)
-		}
-		endChat = endChat || response.EndChat
+	prefix, endChat, err := hookResponseMessages(responses, modelConfigID, turnID)
+	if err != nil {
+		return stepMessagesForCommit{}, false, err
 	}
 	if len(prefix) > 0 {
 		messages.Messages = append(prefix, messages.Messages...)
@@ -626,17 +610,9 @@ func appendHookResponseMessages(
 	modelConfigID uuid.UUID,
 	turnID *uuid.UUID,
 ) (stepMessagesForCommit, bool, error) {
-	var suffix []chatstate.Message
-	endChat := false
-	for _, response := range responses {
-		if response.ModelContext != "" || response.UserMessage != "" {
-			responseMessages, err := hookPrefixMessages(response, modelConfigID, turnID)
-			if err != nil {
-				return stepMessagesForCommit{}, false, err
-			}
-			suffix = append(suffix, responseMessages...)
-		}
-		endChat = endChat || response.EndChat
+	suffix, endChat, err := hookResponseMessages(responses, modelConfigID, turnID)
+	if err != nil {
+		return stepMessagesForCommit{}, false, err
 	}
 	if len(suffix) > 0 {
 		messages.Messages = append(messages.Messages, suffix...)
@@ -669,6 +645,15 @@ func applyHookAllowedTools(ctx context.Context, store database.Store, chatID uui
 		ID:               chatID,
 	}); err != nil {
 		return xerrors.Errorf("update hook allowed tools: %w", err)
+	}
+	return nil
+}
+
+func applyHookAllowedToolsResponses(ctx context.Context, store database.Store, chatID uuid.UUID, responses []agenthooks.Response) error {
+	for _, response := range responses {
+		if err := applyHookAllowedTools(ctx, store, chatID, response); err != nil {
+			return err
+		}
 	}
 	return nil
 }

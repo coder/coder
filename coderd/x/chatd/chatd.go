@@ -1810,22 +1810,15 @@ func (p *Server) EditMessage(
 		if modelOverride.Valid {
 			modelConfigID = modelOverride.UUID
 		}
-		sessionStartMessages, err := hookPrefixMessages(sessionStartResponse, modelConfigID, &turnID)
+		responses := []agenthooks.Response{sessionStartResponse, hookResponse}
+		prefixMessages, hookEndChat, err := hookResponseMessages(responses, modelConfigID, &turnID)
 		if err != nil {
 			return err
 		}
-		promptMessages, err := hookPrefixMessages(hookResponse, modelConfigID, &turnID)
-		if err != nil {
+		if err := applyHookAllowedToolsResponses(ctx, store, opts.ChatID, responses); err != nil {
 			return err
 		}
-		prefixMessages := slices.Concat(sessionStartMessages, promptMessages)
-		if err := applyHookAllowedTools(ctx, store, opts.ChatID, sessionStartResponse); err != nil {
-			return err
-		}
-		if err := applyHookAllowedTools(ctx, store, opts.ChatID, hookResponse); err != nil {
-			return err
-		}
-		if sessionStartResponse.EndChat || hookResponse.EndChat {
+		if hookEndChat {
 			if _, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages}); err != nil {
 				return err
 			}
@@ -2110,11 +2103,6 @@ func (e *ToolResultStatusConflictError) Error() string {
 	)
 }
 
-// SubmitToolResults validates and persists client-provided tool
-// results, returning the chat to running through the chatstate state
-// machine. Validation runs inside the same transaction as the
-// transition so the assistant message and pending tool calls cannot
-// drift between reads.
 type dynamicPostToolUseState struct {
 	chat          database.Chat
 	turnID        *uuid.UUID
@@ -2221,11 +2209,8 @@ func dynamicPostToolUseData(result codersdk.ToolResult, toolName string) agentho
 	return data
 }
 
-// SubmitToolResults validates and persists client-provided tool
-// results, returning the chat to running through the chatstate state
-// machine. Validation runs inside the same transaction as the
-// transition so the assistant message and pending tool calls cannot
-// drift between reads.
+// SubmitToolResults validates pending results under a read lock, dispatches
+// post_tool_use hooks, then completes the requires_action transition.
 func (p *Server) SubmitToolResults(
 	ctx context.Context,
 	opts SubmitToolResultsOptions,
@@ -2282,10 +2267,8 @@ func (p *Server) SubmitToolResults(
 		if modelConfigID == uuid.Nil {
 			modelConfigID = locked.LastModelConfigID
 		}
-		for _, response := range hookResponses {
-			if err := applyHookAllowedTools(ctx, store, opts.ChatID, response); err != nil {
-				return err
-			}
+		if err := applyHookAllowedToolsResponses(ctx, store, opts.ChatID, hookResponses); err != nil {
+			return err
 		}
 		if _, err := tx.CompleteRequiresAction(chatstate.CompleteRequiresActionInput{
 			CreatedBy:      opts.UserID,

@@ -762,7 +762,8 @@ func (s *taskStarter) executeLocalTools(
 	prepared generationPrepared,
 	decision generationDecision,
 ) error {
-	preflight, err := s.server.preflightPendingToolCalls(ctx, prepared.Chat, activeTurnID(prepared.Messages), decision.localToolCalls)
+	turnID := activeTurnID(prepared.Messages)
+	preflight, err := s.server.preflightPendingToolCalls(ctx, prepared.Chat, turnID, decision.localToolCalls)
 	if err != nil {
 		return generationHookDispatchError(agenthooks.EventPreToolUse, err)
 	}
@@ -804,7 +805,6 @@ func (s *taskStarter) executeLocalTools(
 			return xerrors.Errorf("execute local tools: %w", err)
 		}
 	}
-	turnID := activeTurnID(prepared.Messages)
 	postResponses, postDispatchErr := s.server.dispatchPostToolUseResults(ctx, prepared.Chat, turnID, outcome.Step.Content)
 	for _, denied := range preflight.Denied {
 		outcome.Step.Content = append(outcome.Step.Content, denied)
@@ -1136,10 +1136,8 @@ func (s *taskStarter) commitGenerationStep(
 		if err := replacePersistedToolCallInputs(ctx, store, input.ChatID, hooks.Overrides); err != nil {
 			return err
 		}
-		for _, response := range hooks.Responses {
-			if err := applyHookAllowedTools(ctx, store, input.ChatID, response); err != nil {
-				return err
-			}
+		if err := applyHookAllowedToolsResponses(ctx, store, input.ChatID, hooks.Responses); err != nil {
+			return err
 		}
 		var inserted []database.ChatMessage
 		if hooks.EndChat {
@@ -1206,10 +1204,8 @@ func (s *taskStarter) enterRequiresAction(
 		if err := replacePersistedToolCallInputs(ctx, store, input.ChatID, preflight.Overrides); err != nil {
 			return err
 		}
-		for _, response := range preflight.Responses {
-			if err := applyHookAllowedTools(ctx, store, input.ChatID, response); err != nil {
-				return err
-			}
+		if err := applyHookAllowedToolsResponses(ctx, store, input.ChatID, preflight.Responses); err != nil {
+			return err
 		}
 		var inserted []database.ChatMessage
 		if endChat {
