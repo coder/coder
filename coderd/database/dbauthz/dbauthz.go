@@ -5974,6 +5974,12 @@ func (q *querier) InsertChatFile(ctx context.Context, arg database.InsertChatFil
 
 func (q *querier) InsertChatHookDispatch(ctx context.Context, arg database.InsertChatHookDispatchParams) (database.ChatHookDispatch, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if errors.Is(err, sql.ErrNoRows) {
+		if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).AnyOrganization()); err != nil {
+			return database.ChatHookDispatch{}, err
+		}
+		return q.db.InsertChatHookDispatch(ctx, arg)
+	}
 	if err != nil {
 		return database.ChatHookDispatch{}, err
 	}

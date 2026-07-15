@@ -645,16 +645,27 @@ func appendHookResponseMessages(
 	return messages, endChat, nil
 }
 
-func applyHookAllowedTools(ctx context.Context, store database.Store, chatID uuid.UUID, response agenthooks.Response) error {
+func hookAllowedTools(response agenthooks.Response) (pqtype.NullRawMessage, error) {
 	if response.AllowedTools == nil {
-		return nil
+		return pqtype.NullRawMessage{}, nil
 	}
 	encoded, err := json.Marshal(response.AllowedTools)
 	if err != nil {
-		return xerrors.Errorf("marshal hook allowed tools: %w", err)
+		return pqtype.NullRawMessage{}, xerrors.Errorf("marshal hook allowed tools: %w", err)
+	}
+	return pqtype.NullRawMessage{RawMessage: encoded, Valid: true}, nil
+}
+
+func applyHookAllowedTools(ctx context.Context, store database.Store, chatID uuid.UUID, response agenthooks.Response) error {
+	allowedTools, err := hookAllowedTools(response)
+	if err != nil {
+		return err
+	}
+	if !allowedTools.Valid {
+		return nil
 	}
 	if err := store.UpdateChatHookAllowedTools(ctx, database.UpdateChatHookAllowedToolsParams{
-		HookAllowedTools: pqtype.NullRawMessage{RawMessage: encoded, Valid: true},
+		HookAllowedTools: allowedTools,
 		ID:               chatID,
 	}); err != nil {
 		return xerrors.Errorf("update hook allowed tools: %w", err)

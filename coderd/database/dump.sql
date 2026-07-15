@@ -5142,9 +5142,6 @@ ALTER TABLE ONLY chat_files
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY chat_hook_dispatches
-    ADD CONSTRAINT chat_hook_dispatches_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
-
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE SET NULL;
 

@@ -9,9 +9,11 @@ ALTER TABLE chat_queued_messages ADD COLUMN turn_id uuid;
 
 COMMENT ON COLUMN chats.hook_allowed_tools IS 'Tool names the hook consumer allows for this chat; NULL means no restriction. Applied as an intersection with the configured tool set.';
 
+-- Create-time prompt hooks are recorded before the chat row exists, so
+-- chat_id cannot reference chats.
 CREATE TABLE chat_hook_dispatches (
     id uuid PRIMARY KEY,
-    chat_id uuid NOT NULL REFERENCES chats (id) ON DELETE CASCADE,
+    chat_id uuid NOT NULL,
     event text NOT NULL,
     turn_id uuid,
     tool_use_id text,

@@ -1406,6 +1406,23 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		ParentChatID: uuid.NullUUID{},
 	})
 	if err != nil {
+		var denied *chatd.UserPromptDeniedError
+		if errors.As(err, &denied) {
+			message := denied.UserMessage
+			if message == "" {
+				message = "Chat creation denied by lifecycle hook."
+			}
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: message})
+			return
+		}
+		var hookErr *chathooks.DispatchError
+		if errors.As(err, &hookErr) {
+			httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+				Message: "Chat lifecycle hook dispatch failed.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		if maybeWriteLimitErr(ctx, rw, err) {
 			return
 		}

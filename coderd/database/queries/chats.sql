@@ -709,6 +709,7 @@ ORDER BY
 -- name: InsertChat :one
 WITH inserted_chat AS (
 INSERT INTO chats (
+    id,
     organization_id,
     owner_id,
     workspace_id,
@@ -724,8 +725,10 @@ INSERT INTO chats (
     mcp_server_ids,
     labels,
     dynamic_tools,
-    client_type
+    client_type,
+    hook_allowed_tools
 ) VALUES (
+    COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     @organization_id::uuid,
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
@@ -741,7 +744,8 @@ INSERT INTO chats (
     COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
     COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb),
     sqlc.narg('dynamic_tools')::jsonb,
-    @client_type::chat_client_type
+    @client_type::chat_client_type,
+    sqlc.narg('hook_allowed_tools')::jsonb
 )
 RETURNING *
 ),

@@ -9751,6 +9751,7 @@ func (q *sqlQuerier) InsertAgentContextResourcesIntoChat(ctx context.Context, ar
 const insertChat = `-- name: InsertChat :one
 WITH inserted_chat AS (
 INSERT INTO chats (
+    id,
     organization_id,
     owner_id,
     workspace_id,
@@ -9766,9 +9767,10 @@ INSERT INTO chats (
     mcp_server_ids,
     labels,
     dynamic_tools,
-    client_type
+    client_type,
+    hook_allowed_tools
 ) VALUES (
-    $1::uuid,
+    COALESCE($1::uuid, gen_random_uuid()),
     $2::uuid,
     $3::uuid,
     $4::uuid,
@@ -9776,14 +9778,16 @@ INSERT INTO chats (
     $6::uuid,
     $7::uuid,
     $8::uuid,
-    $9::text,
-    $10::chat_mode,
-    $11::chat_plan_mode,
-    $12::chat_status,
-    COALESCE($13::uuid[], '{}'::uuid[]),
-    COALESCE($14::jsonb, '{}'::jsonb),
-    $15::jsonb,
-    $16::chat_client_type
+    $9::uuid,
+    $10::text,
+    $11::chat_mode,
+    $12::chat_plan_mode,
+    $13::chat_status,
+    COALESCE($14::uuid[], '{}'::uuid[]),
+    COALESCE($15::jsonb, '{}'::jsonb),
+    $16::jsonb,
+    $17::chat_client_type,
+    $18::jsonb
 )
 RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, hook_allowed_tools
 ),
@@ -9844,6 +9848,7 @@ FROM chats_expanded
 `
 
 type InsertChatParams struct {
+	ID                uuid.NullUUID         `db:"id" json:"id"`
 	OrganizationID    uuid.UUID             `db:"organization_id" json:"organization_id"`
 	OwnerID           uuid.UUID             `db:"owner_id" json:"owner_id"`
 	WorkspaceID       uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
@@ -9860,10 +9865,12 @@ type InsertChatParams struct {
 	Labels            pqtype.NullRawMessage `db:"labels" json:"labels"`
 	DynamicTools      pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
 	ClientType        ChatClientType        `db:"client_type" json:"client_type"`
+	HookAllowedTools  pqtype.NullRawMessage `db:"hook_allowed_tools" json:"hook_allowed_tools"`
 }
 
 func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error) {
 	row := q.db.QueryRowContext(ctx, insertChat,
+		arg.ID,
 		arg.OrganizationID,
 		arg.OwnerID,
 		arg.WorkspaceID,
@@ -9880,6 +9887,7 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 		arg.Labels,
 		arg.DynamicTools,
 		arg.ClientType,
+		arg.HookAllowedTools,
 	)
 	var i Chat
 	err := row.Scan(

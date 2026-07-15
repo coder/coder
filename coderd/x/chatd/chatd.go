@@ -1295,6 +1295,33 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		return database.Chat{}, xerrors.Errorf("marshal labels: %w", err)
 	}
 
+	chatID := uuid.New()
+	var turnID *uuid.UUID
+	contentParts := opts.InitialUserContent
+	var hookResponse agenthooks.Response
+	if p.hookDispatcher != nil && p.hookDispatcher.Enabled() {
+		mintedTurnID := uuid.New()
+		turnID = &mintedTurnID
+		hookChat := database.Chat{}
+		hookChat.ID = chatID
+		hookChat.OwnerID = opts.OwnerID
+		hookChat.WorkspaceID = opts.WorkspaceID
+		hookResponse, err = p.dispatchUserPromptSubmit(ctx, hookChat, *turnID, contentParts)
+		if err != nil {
+			return database.Chat{}, err
+		}
+		if hookResponse.EndChat {
+			return database.Chat{}, &UserPromptDeniedError{UserMessage: hookResponse.UserMessage}
+		}
+		override, overridden, err := userPromptOverride(hookResponse)
+		if err != nil {
+			return database.Chat{}, err
+		}
+		if overridden {
+			contentParts = []codersdk.ChatMessagePart{codersdk.ChatMessageText(override)}
+		}
+	}
+
 	userPrompt := SanitizePromptText(opts.SystemPrompt)
 	workspaceAwareness := workspaceDetachedAwareness
 	if opts.WorkspaceID.Valid {
@@ -1306,7 +1333,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal workspace awareness: %w", err)
 	}
-	userContent, err := chatprompt.MarshalParts(opts.InitialUserContent)
+	userContent, err := chatprompt.MarshalParts(contentParts)
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal initial user content: %w", err)
 	}
@@ -1331,9 +1358,22 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		initialMessages = append(initialMessages, systemMessage(userPromptContent, opts.ModelConfigID))
 	}
 	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, opts.ModelConfigID))
-	initialMessages = append(initialMessages, userMessageWithAPIKeyID(userContent, opts.ModelConfigID, opts.OwnerID, opts.APIKeyID, opts.ReasoningEffort))
+	prefixMessages, err := hookPrefixMessages(hookResponse, opts.ModelConfigID, turnID)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	initialMessages = append(initialMessages, prefixMessages...)
+	initialUserMessage := userMessageWithAPIKeyID(userContent, opts.ModelConfigID, opts.OwnerID, opts.APIKeyID, opts.ReasoningEffort)
+	if turnID != nil {
+		initialUserMessage.TurnID = uuid.NullUUID{UUID: *turnID, Valid: true}
+	}
+	initialMessages = append(initialMessages, initialUserMessage)
 
-	result, err := chatstate.CreateChat(ctx, p.db, p.pubsub, chatstate.CreateChatInput{
+	hookAllowedTools, err := hookAllowedTools(hookResponse)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	result, err := chatstate.CreateChatWithID(ctx, p.db, p.pubsub, chatID, hookAllowedTools, chatstate.CreateChatInput{
 		OrganizationID:    opts.OrganizationID,
 		OwnerID:           opts.OwnerID,
 		WorkspaceID:       opts.WorkspaceID,

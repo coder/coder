@@ -61,6 +61,32 @@ func CreateChat(
 	publisher Publisher,
 	input CreateChatInput,
 ) (CreateChatResult, error) {
+	return insertChat(ctx, store, publisher, uuid.NullUUID{}, pqtype.NullRawMessage{}, input)
+}
+
+// CreateChatWithID creates a chat using a caller-minted ID and initial hook tool policy.
+func CreateChatWithID(
+	ctx context.Context,
+	store database.Store,
+	publisher Publisher,
+	chatID uuid.UUID,
+	hookAllowedTools pqtype.NullRawMessage,
+	input CreateChatInput,
+) (CreateChatResult, error) {
+	if chatID == uuid.Nil {
+		return CreateChatResult{}, xerrors.New("chatstate: CreateChatWithID called with nil chat ID")
+	}
+	return insertChat(ctx, store, publisher, uuid.NullUUID{UUID: chatID, Valid: true}, hookAllowedTools, input)
+}
+
+func insertChat(
+	ctx context.Context,
+	store database.Store,
+	publisher Publisher,
+	chatID uuid.NullUUID,
+	hookAllowedTools pqtype.NullRawMessage,
+	input CreateChatInput,
+) (CreateChatResult, error) {
 	if store == nil {
 		return CreateChatResult{}, xerrors.New("chatstate: CreateChat called with nil store")
 	}
@@ -78,6 +104,7 @@ func CreateChat(
 	defer buffer.Discard()
 	err := store.InTx(func(store database.Store) error {
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
+			ID:                chatID,
 			OrganizationID:    input.OrganizationID,
 			OwnerID:           input.OwnerID,
 			WorkspaceID:       input.WorkspaceID,
@@ -94,6 +121,7 @@ func CreateChat(
 			Labels:            input.Labels,
 			DynamicTools:      input.DynamicTools,
 			ClientType:        input.ClientType,
+			HookAllowedTools:  hookAllowedTools,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)
