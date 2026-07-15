@@ -1,0 +1,1 @@
+-- Irreversible: original login_type and emails aren't recorded, nothing to restore.
