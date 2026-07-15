@@ -345,6 +345,9 @@ func (s *taskStarter) startGenerationSession(
 }
 
 func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskStartInput) error {
+	if input.StopNudges == nil {
+		input.StopNudges = &stopNudgeTracker{}
+	}
 	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
 	for {
 		chat, messages, err := loadGenerationState(ctx, machine, input)

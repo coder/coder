@@ -202,9 +202,6 @@ func TestStopHookEndChatArchives(t *testing.T) {
 		updated, err := db.GetChatByID(ctx, chat.ID)
 		return err == nil && updated.Archived
 	}, testutil.IntervalFast)
-	updated, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.True(t, updated.Archived)
 }
 
 func stopConsumer(t *testing.T, response func() (int, string)) *httptest.Server {

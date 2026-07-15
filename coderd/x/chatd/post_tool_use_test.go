@@ -113,13 +113,14 @@ func TestPostToolUseHookResponsesCommitWithResults(t *testing.T) {
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
 	mu.Lock()
-	require.Len(t, received, 2)
-	require.Equal(t, "call_first", received[0].ToolUseID)
-	require.Equal(t, "call_second", received[1].ToolUseID)
-	require.Equal(t, "read_file", received[0].ToolName)
-	require.Empty(t, received[0].ToolError)
-	require.Contains(t, string(received[0].ToolResponse), "data")
+	receivedSnapshot := append([]agenthooks.PostToolUseData(nil), received...)
 	mu.Unlock()
+	require.Len(t, receivedSnapshot, 2)
+	require.Equal(t, "call_first", receivedSnapshot[0].ToolUseID)
+	require.Equal(t, "call_second", receivedSnapshot[1].ToolUseID)
+	require.Equal(t, "read_file", receivedSnapshot[0].ToolName)
+	require.Empty(t, receivedSnapshot[0].ToolError)
+	require.Contains(t, string(receivedSnapshot[0].ToolResponse), "data")
 
 	var toolResults, userMessages int
 	for _, message := range chatMessages(ctx, t, db, chat.ID) {
@@ -212,16 +213,7 @@ func TestPostToolUseHookFailureCommitsResultThenErrors(t *testing.T) {
 
 	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chat.ID), "read_file")
 	require.Contains(t, string(result.Result), "data")
-	rows, err := db.ListChatHookDispatchesByChatID(ctx, chat.ID)
-	require.NoError(t, err)
-	var postDispatch database.ChatHookDispatch
-	for _, row := range rows {
-		if row.Event == string(agenthooks.EventPostToolUse) {
-			postDispatch = row
-			break
-		}
-	}
-	require.NotEqual(t, uuid.Nil, postDispatch.ID)
+	postDispatch := lifecycleDispatch(t, db, chat.ID, agenthooks.EventPostToolUse)
 	require.Equal(t, "http_error", postDispatch.Result)
 	require.Equal(t, "call_failure", postDispatch.ToolUseID.String)
 	lastError := chatLastErrorMessage(failed.LastError)

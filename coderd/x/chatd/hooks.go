@@ -51,33 +51,7 @@ const (
 	sessionStartSourceClear   = "clear"
 )
 
-func (p *Server) dispatchSessionStart(
-	ctx context.Context,
-	chat database.Chat,
-	turnID *uuid.UUID,
-	source string,
-) (agenthooks.Response, error) {
-	if p.hookDispatcher == nil || !p.hookDispatcher.Enabled() {
-		return agenthooks.Response{}, nil
-	}
-
-	var workspaceID *uuid.UUID
-	if chat.WorkspaceID.Valid {
-		workspaceID = &chat.WorkspaceID.UUID
-	}
-	return p.hookDispatcher.Dispatch(ctx, chathooks.Event{
-		Type:        agenthooks.EventSessionStart,
-		ChatID:      chat.ID,
-		OwnerID:     chat.OwnerID,
-		WorkspaceID: workspaceID,
-		TurnID:      turnID,
-		Data: agenthooks.SessionStartData{
-			Source: source,
-		},
-	})
-}
-
-func (p *Server) dispatchCompactionHook(
+func (p *Server) dispatchLifecycleHook(
 	ctx context.Context,
 	chat database.Chat,
 	turnID *uuid.UUID,
@@ -101,34 +75,25 @@ func (p *Server) dispatchCompactionHook(
 	})
 }
 
-func (p *Server) dispatchPreCompact(ctx context.Context, chat database.Chat, turnID *uuid.UUID) (agenthooks.Response, error) {
-	return p.dispatchCompactionHook(ctx, chat, turnID, agenthooks.EventPreCompact, agenthooks.PreCompactData{})
-}
-
-func (p *Server) dispatchPostCompact(ctx context.Context, chat database.Chat, turnID *uuid.UUID) (agenthooks.Response, error) {
-	return p.dispatchCompactionHook(ctx, chat, turnID, agenthooks.EventPostCompact, agenthooks.PostCompactData{})
-}
-
-func (p *Server) dispatchStop(
+func (p *Server) dispatchSessionStart(
 	ctx context.Context,
 	chat database.Chat,
 	turnID *uuid.UUID,
+	source string,
 ) (agenthooks.Response, error) {
-	if p.hookDispatcher == nil || !p.hookDispatcher.Enabled() {
-		return agenthooks.Response{}, nil
-	}
-	var workspaceID *uuid.UUID
-	if chat.WorkspaceID.Valid {
-		workspaceID = &chat.WorkspaceID.UUID
-	}
-	return p.hookDispatcher.Dispatch(ctx, chathooks.Event{
-		Type:        agenthooks.EventStop,
-		ChatID:      chat.ID,
-		OwnerID:     chat.OwnerID,
-		WorkspaceID: workspaceID,
-		TurnID:      turnID,
-		Data:        agenthooks.StopData{},
-	})
+	return p.dispatchLifecycleHook(ctx, chat, turnID, agenthooks.EventSessionStart, agenthooks.SessionStartData{Source: source})
+}
+
+func (p *Server) dispatchPreCompact(ctx context.Context, chat database.Chat, turnID *uuid.UUID) (agenthooks.Response, error) {
+	return p.dispatchLifecycleHook(ctx, chat, turnID, agenthooks.EventPreCompact, agenthooks.PreCompactData{})
+}
+
+func (p *Server) dispatchPostCompact(ctx context.Context, chat database.Chat, turnID *uuid.UUID) (agenthooks.Response, error) {
+	return p.dispatchLifecycleHook(ctx, chat, turnID, agenthooks.EventPostCompact, agenthooks.PostCompactData{})
+}
+
+func (p *Server) dispatchStop(ctx context.Context, chat database.Chat, turnID *uuid.UUID) (agenthooks.Response, error) {
+	return p.dispatchLifecycleHook(ctx, chat, turnID, agenthooks.EventStop, agenthooks.StopData{})
 }
 
 type preToolUseResult struct {

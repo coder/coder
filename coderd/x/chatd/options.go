@@ -70,40 +70,35 @@ type chatWorkerTaskStartInput struct {
 type stopNudgeTracker struct {
 	mu      sync.Mutex
 	turnID  uuid.UUID
-	count   int
+	claimed bool
 	pending bool
 }
 
+func stopNudgeTurnID(turnID *uuid.UUID) uuid.UUID {
+	if turnID == nil {
+		return uuid.Nil
+	}
+	return *turnID
+}
+
 func (t *stopNudgeTracker) claim(turnID *uuid.UUID) bool {
-	if t == nil {
-		return false
-	}
-	currentTurnID := uuid.Nil
-	if turnID != nil {
-		currentTurnID = *turnID
-	}
+	currentTurnID := stopNudgeTurnID(turnID)
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.turnID != currentTurnID {
 		t.turnID = currentTurnID
-		t.count = 0
+		t.claimed = false
 	}
-	if t.count >= 1 {
+	if t.claimed {
 		return false
 	}
-	t.count++
+	t.claimed = true
 	t.pending = true
 	return true
 }
 
 func (t *stopNudgeTracker) consume(turnID *uuid.UUID) bool {
-	if t == nil {
-		return false
-	}
-	currentTurnID := uuid.Nil
-	if turnID != nil {
-		currentTurnID = *turnID
-	}
+	currentTurnID := stopNudgeTurnID(turnID)
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.turnID != currentTurnID || !t.pending {
@@ -114,29 +109,20 @@ func (t *stopNudgeTracker) consume(turnID *uuid.UUID) bool {
 }
 
 func (t *stopNudgeTracker) cancel(turnID *uuid.UUID) {
-	if t == nil {
-		return
-	}
-	currentTurnID := uuid.Nil
-	if turnID != nil {
-		currentTurnID = *turnID
-	}
+	currentTurnID := stopNudgeTurnID(turnID)
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.turnID != currentTurnID || !t.pending {
 		return
 	}
 	t.pending = false
-	t.count--
+	t.claimed = false
 }
 
 func (t *stopNudgeTracker) reset() {
-	if t == nil {
-		return
-	}
 	t.mu.Lock()
 	t.turnID = uuid.Nil
-	t.count = 0
+	t.claimed = false
 	t.pending = false
 	t.mu.Unlock()
 }
