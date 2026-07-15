@@ -87,6 +87,9 @@ func TestWorkspacesListSingleAuthorizePrepare(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, res.Workspaces, 1)
 
+	// The exact count of 1 relies on this being the only request issued under the
+	// owner subject between the reset and this assertion, which holds because the
+	// test makes a single serial call.
 	count := authz.PrepareCount(owner.UserID.String(), policy.ActionRead, rbac.ResourceWorkspace.Type)
 	require.Equal(t, 1, count,
 		"GET /workspaces must prepare the ResourceWorkspace authorizer exactly once; a higher count means a redundant partial evaluation was reintroduced")
