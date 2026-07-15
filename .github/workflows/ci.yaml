@@ -571,7 +571,6 @@ jobs:
           persist-credentials: false
 
       - name: Setup Go Paths
-        id: go-paths
         uses: ./.github/actions/setup-go-paths
 
       - name: Setup GNU tools (macOS)
@@ -582,14 +581,8 @@ jobs:
         with:
           install-args: "go terraform"
 
-      # Only the module cache is persisted. Depot runners provide remote Go
-      # build caching via GOCACHEPROG, which stores served objects in GOCACHE
-      # without ever evicting them, so persisting GOCACHE here grows the cache
-      # unboundedly (see #20510 and coder/internal#1619).
       - name: Restore Go cache
         uses: ./.github/actions/go-cache
-        with:
-          cache-path: ${{ steps.go-paths.outputs.gomodcache }}
 
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum go:github.com/slsyy/mtimehash/cmd/mtimehash

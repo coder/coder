@@ -1,10 +1,9 @@
 name: "Go cache"
-description: Restore and save Go build and module caches.
+# GOCACHE is deliberately not persisted: Depot runners provide remote Go
+# build caching via GOCACHEPROG, which stores every object it serves in
+# GOCACHE without evicting, so saving it grows the cache unboundedly.
+description: Restore and save the Go module cache.
 inputs:
-  cache-path:
-    description: "Optional newline-delimited cache paths. Defaults to go env GOCACHE and GOMODCACHE."
-    required: false
-    default: ""
   key-prefix:
     description: "Prefix for the cache key."
     required: false
@@ -22,11 +21,7 @@ runs:
       run: |
         set -euo pipefail
 
-        if [[ -n "${INPUT_CACHE_PATH}" ]]; then
-          paths="${INPUT_CACHE_PATH}"
-        else
-          paths="$(printf '%s\n%s' "$(go env GOCACHE)" "$(go env GOMODCACHE)")"
-        fi
+        paths="$(go env GOMODCACHE)"
 
         go_version="$(go env GOVERSION)"
         paths_hash="$(printf '%s\n' "${paths}" | git hash-object --stdin)"
@@ -49,7 +44,6 @@ runs:
           echo "restore-key=${INPUT_KEY_PREFIX}-${RUNNER_OS}-${RUNNER_ARCH}-${paths_hash}-"
         } >> "$GITHUB_OUTPUT"
       env:
-        INPUT_CACHE_PATH: ${{ inputs.cache-path }}
         INPUT_KEY_PREFIX: ${{ inputs.key-prefix }}
 
     - name: Restore Go cache, save on main
