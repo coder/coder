@@ -294,6 +294,29 @@ export const AddBedrockHalfCredentialPairBlocked: Story = {
 	},
 };
 
+// Under mantle, the endpoint must match the mantle host. An InvokeModel-shaped
+// URL is rejected by the schema, so Save stays disabled and onSubmit never
+// fires. Guards the protocol-conditional baseUrl validation.
+export const AddBedrockMantleRejectsInvokeUrl: Story = {
+	args: {
+		initialValues: {
+			type: "bedrock",
+			name: "bedrock-mantle",
+			protocol: "mantle",
+			baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
+			model: "",
+			smallFastModel: "",
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const submitButton = canvas.getByRole("button", { name: /add provider/i });
+
+		await waitFor(() => expect(submitButton).toBeDisabled());
+		expect(args.onSubmit).not.toHaveBeenCalled();
+	},
+};
+
 export const EditBedrockKeepCredentials: Story = {
 	render: (args) => {
 		bedrockSubmitDeferred = createDeferred<void>();
