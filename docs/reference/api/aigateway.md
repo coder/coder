@@ -4,7 +4,7 @@
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/ai-gateway/clients \
   -H 'Accept: application/json' \
@@ -39,7 +39,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/ai-gateway/models \
   -H 'Accept: application/json' \
@@ -74,7 +74,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/ai-gateway/sessions \
   -H 'Accept: application/json' \
@@ -149,7 +149,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/ai-gateway/sessions/{session_id} \
   -H 'Accept: application/json' \

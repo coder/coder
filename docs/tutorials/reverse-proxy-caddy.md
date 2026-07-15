@@ -108,7 +108,7 @@ certificates, you'll need a domain name that resolves to your Caddy server.
 4. Start Coder. Set `CODER_ACCESS_URL` and `CODER_WILDCARD_ACCESS_URL` to the
    domain you're using in your Caddyfile.
 
-   ```shell
+   ```sh
    export CODER_ACCESS_URL=https://coder.example.com
    export CODER_WILDCARD_ACCESS_URL=*.coder.example.com
    docker compose up -d # Run on startup
@@ -158,20 +158,20 @@ certificates, you'll need a domain name that resolves to your Caddy server.
    If you're [keeping Caddy running](https://caddyserver.com/docs/running) via a
    system service:
 
-   ```shell
+   ```sh
    sudo systemctl restart caddy
    ```
 
    Or run a standalone server:
 
-   ```shell
+   ```sh
    caddy run
    ```
 
 6. Optionally, use [ufw](https://wiki.ubuntu.com/UncomplicatedFirewall) or
    another firewall to disable external traffic outside of Caddy.
 
-   ```shell
+   ```sh
    # Check status of UncomplicatedFirewall
    sudo ufw status
 

@@ -4,7 +4,7 @@
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/ \
   -H 'Accept: application/json'
@@ -39,7 +39,7 @@ curl -X GET http://coder-server:8080/api/v2/ \
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/buildinfo \
   -H 'Accept: application/json'
@@ -76,7 +76,7 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/csp/reports \
   -H 'Content-Type: application/json' \
@@ -117,7 +117,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/deployment/config \
   -H 'Accept: application/json' \
@@ -721,7 +721,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/deployment/ssh \
   -H 'Accept: application/json' \
@@ -757,7 +757,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/deployment/stats \
   -H 'Accept: application/json' \
@@ -809,7 +809,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/experiments \
   -H 'Accept: application/json' \
@@ -848,7 +848,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/experiments/available \
   -H 'Accept: application/json' \
@@ -887,7 +887,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/updatecheck \
   -H 'Accept: application/json'
@@ -917,7 +917,7 @@ curl -X GET http://coder-server:8080/api/v2/updatecheck \
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens/tokenconfig \
   -H 'Accept: application/json' \

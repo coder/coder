@@ -246,9 +246,6 @@ jobs:
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
 
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
-
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/coder/sqlc/cmd/sqlc
 

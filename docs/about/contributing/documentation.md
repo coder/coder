@@ -76,7 +76,7 @@ Use _code font_ for:
 Use _code blocks_ for code samples and other blocks of code. Be sure to indicate
 the language your using to apply the proper syntax highlighting.
 
-```text
+```txt
 This is a codeblock.
 ```
 

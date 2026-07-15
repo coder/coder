@@ -17135,6 +17135,7 @@ const docTemplate = `{
                 "usage_limit",
                 "missing_key",
                 "provider_disabled",
+                "content_filter",
                 "hook_dispatch_failed"
             ],
             "x-enum-varnames": [
@@ -17148,6 +17149,7 @@ const docTemplate = `{
                 "ChatErrorKindUsageLimit",
                 "ChatErrorKindMissingKey",
                 "ChatErrorKindProviderDisabled",
+                "ChatErrorKindContentFilter",
                 "ChatErrorKindHookDispatchFailed"
             ]
         },

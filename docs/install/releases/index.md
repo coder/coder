@@ -67,7 +67,7 @@ our GitHub [releases page](https://github.com/coder/coder/releases).
 You can also use our `install.sh` script with the `stable` flag to install the
 latest stable release:
 
-```shell
+```sh
 curl -fsSL https://coder.com/install.sh | sh -s -- --stable
 ```
 

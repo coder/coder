@@ -79,7 +79,7 @@ provisioner as the built-in provisioners are scoped to the default organization.
 1. Using Coder CLI, run the following command to create a key that will be used
    to authenticate the provisioner:
 
-   ```shell
+   ```sh
    coder provisioner keys create data-cluster-key --org data-platform
    Successfully created provisioner key data-cluster! Save this authentication token, it will not be shown again.
 

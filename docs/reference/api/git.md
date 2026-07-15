@@ -4,7 +4,7 @@
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/external-auth \
   -H 'Accept: application/json' \
@@ -41,7 +41,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/external-auth/{externalauth} \
   -H 'Accept: application/json' \
@@ -103,7 +103,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/external-auth/{externalauth} \
   -H 'Accept: application/json' \
@@ -141,7 +141,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/external-auth/{externalauth}/device \
   -H 'Accept: application/json' \
@@ -182,7 +182,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/external-auth/{externalauth}/device \
   -H 'Coder-Session-Token: API_KEY'

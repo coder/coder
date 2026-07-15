@@ -29,7 +29,7 @@ Section tags don't save readers from scanning content that doesn't apply to them
 
 **Do**:
 
-```markdown
+```md
 # Connect Visual Studio Code to your Coder workspace
 
 *Audience: a developer with an existing Coder workspace.*
@@ -41,7 +41,7 @@ For Windsurf, refer to [Windsurf](./windsurf.md).
 
 **Don't**:
 
-```markdown
+```md
 # Connect to your Coder workspace
 
 This page covers Visual Studio Code, Cursor, Windsurf, JetBrains, Vim, the web terminal, and SSH.
@@ -66,7 +66,7 @@ A page that helps the reader accomplish two unrelated outcomes hides each outcom
 
 **Do**:
 
-```markdown
+```md
 # Configure single sign-on with Okta
 
 This page walks through configuring OIDC single sign-on against an Okta tenant.
@@ -76,7 +76,7 @@ For Google Workspace, refer to [Configure SSO with Google Workspace](./sso-googl
 
 **Don't**:
 
-```markdown
+```md
 # Authentication
 
 This page covers OIDC providers (Okta, Azure AD, Google Workspace, generic OIDC),
@@ -100,7 +100,7 @@ A hub page is appropriate when:
 
 **Do**:
 
-```markdown
+```md
 # Authentication
 
 This page is the entry point for configuring authentication in Coder.
@@ -114,7 +114,7 @@ Pick the provider that matches your identity source:
 
 **Don't**:
 
-```markdown
+```md
 # Authentication
 
 This page covers OIDC, SAML, GitHub OAuth, password authentication, and the API token model.
@@ -153,7 +153,7 @@ Name the audience by the role the reader recognizes from their own work (`develo
 
 **Do**:
 
-```markdown
+```md
 # Connect Visual Studio Code to your Coder workspace
 
 This guide is for a developer with an existing Coder workspace.
@@ -164,7 +164,7 @@ For Windsurf, refer to [Windsurf](./windsurf.md).
 
 **Don't**:
 
-```markdown
+```md
 # Kubernetes
 
 Coder runs on Kubernetes.
@@ -185,7 +185,7 @@ For pages of that kind, add an `IMPORTANT` callout at the beginning of the page 
 
 **Do**:
 
-```markdown
+```md
 # Configure single sign-on with Okta
 
 This guide is for a Coder deployment administrator

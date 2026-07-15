@@ -4,7 +4,7 @@
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members \
   -H 'Accept: application/json' \
@@ -106,7 +106,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members/roles \
   -H 'Accept: application/json' \
@@ -204,7 +204,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members/roles \
   -H 'Content-Type: application/json' \
@@ -337,7 +337,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/members/roles \
   -H 'Content-Type: application/json' \
@@ -470,7 +470,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/members/roles/{roleName} \
   -H 'Accept: application/json' \
@@ -565,7 +565,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members/{user} \
   -H 'Accept: application/json' \
@@ -631,7 +631,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/members/{user} \
   -H 'Accept: application/json' \
@@ -679,7 +679,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/members/{user} \
   -H 'Coder-Session-Token: API_KEY'
@@ -706,7 +706,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members/{user}/roles \
   -H 'Content-Type: application/json' \
@@ -766,7 +766,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginated-members \
   -H 'Accept: application/json' \
@@ -879,7 +879,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/users/roles \
   -H 'Accept: application/json' \

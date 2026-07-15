@@ -46,7 +46,7 @@ In Coder v2.25.0 and later, Dynamic Parameters are automatically enabled for new
 
 1. Update your template to use version >=2.4.0 of the Coder provider with the following Terraform block.
 
-   ```terraform
+   ```tf
    terraform {
      required_providers {
        coder = {
@@ -148,7 +148,7 @@ Users can avoid restrictions like `disabled` if they create a workspace via the 
 
 This attribute accepts JSON like so:
 
-```terraform
+```tf
 data "coder_parameter" "styled_parameter" {
   ...
   styling = jsonencode({
@@ -182,7 +182,7 @@ Single-select parameters with options can use the `form_type="dropdown"` attribu
 
 [Try dropdown lists on the Parameter Playground](https://playground.coder.app/parameters/kgNBpjnz7x)
 
-```terraform
+```tf
 locals {
   ides = [
     "VS Code",
@@ -219,7 +219,7 @@ The large text entry option can be used to enter long strings like AI prompts, s
 
 [Try textarea parameters on the Parameter Playground](https://playground.coder.app/parameters/RCAHA1Oi1_)
 
-```terraform
+```tf
 
 data "coder_parameter" "text_area" {
   name = "text_area"
@@ -249,7 +249,7 @@ For example, adding multiple IDEs with a single parameter.
 
 [Try multi-select parameters on the Parameter Playground](https://playground.coder.app/parameters/XogX54JV_f)
 
-```terraform
+```tf
 locals {
   ides = [
     "VS Code", "JetBrains IntelliJ",
@@ -289,7 +289,7 @@ This is the original styling for list parameters.
 
 [Try radio parameters on the Parameter Playground](https://playground.coder.app/parameters/3OMDp5ANZI).
 
-```terraform
+```tf
 data "coder_parameter" "environment" {
   name         = "environment"
   display_name = "Environment"
@@ -325,7 +325,7 @@ This can be used for a TOS confirmation or to expose advanced options.
 
 [Try checkbox parameters on the Parameters Playground](https://playground.coder.app/parameters/ycWuQJk2Py).
 
-```terraform
+```tf
 data "coder_parameter" "enable_gpu" {
   name         = "enable_gpu"
   display_name = "Enable GPU"
@@ -342,7 +342,7 @@ The `validation` block is used to constrain (or clamp) the minimum and maximum v
 
 [Try slider parameters on the Parameters Playground](https://playground.coder.app/parameters/RsBNcWVvfm).
 
-```terraform
+```tf
 data "coder_parameter" "cpu_cores" {
   name         = "cpu_cores"
   display_name = "CPU Cores"
@@ -366,7 +366,7 @@ Note that this does not secure information on the backend and is purely cosmetic
 Note: This text may not be properly hidden in the Playground.
 The `mask_input` styling attribute is supported in v2.24.0 and later.
 
-```terraform
+```tf
 data "coder_parameter" "private_api_key" {
   name         = "private_api_key"
   display_name = "Your super secret API key"
@@ -405,7 +405,7 @@ Use Terraform conditionals and the `count` block to allow a checkbox to expose o
 
 [Try conditional parameters on the Parameter Playground](https://playground.coder.app/parameters/xmG5MKEGNM).
 
-```terraform
+```tf
 data "coder_parameter" "show_cpu_cores" {
   name         = "show_cpu_cores"
   display_name = "Toggles next parameter"
@@ -440,7 +440,7 @@ This allows you to suggest an option dynamically without strict enforcement.
 
 [Try dynamic defaults in the Parameter Playground](https://playground.coder.app/parameters/DEi-Bi6DVe).
 
-```terraform
+```tf
 locals {
   ides = [
     "VS Code",
@@ -505,7 +505,7 @@ A parameter's validation block can leverage inputs from other parameters.
 
 [Try dynamic validation in the Parameter Playground](https://playground.coder.app/parameters/sdbzXxagJ4).
 
-```terraform
+```tf
 data "coder_parameter" "git_repo" {
   name = "git_repo"
   display_name = "Git repo"
@@ -557,7 +557,7 @@ Note that parameters must be indexed when using the `count` attribute.
 
 [Try daisy-chaining parameters in the Parameter Playground](https://playground.coder.app/parameters/jLUUhoDLIa).
 
-```terraform
+```tf
 
 locals {
   ides = [
@@ -659,7 +659,7 @@ data source.
 
 [Try out admin-only options in the Playground](https://playground.coder.app/parameters/5Gn9W3hYs7).
 
-```terraform
+```tf
 
 locals {
   roles = [for r in data.coder_workspace_owner.me.rbac_roles: r.name]
@@ -701,7 +701,7 @@ This way developers can't accidentally induce low-latency with world-spanning co
 
 [Try user-aware regions in the parameter playground](https://playground.coder.app/parameters/tBD-mbZRGm)
 
-```terraform
+```tf
 
 locals {
   eu_regions = [
@@ -752,7 +752,7 @@ Some users associate groups with namespaces, such as Kubernetes, then allow user
 
 [Try groups as options in the Parameter Playground](https://playground.coder.app/parameters/lKbU53nYjl).
 
-```terraform
+```tf
 locals {
   groups = data.coder_workspace_owner.me.groups
 }
@@ -839,7 +839,7 @@ Dynamic Parameters require Terraform modules to be archived and stored in the da
 
 You may see warnings in the provisioner logs:
 
-```text
+```txt
 [API] 2026-01-29 22:00:22.691 [warn]  provisionerd-nixos-0.executor: some (or all) terraform modules were not archived, template will have reduced function  skipped_modules=large:git::https://github.com/coder/large-module.git
 ```
 
