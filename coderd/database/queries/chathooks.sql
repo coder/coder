@@ -70,6 +70,16 @@ ORDER BY
 	started_at ASC,
 	id ASC;
 
+-- name: MarkChatHookDispatchEffectsApplied :exec
+UPDATE chat_hook_dispatches
+SET
+	effects_applied_at = COALESCE(effects_applied_at, NOW())
+WHERE
+	chat_id = @chat_id::uuid
+	AND event = 'pre_tool_use'
+	AND turn_id IS NOT DISTINCT FROM sqlc.narg('turn_id')::uuid
+	AND tool_use_id = ANY(@tool_use_ids::text[]);
+
 -- name: GetChatHookDispatchDecision :one
 SELECT
 	*

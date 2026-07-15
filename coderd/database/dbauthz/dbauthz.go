@@ -6926,6 +6926,17 @@ func (q *querier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg datab
 	return q.db.MarkAllInboxNotificationsAsRead(ctx, arg)
 }
 
+func (q *querier) MarkChatHookDispatchEffectsApplied(ctx context.Context, arg database.MarkChatHookDispatchEffectsAppliedParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.MarkChatHookDispatchEffectsApplied(ctx, arg)
+}
+
 func (q *querier) MarkChatsContextDirtyByAgent(ctx context.Context, arg database.MarkChatsContextDirtyByAgentParams) ([]database.MarkChatsContextDirtyByAgentRow, error) {
 	// System-level operation: the dirty fan-out runs across every active
 	// chat for the agent in response to a context push.

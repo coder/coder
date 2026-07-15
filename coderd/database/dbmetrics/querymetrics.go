@@ -4873,6 +4873,14 @@ func (m queryMetricsStore) MarkAllInboxNotificationsAsRead(ctx context.Context, 
 	return r0
 }
 
+func (m queryMetricsStore) MarkChatHookDispatchEffectsApplied(ctx context.Context, arg database.MarkChatHookDispatchEffectsAppliedParams) error {
+	start := time.Now()
+	r0 := m.s.MarkChatHookDispatchEffectsApplied(ctx, arg)
+	m.queryLatencies.WithLabelValues("MarkChatHookDispatchEffectsApplied").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "MarkChatHookDispatchEffectsApplied").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) MarkChatsContextDirtyByAgent(ctx context.Context, arg database.MarkChatsContextDirtyByAgentParams) ([]database.MarkChatsContextDirtyByAgentRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.MarkChatsContextDirtyByAgent(ctx, arg)

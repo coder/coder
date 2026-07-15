@@ -1942,7 +1942,8 @@ CREATE TABLE chat_hook_dispatches (
     allowed_tools jsonb,
     end_chat boolean,
     error text,
-    decision_reason text
+    decision_reason text,
+    effects_applied_at timestamp with time zone
 );
 
 COMMENT ON TABLE chat_hook_dispatches IS 'One row per lifecycle hook webhook dispatch; id is the wire-protocol dispatch_id (JWT jti).';

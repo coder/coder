@@ -1283,6 +1283,13 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpdateChatHookAllowedTools(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns()
 	}))
+	s.Run("MarkChatHookDispatchEffectsApplied", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := testutil.Fake(s.T(), faker, database.MarkChatHookDispatchEffectsAppliedParams{ChatID: chat.ID})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().MarkChatHookDispatchEffectsApplied(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns()
+	}))
 	s.Run("ListChatHookDispatchesByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		dispatches := []database.ChatHookDispatch{testutil.Fake(s.T(), faker, database.ChatHookDispatch{ChatID: chat.ID})}

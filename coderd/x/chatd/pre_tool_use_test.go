@@ -605,6 +605,29 @@ func recordPreToolUseDecision(
 	override json.RawMessage,
 ) {
 	t.Helper()
+	recordPreToolUseResponse(ctx, t, db, chatID, ownerID, turnID, toolUseID, decision, reason, override, agenthooks.Response{})
+}
+
+func recordPreToolUseResponse(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	chatID uuid.UUID,
+	ownerID uuid.UUID,
+	turnID uuid.UUID,
+	toolUseID string,
+	decision agenthooks.PermissionDecision,
+	reason string,
+	override json.RawMessage,
+	response agenthooks.Response,
+) {
+	t.Helper()
+	var allowedTools json.RawMessage
+	if response.AllowedTools != nil {
+		encoded, err := json.Marshal(response.AllowedTools)
+		require.NoError(t, err)
+		allowedTools = encoded
+	}
 	dispatchID := uuid.New()
 	_, err := db.InsertChatHookDispatch(ctx, database.InsertChatHookDispatchParams{
 		ID:        dispatchID,
@@ -622,11 +645,184 @@ func recordPreToolUseDecision(
 		Decision:       sql.NullString{String: string(decision), Valid: true},
 		DecisionReason: sql.NullString{String: reason, Valid: reason != ""},
 		InputOverride:  nullRawMessage(override),
+		ModelContext:   sql.NullString{String: response.ModelContext, Valid: response.ModelContext != ""},
+		UserMessage:    sql.NullString{String: response.UserMessage, Valid: response.UserMessage != ""},
+		AllowedTools:   nullRawMessage(allowedTools),
+		EndChat:        sql.NullBool{Bool: response.EndChat, Valid: response.EndChat},
 		ID:             dispatchID,
 		ChatID:         chatID,
 		OwnerID:        ownerID,
 	})
 	require.NoError(t, err)
+}
+
+// Worker crashed after the pre_tool_use dispatch finalized but before
+// its effects committed: decision reuse must replay the recorded
+// response effects exactly once.
+func TestPreToolUseHookReplaysUnappliedEffects(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	chatID := seedPendingToolCall(ctx, t, db, ps, pendingToolCallSeed{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    ws.ID,
+		AgentID:        dbAgent.ID,
+		ModelConfigID:  model.ID,
+		APIKeyID:       testAPIKeyID(t, db, user.ID),
+		ToolCallID:     "call_replay_effects",
+		ToolName:       "read_file",
+		ToolInput:      `{"path":"/tmp/a.txt"}`,
+	})
+	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chatID)
+	require.NoError(t, err)
+	require.True(t, messages[0].TurnID.Valid)
+	allowed := []string{"read_file"}
+	recordPreToolUseResponse(ctx, t, db, chatID, user.ID, messages[0].TurnID.UUID, "call_replay_effects", agenthooks.PermissionAllow, "", nil, agenthooks.Response{
+		ModelContext: "recorded context",
+		UserMessage:  "recorded notice",
+		AllowedTools: &allowed,
+	})
+
+	var preToolUseCalls atomic.Int32
+	consumer := preToolUseConsumer(t, func(agenthooks.PreToolUseData) string {
+		preToolUseCalls.Add(1)
+		return `{}`
+	})
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(workspacesdk.ReadFileLinesResponse{Success: true}, nil).AnyTimes()
+	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	server.Start()
+	waitForChatStatus(ctx, t, db, chatID, database.ChatStatusWaiting)
+
+	require.Zero(t, preToolUseCalls.Load(), "recorded decision must not re-dispatch")
+	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chatID), "read_file")
+	require.False(t, result.IsError)
+
+	promptRows, err := db.GetChatMessagesForPromptByChatID(ctx, chatID)
+	require.NoError(t, err)
+	var contextCount int
+	for _, row := range promptRows {
+		if hookMessageText(t, row) == "recorded context" {
+			contextCount++
+		}
+	}
+	var noticeCount int
+	for _, row := range chatMessages(ctx, t, db, chatID) {
+		if hookMessageText(t, row) == "recorded notice" {
+			noticeCount++
+		}
+	}
+	require.Equal(t, 1, contextCount, "replayed model context must commit exactly once")
+	require.Equal(t, 1, noticeCount, "replayed user notice must commit exactly once")
+	updated, err := db.GetChatByID(ctx, chatID)
+	require.NoError(t, err)
+	require.JSONEq(t, `["read_file"]`, string(updated.HookAllowedTools.RawMessage))
+	dispatches, err := db.ListChatHookDispatchesByChatID(ctx, chatID)
+	require.NoError(t, err)
+	var preToolUseRows int
+	for _, dispatch := range dispatches {
+		if dispatch.Event != string(agenthooks.EventPreToolUse) {
+			continue
+		}
+		preToolUseRows++
+		require.True(t, dispatch.EffectsAppliedAt.Valid, "replayed dispatch must be marked applied")
+	}
+	require.Equal(t, 1, preToolUseRows)
+}
+
+// Effects already committed with an earlier step: decision reuse must
+// restore only the permission and not replay response effects.
+func TestPreToolUseHookSkipsAppliedEffects(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	chatID := seedPendingToolCall(ctx, t, db, ps, pendingToolCallSeed{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    ws.ID,
+		AgentID:        dbAgent.ID,
+		ModelConfigID:  model.ID,
+		APIKeyID:       testAPIKeyID(t, db, user.ID),
+		ToolCallID:     "call_applied_effects",
+		ToolName:       "read_file",
+		ToolInput:      `{"path":"/tmp/a.txt"}`,
+	})
+	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chatID)
+	require.NoError(t, err)
+	require.True(t, messages[0].TurnID.Valid)
+	allowed := []string{"read_file"}
+	recordPreToolUseResponse(ctx, t, db, chatID, user.ID, messages[0].TurnID.UUID, "call_applied_effects", agenthooks.PermissionAllow, "", nil, agenthooks.Response{
+		ModelContext: "recorded context",
+		AllowedTools: &allowed,
+	})
+	require.NoError(t, db.MarkChatHookDispatchEffectsApplied(ctx, database.MarkChatHookDispatchEffectsAppliedParams{
+		ChatID:     chatID,
+		TurnID:     uuid.NullUUID{UUID: messages[0].TurnID.UUID, Valid: true},
+		ToolUseIds: []string{"call_applied_effects"},
+	}))
+
+	var preToolUseCalls atomic.Int32
+	consumer := preToolUseConsumer(t, func(agenthooks.PreToolUseData) string {
+		preToolUseCalls.Add(1)
+		return `{}`
+	})
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(workspacesdk.ReadFileLinesResponse{Success: true}, nil).AnyTimes()
+	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	server.Start()
+	waitForChatStatus(ctx, t, db, chatID, database.ChatStatusWaiting)
+
+	require.Zero(t, preToolUseCalls.Load(), "recorded decision must not re-dispatch")
+	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chatID), "read_file")
+	require.False(t, result.IsError)
+
+	promptRows, err := db.GetChatMessagesForPromptByChatID(ctx, chatID)
+	require.NoError(t, err)
+	for _, row := range promptRows {
+		require.NotEqual(t, "recorded context", hookMessageText(t, row), "applied effects must not replay")
+	}
+	updated, err := db.GetChatByID(ctx, chatID)
+	require.NoError(t, err)
+	require.False(t, updated.HookAllowedTools.Valid, "applied allowed_tools must not replay")
 }
 
 func TestPreToolUseHookResumeFallback(t *testing.T) {

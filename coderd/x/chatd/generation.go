@@ -715,8 +715,10 @@ func (s *taskStarter) generateAssistant(
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionGenerateAssistant, messages, generationCommitHooks{
-		Responses: preflight.Responses,
-		EndChat:   endChat,
+		Responses:  preflight.Responses,
+		EndChat:    endChat,
+		TurnID:     turnID,
+		ToolUseIDs: preflight.ToolUseIDs,
 	})
 }
 
@@ -747,14 +749,17 @@ func (s *taskStarter) commitPreToolUseDeniedResults(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
-	messages, endChat, err := applyHookResponseMessages(messages, preflight.Responses, prepared.ModelConfigID, activeTurnID(prepared.Messages))
+	turnID := activeTurnID(prepared.Messages)
+	messages, endChat, err := applyHookResponseMessages(messages, preflight.Responses, prepared.ModelConfigID, turnID)
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages, generationCommitHooks{
-		Responses: preflight.Responses,
-		Overrides: preflight.Overrides,
-		EndChat:   endChat,
+		Responses:  preflight.Responses,
+		Overrides:  preflight.Overrides,
+		EndChat:    endChat,
+		TurnID:     turnID,
+		ToolUseIDs: preflight.ToolUseIDs,
 	})
 }
 
@@ -843,6 +848,8 @@ func (s *taskStarter) executeLocalTools(
 		Overrides:       preflight.Overrides,
 		EndChat:         postDispatchErr == nil && (preEndChat || postEndChat),
 		PostCommitError: postCommitErr,
+		TurnID:          turnID,
+		ToolUseIDs:      preflight.ToolUseIDs,
 	})
 }
 
@@ -1116,6 +1123,11 @@ type generationCommitHooks struct {
 	Overrides       map[string]json.RawMessage
 	EndChat         bool
 	PostCommitError error
+	// TurnID and ToolUseIDs identify the pre_tool_use dispatch rows whose
+	// response effects commit with this step, so the rows can be marked
+	// effects-applied in the same transaction.
+	TurnID     *uuid.UUID
+	ToolUseIDs []string
 }
 
 func (s *taskStarter) commitGenerationStep(
@@ -1140,6 +1152,9 @@ func (s *taskStarter) commitGenerationStep(
 			return err
 		}
 		if err := applyHookAllowedToolsResponses(ctx, store, input.ChatID, hooks.Responses); err != nil {
+			return err
+		}
+		if err := markHookDispatchEffectsApplied(ctx, store, input.ChatID, hooks.TurnID, hooks.ToolUseIDs); err != nil {
 			return err
 		}
 		var inserted []database.ChatMessage
@@ -1194,7 +1209,8 @@ func (s *taskStarter) enterRequiresAction(
 	prepared generationPrepared,
 	preflight preToolUseExecutionResult,
 ) error {
-	messages, endChat, err := applyHookResponseMessages(stepMessagesForCommit{}, preflight.Responses, prepared.ModelConfigID, activeTurnID(prepared.Messages))
+	turnID := activeTurnID(prepared.Messages)
+	messages, endChat, err := applyHookResponseMessages(stepMessagesForCommit{}, preflight.Responses, prepared.ModelConfigID, turnID)
 	if err != nil {
 		return err
 	}
@@ -1208,6 +1224,9 @@ func (s *taskStarter) enterRequiresAction(
 			return err
 		}
 		if err := applyHookAllowedToolsResponses(ctx, store, input.ChatID, preflight.Responses); err != nil {
+			return err
+		}
+		if err := markHookDispatchEffectsApplied(ctx, store, input.ChatID, turnID, preflight.ToolUseIDs); err != nil {
 			return err
 		}
 		var inserted []database.ChatMessage

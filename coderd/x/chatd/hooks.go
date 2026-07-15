@@ -106,8 +106,9 @@ func (p *Server) dispatchStop(ctx context.Context, chat database.Chat, turnID *u
 }
 
 type preToolUseResult struct {
-	Step      chatloop.PersistedStep
-	Responses []agenthooks.Response
+	Step       chatloop.PersistedStep
+	Responses  []agenthooks.Response
+	ToolUseIDs []string
 }
 
 func (p *Server) dispatchPreToolUse(
@@ -215,15 +216,17 @@ func (p *Server) preflightToolCalls(
 			return preToolUseResult{}, err
 		}
 		result.Responses = append(result.Responses, response)
+		result.ToolUseIDs = append(result.ToolUseIDs, toolCall.ToolCallID)
 	}
 	return result, nil
 }
 
 type preToolUseExecutionResult struct {
-	Allowed   []fantasy.ToolCallContent
-	Denied    []fantasy.ToolResultContent
-	Responses []agenthooks.Response
-	Overrides map[string]json.RawMessage
+	Allowed    []fantasy.ToolCallContent
+	Denied     []fantasy.ToolResultContent
+	Responses  []agenthooks.Response
+	Overrides  map[string]json.RawMessage
+	ToolUseIDs []string
 }
 
 func (p *Server) preflightPendingToolCalls(
@@ -248,6 +251,15 @@ func (p *Server) preflightPendingToolCalls(
 			TurnID:    hookTurnID(turnID),
 		})
 		if err == nil {
+			// Reuse the recorded decision without re-dispatching. When
+			// the worker died after finalizing the dispatch but before
+			// committing its effects (prefix messages, allowed_tools,
+			// end_chat), replay the reconstructed response so those
+			// effects apply exactly once.
+			if !row.EffectsAppliedAt.Valid {
+				result.Responses = append(result.Responses, dispatchRowResponse(row))
+				result.ToolUseIDs = append(result.ToolUseIDs, toolCall.ToolCallID)
+			}
 			switch agenthooks.PermissionDecision(row.Decision.String) {
 			case agenthooks.PermissionAllow:
 				if row.InputOverride.Valid {
@@ -269,6 +281,7 @@ func (p *Server) preflightPendingToolCalls(
 			return preToolUseExecutionResult{}, err
 		}
 		result.Responses = append(result.Responses, response)
+		result.ToolUseIDs = append(result.ToolUseIDs, toolCall.ToolCallID)
 		if response.Permission == nil {
 			result.Allowed = append(result.Allowed, toolCall)
 			continue
@@ -283,6 +296,53 @@ func (p *Server) preflightPendingToolCalls(
 		}
 	}
 	return result, nil
+}
+
+// dispatchRowResponse rebuilds the accepted hook response persisted on a
+// pre_tool_use dispatch row. The permission decision is restored by the
+// caller from the row directly; the reconstructed response carries the
+// remaining effects (context, notice, allowed tools, end_chat) for replay.
+func dispatchRowResponse(row database.ChatHookDispatch) agenthooks.Response {
+	response := agenthooks.Response{
+		EndChat: row.EndChat.Valid && row.EndChat.Bool,
+	}
+	if row.ModelContext.Valid {
+		response.ModelContext = row.ModelContext.String
+	}
+	if row.UserMessage.Valid {
+		response.UserMessage = row.UserMessage.String
+	}
+	if row.AllowedTools.Valid {
+		var allowed []string
+		if err := json.Unmarshal(row.AllowedTools.RawMessage, &allowed); err == nil {
+			response.AllowedTools = &allowed
+		}
+	}
+	return response
+}
+
+// markHookDispatchEffectsApplied records that the pre_tool_use responses
+// for the given tool calls had their effects committed. It must run in
+// the same transaction as the effect application so a crash cannot
+// separate the marker from the effects.
+func markHookDispatchEffectsApplied(
+	ctx context.Context,
+	store database.Store,
+	chatID uuid.UUID,
+	turnID *uuid.UUID,
+	toolUseIDs []string,
+) error {
+	if len(toolUseIDs) == 0 {
+		return nil
+	}
+	if err := store.MarkChatHookDispatchEffectsApplied(ctx, database.MarkChatHookDispatchEffectsAppliedParams{
+		ChatID:     chatID,
+		TurnID:     hookTurnID(turnID),
+		ToolUseIds: toolUseIDs,
+	}); err != nil {
+		return xerrors.Errorf("mark hook dispatch effects applied: %w", err)
+	}
+	return nil
 }
 
 func replacePersistedToolCallInputs(

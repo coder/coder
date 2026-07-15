@@ -9174,6 +9174,20 @@ func (mr *MockStoreMockRecorder) MarkAllInboxNotificationsAsRead(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkAllInboxNotificationsAsRead", reflect.TypeOf((*MockStore)(nil).MarkAllInboxNotificationsAsRead), ctx, arg)
 }
 
+// MarkChatHookDispatchEffectsApplied mocks base method.
+func (m *MockStore) MarkChatHookDispatchEffectsApplied(ctx context.Context, arg database.MarkChatHookDispatchEffectsAppliedParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkChatHookDispatchEffectsApplied", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// MarkChatHookDispatchEffectsApplied indicates an expected call of MarkChatHookDispatchEffectsApplied.
+func (mr *MockStoreMockRecorder) MarkChatHookDispatchEffectsApplied(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkChatHookDispatchEffectsApplied", reflect.TypeOf((*MockStore)(nil).MarkChatHookDispatchEffectsApplied), ctx, arg)
+}
+
 // MarkChatsContextDirtyByAgent mocks base method.
 func (m *MockStore) MarkChatsContextDirtyByAgent(ctx context.Context, arg database.MarkChatsContextDirtyByAgentParams) ([]database.MarkChatsContextDirtyByAgentRow, error) {
 	m.ctrl.T.Helper()

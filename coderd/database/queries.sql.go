@@ -5232,7 +5232,7 @@ SET
 WHERE id = $13::uuid
 	AND chat_id = $14::uuid
 	AND owner_id = $15::uuid
-RETURNING id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason
+RETURNING id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason, effects_applied_at
 `
 
 type FinalizeChatHookDispatchParams struct {
@@ -5293,13 +5293,14 @@ func (q *sqlQuerier) FinalizeChatHookDispatch(ctx context.Context, arg FinalizeC
 		&i.EndChat,
 		&i.Error,
 		&i.DecisionReason,
+		&i.EffectsAppliedAt,
 	)
 	return i, err
 }
 
 const getChatHookDispatchDecision = `-- name: GetChatHookDispatchDecision :one
 SELECT
-	id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason
+	id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason, effects_applied_at
 FROM
 	chat_hook_dispatches
 WHERE
@@ -5345,6 +5346,7 @@ func (q *sqlQuerier) GetChatHookDispatchDecision(ctx context.Context, arg GetCha
 		&i.EndChat,
 		&i.Error,
 		&i.DecisionReason,
+		&i.EffectsAppliedAt,
 	)
 	return i, err
 }
@@ -5369,7 +5371,7 @@ INSERT INTO chat_hook_dispatches (
 	$7::uuid,
 	$8::timestamptz
 )
-RETURNING id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason
+RETURNING id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason, effects_applied_at
 `
 
 type InsertChatHookDispatchParams struct {
@@ -5416,13 +5418,14 @@ func (q *sqlQuerier) InsertChatHookDispatch(ctx context.Context, arg InsertChatH
 		&i.EndChat,
 		&i.Error,
 		&i.DecisionReason,
+		&i.EffectsAppliedAt,
 	)
 	return i, err
 }
 
 const listChatHookDispatchesByChatID = `-- name: ListChatHookDispatchesByChatID :many
 SELECT
-	id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason
+	id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason, effects_applied_at
 FROM
 	chat_hook_dispatches
 WHERE
@@ -5462,6 +5465,7 @@ func (q *sqlQuerier) ListChatHookDispatchesByChatID(ctx context.Context, chatID 
 			&i.EndChat,
 			&i.Error,
 			&i.DecisionReason,
+			&i.EffectsAppliedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -5474,6 +5478,28 @@ func (q *sqlQuerier) ListChatHookDispatchesByChatID(ctx context.Context, chatID 
 		return nil, err
 	}
 	return items, nil
+}
+
+const markChatHookDispatchEffectsApplied = `-- name: MarkChatHookDispatchEffectsApplied :exec
+UPDATE chat_hook_dispatches
+SET
+	effects_applied_at = COALESCE(effects_applied_at, NOW())
+WHERE
+	chat_id = $1::uuid
+	AND event = 'pre_tool_use'
+	AND turn_id IS NOT DISTINCT FROM $2::uuid
+	AND tool_use_id = ANY($3::text[])
+`
+
+type MarkChatHookDispatchEffectsAppliedParams struct {
+	ChatID     uuid.UUID     `db:"chat_id" json:"chat_id"`
+	TurnID     uuid.NullUUID `db:"turn_id" json:"turn_id"`
+	ToolUseIds []string      `db:"tool_use_ids" json:"tool_use_ids"`
+}
+
+func (q *sqlQuerier) MarkChatHookDispatchEffectsApplied(ctx context.Context, arg MarkChatHookDispatchEffectsAppliedParams) error {
+	_, err := q.db.ExecContext(ctx, markChatHookDispatchEffectsApplied, arg.ChatID, arg.TurnID, pq.Array(arg.ToolUseIds))
+	return err
 }
 
 const updateChatHookAllowedTools = `-- name: UpdateChatHookAllowedTools :exec
