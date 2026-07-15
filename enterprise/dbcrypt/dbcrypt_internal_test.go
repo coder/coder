@@ -1572,6 +1572,24 @@ func TestMCPServerUserTokens(t *testing.T) {
 		requireEncryptedEquals(t, ciphers[0], rawTok.AccessToken, accessToken)
 		requireEncryptedEquals(t, ciphers[0], rawTok.RefreshToken, refreshToken)
 	})
+
+	t.Run("MarkMCPServerUserTokenRefreshFailure", func(t *testing.T) {
+		t.Parallel()
+		_, crypt, ciphers := setup(t)
+		_, tok := insertConfigAndToken(t, crypt, ciphers)
+
+		marked, err := crypt.MarkMCPServerUserTokenRefreshFailure(ctx, database.MarkMCPServerUserTokenRefreshFailureParams{
+			ID:                        tok.ID,
+			UpdatedAt:                 tok.UpdatedAt,
+			OauthRefreshFailureReason: "invalid_grant",
+		})
+		require.NoError(t, err)
+		require.Empty(t, marked.AccessToken)
+		require.Empty(t, marked.RefreshToken)
+		require.False(t, marked.AccessTokenKeyID.Valid)
+		require.False(t, marked.RefreshTokenKeyID.Valid)
+		require.Equal(t, "invalid_grant", marked.OauthRefreshFailureReason)
+	})
 }
 
 func TestUserSecrets(t *testing.T) {

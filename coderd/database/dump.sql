@@ -2490,8 +2490,11 @@ CREATE TABLE mcp_server_user_tokens (
     token_type text DEFAULT 'Bearer'::text NOT NULL,
     expiry timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    oauth_refresh_failure_reason text DEFAULT ''::text NOT NULL
 );
+
+COMMENT ON COLUMN mcp_server_user_tokens.oauth_refresh_failure_reason IS 'A permanent refresh failure (e.g. the upstream grant was revoked). Cached so we can avoid calling the provider again for the same error.';
 
 CREATE TABLE notification_messages (
     id uuid NOT NULL,

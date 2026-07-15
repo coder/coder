@@ -33,6 +33,7 @@ const sentryServer = createServerConfig({
 	availability: "force_on",
 	enabled: true,
 	auth_connected: true,
+	auth_status: "connected",
 });
 
 const linearServer = createServerConfig({
@@ -67,7 +68,14 @@ const githubServer = createServerConfig({
 const githubServerConnected = {
 	...githubServer,
 	auth_connected: true,
-};
+	auth_status: "connected",
+} satisfies TypesGen.MCPServerConfig;
+
+const githubServerRevoked = {
+	...githubServer,
+	auth_connected: false,
+	auth_status: "reconnect_required",
+} satisfies TypesGen.MCPServerConfig;
 
 const slackServer = createServerConfig({
 	id: "mcp-slack",
@@ -188,6 +196,14 @@ export const OAuthConnected: Story = {
 	args: {
 		servers: [githubServerConnected],
 		selectedServerIds: [githubServerConnected.id],
+	},
+};
+
+/** OAuth2 grant revoked upstream, shows Reconnect button. */
+export const OAuthReconnectRequired: Story = {
+	args: {
+		servers: [githubServerRevoked],
+		selectedServerIds: [githubServerRevoked.id],
 	},
 };
 

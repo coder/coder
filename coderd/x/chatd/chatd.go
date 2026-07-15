@@ -4747,6 +4747,12 @@ func (p *Server) refreshExpiredMCPTokens(
 		if tok.RefreshToken == "" {
 			continue
 		}
+		if tok.OauthRefreshFailureReason != "" {
+			// A previous refresh already failed permanently (e.g.
+			// revoked grant); the user must reconnect. Skip the
+			// provider call entirely.
+			continue
+		}
 
 		eg.Go(func() error {
 			refreshed, err := p.refreshMCPTokenIfNeeded(ctx, logger, cfg, tok)
@@ -4778,6 +4784,9 @@ func (p *Server) refreshMCPTokenIfNeeded(
 ) (database.MCPServerUserToken, error) {
 	result, err := mcpclient.RefreshOAuth2Token(ctx, cfg, tok)
 	if err != nil {
+		if mcpclient.IsPermanentRefreshError(err) {
+			return p.markMCPTokenRefreshFailure(ctx, logger, cfg, tok, err), nil
+		}
 		return tok, err
 	}
 
@@ -4826,4 +4835,67 @@ func (p *Server) refreshMCPTokenIfNeeded(
 	}
 
 	return updated, nil
+}
+
+// markMCPTokenRefreshFailure persists a permanent refresh failure
+// (e.g. the upstream grant was revoked) so the dead token is never
+// attached again and the UI can prompt the user to reconnect. It
+// always returns a token with cleared auth material, even when
+// persistence fails, so the current request does not send a stale
+// bearer token.
+func (p *Server) markMCPTokenRefreshFailure(
+	ctx context.Context,
+	logger slog.Logger,
+	cfg database.MCPServerConfig,
+	tok database.MCPServerUserToken,
+	refreshErr error,
+) database.MCPServerUserToken {
+	logger.Warn(ctx, "mcp oauth2 grant permanently unusable, marking token for reconnect",
+		slog.F("server_slug", cfg.Slug),
+		slog.F("user_id", tok.UserID),
+		slog.Error(refreshErr),
+	)
+
+	//nolint:gocritic // Chatd needs system-level write access to
+	// persist the refresh failure for the user.
+	marked, err := p.db.MarkMCPServerUserTokenRefreshFailure(
+		dbauthz.AsSystemRestricted(ctx),
+		database.MarkMCPServerUserTokenRefreshFailureParams{
+			ID:                        tok.ID,
+			UpdatedAt:                 tok.UpdatedAt,
+			OauthRefreshFailureReason: mcpclient.RefreshFailureReason(refreshErr),
+		},
+	)
+	if err == nil {
+		return marked
+	}
+
+	if xerrors.Is(err, sql.ErrNoRows) {
+		// Optimistic lock miss: a concurrent request refreshed or
+		// replaced the token after we read it, so our failure is
+		// stale. Use the winner's row instead.
+		//nolint:gocritic // Chatd needs system-level read access to
+		// load the concurrently updated token.
+		current, readErr := p.db.GetMCPServerUserToken(
+			dbauthz.AsSystemRestricted(ctx),
+			database.GetMCPServerUserTokenParams{
+				MCPServerConfigID: tok.MCPServerConfigID,
+				UserID:            tok.UserID,
+			},
+		)
+		if readErr == nil {
+			return current
+		}
+		err = readErr
+	}
+
+	logger.Warn(ctx, "failed to persist MCP oauth2 refresh failure",
+		slog.F("server_slug", cfg.Slug),
+		slog.Error(err),
+	)
+	tok.AccessToken = ""
+	tok.RefreshToken = ""
+	tok.Expiry = sql.NullTime{}
+	tok.OauthRefreshFailureReason = mcpclient.RefreshFailureReason(refreshErr)
+	return tok
 }

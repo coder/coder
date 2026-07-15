@@ -291,6 +291,8 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 								isForceOn || selectedServerIds.includes(server.id);
 							const needsAuth =
 								server.auth_type === "oauth2" && !server.auth_connected;
+							const needsReconnect =
+								server.auth_status === "reconnect_required";
 							const isConnecting = connectingServerId === server.id;
 
 							return (
@@ -323,7 +325,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 													{isConnecting ? (
 														<Spinner loading className="h-2.5 w-2.5" />
 													) : null}
-													Auth
+													{needsReconnect ? "Reconnect" : "Auth"}
 												</Button>
 											) : (
 												<Switch
@@ -355,9 +357,11 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 										</span>
 										{server.auth_type !== "none" && (
 											<span className="block text-content-secondary leading-tight">
-												{server.auth_connected
-													? "Authenticated"
-													: "Not authenticated"}
+												{server.auth_status === "reconnect_required"
+													? "Authentication expired, reconnect required"
+													: server.auth_connected
+														? "Authenticated"
+														: "Not authenticated"}
 											</span>
 										)}
 									</TooltipContent>

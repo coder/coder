@@ -5449,6 +5449,8 @@ type MCPServerUserToken struct {
 	Expiry            sql.NullTime   `db:"expiry" json:"expiry"`
 	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
+	// A permanent refresh failure (e.g. the upstream grant was revoked). Cached so we can avoid calling the provider again for the same error.
+	OauthRefreshFailureReason string `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
 }
 
 type NotificationMessage struct {

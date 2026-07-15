@@ -16864,7 +16864,7 @@ func (q *sqlQuerier) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UU
 
 const getMCPServerUserToken = `-- name: GetMCPServerUserToken :one
 SELECT
-    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at
+    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason
 FROM
     mcp_server_user_tokens
 WHERE
@@ -16892,13 +16892,14 @@ func (q *sqlQuerier) GetMCPServerUserToken(ctx context.Context, arg GetMCPServer
 		&i.Expiry,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OauthRefreshFailureReason,
 	)
 	return i, err
 }
 
 const getMCPServerUserTokensByUserID = `-- name: GetMCPServerUserTokensByUserID :many
 SELECT
-    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at
+    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason
 FROM
     mcp_server_user_tokens
 WHERE
@@ -16926,6 +16927,7 @@ func (q *sqlQuerier) GetMCPServerUserTokensByUserID(ctx context.Context, userID 
 			&i.Expiry,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OauthRefreshFailureReason,
 		); err != nil {
 			return nil, err
 		}
@@ -17098,6 +17100,54 @@ func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPSer
 	return i, err
 }
 
+const markMCPServerUserTokenRefreshFailure = `-- name: MarkMCPServerUserTokenRefreshFailure :one
+UPDATE mcp_server_user_tokens
+SET
+    access_token = '',
+    access_token_key_id = NULL,
+    refresh_token = '',
+    refresh_token_key_id = NULL,
+    expiry = NULL,
+    oauth_refresh_failure_reason = $1::text,
+    updated_at = NOW()
+WHERE
+    id = $2::uuid
+    AND updated_at = $3::timestamptz
+RETURNING
+    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason
+`
+
+type MarkMCPServerUserTokenRefreshFailureParams struct {
+	OauthRefreshFailureReason string    `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
+	ID                        uuid.UUID `db:"id" json:"id"`
+	UpdatedAt                 time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Records a permanent refresh failure (e.g. revoked grant) and clears
+// the dead token material so it is never attached to a request again.
+// The updated_at predicate provides optimistic concurrency: if another
+// request refreshed or replaced the token since it was read, this
+// update matches zero rows and returns sql.ErrNoRows.
+func (q *sqlQuerier) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, arg MarkMCPServerUserTokenRefreshFailureParams) (MCPServerUserToken, error) {
+	row := q.db.QueryRowContext(ctx, markMCPServerUserTokenRefreshFailure, arg.OauthRefreshFailureReason, arg.ID, arg.UpdatedAt)
+	var i MCPServerUserToken
+	err := row.Scan(
+		&i.ID,
+		&i.MCPServerConfigID,
+		&i.UserID,
+		&i.AccessToken,
+		&i.AccessTokenKeyID,
+		&i.RefreshToken,
+		&i.RefreshTokenKeyID,
+		&i.TokenType,
+		&i.Expiry,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OauthRefreshFailureReason,
+	)
+	return i, err
+}
+
 const updateMCPServerConfig = `-- name: UpdateMCPServerConfig :one
 UPDATE
     mcp_server_configs
@@ -17258,9 +17308,12 @@ ON CONFLICT (mcp_server_config_id, user_id) DO UPDATE SET
     refresh_token_key_id = $6::text,
     token_type = $7::text,
     expiry = $8::timestamptz,
+    -- New token material means the user re-authenticated, so any
+    -- cached permanent refresh failure no longer applies.
+    oauth_refresh_failure_reason = '',
     updated_at = NOW()
 RETURNING
-    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at
+    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason
 `
 
 type UpsertMCPServerUserTokenParams struct {
@@ -17298,6 +17351,7 @@ func (q *sqlQuerier) UpsertMCPServerUserToken(ctx context.Context, arg UpsertMCP
 		&i.Expiry,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OauthRefreshFailureReason,
 	)
 	return i, err
 }
