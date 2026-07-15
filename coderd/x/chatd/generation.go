@@ -430,7 +430,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			}
 			if len(preflight.Denied) == 0 {
 				cleanup()
-				return s.enterRequiresAction(ctx, machine, input)
+				return s.enterRequiresAction(ctx, machine, input, prepared, preflight)
 			}
 			actionErr = s.commitPreToolUseDeniedResults(ctx, machine, input, prepared, preflight)
 		case generationActionFinishTurn:
@@ -742,6 +742,7 @@ func (s *taskStarter) commitPreToolUseDeniedResults(
 	}
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages, generationCommitHooks{
 		Responses: preflight.Responses,
+		Overrides: preflight.Overrides,
 		EndChat:   endChat,
 	})
 }
@@ -815,6 +816,7 @@ func (s *taskStarter) executeLocalTools(
 	}
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages, generationCommitHooks{
 		Responses: preflight.Responses,
+		Overrides: preflight.Overrides,
 		EndChat:   endChat,
 	})
 }
@@ -978,6 +980,7 @@ func (s *taskStarter) beginGenerationAttempt(
 
 type generationCommitHooks struct {
 	Responses []agenthooks.Response
+	Overrides map[string]json.RawMessage
 	EndChat   bool
 }
 
@@ -998,6 +1001,9 @@ func (s *taskStarter) commitGenerationStep(
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForGeneration(ctx, store, input, requireGenerationAttempt(attempt)); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
+		}
+		if err := replacePersistedToolCallInputs(ctx, store, input.ChatID, hooks.Overrides); err != nil {
+			return err
 		}
 		for _, response := range hooks.Responses {
 			if err := applyHookAllowedTools(ctx, store, input.ChatID, response); err != nil {
@@ -1049,14 +1055,48 @@ func (s *taskStarter) enterRequiresAction(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
+	prepared generationPrepared,
+	preflight preToolUseExecutionResult,
 ) error {
+	messages, endChat, err := applyPreToolUseResponseMessages(stepMessagesForCommit{}, preflight.Responses, prepared.ModelConfigID, activeTurnID(prepared.Messages))
+	if err != nil {
+		return err
+	}
 	var committed database.Chat
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	insertedMessages := []runnerActionMessage{}
+	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForTask(ctx, store, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
-		if _, err := tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{}); err != nil {
-			return xerrors.Errorf("tx.EnterRequiresAction: %w", err)
+		if err := replacePersistedToolCallInputs(ctx, store, input.ChatID, preflight.Overrides); err != nil {
+			return err
+		}
+		for _, response := range preflight.Responses {
+			if err := applyHookAllowedTools(ctx, store, input.ChatID, response); err != nil {
+				return err
+			}
+		}
+		var inserted []database.ChatMessage
+		if endChat {
+			result, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: messages.Messages})
+			if err != nil {
+				return xerrors.Errorf("tx.EndChat: %w", err)
+			}
+			inserted = result.InsertedMessages
+		} else {
+			if len(messages.Messages) > 0 {
+				result, err := tx.CommitStep(chatstate.CommitStepInput{Messages: messages.Messages})
+				if err != nil {
+					return xerrors.Errorf("tx.CommitStep: %w", err)
+				}
+				inserted = result.InsertedMessages
+			}
+			if _, err := tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{}); err != nil {
+				return xerrors.Errorf("tx.EnterRequiresAction: %w", err)
+			}
+		}
+		for _, message := range inserted {
+			insertedMessages = append(insertedMessages, runnerActionMessage{ID: message.ID, Role: codersdk.ChatMessageRole(message.Role)})
 		}
 		chat, err := store.GetChatByID(ctx, input.ChatID)
 		if err != nil {
@@ -1068,13 +1108,19 @@ func (s *taskStarter) enterRequiresAction(
 	if err != nil {
 		return normalizeTaskTransitionError(err, "enter requires action")
 	}
+	if endChat {
+		input.DebugTurn.RecordOutcome(chatdebug.StatusCompleted)
+		s.server.scheduleArchiveDebugCleanup(ctx, []database.Chat{committed})
+		return s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindDeleted)
+	}
 	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindActionRequired); err != nil {
 		return xerrors.Errorf("publish watch and route: %w", err)
 	}
 	return s.afterGenerationOutcome(ctx, generationOutcome{
-		Chat:           committed,
-		Kind:           runnerActionKindEnterRequiresAction,
-		WatchEventKind: codersdk.ChatWatchEventKindActionRequired,
+		Chat:             committed,
+		Kind:             runnerActionKindEnterRequiresAction,
+		WatchEventKind:   codersdk.ChatWatchEventKindActionRequired,
+		InsertedMessages: insertedMessages,
 	})
 }
 

@@ -3322,6 +3322,17 @@ func (q *querier) GetChatHeartbeat(ctx context.Context, arg database.GetChatHear
 	return q.db.GetChatHeartbeat(ctx, arg)
 }
 
+func (q *querier) GetChatHookDispatchDecision(ctx context.Context, arg database.GetChatHookDispatchDecisionParams) (database.ChatHookDispatch, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatHookDispatch{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
+		return database.ChatHookDispatch{}, err
+	}
+	return q.db.GetChatHookDispatchDecision(ctx, arg)
+}
+
 func (q *querier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
 	// The include-default-system-prompt flag is a deployment-wide setting read
 	// during chat creation by every authenticated user, so no RBAC policy
@@ -7363,6 +7374,21 @@ func (q *querier) UpdateChatMCPServerIDs(ctx context.Context, arg database.Updat
 		return database.Chat{}, err
 	}
 	return q.db.UpdateChatMCPServerIDs(ctx, arg)
+}
+
+func (q *querier) UpdateChatMessageContentByID(ctx context.Context, arg database.UpdateChatMessageContentByIDParams) error {
+	message, err := q.db.GetChatMessageByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+	chat, err := q.db.GetChatByID(ctx, message.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.UpdateChatMessageContentByID(ctx, arg)
 }
 
 func (q *querier) UpdateChatModelConfig(ctx context.Context, arg database.UpdateChatModelConfigParams) (database.ChatModelConfig, error) {

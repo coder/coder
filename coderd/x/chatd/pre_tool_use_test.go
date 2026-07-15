@@ -229,6 +229,102 @@ func TestPreToolUseHookDeny(t *testing.T) {
 	require.Equal(t, "deny", dispatch.Decision.String)
 }
 
+func TestPreToolUseSkipsProviderExecutedTools(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	anthropicURL := chattest.NewAnthropic(t, func(_ *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		return chattest.AnthropicStreamingResponse(
+			anthropicWebSearchPairChunks("ws-hook-skip", `{"query":"coder"}`, "search done", "end_turn")...,
+		)
+	})
+	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+	model = enableAnthropicWebSearchForTest(t, db, model)
+	var preToolCalls atomic.Int32
+	consumer := preToolUseConsumer(t, func(agenthooks.PreToolUseData) string {
+		preToolCalls.Add(1)
+		return `{}`
+	})
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+	})
+	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "search for coder")
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	require.Zero(t, preToolCalls.Load())
+	call := requireToolCallPart(t, chatToolParts(ctx, t, db, chat.ID), "web_search")
+	require.True(t, call.ProviderExecuted)
+}
+
+func TestPreToolUseHookDynamicAllowResponse(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		chunk := chattest.OpenAIToolCallChunk("my_dynamic_tool", `{"query":"original"}`)
+		chunk.Choices[0].ToolCalls[0].ID = "call_dynamic_allow"
+		return chattest.OpenAIStreamingResponse(chunk)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	consumer := preToolUseConsumer(t, func(data agenthooks.PreToolUseData) string {
+		require.Equal(t, "call_dynamic_allow", data.ToolUseID)
+		return `{"permission":{"decision":"allow","input_override":{"query":"redacted"}},"model_context":"dynamic context","user_message":"dynamic notice","allowed_tools":[]}`
+	})
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		APIKeyID:       testAPIKeyID(t, db, user.ID),
+		Title:          "pre-tool-use-dynamic-allow",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("call the dynamic tool"),
+		},
+		DynamicTools: dynamicToolJSON(t, "my_dynamic_tool"),
+	})
+	require.NoError(t, err)
+
+	var action database.Chat
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		action, err = db.GetChatByID(ctx, chat.ID)
+		return err == nil && action.Status == database.ChatStatusRequiresAction
+	}, testutil.IntervalFast)
+	require.JSONEq(t, `[]`, string(action.HookAllowedTools.RawMessage))
+	call := requireToolCallPart(t, chatToolParts(ctx, t, db, chat.ID), "my_dynamic_tool")
+	require.JSONEq(t, `{"query":"redacted"}`, string(call.Args))
+	promptMessages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	var foundContext bool
+	for _, message := range promptMessages {
+		parts, err := chatprompt.ParseContent(message)
+		require.NoError(t, err)
+		if len(parts) == 1 && parts[0].Text == "dynamic context" {
+			foundContext = true
+		}
+	}
+	require.True(t, foundContext)
+	var foundNotice bool
+	for _, message := range chatMessages(ctx, t, db, chat.ID) {
+		parts, err := chatprompt.ParseContent(message)
+		require.NoError(t, err)
+		if len(parts) == 1 && parts[0].Text == "dynamic notice" {
+			foundNotice = true
+		}
+	}
+	require.True(t, foundNotice)
+}
+
 func TestPreToolUseHookEndChat(t *testing.T) {
 	t.Parallel()
 
@@ -436,6 +532,99 @@ func TestPreToolUseHookFailureAbortsWholeStep(t *testing.T) {
 	require.Equal(t, "http_error", toolRows[1].Result)
 }
 
+func TestPreToolUseHookResumeRecordedDeny(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	var modelCalls atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		modelCalls.Add(1)
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("replanned")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	chatID := seedPendingToolCall(ctx, t, db, ps, pendingToolCallSeed{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    ws.ID,
+		AgentID:        dbAgent.ID,
+		ModelConfigID:  model.ID,
+		APIKeyID:       testAPIKeyID(t, db, user.ID),
+		ToolCallID:     "call_recorded_deny",
+		ToolName:       "read_file",
+		ToolInput:      `{"path":"/tmp/secret.txt"}`,
+	})
+	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chatID)
+	require.NoError(t, err)
+	require.True(t, messages[0].TurnID.Valid)
+	recordPreToolUseDecision(ctx, t, db, chatID, user.ID, uuid.New(), "call_recorded_deny", agenthooks.PermissionAllow, "", nil)
+	recordPreToolUseDecision(ctx, t, db, chatID, user.ID, messages[0].TurnID.UUID, "call_recorded_deny", agenthooks.PermissionDeny, "recorded policy reason", nil)
+
+	var hookCalls atomic.Int32
+	consumer := preToolUseConsumer(t, func(agenthooks.PreToolUseData) string {
+		hookCalls.Add(1)
+		return `{}`
+	})
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newPreToolUseDispatcher(t, db, consumer)
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	server.Start()
+	waitForChatStatus(ctx, t, db, chatID, database.ChatStatusWaiting)
+
+	require.Zero(t, hookCalls.Load())
+	require.Equal(t, int32(1), modelCalls.Load())
+	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chatID), "read_file")
+	require.True(t, result.IsError)
+	require.Contains(t, string(result.Result), "DENIED: recorded policy reason")
+}
+
+func recordPreToolUseDecision(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	chatID uuid.UUID,
+	ownerID uuid.UUID,
+	turnID uuid.UUID,
+	toolUseID string,
+	decision agenthooks.PermissionDecision,
+	reason string,
+	override json.RawMessage,
+) {
+	t.Helper()
+	dispatchID := uuid.New()
+	_, err := db.InsertChatHookDispatch(ctx, database.InsertChatHookDispatchParams{
+		ID:        dispatchID,
+		ChatID:    chatID,
+		Event:     string(agenthooks.EventPreToolUse),
+		TurnID:    uuid.NullUUID{UUID: turnID, Valid: true},
+		ToolUseID: sql.NullString{String: toolUseID, Valid: true},
+		OwnerID:   ownerID,
+		StartedAt: time.Now(),
+	})
+	require.NoError(t, err)
+	_, err = db.FinalizeChatHookDispatch(ctx, database.FinalizeChatHookDispatchParams{
+		FinishedAt:     time.Now(),
+		Result:         "ok",
+		Decision:       sql.NullString{String: string(decision), Valid: true},
+		DecisionReason: sql.NullString{String: reason, Valid: reason != ""},
+		InputOverride:  nullRawMessage(override),
+		ID:             dispatchID,
+	})
+	require.NoError(t, err)
+}
+
 func TestPreToolUseHookResumeFallback(t *testing.T) {
 	t.Parallel()
 
@@ -460,14 +649,14 @@ func TestPreToolUseHookResumeFallback(t *testing.T) {
 		APIKeyID:       testAPIKeyID(t, db, user.ID),
 		ToolCallID:     "call_resume_fallback",
 		ToolName:       "read_file",
-		ToolInput:      `{"path":"/tmp/resume.txt"}`,
+		ToolInput:      `{"path":"/tmp/original.txt"}`,
 	})
 
 	var hookCalls atomic.Int32
 	consumer := preToolUseConsumer(t, func(data agenthooks.PreToolUseData) string {
 		hookCalls.Add(1)
 		require.Equal(t, "call_resume_fallback", data.ToolUseID)
-		return `{}`
+		return `{"permission":{"decision":"allow","input_override":{"path":"/tmp/resume.txt"}}}`
 	})
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
@@ -493,6 +682,8 @@ func TestPreToolUseHookResumeFallback(t *testing.T) {
 	require.Equal(t, int32(1), modelCalls.Load())
 	dispatch := preToolUseDispatch(t, db, chatID)
 	require.Equal(t, "allow", dispatch.Decision.String)
+	call := requireToolCallPart(t, chatToolParts(ctx, t, db, chatID), "read_file")
+	require.JSONEq(t, `{"path":"/tmp/resume.txt"}`, string(call.Args))
 	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chatID), "read_file")
 	require.False(t, result.IsError)
 }

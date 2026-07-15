@@ -27,6 +27,7 @@ SET
 	result = @result::text,
 	http_status = sqlc.narg('http_status')::integer,
 	decision = sqlc.narg('decision')::text,
+	decision_reason = sqlc.narg('decision_reason')::text,
 	input_override = sqlc.narg('input_override')::jsonb,
 	original_input = sqlc.narg('original_input')::jsonb,
 	model_context = sqlc.narg('model_context')::text,
@@ -54,3 +55,19 @@ WHERE
 ORDER BY
 	started_at ASC,
 	id ASC;
+
+-- name: GetChatHookDispatchDecision :one
+SELECT
+	*
+FROM
+	chat_hook_dispatches
+WHERE
+	chat_id = @chat_id::uuid
+	AND event = 'pre_tool_use'
+	AND tool_use_id = @tool_use_id::text
+	AND turn_id IS NOT DISTINCT FROM sqlc.narg('turn_id')::uuid
+	AND decision IS NOT NULL
+ORDER BY
+	started_at DESC,
+	id DESC
+LIMIT 1;

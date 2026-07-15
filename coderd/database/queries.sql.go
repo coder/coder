@@ -5195,30 +5195,32 @@ SET
 	result = $2::text,
 	http_status = $3::integer,
 	decision = $4::text,
-	input_override = $5::jsonb,
-	original_input = $6::jsonb,
-	model_context = $7::text,
-	user_message = $8::text,
-	allowed_tools = $9::jsonb,
-	end_chat = $10::boolean,
-	error = $11::text
-WHERE id = $12::uuid
-RETURNING id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error
+	decision_reason = $5::text,
+	input_override = $6::jsonb,
+	original_input = $7::jsonb,
+	model_context = $8::text,
+	user_message = $9::text,
+	allowed_tools = $10::jsonb,
+	end_chat = $11::boolean,
+	error = $12::text
+WHERE id = $13::uuid
+RETURNING id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason
 `
 
 type FinalizeChatHookDispatchParams struct {
-	FinishedAt    time.Time             `db:"finished_at" json:"finished_at"`
-	Result        string                `db:"result" json:"result"`
-	HttpStatus    sql.NullInt32         `db:"http_status" json:"http_status"`
-	Decision      sql.NullString        `db:"decision" json:"decision"`
-	InputOverride pqtype.NullRawMessage `db:"input_override" json:"input_override"`
-	OriginalInput pqtype.NullRawMessage `db:"original_input" json:"original_input"`
-	ModelContext  sql.NullString        `db:"model_context" json:"model_context"`
-	UserMessage   sql.NullString        `db:"user_message" json:"user_message"`
-	AllowedTools  pqtype.NullRawMessage `db:"allowed_tools" json:"allowed_tools"`
-	EndChat       sql.NullBool          `db:"end_chat" json:"end_chat"`
-	Error         sql.NullString        `db:"error" json:"error"`
-	ID            uuid.UUID             `db:"id" json:"id"`
+	FinishedAt     time.Time             `db:"finished_at" json:"finished_at"`
+	Result         string                `db:"result" json:"result"`
+	HttpStatus     sql.NullInt32         `db:"http_status" json:"http_status"`
+	Decision       sql.NullString        `db:"decision" json:"decision"`
+	DecisionReason sql.NullString        `db:"decision_reason" json:"decision_reason"`
+	InputOverride  pqtype.NullRawMessage `db:"input_override" json:"input_override"`
+	OriginalInput  pqtype.NullRawMessage `db:"original_input" json:"original_input"`
+	ModelContext   sql.NullString        `db:"model_context" json:"model_context"`
+	UserMessage    sql.NullString        `db:"user_message" json:"user_message"`
+	AllowedTools   pqtype.NullRawMessage `db:"allowed_tools" json:"allowed_tools"`
+	EndChat        sql.NullBool          `db:"end_chat" json:"end_chat"`
+	Error          sql.NullString        `db:"error" json:"error"`
+	ID             uuid.UUID             `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) FinalizeChatHookDispatch(ctx context.Context, arg FinalizeChatHookDispatchParams) (ChatHookDispatch, error) {
@@ -5227,6 +5229,7 @@ func (q *sqlQuerier) FinalizeChatHookDispatch(ctx context.Context, arg FinalizeC
 		arg.Result,
 		arg.HttpStatus,
 		arg.Decision,
+		arg.DecisionReason,
 		arg.InputOverride,
 		arg.OriginalInput,
 		arg.ModelContext,
@@ -5257,6 +5260,58 @@ func (q *sqlQuerier) FinalizeChatHookDispatch(ctx context.Context, arg FinalizeC
 		&i.AllowedTools,
 		&i.EndChat,
 		&i.Error,
+		&i.DecisionReason,
+	)
+	return i, err
+}
+
+const getChatHookDispatchDecision = `-- name: GetChatHookDispatchDecision :one
+SELECT
+	id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason
+FROM
+	chat_hook_dispatches
+WHERE
+	chat_id = $1::uuid
+	AND event = 'pre_tool_use'
+	AND tool_use_id = $2::text
+	AND turn_id IS NOT DISTINCT FROM $3::uuid
+	AND decision IS NOT NULL
+ORDER BY
+	started_at DESC,
+	id DESC
+LIMIT 1
+`
+
+type GetChatHookDispatchDecisionParams struct {
+	ChatID    uuid.UUID     `db:"chat_id" json:"chat_id"`
+	ToolUseID string        `db:"tool_use_id" json:"tool_use_id"`
+	TurnID    uuid.NullUUID `db:"turn_id" json:"turn_id"`
+}
+
+func (q *sqlQuerier) GetChatHookDispatchDecision(ctx context.Context, arg GetChatHookDispatchDecisionParams) (ChatHookDispatch, error) {
+	row := q.db.QueryRowContext(ctx, getChatHookDispatchDecision, arg.ChatID, arg.ToolUseID, arg.TurnID)
+	var i ChatHookDispatch
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.Event,
+		&i.TurnID,
+		&i.ToolUseID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Result,
+		&i.HttpStatus,
+		&i.Decision,
+		&i.InputOverride,
+		&i.OriginalInput,
+		&i.ModelContext,
+		&i.UserMessage,
+		&i.AllowedTools,
+		&i.EndChat,
+		&i.Error,
+		&i.DecisionReason,
 	)
 	return i, err
 }
@@ -5281,7 +5336,7 @@ INSERT INTO chat_hook_dispatches (
 	$7::uuid,
 	$8::timestamptz
 )
-RETURNING id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error
+RETURNING id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason
 `
 
 type InsertChatHookDispatchParams struct {
@@ -5327,13 +5382,14 @@ func (q *sqlQuerier) InsertChatHookDispatch(ctx context.Context, arg InsertChatH
 		&i.AllowedTools,
 		&i.EndChat,
 		&i.Error,
+		&i.DecisionReason,
 	)
 	return i, err
 }
 
 const listChatHookDispatchesByChatID = `-- name: ListChatHookDispatchesByChatID :many
 SELECT
-	id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error
+	id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason
 FROM
 	chat_hook_dispatches
 WHERE
@@ -5372,6 +5428,7 @@ func (q *sqlQuerier) ListChatHookDispatchesByChatID(ctx context.Context, chatID 
 			&i.AllowedTools,
 			&i.EndChat,
 			&i.Error,
+			&i.DecisionReason,
 		); err != nil {
 			return nil, err
 		}
@@ -11900,6 +11957,22 @@ func (q *sqlQuerier) UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatM
 		&i.HookAllowedTools,
 	)
 	return i, err
+}
+
+const updateChatMessageContentByID = `-- name: UpdateChatMessageContentByID :exec
+UPDATE chat_messages
+SET content = $1::jsonb
+WHERE id = $2::bigint
+`
+
+type UpdateChatMessageContentByIDParams struct {
+	Content json.RawMessage `db:"content" json:"content"`
+	ID      int64           `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatMessageContentByID(ctx context.Context, arg UpdateChatMessageContentByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateChatMessageContentByID, arg.Content, arg.ID)
+	return err
 }
 
 const updateChatPinOrder = `-- name: UpdateChatPinOrder :exec

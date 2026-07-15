@@ -1609,6 +1609,14 @@ func (m queryMetricsStore) GetChatHeartbeat(ctx context.Context, arg database.Ge
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatHookDispatchDecision(ctx context.Context, arg database.GetChatHookDispatchDecisionParams) (database.ChatHookDispatch, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatHookDispatchDecision(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatHookDispatchDecision").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatHookDispatchDecision").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatIncludeDefaultSystemPrompt(ctx)
@@ -5231,6 +5239,14 @@ func (m queryMetricsStore) UpdateChatMCPServerIDs(ctx context.Context, arg datab
 	m.queryLatencies.WithLabelValues("UpdateChatMCPServerIDs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatMCPServerIDs").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatMessageContentByID(ctx context.Context, arg database.UpdateChatMessageContentByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateChatMessageContentByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatMessageContentByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatMessageContentByID").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) UpdateChatModelConfig(ctx context.Context, arg database.UpdateChatModelConfigParams) (database.ChatModelConfig, error) {

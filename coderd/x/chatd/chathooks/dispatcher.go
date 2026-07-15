@@ -510,23 +510,31 @@ func (d *Dispatcher) finalize(ctx context.Context, eventType agenthooks.EventTyp
 	finalizeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), finalizeTimeout)
 	defer cancel()
 	_, err := d.db.FinalizeChatHookDispatch(finalizeCtx, database.FinalizeChatHookDispatchParams{
-		FinishedAt:    time.Now(),
-		Result:        outcome.result,
-		HttpStatus:    outcome.httpStatus,
-		Decision:      decision,
-		InputOverride: inputOverride,
-		OriginalInput: outcome.original,
-		ModelContext:  nullString(response.ModelContext),
-		UserMessage:   nullString(response.UserMessage),
-		AllowedTools:  allowedTools,
-		EndChat:       sql.NullBool{Bool: response.EndChat, Valid: response.EndChat},
-		Error:         nullError(outcome.err),
-		ID:            dispatchID,
+		FinishedAt:     time.Now(),
+		Result:         outcome.result,
+		HttpStatus:     outcome.httpStatus,
+		Decision:       decision,
+		DecisionReason: nullPermissionReason(response.Permission),
+		InputOverride:  inputOverride,
+		OriginalInput:  outcome.original,
+		ModelContext:   nullString(response.ModelContext),
+		UserMessage:    nullString(response.UserMessage),
+		AllowedTools:   allowedTools,
+		EndChat:        sql.NullBool{Bool: response.EndChat, Valid: response.EndChat},
+		Error:          nullError(outcome.err),
+		ID:             dispatchID,
 	})
 	if err != nil {
 		return xerrors.Errorf("finalize chat hook dispatch: %w", err)
 	}
 	return nil
+}
+
+func nullPermissionReason(permission *agenthooks.Permission) sql.NullString {
+	if permission == nil || permission.Reason == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: permission.Reason, Valid: true}
 }
 
 func nullUUID(value *uuid.UUID) uuid.NullUUID {

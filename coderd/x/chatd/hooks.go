@@ -3,6 +3,7 @@ package chatd
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -120,6 +121,9 @@ func (p *Server) preflightToolCalls(
 	}
 
 	for _, toolCall := range toolCalls {
+		if toolCall.ProviderExecuted {
+			continue
+		}
 		response, err := p.dispatchPreToolUse(ctx, chat, turnID, toolCall)
 		if err != nil {
 			return preToolUseResult{}, err
@@ -136,6 +140,7 @@ type preToolUseExecutionResult struct {
 	Allowed   []fantasy.ToolCallContent
 	Denied    []fantasy.ToolResultContent
 	Responses []agenthooks.Response
+	Overrides map[string]json.RawMessage
 }
 
 func (p *Server) preflightPendingToolCalls(
@@ -145,36 +150,35 @@ func (p *Server) preflightPendingToolCalls(
 	toolCalls []fantasy.ToolCallContent,
 ) (preToolUseExecutionResult, error) {
 	result := preToolUseExecutionResult{
-		Allowed: make([]fantasy.ToolCallContent, 0, len(toolCalls)),
+		Allowed:   make([]fantasy.ToolCallContent, 0, len(toolCalls)),
+		Overrides: make(map[string]json.RawMessage),
 	}
 	if p.hookDispatcher == nil || !p.hookDispatcher.Enabled() {
 		result.Allowed = append(result.Allowed, toolCalls...)
 		return result, nil
 	}
 
-	rows, err := p.db.ListChatHookDispatchesByChatID(ctx, chat.ID)
-	if err != nil {
-		return preToolUseExecutionResult{}, xerrors.Errorf("list pre_tool_use decisions: %w", err)
-	}
-	decisions := make(map[string]database.ChatHookDispatch)
-	for _, row := range rows {
-		if row.Event == string(agenthooks.EventPreToolUse) && row.ToolUseID.Valid && row.Decision.Valid {
-			decisions[row.ToolUseID.String] = row
-		}
-	}
-
 	for _, toolCall := range toolCalls {
-		if row, ok := decisions[toolCall.ToolCallID]; ok {
+		row, err := p.db.GetChatHookDispatchDecision(ctx, database.GetChatHookDispatchDecisionParams{
+			ChatID:    chat.ID,
+			ToolUseID: toolCall.ToolCallID,
+			TurnID:    hookTurnID(turnID),
+		})
+		if err == nil {
 			switch agenthooks.PermissionDecision(row.Decision.String) {
 			case agenthooks.PermissionAllow:
 				if row.InputOverride.Valid {
 					toolCall.Input = string(row.InputOverride.RawMessage)
+					result.Overrides[toolCall.ToolCallID] = row.InputOverride.RawMessage
 				}
 				result.Allowed = append(result.Allowed, toolCall)
 			case agenthooks.PermissionDeny:
-				result.Denied = append(result.Denied, deniedToolResult(toolCall, ""))
+				result.Denied = append(result.Denied, deniedToolResult(toolCall, row.DecisionReason.String))
 			}
 			continue
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return preToolUseExecutionResult{}, xerrors.Errorf("get pre_tool_use decision: %w", err)
 		}
 
 		response, err := p.dispatchPreToolUse(ctx, chat, turnID, toolCall)
@@ -189,12 +193,51 @@ func (p *Server) preflightPendingToolCalls(
 		switch response.Permission.Decision {
 		case agenthooks.PermissionAllow:
 			toolCall.Input = string(response.Permission.InputOverride)
+			result.Overrides[toolCall.ToolCallID] = response.Permission.InputOverride
 			result.Allowed = append(result.Allowed, toolCall)
 		case agenthooks.PermissionDeny:
 			result.Denied = append(result.Denied, deniedToolResult(toolCall, response.Permission.Reason))
 		}
 	}
 	return result, nil
+}
+
+func replacePersistedToolCallInputs(
+	ctx context.Context,
+	store database.Store,
+	chatID uuid.UUID,
+	overrides map[string]json.RawMessage,
+) error {
+	if len(overrides) == 0 {
+		return nil
+	}
+	assistant, err := store.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
+		ChatID: chatID,
+		Role:   database.ChatMessageRoleAssistant,
+	})
+	if err != nil {
+		return xerrors.Errorf("get assistant message for tool override: %w", err)
+	}
+	parts, err := chatprompt.ParseContent(assistant)
+	if err != nil {
+		return xerrors.Errorf("parse assistant message for tool override: %w", err)
+	}
+	for i := range parts {
+		if override, ok := overrides[parts[i].ToolCallID]; ok && parts[i].Type == codersdk.ChatMessagePartTypeToolCall {
+			parts[i].Args = override
+		}
+	}
+	content, err := chatprompt.MarshalParts(parts)
+	if err != nil {
+		return xerrors.Errorf("marshal assistant message with tool override: %w", err)
+	}
+	if err := store.UpdateChatMessageContentByID(ctx, database.UpdateChatMessageContentByIDParams{
+		Content: content.RawMessage,
+		ID:      assistant.ID,
+	}); err != nil {
+		return xerrors.Errorf("update assistant message with tool override: %w", err)
+	}
+	return nil
 }
 
 func applyPreToolUsePermission(step *chatloop.PersistedStep, toolCall fantasy.ToolCallContent, response agenthooks.Response) error {

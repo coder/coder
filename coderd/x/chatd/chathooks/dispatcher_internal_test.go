@@ -107,6 +107,7 @@ func TestDispatcherDeny(t *testing.T) {
 	row := singleDispatch(t, db, event.ChatID)
 	require.Equal(t, resultDenied, row.Result)
 	require.Equal(t, string(agenthooks.PermissionDeny), row.Decision.String)
+	require.Equal(t, "blocked", row.DecisionReason.String)
 	require.Equal(t, "not allowed", row.UserMessage.String)
 	require.JSONEq(t, `"delete everything"`, string(row.OriginalInput.RawMessage))
 }

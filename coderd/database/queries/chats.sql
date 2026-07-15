@@ -355,6 +355,11 @@ WHERE
     id = @id::bigint
     AND deleted = false;
 
+-- name: UpdateChatMessageContentByID :exec
+UPDATE chat_messages
+SET content = @content::jsonb
+WHERE id = @id::bigint;
+
 -- name: GetChatMessagesByChatID :many
 SELECT
     *
