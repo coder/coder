@@ -81,7 +81,15 @@ currently implies all recipients are validated).
 
 ### 4. Experiments are snapshotted at bridge server construction
 
-Severity: MEDIUM. Flagged by enforcement and lifecycle reviewers.
+Severity: LOW (downgraded from MEDIUM). Pre-existing pattern on main;
+this branch only added a second consumer (the seat skip). Experiments
+are process-static (parsed once from deployment config at startup, no
+runtime reload), so the AGPL-embedded and enterprise per-connection
+paths cannot actually diverge within a process lifetime; the panel's
+license-activation framing was incorrect. Recorded as a latent
+structural finding in scott-misc
+(`finding-aibridged-experiments-snapshot.md`); fix (an experiments
+accessor func) is optional hardening.
 
 The AGPL embedded path (`coderd/aibridged.go`) constructs the aibridged
 server once at startup, freezing `s.experiments`; the enterprise path
@@ -168,8 +176,10 @@ Fix on this branch before wider demo or RFC reference:
 4. Seat-cost copy conditioning (frontend HIGH).
 
 Document-or-fix next: group-share validation (3): DONE, accepted and
-documented in the handler comment; experiments accessor (4);
-rolling-deploy sweep (5).
+documented in the handler comment; experiments accessor (4): DONE,
+downgraded and recorded as a scott-misc finding (pre-existing,
+process-static experiments make it latent-only); rolling-deploy sweep
+(5).
 
 RFC backlog (mostly already tracked in the scott-misc assessment):
 refresh cadence caching (6), AI seat reclamation and service-account
