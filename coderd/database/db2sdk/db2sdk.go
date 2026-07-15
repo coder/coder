@@ -963,6 +963,12 @@ func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
 			rbac.ResourceWorkspace.AvailableActions(),
 			// Don't let anyone delete something they can't recreate.
 			policy.ActionDelete,
+			// use_shared is a capability precondition evaluated from the
+			// subject's role permissions; ACL entries never grant it, so
+			// storing it here is inert. Keeping it out also preserves the
+			// exact-set match in convertToWorkspaceRole for entries stored
+			// before the action was added to the workspace action set.
+			policy.ActionUseShared,
 		)
 	case codersdk.WorkspaceRoleUse:
 		return []policy.Action{

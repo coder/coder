@@ -38,7 +38,14 @@ comments to say dormancy intentionally revokes shared access.
 
 ### 2. Pre-existing admin ACL entries no longer round-trip in the API
 
-Severity: HIGH (reported as BLOCKER for a main merge).
+Severity: HIGH (reported as BLOCKER for a main merge). FIXED on this
+branch: `use_shared` is now omitted from the admin set in
+`WorkspaceRoleActions`, restoring the exact-set match for entries
+stored before the action existed. Entries written by intermediate
+builds of this branch (admin entries containing `use_shared`) would
+still mismatch; none exist on the dev instance. The underlying bug
+class (dynamic role definition, materialized storage, exact-equality
+read-back) is documented in the scott-misc findings for the RFC.
 
 Adding `ActionUseShared` to `workspaceActions` grew
 `WorkspaceRoleActions(WorkspaceRoleAdmin)` via `AvailableActions()`.
@@ -148,8 +155,8 @@ ships beyond prototype.
 
 Fix on this branch before wider demo or RFC reference:
 
-1. Admin ACL round-trip (finding 2): omit `use_shared` from the admin
-   ACL action set.
+1. Admin ACL round-trip (finding 2): DONE, `use_shared` omitted from
+   the admin ACL action set.
 2. Dormant decision (finding 1): pick a direction, implement, fix the
    two contradicting comments.
 3. Fail-closed hardening: `acl_use_gated == false` in `policy.rego`.
