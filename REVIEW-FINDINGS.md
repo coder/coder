@@ -152,9 +152,12 @@ ships beyond prototype.
   broader than "the gateway role grants access". Decide whether that is
   intended and document it.
 - LOW (licensing, perf): the seat-count dedupe signature includes group
-  memberships, which do not affect the workspace-create outcome,
-  causing needless cache misses. A roles-only signature would dedupe
-  better.
+  memberships, which do not affect the workspace-create outcome. FIXED:
+  groups removed from the query, the evaluation subject, and the
+  signature; `TestWorkspaceCreateIgnoresGroups` enforces the
+  group-independence assumption and documents the footgun (if the
+  policy ever becomes group-sensitive for ACL-less workspace objects,
+  groups must be reintroduced in all three places).
 - LOW (roles): the 000541 down migration removes the gateway role from
   all orgs, including any that had added it manually before the
   migration.

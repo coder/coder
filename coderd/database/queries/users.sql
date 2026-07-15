@@ -655,10 +655,12 @@ WHERE
 
 -- name: GetActiveUsersAuthorizationRoles :many
 -- Returns the authorization roles (site and org-scoped, including implied
--- member roles and organization default roles) plus group memberships for
--- every user eligible for license seat counting: active, not deleted, and
--- neither a system user nor a service account. Used by permission-based
--- license seat counting to evaluate workspace-create capability.
+-- member roles and organization default roles) for every user eligible for
+-- license seat counting: active, not deleted, and neither a system user nor
+-- a service account. Used by permission-based license seat counting to
+-- evaluate workspace-create capability. Group memberships are intentionally
+-- not returned: they only influence authorization through object ACL
+-- matching, and the seat-count evaluation uses objects without ACLs.
 SELECT
 	id,
 	array_cat(
@@ -687,18 +689,7 @@ SELECT
 			WHERE
 				user_id = users.id
 		)
-	) :: text[] AS roles,
-	-- All groups the user is in.
-	(
-		SELECT
-			array_agg(
-				group_members.group_id :: text
-			)
-		FROM
-			group_members
-		WHERE
-			user_id = users.id
-	) :: text[] AS groups
+	) :: text[] AS roles
 FROM
 	users
 WHERE
