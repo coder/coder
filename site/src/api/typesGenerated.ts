@@ -1311,7 +1311,12 @@ export interface AgentHookResponse {
 	readonly permission?: AgentHookPermission;
 	readonly model_context?: string;
 	readonly user_message?: string;
-	readonly allowed_tools?: readonly string[];
+	/**
+	 * AllowedTools has no omitempty: an empty array must survive
+	 * marshaling because it means "restrict all tools", while null
+	 * or absent means "leave the tool policy unchanged".
+	 */
+	readonly allowed_tools: readonly string[];
 	readonly end_chat?: boolean;
 }
 
