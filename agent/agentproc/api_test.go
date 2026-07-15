@@ -617,9 +617,12 @@ func TestStartProcessClientToken(t *testing.T) {
 		require.Equal(t, http.StatusConflict, w2.Code)
 	})
 
-	t.Run("SameTokenDifferentChatsIsolated", func(t *testing.T) {
+	t.Run("SameTokenDifferentChatsConflicts", func(t *testing.T) {
 		t.Parallel()
 
+		// Tokens are globally unique execution IDs, so reuse from
+		// a different chat is a parameter mismatch rather than an
+		// isolated re-start.
 		handler := newTestAPI(t)
 		req := workspacesdk.StartProcessRequest{
 			Command:     "echo hello",
@@ -630,15 +633,10 @@ func TestStartProcessClientToken(t *testing.T) {
 		headerB := http.Header{}
 		headerB.Set(workspacesdk.CoderChatIDHeader, uuid.New().String())
 
-		idA := startAndGetID(t, handler, req, headerA)
+		_ = startAndGetID(t, handler, req, headerA)
 
 		w := postStart(t, handler, req, headerB)
-		require.Equal(t, http.StatusOK, w.Code)
-		var respB workspacesdk.StartProcessResponse
-		require.NoError(t, json.NewDecoder(w.Body).Decode(&respB))
-		require.True(t, respB.Started)
-		require.False(t, respB.Attached)
-		require.NotEqual(t, idA, respB.ID)
+		require.Equal(t, http.StatusConflict, w.Code)
 	})
 
 	t.Run("NoTokenAlwaysStartsNew", func(t *testing.T) {
@@ -663,6 +661,76 @@ func TestStartProcessClientToken(t *testing.T) {
 		require.NoError(t, json.NewDecoder(w2.Body).Decode(&second))
 		require.True(t, second.Started)
 		require.NotEqual(t, first.ID, second.ID)
+	})
+}
+
+func TestProcessByToken(t *testing.T) {
+	t.Parallel()
+
+	probe := func(t *testing.T, handler http.Handler, token string, headers ...http.Header) workspacesdk.ProcessByTokenResponse {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		w := httptest.NewRecorder()
+		r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tokens/"+token, nil)
+		for _, h := range headers {
+			for k, vals := range h {
+				for _, v := range vals {
+					r.Header.Add(k, v)
+				}
+			}
+		}
+		handler.ServeHTTP(w, r)
+		require.Equal(t, http.StatusOK, w.Code)
+		var resp workspacesdk.ProcessByTokenResponse
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+		return resp
+	}
+
+	t.Run("Found", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
+			Command:     "echo hello",
+			ClientToken: "tok-1",
+		})
+
+		resp := probe(t, handler, "tok-1")
+		require.True(t, resp.Found)
+		require.Equal(t, id, resp.ProcessID)
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		resp := probe(t, handler, "tok-missing")
+		require.False(t, resp.Found)
+		require.Empty(t, resp.ProcessID)
+	})
+
+	t.Run("ChatIsolation", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		headerA := http.Header{}
+		headerA.Set(workspacesdk.CoderChatIDHeader, uuid.New().String())
+		headerB := http.Header{}
+		headerB.Set(workspacesdk.CoderChatIDHeader, uuid.New().String())
+
+		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
+			Command:     "echo hello",
+			ClientToken: "tok-1",
+		}, headerA)
+
+		own := probe(t, handler, "tok-1", headerA)
+		require.True(t, own.Found)
+		require.Equal(t, id, own.ProcessID)
+
+		other := probe(t, handler, "tok-1", headerB)
+		require.False(t, other.Found)
+		require.Empty(t, other.ProcessID)
 	})
 }
 

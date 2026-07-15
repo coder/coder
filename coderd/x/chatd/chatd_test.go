@@ -13263,6 +13263,130 @@ func TestInterruptKillsRecordedExecute(t *testing.T) {
 	}, testutil.IntervalFast)
 }
 
+// TestInterruptProbesUnrecordedExecute asserts that interrupting a
+// chat while an execute dispatch is in flight (claimed, but no
+// process identity recorded yet) resolves the ledger row through
+// the agent's token index: the reconciler probes the execution ID,
+// finds the process the dead dispatch started, and kills it.
+func TestInterruptProbesUnrecordedExecute(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var streamCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if streamCount.Add(1) == 1 {
+			chunk := chattest.OpenAIToolCallChunk("execute", `{"command":"sleep 600","timeout":"10m"}`)
+			chunk.Choices[0].ToolCalls[0].ID = "tc-exec-probe"
+			return chattest.OpenAIStreamingResponse(chunk)
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("after interrupt")...)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	startCalled := make(chan struct{})
+	killed := make(chan struct{})
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+	mockConn.EXPECT().
+		StartProcess(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+			require.Equal(t, "sleep 600", req.Command)
+			require.NotEmpty(t, req.ClientToken)
+			select {
+			case <-startCalled:
+			default:
+				close(startCalled)
+			}
+			// Block until the interrupt cancels the generation, so
+			// the process identity is never recorded on the row.
+			<-ctx.Done()
+			return workspacesdk.StartProcessResponse{}, ctx.Err()
+		}).
+		Times(1)
+	mockConn.EXPECT().
+		ProcessByToken(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, token string) (workspacesdk.ProcessByTokenResponse, error) {
+			require.NotEmpty(t, token)
+			return workspacesdk.ProcessByTokenResponse{Found: true, ProcessID: "proc-probe"}, nil
+		}).
+		Times(1)
+	mockConn.EXPECT().
+		SignalProcess(gomock.Any(), "proc-probe", "kill").
+		DoAndReturn(func(_ context.Context, _ string, _ string) error {
+			close(killed)
+			return nil
+		}).
+		Times(1)
+	exitCode := -1
+	mockConn.EXPECT().
+		ProcessOutput(gomock.Any(), "proc-probe", gomock.Any()).
+		Return(workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode}, nil).
+		AnyTimes()
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		APIKeyID:       testAPIKeyID(t, db, user.ID),
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "interrupt-probes-unrecorded-execute",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("run a long command"),
+		},
+	})
+	require.NoError(t, err)
+
+	testutil.TryReceive(ctx, t, startCalled)
+	queued, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
+		APIKeyID:      testAPIKeyID(t, db, user.ID),
+		ModelConfigID: model.ID,
+		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("stop that")},
+		BusyBehavior:  chatd.SendMessageBusyBehaviorInterrupt,
+	})
+	require.NoError(t, err)
+	require.True(t, queued.Queued)
+
+	testutil.TryReceive(ctx, t, killed)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	parts := chatToolParts(ctx, t, db, chat.ID)
+	result := requireToolResultPart(t, parts, "execute")
+	require.Equal(t, "tc-exec-probe", result.ToolCallID)
+	require.True(t, result.IsError)
+
+	// The probe found the unrecorded process and the kill was
+	// confirmed: the row resolves to canceled with the signal
+	// stamp, still without a recorded process identity.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		row, ok := lookupExecutionRow(ctx, db, chat.ID, "tc-exec-probe")
+		return ok &&
+			row.Status == database.ChatToolCallExecutionStatusCanceled &&
+			!row.ProcessID.Valid &&
+			row.CancelSignalSentAt.Valid &&
+			row.ResultCommittedAt.Valid
+	}, testutil.IntervalFast)
+}
+
 // TestInterruptSparesBackgroundExecute asserts that interrupting a
 // chat kills only the foreground execute the model is blocked on. A
 // background execute from the same assistant message keeps running:

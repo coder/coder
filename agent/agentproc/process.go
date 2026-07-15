@@ -101,11 +101,11 @@ type manager struct {
 	fs     afero.Fs
 	clock  quartz.Clock
 	procs  map[string]*process
-	// tokens maps a chat-scoped idempotency token key to the
-	// entry of the process it started (or is starting), so
-	// retried start requests attach to the existing process
-	// instead of spawning a duplicate. Entries are freed when
-	// the process is reaped.
+	// tokens maps an idempotency token to the entry of the
+	// process it started (or is starting), so retried start
+	// requests attach to the existing process instead of
+	// spawning a duplicate. Entries are freed when the process
+	// is reaped.
 	tokens     map[string]*tokenEntry
 	closed     bool
 	updateEnv  func(current []string) (updated []string, err error)
@@ -140,9 +140,9 @@ func newManager(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, envInf
 // client-side polling behavior.
 //
 // When the request carries a client token that already started a
-// process for the same chat, the existing process is returned
-// with attached true instead of spawning a duplicate. A repeated
-// token with different parameters fails with
+// process, the existing process is returned with attached true
+// instead of spawning a duplicate. A repeated token with
+// different parameters (including a different chat) fails with
 // errClientTokenMismatch.
 //
 // ctx bounds only the wait for a concurrent start that owns the
@@ -150,13 +150,10 @@ func newManager(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, envInf
 func (m *manager) start(ctx context.Context, req workspacesdk.StartProcessRequest, chatID string) (*process, bool, error) {
 	workDir := m.resolveWorkingDirectory(req.WorkDir)
 
-	// The chat ID is a UUID string and cannot contain NUL, so
-	// the key splits unambiguously and cannot collide across
-	// chats.
-	var tokenKey string
-	if req.ClientToken != "" {
-		tokenKey = chatID + "\x00" + req.ClientToken
-	}
+	// Tokens are globally unique execution IDs minted by coderd,
+	// so the index is keyed by the bare token. Cross-chat reuse
+	// of a token is caught by the parameter mismatch check.
+	tokenKey := req.ClientToken
 
 	var reserved *tokenEntry
 	for {
@@ -206,7 +203,7 @@ func (m *manager) start(ctx context.Context, req workspacesdk.StartProcessReques
 			// finished. Retry the reservation.
 			continue
 		}
-		if existing.command != req.Command || existing.workDir != workDir || existing.background != req.Background || !maps.Equal(existing.env, req.Env) {
+		if existing.command != req.Command || existing.workDir != workDir || existing.background != req.Background || !maps.Equal(existing.env, req.Env) || existing.chatID != chatID {
 			return nil, false, errClientTokenMismatch
 		}
 		return existing, true, nil
@@ -368,6 +365,25 @@ func (m *manager) get(id string) (*process, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	proc, ok := m.procs[id]
+	return proc, ok
+}
+
+// byToken returns the process started under an idempotency token.
+// It is non-blocking: a token whose start is still in flight
+// reports not found, which is safe because a re-dispatch with the
+// same token attaches to that start instead of spawning a
+// duplicate.
+func (m *manager) byToken(token string) (*process, bool) {
+	if token == "" {
+		return nil, false
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	entry, ok := m.tokens[token]
+	if !ok || entry.procID == "" {
+		return nil, false
+	}
+	proc, ok := m.procs[entry.procID]
 	return proc, ok
 }
 

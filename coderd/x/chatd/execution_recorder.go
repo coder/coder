@@ -63,12 +63,12 @@ func (r *executionRecorder) lineage() (int64, error) {
 }
 
 // Claim takes dispatch ownership of the tool call's ledger row via
-// the claim CAS: only a reserved intent (or a missing row, for
-// assistant messages that predate the ledger) is claimable. Stale
-// starting claims are never taken over here because their owner may
-// have dispatched a process whose handle was lost; the tool resolves
-// those to unknown instead.
-func (r *executionRecorder) Claim(ctx context.Context, toolCallID string, inputSHA256 string, command string, background bool, timeout time.Duration) (chattool.ExecutionRecord, bool, error) {
+// the claim CAS: a reserved intent (or a missing row, for assistant
+// messages that predate the ledger) is always claimable, and a
+// starting claim older than staleBefore may be taken over. The tool
+// passes a non-zero staleBefore only after the agent's token index
+// proved the stale claimer's dispatch never happened.
+func (r *executionRecorder) Claim(ctx context.Context, toolCallID string, inputSHA256 string, command string, background bool, timeout time.Duration, staleBefore time.Time) (chattool.ExecutionRecord, bool, error) {
 	if toolCallID == "" {
 		// Rows are addressed by tool call ID; an empty ID would
 		// alias every ID-less call in the message to one row.
@@ -93,14 +93,7 @@ func (r *executionRecorder) Claim(ctx context.Context, toolCallID string, inputS
 		// treat a running process as instantly timed out.
 		TimeoutSecs: int64((timeout + time.Second - 1) / time.Second),
 		Now:         now,
-		// The zero time disables stale-claim takeover: no
-		// claimed_at precedes it, so the CAS only accepts
-		// reserved rows. The StaleBefore arm is forward
-		// scaffolding for the stacked agent-token work; taking
-		// over a stale claim without first proving through the
-		// agent that its dispatch never happened would re-enable
-		// double dispatch.
-		StaleBefore: time.Time{},
+		StaleBefore: staleBefore,
 	})
 	if err == nil {
 		return executionRecordFromRow(row), true, nil

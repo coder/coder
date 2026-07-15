@@ -109,6 +109,7 @@ type AgentConn interface {
 	ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgentListeningPortsResponse, error)
 	Netcheck(ctx context.Context) (healthsdk.AgentNetcheckReport, error)
 	Ping(ctx context.Context) (time.Duration, bool, *ipnstate.PingResult, error)
+	ProcessByToken(ctx context.Context, token string) (ProcessByTokenResponse, error)
 	ProcessOutput(ctx context.Context, id string, opts *ProcessOutputOptions) (ProcessOutputResponse, error)
 	PrometheusMetrics(ctx context.Context) ([]byte, error)
 	ReconnectingPTY(ctx context.Context, id uuid.UUID, height uint16, width uint16, command string, initOpts ...AgentReconnectingPTYInitOption) (net.Conn, error)
@@ -934,6 +935,15 @@ type StartProcessResponse struct {
 	Attached bool `json:"attached,omitempty"`
 }
 
+// ProcessByTokenResponse reports whether an idempotency token has
+// a process attached on the agent. The route always answers 200,
+// so an HTTP 404 unambiguously identifies an agent that predates
+// the token probe endpoint.
+type ProcessByTokenResponse struct {
+	Found     bool   `json:"found"`
+	ProcessID string `json:"process_id,omitempty"`
+}
+
 // ListProcessesResponse contains information about tracked
 // processes on the workspace agent.
 type ListProcessesResponse struct {
@@ -1342,6 +1352,23 @@ func (c *agentConn) CallMCPTool(ctx context.Context, req CallMCPToolRequest) (Ca
 		return CallMCPToolResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp CallMCPToolResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// ProcessByToken reports whether an idempotency token has a
+// process attached on the agent.
+func (c *agentConn) ProcessByToken(ctx context.Context, token string) (ProcessByTokenResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/processes/tokens/"+token, nil)
+	if err != nil {
+		return ProcessByTokenResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ProcessByTokenResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp ProcessByTokenResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

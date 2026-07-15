@@ -57,9 +57,36 @@ func (api *API) Routes() http.Handler {
 	r := chi.NewRouter()
 	r.Post("/start", api.handleStartProcess)
 	r.Get("/list", api.handleListProcesses)
+	r.Get("/tokens/{token}", api.handleProcessByToken)
 	r.Get("/{id}/output", api.handleProcessOutput)
 	r.Post("/{id}/signal", api.handleSignalProcess)
 	return r
+}
+
+// handleProcessByToken reports whether an idempotency token has a
+// process attached. It always answers 200 for a known route, so an
+// HTTP 404 unambiguously identifies an agent that predates the
+// endpoint.
+func (api *API) handleProcessByToken(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	token := chi.URLParam(r, "token")
+	proc, ok := api.manager.byToken(token)
+
+	// Enforce chat ID isolation like the other process routes.
+	if ok {
+		if chatContext, chatOK := agentchat.FromContext(ctx); chatOK {
+			if proc.chatID != "" && proc.chatID != chatContext.ID.String() {
+				ok = false
+			}
+		}
+	}
+
+	resp := workspacesdk.ProcessByTokenResponse{Found: ok}
+	if ok {
+		resp.ProcessID = proc.id
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
 // handleStartProcess starts a new process.
