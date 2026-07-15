@@ -29,8 +29,8 @@ var (
 	// exitedProcessReapAge is how long an exited process is
 	// kept before being automatically removed from the map.
 	// It also bounds how long an idempotency token keeps
-	// deduplicating starts after the process exits, so it must
-	// exceed the callers' retry window.
+	// deduplicating starts after the process exits; it should
+	// comfortably cover the callers' retry window.
 	exitedProcessReapAge = 60 * time.Minute
 )
 
@@ -150,9 +150,9 @@ func newManager(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, envInf
 func (m *manager) start(ctx context.Context, req workspacesdk.StartProcessRequest, chatID string) (*process, bool, error) {
 	workDir := m.resolveWorkingDirectory(req.WorkDir)
 
-	// Tokens are globally unique execution IDs minted by coderd,
-	// so the index is keyed by the bare token. Cross-chat reuse
-	// of a token is caught by the parameter mismatch check.
+	// The index is keyed by the bare client token; chat identity
+	// participates in the parameter mismatch check, so cross-chat
+	// reuse of a token conflicts instead of attaching.
 	tokenKey := req.ClientToken
 
 	var reserved *tokenEntry
@@ -369,22 +369,25 @@ func (m *manager) get(id string) (*process, bool) {
 }
 
 // byToken returns the process started under an idempotency token.
-// It is non-blocking: a token whose start is still in flight
-// reports not found, which is safe because a re-dispatch with the
-// same token attaches to that start instead of spawning a
-// duplicate.
-func (m *manager) byToken(token string) (*process, bool) {
+// It is non-blocking: a token whose start is still in flight (the
+// reservation exists but no process is published yet) reports
+// pending instead of found, so callers never mistake an in-flight
+// dispatch for proof that nothing started.
+func (m *manager) byToken(token string) (proc *process, pending bool, found bool) {
 	if token == "" {
-		return nil, false
+		return nil, false, false
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	entry, ok := m.tokens[token]
-	if !ok || entry.procID == "" {
-		return nil, false
+	if !ok {
+		return nil, false, false
 	}
-	proc, ok := m.procs[entry.procID]
-	return proc, ok
+	if entry.procID == "" {
+		return nil, true, false
+	}
+	proc, ok = m.procs[entry.procID]
+	return proc, false, ok
 }
 
 // list returns info about all tracked processes. Exited

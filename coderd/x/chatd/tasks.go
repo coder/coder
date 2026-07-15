@@ -1039,8 +1039,7 @@ func (r executionReconciler) reconcileCancelRequestedByToken(ctx context.Context
 	}
 	resp, err := conn.ProcessByToken(dialCtx, record.ID.String())
 	if err != nil {
-		var sdkErr *codersdk.Error
-		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+		if isAgentNotFound(err) {
 			// The agent predates the token probe endpoint.
 			r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, sql.NullTime{})
 			return
@@ -1056,6 +1055,12 @@ func (r executionReconciler) reconcileCancelRequestedByToken(ctx context.Context
 		r.killAndConfirm(ctx, conn, record, resp.ProcessID)
 		return
 	}
+	if resp.Pending {
+		// A start owning this token is still in flight on the
+		// agent, so a process may yet appear. Leave the row
+		// cancel_requested for a later reconciler.
+		return
+	}
 	if record.ClaimedAt.Valid && time.Since(record.ClaimedAt.Time) < chattool.TokenTrustWindow {
 		// Nothing was dispatched under this token, so there is
 		// nothing to kill.
@@ -1065,6 +1070,14 @@ func (r executionReconciler) reconcileCancelRequestedByToken(ctx context.Context
 	// The token may have been reaped with its exited process, so
 	// absence proves nothing.
 	r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, sql.NullTime{})
+}
+
+// isAgentNotFound reports a definite HTTP 404 from the agent: the
+// agent was reached and does not know the requested resource (or,
+// for a route-level 404, predates the endpoint).
+func isAgentNotFound(err error) bool {
+	var sdkErr *codersdk.Error
+	return xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound
 }
 
 // reconcileCancelRequested resolves one cancel_requested row with
@@ -1116,7 +1129,7 @@ func (r executionReconciler) killAndConfirm(ctx context.Context, conn workspaces
 	sigCtx, cancel := context.WithTimeout(ctx, interruptKillDialTimeout)
 	defer cancel()
 	if err := conn.SignalProcess(sigCtx, processID, "kill"); err != nil {
-		if sdkErr, ok := errors.AsType[*codersdk.Error](err); ok && sdkErr.StatusCode() == http.StatusNotFound {
+		if isAgentNotFound(err) {
 			// The agent was reached and has no such process:
 			// termination is confirmed.
 			r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusCanceled, sql.NullTime{})
@@ -1137,7 +1150,7 @@ func (r executionReconciler) killAndConfirm(ctx context.Context, conn workspaces
 	defer cancelSnap()
 	resp, err := conn.ProcessOutput(snapCtx, processID, nil)
 	if err != nil {
-		if sdkErr, ok := errors.AsType[*codersdk.Error](err); ok && sdkErr.StatusCode() == http.StatusNotFound {
+		if isAgentNotFound(err) {
 			r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusCanceled, signalSentAt)
 		}
 		return

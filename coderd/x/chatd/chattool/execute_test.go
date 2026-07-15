@@ -1350,6 +1350,52 @@ func TestExecuteToolRecorder(t *testing.T) {
 		assert.Equal(t, chattool.ExecutionStatusExited, rec.Status)
 	})
 
+	t.Run("StaleClaimProbePendingRedispatches", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		// Even past the trust window, a pending reservation means
+		// a start owning this token is in flight on the agent, so
+		// re-dispatching the same token attaches to it instead of
+		// resolving to unknown.
+		seedStaleStarting(recorder, chattool.TokenTrustWindow+time.Minute)
+
+		mockConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{Pending: true}, nil)
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				assert.Equal(t, "exec-call-1", req.ClientToken)
+				return workspacesdk.StartProcessResponse{ID: "proc-3", ClientToken: req.ClientToken, Attached: true}, nil
+			}).
+			Times(1)
+		exitCode := 0
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-3", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running:  false,
+				ExitCode: &exitCode,
+				Output:   "done",
+			}, nil)
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.True(t, result.Success)
+		assert.Equal(t, "done", result.Output)
+	})
+
 	t.Run("StaleClaimBeyondTrustWindowUnknown", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)

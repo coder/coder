@@ -620,9 +620,9 @@ func TestStartProcessClientToken(t *testing.T) {
 	t.Run("SameTokenDifferentChatsConflicts", func(t *testing.T) {
 		t.Parallel()
 
-		// Tokens are globally unique execution IDs, so reuse from
-		// a different chat is a parameter mismatch rather than an
-		// isolated re-start.
+		// The token index is keyed by the bare token, so reuse
+		// from a different chat is a parameter mismatch rather
+		// than an isolated re-start.
 		handler := newTestAPI(t)
 		req := workspacesdk.StartProcessRequest{
 			Command:     "echo hello",

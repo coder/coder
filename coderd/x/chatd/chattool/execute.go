@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -692,11 +691,11 @@ func awaitRecordedProcess(
 
 // recoverStaleClaim resolves a starting claim whose owner never
 // recorded a process handle. The execution ID doubles as the
-// agent-side idempotency token, so the agent's token index can
-// prove what became of the dead claimer's dispatch. Recovery never
-// mints a new token for the tool call: a found process is adopted,
-// and a provably undelivered dispatch is re-sent under the same
-// token so the agent dedups any race with the original.
+// agent-side idempotency token, so the agent's token index reveals
+// what became of the dead claimer's dispatch. Recovery never mints
+// a new token for the tool call: a found process is adopted, and
+// re-dispatch reuses the same token so the agent dedups any race
+// with the original dispatch.
 func recoverStaleClaim(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
@@ -709,8 +708,7 @@ func recoverStaleClaim(
 	resp, err := conn.ProcessByToken(probeCtx, rec.ID)
 	cancel()
 	if err != nil {
-		var sdkErr *codersdk.Error
-		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+		if isNotFoundError(err) {
 			// The agent predates the token probe endpoint, so the
 			// dead claimer's dispatch cannot be verified.
 			markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
@@ -722,9 +720,8 @@ func recoverStaleClaim(
 	}
 
 	if resp.Found {
-		// The dispatch reached the agent. Adopt the process on
-		// the stale claim's epoch, then resume from the updated
-		// row.
+		// Adopt the process on the stale claim's epoch, then
+		// resume from the updated row.
 		recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ProcessID)
 		latest, err := options.Recorder.Get(ctx, toolCallID)
 		if err == nil && latest.Status != ExecutionStatusStarting {
@@ -739,23 +736,23 @@ func recoverStaleClaim(
 		return reattachProcess(ctx, conn, options, toolCallID, rec)
 	}
 
-	if time.Since(rec.ClaimedAt) >= TokenTrustWindow {
+	if !resp.Pending && time.Since(rec.ClaimedAt) >= TokenTrustWindow {
 		// The agent may have already reaped the token together
 		// with its exited process, so absence proves nothing.
 		markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
 		return fantasy.NewTextErrorResponse(unknownOutcomeMessage), nil
 	}
 
-	// Within the trust window a missing token proves the dispatch
-	// never reached the agent. Take over the stale claim and
-	// re-dispatch under the same token.
+	// A pending reservation or a token absent within the trust
+	// window is safe to re-dispatch under the same token: the
+	// agent attaches to an in-flight start and dedups any race
+	// with the original dispatch. Take over the stale claim
+	// first.
 	reclaimed, claimed, err := options.Recorder.Claim(ctx, toolCallID, dispatch.inputSHA256, dispatch.command, dispatch.background, dispatch.timeout, time.Now().Add(-claimStaleAfter))
 	if err != nil {
 		return errorResult(fmt.Sprintf("reclaim stale execution: %v", err)), nil
 	}
 	if !claimed {
-		// Another attempt advanced the row first; follow its
-		// lead.
 		return resumeExecution(ctx, conn, options, toolCallID, reclaimed, dispatch)
 	}
 	options.Logger.Info(ctx, "re-dispatching execution after stale claim takeover",
@@ -814,7 +811,7 @@ func reattachProcess(
 		// when the connection targets the agent that owns the
 		// process. Transport errors, cancellations, and server
 		// errors leave the process potentially retrievable.
-		if sdkErr, ok := errors.AsType[*codersdk.Error](err); ok && sdkErr.StatusCode() == http.StatusNotFound {
+		if isNotFoundError(err) {
 			if connTargetsOwner {
 				options.Logger.Warn(ctx, "recorded execute process is no longer known to its agent; resolving execution unknown",
 					slog.F("tool_call_id", toolCallID),
@@ -870,6 +867,14 @@ func reattachProcess(
 	result.WallDurationMs = time.Since(rec.StartedAt).Milliseconds()
 	markWaitOutcome(ctx, options, toolCallID, result)
 	return marshalResult(result), nil
+}
+
+// isNotFoundError reports a definite HTTP 404 from the agent: the
+// agent was reached and does not know the requested resource (or,
+// for a route-level 404, predates the endpoint).
+func isNotFoundError(err error) bool {
+	var sdkErr *codersdk.Error
+	return xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound
 }
 
 // processLostResponse is the stable result for a process the agent
@@ -1154,7 +1159,7 @@ func resolveProcessWait(
 		defer bgCancel()
 		resp, err = conn.ProcessOutput(bgCtx, processID, nil)
 		if err != nil {
-			if sdkErr, ok := errors.AsType[*codersdk.Error](err); ok && sdkErr.StatusCode() == http.StatusNotFound {
+			if isNotFoundError(err) {
 				return ExecuteResult{Success: false, ExitCode: -1}, true
 			}
 			errMsg := fmt.Sprintf("get process output: %v; use process_output with ID %s to retry", origErr, processID)

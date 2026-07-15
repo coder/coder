@@ -71,7 +71,7 @@ func (api *API) handleProcessByToken(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	token := chi.URLParam(r, "token")
-	proc, ok := api.manager.byToken(token)
+	proc, pending, ok := api.manager.byToken(token)
 
 	// Enforce chat ID isolation like the other process routes.
 	if ok {
@@ -82,7 +82,7 @@ func (api *API) handleProcessByToken(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	resp := workspacesdk.ProcessByTokenResponse{Found: ok}
+	resp := workspacesdk.ProcessByTokenResponse{Found: ok, Pending: pending}
 	if ok {
 		resp.ProcessID = proc.id
 	}

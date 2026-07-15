@@ -940,7 +940,11 @@ type StartProcessResponse struct {
 // so an HTTP 404 unambiguously identifies an agent that predates
 // the token probe endpoint.
 type ProcessByTokenResponse struct {
-	Found     bool   `json:"found"`
+	Found bool `json:"found"`
+	// Pending reports that a start owning this token is still in
+	// flight: no process is published yet, but Found=false must
+	// not be read as proof that nothing started.
+	Pending   bool   `json:"pending,omitempty"`
 	ProcessID string `json:"process_id,omitempty"`
 }
 

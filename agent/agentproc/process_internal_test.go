@@ -61,6 +61,31 @@ func TestReapFreesClientTokenIndex(t *testing.T) {
 	<-fresh.done
 }
 
+func TestByTokenPendingReservation(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	m := newManager(logger, agentexec.DefaultExecer, nil, nil, nil, nil)
+	t.Cleanup(func() {
+		_ = m.Close()
+	})
+
+	// A reservation whose start has not published a process yet
+	// must report pending, never a definitive not-found.
+	m.mu.Lock()
+	m.tokens["tok-pending"] = &tokenEntry{done: make(chan struct{})}
+	m.mu.Unlock()
+
+	proc, pending, found := m.byToken("tok-pending")
+	require.Nil(t, proc)
+	require.True(t, pending)
+	require.False(t, found)
+
+	_, pending, found = m.byToken("tok-absent")
+	require.False(t, pending)
+	require.False(t, found)
+}
+
 func TestConcurrentSameTokenStartsOnce(t *testing.T) {
 	t.Parallel()
 
