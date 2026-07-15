@@ -3,7 +3,7 @@
 This reference is for Coder deployment administrators who need to apply an external policy service to the agent loop.
 It covers deployment configuration, the consumer contract, failure behavior, rollout, and dispatch auditing.
 
-Chat lifecycle hooks send 1 global outbound webhook from the agent loop.
+Chat lifecycle hooks send events from the agent loop to 1 deployment-wide webhook endpoint.
 The configured consumer can observe all 7 lifecycle events, add model or user context, restrict tools, replace mutable input, deny selected actions, or end a chat.
 
 > [!IMPORTANT]
@@ -27,6 +27,7 @@ Changing deployment options requires the normal `coder server` configuration rol
 Use a dedicated secret and rotate it through your existing secret-management process.
 Coder requires the configured URL to use HTTPS.
 A TLS terminator can forward the request to a consumer over plain HTTP on a trusted local network.
+It must preserve the original `Host` header and set `X-Forwarded-Proto: https` for the reference consumer's audience check.
 
 ## Handle lifecycle events
 
@@ -120,7 +121,8 @@ Keep the break-glass procedure available throughout the rollout.
 
 The reference consumer at `scripts/agenthooks-server` uses `agenthooks.NewHTTPHandler` and logs 1 JSON object for each event.
 Log-only mode returns an empty response for every verified event.
-The optional example flags can deny tool names by regular expression or redact prompt text before Coder stores it.
+With log-only mode disabled, the optional example flags can deny tool names by regular expression or replace matching prompt text before the agent loop uses it.
+Coder retains the original prompt in the dispatch audit row.
 
 Run the consumer from a Coder source checkout:
 

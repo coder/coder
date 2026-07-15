@@ -122,11 +122,11 @@ func TestChatLifecycleHooksWorkedExample(t *testing.T) {
 			chunk := chattest.OpenAIToolCallChunk("search_docs", `{"query":"customer secret"}`)
 			chunk.Choices[0].ToolCalls[0].ID = allowedToolCallID
 			return chattest.OpenAIStreamingResponse(chunk)
-		default:
-			if modelCalls.Load() == 3 {
-				thirdModelRequest <- bytes.Clone(req.RawBody)
-			}
+		case 3:
+			thirdModelRequest <- bytes.Clone(req.RawBody)
 			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+		default:
+			return chattest.OpenAIErrorResponse(http.StatusInternalServerError, "unexpected_call", "unexpected model call")
 		}
 	})
 
@@ -239,6 +239,7 @@ func TestChatLifecycleHooksWorkedExample(t *testing.T) {
 		return err == nil && stored.Status == database.ChatStatusWaiting
 	}, testutil.IntervalFast)
 	require.Contains(t, string(testutil.RequireReceive(ctx, t, thirdModelRequest)), "The approved search result is safe to use.")
+	require.Equal(t, int32(3), modelCalls.Load())
 
 	rows, err := db.ListChatHookDispatchesByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 	require.NoError(t, err)

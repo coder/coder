@@ -50,9 +50,7 @@ const (
 	chatFilesBatchSize = 1000
 	// Chat debug run deletions can cascade into steps with large JSONB
 	// payloads, so they use the same conservative batch size.
-	chatDebugRunsBatchSize = 1000
-	// Hook dispatches are high-volume audit records. Keep 90 days and
-	// delete them in the same batch size as other log tables.
+	chatDebugRunsBatchSize      = 1000
 	chatHookDispatchRetention   = 90 * 24 * time.Hour
 	chatHookDispatchesBatchSize = 10000
 )
