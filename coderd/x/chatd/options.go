@@ -62,6 +62,7 @@ type chatWorkerTaskStartInput struct {
 	Status                   database.ChatStatus
 	RequiresActionDeadlineAt sql.NullTime
 	DebugTurn                *runnerDebugTurn
+	SessionStartDispatched   *atomic.Bool
 }
 
 // chatWorkerOptions configures a chatWorker.

@@ -2381,6 +2381,7 @@ export type ChatErrorKind =
 	| "auth"
 	| "config"
 	| "generic"
+	| "hook_dispatch_failed"
 	| "missing_key"
 	| "overloaded"
 	| "provider_disabled"
@@ -2393,6 +2394,7 @@ export const ChatErrorKinds: ChatErrorKind[] = [
 	"auth",
 	"config",
 	"generic",
+	"hook_dispatch_failed",
 	"missing_key",
 	"overloaded",
 	"provider_disabled",

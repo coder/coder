@@ -1678,7 +1678,10 @@ func (p *Server) EditMessage(
 	if p.hookDispatcher != nil && p.hookDispatcher.Enabled() {
 		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
-			return EditMessageResult{}, xerrors.Errorf("load chat for user_prompt_submit: %w", err)
+			return EditMessageResult{}, xerrors.Errorf("load chat for edit hooks: %w", err)
+		}
+		if _, err := p.dispatchSessionStart(ctx, chat, &turnID, sessionStartSourceClear); err != nil {
+			return EditMessageResult{}, p.handleAPIDispatchError(ctx, opts.ChatID, agenthooks.EventSessionStart, err)
 		}
 		hookResponse, err = p.dispatchUserPromptSubmit(ctx, chat, turnID, contentParts)
 		if err != nil {

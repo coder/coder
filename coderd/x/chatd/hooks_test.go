@@ -330,7 +330,25 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 	))
 	require.NoError(t, err)
 	require.Len(t, inserted, 1)
-	consumer := hookConsumer(t, `{"permission":{"decision":"allow","input_override":{"prompt":"edited override"}}}`)
+	type receivedHook struct {
+		request agenthooks.Request
+		claims  agenthooks.Claims
+	}
+	received := make([]receivedHook, 0, 2)
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request agenthooks.Request
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		claims, err := agenthooks.Verify(r.Header.Get("Authorization"), []byte("test-hook-secret-32-bytes-minimum!!"))
+		require.NoError(t, err)
+		received = append(received, receivedHook{request: request, claims: claims})
+		response := `{}`
+		if request.Type == agenthooks.EventUserPromptSubmit {
+			response = `{"permission":{"decision":"allow","input_override":{"prompt":"edited override"}}}`
+		}
+		_, err = w.Write([]byte(response))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
 	server := newHookTestServer(t, db, ps, consumer)
 
 	result, err := server.EditMessage(ctx, chatd.EditMessageOptions{
@@ -344,6 +362,15 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 	require.True(t, result.Message.TurnID.Valid)
 	require.NotEqual(t, inserted[0].TurnID, result.Message.TurnID)
 	require.Equal(t, "edited override", hookMessageText(t, result.Message))
+	require.Len(t, received, 2)
+	require.Equal(t, agenthooks.EventSessionStart, received[0].request.Type)
+	data, err := received[0].request.Decode()
+	require.NoError(t, err)
+	require.Equal(t, &agenthooks.SessionStartData{Source: "clear"}, data)
+	require.Equal(t, received[0].request.Meta.DispatchID, received[0].claims.JTI)
+	require.Equal(t, agenthooks.EventUserPromptSubmit, received[1].request.Type)
+	require.Equal(t, received[1].request.Meta.DispatchID, received[1].claims.JTI)
+	require.NotEqual(t, received[0].claims.JTI, received[1].claims.JTI)
 }
 
 func TestSendMessageHooksDisabled(t *testing.T) {

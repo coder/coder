@@ -14,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -38,6 +39,57 @@ func promptText(parts []codersdk.ChatMessagePart) string {
 		}
 	}
 	return prompt.String()
+}
+
+const (
+	sessionStartSourceStartup = "startup"
+	sessionStartSourceResume  = "resume"
+	sessionStartSourceClear   = "clear"
+)
+
+func (p *Server) dispatchSessionStart(
+	ctx context.Context,
+	chat database.Chat,
+	turnID *uuid.UUID,
+	source string,
+) (agenthooks.Response, error) {
+	if p.hookDispatcher == nil || !p.hookDispatcher.Enabled() {
+		return agenthooks.Response{}, nil
+	}
+
+	var workspaceID *uuid.UUID
+	if chat.WorkspaceID.Valid {
+		workspaceID = &chat.WorkspaceID.UUID
+	}
+	return p.hookDispatcher.Dispatch(ctx, chathooks.Event{
+		Type:        agenthooks.EventSessionStart,
+		ChatID:      chat.ID,
+		OwnerID:     chat.OwnerID,
+		WorkspaceID: workspaceID,
+		TurnID:      turnID,
+		Data: agenthooks.SessionStartData{
+			Source: source,
+		},
+	})
+}
+
+func sessionStartSource(messages []database.ChatMessage) string {
+	for _, message := range messages {
+		if message.Role == database.ChatMessageRoleAssistant {
+			return sessionStartSourceResume
+		}
+	}
+	return sessionStartSourceStartup
+}
+
+func activeTurnID(messages []database.ChatMessage) *uuid.UUID {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].TurnID.Valid {
+			turnID := messages[i].TurnID.UUID
+			return &turnID
+		}
+	}
+	return nil
 }
 
 func (p *Server) dispatchUserPromptSubmit(
@@ -75,16 +127,14 @@ func (p *Server) dispatchUserPromptSubmit(
 }
 
 func (p *Server) handleUserPromptDispatchError(ctx context.Context, chatID uuid.UUID, dispatchErr error) error {
-	var structured *chathooks.DispatchError
-	if !errors.As(dispatchErr, &structured) {
+	return p.handleAPIDispatchError(ctx, chatID, agenthooks.EventUserPromptSubmit, dispatchErr)
+}
+
+func (p *Server) handleAPIDispatchError(ctx context.Context, chatID uuid.UUID, eventType agenthooks.EventType, dispatchErr error) error {
+	lastError, ok := hookDispatchErrorMessage(eventType, dispatchErr)
+	if !ok {
 		return dispatchErr
 	}
-	lastError := fmt.Sprintf(
-		"hook dispatch failed: %s: %s (dispatch %s)",
-		agenthooks.EventUserPromptSubmit,
-		structured.Class,
-		structured.DispatchID,
-	)
 	var failedChat database.Chat
 	machine := p.newChatMachine(chatID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
@@ -106,6 +156,30 @@ func (p *Server) handleUserPromptDispatchError(ctx context.Context, chatID uuid.
 	}
 	p.publishChatPubsubEvent(failedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	return dispatchErr
+}
+
+func hookDispatchErrorMessage(eventType agenthooks.EventType, dispatchErr error) (string, bool) {
+	var structured *chathooks.DispatchError
+	if !errors.As(dispatchErr, &structured) {
+		return "", false
+	}
+	return fmt.Sprintf(
+		"hook dispatch failed: %s: %s (dispatch %s)",
+		eventType,
+		structured.Class,
+		structured.DispatchID,
+	), true
+}
+
+func generationHookDispatchError(eventType agenthooks.EventType, dispatchErr error) error {
+	message, ok := hookDispatchErrorMessage(eventType, dispatchErr)
+	if !ok {
+		message = dispatchErr.Error()
+	}
+	return chaterror.WithClassification(dispatchErr, chaterror.ClassifiedError{
+		Message: message,
+		Kind:    codersdk.ChatErrorKindHookDispatchFailed,
+	})
 }
 
 func hookPrefixMessages(response agenthooks.Response, modelConfigID, turnID uuid.UUID) ([]chatstate.Message, error) {

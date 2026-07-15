@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agenthooks"
 )
 
 // generationPrepareInput contains the committed state used to prepare one
@@ -318,6 +319,18 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		chat, messages, err := loadGenerationState(ctx, machine, input)
 		if err != nil {
 			return xerrors.Errorf("load generation state: %w", err)
+		}
+		if input.SessionStartDispatched != nil && input.SessionStartDispatched.CompareAndSwap(false, true) {
+			_, err := s.server.dispatchSessionStart(ctx, chat, activeTurnID(messages), sessionStartSource(messages))
+			if err != nil {
+				return s.finishGenerationError(
+					ctx,
+					machine,
+					input,
+					generationHookDispatchError(agenthooks.EventSessionStart, err),
+					generationAttemptNotRequired,
+				)
+			}
 		}
 		prepareInput := generationPrepareInput{
 			Chat:     chat,
