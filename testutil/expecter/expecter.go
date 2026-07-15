@@ -41,6 +41,26 @@ func (t logTee) Write(p []byte) (int, error) {
 	return n, err
 }
 
+// chanReader adapts a channel of byte chunks to an io.Reader so a
+// bufio.Scanner can split it into lines, without needing a pipe.
+type chanReader struct {
+	ch  <-chan []byte
+	buf []byte
+}
+
+func (r *chanReader) Read(p []byte) (int, error) {
+	for len(r.buf) == 0 {
+		chunk, ok := <-r.ch
+		if !ok {
+			return 0, io.EOF
+		}
+		r.buf = chunk
+	}
+	n := copy(p, r.buf)
+	r.buf = r.buf[n:]
+	return n, nil
+}
+
 func New(t *testing.T, r io.Reader, name string) *Expecter {
 	copyDone := make(chan struct{})
 	logDone := make(chan struct{})
@@ -48,7 +68,7 @@ func New(t *testing.T, r io.Reader, name string) *Expecter {
 	logLines := make(chan []byte, 256)
 	// Wait for drain goroutine to reach its receive loop first,
 	// so a burst of output at startup can't fill the buffer and
-	// get silently dropped before anythign is listening.
+	// get silently dropped before anything is listening.
 	logReady := make(chan struct{})
 
 	ex := &Expecter{
@@ -88,20 +108,13 @@ func New(t *testing.T, r io.Reader, name string) *Expecter {
 	go func() {
 		defer close(logDone)
 		close(logReady)
-		var buf []byte
-		for chunk := range logLines {
-			buf = append(buf, chunk...)
-			for {
-				idx := bytes.IndexByte(buf, '\n')
-				if idx < 0 {
-					break
-				}
-				ex.Logf("%q", stripansi.Strip(string(buf[:idx])))
-				buf = buf[idx+1:]
-			}
+		s := bufio.NewScanner(&chanReader{ch: logLines})
+		for s.Scan() {
+			ex.Logf("%q", stripansi.Strip(s.Text()))
 		}
-		if len(buf) > 0 {
-			ex.Logf("%q", stripansi.Strip(string(buf)))
+		// Surface non-EOF scanner errors; otherwise they're invisible.
+		if err := s.Err(); err != nil {
+			ex.Logf("log scanner stopped: %v", err)
 		}
 	}()
 
