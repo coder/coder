@@ -106,11 +106,16 @@ type manager struct {
 	// requests attach to the existing process instead of
 	// spawning a duplicate. Entries are freed when the process
 	// is reaped.
-	tokens     map[string]*tokenEntry
-	closed     bool
-	updateEnv  func(current []string) (updated []string, err error)
-	workingDir func() string
-	envInfo    usershell.EnvInfoer
+	tokens map[string]*tokenEntry
+	// tokenIndexBirth is when this in-memory token index was
+	// created. The index does not survive agent restarts, so a
+	// caller can only trust a "token not found" answer if the
+	// index already existed when the token was first dispatched.
+	tokenIndexBirth time.Time
+	closed          bool
+	updateEnv       func(current []string) (updated []string, err error)
+	workingDir      func() string
+	envInfo         usershell.EnvInfoer
 }
 
 // newManager creates a new process manager.
@@ -121,17 +126,24 @@ func newManager(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, envInf
 	if envInfo == nil {
 		envInfo = &usershell.SystemEnvInfo{}
 	}
+	clock := quartz.NewReal()
 	return &manager{
-		logger:     logger,
-		execer:     execer,
-		fs:         fs,
-		clock:      quartz.NewReal(),
-		procs:      make(map[string]*process),
-		tokens:     make(map[string]*tokenEntry),
-		updateEnv:  updateEnv,
-		workingDir: workingDir,
-		envInfo:    envInfo,
+		logger:          logger,
+		execer:          execer,
+		fs:              fs,
+		clock:           clock,
+		procs:           make(map[string]*process),
+		tokens:          make(map[string]*tokenEntry),
+		tokenIndexBirth: clock.Now(),
+		updateEnv:       updateEnv,
+		workingDir:      workingDir,
+		envInfo:         envInfo,
 	}
+}
+
+// tokenIndexAge is how long the in-memory token index has existed.
+func (m *manager) tokenIndexAge() time.Duration {
+	return m.clock.Now().Sub(m.tokenIndexBirth)
 }
 
 // start spawns a new process. Both foreground and background

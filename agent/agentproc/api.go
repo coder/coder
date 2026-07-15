@@ -82,7 +82,11 @@ func (api *API) handleProcessByToken(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	resp := workspacesdk.ProcessByTokenResponse{Found: ok, Pending: pending}
+	resp := workspacesdk.ProcessByTokenResponse{
+		Found:           ok,
+		Pending:         pending,
+		TokenIndexAgeMS: api.manager.tokenIndexAge().Milliseconds(),
+	}
 	if ok {
 		resp.ProcessID = proc.id
 	}

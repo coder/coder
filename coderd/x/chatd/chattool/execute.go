@@ -68,6 +68,22 @@ const (
 	TokenTrustWindow = 30 * time.Minute
 )
 
+// TrustAbsentToken reports whether a Found=false, Pending=false
+// token probe answer proves the dispatch never reached the agent.
+// It requires the claim to be within TokenTrustWindow (the token
+// was not reaped) and the agent's in-memory token index to predate
+// the claim: a restarted agent answers with an empty index, so a
+// young index proves nothing about what an earlier agent process
+// may have started. Both sides of the index comparison are
+// durations, so agent and coderd wall clocks never mix.
+func TrustAbsentToken(resp workspacesdk.ProcessByTokenResponse, claimedAt time.Time) bool {
+	claimAge := time.Since(claimedAt)
+	if claimAge >= TokenTrustWindow {
+		return false
+	}
+	return time.Duration(resp.TokenIndexAgeMS)*time.Millisecond >= claimAge
+}
+
 // nonInteractiveEnvVars are set on every process to prevent
 // interactive prompts that would hang a headless execution.
 var nonInteractiveEnvVars = map[string]string{
@@ -277,7 +293,10 @@ type ExecutionRecorder interface {
 	// RecordStart stores the process identity on the claim that
 	// dispatched it and moves the row to running. claimEpoch must
 	// be the epoch returned by the Claim that owns the dispatch.
-	RecordStart(ctx context.Context, toolCallID string, claimEpoch int64, processID string, agentID uuid.UUID) error
+	// startedAt anchors re-attach deadlines; adoption of an
+	// already-running process passes the claim time as a lower
+	// bound of the true start instead of the adoption time.
+	RecordStart(ctx context.Context, toolCallID string, claimEpoch int64, processID string, agentID uuid.UUID, startedAt time.Time) error
 	// MarkTerminal applies a lifecycle observation (exited,
 	// detached, unknown, or no_effect). Observations never
 	// overwrite states written by the interrupt reconciler.
@@ -721,8 +740,10 @@ func recoverStaleClaim(
 
 	if resp.Found {
 		// Adopt the process on the stale claim's epoch, then
-		// resume from the updated row.
-		recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ProcessID)
+		// resume from the updated row. The claim time is the
+		// lower bound of the true start, so an adopted process
+		// never wins a fresh full timeout.
+		recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ProcessID, rec.ClaimedAt)
 		latest, err := options.Recorder.Get(ctx, toolCallID)
 		if err == nil && latest.Status != ExecutionStatusStarting {
 			return resumeExecution(ctx, conn, options, toolCallID, latest, dispatch)
@@ -736,18 +757,18 @@ func recoverStaleClaim(
 		return reattachProcess(ctx, conn, options, toolCallID, rec)
 	}
 
-	if !resp.Pending && time.Since(rec.ClaimedAt) >= TokenTrustWindow {
-		// The agent may have already reaped the token together
-		// with its exited process, so absence proves nothing.
+	if !resp.Pending && !TrustAbsentToken(resp, rec.ClaimedAt) {
+		// The agent may have reaped the token with its exited
+		// process, or restarted with an empty token index, so
+		// absence proves nothing.
 		markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
 		return fantasy.NewTextErrorResponse(unknownOutcomeMessage), nil
 	}
 
-	// A pending reservation or a token absent within the trust
-	// window is safe to re-dispatch under the same token: the
-	// agent attaches to an in-flight start and dedups any race
-	// with the original dispatch. Take over the stale claim
-	// first.
+	// A pending reservation or a trustworthy absent token is
+	// safe to re-dispatch under the same token: the agent
+	// attaches to an in-flight start and dedups any race with
+	// the original dispatch. Take over the stale claim first.
 	reclaimed, claimed, err := options.Recorder.Claim(ctx, toolCallID, dispatch.inputSHA256, dispatch.command, dispatch.background, dispatch.timeout, time.Now().Add(-claimStaleAfter))
 	if err != nil {
 		return errorResult(fmt.Sprintf("reclaim stale execution: %v", err)), nil
@@ -923,7 +944,7 @@ func executeBackground(
 	// row with no recorded process would make a retry return
 	// success without a usable handle instead of re-resolving the
 	// dispatch through the still-starting row.
-	if recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ID) {
+	if recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ID, time.Now()) {
 		markTerminal(ctx, options, toolCallID, ExecutionStatusDetached)
 	}
 
@@ -939,13 +960,13 @@ func executeBackground(
 // the interrupt path needs the recorded handle to kill the process.
 // Failures are logged, never fatal: the process is already running
 // and attached, so discarding the wait would throw away real work.
-func recordProcessStart(ctx context.Context, options ExecuteOptions, toolCallID string, claimEpoch int64, processID string) bool {
+func recordProcessStart(ctx context.Context, options ExecuteOptions, toolCallID string, claimEpoch int64, processID string, startedAt time.Time) bool {
 	if options.Recorder == nil {
 		return false
 	}
 	recordCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), recordWriteTimeout)
 	defer cancel()
-	if err := options.Recorder.RecordStart(recordCtx, toolCallID, claimEpoch, processID, options.connAgentID); err != nil {
+	if err := options.Recorder.RecordStart(recordCtx, toolCallID, claimEpoch, processID, options.connAgentID, startedAt); err != nil {
 		options.Logger.Warn(ctx, "failed to record execute process start",
 			slog.F("tool_call_id", toolCallID),
 			slog.F("process_id", processID),
@@ -1031,7 +1052,7 @@ func executeForeground(
 		return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err)))
 	}
 	logStartIdempotency(ctx, options.Logger, resp, toolCallID)
-	recorded := recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ID)
+	recorded := recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ID, time.Now())
 
 	result, lost := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)
 	if lost {

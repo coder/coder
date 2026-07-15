@@ -145,7 +145,7 @@ func (r *executionRecorder) Get(ctx context.Context, toolCallID string) (chattoo
 // pinned to an agent that is no longer the latest one. The claim
 // epoch guard means a superseded claimer cannot overwrite the
 // current claim's identity.
-func (r *executionRecorder) RecordStart(ctx context.Context, toolCallID string, claimEpoch int64, processID string, agentID uuid.UUID) error {
+func (r *executionRecorder) RecordStart(ctx context.Context, toolCallID string, claimEpoch int64, processID string, agentID uuid.UUID, startedAt time.Time) error {
 	msgID, err := r.lineage()
 	if err != nil {
 		return err
@@ -160,7 +160,7 @@ func (r *executionRecorder) RecordStart(ctx context.Context, toolCallID string, 
 		ClaimEpoch:         claimEpoch,
 		ProcessID:          processID,
 		WorkspaceAgentID:   agentID,
-		StartedAt:          dbtime.Now(),
+		StartedAt:          dbtime.Time(startedAt),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return xerrors.Errorf("claim epoch %d was superseded before the process start was recorded", claimEpoch)

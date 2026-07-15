@@ -1061,14 +1061,15 @@ func (r executionReconciler) reconcileCancelRequestedByToken(ctx context.Context
 		// cancel_requested for a later reconciler.
 		return
 	}
-	if record.ClaimedAt.Valid && time.Since(record.ClaimedAt.Time) < chattool.TokenTrustWindow {
+	if record.ClaimedAt.Valid && chattool.TrustAbsentToken(resp, record.ClaimedAt.Time) {
 		// Nothing was dispatched under this token, so there is
 		// nothing to kill.
 		r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusCanceled, sql.NullTime{})
 		return
 	}
-	// The token may have been reaped with its exited process, so
-	// absence proves nothing.
+	// The token may have been reaped with its exited process, or
+	// the agent restarted with an empty token index, so absence
+	// proves nothing.
 	r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, sql.NullTime{})
 }
 

@@ -808,7 +808,7 @@ func (f *fakeRecorder) Get(_ context.Context, toolCallID string) (chattool.Execu
 	return rec, nil
 }
 
-func (f *fakeRecorder) RecordStart(ctx context.Context, toolCallID string, claimEpoch int64, processID string, agentID uuid.UUID) error {
+func (f *fakeRecorder) RecordStart(ctx context.Context, toolCallID string, claimEpoch int64, processID string, agentID uuid.UUID, startedAt time.Time) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.recordStartCalled = true
@@ -822,7 +822,7 @@ func (f *fakeRecorder) RecordStart(ctx context.Context, toolCallID string, claim
 	}
 	rec.Status = chattool.ExecutionStatusRunning
 	rec.ProcessID = processID
-	rec.StartedAt = time.Now()
+	rec.StartedAt = startedAt
 	f.records[toolCallID] = rec
 	return nil
 }
@@ -1299,6 +1299,37 @@ func TestExecuteToolRecorder(t *testing.T) {
 		rec := recorder.record("call-1")
 		assert.Equal(t, "proc-1", rec.ProcessID)
 		assert.Equal(t, chattool.ExecutionStatusExited, rec.Status)
+		// Adoption anchors started_at at the claim time, the lower
+		// bound of the true start, so a long-running recovered
+		// process cannot win a fresh full timeout.
+		assert.WithinDuration(t, time.Now().Add(-2*time.Minute), rec.StartedAt, 30*time.Second)
+	})
+
+	t.Run("StaleClaimAbsentTokenYoungIndexUnknown", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		seedStaleStarting(recorder, 2*time.Minute)
+
+		// The agent restarted after the claim: its token index is
+		// younger than the claim, so absence proves nothing about
+		// what the previous agent process may have started.
+		mockConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{Found: false, TokenIndexAgeMS: (10 * time.Second).Milliseconds()}, nil)
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "unknown")
+		assert.Equal(t, chattool.ExecutionStatusUnknown, recorder.record("call-1").Status)
 	})
 
 	t.Run("StaleClaimProbeNotFoundRedispatches", func(t *testing.T) {
@@ -1310,7 +1341,7 @@ func TestExecuteToolRecorder(t *testing.T) {
 
 		mockConn.EXPECT().
 			ProcessByToken(gomock.Any(), "exec-call-1").
-			Return(workspacesdk.ProcessByTokenResponse{Found: false}, nil)
+			Return(workspacesdk.ProcessByTokenResponse{Found: false, TokenIndexAgeMS: time.Hour.Milliseconds()}, nil)
 		// The re-dispatch reuses the same execution token so the
 		// agent dedups a race with the original dispatch.
 		mockConn.EXPECT().
@@ -2277,8 +2308,8 @@ func TestExecuteToolClientToken(t *testing.T) {
 			}, nil)
 
 		tool := chattool.Execute(chattool.ExecuteOptions{
-			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
-				return mockConn, nil
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, uuid.UUID, error) {
+				return mockConn, testAgentID, nil
 			},
 			Logger:   sink.Logger(),
 			Recorder: newFakeRecorder(),

@@ -708,6 +708,9 @@ func TestProcessByToken(t *testing.T) {
 		resp := probe(t, handler, "tok-missing")
 		require.False(t, resp.Found)
 		require.Empty(t, resp.ProcessID)
+		// The index age lets coderd reject absent-token answers
+		// from freshly restarted agents.
+		require.GreaterOrEqual(t, resp.TokenIndexAgeMS, int64(0))
 	})
 
 	t.Run("ChatIsolation", func(t *testing.T) {

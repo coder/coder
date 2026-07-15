@@ -946,6 +946,11 @@ type ProcessByTokenResponse struct {
 	// not be read as proof that nothing started.
 	Pending   bool   `json:"pending,omitempty"`
 	ProcessID string `json:"process_id,omitempty"`
+	// TokenIndexAgeMS is how long the agent's in-memory token
+	// index has existed. The index does not survive agent
+	// restarts, so Found=false only proves nothing started if
+	// the index predates the token's first dispatch.
+	TokenIndexAgeMS int64 `json:"token_index_age_ms"`
 }
 
 // ListProcessesResponse contains information about tracked
