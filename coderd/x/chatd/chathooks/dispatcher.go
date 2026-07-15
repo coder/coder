@@ -35,8 +35,8 @@ const (
 	finalizeTimeout         = 2 * time.Second
 )
 
-// Dispatch result values are pending, ok, denied, http_error,
-// protocol_error, timeout, connection_error, and over_capacity.
+// Dispatches begin as pending, then finalize as ok, denied, http_error,
+// protocol_error, timeout, connection_error, or over_capacity.
 const (
 	resultOK              = "ok"
 	resultDenied          = "denied"
@@ -90,11 +90,13 @@ func New(
 	reg prometheus.Registerer,
 ) *Dispatcher {
 	if client == nil {
-		client = &http.Client{
-			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		}
+		client = &http.Client{}
+	} else {
+		clientCopy := *client
+		client = &clientCopy
+	}
+	client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
 	}
 	return &Dispatcher{
 		logger:       logger.Named("chat_hook_dispatcher"),
@@ -281,7 +283,7 @@ func (d *Dispatcher) post(
 		if requestErr != nil {
 			attemptErr := attemptCtx.Err()
 			cancel()
-			if errors.Is(attemptErr, context.DeadlineExceeded) || errors.Is(requestErr, context.DeadlineExceeded) || errors.Is(requestErr, context.Canceled) {
+			if isTimeoutError(attemptErr) || isTimeoutError(requestErr) || errors.Is(requestErr, context.Canceled) {
 				return agenthooks.Response{}, sql.NullInt32{}, resultTimeout, xerrors.Errorf("post lifecycle hook: %w", requestErr)
 			}
 			if !isConnectionError(requestErr) {
@@ -490,14 +492,25 @@ func nullError(err error) sql.NullString {
 	return sql.NullString{String: err.Error(), Valid: true}
 }
 
+func isTimeoutError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, syscall.ETIMEDOUT) {
+		return true
+	}
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
+}
+
 func isConnectionError(err error) bool {
 	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) ||
 		errors.Is(err, net.ErrClosed) || errors.Is(err, syscall.ECONNRESET) ||
 		errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.EPIPE) {
 		return true
 	}
-	var netErr net.Error
-	return errors.As(err, &netErr)
+	var opErr *net.OpError
+	return errors.As(err, &opErr)
 }
 
 type metrics struct {
