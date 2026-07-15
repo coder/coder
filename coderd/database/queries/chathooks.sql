@@ -38,6 +38,18 @@ SET
 WHERE id = @id::uuid
 RETURNING *;
 
+-- name: DeleteOldChatHookDispatches :execrows
+WITH deletable AS (
+	SELECT id
+	FROM chat_hook_dispatches
+	WHERE started_at < @before_time::timestamptz
+	ORDER BY started_at ASC
+	LIMIT @limit_count::int
+)
+DELETE FROM chat_hook_dispatches
+USING deletable
+WHERE chat_hook_dispatches.id = deletable.id;
+
 -- name: UpdateChatHookAllowedTools :exec
 UPDATE chats
 SET

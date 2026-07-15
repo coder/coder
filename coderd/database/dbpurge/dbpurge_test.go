@@ -253,6 +253,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldTelemetryLocks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldWorkspaceBuildOrchestrations(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
+		mDB.EXPECT().DeleteOldChatHookDispatches(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldChatDebugRuns(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatDebugRunsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
@@ -304,6 +305,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldTelemetryLocks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldWorkspaceBuildOrchestrations(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
+		mDB.EXPECT().DeleteOldChatHookDispatches(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldChats(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().DeleteOldChatFiles(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatFilesParams{})).Return(int64(0), nil).MinTimes(1)
@@ -2206,6 +2208,50 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 // ptr is a helper to create a pointer to a value.
 func ptr[T any](v T) *T {
 	return &v
+}
+
+//nolint:paralleltest // It uses LockIDDBPurge.
+func TestPurgeChatHookDispatches(t *testing.T) {
+	ctx := testutil.Context(t, testutil.WaitLong)
+	now := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
+	clk := quartz.NewMock(t)
+	clk.Set(now).MustWait(ctx)
+	db, _ := dbtestutil.NewDB(t)
+	reg := prometheus.NewRegistry()
+	chatID := uuid.New()
+	ownerID := uuid.New()
+
+	insertDispatch := func(startedAt time.Time) database.ChatHookDispatch {
+		dispatch, err := db.InsertChatHookDispatch(ctx, database.InsertChatHookDispatchParams{
+			ID:          uuid.New(),
+			ChatID:      chatID,
+			Event:       "stop",
+			TurnID:      uuid.NullUUID{},
+			ToolUseID:   sql.NullString{},
+			OwnerID:     ownerID,
+			WorkspaceID: uuid.NullUUID{},
+			StartedAt:   startedAt,
+		})
+		require.NoError(t, err)
+		return dispatch
+	}
+	_ = insertDispatch(now.Add(-90*24*time.Hour - time.Second))
+	recentDispatch := insertDispatch(now.Add(-89 * 24 * time.Hour))
+
+	done := awaitDoTick(ctx, t, clk)
+	closer := dbpurge.New(ctx, testutil.Logger(t), db, &codersdk.DeploymentValues{}, reg, dbpurge.WithClock(clk))
+	defer closer.Close()
+	testutil.TryReceive(ctx, t, done)
+
+	rows, err := db.ListChatHookDispatchesByChatID(ctx, chatID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, recentDispatch.ID, rows[0].ID)
+
+	purged := promhelp.CounterValue(t, reg, "coderd_dbpurge_records_purged_total", prometheus.Labels{
+		"record_type": "chat_hook_dispatches",
+	})
+	require.EqualValues(t, 1, purged)
 }
 
 //nolint:paralleltest // It uses LockIDDBPurge.

@@ -1221,6 +1221,21 @@ func (mr *MockStoreMockRecorder) DeleteOldChatFiles(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldChatFiles", reflect.TypeOf((*MockStore)(nil).DeleteOldChatFiles), ctx, arg)
 }
 
+// DeleteOldChatHookDispatches mocks base method.
+func (m *MockStore) DeleteOldChatHookDispatches(ctx context.Context, arg database.DeleteOldChatHookDispatchesParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOldChatHookDispatches", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteOldChatHookDispatches indicates an expected call of DeleteOldChatHookDispatches.
+func (mr *MockStoreMockRecorder) DeleteOldChatHookDispatches(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldChatHookDispatches", reflect.TypeOf((*MockStore)(nil).DeleteOldChatHookDispatches), ctx, arg)
+}
+
 // DeleteOldChats mocks base method.
 func (m *MockStore) DeleteOldChats(ctx context.Context, arg database.DeleteOldChatsParams) (int64, error) {
 	m.ctrl.T.Helper()

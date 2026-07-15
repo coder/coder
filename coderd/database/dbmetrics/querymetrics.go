@@ -729,6 +729,14 @@ func (m queryMetricsStore) DeleteOldChatFiles(ctx context.Context, arg database.
 	return r0, r1
 }
 
+func (m queryMetricsStore) DeleteOldChatHookDispatches(ctx context.Context, arg database.DeleteOldChatHookDispatchesParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteOldChatHookDispatches(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteOldChatHookDispatches").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOldChatHookDispatches").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteOldChats(ctx context.Context, arg database.DeleteOldChatsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteOldChats(ctx, arg)

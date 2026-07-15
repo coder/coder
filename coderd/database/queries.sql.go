@@ -5188,6 +5188,32 @@ func (q *sqlQuerier) InsertChatFile(ctx context.Context, arg InsertChatFileParam
 	return i, err
 }
 
+const deleteOldChatHookDispatches = `-- name: DeleteOldChatHookDispatches :execrows
+WITH deletable AS (
+	SELECT id
+	FROM chat_hook_dispatches
+	WHERE started_at < $1::timestamptz
+	ORDER BY started_at ASC
+	LIMIT $2::int
+)
+DELETE FROM chat_hook_dispatches
+USING deletable
+WHERE chat_hook_dispatches.id = deletable.id
+`
+
+type DeleteOldChatHookDispatchesParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+func (q *sqlQuerier) DeleteOldChatHookDispatches(ctx context.Context, arg DeleteOldChatHookDispatchesParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldChatHookDispatches, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const finalizeChatHookDispatch = `-- name: FinalizeChatHookDispatch :one
 UPDATE chat_hook_dispatches
 SET

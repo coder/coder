@@ -998,6 +998,10 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteOldChatFiles(gomock.Any(), database.DeleteOldChatFilesParams{}).Return(int64(0), nil).AnyTimes()
 		check.Args(database.DeleteOldChatFilesParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
+	s.Run("DeleteOldChatHookDispatches", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().DeleteOldChatHookDispatches(gomock.Any(), database.DeleteOldChatHookDispatchesParams{}).Return(int64(0), nil).AnyTimes()
+		check.Args(database.DeleteOldChatHookDispatchesParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
 	s.Run("DeleteOldChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().DeleteOldChats(gomock.Any(), database.DeleteOldChatsParams{}).Return(int64(0), nil).AnyTimes()
 		check.Args(database.DeleteOldChatsParams{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)

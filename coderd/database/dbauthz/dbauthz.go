@@ -2334,6 +2334,13 @@ func (q *querier) DeleteOldChatFiles(ctx context.Context, arg database.DeleteOld
 	return q.db.DeleteOldChatFiles(ctx, arg)
 }
 
+func (q *querier) DeleteOldChatHookDispatches(ctx context.Context, arg database.DeleteOldChatHookDispatchesParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteOldChatHookDispatches(ctx, arg)
+}
+
 func (q *querier) DeleteOldChats(ctx context.Context, arg database.DeleteOldChatsParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
 		return 0, err

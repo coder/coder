@@ -51,6 +51,10 @@ const (
 	// Chat debug run deletions can cascade into steps with large JSONB
 	// payloads, so they use the same conservative batch size.
 	chatDebugRunsBatchSize = 1000
+	// Hook dispatches are high-volume audit records. Keep 90 days and
+	// delete them in the same batch size as other log tables.
+	chatHookDispatchRetention   = 90 * 24 * time.Hour
+	chatHookDispatchesBatchSize = 10000
 )
 
 type Option func(*instance)
@@ -289,6 +293,15 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			return xerrors.Errorf("failed to delete old workspace build orchestrations: %w", err)
 		}
 
+		deleteChatHookDispatchesBefore := start.Add(-chatHookDispatchRetention)
+		purgedChatHookDispatches, err := tx.DeleteOldChatHookDispatches(ctx, database.DeleteOldChatHookDispatchesParams{
+			BeforeTime: deleteChatHookDispatchesBefore,
+			LimitCount: chatHookDispatchesBatchSize,
+		})
+		if err != nil {
+			return xerrors.Errorf("failed to delete old chat hook dispatches: %w", err)
+		}
+
 		var purgedChats, purgedChatFiles, purgedChatDebugRuns int64
 		if purgeChats {
 			purgedChats, purgedChatFiles, err = i.purgeChatsInTx(ctx, tx, start, chatRetentionDays)
@@ -319,6 +332,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			slog.F("boundary_logs", purgedBoundaryLogs),
 			slog.F("boundary_sessions", purgedBoundarySessions),
 			slog.F("workspace_build_orchestrations", purgedWorkspaceBuildOrchestrations),
+			slog.F("chat_hook_dispatches", purgedChatHookDispatches),
 			slog.F("chats", purgedChats),
 			slog.F("chat_files", purgedChatFiles),
 			slog.F("chat_debug_runs", purgedChatDebugRuns),
@@ -334,6 +348,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			i.recordsPurged.WithLabelValues("boundary_logs").Add(float64(purgedBoundaryLogs))
 			i.recordsPurged.WithLabelValues("boundary_sessions").Add(float64(purgedBoundarySessions))
 			i.recordsPurged.WithLabelValues("workspace_build_orchestrations").Add(float64(purgedWorkspaceBuildOrchestrations))
+			i.recordsPurged.WithLabelValues("chat_hook_dispatches").Add(float64(purgedChatHookDispatches))
 			i.recordsPurged.WithLabelValues("chats").Add(float64(purgedChats))
 			i.recordsPurged.WithLabelValues("chat_debug_runs").Add(float64(purgedChatDebugRuns))
 			i.recordsPurged.WithLabelValues("chat_files").Add(float64(purgedChatFiles))
