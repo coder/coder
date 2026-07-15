@@ -29,8 +29,9 @@ const ICONS: FloatingIcon[] = [
 
 /**
  * Full-area animated loader displayed while the template builder compose
- * API call is in flight. Shows floating icon boxes, a progress bar, and
- * an animated "Building your template..." label.
+ * API call is in flight. Shows floating icon boxes, an indeterminate progress
+ * bar that fills once and holds, and an animated "Building your template..."
+ * label.
  */
 export const BuildingTemplateLoader: FC = () => {
 	return (
@@ -74,11 +75,10 @@ export const BuildingTemplateLoader: FC = () => {
 						<motion.div
 							className="h-full rounded bg-highlight-sky"
 							initial={{ width: "0%" }}
-							animate={{ width: "100%" }}
+							animate={{ width: "90%" }}
 							transition={{
-								duration: 5,
-								ease: "easeInOut",
-								repeat: Number.POSITIVE_INFINITY,
+								duration: 9,
+								ease: "easeOut",
 							}}
 						/>
 					</div>
