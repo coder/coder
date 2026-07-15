@@ -2075,16 +2075,152 @@ func (e *ToolResultStatusConflictError) Error() string {
 // machine. Validation runs inside the same transaction as the
 // transition so the assistant message and pending tool calls cannot
 // drift between reads.
+type dynamicPostToolUseState struct {
+	chat          database.Chat
+	turnID        *uuid.UUID
+	modelConfigID uuid.UUID
+	toolNames     map[string]string
+}
+
+func loadDynamicPostToolUseState(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	opts SubmitToolResultsOptions,
+) (dynamicPostToolUseState, error) {
+	var state dynamicPostToolUseState
+	err := machine.ReadLock(ctx, func(store database.Store) error {
+		chat, err := store.GetChatByID(ctx, opts.ChatID)
+		if err != nil {
+			return xerrors.Errorf("load chat: %w", err)
+		}
+		if chat.Archived {
+			return ErrChatArchived
+		}
+		if chat.Status != database.ChatStatusRequiresAction {
+			return &ToolResultStatusConflictError{ActualStatus: chat.Status}
+		}
+		messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  opts.ChatID,
+			AfterID: 0,
+		})
+		if err != nil {
+			return xerrors.Errorf("load chat messages: %w", err)
+		}
+		_, pending, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
+		if err != nil {
+			return xerrors.Errorf("load pending dynamic tool calls: %w", err)
+		}
+		toolNames := make(map[string]string, len(pending))
+		for _, call := range pending {
+			toolNames[call.ToolCallID] = call.ToolName
+		}
+		if err := validateSubmittedToolResults(opts.Results, toolNames); err != nil {
+			return err
+		}
+		modelConfigID := opts.ModelConfigID
+		if modelConfigID == uuid.Nil {
+			modelConfigID = chat.LastModelConfigID
+		}
+		state = dynamicPostToolUseState{
+			chat:          chat,
+			turnID:        activeTurnID(messages),
+			modelConfigID: modelConfigID,
+			toolNames:     toolNames,
+		}
+		return nil
+	})
+	return state, err
+}
+
+func validateSubmittedToolResults(results []codersdk.ToolResult, toolNames map[string]string) error {
+	submitted := make(map[string]struct{}, len(results))
+	for _, result := range results {
+		if _, ok := submitted[result.ToolCallID]; ok {
+			return &ToolResultValidationError{
+				Message: "Duplicate tool_call_id in results.",
+				Detail:  fmt.Sprintf("Duplicate tool call ID %q.", result.ToolCallID),
+			}
+		}
+		if !json.Valid(result.Output) {
+			return &ToolResultValidationError{
+				Message: "Tool result output must be valid JSON.",
+				Detail:  fmt.Sprintf("Output for tool call %q is not valid JSON.", result.ToolCallID),
+			}
+		}
+		if _, ok := toolNames[result.ToolCallID]; !ok {
+			return &ToolResultValidationError{
+				Message: "Unexpected tool result.",
+				Detail:  fmt.Sprintf("No pending tool call with ID %q.", result.ToolCallID),
+			}
+		}
+		submitted[result.ToolCallID] = struct{}{}
+	}
+	for toolCallID := range toolNames {
+		if _, ok := submitted[toolCallID]; !ok {
+			return &ToolResultValidationError{
+				Message: "Missing tool result.",
+				Detail:  fmt.Sprintf("Missing result for tool call %q.", toolCallID),
+			}
+		}
+	}
+	return nil
+}
+
+func dynamicPostToolUseData(result codersdk.ToolResult, toolName string) agenthooks.PostToolUseData {
+	data := agenthooks.PostToolUseData{
+		ToolUseID: result.ToolCallID,
+		ToolName:  toolName,
+	}
+	if result.IsError {
+		if err := json.Unmarshal(result.Output, &data.ToolError); err != nil {
+			data.ToolError = string(result.Output)
+		}
+	} else {
+		data.ToolResponse = append(json.RawMessage(nil), result.Output...)
+	}
+	return data
+}
+
+// SubmitToolResults validates and persists client-provided tool
+// results, returning the chat to running through the chatstate state
+// machine. Validation runs inside the same transaction as the
+// transition so the assistant message and pending tool calls cannot
+// drift between reads.
 func (p *Server) SubmitToolResults(
 	ctx context.Context,
 	opts SubmitToolResultsOptions,
 ) error {
+	machine := p.newChatMachine(opts.ChatID)
+	var hookResponses []agenthooks.Response
+	var hookSuffix []chatstate.Message
+	var hookDispatchErr error
+	hookEndChat := false
+	if p.hookDispatcher != nil && p.hookDispatcher.Enabled() {
+		state, err := loadDynamicPostToolUseState(ctx, machine, opts)
+		if err != nil {
+			return err
+		}
+		for _, result := range opts.Results {
+			response, err := p.dispatchPostToolUseData(ctx, state.chat, state.turnID, dynamicPostToolUseData(result, state.toolNames[result.ToolCallID]))
+			if err != nil {
+				hookDispatchErr = err
+				break
+			}
+			hookResponses = append(hookResponses, response)
+			responseMessages, err := hookPrefixMessages(response, state.modelConfigID, state.turnID)
+			if err != nil {
+				return err
+			}
+			hookSuffix = append(hookSuffix, responseMessages...)
+			hookEndChat = hookEndChat || response.EndChat
+		}
+	}
+
 	var (
 		statusConflict *ToolResultStatusConflictError
 		refreshChat    database.Chat
 		refreshedOK    bool
 	)
-	machine := p.newChatMachine(opts.ChatID)
 	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		locked, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
@@ -2095,21 +2231,27 @@ func (p *Server) SubmitToolResults(
 		}
 
 		toolResults := make([]chatstate.ToolResultInput, 0, len(opts.Results))
-		for _, r := range opts.Results {
+		for _, result := range opts.Results {
 			toolResults = append(toolResults, chatstate.ToolResultInput{
-				ToolCallID: r.ToolCallID,
-				Output:     r.Output,
-				IsError:    r.IsError,
+				ToolCallID: result.ToolCallID,
+				Output:     result.Output,
+				IsError:    result.IsError,
 			})
 		}
 		modelConfigID := opts.ModelConfigID
 		if modelConfigID == uuid.Nil {
 			modelConfigID = locked.LastModelConfigID
 		}
+		for _, response := range hookResponses {
+			if err := applyHookAllowedTools(ctx, store, opts.ChatID, response); err != nil {
+				return err
+			}
+		}
 		if _, err := tx.CompleteRequiresAction(chatstate.CompleteRequiresActionInput{
-			CreatedBy:     opts.UserID,
-			ModelConfigID: modelConfigID,
-			Results:       toolResults,
+			CreatedBy:      opts.UserID,
+			ModelConfigID:  modelConfigID,
+			Results:        toolResults,
+			SuffixMessages: hookSuffix,
 		}); err != nil {
 			if !errors.Is(err, chatstate.ErrInvalidState) &&
 				locked.Status != database.ChatStatusRequiresAction &&
@@ -2121,9 +2263,16 @@ func (p *Server) SubmitToolResults(
 			}
 			return xerrors.Errorf("complete requires action: %w", err)
 		}
-		// Capture the chat inside the transaction so the watch event
-		// uses the snapshot bump and status change produced by the
-		// transition itself.
+		if hookDispatchErr != nil {
+			lastError, _ := generationLastError(generationHookDispatchError(agenthooks.EventPostToolUse, hookDispatchErr))
+			if _, err := tx.FinishError(chatstate.FinishErrorInput{LastError: lastError}); err != nil {
+				return xerrors.Errorf("finish hook dispatch error: %w", err)
+			}
+		} else if hookEndChat {
+			if _, err := tx.EndChat(chatstate.EndChatInput{}); err != nil {
+				return xerrors.Errorf("end chat from post_tool_use: %w", err)
+			}
+		}
 		refreshed, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("reload chat after tool results: %w", err)
@@ -2140,7 +2289,15 @@ func (p *Server) SubmitToolResults(
 	}
 
 	if refreshedOK {
-		p.publishChatPubsubEvent(refreshChat, codersdk.ChatWatchEventKindStatusChange, nil)
+		kind := codersdk.ChatWatchEventKindStatusChange
+		if refreshChat.Archived {
+			kind = codersdk.ChatWatchEventKindDeleted
+			p.scheduleArchiveDebugCleanup(ctx, []database.Chat{refreshChat})
+		}
+		p.publishChatPubsubEvent(refreshChat, kind, nil)
+	}
+	if hookDispatchErr != nil {
+		return generationHookDispatchError(agenthooks.EventPostToolUse, hookDispatchErr)
 	}
 	return nil
 }

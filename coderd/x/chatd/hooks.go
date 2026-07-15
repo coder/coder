@@ -126,16 +126,34 @@ func (p *Server) dispatchPreToolUse(
 	})
 }
 
+func (p *Server) dispatchPostToolUseData(
+	ctx context.Context,
+	chat database.Chat,
+	turnID *uuid.UUID,
+	data agenthooks.PostToolUseData,
+) (agenthooks.Response, error) {
+	var workspaceID *uuid.UUID
+	if chat.WorkspaceID.Valid {
+		workspaceID = &chat.WorkspaceID.UUID
+	}
+	toolUseID := data.ToolUseID
+	return p.hookDispatcher.Dispatch(ctx, chathooks.Event{
+		Type:        agenthooks.EventPostToolUse,
+		ChatID:      chat.ID,
+		OwnerID:     chat.OwnerID,
+		WorkspaceID: workspaceID,
+		TurnID:      turnID,
+		ToolUseID:   &toolUseID,
+		Data:        data,
+	})
+}
+
 func (p *Server) dispatchPostToolUse(
 	ctx context.Context,
 	chat database.Chat,
 	turnID *uuid.UUID,
 	toolResult fantasy.ToolResultContent,
 ) (agenthooks.Response, error) {
-	var workspaceID *uuid.UUID
-	if chat.WorkspaceID.Valid {
-		workspaceID = &chat.WorkspaceID.UUID
-	}
 	data := agenthooks.PostToolUseData{
 		ToolUseID: toolResult.ToolCallID,
 		ToolName:  toolResult.ToolName,
@@ -156,16 +174,7 @@ func (p *Server) dispatchPostToolUse(
 		}
 		data.ToolResponse = encoded
 	}
-	toolUseID := toolResult.ToolCallID
-	return p.hookDispatcher.Dispatch(ctx, chathooks.Event{
-		Type:        agenthooks.EventPostToolUse,
-		ChatID:      chat.ID,
-		OwnerID:     chat.OwnerID,
-		WorkspaceID: workspaceID,
-		TurnID:      turnID,
-		ToolUseID:   &toolUseID,
-		Data:        data,
-	})
+	return p.dispatchPostToolUseData(ctx, chat, turnID, data)
 }
 
 func (p *Server) dispatchPostToolUseResults(

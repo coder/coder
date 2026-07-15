@@ -890,9 +890,10 @@ type ToolResultInput struct {
 
 // CompleteRequiresActionInput configures [Tx.CompleteRequiresAction].
 type CompleteRequiresActionInput struct {
-	CreatedBy     uuid.UUID
-	ModelConfigID uuid.UUID
-	Results       []ToolResultInput
+	CreatedBy      uuid.UUID
+	ModelConfigID  uuid.UUID
+	Results        []ToolResultInput
+	SuffixMessages []Message
 }
 
 // CompleteRequiresActionResult is returned by [Tx.CompleteRequiresAction].
@@ -970,7 +971,7 @@ func (tx *Tx) CompleteRequiresAction(input CompleteRequiresActionInput) (Complet
 			ContentVersion: chatprompt.CurrentContentVersion,
 		})
 	}
-	inserted, err := tx.insertMessages(messages)
+	inserted, err := tx.insertMessages(append(messages, input.SuffixMessages...))
 	if err != nil {
 		return CompleteRequiresActionResult{}, xerrors.Errorf("insert tool results: %w", err)
 	}
