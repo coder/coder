@@ -65,6 +65,9 @@ export const UpdateSucceeds: Story = {
 		).mockResolvedValue({ ...MockTemplate, name: "new-name" });
 		await fillAndSubmitForm(canvas, user);
 		await waitFor(() => expect(updateTemplateMetaSpy).toHaveBeenCalledTimes(1));
+		expect(updateTemplateMetaSpy.mock.calls[0][1]).toEqual(
+			expect.objectContaining({ agents_allowed: false }),
+		);
 	},
 };
 
@@ -158,6 +161,12 @@ async function fillAndSubmitForm(
 	const iconField = await canvas.findByLabelText("Icon");
 	await user.clear(iconField);
 	await user.type(iconField, "vscode.png");
+
+	const agentsAllowedField = canvas.getByRole("checkbox", {
+		name: /allow coder agents to use this template/i,
+	});
+	expect(agentsAllowedField).toBeChecked();
+	await user.click(agentsAllowedField);
 
 	const allowCancelJobsField = canvas.getByRole("checkbox", {
 		name: /allow users to cancel in-progress workspace jobs/i,

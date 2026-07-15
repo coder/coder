@@ -1799,25 +1799,6 @@ export const updateChatAutoArchiveDays = (queryClient: QueryClient) => ({
 	},
 });
 
-const chatTemplateAllowlistKey = [
-	...chatConfigKey,
-	"template-allowlist",
-] as const;
-
-export const chatTemplateAllowlist = () => ({
-	queryKey: chatTemplateAllowlistKey,
-	queryFn: () => API.experimental.getChatTemplateAllowlist(),
-});
-
-export const updateChatTemplateAllowlist = (queryClient: QueryClient) => ({
-	mutationFn: API.experimental.updateChatTemplateAllowlist,
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatTemplateAllowlistKey,
-		});
-	},
-});
-
 const chatUserCustomPromptKey = [...chatConfigKey, "prompt", "me"] as const;
 
 export const chatUserCustomPrompt = () => ({

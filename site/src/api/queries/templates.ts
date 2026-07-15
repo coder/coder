@@ -12,6 +12,7 @@ import type {
 	Template,
 	TemplateRole,
 	TemplateVersion,
+	UpdateTemplateMeta,
 	UsersRequest,
 } from "#/api/typesGenerated";
 import { delay } from "#/utils/delay";
@@ -49,6 +50,33 @@ export const templates = (
 	return {
 		queryKey: getTemplatesQueryKey(options),
 		queryFn: () => API.getTemplates(options),
+	};
+};
+
+export const updateTemplateMeta = (
+	queryClient: QueryClient,
+): MutationOptions<
+	Awaited<ReturnType<typeof API.updateTemplateMeta>>,
+	unknown,
+	{ template: Template; data: UpdateTemplateMeta }
+> => {
+	return {
+		mutationFn: ({ template, data }) =>
+			API.updateTemplateMeta(template.id, data),
+		onSuccess: async (_result, { template }) => {
+			await Promise.all([
+				queryClient.invalidateQueries({ queryKey: ["templates"] }),
+				queryClient.invalidateQueries({
+					queryKey: templateKey(template.id),
+				}),
+				queryClient.invalidateQueries({
+					queryKey: templateByNameKey(
+						template.organization_name,
+						template.name,
+					),
+				}),
+			]);
+		},
 	};
 };
 
