@@ -8057,7 +8057,10 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		var validationErr *chatd.ToolResultValidationError
 		var conflictErr *chatd.ToolResultStatusConflictError
+		var hookErr *chathooks.DispatchError
 		switch {
+		case errors.As(err, &hookErr):
+			writeChatHookDispatchFailed(ctx, rw, hookErr)
 		case xerrors.Is(err, chatd.ErrChatArchived):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Cannot submit tool results to an archived chat.",

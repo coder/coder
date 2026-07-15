@@ -2241,7 +2241,6 @@ func (p *Server) SubmitToolResults(
 	machine := p.newChatMachine(opts.ChatID)
 	var hookResponses []agenthooks.Response
 	var hookSuffix []chatstate.Message
-	var hookDispatchErr error
 	hookEndChat := false
 	if p.hookDispatcher != nil && p.hookDispatcher.Enabled() {
 		state, err := loadDynamicPostToolUseState(ctx, machine, opts)
@@ -2251,8 +2250,11 @@ func (p *Server) SubmitToolResults(
 		for _, result := range opts.Results {
 			response, err := p.dispatchPostToolUseData(ctx, state.chat, state.turnID, dynamicPostToolUseData(result, state.toolNames[result.ToolCallID]))
 			if err != nil {
-				hookDispatchErr = err
-				break
+				// Fail closed without committing: the client still
+				// holds the results and can resubmit them once the
+				// consumer recovers, so the chat stays in
+				// requires_action with its pending tool calls intact.
+				return generationHookDispatchError(agenthooks.EventPostToolUse, err)
 			}
 			hookResponses = append(hookResponses, response)
 			responseMessages, err := hookPrefixMessages(response, state.modelConfigID, state.turnID)
@@ -2309,12 +2311,7 @@ func (p *Server) SubmitToolResults(
 			}
 			return xerrors.Errorf("complete requires action: %w", err)
 		}
-		if hookDispatchErr != nil {
-			lastError, _ := generationLastError(generationHookDispatchError(agenthooks.EventPostToolUse, hookDispatchErr))
-			if _, err := tx.FinishError(chatstate.FinishErrorInput{LastError: lastError}); err != nil {
-				return xerrors.Errorf("finish hook dispatch error: %w", err)
-			}
-		} else if hookEndChat {
+		if hookEndChat {
 			if _, err := tx.EndChat(chatstate.EndChatInput{}); err != nil {
 				return xerrors.Errorf("end chat from post_tool_use: %w", err)
 			}
@@ -2341,9 +2338,6 @@ func (p *Server) SubmitToolResults(
 			p.scheduleArchiveDebugCleanup(ctx, []database.Chat{refreshChat})
 		}
 		p.publishChatPubsubEvent(refreshChat, kind, nil)
-	}
-	if hookDispatchErr != nil {
-		return generationHookDispatchError(agenthooks.EventPostToolUse, hookDispatchErr)
 	}
 	return nil
 }

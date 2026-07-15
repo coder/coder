@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
@@ -254,7 +255,7 @@ func TestPostToolUseHookDynamicResult(t *testing.T) {
 	require.Equal(t, int32(1), postCalls.Load())
 }
 
-func TestPostToolUseHookDynamicFailureCommitsResultThenErrors(t *testing.T) {
+func TestPostToolUseHookDynamicFailureRejectsSubmission(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -268,10 +269,12 @@ func TestPostToolUseHookDynamicFailureCommitsResultThenErrors(t *testing.T) {
 		return chattest.OpenAIStreamingResponse(chunk)
 	})
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	var failPostToolUse atomic.Bool
+	failPostToolUse.Store(true)
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
-		if request.Type == agenthooks.EventPostToolUse {
+		if request.Type == agenthooks.EventPostToolUse && failPostToolUse.Load() {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -301,24 +304,41 @@ func TestPostToolUseHookDynamicFailureCommitsResultThenErrors(t *testing.T) {
 		return err == nil && updated.Status == database.ChatStatusRequiresAction
 	}, testutil.IntervalFast)
 
+	results := []codersdk.ToolResult{{
+		ToolCallID: "call_dynamic_failure",
+		Output:     json.RawMessage(`{"answer":42}`),
+	}}
 	err = server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
 		ChatID:        chat.ID,
 		UserID:        user.ID,
 		ModelConfigID: model.ID,
-		Results: []codersdk.ToolResult{{
-			ToolCallID: "call_dynamic_failure",
-			Output:     json.RawMessage(`{"answer":42}`),
-		}},
+		Results:       results,
 	})
-	require.Error(t, err)
-	failed := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
-	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chat.ID), "my_dynamic_tool")
-	require.JSONEq(t, `{"answer":42}`, string(result.Result))
+	var dispatchErr *chathooks.DispatchError
+	require.ErrorAs(t, err, &dispatchErr)
+
+	// Nothing was committed: the chat stays in requires_action with its
+	// pending tool call so the client can resubmit the same results.
+	unchanged, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusRequiresAction, unchanged.Status)
+	require.False(t, unchanged.LastError.Valid)
+	for _, part := range chatToolParts(ctx, t, db, chat.ID) {
+		require.NotEqual(t, codersdk.ChatMessagePartTypeToolResult, part.Type,
+			"rejected submission must not commit tool results")
+	}
 	dispatch := lifecycleDispatch(t, db, chat.ID, agenthooks.EventPostToolUse)
 	require.Equal(t, "http_error", dispatch.Result)
-	lastError := chatLastErrorMessage(failed.LastError)
-	require.Contains(t, lastError, "hook dispatch failed: post_tool_use: http_error")
-	require.Contains(t, lastError, dispatch.ID.String())
+
+	failPostToolUse.Store(false)
+	require.NoError(t, server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
+		ChatID:        chat.ID,
+		UserID:        user.ID,
+		ModelConfigID: model.ID,
+		Results:       results,
+	}))
+	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chat.ID), "my_dynamic_tool")
+	require.JSONEq(t, `{"answer":42}`, string(result.Result))
 }
 
 func TestPostToolUseHookFailureCommitsResultThenErrors(t *testing.T) {

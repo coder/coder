@@ -99,6 +99,8 @@ Lifecycle hooks are fail closed.
 Coder treats a timeout, connection failure, non-`2xx` response, malformed response, or unsupported response field combination as a hook dispatch failure.
 An in-progress chat enters the error state and records the dispatch ID in its error details.
 If the first `user_prompt_submit` dispatch fails during chat creation, Coder rejects the request and doesn't create the chat.
+If `post_tool_use` fails for a client-submitted tool result, Coder rejects the submission without committing the results, and the client can resubmit them after the consumer recovers.
+If `post_tool_use` fails for a tool that Coder already executed, Coder commits the tool result first so the transcript reflects the completed side effect, then moves the chat to the error state.
 
 After the consumer is healthy, send another message to an existing errored chat to resume it.
 Coder emits `session_start` with `source` set to `resume` when the agent loop starts again.
