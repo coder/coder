@@ -227,15 +227,19 @@ func TestDispatcherNon2xxNoRetry(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 	event := newTestEvent(t, db, agenthooks.EventPreCompact, agenthooks.PreCompactData{})
 	var requests atomic.Int32
+	release := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		requests.Add(1)
-		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		assert.NoError(t, http.NewResponseController(w).Flush())
+		<-release
 	}))
 	t.Cleanup(server.Close)
 
 	_, err := newTestDispatcher(t, db, server.Client(), server.URL, time.Second).Dispatch(
 		testutil.Context(t, testutil.WaitLong), event,
 	)
+	close(release)
 	require.Error(t, err)
 	require.Equal(t, int32(1), requests.Load())
 

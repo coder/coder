@@ -304,6 +304,12 @@ func (d *Dispatcher) post(
 
 		// net/http only accepts three-digit response status codes.
 		status = sql.NullInt32{Int32: int32(httpResponse.StatusCode), Valid: true} //nolint:gosec
+		if httpResponse.StatusCode < http.StatusOK || httpResponse.StatusCode >= http.StatusMultipleChoices {
+			_ = httpResponse.Body.Close()
+			cancel()
+			return agenthooks.Response{}, status, resultHTTPError, xerrors.Errorf("lifecycle hook returned HTTP status %d", httpResponse.StatusCode)
+		}
+
 		responseBody, readErr := io.ReadAll(io.LimitReader(httpResponse.Body, maxResponseBodyBytes+1))
 		attemptErr := attemptCtx.Err()
 		_ = httpResponse.Body.Close()
@@ -317,9 +323,6 @@ func (d *Dispatcher) post(
 			default:
 				return agenthooks.Response{}, status, resultProtocolError, xerrors.Errorf("read lifecycle hook response: %w", readErr)
 			}
-		}
-		if httpResponse.StatusCode < http.StatusOK || httpResponse.StatusCode >= http.StatusMultipleChoices {
-			return agenthooks.Response{}, status, resultHTTPError, xerrors.Errorf("lifecycle hook returned HTTP status %d", httpResponse.StatusCode)
 		}
 		if len(responseBody) > maxResponseBodyBytes {
 			return agenthooks.Response{}, status, resultProtocolError, xerrors.New("lifecycle hook response exceeds 1 MiB")
