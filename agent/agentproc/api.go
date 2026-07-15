@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"time"
 
@@ -70,7 +71,13 @@ func (api *API) Routes() http.Handler {
 func (api *API) handleProcessByToken(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// chi matches escaped paths on RawPath, so the parameter may
+	// arrive percent-encoded; tokens are opaque strings that can
+	// contain any byte.
 	token := chi.URLParam(r, "token")
+	if unescaped, err := url.PathUnescape(token); err == nil {
+		token = unescaped
+	}
 	proc, pending, ok := api.manager.byToken(token)
 
 	// Enforce chat ID isolation like the other process routes.

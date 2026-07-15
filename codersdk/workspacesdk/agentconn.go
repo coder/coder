@@ -1369,7 +1369,10 @@ func (c *agentConn) CallMCPTool(ctx context.Context, req CallMCPToolRequest) (Ca
 func (c *agentConn) ProcessByToken(ctx context.Context, token string) (ProcessByTokenResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/processes/tokens/"+token, nil)
+	// Tokens are opaque caller-chosen strings, so escape them as a
+	// path segment; an unescaped separator would miss the route and
+	// read as an agent without the probe endpoint.
+	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/processes/tokens/"+neturl.PathEscape(token), nil)
 	if err != nil {
 		return ProcessByTokenResponse{}, xerrors.Errorf("do request: %w", err)
 	}

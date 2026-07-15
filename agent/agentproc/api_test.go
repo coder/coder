@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -711,6 +712,22 @@ func TestProcessByToken(t *testing.T) {
 		// The index age lets coderd reject absent-token answers
 		// from freshly restarted agents.
 		require.GreaterOrEqual(t, resp.TokenIndexAgeMS, int64(0))
+	})
+
+	t.Run("EscapedToken", func(t *testing.T) {
+		t.Parallel()
+
+		// Tokens are opaque strings, so a path-reserved byte must
+		// round-trip through the escaped probe URL.
+		handler := newTestAPI(t)
+		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
+			Command:     "echo hello",
+			ClientToken: "tok/with reserved?bytes",
+		})
+
+		resp := probe(t, handler, url.PathEscape("tok/with reserved?bytes"))
+		require.True(t, resp.Found)
+		require.Equal(t, id, resp.ProcessID)
 	})
 
 	t.Run("ChatIsolation", func(t *testing.T) {
