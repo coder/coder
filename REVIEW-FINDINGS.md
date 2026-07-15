@@ -18,7 +18,12 @@ clauses; direct access evaluates the ACL-less dormant object). What
 this branch introduced is only the contradiction: the dormant
 `use_shared` grant and comments claiming recipients keep access through
 dormancy, which the pre-existing `DormantRBAC()` makes impossible. The
-grant is inert.
+grant is inert. A reproduction test exists:
+`TestWorkspaceSharingDormancyDropsACLAccess` in
+`enterprise/coderd/workspacesharing_test.go` pins the current broken
+behavior (404 on direct access, 404 on recipient wake attempt, phantom
+list entry, access restored on owner wake); its assertions flip when
+`DormantRBAC()` gains ACLs.
 
 `DormantRBAC()` (`coderd/database/modelmethods.go`) attaches no ACLs, so
 ACL recipients get 403 on a dormant shared workspace. The workspaces
