@@ -421,7 +421,7 @@ func (tx *Tx) EndChat(input EndChatInput) (EndChatResult, error) {
 	if chat.ParentChatID.Valid {
 		return EndChatResult{}, ErrChatNotRoot
 	}
-	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted because the chat was ended", false)
+	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted because the chat was ended", false, input.PrefixMessages...)
 	if err != nil {
 		return EndChatResult{}, err
 	}

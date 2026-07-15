@@ -31,6 +31,10 @@ import (
 // The synthetic results use the supplied chat's last_model_config_id.
 // Returns (nil, nil) when there is nothing to synthesize.
 //
+// pendingInserts are messages the caller commits in the same
+// transaction; tool results they carry count as handled so a call
+// resolved by an in-flight result is not also canceled.
+//
 //nolint:revive // dynamicOnly is a domain flag, not a control flag.
 func synthesizePendingToolCancellations(
 	ctx context.Context,
@@ -38,6 +42,7 @@ func synthesizePendingToolCancellations(
 	chat database.Chat,
 	reason string,
 	dynamicOnly bool,
+	pendingInserts ...Message,
 ) ([]Message, error) {
 	var dynamicToolNames map[string]bool
 	if dynamicOnly {
@@ -91,6 +96,24 @@ func synthesizePendingToolCancellations(
 			// Don't fail the whole cancellation just because one
 			// historical message is unparsable; treat its tool
 			// results as unknown.
+			continue
+		}
+		for _, p := range parts {
+			if p.Type == codersdk.ChatMessagePartTypeToolResult {
+				handled[p.ToolCallID] = true
+			}
+		}
+	}
+	for _, msg := range pendingInserts {
+		if msg.Role != database.ChatMessageRoleTool {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(database.ChatMessage{
+			Role:           msg.Role,
+			ContentVersion: msg.ContentVersion,
+			Content:        msg.Content,
+		})
+		if err != nil {
 			continue
 		}
 		for _, p := range parts {

@@ -408,3 +408,84 @@ func TestPostToolUseHookFailureCommitsResultThenErrors(t *testing.T) {
 	require.Contains(t, lastError, "hook dispatch failed: post_tool_use: http_error")
 	require.Contains(t, lastError, postDispatch.ID.String())
 }
+
+// A pre_tool_use end_chat accepted before the tool executed must still end
+// the chat when the post_tool_use dispatch fails afterwards.
+func TestPostToolUseHookFailureAppliesAcceptedEndChat(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	chatID := seedPendingToolCall(ctx, t, db, ps, pendingToolCallSeed{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    ws.ID,
+		AgentID:        dbAgent.ID,
+		ModelConfigID:  model.ID,
+		APIKeyID:       testAPIKeyID(t, db, user.ID),
+		ToolCallID:     "call_end_chat_post_failure",
+		ToolName:       "read_file",
+		ToolInput:      `{"path":"/tmp/end.txt"}`,
+	})
+	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chatID)
+	require.NoError(t, err)
+	require.True(t, messages[0].TurnID.Valid)
+	recordPreToolUseResponse(ctx, t, db, chatID, user.ID, messages[0].TurnID.UUID, "call_end_chat_post_failure", agenthooks.PermissionAllow, "", nil, agenthooks.Response{
+		EndChat: true,
+	})
+
+	var preToolUseCalls atomic.Int32
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request agenthooks.Request
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		if request.Type == agenthooks.EventPreToolUse {
+			preToolUseCalls.Add(1)
+		}
+		if request.Type == agenthooks.EventPostToolUse {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		_, err := w.Write([]byte(`{}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), "/tmp/end.txt", int64(1), int64(0), gomock.Any()).
+		Return(workspacesdk.ReadFileLinesResponse{
+			Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data",
+		}, nil)
+	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	server.Start()
+
+	var archived database.Chat
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		archived, err = db.GetChatByID(ctx, chatID)
+		return err == nil && archived.Archived && archived.Status == database.ChatStatusWaiting
+	}, testutil.IntervalFast)
+	require.False(t, archived.LastError.Valid)
+	require.Zero(t, preToolUseCalls.Load(), "recorded decision must not re-dispatch")
+
+	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chatID), "read_file")
+	require.False(t, result.IsError)
+	require.Contains(t, string(result.Result), "data")
+	postDispatch := lifecycleDispatch(t, db, chatID, agenthooks.EventPostToolUse)
+	require.Equal(t, "http_error", postDispatch.Result)
+}

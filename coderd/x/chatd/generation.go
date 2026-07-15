@@ -839,14 +839,18 @@ func (s *taskStarter) executeLocalTools(
 	responses := make([]agenthooks.Response, 0, len(preflight.Responses)+len(postResponses))
 	responses = append(responses, preflight.Responses...)
 	responses = append(responses, postResponses...)
+	endChat := preEndChat || postEndChat
+	// An end_chat decision accepted from a successful dispatch outranks the
+	// fail-closed error path: the chat still ends when a later post_tool_use
+	// dispatch fails, and the failure stays recorded on its dispatch row.
 	var postCommitErr error
-	if postDispatchErr != nil {
+	if postDispatchErr != nil && !endChat {
 		postCommitErr = generationHookDispatchError(agenthooks.EventPostToolUse, postDispatchErr)
 	}
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages, generationCommitHooks{
 		Responses:       responses,
 		Overrides:       preflight.Overrides,
-		EndChat:         postDispatchErr == nil && (preEndChat || postEndChat),
+		EndChat:         endChat,
 		PostCommitError: postCommitErr,
 		TurnID:          turnID,
 		ToolUseIDs:      preflight.ToolUseIDs,
@@ -946,6 +950,11 @@ func (s *taskStarter) generateCompaction(
 	defer cancel()
 	postResponse, err := s.server.dispatchPostCompact(postCommitCtx, compacted, turnID)
 	if err != nil {
+		// pre_compact's accepted end_chat still applies when post_compact
+		// dispatch fails; the failure stays recorded on its dispatch row.
+		if preEndChat {
+			return s.applyPostCompactResponse(postCommitCtx, machine, input, compacted, prepared.ModelConfigID, turnID, agenthooks.Response{}, preEndChat)
+		}
 		return s.finishGenerationError(postCommitCtx, machine, input, generationHookDispatchError(agenthooks.EventPostCompact, err), generationAttemptNotRequired)
 	}
 	return s.applyPostCompactResponse(postCommitCtx, machine, input, compacted, prepared.ModelConfigID, turnID, postResponse, preEndChat)

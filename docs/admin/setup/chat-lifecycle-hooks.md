@@ -104,6 +104,7 @@ An in-progress chat enters the error state and records the dispatch ID in its er
 If the first `user_prompt_submit` dispatch fails during chat creation, Coder rejects the request and doesn't create the chat.
 If `post_tool_use` fails for a client-submitted tool result, Coder rejects the submission without committing the results, and the client can resubmit them after the consumer recovers.
 If `post_tool_use` fails for a tool that Coder already executed, Coder commits the tool result first so the transcript reflects the completed side effect, then moves the chat to the error state.
+An `end_chat` instruction that Coder already accepted from a successful dispatch in the same step takes precedence over the error state: if `post_tool_use` or `post_compact` fails after an accepted `end_chat`, Coder still ends the chat and records the failed dispatch.
 
 After the consumer is healthy, send another message to an existing errored chat to resume it.
 Coder emits `session_start` with `source` set to `resume` when the agent loop starts again.

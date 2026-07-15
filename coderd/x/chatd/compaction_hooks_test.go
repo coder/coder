@@ -117,6 +117,41 @@ func TestPostCompactHookFailureKeepsCompaction(t *testing.T) {
 	require.Contains(t, lastError, dispatch.ID.String())
 }
 
+// A pre_compact end_chat accepted before compaction must still end the
+// chat when the post_compact dispatch fails afterwards.
+func TestPostCompactHookFailureAppliesPreCompactEndChat(t *testing.T) {
+	t.Parallel()
+
+	fixture := startCompactionHookChat(t,
+		func(_ *testing.T, _ database.Store, request agenthooks.Request) (int, string) {
+			switch request.Type {
+			case agenthooks.EventPreCompact:
+				return http.StatusOK, `{"end_chat":true}`
+			case agenthooks.EventPostCompact:
+				return http.StatusInternalServerError, ""
+			default:
+				return http.StatusOK, `{}`
+			}
+		},
+		func(*testing.T, string) {},
+	)
+	waitCtx := testutil.Context(t, testutil.WaitLong)
+	var archived database.Chat
+	testutil.Eventually(waitCtx, t, func(ctx context.Context) bool {
+		updated, err := fixture.db.GetChatByID(ctx, fixture.chat.ID)
+		if err != nil {
+			return false
+		}
+		archived = updated
+		return updated.Archived && updated.Status == database.ChatStatusWaiting
+	}, testutil.IntervalFast)
+	require.False(t, archived.LastError.Valid)
+	require.Equal(t, int32(1), fixture.compactionCalls.Load())
+	require.True(t, hasCompactionRows(t, fixture.db, fixture.chat.ID))
+	dispatch := lifecycleDispatch(t, fixture.db, fixture.chat.ID, agenthooks.EventPostCompact)
+	require.Equal(t, "http_error", dispatch.Result)
+}
+
 type compactionHookFixture struct {
 	ctx             context.Context
 	db              database.Store
