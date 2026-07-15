@@ -125,7 +125,7 @@ const providerDefaults: Partial<
 	anthropic: { name: "anthropic", baseUrl: "https://api.anthropic.com" },
 	bedrock: {
 		name: "bedrock",
-		baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
+		baseUrl: bedrockInvokeModelBaseUrl(BEDROCK_DEFAULT_REGION),
 		model: BEDROCK_DEFAULT_MODEL,
 		smallFastModel: BEDROCK_DEFAULT_SMALL_FAST_MODEL,
 	},
