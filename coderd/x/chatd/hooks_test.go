@@ -42,12 +42,21 @@ func TestSendMessageUserPromptSubmitHook(t *testing.T) {
 			LastModelConfigID: model.ID,
 		})
 
+		submitted := []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("before"),
+			codersdk.ChatMessageFileReference("main.go", 1, 3, "package main"),
+		}
 		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var request agenthooks.Request
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
-			data, err := request.Decode()
+			decoded, err := request.Decode()
 			require.NoError(t, err)
-			require.Equal(t, &agenthooks.UserPromptSubmitData{Prompt: "before"}, data)
+			data, ok := decoded.(*agenthooks.UserPromptSubmitData)
+			require.True(t, ok)
+			require.Equal(t, "before", data.Prompt)
+			var hookParts []codersdk.ChatMessagePart
+			require.NoError(t, json.Unmarshal(data.Parts, &hookParts))
+			require.Equal(t, submitted, hookParts, "hook payload must carry non-text parts")
 			require.NotNil(t, request.Meta.TurnID)
 			_, err = w.Write([]byte(`{"permission":{"decision":"allow","input_override":{"prompt":"after"}},"model_context":"model only","user_message":"user only","allowed_tools":["read","write"]}`))
 			require.NoError(t, err)
@@ -58,7 +67,7 @@ func TestSendMessageUserPromptSubmitHook(t *testing.T) {
 		result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 			ChatID:    chat.ID,
 			CreatedBy: user.ID,
-			Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("before")},
+			Content:   submitted,
 			APIKeyID:  testAPIKeyID(t, db, user.ID),
 		})
 		require.NoError(t, err)

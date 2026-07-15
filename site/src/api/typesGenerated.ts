@@ -1343,10 +1343,15 @@ export interface AgentHookStopData {}
 
 // From agenthooks/types.go
 /**
- * UserPromptSubmitData contains the submitted user prompt.
+ * UserPromptSubmitData contains the submitted user prompt. Prompt
+ * concatenates the text parts. Parts carries the full structured
+ * message exactly as it is persisted and sent to the model, including
+ * non-text parts such as file references; consumers that gate prompt
+ * content must inspect it.
  */
 export interface AgentHookUserPromptSubmitData {
 	readonly prompt: string;
+	readonly parts?: unknown;
 }
 
 // From codersdk/workspacebuilds.go

@@ -75,9 +75,14 @@ type SessionStartData struct {
 	Source string `json:"source"`
 }
 
-// UserPromptSubmitData contains the submitted user prompt.
+// UserPromptSubmitData contains the submitted user prompt. Prompt
+// concatenates the text parts. Parts carries the full structured
+// message exactly as it is persisted and sent to the model, including
+// non-text parts such as file references; consumers that gate prompt
+// content must inspect it.
 type UserPromptSubmitData struct {
-	Prompt string `json:"prompt"`
+	Prompt string          `json:"prompt"`
+	Parts  json.RawMessage `json:"parts,omitempty"`
 }
 
 // PreToolUseData describes a tool call before execution.

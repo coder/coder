@@ -156,10 +156,11 @@ func AgentHookRawMessages(ts *guts.Typescript) {
 	}
 	unknown := bindings.KeywordUnknown
 	fields := map[string]string{
-		"AgentHookRequest":         "data",
-		"AgentHookPreToolUseData":  "tool_input",
-		"AgentHookPostToolUseData": "tool_response",
-		"AgentHookPermission":      "input_override",
+		"AgentHookRequest":              "data",
+		"AgentHookUserPromptSubmitData": "parts",
+		"AgentHookPreToolUseData":       "tool_input",
+		"AgentHookPostToolUseData":      "tool_response",
+		"AgentHookPermission":           "input_override",
 	}
 	for typeName, fieldName := range fields {
 		node, ok := ts.Node(typeName)

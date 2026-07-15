@@ -454,8 +454,13 @@ func (p *Server) dispatchUserPromptSubmit(
 	turnID uuid.UUID,
 	parts []codersdk.ChatMessagePart,
 ) (agenthooks.Response, error) {
+	encodedParts, err := chatprompt.MarshalParts(parts)
+	if err != nil {
+		return agenthooks.Response{}, xerrors.Errorf("marshal prompt parts for hook: %w", err)
+	}
 	response, err := p.dispatchLifecycleHook(ctx, chat, &turnID, agenthooks.EventUserPromptSubmit, agenthooks.UserPromptSubmitData{
 		Prompt: promptText(parts),
+		Parts:  encodedParts.RawMessage,
 	})
 	if err != nil {
 		return agenthooks.Response{}, err

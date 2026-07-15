@@ -38,9 +38,14 @@ func TestCreateChatUserPromptSubmitHook(t *testing.T) {
 		require.Equal(t, chat.ID, request.Meta.ChatID)
 		require.Equal(t, user.ID, request.Meta.OwnerID)
 		require.NotNil(t, request.Meta.TurnID)
-		data, err := request.Decode()
+		decoded, err := request.Decode()
 		require.NoError(t, err)
-		require.Equal(t, &agenthooks.UserPromptSubmitData{Prompt: "passthrough"}, data)
+		data, ok := decoded.(*agenthooks.UserPromptSubmitData)
+		require.True(t, ok)
+		require.Equal(t, "passthrough", data.Prompt)
+		var hookParts []codersdk.ChatMessagePart
+		require.NoError(t, json.Unmarshal(data.Parts, &hookParts))
+		require.Equal(t, []codersdk.ChatMessagePart{codersdk.ChatMessageText("passthrough")}, hookParts)
 
 		messages := chatMessages(ctx, t, db, chat.ID)
 		initialUser := messages[len(messages)-1]
