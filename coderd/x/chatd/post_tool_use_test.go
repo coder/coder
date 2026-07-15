@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -44,6 +45,19 @@ func TestPostToolUseHookResponsesCommitWithResults(t *testing.T) {
 			first.Choices[0].ToolCalls = append(first.Choices[0].ToolCalls, second)
 			return chattest.OpenAIStreamingResponse(first)
 		}
+		toolResultIndex := -1
+		contextIndex := -1
+		for i, message := range req.Messages {
+			if message.Role == "tool" && strings.Contains(message.Content, "data") {
+				toolResultIndex = i
+			}
+			if strings.Contains(message.Content, "lint feedback") {
+				contextIndex = i
+			}
+		}
+		require.NotEqual(t, -1, toolResultIndex)
+		require.NotEqual(t, -1, contextIndex)
+		require.Less(t, toolResultIndex, contextIndex)
 		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
 	})
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)

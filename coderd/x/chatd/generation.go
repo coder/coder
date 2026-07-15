@@ -804,11 +804,11 @@ func (s *taskStarter) executeLocalTools(
 			return xerrors.Errorf("execute local tools: %w", err)
 		}
 	}
+	turnID := activeTurnID(prepared.Messages)
+	postResponses, postDispatchErr := s.server.dispatchPostToolUseResults(ctx, prepared.Chat, turnID, outcome.Step.Content)
 	for _, denied := range preflight.Denied {
 		outcome.Step.Content = append(outcome.Step.Content, denied)
 	}
-	turnID := activeTurnID(prepared.Messages)
-	postResponses, postDispatchErr := s.server.dispatchPostToolUseResults(ctx, prepared.Chat, turnID, outcome.Step.Content)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:      prepared.ModelConfigID,
 		modelCallConfig:    prepared.ModelConfig,
@@ -820,22 +820,26 @@ func (s *taskStarter) executeLocalTools(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
-	responses := make([]agenthooks.Response, 0, len(preflight.Responses)+len(postResponses))
-	responses = append(responses, preflight.Responses...)
-	responses = append(responses, postResponses...)
-	messages, endChat, err := applyHookResponseMessages(messages, responses, prepared.ModelConfigID, turnID)
+	messages, preEndChat, err := applyHookResponseMessages(messages, preflight.Responses, prepared.ModelConfigID, turnID)
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
+	messages, postEndChat, err := appendHookResponseMessages(messages, postResponses, prepared.ModelConfigID, turnID)
+	if err != nil {
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+	}
+	responses := make([]agenthooks.Response, 0, len(preflight.Responses)+len(postResponses))
+	responses = append(responses, preflight.Responses...)
+	responses = append(responses, postResponses...)
 	var postCommitErr error
 	if postDispatchErr != nil {
 		postCommitErr = generationHookDispatchError(agenthooks.EventPostToolUse, postDispatchErr)
 	}
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages, generationCommitHooks{
-		Responses:         responses,
-		Overrides:         preflight.Overrides,
-		PostCommitEndChat: endChat,
-		PostCommitError:   postCommitErr,
+		Responses:       responses,
+		Overrides:       preflight.Overrides,
+		EndChat:         postDispatchErr == nil && (preEndChat || postEndChat),
+		PostCommitError: postCommitErr,
 	})
 }
 
@@ -1015,9 +1019,7 @@ func (s *taskStarter) applyPostCompactResponse(
 	}
 	if endChat {
 		input.StopNudges.reset()
-		input.DebugTurn.RecordOutcome(chatdebug.StatusCompleted)
-		s.server.scheduleArchiveDebugCleanup(ctx, []database.Chat{committed})
-		return s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindDeleted)
+		return s.finishEndedChat(ctx, input, committed)
 	}
 	s.routeStateHint(ctx, stateUpdateFromChat(committed))
 	return s.afterGenerationOutcome(ctx, generationOutcome{
@@ -1107,11 +1109,10 @@ func (s *taskStarter) beginGenerationAttempt(
 }
 
 type generationCommitHooks struct {
-	Responses         []agenthooks.Response
-	Overrides         map[string]json.RawMessage
-	EndChat           bool
-	PostCommitEndChat bool
-	PostCommitError   error
+	Responses       []agenthooks.Response
+	Overrides       map[string]json.RawMessage
+	EndChat         bool
+	PostCommitError error
 }
 
 func (s *taskStarter) commitGenerationStep(
@@ -1168,19 +1169,14 @@ func (s *taskStarter) commitGenerationStep(
 	if err != nil {
 		return normalizeTaskTransitionError(err, "commit generation step")
 	}
-	if hooks.PostCommitError != nil || hooks.PostCommitEndChat {
+	if hooks.PostCommitError != nil {
 		input.HistoryVersion = committed.HistoryVersion
 		postCommitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), postCommitWatchPublishTimeout)
 		defer cancel()
-		if hooks.PostCommitError != nil {
-			return s.finishGenerationError(postCommitCtx, machine, input, hooks.PostCommitError, generationAttemptNotRequired)
-		}
-		return s.endGenerationChat(postCommitCtx, machine, input, generationAttemptNotRequired)
+		return s.finishGenerationError(postCommitCtx, machine, input, hooks.PostCommitError, generationAttemptNotRequired)
 	}
 	if hooks.EndChat {
-		input.DebugTurn.RecordOutcome(chatdebug.StatusCompleted)
-		s.server.scheduleArchiveDebugCleanup(ctx, []database.Chat{committed})
-		return s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindDeleted)
+		return s.finishEndedChat(ctx, input, committed)
 	}
 	s.routeStateHint(ctx, stateUpdateFromChat(committed))
 	return s.afterGenerationOutcome(ctx, generationOutcome{
@@ -1248,9 +1244,7 @@ func (s *taskStarter) enterRequiresAction(
 		return normalizeTaskTransitionError(err, "enter requires action")
 	}
 	if endChat {
-		input.DebugTurn.RecordOutcome(chatdebug.StatusCompleted)
-		s.server.scheduleArchiveDebugCleanup(ctx, []database.Chat{committed})
-		return s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindDeleted)
+		return s.finishEndedChat(ctx, input, committed)
 	}
 	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindActionRequired); err != nil {
 		return xerrors.Errorf("publish watch and route: %w", err)
@@ -1311,10 +1305,17 @@ func recordGenerationFinishFailure(turn *runnerDebugTurn, err error) {
 	turn.RecordOutcome(chatdebug.StatusError)
 }
 
-func (s *taskStarter) endGenerationChat(
+func (s *taskStarter) finishEndedChat(ctx context.Context, input chatWorkerTaskStartInput, committed database.Chat) error {
+	input.DebugTurn.RecordOutcome(chatdebug.StatusCompleted)
+	s.server.scheduleArchiveDebugCleanup(ctx, []database.Chat{committed})
+	return s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindDeleted)
+}
+
+func (s *taskStarter) finishGenerationTurnWithoutHook(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
+	decision generationDecision,
 	fence generationAttemptFence,
 ) error {
 	var committed database.Chat
@@ -1322,22 +1323,38 @@ func (s *taskStarter) endGenerationChat(
 		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
-		if _, err := tx.EndChat(chatstate.EndChatInput{}); err != nil {
-			return xerrors.Errorf("tx.EndChat: %w", err)
-		}
-		chat, err := store.GetChatByID(ctx, input.ChatID)
+		finishResult, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 		if err != nil {
-			return xerrors.Errorf("load ended chat: %w", err)
+			return xerrors.Errorf("tx.FinishTurn: %w", err)
 		}
-		committed = chat
+		if finishResult.PromotedMessage != nil {
+			decision.promotedMessageID = finishResult.PromotedMessage.ID
+		}
+		committed = finishResult.Chat
 		return nil
 	})
 	if err != nil {
-		return normalizeTaskTransitionError(err, "end generation chat")
+		err := normalizeTaskTransitionError(err, "finish generation turn")
+		recordGenerationFinishFailure(input.DebugTurn, err)
+		return err
 	}
+	input.StopNudges.reset()
 	input.DebugTurn.RecordOutcome(chatdebug.StatusCompleted)
-	s.server.scheduleArchiveDebugCleanup(ctx, []database.Chat{committed})
-	return s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindDeleted)
+	watchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), postCommitWatchPublishTimeout)
+	defer cancel()
+	if err := s.publishWatchWithRetry(watchCtx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
+		return xerrors.Errorf("publish watch and route: %w", err)
+	}
+	if err := s.afterGenerationOutcome(ctx, generationOutcome{
+		Chat:              committed,
+		Kind:              runnerActionKindFinishTurn,
+		WatchEventKind:    codersdk.ChatWatchEventKindStatusChange,
+		PromotedMessageID: decision.promotedMessageID,
+	}); err != nil {
+		return xerrors.Errorf("after generation outcome: %w", err)
+	}
+	s.routeStateHint(ctx, stateUpdateFromChat(committed))
+	return nil
 }
 
 func (s *taskStarter) finishGenerationTurn(
@@ -1347,6 +1364,9 @@ func (s *taskStarter) finishGenerationTurn(
 	decision generationDecision,
 	fence generationAttemptFence,
 ) error {
+	if s.server.hookDispatcher == nil || !s.server.hookDispatcher.Enabled() {
+		return s.finishGenerationTurnWithoutHook(ctx, machine, input, decision, fence)
+	}
 	var chat database.Chat
 	var messages []database.ChatMessage
 	err := machine.ReadLock(ctx, func(store database.Store) error {
@@ -1428,9 +1448,7 @@ func (s *taskStarter) finishGenerationTurn(
 	}
 	if ended {
 		input.StopNudges.reset()
-		input.DebugTurn.RecordOutcome(chatdebug.StatusCompleted)
-		s.server.scheduleArchiveDebugCleanup(ctx, []database.Chat{committed})
-		return s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindDeleted)
+		return s.finishEndedChat(ctx, input, committed)
 	}
 	if continueTurn {
 		s.routeStateHint(ctx, stateUpdateFromChat(committed))

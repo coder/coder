@@ -16,7 +16,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
@@ -544,9 +543,7 @@ func applySessionStartResponse(
 }
 
 func (s *taskStarter) finishSessionStartEnd(ctx context.Context, input chatWorkerTaskStartInput, result sessionStartResult) error {
-	input.DebugTurn.RecordOutcome(chatdebug.StatusCompleted)
-	s.server.scheduleArchiveDebugCleanup(ctx, []database.Chat{result.Chat})
-	return s.publishWatchAndRoute(ctx, result.Chat, codersdk.ChatWatchEventKindDeleted)
+	return s.finishEndedChat(ctx, input, result.Chat)
 }
 
 func hookPrefixMessages(response agenthooks.Response, modelConfigID uuid.UUID, turnID *uuid.UUID) ([]chatstate.Message, error) {
@@ -609,6 +606,31 @@ func applyHookResponseMessages(
 	}
 	if len(prefix) > 0 {
 		messages.Messages = append(prefix, messages.Messages...)
+		messages.VisibleIndexes = visibleMessageIndexes(messages.Messages)
+	}
+	return messages, endChat, nil
+}
+
+func appendHookResponseMessages(
+	messages stepMessagesForCommit,
+	responses []agenthooks.Response,
+	modelConfigID uuid.UUID,
+	turnID *uuid.UUID,
+) (stepMessagesForCommit, bool, error) {
+	var suffix []chatstate.Message
+	endChat := false
+	for _, response := range responses {
+		if response.ModelContext != "" || response.UserMessage != "" {
+			responseMessages, err := hookPrefixMessages(response, modelConfigID, turnID)
+			if err != nil {
+				return stepMessagesForCommit{}, false, err
+			}
+			suffix = append(suffix, responseMessages...)
+		}
+		endChat = endChat || response.EndChat
+	}
+	if len(suffix) > 0 {
+		messages.Messages = append(messages.Messages, suffix...)
 		messages.VisibleIndexes = visibleMessageIndexes(messages.Messages)
 	}
 	return messages, endChat, nil

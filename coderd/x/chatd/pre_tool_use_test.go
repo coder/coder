@@ -225,6 +225,11 @@ func TestPreToolUseHookDeny(t *testing.T) {
 	messagesMu.Unlock()
 	require.True(t, openAIMessagesContain(modelMessages, "DENIED: blocked by policy"))
 	require.True(t, openAIMessagesContain(modelMessages, "Do not read secrets."))
+	dispatchRows, err := db.ListChatHookDispatchesByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	for _, row := range dispatchRows {
+		require.NotEqual(t, string(agenthooks.EventPostToolUse), row.Event)
+	}
 	dispatch := preToolUseDispatch(t, db, chat.ID)
 	require.Equal(t, "deny", dispatch.Decision.String)
 }
