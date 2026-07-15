@@ -81,6 +81,32 @@ type preToolUseResult struct {
 	Responses []agenthooks.Response
 }
 
+func (p *Server) dispatchPreToolUse(
+	ctx context.Context,
+	chat database.Chat,
+	turnID *uuid.UUID,
+	toolCall fantasy.ToolCallContent,
+) (agenthooks.Response, error) {
+	var workspaceID *uuid.UUID
+	if chat.WorkspaceID.Valid {
+		workspaceID = &chat.WorkspaceID.UUID
+	}
+	toolUseID := toolCall.ToolCallID
+	return p.hookDispatcher.Dispatch(ctx, chathooks.Event{
+		Type:        agenthooks.EventPreToolUse,
+		ChatID:      chat.ID,
+		OwnerID:     chat.OwnerID,
+		WorkspaceID: workspaceID,
+		TurnID:      turnID,
+		ToolUseID:   &toolUseID,
+		Data: agenthooks.PreToolUseData{
+			ToolUseID: toolUseID,
+			ToolName:  toolCall.ToolName,
+			ToolInput: json.RawMessage(toolCall.Input),
+		},
+	})
+}
+
 func (p *Server) preflightToolCalls(
 	ctx context.Context,
 	chat database.Chat,
@@ -93,25 +119,8 @@ func (p *Server) preflightToolCalls(
 		return result, nil
 	}
 
-	var workspaceID *uuid.UUID
-	if chat.WorkspaceID.Valid {
-		workspaceID = &chat.WorkspaceID.UUID
-	}
 	for _, toolCall := range toolCalls {
-		toolUseID := toolCall.ToolCallID
-		response, err := p.hookDispatcher.Dispatch(ctx, chathooks.Event{
-			Type:        agenthooks.EventPreToolUse,
-			ChatID:      chat.ID,
-			OwnerID:     chat.OwnerID,
-			WorkspaceID: workspaceID,
-			TurnID:      turnID,
-			ToolUseID:   &toolUseID,
-			Data: agenthooks.PreToolUseData{
-				ToolUseID: toolUseID,
-				ToolName:  toolCall.ToolName,
-				ToolInput: json.RawMessage(toolCall.Input),
-			},
-		})
+		response, err := p.dispatchPreToolUse(ctx, chat, turnID, toolCall)
 		if err != nil {
 			return preToolUseResult{}, err
 		}
@@ -119,6 +128,71 @@ func (p *Server) preflightToolCalls(
 			return preToolUseResult{}, err
 		}
 		result.Responses = append(result.Responses, response)
+	}
+	return result, nil
+}
+
+type preToolUseExecutionResult struct {
+	Allowed   []fantasy.ToolCallContent
+	Denied    []fantasy.ToolResultContent
+	Responses []agenthooks.Response
+}
+
+func (p *Server) preflightPendingToolCalls(
+	ctx context.Context,
+	chat database.Chat,
+	turnID *uuid.UUID,
+	toolCalls []fantasy.ToolCallContent,
+) (preToolUseExecutionResult, error) {
+	result := preToolUseExecutionResult{
+		Allowed: make([]fantasy.ToolCallContent, 0, len(toolCalls)),
+	}
+	if p.hookDispatcher == nil || !p.hookDispatcher.Enabled() {
+		result.Allowed = append(result.Allowed, toolCalls...)
+		return result, nil
+	}
+
+	rows, err := p.db.ListChatHookDispatchesByChatID(ctx, chat.ID)
+	if err != nil {
+		return preToolUseExecutionResult{}, xerrors.Errorf("list pre_tool_use decisions: %w", err)
+	}
+	decisions := make(map[string]database.ChatHookDispatch)
+	for _, row := range rows {
+		if row.Event == string(agenthooks.EventPreToolUse) && row.ToolUseID.Valid && row.Decision.Valid {
+			decisions[row.ToolUseID.String] = row
+		}
+	}
+
+	for _, toolCall := range toolCalls {
+		if row, ok := decisions[toolCall.ToolCallID]; ok {
+			switch agenthooks.PermissionDecision(row.Decision.String) {
+			case agenthooks.PermissionAllow:
+				if row.InputOverride.Valid {
+					toolCall.Input = string(row.InputOverride.RawMessage)
+				}
+				result.Allowed = append(result.Allowed, toolCall)
+			case agenthooks.PermissionDeny:
+				result.Denied = append(result.Denied, deniedToolResult(toolCall, ""))
+			}
+			continue
+		}
+
+		response, err := p.dispatchPreToolUse(ctx, chat, turnID, toolCall)
+		if err != nil {
+			return preToolUseExecutionResult{}, err
+		}
+		result.Responses = append(result.Responses, response)
+		if response.Permission == nil {
+			result.Allowed = append(result.Allowed, toolCall)
+			continue
+		}
+		switch response.Permission.Decision {
+		case agenthooks.PermissionAllow:
+			toolCall.Input = string(response.Permission.InputOverride)
+			result.Allowed = append(result.Allowed, toolCall)
+		case agenthooks.PermissionDeny:
+			result.Denied = append(result.Denied, deniedToolResult(toolCall, response.Permission.Reason))
+		}
 	}
 	return result, nil
 }
@@ -133,19 +207,23 @@ func applyPreToolUsePermission(step *chatloop.PersistedStep, toolCall fantasy.To
 			return xerrors.Errorf("tool call %q is missing from generated step", toolCall.ToolCallID)
 		}
 	case agenthooks.PermissionDeny:
-		reason := strings.TrimSpace(response.Permission.Reason)
-		if reason == "" {
-			reason = "denied by lifecycle hook"
-		}
-		step.Content = append(step.Content, fantasy.ToolResultContent{
-			ToolCallID: toolCall.ToolCallID,
-			ToolName:   toolCall.ToolName,
-			Result: fantasy.ToolResultOutputContentError{
-				Error: xerrors.New("DENIED: " + reason),
-			},
-		})
+		step.Content = append(step.Content, deniedToolResult(toolCall, response.Permission.Reason))
 	}
 	return nil
+}
+
+func deniedToolResult(toolCall fantasy.ToolCallContent, reason string) fantasy.ToolResultContent {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		reason = "denied by lifecycle hook"
+	}
+	return fantasy.ToolResultContent{
+		ToolCallID: toolCall.ToolCallID,
+		ToolName:   toolCall.ToolName,
+		Result: fantasy.ToolResultOutputContentError{
+			Error: xerrors.New("DENIED: " + reason),
+		},
+	}
 }
 
 func replaceToolCallInput(content []fantasy.Content, toolCallID, input string) bool {

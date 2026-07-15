@@ -415,8 +415,24 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		var actionErr error
 		switch decision.kind {
 		case generationActionEnterRequiresAction:
-			cleanup()
-			return s.enterRequiresAction(ctx, machine, input)
+			toolCalls := make([]fantasy.ToolCallContent, 0, len(decision.pendingDynamicToolCalls))
+			for _, toolCall := range decision.pendingDynamicToolCalls {
+				toolCalls = append(toolCalls, fantasy.ToolCallContent{
+					ToolCallID: toolCall.ToolCallID,
+					ToolName:   toolCall.ToolName,
+					Input:      toolCall.Args,
+				})
+			}
+			preflight, err := s.server.preflightPendingToolCalls(ctx, prepared.Chat, activeTurnID(prepared.Messages), toolCalls)
+			if err != nil {
+				cleanup()
+				return s.finishGenerationError(ctx, machine, input, generationHookDispatchError(agenthooks.EventPreToolUse, err), generationAttemptNotRequired)
+			}
+			if len(preflight.Denied) == 0 {
+				cleanup()
+				return s.enterRequiresAction(ctx, machine, input)
+			}
+			actionErr = s.commitPreToolUseDeniedResults(ctx, machine, input, prepared, preflight)
 		case generationActionFinishTurn:
 			cleanup()
 			return s.finishGenerationTurn(ctx, machine, input, decision, generationAttemptNotRequired)
@@ -693,6 +709,43 @@ func (s *taskStarter) generateAssistant(
 	})
 }
 
+func (s *taskStarter) commitPreToolUseDeniedResults(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	prepared generationPrepared,
+	preflight preToolUseExecutionResult,
+) error {
+	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
+	if err != nil {
+		return xerrors.Errorf("begin generation attempt: %w", err)
+	}
+	defer attempt.closeEpisode()
+	content := make([]fantasy.Content, 0, len(preflight.Denied))
+	for _, denied := range preflight.Denied {
+		content = append(content, denied)
+	}
+	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
+		modelConfigID:      prepared.ModelConfigID,
+		modelCallConfig:    prepared.ModelConfig,
+		step:               stepDataFromPersisted(chatloop.PersistedStep{Content: content}),
+		toolNameToConfigID: prepared.ToolNameToConfigID,
+		logger:             s.opts.Logger,
+		contentVersion:     chatprompt.CurrentContentVersion,
+	})
+	if err != nil {
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+	}
+	messages, endChat, err := applyPreToolUseResponseMessages(messages, preflight.Responses, prepared.ModelConfigID, activeTurnID(prepared.Messages))
+	if err != nil {
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+	}
+	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages, generationCommitHooks{
+		Responses: preflight.Responses,
+		EndChat:   endChat,
+	})
+}
+
 func (s *taskStarter) executeLocalTools(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
@@ -700,6 +753,10 @@ func (s *taskStarter) executeLocalTools(
 	prepared generationPrepared,
 	decision generationDecision,
 ) error {
+	preflight, err := s.server.preflightPendingToolCalls(ctx, prepared.Chat, activeTurnID(prepared.Messages), decision.localToolCalls)
+	if err != nil {
+		return generationHookDispatchError(agenthooks.EventPreToolUse, err)
+	}
 	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
 		return xerrors.Errorf("beginGenerationAttempt: %w", err)
@@ -716,24 +773,30 @@ func (s *taskStarter) executeLocalTools(
 	// subagent traffic through the AI Gateway. prepareGeneration sets it
 	// only on its own context, so re-derive it here for tool execution.
 	toolCtx := withActiveTurnAPIKeyID(ctx, prepared.ModelBuildOptions)
-	outcome, err := chatloop.ExecuteLocalTools(toolCtx, chatloop.ExecuteLocalToolsOptions{
-		Tools:              prepared.Tools,
-		ActiveTools:        prepared.ActiveTools,
-		ProviderTools:      prepared.ProviderTools,
-		ToolCalls:          decision.localToolCalls,
-		ExclusiveToolNames: prepared.ExclusiveToolNames,
-		BuiltinToolNames:   prepared.BuiltinToolNames,
-		ModelProvider:      provider,
-		ModelName:          modelName,
-		ContextLimit:       prepared.ContextLimitFallback,
-		ToolNameAliases:    subagentToolNameAliases,
-		PublishMessagePart: attempt.publish,
-		Logger:             s.opts.Logger,
-		Metrics:            s.server.metrics,
-		Clock:              s.opts.Clock,
-	})
-	if err != nil {
-		return xerrors.Errorf("execute local tools: %w", err)
+	var outcome chatloop.ToolExecutionOutcome
+	if len(preflight.Allowed) > 0 {
+		outcome, err = chatloop.ExecuteLocalTools(toolCtx, chatloop.ExecuteLocalToolsOptions{
+			Tools:              prepared.Tools,
+			ActiveTools:        prepared.ActiveTools,
+			ProviderTools:      prepared.ProviderTools,
+			ToolCalls:          preflight.Allowed,
+			ExclusiveToolNames: prepared.ExclusiveToolNames,
+			BuiltinToolNames:   prepared.BuiltinToolNames,
+			ModelProvider:      provider,
+			ModelName:          modelName,
+			ContextLimit:       prepared.ContextLimitFallback,
+			ToolNameAliases:    subagentToolNameAliases,
+			PublishMessagePart: attempt.publish,
+			Logger:             s.opts.Logger,
+			Metrics:            s.server.metrics,
+			Clock:              s.opts.Clock,
+		})
+		if err != nil {
+			return xerrors.Errorf("execute local tools: %w", err)
+		}
+	}
+	for _, denied := range preflight.Denied {
+		outcome.Step.Content = append(outcome.Step.Content, denied)
 	}
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:      prepared.ModelConfigID,
@@ -746,7 +809,14 @@ func (s *taskStarter) executeLocalTools(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
-	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages, generationCommitHooks{})
+	messages, endChat, err := applyPreToolUseResponseMessages(messages, preflight.Responses, prepared.ModelConfigID, activeTurnID(prepared.Messages))
+	if err != nil {
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+	}
+	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages, generationCommitHooks{
+		Responses: preflight.Responses,
+		EndChat:   endChat,
+	})
 }
 
 func (s *taskStarter) generateCompaction(

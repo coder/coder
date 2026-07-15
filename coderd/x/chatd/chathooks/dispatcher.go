@@ -170,7 +170,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (agenthooks.Resp
 	}
 
 	response, outcome := d.prepareAndPost(ctx, event, dispatchID)
-	finalizeErr := d.finalize(ctx, dispatchID, outcome)
+	finalizeErr := d.finalize(ctx, event.Type, dispatchID, outcome)
 	d.metrics.observe(event.Type, outcome.result, outcome.response, time.Since(startedAt))
 	if finalizeErr != nil {
 		d.logger.Error(context.WithoutCancel(ctx), "failed to finalize chat hook dispatch", slog.Error(finalizeErr))
@@ -196,7 +196,7 @@ func (d *Dispatcher) finishWithoutPost(
 		return agenthooks.Response{}, newDispatchError(result, dispatchID, errors.Join(dispatchErr, xerrors.Errorf("insert chat hook dispatch: %w", err)))
 	}
 	outcome := dispatchOutcome{result: result, err: dispatchErr}
-	finalizeErr := d.finalize(ctx, dispatchID, outcome)
+	finalizeErr := d.finalize(ctx, event.Type, dispatchID, outcome)
 	d.metrics.observe(event.Type, result, agenthooks.Response{}, time.Since(startedAt))
 	if finalizeErr != nil {
 		return agenthooks.Response{}, newDispatchError(result, dispatchID, errors.Join(dispatchErr, finalizeErr))
@@ -486,7 +486,7 @@ func dataValue[T any](value any) (T, bool) {
 	return zero, false
 }
 
-func (d *Dispatcher) finalize(ctx context.Context, dispatchID uuid.UUID, outcome dispatchOutcome) error {
+func (d *Dispatcher) finalize(ctx context.Context, eventType agenthooks.EventType, dispatchID uuid.UUID, outcome dispatchOutcome) error {
 	response := outcome.response
 	var decision sql.NullString
 	var inputOverride pqtype.NullRawMessage
@@ -495,6 +495,8 @@ func (d *Dispatcher) finalize(ctx context.Context, dispatchID uuid.UUID, outcome
 		if response.Permission.InputOverride != nil {
 			inputOverride = pqtype.NullRawMessage{RawMessage: bytes.Clone(response.Permission.InputOverride), Valid: true}
 		}
+	} else if eventType == agenthooks.EventPreToolUse && outcome.result == resultOK {
+		decision = sql.NullString{String: string(agenthooks.PermissionAllow), Valid: true}
 	}
 	allowedTools := pqtype.NullRawMessage{}
 	if response.AllowedTools != nil {
