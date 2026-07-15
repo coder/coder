@@ -13,9 +13,6 @@ outputs:
   gotmp:
     description: "Value of GOTMPDIR"
     value: ${{ steps.paths.outputs.gotmp }}
-  cached-dirs:
-    description: "Go directories that should be cached between CI runs"
-    value: ${{ steps.paths.outputs.cached-dirs }}
 runs:
   using: "composite"
   steps:
@@ -43,9 +40,6 @@ runs:
           core.setOutput('gomodcache', gomodcacheDir);
           core.setOutput('gopath', gopathDir);
           core.setOutput('gotmp', gotmpDir);
-
-          const cachedDirs = `${gocacheDir}\n${gomodcacheDir}`;
-          core.setOutput('cached-dirs', cachedDirs);
 
     - name: Create directories
       shell: bash
