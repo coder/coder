@@ -332,9 +332,6 @@ jobs:
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
 
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
-
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/golangci/golangci-lint/cmd/golangci-lint go:github.com/coder/paralleltestctx/cmd/paralleltestctx
 
@@ -445,9 +442,6 @@ jobs:
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
 
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
-
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:storj.io/drpc/cmd/protoc-gen-go-drpc go:github.com/coder/sqlc/cmd/sqlc
 
@@ -505,9 +499,6 @@ jobs:
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
-
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
 
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:mvdan.cc/sh/v3/cmd/shfmt
@@ -571,7 +562,6 @@ jobs:
           persist-credentials: false
 
       - name: Setup Go Paths
-        id: go-paths
         uses: ./.github/actions/setup-go-paths
 
       - name: Setup GNU tools (macOS)
@@ -581,11 +571,6 @@ jobs:
         uses: ./.github/actions/setup-mise
         with:
           install-args: "go terraform"
-
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
-        with:
-          cache-path: ${{ steps.go-paths.outputs.cached-dirs }}
 
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum go:github.com/slsyy/mtimehash/cmd/mtimehash
@@ -762,9 +747,6 @@ jobs:
         with:
           install-args: "go terraform"
 
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
-
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum
 
@@ -835,9 +817,6 @@ jobs:
         uses: ./.github/actions/setup-mise
         with:
           install-args: "go terraform"
-
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
 
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum
@@ -920,9 +899,6 @@ jobs:
         with:
           install-args: "go"
 
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
-
       # Used by some integration tests.
       - name: Install Nginx
         run: sudo apt-get update && sudo apt-get install -y nginx
@@ -992,9 +968,6 @@ jobs:
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
-
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
 
       # Assume that the checked-in versions are up-to-date
       - run: make gen/mark-fresh
@@ -1120,9 +1093,6 @@ jobs:
         with:
           directory: offlinedocs
 
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
-
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:storj.io/drpc/cmd/protoc-gen-go-drpc go:github.com/coder/sqlc/cmd/sqlc
 
@@ -1224,9 +1194,6 @@ jobs:
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
 
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
-
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/tc-hib/go-winres go:github.com/goreleaser/nfpm/v2/cmd/nfpm
 
@@ -1286,9 +1253,6 @@ jobs:
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
-
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
 
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/tc-hib/go-winres go:github.com/goreleaser/nfpm/v2/cmd/nfpm
@@ -1645,9 +1609,6 @@ jobs:
         uses: ./.github/actions/setup-mise
         with:
           install-args: "go"
-
-      - name: Restore Go cache
-        uses: ./.github/actions/go-cache
 
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/coder/sqlc/cmd/sqlc

@@ -6,11 +6,7 @@ import {
 	type ApplyKnownModelDefaultsResult,
 	applyKnownModelDefaults,
 } from "./applyKnownModelDefaults";
-import {
-	findKnownModelByCanonicalId,
-	type KnownModel,
-	type KnownModelSourceMetadata,
-} from "./index";
+import { findKnownModelByCanonicalId, type KnownModel } from "./index";
 
 const requireKnownModel = (
 	provider: string,
@@ -62,18 +58,11 @@ const applyDefaults = (
 	parameters: ApplyKnownModelDefaultsParameters,
 ): ApplyKnownModelDefaultsResult => applyKnownModelDefaults(parameters);
 
-const testSourceMetadata = (): KnownModelSourceMetadata => ({
-	sourceName: "models.dev",
-	sourceRetrievedAt: "2026-04-30",
-	lastUpdated: "2026-04-30",
-});
-
 const customKnownModel = (overrides: Partial<KnownModel>): KnownModel => ({
 	provider: "openai",
 	modelIdentifier: "test-model",
 	displayName: "Test Model",
 	aliases: [],
-	sourceMetadata: testSourceMetadata(),
 	...overrides,
 });
 

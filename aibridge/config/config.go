@@ -70,10 +70,20 @@ type AWSBedrock struct {
 	Protocol BedrockProtocol
 }
 
+// ResolvedProtocol returns the configured protocol, mapping the empty value to
+// the legacy InvokeModel protocol so existing providers keep the legacy
+// behavior.
+func (c AWSBedrock) ResolvedProtocol() BedrockProtocol {
+	if c.Protocol == "" {
+		return BedrockProtocolInvokeModel
+	}
+	return c.Protocol
+}
+
 // Validate verifies protocol-specific Bedrock configuration.
 func (c AWSBedrock) Validate() error {
-	switch c.Protocol {
-	case "", BedrockProtocolInvokeModel:
+	switch c.ResolvedProtocol() {
+	case BedrockProtocolInvokeModel:
 		if c.Region == "" && c.BaseURL == "" {
 			return xerrors.New("region or base url required")
 		}

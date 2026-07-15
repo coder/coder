@@ -169,7 +169,7 @@ _gen/bin/apikeyscopesgen: $(wildcard scripts/apikeyscopesgen/*.go) $(RBAC_GO_FIL
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/apikeyscopesgen
 
-_gen/bin/aibridgepricesgen: $(wildcard scripts/aibridgepricesgen/*.go) | _gen
+_gen/bin/aibridgepricesgen: $(wildcard scripts/aibridgepricesgen/*.go) scripts/aibridgepricesgen/curation.json | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/aibridgepricesgen
 
@@ -1022,14 +1022,33 @@ gen: gen/db $(if $(GEN_SKIP_GOLDEN),,gen/golden-files) $(GEN_FILES)
 gen/db: $(DB_GEN_FILES)
 .PHONY: gen/db
 
-# Refresh the AI Bridge pricing seed file from models.dev. Kept out of
-# `make gen`. Phony so each invocation regenerates.
-coderd/aibridge/prices/data/prices.json: _gen/bin/aibridgepricesgen | _gen
+# Patched snapshot of the models.dev catalog. Fetched once per
+# gen/aibridge-prices run, with upstream corrections applied by
+# overrides.jq; both prices.json and the frontend known-models catalog are
+# generated from this single snapshot. Phony so each invocation refreshes it.
+_gen/models-dev.json: | _gen
+	set -o pipefail; $(call atomic_write,curl -fsSL https://models.dev/api.json | jq -f scripts/aibridgepricesgen/overrides.jq)
+.PHONY: _gen/models-dev.json
+
+# Refresh the AI Bridge pricing seed file from the patched models.dev
+# snapshot. Kept out of `make gen` because the output depends on live
+# upstream data. Phony so each invocation regenerates.
+coderd/aibridge/prices/data/prices.json: _gen/bin/aibridgepricesgen _gen/models-dev.json | _gen
 	@mkdir -p $(dir $@)
-	$(call atomic_write,_gen/bin/aibridgepricesgen)
+	$(call atomic_write,_gen/bin/aibridgepricesgen -upstream _gen/models-dev.json)
 .PHONY: coderd/aibridge/prices/data/prices.json
 
-gen/aibridge-prices: coderd/aibridge/prices/data/prices.json
+# Frontend known-models catalog, generated from the same patched models.dev
+# snapshot joined with the editorial curation in
+# scripts/aibridgepricesgen/curation.json. Kept out of `make gen` for the
+# same live-upstream-data reason as prices.json.
+site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json: _gen/bin/aibridgepricesgen _gen/models-dev.json | _gen
+	$(call atomic_write,_gen/bin/aibridgepricesgen -format=catalog -upstream _gen/models-dev.json,./scripts/biome_format.sh)
+.PHONY: site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json
+
+gen/aibridge-prices: \
+	coderd/aibridge/prices/data/prices.json \
+	site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json
 .PHONY: gen/aibridge-prices
 
 gen/golden-files: \

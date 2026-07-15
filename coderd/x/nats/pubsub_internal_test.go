@@ -589,9 +589,13 @@ func TestSubscribeError(t *testing.T) {
 			})
 			require.ErrorIs(t, err, assert.AnError)
 			require.Nil(t, cancel)
-			ps.mu.Lock()
-			defer ps.mu.Unlock()
-			require.Empty(t, ps.subscriptions)
+			// subscribeDone closes before failed-group cleanup to avoid a
+			// lock-order deadlock, so SubscribeWithErr may return first.
+			require.Eventually(t, func() bool {
+				ps.mu.Lock()
+				defer ps.mu.Unlock()
+				return len(ps.subscriptions) == 0
+			}, testutil.WaitShort, testutil.IntervalFast)
 		})
 	}
 }

@@ -175,6 +175,8 @@ func TestBuildProviders(t *testing.T) {
 		cfg.LegacyBedrock.Region = serpent.String("us-west-2")
 		cfg.LegacyBedrock.AccessKey = serpent.String("AKID")
 		cfg.LegacyBedrock.AccessKeySecret = serpent.String("secret")
+		cfg.LegacyBedrock.Model = serpent.String("anthropic.claude-3-5-sonnet-20241022-v2:0")
+		cfg.LegacyBedrock.SmallFastModel = serpent.String("anthropic.claude-3-5-haiku-20241022-v1:0")
 
 		providers, err := buildFromEnv(t, cfg)
 		require.NoError(t, err)
@@ -191,6 +193,8 @@ func TestBuildProviders(t *testing.T) {
 		cfg.LegacyBedrock.Region = serpent.String("us-west-2")
 		cfg.LegacyBedrock.AccessKey = serpent.String("AKID")
 		cfg.LegacyBedrock.AccessKeySecret = serpent.String("secret")
+		cfg.LegacyBedrock.Model = serpent.String("anthropic.claude-3-5-sonnet-20241022-v2:0")
+		cfg.LegacyBedrock.SmallFastModel = serpent.String("anthropic.claude-3-5-haiku-20241022-v1:0")
 
 		providers, err := buildFromEnv(t, cfg)
 		require.NoError(t, err)
