@@ -77,6 +77,28 @@ func (p *Server) dispatchSessionStart(
 	})
 }
 
+func (p *Server) dispatchStop(
+	ctx context.Context,
+	chat database.Chat,
+	turnID *uuid.UUID,
+) (agenthooks.Response, error) {
+	if p.hookDispatcher == nil || !p.hookDispatcher.Enabled() {
+		return agenthooks.Response{}, nil
+	}
+	var workspaceID *uuid.UUID
+	if chat.WorkspaceID.Valid {
+		workspaceID = &chat.WorkspaceID.UUID
+	}
+	return p.hookDispatcher.Dispatch(ctx, chathooks.Event{
+		Type:        agenthooks.EventStop,
+		ChatID:      chat.ID,
+		OwnerID:     chat.OwnerID,
+		WorkspaceID: workspaceID,
+		TurnID:      turnID,
+		Data:        agenthooks.StopData{},
+	})
+}
+
 type preToolUseResult struct {
 	Step      chatloop.PersistedStep
 	Responses []agenthooks.Response

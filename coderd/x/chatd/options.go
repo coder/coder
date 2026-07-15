@@ -64,6 +64,81 @@ type chatWorkerTaskStartInput struct {
 	RequiresActionDeadlineAt sql.NullTime
 	DebugTurn                *runnerDebugTurn
 	SessionStart             *sessionStartTracker
+	StopNudges               *stopNudgeTracker
+}
+
+type stopNudgeTracker struct {
+	mu      sync.Mutex
+	turnID  uuid.UUID
+	count   int
+	pending bool
+}
+
+func (t *stopNudgeTracker) claim(turnID *uuid.UUID) bool {
+	if t == nil {
+		return false
+	}
+	currentTurnID := uuid.Nil
+	if turnID != nil {
+		currentTurnID = *turnID
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.turnID != currentTurnID {
+		t.turnID = currentTurnID
+		t.count = 0
+	}
+	if t.count >= 1 {
+		return false
+	}
+	t.count++
+	t.pending = true
+	return true
+}
+
+func (t *stopNudgeTracker) consume(turnID *uuid.UUID) bool {
+	if t == nil {
+		return false
+	}
+	currentTurnID := uuid.Nil
+	if turnID != nil {
+		currentTurnID = *turnID
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.turnID != currentTurnID || !t.pending {
+		return false
+	}
+	t.pending = false
+	return true
+}
+
+func (t *stopNudgeTracker) cancel(turnID *uuid.UUID) {
+	if t == nil {
+		return
+	}
+	currentTurnID := uuid.Nil
+	if turnID != nil {
+		currentTurnID = *turnID
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.turnID != currentTurnID || !t.pending {
+		return
+	}
+	t.pending = false
+	t.count--
+}
+
+func (t *stopNudgeTracker) reset() {
+	if t == nil {
+		return
+	}
+	t.mu.Lock()
+	t.turnID = uuid.Nil
+	t.count = 0
+	t.pending = false
+	t.mu.Unlock()
 }
 
 type sessionStartTracker struct {

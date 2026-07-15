@@ -58,6 +58,7 @@ type runner struct {
 	localLocks    *localLockSet
 	debugTurn     *runnerDebugTurn
 	sessionStart  sessionStartTracker
+	stopNudges    stopNudgeTracker
 }
 
 func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts chatWorkerOptions) *runner {
@@ -229,6 +230,7 @@ func (r *runner) spawnTaskIfNeeded(kind taskKind, state runnerStateUpdate) {
 		RequiresActionDeadlineAt: state.RequiresActionDeadlineAt,
 		DebugTurn:                r.debugTurn,
 		SessionStart:             &r.sessionStart,
+		StopNudges:               &r.stopNudges,
 	}
 	go r.runTask(taskCtx, kind, key, input, done)
 }

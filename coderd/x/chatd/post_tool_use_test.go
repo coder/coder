@@ -121,20 +121,27 @@ func TestPostToolUseHookResponsesCommitWithResults(t *testing.T) {
 	require.Contains(t, string(received[0].ToolResponse), "data")
 	mu.Unlock()
 
-	var toolResults, modelContexts, userMessages int
+	var toolResults, userMessages int
 	for _, message := range chatMessages(ctx, t, db, chat.ID) {
 		parts, err := chatprompt.ParseContent(message)
 		require.NoError(t, err)
 		if message.Role == database.ChatMessageRoleTool {
 			toolResults++
 		}
-		if len(parts) == 1 && parts[0].Text == "lint feedback" {
-			modelContexts++
-			require.Equal(t, database.ChatMessageVisibilityModel, message.Visibility)
-		}
 		if len(parts) == 1 && parts[0].Text == "tool notice" {
 			userMessages++
 			require.Equal(t, database.ChatMessageVisibilityUser, message.Visibility)
+		}
+	}
+	promptMessages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	var modelContexts int
+	for _, message := range promptMessages {
+		parts, err := chatprompt.ParseContent(message)
+		require.NoError(t, err)
+		if len(parts) == 1 && parts[0].Text == "lint feedback" {
+			modelContexts++
+			require.Equal(t, database.ChatMessageVisibilityModel, message.Visibility)
 		}
 	}
 	require.Equal(t, 2, toolResults)

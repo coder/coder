@@ -381,20 +381,25 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 		}
 		cleanup := prepared.Cleanup
-		decision, err := retryGenerationPhase(ctx, s, "decide", func() (generationDecision, error) {
-			return decideGenerationAction(generationDecisionInput{
-				chat:                       prepared.Chat,
-				messages:                   prepared.Messages,
-				dynamicToolNames:           prepared.DynamicToolNames,
-				exclusiveToolNames:         prepared.ExclusiveToolNames,
-				stopAfterTools:             prepared.StopAfterTools,
-				maxSteps:                   prepared.MaxSteps,
-				compactionEnabled:          prepared.Compaction != nil,
-				compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
-				compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
-				compactionContextLimit:     generationCompactionContextLimit(prepared.Compaction),
+		var decision generationDecision
+		if input.StopNudges.consume(activeTurnID(prepared.Messages)) {
+			decision = generationDecision{kind: generationActionGenerateAssistant}
+		} else {
+			decision, err = retryGenerationPhase(ctx, s, "decide", func() (generationDecision, error) {
+				return decideGenerationAction(generationDecisionInput{
+					chat:                       prepared.Chat,
+					messages:                   prepared.Messages,
+					dynamicToolNames:           prepared.DynamicToolNames,
+					exclusiveToolNames:         prepared.ExclusiveToolNames,
+					stopAfterTools:             prepared.StopAfterTools,
+					maxSteps:                   prepared.MaxSteps,
+					compactionEnabled:          prepared.Compaction != nil,
+					compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
+					compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
+					compactionContextLimit:     generationCompactionContextLimit(prepared.Compaction),
+				})
 			})
-		})
+		}
 		if err != nil {
 			cleanup()
 			if errors.Is(err, errTaskExpectedExit) || errors.Is(err, errTaskRetryable) {
@@ -1229,26 +1234,99 @@ func (s *taskStarter) finishGenerationTurn(
 	decision generationDecision,
 	fence generationAttemptFence,
 ) error {
-	var committed database.Chat
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
-			return xerrors.Errorf("load chat for generation: %w", err)
-		}
-		finishResult, err := tx.FinishTurn(chatstate.FinishTurnInput{})
+	var chat database.Chat
+	var messages []database.ChatMessage
+	err := machine.ReadLock(ctx, func(store database.Store) error {
+		loadedChat, err := loadChatForGeneration(ctx, store, input, fence)
 		if err != nil {
-			return xerrors.Errorf("tx.FinishTurn: %w", err)
+			return xerrors.Errorf("load chat for stop hook: %w", err)
 		}
-		if finishResult.PromotedMessage != nil {
-			decision.promotedMessageID = finishResult.PromotedMessage.ID
+		loadedMessages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  input.ChatID,
+			AfterID: 0,
+		})
+		if err != nil {
+			return xerrors.Errorf("load messages for stop hook: %w", err)
 		}
-		committed = finishResult.Chat
+		chat = loadedChat
+		messages = loadedMessages
 		return nil
 	})
 	if err != nil {
+		return normalizeTaskTransitionError(err, "load stop hook state")
+	}
+	turnID := activeTurnID(messages)
+	response, err := s.server.dispatchStop(ctx, chat, turnID)
+	if err != nil {
+		return s.finishGenerationError(ctx, machine, input, generationHookDispatchError(agenthooks.EventStop, err), fence)
+	}
+	prefixMessages, err := hookPrefixMessages(response, chat.LastModelConfigID, turnID)
+	if err != nil {
+		return s.finishGenerationError(ctx, machine, input, err, fence)
+	}
+	continueTurn := response.ModelContext != "" && !response.EndChat && input.StopNudges.claim(turnID)
+
+	var committed database.Chat
+	ended := false
+	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
+			return xerrors.Errorf("load chat for generation: %w", err)
+		}
+		if err := applyHookAllowedTools(ctx, store, input.ChatID, response); err != nil {
+			return err
+		}
+		if response.EndChat {
+			if _, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages}); err != nil {
+				return xerrors.Errorf("tx.EndChat: %w", err)
+			}
+			ended = true
+		} else {
+			if len(prefixMessages) > 0 {
+				if _, err := tx.CommitStep(chatstate.CommitStepInput{Messages: prefixMessages}); err != nil {
+					return xerrors.Errorf("commit stop hook messages: %w", err)
+				}
+			}
+			if !continueTurn {
+				finishResult, err := tx.FinishTurn(chatstate.FinishTurnInput{})
+				if err != nil {
+					return xerrors.Errorf("tx.FinishTurn: %w", err)
+				}
+				if finishResult.PromotedMessage != nil {
+					decision.promotedMessageID = finishResult.PromotedMessage.ID
+				}
+				committed = finishResult.Chat
+				return nil
+			}
+		}
+		loadedChat, err := store.GetChatByID(ctx, input.ChatID)
+		if err != nil {
+			return xerrors.Errorf("load committed chat: %w", err)
+		}
+		committed = loadedChat
+		return nil
+	})
+	if err != nil {
+		if continueTurn {
+			input.StopNudges.cancel(turnID)
+		}
 		err := normalizeTaskTransitionError(err, "finish generation turn")
 		recordGenerationFinishFailure(input.DebugTurn, err)
 		return err
 	}
+	if ended {
+		input.StopNudges.reset()
+		input.DebugTurn.RecordOutcome(chatdebug.StatusCompleted)
+		s.server.scheduleArchiveDebugCleanup(ctx, []database.Chat{committed})
+		return s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindDeleted)
+	}
+	if continueTurn {
+		s.routeStateHint(ctx, stateUpdateFromChat(committed))
+		return s.afterGenerationOutcome(ctx, generationOutcome{
+			Chat: committed,
+			Kind: runnerActionKind(generationActionGenerateAssistant),
+		})
+	}
+	input.StopNudges.reset()
 	input.DebugTurn.RecordOutcome(chatdebug.StatusCompleted)
 	watchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), postCommitWatchPublishTimeout)
 	defer cancel()
