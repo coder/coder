@@ -1041,10 +1041,6 @@ url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_windows_
 version = "54.14.0"
 backend = "npm:vercel"
 
-[tools.vercel.options]
-allow_builds = '["esbuild"]'
-trust_policy_excludes = '["undici"]'
-
 [[tools.zizmor]]
 version = "1.11.0"
 backend = "aqua:zizmorcore/zizmor"
