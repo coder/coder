@@ -9,6 +9,7 @@ import (
 	"io"
 	"strings"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
@@ -17,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
@@ -72,6 +74,95 @@ func (p *Server) dispatchSessionStart(
 			Source: source,
 		},
 	})
+}
+
+type preToolUseResult struct {
+	Step      chatloop.PersistedStep
+	Responses []agenthooks.Response
+}
+
+func (p *Server) preflightToolCalls(
+	ctx context.Context,
+	chat database.Chat,
+	turnID *uuid.UUID,
+	step chatloop.PersistedStep,
+	toolCalls []fantasy.ToolCallContent,
+) (preToolUseResult, error) {
+	result := preToolUseResult{Step: step}
+	if p.hookDispatcher == nil || !p.hookDispatcher.Enabled() {
+		return result, nil
+	}
+
+	var workspaceID *uuid.UUID
+	if chat.WorkspaceID.Valid {
+		workspaceID = &chat.WorkspaceID.UUID
+	}
+	for _, toolCall := range toolCalls {
+		toolUseID := toolCall.ToolCallID
+		response, err := p.hookDispatcher.Dispatch(ctx, chathooks.Event{
+			Type:        agenthooks.EventPreToolUse,
+			ChatID:      chat.ID,
+			OwnerID:     chat.OwnerID,
+			WorkspaceID: workspaceID,
+			TurnID:      turnID,
+			ToolUseID:   &toolUseID,
+			Data: agenthooks.PreToolUseData{
+				ToolUseID: toolUseID,
+				ToolName:  toolCall.ToolName,
+				ToolInput: json.RawMessage(toolCall.Input),
+			},
+		})
+		if err != nil {
+			return preToolUseResult{}, err
+		}
+		if err := applyPreToolUsePermission(&result.Step, toolCall, response); err != nil {
+			return preToolUseResult{}, err
+		}
+		result.Responses = append(result.Responses, response)
+	}
+	return result, nil
+}
+
+func applyPreToolUsePermission(step *chatloop.PersistedStep, toolCall fantasy.ToolCallContent, response agenthooks.Response) error {
+	if response.Permission == nil {
+		return nil
+	}
+	switch response.Permission.Decision {
+	case agenthooks.PermissionAllow:
+		if !replaceToolCallInput(step.Content, toolCall.ToolCallID, string(response.Permission.InputOverride)) {
+			return xerrors.Errorf("tool call %q is missing from generated step", toolCall.ToolCallID)
+		}
+	case agenthooks.PermissionDeny:
+		reason := strings.TrimSpace(response.Permission.Reason)
+		if reason == "" {
+			reason = "denied by lifecycle hook"
+		}
+		step.Content = append(step.Content, fantasy.ToolResultContent{
+			ToolCallID: toolCall.ToolCallID,
+			ToolName:   toolCall.ToolName,
+			Result: fantasy.ToolResultOutputContentError{
+				Error: xerrors.New("DENIED: " + reason),
+			},
+		})
+	}
+	return nil
+}
+
+func replaceToolCallInput(content []fantasy.Content, toolCallID, input string) bool {
+	for i, block := range content {
+		if toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block); ok && toolCall.ToolCallID == toolCallID {
+			toolCall.Input = input
+			content[i] = toolCall
+			return true
+		}
+		if toolCall, ok := fantasy.AsContentType[*fantasy.ToolCallContent](block); ok && toolCall != nil && toolCall.ToolCallID == toolCallID {
+			updated := *toolCall
+			updated.Input = input
+			content[i] = updated
+			return true
+		}
+	}
+	return false
 }
 
 func sessionStartSource(messages []database.ChatMessage) string {
@@ -173,7 +264,11 @@ func hookDispatchErrorMessage(eventType agenthooks.EventType, dispatchErr error)
 }
 
 func sessionStartDispatchError(dispatchErr error) error {
-	message, ok := hookDispatchErrorMessage(agenthooks.EventSessionStart, dispatchErr)
+	return generationHookDispatchError(agenthooks.EventSessionStart, dispatchErr)
+}
+
+func generationHookDispatchError(eventType agenthooks.EventType, dispatchErr error) error {
+	message, ok := hookDispatchErrorMessage(eventType, dispatchErr)
 	if !ok {
 		message = dispatchErr.Error()
 	}
@@ -206,7 +301,7 @@ func applySessionStartResponse(
 	var prefixMessages []chatstate.Message
 	var err error
 	if turnID != nil {
-		prefixMessages, err = hookPrefixMessages(response, chat.LastModelConfigID, *turnID)
+		prefixMessages, err = hookPrefixMessages(response, chat.LastModelConfigID, turnID)
 		if err != nil {
 			return sessionStartResult{}, err
 		}
@@ -248,7 +343,7 @@ func (s *taskStarter) finishSessionStartEnd(ctx context.Context, input chatWorke
 	return s.publishWatchAndRoute(ctx, result.Chat, codersdk.ChatWatchEventKindDeleted)
 }
 
-func hookPrefixMessages(response agenthooks.Response, modelConfigID, turnID uuid.UUID) ([]chatstate.Message, error) {
+func hookPrefixMessages(response agenthooks.Response, modelConfigID uuid.UUID, turnID *uuid.UUID) ([]chatstate.Message, error) {
 	messages := make([]chatstate.Message, 0, 2)
 	if response.ModelContext != "" {
 		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(response.ModelContext)})
@@ -259,7 +354,7 @@ func hookPrefixMessages(response agenthooks.Response, modelConfigID, turnID uuid
 			Role:           database.ChatMessageRoleUser,
 			Content:        content,
 			Visibility:     database.ChatMessageVisibilityModel,
-			TurnID:         uuid.NullUUID{UUID: turnID, Valid: true},
+			TurnID:         hookTurnID(turnID),
 			ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: modelConfigID != uuid.Nil},
 			ContentVersion: chatprompt.CurrentContentVersion,
 		})
@@ -273,12 +368,44 @@ func hookPrefixMessages(response agenthooks.Response, modelConfigID, turnID uuid
 			Role:           database.ChatMessageRoleSystem,
 			Content:        content,
 			Visibility:     database.ChatMessageVisibilityUser,
-			TurnID:         uuid.NullUUID{UUID: turnID, Valid: true},
+			TurnID:         hookTurnID(turnID),
 			ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: modelConfigID != uuid.Nil},
 			ContentVersion: chatprompt.CurrentContentVersion,
 		})
 	}
 	return messages, nil
+}
+
+func hookTurnID(turnID *uuid.UUID) uuid.NullUUID {
+	if turnID == nil {
+		return uuid.NullUUID{}
+	}
+	return uuid.NullUUID{UUID: *turnID, Valid: true}
+}
+
+func applyPreToolUseResponseMessages(
+	messages stepMessagesForCommit,
+	responses []agenthooks.Response,
+	modelConfigID uuid.UUID,
+	turnID *uuid.UUID,
+) (stepMessagesForCommit, bool, error) {
+	var prefix []chatstate.Message
+	endChat := false
+	for _, response := range responses {
+		if response.ModelContext != "" || response.UserMessage != "" {
+			responseMessages, err := hookPrefixMessages(response, modelConfigID, turnID)
+			if err != nil {
+				return stepMessagesForCommit{}, false, err
+			}
+			prefix = append(prefix, responseMessages...)
+		}
+		endChat = endChat || response.EndChat
+	}
+	if len(prefix) > 0 {
+		messages.Messages = append(prefix, messages.Messages...)
+		messages.VisibleIndexes = visibleMessageIndexes(messages.Messages)
+	}
+	return messages, endChat, nil
 }
 
 func applyHookAllowedTools(ctx context.Context, store database.Store, chatID uuid.UUID, response agenthooks.Response) error {

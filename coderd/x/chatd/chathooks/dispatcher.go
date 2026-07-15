@@ -61,7 +61,7 @@ type Event struct {
 	OwnerID     uuid.UUID
 	WorkspaceID *uuid.UUID
 	TurnID      *uuid.UUID
-	ToolUseID   *uuid.UUID
+	ToolUseID   *string
 	Data        any
 }
 
@@ -534,11 +534,11 @@ func nullUUID(value *uuid.UUID) uuid.NullUUID {
 	return uuid.NullUUID{UUID: *value, Valid: true}
 }
 
-func nullToolUseID(value *uuid.UUID) sql.NullString {
+func nullToolUseID(value *string) sql.NullString {
 	if value == nil {
 		return sql.NullString{}
 	}
-	return sql.NullString{String: value.String(), Valid: true}
+	return sql.NullString{String: *value, Valid: true}
 }
 
 func nullString(value string) sql.NullString {

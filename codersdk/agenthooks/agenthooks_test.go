@@ -125,7 +125,7 @@ func TestHTTPHandlerRoutesEvents(t *testing.T) {
 			name:  "pre tool use",
 			event: agenthooks.EventPreToolUse,
 			data: agenthooks.PreToolUseData{
-				ToolUseID: uuid.New(),
+				ToolUseID: "call_" + uuid.NewString(),
 				ToolName:  "execute",
 				ToolInput: json.RawMessage(`{"command":"pwd"}`),
 			},
@@ -141,7 +141,7 @@ func TestHTTPHandlerRoutesEvents(t *testing.T) {
 			name:  "post tool use",
 			event: agenthooks.EventPostToolUse,
 			data: agenthooks.PostToolUseData{
-				ToolUseID:    uuid.New(),
+				ToolUseID:    "call_" + uuid.NewString(),
 				ToolName:     "execute",
 				ToolResponse: json.RawMessage(`{"output":"ok"}`),
 			},

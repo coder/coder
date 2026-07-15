@@ -82,14 +82,14 @@ type UserPromptSubmitData struct {
 
 // PreToolUseData describes a tool call before execution.
 type PreToolUseData struct {
-	ToolUseID uuid.UUID       `json:"tool_use_id"`
+	ToolUseID string          `json:"tool_use_id"`
 	ToolName  string          `json:"tool_name"`
 	ToolInput json.RawMessage `json:"tool_input"`
 }
 
 // PostToolUseData describes a completed or failed tool call.
 type PostToolUseData struct {
-	ToolUseID    uuid.UUID       `json:"tool_use_id"`
+	ToolUseID    string          `json:"tool_use_id"`
 	ToolName     string          `json:"tool_name"`
 	ToolResponse json.RawMessage `json:"tool_response,omitempty"`
 	ToolError    string          `json:"tool_error,omitempty"`

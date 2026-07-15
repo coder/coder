@@ -116,7 +116,7 @@ func TestDispatcherAllowInputOverride(t *testing.T) {
 
 	db, _ := dbtestutil.NewDB(t)
 	toolInput := json.RawMessage(`{"path":"before"}`)
-	toolUseID := uuid.New()
+	toolUseID := "call_" + uuid.NewString()
 	event := newTestEvent(t, db, agenthooks.EventPreToolUse, agenthooks.PreToolUseData{
 		ToolUseID: toolUseID,
 		ToolName:  "edit",
@@ -139,7 +139,7 @@ func TestDispatcherAllowInputOverride(t *testing.T) {
 
 	row := singleDispatch(t, db, event.ChatID)
 	require.Equal(t, resultOK, row.Result)
-	require.Equal(t, toolUseID.String(), row.ToolUseID.String)
+	require.Equal(t, toolUseID, row.ToolUseID.String)
 	require.JSONEq(t, `{"path":"after"}`, string(row.InputOverride.RawMessage))
 	require.JSONEq(t, `{"path":"before"}`, string(row.OriginalInput.RawMessage))
 }

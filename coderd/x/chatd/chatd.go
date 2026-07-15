@@ -1472,7 +1472,7 @@ func (p *Server) SendMessage(
 			return err
 		}
 
-		prefixMessages, err := hookPrefixMessages(hookResponse, modelConfigID, turnID)
+		prefixMessages, err := hookPrefixMessages(hookResponse, modelConfigID, &turnID)
 		if err != nil {
 			return err
 		}
@@ -1770,11 +1770,11 @@ func (p *Server) EditMessage(
 		if modelOverride.Valid {
 			modelConfigID = modelOverride.UUID
 		}
-		sessionStartMessages, err := hookPrefixMessages(sessionStartResponse, modelConfigID, turnID)
+		sessionStartMessages, err := hookPrefixMessages(sessionStartResponse, modelConfigID, &turnID)
 		if err != nil {
 			return err
 		}
-		promptMessages, err := hookPrefixMessages(hookResponse, modelConfigID, turnID)
+		promptMessages, err := hookPrefixMessages(hookResponse, modelConfigID, &turnID)
 		if err != nil {
 			return err
 		}
