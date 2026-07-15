@@ -2239,7 +2239,8 @@ func TestPurgeChatHookDispatches(t *testing.T) {
 	recentDispatch := insertDispatch(now.Add(-89 * 24 * time.Hour))
 
 	done := awaitDoTick(ctx, t, clk)
-	closer := dbpurge.New(ctx, testutil.Logger(t), db, &codersdk.DeploymentValues{}, reg, dbpurge.WithClock(clk))
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, reg, dbpurge.WithClock(clk))
 	defer closer.Close()
 	testutil.TryReceive(ctx, t, done)
 
