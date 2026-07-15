@@ -77,6 +77,7 @@ spec:
         app.kubernetes.io/version: 0.1.0
         helm.sh/chart: coder-ai-gateway-0.1.0
     spec:
+      automountServiceAccountToken: false
       containers:
       - args:
         - ai-gateway
@@ -107,11 +108,6 @@ spec:
         image: ghcr.io/coder/coder:v2.30.0
         imagePullPolicy: IfNotPresent
         lifecycle: {}
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: http
-            scheme: HTTPS
         name: coder
         ports:
         - containerPort: 4001
@@ -125,13 +121,11 @@ spec:
             path: /readyz
             port: http
             scheme: HTTPS
+          initialDelaySeconds: 0
         resources:
-          limits:
-            cpu: 2000m
-            memory: 4096Mi
           requests:
-            cpu: 2000m
-            memory: 4096Mi
+            cpu: "1"
+            memory: 1Gi
         securityContext:
           allowPrivilegeEscalation: false
           runAsGroup: 1000
@@ -154,7 +148,7 @@ spec:
           readOnly: true
       restartPolicy: Always
       serviceAccountName: coder-ai-gateway
-      terminationGracePeriodSeconds: 300
+      terminationGracePeriodSeconds: 330
       volumes:
       - name: ai-gateway-auth
         secret:

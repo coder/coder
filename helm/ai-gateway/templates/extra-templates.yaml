@@ -1,4 +1,4 @@
 {{- range .Values.extraTemplates }}
 ---
-{{ include "coder-ai-gateway.renderTemplate" (dict "value" . "context" $) }}
+{{ include "coder.renderTemplate" (dict "value" . "context" $) }}
 {{- end }}

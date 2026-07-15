@@ -5,9 +5,6 @@ aigateway:
   coderService:
     scheme: http
   keySecret:
-    name: key
-service:
-  enable: false
-ingress:
+    name: ai-gateway-key
+httproute:
   enable: true
-  host: ai.example.com

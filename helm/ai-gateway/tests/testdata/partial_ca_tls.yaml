@@ -1,0 +1,12 @@
+coder:
+  image:
+    tag: v2.30.0
+aigateway:
+  coderService:
+    scheme: https
+  keySecret:
+    name: ai-gateway-key
+  coderTLS:
+    caSecret:
+      name: coder-ca
+      key: ""

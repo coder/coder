@@ -5,9 +5,9 @@ aigateway:
   coderService:
     scheme: http
   keySecret:
-    name: key
-service:
-  enable: false
+    name: ai-gateway-key
+  listenerTLS:
+    secretName: listener-tls
 ingress:
   enable: true
   host: ai.example.com

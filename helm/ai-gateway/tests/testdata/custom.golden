@@ -7,6 +7,14 @@ metadata:
 data:
   release: 'ai-gateway'
 ---
+# Source: coder-ai-gateway/templates/extra-templates.yaml
+apiVersion: v1
+data:
+  namespace: 'default'
+kind: ConfigMap
+metadata:
+  name: 'coder-ai-gateway-object'
+---
 # Source: coder-ai-gateway/templates/service.yaml
 apiVersion: v1
 kind: Service
@@ -82,6 +90,7 @@ spec:
           - podAffinityTerm:
               topologyKey: kubernetes.io/hostname
             weight: 100
+      automountServiceAccountToken: false
       containers:
       - args:
         - ai-gateway
@@ -107,11 +116,6 @@ spec:
         image: ghcr.io/coder/coder:v2.30.0
         imagePullPolicy: Always
         lifecycle: {}
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: http
-            scheme: HTTP
         name: coder
         ports:
         - containerPort: 4001
@@ -121,10 +125,15 @@ spec:
           name: metrics
           protocol: TCP
         readinessProbe:
+          failureThreshold: 6
           httpGet:
             path: /readyz
             port: http
             scheme: HTTP
+          initialDelaySeconds: 4
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 2
         resources:
           limits:
             memory: 512Mi
@@ -138,6 +147,16 @@ spec:
           runAsUser: 1000
           seccompProfile:
             type: RuntimeDefault
+        startupProbe:
+          failureThreshold: 12
+          httpGet:
+            path: /healthz
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 3
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 2
         volumeMounts:
         - mountPath: /etc/coder/ai-gateway-auth
           name: ai-gateway-auth
@@ -160,7 +179,7 @@ spec:
       securityContext:
         fsGroup: 1000
       serviceAccountName: workload-identity
-      terminationGracePeriodSeconds: 300
+      terminationGracePeriodSeconds: 330
       tolerations:
       - effect: NoSchedule
         key: dedicated

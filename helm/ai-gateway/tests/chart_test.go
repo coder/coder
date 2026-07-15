@@ -24,16 +24,25 @@ var testCases = []testCase{
 	{name: "default_values", testNamespaces: namespaces},
 	{name: "cross_namespace_service"},
 	{name: "tls"},
-	{name: "networking"},
-	{name: "custom"},
+	{name: "networking", apiVersions: []string{"gateway.networking.k8s.io/v1/HTTPRoute"}},
+	{name: "custom", testNamespaces: namespaces},
 	{name: "nodeport"},
+	{name: "missing_image_tag", expectedError: "You must specify the coder.image.tag value if you're installing the Helm chart directly from Git."},
 	{name: "missing_key", expectedError: "aigateway.keySecret.name is required."},
+	{name: "missing_key_field", expectedError: "aigateway.keySecret.key is required."},
 	{name: "invalid_url", expectedError: "aigateway.coderURL must begin with http:// or https://."},
+	{name: "missing_coder_scheme", expectedError: "aigateway.coderService.scheme must be set to http or https when aigateway.coderURL is empty."},
 	{name: "partial_listener_tls", expectedError: "aigateway.listenerTLS.certKey and keyKey are required when secretName is set."},
+	{name: "listener_tls_with_ingress"},
 	{name: "partial_client_tls", expectedError: "aigateway.coderTLS.clientSecret.certKey and keyKey are required when name is set."},
-	{name: "ingress_without_service", expectedError: "service.enabled must be true when ingress.enable is true."},
+	{name: "partial_ca_tls", expectedError: "aigateway.coderTLS.caSecret.key is required when name is set."},
+	{name: "ingress_without_service", expectedError: "service.enable must be true when ingress.enable is true."},
 	{name: "ingress_without_host", expectedError: "ingress.host is required when ingress.enable is true."},
+	{name: "httproute_without_service", expectedError: "service.enable must be true when httproute.enable is true."},
+	{name: "httproute_without_crd", expectedError: "httproute.enable requires the gateway.networking.k8s.io/v1 HTTPRoute CRD."},
+	{name: "nodeport_with_clusterip", expectedError: "service.nodePort requires service.type to be NodePort or LoadBalancer."},
 	{name: "owned_env", expectedError: "coder.env cannot override chart-owned variable CODER_URL."},
+	{name: "raw_key_env", expectedError: "coder.env cannot override chart-owned variable CODER_AI_GATEWAY_KEY."},
 }
 
 type testCase struct {
@@ -41,6 +50,7 @@ type testCase struct {
 	namespace      string
 	testNamespaces []string
 	expectedError  string
+	apiVersions    []string
 }
 
 func (tc testCase) valuesFilePath() string {
@@ -76,7 +86,7 @@ func TestRenderChart(t *testing.T) {
 			tc.namespace = namespace
 			t.Run(namespace+"/"+tc.name, func(t *testing.T) {
 				t.Parallel()
-				output, err := runHelmTemplate(t, helmPath, tc.valuesFilePath(), namespace)
+				output, err := runHelmTemplate(t, helmPath, tc.valuesFilePath(), namespace, tc.apiVersions)
 				if tc.expectedError != "" {
 					require.Error(t, err)
 					require.Contains(t, output, tc.expectedError)
@@ -111,16 +121,20 @@ func TestUpdateGoldenFiles(t *testing.T) {
 		}
 		for _, namespace := range testNamespaces {
 			tc.namespace = namespace
-			output, err := runHelmTemplate(t, helmPath, tc.valuesFilePath(), namespace)
+			output, err := runHelmTemplate(t, helmPath, tc.valuesFilePath(), namespace, tc.apiVersions)
 			require.NoError(t, err, output)
 			require.NoError(t, os.WriteFile(tc.goldenFilePath(), []byte(output), 0o644)) // nolint:gosec
 		}
 	}
 }
 
-func runHelmTemplate(t testing.TB, helmPath, valuesFile, namespace string) (string, error) {
+func runHelmTemplate(t testing.TB, helmPath, valuesFile, namespace string, apiVersions []string) (string, error) {
 	t.Helper()
-	cmd := exec.Command(helmPath, "template", "ai-gateway", "..", "-f", valuesFile, "--namespace", namespace, "--api-versions", "gateway.networking.k8s.io/v1/HTTPRoute")
+	args := []string{"template", "ai-gateway", "..", "-f", valuesFile, "--namespace", namespace}
+	for _, apiVersion := range apiVersions {
+		args = append(args, "--api-versions", apiVersion)
+	}
+	cmd := exec.Command(helmPath, args...)
 	cmd.Dir = "."
 	output, err := cmd.CombinedOutput()
 	return string(output), err

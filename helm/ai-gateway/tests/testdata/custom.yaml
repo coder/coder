@@ -16,6 +16,23 @@ coder:
     workload: gateway
   podSecurityContext:
     fsGroup: 1000
+  startupProbe:
+    enabled: true
+    initialDelaySeconds: 3
+    periodSeconds: 5
+    timeoutSeconds: 2
+    successThreshold: 1
+    failureThreshold: 12
+  livenessProbe:
+    enabled: false
+    initialDelaySeconds: 0
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 4
+    periodSeconds: 5
+    timeoutSeconds: 2
+    successThreshold: 1
+    failureThreshold: 6
   resources:
     requests:
       cpu: 100m
@@ -75,3 +92,9 @@ extraTemplates:
       name: '{{ include "coder.name" . }}-extra'
     data:
       release: '{{ .Release.Name }}'
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: '{{ include "coder.name" . }}-object'
+    data:
+      namespace: '{{ .Release.Namespace }}'

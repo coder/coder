@@ -24,10 +24,8 @@ spec:
       maxUnavailable: 0
       maxSurge: 1
   template:
-    metadata:
-      annotations:
-        app.kubernetes.io/component: ai-gateway
     spec:
+      automountServiceAccountToken: false
       terminationGracePeriodSeconds: {{ .Values.aigateway.terminationGracePeriodSeconds }}
       containers:
       -
@@ -82,32 +80,7 @@ envFrom:
 {{ toYaml . }}
 {{- end }}
 env:
-- name: CODER_AI_GATEWAY_HTTP_ADDRESS
-  value: 0.0.0.0:4001
-- name: CODER_AI_GATEWAY_KEY_FILE
-  value: /etc/coder/ai-gateway-auth/key
-- name: CODER_URL
-  value: {{ include "coder-ai-gateway.coderURL" . | quote }}
-- name: CODER_PROMETHEUS_ENABLE
-  value: "true"
-- name: CODER_PROMETHEUS_ADDRESS
-  value: 0.0.0.0:2112
-{{- if .Values.aigateway.listenerTLS.secretName }}
-- name: CODER_AI_GATEWAY_TLS_CERT_FILE
-  value: /etc/coder/ai-gateway-listener/tls.crt
-- name: CODER_AI_GATEWAY_TLS_KEY_FILE
-  value: /etc/coder/ai-gateway-listener/tls.key
-{{- end }}
-{{- if .Values.aigateway.coderTLS.caSecret.name }}
-- name: CODER_CLIENT_TLS_CA_FILE
-  value: /etc/coder/coder-client-ca/ca.crt
-{{- end }}
-{{- if .Values.aigateway.coderTLS.clientSecret.name }}
-- name: CODER_CLIENT_TLS_CERT_FILE
-  value: /etc/coder/coder-client-tls/tls.crt
-- name: CODER_CLIENT_TLS_KEY_FILE
-  value: /etc/coder/coder-client-tls/tls.key
-{{- end }}
+{{ include "coder-ai-gateway.ownedEnv" . }}
 {{/*
 User additions follow the chart-owned variables so they may reference
 them via $(VAR). Overriding chart-owned names is rejected by validation.
@@ -122,16 +95,46 @@ ports:
 - name: metrics
   containerPort: 2112
   protocol: TCP
+{{- $scheme := ternary "HTTPS" "HTTP" (not (empty .Values.aigateway.listenerTLS.secretName)) }}
+{{- if .Values.coder.startupProbe.enabled }}
+startupProbe:
+  httpGet:
+    path: /healthz
+    port: http
+    scheme: {{ $scheme }}
+  initialDelaySeconds: {{ .Values.coder.startupProbe.initialDelaySeconds }}
+  {{- range $field := list "periodSeconds" "timeoutSeconds" "successThreshold" "failureThreshold" }}
+  {{- if hasKey $.Values.coder.startupProbe $field }}
+  {{ $field }}: {{ index $.Values.coder.startupProbe $field }}
+  {{- end }}
+  {{- end }}
+{{- end }}
+{{- if .Values.coder.livenessProbe.enabled }}
 livenessProbe:
   httpGet:
     path: /healthz
     port: http
-    scheme: {{ ternary "HTTPS" "HTTP" (not (empty .Values.aigateway.listenerTLS.secretName)) }}
+    scheme: {{ $scheme }}
+  initialDelaySeconds: {{ .Values.coder.livenessProbe.initialDelaySeconds }}
+  {{- range $field := list "periodSeconds" "timeoutSeconds" "successThreshold" "failureThreshold" }}
+  {{- if hasKey $.Values.coder.livenessProbe $field }}
+  {{ $field }}: {{ index $.Values.coder.livenessProbe $field }}
+  {{- end }}
+  {{- end }}
+{{- end }}
+{{- if .Values.coder.readinessProbe.enabled }}
 readinessProbe:
   httpGet:
     path: /readyz
     port: http
-    scheme: {{ ternary "HTTPS" "HTTP" (not (empty .Values.aigateway.listenerTLS.secretName)) }}
+    scheme: {{ $scheme }}
+  initialDelaySeconds: {{ .Values.coder.readinessProbe.initialDelaySeconds }}
+  {{- range $field := list "periodSeconds" "timeoutSeconds" "successThreshold" "failureThreshold" }}
+  {{- if hasKey $.Values.coder.readinessProbe $field }}
+  {{ $field }}: {{ index $.Values.coder.readinessProbe $field }}
+  {{- end }}
+  {{- end }}
+{{- end }}
 volumeMounts:
 - name: ai-gateway-auth
   mountPath: /etc/coder/ai-gateway-auth

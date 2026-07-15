@@ -69,14 +69,12 @@ helm install ai-gateway ./helm/ai-gateway --values values.yaml
 
 If AI Gateway Proxy is enabled and should forward intercepted requests to
 this standalone Gateway instead of the embedded one, point coderd at the
-Gateway Service created by this chart:
-
-```text
-CODER_AI_GATEWAY_PROXY_TARGET=http://coder-ai-gateway.<namespace>.svc.cluster.local:80
-```
-
-The exact value for your Helm release is shown after installation and can be
+Gateway Service created by this chart. The exact target, including the scheme
+selected by `aigateway.listenerTLS`, is shown after installation and can be
 retrieved with `helm get notes ai-gateway`.
+
+When `service.enable` is false, configure `CODER_AI_GATEWAY_PROXY_TARGET` with
+the URL of your user-managed route to the deployment.
 
 ## TLS
 
@@ -88,6 +86,20 @@ Prefer terminating client-facing TLS at a Kubernetes Ingress or a `Gateway`
 resource from the Kubernetes Gateway API. To terminate TLS in the AI Gateway
 process, configure `aigateway.listenerTLS.secretName`.
 
+Client-facing TLS and backend TLS are independent. The `ingress.tls` settings
+configure TLS between clients and the Ingress. For HTTPRoute, the Gateway
+listener that accepts client connections is configured outside this chart.
+These client-facing settings do not configure whether the Ingress or Gateway
+connects to the AI Gateway Service using HTTP or HTTPS.
+
+When `aigateway.listenerTLS` is enabled behind an Ingress or HTTPRoute, configure
+the entry point to connect to the Service using HTTPS and to trust the AI
+Gateway certificate. Ingress backend TLS is controller-specific and can usually
+be configured with `ingress.annotations`. Gateway API backend TLS is configured
+with a separate `BackendTLSPolicy`, which can be managed outside this chart or
+rendered with `extraTemplates`. The chart does not infer or validate this
+controller-specific backend configuration.
+
 All referenced TLS Secrets must exist in the Helm release namespace.
 
 ## Networking and scaling
@@ -98,9 +110,18 @@ HTTPRoute are optional and both route to the data-plane Service. If you enable
 Ingress or HTTPRoute, use a `ClusterIP` Service unless you intentionally need a
 second external entry point through a `LoadBalancer` Service.
 
-Set `coder.replicaCount` to run multiple AI Gateway replicas. Manage resources
-such as a Horizontal Pod Autoscaler or PodDisruptionBudget through your platform
-configuration or `extraTemplates`.
+Set `coder.replicaCount` to run multiple AI Gateway replicas. The default
+resource requests are 1 CPU and 1 GiB of memory per replica. These requests are
+a starting point, not a capacity guarantee. CPU and Memory usage depends heavily
+on concurrent requests and payload size.
+
+Adjust `coder.resources` after observing production traffic. Consider setting
+`CODER_AI_GATEWAY_MAX_CONCURRENCY` through `coder.env` to bound concurrent
+requests per replica. Application default is unlimited. The chart does not
+set resource limits by default, which avoids CPU throttling and fixed memory
+limits for bursty workloads. Manage resources such as a Horizontal Pod
+Autoscaler or PodDisruptionBudget through your platform configuration or
+`extraTemplates`.
 
 ## Metrics
 
@@ -135,5 +156,6 @@ reloader controller can be configured through `coder.annotations` or
 ## Extra manifests
 
 `extraTemplates` renders additional Kubernetes manifests as part of the Helm
-release. Each YAML string can use Helm release values and chart helpers. Use it
-for small companion resources, such as a `NetworkPolicy`.
+release. Entries can be YAML strings or Kubernetes objects, and can use Helm
+release values and chart helpers. Use them for small companion resources, such
+as a `NetworkPolicy`.
