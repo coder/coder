@@ -205,15 +205,16 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 	// refresh token error as they can only be used once.
 	key := c.ID + ":" + externalAuthLink.UserID.String()
 	ch := c.RefreshGroup.DoChan(key, func() (any, error) {
-		// Use a detached context so if a request is canceled it does not cancel all
-		// the other requests as well.  Preserve any original deadline.
-		rctx := context.WithoutCancel(ctx)
-		deadline, ok := ctx.Deadline()
-		if ok {
-			var cancel context.CancelFunc
-			rctx, cancel = context.WithDeadline(rctx, deadline)
-			defer cancel()
+		// Use a detached context so if a request is canceled or times out it does
+		// not cancel all the other requests as well.  The deadline is arbitrary but
+		// we give at least enough time for the refresh timeout then another 10
+		// seconds for updating the database and validating the link.
+		timeout := 10 * time.Second
+		if c.RefreshRetryTimeout > 0 {
+			timeout += c.RefreshRetryTimeout
 		}
+		rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+		defer cancel()
 		return c.innerRefreshToken(rctx, db, externalAuthLink)
 	})
 	select {
@@ -358,15 +359,9 @@ func (c *Config) innerRefreshToken(ctx context.Context, db database.Store, exter
 	// validation endpoint was unavailable (e.g. rate-limited 403), the
 	// new token would be silently lost and the user would be forced to
 	// re-authenticate manually.
-	// Use a detached context for the DB write only. The IDP already
-	// consumed the old refresh token, so if the caller's request
-	// context is canceled mid-save, the new token would be lost.
-	persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-	defer persistCancel()
-
 	originalAccessToken := externalAuthLink.OAuthAccessToken
 	if token.AccessToken != originalAccessToken {
-		updatedAuthLink, err := db.UpdateExternalAuthLink(persistCtx, database.UpdateExternalAuthLinkParams{
+		updatedAuthLink, err := db.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
 			ProviderID:             c.ID,
 			UserID:                 externalAuthLink.UserID,
 			UpdatedAt:              dbtime.Now(),
