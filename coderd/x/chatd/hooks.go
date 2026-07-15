@@ -8,10 +8,13 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agenthooks"
 )
@@ -67,6 +70,56 @@ func (p *Server) dispatchUserPromptSubmit(
 		return agenthooks.Response{}, &UserPromptDeniedError{UserMessage: response.UserMessage}
 	}
 	return response, nil
+}
+
+func hookPrefixMessages(response agenthooks.Response, modelConfigID, turnID uuid.UUID) ([]chatstate.Message, error) {
+	messages := make([]chatstate.Message, 0, 2)
+	if response.ModelContext != "" {
+		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(response.ModelContext)})
+		if err != nil {
+			return nil, xerrors.Errorf("marshal hook model context: %w", err)
+		}
+		messages = append(messages, chatstate.Message{
+			Role:           database.ChatMessageRoleUser,
+			Content:        content,
+			Visibility:     database.ChatMessageVisibilityModel,
+			TurnID:         uuid.NullUUID{UUID: turnID, Valid: true},
+			ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: modelConfigID != uuid.Nil},
+			ContentVersion: chatprompt.CurrentContentVersion,
+		})
+	}
+	if response.UserMessage != "" {
+		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(response.UserMessage)})
+		if err != nil {
+			return nil, xerrors.Errorf("marshal hook user message: %w", err)
+		}
+		messages = append(messages, chatstate.Message{
+			Role:           database.ChatMessageRoleSystem,
+			Content:        content,
+			Visibility:     database.ChatMessageVisibilityUser,
+			TurnID:         uuid.NullUUID{UUID: turnID, Valid: true},
+			ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: modelConfigID != uuid.Nil},
+			ContentVersion: chatprompt.CurrentContentVersion,
+		})
+	}
+	return messages, nil
+}
+
+func applyHookAllowedTools(ctx context.Context, store database.Store, chatID uuid.UUID, response agenthooks.Response) error {
+	if response.AllowedTools == nil {
+		return nil
+	}
+	encoded, err := json.Marshal(response.AllowedTools)
+	if err != nil {
+		return xerrors.Errorf("marshal hook allowed tools: %w", err)
+	}
+	if err := store.UpdateChatHookAllowedTools(ctx, database.UpdateChatHookAllowedToolsParams{
+		HookAllowedTools: pqtype.NullRawMessage{RawMessage: encoded, Valid: true},
+		ID:               chatID,
+	}); err != nil {
+		return xerrors.Errorf("update hook allowed tools: %w", err)
+	}
+	return nil
 }
 
 func userPromptOverride(response agenthooks.Response) (string, bool, error) {

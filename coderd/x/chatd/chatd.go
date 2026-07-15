@@ -54,6 +54,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agenthooks"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
 )
@@ -1198,6 +1199,7 @@ type SendMessageOptions struct {
 // SendMessageResult contains the outcome of user message processing.
 type SendMessageResult struct {
 	Queued        bool
+	Ended         bool
 	QueuedMessage *database.ChatQueuedMessage
 	Message       database.ChatMessage
 	Chat          database.Chat
@@ -1219,6 +1221,7 @@ type EditMessageOptions struct {
 
 // EditMessageResult contains the replacement user message and chat status.
 type EditMessageResult struct {
+	Ended   bool
 	Message database.ChatMessage
 	Chat    database.Chat
 }
@@ -1405,16 +1408,17 @@ func (p *Server) SendMessage(
 
 	turnID := uuid.New()
 	contentParts := opts.Content
+	var hookResponse agenthooks.Response
 	if p.hookDispatcher != nil && p.hookDispatcher.Enabled() {
 		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return SendMessageResult{}, xerrors.Errorf("load chat for user_prompt_submit: %w", err)
 		}
-		response, err := p.dispatchUserPromptSubmit(ctx, chat, turnID, contentParts)
+		hookResponse, err = p.dispatchUserPromptSubmit(ctx, chat, turnID, contentParts)
 		if err != nil {
 			return SendMessageResult{}, err
 		}
-		override, overridden, err := userPromptOverride(response)
+		override, overridden, err := userPromptOverride(hookResponse)
 		if err != nil {
 			return SendMessageResult{}, err
 		}
@@ -1468,6 +1472,26 @@ func (p *Server) SendMessage(
 			return err
 		}
 
+		prefixMessages, err := hookPrefixMessages(hookResponse, modelConfigID, turnID)
+		if err != nil {
+			return err
+		}
+		if err := applyHookAllowedTools(ctx, store, opts.ChatID, hookResponse); err != nil {
+			return err
+		}
+		if hookResponse.EndChat {
+			if _, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages}); err != nil {
+				return err
+			}
+			result.Ended = true
+			refreshed, err := store.GetChatByID(ctx, opts.ChatID)
+			if err != nil {
+				return xerrors.Errorf("reload chat after end: %w", err)
+			}
+			result.Chat = refreshed
+			return nil
+		}
+
 		// Update MCP server IDs on the chat when explicitly provided.
 		// Explore child chats keep the spawn-time snapshot immutable.
 		if requestedMCPServerIDs != nil {
@@ -1497,8 +1521,9 @@ func (p *Server) SendMessage(
 		message := userMessageWithAPIKeyID(content, modelConfigID, messageCreatedBy, opts.APIKeyID, opts.ReasoningEffort)
 		message.TurnID = uuid.NullUUID{UUID: turnID, Valid: true}
 		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
-			Message:      message,
-			BusyBehavior: busyBehaviorToChatState(busyBehavior),
+			Message:        message,
+			PrefixMessages: prefixMessages,
+			BusyBehavior:   busyBehaviorToChatState(busyBehavior),
 		})
 		if err != nil {
 			return err
@@ -1530,7 +1555,12 @@ func (p *Server) SendMessage(
 
 	// Sidebar watch event keeps the chat list in sync. Stream side
 	// effects are handled by chat:update consumers.
-	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
+	if result.Ended {
+		p.scheduleArchiveDebugCleanup(ctx, []database.Chat{result.Chat})
+		p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindDeleted, nil)
+	} else {
+		p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
+	}
 	return result, nil
 }
 
@@ -1642,7 +1672,28 @@ func (p *Server) EditMessage(
 		return EditMessageResult{}, err
 	}
 
-	content, err := chatprompt.MarshalParts(opts.Content)
+	turnID := uuid.New()
+	contentParts := opts.Content
+	var hookResponse agenthooks.Response
+	if p.hookDispatcher != nil && p.hookDispatcher.Enabled() {
+		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
+		if err != nil {
+			return EditMessageResult{}, xerrors.Errorf("load chat for user_prompt_submit: %w", err)
+		}
+		hookResponse, err = p.dispatchUserPromptSubmit(ctx, chat, turnID, contentParts)
+		if err != nil {
+			return EditMessageResult{}, err
+		}
+		override, overridden, err := userPromptOverride(hookResponse)
+		if err != nil {
+			return EditMessageResult{}, err
+		}
+		if overridden {
+			contentParts = []codersdk.ChatMessagePart{codersdk.ChatMessageText(override)}
+		}
+	}
+
+	content, err := chatprompt.MarshalParts(contentParts)
 	if err != nil {
 		return EditMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
 	}
@@ -1678,6 +1729,12 @@ func (p *Server) EditMessage(
 		if target.ChatID != opts.ChatID {
 			return ErrEditedMessageNotFound
 		}
+		if target.Deleted {
+			return ErrEditedMessageNotFound
+		}
+		if target.Role != database.ChatMessageRoleUser {
+			return ErrEditedMessageNotUser
+		}
 		editedMsg = target
 
 		// Validate the optional model-config override up front so
@@ -1705,6 +1762,31 @@ func (p *Server) EditMessage(
 			modelOverride = uuid.NullUUID{UUID: opts.ModelConfigID, Valid: true}
 		}
 
+		modelConfigID := target.ModelConfigID.UUID
+		if modelOverride.Valid {
+			modelConfigID = modelOverride.UUID
+		}
+		prefixMessages, err := hookPrefixMessages(hookResponse, modelConfigID, turnID)
+		if err != nil {
+			return err
+		}
+		if err := applyHookAllowedTools(ctx, store, opts.ChatID, hookResponse); err != nil {
+			return err
+		}
+		if hookResponse.EndChat {
+			if _, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages}); err != nil {
+				return err
+			}
+			result.Ended = true
+			refreshed, err := store.GetChatByID(ctx, opts.ChatID)
+			if err != nil {
+				return xerrors.Errorf("reload chat after end: %w", err)
+			}
+			result.Chat = refreshed
+			editedCutoffT = refreshed.UpdatedAt
+			return nil
+		}
+
 		var reasoningEffortOverride database.NullChatReasoningEffort
 		if opts.ReasoningEffort != nil && *opts.ReasoningEffort != "" {
 			reasoningEffortOverride = database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffort(*opts.ReasoningEffort), Valid: true}
@@ -1712,6 +1794,8 @@ func (p *Server) EditMessage(
 
 		editResult, err := tx.EditMessage(chatstate.EditMessageInput{
 			MessageID:               opts.EditedMessageID,
+			TurnID:                  turnID,
+			PrefixMessages:          prefixMessages,
 			CreatedBy:               opts.CreatedBy,
 			Content:                 content,
 			ModelConfigIDOverride:   modelOverride,
@@ -1742,6 +1826,11 @@ func (p *Server) EditMessage(
 
 	// Sidebar watch event keeps the chat list responsive. Stream
 	// side effects are handled by chat:update consumers.
+	if result.Ended {
+		p.scheduleArchiveDebugCleanup(ctx, []database.Chat{result.Chat})
+		p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindDeleted, nil)
+		return result, nil
+	}
 	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
 
 	// Editing can race with an interrupted worker still flushing its

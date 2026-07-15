@@ -295,6 +295,50 @@ func (tx *Tx) SetArchived(input SetArchivedInput) (SetArchivedResult, error) {
 	return SetArchivedResult{}, nil
 }
 
+// EndChatInput configures [Tx.EndChat].
+type EndChatInput struct {
+	PrefixMessages []Message
+}
+
+// EndChatResult is returned by [Tx.EndChat].
+type EndChatResult struct {
+	InsertedMessages        []database.ChatMessage
+	DeletedQueuedMessageIDs []int64
+}
+
+// EndChat archives a root chat and clears active execution state.
+func (tx *Tx) EndChat(input EndChatInput) (EndChatResult, error) {
+	chat, _, err := tx.requireFromAllowed(TransitionEndChat)
+	if err != nil {
+		return EndChatResult{}, err
+	}
+	if chat.ParentChatID.Valid {
+		return EndChatResult{}, ErrChatNotRoot
+	}
+	inserted, err := tx.insertMessages(input.PrefixMessages)
+	if err != nil {
+		return EndChatResult{}, xerrors.Errorf("insert end chat prefix messages: %w", err)
+	}
+	deletedQueuedIDs, err := tx.clearQueue()
+	if err != nil {
+		return EndChatResult{}, err
+	}
+	if _, err := tx.applyExecutionState(executionStateUpdate{
+		Status:                   database.ChatStatusWaiting,
+		Archived:                 true,
+		WorkerID:                 uuid.NullUUID{},
+		RunnerID:                 uuid.NullUUID{},
+		LastError:                pqtype.NullRawMessage{},
+		RequiresActionDeadlineAt: sql.NullTime{},
+	}); err != nil {
+		return EndChatResult{}, xerrors.Errorf("end chat: %w", err)
+	}
+	return EndChatResult{
+		InsertedMessages:        inserted,
+		DeletedQueuedMessageIDs: deletedQueuedIDs,
+	}, nil
+}
+
 // BusyBehavior controls how SendMessage behaves when the chat is
 // currently busy (R*/I*/A*). From idle/error states the two behaviors
 // are equivalent.
@@ -307,8 +351,9 @@ const (
 
 // SendMessageInput configures [Tx.SendMessage].
 type SendMessageInput struct {
-	Message      Message
-	BusyBehavior BusyBehavior
+	Message        Message
+	PrefixMessages []Message
+	BusyBehavior   BusyBehavior
 }
 
 // SendMessageResult is returned by [Tx.SendMessage].
@@ -349,48 +394,48 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	// Idle / empty-queue error: insert directly into history, clear
 	// last_error, leave queue alone.
 	case StateW, StateE0:
-		return tx.sendMessageDirect(chat, input.Message)
+		return tx.sendMessageDirect(chat, input.PrefixMessages, input.Message)
 
 	// Error-with-queue: append to tail, promote previous head into
 	// history, clear last_error.
 	case StateE1:
-		return tx.sendMessageE1(chat, input.Message)
+		return tx.sendMessageE1(chat, input.PrefixMessages, input.Message)
 
 	// Running with no queue.
 	case StateR0:
 		if input.BusyBehavior == BusyBehaviorInterrupt {
-			return tx.sendMessageQueueAndSetStatus(chat, input.Message, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
+			return tx.sendMessageQueueAndSetStatus(chat, input.PrefixMessages, input.Message, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
 		}
-		return tx.sendMessageQueueAndSetStatus(chat, input.Message, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
+		return tx.sendMessageQueueAndSetStatus(chat, input.PrefixMessages, input.Message, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
 	// Running with queue.
 	case StateR1:
 		if input.BusyBehavior == BusyBehaviorInterrupt {
-			return tx.sendMessageQueueAndSetStatus(chat, input.Message, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
+			return tx.sendMessageQueueAndSetStatus(chat, input.PrefixMessages, input.Message, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
 		}
-		return tx.sendMessageQueueAndSetStatus(chat, input.Message, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
+		return tx.sendMessageQueueAndSetStatus(chat, input.PrefixMessages, input.Message, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
 	// Interrupting: queue regardless of busy behavior.
 	case StateI0, StateI1:
-		return tx.sendMessageQueueAndSetStatus(chat, input.Message, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
+		return tx.sendMessageQueueAndSetStatus(chat, input.PrefixMessages, input.Message, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
 	// Requires-action: queue keeps A*; interrupt cancels pending
 	// dynamic calls and resumes in running.
 	case StateA0, StateA1:
 		if input.BusyBehavior == BusyBehaviorInterrupt {
-			return tx.sendMessageInterruptRequiresAction(chat, input.Message)
+			return tx.sendMessageInterruptRequiresAction(chat, input.PrefixMessages, input.Message)
 		}
-		return tx.sendMessageQueueAndSetStatus(chat, input.Message, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
+		return tx.sendMessageQueueAndSetStatus(chat, input.PrefixMessages, input.Message, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 	}
 	return SendMessageResult{}, newTransitionError(TransitionSendMessage, from, "unhandled state in SendMessage")
 }
 
-func (tx *Tx) sendMessageDirect(chat database.Chat, m Message) (SendMessageResult, error) {
+func (tx *Tx) sendMessageDirect(chat database.Chat, prefix []Message, m Message) (SendMessageResult, error) {
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by new user message", false)
 	if err != nil {
 		return SendMessageResult{}, err
 	}
-	inserted, err := tx.insertMessages(append(cancels, m))
+	inserted, err := tx.insertMessages(append(append(cancels, prefix...), m))
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert direct user message: %w", err)
 	}
@@ -409,7 +454,10 @@ func (tx *Tx) sendMessageDirect(chat database.Chat, m Message) (SendMessageResul
 	}, nil
 }
 
-func (tx *Tx) sendMessageE1(chat database.Chat, m Message) (SendMessageResult, error) {
+func (tx *Tx) sendMessageE1(chat database.Chat, prefix []Message, m Message) (SendMessageResult, error) {
+	if _, err := tx.insertMessages(prefix); err != nil {
+		return SendMessageResult{}, xerrors.Errorf("insert prefix messages: %w", err)
+	}
 	queued, err := tx.insertQueuedMessage(chat.OwnerID, m)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
@@ -451,11 +499,15 @@ func (tx *Tx) sendMessageE1(chat database.Chat, m Message) (SendMessageResult, e
 
 func (tx *Tx) sendMessageQueueAndSetStatus(
 	chat database.Chat,
+	prefix []Message,
 	m Message,
 	status database.ChatStatus,
 	lastError pqtype.NullRawMessage,
 	deadline sql.NullTime,
 ) (SendMessageResult, error) {
+	if _, err := tx.insertMessages(prefix); err != nil {
+		return SendMessageResult{}, xerrors.Errorf("insert prefix messages: %w", err)
+	}
 	queued, err := tx.insertQueuedMessage(chat.OwnerID, m)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
@@ -475,20 +527,22 @@ func (tx *Tx) sendMessageQueueAndSetStatus(
 	}, nil
 }
 
-func (tx *Tx) sendMessageInterruptRequiresAction(chat database.Chat, m Message) (SendMessageResult, error) {
+func (tx *Tx) sendMessageInterruptRequiresAction(chat database.Chat, prefix []Message, m Message) (SendMessageResult, error) {
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by user message", true)
 	if err != nil {
 		return SendMessageResult{}, err
 	}
-	if _, err := tx.insertMessages(cancels); err != nil {
+	if _, err := tx.insertMessages(append(cancels, prefix...)); err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert requires-action cancellations: %w", err)
 	}
-	return tx.sendMessageQueueAndSetStatus(chat, m, database.ChatStatusRunning, chat.LastError, sql.NullTime{})
+	return tx.sendMessageQueueAndSetStatus(chat, nil, m, database.ChatStatusRunning, chat.LastError, sql.NullTime{})
 }
 
 // EditMessageInput configures [Tx.EditMessage].
 type EditMessageInput struct {
 	MessageID               int64
+	TurnID                  uuid.UUID
+	PrefixMessages          []Message
 	CreatedBy               uuid.UUID
 	Content                 pqtype.NullRawMessage
 	ModelConfigIDOverride   uuid.NullUUID
@@ -560,7 +614,7 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 	if err != nil {
 		return EditMessageResult{}, err
 	}
-	cancellationMessages, err := tx.insertMessages(cancels)
+	cancellationMessages, err := tx.insertMessages(append(cancels, input.PrefixMessages...))
 	if err != nil {
 		return EditMessageResult{}, xerrors.Errorf("insert message edit cancellations: %w", err)
 	}
@@ -581,7 +635,7 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 		Role:            database.ChatMessageRoleUser,
 		Content:         input.Content,
 		Visibility:      target.Visibility,
-		TurnID:          target.TurnID,
+		TurnID:          uuid.NullUUID{UUID: input.TurnID, Valid: input.TurnID != uuid.Nil},
 		ModelConfigID:   modelConfig,
 		ReasoningEffort: reasoningEffort,
 		CreatedBy:       uuid.NullUUID{UUID: input.CreatedBy, Valid: true},

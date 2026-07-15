@@ -12,6 +12,7 @@ type Transition string
 const (
 	TransitionCreateChat              Transition = "CreateChat"
 	TransitionSetArchived             Transition = "SetArchived"
+	TransitionEndChat                 Transition = "EndChat"
 	TransitionSendMessage             Transition = "SendMessage"
 	TransitionEditMessage             Transition = "EditMessage"
 	TransitionDeleteQueuedMessage     Transition = "DeleteQueuedMessage"
@@ -43,6 +44,7 @@ func (t Transition) String() string { return string(t) }
 var AllExecutionTransitions = []Transition{
 	TransitionCreateChat,
 	TransitionSetArchived,
+	TransitionEndChat,
 	TransitionSendMessage,
 	TransitionEditMessage,
 	TransitionDeleteQueuedMessage,
@@ -77,17 +79,20 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionCreateChat: {StateR0},
 	},
 	StateW: {
+		TransitionEndChat:     {StateXW},
 		TransitionSetArchived: {StateXW},
 		TransitionSendMessage: {StateR0},
 		TransitionEditMessage: {StateR0},
 		TransitionFailIdle:    {StateE0},
 	},
 	StateE0: {
+		TransitionEndChat:     {StateXW},
 		TransitionSetArchived: {StateXE0},
 		TransitionSendMessage: {StateR0},
 		TransitionEditMessage: {StateR0},
 	},
 	StateE1: {
+		TransitionEndChat:              {StateXW},
 		TransitionSetArchived:          {StateXE1},
 		TransitionSendMessage:          {StateR1},
 		TransitionEditMessage:          {StateR0},
@@ -95,6 +100,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionPromoteQueuedMessage: {StateR0, StateR1},
 	},
 	StateR0: {
+		TransitionEndChat:                 {StateXW},
 		TransitionSendMessage:             {StateR1, StateI1},
 		TransitionEditMessage:             {StateR0},
 		TransitionInterrupt:               {StateI0},
@@ -106,6 +112,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionFinishError:             {StateE0},
 	},
 	StateR1: {
+		TransitionEndChat:                 {StateXW},
 		TransitionSendMessage:             {StateR1, StateI1},
 		TransitionEditMessage:             {StateR0},
 		TransitionDeleteQueuedMessage:     {StateR0, StateR1},
@@ -119,11 +126,13 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionFinishError:             {StateE1},
 	},
 	StateI0: {
+		TransitionEndChat:            {StateXW},
 		TransitionSendMessage:        {StateI1},
 		TransitionEditMessage:        {StateR0},
 		TransitionFinishInterruption: {StateW},
 	},
 	StateI1: {
+		TransitionEndChat:              {StateXW},
 		TransitionSendMessage:          {StateI1},
 		TransitionEditMessage:          {StateR0},
 		TransitionDeleteQueuedMessage:  {StateI0, StateI1},
@@ -131,6 +140,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionFinishInterruption:   {StateR0, StateR1},
 	},
 	StateA0: {
+		TransitionEndChat:                {StateXW},
 		TransitionSendMessage:            {StateA1, StateR1},
 		TransitionEditMessage:            {StateR0},
 		TransitionInterrupt:              {StateR0},
@@ -138,6 +148,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionCancelRequiresAction:   {StateR0},
 	},
 	StateA1: {
+		TransitionEndChat:                {StateXW},
 		TransitionSendMessage:            {StateA1, StateR1},
 		TransitionEditMessage:            {StateR0},
 		TransitionDeleteQueuedMessage:    {StateA0, StateA1},
