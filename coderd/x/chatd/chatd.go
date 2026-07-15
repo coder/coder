@@ -852,9 +852,6 @@ func agentDisconnectedFor(now time.Time, agent database.WorkspaceAgent, inactive
 	return disconnectedFor, true
 }
 
-// latestWorkspaceAgentRecoveryError classifies the latest agent's status after
-// a failed dial. It returns the recovery sentinel to surface, or
-// errChatDialTimeout when the dial should remain retryable.
 func (c *turnWorkspaceContext) latestWorkspaceAgentRecoveryError(
 	ctx context.Context,
 	workspaceID uuid.UUID,

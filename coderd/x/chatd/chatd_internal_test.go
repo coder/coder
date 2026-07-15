@@ -349,8 +349,6 @@ func TestChatWorkspaceRecoveryErrorsDifferentiateSignalStrength(t *testing.T) {
 	require.Contains(t, neverConnected, "start_workspace")
 	require.NotContains(t, neverConnected, "ask_user_question")
 
-	// Dial timeout alone is a weak signal. The model should not
-	// escalate to lifecycle tools without a DB-confirmed recovery condition.
 	dialTimeout := errChatDialTimeout.Error()
 	require.NotContains(t, dialTimeout, "ask_user_question")
 	require.NotContains(t, dialTimeout, "stop_workspace")
@@ -2385,9 +2383,6 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 
 	tests := []testCase{
 		{
-			// Cache-hit status checks only force a fresh dial for
-			// disconnected agents. Timeout recovery is classified
-			// after a failed dial.
 			name: "TimedOutAgentCacheHit",
 			buildAgent: func(now time.Time) database.WorkspaceAgent {
 				return database.WorkspaceAgent{
@@ -2518,8 +2513,6 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 }
 
 func TestGetWorkspaceConn_DialTimeoutDisconnectedRecoveryThreshold(t *testing.T) {
-	// Failed dials use a fresh agent status to distinguish retryable timeouts
-	// from conditions that require stop/start recovery.
 	t.Parallel()
 
 	buildDisconnectedAgent := func(disconnectedFor time.Duration) func(time.Time) database.WorkspaceAgent {
