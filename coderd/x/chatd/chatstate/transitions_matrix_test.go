@@ -943,14 +943,27 @@ func endChatCase(from chatstate.ExecutionState) transitionCaseSpec {
 			require.False(t, after.RunnerID.Valid)
 			require.False(t, after.LastError.Valid)
 			require.False(t, after.RequiresActionDeadlineAt.Valid)
-			require.Empty(t, result.endChat.InsertedMessages)
+			switch from {
+			case chatstate.StateA0, chatstate.StateA1:
+				require.Len(t, result.endChat.InsertedMessages, 1,
+					"EndChat from A* synthesizes one tool-result cancellation")
+				cancel := requireChatMessageByID(ctx, t, f,
+					result.endChat.InsertedMessages[0].ID)
+				assertToolResultForCall(t, cancel, seeded.pendingToolCallID)
+				expectedHistory := append([]int64{}, base.historyIDs...)
+				expectedHistory = append(expectedHistory, cancel.ID)
+				require.Equal(t, expectedHistory, activeHistoryIDs(ctx, t, f, seeded.chatID),
+					"EndChat from A* archives history with the cancellation appended")
+			default:
+				require.Empty(t, result.endChat.InsertedMessages)
+				require.Equal(t, base.historyIDs, activeHistoryIDs(ctx, t, f, seeded.chatID))
+			}
 			if len(base.queueIDs) == 0 {
 				require.Empty(t, result.endChat.DeletedQueuedMessageIDs)
 			} else {
 				require.Equal(t, base.queueIDs, result.endChat.DeletedQueuedMessageIDs)
 			}
 			require.Empty(t, queuedIDsByPosition(ctx, t, f, seeded.chatID))
-			require.Equal(t, base.historyIDs, activeHistoryIDs(ctx, t, f, seeded.chatID))
 		},
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 
 	"golang.org/x/xerrors"
 )
@@ -69,7 +70,7 @@ func verifyBody(r *http.Request, body []byte, claims Claims, request Request) er
 	if claims.BodySHA256 != hex.EncodeToString(digest[:]) {
 		return xerrors.New("request body does not match body_sha256 claim")
 	}
-	if claims.Audience != requestAudience(r) {
+	if canonicalAudience(claims.Audience) != requestAudience(r) {
 		return xerrors.New("request URL does not match audience claim")
 	}
 	if request.Meta.SchemaVersion != SchemaVersion {
@@ -92,20 +93,32 @@ func verifyBody(r *http.Request, body []byte, claims Claims, request Request) er
 }
 
 func requestAudience(r *http.Request) string {
-	url := *r.URL
-	if url.Scheme == "" {
-		url.Scheme = "http"
+	requestURL := *r.URL
+	if requestURL.Scheme == "" {
+		requestURL.Scheme = "http"
 		if r.TLS != nil {
-			url.Scheme = "https"
+			requestURL.Scheme = "https"
 		}
 	}
-	if url.Host == "" {
-		url.Host = r.Host
+	if requestURL.Host == "" {
+		requestURL.Host = r.Host
 	}
-	if url.Path == "/" && url.RawPath == "" {
-		url.Path = ""
+	return canonicalAudience(requestURL.String())
+}
+
+// canonicalAudience drops a bare "/" path so that root-path hook URLs
+// configured with and without a trailing slash verify the same request.
+// Clients send "/" on the wire for both forms, so exact string
+// comparison would otherwise reject one of them on every dispatch.
+func canonicalAudience(audience string) string {
+	parsed, err := url.Parse(audience)
+	if err != nil {
+		return audience
 	}
-	return url.String()
+	if parsed.Path == "/" && parsed.RawPath == "" {
+		parsed.Path = ""
+	}
+	return parsed.String()
 }
 
 func dispatch(ctx context.Context, hooks Hooks, request Request) (Response, error) {

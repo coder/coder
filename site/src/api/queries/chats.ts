@@ -1406,11 +1406,20 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	onSuccess: (
 		response: TypesGen.EditChatMessageResponse,
 		variables: EditChatMessageMutationArgs,
+		context: EditChatMessageMutationContext | undefined,
 	) => {
 		// message is absent when a lifecycle hook ended the chat
-		// instead of committing the edit.
+		// instead of committing the edit. Drop the optimistic edit and
+		// refetch the transcript the server actually kept.
 		const responseMessage = response.message;
 		if (!responseMessage) {
+			if (context?.previousData) {
+				queryClient.setQueryData(chatMessagesKey(chatId), context.previousData);
+			}
+			void queryClient.invalidateQueries({
+				queryKey: chatMessagesKey(chatId),
+				exact: true,
+			});
 			return;
 		}
 		queryClient.setQueryData<

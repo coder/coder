@@ -273,6 +273,20 @@ func TestHTTPHandlerRejectsMismatches(t *testing.T) {
 	}
 }
 
+func TestHTTPHandlerAcceptsTrailingSlashAudience(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
+	t.Cleanup(server.Close)
+	// A hook configured with a trailing slash signs the audience as
+	// "<url>/" while the request arrives with a bare "/" path.
+	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
+		claims.Audience = server.URL + "/"
+	})
+	defer response.Body.Close()
+	require.Equal(t, http.StatusOK, response.StatusCode)
+}
+
 func postEvent(t *testing.T, target string, eventType agenthooks.EventType, data any, updateRequest func(*agenthooks.Request), updateClaims func(*agenthooks.Claims)) *http.Response {
 	t.Helper()
 

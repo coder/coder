@@ -5302,6 +5302,7 @@ WHERE
 	AND tool_use_id = $2::text
 	AND turn_id IS NOT DISTINCT FROM $3::uuid
 	AND decision IS NOT NULL
+	AND result IN ('ok', 'denied')
 ORDER BY
 	started_at DESC,
 	id DESC

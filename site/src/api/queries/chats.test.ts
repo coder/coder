@@ -1075,6 +1075,48 @@ describe("mutation invalidation scope", () => {
 		).toBe(true);
 	});
 
+	it("editChatMessage onSuccess without a message restores the snapshot and invalidates", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const messages = [3, 2, 1].map((id) => makeMsg(chatId, id));
+		const previousData: InfMessages = {
+			pages: [{ messages, queued_messages: [], has_more: false }],
+			pageParams: [undefined],
+		};
+
+		// Simulate the optimistic onMutate projection: the edited
+		// message replaced and later messages truncated.
+		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
+			pages: [
+				{
+					messages: [makeMsg(chatId, 2), makeMsg(chatId, 1)],
+					queued_messages: [],
+					has_more: false,
+				},
+			],
+			pageParams: [undefined],
+		});
+
+		const mutation = editChatMessage(queryClient, chatId);
+		mutation.onSuccess(
+			{ ended: true },
+			{ messageId: 2, req: editReq },
+			{ previousData },
+		);
+
+		await new Promise((r) => setTimeout(r, 0));
+
+		expect(
+			queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId)),
+			"hook-ended edit should restore the pre-edit snapshot",
+		).toEqual(previousData);
+		const messagesState = queryClient.getQueryState(chatMessagesKey(chatId));
+		expect(
+			messagesState?.isInvalidated,
+			"chatMessagesKey should be invalidated when the edit did not commit",
+		).toBe(true);
+	});
+
 	// Shared type for the infinite messages cache shape used by
 	// editChatMessage tests below.
 	type InfMessages = {
@@ -1268,6 +1310,7 @@ describe("mutation invalidation scope", () => {
 		mutation.onSuccess(
 			{ message: responseMessage, ended: false },
 			{ messageId: 3, optimisticMessage, req: editReq },
+			undefined,
 		);
 
 		const data = queryClient.getQueryData<InfMessages>(chatMessagesKey(chatId));

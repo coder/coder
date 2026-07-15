@@ -112,6 +112,17 @@ func writeChatUsageLimitExceeded(
 	})
 }
 
+// writeChatHookDispatchFailed reports a lifecycle hook dispatch failure
+// without echoing the raw error, which can contain the hook URL or other
+// deployment internals. The dispatcher logs the error and records it on
+// the chat_hook_dispatches row identified by the returned dispatch ID.
+func writeChatHookDispatchFailed(ctx context.Context, rw http.ResponseWriter, hookErr *chathooks.DispatchError) {
+	httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+		Message: "Chat lifecycle hook dispatch failed.",
+		Detail:  fmt.Sprintf("Lifecycle hook dispatch %s failed (%s).", hookErr.DispatchID, hookErr.Class),
+	})
+}
+
 func maybeWriteLimitErr(ctx context.Context, rw http.ResponseWriter, err error) bool {
 	var limitErr *chatd.UsageLimitExceededError
 	if errors.As(err, &limitErr) {
@@ -1417,10 +1428,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		}
 		var hookErr *chathooks.DispatchError
 		if errors.As(err, &hookErr) {
-			httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
-				Message: "Chat lifecycle hook dispatch failed.",
-				Detail:  err.Error(),
-			})
+			writeChatHookDispatchFailed(ctx, rw, hookErr)
 			return
 		}
 		if maybeWriteLimitErr(ctx, rw, err) {
@@ -3364,10 +3372,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		}
 		var hookErr *chathooks.DispatchError
 		if errors.As(sendErr, &hookErr) {
-			httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
-				Message: "Chat lifecycle hook dispatch failed.",
-				Detail:  sendErr.Error(),
-			})
+			writeChatHookDispatchFailed(ctx, rw, hookErr)
 			return
 		}
 		if maybeWriteLimitErr(ctx, rw, sendErr) {
@@ -3552,10 +3557,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		}
 		var hookErr *chathooks.DispatchError
 		if errors.As(editErr, &hookErr) {
-			httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
-				Message: "Chat lifecycle hook dispatch failed.",
-				Detail:  editErr.Error(),
-			})
+			writeChatHookDispatchFailed(ctx, rw, hookErr)
 			return
 		}
 		if maybeWriteLimitErr(ctx, rw, editErr) {

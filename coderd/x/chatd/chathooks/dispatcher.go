@@ -488,9 +488,21 @@ func dataValue[T any](value any) (T, bool) {
 
 func (d *Dispatcher) finalize(ctx context.Context, eventType agenthooks.EventType, dispatchID uuid.UUID, outcome dispatchOutcome) error {
 	response := outcome.response
+	if outcome.err != nil {
+		d.logger.Warn(context.WithoutCancel(ctx), "chat hook dispatch failed",
+			slog.F("dispatch_id", dispatchID),
+			slog.F("event", eventType),
+			slog.F("result", outcome.result),
+			slog.Error(outcome.err),
+		)
+	}
+	// Persisted decisions are reused for retried tool calls via
+	// GetChatHookDispatchDecision, so only accepted outcomes may record
+	// one. A decision from a rejected response must stay fail-closed.
+	accepted := outcome.result == resultOK || outcome.result == resultDenied
 	var decision sql.NullString
 	var inputOverride pqtype.NullRawMessage
-	if response.Permission != nil {
+	if response.Permission != nil && accepted {
 		decision = sql.NullString{String: string(response.Permission.Decision), Valid: true}
 		if response.Permission.InputOverride != nil {
 			inputOverride = pqtype.NullRawMessage{RawMessage: bytes.Clone(response.Permission.InputOverride), Valid: true}

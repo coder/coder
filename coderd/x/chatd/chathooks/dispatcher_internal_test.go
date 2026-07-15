@@ -292,7 +292,18 @@ func TestDispatcherProtocolErrors(t *testing.T) {
 				Decision: agenthooks.PermissionAsk,
 			}}),
 			assertRow: func(t *testing.T, row database.ChatHookDispatch) {
-				require.Equal(t, string(agenthooks.PermissionAsk), row.Decision.String)
+				require.False(t, row.Decision.Valid, "rejected responses must not persist a reusable decision")
+			},
+		},
+		{
+			name:      "pre_tool_use allow without input_override",
+			eventType: agenthooks.EventPreToolUse,
+			data:      agenthooks.PreToolUseData{ToolName: "run_command", ToolInput: json.RawMessage(`{"cmd":"ls"}`)},
+			responseBody: mustJSON(t, agenthooks.Response{Permission: &agenthooks.Permission{
+				Decision: agenthooks.PermissionAllow,
+			}}),
+			assertRow: func(t *testing.T, row database.ChatHookDispatch) {
+				require.False(t, row.Decision.Valid, "rejected responses must not persist a reusable decision")
 			},
 		},
 	}

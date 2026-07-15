@@ -343,7 +343,11 @@ func (tx *Tx) EndChat(input EndChatInput) (EndChatResult, error) {
 	if chat.ParentChatID.Valid {
 		return EndChatResult{}, ErrChatNotRoot
 	}
-	inserted, err := tx.insertMessages(input.PrefixMessages)
+	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted because the chat was ended", false)
+	if err != nil {
+		return EndChatResult{}, err
+	}
+	inserted, err := tx.insertMessages(append(cancels, input.PrefixMessages...))
 	if err != nil {
 		return EndChatResult{}, xerrors.Errorf("insert end chat prefix messages: %w", err)
 	}

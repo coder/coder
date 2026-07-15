@@ -79,6 +79,7 @@ WHERE
 	AND tool_use_id = @tool_use_id::text
 	AND turn_id IS NOT DISTINCT FROM sqlc.narg('turn_id')::uuid
 	AND decision IS NOT NULL
+	AND result IN ('ok', 'denied')
 ORDER BY
 	started_at DESC,
 	id DESC
