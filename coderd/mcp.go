@@ -1352,7 +1352,22 @@ func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerC
 		ForwardCoderHeaders: config.ForwardCoderHeaders,
 		CreatedAt:           config.CreatedAt,
 		UpdatedAt:           config.UpdatedAt,
+
+		// Default per-user auth state. Handlers that know the
+		// calling user's token state (list/get) overwrite this.
+		AuthStatus:    defaultMCPServerAuthStatus(config),
+		AuthConnected: config.AuthType != "oauth2",
 	}
+}
+
+// defaultMCPServerAuthStatus returns the auth status assuming no
+// per-user token exists: non-oauth2 servers need no per-user connect
+// step, oauth2 servers start not connected.
+func defaultMCPServerAuthStatus(config database.MCPServerConfig) codersdk.MCPServerAuthStatus {
+	if config.AuthType == "oauth2" {
+		return codersdk.MCPServerAuthStatusNotConnected
+	}
+	return codersdk.MCPServerAuthStatusConnected
 }
 
 // convertMCPServerConfigRedacted is the same as convertMCPServerConfig

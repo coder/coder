@@ -1986,6 +1986,9 @@ func TestMCPServerConfigsRevokedGrant(t *testing.T) {
 		ToolDenyList:   []string{},
 	})
 	require.NoError(t, err)
+	// Create/update responses must carry a valid auth status even
+	// though they cannot know per-user token state.
+	require.Equal(t, codersdk.MCPServerAuthStatusNotConnected, created.AuthStatus)
 
 	// Seed an expired token whose refresh the provider rejects with
 	// invalid_grant.
