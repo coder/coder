@@ -1366,6 +1366,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 													const needsAuth =
 														server.auth_type === "oauth2" &&
 														!server.auth_connected;
+													const needsReconnect =
+														server.auth_status === "reconnect_required";
 													const isConnecting = mcpConnectingId === server.id;
 													return (
 														<div
@@ -1397,7 +1399,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 																	{isConnecting ? (
 																		<Spinner loading className="h-2.5 w-2.5" />
 																	) : null}
-																	Auth
+																	{needsReconnect ? "Reconnect" : "Auth"}
 																</Button>
 															) : (
 																<Switch

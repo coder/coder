@@ -769,6 +769,21 @@ export const WithMCPNeedingAuth: Story = {
 	},
 };
 
+/** MCP server with a revoked OAuth grant, shows Reconnect button. */
+export const WithMCPReconnectRequired: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [
+			sentryMCP,
+			{
+				...githubMCP,
+				auth_status: "reconnect_required",
+			} satisfies TypesGen.MCPServerConfig,
+		],
+		selectedMCPServerIds: [sentryMCP.id, githubMCP.id],
+	},
+};
+
 /** No MCP servers active — shows only "MCP" label with chevron. */
 export const WithMCPNoneActive: Story = {
 	args: {
