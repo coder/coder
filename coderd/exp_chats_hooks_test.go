@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -284,4 +285,94 @@ func TestChatLifecycleHooksWorkedExample(t *testing.T) {
 		agenthooks.EventPostToolUse,
 		agenthooks.EventStop,
 	}, seenEvents)
+}
+
+func TestChatHooksFileLinksAfterPromptOverride(t *testing.T) {
+	t.Parallel()
+
+	const secret = "test-hook-secret-32-bytes-minimum!!"
+	ctx := testutil.Context(t, testutil.WaitLong)
+	modelURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	consumer := httptest.NewServer(agenthooks.NewHTTPHandler([]byte(secret), agenthooks.Hooks{
+		UserPromptSubmit: func(_ context.Context, _ agenthooks.Meta, data agenthooks.UserPromptSubmitData) (agenthooks.Response, error) {
+			if strings.Contains(data.Prompt, "REDACTME") {
+				return agenthooks.Response{Permission: &agenthooks.Permission{
+					Decision:      agenthooks.PermissionAllow,
+					InputOverride: json.RawMessage(`{"prompt":"redacted"}`),
+				}}, nil
+			}
+			return agenthooks.Response{}, nil
+		},
+	}))
+	t.Cleanup(consumer.Close)
+
+	client, api := newChatClientWithAPI(t, func(opts *coderdtest.Options) {
+		require.NoError(t, opts.DeploymentValues.AI.Chat.HookURL.Set(consumer.URL))
+		opts.DeploymentValues.AI.Chat.HookSecret = serpent.String(secret)
+		opts.DeploymentValues.AI.Chat.HookTimeout = serpent.Duration(time.Second)
+		opts.DeploymentValues.AI.Chat.HookEnabled = serpent.Bool(true)
+	})
+	user := coderdtest.CreateFirstUser(t, client.Client)
+	model := createChatModelConfigWithBaseURL(t, client, modelURL)
+
+	uploadFile := func(name string) uuid.UUID {
+		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 16)...)
+		resp, err := client.UploadChatFile(ctx, user.OrganizationID, "image/png", name, bytes.NewReader(pngData))
+		require.NoError(t, err)
+		return resp.ID
+	}
+
+	// The override drops the attachment from the persisted initial
+	// message, so the file must not be linked to the chat.
+	redactedFile := uploadFile("redacted.png")
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: user.OrganizationID,
+		ModelConfigID:  &model.ID,
+		Content: []codersdk.ChatInputPart{
+			{Type: codersdk.ChatInputPartTypeText, Text: "REDACTME create"},
+			{Type: codersdk.ChatInputPartTypeFile, FileID: redactedFile},
+		},
+	})
+	require.NoError(t, err)
+	created, err := client.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Empty(t, created.Files, "overridden create must not link dropped attachments")
+
+	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+
+	// Without an override the persisted message keeps its file part,
+	// so the file links as before.
+	keptFile := uploadFile("kept.png")
+	sendResp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{
+			{Type: codersdk.ChatInputPartTypeText, Text: "keep this"},
+			{Type: codersdk.ChatInputPartTypeFile, FileID: keptFile},
+		},
+	})
+	require.NoError(t, err)
+	require.False(t, sendResp.Queued)
+	afterSend, err := client.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, afterSend.Files, 1)
+	require.Equal(t, keptFile, afterSend.Files[0].ID)
+
+	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+
+	droppedFile := uploadFile("dropped.png")
+	_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{
+			{Type: codersdk.ChatInputPartTypeText, Text: "REDACTME send"},
+			{Type: codersdk.ChatInputPartTypeFile, FileID: droppedFile},
+		},
+	})
+	require.NoError(t, err)
+	afterOverride, err := client.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, afterOverride.Files, 1, "overridden send must not link dropped attachments")
+	require.Equal(t, keptFile, afterOverride.Files[0].ID)
 }

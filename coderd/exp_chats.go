@@ -1466,10 +1466,27 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Link any user-uploaded files referenced in the initial
-	// message to this newly created chat (best-effort; cap
-	// enforced in SQL).
-	unlinked, capExceeded := api.linkFilesToChat(ctx, chat.ID, fileIDs)
+	// Link any user-uploaded files still referenced by the
+	// persisted initial message to this newly created chat
+	// (best-effort; cap enforced in SQL). A create-time prompt
+	// override can drop file parts, so re-derive from the stored
+	// message.
+	linkFileIDs := fileIDs
+	if len(fileIDs) > 0 {
+		initialUser, err := api.Database.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
+			ChatID: chat.ID,
+			Role:   database.ChatMessageRoleUser,
+		})
+		if err != nil {
+			api.Logger.Warn(ctx, "load initial message for file linking",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+		} else {
+			linkFileIDs = api.linkedFileIDsFromContent(ctx, initialUser, fileIDs)
+		}
+	}
+	unlinked, capExceeded := api.linkFilesToChat(ctx, chat.ID, linkFileIDs)
 
 	// Re-read the chat so the response reflects the authoritative
 	// database state (file links are deduped in the join table).
@@ -3434,9 +3451,24 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Link any user-uploaded files referenced in this message
-	// to the chat (best-effort; cap enforced in SQL).
-	unlinked, capExceeded := api.linkFilesToChat(ctx, chatID, fileIDs)
+	// Link any user-uploaded files still referenced by the
+	// persisted message to the chat (best-effort; cap enforced
+	// in SQL).
+	linkFileIDs := fileIDs
+	if sendResult.Queued {
+		if sendResult.QueuedMessage != nil {
+			// Queued rows are written with the current content
+			// encoding.
+			linkFileIDs = api.linkedFileIDsFromContent(ctx, database.ChatMessage{
+				Role:           database.ChatMessageRoleUser,
+				ContentVersion: chatprompt.CurrentContentVersion,
+				Content:        pqtype.NullRawMessage{RawMessage: sendResult.QueuedMessage.Content, Valid: true},
+			}, fileIDs)
+		}
+	} else {
+		linkFileIDs = api.linkedFileIDsFromContent(ctx, sendResult.Message, fileIDs)
+	}
+	unlinked, capExceeded := api.linkFilesToChat(ctx, chatID, linkFileIDs)
 	response := codersdk.CreateChatMessageResponse{Queued: sendResult.Queued}
 	if sendResult.Queued {
 		if sendResult.QueuedMessage != nil {
@@ -3609,9 +3641,10 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Link any user-uploaded files referenced in the edited
-	// message to the chat (best-effort; cap enforced in SQL).
-	unlinked, capExceeded := api.linkFilesToChat(ctx, chat.ID, fileIDs)
+	// Link any user-uploaded files still referenced by the
+	// persisted edit to the chat (best-effort; cap enforced in
+	// SQL).
+	unlinked, capExceeded := api.linkFilesToChat(ctx, chat.ID, api.linkedFileIDsFromContent(ctx, editResult.Message, fileIDs))
 	message := convertChatMessage(editResult.Message)
 	response := codersdk.EditChatMessageResponse{Message: &message}
 	if len(unlinked) > 0 {
@@ -6743,10 +6776,36 @@ func createChatInputFromParts(
 	return content, pasteData, fileIDs, nil
 }
 
+// linkedFileIDsFromContent derives the uploaded-file IDs to link from
+// the persisted message content. A user_prompt_submit override can
+// replace the message and drop its file parts, so handlers link
+// exactly what the stored message references. Falls back to the
+// request-derived IDs when the content cannot be parsed.
+func (api *API) linkedFileIDsFromContent(ctx context.Context, msg database.ChatMessage, requestFileIDs []uuid.UUID) []uuid.UUID {
+	if len(requestFileIDs) == 0 {
+		return nil
+	}
+	parts, err := chatprompt.ParseContent(msg)
+	if err != nil {
+		api.Logger.Warn(ctx, "parse persisted message for file linking",
+			slog.F("message_id", msg.ID),
+			slog.Error(err),
+		)
+		return requestFileIDs
+	}
+	var ids []uuid.UUID
+	for _, part := range parts {
+		if part.Type == codersdk.ChatMessagePartTypeFile && part.FileID.Valid {
+			ids = append(ids, part.FileID.UUID)
+		}
+	}
+	return ids
+}
+
 // linkFilesToChat inserts file-link rows into the chat_file_links
 // join table. Cap enforcement and dedup are handled atomically in
 // SQL. On success returns (nil, false). On failure returns the full
-// input fileIDs slice — linking is all-or-nothing because the
+// input fileIDs slice; linking is all-or-nothing because the
 // SQL operates on the batch atomically. capExceeded indicates
 // whether the failure was due to the cap being exceeded (true)
 // or a database error (false).
