@@ -24,18 +24,7 @@ import (
 
 // logTee forwards a best-effort copy of each write to lines for
 // line-oriented debug logging, in addition to the real write to out.
-// The forward is non-blocking: a full channel just drops the chunk.
-// Debug logging is a convenience, not a correctness requirement, and
-// must never apply backpressure to the command's actual output pipe.
-//
-// A prior version of this package logged output by teeing writes
-// through a second unbuffered io.Pipe read by a bufio.Scanner. That
-// put a second zero-buffer hop in series with the command's own
-// stdout/stderr pipe: if the scanner goroutine was ever delayed (GC
-// pause, scheduler contention under heavy parallel test load), the
-// tee write would block, which stopped the drain loop from reading the
-// command's pipe, which permanently deadlocked the command's own
-// Write call. See PLAT-251.
+// See PLAT-251 for more details.
 type logTee struct {
 	out   io.Writer
 	lines chan<- []byte
