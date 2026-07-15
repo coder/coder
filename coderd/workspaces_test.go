@@ -65,7 +65,7 @@ import (
 func TestWorkspacesListSingleAuthorizePrepare(t *testing.T) {
 	t.Parallel()
 
-	authz := coderdtest.NewPrepareCountingAuthorizer(rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()))
+	authz := &coderdtest.RecordingAuthorizer{Wrapped: rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())}
 	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 		Authorizer: authz,
 	})

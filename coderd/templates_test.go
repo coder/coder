@@ -46,7 +46,7 @@ import (
 func TestTemplatesListSingleAuthorizePrepare(t *testing.T) {
 	t.Parallel()
 
-	authz := coderdtest.NewPrepareCountingAuthorizer(rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()))
+	authz := &coderdtest.RecordingAuthorizer{Wrapped: rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())}
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
 		Authorizer:               authz,
