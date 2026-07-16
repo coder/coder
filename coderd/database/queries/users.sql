@@ -662,8 +662,6 @@ WHERE
 -- not returned: they only influence authorization through object ACL
 -- matching, and the seat-count evaluation uses objects without ACLs.
 WITH org_roles AS (
-	-- Aggregated once over all memberships and hash-joined to users below;
-	-- a correlated per-user subquery would re-execute per user row.
 	SELECT
 		organization_members.user_id,
 		-- The roles are returned as a flat array, org scoped and site side.
