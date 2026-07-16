@@ -1795,7 +1795,7 @@ func TestExecuteToolRecorder(t *testing.T) {
 		require.Equal(t, chattool.ExecutionStatusRunning, recorder.record("call-1").Status)
 	})
 
-	t.Run("ConnFailureStaleStartingResolvesUnknown", func(t *testing.T) {
+	t.Run("ConnFailureStaleStartingWithinTrustWindowAborts", func(t *testing.T) {
 		t.Parallel()
 		recorder := newFakeRecorder()
 		recorder.seed("call-1", chattool.ExecutionRecord{
@@ -1804,8 +1804,41 @@ func TestExecuteToolRecorder(t *testing.T) {
 			ClaimedAt: time.Now().Add(-2 * time.Minute),
 		})
 
-		// Stale-claim resolution is a ledger write, so an
-		// unreachable agent must not wedge the chat by aborting.
+		// Within TokenTrustWindow the row stays recoverable: once
+		// the agent is reachable again the token probe can adopt a
+		// live process, so a dial failure aborts instead of
+		// resolving unknown.
+		tool := chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, uuid.UUID, error) {
+				return nil, uuid.Nil, xerrors.New("workspace agent unreachable")
+			},
+			Recorder: recorder,
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.Error(t, err)
+		var abortErr *chattool.AbortToolExecutionError
+		require.ErrorAs(t, err, &abortErr)
+		require.Equal(t, chattool.ExecutionStatusStarting, recorder.record("call-1").Status)
+	})
+
+	t.Run("ConnFailureStaleStartingResolvesUnknown", func(t *testing.T) {
+		t.Parallel()
+		recorder := newFakeRecorder()
+		recorder.seed("call-1", chattool.ExecutionRecord{
+			Status:    chattool.ExecutionStatusStarting,
+			Command:   "echo hi",
+			Timeout:   time.Minute,
+			ClaimedAt: time.Now().Add(-chattool.TokenTrustWindow - time.Minute),
+		})
+
+		// Past TokenTrustWindow the token probe could not prove
+		// anything anyway; the guarded ledger write resolves the
+		// row so an unreachable agent cannot wedge the chat.
 		tool := chattool.Execute(chattool.ExecuteOptions{
 			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, uuid.UUID, error) {
 				return nil, uuid.Nil, xerrors.New("workspace agent unreachable")
@@ -1830,7 +1863,7 @@ func TestExecuteToolRecorder(t *testing.T) {
 		recorder.seed("call-1", chattool.ExecutionRecord{
 			Status:    chattool.ExecutionStatusStarting,
 			Timeout:   time.Minute,
-			ClaimedAt: time.Now().Add(-2 * time.Minute),
+			ClaimedAt: time.Now().Add(-chattool.TokenTrustWindow - time.Minute),
 		})
 		// The dead owner's uncanceled RecordStart lands in the
 		// race window: the guarded unknown write must lose, and

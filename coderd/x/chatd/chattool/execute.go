@@ -652,11 +652,15 @@ func resolveConnFailure(ctx context.Context, options ExecuteOptions, toolCallID 
 	if resp, ok := terminalRowResponse(ctx, options, toolCallID, rec); ok {
 		return resp, nil
 	}
-	if rec.Status == ExecutionStatusStarting && staleStartingClaim(rec, claimStaleAfter) {
-		// Stale-claim resolution needs no agent access: the
-		// connected path would also resolve this row to unknown.
-		// Aborting instead would wedge the chat for as long as
-		// the agent stays unreachable.
+	if rec.Status == ExecutionStatusStarting && staleStartingClaim(rec, TokenTrustWindow) {
+		// Within TokenTrustWindow the abort below is preferred:
+		// once the agent is reachable again, the token probe can
+		// still adopt a live process or prove nothing was
+		// dispatched. Past the window absence answers prove
+		// nothing anyway, so the guarded unknown write (which
+		// needs no agent access) resolves the row instead of
+		// wedging the chat for as long as the agent stays
+		// unreachable.
 		fresh, applied, markErr := options.Recorder.MarkStaleClaimUnknown(ctx, toolCallID)
 		if markErr != nil {
 			return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("mark stale execution claim unknown: %w", markErr)}
