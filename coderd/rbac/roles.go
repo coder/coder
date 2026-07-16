@@ -295,6 +295,13 @@ func OrgWorkspaceAccessMemberPerms() []Permission {
 // their own identity (dbauthz sets WithOwner(InitiatorID) on an
 // any-organization object) but cannot be read back; reads require the
 // site-wide auditor or owner roles.
+//
+// Although assigned per organization, the role is effectively a
+// deployment-level entitlement: interceptions carry no organization, so
+// authorization matches the role held in any organization the user
+// belongs to. Holding it in one organization grants AI Gateway access
+// everywhere, and revoking access requires removing the role in every
+// organization that grants it (including via default_org_member_roles).
 func OrgAIGatewayAccessMemberPerms() []Permission {
 	return Permissions(map[string][]policy.Action{
 		ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionUpdate},
