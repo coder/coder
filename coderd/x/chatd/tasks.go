@@ -903,20 +903,17 @@ func (r executionReconciler) awaitInterruptedIdentity(ctx context.Context, recor
 }
 
 // reconcileCancelRequested resolves one cancel_requested row with
-// recorded process identity. Background rows are resolved to
-// detached without signaling: the interrupt spares background
-// processes, and this row only reached cancel_requested because its
-// handle had not landed at commit time. Foreground rows get a kill
-// signal, recording how far confirmation got: canceled when the
-// agent definitively has no such process or a post-kill snapshot
-// shows it exited, otherwise cancel_requested stays (with
-// cancel_signal_sent_at set when the signal was delivered) for the
-// periodic sweep to retry.
+// recorded process identity by killing the process. Background rows
+// only reach cancel_requested when their handle had not landed at
+// commit time, so the committed synthetic result carries no
+// background_process_id: sparing such a process would leave it
+// running with no addressable handle, so it is killed like
+// foreground work. The kill records how far confirmation got:
+// canceled when the agent definitively has no such process or a
+// post-kill snapshot shows it exited, otherwise cancel_requested
+// stays (with cancel_signal_sent_at set when the signal was
+// delivered) for the periodic sweep to retry.
 func (r executionReconciler) reconcileCancelRequested(ctx context.Context, record database.ChatToolCallExecution) {
-	if record.Background {
-		r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusDetached, sql.NullTime{})
-		return
-	}
 	dialCtx, cancel := context.WithTimeout(ctx, interruptKillDialTimeout)
 	defer cancel()
 	conn, release, err := r.agentConn(dialCtx, record.WorkspaceAgentID.UUID)

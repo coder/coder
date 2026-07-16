@@ -327,11 +327,11 @@ func TestExecutionSweep(t *testing.T) {
 	})
 }
 
-// TestReconcileCancelRequestedBackgroundDetaches asserts that a
+// TestReconcileCancelRequestedLateBackgroundKills asserts that a
 // background execution whose handle landed only after the interrupt
-// commit is resolved to detached without signaling: the interrupt
-// spares background processes.
-func TestReconcileCancelRequestedBackgroundDetaches(t *testing.T) {
+// commit is killed: its committed result carries no handle, so the
+// process would otherwise keep running unaddressable.
+func TestReconcileCancelRequestedLateBackgroundKills(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -396,14 +396,21 @@ func TestReconcileCancelRequestedBackgroundDetaches(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// No SignalProcess expectation: background processes are
-	// spared; the reconciler must resolve detached without dialing.
+	// The committed synthetic result carries no handle, so the
+	// late-identified background process must be killed, not
+	// spared as detached.
+	ctrl := gomock.NewController(t)
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().SignalProcess(gomock.Any(), "proc-bg", "kill").Return(nil)
+	exitCode := -1
+	conn.EXPECT().ProcessOutput(gomock.Any(), "proc-bg", gomock.Any()).
+		Return(workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode}, nil)
 	r := executionReconciler{
 		store:  db,
 		logger: slogtest.Make(t, nil),
-		agentConn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-			t.Fatal("background rows must not dial the agent")
-			return nil, nil, xerrors.New("unreachable")
+		agentConn: func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, agent.ID, agentID)
+			return conn, func() {}, nil
 		},
 	}
 	r.reconcileCancelRequested(ctx, record)
@@ -414,6 +421,6 @@ func TestReconcileCancelRequestedBackgroundDetaches(t *testing.T) {
 		ToolCallID:         "bg-call",
 	})
 	require.NoError(t, err)
-	require.Equal(t, database.ChatToolCallExecutionStatusDetached, row.Status)
-	require.Equal(t, "proc-bg", row.ProcessID.String)
+	require.Equal(t, database.ChatToolCallExecutionStatusCanceled, row.Status)
+	require.True(t, row.CancelSignalSentAt.Valid)
 }
