@@ -930,7 +930,7 @@ The immediate pass is best-effort, so a periodic per-replica sweep guarantees co
 
 ### Retention
 
-Rows are never deleted at resolution time; they stay diagnostically useful. `dbpurge` deletes rows older than 7 days, but only rows whose tool result was committed: an uncommitted row still guards dedup for a call a future retry may re-execute, no matter how old it is. Deletion only discards ledger history: a still-running detached process is unaffected and stays addressable through the process handle in its committed tool result.
+Rows are never deleted at resolution time; they stay diagnostically useful. `dbpurge` deletes rows older than 7 days, but only rows whose tool result was committed: an uncommitted row still guards dedup for a call a future retry may re-execute, no matter how old it is. `cancel_requested` rows are also kept regardless of age: the interrupt commit stamps `result_committed_at` on them, but they still carry the only stored identity of a process the sweep must kill. Deletion only discards ledger history: a still-running detached process is unaffected and stays addressable through the process handle in its committed tool result.
 
 # Stream loop
 

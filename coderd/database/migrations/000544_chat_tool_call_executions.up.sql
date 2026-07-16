@@ -57,3 +57,8 @@ CREATE INDEX idx_chat_tool_call_executions_assistant_message_id ON chat_tool_cal
 -- agents are deleted. Partial: most retained rows have a NULL agent
 -- after their workspace is cleaned up.
 CREATE INDEX idx_chat_tool_call_executions_workspace_agent_id ON chat_tool_call_executions (workspace_agent_id) WHERE workspace_agent_id IS NOT NULL;
+
+-- Serves the periodic sweep that retries stalled cancellations,
+-- which claims cancel_requested rows ordered by updated_at.
+-- Partial: cancel_requested rows are rare and transient.
+CREATE INDEX idx_chat_tool_call_executions_cancel_sweep ON chat_tool_call_executions (updated_at) WHERE status = 'cancel_requested';

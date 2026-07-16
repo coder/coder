@@ -12847,6 +12847,7 @@ WITH deletable AS (
     FROM chat_tool_call_executions
     WHERE created_at < $1::timestamptz
       AND result_committed_at IS NOT NULL
+      AND status <> 'cancel_requested'
     ORDER BY created_at ASC
     LIMIT $2::int
 )
@@ -12864,6 +12865,9 @@ type DeleteOldChatToolCallExecutionsParams struct {
 // to keep transactions short. Only rows whose tool result was
 // committed are eligible: an uncommitted row still guards dedup for
 // a call a future retry may re-execute, no matter how old it is.
+// cancel_requested rows are kept regardless of age: the interrupt
+// commit stamps result_committed_at on them, but they still carry
+// the only stored identity of a process the sweep must kill.
 // Deleting a committed row never affects a still-running detached
 // process, which stays addressable through the process handle in
 // its committed tool result.

@@ -2888,9 +2888,10 @@ func TestDeleteOldChatToolCallExecutions(t *testing.T) {
 
 	now := dbtime.Now()
 	for _, call := range []struct {
-		id        string
-		createdAt time.Time
-		committed bool
+		id              string
+		createdAt       time.Time
+		committed       bool
+		cancelRequested bool
 	}{
 		// Old and committed: the only purgeable combination.
 		{id: "old-call", createdAt: now.Add(-8 * 24 * time.Hour), committed: true},
@@ -2898,6 +2899,10 @@ func TestDeleteOldChatToolCallExecutions(t *testing.T) {
 		// future retry may re-execute, so age alone never purges
 		// it.
 		{id: "old-uncommitted-call", createdAt: now.Add(-8 * 24 * time.Hour), committed: false},
+		// Old, committed, but still cancel_requested: the row
+		// carries the only stored identity of a process the sweep
+		// must kill, so it is retained.
+		{id: "old-cancel-requested-call", createdAt: now.Add(-8 * 24 * time.Hour), committed: true, cancelRequested: true},
 		{id: "new-call", createdAt: now, committed: true},
 	} {
 		err := db.InsertChatToolCallExecutionIntent(ctx, database.InsertChatToolCallExecutionIntentParams{
@@ -2909,6 +2914,30 @@ func TestDeleteOldChatToolCallExecutions(t *testing.T) {
 			CreatedAt:          call.createdAt,
 		})
 		require.NoError(t, err)
+		if call.cancelRequested {
+			claimed, err := db.ClaimChatToolCallExecution(ctx, database.ClaimChatToolCallExecutionParams{
+				ID:                 uuid.New(),
+				ChatID:             chat.ID,
+				AssistantMessageID: msg.ID,
+				ToolCallID:         call.id,
+				InputSha256:        "hash-" + call.id,
+				Command:            "sleep 600",
+				TimeoutSecs:        600,
+				Now:                call.createdAt,
+				StaleBefore:        time.Time{},
+			})
+			require.NoError(t, err)
+			require.NotZero(t, claimed.ClaimEpoch)
+			rows, err := db.MarkChatToolCallExecutionsInterrupted(ctx, database.MarkChatToolCallExecutionsInterruptedParams{
+				ChatID:             chat.ID,
+				AssistantMessageID: msg.ID,
+				ToolCallIds:        []string{call.id},
+				UpdatedAt:          call.createdAt,
+			})
+			require.NoError(t, err)
+			require.Len(t, rows, 1)
+			require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, rows[0].Status)
+		}
 		if call.committed {
 			err = db.MarkChatToolCallExecutionsResultCommitted(ctx, database.MarkChatToolCallExecutionsResultCommittedParams{
 				ChatID:             chat.ID,
@@ -2930,6 +2959,8 @@ func TestDeleteOldChatToolCallExecutions(t *testing.T) {
 	_, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: msg.ID, ToolCallID: "new-call"})
 	require.NoError(t, err)
 	_, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: msg.ID, ToolCallID: "old-uncommitted-call"})
+	require.NoError(t, err)
+	_, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: msg.ID, ToolCallID: "old-cancel-requested-call"})
 	require.NoError(t, err)
 	_, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: msg.ID, ToolCallID: "old-call"})
 	require.ErrorIs(t, err, sql.ErrNoRows)

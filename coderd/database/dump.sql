@@ -4804,6 +4804,8 @@ CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btre
 
 CREATE INDEX idx_chat_tool_call_executions_assistant_message_id ON chat_tool_call_executions USING btree (assistant_message_id);
 
+CREATE INDEX idx_chat_tool_call_executions_cancel_sweep ON chat_tool_call_executions USING btree (updated_at) WHERE (status = 'cancel_requested'::chat_tool_call_execution_status);
+
 CREATE INDEX idx_chat_tool_call_executions_created_at ON chat_tool_call_executions USING btree (created_at);
 
 CREATE INDEX idx_chat_tool_call_executions_workspace_agent_id ON chat_tool_call_executions USING btree (workspace_agent_id) WHERE (workspace_agent_id IS NOT NULL);

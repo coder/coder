@@ -210,6 +210,9 @@ type sqlcQuerier interface {
 	// to keep transactions short. Only rows whose tool result was
 	// committed are eligible: an uncommitted row still guards dedup for
 	// a call a future retry may re-execute, no matter how old it is.
+	// cancel_requested rows are kept regardless of age: the interrupt
+	// commit stamps result_committed_at on them, but they still carry
+	// the only stored identity of a process the sweep must kill.
 	// Deleting a committed row never affects a still-running detached
 	// process, which stays addressable through the process handle in
 	// its committed tool result.
