@@ -5243,7 +5243,7 @@ const (
 	ExperimentWorkspaceBuildUpdates    Experiment = "workspace-build-updates"    // Enables publishing workspace build updates to the all builds pubsub channel.
 	ExperimentNATSPubsub               Experiment = "nats_pubsub"                // Enables embedded NATS pubsub.
 	ExperimentMinimumImplicitMember    Experiment = "minimum-implicit-member"    // Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.
-	ExperimentPermissionBasedLicensing Experiment = "permission-based-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
+	ExperimentPermissionBasedLicensing Experiment = "permission-based-licensing" // Counts only users holding the workspace-create permission toward the license seat limit. Gates AI Gateway access on the organization-ai-gateway-access role instead of recording an AI Governance seat per bridge user.
 	ExperimentAIGatewayCostControl     Experiment = "ai-gateway-cost-control"    // Enables AI Gateway cost control functionality.
 	ExperimentChatAdvisor              Experiment = "chat-advisor"               // Enables the advisor tool for root agent chats.
 	ExperimentChatVirtualDesktop       Experiment = "chat-virtual-desktop"       // Enables virtual desktop and computer use provider for agents.

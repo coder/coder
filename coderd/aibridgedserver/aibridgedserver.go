@@ -63,6 +63,11 @@ var (
 	// to create AI Bridge interceptions, which is granted by the
 	// organization-ai-gateway-access role.
 	ErrNoAIGatewayAccess = xerrors.New("no AI Gateway access")
+
+	// ErrAuthorizationInternal is returned when authorization cannot be
+	// evaluated due to a server-side fault (e.g. a failed role lookup),
+	// as opposed to a policy denial.
+	ErrAuthorizationInternal = xerrors.New("internal error during authorization")
 )
 
 const (
@@ -768,39 +773,43 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 
 	// The initiator must be authorized to create AI Bridge interceptions,
 	// which is granted by the organization-ai-gateway-access role. This is
-	// what gates AI Gateway usage: recording itself happens under the
-	// aibridged system subject, so the user's own permissions are checked
-	// here, at authentication time.
-	//nolint:gocritic // Expanding the initiator's roles requires system access.
-	sysCtx := dbauthz.AsSystemRestricted(ctx)
-	roleRow, err := s.store.GetAuthorizationUserRoles(sysCtx, key.UserID)
-	if err != nil {
-		s.logger.Warn(ctx, "failed to retrieve authorization roles", slog.F("user_id", key.UserID), slog.Error(err))
-		return nil, ErrUnknownUser
-	}
-	roleNames, err := roleRow.RoleNames()
-	if err != nil {
-		s.logger.Warn(ctx, "failed to parse authorization roles", slog.F("user_id", key.UserID), slog.Error(err))
-		return nil, ErrNoAIGatewayAccess
-	}
-	rbacRoles, err := rolestore.Expand(sysCtx, s.store, roleNames)
-	if err != nil {
-		s.logger.Warn(ctx, "failed to expand authorization roles", slog.F("user_id", key.UserID), slog.Error(err))
-		return nil, ErrNoAIGatewayAccess
-	}
-	subject := rbac.Subject{
-		Type:         rbac.SubjectTypeUser,
-		FriendlyName: roleRow.Username,
-		Email:        roleRow.Email,
-		ID:           key.UserID.String(),
-		Roles:        rbacRoles,
-		Groups:       roleRow.Groups,
-		Scope:        key.ScopeSet(),
-	}.WithCachedASTValue()
-	if err := s.authorizer.Authorize(ctx, subject, policy.ActionCreate,
-		rbac.ResourceAibridgeInterception.AnyOrganization().WithOwner(subject.ID)); err != nil {
-		s.logger.Warn(ctx, "user lacks AI Gateway access", slog.F("user_id", key.UserID), slog.Error(err))
-		return nil, ErrNoAIGatewayAccess
+	// what gates AI Gateway usage under permission-based licensing:
+	// recording itself happens under the aibridged system subject, so the
+	// user's own permissions are checked here, at authentication time.
+	// Without the experiment, access is licensed per seat instead (see
+	// RecordInterception) and no role is required.
+	if s.experiments.Enabled(codersdk.ExperimentPermissionBasedLicensing) {
+		//nolint:gocritic // Expanding the initiator's roles requires system access.
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+		roleRow, err := s.store.GetAuthorizationUserRoles(sysCtx, key.UserID)
+		if err != nil {
+			s.logger.Error(ctx, "failed to retrieve authorization roles", slog.F("user_id", key.UserID), slog.Error(err))
+			return nil, ErrAuthorizationInternal
+		}
+		roleNames, err := roleRow.RoleNames()
+		if err != nil {
+			s.logger.Error(ctx, "failed to parse authorization roles", slog.F("user_id", key.UserID), slog.Error(err))
+			return nil, ErrAuthorizationInternal
+		}
+		rbacRoles, err := rolestore.Expand(sysCtx, s.store, roleNames)
+		if err != nil {
+			s.logger.Error(ctx, "failed to expand authorization roles", slog.F("user_id", key.UserID), slog.Error(err))
+			return nil, ErrAuthorizationInternal
+		}
+		subject := rbac.Subject{
+			Type:         rbac.SubjectTypeUser,
+			FriendlyName: roleRow.Username,
+			Email:        roleRow.Email,
+			ID:           key.UserID.String(),
+			Roles:        rbacRoles,
+			Groups:       roleRow.Groups,
+			Scope:        key.ScopeSet(),
+		}.WithCachedASTValue()
+		if err := s.authorizer.Authorize(ctx, subject, policy.ActionCreate,
+			rbac.ResourceAibridgeInterception.AnyOrganization().WithOwner(subject.ID)); err != nil {
+			s.logger.Warn(ctx, "user lacks AI Gateway access", slog.F("user_id", key.UserID), slog.Error(err))
+			return nil, ErrNoAIGatewayAccess
+		}
 	}
 
 	return &proto.IsAuthorizedResponse{

@@ -63,6 +63,10 @@ var requiredExperiments = []codersdk.Experiment{
 // testOrgID scopes the org roles returned by expectAIGatewayAccessRoles.
 var testOrgID = uuid.New()
 
+// permissionLicensingExperiments enables the role-gated AI Gateway auth
+// path in IsAuthorized on top of the baseline required experiments.
+var permissionLicensingExperiments = append([]codersdk.Experiment{codersdk.ExperimentPermissionBasedLicensing}, requiredExperiments...)
+
 // expectAIGatewayAccessRoles mocks the authorization role lookup with the
 // site member role plus organization-ai-gateway-access, which grants the
 // interception create permission required to pass IsAuthorized. The
@@ -96,6 +100,12 @@ func TestAuthorization(t *testing.T) {
 		// invalid values, it should just mutate them directly.
 		mocksFn     func(db *dbmock.MockStore, apiKey database.APIKey, user database.User)
 		expectedErr error
+		// ignoreLogErrors allows cases whose store failures are logged at
+		// error level, which the test logger otherwise fails on.
+		ignoreLogErrors bool
+		// experiments overrides the default of permission-based licensing
+		// plus the baseline required experiments.
+		experiments []codersdk.Experiment
 	}{
 		{
 			name:        "invalid key format",
@@ -188,11 +198,54 @@ func TestAuthorization(t *testing.T) {
 			},
 		},
 		{
+			name:            "role lookup failure",
+			expectedErr:     aibridgedserver.ErrAuthorizationInternal,
+			ignoreLogErrors: true,
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+				db.EXPECT().GetAuthorizationUserRoles(gomock.Any(), user.ID).Times(1).Return(database.GetAuthorizationUserRolesRow{}, sql.ErrConnDone)
+			},
+		},
+		{
+			name:            "role expansion failure",
+			expectedErr:     aibridgedserver.ErrAuthorizationInternal,
+			ignoreLogErrors: true,
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+				// organization-member is not a built-in role, so
+				// expansion falls through to a CustomRoles lookup.
+				db.EXPECT().GetAuthorizationUserRoles(gomock.Any(), user.ID).Times(1).Return(database.GetAuthorizationUserRolesRow{
+					ID:       user.ID,
+					Username: user.Username,
+					Email:    user.Email,
+					Status:   user.Status,
+					Roles: []string{
+						"member",
+						fmt.Sprintf("organization-member:%s", testOrgID),
+					},
+					Groups: []string{},
+				}, nil)
+				db.EXPECT().CustomRoles(gomock.Any(), gomock.Any()).Times(1).Return(nil, sql.ErrConnDone)
+			},
+		},
+		{
 			name: "valid",
 			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
 				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
 				expectAIGatewayAccessRoles(db, user)
+			},
+		},
+		{
+			name:        "experiment off skips role check",
+			experiments: requiredExperiments,
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+				// No role expectations: the role gate only runs under
+				// permission-based licensing.
 			},
 		},
 	}
@@ -204,6 +257,9 @@ func TestAuthorization(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			db := dbmock.NewMockStore(ctrl)
 			logger := testutil.Logger(t)
+			if tc.ignoreLogErrors {
+				logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			}
 
 			// Make a fake user and an API key for the mock calls.
 			now := dbtime.Now()
@@ -253,7 +309,11 @@ func TestAuthorization(t *testing.T) {
 				tc.mocksFn(db, apiKey, user)
 			}
 
-			srv, err := aibridgedserver.NewServer(t.Context(), db, nil, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments, agplaiseats.Noop{}, quartz.NewReal())
+			experiments := tc.experiments
+			if experiments == nil {
+				experiments = permissionLicensingExperiments
+			}
+			srv, err := aibridgedserver.NewServer(t.Context(), db, nil, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), logger, "/", codersdk.AIBridgeConfig{}, nil, experiments, agplaiseats.Noop{}, quartz.NewReal())
 			require.NoError(t, err)
 			require.NotNil(t, srv)
 
@@ -418,7 +478,7 @@ func TestAuthorization_Delegated(t *testing.T) {
 				tc.mocksFn(db, apiKey, user)
 			}
 
-			srv, err := aibridgedserver.NewServer(t.Context(), db, nil, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments, agplaiseats.Noop{}, quartz.NewReal())
+			srv, err := aibridgedserver.NewServer(t.Context(), db, nil, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), logger, "/", codersdk.AIBridgeConfig{}, nil, permissionLicensingExperiments, agplaiseats.Noop{}, quartz.NewReal())
 			require.NoError(t, err)
 			require.NotNil(t, srv)
 
@@ -1503,7 +1563,7 @@ func TestRecordInterceptionAISeat(t *testing.T) {
 		},
 		{
 			name:          "permission-based licensing skips the seat",
-			experiments:   append([]codersdk.Experiment{codersdk.ExperimentPermissionBasedLicensing}, requiredExperiments...),
+			experiments:   permissionLicensingExperiments,
 			expectedCalls: 0,
 		},
 	}
