@@ -1149,25 +1149,30 @@ func (e *UsageLimitExceededError) Error() string {
 
 // CreateOptions controls chat creation in the shared chat mutation path.
 type CreateOptions struct {
-	OrganizationID     uuid.UUID
-	OwnerID            uuid.UUID
-	WorkspaceID        uuid.NullUUID
-	BuildID            uuid.NullUUID
-	AgentID            uuid.NullUUID
-	ParentChatID       uuid.NullUUID
-	RootChatID         uuid.NullUUID
-	Title              string
-	ModelConfigID      uuid.UUID
-	ReasoningEffort    *string
-	ChatMode           database.NullChatMode
-	PlanMode           database.NullChatPlanMode
-	ClientType         database.ChatClientType
-	SystemPrompt       string
-	InitialUserContent []codersdk.ChatMessagePart
-	APIKeyID           string
-	MCPServerIDs       []uuid.UUID
-	Labels             database.StringMap
-	DynamicTools       json.RawMessage
+	OrganizationID uuid.UUID
+	OwnerID        uuid.UUID
+	WorkspaceID    uuid.NullUUID
+	BuildID        uuid.NullUUID
+	AgentID        uuid.NullUUID
+	ParentChatID   uuid.NullUUID
+	RootChatID     uuid.NullUUID
+	Title          string
+	// TitleDerivedFromContent marks Title as the fallback derived from
+	// InitialUserContent (possibly including pasted-text attachments
+	// this package cannot re-derive). A create-time prompt override
+	// recomputes such titles; explicit titles are left untouched.
+	TitleDerivedFromContent bool
+	ModelConfigID           uuid.UUID
+	ReasoningEffort         *string
+	ChatMode                database.NullChatMode
+	PlanMode                database.NullChatPlanMode
+	ClientType              database.ChatClientType
+	SystemPrompt            string
+	InitialUserContent      []codersdk.ChatMessagePart
+	APIKeyID                string
+	MCPServerIDs            []uuid.UUID
+	Labels                  database.StringMap
+	DynamicTools            json.RawMessage
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -1318,15 +1323,12 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			return database.Chat{}, err
 		}
 		if overridden {
-			// The HTTP layer derives the fallback title from the
-			// original prompt before hooks run. When the title matches
-			// that derivation, recompute it from the override so a
-			// redacted prompt does not leak through the title and the
-			// auto-titling equality gate still matches the persisted
-			// message. Explicit titles are left untouched.
-			originalTitle := chatprompt.FallbackTitle(chatprompt.TitleText(contentParts, nil))
 			contentParts = []codersdk.ChatMessagePart{codersdk.ChatMessageText(override)}
-			if opts.Title == originalTitle {
+			// Recompute derived titles from the override so a redacted
+			// prompt does not leak through the title (including titles
+			// seeded from pasted-text attachments) and the auto-titling
+			// equality gate still matches the persisted message.
+			if opts.TitleDerivedFromContent {
 				opts.Title = chatprompt.FallbackTitle(chatprompt.TitleText(contentParts, nil))
 			}
 		}

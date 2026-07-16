@@ -67,6 +67,7 @@ func TestCreateChatUserPromptSubmitHook(t *testing.T) {
 		// original prompt before hooks run.
 		opts := createHookOptions(t, db, user.ID, org.ID, model.ID, "secret")
 		opts.Title = chatprompt.FallbackTitle(chatprompt.TitleText(opts.InitialUserContent, nil))
+		opts.TitleDerivedFromContent = true
 		chat, err := server.CreateChat(ctx, opts)
 		require.NoError(t, err)
 		request := testutil.RequireReceive(ctx, t, requests)
@@ -88,6 +89,26 @@ func TestCreateChatUserPromptSubmitHook(t *testing.T) {
 		chat, err := server.CreateChat(ctx, createHookOptions(t, db, user.ID, org.ID, model.ID, "secret"))
 		require.NoError(t, err)
 		require.Equal(t, "create hook test", chat.Title)
+	})
+
+	t.Run("override recomputes paste-derived title", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		server, _ := newCreateHookTestServer(t, db, ps, http.StatusOK, `{"permission":{"decision":"allow","input_override":{"prompt":"redacted"}}}`)
+
+		// A prompt whose text parts yield no title gets its fallback
+		// title from a pasted-text attachment, which this package
+		// cannot re-derive from the parts. The flag alone must trigger
+		// the recompute.
+		opts := createHookOptions(t, db, user.ID, org.ID, model.ID, "   ")
+		opts.Title = chatprompt.FallbackTitle("secret paste content")
+		opts.TitleDerivedFromContent = true
+		chat, err := server.CreateChat(ctx, opts)
+		require.NoError(t, err)
+		require.Equal(t, "redacted", chat.Title,
+			"paste-derived title must be recomputed from the override")
 	})
 
 	t.Run("response messages", func(t *testing.T) {
