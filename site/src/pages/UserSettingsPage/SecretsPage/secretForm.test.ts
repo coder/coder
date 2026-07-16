@@ -2,6 +2,7 @@ import type { UserSecret } from "#/api/typesGenerated";
 import { mockApiError } from "#/testHelpers/entities";
 import {
 	buildCreateUserSecretRequest,
+	buildImportSuccessMessage,
 	buildUpdateUserSecretRequest,
 	getCreateSecretRequiredFieldErrors,
 	mapSecretApiErrorToFormErrors,
@@ -28,6 +29,71 @@ const existingSecrets: UserSecret[] = [
 		updated_at: "2026-05-04T00:00:00Z",
 	},
 ];
+
+const makeSecret = (overrides?: Partial<UserSecret>): UserSecret => ({
+	id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+	name: "my-secret",
+	description: "",
+	env_name: "MY_SECRET",
+	file_path: "",
+	created_at: "2026-05-04T00:00:00Z",
+	updated_at: "2026-05-04T00:00:00Z",
+	...overrides,
+});
+
+describe("buildImportSuccessMessage", () => {
+	it("reports a single secret imported successfully", () => {
+		expect(buildImportSuccessMessage([makeSecret()])).toBe(
+			"Imported 1 secret successfully.",
+		);
+	});
+
+	it("reports multiple secrets imported successfully", () => {
+		expect(buildImportSuccessMessage([makeSecret(), makeSecret()])).toBe(
+			"Imported 2 secrets successfully.",
+		);
+	});
+
+	it("reports one secret imported without an env name", () => {
+		expect(
+			buildImportSuccessMessage([
+				makeSecret({ env_name: "GOOD_VAR" }),
+				makeSecret({ env_name: "" }),
+			]),
+		).toBe(
+			"Imported 2 secrets. " +
+				"1 was imported without an environment variable name " +
+				"because its key is not a valid environment variable name. Edit it to set one.",
+		);
+	});
+
+	it("reports multiple secrets imported without env names", () => {
+		expect(
+			buildImportSuccessMessage([
+				makeSecret({ env_name: "" }),
+				makeSecret({ env_name: "" }),
+				makeSecret({ env_name: "GOOD_VAR" }),
+			]),
+		).toBe(
+			"Imported 3 secrets. " +
+				"2 were imported without an environment variable name " +
+				"because their keys are not valid environment variable names. Edit them to set one.",
+		);
+	});
+
+	it("reports all secrets imported without env names", () => {
+		expect(
+			buildImportSuccessMessage([
+				makeSecret({ env_name: "" }),
+				makeSecret({ env_name: "" }),
+			]),
+		).toBe(
+			"Imported 2 secrets. " +
+				"2 were imported without an environment variable name " +
+				"because their keys are not valid environment variable names. Edit them to set one.",
+		);
+	});
+});
 
 describe("getCreateSecretRequiredFieldErrors", () => {
 	it("requires name and value on create", () => {
