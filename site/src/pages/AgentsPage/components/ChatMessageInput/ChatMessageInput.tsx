@@ -34,6 +34,7 @@ import {
 } from "react";
 import { useQuery } from "react-query";
 import { userSkills } from "#/api/queries/userSkills";
+import { workspaceSkills } from "#/api/queries/workspaceSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { isMobileViewport } from "#/utils/mobile";
@@ -43,16 +44,14 @@ import {
 } from "../../utils/agentChatSendShortcut";
 import { isChatAttachmentFile } from "../../utils/chatAttachments";
 import {
-	filterPersonalSkills,
+	filterSkillsByQuery,
 	isPersonalSkillTriggerToken,
-	personalSkillTriggerText,
 } from "../../utils/personalSkills";
 import {
 	$createFileReferenceNode,
 	FileReferenceNode,
 } from "./FileReferenceNode";
 import { IOSBackspacePlugin } from "./iosBackspace";
-import { PersonalSkillsTriggerMenu } from "./PersonalSkillsTriggerMenu";
 import {
 	createPasteFile,
 	getPasteDataTransfer,
@@ -60,6 +59,11 @@ import {
 	isLargePaste,
 	type PasteCommandEvent,
 } from "./pasteHelpers";
+import {
+	createSkillMenuItem,
+	type SkillMenuItem,
+	SkillsTriggerMenu,
+} from "./SkillsTriggerMenu";
 import {
 	type ActiveSkillsTrigger,
 	SkillsTriggerPlugin,
@@ -501,7 +505,17 @@ interface ChatMessageInputProps
 	allowTextAttachmentPaste?: boolean;
 	disabled?: boolean;
 	autoFocus?: boolean;
+	workspaceId?: string;
+	/**
+	 * Story and test seam for deterministic personal skill menu data.
+	 */
 	personalSkillsOverride?: readonly TypesGen.UserSkillMetadata[];
+	/**
+	 * Authoritative workspace skill menu data. Existing chats pass the
+	 * chat's pinned context skills so the menu matches read_skill
+	 * resolution.
+	 */
+	workspaceSkillsOverride?: readonly TypesGen.WorkspaceSkillMetadata[];
 	"aria-label"?: string;
 }
 
@@ -567,7 +581,9 @@ const ChatMessageInput = ({
 	allowTextAttachmentPaste,
 	disabled,
 	autoFocus,
+	workspaceId,
 	personalSkillsOverride,
+	workspaceSkillsOverride,
 	"aria-label": ariaLabel,
 	ref,
 	...props
@@ -597,30 +613,61 @@ const ChatMessageInput = ({
 	const [skillsMenuSelectedIndex, setSkillsMenuSelectedIndex] = useState(0);
 	const hasSkillsTrigger = Boolean(skillsTrigger);
 	const hasPersonalSkillsOverride = personalSkillsOverride !== undefined;
+	const hasWorkspaceSkillsOverride = workspaceSkillsOverride !== undefined;
+	const personalSkillsQueryEnabled =
+		hasSkillsTrigger && !hasPersonalSkillsOverride;
+	const workspaceSkillsQueryEnabled =
+		hasSkillsTrigger && Boolean(workspaceId) && !hasWorkspaceSkillsOverride;
 	const skillsQuery = useQuery({
 		...userSkills(),
-		enabled: hasSkillsTrigger && !hasPersonalSkillsOverride,
+		enabled: personalSkillsQueryEnabled,
 		// Avoid refetching on each trigger toggle from caret movement.
 		staleTime: 60_000,
 	});
+	const workspaceSkillsQuery = useQuery({
+		...workspaceSkills(workspaceId ?? ""),
+		enabled: workspaceSkillsQueryEnabled,
+		staleTime: 60_000,
+	});
 	const personalSkills = personalSkillsOverride ?? skillsQuery.data ?? [];
+	const loadedWorkspaceSkills =
+		workspaceSkillsOverride ?? workspaceSkillsQuery.data ?? [];
 	// A stale empty cache with a refetch in flight must not dismiss the menu.
-	const isResolvedEmptySkillsList = hasPersonalSkillsOverride
+	const isResolvedEmptyPersonalSkills = hasPersonalSkillsOverride
 		? personalSkills.length === 0
 		: skillsQuery.isSuccess &&
 			!skillsQuery.isFetching &&
 			personalSkills.length === 0;
-	// When the loaded skills list is empty, "/" is plain text. When only
-	// the filtered result is empty, keep the menu open for the no-match
-	// message.
-	const skillsMenuOpen = hasSkillsTrigger && !isResolvedEmptySkillsList;
-	const filteredPersonalSkills = skillsTrigger
-		? filterPersonalSkills(personalSkills, skillsTrigger.query)
-		: [];
+	const isResolvedEmptyWorkspaceSkills = workspaceSkillsQueryEnabled
+		? workspaceSkillsQuery.isSuccess &&
+			!workspaceSkillsQuery.isFetching &&
+			loadedWorkspaceSkills.length === 0
+		: loadedWorkspaceSkills.length === 0;
+	// When both loaded skills lists are empty, "/" is plain text. When
+	// only the filtered result is empty, keep the menu open for the
+	// no-match message.
+	const skillsMenuOpen =
+		hasSkillsTrigger &&
+		!(isResolvedEmptyPersonalSkills && isResolvedEmptyWorkspaceSkills);
+	const skillsSearchQuery = skillsTrigger?.query ?? "";
+	const personalSkillItems: readonly SkillMenuItem[] = filterSkillsByQuery(
+		personalSkills.map((skill) => createSkillMenuItem("personal", skill)),
+		skillsSearchQuery,
+	);
+	const workspaceSkillItems: readonly SkillMenuItem[] = filterSkillsByQuery(
+		loadedWorkspaceSkills.map((skill) =>
+			createSkillMenuItem("workspace", skill),
+		),
+		skillsSearchQuery,
+	);
+	const allFilteredSkills: readonly SkillMenuItem[] = [
+		...personalSkillItems,
+		...workspaceSkillItems,
+	];
 	const selectedSkillIndex =
-		filteredPersonalSkills.length === 0
+		allFilteredSkills.length === 0
 			? -1
-			: Math.min(skillsMenuSelectedIndex, filteredPersonalSkills.length - 1);
+			: Math.min(skillsMenuSelectedIndex, allFilteredSkills.length - 1);
 
 	const handleSkillsTriggerChange = (trigger: ActiveSkillsTrigger | null) => {
 		if (
@@ -640,7 +687,7 @@ const ChatMessageInput = ({
 		setSkillsTrigger(trigger);
 	};
 
-	const replaceActiveSkillsTrigger = (skill: TypesGen.UserSkillMetadata) => {
+	const replaceActiveSkillsTrigger = (skill: SkillMenuItem) => {
 		const editor = editorRef.current;
 		const trigger = skillsTrigger;
 		if (!editor || !trigger) {
@@ -680,7 +727,7 @@ const ChatMessageInput = ({
 
 			selection.anchor.set(trigger.nodeKey, trigger.slashOffset, "text");
 			selection.focus.set(trigger.nodeKey, caretOffset, "text");
-			selection.insertText(personalSkillTriggerText(skill));
+			selection.insertText(skill.triggerText);
 		});
 		setSkillsTrigger(null);
 		setSkillsMenuSelectedIndex(0);
@@ -890,7 +937,7 @@ const ChatMessageInput = ({
 				<InsertTextPlugin onEditorReady={handleEditorReady} />
 				<SkillsTriggerPlugin
 					open={skillsMenuOpen}
-					skills={filteredPersonalSkills}
+					skills={allFilteredSkills}
 					selectedIndex={selectedSkillIndex}
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					onTriggerChange={handleSkillsTriggerChange}
@@ -898,19 +945,35 @@ const ChatMessageInput = ({
 				/>
 				<EditableStatePlugin disabled={Boolean(disabled)} />
 				{autoFocus && <AutoFocusPlugin />}
-				<PersonalSkillsTriggerMenu
+				<SkillsTriggerMenu
 					open={skillsMenuOpen}
 					anchorRect={skillsTrigger?.anchorRect ?? null}
-					query={skillsTrigger?.query ?? ""}
-					skills={filteredPersonalSkills}
-					isLoading={
-						skillsMenuOpen &&
-						personalSkills.length === 0 &&
-						skillsQuery.isFetching
+					query={skillsSearchQuery}
+					personalSkills={personalSkillItems}
+					workspaceSkills={workspaceSkillItems}
+					workspaceSkillsEnabled={Boolean(workspaceId)}
+					isPersonalLoading={
+						personalSkillsQueryEnabled &&
+						skillsQuery.isFetching &&
+						skillsQuery.data === undefined
 					}
-					onSelectedIndexChange={setSkillsMenuSelectedIndex}
-					isError={skillsMenuOpen && skillsQuery.isError}
+					isPersonalError={
+						personalSkillsQueryEnabled &&
+						skillsQuery.isError &&
+						skillsQuery.data === undefined
+					}
+					isWorkspaceLoading={
+						workspaceSkillsQueryEnabled &&
+						workspaceSkillsQuery.isFetching &&
+						workspaceSkillsQuery.data === undefined
+					}
+					isWorkspaceError={
+						workspaceSkillsQueryEnabled &&
+						workspaceSkillsQuery.isError &&
+						workspaceSkillsQuery.data === undefined
+					}
 					selectedIndex={selectedSkillIndex}
+					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					onSelect={replaceActiveSkillsTrigger}
 					onClose={() => handleSkillsTriggerChange(null)}
 				/>

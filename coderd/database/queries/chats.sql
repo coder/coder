@@ -1264,65 +1264,86 @@ SELECT *
 FROM chats_expanded;
 
 -- name: UpdateChatWorkspaceBinding :one
-WITH updated_chat AS (
-UPDATE chats SET
-    workspace_id = sqlc.narg('workspace_id')::uuid,
-    build_id = sqlc.narg('build_id')::uuid,
-    agent_id = sqlc.narg('agent_id')::uuid,
-    updated_at = NOW()
-WHERE id = @id::uuid
-RETURNING *
+WITH current_chat AS (
+    SELECT *
+    FROM chats
+    WHERE id = @id::uuid
+),
+binding_changed AS (
+    SELECT
+        workspace_id IS DISTINCT FROM sqlc.narg('workspace_id')::uuid
+            OR build_id IS DISTINCT FROM sqlc.narg('build_id')::uuid
+            OR agent_id IS DISTINCT FROM sqlc.narg('agent_id')::uuid AS changed
+    FROM current_chat
+),
+changed_chat AS (
+    UPDATE chats SET
+        workspace_id = sqlc.narg('workspace_id')::uuid,
+        build_id = sqlc.narg('build_id')::uuid,
+        agent_id = sqlc.narg('agent_id')::uuid,
+        updated_at = NOW()
+    WHERE id = @id::uuid
+        AND (SELECT changed FROM binding_changed)
+    RETURNING *
+),
+result_chat AS (
+    SELECT *
+    FROM changed_chat
+    UNION ALL
+    SELECT *
+    FROM current_chat
+    WHERE NOT (SELECT changed FROM binding_changed)
 ),
 chats_expanded AS (
     SELECT
-        updated_chat.id,
-        updated_chat.owner_id,
-        updated_chat.workspace_id,
-        updated_chat.title,
-        updated_chat.status,
-        updated_chat.worker_id,
-        updated_chat.started_at,
-        updated_chat.heartbeat_at,
-        updated_chat.created_at,
-        updated_chat.updated_at,
-        updated_chat.parent_chat_id,
-        updated_chat.root_chat_id,
-        updated_chat.last_model_config_id,
-        updated_chat.last_reasoning_effort,
-        updated_chat.archived,
-        updated_chat.last_error,
-        updated_chat.mode,
-        updated_chat.mcp_server_ids,
-        updated_chat.labels,
-        updated_chat.build_id,
-        updated_chat.agent_id,
-        updated_chat.pin_order,
-        updated_chat.last_read_message_id,
-        updated_chat.dynamic_tools,
-        updated_chat.organization_id,
-        updated_chat.plan_mode,
-        updated_chat.client_type,
-        updated_chat.last_turn_summary,
-        updated_chat.snapshot_version,
-        updated_chat.history_version,
-        updated_chat.queue_version,
-        updated_chat.generation_attempt,
-        updated_chat.retry_state,
-        updated_chat.retry_state_version,
-        updated_chat.runner_id,
-        updated_chat.requires_action_deadline_at,
-        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
-        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
+        result_chat.id,
+        result_chat.owner_id,
+        result_chat.workspace_id,
+        result_chat.title,
+        result_chat.status,
+        result_chat.worker_id,
+        result_chat.started_at,
+        result_chat.heartbeat_at,
+        result_chat.created_at,
+        result_chat.updated_at,
+        result_chat.parent_chat_id,
+        result_chat.root_chat_id,
+        result_chat.last_model_config_id,
+        result_chat.last_reasoning_effort,
+        result_chat.archived,
+        result_chat.last_error,
+        result_chat.mode,
+        result_chat.mcp_server_ids,
+        result_chat.labels,
+        result_chat.build_id,
+        result_chat.agent_id,
+        result_chat.pin_order,
+        result_chat.last_read_message_id,
+        result_chat.dynamic_tools,
+        result_chat.organization_id,
+        result_chat.plan_mode,
+        result_chat.client_type,
+        result_chat.last_turn_summary,
+        result_chat.snapshot_version,
+        result_chat.history_version,
+        result_chat.queue_version,
+        result_chat.generation_attempt,
+        result_chat.retry_state,
+        result_chat.retry_state_version,
+        result_chat.runner_id,
+        result_chat.requires_action_deadline_at,
+        COALESCE(root.user_acl, result_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, result_chat.group_acl) AS group_acl,
         owner.username AS owner_username,
         owner.name AS owner_name,
-        updated_chat.context_aggregate_hash,
-        updated_chat.context_dirty_since,
-        updated_chat.context_dirty_resources,
-        updated_chat.context_error
+        result_chat.context_aggregate_hash,
+        result_chat.context_dirty_since,
+        result_chat.context_dirty_resources,
+        result_chat.context_error
     FROM
-        updated_chat
-    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
-    JOIN visible_users owner ON owner.id = updated_chat.owner_id
+        result_chat
+    LEFT JOIN chats root ON root.id = COALESCE(result_chat.root_chat_id, result_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = result_chat.owner_id
 )
 SELECT *
 FROM chats_expanded;

@@ -1,5 +1,16 @@
 package coderd
 
+import "github.com/coder/coder/v2/coderd/workspaceapps"
+
+// SetAgentProviderForTest replaces the workspace agent provider for external tests.
+func SetAgentProviderForTest(api *API, provider workspaceapps.AgentProvider) func() {
+	previous := api.agentProvider
+	api.agentProvider = provider
+	return func() {
+		api.agentProvider = previous
+	}
+}
+
 // ChatStartWorkspace exposes chatStartWorkspace for external tests.
 //
 // chatStartWorkspace is intentionally unexported to keep symmetry with

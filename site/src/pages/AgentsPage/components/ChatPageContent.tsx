@@ -46,6 +46,20 @@ const isChatMessage = (
 	message: TypesGen.ChatMessage | undefined,
 ): message is TypesGen.ChatMessage => Boolean(message);
 
+export const workspaceSkillsFromChatContext = (
+	context: TypesGen.ChatContext | undefined,
+): TypesGen.WorkspaceSkillMetadata[] | undefined =>
+	context?.resources
+		? context.resources
+				.filter(
+					(resource) => resource.kind === "skill" && resource.status === "ok",
+				)
+				.map((resource) => ({
+					name: resource.skill_name ?? "",
+					description: resource.skill_description ?? "",
+				}))
+		: undefined;
+
 interface ChatPageTimelineProps {
 	store: ChatStoreHandle;
 	persistedError: ChatDetailError | undefined;
@@ -329,6 +343,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 					onError: () => toast.error("Failed to refresh context."),
 				})
 		: undefined;
+	const workspaceSkillsOverride = workspaceSkillsFromChatContext(chatContext);
 	const composeAttachments = useChatDraftAttachments(organizationId, chatId, {
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
@@ -521,6 +536,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			selectedMCPServerIds={selectedMCPServerIds}
 			onMCPSelectionChange={onMCPSelectionChange}
 			onMCPAuthComplete={onMCPAuthComplete}
+			workspaceSkillsOverride={workspaceSkillsOverride}
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}
 			chatId={chatId}

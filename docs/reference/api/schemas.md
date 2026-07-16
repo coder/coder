@@ -2880,7 +2880,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `args_delta`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `completed_at`                 | string                                                       | false    |              | Completed at is the time a reasoning part finished streaming, so reasoning duration can be computed as completed_at minus created_at. For interrupted reasoning, this is the interruption time. Absent when reasoning timestamp data was not recorded (e.g. messages persisted before this feature was added).                                                                                             |
 | `content`                      | string                                                       | false    |              | The code content from the diff that was commented on.                                                                                                                                                                                                                                                                                                                                                      |
-| `context_file_agent_id`        | [uuid.NullUUID](#uuidnulluuid)                               | false    |              | Context file agent ID is the workspace agent that provided this context file. Used to detect when the agent changes (e.g. workspace rebuilt) so instruction files can be re-persisted with fresh content.                                                                                                                                                                                                  |
+| `context_file_agent_id`        | [uuid.NullUUID](#uuidnulluuid)                               | false    |              | Context file agent ID is the workspace agent that provided this context part. Used to detect when the agent changes (e.g. workspace rebuilt) so instruction files can be re-persisted with fresh content.                                                                                                                                                                                                  |
 | `context_file_content`         | string                                                       | false    |              | Context file content holds the file content sent to the LLM. Internal only: stripped before API responses to keep payloads small. The backend reads it when building the prompt via partsToMessageParts.                                                                                                                                                                                                   |
 | `context_file_directory`       | string                                                       | false    |              | Context file directory is the working directory of the workspace agent. Internal only: same purpose as ContextFileOS.                                                                                                                                                                                                                                                                                      |
 | `context_file_os`              | string                                                       | false    |              | Context file os is the operating system of the workspace agent. Internal only: used during prompt expansion so the LLM knows the OS even on turns where InsertSystem is not called.                                                                                                                                                                                                                        |
@@ -16501,6 +16501,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Property                     | Value(s)                               |
 |------------------------------|----------------------------------------|
 | `shareable_workspace_owners` | `everyone`, `none`, `service_accounts` |
+
+## codersdk.WorkspaceSkillMetadata
+
+```json
+{
+  "description": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `description` | string | false    |              |             |
+| `name`        | string | false    |              |             |
 
 ## codersdk.WorkspaceStatus
 

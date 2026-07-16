@@ -1338,6 +1338,10 @@ export const createChatMessage = (
 	onSuccess: () => {
 		void invalidateChatDebugRuns(queryClient, chatId);
 		void queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		void queryClient.invalidateQueries({
 			queryKey: chatPromptsKey(chatId),
 			exact: true,
 		});

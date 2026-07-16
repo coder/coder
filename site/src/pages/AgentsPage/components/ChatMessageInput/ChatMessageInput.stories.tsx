@@ -10,6 +10,18 @@ import {
 	MockSkills,
 } from "./storyHelpers";
 
+// Override props keep skill menu stories deterministic without network calls.
+const mockWorkspaceSkills: TypesGen.WorkspaceSkillMetadata[] = [
+	{
+		name: "test-runner",
+		description: "Run the workspace test command.",
+	},
+	{
+		name: "workspace-docs",
+		description: "Use repository documentation conventions.",
+	},
+];
+
 const meta: Meta<typeof ChatMessageInput> = {
 	title: "components/ChatMessageInput/ChatMessageInput",
 	component: ChatMessageInput,
@@ -156,6 +168,50 @@ export const ClickSelectsSkill: Story = {
 	},
 };
 
+export const OpensWithPersonalAndWorkspaceSkills: Story = {
+	args: {
+		workspaceId: "workspace-1",
+		workspaceSkillsOverride: mockWorkspaceSkills,
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+		expect(await findVisibleText("Personal skills")).toBeDefined();
+		expect(await findVisibleText("Workspace skills")).toBeDefined();
+		expect(await findVisibleText("/reviewer")).toBeDefined();
+		expect(await findVisibleText("/workspace/test-runner")).toBeDefined();
+	},
+};
+
+export const ArrowDownSelectsWorkspaceSkill: Story = {
+	args: {
+		workspaceId: "workspace-1",
+		workspaceSkillsOverride: mockWorkspaceSkills,
+	},
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/");
+		await findVisibleText("/workspace/test-runner");
+		await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{Enter}");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/workspace/test-runner");
+		});
+	},
+};
+
+export const UniqueWorkspaceQualifiedPrefixStaysSearchable: Story = {
+	args: {
+		workspaceId: "workspace-1",
+		workspaceSkillsOverride: mockWorkspaceSkills,
+	},
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/workspace/t");
+		expect(await findVisibleText("/workspace/test-runner")).toBeDefined();
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/workspace/test-runner");
+		});
+	},
+};
+
 export const EmptyDescriptionInsertsNameOnly: Story = {
 	play: async ({ canvasElement }) => {
 		const editor = await typeInEditor(canvasElement, "/pla");
@@ -170,18 +226,6 @@ export const EmptyDescriptionInsertsNameOnly: Story = {
 export const SlashInsideUrlDoesNotOpen: Story = {
 	play: async ({ canvasElement }) => {
 		await typeInEditor(canvasElement, "https://");
-		await expectNoVisibleText("/reviewer");
-	},
-};
-
-export const BackspaceClosesWithoutEmptyStateFlash: Story = {
-	play: async ({ canvasElement }) => {
-		const editor = await typeInEditor(canvasElement, "/");
-		await findVisibleText("/reviewer");
-		await userEvent.keyboard("{Backspace}");
-
-		expect(editor.textContent).toBe("");
-		expectNoVisibleTextImmediately("No personal skills found.");
 		await expectNoVisibleText("/reviewer");
 	},
 };
@@ -230,8 +274,8 @@ export const OutsideClickDismissesTriggerOnRefocus: Story = {
 	},
 };
 
-// Stories below verify that on mobile viewports, the personal skills
-// popup sits directly above the chat input rather than being clipped
+// Stories below verify that on mobile viewports, the skills popup
+// sits directly above the chat input rather than being clipped
 // above the visible viewport.
 
 const MOBILE_MEDIA_QUERY = "(max-width: 767px)";
