@@ -200,7 +200,6 @@ type ExecutionRecord struct {
 	Status ExecutionStatus
 	// ProcessID is empty until the process start is recorded.
 	ProcessID  string
-	Command    string
 	Background bool
 	Timeout    time.Duration
 	// ClaimEpoch guards process-identity writes; it advances on
@@ -265,6 +264,11 @@ type ExecuteOptions struct {
 	// duplicate process. A nil Recorder disables idempotent
 	// starts.
 	Recorder ExecutionRecorder
+	// DialAgent dials a specific workspace agent so re-attach can
+	// reach a recorded process whose agent is no longer the one
+	// behind GetWorkspaceConn. When nil, such re-attaches abort
+	// the batch instead of probing the wrong agent.
+	DialAgent AgentConnFunc
 	// connAgentID is the agent behind the conn returned by
 	// GetWorkspaceConn, captured with it and carried to ledger
 	// writes on this options copy.
@@ -295,7 +299,7 @@ const ExecuteToolName = "execute"
 func Execute(options ExecuteOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		ExecuteToolName,
-		"Execute a shell command in the workspace. Runs under \"sh -c\" (POSIX). Waits for completion up to the timeout (default 10s, override with the timeout parameter e.g. '30s', '5m'). If the command exceeds the timeout, the response includes a background_process_id; use process_output with that ID to re-attach and wait for the result. Use run_in_background=true for persistent processes (dev servers, file watchers) or when you want to continue other work while the command runs. Never use shell '&' for backgrounding.",
+		"Execute a shell command in the workspace. Runs under \"sh -c\" (POSIX). Waits for completion up to the timeout (default 10s, override with the timeout parameter e.g. '30s', '5m'; maximum 4h, longer values are clamped). If the command exceeds the timeout, the response includes a background_process_id; use process_output with that ID to re-attach and wait for the result. Use run_in_background=true for persistent processes (dev servers, file watchers) or when you want to continue other work while the command runs. Never use shell '&' for backgrounding.",
 		func(ctx context.Context, args ExecuteArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
@@ -327,6 +331,12 @@ func executeTool(
 	call fantasy.ToolCall,
 ) (fantasy.ToolResponse, error) {
 	toolCallID := call.ID
+	if options.Recorder != nil && toolCallID == "" {
+		// The ledger keys rows by tool call ID; an ID-less call
+		// cannot be tracked and must not share the empty-ID row
+		// with another such call.
+		return fantasy.NewTextErrorResponse("tool call has no ID; refusing to execute untracked command"), nil
+	}
 	if args.Command == "" {
 		markTerminal(ctx, options, toolCallID, ExecutionStatusNoEffect)
 		return fantasy.NewTextErrorResponse("command is required"), nil
@@ -383,9 +393,16 @@ func executeTool(
 
 	var rec ExecutionRecord
 	if options.Recorder != nil {
+		// Background executions have no completion deadline, so
+		// their rows record a zero timeout instead of a value
+		// re-attach would never read.
+		claimTimeout := timeout
+		if background {
+			claimTimeout = 0
+		}
 		var claimed bool
 		var err error
-		rec, claimed, err = options.Recorder.Claim(ctx, toolCallID, HashToolInput(call.Input), args.Command, background, timeout)
+		rec, claimed, err = options.Recorder.Claim(ctx, toolCallID, HashToolInput(call.Input), args.Command, background, claimTimeout)
 		if err != nil {
 			if xerrors.Is(err, ErrExecutionInputMismatch) {
 				options.Logger.Warn(ctx, "execute claim targeted stale lineage",
@@ -588,6 +605,14 @@ func awaitRecordedProcess(
 		}
 		latest, err := options.Recorder.Get(ctx, toolCallID)
 		if err != nil {
+			// A failed poll is not evidence about the claim
+			// owner; keep polling, but leave a trace so a DB
+			// outage here is distinguishable from a claimer
+			// that really never recorded its process.
+			options.Logger.Warn(ctx, "failed to poll execution claim during grace window",
+				slog.F("tool_call_id", toolCallID),
+				slog.Error(err),
+			)
 			continue
 		}
 		if latest.Status != ExecutionStatusStarting {
@@ -611,6 +636,28 @@ func reattachProcess(
 		return resolveBackgroundRow(ctx, options, toolCallID, rec), nil
 	}
 
+	// The recorded process only exists on the agent that started
+	// it. When the turn's connection targets a different agent,
+	// dial the owner directly instead of probing an agent that
+	// knows nothing about the process.
+	connTargetsOwner := rec.WorkspaceAgentID == uuid.Nil || rec.WorkspaceAgentID == options.connAgentID
+	if !connTargetsOwner && options.DialAgent != nil {
+		ownerConn, release, dialErr := options.DialAgent(ctx, rec.WorkspaceAgentID)
+		if dialErr != nil {
+			// Committing a result here would end re-attachment
+			// without ever asking the owning agent.
+			return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf(
+				"dial agent %s that owns process %s: %w",
+				rec.WorkspaceAgentID, rec.ProcessID, dialErr,
+			)}
+		}
+		if release != nil {
+			defer release()
+		}
+		conn = ownerConn
+		connTargetsOwner = true
+	}
+
 	snapCtx, cancel := context.WithTimeout(ctx, snapshotTimeout)
 	resp, err := conn.ProcessOutput(snapCtx, rec.ProcessID, nil)
 	cancel()
@@ -622,7 +669,11 @@ func reattachProcess(
 		// errors leave the process potentially retrievable.
 		var sdkErr *codersdk.Error
 		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
-			if rec.WorkspaceAgentID == uuid.Nil || rec.WorkspaceAgentID == options.connAgentID {
+			if connTargetsOwner {
+				options.Logger.Warn(ctx, "recorded execute process is no longer known to its agent; resolving execution unknown",
+					slog.F("tool_call_id", toolCallID),
+					slog.F("process_id", rec.ProcessID),
+				)
 				markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
 				return processLostResponse(rec.ProcessID), nil
 			}
@@ -635,6 +686,11 @@ func reattachProcess(
 				rec.ProcessID, rec.WorkspaceAgentID, options.connAgentID, err,
 			)}
 		}
+		options.Logger.Warn(ctx, "failed to re-attach to recorded execute process",
+			slog.F("tool_call_id", toolCallID),
+			slog.F("process_id", rec.ProcessID),
+			slog.Error(err),
+		)
 		return errorResultWithProcess(
 			fmt.Sprintf("re-attach to process: %v; use process_output with ID %s to retry", err, rec.ProcessID),
 			rec.ProcessID,
@@ -645,16 +701,7 @@ func reattachProcess(
 		// The process finished while no attempt was watching.
 		// Return the real result even if the deadline passed.
 		markTerminal(ctx, options, toolCallID, ExecutionStatusExited)
-		exitCode := 0
-		if resp.ExitCode != nil {
-			exitCode = *resp.ExitCode
-		}
-		result := ExecuteResult{
-			Success:   exitCode == 0,
-			Output:    truncateOutput(resp.Output),
-			ExitCode:  exitCode,
-			Truncated: resp.Truncated,
-		}
+		result := completedResult(resp)
 		if !rec.StartedAt.IsZero() {
 			result.WallDurationMs = time.Since(rec.StartedAt).Milliseconds()
 		}
@@ -848,6 +895,22 @@ func executeForeground(
 	return marshalResult(result)
 }
 
+// completedResult builds the ExecuteResult for a process output
+// snapshot, treating a missing exit code as success. Callers
+// override the running-process fields when resp.Running is true.
+func completedResult(resp workspacesdk.ProcessOutputResponse) ExecuteResult {
+	exitCode := 0
+	if resp.ExitCode != nil {
+		exitCode = *resp.ExitCode
+	}
+	return ExecuteResult{
+		Success:   exitCode == 0,
+		Output:    truncateOutput(resp.Output),
+		ExitCode:  exitCode,
+		Truncated: resp.Truncated,
+	}
+}
+
 // truncateOutput safely truncates output to maxOutputToModel,
 // ensuring the result is valid UTF-8 even if the cut falls in
 // the middle of a multi-byte character.
@@ -914,17 +977,7 @@ func waitForProcess(
 		// Snapshot succeeded. If the process finished, return
 		// its real result (transparent recovery).
 		if !resp.Running {
-			exitCode := 0
-			if resp.ExitCode != nil {
-				exitCode = *resp.ExitCode
-			}
-			output := truncateOutput(resp.Output)
-			return ExecuteResult{
-				Success:   exitCode == 0,
-				Output:    output,
-				ExitCode:  exitCode,
-				Truncated: resp.Truncated,
-			}, false
+			return completedResult(resp), false
 		}
 
 		// Process still running, return partial output.
@@ -963,17 +1016,7 @@ func waitForProcess(
 		}, false
 	}
 
-	exitCode := 0
-	if resp.ExitCode != nil {
-		exitCode = *resp.ExitCode
-	}
-	output := truncateOutput(resp.Output)
-	return ExecuteResult{
-		Success:   exitCode == 0,
-		Output:    output,
-		ExitCode:  exitCode,
-		Truncated: resp.Truncated,
-	}, false
+	return completedResult(resp), false
 }
 
 // errorResult builds a ToolResponse from an ExecuteResult with
@@ -1053,7 +1096,8 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 			"the timeout, returns the output so far. Use "+
 			"wait_timeout to override the default 10s wait "+
 			"(e.g. '30s', or '0s' for an immediate snapshot "+
-			"without waiting).",
+			"without waiting; maximum 4h, longer values are "+
+			"clamped).",
 		func(ctx context.Context, args ProcessOutputArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
@@ -1072,6 +1116,11 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 				if err != nil {
 					return fantasy.NewTextErrorResponse(
 						fmt.Sprintf("invalid wait_timeout %q: %v", *args.WaitTimeout, err),
+					), nil
+				}
+				if parsed < 0 {
+					return fantasy.NewTextErrorResponse(
+						fmt.Sprintf("wait_timeout must not be negative, got %q; use '0s' for an immediate snapshot", *args.WaitTimeout),
 					), nil
 				}
 				timeout = parsed
@@ -1105,17 +1154,7 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 				}
 				// Fall through to normal response handling below.
 			}
-			output := truncateOutput(resp.Output)
-			exitCode := 0
-			if resp.ExitCode != nil {
-				exitCode = *resp.ExitCode
-			}
-			result := ExecuteResult{
-				Success:   !resp.Running && exitCode == 0,
-				Output:    output,
-				ExitCode:  exitCode,
-				Truncated: resp.Truncated,
-			}
+			result := completedResult(resp)
 			if resp.Running {
 				// Process is still running, success is not
 				// yet determined.

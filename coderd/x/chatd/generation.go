@@ -1029,6 +1029,12 @@ func insertExecutionIntents(ctx context.Context, store database.Store, chatID uu
 			if part.Type != codersdk.ChatMessagePartTypeToolCall || part.ProviderExecuted || part.ToolName != chattool.ExecuteToolName {
 				continue
 			}
+			// Rows are addressed by tool call ID; the execute tool
+			// refuses ID-less calls, so an intent row keyed by the
+			// empty ID would only alias such calls together.
+			if part.ToolCallID == "" {
+				continue
+			}
 			err := store.InsertChatToolCallExecutionIntent(ctx, database.InsertChatToolCallExecutionIntentParams{
 				ID:                 uuid.New(),
 				ChatID:             chatID,

@@ -2041,7 +2041,8 @@ CREATE TABLE chat_tool_call_executions (
     result_committed_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     started_at timestamp with time zone,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_tool_call_executions_check CHECK (((process_id IS NULL) = (started_at IS NULL)))
 );
 
 COMMENT ON COLUMN chat_tool_call_executions.id IS 'Stable execution identity, generated at intent creation. Doubles as the opaque idempotency token sent to the workspace agent.';
@@ -2052,7 +2053,7 @@ COMMENT ON COLUMN chat_tool_call_executions.input_sha256 IS 'SHA-256 of the pers
 
 COMMENT ON COLUMN chat_tool_call_executions.command IS 'Recorded at claim time for diagnostics only; never used for deduplication.';
 
-COMMENT ON COLUMN chat_tool_call_executions.timeout_secs IS 'The clamped tool timeout, recorded at claim time.';
+COMMENT ON COLUMN chat_tool_call_executions.timeout_secs IS 'The clamped foreground tool timeout, recorded at claim time. Zero for background executions, which have no completion deadline.';
 
 COMMENT ON COLUMN chat_tool_call_executions.claim_epoch IS 'Incremented on every claim. Guards process-identity writes so a superseded claimer cannot overwrite the current claim.';
 

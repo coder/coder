@@ -5301,7 +5301,7 @@ type ChatToolCallExecution struct {
 	// Recorded at claim time for diagnostics only; never used for deduplication.
 	Command    string `db:"command" json:"command"`
 	Background bool   `db:"background" json:"background"`
-	// The clamped tool timeout, recorded at claim time.
+	// The clamped foreground tool timeout, recorded at claim time. Zero for background executions, which have no completion deadline.
 	TimeoutSecs int64 `db:"timeout_secs" json:"timeout_secs"`
 	// Incremented on every claim. Guards process-identity writes so a superseded claimer cannot overwrite the current claim.
 	ClaimEpoch       int64          `db:"claim_epoch" json:"claim_epoch"`

@@ -34,14 +34,17 @@ CREATE TABLE chat_tool_call_executions (
     created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
     started_at            TIMESTAMPTZ,
     updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (chat_id, assistant_message_id, tool_call_id)
+    UNIQUE (chat_id, assistant_message_id, tool_call_id),
+    -- Process identity is recorded atomically: a row either has a
+    -- dispatched process with its start time or neither.
+    CHECK ((process_id IS NULL) = (started_at IS NULL))
 );
 
 COMMENT ON COLUMN chat_tool_call_executions.id IS 'Stable execution identity, generated at intent creation. Doubles as the opaque idempotency token sent to the workspace agent.';
 COMMENT ON COLUMN chat_tool_call_executions.assistant_message_id IS 'Lineage: the assistant message that issued the tool call. Provider tool call IDs may repeat across regenerated messages, so identity is (chat_id, assistant_message_id, tool_call_id).';
 COMMENT ON COLUMN chat_tool_call_executions.input_sha256 IS 'SHA-256 of the persisted tool input, asserted at claim time to catch stale lineage.';
 COMMENT ON COLUMN chat_tool_call_executions.command IS 'Recorded at claim time for diagnostics only; never used for deduplication.';
-COMMENT ON COLUMN chat_tool_call_executions.timeout_secs IS 'The clamped tool timeout, recorded at claim time.';
+COMMENT ON COLUMN chat_tool_call_executions.timeout_secs IS 'The clamped foreground tool timeout, recorded at claim time. Zero for background executions, which have no completion deadline.';
 COMMENT ON COLUMN chat_tool_call_executions.claim_epoch IS 'Incremented on every claim. Guards process-identity writes so a superseded claimer cannot overwrite the current claim.';
 COMMENT ON COLUMN chat_tool_call_executions.cancel_signal_sent_at IS 'Set when an interrupt delivered a kill signal whose effect was not yet confirmed.';
 COMMENT ON COLUMN chat_tool_call_executions.result_committed_at IS 'Set in the transaction that commits the tool result message (real or synthetic). Orthogonal to status, which keeps lifecycle truth.';

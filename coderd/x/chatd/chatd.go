@@ -1143,6 +1143,20 @@ func (c *turnWorkspaceContext) getWorkspaceConnAndAgent(ctx context.Context) (wo
 // AgentConnFunc provides access to workspace agent connections.
 type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error)
 
+// dialAgentForReattach dials a specific agent so the execute tool
+// can re-attach to a recorded process whose agent is no longer the
+// turn's current one. The timeout bounds only the dial; the
+// returned connection stays usable after it, matching the turn
+// resolver's dial pattern.
+func (p *Server) dialAgentForReattach(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+	if p.agentConnFn == nil {
+		return nil, nil, xerrors.New("workspace agent connector is not configured")
+	}
+	dialCtx, cancel := context.WithTimeout(ctx, p.dialTimeout)
+	defer cancel()
+	return p.agentConnFn(dialCtx, agentID)
+}
+
 var (
 	// ErrInvalidModelConfigID indicates the requested model config does not exist.
 	ErrInvalidModelConfigID = xerrors.New("invalid model config ID")

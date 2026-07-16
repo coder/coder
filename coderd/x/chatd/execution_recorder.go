@@ -69,6 +69,11 @@ func (r *executionRecorder) lineage() (int64, error) {
 // have dispatched a process whose handle was lost; the tool resolves
 // those to unknown instead.
 func (r *executionRecorder) Claim(ctx context.Context, toolCallID string, inputSHA256 string, command string, background bool, timeout time.Duration) (chattool.ExecutionRecord, bool, error) {
+	if toolCallID == "" {
+		// Rows are addressed by tool call ID; an empty ID would
+		// alias every ID-less call in the message to one row.
+		return chattool.ExecutionRecord{}, false, xerrors.New("tool call ID is required to claim an execution")
+	}
 	msgID, err := r.lineage()
 	if err != nil {
 		return chattool.ExecutionRecord{}, false, err
@@ -233,6 +238,15 @@ func (r *executionRecorder) MarkTerminal(ctx context.Context, toolCallID string,
 	if err != nil {
 		return xerrors.Errorf("update chat tool call execution status: %w", err)
 	}
+	if status == chattool.ExecutionStatusUnknown {
+		// An unknown resolution means the idempotency safety net
+		// fired: a process may have run without an observable
+		// outcome. Surface it to operators, not just the model.
+		r.logger.Warn(ctx, "execution resolved with unknown process state",
+			slog.F("chat_id", r.chatID),
+			slog.F("tool_call_id", toolCallID),
+		)
+	}
 	return nil
 }
 
@@ -263,6 +277,14 @@ func (r *executionRecorder) MarkStaleClaimUnknown(ctx context.Context, toolCallI
 	if err != nil {
 		return chattool.ExecutionRecord{}, false, xerrors.Errorf("mark stale execution claim unknown: %w", err)
 	}
+	// The idempotency safety net fired: a dead claimer may have
+	// dispatched a process whose handle was never recorded.
+	// Surface it to operators, not just the model.
+	r.logger.Warn(ctx, "stale execution claim resolved with unknown process state",
+		slog.F("chat_id", r.chatID),
+		slog.F("tool_call_id", toolCallID),
+		slog.F("claimed_at", row.ClaimedAt.Time),
+	)
 	return executionRecordFromRow(row), true, nil
 }
 
@@ -270,7 +292,6 @@ func executionRecordFromRow(row database.ChatToolCallExecution) chattool.Executi
 	rec := chattool.ExecutionRecord{
 		ID:         row.ID.String(),
 		Status:     chattool.ExecutionStatus(row.Status),
-		Command:    row.Command,
 		Background: row.Background,
 		Timeout:    time.Duration(row.TimeoutSecs) * time.Second,
 		ClaimEpoch: row.ClaimEpoch,

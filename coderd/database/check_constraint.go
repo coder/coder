@@ -25,6 +25,7 @@ const (
 	CheckChatModelConfigsAIProviderRequiredWhenActive        CheckConstraint = "chat_model_configs_ai_provider_required_when_active"       // chat_model_configs
 	CheckChatModelConfigsCompressionThresholdCheck           CheckConstraint = "chat_model_configs_compression_threshold_check"            // chat_model_configs
 	CheckChatModelConfigsContextLimitCheck                   CheckConstraint = "chat_model_configs_context_limit_check"                    // chat_model_configs
+	CheckChatToolCallExecutionsCheck                         CheckConstraint = "chat_tool_call_executions_check"                           // chat_tool_call_executions
 	CheckChatUsageLimitConfigDefaultLimitMicrosCheck         CheckConstraint = "chat_usage_limit_config_default_limit_micros_check"        // chat_usage_limit_config
 	CheckChatUsageLimitConfigPeriodCheck                     CheckConstraint = "chat_usage_limit_config_period_check"                      // chat_usage_limit_config
 	CheckChatUsageLimitConfigSingletonCheck                  CheckConstraint = "chat_usage_limit_config_singleton_check"                   // chat_usage_limit_config

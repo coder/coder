@@ -382,6 +382,7 @@ func (server *Server) prepareGeneration(
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConnAndAgent,
 			Logger:           server.logger,
 			Recorder:         executionRecorder,
+			DialAgent:        server.dialAgentForReattach,
 		}),
 		chattool.ProcessOutput(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessList(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),

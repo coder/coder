@@ -978,6 +978,15 @@ func (r executionReconciler) resolveCancelOutcomeWithoutProcess(ctx context.Cont
 		UpdatedAt:             dbtime.Now(),
 	})
 	if err == nil {
+		if status == database.ChatToolCallExecutionStatusUnknown {
+			// The idempotency safety net fired: the claim may
+			// have dispatched a process whose handle was never
+			// recorded. Surface it to operators.
+			r.logger.Warn(ctx, "interrupted execution resolved with unknown process state",
+				slog.F("chat_id", record.ChatID),
+				slog.F("tool_call_id", record.ToolCallID),
+			)
+		}
 		return
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
