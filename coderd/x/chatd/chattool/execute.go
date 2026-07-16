@@ -267,8 +267,12 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			options.connAgentID = agentID
-			return executeTool(ctx, conn, args, options, call), nil
+			// Concurrent execute calls in one step share this
+			// closure; stamp the agent on a per-call copy so one
+			// call cannot overwrite another's attribution.
+			callOptions := options
+			callOptions.connAgentID = agentID
+			return executeTool(ctx, conn, args, callOptions, call), nil
 		},
 	)
 }
@@ -558,8 +562,13 @@ func executeBackground(
 		markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
 		return errorResult(enrichStartError(fmt.Sprintf("start background process: %v", err)))
 	}
-	recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ID)
-	markTerminal(ctx, options, toolCallID, ExecutionStatusDetached)
+	// Mark detached only when the handle write landed: a detached
+	// row with no recorded process would make a retry return
+	// success without a usable handle instead of re-resolving the
+	// dispatch through the still-starting row.
+	if recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ID) {
+		markTerminal(ctx, options, toolCallID, ExecutionStatusDetached)
+	}
 
 	return marshalResult(ExecuteResult{
 		Success:             true,
@@ -573,9 +582,9 @@ func executeBackground(
 // the interrupt path needs the recorded handle to kill the process.
 // Failures are logged, never fatal: the process is already running
 // and attached, so discarding the wait would throw away real work.
-func recordProcessStart(ctx context.Context, options ExecuteOptions, toolCallID string, claimEpoch int64, processID string) {
+func recordProcessStart(ctx context.Context, options ExecuteOptions, toolCallID string, claimEpoch int64, processID string) bool {
 	if options.Recorder == nil {
-		return
+		return false
 	}
 	recordCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), recordWriteTimeout)
 	defer cancel()
@@ -585,7 +594,9 @@ func recordProcessStart(ctx context.Context, options ExecuteOptions, toolCallID 
 			slog.F("process_id", processID),
 			slog.Error(err),
 		)
+		return false
 	}
+	return true
 }
 
 // markTerminal records a lifecycle observation on an uncanceled,

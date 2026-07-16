@@ -47,3 +47,8 @@ COMMENT ON COLUMN chat_tool_call_executions.cancel_signal_sent_at IS 'Set when a
 COMMENT ON COLUMN chat_tool_call_executions.result_committed_at IS 'Set in the transaction that commits the tool result message (real or synthetic). Orthogonal to status, which keeps lifecycle truth.';
 
 CREATE INDEX idx_chat_tool_call_executions_created_at ON chat_tool_call_executions (created_at);
+
+-- The assistant-message FK cascade is checked by assistant_message_id
+-- when chat_messages rows are deleted; the unique lineage index starts
+-- with chat_id and cannot serve it.
+CREATE INDEX idx_chat_tool_call_executions_assistant_message_id ON chat_tool_call_executions (assistant_message_id);

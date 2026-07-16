@@ -4802,6 +4802,8 @@ CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs 
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 
+CREATE INDEX idx_chat_tool_call_executions_assistant_message_id ON chat_tool_call_executions USING btree (assistant_message_id);
+
 CREATE INDEX idx_chat_tool_call_executions_created_at ON chat_tool_call_executions USING btree (created_at);
 
 CREATE INDEX idx_chats_agent_id ON chats USING btree (agent_id) WHERE (agent_id IS NOT NULL);

@@ -752,6 +752,13 @@ func committedPendingLocalToolCancellationMessages(
 // fast even when the agent is slow or unreachable.
 const interruptKillDialTimeout = 5 * time.Second
 
+// interruptRecordGrace is how long after a claim an interrupted
+// row without recorded process identity is left unresolved,
+// giving an in-flight StartProcess time to land its handle on the
+// cancel_requested row. Matches the execute tool's claim staleness
+// bound.
+const interruptRecordGrace = time.Minute
+
 // reconcileInterruptedExecutions resolves the cancel_requested
 // ledger rows left by an interrupt commit. Everything is
 // best-effort: the interrupt already committed and must not fail
@@ -775,8 +782,14 @@ func (s *taskStarter) reconcileInterruptedExecutions(ctx context.Context, record
 		}
 		if !record.ProcessID.Valid || !record.WorkspaceAgentID.Valid {
 			// The claim may have dispatched a process whose
-			// identity was never recorded; there is no way to
-			// observe it.
+			// identity is not recorded yet: an interrupted
+			// in-flight StartProcess can still land its handle on
+			// this cancel_requested row. Leave young claims for a
+			// later reconciler pass; only a claim old enough that
+			// no dispatch can still be in flight is unobservable.
+			if record.ClaimedAt.Valid && time.Since(record.ClaimedAt.Time) < interruptRecordGrace {
+				continue
+			}
 			s.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, sql.NullTime{})
 			continue
 		}
