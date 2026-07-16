@@ -755,18 +755,29 @@ func recoverStaleClaim(
 		// resume from the updated row. The claim time is the
 		// lower bound of the true start, so an adopted process
 		// never wins a fresh full timeout.
-		recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ProcessID, rec.ClaimedAt)
+		recorded := recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ProcessID, rec.ClaimedAt)
 		latest, err := options.Recorder.Get(ctx, toolCallID)
 		if err == nil && latest.Status != ExecutionStatusStarting {
 			return resumeExecution(ctx, conn, options, toolCallID, latest, dispatch)
 		}
-		// The adoption write did not land (superseded or write
-		// failure). Re-attach directly with the probed handle,
-		// anchoring the deadline at the claim time as a lower
-		// bound of the true start.
-		rec.ProcessID = resp.ProcessID
-		rec.StartedAt = rec.ClaimedAt
-		return reattachProcess(ctx, conn, options, toolCallID, rec)
+		if recorded {
+			// The write landed but the read-back failed or
+			// lagged. Re-attach with the known handle, anchoring
+			// the deadline at the claim time as a lower bound of
+			// the true start.
+			rec.ProcessID = resp.ProcessID
+			rec.StartedAt = rec.ClaimedAt
+			return reattachProcess(ctx, conn, options, toolCallID, rec)
+		}
+		// The adoption write did not land and the row is still
+		// starting: re-attaching now could terminalize a row
+		// that carries no process handle, stranding a later
+		// retry. The token index is durable, so a retry probes
+		// and adopts again.
+		return errorResult(fmt.Sprintf(
+			"found process %s for a previous attempt of this command but failed to record it; retry the command",
+			resp.ProcessID,
+		)), nil
 	}
 
 	if !resp.Pending && !TrustAbsentToken(resp, rec.ClaimedAt) {

@@ -1338,6 +1338,37 @@ func TestExecuteToolRecorder(t *testing.T) {
 		assert.WithinDuration(t, time.Now().Add(-2*time.Minute), rec.StartedAt, 30*time.Second)
 	})
 
+	t.Run("StaleClaimAdoptionRecordFailureRetryable", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		recorder.recordStartErr = xerrors.New("database gone")
+		seedStaleStarting(recorder, 2*time.Minute)
+
+		// No ProcessOutput expectation: without the recorded
+		// handle, re-attaching could terminalize a handle-less
+		// row, so the attempt must return a retryable error and
+		// leave the row starting for the next probe.
+		mockConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{Found: true, ProcessID: "proc-1"}, nil)
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.False(t, result.Success)
+		assert.Contains(t, result.Error, "retry the command")
+		assert.Equal(t, chattool.ExecutionStatusStarting, recorder.record("call-1").Status)
+	})
+
 	t.Run("StaleClaimAbsentTokenYoungIndexUnknown", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
