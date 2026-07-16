@@ -739,12 +739,13 @@ func recoverStaleClaim(
 		return fantasy.NewTextErrorResponse(unknownOutcomeMessage), nil
 	}
 	probeCtx, cancel := context.WithTimeout(ctx, snapshotTimeout)
-	resp, err := conn.ProcessByToken(probeCtx, rec.ID)
+	resp, err := workspacesdk.ProbeProcessToken(probeCtx, conn, rec.ID)
 	cancel()
 	if err != nil {
-		if isNotFoundError(err) {
-			// The agent predates the token probe endpoint, so the
-			// dead claimer's dispatch cannot be verified.
+		if isNotFoundError(err) || xerrors.Is(err, workspacesdk.ErrProcessTokenProbeUnsupported) {
+			// The agent predates the token probe endpoint or the
+			// connection cannot probe, so the dead claimer's
+			// dispatch cannot be verified.
 			markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
 			return fantasy.NewTextErrorResponse(unknownOutcomeMessage), nil
 		}

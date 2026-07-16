@@ -1036,12 +1036,13 @@ func (r executionReconciler) reconcileCancelRequestedByToken(ctx context.Context
 	var resp workspacesdk.ProcessByTokenResponse
 	for {
 		probeCtx, probeCancel := context.WithTimeout(ctx, interruptKillDialTimeout)
-		resp, err = conn.ProcessByToken(probeCtx, record.ID.String())
+		resp, err = workspacesdk.ProbeProcessToken(probeCtx, conn, record.ID.String())
 		probeCancel()
 		if err != nil {
-			if isAgentNotFound(err) {
-				// The agent predates the token probe endpoint, so
-				// the token index cannot be consulted.
+			if isAgentNotFound(err) || errors.Is(err, workspacesdk.ErrProcessTokenProbeUnsupported) {
+				// The agent predates the token probe endpoint or
+				// the connection cannot probe, so the token index
+				// cannot be consulted.
 				r.resolveInterruptedWithoutProbe(ctx, conn, record)
 				return
 			}

@@ -78,6 +78,13 @@ func (c *wrappedAgentConn) Close() error {
 	return c.closeErr
 }
 
+// ProcessByToken forwards the optional token probe capability of
+// the wrapped connection, which interface embedding alone would
+// hide from callers asserting ProcessTokenProber.
+func (c *wrappedAgentConn) ProcessByToken(ctx context.Context, token string) (ProcessByTokenResponse, error) {
+	return ProbeProcessToken(ctx, c.AgentConn, token)
+}
+
 const (
 	// CoderChatIDHeader is the HTTP header containing the current
 	// chat ID. Set by coderd on agentconn requests originating
@@ -109,7 +116,6 @@ type AgentConn interface {
 	ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgentListeningPortsResponse, error)
 	Netcheck(ctx context.Context) (healthsdk.AgentNetcheckReport, error)
 	Ping(ctx context.Context) (time.Duration, bool, *ipnstate.PingResult, error)
-	ProcessByToken(ctx context.Context, token string) (ProcessByTokenResponse, error)
 	ProcessOutput(ctx context.Context, id string, opts *ProcessOutputOptions) (ProcessOutputResponse, error)
 	PrometheusMetrics(ctx context.Context) ([]byte, error)
 	ReconnectingPTY(ctx context.Context, id uuid.UUID, height uint16, width uint16, command string, initOpts ...AgentReconnectingPTYInitOption) (net.Conn, error)
@@ -135,6 +141,32 @@ type AgentConn interface {
 	ExecuteDesktopAction(ctx context.Context, action DesktopAction) (DesktopActionResponse, error)
 	StartDesktopRecording(ctx context.Context, req StartDesktopRecordingRequest) error
 	StopDesktopRecording(ctx context.Context, req StopDesktopRecordingRequest) (StopDesktopRecordingResponse, error)
+}
+
+// ProcessTokenProber is an optional capability of AgentConn
+// implementations: probing whether an idempotency token has a
+// process attached on the agent. It is kept off the AgentConn
+// contract so existing out-of-tree implementations keep compiling.
+// Probe through ProbeProcessToken, which degrades a missing
+// implementation to ErrProcessTokenProbeUnsupported.
+// @typescript-ignore ProcessTokenProber
+type ProcessTokenProber interface {
+	ProcessByToken(ctx context.Context, token string) (ProcessByTokenResponse, error)
+}
+
+// ErrProcessTokenProbeUnsupported reports an AgentConn
+// implementation without the token probe capability. Like an HTTP
+// 404 from an agent that predates the probe endpoint, it is a
+// definite capability gap, not a transient failure.
+var ErrProcessTokenProbeUnsupported = xerrors.New("agent connection does not support process token probes")
+
+// ProbeProcessToken probes token ownership when conn supports it.
+func ProbeProcessToken(ctx context.Context, conn AgentConn, token string) (ProcessByTokenResponse, error) {
+	prober, ok := conn.(ProcessTokenProber)
+	if !ok {
+		return ProcessByTokenResponse{}, ErrProcessTokenProbeUnsupported
+	}
+	return prober.ProcessByToken(ctx, token)
 }
 
 // AgentConn represents a connection to a workspace agent.

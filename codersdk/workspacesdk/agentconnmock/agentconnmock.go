@@ -373,21 +373,6 @@ func (mr *MockAgentConnMockRecorder) Ping(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ping", reflect.TypeOf((*MockAgentConn)(nil).Ping), ctx)
 }
 
-// ProcessByToken mocks base method.
-func (m *MockAgentConn) ProcessByToken(ctx context.Context, token string) (workspacesdk.ProcessByTokenResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ProcessByToken", ctx, token)
-	ret0, _ := ret[0].(workspacesdk.ProcessByTokenResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ProcessByToken indicates an expected call of ProcessByToken.
-func (mr *MockAgentConnMockRecorder) ProcessByToken(ctx, token any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessByToken", reflect.TypeOf((*MockAgentConn)(nil).ProcessByToken), ctx, token)
-}
-
 // ProcessOutput mocks base method.
 func (m *MockAgentConn) ProcessOutput(ctx context.Context, id string, opts *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
 	m.ctrl.T.Helper()
