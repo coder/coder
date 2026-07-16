@@ -1,15 +1,18 @@
 package rolestore_test
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
@@ -40,6 +43,37 @@ func TestExpandCustomRoleRoles(t *testing.T) {
 	roles, err := rolestore.Expand(ctx, db, []rbac.RoleIdentifier{{Name: roleName, OrganizationID: org.ID}})
 	require.NoError(t, err)
 	require.Len(t, roles, 1, "role found")
+}
+
+func TestPrefetchCustomRoles(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mDB := dbmock.NewMockStore(ctrl)
+
+	orgID := uuid.New()
+	prefetched := database.CustomRole{
+		Name:           "prefetched",
+		DisplayName:    "Prefetched",
+		OrganizationID: uuid.NullUUID{UUID: orgID, Valid: true},
+	}
+	// The mock permits exactly one CustomRoles call: the unfiltered
+	// prefetch. A cache miss in Expand below would fail the test with an
+	// unexpected second call.
+	mDB.EXPECT().CustomRoles(gomock.Any(), database.CustomRolesParams{
+		LookupRoles:        nil,
+		ExcludeOrgRoles:    false,
+		OrganizationID:     uuid.Nil,
+		IncludeSystemRoles: true,
+	}).Times(1).Return([]database.CustomRole{prefetched}, nil)
+
+	ctx, err := rolestore.PrefetchCustomRoles(context.Background(), mDB)
+	require.NoError(t, err)
+
+	roles, err := rolestore.Expand(ctx, mDB, []rbac.RoleIdentifier{{Name: "prefetched", OrganizationID: orgID}})
+	require.NoError(t, err)
+	require.Len(t, roles, 1)
+	require.Equal(t, "prefetched", roles[0].Identifier.Name)
 }
 
 func TestReconcileSystemRole(t *testing.T) {

@@ -25,10 +25,14 @@ import (
 // accounts are excluded by the underlying query, matching
 // GetActiveUserCount.
 func CountWorkspaceCapableUsers(ctx context.Context, logger slog.Logger, db database.Store, authorizer rbac.Authorizer) (int64, error) {
-	// Custom roles resolved by rolestore.Expand are cached on the context,
-	// so each distinct custom role is fetched from the database once per
-	// count rather than once per unique role set referencing it.
-	ctx = rolestore.CustomRoleCacheContext(ctx)
+	// All custom roles are prefetched into the context's role cache in a
+	// single query; role expansion below then resolves both builtin and
+	// custom roles without per-role-set database lookups.
+	//nolint:gocritic // Counting licensed seats is a system function.
+	ctx, err := rolestore.PrefetchCustomRoles(dbauthz.AsSystemRestricted(ctx), db)
+	if err != nil {
+		return 0, xerrors.Errorf("prefetch custom roles: %w", err)
+	}
 
 	//nolint:gocritic // Counting licensed seats is a system function.
 	rows, err := db.GetActiveUsersAuthorizationRoles(dbauthz.AsSystemRestricted(ctx))
