@@ -46,6 +46,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -75,6 +76,9 @@ const (
 	// LabelSlackThread stores the "<channel>:<thread_ts>" key that
 	// binds a chat to a Slack thread.
 	LabelSlackThread = chatd.LabelSlackThread
+	// LabelSlackShared marks chats created for unlinked Slack senders
+	// (shared mode). propose_mcp_server refuses in shared mode.
+	LabelSlackShared = chatd.LabelSlackShared
 	// MetadataKeySlackEventID is the content-part metadata key that
 	// stores the unique Slack event id used for deduplication.
 	MetadataKeySlackEventID = chatd.MetadataKeySlackEventID
@@ -130,24 +134,84 @@ Slack messages use mrkdwn, not standard markdown:
 - never use headings (#) or double asterisks (**text**)
 - keep replies concise; messages over 3000 characters are truncated
 
-You can access external services via MCP servers. You may use existing
-servers or create new ones via the propose_mcp_server tool. 
+# MCP Servers
 
-- propose_mcp_server proposes a NEW server. It only posts a
-  confirmation card to the thread; nothing is created until the
-  requesting user accepts it on a Coder page. Before proposing a server,
-  always find a reliable source for its configuration, preferably the
-  connected service's official MCP documentation. Use that source to
-  determine the endpoint, authentication, and transport. Never guess
-  configuration from memory or an unverified source. Prefer
-  streamable_http over sse; use sse only when a reliable source shows
-  that streamable HTTP is unavailable. Call the tool, then END YOUR TURN
-  and wait for the [system] message reporting the outcome. Proposed servers
-  are personal to the requesting user, not the whole deployment: no other
-  users can access them. Be proactive about proposing new servers. For example,
-  if a user mentions that they'd like to access a new service but you don't have
-  an MCP server for it, propose one - don't ask for permission. The user can
-  reject the proposal, so there's no downside to proposing one right away.`
+You can access external services via MCP servers. You may use existing
+servers or create new ones via the "propose_mcp_server" tool.
+
+"propose_mcp_server" proposes a **new** server. It only posts a confirmation
+card to the thread; nothing is created until the requesting user accepts it on
+a Coder page.
+
+Before proposing a server:
+- Always find a reliable source for its configuration, preferably the connected
+  service's official MCP documentation.
+- Use that source to determine the endpoint, authentication, and transport.
+- Never guess configuration from memory or an unverified source.
+- Prefer "streamable_http" over "sse"; use "sse" only when a reliable source
+  shows that streamable HTTP is unavailable.
+- Only propose OAuth2 servers that support dynamic client registration. Right
+  now the propose_mcp_tool doesn't support static client registration.
+
+Call the tool, then **end your turn** and wait for the "[system]" message
+reporting the outcome.
+
+Proposed servers are personal to the requesting user, not the whole deployment:
+no other users can access them.
+
+Be proactive about proposing new servers. For example, if a user mentions that
+they'd like to access a new service but you don't have an MCP server for it,
+propose one - don't ask for permission. The user can reject the proposal, so
+there's no downside to proposing one right away.
+
+# Shared and individual mode modes
+
+You may be operating in either shared or individual mode.
+- Shared mode: you're responding to a Slack user who is not linked to a Coder account.
+- Individual mode: you're responding to a Slack user who is linked to a Coder account.
+
+In shared mode, you only have deployment-wide resources: workspaces you create
+are visible to everyone, and external services use global credentials.
+
+In individual mode, you have access to the resources of the user you're responding to.
+
+The modes are backed by different chat sessions: if user A started chatting with
+you in individual mode, and then user B chimed in shared mode and you're responding to them,
+you will not see the resources of user A, such as any MCP servers they configured.
+
+Users may be confused by this: if it looks like you had access to some external services
+when responding to user A, and then you're responding to user B and you don't have access
+to those services, explain that it's likely user A has those services configured, but user B
+doesn't.
+
+{{ SystemPromptSuffix }}`
+
+const systemPromptSuffixShared = `# User identity
+
+The Slack user you're responding to (user id <@{{ SlackUserID }}>) is not linked
+to a Coder account, so you are in shared mode.
+You only have deployment-wide resources: workspaces you create
+are visible to everyone, and external services use global credentials.
+
+Do not do personal or long-running work in shared mode (for example writing
+code and pushing it to GitHub). Ask the user to link their Coder account to
+Slack first so you can act on their behalf.
+
+In shared mode you can only use MCP servers that admins already configured.
+Do not call propose_mcp_server; it will fail. If the user needs a service you
+cannot reach, ask them to link their account so you can propose servers for
+them.
+
+Whenever you ask them to link their account:
+- share {{ AccessURL }}/settings/external-auth - that's the link they need to visit
+- ask them to ping you once they are connected`
+
+const systemPromptSuffixIndividual = `# User identity
+
+You have access to the resources of the user you're talking to on Slack: user id <@{{ SlackUserID }}>.
+Any integrations that you have access to are scoped to that user. You're acting on their behalf.
+Be responsible with that power. If you're about to do something potentially destructive, or
+something that may share their data with others, ask them for confirmation first.`
 
 // ChatSubmitter is the subset of *chatd.Server used by slackd.
 type ChatSubmitter interface {
@@ -198,6 +262,10 @@ type Options struct {
 	// users. New Slack thread chats are then owned by the linked Coder
 	// user; unlinked senders fall back to ChatOwnerUserID.
 	ExternalAuthProviderID string
+	// AccessURL is the deployment access URL, used in the shared-mode
+	// system prompt so unlinked senders can be pointed at
+	// /settings/external-auth to connect their Coder account.
+	AccessURL *url.URL
 
 	BotToken string
 	AppToken string
@@ -223,6 +291,7 @@ type Server struct {
 	chat       ChatSubmitter
 	ownerID    uuid.UUID
 	providerID string
+	accessURL  *url.URL
 	socket     SocketClient
 	webAPI     WebAPI
 	proposals  *ProposalsAPI
@@ -277,6 +346,7 @@ func New(opts Options) (*Server, error) {
 		chat:         opts.Chat,
 		ownerID:      opts.ChatOwnerUserID,
 		providerID:   opts.ExternalAuthProviderID,
+		accessURL:    opts.AccessURL,
 		socket:       socket,
 		webAPI:       webAPI,
 		proposals:    opts.Proposals,
@@ -429,6 +499,9 @@ func (s *Server) handleMention(ctx context.Context, eventID string, ev *slackeve
 	}
 	threadKey := ev.Channel + ":" + threadTS
 
+	// Thread identity labels used for lookup, sibling interrupt, and
+	// creation dedup. Mode labels (e.g. LabelSlackShared) are stamped
+	// only on CreateChat so they do not affect matching.
 	labels := map[string]string{
 		LabelSlackd:      "true",
 		LabelSlackThread: threadKey,
@@ -520,17 +593,26 @@ func (s *Server) handleMention(ctx context.Context, eventID string, ev *slackeve
 				}
 				return xerrors.Errorf("get default chat model config: %w", err)
 			}
+			createLabels := map[string]string{
+				LabelSlackd:      labels[LabelSlackd],
+				LabelSlackThread: labels[LabelSlackThread],
+			}
+			if kind == ownerResolutionFallback {
+				createLabels[LabelSlackShared] = "true"
+			}
 			created, err := s.chat.CreateChat(ctx, chatd.CreateOptions{
 				OrganizationID:     orgID,
 				OwnerID:            owner.ID,
 				APIKeyID:           apiKeyID,
 				ModelConfigID:      modelConfig.ID,
 				Title:              "Slack thread " + threadKey,
-				SystemPrompt:       s.buildSystemPrompt(ctx),
+				SystemPrompt:       s.buildSystemPrompt(ctx, kind, ev.User),
 				InitialUserContent: content,
-				Labels:             database.StringMap(labels),
+				Labels:             database.StringMap(createLabels),
 				// Dedup is scoped per owner: each (owner, thread) pair
 				// maps to exactly one chat even when replicas race.
+				// Mode labels stay out of the dedup filter so shared and
+				// individual resolutions for the same owner still collide.
 				DedupLabels: labels,
 			})
 			switch {
@@ -884,25 +966,41 @@ func (s *Server) resolveBotUserID(ctx context.Context) (string, error) {
 	return s.botUID, nil
 }
 
-// buildSystemPrompt appends the bot's own Slack identity to the base
-// system prompt so the model can recognize inline @bot-name mentions
-// as referring to itself. When the identity cannot be resolved the
-// base prompt is used unchanged.
-func (s *Server) buildSystemPrompt(ctx context.Context) string {
+// buildSystemPrompt selects the shared or individual identity suffix
+// from the sender's owner resolution, interpolates deployment and
+// Slack identity placeholders, then appends the bot's own Slack
+// identity so the model can recognize inline @bot-name mentions as
+// referring to itself. When the bot identity cannot be resolved the
+// rest of the prompt is returned unchanged.
+func (s *Server) buildSystemPrompt(ctx context.Context, kind ownerResolution, slackUserID string) string {
+	suffix := systemPromptSuffixShared
+	if kind == ownerResolutionLinked {
+		suffix = systemPromptSuffixIndividual
+	}
+	accessURL := ""
+	if s.accessURL != nil {
+		accessURL = strings.TrimRight(s.accessURL.String(), "/")
+	}
+	suffix = strings.NewReplacer(
+		"{{ AccessURL }}", accessURL,
+		"{{ SlackUserID }}", slackUserID,
+	).Replace(suffix)
+	prompt := strings.ReplaceAll(systemPrompt, "{{ SystemPromptSuffix }}", suffix)
+
 	botUID, err := s.resolveBotUserID(ctx)
 	if err != nil {
 		s.logger.Warn(ctx, "resolve slack bot user id for system prompt", slog.Error(err))
-		return systemPrompt
+		return prompt
 	}
 	botName := ""
 	if user := s.lookupUser(ctx, botUID); user != nil {
 		botName = user.Name
 	}
 	if botName == "" {
-		return systemPrompt + fmt.Sprintf("\n\nYour Slack user id is <@%s>. "+
+		return prompt + fmt.Sprintf("\n\nYour Slack user id is <@%s>. "+
 			"Mentions of it in message content refer to you.", botUID)
 	}
-	return systemPrompt + fmt.Sprintf("\n\nYou appear in Slack as @%s (user id <@%s>). "+
+	return prompt + fmt.Sprintf("\n\nYou appear in Slack as @%s (user id <@%s>). "+
 		"When @%s shows up in a message's content, the sender is addressing you.",
 		botName, botUID, botName)
 }

@@ -88,6 +88,15 @@ func TestHandleMentionLinkedSenderOwnsChat(t *testing.T) {
 	assert.Equal(t, linkedOrg.ID, create.OrganizationID)
 	assert.False(t, create.DedupAcrossOwners)
 	requireAPIKeyOwnedBy(t, db, create.APIKeyID, linked.ID)
+	// Linked senders get the individual-mode suffix scoped to their
+	// Slack identity, including propose_mcp_server guidance. The shared
+	// label is omitted so chatd enables the propose tool.
+	assert.NotContains(t, create.Labels, LabelSlackShared)
+	assert.Contains(t, create.SystemPrompt, "ULINKED")
+	assert.Contains(t, create.SystemPrompt, "propose_mcp_server")
+	assert.Contains(t, create.SystemPrompt, "Always find a reliable source for its configuration")
+	assert.Contains(t, create.SystemPrompt, `"streamable_http" over "sse"`)
+	assert.NotContains(t, create.SystemPrompt, "you're running in shared mode")
 }
 
 func TestHandleMentionUnlinkedSenderUsesFallback(t *testing.T) {
@@ -109,6 +118,10 @@ func TestHandleMentionUnlinkedSenderUsesFallback(t *testing.T) {
 	assert.Equal(t, fallback.ID, creates[0].OwnerID)
 	assert.Equal(t, org.ID, creates[0].OrganizationID)
 	requireAPIKeyOwnedBy(t, db, creates[0].APIKeyID, fallback.ID)
+	assert.Equal(t, "true", creates[0].Labels[LabelSlackShared])
+	assert.Contains(t, creates[0].SystemPrompt, "you're running in shared mode")
+	assert.Contains(t, creates[0].SystemPrompt, "https://coder.example.com/settings/external-auth")
+	assert.NotContains(t, creates[0].SystemPrompt, "propose_mcp_server")
 }
 
 func TestHandleMentionNoProviderIgnoresLinks(t *testing.T) {

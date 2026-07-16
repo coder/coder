@@ -465,6 +465,24 @@ func TestProposeMCPServer(t *testing.T) {
 		}
 	})
 
+	t.Run("SharedModeAsksUserToConnect", func(t *testing.T) {
+		t.Parallel()
+		api := &mcpFakeSlackAPI{}
+		opts := chattool.MCPServerToolsOptions{
+			SlackAPI:   api,
+			SharedMode: true,
+			AccessURL:  testutil.MustURL(t, "https://coder.example.com"),
+		}
+
+		result := runMCPTool(t, chattool.MCPServerTools(opts), "propose_mcp_server", map[string]any{
+			"display_name": "X", "slug": "x", "url": "https://x",
+		})
+		require.Contains(t, result["error"], "shared mode")
+		require.Contains(t, result["error"], "connect their Coder account to Slack")
+		require.Contains(t, result["error"], "https://coder.example.com/settings/external-auth")
+		require.Empty(t, api.postChannel)
+	})
+
 	t.Run("ResolverErrorDoesNotPost", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)

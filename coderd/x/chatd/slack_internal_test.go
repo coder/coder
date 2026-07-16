@@ -116,6 +116,18 @@ func TestAppendSlackTools(t *testing.T) {
 		require.ElementsMatch(t, allSlackToolNames, appended(server, slackLabels, false))
 	})
 
+	t.Run("SharedModeStillIncludesProposeMCPServer", func(t *testing.T) {
+		t.Parallel()
+		server := &Server{slackAPI: stubSlackAPI{}}
+		sharedLabels := database.StringMap{
+			LabelSlackd:      "true",
+			LabelSlackThread: "C123:1700000000.000100",
+			LabelSlackShared: "true",
+		}
+		// The tool stays registered; SharedMode makes the handler refuse.
+		require.ElementsMatch(t, allSlackToolNames, appended(server, sharedLabels, false))
+	})
+
 	t.Run("ReadOnlyOnPlanTurn", func(t *testing.T) {
 		t.Parallel()
 		server := &Server{slackAPI: stubSlackAPI{}}

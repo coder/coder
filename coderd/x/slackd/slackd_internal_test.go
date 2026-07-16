@@ -3,6 +3,7 @@ package slackd
 import (
 	"context"
 	"encoding/json"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -276,6 +277,7 @@ func newTestServerWithWebAPI(t *testing.T, db database.Store, chat ChatSubmitter
 		Chat:                   chat,
 		ChatOwnerUserID:        owner,
 		ExternalAuthProviderID: providerID,
+		AccessURL:              &url.URL{Scheme: "https", Host: "coder.example.com"},
 		SocketClient:           socket,
 		WebAPI:                 webAPI,
 	})
@@ -400,11 +402,14 @@ func TestHandleMentionCreatesChatForNewThread(t *testing.T) {
 	assert.NotEqual(t, uuid.Nil, create.ModelConfigID)
 	assert.Equal(t, "true", create.Labels[LabelSlackd])
 	assert.Equal(t, "C1:100.1", create.Labels[LabelSlackThread])
-	// The system prompt carries the bot's own Slack identity so the
+	assert.Equal(t, "true", create.Labels[LabelSlackShared])
+	// Unlinked senders (no external auth provider configured) get the
+	// shared-mode suffix, plus the bot's own Slack identity so the
 	// model can recognize inline @bot mentions as referring to itself.
 	assert.Contains(t, create.SystemPrompt, "You appear in Slack as @bot (user id <@UBOT>)")
-	assert.Contains(t, create.SystemPrompt, "always find a reliable source for its configuration")
-	assert.Contains(t, create.SystemPrompt, "streamable_http over sse")
+	assert.Contains(t, create.SystemPrompt, "you're running in shared mode")
+	assert.Contains(t, create.SystemPrompt, "https://coder.example.com/settings/external-auth")
+	assert.NotContains(t, create.SystemPrompt, "propose_mcp_server")
 	assert.Equal(t, map[string]string{
 		LabelSlackd:      "true",
 		LabelSlackThread: "C1:100.1",

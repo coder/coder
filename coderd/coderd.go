@@ -2517,6 +2517,7 @@ func (api *API) startSlackd(options *Options, cfg *slackConfig) error {
 		Chat:                   api.chatDaemon,
 		ChatOwnerUserID:        cfg.ownerID,
 		ExternalAuthProviderID: cfg.externalAuthProviderID,
+		AccessURL:              options.AccessURL,
 		BotToken:               cfg.botToken,
 		AppToken:               cfg.appToken,
 		WebAPI:                 cfg.client,

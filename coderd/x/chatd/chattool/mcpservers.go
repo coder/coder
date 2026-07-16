@@ -87,6 +87,12 @@ type MCPServerToolsOptions struct {
 	// Coder requester stored on a proposal. Neither is LLM-supplied.
 	SlackSenderID    string
 	ResolveSlackUser func(ctx context.Context, slackUserID string) (uuid.UUID, error)
+
+	// SharedMode marks chats owned by the fallback chat owner because
+	// the Slack sender is not linked to a Coder user. propose_mcp_server
+	// then returns an error directing the agent to ask the user to
+	// connect their Coder account to Slack.
+	SharedMode bool
 }
 
 // MCPServerTools returns all MCP server management tools, including the
@@ -344,6 +350,15 @@ The server is created PERSONAL-SCOPED: it will only be available to the requesti
 
 For oauth2 servers a server URL alone is enough (automatic discovery + Dynamic Client Registration); do not ask for client credentials unless discovery fails. Only api_key and custom_headers require pasting secrets, which are visible to the whole Slack channel, so suggest configuring those in the Coder UI instead.`,
 		func(ctx context.Context, args proposeMCPServerArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			if opts.SharedMode {
+				msg := "this chat is in shared mode because the Slack user is not linked to a Coder account. Ask them to connect their Coder account to Slack, then ping you again so you can propose the MCP server on their behalf."
+				if opts.AccessURL != nil {
+					connectURL := strings.TrimRight(opts.AccessURL.String(), "/") + "/settings/external-auth"
+					msg += " They can connect at " + connectURL + "."
+				}
+				return toolResponse(map[string]any{"error": msg}), nil
+			}
+
 			req, errMsg := buildMCPProposalRequest(args)
 			if errMsg != "" {
 				return toolResponse(map[string]any{"error": errMsg}), nil

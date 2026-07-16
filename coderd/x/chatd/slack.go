@@ -25,6 +25,11 @@ const (
 	// LabelSlackThread stores the "<channel>:<thread_ts>" key that
 	// binds a chat to a Slack thread.
 	LabelSlackThread = "slack_thread"
+	// LabelSlackShared marks chats owned by the configured fallback
+	// chat owner because the Slack sender is not linked to a Coder
+	// user. propose_mcp_server refuses in shared mode and asks the
+	// agent to have the user connect their Coder account to Slack.
+	LabelSlackShared = "slack_shared"
 	// MetadataKeySlackEventID is the content-part metadata key that
 	// stores the unique Slack event id used for deduplication.
 	MetadataKeySlackEventID = "slack_event_id"
@@ -129,6 +134,7 @@ func (p *Server) appendSlackTools(
 		ThreadTS:         threadTS,
 		SlackSenderID:    opts.slackSenderID,
 		ResolveSlackUser: p.slackUserResolver,
+		SharedMode:       opts.chat.Labels[LabelSlackShared] == "true",
 		ChatMCPServerIDs: func(ctx context.Context) ([]uuid.UUID, error) {
 			chat, err := p.db.GetChatByID(ctx, opts.chat.ID)
 			if err != nil {
