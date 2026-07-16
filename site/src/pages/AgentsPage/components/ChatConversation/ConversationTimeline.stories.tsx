@@ -437,6 +437,43 @@ export const LifecycleHookNotice: Story = {
 	},
 };
 
+export const LifecycleHookNoticeDimmedWhileEditing: Story = {
+	args: {
+		...defaultArgs,
+		editingMessageId: 1,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "original prompt" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "system",
+				content: [
+					{
+						type: "text",
+						text: "See the [policy](https://example.com/policy) for details.",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const notice = canvas.getByRole("alert");
+		// The dimmed notice must leave the keyboard tab order and
+		// accessibility tree, links included.
+		const link = notice.querySelector("a");
+		expect(link).not.toBeNull();
+		link?.focus();
+		expect(document.activeElement).not.toBe(link);
+		expect(notice.closest("[inert]")).not.toBeNull();
+	},
+};
+
 export const DurableListTemplatesToolLifecycle: Story = {
 	args: {
 		...defaultArgs,

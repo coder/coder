@@ -599,6 +599,10 @@ const ChatMessageItem = memo<{
 						isAfterEditingMessage && "opacity-40 pointer-events-none",
 						"transition-opacity duration-200",
 					)}
+					// The notice markdown can contain links; while dimmed
+					// they must also leave the keyboard tab order and
+					// accessibility tree.
+					inert={isAfterEditingMessage ? true : undefined}
 				>
 					<Alert className="my-1">
 						<div className="flex flex-col gap-1">
