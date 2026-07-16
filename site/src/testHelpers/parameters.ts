@@ -2,12 +2,12 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type * as TypesGen from "#/api/typesGenerated";
 
-type Parameter =
-	| (TypesGen.WorkspaceBuildParameter & {
-			display_name?: string;
-			form_type?: TypesGen.ParameterFormType;
-	  })
-	| TypesGen.PreviewParameter;
+type BuildParameter = TypesGen.WorkspaceBuildParameter & {
+	display_name?: string;
+	form_type?: TypesGen.ParameterFormType;
+};
+
+type Parameter = BuildParameter | TypesGen.PreviewParameter;
 
 export function isBuildParameter(
 	parameter: Parameter,
