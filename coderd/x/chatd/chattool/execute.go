@@ -850,6 +850,13 @@ func recoverStaleClaim(
 	if !claimed {
 		return resumeExecution(ctx, conn, options, toolCallID, reclaimed, dispatch)
 	}
+	// The takeover stamped a fresh claimed_at. Keep the original
+	// claim time on the dispatched record: if the agent attaches
+	// to the process the stale dispatch started, that time is the
+	// lower bound of the true start, and anchoring the deadline
+	// there stops the attached process from getting a fresh
+	// timeout.
+	reclaimed.ClaimedAt = rec.ClaimedAt
 	options.Logger.Info(ctx, "re-dispatching execution after stale claim takeover",
 		slog.F("tool_call_id", toolCallID),
 		slog.F("execution_id", reclaimed.ID),
@@ -1005,11 +1012,18 @@ func executeBackground(
 		return startFailureResponse(ctx, options, toolCallID, "start background process", err)
 	}
 	logStartIdempotency(ctx, options.Logger, resp, toolCallID)
+	startedAt := time.Now()
+	if resp.Attached && !rec.ClaimedAt.IsZero() {
+		// An attached process has been running since the earlier
+		// dispatch; its claim time is the lower bound of the
+		// true start.
+		startedAt = rec.ClaimedAt
+	}
 	// Mark detached only when the handle write landed: a detached
 	// row with no recorded process would make a retry return
 	// success without a usable handle instead of re-resolving the
 	// dispatch through the still-starting row.
-	if recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ID, time.Now()) {
+	if recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ID, startedAt) {
 		markTerminal(ctx, options, toolCallID, ExecutionStatusDetached)
 	}
 
@@ -1108,7 +1122,26 @@ func executeForeground(
 		return startFailureResponse(ctx, options, toolCallID, "start process", err)
 	}
 	logStartIdempotency(ctx, options.Logger, resp, toolCallID)
-	recorded := recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ID, time.Now())
+	startedAt := time.Now()
+	if resp.Attached && !rec.ClaimedAt.IsZero() {
+		// The agent deduped this start against a process an
+		// earlier dispatch of this token created. The claim time
+		// is the lower bound of the true start; anchoring the
+		// deadline and wall duration there stops the attached
+		// process from getting a fresh timeout on every retry.
+		startedAt = rec.ClaimedAt
+	}
+	recorded := recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ID, startedAt)
+	if resp.Attached && recorded {
+		// Resume through the re-attach flow so an attached
+		// process past its original deadline detaches with the
+		// graceful timed-out result instead of waiting a full
+		// timeout again.
+		rec.ProcessID = resp.ID
+		rec.StartedAt = startedAt
+		rec.Timeout = timeout
+		return reattachProcess(ctx, conn, options, toolCallID, rec)
+	}
 
 	result, lost := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)
 	if lost {

@@ -1548,6 +1548,55 @@ func TestExecuteToolRecorder(t *testing.T) {
 		assert.Equal(t, "done", result.Output)
 	})
 
+	t.Run("StaleClaimAttachPastDeadlineDetaches", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		// The original dispatch's process has been running since
+		// the stale claim, well past the 10s default timeout.
+		seedStaleStarting(recorder, 2*time.Minute)
+
+		mockConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{Pending: true}, nil)
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				assert.Equal(t, "exec-call-1", req.ClientToken)
+				return workspacesdk.StartProcessResponse{ID: "proc-attach", ClientToken: req.ClientToken, Attached: true}, nil
+			}).
+			Times(1)
+		// The attach resumes through the re-attach flow: one
+		// non-blocking snapshot, then the graceful timed-out
+		// result. No blocking wait may grant a fresh timeout.
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-attach", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{Running: true, Output: "partial output"}, nil)
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.False(t, result.Success)
+		assert.Contains(t, result.Error, "timed out")
+		assert.Equal(t, "proc-attach", result.BackgroundProcessID)
+
+		rec := recorder.record("call-1")
+		assert.Equal(t, chattool.ExecutionStatusDetached, rec.Status)
+		assert.Equal(t, "proc-attach", rec.ProcessID)
+		// The recorded start is anchored at the original claim
+		// time, not the attach time.
+		assert.True(t, rec.StartedAt.Before(time.Now().Add(-time.Minute)))
+	})
+
 	t.Run("StaleClaimReclaimFailureAborts", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
