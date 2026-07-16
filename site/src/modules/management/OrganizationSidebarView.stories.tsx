@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { Organization } from "#/api/typesGenerated";
+import { SidebarContext } from "#/components/Sidebar/SidebarContext";
 import {
 	MockNoOrganizationPermissions,
 	MockNoPermissions,
@@ -159,6 +160,28 @@ export const NoPermissions: Story = {
 		orgPermissions: MockNoOrganizationPermissions,
 		permissions: MockNoPermissions,
 	},
+};
+
+export const Collapsed: Story = {
+	args: {
+		activeOrganization: MockOrganization,
+		orgPermissions: MockOrganizationPermissions,
+		organizations: [MockOrganization],
+	},
+	decorators: [
+		(Story) => (
+			<SidebarContext.Provider
+				value={{
+					collapsed: true,
+					expand: () => {},
+					collapse: () => {},
+					toggle: () => {},
+				}}
+			>
+				<Story />
+			</SidebarContext.Provider>
+		),
+	],
 };
 
 export const AllPermissions: Story = {
