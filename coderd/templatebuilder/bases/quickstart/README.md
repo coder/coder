@@ -1,6 +1,6 @@
 ---
 display_name: Coder Quickstart
-description: Get started with Coder by picking your languages, editors, and a repo
+description: Get started with Coder by picking your languages and a repo
 icon: ../../../site/static/icon/coder.svg
 maintainer_github: coder
 verified: true
@@ -9,15 +9,14 @@ tags: [docker, quickstart]
 
 # Coder Quickstart
 
-Get up and running with Coder in minutes. Choose your programming languages, pick your preferred editors, optionally clone a Git repository, and start coding.
+Get up and running with Coder in minutes. Choose your programming languages, optionally clone a Git repository, and start coding.
 
 ## How It Works
 
 When you create a workspace from this template, you select:
 
 1. **Languages** to pre-install (Python, Node.js, Go, Rust, Java, C/C++)
-2. **Editors** to connect (VS Code in the browser, Cursor, JetBrains, Zed, Windsurf)
-3. **A Git repository** to clone (optional)
+2. **A Git repository** to clone (optional)
 
 Coder provisions a workspace with your selections and you can start developing immediately.
 
@@ -51,19 +50,15 @@ Files in your home directory persist across workspace restarts. Selected languag
 
 ## Presets
 
-Select a preset to auto-fill languages and editors for common workflows:
+Select a preset to auto-fill languages for common workflows:
 
-| Preset              | Languages           | Editors                             |
-| ------------------- | ------------------- | ----------------------------------- |
-| **Web Development** | Python, Node.js     | VS Code (Browser)                   |
-| **Backend (Go)**    | Go                  | VS Code (Browser), JetBrains GoLand |
-| **Data Science**    | Python              | VS Code (Browser)                   |
-| **Full Stack**      | Python, Node.js, Go | VS Code (Browser), Cursor           |
+| Preset              | Languages           |
+| ------------------- | ------------------- |
+| **Web Development** | Python, Node.js     |
+| **Backend (Go)**    | Go                  |
+| **Data Science**    | Python              |
+| **Full Stack**      | Python, Node.js, Go |
 
-## IDE Notes
+## Editors
 
-- **VS Code (Browser)**: Opens directly in your browser with no local install required.
-- **VS Code Desktop**: Available on every workspace by default (Coder enables the VS Code Desktop display app automatically), so it is not listed as a separate editor option.
-- **Cursor, Windsurf**: Require the desktop application installed on your local machine. Coder opens them via protocol handler.
-- **JetBrains IDEs**: Filtered by your language selection (e.g. PyCharm for Python, GoLand for Go). Requires JetBrains Toolbox or Gateway on your local machine.
-- **Zed**: Connects over SSH. Requires Zed installed on your local machine.
+VS Code Desktop is available on every workspace by default (Coder enables the VS Code Desktop display app automatically). To add more editors (VS Code in the browser, Cursor, JetBrains, Zed, Windsurf) or other tools, add them as modules in the next step of the template builder.

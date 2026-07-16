@@ -85,16 +85,11 @@ func (api *API) templateBuilderBases(rw http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// The Coder Quickstart base is surfaced first as the recommended starting
-	// point (mirroring its position in the registry); the remaining bases follow
-	// alphabetically by name.
-	const quickstartBaseID = "quickstart"
+	// Order bases alphabetically by display name, then group the Coder
+	// Quickstart base directly before the Docker base. Quickstart is a
+	// Docker-based "start here" template, so it belongs next to Docker rather
+	// than in its default alphabetical slot.
 	sort.Slice(bases, func(i, j int) bool {
-		iQuickstart := bases[i].ID == quickstartBaseID
-		jQuickstart := bases[j].ID == quickstartBaseID
-		if iQuickstart != jQuickstart {
-			return iQuickstart
-		}
 		if bases[i].Name != bases[j].Name {
 			return bases[i].Name < bases[j].Name
 		}
@@ -102,6 +97,7 @@ func (api *API) templateBuilderBases(rw http.ResponseWriter, r *http.Request) {
 		// bases ever share a display name.
 		return bases[i].ID < bases[j].ID
 	})
+	bases = groupQuickstartBeforeDocker(bases)
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateBuilderBasesResponse{
 		Bases: bases,
@@ -125,6 +121,52 @@ func baseVariablesToSDK(vars []templatebuilder.ModuleVariable) []codersdk.Templa
 			Sensitive:   v.Sensitive,
 		})
 	}
+	return out
+}
+
+const (
+	quickstartBaseID = "quickstart"
+	dockerBaseID     = "docker"
+)
+
+// groupQuickstartBeforeDocker returns bases reordered so the Coder Quickstart
+// base sits immediately before the Docker base, preserving the relative order
+// of all other bases. Quickstart is a Docker-based starter template, so it is
+// grouped next to Docker rather than left in its default alphabetical slot.
+// The input is returned unchanged if either base is absent.
+func groupQuickstartBeforeDocker(bases []codersdk.TemplateBuilderBase) []codersdk.TemplateBuilderBase {
+	var (
+		quickstart     codersdk.TemplateBuilderBase
+		haveQuickstart bool
+	)
+	rest := make([]codersdk.TemplateBuilderBase, 0, len(bases))
+	for _, b := range bases {
+		if b.ID == quickstartBaseID {
+			quickstart, haveQuickstart = b, true
+			continue
+		}
+		rest = append(rest, b)
+	}
+	if !haveQuickstart {
+		return bases
+	}
+
+	dockerIdx := -1
+	for i, b := range rest {
+		if b.ID == dockerBaseID {
+			dockerIdx = i
+			break
+		}
+	}
+	if dockerIdx == -1 {
+		// Docker base not present; leave quickstart in its sorted position.
+		return bases
+	}
+
+	out := make([]codersdk.TemplateBuilderBase, 0, len(bases))
+	out = append(out, rest[:dockerIdx]...)
+	out = append(out, quickstart)
+	out = append(out, rest[dockerIdx:]...)
 	return out
 }
 

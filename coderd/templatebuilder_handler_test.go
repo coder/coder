@@ -117,13 +117,33 @@ func TestTemplateBuilderBases(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, resp.Bases)
 
-		// The Coder Quickstart base is pinned first as the recommended
-		// starting point; the remaining bases are sorted by name.
-		require.Equal(t, "quickstart", resp.Bases[0].ID,
-			"quickstart base should be pinned first")
-		for i := 2; i < len(resp.Bases); i++ {
-			require.LessOrEqual(t, resp.Bases[i-1].Name, resp.Bases[i].Name,
-				"bases after quickstart should be sorted by name")
+		// The Coder Quickstart base is grouped immediately before the Docker
+		// base; every other base is ordered alphabetically by name.
+		quickstartIdx, dockerIdx := -1, -1
+		for i, b := range resp.Bases {
+			switch b.ID {
+			case "quickstart":
+				quickstartIdx = i
+			case "docker":
+				dockerIdx = i
+			}
+		}
+		require.NotEqual(t, -1, quickstartIdx, "quickstart base should be present")
+		require.NotEqual(t, -1, dockerIdx, "docker base should be present")
+		require.Equal(t, dockerIdx-1, quickstartIdx,
+			"quickstart base should be immediately before the docker base")
+
+		// The remaining bases (excluding quickstart) are sorted by name.
+		var names []string
+		for _, b := range resp.Bases {
+			if b.ID == "quickstart" {
+				continue
+			}
+			names = append(names, b.Name)
+		}
+		for i := 1; i < len(names); i++ {
+			require.LessOrEqual(t, names[i-1], names[i],
+				"non-quickstart bases should be sorted by name")
 		}
 	})
 
