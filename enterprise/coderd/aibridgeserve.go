@@ -137,12 +137,12 @@ func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 	srv, err := aibridgedserver.NewServer(connCtx, aibridgedserver.Options{
 		Store:               api.Database,
 		Pubsub:              api.AGPL.Pubsub,
-		Logger:              logger,
+		AISeatTracker:       api.AGPL.AISeatTracker,
 		AccessURL:           api.AccessURL.String(),
 		GatewayCfg:          api.DeploymentValues.AI.BridgeConfig,
 		ExternalAuthConfigs: api.ExternalAuthConfigs,
 		Experiments:         api.AGPL.Experiments,
-		AISeatTracker:       api.AGPL.AISeatTracker,
+		Logger:              logger,
 		Clock:               api.AGPL.Clock,
 	})
 	if err != nil {

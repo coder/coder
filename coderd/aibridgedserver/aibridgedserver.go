@@ -122,15 +122,17 @@ type Server struct {
 
 // Options carries the dependencies required to construct an aibridged Server.
 type Options struct {
-	Store               store
-	Pubsub              pubsub.Pubsub
-	Logger              slog.Logger
+	Store         store
+	Pubsub        pubsub.Pubsub
+	AISeatTracker aiseats.SeatTracker
+
 	AccessURL           string
 	GatewayCfg          codersdk.AIBridgeConfig
 	ExternalAuthConfigs []*externalauth.Config
 	Experiments         codersdk.Experiments
-	AISeatTracker       aiseats.SeatTracker
-	Clock               quartz.Clock
+
+	Logger slog.Logger
+	Clock  quartz.Clock
 }
 
 func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {

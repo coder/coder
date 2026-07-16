@@ -211,11 +211,11 @@ func TestAuthorization(t *testing.T) {
 
 			srv, err := aibridgedserver.NewServer(t.Context(), aibridgedserver.Options{
 				Store:         db,
-				Logger:        logger,
+				AISeatTracker: agplaiseats.Noop{},
 				AccessURL:     "/",
 				GatewayCfg:    codersdk.AIBridgeConfig{},
 				Experiments:   requiredExperiments,
-				AISeatTracker: agplaiseats.Noop{},
+				Logger:        logger,
 				Clock:         quartz.NewReal(),
 			})
 			require.NoError(t, err)
@@ -381,11 +381,11 @@ func TestAuthorization_Delegated(t *testing.T) {
 
 			srv, err := aibridgedserver.NewServer(t.Context(), aibridgedserver.Options{
 				Store:         db,
-				Logger:        logger,
+				AISeatTracker: agplaiseats.Noop{},
 				AccessURL:     "/",
 				GatewayCfg:    codersdk.AIBridgeConfig{},
 				Experiments:   requiredExperiments,
-				AISeatTracker: agplaiseats.Noop{},
+				Logger:        logger,
 				Clock:         quartz.NewReal(),
 			})
 			require.NoError(t, err)
@@ -578,11 +578,11 @@ func TestIsBudgetExceeded(t *testing.T) {
 
 			srv, err := aibridgedserver.NewServer(t.Context(), aibridgedserver.Options{
 				Store:         db,
-				Logger:        logger,
+				AISeatTracker: agplaiseats.Noop{},
 				AccessURL:     "/",
 				GatewayCfg:    codersdk.AIBridgeConfig{},
 				Experiments:   requiredExperiments,
-				AISeatTracker: agplaiseats.Noop{},
+				Logger:        logger,
 				Clock:         quartz.NewReal(),
 			})
 			require.NoError(t, err)
@@ -634,11 +634,11 @@ func TestIsBudgetExceeded_Enforcement(t *testing.T) {
 
 		srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 			Store:         authzDB,
-			Logger:        logger,
+			AISeatTracker: agplaiseats.Noop{},
 			AccessURL:     "/",
 			GatewayCfg:    codersdk.AIBridgeConfig{},
 			Experiments:   requiredExperiments,
-			AISeatTracker: agplaiseats.Noop{},
+			Logger:        logger,
 			Clock:         clock,
 		})
 		require.NoError(t, err)
@@ -804,15 +804,15 @@ func TestGetMCPServerConfigs(t *testing.T) {
 
 			accessURL := "https://my-cool-deployment.com"
 			srv, err := aibridgedserver.NewServer(t.Context(), aibridgedserver.Options{
-				Store:     db,
-				Logger:    logger,
-				AccessURL: accessURL,
+				Store:         db,
+				AISeatTracker: agplaiseats.Noop{},
+				AccessURL:     accessURL,
 				GatewayCfg: codersdk.AIBridgeConfig{
 					InjectCoderMCPTools: serpent.Bool(!tc.disableCoderMCPInjection),
 				},
 				ExternalAuthConfigs: tc.externalAuthConfigs,
 				Experiments:         tc.experiments,
-				AISeatTracker:       agplaiseats.Noop{},
+				Logger:              logger,
 				Clock:               quartz.NewReal(),
 			})
 			require.NoError(t, err)
@@ -853,10 +853,10 @@ func TestGetMCPServerAccessTokensBatch(t *testing.T) {
 
 	// Given: 2 external auth configured with MCP and 1 without.
 	srv, err := aibridgedserver.NewServer(t.Context(), aibridgedserver.Options{
-		Store:      db,
-		Logger:     logger,
-		AccessURL:  "/",
-		GatewayCfg: codersdk.AIBridgeConfig{},
+		Store:         db,
+		AISeatTracker: agplaiseats.Noop{},
+		AccessURL:     "/",
+		GatewayCfg:    codersdk.AIBridgeConfig{},
 		ExternalAuthConfigs: []*externalauth.Config{
 			{
 				ID:     "1",
@@ -870,9 +870,9 @@ func TestGetMCPServerAccessTokensBatch(t *testing.T) {
 				ID: "3",
 			},
 		},
-		Experiments:   requiredExperiments,
-		AISeatTracker: agplaiseats.Noop{},
-		Clock:         quartz.NewReal(),
+		Experiments: requiredExperiments,
+		Logger:      logger,
+		Clock:       quartz.NewReal(),
 	})
 	require.NoError(t, err)
 	require.NotNil(t, srv)
@@ -2152,11 +2152,11 @@ func TestRecordTokenUsageAuthorized(t *testing.T) {
 	// The server runs every store call as subjectAibridged via the authzDB.
 	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 		Store:         authzDB,
-		Logger:        logger,
+		AISeatTracker: agplaiseats.Noop{},
 		AccessURL:     "/",
 		GatewayCfg:    codersdk.AIBridgeConfig{},
 		Experiments:   requiredExperiments,
-		AISeatTracker: agplaiseats.Noop{},
+		Logger:        logger,
 		Clock:         quartz.NewReal(),
 	})
 	require.NoError(t, err)
@@ -2535,11 +2535,11 @@ func testRecordMethod[Req any, Resp any](
 			ctx := testutil.Context(t, testutil.WaitLong)
 			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 				Store:         db,
-				Logger:        logger,
+				AISeatTracker: agplaiseats.Noop{},
 				AccessURL:     "/",
 				GatewayCfg:    codersdk.AIBridgeConfig{},
 				Experiments:   requiredExperiments,
-				AISeatTracker: agplaiseats.Noop{},
+				Logger:        logger,
 				Clock:         quartz.NewReal(),
 			})
 			require.NoError(t, err)
@@ -2862,15 +2862,15 @@ func TestStructuredLogging(t *testing.T) {
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
-				Store:     db,
-				Logger:    logger,
-				AccessURL: "/",
+				Store:         db,
+				AISeatTracker: agplaiseats.Noop{},
+				AccessURL:     "/",
 				GatewayCfg: codersdk.AIBridgeConfig{
 					StructuredLogging: serpent.Bool(tc.structuredLogging),
 				},
-				Experiments:   requiredExperiments,
-				AISeatTracker: agplaiseats.Noop{},
-				Clock:         quartz.NewReal(),
+				Experiments: requiredExperiments,
+				Logger:      logger,
+				Clock:       quartz.NewReal(),
 			})
 			require.NoError(t, err)
 
@@ -2915,11 +2915,11 @@ func TestInferredThreadsByToolCalls(t *testing.T) {
 
 	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 		Store:         db,
-		Logger:        logger,
+		AISeatTracker: agplaiseats.Noop{},
 		AccessURL:     "/",
 		GatewayCfg:    codersdk.AIBridgeConfig{},
 		Experiments:   requiredExperiments,
-		AISeatTracker: agplaiseats.Noop{},
+		Logger:        logger,
 		Clock:         quartz.NewReal(),
 	})
 	require.NoError(t, err)
@@ -3019,11 +3019,11 @@ func TestRecordToolUsageProviderItemID(t *testing.T) {
 
 	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 		Store:         db,
-		Logger:        logger,
+		AISeatTracker: agplaiseats.Noop{},
 		AccessURL:     "/",
 		GatewayCfg:    codersdk.AIBridgeConfig{},
 		Experiments:   requiredExperiments,
-		AISeatTracker: agplaiseats.Noop{},
+		Logger:        logger,
 		Clock:         quartz.NewReal(),
 	})
 	require.NoError(t, err)
@@ -3157,10 +3157,10 @@ func TestGetAIProviders(t *testing.T) {
 
 	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 		Store:         db,
-		Logger:        logger,
+		AISeatTracker: agplaiseats.Noop{},
 		AccessURL:     "/",
 		GatewayCfg:    codersdk.AIBridgeConfig{},
-		AISeatTracker: agplaiseats.Noop{},
+		Logger:        logger,
 		Clock:         quartz.NewReal(),
 	})
 	require.NoError(t, err)
@@ -3227,10 +3227,10 @@ func TestGetAIProvidersBlocksOnSeedLock(t *testing.T) {
 
 	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 		Store:         db,
-		Logger:        logger,
+		AISeatTracker: agplaiseats.Noop{},
 		AccessURL:     "/",
 		GatewayCfg:    codersdk.AIBridgeConfig{},
-		AISeatTracker: agplaiseats.Noop{},
+		Logger:        logger,
 		Clock:         quartz.NewReal(),
 	})
 	require.NoError(t, err)
@@ -3316,10 +3316,10 @@ func TestWatchAIProviders(t *testing.T) {
 	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 		Store:         db,
 		Pubsub:        ps,
-		Logger:        logger,
+		AISeatTracker: agplaiseats.Noop{},
 		AccessURL:     "/",
 		GatewayCfg:    codersdk.AIBridgeConfig{},
-		AISeatTracker: agplaiseats.Noop{},
+		Logger:        logger,
 		Clock:         quartz.NewReal(),
 	})
 	require.NoError(t, err)
@@ -3362,10 +3362,10 @@ func TestWatchAIProvidersSignalsOnDeliveryError(t *testing.T) {
 	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 		Store:         db,
 		Pubsub:        ps,
-		Logger:        logger,
+		AISeatTracker: agplaiseats.Noop{},
 		AccessURL:     "/",
 		GatewayCfg:    codersdk.AIBridgeConfig{},
-		AISeatTracker: agplaiseats.Noop{},
+		Logger:        logger,
 		Clock:         quartz.NewReal(),
 	})
 	require.NoError(t, err)
@@ -3412,10 +3412,10 @@ func TestWatchAIProvidersStopsOnLifecycleCancel(t *testing.T) {
 	srv, err := aibridgedserver.NewServer(lifecycleCtx, aibridgedserver.Options{
 		Store:         db,
 		Pubsub:        ps,
-		Logger:        logger,
+		AISeatTracker: agplaiseats.Noop{},
 		AccessURL:     "/",
 		GatewayCfg:    codersdk.AIBridgeConfig{},
-		AISeatTracker: agplaiseats.Noop{},
+		Logger:        logger,
 		Clock:         quartz.NewReal(),
 	})
 	require.NoError(t, err)

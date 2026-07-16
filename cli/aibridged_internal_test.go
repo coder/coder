@@ -56,10 +56,10 @@ func buildFromDB(ctx context.Context, t *testing.T, db database.Store, cfg coder
 	t.Helper()
 	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 		Store:         db,
-		Logger:        logger,
+		AISeatTracker: agplaiseats.Noop{},
 		AccessURL:     "/",
 		GatewayCfg:    cfg,
-		AISeatTracker: agplaiseats.Noop{},
+		Logger:        logger,
 		Clock:         quartz.NewReal(),
 	})
 	if err != nil {
