@@ -10,6 +10,8 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 // AIBudgetLimitSource identifies which tier produced the user's
@@ -471,12 +473,11 @@ func (c *Client) UserAISpendStatus(ctx context.Context, user uuid.UUID) (UserAIS
 }
 
 // OrganizationGroupsAISpend returns AI spend for the given groups within the
-// organization for the active budget period.
+// organization for the active budget period. At most 100 group IDs may be
+// requested per call, and callers with more groups are expected to batch
+// across multiple requests.
 func (c *Client) OrganizationGroupsAISpend(ctx context.Context, organization uuid.UUID, groupIDs []uuid.UUID) (OrganizationGroupsAISpend, error) {
-	ids := make([]string, len(groupIDs))
-	for i, id := range groupIDs {
-		ids[i] = id.String()
-	}
+	ids := slice.List(groupIDs, func(id uuid.UUID) string { return id.String() })
 	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/organizations/%s/groups/ai/spend", organization.String()),
 		nil,

@@ -4754,7 +4754,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/groups/ai/spend": {
             "get": {
-                "description": "Returns AI spend limits and aggregate spend for the requested groups. Unknown or unreadable group IDs are silently omitted.",
+                "description": "Returns AI spend limits and aggregate spend for the requested groups.\nA maximum of 100 group IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.\nUnknown or unreadable group IDs are silently omitted.",
                 "produces": [
                     "application/json"
                 ],

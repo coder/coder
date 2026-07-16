@@ -950,7 +950,9 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get organization groups AI spend
-// @Description Returns AI spend limits and aggregate spend for the requested groups. Unknown or unreadable group IDs are silently omitted.
+// @Description Returns AI spend limits and aggregate spend for the requested groups.
+// @Description A maximum of 100 group IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.
+// @Description Unknown or unreadable group IDs are silently omitted.
 // @ID get-organization-groups-ai-spend
 // @Security CoderSessionToken
 // @Produce json

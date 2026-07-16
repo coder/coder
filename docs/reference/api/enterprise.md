@@ -1852,7 +1852,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
 
 `GET /api/v2/organizations/{organization}/groups/ai/spend`
 
-Returns AI spend limits and aggregate spend for the requested groups. Unknown or unreadable group IDs are silently omitted.
+Returns AI spend limits and aggregate spend for the requested groups.
+A maximum of 100 group IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.
+Unknown or unreadable group IDs are silently omitted.
 
 ### Parameters
 
