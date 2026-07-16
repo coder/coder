@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // TestCountWorkspaceCapableUsers verifies permission-based license seat
@@ -100,7 +101,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, int64(5), legacy)
 
-		count, err := license.CountWorkspaceCapableUsers(ctx, db, authorizer)
+		count, err := license.CountWorkspaceCapableUsers(ctx, testutil.Logger(t), db, authorizer)
 		require.NoError(t, err)
 		require.Equal(t, int64(4), count, "zero-org plain member must not count")
 	})
@@ -144,7 +145,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		defaultMember := activeUser(t, db, database.User{})
 		member(t, db, defaultOrg.ID, defaultMember)
 
-		count, err := license.CountWorkspaceCapableUsers(ctx, db, authorizer)
+		count, err := license.CountWorkspaceCapableUsers(ctx, testutil.Logger(t), db, authorizer)
 		require.NoError(t, err)
 		require.Equal(t, int64(4), count)
 	})
@@ -187,7 +188,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		reader := activeUser(t, db, database.User{})
 		member(t, db, org.ID, reader, auditRole.Name)
 
-		count, err := license.CountWorkspaceCapableUsers(ctx, db, authorizer)
+		count, err := license.CountWorkspaceCapableUsers(ctx, testutil.Logger(t), db, authorizer)
 		require.NoError(t, err)
 		require.Equal(t, int64(1), count)
 	})
@@ -209,7 +210,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		capable := activeUser(t, db, database.User{})
 		member(t, db, org.ID, capable)
 
-		count, err := license.CountWorkspaceCapableUsers(ctx, db, authorizer)
+		count, err := license.CountWorkspaceCapableUsers(ctx, testutil.Logger(t), db, authorizer)
 		require.NoError(t, err)
 		require.Equal(t, int64(1), count)
 	})
@@ -234,7 +235,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		experimentOn := codersdk.Experiments{codersdk.ExperimentPermissionBasedLicensing}
 
 		// No license: legacy count, even with the experiment on.
-		entitlements, err := license.Entitlements(ctx, db, 1, 1, coderdenttest.Keys, enablements, authorizer, experimentOn)
+		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, enablements, authorizer, experimentOn)
 		require.NoError(t, err)
 		require.Equal(t, int64(2), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
 
@@ -246,7 +247,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			Exp: dbtime.Now().Add(time.Hour),
 		})
 		require.NoError(t, err)
-		entitlements, err = license.Entitlements(ctx, db, 1, 1, coderdenttest.Keys, enablements, authorizer, experimentOn)
+		entitlements, err = license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, enablements, authorizer, experimentOn)
 		require.NoError(t, err)
 		require.Equal(t, int64(2), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
 
@@ -259,19 +260,19 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			Exp: dbtime.Now().Add(time.Hour),
 		})
 		require.NoError(t, err)
-		entitlements, err = license.Entitlements(ctx, db, 1, 1, coderdenttest.Keys, enablements, authorizer, experimentOn)
+		entitlements, err = license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, enablements, authorizer, experimentOn)
 		require.NoError(t, err)
 		require.Empty(t, entitlements.Errors)
 		require.Equal(t, int64(1), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
 
 		// Addon present but experiment off: legacy count.
-		entitlements, err = license.Entitlements(ctx, db, 1, 1, coderdenttest.Keys, enablements, authorizer, nil)
+		entitlements, err = license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, enablements, authorizer, nil)
 		require.NoError(t, err)
 		require.Equal(t, int64(2), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
 
 		// Addon present, experiment on, but no authorizer: fall back to the
 		// legacy count instead of failing.
-		entitlements, err = license.Entitlements(ctx, db, 1, 1, coderdenttest.Keys, enablements, nil, experimentOn)
+		entitlements, err = license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, enablements, nil, experimentOn)
 		require.NoError(t, err)
 		require.Equal(t, int64(2), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
 	})
