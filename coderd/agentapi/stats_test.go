@@ -525,6 +525,8 @@ func TestUpdateStats(t *testing.T) {
 		batcher.Mu.Lock()
 		defer batcher.Mu.Unlock()
 		require.EqualValues(t, 1, batcher.Called)
+		require.Empty(t, batcher.LastStats.GetSessionCounts())
+		//nolint:staticcheck // Deprecated fields must also be cleared for old-agent reports.
 		require.EqualValues(t, 0, batcher.LastStats.SessionCountSsh)
 		require.EqualValues(t, 0, batcher.LastStats.SessionCountJetbrains)
 		require.EqualValues(t, 0, batcher.LastStats.SessionCountVscode)

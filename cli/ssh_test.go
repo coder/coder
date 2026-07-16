@@ -1630,51 +1630,51 @@ func TestSSH(t *testing.T) {
 		t.Parallel()
 
 		type testCase struct {
-			name                   string
-			experiment             bool
-			usageAppName           string
-			expectedCalls          int
-			expectedCountSSH       int
-			expectedCountJetbrains int
-			expectedCountVscode    int
+			name           string
+			experiment     bool
+			usageAppName   string
+			expectedCalls  int
+			expectedCounts map[string]int64
 		}
 		tcs := []testCase{
 			{
 				name: "NoExperiment",
 			},
 			{
-				name:             "Empty",
-				experiment:       true,
-				expectedCalls:    1,
-				expectedCountSSH: 1,
+				name:           "Empty",
+				experiment:     true,
+				expectedCalls:  1,
+				expectedCounts: map[string]int64{"ssh": 1},
 			},
 			{
-				name:             "SSH",
-				experiment:       true,
-				usageAppName:     "ssh",
-				expectedCalls:    1,
-				expectedCountSSH: 1,
+				name:           "SSH",
+				experiment:     true,
+				usageAppName:   "ssh",
+				expectedCalls:  1,
+				expectedCounts: map[string]int64{"ssh": 1},
 			},
 			{
-				name:                   "Jetbrains",
-				experiment:             true,
-				usageAppName:           "jetbrains",
-				expectedCalls:          1,
-				expectedCountJetbrains: 1,
+				name:           "Jetbrains",
+				experiment:     true,
+				usageAppName:   "jetbrains",
+				expectedCalls:  1,
+				expectedCounts: map[string]int64{"jetbrains": 1},
 			},
 			{
-				name:                "Vscode",
-				experiment:          true,
-				usageAppName:        "vscode",
-				expectedCalls:       1,
-				expectedCountVscode: 1,
+				name:           "Vscode",
+				experiment:     true,
+				usageAppName:   "vscode",
+				expectedCalls:  1,
+				expectedCounts: map[string]int64{"vscode": 1},
 			},
 			{
-				name:             "InvalidDefaultsToSSH",
-				experiment:       true,
-				usageAppName:     "invalid",
-				expectedCalls:    1,
-				expectedCountSSH: 1,
+				// Arbitrary app names pass through to the server and are
+				// stored raw, so new IDEs are tracked without CLI changes.
+				name:           "ArbitraryNamePassthrough",
+				experiment:     true,
+				usageAppName:   "SomeFutureIDE",
+				expectedCalls:  1,
+				expectedCounts: map[string]int64{"SomeFutureIDE": 1},
 			},
 			{
 				name:         "Disable",
@@ -1730,9 +1730,11 @@ func TestSSH(t *testing.T) {
 				<-cmdDone
 
 				require.EqualValues(t, tc.expectedCalls, batcher.Called)
-				require.EqualValues(t, tc.expectedCountSSH, batcher.LastStats.SessionCountSsh)
-				require.EqualValues(t, tc.expectedCountJetbrains, batcher.LastStats.SessionCountJetbrains)
-				require.EqualValues(t, tc.expectedCountVscode, batcher.LastStats.SessionCountVscode)
+				if len(tc.expectedCounts) == 0 {
+					require.Empty(t, batcher.LastStats.GetSessionCounts())
+				} else {
+					require.EqualValues(t, tc.expectedCounts, batcher.LastStats.GetSessionCounts())
+				}
 			})
 		}
 	})

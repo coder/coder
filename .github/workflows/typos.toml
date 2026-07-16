@@ -13,6 +13,9 @@ AIBridge = "AI Bridge"
 
 [default.extend-words]
 AKS = "AKS"
+# BRIN is a postgres index type
+brin = "brin"
+BRIN = "BRIN"
 # do as sudo replacement
 doas = "doas"
 darcula = "darcula"
