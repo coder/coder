@@ -81,7 +81,7 @@ If the response has a body, return a JSON object with these optional fields.
 | `model_context` | Adds text visible to the model. The value is limited to 16&nbsp;KiB.                                                                                                                                                                                                  |
 | `user_message`  | Adds a system message visible to the user.                                                                                                                                                                                                                            |
 | `allowed_tools` | Replaces the chat's hook tool policy. Omit the field to preserve the policy, return `[]` to restrict all tools, or return names to allow only those tools. The policy applies from the next generation step onward, and a call to an excluded tool fails as inactive. |
-| `end_chat`      | Ends the chat when `true`. Ending a chat archives it together with any subagent chats it spawned.                                                                                                                                                                     |
+| `end_chat`      | Ends the chat when `true`. Ending a chat archives the chat identified by `meta.chat_id` together with any subagent chats it spawned. For an event from a subagent chat, this ends that subagent subtree and its parent chat continues.                                |
 
 The `permission.decision` value supports `allow` and `deny`.
 The `ask` value isn't supported and causes the dispatch to fail closed.

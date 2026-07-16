@@ -401,6 +401,11 @@ type sqlcQuerier interface {
 	// Callers must supply an explicit limit to avoid unbounded result sets.
 	GetChatDebugRunsByChatID(ctx context.Context, arg GetChatDebugRunsByChatIDParams) ([]ChatDebugRun, error)
 	GetChatDebugStepsByRunID(ctx context.Context, runID uuid.UUID) ([]ChatDebugStep, error)
+	// Returns the chat IDs of every descendant of a chat (children,
+	// grandchildren, ...), excluding the chat itself, ordered by creation.
+	// Descendants are created after their ancestors, so this order is a
+	// subsequence of the family lock order used by SetFamilyArchived.
+	GetChatDescendantIDsByChatID(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error)
 	GetChatDesktopEnabled(ctx context.Context) (bool, error)
 	GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (ChatDiffStatus, error)
 	// Returns aggregate PR counts across all agent chats for telemetry.

@@ -3172,6 +3172,16 @@ func (q *querier) GetChatDebugStepsByRunID(ctx context.Context, runID uuid.UUID)
 	return q.db.GetChatDebugStepsByRunID(ctx, runID)
 }
 
+func (q *querier) GetChatDescendantIDsByChatID(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+	// Read-only listing like GetChatFamilyIDsByRootID: authorize Read
+	// against the starting chat; per-row transitions consuming these
+	// IDs run their own authorization.
+	if _, err := q.GetChatByID(ctx, id); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatDescendantIDsByChatID(ctx, id)
+}
+
 func (q *querier) GetChatDesktopEnabled(ctx context.Context) (bool, error) {
 	// The desktop-enabled flag is a deployment-wide setting read by any
 	// authenticated chat user and by chatd when deciding whether to expose

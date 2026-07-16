@@ -328,6 +328,24 @@ FROM chats
 WHERE id = @id::uuid OR root_chat_id = @id::uuid
 ORDER BY (id = @id::uuid) DESC, created_at ASC, id ASC;
 
+-- name: GetChatDescendantIDsByChatID :many
+-- Returns the chat IDs of every descendant of a chat (children,
+-- grandchildren, ...), excluding the chat itself, ordered by creation.
+-- Descendants are created after their ancestors, so this order is a
+-- subsequence of the family lock order used by SetFamilyArchived.
+WITH RECURSIVE descendants AS (
+    SELECT id, created_at
+    FROM chats
+    WHERE parent_chat_id = @id::uuid
+    UNION ALL
+    SELECT c.id, c.created_at
+    FROM chats c
+    JOIN descendants d ON c.parent_chat_id = d.id
+)
+SELECT id
+FROM descendants
+ORDER BY created_at ASC, id ASC;
+
 -- name: GetChatACLByID :one
 SELECT
     user_acl AS users,

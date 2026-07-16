@@ -1521,6 +1521,14 @@ func (m queryMetricsStore) GetChatDebugStepsByRunID(ctx context.Context, runID u
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatDescendantIDsByChatID(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatDescendantIDsByChatID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatDescendantIDsByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatDescendantIDsByChatID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatDesktopEnabled(ctx context.Context) (bool, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatDesktopEnabled(ctx)

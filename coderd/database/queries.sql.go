@@ -7554,6 +7554,48 @@ func (q *sqlQuerier) GetChatCostSummary(ctx context.Context, arg GetChatCostSumm
 	return i, err
 }
 
+const getChatDescendantIDsByChatID = `-- name: GetChatDescendantIDsByChatID :many
+WITH RECURSIVE descendants AS (
+    SELECT id, created_at
+    FROM chats
+    WHERE parent_chat_id = $1::uuid
+    UNION ALL
+    SELECT c.id, c.created_at
+    FROM chats c
+    JOIN descendants d ON c.parent_chat_id = d.id
+)
+SELECT id
+FROM descendants
+ORDER BY created_at ASC, id ASC
+`
+
+// Returns the chat IDs of every descendant of a chat (children,
+// grandchildren, ...), excluding the chat itself, ordered by creation.
+// Descendants are created after their ancestors, so this order is a
+// subsequence of the family lock order used by SetFamilyArchived.
+func (q *sqlQuerier) GetChatDescendantIDsByChatID(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, getChatDescendantIDsByChatID, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatDiffStatusByChatID = `-- name: GetChatDiffStatusByChatID :one
 SELECT
     chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch

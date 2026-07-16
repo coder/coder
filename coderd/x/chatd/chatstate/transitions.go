@@ -429,23 +429,21 @@ type EndChatResult struct {
 	DeletedQueuedMessageIDs []int64
 }
 
-// EndChat archives a root chat and every child in its family, and
-// clears their active execution state. The cascade keeps the
-// parent-archived-implies-child-archived invariant intact at write
-// time even when children are still running.
+// EndChat archives the addressed chat and every descendant below it,
+// and clears their active execution state. Ending a root ends the
+// whole family; ending a child ends only that subagent subtree. The
+// cascade keeps the parent-archived-implies-child-archived invariant
+// intact at write time even when descendants are still running.
 func (tx *Tx) EndChat(input EndChatInput) (EndChatResult, error) {
 	chat, _, err := tx.requireFromAllowed(TransitionEndChat)
 	if err != nil {
 		return EndChatResult{}, err
 	}
-	if chat.ParentChatID.Valid {
-		return EndChatResult{}, ErrChatNotRoot
-	}
 	result, err := tx.applyEndChat(chat, input.PrefixMessages)
 	if err != nil {
 		return EndChatResult{}, err
 	}
-	if err := tx.endChildChats(chat.ID); err != nil {
+	if err := tx.endDescendantChats(chat); err != nil {
 		return EndChatResult{}, err
 	}
 	return result, nil
@@ -482,18 +480,26 @@ func (tx *Tx) applyEndChat(chat database.Chat, prefixMessages []Message) (EndCha
 	}, nil
 }
 
-// endChildChats force-ends every child in the root's family through a
-// nested machine update, so each child gets its own snapshot bump and
+// endDescendantChats force-ends every descendant of the chat through a
+// nested machine update, so each one gets its own snapshot bump and
 // buffered chat:update publication. Clearing worker and runner IDs
 // makes an owning child worker exit cleanly at its next task fence.
-// Already-archived children are skipped.
-func (tx *Tx) endChildChats(rootID uuid.UUID) error {
-	ids, err := tx.store.GetChatFamilyIDsByRootID(tx.ctx, rootID)
+// Already-archived descendants are skipped. Both listings order by
+// creation time, a subsequence of the root-then-family lock order, so
+// the cascade cannot deadlock with SetFamilyArchived.
+func (tx *Tx) endDescendantChats(chat database.Chat) error {
+	var ids []uuid.UUID
+	var err error
+	if chat.ParentChatID.Valid {
+		ids, err = tx.store.GetChatDescendantIDsByChatID(tx.ctx, chat.ID)
+	} else {
+		ids, err = tx.store.GetChatFamilyIDsByRootID(tx.ctx, chat.ID)
+	}
 	if err != nil {
-		return xerrors.Errorf("get chat family: %w", err)
+		return xerrors.Errorf("get chat descendants: %w", err)
 	}
 	for _, id := range ids {
-		if id == rootID {
+		if id == chat.ID {
 			continue
 		}
 		machine := NewChatMachine(tx.store, tx.publisher, id)

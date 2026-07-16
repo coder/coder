@@ -2803,6 +2803,21 @@ func (mr *MockStoreMockRecorder) GetChatDebugStepsByRunID(ctx, runID any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatDebugStepsByRunID", reflect.TypeOf((*MockStore)(nil).GetChatDebugStepsByRunID), ctx, runID)
 }
 
+// GetChatDescendantIDsByChatID mocks base method.
+func (m *MockStore) GetChatDescendantIDsByChatID(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatDescendantIDsByChatID", ctx, id)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatDescendantIDsByChatID indicates an expected call of GetChatDescendantIDsByChatID.
+func (mr *MockStoreMockRecorder) GetChatDescendantIDsByChatID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatDescendantIDsByChatID", reflect.TypeOf((*MockStore)(nil).GetChatDescendantIDsByChatID), ctx, id)
+}
+
 // GetChatDesktopEnabled mocks base method.
 func (m *MockStore) GetChatDesktopEnabled(ctx context.Context) (bool, error) {
 	m.ctrl.T.Helper()
