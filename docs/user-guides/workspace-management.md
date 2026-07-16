@@ -26,7 +26,7 @@ You can also create a workspace from the command line:
 Each Coder user has their own workspaces created from
 [templates](../admin/templates/index.md):
 
-```shell
+```sh
 # create a workspace from the template; specify any variables
 coder create --template="<templateName>" <workspaceName>
 
@@ -84,7 +84,7 @@ workspace again.
 
 Update a workspace through the command line:
 
-```shell
+```sh
 coder update <workspace-name>
 ```
 
@@ -148,7 +148,7 @@ Use the following command to re-enter template input variables in an existing
 workspace. This command is useful when a workspace fails to build because its
 state is out of sync with the template.
 
-```shell
+```sh
 coder update <your workspace name> --always-prompt
 ```
 
@@ -165,7 +165,7 @@ Coder's filter query:
 
 You can also do this in the CLI with the following command:
 
-```shell
+```sh
 coder update <your workspace name> --always-prompt
 ```
 
@@ -173,7 +173,7 @@ If that does not work, a Coder admin can manually push and pull the Terraform
 state for a given workspace. This can lead to state corruption or deleted
 resources if you do not know what you are doing.
 
-```shell
+```sh
 coder state pull <username>/<workspace name>
 # Make changes
 coder state push <username>/<workspace name>

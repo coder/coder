@@ -40,7 +40,7 @@ external authentication will work with native `git` commands.
 
 To check the auth token being used **from inside a running workspace**, run:
 
-```shell
+```sh
 # If the exit code is non-zero, then the user is not authenticated with the
 # external provider.
 coder external-auth access-token <external-auth-id>

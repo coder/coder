@@ -108,7 +108,7 @@ version that includes this support.
 
 For Claude Code, update the module version in your template:
 
-```hcl
+```tf
 module "claude-code" {
   source   = "registry.coder.com/coder/claude-code/coder"
   version  = ">= 4.8.0" # Minimum version with pause/resume support
@@ -160,7 +160,7 @@ modules performing cleanup.
 
 **Docker**: Add to your `docker_container` resource:
 
-```hcl
+```tf
 resource "docker_container" "workspace" {
   # Both attributes are needed for graceful shutdown.
   destroy_grace_seconds = 300 # 5 minutes
@@ -172,7 +172,7 @@ resource "docker_container" "workspace" {
 
 **Kubernetes**: Add to your `kubernetes_pod` resource:
 
-```hcl
+```tf
 resource "kubernetes_pod" "main" {
   timeouts {
     delete = "6m" # Must exceed the grace period below.

@@ -24,7 +24,7 @@ The following tools require wildcard access URL:
 
 `CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](port-forwarding.md#dashboard) via the dashboard or running [coder_apps](../templates/index.md) on an absolute path. Set this to a wildcard subdomain that resolves to Coder (e.g. `*.coder.example.com`).
 
-```bash
+```sh
 export CODER_WILDCARD_ACCESS_URL="*.coder.example.com"
 coder server
 ```
@@ -40,7 +40,7 @@ Wildcard access URLs require a TLS certificate that covers the wildcard domain. 
 
 Configure Coder to handle TLS directly using the wildcard certificate:
 
-```bash
+```sh
 export CODER_TLS_ENABLE=true
 export CODER_TLS_CERT_FILE=/path/to/wildcard.crt
 export CODER_TLS_KEY_FILE=/path/to/wildcard.key
@@ -72,13 +72,13 @@ You'll need to configure DNS to point wildcard subdomains to your Coder server:
 > browsers consider these "public" domains and will refuse Coder's cookies,
 > which are vital to the proper operation of this feature.
 
-```text
+```txt
 *.coder.example.com    A    <your-coder-server-ip>
 ```
 
 Or alternatively, using a CNAME record:
 
-```text
+```txt
 *.coder.example.com    CNAME    coder.example.com
 ```
 
@@ -86,7 +86,7 @@ Or alternatively, using a CNAME record:
 
 If you're using [workspace proxies](workspace-proxies.md) for geo-distributed teams, each proxy requires its own wildcard access URL configuration:
 
-```bash
+```sh
 # Main Coder server
 export CODER_WILDCARD_ACCESS_URL="*.coder.example.com"
 
@@ -99,7 +99,7 @@ export CODER_WILDCARD_ACCESS_URL="*.london.coder.example.com"
 
 Each proxy's wildcard domain must have corresponding DNS records:
 
-```text
+```txt
 *.sydney.coder.example.com    A    <sydney-proxy-ip>
 *.london.coder.example.com    A    <london-proxy-ip>
 ```
@@ -108,7 +108,7 @@ Each proxy's wildcard domain must have corresponding DNS records:
 
 In your Coder templates, enable subdomain applications using the `subdomain` parameter:
 
-```hcl
+```tf
 resource "coder_app" "code-server" {
   agent_id     = coder_agent.main.id
   slug         = "code-server"
@@ -132,7 +132,7 @@ If workspace applications are not working:
    - Restart the Coder server if you made changes to the environment variable
 2. Check DNS resolution for wildcard subdomains:
 
-   ```bash
+   ```sh
    dig test.coder.example.com
    nslookup test.coder.example.com
    ```

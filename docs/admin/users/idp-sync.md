@@ -15,7 +15,7 @@ synchronize Coder groups, roles, and organizations based on claims from your IdP
 To confirm that your OIDC provider is sending claims, log in with OIDC and visit
 the following URL with an `Owner` account:
 
-```text
+```txt
 https://[coder.example.com]/api/v2/debug/[your-username]/debug-link
 ```
 
@@ -53,7 +53,7 @@ group sync for each organization.
 
 1. Fetch the corresponding group IDs using the following endpoint:
 
-   ```text
+   ```txt
    https://[coder.example.com]/api/v2/groups
    ```
 
@@ -301,7 +301,7 @@ Visit the Coder UI to confirm these changes:
 
 1. Set the following in your Coder server [configuration](../setup/index.md).
 
-   ```env
+   ```dotenv
     # Depending on your identity provider configuration, you may need to explicitly request a "roles" scope
    CODER_OIDC_SCOPES=openid,profile,email,offline_access,roles
 
@@ -335,7 +335,7 @@ You can initiate an organization sync through the Coder dashboard or CLI:
 
 1. Fetch the corresponding organization IDs using the following endpoint:
 
-   ```text
+   ```txt
    https://[coder.example.com]/api/v2/organizations
    ```
 
@@ -454,12 +454,12 @@ If you enable this, your OIDC provider might be sending over many unnecessary
 groups. Use filtering options on the OIDC provider to limit the groups sent over
 to prevent creating excess groups.
 
-```env
+```dotenv
 # as an environment variable
 CODER_OIDC_GROUP_AUTO_CREATE=true
 ```
 
-```shell
+```sh
 # as a flag
 --oidc-group-auto-create=true
 ```
@@ -471,12 +471,12 @@ want to filter out groups that do not match a certain pattern. For example, if
 you want to only allow groups that start with `my-group-` to be created, you can
 set the following environment variable.
 
-```env
+```dotenv
 # as an environment variable
 CODER_OIDC_GROUP_REGEX_FILTER="^my-group-.*$"
 ```
 
-```shell
+```sh
 # as a flag
 --oidc-group-regex-filter="^my-group-.*$"
 ```

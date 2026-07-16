@@ -218,18 +218,31 @@ export const EditUpdateDisabledUntilDirty: Story = {
 	},
 };
 
-export const ReasoningEffortVisibleWithoutExpanding: Story = {
+export const ReasoningEffortInProviderConfiguration: Story = {
+	args: {
+		selectedProviderState: MockAnthropicProviderState,
+	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 
-		const defaultSelect = canvas.getByRole("combobox", {
-			name: /default reasoning effort/i,
-		});
+		await userEvent.click(
+			canvas.getByRole("button", { name: /provider configuration/i }),
+		);
+		const thinkingBudget = canvas.getByLabelText(/thinking budget tokens/i);
 		const maxSelect = canvas.getByRole("combobox", {
 			name: /max reasoning effort/i,
 		});
-		await expect(defaultSelect).toBeVisible();
+		const defaultSelect = canvas.getByRole("combobox", {
+			name: /default reasoning effort/i,
+		});
 		await expect(maxSelect).toBeVisible();
+		await expect(defaultSelect).toBeVisible();
+		await expect(thinkingBudget.compareDocumentPosition(maxSelect)).toBe(
+			Node.DOCUMENT_POSITION_FOLLOWING,
+		);
+		await expect(maxSelect.compareDocumentPosition(defaultSelect)).toBe(
+			Node.DOCUMENT_POSITION_FOLLOWING,
+		);
 		await expect(defaultSelect).toHaveTextContent("Not set");
 		await expect(maxSelect).toHaveTextContent("Not set");
 
@@ -271,6 +284,9 @@ export const ReasoningEffortVisibleWithoutExpanding: Story = {
 export const ReasoningEffortValidationError: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /provider configuration/i }),
+		);
 		const defaultSelect = canvas.getByRole("combobox", {
 			name: /default reasoning effort/i,
 		});

@@ -2,18 +2,23 @@ package coderd_test
 
 import (
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -1943,4 +1948,189 @@ func TestMCPOAuth2DiscoveryEdgeCases(t *testing.T) {
 		require.Equal(t, "trailing-slash-client", created.OAuth2ClientID)
 		require.True(t, created.HasOAuth2Secret)
 	})
+}
+
+func TestMCPServerConfigsRevokedGrant(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+	var tokenEndpointHits atomic.Int64
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		tokenEndpointHits.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"invalid_grant","error_description":"grant revoked"}`))
+	}))
+	t.Cleanup(tokenSrv.Close)
+
+	created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:    "Revoked Server",
+		Slug:           "revoked-server",
+		Transport:      "streamable_http",
+		URL:            "https://mcp.example.com/v1",
+		AuthType:       "oauth2",
+		OAuth2ClientID: "cid",
+		OAuth2AuthURL:  "https://auth.example.com/authorize",
+		OAuth2TokenURL: tokenSrv.URL,
+		Availability:   "default_on",
+		Enabled:        true,
+		ToolAllowList:  []string{},
+		ToolDenyList:   []string{},
+	})
+	require.NoError(t, err)
+	require.False(t, created.AuthConnected)
+
+	// Seed an expired token whose refresh the provider rejects with
+	// invalid_grant.
+	//nolint:gocritic // Seeding test state requires system access.
+	seeded, err := db.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
+		MCPServerConfigID: created.ID,
+		UserID:            member.ID,
+		AccessToken:       "expired-access",
+		RefreshToken:      "dead-refresh",
+		TokenType:         "Bearer",
+		Expiry:            sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+	})
+	require.NoError(t, err)
+
+	// First list: the refresh fails permanently, so the server is
+	// reported as not connected and the failure is persisted.
+	configs, err := memberClient.MCPServerConfigs(ctx)
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	require.False(t, configs[0].AuthConnected)
+	// The oauth2 package may probe both client auth styles, so the
+	// exact count varies; what matters is that it never grows again.
+	hitsAfterFirstList := tokenEndpointHits.Load()
+	require.Positive(t, hitsAfterFirstList)
+
+	//nolint:gocritic // Verifying persisted state requires system access.
+	row, err := db.GetMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerUserTokenParams{
+		MCPServerConfigID: created.ID,
+		UserID:            member.ID,
+	})
+	require.NoError(t, err)
+	require.Empty(t, row.AccessToken)
+	require.Empty(t, row.RefreshToken)
+	require.False(t, row.Expiry.Valid)
+	require.Contains(t, row.OauthRefreshFailureReason, "invalid_grant")
+
+	// Second list: the cached failure short-circuits, so the provider
+	// is not called again.
+	configs, err = memberClient.MCPServerConfigs(ctx)
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	require.False(t, configs[0].AuthConnected)
+	require.Equal(t, hitsAfterFirstList, tokenEndpointHits.Load())
+
+	// The single-config endpoint agrees.
+	single, err := memberClient.MCPServerConfigByID(ctx, created.ID)
+	require.NoError(t, err)
+	require.False(t, single.AuthConnected)
+	require.Equal(t, hitsAfterFirstList, tokenEndpointHits.Load())
+
+	// A stale optimistic-lock update must not clobber the row.
+	//nolint:gocritic // Exercising the query requires system access.
+	_, err = db.MarkMCPServerUserTokenRefreshFailure(dbauthz.AsSystemRestricted(ctx), database.MarkMCPServerUserTokenRefreshFailureParams{
+		ID:                        seeded.ID,
+		UpdatedAt:                 seeded.UpdatedAt,
+		OauthRefreshFailureReason: "stale",
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	//nolint:gocritic // Verifying persisted state requires system access.
+	row, err = db.GetMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerUserTokenParams{
+		MCPServerConfigID: created.ID,
+		UserID:            member.ID,
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, "stale", row.OauthRefreshFailureReason)
+
+	// Re-authenticating (upserting fresh token material) clears the
+	// failure and restores connected status.
+	//nolint:gocritic // Seeding test state requires system access.
+	_, err = db.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
+		MCPServerConfigID: created.ID,
+		UserID:            member.ID,
+		AccessToken:       "new-access",
+		RefreshToken:      "new-refresh",
+		TokenType:         "Bearer",
+		Expiry:            sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
+	})
+	require.NoError(t, err)
+
+	configs, err = memberClient.MCPServerConfigs(ctx)
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	require.True(t, configs[0].AuthConnected)
+	// The token is valid, so no refresh call is made.
+	require.Equal(t, hitsAfterFirstList, tokenEndpointHits.Load())
+}
+
+func TestMCPServerConfigsTransientRefreshFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(tokenSrv.Close)
+
+	created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:    "Flaky Server",
+		Slug:           "flaky-server",
+		Transport:      "streamable_http",
+		URL:            "https://mcp.example.com/v1",
+		AuthType:       "oauth2",
+		OAuth2ClientID: "cid",
+		OAuth2AuthURL:  "https://auth.example.com/authorize",
+		OAuth2TokenURL: tokenSrv.URL,
+		Availability:   "default_on",
+		Enabled:        true,
+		ToolAllowList:  []string{},
+		ToolDenyList:   []string{},
+	})
+	require.NoError(t, err)
+
+	//nolint:gocritic // Seeding test state requires system access.
+	_, err = db.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
+		MCPServerConfigID: created.ID,
+		UserID:            member.ID,
+		AccessToken:       "expired-access",
+		RefreshToken:      "still-good-refresh",
+		TokenType:         "Bearer",
+		Expiry:            sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+	})
+	require.NoError(t, err)
+
+	configs, err := memberClient.MCPServerConfigs(ctx)
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	require.False(t, configs[0].AuthConnected)
+
+	// Transient failures must not destroy the token: a later refresh
+	// may succeed.
+	//nolint:gocritic // Verifying persisted state requires system access.
+	row, err := db.GetMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.GetMCPServerUserTokenParams{
+		MCPServerConfigID: created.ID,
+		UserID:            member.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "still-good-refresh", row.RefreshToken)
+	require.Empty(t, row.OauthRefreshFailureReason)
 }

@@ -749,7 +749,9 @@ checksum = "sha256:d32817b937219b8f131a28546035183d79e7fd17a86e38ccb8772901a7cd9
 url = "https://nodejs.org/dist/v22.19.0/node-v22.19.0-linux-arm64.tar.gz"
 
 [tools.node."platforms.linux-arm64-musl"]
-url = "https://unofficial-builds.nodejs.org/download/release/v22.19.0/node-v22.19.0-linux-arm64-musl.tar.gz"
+checksum = "sha256:4cea680423f98abc6a2a5ca127fb34c5f6586c24217f57749be6ea886c9be9a6"
+url = "https://nodejs.org/dist/v22.19.0/node-v22.19.0.tar.gz"
+install = "source"
 
 [tools.node."platforms.linux-x64"]
 checksum = "sha256:d36e56998220085782c0ca965f9d51b7726335aed2f5fc7321c6c0ad233aa96d"
@@ -848,10 +850,12 @@ version = "23.4"
 backend = "aqua:protocolbuffers/protobuf/protoc"
 
 [tools.protoc."platforms.linux-arm64"]
+checksum = "blake3:76b9fb27e15b7dd78417a87a5a5f1d17431061da3268542aa0fefb8f649f7707"
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-aarch_64.zip"
 
 [tools.protoc."platforms.linux-arm64-musl"]
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-aarch_64.zip"
+url_api = "https://api.github.com/repos/protocolbuffers/protobuf/releases/assets/115884195"
 
 [tools.protoc."platforms.linux-x64"]
 checksum = "blake3:b1d1a517cb9c8c3cbfc98c708f93e6d3bd8b3ce0e2db1ad8c1491ae8a4067ad2"
@@ -859,37 +863,47 @@ url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/proto
 
 [tools.protoc."platforms.linux-x64-baseline"]
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip"
+url_api = "https://api.github.com/repos/protocolbuffers/protobuf/releases/assets/115884202"
 
 [tools.protoc."platforms.linux-x64-musl"]
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip"
+url_api = "https://api.github.com/repos/protocolbuffers/protobuf/releases/assets/115884202"
 
 [tools.protoc."platforms.linux-x64-musl-baseline"]
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip"
+url_api = "https://api.github.com/repos/protocolbuffers/protobuf/releases/assets/115884202"
 
 [tools.protoc."platforms.macos-arm64"]
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-osx-aarch_64.zip"
+url_api = "https://api.github.com/repos/protocolbuffers/protobuf/releases/assets/115884203"
 
 [tools.protoc."platforms.macos-x64"]
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-osx-x86_64.zip"
+url_api = "https://api.github.com/repos/protocolbuffers/protobuf/releases/assets/115884205"
 
 [tools.protoc."platforms.macos-x64-baseline"]
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-osx-x86_64.zip"
+url_api = "https://api.github.com/repos/protocolbuffers/protobuf/releases/assets/115884205"
 
 [tools.protoc."platforms.windows-x64"]
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-win64.zip"
+url_api = "https://api.github.com/repos/protocolbuffers/protobuf/releases/assets/115884208"
 
 [tools.protoc."platforms.windows-x64-baseline"]
 url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-win64.zip"
+url_api = "https://api.github.com/repos/protocolbuffers/protobuf/releases/assets/115884208"
 
 [[tools.protoc-gen-go]]
 version = "1.30.0"
 backend = "aqua:protocolbuffers/protobuf-go/protoc-gen-go"
 
 [tools.protoc-gen-go."platforms.linux-arm64"]
+checksum = "blake3:7d127072a746d977d87edcb4901f4feeab494f60a9722d12a4bdff70c080d970"
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.linux.arm64.tar.gz"
 
 [tools.protoc-gen-go."platforms.linux-arm64-musl"]
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.linux.arm64.tar.gz"
+url_api = "https://api.github.com/repos/protocolbuffers/protobuf-go/releases/assets/99619702"
 
 [tools.protoc-gen-go."platforms.linux-x64"]
 checksum = "blake3:127ed3a8005b199a8451c258ea8fe8ae0f68dd01b4e52c21c881eb7f1d69a333"
@@ -897,27 +911,35 @@ url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/
 
 [tools.protoc-gen-go."platforms.linux-x64-baseline"]
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.linux.amd64.tar.gz"
+url_api = "https://api.github.com/repos/protocolbuffers/protobuf-go/releases/assets/99619705"
 
 [tools.protoc-gen-go."platforms.linux-x64-musl"]
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.linux.amd64.tar.gz"
+url_api = "https://api.github.com/repos/protocolbuffers/protobuf-go/releases/assets/99619705"
 
 [tools.protoc-gen-go."platforms.linux-x64-musl-baseline"]
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.linux.amd64.tar.gz"
+url_api = "https://api.github.com/repos/protocolbuffers/protobuf-go/releases/assets/99619705"
 
 [tools.protoc-gen-go."platforms.macos-arm64"]
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.darwin.arm64.tar.gz"
+url_api = "https://api.github.com/repos/protocolbuffers/protobuf-go/releases/assets/99619709"
 
 [tools.protoc-gen-go."platforms.macos-x64"]
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.darwin.amd64.tar.gz"
+url_api = "https://api.github.com/repos/protocolbuffers/protobuf-go/releases/assets/99619710"
 
 [tools.protoc-gen-go."platforms.macos-x64-baseline"]
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.darwin.amd64.tar.gz"
+url_api = "https://api.github.com/repos/protocolbuffers/protobuf-go/releases/assets/99619710"
 
 [tools.protoc-gen-go."platforms.windows-x64"]
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.windows.amd64.zip"
+url_api = "https://api.github.com/repos/protocolbuffers/protobuf-go/releases/assets/99619697"
 
 [tools.protoc-gen-go."platforms.windows-x64-baseline"]
 url = "https://github.com/protocolbuffers/protobuf-go/releases/download/v1.30.0/protoc-gen-go.v1.30.0.windows.amd64.zip"
+url_api = "https://api.github.com/repos/protocolbuffers/protobuf-go/releases/assets/99619697"
 
 [[tools.syft]]
 version = "1.26.1"

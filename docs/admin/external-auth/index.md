@@ -24,7 +24,7 @@ If you have experience with a provider that is not listed here, please
 
 After you create an OAuth application, set environment variables to configure the Coder server to use it:
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_ID="<USER_DEFINED_ID>"
 CODER_EXTERNAL_AUTH_0_TYPE=<github|gitlab|azure-devops|bitbucket-cloud|bitbucket-server|etc>
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=<OAuth app client ID>
@@ -67,7 +67,7 @@ Reference the documentation for your chosen provider for more information on how
 
 Use [`external-auth`](../../reference/cli/external-auth.md) in the Coder CLI to access a token within the workspace:
 
-```shell
+```sh
 coder external-auth access-token <USER_DEFINED_ID>
 ```
 
@@ -101,7 +101,7 @@ Behind the scenes, Coder:
 
 To manually access these tokens within a workspace:
 
-```shell
+```sh
 coder external-auth access-token <USER_DEFINED_ID>
 ```
 
@@ -124,7 +124,7 @@ You must add the SSH key to your Git provider.
 
 1. View your Coder Git SSH key:
 
-   ```shell
+   ```sh
    coder publickey
    ```
 
@@ -142,7 +142,7 @@ acting as an OAuth client to external identity providers.
 Coder will usually assume PKCE support is available with "S256" as the code challenge method. Manual
 configuration is available to override any default behavior.
 
-```env
+```dotenv
 # Enable PKCE with S256 (recommended when supported)
 CODER_EXTERNAL_AUTH_0_PKCE_METHODS="S256"
 
@@ -156,7 +156,7 @@ CODER_EXTERNAL_AUTH_0_PKCE_METHODS="none"
 
 Azure DevOps requires the following environment variables:
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_ID="primary-azure-devops"
 CODER_EXTERNAL_AUTH_0_TYPE=azure-devops
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
@@ -170,7 +170,7 @@ CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://app.vssps.visualstudio.com/oauth2/token
 
 Azure DevOps (via Entra ID) requires the following environment variables:
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_ID="primary-azure-devops"
 CODER_EXTERNAL_AUTH_0_TYPE=azure-devops-entra
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
@@ -185,7 +185,7 @@ CODER_EXTERNAL_AUTH_0_AUTH_URL="https://login.microsoftonline.com/<TENANT ID>/oa
 
 Bitbucket Server requires the following environment variables:
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_ID="primary-bitbucket-server"
 CODER_EXTERNAL_AUTH_0_TYPE=bitbucket-server
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxx
@@ -199,7 +199,7 @@ This callback path includes the value of `CODER_EXTERNAL_AUTH_0_ID`.
 
 ### Gitea
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_ID="gitea"
 CODER_EXTERNAL_AUTH_0_TYPE=gitea
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxxx
@@ -219,7 +219,7 @@ or to integrate with an existing GitHub authentication.
 For a more complete, step-by-step guide, follow the
 [configure a GitHub OAuth app](#configure-a-github-oauth-app) section instead.
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_ID="primary-github"
 CODER_EXTERNAL_AUTH_0_TYPE=github
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
@@ -236,7 +236,7 @@ as `https://example.com/external-auth/primary-github/callback`, where
 
 GitHub Enterprise requires the following environment variables:
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_ID="primary-github"
 CODER_EXTERNAL_AUTH_0_TYPE=github
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
@@ -255,7 +255,7 @@ as `https://example.com/external-auth/primary-github/callback`, where
 
 GitLab self-managed requires the following environment variables:
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_ID="primary-gitlab"
 CODER_EXTERNAL_AUTH_0_TYPE=gitlab
 # This value is the "Application ID"
@@ -281,7 +281,7 @@ Visit the [JFrog Artifactory](../../admin/integrations/jfrog-artifactory.md) gui
 Custom authentication and token URLs should be used for self-managed Git
 provider deployments.
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/oauth/authorize"
 CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/oauth/token"
 CODER_EXTERNAL_AUTH_0_REVOKE_URL="https://github.example.com/oauth/revoke"
@@ -296,7 +296,7 @@ CODER_EXTERNAL_AUTH_0_REGEX=github\.company\.com
 
 Optionally, you can request custom scopes:
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 ```
 
@@ -343,7 +343,7 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
    before linking. To surface an **Install GitHub App** link in the
    Coder UI, set the following environment variable:
 
-   ```env
+   ```dotenv
    CODER_EXTERNAL_AUTH_0_APP_INSTALL_URL=https://github.com/apps/<your-app-slug>/installations/new
    ```
 
@@ -358,7 +358,7 @@ Below is an example configuration with multiple providers:
 > git config --global credential.useHttpPath true
 > ```
 
-```env
+```dotenv
 # Provider 1) github.com
 CODER_EXTERNAL_AUTH_0_ID=primary-github
 CODER_EXTERNAL_AUTH_0_TYPE=github

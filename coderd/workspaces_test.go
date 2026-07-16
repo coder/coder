@@ -19,6 +19,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/singleflight"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agenttest"
@@ -52,6 +53,50 @@ import (
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/terraform-provider-coder/v2/provider"
 )
+
+// TestWorkspacesListSingleAuthorizePrepare guards against reintroducing the
+// redundant OPA partial evaluation the GET /api/v2/workspaces handler used to
+// perform. The handler called AuthorizeSQLFilter to build a prepared
+// ResourceWorkspace authorizer, but the dbauthz GetAuthorizedWorkspaces wrapper
+// ignored it and re-prepared inside GetWorkspaces, so every request ran partial
+// evaluation twice. Partial-evaluation cost scales with the number of
+// organization-scoped roles the subject carries (see #21890), so the duplicate
+// prepare doubled an already expensive operation. A single list request must
+// prepare the ResourceWorkspace authorizer exactly once.
+func TestWorkspacesListSingleAuthorizePrepare(t *testing.T) {
+	t.Parallel()
+
+	authz := &coderdtest.RecordingAuthorizer{Wrapped: rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())}
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		Authorizer: authz,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	// Seed one workspace directly in the database. The authorization path the
+	// handler takes does not depend on how the workspace was built, so dbfake
+	// avoids the cost of a provisioner and real build.
+	dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:        owner.UserID,
+		OrganizationID: owner.OrganizationID,
+	}).Do()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Reset immediately before the measured request so setup prepares are
+	// excluded. Counts are keyed by subject ID, so background work under system
+	// subjects is ignored.
+	authz.Reset()
+	res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.Len(t, res.Workspaces, 1)
+
+	// The exact count of 1 relies on this being the only request issued under the
+	// owner subject between the reset and this assertion, which holds because the
+	// test makes a single serial call.
+	count := authz.PrepareCount(owner.UserID.String(), policy.ActionRead, rbac.ResourceWorkspace.Type)
+	require.Equal(t, 1, count,
+		"GET /workspaces must prepare the ResourceWorkspace authorizer exactly once; a higher count means a redundant partial evaluation was reintroduced")
+}
 
 func TestWorkspace(t *testing.T) {
 	t.Parallel()
@@ -1501,6 +1546,7 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -1553,6 +1599,7 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -1601,6 +1648,7 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -1640,6 +1688,7 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				DisplayName:              "GitHub",
 				ValidateURL:              validateSrv.URL,
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -1680,6 +1729,7 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 				ID:                       "fallback-provider",
 				Regex:                    regexp.MustCompile(`fallback\.example\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)

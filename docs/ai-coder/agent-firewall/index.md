@@ -141,7 +141,7 @@ per template. You can do so by installing the
 [binary](https://github.com/coder/boundary) into the workspace image or at
 start-up. You can do so with the following command:
 
-```bash
+```sh
 curl -fsSL https://raw.githubusercontent.com/coder/boundary/main/install.sh | bash
 ```
 

@@ -370,6 +370,16 @@ func buildAuthHeaders(
 			)
 			break
 		}
+		if tok.OauthRefreshFailureReason != "" {
+			// The grant is permanently unusable (e.g. revoked
+			// upstream) and the user must reconnect. Do not attach
+			// any leftover token material.
+			logger.Warn(ctx,
+				"oauth2 token for MCP server requires reconnect, skipping auth header",
+				slog.F("server_slug", cfg.Slug),
+			)
+			break
+		}
 		if tok.Expiry.Valid && tok.Expiry.Time.Before(time.Now()) {
 			logger.Warn(ctx,
 				"oauth2 token for MCP server is expired",
@@ -856,6 +866,43 @@ type RefreshResult struct {
 	// meaning a refresh occurred. When false the token was still
 	// valid and no network call was made.
 	Refreshed bool
+}
+
+// refreshFailureReasonLimit caps the error text persisted to
+// mcp_server_user_tokens.oauth_refresh_failure_reason, matching the
+// external auth failure reason limit.
+const refreshFailureReasonLimit = 400
+
+// IsPermanentRefreshError reports whether an OAuth2 token refresh
+// error means the user's grant is permanently unusable (for example
+// the upstream grant was revoked) rather than a transient provider
+// failure. Only error codes tied to the grant itself count: client
+// or config problems (invalid_client, unauthorized_client, ...)
+// affect every user of the server and cannot be fixed by the user
+// reconnecting, so they are treated as transient here. See RFC 6749
+// section 5.2.
+func IsPermanentRefreshError(err error) bool {
+	var oauthErr *oauth2.RetrieveError
+	if !xerrors.As(err, &oauthErr) {
+		return false
+	}
+	switch oauthErr.ErrorCode {
+	case "invalid_grant", // RFC 6749: grant invalid, expired, or revoked
+		"bad_refresh_token": // GitHub's equivalent, returned with HTTP 200
+		return true
+	}
+	return false
+}
+
+// RefreshFailureReason converts a refresh error into a bounded string
+// safe to persist as oauth_refresh_failure_reason. It is stored for
+// operator debugging only and is never returned through the API.
+func RefreshFailureReason(err error) string {
+	reason := err.Error()
+	if len(reason) > refreshFailureReasonLimit {
+		reason = reason[:refreshFailureReasonLimit]
+	}
+	return reason
 }
 
 // RefreshOAuth2Token checks whether the given MCP user token is

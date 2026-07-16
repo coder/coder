@@ -723,7 +723,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	// Find sibling regions to respond with for derpmesh.
-	siblings := api.replicaManager.InRegion(regionID)
+	siblings := api.replicaManager.DERPReplicasInRegion(regionID)
 	siblingsRes := make([]codersdk.Replica, 0, len(siblings))
 	for _, replica := range siblings {
 		if replica.ID == req.ReplicaID {
