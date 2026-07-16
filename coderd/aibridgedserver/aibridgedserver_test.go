@@ -248,6 +248,32 @@ func TestAuthorization(t *testing.T) {
 				// permission-based licensing.
 			},
 		},
+		{
+			// A key scoped to application_connect has no interception
+			// create permission, so the authorize call denies it even
+			// though the user holds the role.
+			name:        "application connect scope denied",
+			expectedErr: aibridgedserver.ErrNoAIGatewayAccess,
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				apiKey.Scopes = []database.APIKeyScope{database.ApiKeyScopeCoderApplicationConnect}
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+				expectAIGatewayAccessRoles(db, user)
+			},
+		},
+		{
+			// A key with a narrow allow list does not include the
+			// interception resource, so the authorize call denies it even
+			// though the user holds the role.
+			name:        "narrow allow list denied",
+			expectedErr: aibridgedserver.ErrNoAIGatewayAccess,
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				apiKey.AllowList = database.AllowList{{Type: rbac.ResourceWorkspace.Type, ID: uuid.NewString()}}
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+				expectAIGatewayAccessRoles(db, user)
+			},
+		},
 	}
 
 	for _, tc := range cases {
