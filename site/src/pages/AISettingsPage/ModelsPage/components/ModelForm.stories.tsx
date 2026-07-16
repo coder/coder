@@ -219,12 +219,16 @@ export const EditUpdateDisabledUntilDirty: Story = {
 };
 
 export const ReasoningEffortInProviderConfiguration: Story = {
+	args: {
+		selectedProviderState: MockAnthropicProviderState,
+	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 
 		await userEvent.click(
 			canvas.getByRole("button", { name: /provider configuration/i }),
 		);
+		const thinkingBudget = canvas.getByLabelText(/thinking budget tokens/i);
 		const maxSelect = canvas.getByRole("combobox", {
 			name: /max reasoning effort/i,
 		});
@@ -233,6 +237,9 @@ export const ReasoningEffortInProviderConfiguration: Story = {
 		});
 		await expect(maxSelect).toBeVisible();
 		await expect(defaultSelect).toBeVisible();
+		await expect(thinkingBudget.compareDocumentPosition(maxSelect)).toBe(
+			Node.DOCUMENT_POSITION_FOLLOWING,
+		);
 		await expect(maxSelect.compareDocumentPosition(defaultSelect)).toBe(
 			Node.DOCUMENT_POSITION_FOLLOWING,
 		);

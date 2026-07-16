@@ -1,6 +1,6 @@
 import { type FormikContextType, getIn } from "formik";
 import { InfoIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
+import { type FC, Fragment, type ReactNode } from "react";
 import {
 	type FieldSchema,
 	getVisibleGeneralFields,
@@ -584,25 +584,29 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 
 	return (
 		<div className="grid min-w-0 gap-3 sm:grid-cols-3">
-			{children}
 			{sorted.map((field) => {
 				const fieldKey = `config.${toFormFieldKey(resolved, field.json_name)}`;
 				const errorKey = toFormFieldKey(resolved, field.json_name);
 				return (
-					<div key={fieldKey} className={colSpanClass[colSpan(field)]}>
-						<SchemaField
-							field={field}
-							fieldKey={fieldKey}
-							errorKey={errorKey}
-							form={form}
-							fieldErrors={fieldErrors}
-							disabled={
-								disabled || isFieldConflictDisabled(field, fieldValueByName)
-							}
-						/>
-					</div>
+					<Fragment key={fieldKey}>
+						<div className={colSpanClass[colSpan(field)]}>
+							<SchemaField
+								field={field}
+								fieldKey={fieldKey}
+								errorKey={errorKey}
+								form={form}
+								fieldErrors={fieldErrors}
+								disabled={
+									disabled || isFieldConflictDisabled(field, fieldValueByName)
+								}
+							/>
+						</div>
+						{field.json_name === "thinking.budget_tokens" && children}
+					</Fragment>
 				);
 			})}
+			{!sorted.some((field) => field.json_name === "thinking.budget_tokens") &&
+				children}
 		</div>
 	);
 };
