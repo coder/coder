@@ -5232,7 +5232,7 @@ SET
 WHERE id = $13::uuid
 	AND chat_id = $14::uuid
 	AND owner_id = $15::uuid
-RETURNING id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason, effects_applied_at
+RETURNING id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason, effects_applied_at, tool_name
 `
 
 type FinalizeChatHookDispatchParams struct {
@@ -5294,20 +5294,23 @@ func (q *sqlQuerier) FinalizeChatHookDispatch(ctx context.Context, arg FinalizeC
 		&i.Error,
 		&i.DecisionReason,
 		&i.EffectsAppliedAt,
+		&i.ToolName,
 	)
 	return i, err
 }
 
 const getChatHookDispatchDecision = `-- name: GetChatHookDispatchDecision :one
 SELECT
-	id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason, effects_applied_at
+	id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason, effects_applied_at, tool_name
 FROM
 	chat_hook_dispatches
 WHERE
 	chat_id = $1::uuid
 	AND event = 'pre_tool_use'
 	AND tool_use_id = $2::text
-	AND turn_id IS NOT DISTINCT FROM $3::uuid
+	AND tool_name = $3::text
+	AND COALESCE(input_override, original_input) = $4::jsonb
+	AND turn_id IS NOT DISTINCT FROM $5::uuid
 	AND decision IS NOT NULL
 	AND result IN ('ok', 'denied')
 ORDER BY
@@ -5317,13 +5320,29 @@ LIMIT 1
 `
 
 type GetChatHookDispatchDecisionParams struct {
-	ChatID    uuid.UUID     `db:"chat_id" json:"chat_id"`
-	ToolUseID string        `db:"tool_use_id" json:"tool_use_id"`
-	TurnID    uuid.NullUUID `db:"turn_id" json:"turn_id"`
+	ChatID    uuid.UUID       `db:"chat_id" json:"chat_id"`
+	ToolUseID string          `db:"tool_use_id" json:"tool_use_id"`
+	ToolName  string          `db:"tool_name" json:"tool_name"`
+	ToolInput json.RawMessage `db:"tool_input" json:"tool_input"`
+	TurnID    uuid.NullUUID   `db:"turn_id" json:"turn_id"`
 }
 
+// A decision is only reusable for the exact tool call it reviewed:
+// the tool name must match and the effective reviewed input
+// (input_override when the hook rewrote it, original_input otherwise)
+// must be semantically equal to the input being retried. Persisted
+// assistant tool-call args already carry the override, so crash
+// retries match; a different tool or different input that reuses the
+// same tool-use ID dispatches fresh instead of inheriting a stale
+// decision. Rows recorded before tool_name existed never match.
 func (q *sqlQuerier) GetChatHookDispatchDecision(ctx context.Context, arg GetChatHookDispatchDecisionParams) (ChatHookDispatch, error) {
-	row := q.db.QueryRowContext(ctx, getChatHookDispatchDecision, arg.ChatID, arg.ToolUseID, arg.TurnID)
+	row := q.db.QueryRowContext(ctx, getChatHookDispatchDecision,
+		arg.ChatID,
+		arg.ToolUseID,
+		arg.ToolName,
+		arg.ToolInput,
+		arg.TurnID,
+	)
 	var i ChatHookDispatch
 	err := row.Scan(
 		&i.ID,
@@ -5347,6 +5366,7 @@ func (q *sqlQuerier) GetChatHookDispatchDecision(ctx context.Context, arg GetCha
 		&i.Error,
 		&i.DecisionReason,
 		&i.EffectsAppliedAt,
+		&i.ToolName,
 	)
 	return i, err
 }
@@ -5358,6 +5378,7 @@ INSERT INTO chat_hook_dispatches (
 	event,
 	turn_id,
 	tool_use_id,
+	tool_name,
 	owner_id,
 	workspace_id,
 	started_at
@@ -5367,11 +5388,12 @@ INSERT INTO chat_hook_dispatches (
 	$3::text,
 	$4::uuid,
 	$5::text,
-	$6::uuid,
+	$6::text,
 	$7::uuid,
-	$8::timestamptz
+	$8::uuid,
+	$9::timestamptz
 )
-RETURNING id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason, effects_applied_at
+RETURNING id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason, effects_applied_at, tool_name
 `
 
 type InsertChatHookDispatchParams struct {
@@ -5380,6 +5402,7 @@ type InsertChatHookDispatchParams struct {
 	Event       string         `db:"event" json:"event"`
 	TurnID      uuid.NullUUID  `db:"turn_id" json:"turn_id"`
 	ToolUseID   sql.NullString `db:"tool_use_id" json:"tool_use_id"`
+	ToolName    sql.NullString `db:"tool_name" json:"tool_name"`
 	OwnerID     uuid.UUID      `db:"owner_id" json:"owner_id"`
 	WorkspaceID uuid.NullUUID  `db:"workspace_id" json:"workspace_id"`
 	StartedAt   time.Time      `db:"started_at" json:"started_at"`
@@ -5392,6 +5415,7 @@ func (q *sqlQuerier) InsertChatHookDispatch(ctx context.Context, arg InsertChatH
 		arg.Event,
 		arg.TurnID,
 		arg.ToolUseID,
+		arg.ToolName,
 		arg.OwnerID,
 		arg.WorkspaceID,
 		arg.StartedAt,
@@ -5419,13 +5443,14 @@ func (q *sqlQuerier) InsertChatHookDispatch(ctx context.Context, arg InsertChatH
 		&i.Error,
 		&i.DecisionReason,
 		&i.EffectsAppliedAt,
+		&i.ToolName,
 	)
 	return i, err
 }
 
 const listChatHookDispatchesByChatID = `-- name: ListChatHookDispatchesByChatID :many
 SELECT
-	id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason, effects_applied_at
+	id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason, effects_applied_at, tool_name
 FROM
 	chat_hook_dispatches
 WHERE
@@ -5466,6 +5491,7 @@ func (q *sqlQuerier) ListChatHookDispatchesByChatID(ctx context.Context, chatID 
 			&i.Error,
 			&i.DecisionReason,
 			&i.EffectsAppliedAt,
+			&i.ToolName,
 		); err != nil {
 			return nil, err
 		}

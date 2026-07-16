@@ -801,13 +801,13 @@ func TestDeploymentValues_Validate_ChatHooks(t *testing.T) {
 		{
 			name:    "Valid",
 			url:     "https://hooks.example.com/agent",
-			secret:  "secret",
+			secret:  "0123456789abcdef0123456789abcdef",
 			timeout: 5 * time.Second,
 		},
 		{
 			name:    "HTTPURL",
 			url:     "http://hooks.example.com/agent",
-			secret:  "secret",
+			secret:  "0123456789abcdef0123456789abcdef",
 			timeout: 1500 * time.Millisecond,
 			wantErr: "chat hook URL must use HTTPS",
 		},
@@ -816,6 +816,16 @@ func TestDeploymentValues_Validate_ChatHooks(t *testing.T) {
 			url:     "https://hooks.example.com/agent",
 			timeout: 1500 * time.Millisecond,
 			wantErr: "chat hook secret is required",
+		},
+		{
+			// go-jose refuses to sign HS256 with a key shorter than
+			// the digest, so a short secret would fail every dispatch
+			// at runtime; reject it at startup instead.
+			name:    "ShortSecret",
+			url:     "https://hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcde",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "chat hook secret must be at least 32 bytes",
 		},
 		{
 			name:    "ZeroTimeout",

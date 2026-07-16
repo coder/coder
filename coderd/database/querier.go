@@ -433,6 +433,14 @@ type sqlcQuerier interface {
 	GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]ChatFile, error)
 	GetChatGeneralModelOverride(ctx context.Context) (string, error)
 	GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatParams) (ChatHeartbeat, error)
+	// A decision is only reusable for the exact tool call it reviewed:
+	// the tool name must match and the effective reviewed input
+	// (input_override when the hook rewrote it, original_input otherwise)
+	// must be semantically equal to the input being retried. Persisted
+	// assistant tool-call args already carry the override, so crash
+	// retries match; a different tool or different input that reuses the
+	// same tool-use ID dispatches fresh instead of inheriting a stale
+	// decision. Rows recorded before tool_name existed never match.
 	GetChatHookDispatchDecision(ctx context.Context, arg GetChatHookDispatchDecisionParams) (ChatHookDispatch, error)
 	// GetChatIncludeDefaultSystemPrompt preserves the legacy default
 	// for deployments created before the explicit include-default toggle.

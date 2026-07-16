@@ -14,37 +14,41 @@ The configured consumer can observe all 7 lifecycle events, add model or user co
 
 Set the following deployment options on `coder server`.
 
-| Environment variable      | CLI flag              | Default | Requirement                                                                          |
-|---------------------------|-----------------------|---------|--------------------------------------------------------------------------------------|
-| `CODER_CHAT_HOOK_URL`     | `--chat-hook-url`     | Empty   | Use an `https` URL. Hooks are inactive when this value is empty.                     |
-| `CODER_CHAT_HOOK_SECRET`  | `--chat-hook-secret`  | Empty   | Required when the hook URL is set. Coder uses this shared secret to sign HS256 JWTs. |
-| `CODER_CHAT_HOOK_TIMEOUT` | `--chat-hook-timeout` | `1.5s`  | Must be greater than `0` and no more than `5s`. The timeout applies to each request. |
-| `CODER_CHAT_HOOK_ENABLED` | `--chat-hook-enabled` | `true`  | Set to `false` to stop dispatching without removing the URL or secret.               |
+| Environment variable      | CLI flag              | Default | Requirement                                                                                                                              |
+|---------------------------|-----------------------|---------|------------------------------------------------------------------------------------------------------------------------------------------|
+| `CODER_CHAT_HOOK_URL`     | `--chat-hook-url`     | Empty   | Use an `https` URL. Hooks are inactive when this value is empty.                                                                         |
+| `CODER_CHAT_HOOK_SECRET`  | `--chat-hook-secret`  | Empty   | Required when the hook URL is set, at least 32 bytes of cryptographically random data. Coder uses this shared secret to sign HS256 JWTs. |
+| `CODER_CHAT_HOOK_TIMEOUT` | `--chat-hook-timeout` | `1.5s`  | Must be greater than `0` and no more than `5s`. The timeout applies to each request.                                                     |
+| `CODER_CHAT_HOOK_ENABLED` | `--chat-hook-enabled` | `true`  | Set to `false` to stop dispatching without removing the URL or secret.                                                                   |
 
 Treat `CODER_CHAT_HOOK_ENABLED=false` as the break-glass control.
 Changing deployment options requires the normal `coder server` configuration rollout for your installation.
 
 Use a dedicated secret and rotate it through your existing secret-management process.
+Rotation is a hard cutover: Coder signs with exactly one secret, so dispatches fail until the consumer accepts the new value.
+Rotate during a maintenance window, or temporarily set `CODER_CHAT_HOOK_ENABLED=false` for the cutover if blocked chats are worse than unreviewed ones for your deployment.
 Coder requires the configured URL to use HTTPS.
 A TLS terminator can forward the request to a consumer over plain HTTP on a trusted local network.
 It must set `X-Forwarded-Proto: https` and either preserve the original `Host` header or carry it in `X-Forwarded-Host` for the SDK handler's audience check.
+The SDK trusts those forwarded headers, so the audience check is only as strong as that proxy boundary: the proxy must strip or overwrite client-supplied forwarded headers, and the consumer must not be reachable except through the proxy.
 
 ## Handle lifecycle events
 
 Coder sends an HTTP `POST` request for each event.
 The JSON body contains `type`, `meta`, and event-specific `data`.
 The `meta` object includes `dispatch_id`, `schema_version`, `chat_id`, `owner_id`, and optional workspace and turn IDs.
+Events from subagent chats also carry `parent_chat_id` and `root_chat_id` so a consumer can correlate a subagent subtree with the user-facing conversation and apply the parent's policy context.
 The current `schema_version` is `1`.
 
-| Event                | When Coder sends it                        | Decision-relevant data                                                 |
-|----------------------|--------------------------------------------|------------------------------------------------------------------------|
-| `session_start`      | A chat session starts, resumes, or clears  | `source` (`startup`, `resume`, or `clear`)                             |
-| `user_prompt_submit` | A user submits a prompt                    | `prompt` and `parts`                                                   |
-| `pre_tool_use`       | Before a non-provider-executed tool runs   | `tool_use_id`, `tool_name`, and `tool_input`                           |
-| `post_tool_use`      | After a non-provider-executed tool returns | `tool_use_id`, `tool_name`, and either `tool_response` or `tool_error` |
-| `pre_compact`        | Before Coder compacts chat context         | No event-specific fields                                               |
-| `post_compact`       | After Coder compacts chat context          | No event-specific fields                                               |
-| `stop`               | The model stops a turn                     | No event-specific fields                                               |
+| Event                | When Coder sends it                                                 | Decision-relevant data                                                 |
+|----------------------|---------------------------------------------------------------------|------------------------------------------------------------------------|
+| `session_start`      | A chat session starts, resumes, or clears                           | `source` (`startup`, `resume`, or `clear`)                             |
+| `user_prompt_submit` | A user submits a prompt, or `spawn_agent` submits a subagent prompt | `prompt` and `parts`                                                   |
+| `pre_tool_use`       | Before a non-provider-executed tool runs                            | `tool_use_id`, `tool_name`, and `tool_input`                           |
+| `post_tool_use`      | After a non-provider-executed tool returns                          | `tool_use_id`, `tool_name`, and either `tool_response` or `tool_error` |
+| `pre_compact`        | Before Coder compacts chat context                                  | No event-specific fields                                               |
+| `post_compact`       | After Coder compacts chat context                                   | No event-specific fields                                               |
+| `stop`               | The model stops a turn                                              | No event-specific fields                                               |
 
 Provider-executed tools don't produce `pre_tool_use` or `post_tool_use` events because the provider executes them outside Coder's tool runtime.
 
@@ -67,7 +71,8 @@ A consumer must apply all of the following checks before it uses the body:
 
 The Go consumer SDK in `codersdk/agenthooks` implements the wire types, JWT verification, body binding, audience checks, and event routing.
 Use `agenthooks.NewHTTPHandler` to build an `http.Handler` from callbacks for the events your consumer handles.
-Use a secret dedicated to the expected deployment, or add an issuer check when you implement JWT verification directly.
+`NewHTTPHandler` does not enforce a configured issuer: it accepts any non-empty `iss` signed with the shared secret.
+Use a secret dedicated to one deployment, and add your own `iss` check against `meta` or the verified claims if the same secret can reach consumers for more than one deployment.
 
 ### Return a response
 
@@ -75,13 +80,13 @@ Return any `2xx` status with an empty body for a no-op response.
 An empty JSON object has the same effect.
 If the response has a body, return a JSON object with these optional fields.
 
-| Field           | Effect                                                                                                                                                                                                                                                                                                                                                       |
-|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `permission`    | Allows or denies mutable input for `user_prompt_submit` and `pre_tool_use` only.                                                                                                                                                                                                                                                                             |
-| `model_context` | Adds text visible to the model. The value is limited to 16&nbsp;KiB.                                                                                                                                                                                                                                                                                         |
-| `user_message`  | Adds a system message visible to the user.                                                                                                                                                                                                                                                                                                                   |
-| `allowed_tools` | Replaces the chat's hook tool policy. Omit the field to preserve the policy, return `[]` to restrict all tools, or return names to allow only those tools. The policy applies from the next generation step onward, and a call to an excluded tool fails as inactive.                                                                                        |
-| `end_chat`      | Ends the chat when `true`. Ending a chat archives the chat identified by `meta.chat_id` together with any subagent chats it spawned. For an event from a subagent chat, this ends that subagent subtree and its parent chat continues. A `pre_tool_use` `end_chat` ends the chat before the tool runs, and the pending calls become synthetic cancellations. |
+| Field           | Effect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+|-----------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `permission`    | Allows or denies mutable input for `user_prompt_submit` and `pre_tool_use` only.                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `model_context` | Adds text visible to the model. The value is limited to 16&nbsp;KiB. The text never appears in the user's transcript, so users cannot tell that the consumer steered the model; the only record is the dispatch audit row.                                                                                                                                                                                                                                                                                                            |
+| `user_message`  | Adds a system message visible to the user.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `allowed_tools` | Narrows the chat's hook tool policy. Omit the field to preserve the policy. The first non-omitted value initializes the policy; later values intersect with it, so an established policy only ever shrinks and `[]` permanently restricts all tools. To restore wider access, end the chat and start a new one. The policy applies from the next generation step onward, and a call to an excluded tool fails as inactive. A subagent chat starts with its parent's policy intersected with any policy returned for the spawn prompt. |
+| `end_chat`      | Ends the chat when `true`. Ending a chat archives the chat identified by `meta.chat_id` together with any subagent chats it spawned. For an event from a subagent chat, this ends that subagent subtree and its parent chat continues. A `pre_tool_use` `end_chat` ends the chat before the tool runs, and the pending calls become synthetic cancellations.                                                                                                                                                                          |
 
 The `permission.decision` value supports `allow` and `deny`.
 The `ask` value isn't supported and causes the dispatch to fail closed.
@@ -92,6 +97,7 @@ Permission rules depend on the event:
   Coder stores and sends the replacement prompt instead of the original prompt.
 - For `pre_tool_use`, `allow` requires `input_override` containing the replacement tool input.
   Coder persists the replacement with the tool call and executes the tool with it.
+  Nothing marks the call as rewritten in the chat, so the model may misattribute the changed behavior; a consumer that rewrites input should also return `user_message` explaining the change.
 - For either event, `deny` blocks the input.
   A denied prompt isn't persisted, and a denied tool call becomes a synthetic error result so the model can choose another action.
   A `user_prompt_submit` denial that also sets `end_chat` rejects the prompt and ends the existing chat. During chat creation there is no chat to end.
@@ -112,6 +118,10 @@ Dispatch precedes persistence, so a delivered event doesn't guarantee that the o
 Coder checks admission before dispatching, but concurrent requests can still fail admission afterward, for example two sends racing for the last queue slot or duplicate submissions of the same tool results.
 The consumer then observes an event for a request that Coder rejects, and the rejected request doesn't persist a prompt or tool result.
 Treat events as attempt notifications rather than proof of a committed operation, and key idempotent tool-event processing on `tool_use_id`.
+
+Delivery is at least once.
+Coder retries one connection failure per dispatch with the same JWT, so the consumer can receive the same `dispatch_id` more than once, and `session_start` response effects can repeat when a runner or process is replaced mid-turn.
+A side-effectful consumer must deduplicate durably by `dispatch_id` and replay its previous response for a duplicate; rejecting duplicates breaks Coder's own retries.
 
 After the consumer is healthy, send another message to an existing errored chat to resume it.
 Coder emits `session_start` with `source` set to `resume` when the agent loop starts again.
@@ -157,5 +167,7 @@ Each row includes the event, chat and turn identifiers, tool-use ID when present
 Use the `dispatch_id` from the request or chat error as the row ID when correlating consumer logs with Coder state.
 
 The table can contain prompts, tool input, response context, and user messages.
+When a response rewrites a prompt or tool input, the row keeps the original value alongside the override, so rewriting doesn't remove the original content from the deployment.
+Rows have no foreign key to chats: they can outlive deleted chats, and denied create attempts leave rows for chats that never existed.
 Apply the same access controls and database protection that you use for other sensitive chat data.
-The `dbpurge` service removes dispatch rows after 90 days to bound table growth.
+The `dbpurge` service removes dispatch rows after 90 days to bound table growth; the retention period isn't configurable.

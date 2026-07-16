@@ -481,7 +481,7 @@ func TestPreToolUseHookRecordedEndChatSkipsExecution(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, messages[0].TurnID.Valid)
 	turnID := messages[0].TurnID.UUID
-	recordPreToolUseResponse(ctx, t, db, chatID, user.ID, turnID, "call_recorded_end_chat", agenthooks.PermissionAllow, "", nil, agenthooks.Response{
+	recordPreToolUseResponse(ctx, t, db, chatID, user.ID, turnID, "call_recorded_end_chat", "read_file", json.RawMessage(`{"path":"/tmp/end.txt"}`), agenthooks.PermissionAllow, "", nil, agenthooks.Response{
 		EndChat: true,
 	})
 
@@ -531,6 +531,8 @@ func TestPreToolUseHookRecordedEndChatSkipsExecution(t *testing.T) {
 	row, err := db.GetChatHookDispatchDecision(ctx, database.GetChatHookDispatchDecisionParams{
 		ChatID:    chatID,
 		ToolUseID: "call_recorded_end_chat",
+		ToolName:  "read_file",
+		ToolInput: json.RawMessage(`{"path":"/tmp/end.txt"}`),
 		TurnID:    uuid.NullUUID{UUID: turnID, Valid: true},
 	})
 	require.NoError(t, err)
@@ -724,8 +726,8 @@ func TestPreToolUseHookResumeRecordedDeny(t *testing.T) {
 	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chatID)
 	require.NoError(t, err)
 	require.True(t, messages[0].TurnID.Valid)
-	recordPreToolUseDecision(ctx, t, db, chatID, user.ID, uuid.New(), "call_recorded_deny", agenthooks.PermissionAllow, "", nil)
-	recordPreToolUseDecision(ctx, t, db, chatID, user.ID, messages[0].TurnID.UUID, "call_recorded_deny", agenthooks.PermissionDeny, "recorded policy reason", nil)
+	recordPreToolUseDecision(ctx, t, db, chatID, user.ID, uuid.New(), "call_recorded_deny", "read_file", json.RawMessage(`{"path":"/tmp/secret.txt"}`), agenthooks.PermissionAllow, "", nil)
+	recordPreToolUseDecision(ctx, t, db, chatID, user.ID, messages[0].TurnID.UUID, "call_recorded_deny", "read_file", json.RawMessage(`{"path":"/tmp/secret.txt"}`), agenthooks.PermissionDeny, "recorded policy reason", nil)
 
 	var hookCalls atomic.Int32
 	consumer := preToolUseConsumer(t, func(agenthooks.PreToolUseData) string {
@@ -753,6 +755,70 @@ func TestPreToolUseHookResumeRecordedDeny(t *testing.T) {
 	require.Contains(t, string(result.Result), "DENIED: recorded policy reason")
 }
 
+// A recorded decision binds to the exact tool call it reviewed. When a
+// pending call reuses the same tool-use ID with different input, the
+// stale decision must not be replayed; the call dispatches fresh.
+func TestPreToolUseHookRecordedDecisionRequiresMatchingInput(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	chatID := seedPendingToolCall(ctx, t, db, ps, pendingToolCallSeed{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    ws.ID,
+		AgentID:        dbAgent.ID,
+		ModelConfigID:  model.ID,
+		APIKeyID:       testAPIKeyID(t, db, user.ID),
+		ToolCallID:     "call_input_mismatch",
+		ToolName:       "read_file",
+		ToolInput:      `{"path":"/tmp/harmless.txt"}`,
+	})
+	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chatID)
+	require.NoError(t, err)
+	require.True(t, messages[0].TurnID.Valid)
+	// The recorded deny reviewed different input under the same
+	// tool-use ID and turn; it must not transfer to the pending call.
+	recordPreToolUseDecision(ctx, t, db, chatID, user.ID, messages[0].TurnID.UUID, "call_input_mismatch", "read_file", json.RawMessage(`{"path":"/tmp/secret.txt"}`), agenthooks.PermissionDeny, "stale decision", nil)
+
+	var hookCalls atomic.Int32
+	consumer := preToolUseConsumer(t, func(data agenthooks.PreToolUseData) string {
+		hookCalls.Add(1)
+		require.JSONEq(t, `{"path":"/tmp/harmless.txt"}`, string(data.ToolInput))
+		return `{}`
+	})
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), "/tmp/harmless.txt", int64(1), int64(0), gomock.Any()).
+		Return(workspacesdk.ReadFileLinesResponse{
+			Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data",
+		}, nil).
+		Times(1)
+	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	server.Start()
+	waitForChatStatus(ctx, t, db, chatID, database.ChatStatusWaiting)
+
+	require.Positive(t, hookCalls.Load(), "mismatched input must dispatch a fresh pre_tool_use review")
+	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chatID), "read_file")
+	require.False(t, result.IsError, "the stale deny must not apply to the fresh call")
+}
+
 func recordPreToolUseDecision(
 	ctx context.Context,
 	t *testing.T,
@@ -761,12 +827,14 @@ func recordPreToolUseDecision(
 	ownerID uuid.UUID,
 	turnID uuid.UUID,
 	toolUseID string,
+	toolName string,
+	toolInput json.RawMessage,
 	decision agenthooks.PermissionDecision,
 	reason string,
 	override json.RawMessage,
 ) {
 	t.Helper()
-	recordPreToolUseResponse(ctx, t, db, chatID, ownerID, turnID, toolUseID, decision, reason, override, agenthooks.Response{})
+	recordPreToolUseResponse(ctx, t, db, chatID, ownerID, turnID, toolUseID, toolName, toolInput, decision, reason, override, agenthooks.Response{})
 }
 
 func recordPreToolUseResponse(
@@ -777,6 +845,8 @@ func recordPreToolUseResponse(
 	ownerID uuid.UUID,
 	turnID uuid.UUID,
 	toolUseID string,
+	toolName string,
+	toolInput json.RawMessage,
 	decision agenthooks.PermissionDecision,
 	reason string,
 	override json.RawMessage,
@@ -796,6 +866,7 @@ func recordPreToolUseResponse(
 		Event:     string(agenthooks.EventPreToolUse),
 		TurnID:    uuid.NullUUID{UUID: turnID, Valid: true},
 		ToolUseID: sql.NullString{String: toolUseID, Valid: true},
+		ToolName:  sql.NullString{String: toolName, Valid: toolName != ""},
 		OwnerID:   ownerID,
 		StartedAt: time.Now(),
 	})
@@ -806,6 +877,7 @@ func recordPreToolUseResponse(
 		Decision:       sql.NullString{String: string(decision), Valid: true},
 		DecisionReason: sql.NullString{String: reason, Valid: reason != ""},
 		InputOverride:  nullRawMessage(override),
+		OriginalInput:  nullRawMessage(toolInput),
 		ModelContext:   sql.NullString{String: response.ModelContext, Valid: response.ModelContext != ""},
 		UserMessage:    sql.NullString{String: response.UserMessage, Valid: response.UserMessage != ""},
 		AllowedTools:   nullRawMessage(allowedTools),
@@ -848,7 +920,7 @@ func TestPreToolUseHookReplaysUnappliedEffects(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, messages[0].TurnID.Valid)
 	allowed := []string{"read_file"}
-	recordPreToolUseResponse(ctx, t, db, chatID, user.ID, messages[0].TurnID.UUID, "call_replay_effects", agenthooks.PermissionAllow, "", nil, agenthooks.Response{
+	recordPreToolUseResponse(ctx, t, db, chatID, user.ID, messages[0].TurnID.UUID, "call_replay_effects", "read_file", json.RawMessage(`{"path":"/tmp/a.txt"}`), agenthooks.PermissionAllow, "", nil, agenthooks.Response{
 		ModelContext: "recorded context",
 		UserMessage:  "recorded notice",
 		AllowedTools: &allowed,
@@ -941,7 +1013,7 @@ func TestPreToolUseHookSkipsAppliedEffects(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, messages[0].TurnID.Valid)
 	allowed := []string{"read_file"}
-	recordPreToolUseResponse(ctx, t, db, chatID, user.ID, messages[0].TurnID.UUID, "call_applied_effects", agenthooks.PermissionAllow, "", nil, agenthooks.Response{
+	recordPreToolUseResponse(ctx, t, db, chatID, user.ID, messages[0].TurnID.UUID, "call_applied_effects", "read_file", json.RawMessage(`{"path":"/tmp/a.txt"}`), agenthooks.PermissionAllow, "", nil, agenthooks.Response{
 		ModelContext: "recorded context",
 		AllowedTools: &allowed,
 	})

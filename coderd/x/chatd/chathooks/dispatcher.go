@@ -60,13 +60,16 @@ type store interface {
 
 // Event contains a lifecycle event and its dispatch metadata.
 type Event struct {
-	Type        agenthooks.EventType
-	ChatID      uuid.UUID
-	OwnerID     uuid.UUID
-	WorkspaceID *uuid.UUID
-	TurnID      *uuid.UUID
-	ToolUseID   *string
-	Data        any
+	Type         agenthooks.EventType
+	ChatID       uuid.UUID
+	OwnerID      uuid.UUID
+	WorkspaceID  *uuid.UUID
+	TurnID       *uuid.UUID
+	ParentChatID *uuid.UUID
+	RootChatID   *uuid.UUID
+	ToolUseID    *string
+	ToolName     *string
+	Data         any
 }
 
 // DispatchError identifies a failed lifecycle hook dispatch.
@@ -214,7 +217,8 @@ func (d *Dispatcher) insert(ctx context.Context, event Event, dispatchID uuid.UU
 		ChatID:      event.ChatID,
 		Event:       string(event.Type),
 		TurnID:      nullUUID(event.TurnID),
-		ToolUseID:   nullToolUseID(event.ToolUseID),
+		ToolUseID:   nullStringPtr(event.ToolUseID),
+		ToolName:    nullStringPtr(event.ToolName),
 		OwnerID:     event.OwnerID,
 		WorkspaceID: nullUUID(event.WorkspaceID),
 		StartedAt:   startedAt,
@@ -244,6 +248,8 @@ func (d *Dispatcher) prepareAndPost(ctx context.Context, event Event, dispatchID
 			OwnerID:       event.OwnerID,
 			WorkspaceID:   event.WorkspaceID,
 			TurnID:        event.TurnID,
+			ParentChatID:  event.ParentChatID,
+			RootChatID:    event.RootChatID,
 		},
 		Data: data,
 	}
@@ -316,8 +322,11 @@ func (d *Dispatcher) post(
 			if isTimeoutError(attemptErr) || isTimeoutError(requestErr) || errors.Is(requestErr, context.Canceled) {
 				return agenthooks.Response{}, sql.NullInt32{}, resultTimeout, xerrors.Errorf("post lifecycle hook: %w", requestErr)
 			}
+			// Non-connection transport failures (TLS validation, malformed
+			// URLs, protocol violations) are deterministic, so retrying
+			// cannot help; classify them as protocol errors and return.
 			if !isConnectionError(requestErr) {
-				return agenthooks.Response{}, sql.NullInt32{}, resultConnectionError, xerrors.Errorf("post lifecycle hook: %w", requestErr)
+				return agenthooks.Response{}, sql.NullInt32{}, resultProtocolError, xerrors.Errorf("post lifecycle hook: %w", requestErr)
 			}
 			if attempt == 1 {
 				return agenthooks.Response{}, sql.NullInt32{}, resultConnectionError, xerrors.Errorf("post lifecycle hook: %w", requestErr)
@@ -564,7 +573,7 @@ func nullUUID(value *uuid.UUID) uuid.NullUUID {
 	return uuid.NullUUID{UUID: *value, Valid: true}
 }
 
-func nullToolUseID(value *string) sql.NullString {
+func nullStringPtr(value *string) sql.NullString {
 	if value == nil {
 		return sql.NullString{}
 	}

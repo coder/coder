@@ -68,6 +68,13 @@ type Meta struct {
 	OwnerID       uuid.UUID  `json:"owner_id"`
 	WorkspaceID   *uuid.UUID `json:"workspace_id,omitempty"`
 	TurnID        *uuid.UUID `json:"turn_id,omitempty"`
+	// ParentChatID identifies the chat whose spawn_agent call created
+	// this chat. Unset for top-level chats.
+	ParentChatID *uuid.UUID `json:"parent_chat_id,omitempty"`
+	// RootChatID identifies the top-level ancestor of a subagent
+	// chat, so consumers can correlate a whole subagent subtree with
+	// the user-facing conversation. Unset for top-level chats.
+	RootChatID *uuid.UUID `json:"root_chat_id,omitempty"`
 }
 
 // SessionStartData describes the start or resumption of a chat session.

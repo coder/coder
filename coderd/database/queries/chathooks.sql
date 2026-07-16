@@ -5,6 +5,7 @@ INSERT INTO chat_hook_dispatches (
 	event,
 	turn_id,
 	tool_use_id,
+	tool_name,
 	owner_id,
 	workspace_id,
 	started_at
@@ -14,6 +15,7 @@ INSERT INTO chat_hook_dispatches (
 	@event::text,
 	sqlc.narg('turn_id')::uuid,
 	sqlc.narg('tool_use_id')::text,
+	sqlc.narg('tool_name')::text,
 	@owner_id::uuid,
 	sqlc.narg('workspace_id')::uuid,
 	@started_at::timestamptz
@@ -81,6 +83,14 @@ WHERE
 	AND tool_use_id = ANY(@tool_use_ids::text[]);
 
 -- name: GetChatHookDispatchDecision :one
+-- A decision is only reusable for the exact tool call it reviewed:
+-- the tool name must match and the effective reviewed input
+-- (input_override when the hook rewrote it, original_input otherwise)
+-- must be semantically equal to the input being retried. Persisted
+-- assistant tool-call args already carry the override, so crash
+-- retries match; a different tool or different input that reuses the
+-- same tool-use ID dispatches fresh instead of inheriting a stale
+-- decision. Rows recorded before tool_name existed never match.
 SELECT
 	*
 FROM
@@ -89,6 +99,8 @@ WHERE
 	chat_id = @chat_id::uuid
 	AND event = 'pre_tool_use'
 	AND tool_use_id = @tool_use_id::text
+	AND tool_name = @tool_name::text
+	AND COALESCE(input_override, original_input) = @tool_input::jsonb
 	AND turn_id IS NOT DISTINCT FROM sqlc.narg('turn_id')::uuid
 	AND decision IS NOT NULL
 	AND result IN ('ok', 'denied')

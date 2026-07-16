@@ -1943,10 +1943,13 @@ CREATE TABLE chat_hook_dispatches (
     end_chat boolean,
     error text,
     decision_reason text,
-    effects_applied_at timestamp with time zone
+    effects_applied_at timestamp with time zone,
+    tool_name text
 );
 
 COMMENT ON TABLE chat_hook_dispatches IS 'One row per lifecycle hook webhook dispatch; id is the wire-protocol dispatch_id (JWT jti).';
+
+COMMENT ON COLUMN chat_hook_dispatches.tool_name IS 'Tool name reviewed by a pre_tool_use or post_tool_use dispatch. NULL for other events and for rows recorded before decision reuse was bound to the tool identity.';
 
 CREATE TABLE chat_messages (
     id bigint NOT NULL,

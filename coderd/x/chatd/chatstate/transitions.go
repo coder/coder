@@ -277,20 +277,69 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, hookPrefix
 	})
 }
 
-// applyHookAllowedTools copies a prompt's hook tool policy onto the
-// chat. Invalid means the hook expressed no policy, which leaves the
-// current chat policy untouched.
+// applyHookAllowedTools narrows the chat's hook tool policy with a
+// prompt's snapshot. Invalid means the hook expressed no policy, which
+// leaves the current chat policy untouched. The policy is monotonic:
+// a queued snapshot captured before a newer, narrower policy landed
+// intersects with it instead of replacing it, so promotion can never
+// re-widen a restricted chat.
 func (tx *Tx) applyHookAllowedTools(allowedTools pqtype.NullRawMessage) error {
 	if !allowedTools.Valid {
 		return nil
 	}
+	chat, err := tx.store.GetChatByID(tx.ctx, tx.chatID)
+	if err != nil {
+		return xerrors.Errorf("load chat for hook allowed tools: %w", err)
+	}
+	narrowed, err := NarrowHookAllowedTools(chat.HookAllowedTools, allowedTools)
+	if err != nil {
+		return err
+	}
 	if err := tx.store.UpdateChatHookAllowedTools(tx.ctx, database.UpdateChatHookAllowedToolsParams{
-		HookAllowedTools: allowedTools,
+		HookAllowedTools: narrowed,
 		ID:               tx.chatID,
 	}); err != nil {
 		return xerrors.Errorf("apply hook allowed tools: %w", err)
 	}
 	return nil
+}
+
+// NarrowHookAllowedTools intersects an incoming hook tool policy with
+// the current one. A NULL current policy adopts the incoming value; a
+// non-NULL current policy only ever shrinks. A consumer cannot
+// re-widen a restricted chat, and replaying an older, wider policy
+// (for example a queued prompt snapshot) cannot undo a newer,
+// narrower one.
+func NarrowHookAllowedTools(current, incoming pqtype.NullRawMessage) (pqtype.NullRawMessage, error) {
+	if !incoming.Valid {
+		return current, nil
+	}
+	var incomingTools []string
+	if err := json.Unmarshal(incoming.RawMessage, &incomingTools); err != nil {
+		return pqtype.NullRawMessage{}, xerrors.Errorf("decode incoming hook allowed tools: %w", err)
+	}
+	if !current.Valid {
+		return incoming, nil
+	}
+	var currentTools []string
+	if err := json.Unmarshal(current.RawMessage, &currentTools); err != nil {
+		return pqtype.NullRawMessage{}, xerrors.Errorf("decode current hook allowed tools: %w", err)
+	}
+	allowed := make(map[string]struct{}, len(currentTools))
+	for _, tool := range currentTools {
+		allowed[tool] = struct{}{}
+	}
+	intersection := make([]string, 0, len(incomingTools))
+	for _, tool := range incomingTools {
+		if _, ok := allowed[tool]; ok {
+			intersection = append(intersection, tool)
+		}
+	}
+	encoded, err := json.Marshal(intersection)
+	if err != nil {
+		return pqtype.NullRawMessage{}, xerrors.Errorf("marshal narrowed hook allowed tools: %w", err)
+	}
+	return pqtype.NullRawMessage{RawMessage: encoded, Valid: true}, nil
 }
 
 // queuedHookPrefixMessage is the persisted shape of one lifecycle hook

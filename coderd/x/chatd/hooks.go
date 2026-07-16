@@ -61,13 +61,23 @@ func lifecycleHookEvent(
 	if chat.WorkspaceID.Valid {
 		workspaceID = &chat.WorkspaceID.UUID
 	}
+	var parentChatID *uuid.UUID
+	if chat.ParentChatID.Valid {
+		parentChatID = &chat.ParentChatID.UUID
+	}
+	var rootChatID *uuid.UUID
+	if chat.RootChatID.Valid {
+		rootChatID = &chat.RootChatID.UUID
+	}
 	return chathooks.Event{
-		Type:        eventType,
-		ChatID:      chat.ID,
-		OwnerID:     chat.OwnerID,
-		WorkspaceID: workspaceID,
-		TurnID:      turnID,
-		Data:        data,
+		Type:         eventType,
+		ChatID:       chat.ID,
+		OwnerID:      chat.OwnerID,
+		WorkspaceID:  workspaceID,
+		TurnID:       turnID,
+		ParentChatID: parentChatID,
+		RootChatID:   rootChatID,
+		Data:         data,
 	}
 }
 
@@ -118,12 +128,14 @@ func (p *Server) dispatchPreToolUse(
 	toolCall fantasy.ToolCallContent,
 ) (agenthooks.Response, error) {
 	toolUseID := toolCall.ToolCallID
+	toolName := toolCall.ToolName
 	event := lifecycleHookEvent(chat, turnID, agenthooks.EventPreToolUse, agenthooks.PreToolUseData{
 		ToolUseID: toolUseID,
-		ToolName:  toolCall.ToolName,
+		ToolName:  toolName,
 		ToolInput: json.RawMessage(toolCall.Input),
 	})
 	event.ToolUseID = &toolUseID
+	event.ToolName = &toolName
 	return p.hookDispatcher.Dispatch(ctx, event)
 }
 
@@ -134,8 +146,10 @@ func (p *Server) dispatchPostToolUseData(
 	data agenthooks.PostToolUseData,
 ) (agenthooks.Response, error) {
 	toolUseID := data.ToolUseID
+	toolName := data.ToolName
 	event := lifecycleHookEvent(chat, turnID, agenthooks.EventPostToolUse, data)
 	event.ToolUseID = &toolUseID
+	event.ToolName = &toolName
 	return p.hookDispatcher.Dispatch(ctx, event)
 }
 
@@ -203,6 +217,9 @@ func (p *Server) preflightToolCalls(
 	if p.hookDispatcher == nil || !p.hookDispatcher.Enabled() {
 		return result, nil
 	}
+	if err := rejectDuplicateToolUseIDs(toolCalls); err != nil {
+		return preToolUseResult{}, err
+	}
 
 	for _, toolCall := range toolCalls {
 		if toolCall.ProviderExecuted {
@@ -219,6 +236,26 @@ func (p *Server) preflightToolCalls(
 		result.ToolUseIDs = append(result.ToolUseIDs, toolCall.ToolCallID)
 	}
 	return result, nil
+}
+
+// rejectDuplicateToolUseIDs fails closed when one generated batch
+// carries the same tool-use ID twice. Persisted pre_tool_use decisions
+// are keyed by tool-use ID within a turn, so duplicate IDs would let
+// the newest decision shadow the other call's review. Providers
+// generate unique IDs; only misbehaving OpenAI-compatible backends
+// that let the model author its own IDs can collide here.
+func rejectDuplicateToolUseIDs(toolCalls []fantasy.ToolCallContent) error {
+	seen := make(map[string]struct{}, len(toolCalls))
+	for _, toolCall := range toolCalls {
+		if toolCall.ProviderExecuted {
+			continue
+		}
+		if _, ok := seen[toolCall.ToolCallID]; ok {
+			return xerrors.Errorf("duplicate tool use ID %q in one step; lifecycle hook decisions cannot be attributed unambiguously", toolCall.ToolCallID)
+		}
+		seen[toolCall.ToolCallID] = struct{}{}
+	}
+	return nil
 }
 
 type preToolUseExecutionResult struct {
@@ -243,13 +280,27 @@ func (p *Server) preflightPendingToolCalls(
 		result.Allowed = append(result.Allowed, toolCalls...)
 		return result, nil
 	}
+	if err := rejectDuplicateToolUseIDs(toolCalls); err != nil {
+		return preToolUseExecutionResult{}, err
+	}
 
 	for _, toolCall := range toolCalls {
-		row, err := p.db.GetChatHookDispatchDecision(ctx, database.GetChatHookDispatchDecisionParams{
-			ChatID:    chat.ID,
-			ToolUseID: toolCall.ToolCallID,
-			TurnID:    hookTurnID(turnID),
-		})
+		// The persisted assistant args already carry any accepted
+		// input override, so the stored effective input matches
+		// toolCall.Input on crash retries and mismatches whenever the
+		// same ID is reused for different input. Input that is not
+		// valid JSON cannot be compared as jsonb, so it skips reuse
+		// and dispatches fresh, which is always safe.
+		row, err := database.ChatHookDispatch{}, sql.ErrNoRows
+		if json.Valid([]byte(toolCall.Input)) {
+			row, err = p.db.GetChatHookDispatchDecision(ctx, database.GetChatHookDispatchDecisionParams{
+				ChatID:    chat.ID,
+				ToolUseID: toolCall.ToolCallID,
+				ToolName:  toolCall.ToolName,
+				ToolInput: json.RawMessage(toolCall.Input),
+				TurnID:    hookTurnID(turnID),
+			})
+		}
 		if err == nil {
 			// Reuse the recorded decision without re-dispatching. When
 			// the worker died after finalizing the dispatch but before
@@ -818,8 +869,16 @@ func applyHookAllowedTools(ctx context.Context, store database.Store, chatID uui
 	if !allowedTools.Valid {
 		return nil
 	}
+	chat, err := store.GetChatByID(ctx, chatID)
+	if err != nil {
+		return xerrors.Errorf("load chat for hook allowed tools: %w", err)
+	}
+	narrowed, err := chatstate.NarrowHookAllowedTools(chat.HookAllowedTools, allowedTools)
+	if err != nil {
+		return err
+	}
 	if err := store.UpdateChatHookAllowedTools(ctx, database.UpdateChatHookAllowedToolsParams{
-		HookAllowedTools: allowedTools,
+		HookAllowedTools: narrowed,
 		ID:               chatID,
 	}); err != nil {
 		return xerrors.Errorf("update hook allowed tools: %w", err)

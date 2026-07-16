@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agenthooks"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -609,6 +610,13 @@ func (p *Server) subagentTools(
 					options,
 				)
 				if err != nil {
+					// A lifecycle hook denial carries the consumer's
+					// user-facing reason; surface it so the model can
+					// adjust instead of retrying the same prompt.
+					var denied *UserPromptDeniedError
+					if errors.As(err, &denied) && denied.UserMessage != "" {
+						return fantasy.NewTextErrorResponse(err.Error() + ": " + denied.UserMessage), nil
+					}
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
@@ -1058,7 +1066,8 @@ func (p *Server) createChildSubagentChatWithOptions(
 	}
 
 	title = strings.TrimSpace(title)
-	if title == "" {
+	titleDerivedFromPrompt := title == ""
+	if titleDerivedFromPrompt {
 		title = subagentFallbackChatTitle(prompt)
 	}
 
@@ -1109,6 +1118,48 @@ func (p *Server) createChildSubagentChatWithOptions(
 		return database.Chat{}, limitErr
 	}
 
+	// Child prompts are governed like every other user prompt: the
+	// user_prompt_submit hook reviews the spawn prompt before any
+	// child state persists, and can deny it, rewrite it, attach
+	// messages, restrict tools, or refuse the spawn outright. The
+	// parent's gated spawn_agent call is not a substitute because a
+	// consumer implementing prompt policy never sees spawn prompts as
+	// prompts.
+	childChatID := uuid.New()
+	var childTurnID *uuid.UUID
+	var hookResponse agenthooks.Response
+	if p.hookDispatcher != nil && p.hookDispatcher.Enabled() {
+		mintedTurnID := uuid.New()
+		childTurnID = &mintedTurnID
+		hookChat := database.Chat{}
+		hookChat.ID = childChatID
+		hookChat.OwnerID = parent.OwnerID
+		hookChat.WorkspaceID = parent.WorkspaceID
+		hookChat.ParentChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
+		hookChat.RootChatID = uuid.NullUUID{UUID: rootChatID, Valid: true}
+		hookResponse, err = p.dispatchUserPromptSubmit(ctx, hookChat, mintedTurnID, []codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)})
+		if err != nil {
+			return database.Chat{}, err
+		}
+		// There is no child chat to end yet, so end_chat refuses the
+		// spawn, mirroring end_chat during top-level chat creation.
+		if hookResponse.EndChat {
+			return database.Chat{}, &UserPromptDeniedError{UserMessage: hookResponse.UserMessage}
+		}
+		override, overridden, overrideErr := userPromptOverride(hookResponse)
+		if overrideErr != nil {
+			return database.Chat{}, overrideErr
+		}
+		if overridden {
+			prompt = override
+			// Recompute derived titles so a redacted prompt does not
+			// leak through the child title.
+			if titleDerivedFromPrompt {
+				title = subagentFallbackChatTitle(prompt)
+			}
+		}
+	}
+
 	workspaceAwareness := workspaceDetachedNoCreateAwareness
 	if parent.WorkspaceID.Valid {
 		workspaceAwareness = workspaceAttachedAwareness
@@ -1145,17 +1196,41 @@ func (p *Server) createChildSubagentChatWithOptions(
 	}
 	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, modelConfigID))
 
+	prefixMessages, err := hookPrefixMessages(hookResponse, modelConfigID, childTurnID)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	initialMessages = append(initialMessages, prefixMessages...)
+
 	// The child shares the parent's workspace and agent, so it inherits
 	// workspace context the same way a top-level chat does: pinned from the
 	// agent's latest snapshot (see hydrateChatContextOnCreate below). The
 	// parent's context is not copied into child history.
-	initialMessages = append(initialMessages, userMessageWithAPIKeyID(userContent, modelConfigID, parent.OwnerID, childAPIKeyID, opts.reasoningEffortOverride))
+	childUserMessage := userMessageWithAPIKeyID(userContent, modelConfigID, parent.OwnerID, childAPIKeyID, opts.reasoningEffortOverride)
+	if childTurnID != nil {
+		childUserMessage.TurnID = uuid.NullUUID{UUID: *childTurnID, Valid: true}
+	}
+	initialMessages = append(initialMessages, childUserMessage)
+
+	// The child's hook tool policy starts as the parent policy
+	// narrowed by any policy in the hook response, so a restricted
+	// parent can never spawn a less restricted child. This holds even
+	// while dispatch is disabled: the parent policy alone carries
+	// over.
+	responseTools, err := hookAllowedTools(hookResponse)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	childPolicy, err := chatstate.NarrowHookAllowedTools(parent.HookAllowedTools, responseTools)
+	if err != nil {
+		return database.Chat{}, err
+	}
 
 	publisher := p.pubsub
 	if publisher == nil {
 		publisher = dbpubsub.NewInMemory()
 	}
-	result, err := chatstate.CreateChat(ctx, p.db, publisher, chatstate.CreateChatInput{
+	result, err := chatstate.CreateChatWithID(ctx, p.db, publisher, childChatID, childPolicy, chatstate.CreateChatInput{
 		OrganizationID:    parent.OrganizationID,
 		OwnerID:           parent.OwnerID,
 		WorkspaceID:       parent.WorkspaceID,

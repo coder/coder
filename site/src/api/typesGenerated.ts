@@ -1239,6 +1239,17 @@ export interface AgentHookMeta {
 	readonly owner_id: string;
 	readonly workspace_id?: string;
 	readonly turn_id?: string;
+	/**
+	 * ParentChatID identifies the chat whose spawn_agent call created
+	 * this chat. Unset for top-level chats.
+	 */
+	readonly parent_chat_id?: string;
+	/**
+	 * RootChatID identifies the top-level ancestor of a subagent
+	 * chat, so consumers can correlate a whole subagent subtree with
+	 * the user-facing conversation. Unset for top-level chats.
+	 */
+	readonly root_chat_id?: string;
 }
 
 // From agenthooks/types.go

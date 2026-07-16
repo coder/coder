@@ -5082,6 +5082,13 @@ func (c *DeploymentValues) Validate() error {
 			if c.AI.Chat.HookSecret.Value() == "" {
 				return xerrors.New("chat hook secret is required when chat hook URL is set; set --chat-hook-secret")
 			}
+			// HS256 requires a key at least as long as the digest.
+			// go-jose enforces this at signing time, so a shorter
+			// secret would otherwise pass startup and then fail every
+			// dispatch at runtime.
+			if len(c.AI.Chat.HookSecret.Value()) < 32 {
+				return xerrors.New("chat hook secret must be at least 32 bytes of cryptographically random data; set --chat-hook-secret to a longer value")
+			}
 		}
 
 		hookTimeout := c.AI.Chat.HookTimeout.Value()

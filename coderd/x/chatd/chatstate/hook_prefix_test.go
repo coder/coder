@@ -123,3 +123,125 @@ func TestQueuedHookAllowedToolsDeferredUntilPromotion(t *testing.T) {
 	require.True(t, chat.HookAllowedTools.Valid, "promotion applies the queued prompt's tool policy")
 	require.JSONEq(t, `["read_file"]`, string(chat.HookAllowedTools.RawMessage))
 }
+
+// The hook tool policy is monotonic: an established policy only ever
+// narrows, so neither a live hook response nor a stale queued snapshot
+// can re-widen a restricted chat.
+func TestNarrowHookAllowedTools(t *testing.T) {
+	t.Parallel()
+
+	valid := func(tools string) pqtype.NullRawMessage {
+		return pqtype.NullRawMessage{RawMessage: []byte(tools), Valid: true}
+	}
+
+	tests := []struct {
+		name     string
+		current  pqtype.NullRawMessage
+		incoming pqtype.NullRawMessage
+		want     string
+		wantNull bool
+	}{
+		{
+			name:     "NoIncomingKeepsCurrent",
+			current:  valid(`["a"]`),
+			incoming: pqtype.NullRawMessage{},
+			want:     `["a"]`,
+		},
+		{
+			name:     "NoPolicyAdoptsIncoming",
+			current:  pqtype.NullRawMessage{},
+			incoming: valid(`["a","b"]`),
+			want:     `["a","b"]`,
+		},
+		{
+			name:     "BothNullStaysNull",
+			current:  pqtype.NullRawMessage{},
+			incoming: pqtype.NullRawMessage{},
+			wantNull: true,
+		},
+		{
+			name:     "IncomingNarrows",
+			current:  valid(`["a","b","c"]`),
+			incoming: valid(`["b","c","d"]`),
+			want:     `["b","c"]`,
+		},
+		{
+			name:     "WideningIsIgnored",
+			current:  valid(`["a"]`),
+			incoming: valid(`["a","b","c"]`),
+			want:     `["a"]`,
+		},
+		{
+			name:     "EmptyPolicyStaysEmpty",
+			current:  valid(`[]`),
+			incoming: valid(`["a","b"]`),
+			want:     `[]`,
+		},
+		{
+			name:     "IncomingEmptyRestrictsAll",
+			current:  valid(`["a","b"]`),
+			incoming: valid(`[]`),
+			want:     `[]`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := chatstate.NarrowHookAllowedTools(tt.current, tt.incoming)
+			require.NoError(t, err)
+			if tt.wantNull {
+				require.False(t, got.Valid)
+				return
+			}
+			require.True(t, got.Valid)
+			require.JSONEq(t, tt.want, string(got.RawMessage))
+		})
+	}
+}
+
+// A queued prompt snapshot captured while the policy was wide must not
+// replace a narrower policy that landed before promotion.
+func TestQueuedHookPolicyCannotWidenOnPromotion(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	created := createTestChat(t, f)
+	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+
+	// Queue a prompt whose snapshot allows a wide tool set.
+	prompt := userTextMessage("queued prompt", f.User.ID, f.Model.ID)
+	prompt.TurnID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
+	var send chatstate.SendMessageResult
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		var err error
+		send, err = tx.SendMessage(chatstate.SendMessageInput{
+			Message:          prompt,
+			HookAllowedTools: pqtype.NullRawMessage{RawMessage: []byte(`["read_file","execute"]`), Valid: true},
+			BusyBehavior:     chatstate.BusyBehaviorQueue,
+		})
+		return err
+	}))
+	require.NotNil(t, send.QueuedMessage)
+
+	// A newer hook response narrows the live policy before promotion.
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		return store.UpdateChatHookAllowedTools(ctx, database.UpdateChatHookAllowedToolsParams{
+			HookAllowedTools: pqtype.NullRawMessage{RawMessage: []byte(`["read_file"]`), Valid: true},
+			ID:               created.Chat.ID,
+		})
+	}))
+
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
+		return err
+	}))
+
+	chat, err := f.DB.GetChatByID(ctx, created.Chat.ID)
+	require.NoError(t, err)
+	require.True(t, chat.HookAllowedTools.Valid)
+	require.JSONEq(t, `["read_file"]`, string(chat.HookAllowedTools.RawMessage),
+		"promotion must intersect with the narrower live policy, not replace it")
+}

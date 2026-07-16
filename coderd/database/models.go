@@ -5121,6 +5121,8 @@ type ChatHookDispatch struct {
 	Error            sql.NullString        `db:"error" json:"error"`
 	DecisionReason   sql.NullString        `db:"decision_reason" json:"decision_reason"`
 	EffectsAppliedAt sql.NullTime          `db:"effects_applied_at" json:"effects_applied_at"`
+	// Tool name reviewed by a pre_tool_use or post_tool_use dispatch. NULL for other events and for rows recorded before decision reuse was bound to the tool identity.
+	ToolName sql.NullString `db:"tool_name" json:"tool_name"`
 }
 
 type ChatMessage struct {
