@@ -236,7 +236,7 @@ The agent reads `display_name` and `description` fields to understand what a
 parameter controls. Treat these the same way you treat template descriptions —
 be specific and use natural language.
 
-```hcl
+```tf
 data "coder_parameter" "region" {
   name         = "region"
   display_name = "Deployment Region"
@@ -288,7 +288,7 @@ For guidance on building and maintaining workspace images, see
 If the template targets a specific repository, pre-clone it and set the
 working directory so the agent starts in the right place:
 
-```hcl
+```tf
 resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"

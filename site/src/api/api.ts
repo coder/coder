@@ -213,7 +213,7 @@ export type GroupMemberAICostControl = Readonly<{
 	current_spend_micros: number;
 	spend_limit_micros: number | null;
 	effective_group_id: string | null;
-	limit_source: "group" | "override" | null;
+	limit_source: TypesGen.AIBudgetLimitSource | null;
 }>;
 export type GroupMemberWithAICostControl = TypesGen.ReducedUser &
 	Readonly<{ ai_cost_control?: GroupMemberAICostControl }>;
@@ -222,15 +222,6 @@ export type GroupMembersResponseWithAICostControl = Omit<
 	"users"
 > &
 	Readonly<{ users: readonly GroupMemberWithAICostControl[] }>;
-
-// TODO(AIGOV-473): drop once generated from codersdk.
-export type UserAISpend = Readonly<{
-	user_id: string;
-	spend_limit_micros: number | null;
-	effective_group_id: string | null;
-	limit_source: "group" | "override" | null;
-	current_spend_micros: number;
-}>;
 
 export function watchInboxNotifications(
 	params?: WatchInboxNotificationsParams,
@@ -584,8 +575,8 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getUserAISpend = async (): Promise<UserAISpend> => {
-		const response = await this.axios.get<UserAISpend>(
+	getUserAISpend = async (): Promise<TypesGen.UserAISpendStatus> => {
+		const response = await this.axios.get<TypesGen.UserAISpendStatus>(
 			"/api/v2/users/me/ai/spend",
 		);
 		return response.data;

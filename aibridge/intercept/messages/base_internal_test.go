@@ -183,7 +183,7 @@ func TestAWSBedrockValidation(t *testing.T) {
 					Creds: credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""),
 				},
 			}
-			opts, err := base.withAWSBedrockOptions(context.Background())
+			opts, err := base.withBedrockInvokeModelOptions(context.Background())
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -198,12 +198,12 @@ func TestAWSBedrockValidation(t *testing.T) {
 
 // TestAWSBedrockOptionsRequireRuntime verifies that option assembly fails when
 // the Bedrock runtime was not set. This should never happen in practice, since
-// withAWSBedrockOptions is only called when i.bedrock != nil.
+// withBedrockInvokeModelOptions is only called when i.bedrock != nil.
 func TestAWSBedrockOptionsRequireRuntime(t *testing.T) {
 	t.Parallel()
 
 	base := &interceptionBase{}
-	_, err := base.withAWSBedrockOptions(context.Background())
+	_, err := base.withBedrockInvokeModelOptions(context.Background())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "nil bedrock runtime")
 }
@@ -800,7 +800,7 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 				logger:        slog.Make(),
 			}
 
-			i.augmentRequestForBedrock()
+			i.augmentRequestForBedrockInvokeModel()
 
 			thinkingType := gjson.GetBytes(i.reqPayload, "thinking.type")
 			if tc.expectThinkingType == "" {
@@ -1122,6 +1122,90 @@ func TestWriteUpstreamError(t *testing.T) {
 			assert.Contains(t, w.Body.String(), `"type":"error"`, "outer error envelope")
 			if tc.expectBodyContains != "" {
 				assert.Contains(t, w.Body.String(), tc.expectBodyContains, "response body")
+			}
+		})
+	}
+}
+
+// TestBedrockMantleIsPassthrough verifies a mantle provider reports the mantle
+// protocol, that Model() returns the client's model, and that building the
+// upstream service leaves the request body untouched.
+func TestBedrockMantleIsPassthrough(t *testing.T) {
+	t.Parallel()
+
+	i := &interceptionBase{
+		reqPayload: mustMessagesPayload(t,
+			`{"model":"anthropic.claude-opus-4-8","max_tokens":10000,"thinking":{"type":"adaptive"},"metadata":{"user_id":"u123"},"context_management":{"type":"auto"}}`),
+		bedrock: &BedrockRuntime{
+			Cfg: config.AWSBedrock{
+				Region:   "us-east-1",
+				BaseURL:  "https://bedrock-mantle.us-east-1.api.aws/anthropic",
+				Protocol: config.BedrockProtocolMantle,
+			},
+			Creds: credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""),
+		},
+		logger: slog.Make(),
+	}
+
+	require.True(t, i.isBedrockMantle())
+	require.False(t, i.isBedrockInvokeModel())
+	require.Equal(t, "anthropic.claude-opus-4-8", i.Model())
+
+	// newMessagesService dispatches InvokeModel augmentation but skips it for
+	// mantle. Building the service must not rewrite the body, and the signing
+	// middleware it installs only runs at request time, so reqPayload stays
+	// byte-identical here.
+	before := string(i.reqPayload)
+	_, err := i.newMessagesService(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, before, string(i.reqPayload))
+}
+
+// TestAWSMantleOptionsValidation verifies the mantle protocol requires a
+// region (it scopes the SigV4 signature) but NOT model fields.
+func TestAWSMantleOptionsValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		cfg      config.AWSBedrock
+		errorMsg string
+	}{
+		{
+			name: "valid without model fields",
+			cfg: config.AWSBedrock{
+				Region:   "us-east-1",
+				BaseURL:  "https://bedrock-mantle.us-east-1.api.aws/anthropic",
+				Protocol: config.BedrockProtocolMantle,
+			},
+		},
+		{
+			name: "missing region even with base url",
+			cfg: config.AWSBedrock{
+				BaseURL:  "https://proxy.internal",
+				Protocol: config.BedrockProtocolMantle,
+			},
+			errorMsg: "region required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			base := &interceptionBase{
+				bedrock: &BedrockRuntime{
+					Cfg:   tt.cfg,
+					Creds: credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""),
+				},
+			}
+			opts, err := base.withBedrockMantleOptions(t.Context())
+			if tt.errorMsg != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.errorMsg)
+			} else {
+				require.NoError(t, err)
+				require.NotEmpty(t, opts)
 			}
 		})
 	}

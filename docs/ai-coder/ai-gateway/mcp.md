@@ -26,7 +26,7 @@ AI Gateway makes use of [External Auth](../../admin/external-auth/index.md) appl
 
 For example, GitHub has a [remote MCP server](https://github.com/github/github-mcp-server?tab=readme-ov-file#remote-github-mcp-server) and we can use it as follows.
 
-```bash
+```sh
 CODER_EXTERNAL_AUTH_0_TYPE=github
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=...
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=...
@@ -38,7 +38,7 @@ See the diagram in [Implementation Details](./reference.md#implementation-detail
 
 You can also control which tools are injected by using an allow and/or a deny regular expression on the tool names:
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_MCP_TOOL_ALLOW_REGEX=(.+_gist.*)
 CODER_EXTERNAL_AUTH_0_MCP_TOOL_DENY_REGEX=(create_gist)
 ```

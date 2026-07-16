@@ -263,7 +263,7 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 									<div className="space-y-8">
 										{isLoadingConfig ? (
 											<div className="flex items-center justify-center rounded-lg border border-border-default px-6 py-10">
-												<Spinner loading className="h-6 w-6" />
+												<Spinner loading className="size-6" />
 											</div>
 										) : configError ? (
 											<div className="space-y-4">

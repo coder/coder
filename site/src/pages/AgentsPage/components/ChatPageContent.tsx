@@ -80,7 +80,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 		store,
 		selectIsAwaitingFirstStreamChunk,
 	);
-	const isChatCompleted = !hasStream && chatStatus !== "pending";
+	const isChatCompleted = !hasStream;
 
 	const messages = orderedMessageIDs
 		.map((messageID) => {
@@ -173,6 +173,8 @@ interface ChatPageInputProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: ReactNode;
+	reasoningEffort?: string;
+	onReasoningEffortChange?: (value: string) => void;
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
 	modelCount?: number;
@@ -244,6 +246,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
+	reasoningEffort,
+	onReasoningEffortChange,
 	canConfigureAgentSetup,
 	providerCount,
 	modelCount,
@@ -418,8 +422,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		wasEditingRef.current = isEditing;
 	}, [isEditing, resetEditAttachments]);
 
-	const isStreaming =
-		hasStreamState || chatStatus === "running" || chatStatus === "pending";
+	const isStreaming = hasStreamState || chatStatus === "running";
 
 	const inputElement = (
 		<AgentChatInput
@@ -504,6 +507,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onModelChange={onModelChange}
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
+			reasoningEffort={reasoningEffort}
+			onReasoningEffortChange={onReasoningEffortChange}
 			planModeEnabled={planModeEnabled}
 			onPlanModeToggle={onPlanModeToggle}
 			isModelCatalogLoading={isModelCatalogLoading}

@@ -124,18 +124,6 @@ describe("maybePlayChime", () => {
 		expect(playSpy).toHaveBeenCalledTimes(1);
 	});
 
-	it("chimes on running → pending when viewing a different chat", async () => {
-		vi.spyOn(document, "hidden", "get").mockReturnValue(false);
-		await triggerAndSettle("running", "pending", "chat-1", "chat-2");
-		expect(playSpy).toHaveBeenCalledTimes(1);
-	});
-
-	it("chimes on pending → waiting (watchChats skips running)", async () => {
-		vi.spyOn(document, "hidden", "get").mockReturnValue(false);
-		await triggerAndSettle("pending", "waiting", "chat-1", "chat-2");
-		expect(playSpy).toHaveBeenCalledTimes(1);
-	});
-
 	it("chimes on running → waiting when tab is hidden (same chat)", async () => {
 		vi.spyOn(document, "hidden", "get").mockReturnValue(true);
 		await triggerAndSettle("running", "waiting", "chat-1", "chat-1");
@@ -193,9 +181,9 @@ describe("maybePlayChime", () => {
 		expect(playSpy).not.toHaveBeenCalled();
 	});
 
-	it("does NOT chime on pending → pending (no change)", async () => {
+	it("does NOT chime on interrupting → waiting (interrupted, not finished)", async () => {
 		vi.spyOn(document, "hidden", "get").mockReturnValue(true);
-		await triggerAndSettle("pending", "pending", "chat-1", "chat-2");
+		await triggerAndSettle("interrupting", "waiting", "chat-1", "chat-2");
 		expect(playSpy).not.toHaveBeenCalled();
 	});
 

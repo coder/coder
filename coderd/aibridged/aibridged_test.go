@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -40,8 +41,13 @@ func singleKeyPool(t *testing.T, name, key string) *keypool.Pool {
 
 func newTestServer(t *testing.T) (*aibridged.Server, *mock.MockDRPCClient, *mock.MockPooler) {
 	t.Helper()
+	return newTestServerWithDialer(t, nil, nil)
+}
 
-	logger := slogtest.Make(t, nil)
+func newTestServerWithDialer(t *testing.T, dialer aibridged.Dialer, loggerOptions *slogtest.Options) (*aibridged.Server, *mock.MockDRPCClient, *mock.MockPooler) {
+	t.Helper()
+
+	logger := slogtest.Make(t, loggerOptions)
 	ctrl := gomock.NewController(t)
 	client := mock.NewMockDRPCClient(ctrl)
 	pool := mock.NewMockPooler(ctrl)
@@ -50,12 +56,12 @@ func newTestServer(t *testing.T) (*aibridged.Server, *mock.MockDRPCClient, *mock
 	client.EXPECT().DRPCConn().AnyTimes().Return(conn)
 	pool.EXPECT().Shutdown(gomock.Any()).MinTimes(1).Return(nil)
 
-	srv, err := aibridged.New(
-		t.Context(),
-		pool,
-		func(ctx context.Context) (aibridged.DRPCClient, error) {
+	if dialer == nil {
+		dialer = func(ctx context.Context) (aibridged.DRPCClient, error) {
 			return client, nil
-		}, logger, testTracer)
+		}
+	}
+	srv, err := aibridged.New(t.Context(), pool, dialer, logger, testTracer)
 	require.NoError(t, err, "create new aibridged")
 	t.Cleanup(func() {
 		srv.Shutdown(context.Background())
@@ -64,19 +70,62 @@ func newTestServer(t *testing.T) (*aibridged.Server, *mock.MockDRPCClient, *mock
 	return srv, client, pool
 }
 
-// mockDRPCConn is a mock implementation of drpc.Conn
-type mockDRPCConn struct{}
+// mockDRPCConn is a mock implementation of drpc.Conn.
+// If closedCh is set, Closed() returns it so the caller can trigger a
+// disconnect by closing the channel. Otherwise a fresh never-closed
+// channel is returned on each call.
+type mockDRPCConn struct {
+	closedCh chan struct{}
+}
 
-func (*mockDRPCConn) Close() error              { return nil }
-func (*mockDRPCConn) Closed() <-chan struct{}   { ch := make(chan struct{}); return ch }
+func (*mockDRPCConn) Close() error { return nil }
+func (c *mockDRPCConn) Closed() <-chan struct{} {
+	if c.closedCh != nil {
+		return c.closedCh
+	}
+	return make(chan struct{})
+}
 func (*mockDRPCConn) Transport() drpc.Transport { return nil }
-func (*mockDRPCConn) Invoke(ctx context.Context, rpc string, enc drpc.Encoding, in, out drpc.Message) error {
+func (*mockDRPCConn) Invoke(_ context.Context, _ string, _ drpc.Encoding, _, _ drpc.Message) error {
 	return nil
 }
 
-func (*mockDRPCConn) NewStream(ctx context.Context, rpc string, enc drpc.Encoding) (drpc.Stream, error) {
-	// nolint:nilnil // Chillchill.
+func (*mockDRPCConn) NewStream(_ context.Context, _ string, _ drpc.Encoding) (drpc.Stream, error) {
+	//nolint:nilnil // test stub
 	return nil, nil
+}
+
+func sdkError(status int, message string) error {
+	return codersdk.ReadBodyAsError(&http.Response{
+		StatusCode: status,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(bytes.NewBufferString(`{"message":"` + message + `"}`)),
+	})
+}
+
+func TestClient_TransientDialErrorRetries(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	ctrl := gomock.NewController(t)
+	client := mock.NewMockDRPCClient(ctrl)
+	client.EXPECT().DRPCConn().AnyTimes().Return(&mockDRPCConn{})
+	pool := mock.NewMockPooler(ctrl)
+	pool.EXPECT().Shutdown(gomock.Any()).MinTimes(1).Return(nil)
+	dialFc := func(context.Context) (aibridged.DRPCClient, error) {
+		if calls.Add(1) == 1 {
+			return nil, sdkError(http.StatusInternalServerError, "internal error")
+		}
+		return client, nil
+	}
+
+	srv, err := aibridged.New(t.Context(), pool, dialFc, slogtest.Make(t, nil), testTracer)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Shutdown(context.Background()) })
+
+	_, err = srv.ClientContext(testutil.Context(t, testutil.WaitShort))
+	require.NoError(t, err)
+	require.Equal(t, int32(2), calls.Load())
 }
 
 func TestServeHTTP_FailureModes(t *testing.T) {
@@ -91,6 +140,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 		applyMocksFn   func(client *mock.MockDRPCClient, pool *mock.MockPooler)
 		dialerFn       aibridged.Dialer
 		contextFn      func() context.Context
+		ignoreLogs     bool
 		expectedErr    error
 		expectedStatus int
 	}{
@@ -127,7 +177,34 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 			expectedStatus: http.StatusForbidden,
 		},
 
-		// TODO: coderd connection-related failures.
+		// Coderd connection-related failures.
+		{
+			name: "fatal bad request dial error",
+			dialerFn: func(context.Context) (aibridged.DRPCClient, error) {
+				return nil, sdkError(http.StatusBadRequest, "bad request")
+			},
+			ignoreLogs:     true,
+			expectedErr:    aibridged.ErrConnect,
+			expectedStatus: http.StatusServiceUnavailable,
+		},
+		{
+			name: "fatal unauthorized dial error",
+			dialerFn: func(context.Context) (aibridged.DRPCClient, error) {
+				return nil, sdkError(http.StatusUnauthorized, "unauthorized")
+			},
+			ignoreLogs:     true,
+			expectedErr:    aibridged.ErrConnect,
+			expectedStatus: http.StatusServiceUnavailable,
+		},
+		{
+			name: "fatal forbidden dial error",
+			dialerFn: func(context.Context) (aibridged.DRPCClient, error) {
+				return nil, sdkError(http.StatusForbidden, "forbidden")
+			},
+			ignoreLogs:     true,
+			expectedErr:    aibridged.ErrConnect,
+			expectedStatus: http.StatusServiceUnavailable,
+		},
 
 		// Budget-related failures.
 		{
@@ -173,7 +250,11 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			srv, client, pool := newTestServer(t)
+			var loggerOptions *slogtest.Options
+			if tc.ignoreLogs {
+				loggerOptions = &slogtest.Options{IgnoreErrors: true}
+			}
+			srv, client, pool := newTestServerWithDialer(t, tc.dialerFn, loggerOptions)
 			conn := &mockDRPCConn{}
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
 
@@ -913,4 +994,99 @@ func TestServeHTTP_StripInternalHeaders(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestReady(t *testing.T) {
+	t.Parallel()
+
+	t.Run("FalseBeforeConnection", func(t *testing.T) {
+		t.Parallel()
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		ctrl := gomock.NewController(t)
+		pool := mock.NewMockPooler(ctrl)
+		pool.EXPECT().Shutdown(gomock.Any()).MinTimes(1).Return(nil)
+
+		dialerCalled := make(chan struct{})
+		blockDialer := func(ctx context.Context) (aibridged.DRPCClient, error) {
+			select {
+			case dialerCalled <- struct{}{}:
+			default:
+			}
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}
+
+		srv, err := aibridged.New(t.Context(), pool, blockDialer, logger, testTracer)
+		require.NoError(t, err)
+		t.Cleanup(func() { srv.Close() })
+
+		testutil.RequireReceive(t.Context(), t, dialerCalled)
+		require.False(t, srv.Ready(), "expected not ready before first connection")
+	})
+
+	t.Run("TrueAfterConnection", func(t *testing.T) {
+		t.Parallel()
+
+		srv, _, _ := newTestServer(t)
+
+		// newTestServer uses an immediate dialer, server should become ready quickly.
+		require.Eventually(t, srv.Ready, testutil.WaitShort, testutil.IntervalFast,
+			"expected ready after first connection")
+	})
+
+	t.Run("DisconnectAndReconnect", func(t *testing.T) {
+		t.Parallel()
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		ctrl := gomock.NewController(t)
+		pool := mock.NewMockPooler(ctrl)
+		pool.EXPECT().Shutdown(gomock.Any()).MinTimes(1).Return(nil)
+
+		// allowDial gates the dialer. When open, dials succeed
+		// immediately. Replace with a fresh channel to block dials.
+		allowDial := make(chan struct{})
+		// firstConn lets the test trigger a disconnect on the
+		// initial connection.
+		firstConn := &mockDRPCConn{closedCh: make(chan struct{})}
+		var dialCount atomic.Int32
+		dialer := func(ctx context.Context) (aibridged.DRPCClient, error) {
+			select {
+			case <-allowDial:
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+			var conn *mockDRPCConn
+			if dialCount.Add(1) == 1 {
+				conn = firstConn
+			} else {
+				conn = &mockDRPCConn{}
+			}
+			c := mock.NewMockDRPCClient(ctrl)
+			c.EXPECT().DRPCConn().AnyTimes().Return(conn)
+			return c, nil
+		}
+
+		// Start with dialer unblocked.
+		close(allowDial)
+
+		srv, err := aibridged.New(t.Context(), pool, dialer, logger, testTracer)
+		require.NoError(t, err)
+		t.Cleanup(func() { srv.Close() })
+		srvNotReady := func() bool { return !srv.Ready() }
+
+		// Wait for the initial connection.
+		require.Eventually(t, srv.Ready, testutil.WaitShort, testutil.IntervalFast, "expected ready after first connection")
+
+		// Block future dials, then trigger disconnect.
+		allowDial = make(chan struct{})
+		close(firstConn.closedCh)
+
+		require.Eventually(t, srvNotReady, testutil.WaitShort, testutil.IntervalFast, "expected not ready after disconnect")
+
+		// Unblock the dialer and wait for reconnect.
+		close(allowDial)
+		require.Eventually(t, srv.Ready, testutil.WaitShort, testutil.IntervalFast,
+			"expected ready after reconnect")
+	})
 }

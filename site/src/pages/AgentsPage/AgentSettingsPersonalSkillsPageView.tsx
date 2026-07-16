@@ -142,7 +142,7 @@ const EditSkillDialog: FC<{
 							Close
 						</Button>
 						<Button onClick={state.onRetry} disabled={state.isRetrying}>
-							{state.isRetrying && <Spinner className="h-4 w-4" loading />}
+							{state.isRetrying && <Spinner className="size-4" loading />}
 							Retry
 						</Button>
 					</DialogFooter>
@@ -247,7 +247,7 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 						onClick={onRetry}
 						disabled={isRetrying}
 					>
-						{isRetrying && <Spinner className="h-4 w-4" loading />}
+						{isRetrying && <Spinner className="size-4" loading />}
 						Retry
 					</Button>
 				</div>

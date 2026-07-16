@@ -53,7 +53,7 @@ export const ConfirmDeleteDialog: FC<ConfirmDeleteDialogProps> = ({
 					Cancel
 				</Button>
 				<Button variant="destructive" onClick={onConfirm} disabled={isPending}>
-					{isPending && <Spinner className="h-4 w-4" loading />}
+					{isPending && <Spinner className="size-4" loading />}
 					Delete {entity}
 				</Button>
 			</DialogFooter>

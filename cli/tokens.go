@@ -146,7 +146,7 @@ func (r *RootCmd) createToken() *serpent.Command {
 		},
 		{
 			Flag:        "allow",
-			Description: "Repeatable allow-list entry (<type>:<uuid>, e.g. workspace:1234-...).",
+			Description: "Repeatable allow-list entry (`<type>:<uuid>`, e.g. workspace:1234-...).",
 			Value:       AllowListFlagOf(&allowList),
 		},
 	}

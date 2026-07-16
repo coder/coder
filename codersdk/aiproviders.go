@@ -277,12 +277,14 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 	}
 	if req.Settings.Bedrock != nil {
 		validations = append(validations, validateAIProviderRoleARN(req.Settings.Bedrock.RoleARN)...)
+		validations = append(validations, validateAIProviderBedrockProtocol(req.Settings.Bedrock.Protocol)...)
 		if req.Settings.Bedrock.ExternalID != "" {
 			validations = append(validations, ValidationError{
 				Field:  "settings.external_id",
 				Detail: "external_id is server-generated and cannot be set",
 			})
 		}
+		validations = append(validations, validateAIProviderBedrockMantleRegion(*req.Settings.Bedrock)...)
 	}
 	if req.Type == AIProviderTypeCopilot && len(req.APIKeys) > 0 {
 		validations = append(validations, ValidationError{
@@ -335,6 +337,8 @@ func (req UpdateAIProviderRequest) Validate() []ValidationError {
 	}
 	if req.Settings != nil && req.Settings.Bedrock != nil {
 		validations = append(validations, validateAIProviderRoleARN(req.Settings.Bedrock.RoleARN)...)
+		validations = append(validations, validateAIProviderBedrockProtocol(req.Settings.Bedrock.Protocol)...)
+		validations = append(validations, validateAIProviderBedrockMantleRegion(*req.Settings.Bedrock)...)
 	}
 	return validations
 }
@@ -356,6 +360,29 @@ func validateAIProviderName(name string) []ValidationError {
 		})
 	}
 	return validations
+}
+
+func validateAIProviderBedrockProtocol(protocol AIProviderBedrockProtocol) []ValidationError {
+	switch protocol {
+	case "", AIProviderBedrockProtocolInvokeModel, AIProviderBedrockProtocolMantle:
+		return nil
+	default:
+		return []ValidationError{{
+			Field:  "settings.protocol",
+			Detail: fmt.Sprintf("unsupported bedrock protocol %q, must be one of %q or %q", protocol, AIProviderBedrockProtocolInvokeModel, AIProviderBedrockProtocolMantle),
+		}}
+	}
+}
+
+func validateAIProviderBedrockMantleRegion(b AIProviderBedrockSettings) []ValidationError {
+	// The Mantle protocol signs requests with SigV4, which requires a region.
+	if b.ResolvedProtocol() == AIProviderBedrockProtocolMantle && b.Region == "" {
+		return []ValidationError{{
+			Field:  "settings.region",
+			Detail: "region is required for the mantle protocol",
+		}}
+	}
+	return nil
 }
 
 func validateAIProviderRoleARN(roleARN string) []ValidationError {

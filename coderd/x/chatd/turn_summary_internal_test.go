@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -17,7 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
-	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -114,89 +112,6 @@ func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
 	fetched, err = db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, sql.NullString{String: "fresh summary", Valid: true}, fetched.LastTurnSummary)
-}
-
-func TestPendingChatPersistsSummaryButSkipsWebPush(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitMedium)
-	owner := dbgen.User(t, db, database.User{})
-	org := dbgen.Organization(t, db, database.Organization{})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		UserID:         owner.ID,
-		OrganizationID: org.ID,
-	})
-
-	provider := dbgen.ChatProvider(t, db, database.ChatProvider{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
-		APIKey:      "test-key",
-		Enabled:     true,
-	})
-
-	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
-		Model:                "test-model",
-		DisplayName:          "Test Model",
-		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
-		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
-		Enabled:              true,
-		IsDefault:            true,
-		ContextLimit:         128000,
-		CompressionThreshold: 80,
-		Options:              json.RawMessage(`{}`),
-	})
-	require.NoError(t, err)
-
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
-		OrganizationID:    org.ID,
-		Status:            database.ChatStatusPending,
-		ClientType:        database.ChatClientTypeUi,
-		OwnerID:           owner.ID,
-		LastModelConfigID: modelCfg.ID,
-		Title:             "summary-pending-chat",
-	})
-	require.NoError(t, err)
-
-	const summary = "Still working on request"
-	var generateCalls atomic.Int32
-	model := &chattest.FakeModel{
-		ProviderName: "openai",
-		ModelName:    "test-model",
-		GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
-			generateCalls.Add(1)
-			return &fantasy.Response{
-				Content: fantasy.ResponseContent{
-					fantasy.TextContent{Text: "Unexpected label"},
-				},
-			}, nil
-		},
-	}
-
-	dispatcher := &recordingWebpushDispatcher{}
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := &Server{ctx: t.Context(), db: db, pubsub: ps, webpushDispatcher: dispatcher}
-	server.maybeFinalizeTurnStatusLabelAndPush(
-		context.WithoutCancel(ctx),
-		chat,
-		database.ChatStatusPending,
-		"",
-		runChatResult{
-			FinalAssistantText: "I finished the queued turn.",
-			StatusLabelModel:   model,
-			FallbackProvider:   model.Provider(),
-			FallbackModel:      model.Model(),
-		},
-		logger,
-	)
-	server.drainInflight()
-
-	fetched, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, sql.NullString{String: summary, Valid: true}, fetched.LastTurnSummary)
-	require.Equal(t, int32(0), generateCalls.Load())
-	require.Equal(t, int32(0), dispatcher.dispatchCount.Load())
 }
 
 func TestSuccessfulChildChatOutcomeSkipsSummaryAndWebPush(t *testing.T) {

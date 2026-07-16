@@ -87,7 +87,7 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 						selectVariant("vscode");
 					}}
 				>
-					<VSCodeIcon className="w-3 h-3" />
+					<VSCodeIcon className="size-3" />
 					{DisplayAppNameMap.vscode}
 				</MenuItem>
 				<MenuItem
@@ -96,7 +96,7 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 						selectVariant("vscode-insiders");
 					}}
 				>
-					<VSCodeInsidersIcon className="w-3 h-3" />
+					<VSCodeInsidersIcon className="size-3" />
 					{DisplayAppNameMap.vscode_insiders}
 				</MenuItem>
 			</Menu>

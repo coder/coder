@@ -271,6 +271,14 @@ function isNonNegativePricingField(field: FieldSchema): boolean {
 	return pricingFieldNames.has(field.json_name);
 }
 
+const reasoningEffortEnum =
+	getGeneralFields().find(
+		(field) => field.json_name === "reasoning_effort.default",
+	)?.enum ?? [];
+
+const reasoningEffortRank = (value: string): number =>
+	reasoningEffortEnum.indexOf(value.trim().toLowerCase());
+
 function isValidOptionalNumber(
 	value: string | undefined,
 	minimum?: number,
@@ -445,8 +453,39 @@ function buildYupSchema(
 	return Yup.object(shape) as Yup.ObjectSchema<Record<string, unknown>>;
 }
 
-// Pre-built general-fields schema.
-const generalFieldsSchema = buildYupSchema(getGeneralFields());
+// Pre-built general-fields schema with reasoning effort bounds.
+const generalFieldsSchema = buildYupSchema(getGeneralFields()).test(
+	"reasoning-effort-default-lte-max",
+	"Default reasoning effort must not exceed the max reasoning effort.",
+	function validate(value) {
+		const efforts = deepGet(value, ["reasoningEffort"]);
+		const defaultValue = deepGet(efforts, ["default"]);
+		const maxValue = deepGet(efforts, ["max"]);
+		const defaultSet =
+			typeof defaultValue === "string" && defaultValue.trim() !== "";
+		const maxSet = typeof maxValue === "string" && maxValue.trim() !== "";
+		if (defaultSet !== maxSet) {
+			return this.createError({
+				path: defaultSet ? "reasoningEffort.max" : "reasoningEffort.default",
+				message: "Default and max reasoning effort must both be set.",
+			});
+		}
+		if (!defaultSet || !maxSet) {
+			return true;
+		}
+		const defaultRank = reasoningEffortRank(defaultValue);
+		const maxRank = reasoningEffortRank(maxValue);
+		// Unset or invalid values are covered by the per-field enum tests.
+		if (defaultRank < 0 || maxRank < 0 || defaultRank <= maxRank) {
+			return true;
+		}
+		return this.createError({
+			path: "reasoningEffort.default",
+			message:
+				"Default reasoning effort must not exceed the max reasoning effort.",
+		});
+	},
+);
 
 // Cache of per-provider Yup schemas, built lazily.
 const providerSchemaCache = new Map<

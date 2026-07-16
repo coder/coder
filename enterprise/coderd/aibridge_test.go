@@ -19,13 +19,16 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	entaudit "github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
 
@@ -2337,7 +2340,7 @@ func TestUserAIBudgetOverride(t *testing.T) {
 	t.Run("Upsert/CreatesAndUpdates", func(t *testing.T) {
 		t.Parallel()
 
-		adminClient, targetUser, group := setupUserAIBudgetOverrideTest(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "override-test-group"})
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// First upsert creates the override.
@@ -2367,7 +2370,7 @@ func TestUserAIBudgetOverride(t *testing.T) {
 	t.Run("Upsert/ReassignsGroup", func(t *testing.T) {
 		t.Parallel()
 
-		adminClient, targetUser, groupA := setupUserAIBudgetOverrideTest(t)
+		adminClient, targetUser, groupA := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "override-test-group"})
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// First upsert: attribute spend to groupA.
@@ -2404,7 +2407,7 @@ func TestUserAIBudgetOverride(t *testing.T) {
 	t.Run("Upsert/EveryoneGroup", func(t *testing.T) {
 		t.Parallel()
 
-		adminClient, targetUser, _ := setupUserAIBudgetOverrideTest(t)
+		adminClient, targetUser, _ := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "override-test-group"})
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// The Everyone group has id == organization_id, and the target user
@@ -2427,7 +2430,7 @@ func TestUserAIBudgetOverride(t *testing.T) {
 	t.Run("Upsert/AcceptsZeroSpendLimit", func(t *testing.T) {
 		t.Parallel()
 
-		adminClient, targetUser, group := setupUserAIBudgetOverrideTest(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "override-test-group"})
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// 0 is a valid value: it blocks all spend for the user.
@@ -2442,7 +2445,7 @@ func TestUserAIBudgetOverride(t *testing.T) {
 	t.Run("Upsert/RejectsNegativeSpend", func(t *testing.T) {
 		t.Parallel()
 
-		adminClient, targetUser, group := setupUserAIBudgetOverrideTest(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "override-test-group"})
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
@@ -2457,7 +2460,7 @@ func TestUserAIBudgetOverride(t *testing.T) {
 	t.Run("Upsert/RejectsUnknownGroup", func(t *testing.T) {
 		t.Parallel()
 
-		adminClient, targetUser, _ := setupUserAIBudgetOverrideTest(t)
+		adminClient, targetUser, _ := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "override-test-group"})
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// A group_id that doesn't exist (or that the caller can't see)
@@ -2474,7 +2477,7 @@ func TestUserAIBudgetOverride(t *testing.T) {
 	t.Run("Upsert/RejectsNonMemberGroup", func(t *testing.T) {
 		t.Parallel()
 
-		adminClient, targetUser, _ := setupUserAIBudgetOverrideTest(t)
+		adminClient, targetUser, _ := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "override-test-group"})
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Create a second group the target is NOT a member of.
@@ -2495,7 +2498,7 @@ func TestUserAIBudgetOverride(t *testing.T) {
 	t.Run("Get/AbsentReturns404", func(t *testing.T) {
 		t.Parallel()
 
-		adminClient, targetUser, _ := setupUserAIBudgetOverrideTest(t)
+		adminClient, targetUser, _ := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "override-test-group"})
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := adminClient.UserAIBudgetOverride(ctx, targetUser.ID)
@@ -2507,7 +2510,7 @@ func TestUserAIBudgetOverride(t *testing.T) {
 	t.Run("Get/UnknownUserReturns404", func(t *testing.T) {
 		t.Parallel()
 
-		adminClient, _, _ := setupUserAIBudgetOverrideTest(t)
+		adminClient, _, _ := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "override-test-group"})
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := adminClient.UserAIBudgetOverride(ctx, uuid.New())
@@ -2519,7 +2522,7 @@ func TestUserAIBudgetOverride(t *testing.T) {
 	t.Run("Delete/RoundTrip", func(t *testing.T) {
 		t.Parallel()
 
-		adminClient, targetUser, group := setupUserAIBudgetOverrideTest(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "override-test-group"})
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
@@ -2539,7 +2542,7 @@ func TestUserAIBudgetOverride(t *testing.T) {
 	t.Run("Delete/AbsentReturns404", func(t *testing.T) {
 		t.Parallel()
 
-		adminClient, targetUser, _ := setupUserAIBudgetOverrideTest(t)
+		adminClient, targetUser, _ := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "override-test-group"})
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := adminClient.DeleteUserAIBudgetOverride(ctx, targetUser.ID)
@@ -2974,10 +2977,185 @@ func TestUserAIBudgetOverrideDeletedOnMembershipRemoval(t *testing.T) {
 	})
 }
 
-// setupUserAIBudgetOverrideTest returns an Admin client, a target user, and a
-// group the target user is a member of.
-func setupUserAIBudgetOverrideTest(t *testing.T) (adminClient *codersdk.Client, targetUser codersdk.User, group codersdk.Group) {
-	t.Helper()
+func TestUserAISpendStatus(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RequiresLicenseFeature", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{DeploymentValues: dv},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is irrelevant here; the request is blocked before RBAC.
+		_, err := client.UserAISpendStatus(ctx, uuid.New())
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	})
+
+	t.Run("RequiresExperiment", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{DeploymentValues: dv},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is irrelevant here; the request is blocked before RBAC.
+		_, err := client.UserAISpendStatus(ctx, uuid.New())
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	})
+
+	tests := []struct {
+		name                   string
+		groupBudget            *int64 // nil = no group budget configured
+		overrideLimit          *int64 // nil = no user override configured
+		spent                  int64  // 0 = no spend seeded
+		wantHasEffectiveGroup  bool
+		wantSpendLimitMicros   *int64
+		wantLimitSource        *codersdk.AIBudgetLimitSource
+		wantCurrentSpendMicros int64
+	}{
+		{
+			name:                   "NoEffectiveGroup",
+			wantHasEffectiveGroup:  false,
+			wantSpendLimitMicros:   nil,
+			wantLimitSource:        nil,
+			wantCurrentSpendMicros: 0,
+		},
+		{
+			name:                  "GroupBudget/ZeroSpend",
+			groupBudget:           ptr.Ref(int64(1_000_000_000)),
+			wantHasEffectiveGroup: true,
+			wantSpendLimitMicros:  ptr.Ref(int64(1_000_000_000)),
+			wantLimitSource:       ptr.Ref(codersdk.AIBudgetLimitSourceGroup),
+		},
+		{
+			name:                   "GroupBudget/PartialSpend",
+			groupBudget:            ptr.Ref(int64(1_000_000_000)),
+			spent:                  250_000_000,
+			wantHasEffectiveGroup:  true,
+			wantSpendLimitMicros:   ptr.Ref(int64(1_000_000_000)),
+			wantLimitSource:        ptr.Ref(codersdk.AIBudgetLimitSourceGroup),
+			wantCurrentSpendMicros: 250_000_000,
+		},
+		{
+			name:                   "GroupBudget/SpendExceedsLimit",
+			groupBudget:            ptr.Ref(int64(1_000_000_000)),
+			spent:                  1_500_000_000,
+			wantHasEffectiveGroup:  true,
+			wantSpendLimitMicros:   ptr.Ref(int64(1_000_000_000)),
+			wantLimitSource:        ptr.Ref(codersdk.AIBudgetLimitSourceGroup),
+			wantCurrentSpendMicros: 1_500_000_000,
+		},
+		{
+			name:                  "UserOverride/ZeroSpend",
+			groupBudget:           ptr.Ref(int64(5_000_000_000)),
+			overrideLimit:         ptr.Ref(int64(200_000_000)),
+			wantHasEffectiveGroup: true,
+			wantSpendLimitMicros:  ptr.Ref(int64(200_000_000)),
+			wantLimitSource:       ptr.Ref(codersdk.AIBudgetLimitSourceUserOverride),
+		},
+		{
+			name:                   "UserOverride/PartialSpend",
+			groupBudget:            ptr.Ref(int64(5_000_000_000)),
+			overrideLimit:          ptr.Ref(int64(200_000_000)),
+			spent:                  50_000_000,
+			wantHasEffectiveGroup:  true,
+			wantSpendLimitMicros:   ptr.Ref(int64(200_000_000)),
+			wantLimitSource:        ptr.Ref(codersdk.AIBudgetLimitSourceUserOverride),
+			wantCurrentSpendMicros: 50_000_000,
+		},
+		{
+			name:                   "UserOverride/SpendExceedsLimit",
+			groupBudget:            ptr.Ref(int64(5_000_000_000)),
+			overrideLimit:          ptr.Ref(int64(200_000_000)),
+			spent:                  350_000_000,
+			wantHasEffectiveGroup:  true,
+			wantSpendLimitMicros:   ptr.Ref(int64(200_000_000)),
+			wantLimitSource:        ptr.Ref(codersdk.AIBudgetLimitSourceUserOverride),
+			wantCurrentSpendMicros: 350_000_000,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			clock := quartz.NewMock(t)
+			db, ps := dbtestutil.NewDB(t)
+			adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+				GroupName: "spend-test-group",
+				Clock:     clock,
+				Database:  db,
+				Pubsub:    ps,
+			})
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			// Use fixed dates to keep the test deterministic.
+			clock.Set(time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC))
+			wantPeriodStart := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+			wantPeriodEnd := time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC)
+
+			if tt.groupBudget != nil {
+				_, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+					SpendLimitMicros: *tt.groupBudget,
+				})
+				require.NoError(t, err)
+			}
+			if tt.overrideLimit != nil {
+				_, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+					GroupID:          group.ID,
+					SpendLimitMicros: *tt.overrideLimit,
+				})
+				require.NoError(t, err)
+			}
+			if tt.spent > 0 {
+				_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+					UserID:           targetUser.ID,
+					EffectiveGroupID: group.ID,
+					Day:              clock.Now(),
+					CostMicros:       tt.spent,
+				})
+				require.NoError(t, err)
+			}
+
+			got, err := adminClient.UserAISpendStatus(ctx, targetUser.ID)
+			require.NoError(t, err)
+			require.Equal(t, targetUser.ID, got.UserID)
+			require.Equal(t, wantPeriodStart, got.PeriodStart)
+			require.Equal(t, wantPeriodEnd, got.PeriodEnd)
+			require.Equal(t, tt.wantCurrentSpendMicros, got.CurrentSpendMicros)
+
+			var wantEffectiveGroupID *uuid.UUID
+			if tt.wantHasEffectiveGroup {
+				wantEffectiveGroupID = &group.ID
+			}
+			require.Equal(t, wantEffectiveGroupID, got.EffectiveGroupID)
+			require.Equal(t, tt.wantSpendLimitMicros, got.SpendLimitMicros)
+			require.Equal(t, tt.wantLimitSource, got.LimitSource)
+		})
+	}
+}
+
+func TestUserAISpendStatusRoleAccess(t *testing.T) {
+	t.Parallel()
 
 	dv := coderdtest.DeploymentValues(t)
 	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
@@ -2991,12 +3169,88 @@ func setupUserAIBudgetOverrideTest(t *testing.T) (adminClient *codersdk.Client, 
 			},
 		},
 	})
-	adminClient, _ = coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
-	_, targetUser = coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+	userAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+	orgAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
+	orgUserAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgUserAdmin(owner.OrganizationID))
+	memberClient, memberUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+	_, targetUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+	cases := []struct {
+		Name     string
+		Client   *codersdk.Client
+		Target   uuid.UUID
+		WantCode int
+	}{
+		{Name: "Owner", Client: ownerClient, Target: targetUser.ID, WantCode: http.StatusOK},
+		{Name: "UserAdmin", Client: userAdminClient, Target: targetUser.ID, WantCode: http.StatusOK},
+		{Name: "OrgAdmin", Client: orgAdminClient, Target: targetUser.ID, WantCode: http.StatusOK},
+		{Name: "OrgUserAdmin", Client: orgUserAdminClient, Target: targetUser.ID, WantCode: http.StatusOK},
+		{Name: "MemberReadsSelf", Client: memberClient, Target: memberUser.ID, WantCode: http.StatusOK},
+		{Name: "MemberReadsOther", Client: memberClient, Target: targetUser.ID, WantCode: http.StatusNotFound},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			_, err := tc.Client.UserAISpendStatus(ctx, tc.Target)
+			if tc.WantCode == http.StatusOK {
+				require.NoError(t, err)
+				return
+			}
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, tc.WantCode, sdkErr.StatusCode())
+		})
+	}
+}
+
+// aiCostControlTestOptions configures the setup of an AI cost control test
+// deployment. GroupName is required. Clock, Database, and Pubsub are
+// optional overrides (leave nil for defaults).
+type aiCostControlTestOptions struct {
+	GroupName string
+	Clock     quartz.Clock
+	Database  database.Store
+	Pubsub    pubsub.Pubsub
+}
+
+// setupAICostControlTest builds a deployment with FeatureAIBridge licensed
+// and the AI Gateway cost control experiment enabled, creates an admin
+// client and target user, adds the target user to a group, and returns
+// the admin client, target user, and group.
+func setupAICostControlTest(t *testing.T, opts aiCostControlTestOptions) (*codersdk.Client, codersdk.User, codersdk.Group) {
+	t.Helper()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
+	coderdOpts := &coderdtest.Options{DeploymentValues: dv}
+	if opts.Clock != nil {
+		coderdOpts.Clock = opts.Clock
+	}
+	if opts.Database != nil {
+		coderdOpts.Database = opts.Database
+	}
+	if opts.Pubsub != nil {
+		coderdOpts.Pubsub = opts.Pubsub
+	}
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: coderdOpts,
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+				codersdk.FeatureAIBridge:     1,
+			},
+		},
+	})
+	adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+	_, targetUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	g, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
-		Name: "override-test-group",
+		Name: opts.GroupName,
 	})
 	require.NoError(t, err)
 	g, err = adminClient.PatchGroup(ctx, g.ID, codersdk.PatchGroupRequest{

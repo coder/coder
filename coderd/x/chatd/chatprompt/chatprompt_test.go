@@ -2382,7 +2382,7 @@ func TestConvertMessagesWithFiles_IsSyntheticPaste(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tt.want, chatprompt.IsSyntheticPasteForTest(tt.fileName, tt.mediaType))
+			require.Equal(t, tt.want, chatprompt.IsSyntheticPaste(tt.fileName, tt.mediaType))
 		})
 	}
 }

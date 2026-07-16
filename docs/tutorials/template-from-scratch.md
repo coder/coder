@@ -28,8 +28,8 @@ server essentially runs a `terraform apply` every time a workspace is created,
 started, or stopped.
 
 > [!TIP]
-> Haven't written Terraform before? Check out Hashicorp's
-> [Getting Started Guides](https://developer.hashicorp.com/terraform/tutorials).
+> Haven't written Terraform before?
+> Check out HashiCorp's [Getting Started Guides](https://developer.hashicorp.com/terraform/tutorials).
 
 Here's a simplified diagram that shows the main parts of the template we'll
 create:
@@ -365,7 +365,7 @@ use the Coder CLI.
 
 1. Paste it into the CLI:
 
-   ```output
+   ```txt
    > Welcome to Coder, marc! You're authenticated.
    $
    ```
@@ -414,7 +414,7 @@ through the CLI, or through the Coder dashboard:
 
    - To zip the files through the command line:
 
-     ```shell
+     ```sh
      zip templates.zip Dockerfile main.tf
      ```
 

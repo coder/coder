@@ -408,9 +408,14 @@ jobs:
           echo "Action: $ACTION  Ref: $REF  Mode: $MODE"
           RESPONSE=$(mktemp)
           RC=0
+          # A whole-branch reindex fetches and extracts a few hundred
+          # pages server-side and can run past two minutes. Keep
+          # --max-time in step with the docs indexer's server-side
+          # function budget so curl waits for the response instead of
+          # aborting mid-reindex and reporting a false timeout.
           HTTP_STATUS=$(curl --fail-with-body -sS \
             --connect-timeout 10 \
-            --max-time 120 \
+            --max-time 300 \
             -o "$RESPONSE" \
             -w '%{http_code}' \
             -X POST \

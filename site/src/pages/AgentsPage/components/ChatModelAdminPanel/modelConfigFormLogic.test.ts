@@ -262,13 +262,28 @@ describe("extractModelConfigFormState", () => {
 			"0.3",
 		);
 	});
+
+	it("extracts reasoning effort bounds", () => {
+		const model: TypesGen.ChatModelConfig = {
+			...baseChatModelConfig,
+			model_config: {
+				reasoning_effort: {
+					default: "medium",
+					max: "xhigh",
+				},
+			},
+		};
+		const result = extractModelConfigFormState(model);
+		expect(deepGet(result, ["reasoningEffort", "default"])).toBe("medium");
+		expect(deepGet(result, ["reasoningEffort", "max"])).toBe("xhigh");
+	});
+
 	it("extracts OpenAI provider options", () => {
 		const model: TypesGen.ChatModelConfig = {
 			...baseChatModelConfig,
 			model_config: {
 				provider_options: {
 					openai: {
-						reasoning_effort: "high",
 						parallel_tool_calls: true,
 						text_verbosity: "medium",
 						service_tier: "auto",
@@ -281,7 +296,6 @@ describe("extractModelConfigFormState", () => {
 		};
 		const result = extractModelConfigFormState(model);
 		const openai = result.openai as Record<string, unknown>;
-		expect(openai.reasoningEffort).toBe("high");
 		expect(openai.parallelToolCalls).toBe("true");
 		expect(openai.textVerbosity).toBe("medium");
 		expect(openai.serviceTier).toBe("auto");
@@ -296,7 +310,6 @@ describe("extractModelConfigFormState", () => {
 			model_config: {
 				provider_options: {
 					anthropic: {
-						effort: "high",
 						thinking: { budget_tokens: 1024 },
 						send_reasoning: true,
 						disable_parallel_tool_use: false,
@@ -306,7 +319,6 @@ describe("extractModelConfigFormState", () => {
 		};
 		const result = extractModelConfigFormState(model);
 		const anthropic = result.anthropic as Record<string, unknown>;
-		expect(anthropic.effort).toBe("high");
 		expect(deepGet(anthropic, ["thinking", "budgetTokens"])).toBe("1024");
 		expect(anthropic.sendReasoning).toBe("true");
 		expect(anthropic.disableParallelToolUse).toBe("false");
@@ -357,7 +369,6 @@ describe("extractModelConfigFormState", () => {
 			model_config: {
 				provider_options: {
 					openaicompat: {
-						reasoning_effort: "low",
 						user: "compat-user",
 					},
 				},
@@ -365,7 +376,6 @@ describe("extractModelConfigFormState", () => {
 		};
 		const result = extractModelConfigFormState(model);
 		const openaicompat = result.openaicompat as Record<string, unknown>;
-		expect(openaicompat.reasoningEffort).toBe("low");
 		expect(openaicompat.user).toBe("compat-user");
 	});
 
@@ -377,7 +387,6 @@ describe("extractModelConfigFormState", () => {
 					openrouter: {
 						reasoning: {
 							enabled: true,
-							effort: "medium",
 							max_tokens: 500,
 							exclude: false,
 						},
@@ -391,7 +400,6 @@ describe("extractModelConfigFormState", () => {
 		const result = extractModelConfigFormState(model);
 		const openrouter = result.openrouter as Record<string, unknown>;
 		expect(deepGet(openrouter, ["reasoning", "enabled"])).toBe("true");
-		expect(deepGet(openrouter, ["reasoning", "effort"])).toBe("medium");
 		expect(deepGet(openrouter, ["reasoning", "maxTokens"])).toBe("500");
 		expect(deepGet(openrouter, ["reasoning", "exclude"])).toBe("false");
 		expect(openrouter.parallelToolCalls).toBe("true");
@@ -407,7 +415,6 @@ describe("extractModelConfigFormState", () => {
 					vercel: {
 						reasoning: {
 							enabled: false,
-							effort: "high",
 							max_tokens: 1000,
 							exclude: true,
 						},
@@ -420,7 +427,6 @@ describe("extractModelConfigFormState", () => {
 		const result = extractModelConfigFormState(model);
 		const vercel = result.vercel as Record<string, unknown>;
 		expect(deepGet(vercel, ["reasoning", "enabled"])).toBe("false");
-		expect(deepGet(vercel, ["reasoning", "effort"])).toBe("high");
 		expect(deepGet(vercel, ["reasoning", "maxTokens"])).toBe("1000");
 		expect(deepGet(vercel, ["reasoning", "exclude"])).toBe("true");
 		expect(vercel.parallelToolCalls).toBe("false");
@@ -438,9 +444,9 @@ describe("extractModelConfigFormState", () => {
 		expect(result.temperature).toBe("0.5");
 		// All provider-specific fields should be empty.
 		const openai = result.openai as Record<string, unknown>;
-		expect(openai.reasoningEffort).toBe("");
+		expect(openai.textVerbosity).toBe("");
 		const anthropic = result.anthropic as Record<string, unknown>;
-		expect(anthropic.effort).toBe("");
+		expect(anthropic.sendReasoning).toBe("");
 		const google = result.google as Record<string, unknown>;
 		expect(deepGet(google, ["thinkingConfig", "thinkingBudget"])).toBe("");
 	});
@@ -467,6 +473,83 @@ describe("buildModelConfigFromForm", () => {
 				emptyModelConfigFormState,
 			);
 			expect(result.fieldErrors).toEqual({});
+			expect(result.modelConfig).toBeUndefined();
+		});
+	});
+
+	describe("reasoning effort bounds", () => {
+		it("builds config with valid default and max", () => {
+			const result = buildModelConfigFromForm(
+				"openai",
+				formWith({ reasoningEffort: { default: "medium", max: "xhigh" } }),
+			);
+			expect(result.fieldErrors).toEqual({});
+			expect(result.modelConfig?.reasoning_effort).toEqual({
+				default: "medium",
+				max: "xhigh",
+			});
+		});
+
+		it("builds config with equal default and max", () => {
+			const result = buildModelConfigFromForm(
+				"anthropic",
+				formWith({ reasoningEffort: { default: "high", max: "high" } }),
+			);
+			expect(result.fieldErrors).toEqual({});
+			expect(result.modelConfig?.reasoning_effort).toEqual({
+				default: "high",
+				max: "high",
+			});
+		});
+
+		it("omits reasoning effort when both fields are unset", () => {
+			const result = buildModelConfigFromForm(
+				"openai",
+				formWith({ temperature: "0.5" }),
+			);
+			expect(result.fieldErrors).toEqual({});
+			expect(result.modelConfig?.reasoning_effort).toBeUndefined();
+		});
+
+		it("reports error when default exceeds max on the global ordering", () => {
+			const result = buildModelConfigFromForm(
+				"openai",
+				formWith({ reasoningEffort: { default: "high", max: "low" } }),
+			);
+			expect(result.fieldErrors["reasoningEffort.default"]).toContain(
+				"must not exceed the max reasoning effort",
+			);
+			expect(result.modelConfig).toBeUndefined();
+		});
+
+		it("requires default and max together", () => {
+			const defaultOnly = buildModelConfigFromForm(
+				"openai",
+				formWith({ reasoningEffort: { default: "high" } }),
+			);
+			expect(defaultOnly.fieldErrors["reasoningEffort.max"]).toContain(
+				"must both be set",
+			);
+			expect(defaultOnly.modelConfig).toBeUndefined();
+
+			const maxOnly = buildModelConfigFromForm(
+				"openai",
+				formWith({ reasoningEffort: { max: "high" } }),
+			);
+			expect(maxOnly.fieldErrors["reasoningEffort.default"]).toContain(
+				"must both be set",
+			);
+			expect(maxOnly.modelConfig).toBeUndefined();
+		});
+
+		it("reports error for values outside the effort enum", () => {
+			const result = buildModelConfigFromForm(
+				"openai",
+				formWith({ reasoningEffort: { default: "extreme" } }),
+			);
+			expect(result.fieldErrors["reasoningEffort.default"]).toContain(
+				"invalid value",
+			);
 			expect(result.modelConfig).toBeUndefined();
 		});
 	});
@@ -606,14 +689,14 @@ describe("buildModelConfigFromForm", () => {
 		});
 	});
 	describe("OpenAI / Azure provider", () => {
-		it("builds OpenAI provider options with reasoning effort", () => {
+		it("builds OpenAI provider options with text verbosity", () => {
 			const result = buildModelConfigFromForm(
 				"openai",
-				formWith({ openai: { reasoningEffort: "high" } }),
+				formWith({ openai: { textVerbosity: "high" } }),
 			);
 			expect(result.fieldErrors).toEqual({});
 			expect(result.modelConfig?.provider_options?.openai).toEqual({
-				reasoning_effort: "high",
+				text_verbosity: "high",
 			});
 		});
 
@@ -633,7 +716,6 @@ describe("buildModelConfigFromForm", () => {
 				"openai",
 				formWith({
 					openai: {
-						reasoningEffort: "medium",
 						parallelToolCalls: "false",
 						textVerbosity: "low",
 						serviceTier: "auto",
@@ -648,23 +730,12 @@ describe("buildModelConfigFromForm", () => {
 				string,
 				unknown
 			>;
-			expect(openai.reasoning_effort).toBe("medium");
 			expect(openai.parallel_tool_calls).toBe(false);
 			expect(openai.text_verbosity).toBe("low");
 			expect(openai.service_tier).toBe("auto");
 			expect(openai.reasoning_summary).toBe("concise");
 			expect(openai.user).toBe("user-123");
 			expect(openai.prompt_cache_key).toBe("cache-key-1");
-		});
-
-		it("reports error for invalid reasoning effort option", () => {
-			const result = buildModelConfigFromForm(
-				"openai",
-				formWith({ openai: { reasoningEffort: "invalid_value" } }),
-			);
-			expect(result.fieldErrors["openai.reasoningEffort"]).toContain(
-				"invalid value",
-			);
 		});
 
 		it("reports error for invalid parallel tool calls boolean", () => {
@@ -742,14 +813,14 @@ describe("buildModelConfigFromForm", () => {
 	});
 
 	describe("Anthropic / Bedrock provider", () => {
-		it("builds Anthropic provider options with effort", () => {
+		it("builds Anthropic provider options with thinking display", () => {
 			const result = buildModelConfigFromForm(
 				"anthropic",
-				formWith({ anthropic: { effort: "high" } }),
+				formWith({ anthropic: { thinkingDisplay: "summarized" } }),
 			);
 			expect(result.fieldErrors).toEqual({});
 			expect(result.modelConfig?.provider_options?.anthropic).toEqual({
-				effort: "high",
+				thinking_display: "summarized",
 			});
 		});
 
@@ -782,7 +853,6 @@ describe("buildModelConfigFromForm", () => {
 				"anthropic",
 				formWith({
 					anthropic: {
-						effort: "max",
 						thinking: { budgetTokens: "1024" },
 						sendReasoning: "false",
 						disableParallelToolUse: "true",
@@ -792,29 +862,9 @@ describe("buildModelConfigFromForm", () => {
 			expect(result.fieldErrors).toEqual({});
 			const anthropic = result.modelConfig?.provider_options
 				?.anthropic as Record<string, unknown>;
-			expect(anthropic.effort).toBe("max");
 			expect(anthropic.thinking).toEqual({ budget_tokens: 1024 });
 			expect(anthropic.send_reasoning).toBe(false);
 			expect(anthropic.disable_parallel_tool_use).toBe(true);
-		});
-
-		it("accepts xhigh for Anthropic effort", () => {
-			const result = buildModelConfigFromForm(
-				"anthropic",
-				formWith({ anthropic: { effort: "xhigh" } }),
-			);
-			expect(result.fieldErrors).toEqual({});
-			const anthropic = result.modelConfig?.provider_options
-				?.anthropic as Record<string, unknown>;
-			expect(anthropic.effort).toBe("xhigh");
-		});
-
-		it("reports error for invalid Anthropic effort option", () => {
-			const result = buildModelConfigFromForm(
-				"anthropic",
-				formWith({ anthropic: { effort: "ultra" } }),
-			);
-			expect(result.fieldErrors["anthropic.effort"]).toContain("invalid value");
 		});
 
 		it("reports error for non-numeric thinking budget tokens", () => {
@@ -946,26 +996,14 @@ describe("buildModelConfigFromForm", () => {
 				"openaicompat",
 				formWith({
 					openaicompat: {
-						reasoningEffort: "low",
 						user: "compat-user",
 					},
 				}),
 			);
 			expect(result.fieldErrors).toEqual({});
 			expect(result.modelConfig?.provider_options?.openaicompat).toEqual({
-				reasoning_effort: "low",
 				user: "compat-user",
 			});
-		});
-
-		it("reports error for invalid reasoning effort", () => {
-			const result = buildModelConfigFromForm(
-				"openaicompat",
-				formWith({ openaicompat: { reasoningEffort: "super" } }),
-			);
-			expect(result.fieldErrors["openaicompat.reasoningEffort"]).toContain(
-				"invalid value",
-			);
 		});
 
 		it("does not set provider_options when all fields empty", () => {
@@ -985,7 +1023,6 @@ describe("buildModelConfigFromForm", () => {
 					openrouter: {
 						reasoning: {
 							enabled: "true",
-							effort: "high",
 							maxTokens: "500",
 							exclude: "false",
 						},
@@ -997,7 +1034,6 @@ describe("buildModelConfigFromForm", () => {
 				?.openrouter as Record<string, unknown>;
 			expect(openrouter.reasoning).toEqual({
 				enabled: true,
-				effort: "high",
 				max_tokens: 500,
 				exclude: false,
 			});
@@ -1031,18 +1067,6 @@ describe("buildModelConfigFromForm", () => {
 			expect(openrouter.include_usage).toBe(true);
 		});
 
-		it("reports error for invalid reasoning effort", () => {
-			const result = buildModelConfigFromForm(
-				"openrouter",
-				formWith({
-					openrouter: { reasoning: { effort: "turbo" } },
-				}),
-			);
-			expect(result.fieldErrors["openrouter.reasoning.effort"]).toContain(
-				"invalid value",
-			);
-		});
-
 		it("reports error for invalid boolean in reasoning enabled", () => {
 			const result = buildModelConfigFromForm(
 				"openrouter",
@@ -1064,7 +1088,6 @@ describe("buildModelConfigFromForm", () => {
 					vercel: {
 						reasoning: {
 							enabled: "true",
-							effort: "medium",
 							maxTokens: "1000",
 							exclude: "true",
 						},
@@ -1078,7 +1101,6 @@ describe("buildModelConfigFromForm", () => {
 			>;
 			expect(vercel.reasoning).toEqual({
 				enabled: true,
-				effort: "medium",
 				max_tokens: 1000,
 				exclude: true,
 			});
@@ -1135,7 +1157,7 @@ describe("buildModelConfigFromForm", () => {
 		it("normalizes provider case (e.g. 'OpenAI' → 'openai')", () => {
 			const result = buildModelConfigFromForm(
 				"OpenAI",
-				formWith({ openai: { reasoningEffort: "high" } }),
+				formWith({ openai: { textVerbosity: "high" } }),
 			);
 			expect(result.fieldErrors).toEqual({});
 			expect(result.modelConfig?.provider_options?.openai).toBeDefined();
@@ -1144,7 +1166,7 @@ describe("buildModelConfigFromForm", () => {
 		it("trims provider whitespace", () => {
 			const result = buildModelConfigFromForm(
 				"  anthropic  ",
-				formWith({ anthropic: { effort: "low" } }),
+				formWith({ anthropic: { sendReasoning: "true" } }),
 			);
 			expect(result.fieldErrors).toEqual({});
 			expect(result.modelConfig?.provider_options?.anthropic).toBeDefined();

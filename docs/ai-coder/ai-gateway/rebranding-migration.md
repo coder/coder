@@ -146,7 +146,7 @@ Unlike the scalar settings above, you **cannot mix the two prefixes**. Setting
 both `CODER_AIBRIDGE_PROVIDER_*` and `CODER_AI_GATEWAY_PROVIDER_*` variables in
 the same deployment causes startup to fail with:
 
-```text
+```txt
 cannot mix CODER_AIBRIDGE_PROVIDER_* and CODER_AI_GATEWAY_PROVIDER_* environment variables, please consolidate onto CODER_AI_GATEWAY_PROVIDER_*
 ```
 

@@ -83,7 +83,7 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 				className="flex h-full flex-col items-center justify-center gap-3 text-content-secondary"
 				role="status"
 			>
-				<ExternalLinkIcon className="h-8 w-8" />
+				<ExternalLinkIcon className="size-8" />
 				<span className="text-sm">Desktop is open in a separate window.</span>
 				<Button variant="outline" size="sm" onClick={handleBringBack}>
 					Bring back
@@ -133,7 +133,7 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 	if (status === "connecting") {
 		return (
 			<div className="flex h-full flex-col items-center justify-center gap-2 text-content-secondary">
-				<Spinner loading className="h-6 w-6" />
+				<Spinner loading className="size-6" />
 				<span className="text-sm">Connecting to desktop...</span>
 			</div>
 		);
@@ -142,7 +142,7 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 	if (status === "disconnected") {
 		return (
 			<div className="flex h-full flex-col items-center justify-center gap-2 text-content-secondary">
-				<Spinner loading className="h-6 w-6" />
+				<Spinner loading className="size-6" />
 				<span className="text-sm">Desktop disconnected. Reconnecting...</span>
 			</div>
 		);
@@ -165,7 +165,7 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 	if (status === "idle") {
 		return (
 			<div className="flex h-full flex-col items-center justify-center gap-2 text-content-secondary">
-				<Spinner loading className="h-6 w-6" />
+				<Spinner loading className="size-6" />
 				<span className="text-sm">Initializing desktop...</span>
 			</div>
 		);

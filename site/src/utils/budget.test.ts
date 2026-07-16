@@ -2,10 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
 	clampPercentage,
 	getSeverity,
-	severityBorderClassName,
-	severityProgressClassName,
-	severityRingClassName,
-	severityTextClassName,
 	usageProgressPercentage,
 } from "./budget";
 
@@ -34,48 +30,6 @@ describe("getSeverity", () => {
 		expect(getSeverity(Number.NaN, 50)).toBe("normal");
 		expect(getSeverity(10, Number.POSITIVE_INFINITY)).toBe("normal");
 		expect(getSeverity(10, -50)).toBe("normal");
-	});
-});
-
-describe("severityTextClassName", () => {
-	it("maps each severity to its text color, defaulting to normal", () => {
-		expect(severityTextClassName("exceeded")).toBe("text-content-destructive");
-		expect(severityTextClassName("warning")).toBe("text-content-warning");
-		expect(severityTextClassName("normal")).toBe("text-content-secondary");
-		expect(severityTextClassName()).toBe("text-content-secondary");
-	});
-});
-
-describe("severityProgressClassName", () => {
-	it("maps each severity to its progress bar color, defaulting to normal", () => {
-		expect(severityProgressClassName("exceeded")).toBe(
-			"bg-content-destructive",
-		);
-		expect(severityProgressClassName("warning")).toBe("bg-content-warning");
-		expect(severityProgressClassName("normal")).toBe("bg-content-secondary");
-		expect(severityProgressClassName()).toBe("bg-content-secondary");
-	});
-});
-
-describe("severityRingClassName", () => {
-	it("maps each severity to its ring stroke color, defaulting to normal", () => {
-		expect(severityRingClassName("exceeded")).toBe(
-			"stroke-content-destructive",
-		);
-		expect(severityRingClassName("warning")).toBe("stroke-content-warning");
-		expect(severityRingClassName("normal")).toBe("stroke-content-secondary");
-		expect(severityRingClassName()).toBe("stroke-content-secondary");
-	});
-});
-
-describe("severityBorderClassName", () => {
-	it("maps each severity to its border color, defaulting to normal", () => {
-		expect(severityBorderClassName("exceeded")).toBe(
-			"border-content-destructive",
-		);
-		expect(severityBorderClassName("warning")).toBe("border-content-warning");
-		expect(severityBorderClassName("normal")).toBe("border-content-secondary");
-		expect(severityBorderClassName()).toBe("border-content-secondary");
 	});
 });
 
