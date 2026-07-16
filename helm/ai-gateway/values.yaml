@@ -117,17 +117,13 @@ coder:
       memory: 1Gi
 
   # coder.startupProbe -- Startup probe configuration for the AI Gateway.
-  # Enable this with a failure threshold long enough for initial provider load
-  # before enabling the liveness probe.
   startupProbe:
     enabled: false
     initialDelaySeconds: 0
 
   # coder.livenessProbe -- Liveness probe configuration for the AI Gateway.
-  # Without this probe, Kubernetes does not restart a running but unresponsive
-  # Gateway. Enable and tune the startup probe before enabling this probe.
   livenessProbe:
-    enabled: false
+    enabled: true
     initialDelaySeconds: 0
 
   # coder.readinessProbe -- Readiness probe configuration for the AI Gateway.

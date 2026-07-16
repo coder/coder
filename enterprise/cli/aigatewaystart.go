@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -35,11 +36,13 @@ import (
 )
 
 const (
-	// helm/ai-gateway's terminationGracePeriodSeconds must exceed
-	// shutdownTimeout so graceful shutdown completes before Kubernetes sends
-	// SIGKILL.
-	shutdownTimeout      = 5 * time.Minute
-	traceShutdownTimeout = 5 * time.Second
+	// The sum of shutdownTimeout, daemonShutdownTimeout, and
+	// traceShutdownTimeout must stay below terminationGracePeriodSeconds
+	// in helm/ai-gateway/values.yaml so the process can complete graceful
+	// shutdown before Kubernetes sends SIGKILL.
+	daemonShutdownTimeout = 5 * time.Second
+	shutdownTimeout       = 5 * time.Minute
+	traceShutdownTimeout  = 5 * time.Second
 
 	healthzPath = "/healthz"
 	readyzPath  = "/readyz"
@@ -143,9 +146,14 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			providerMetrics := aibridged.NewMetrics(registry)
 
 			tracerProvider, _, closeTracing := agpl.ConfigureTraceProviderWithService(signalCtx, logger, vals, "coder-ai-gateway")
+			// The tracer is shared by the gateway's HTTP middleware, pool, and
+			// daemon, so it must be flushed only after run() returns and all
+			// span producers have stopped, hence the handler-level defer.
 			defer func() {
 				logger.Debug(signalCtx, "closing tracing")
-				traceCloseErr := shutdownWithTimeout(closeTracing, traceShutdownTimeout)
+				traceCtx, traceCancel := context.WithTimeout(context.Background(), traceShutdownTimeout)
+				defer traceCancel()
+				traceCloseErr := closeTracing(traceCtx)
 				logger.Debug(signalCtx, "tracing closed", slog.Error(traceCloseErr))
 			}()
 			tracer := tracerProvider.Tracer("ai-gateway")
@@ -167,98 +175,26 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			}
 			registry.MustRegister(keypool.NewStateCollector(pool.KeyPools))
 
-			dialer := aibridged.NewWebsocketDialer(serverURL, transport, resolvedKey)
-			aibridgedCtx, aibridgedCancel := context.WithCancel(context.Background())
-			defer aibridgedCancel()
-			srv, err := aibridged.New(aibridgedCtx, pool, dialer, gatewayLogger, tracer)
-			if err != nil {
-				return xerrors.Errorf("start AI Gateway daemon: %w", err)
-			}
-			defer srv.Close()
+			gateway, err := newStandaloneGateway(standaloneGatewayParams{
+				bridgeConfig: vals.AI.BridgeConfig,
+				coderURL:     serverURL.String(),
+				httpAddress:  httpAddress,
+				tlsCertFile:  tlsCertFile,
+				tlsKeyFile:   tlsKeyFile,
 
-			// Fetch the initial provider set from coderd, retrying until
-			// success. Subsequent changes are delivered by the watch loop
-			// started below. The reloader's client acquisition honors the
-			// context of each Reload call, so loadProviders is bounded by
-			// signalCtx and the watch loop by watchCtx.
-			providerLogger := gatewayLogger.Named("providers")
-			reloader := agpl.NewPoolRPCReloader(pool, srv.ClientContext, vals.AI.BridgeConfig, providerLogger, metrics, providerMetrics)
-			if err := loadProviders(signalCtx, reloader, providerLogger, srv.Done()); err != nil {
-				if signalCtx.Err() != nil {
-					logger.Info(signalCtx, "shutting down standalone AI Gateway")
-					return nil
-				}
-				return xerrors.Errorf("initialize ai providers: %w", err)
-			}
+				dialer: aibridged.NewWebsocketDialer(serverURL, transport, resolvedKey),
+				pool:   pool,
 
-			mw := gatewayMiddleware(vals.AI.BridgeConfig, tracer)
-
-			// Watch coderd for provider changes and refresh the pool on each
-			// signal.
-			watchCtx, watchCancel := context.WithCancel(signalCtx)
-			var watchWG sync.WaitGroup
-			watchWG.Go(func() {
-				// srv.ClientContext observes watchCtx, so watchCancel below
-				// unblocks a pending client acquisition and drains this
-				// goroutine without relying on srv.Close.
-				if err := aibridged.WatchProviderReload(watchCtx, srv.ClientContext, reloader, providerLogger); err != nil && watchCtx.Err() == nil {
-					providerLogger.Warn(watchCtx, "ai provider watch loop exited", slog.Error(err))
-				}
+				logger:          gatewayLogger,
+				metrics:         metrics,
+				providerMetrics: providerMetrics,
+				tracer:          tracer,
 			})
-			defer func() {
-				watchCancel()
-				watchWG.Wait()
-			}()
-
-			mux := newGatewayMux(srv, srv.Ready, mw)
-
-			listener, err := net.Listen("tcp", httpAddress)
 			if err != nil {
-				return xerrors.Errorf("listen on %q: %w", httpAddress, err)
-			}
-			defer listener.Close()
-
-			logger.Info(signalCtx, "standalone AI Gateway listening",
-				slog.F("address", listener.Addr().String()),
-				slog.F("coder_url", serverURL.String()),
-				slog.F("tls", tlsCertFile != ""),
-			)
-
-			httpServer := &http.Server{
-				Handler:           mux,
-				ReadHeaderTimeout: time.Minute,
+				return err
 			}
 
-			serveErr := make(chan error, 1)
-			go func() {
-				if tlsCertFile != "" {
-					serveErr <- httpServer.ServeTLS(listener, tlsCertFile, tlsKeyFile)
-				} else {
-					serveErr <- httpServer.Serve(listener)
-				}
-			}()
-
-			var aibridgedErr error
-			select {
-			case <-signalCtx.Done():
-				logger.Info(signalCtx, "shutting down standalone AI Gateway")
-			case <-srv.Done():
-				aibridgedErr = srv.Err()
-			case err := <-serveErr:
-				if err != nil && !errors.Is(err, http.ErrServerClosed) {
-					return xerrors.Errorf("serve: %w", err)
-				}
-			}
-
-			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
-			defer shutdownCancel()
-			if err := httpServer.Shutdown(shutdownCtx); err != nil {
-				return xerrors.Errorf("shutdown http server: %w", err)
-			}
-			if aibridgedErr != nil {
-				return xerrors.Errorf("AI Gateway daemon exited: %w", aibridgedErr)
-			}
-			return nil
+			return gateway.run(signalCtx)
 		},
 	}
 
@@ -314,6 +250,190 @@ func gatewayMiddleware(cfg codersdk.AIBridgeConfig, tracer trace.Tracer) func(ht
 	}
 }
 
+type standaloneGatewayParams struct {
+	// Configuration.
+	bridgeConfig codersdk.AIBridgeConfig
+	coderURL     string
+	httpAddress  string
+	tlsCertFile  string
+	tlsKeyFile   string
+
+	// Runtime dependencies.
+	dialer aibridged.Dialer
+	pool   *aibridged.CachedBridgePool
+
+	// Observability.
+	// logger is the gateway-scoped logger; derived loggers (daemon,
+	// providers) are named under it.
+	logger          slog.Logger
+	metrics         *aibridge.Metrics
+	providerMetrics *aibridged.Metrics
+	tracer          trace.Tracer
+}
+
+type standaloneGateway struct {
+	// Services.
+	daemon     *aibridged.Server
+	httpServer *http.Server
+	reloader   aibridged.ProviderReloader
+
+	// Configuration.
+	coderURL    string
+	httpAddress string
+	tlsCertFile string
+	tlsKeyFile  string
+
+	// State.
+	providersLoaded atomic.Bool
+
+	// Observability.
+	logger         slog.Logger
+	providerLogger slog.Logger
+}
+
+func newStandaloneGateway(params standaloneGatewayParams) (*standaloneGateway, error) {
+	// Using context.Background() since daemon must outlive the run context
+	// so in-flight HTTP requests retain their DRPC connection during graceful shutdown.
+	srv, err := aibridged.New(context.Background(), params.pool, params.dialer, params.logger.Named("aibridged"), params.tracer)
+	if err != nil {
+		return nil, xerrors.Errorf("start AI Gateway daemon: %w", err)
+	}
+
+	providerLogger := params.logger.Named("providers")
+	server := &standaloneGateway{
+		coderURL:       params.coderURL,
+		daemon:         srv,
+		httpAddress:    params.httpAddress,
+		logger:         params.logger,
+		providerLogger: providerLogger,
+		reloader:       agpl.NewPoolRPCReloader(params.pool, srv.ClientContext, params.bridgeConfig, providerLogger, params.metrics, params.providerMetrics),
+		tlsCertFile:    params.tlsCertFile,
+		tlsKeyFile:     params.tlsKeyFile,
+	}
+	server.httpServer = &http.Server{
+		Handler:           newGatewayMux(server.daemon, server.ready, gatewayMiddleware(params.bridgeConfig, params.tracer)),
+		ReadHeaderTimeout: time.Minute,
+	}
+	return server, nil
+}
+
+func (s *standaloneGateway) run(ctx context.Context) error {
+	listener, err := net.Listen("tcp", s.httpAddress)
+	if err != nil {
+		_ = s.daemon.Close()
+		return xerrors.Errorf("listen on %q: %w", s.httpAddress, err)
+	}
+
+	serveErr := make(chan error, 1)
+	var serveWG sync.WaitGroup
+	serveWG.Go(func() {
+		if s.tlsCertFile != "" {
+			serveErr <- s.httpServer.ServeTLS(listener, s.tlsCertFile, s.tlsKeyFile)
+			return
+		}
+		serveErr <- s.httpServer.Serve(listener)
+	})
+
+	s.logger.Info(ctx, "standalone AI Gateway listening",
+		slog.F("address", listener.Addr().String()),
+		slog.F("coder_url", s.coderURL),
+		slog.F("tls", s.tlsCertFile != ""),
+	)
+
+	provReloadCtx, provReloadCancel := context.WithCancel(ctx)
+	provReloadDone := make(chan struct{})
+	provReloadErr := make(chan error, 1)
+	go func() {
+		defer close(provReloadDone)
+		if err := s.loadProviders(provReloadCtx); err != nil {
+			if provReloadCtx.Err() == nil {
+				provReloadErr <- xerrors.Errorf("initialize ai providers: %w", err)
+			}
+			return
+		}
+		if err := aibridged.WatchProviderReload(provReloadCtx, s.daemon.ClientContext, s.reloader, s.providerLogger); err != nil && provReloadCtx.Err() == nil {
+			provReloadErr <- xerrors.Errorf("watch ai providers: %w", err)
+		}
+	}()
+
+	var runErr error
+	select {
+	case <-ctx.Done():
+	case <-s.daemon.Done():
+		if ctx.Err() == nil {
+			runErr = xerrors.Errorf("AI Gateway daemon exited: %w", s.daemon.Err())
+		}
+	case err := <-provReloadErr:
+		runErr = err
+	case err := <-serveErr:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			runErr = xerrors.Errorf("serve: %w", err)
+		}
+	}
+	s.logger.Info(ctx, "shutting down standalone AI Gateway")
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer shutdownCancel()
+	provReloadCancel()
+
+	var (
+		shutdownWG        sync.WaitGroup
+		provReloadJoinErr error
+		httpShutdownErr   error
+	)
+	shutdownWG.Go(func() {
+		select {
+		case <-provReloadDone:
+		case <-shutdownCtx.Done():
+			provReloadJoinErr = xerrors.Errorf("provider synchronization did not stop in time")
+		}
+	})
+
+	// Closes the listener immediately, rejecting new requests,
+	// then drains in-flight requests. The daemon remains connected
+	// so draining requests retain their DRPC connection.
+	shutdownWG.Go(func() {
+		if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
+			httpShutdownErr = xerrors.Errorf("shutdown http server: %w", err)
+			if closeErr := s.httpServer.Close(); closeErr != nil {
+				httpShutdownErr = errors.Join(httpShutdownErr, xerrors.Errorf("force close http server: %w", closeErr))
+			}
+		}
+		serveWG.Wait()
+	})
+	shutdownWG.Wait()
+
+	daemonCtx, daemonCancel := context.WithTimeout(context.Background(), daemonShutdownTimeout)
+	defer daemonCancel()
+	var daemonShutdownErr error
+	if err := s.daemon.Shutdown(daemonCtx); err != nil {
+		daemonShutdownErr = xerrors.Errorf("shutdown AI Gateway daemon: %w", err)
+	}
+	return errors.Join(runErr, provReloadJoinErr, httpShutdownErr, daemonShutdownErr)
+}
+
+func (s *standaloneGateway) loadProviders(ctx context.Context) error {
+	for r := retry.New(50*time.Millisecond, 10*time.Second); r.Wait(ctx); {
+		if err := s.reloader.Reload(ctx); err != nil {
+			select {
+			case <-s.daemon.Done():
+				return err
+			default:
+			}
+			s.providerLogger.Warn(ctx, "failed to load ai providers, will retry", slog.Error(err))
+			continue
+		}
+		s.providersLoaded.Store(true)
+		s.providerLogger.Info(ctx, "loaded ai providers from coderd")
+		return nil
+	}
+	return context.Cause(ctx)
+}
+
+func (s *standaloneGateway) ready() bool {
+	return s.daemon.Ready() && s.providersLoaded.Load()
+}
+
 func newGatewayMux(aibridgedHandler http.Handler, aibridgedReady func() bool, middleware func(http.Handler) http.Handler) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle("/api/v2/aibridge/", middleware(http.StripPrefix("/api/v2/aibridge", aibridgedHandler)))
@@ -327,7 +447,8 @@ func newGatewayMux(aibridgedHandler http.Handler, aibridgedReady func() bool, mi
 	})
 
 	mux.HandleFunc(readyzPath, func(w http.ResponseWriter, _ *http.Request) {
-		// readyz: returns 200 only when the DRPC connection to coderd is established.
+		// readyz: returns 200 after the initial provider load while the
+		// DRPC connection to coderd remains active.
 		if aibridgedReady() {
 			w.WriteHeader(http.StatusOK)
 			return
@@ -380,34 +501,4 @@ func resolveAIGatewayKey(key string, keyFile string) (string, error) {
 		return "", xerrors.Errorf("read AI Gateway key file %q: %w", keyFile, err)
 	}
 	return strings.TrimSpace(string(data)), nil
-}
-
-// loadProviders performs the standalone gateway's initial provider
-// load by driving reloader until it succeeds or ctx is canceled. The reloader
-// owns the actual fetch/build/replace/metrics work; the reloader's underlying
-// client blocks until the daemon connects to coderd, and the fetch may still
-// fail transiently (e.g. mid-seed contention or a dropped connection), so the
-// reload is retried with backoff. A successful empty provider list is a valid
-// result and ends the loop.
-//
-// Subsequent provider changes are delivered by WatchProviderReload, started
-// after this initial load returns.
-func loadProviders(ctx context.Context, reloader aibridged.ProviderReloader, logger slog.Logger, aibridgedDone <-chan struct{}) error {
-	for r := retry.New(50*time.Millisecond, 10*time.Second); r.Wait(ctx); {
-		if err := reloader.Reload(ctx); err != nil {
-			select {
-			case <-aibridgedDone:
-				return err
-			default:
-			}
-			logger.Warn(ctx, "failed to load ai providers, will retry", slog.Error(err))
-			continue
-		}
-		logger.Info(ctx, "loaded ai providers from coderd")
-		return nil
-	}
-	if cause := context.Cause(ctx); cause != nil {
-		return cause
-	}
-	return ctx.Err()
 }

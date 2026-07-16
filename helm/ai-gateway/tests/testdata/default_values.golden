@@ -101,6 +101,12 @@ spec:
         image: ghcr.io/coder/coder:v2.36.0
         imagePullPolicy: IfNotPresent
         lifecycle: {}
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 0
         name: coder
         ports:
         - containerPort: 4001
@@ -126,6 +132,12 @@ spec:
           runAsUser: 1000
           seccompProfile:
             type: RuntimeDefault
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 0
         volumeMounts: []
       restartPolicy: Always
       serviceAccountName: coder-ai-gateway
