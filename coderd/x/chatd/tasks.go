@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
@@ -726,11 +727,11 @@ func committedPendingLocalToolCancellationMessages(
 	result := make([]chatstate.Message, 0, len(localCalls))
 	toolCallIDs := make([]string, 0, len(localCalls))
 	for _, call := range localCalls {
-		payload, err := json.Marshal(map[string]string{"error": interruptedToolResultErrorMessage})
+		payload, isError, err := interruptedToolResultPayload(ctx, store, chat.ID, assistantMessageID, call.ToolCallID)
 		if err != nil {
-			return nil, nil, 0, xerrors.Errorf("marshal interrupted tool result: %w", err)
+			return nil, nil, 0, err
 		}
-		part := codersdk.ChatMessageToolResult(call.ToolCallID, call.ToolName, payload, true, false)
+		part := codersdk.ChatMessageToolResult(call.ToolCallID, call.ToolName, payload, isError, false)
 		if !interruptedAt.IsZero() {
 			part.CreatedAt = &interruptedAt
 		}
@@ -748,6 +749,40 @@ func committedPendingLocalToolCancellationMessages(
 		toolCallIDs = append(toolCallIDs, call.ToolCallID)
 	}
 	return result, toolCallIDs, assistantMessageID, nil
+}
+
+// interruptedToolResultPayload builds the synthetic result committed
+// for an unresolved tool call at interrupt. A background execute
+// whose handle already landed is deliberately spared by the
+// interrupt, so its result carries the process handle: this result
+// is committed permanently, and a generic cancellation would strand
+// the live process without an addressable ID. Everything else gets
+// the generic cancellation error.
+func interruptedToolResultPayload(ctx context.Context, store database.Store, chatID uuid.UUID, assistantMessageID int64, toolCallID string) (json.RawMessage, bool, error) {
+	row, err := store.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+		ChatID:             chatID,
+		AssistantMessageID: assistantMessageID,
+		ToolCallID:         toolCallID,
+	})
+	if err == nil && row.Background && row.ProcessID.Valid {
+		payload, err := json.Marshal(chattool.ExecuteResult{
+			Success:             true,
+			BackgroundProcessID: row.ProcessID.String,
+			Note:                "the turn was interrupted; the background process was left alone. Use process_output with this ID to check on it.",
+		})
+		if err != nil {
+			return nil, false, xerrors.Errorf("marshal interrupted background result: %w", err)
+		}
+		return payload, false, nil
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, false, xerrors.Errorf("load execution for interrupted tool result: %w", err)
+	}
+	payload, err := json.Marshal(map[string]string{"error": interruptedToolResultErrorMessage})
+	if err != nil {
+		return nil, false, xerrors.Errorf("marshal interrupted tool result: %w", err)
+	}
+	return payload, true, nil
 }
 
 // interruptKillDialTimeout bounds the agent dial and signal round

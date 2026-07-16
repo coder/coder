@@ -13399,10 +13399,13 @@ func TestInterruptSparesBackgroundExecute(t *testing.T) {
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
 	parts := chatToolParts(ctx, t, db, chat.ID)
-	for _, toolCallID := range []string{"tc-exec-bg", "tc-exec-fg"} {
-		result := requireToolResultPartByCallID(t, parts, toolCallID)
-		require.True(t, result.IsError)
-	}
+	// The spared background process stays addressable: its synthetic
+	// result carries the handle instead of a generic cancellation.
+	bgResult := requireToolResultPartByCallID(t, parts, "tc-exec-bg")
+	require.False(t, bgResult.IsError)
+	require.Contains(t, string(bgResult.Result), "background_process_id")
+	fgResult := requireToolResultPartByCallID(t, parts, "tc-exec-fg")
+	require.True(t, fgResult.IsError)
 
 	// The foreground row resolves to canceled after the confirmed
 	// kill; the background row stays detached with its process

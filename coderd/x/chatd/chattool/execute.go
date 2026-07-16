@@ -232,6 +232,13 @@ type ExecutionRecorder interface {
 	// error wrapping ErrExecutionRecordNotFound when no row
 	// exists for the tool call.
 	Get(ctx context.Context, toolCallID string) (ExecutionRecord, error)
+	// MarkStaleClaimUnknown resolves a stale starting claim to
+	// unknown. Unlike MarkTerminal it matches only starting rows:
+	// the claim owner can record its process concurrently with
+	// the staleness verdict, and that write must win. applied is
+	// false when the row advanced first; latest is then the fresh
+	// row for the caller to resume from.
+	MarkStaleClaimUnknown(ctx context.Context, toolCallID string) (latest ExecutionRecord, applied bool, err error)
 	// RecordStart stores the process identity on the claim that
 	// dispatched it and moves the row to running. claimEpoch must
 	// be the epoch returned by the Claim that owns the dispatch.
@@ -431,7 +438,18 @@ func resumeExecution(
 			if ctx.Err() != nil {
 				return errorResult(fmt.Sprintf("wait for execution claim owner: %v", ctx.Err())), nil
 			}
-			markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
+			fresh, applied, markErr := options.Recorder.MarkStaleClaimUnknown(ctx, toolCallID)
+			if markErr != nil {
+				// Committing unknown on an unverified row could end
+				// recovery of a real process; abort and retry.
+				return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("mark stale execution claim unknown: %w", markErr)}
+			}
+			if !applied {
+				// The owner recorded its process after the last
+				// poll; resume from the fresh row instead of
+				// downgrading it.
+				return resumeExecution(ctx, conn, options, toolCallID, fresh)
+			}
 			return fantasy.NewTextErrorResponse(unknownOutcomeMessage), nil
 		}
 		return resumeExecution(ctx, conn, options, toolCallID, latest)

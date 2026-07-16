@@ -752,6 +752,10 @@ type fakeRecorder struct {
 	// onGet runs on every Get call with the call count, letting
 	// tests mutate records mid-poll.
 	onGet func(calls int)
+	// onMarkStaleClaim runs at the start of MarkStaleClaimUnknown,
+	// letting tests land a concurrent RecordStart in the race
+	// window between the staleness verdict and the write.
+	onMarkStaleClaim func()
 }
 
 func newFakeRecorder() *fakeRecorder {
@@ -843,6 +847,24 @@ func (f *fakeRecorder) MarkTerminal(_ context.Context, toolCallID string, status
 		}
 	}
 	return nil
+}
+
+func (f *fakeRecorder) MarkStaleClaimUnknown(_ context.Context, toolCallID string) (chattool.ExecutionRecord, bool, error) {
+	if f.onMarkStaleClaim != nil {
+		f.onMarkStaleClaim()
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	rec, ok := f.records[toolCallID]
+	if !ok {
+		return chattool.ExecutionRecord{}, false, xerrors.Errorf("tool call %s: %w", toolCallID, chattool.ErrExecutionRecordNotFound)
+	}
+	if rec.Status != chattool.ExecutionStatusStarting {
+		return rec, false, nil
+	}
+	rec.Status = chattool.ExecutionStatusUnknown
+	f.records[toolCallID] = rec
+	return rec, true, nil
 }
 
 func (f *fakeRecorder) seed(toolCallID string, rec chattool.ExecutionRecord) {
@@ -1217,6 +1239,55 @@ func TestExecuteToolRecorder(t *testing.T) {
 		assert.Contains(t, resp.Content, "unknown")
 		assert.Contains(t, resp.Content, "safe")
 		assert.Equal(t, chattool.ExecutionStatusUnknown, recorder.record("call-1").Status)
+	})
+
+	t.Run("StaleClaimLateRecordResumesProcess", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		recorder.seed("call-1", chattool.ExecutionRecord{
+			Status:     chattool.ExecutionStatusStarting,
+			Command:    "echo hi",
+			Timeout:    time.Minute,
+			ClaimEpoch: 1,
+			ClaimedAt:  time.Now().Add(-2 * time.Minute),
+		})
+		// The claim owner's RecordStart lands between the
+		// staleness verdict and the unknown write. The guarded
+		// write must lose and the attempt must resume the
+		// recorded process instead of downgrading it.
+		recorder.onMarkStaleClaim = func() {
+			recorder.seed("call-1", chattool.ExecutionRecord{
+				Status:     chattool.ExecutionStatusRunning,
+				Command:    "echo hi",
+				ProcessID:  "proc-1",
+				Timeout:    time.Minute,
+				ClaimEpoch: 1,
+				StartedAt:  time.Now(),
+			})
+		}
+
+		exitCode := 0
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode, Output: "hi"}, nil)
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.True(t, result.Success)
+		assert.Equal(t, "hi", result.Output)
+		assert.Equal(t, chattool.ExecutionStatusExited, recorder.record("call-1").Status)
 	})
 
 	t.Run("FreshStartingClaimRecovers", func(t *testing.T) {

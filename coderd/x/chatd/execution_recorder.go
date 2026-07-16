@@ -236,6 +236,36 @@ func (r *executionRecorder) MarkTerminal(ctx context.Context, toolCallID string,
 	return nil
 }
 
+// MarkStaleClaimUnknown resolves a stale starting claim to unknown.
+// Only starting rows match: a concurrent RecordStart outranks the
+// staleness verdict, so the caller gets the fresh row back and
+// resumes from it instead of downgrading a running process.
+func (r *executionRecorder) MarkStaleClaimUnknown(ctx context.Context, toolCallID string) (chattool.ExecutionRecord, bool, error) {
+	msgID, err := r.lineage()
+	if err != nil {
+		return chattool.ExecutionRecord{}, false, err
+	}
+	row, err := r.db.UpdateChatToolCallExecutionStatus(ctx, database.UpdateChatToolCallExecutionStatusParams{
+		ChatID:             r.chatID,
+		AssistantMessageID: msgID,
+		ToolCallID:         toolCallID,
+		Status:             database.ChatToolCallExecutionStatusUnknown,
+		FromStatuses:       []database.ChatToolCallExecutionStatus{database.ChatToolCallExecutionStatusStarting},
+		UpdatedAt:          dbtime.Now(),
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		latest, getErr := r.Get(ctx, toolCallID)
+		if getErr != nil {
+			return chattool.ExecutionRecord{}, false, getErr
+		}
+		return latest, false, nil
+	}
+	if err != nil {
+		return chattool.ExecutionRecord{}, false, xerrors.Errorf("mark stale execution claim unknown: %w", err)
+	}
+	return executionRecordFromRow(row), true, nil
+}
+
 func executionRecordFromRow(row database.ChatToolCallExecution) chattool.ExecutionRecord {
 	rec := chattool.ExecutionRecord{
 		ID:         row.ID.String(),
