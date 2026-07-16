@@ -774,6 +774,96 @@ func TestExecutionSweepTokenOnlyRows(t *testing.T) {
 		require.True(t, row.UpdatedAt.After(record.ClaimedAt.Time))
 	})
 
+	t.Run("AbsentTokenWithinDispatchGraceReprobed", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// A fresh claim: the interrupt landed before the
+		// already-sent StartProcess reached the agent, so the
+		// first probe legitimately sees no reservation. Absence
+		// must not be trusted yet; a re-probe finds the process
+		// that arrived moments later and kills it.
+		record := seedTokenOnlyCancelRequested(ctx, t, db, 0, false)
+
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		exitCode := -1
+		gomock.InOrder(
+			conn.EXPECT().ProcessByToken(gomock.Any(), record.ID.String()).
+				Return(workspacesdk.ProcessByTokenResponse{Found: false, TokenIndexAgeMS: time.Hour.Milliseconds()}, nil),
+			conn.EXPECT().ProcessByToken(gomock.Any(), record.ID.String()).
+				Return(workspacesdk.ProcessByTokenResponse{Found: true, ProcessID: "proc-race"}, nil),
+			conn.EXPECT().SignalProcess(gomock.Any(), "proc-race", "kill").Return(nil),
+			conn.EXPECT().ProcessOutput(gomock.Any(), "proc-race", gomock.Any()).
+				Return(workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode}, nil),
+		)
+		r := executionReconciler{
+			store:  db,
+			logger: slogtest.Make(t, nil),
+			agentConn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return conn, func() {}, nil
+			},
+		}
+		r.reconcileCancelRequestedByToken(ctx, record)
+
+		row, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusCanceled, row.Status)
+		require.Equal(t, "proc-race", row.ProcessID.String)
+	})
+
+	t.Run("NoProbeLateHandleKilledNotUnknown", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		record := seedTokenOnlyCancelRequested(ctx, t, db, 10*time.Minute, false)
+
+		// The handle lands after the no-probe fallback's last
+		// identity poll: the reconciler still holds the stale
+		// handle-less row. The guarded unknown write must lose to
+		// the recorded identity and run the kill flow instead of
+		// terminalizing a row whose process was never killed.
+		_, err := db.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+			ClaimEpoch:         record.ClaimEpoch,
+			ProcessID:          "proc-late",
+			WorkspaceAgentID:   record.WorkspaceAgentID.UUID,
+			StartedAt:          dbtime.Now(),
+			UpdatedAt:          dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		exitCode := -1
+		conn.EXPECT().SignalProcess(gomock.Any(), "proc-late", "kill").Return(nil)
+		conn.EXPECT().ProcessOutput(gomock.Any(), "proc-late", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode}, nil)
+		r := executionReconciler{
+			store:  db,
+			logger: slogtest.Make(t, nil),
+			agentConn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return conn, func() {}, nil
+			},
+		}
+		r.resolveInterruptedWithoutProbe(ctx, conn, record)
+
+		row, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusCanceled, row.Status)
+		require.Equal(t, "proc-late", row.ProcessID.String)
+	})
+
 	t.Run("BackgroundFoundByTokenKilled", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)

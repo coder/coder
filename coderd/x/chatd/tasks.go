@@ -1065,16 +1065,21 @@ func (r executionReconciler) reconcileCancelRequestedByToken(ctx context.Context
 			r.killAndConfirm(ctx, conn, record, resp.ProcessID)
 			return
 		}
-		if !resp.Pending {
-			break
-		}
-		// A start owning this token is still in flight on the
-		// agent. Re-probe until the dispatch window closes so a
-		// process appearing moments after the interrupt is still
-		// killed. A start still pending past the window stays
-		// cancel_requested; the periodic sweep re-probes it.
+		// Within the dispatch grace window neither a pending
+		// reservation nor an absent token is conclusive: the
+		// interrupt can land after the ledger claim but before
+		// the already-sent StartProcess reaches the agent, so no
+		// agent-side reservation exists yet and a process can
+		// still appear. Re-probe until the window closes so it
+		// is found and killed instead of trusted absent.
 		if !record.ClaimedAt.Valid || !time.Now().Before(record.ClaimedAt.Time.Add(interruptRecordGrace)) {
-			return
+			if resp.Pending {
+				// A start still pending past the window stays
+				// cancel_requested; the periodic sweep
+				// re-probes it.
+				return
+			}
+			break
 		}
 		select {
 		case <-ctx.Done():
@@ -1114,7 +1119,10 @@ func (r executionReconciler) resolveInterruptedWithoutProbe(ctx context.Context,
 		r.killAndConfirm(ctx, conn, record, record.ProcessID.String)
 		return
 	}
-	r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, sql.NullTime{})
+	// Guarded: a handle landing between the last poll and this
+	// write must win, or the sweep would stop retrying a row
+	// whose recorded process was never killed.
+	r.resolveCancelOutcomeWithoutProcess(ctx, record, database.ChatToolCallExecutionStatusUnknown)
 }
 
 // adoptProbedProcess records a process handle discovered through
