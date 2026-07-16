@@ -61,7 +61,7 @@ func TestFilterError(t *testing.T) {
 			Scope:  ScopeAll,
 		}
 
-		_, err := Filter(context.Background(), auth, subject, policy.ActionRead, []Object{ResourceUser, ResourceWorkspace})
+		_, err := Filter(context.Background(), auth, subject, policy.ActionRead, []Object{ResourceUser, ResourceWorkspace}, DefaultFilterThreshold)
 		require.ErrorContains(t, err, "object types must be uniform")
 	})
 
@@ -99,7 +99,7 @@ func TestFilterError(t *testing.T) {
 				ResourceUser,
 			}
 
-			_, err := Filter(ctx, auth, subject, policy.ActionRead, objects)
+			_, err := Filter(ctx, auth, subject, policy.ActionRead, objects, DefaultFilterThreshold)
 			require.ErrorIs(t, err, context.Canceled)
 		})
 
@@ -119,7 +119,7 @@ func TestFilterError(t *testing.T) {
 				bomb:     cancel,
 			}
 
-			_, err := Filter(ctx, auth, subject, policy.ActionRead, objects)
+			_, err := Filter(ctx, auth, subject, policy.ActionRead, objects, DefaultFilterThreshold)
 			require.ErrorIs(t, err, context.Canceled)
 		})
 	})
@@ -267,7 +267,7 @@ func TestFilter(t *testing.T) {
 			}
 
 			// Run by filter
-			list, err := Filter(ctx, auth, actor, tc.Action, localObjects)
+			list, err := Filter(ctx, auth, actor, tc.Action, localObjects, DefaultFilterThreshold)
 			require.NoError(t, err)
 			require.Equal(t, allowedCount, len(list), "expected number of allowed")
 			for _, obj := range list {

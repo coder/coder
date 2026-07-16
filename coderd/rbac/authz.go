@@ -208,13 +208,26 @@ type PreparedAuthorized interface {
 	CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error)
 }
 
+// DefaultFilterThreshold is the object count at or above which Filter switches
+// from a full evaluation per object to a single partial evaluation (Prepare)
+// reused across the set. Benchmarks show Authorize is faster than the Prepare
+// overhead below ~10 objects. Callers whose Prepare cost grows with the input
+// size (for example a subject carrying one role per object) should pass a
+// higher threshold.
+const DefaultFilterThreshold = 10
+
 // Filter takes in a list of objects, and will filter the list removing all
 // the elements the subject does not have permission for. All objects must be
 // of the same type.
 //
+// prepareThreshold is the object count at or above which Filter uses a single
+// partial evaluation reused across the set instead of a full evaluation per
+// object. Pass DefaultFilterThreshold unless the caller has a reason to tune
+// it.
+//
 // Ideally the 'CompileToSQL' is used instead for large sets. This cost scales
 // linearly with the number of objects passed in.
-func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, action policy.Action, objects []O) ([]O, error) {
+func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, action policy.Action, objects []O, prepareThreshold int) ([]O, error) {
 	if len(objects) == 0 {
 		// Nothing to filter
 		return objects, nil
@@ -236,11 +249,9 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, a
 	)
 	defer span.End()
 
-	// Running benchmarks on this function, it is **always** faster to call
-	// auth.Authorize on <10 objects. This is because the overhead of
-	// 'Prepare'. Once we cross 10 objects, then it starts to become
-	// faster
-	if len(objects) < 10 {
+	// Below the threshold, a full evaluation per object is faster than paying
+	// the Prepare overhead once and reusing it.
+	if len(objects) < prepareThreshold {
 		for _, o := range objects {
 			rbacObj := o.RBACObject()
 			if rbacObj.Type != objectType {

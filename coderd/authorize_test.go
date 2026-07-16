@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -137,4 +138,50 @@ func TestCheckPermissions(t *testing.T) {
 			require.Equal(t, c.Check, resp)
 		})
 	}
+
+	// Enough same-typed checks in one request to push a group past the batching
+	// threshold, exercising the grouped partial-evaluation path and the key
+	// mapping. Reading org members is allowed for any member; updating them is
+	// admin-only, so the two actions must map back to their keys distinctly.
+	t.Run("CheckAuthorization/Grouped", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		t.Cleanup(cancel)
+
+		grouped := make(map[string]codersdk.AuthorizationCheck)
+		adminExpected := make(map[string]bool)
+		memberExpected := make(map[string]bool)
+		for i := 0; i < 55; i++ {
+			readKey := fmt.Sprintf("read-members-%d", i)
+			grouped[readKey] = codersdk.AuthorizationCheck{
+				Object: codersdk.AuthorizationObject{
+					ResourceType:   codersdk.ResourceOrganizationMember,
+					OrganizationID: adminUser.OrganizationID.String(),
+				},
+				Action: "read",
+			}
+			adminExpected[readKey] = true
+			memberExpected[readKey] = true
+
+			updateKey := fmt.Sprintf("update-members-%d", i)
+			grouped[updateKey] = codersdk.AuthorizationCheck{
+				Object: codersdk.AuthorizationObject{
+					ResourceType:   codersdk.ResourceOrganizationMember,
+					OrganizationID: adminUser.OrganizationID.String(),
+				},
+				Action: "update",
+			}
+			adminExpected[updateKey] = true
+			memberExpected[updateKey] = false
+		}
+
+		adminResp, err := adminClient.AuthCheck(ctx, codersdk.AuthorizationRequest{Checks: grouped})
+		require.NoError(t, err)
+		require.Equal(t, adminExpected, map[string]bool(adminResp))
+
+		memberResp, err := memberClient.AuthCheck(ctx, codersdk.AuthorizationRequest{Checks: grouped})
+		require.NoError(t, err)
+		require.Equal(t, memberExpected, map[string]bool(memberResp))
+	})
 }
