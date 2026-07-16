@@ -120,6 +120,31 @@ SET value = CASE
 END
 WHERE site_configs.key = 'oauth2_github_default_eligible';
 
+-- name: GetOAuth2DCREnabled :one
+SELECT
+	CASE
+		WHEN value = 'true' THEN TRUE
+		ELSE FALSE
+	END
+FROM site_configs
+WHERE key = 'oauth2_dcr_enabled';
+
+-- name: UpsertOAuth2DCREnabled :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'oauth2_dcr_enabled',
+    CASE
+        WHEN sqlc.arg(enabled)::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN sqlc.arg(enabled)::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'oauth2_dcr_enabled';
+
 -- name: UpsertWebpushVAPIDKeys :exec
 INSERT INTO site_configs (key, value)
 VALUES
