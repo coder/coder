@@ -20,7 +20,10 @@ const MockOrg1: Organization = {
 	created_at: "",
 	updated_at: "",
 	is_default: true,
-	default_org_member_roles: ["organization-workspace-access"],
+	default_org_member_roles: [
+		"organization-workspace-access",
+		"organization-ai-gateway-access",
+	],
 };
 
 const MockOrg2: Organization = {
@@ -32,7 +35,10 @@ const MockOrg2: Organization = {
 	created_at: "",
 	updated_at: "",
 	is_default: false,
-	default_org_member_roles: ["organization-workspace-access"],
+	default_org_member_roles: [
+		"organization-workspace-access",
+		"organization-ai-gateway-access",
+	],
 };
 
 const templateCreateCheck: AuthorizationCheck = {
