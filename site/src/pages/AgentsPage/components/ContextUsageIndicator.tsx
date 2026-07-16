@@ -327,8 +327,14 @@ export const ContextUsageIndicator: FC<{
 	const fileGroups = groupByDirectory(fileItems);
 	const skillGroups = groupByDirectory(skillItems);
 
+	const compactionThreshold =
+		typeof usage?.compressionThreshold === "number" &&
+		Number.isFinite(usage.compressionThreshold) &&
+		usage.compressionThreshold > 0
+			? usage.compressionThreshold
+			: undefined;
 	const ariaLabel = hasPercent
-		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.${isDirty ? " Context changed." : ""}`
+		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.${compactionThreshold !== undefined ? ` Compacts at ${compactionThreshold}%.` : ""}${isDirty ? " Context changed." : ""}`
 		: isDirty
 			? "Context usage. Context changed."
 			: "Context usage";
@@ -338,13 +344,11 @@ export const ContextUsageIndicator: FC<{
 			{hasPercent
 				? `${percentLabel} - ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
 				: "Context usage unavailable"}
-			{hasPercent &&
-				usage?.compressionThreshold !== undefined &&
-				usage.compressionThreshold > 0 && (
-					<div className="mt-1 text-content-secondary">
-						{`Compacts at ${usage.compressionThreshold}%`}
-					</div>
-				)}
+			{hasPercent && compactionThreshold !== undefined && (
+				<div className="mt-1 text-content-secondary">
+					{`Compacts at ${compactionThreshold}%`}
+				</div>
+			)}
 			{hasContextList && (
 				<div
 					className={cn(
@@ -566,6 +570,7 @@ export const ContextUsageIndicator: FC<{
 				size={RING_SIZE}
 				strokeWidth={RING_STROKE}
 				percent={clampedPercent}
+				markerPercent={compactionThreshold}
 				trackClassName="stroke-content-secondary/25"
 				progressClassName="stroke-current"
 				className={cn("size-icon-sm", toneClassName)}

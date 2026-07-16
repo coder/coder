@@ -24,11 +24,15 @@ export const Clean: Story = {
 		usage: {
 			usedTokens: 12_000,
 			contextLimitTokens: 200_000,
+			compressionThreshold: 90,
 			context: MockChatContextClean,
 		},
 	},
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
+		expect(button.getAttribute("aria-label") ?? "").toContain(
+			"Compacts at 90%",
+		);
 		expect(button.getAttribute("aria-label") ?? "").not.toContain(
 			"Context changed",
 		);
@@ -36,6 +40,7 @@ export const Clean: Story = {
 		await userEvent.hover(button);
 		const body = within(document.body);
 		await waitFor(() => expect(body.getByText("Context files")).toBeVisible());
+		expect(body.getByText("Compacts at 90%")).toBeVisible();
 		// A single context root still shows its directory header.
 		expect(body.getByText("/home/coder")).toBeVisible();
 		expect(body.getByText("/home/coder/.coder/skills")).toBeVisible();

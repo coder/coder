@@ -13,20 +13,31 @@ export const SvgRingProgress: FC<{
 	size: number;
 	strokeWidth: number;
 	percent: number;
+	markerPercent?: number;
 	trackClassName?: string;
 	progressClassName?: string;
+	markerClassName?: string;
 	className?: string;
 }> = ({
 	size,
 	strokeWidth,
 	percent,
+	markerPercent,
 	trackClassName = "stroke-surface-tertiary",
 	progressClassName = "stroke-current",
+	markerClassName = "stroke-current",
 	className,
 }) => {
 	const radius = (size - strokeWidth) / 2;
 	const circumference = 2 * Math.PI * radius;
 	const clamped = Math.min(Math.max(percent, 0), 100);
+	const clampedMarker =
+		typeof markerPercent === "number" &&
+		Number.isFinite(markerPercent) &&
+		markerPercent > 0 &&
+		markerPercent < 100
+			? markerPercent
+			: undefined;
 	const offset = circumference * (1 - clamped / 100);
 
 	return (
@@ -61,6 +72,18 @@ export const SvgRingProgress: FC<{
 					strokeDashoffset: offset,
 				}}
 			/>
+			{clampedMarker !== undefined && (
+				<line
+					x1={size - strokeWidth}
+					y1={size / 2}
+					x2={size}
+					y2={size / 2}
+					strokeWidth={1.25}
+					strokeLinecap="butt"
+					className={markerClassName}
+					transform={`rotate(${clampedMarker * 3.6} ${size / 2} ${size / 2})`}
+				/>
+			)}
 		</svg>
 	);
 };
