@@ -88,7 +88,7 @@ with AWS credentials rather than a registered API key. Configure:
 
 - A **protocol**, either `InvokeModel` or `Mantle`. It determines the
   endpoint format and which of the fields below apply. See
-  [Protocol: InvokeModel vs Mantle](#protocol-invokemodel-vs-mantle).
+  [InvokeModel](#invokemodel) and [Mantle](#mantle).
 - An **endpoint** in the format the protocol requires:
   `https://bedrock-runtime.<region>.amazonaws.com` for InvokeModel or
   `https://bedrock-mantle.<region>.api.aws/anthropic` for Mantle. The AWS
@@ -97,18 +97,19 @@ with AWS credentials rather than a registered API key. Configure:
   only. Mantle providers do not set them; the client chooses the model on
   each request and AI Gateway forwards it upstream.
 
-#### Protocol: InvokeModel vs Mantle
+#### InvokeModel
 
-A Bedrock provider targets one of two AWS wire protocols:
+The legacy Bedrock runtime API. AI Gateway translates each request into
+Bedrock's InvokeModel format and sends it to
+`https://bedrock-runtime.<region>.amazonaws.com`. Still supported, but
+Mantle is recommended for new deployments.
 
-- **InvokeModel**: the legacy Bedrock runtime API. AI Gateway translates
-  each request into Bedrock's InvokeModel format and sends it to
-  `https://bedrock-runtime.<region>.amazonaws.com`. Still supported, but
-  Mantle is recommended for new deployments.
-- **Mantle**: the newer Anthropic-compatible Bedrock endpoint, recommended
-  by AWS for new deployments. AI Gateway serves Anthropic models through
-  the native Messages API, forwarding the request body **unchanged** and
-  only applying AWS SigV4 signing with the provider's base identity.
+#### Mantle
+
+The newer Anthropic-compatible Bedrock endpoint, recommended by AWS for new
+deployments. AI Gateway serves Anthropic models through the native Messages
+API, forwarding the request body **unchanged** and only applying AWS SigV4
+signing with the provider's base identity.
 
 To route Claude Code through a Mantle provider, run it in mantle mode with
 client-side signing disabled so the gateway signs centrally:
