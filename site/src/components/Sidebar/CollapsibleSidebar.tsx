@@ -82,7 +82,7 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 				<div
 					ref={containerRef}
 					data-sidebar-container
-					className="relative flex-shrink-0 sticky top-0 h-screen w-16 z-30"
+					className="relative flex-shrink-0 sticky top-[72px] h-[calc(100vh-72px)] w-16 z-30"
 					onPointerDown={cancelPeek}
 				>
 					<div
@@ -116,7 +116,7 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 			    lives here so it isn't clipped by overflow-hidden. */}
 			<div
 				data-sidebar-container
-				className="relative flex-shrink-0 sticky top-0 h-screen transition-[width] duration-150 ease-in-out"
+				className="relative flex-shrink-0 sticky top-[72px] h-[calc(100vh-72px)] transition-[width] duration-150 ease-in-out"
 				style={{ width }}
 			>
 				{/* Clipping container for the nav content. */}
