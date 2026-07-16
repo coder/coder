@@ -13749,6 +13749,7 @@ func TestChatToolCallExecutionLedgerQueries(t *testing.T) {
 			ChatID:             chat.ID,
 			AssistantMessageID: msg.ID,
 			ToolCallIds:        []string{"call-1"},
+			SpareBackground:    true,
 			UpdatedAt:          dbtime.Now(),
 		})
 		require.NoError(t, err)
@@ -13903,6 +13904,7 @@ func TestChatToolCallExecutionLedgerQueries(t *testing.T) {
 			ChatID:             chat.ID,
 			AssistantMessageID: msg.ID,
 			ToolCallIds:        callIDs,
+			SpareBackground:    true,
 			UpdatedAt:          dbtime.Now(),
 		})
 		require.NoError(t, err)

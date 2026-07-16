@@ -2934,6 +2934,7 @@ func TestDeleteOldChatToolCallExecutions(t *testing.T) {
 				ChatID:             chat.ID,
 				AssistantMessageID: msg.ID,
 				ToolCallIds:        []string{call.id},
+				SpareBackground:    true,
 				UpdatedAt:          call.createdAt,
 			})
 			require.NoError(t, err)
@@ -3138,6 +3139,7 @@ func TestDeleteAbandonedChatToolCallExecutions(t *testing.T) {
 		ChatID:             chat.ID,
 		AssistantMessageID: msg.ID,
 		ToolCallIds:        []string{"abandoned-cancel-call"},
+		SpareBackground:    true,
 		UpdatedAt:          now.Add(-31 * 24 * time.Hour),
 	})
 	require.NoError(t, err)

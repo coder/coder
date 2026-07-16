@@ -79,6 +79,7 @@ func TestInterruptedToolResultPayload(t *testing.T) {
 		ChatID:             chat.ID,
 		AssistantMessageID: msg.ID,
 		ToolCallIds:        []string{"bg-call", "fg-call"},
+		SpareBackground:    true,
 		UpdatedAt:          dbtime.Now(),
 	})
 	require.NoError(t, err)

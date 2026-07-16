@@ -742,6 +742,7 @@ func committedPendingLocalToolCancellationMessages(
 		ChatID:             chat.ID,
 		AssistantMessageID: assistantMessageID,
 		ToolCallIds:        toolCallIDs,
+		SpareBackground:    true,
 		UpdatedAt:          interruptedAt,
 	})
 	if err != nil {
@@ -996,10 +997,10 @@ func (r executionReconciler) awaitInterruptedIdentity(ctx context.Context, recor
 
 // reconcileCancelRequested resolves one cancel_requested row with
 // recorded process identity by killing the process. Background rows
-// only reach cancel_requested when their handle had not landed at
-// commit time, so the committed synthetic result carries no
-// background_process_id: sparing such a process would leave it
-// running with no addressable handle, so it is killed like
+// only reach cancel_requested when no committed result carries their
+// handle (the handle had not landed at commit time, or a history
+// delete committed no result at all): sparing such a process would
+// leave it running with no addressable handle, so it is killed like
 // foreground work. The kill records how far confirmation got:
 // canceled when the agent definitively has no such process or a
 // post-kill snapshot shows it exited, otherwise cancel_requested

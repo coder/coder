@@ -1242,20 +1242,25 @@ type sqlcQuerier interface {
 	// allocate a new snapshot version in one round trip.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
-	// Maps unresolved executions to their interrupt outcome in the same
-	// transaction that commits the synthetic cancellation results:
-	// background processes with a recorded handle are deliberately left
-	// alive (detached), never-dispatched reservations are canceled
-	// outright, and dispatched claims without a resolved handle
-	// (foreground, or background whose start is still in flight) become
-	// cancel_requested for the post-commit reconciler. A background row
-	// must not be terminalized as detached before its handle lands:
-	// that would strand a running process with no recoverable ID.
-	// Foreground detached rows (a timed-out wait) are reopened to
-	// cancel_requested: only unresolved calls reach this query, so
-	// their handle-bearing result never committed and the process
-	// must be killed, not stranded behind a handle-less synthetic
-	// cancellation.
+	// Maps unresolved executions to their cancellation outcome in the
+	// same transaction as the chat commit: never-dispatched reservations
+	// are canceled outright, and dispatched claims without a resolved
+	// handle (foreground, or background whose start is still in flight)
+	// become cancel_requested for the post-commit reconciler. A
+	// background row must not be terminalized as detached before its
+	// handle lands: that would strand a running process with no
+	// recoverable ID. Foreground detached rows (a timed-out wait) are
+	// reopened to cancel_requested: only unresolved calls reach this
+	// query, so their handle-bearing result never committed and the
+	// process must be killed, not stranded behind a handle-less
+	// synthetic cancellation.
+	// spare_background selects the fate of a background process with a
+	// recorded handle. Transitions that commit a synthetic result spare
+	// it (detached) because the result carries the handle back to the
+	// user. History-delete transitions must pass false: the deleted turn
+	// commits no result, so a spared handle would have no carrier and
+	// the process would leak; the row becomes cancel_requested and the
+	// sweep kills it.
 	MarkChatToolCallExecutionsInterrupted(ctx context.Context, arg MarkChatToolCallExecutionsInterruptedParams) ([]ChatToolCallExecution, error)
 	// Runs in the same transaction that commits the tool result messages
 	// (real or synthetic). status is untouched so diagnostic states keep

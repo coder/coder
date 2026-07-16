@@ -13006,40 +13006,47 @@ const markChatToolCallExecutionsInterrupted = `-- name: MarkChatToolCallExecutio
 UPDATE chat_tool_call_executions
 SET status = CASE
         WHEN status = 'reserved' THEN 'canceled'::chat_tool_call_execution_status
-        WHEN background AND process_id IS NOT NULL THEN 'detached'::chat_tool_call_execution_status
+        WHEN $1::boolean AND background AND process_id IS NOT NULL THEN 'detached'::chat_tool_call_execution_status
         ELSE 'cancel_requested'::chat_tool_call_execution_status
     END,
-    updated_at = $1::timestamptz
-WHERE chat_id = $2::uuid
-  AND assistant_message_id = $3::bigint
-  AND tool_call_id = ANY($4::text[])
+    updated_at = $2::timestamptz
+WHERE chat_id = $3::uuid
+  AND assistant_message_id = $4::bigint
+  AND tool_call_id = ANY($5::text[])
   AND status IN ('reserved', 'starting', 'running', 'detached')
 RETURNING id, chat_id, assistant_message_id, tool_call_id, status, input_sha256, command, background, timeout_secs, claim_epoch, claimed_at, workspace_agent_id, process_id, cancel_signal_sent_at, result_committed_at, created_at, started_at, updated_at
 `
 
 type MarkChatToolCallExecutionsInterruptedParams struct {
+	SpareBackground    bool      `db:"spare_background" json:"spare_background"`
 	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
 	ChatID             uuid.UUID `db:"chat_id" json:"chat_id"`
 	AssistantMessageID int64     `db:"assistant_message_id" json:"assistant_message_id"`
 	ToolCallIds        []string  `db:"tool_call_ids" json:"tool_call_ids"`
 }
 
-// Maps unresolved executions to their interrupt outcome in the same
-// transaction that commits the synthetic cancellation results:
-// background processes with a recorded handle are deliberately left
-// alive (detached), never-dispatched reservations are canceled
-// outright, and dispatched claims without a resolved handle
-// (foreground, or background whose start is still in flight) become
-// cancel_requested for the post-commit reconciler. A background row
-// must not be terminalized as detached before its handle lands:
-// that would strand a running process with no recoverable ID.
-// Foreground detached rows (a timed-out wait) are reopened to
-// cancel_requested: only unresolved calls reach this query, so
-// their handle-bearing result never committed and the process
-// must be killed, not stranded behind a handle-less synthetic
-// cancellation.
+// Maps unresolved executions to their cancellation outcome in the
+// same transaction as the chat commit: never-dispatched reservations
+// are canceled outright, and dispatched claims without a resolved
+// handle (foreground, or background whose start is still in flight)
+// become cancel_requested for the post-commit reconciler. A
+// background row must not be terminalized as detached before its
+// handle lands: that would strand a running process with no
+// recoverable ID. Foreground detached rows (a timed-out wait) are
+// reopened to cancel_requested: only unresolved calls reach this
+// query, so their handle-bearing result never committed and the
+// process must be killed, not stranded behind a handle-less
+// synthetic cancellation.
+// spare_background selects the fate of a background process with a
+// recorded handle. Transitions that commit a synthetic result spare
+// it (detached) because the result carries the handle back to the
+// user. History-delete transitions must pass false: the deleted turn
+// commits no result, so a spared handle would have no carrier and
+// the process would leak; the row becomes cancel_requested and the
+// sweep kills it.
 func (q *sqlQuerier) MarkChatToolCallExecutionsInterrupted(ctx context.Context, arg MarkChatToolCallExecutionsInterruptedParams) ([]ChatToolCallExecution, error) {
 	rows, err := q.db.QueryContext(ctx, markChatToolCallExecutionsInterrupted,
+		arg.SpareBackground,
 		arg.UpdatedAt,
 		arg.ChatID,
 		arg.AssistantMessageID,

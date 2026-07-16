@@ -87,6 +87,7 @@ func seedCancelRequestedExecution(ctx context.Context, t *testing.T, db database
 		ChatID:             chat.ID,
 		AssistantMessageID: msg.ID,
 		ToolCallIds:        []string{"sweep-call"},
+		SpareBackground:    true,
 		UpdatedAt:          cancelPast,
 	})
 	require.NoError(t, err)
@@ -245,6 +246,7 @@ func TestExecutionSweep(t *testing.T) {
 			ChatID:             chat.ID,
 			AssistantMessageID: msg.ID,
 			ToolCallIds:        []string{"handle-less-call"},
+			SpareBackground:    true,
 			UpdatedAt:          past,
 		})
 		require.NoError(t, err)
@@ -513,6 +515,7 @@ func TestReconcileCancelRequestedLateBackgroundKills(t *testing.T) {
 		ChatID:             chat.ID,
 		AssistantMessageID: msg.ID,
 		ToolCallIds:        []string{"bg-call"},
+		SpareBackground:    true,
 		UpdatedAt:          dbtime.Now(),
 	})
 	require.NoError(t, err)

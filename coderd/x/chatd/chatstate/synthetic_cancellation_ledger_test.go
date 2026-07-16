@@ -33,9 +33,10 @@ func seedLedgerWorkspaceAgent(t *testing.T, f *testFixture) database.WorkspaceAg
 // TestEditMessage_MapsExecutionLedgerBeforeHistoryDelete asserts
 // that editing a message whose deleted suffix carries in-flight
 // execute calls still maps the ledger: the deleted turn gets no
-// synthetic history results, but the foreground row must become
-// cancel_requested for the sweep and the background row detached,
-// both with result_committed_at stamped.
+// synthetic history results, so nothing can carry a background
+// handle back to the user and both the foreground and background
+// rows must become cancel_requested for the sweep to kill, with
+// result_committed_at stamped.
 func TestEditMessage_MapsExecutionLedgerBeforeHistoryDelete(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
@@ -146,8 +147,8 @@ func TestEditMessage_MapsExecutionLedgerBeforeHistoryDelete(t *testing.T) {
 		ToolCallID:         bgCallID,
 	})
 	require.NoError(t, err)
-	require.Equal(t, database.ChatToolCallExecutionStatusDetached, bgRow.Status,
-		"the background row with a handle is spared")
+	require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, bgRow.Status,
+		"no committed result can carry the handle, so the background row is killed, not spared")
 	require.True(t, bgRow.ResultCommittedAt.Valid)
 }
 

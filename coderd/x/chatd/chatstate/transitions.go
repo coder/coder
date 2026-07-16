@@ -544,10 +544,8 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 		}
 	}
 
-	// Map the ledger before the soft-deletes: the deleted suffix can
-	// carry an in-flight execute call, and once its assistant message
-	// is deleted the pending scan below cannot see it, leaving a live
-	// process orphaned behind an uncommitted ledger row.
+	// Must run before the soft-deletes below; see
+	// mapOutstandingExecutionsForHistoryDelete.
 	if err := mapOutstandingExecutionsForHistoryDelete(tx.ctx, tx.store, chat); err != nil {
 		return EditMessageResult{}, err
 	}
@@ -1187,7 +1185,7 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("insert interruption partial messages: %w", err)
 	}
-	pendingAll, err := pendingAllToolCallIDs(tx.ctx, tx.store, chat)
+	_, pendingAll, err := pendingAllToolCallIDs(tx.ctx, tx.store, chat)
 	if err != nil {
 		return FinishInterruptionResult{}, err
 	}
