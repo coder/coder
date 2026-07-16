@@ -1,5 +1,6 @@
 import { Building2Icon } from "lucide-react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { isExternalImageSource } from "#/utils/externalImageSources";
 
 type ProviderIconProps = {
 	provider: string;
@@ -58,7 +59,11 @@ export const ProviderIcon: React.FC<ProviderIconProps> = ({
 	icon,
 	className = "size-icon-sm",
 }) => {
-	const iconSrc = icon || getProviderIcon(provider);
+	// External custom icons fall back to the built-in provider icon
+	// so rendering the model selector never discloses the viewer's
+	// IP to the icon host (Cure53 CDM-02-006).
+	const iconSrc =
+		icon && !isExternalImageSource(icon) ? icon : getProviderIcon(provider);
 	const name = getProviderName(provider);
 	if (iconSrc === undefined) {
 		return (

@@ -19,6 +19,8 @@ import { MCPServerAuthSection } from "./MCPServerAuthSection";
 import { MCPServerBehaviorSection } from "./MCPServerBehaviorSection";
 import { CollapsibleSection, Field } from "./MCPServerFormFieldPrimitives";
 import {
+	ICON_PATH_ERROR,
+	isValidIconURL,
 	type MCPServerFormValues,
 	slugify,
 	TRANSPORT_OPTIONS,
@@ -157,6 +159,11 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 								onChange={(value) => void form.setFieldValue("iconURL", value)}
 								disabled={isDisabled}
 							/>
+							{!isValidIconURL(form.values.iconURL) && (
+								<p className="m-0 text-xs text-content-destructive">
+									{ICON_PATH_ERROR}
+								</p>
+							)}
 						</Field>
 					</CollapsibleSection>
 

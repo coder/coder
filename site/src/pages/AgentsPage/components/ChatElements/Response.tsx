@@ -12,6 +12,7 @@ import {
 } from "streamdown";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { cn } from "#/utils/cn";
+import { MarkdownImage } from "./MarkdownImage";
 
 interface ResponseProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	children: string;
@@ -44,6 +45,8 @@ type HastNode = {
 
 type MarkdownComponentProps = {
 	href?: string;
+	src?: string;
+	alt?: string;
 	children?: ReactNode;
 	node?: HastNode;
 	type?: string;
@@ -184,6 +187,12 @@ const createComponents = (
 			);
 		},
 
+		// Gate externally hosted images behind viewer consent so
+		// rendering a chat never discloses the viewer's IP address
+		// to an attacker-controlled host (Cure53 CDM-02-006).
+		img: ({ src, alt }: MarkdownComponentProps) => (
+			<MarkdownImage src={src} alt={alt} />
+		),
 		// Horizontal rule: reset browser default inset/ridge border
 		// (preflight is disabled) to a clean 1px solid line.
 		hr: () => (
