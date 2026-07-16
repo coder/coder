@@ -3426,6 +3426,25 @@ func (c *ExperimentalClient) InterruptChat(ctx context.Context, chatID uuid.UUID
 	return chat, json.NewDecoder(res.Body).Decode(&chat)
 }
 
+// CompactChat requests a manual context compaction on an idle chat.
+// The compaction runs asynchronously through the chat worker and
+// bypasses the automatic usage threshold; the chat returns to waiting
+// once the summary is committed.
+func (c *ExperimentalClient) CompactChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/compact", chatID), nil)
+	if err != nil {
+		return Chat{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		// Compaction runs LLM inference, so spend-limit rejections
+		// carry the structured usage-limit payload.
+		return Chat{}, readBodyAsChatUsageLimitError(res)
+	}
+	var chat Chat
+	return chat, json.NewDecoder(res.Body).Decode(&chat)
+}
+
 // ReconcileInvalidChatState recovers a chat stuck in an invalid
 // execution state, moving it into an error state from which the caller
 // can send a new message or edit history to continue.

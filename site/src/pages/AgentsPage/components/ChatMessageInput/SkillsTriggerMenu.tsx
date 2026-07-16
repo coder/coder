@@ -30,13 +30,26 @@ export type SkillMetadata = {
 };
 
 export type SkillMenuItem = SkillMetadata & {
-	source: SkillSource;
+	source: SkillSource | "command";
 	triggerText: string;
 	// The qualified alias stays searchable even when the displayed
 	// trigger is bare, so a typed qualified query keeps matching after
 	// collision state changes mid-trigger.
 	altTriggerText: string;
 };
+
+// Built-in commands (e.g. /compact) share the menu item shape so the
+// combined keyboard-selection list and trigger replacement work
+// unchanged; their trigger text is never source-qualified.
+export const createCommandMenuItem = (
+	command: SkillMetadata,
+): SkillMenuItem => ({
+	name: command.name,
+	description: command.description,
+	source: "command",
+	triggerText: `/${command.name}`,
+	altTriggerText: `/${command.name}`,
+});
 
 export const createSkillMenuItem = (
 	source: SkillSource,
@@ -56,6 +69,7 @@ type SkillsTriggerMenuProps = {
 	open: boolean;
 	anchorRect: CaretAnchorRect | null;
 	query: string;
+	commands?: readonly SkillMenuItem[];
 	personalSkills: readonly SkillMenuItem[];
 	workspaceSkills: readonly SkillMenuItem[];
 	workspaceSkillsEnabled?: boolean;
@@ -120,6 +134,7 @@ export const SkillsTriggerMenu = ({
 	open,
 	anchorRect,
 	query,
+	commands = [],
 	personalSkills,
 	workspaceSkills,
 	workspaceSkillsEnabled,
@@ -131,7 +146,7 @@ export const SkillsTriggerMenu = ({
 	onSelect,
 	onClose,
 }: SkillsTriggerMenuProps) => {
-	const allSkills = [...personalSkills, ...workspaceSkills];
+	const allSkills = [...commands, ...personalSkills, ...workspaceSkills];
 	const statusItems = [
 		isPersonalLoading && personalSkills.length === 0
 			? "Loading personal skills..."
@@ -215,17 +230,25 @@ export const SkillsTriggerMenu = ({
 					value={selectedValue}
 				>
 					<CommandList className="max-h-72 border-t-0 mobile-full-width-dropdown-scroll-area">
+						{commands.length > 0 && (
+							<CommandGroup heading="Commands">
+								{commands.map((skill, index) => renderSkill(skill, index))}
+							</CommandGroup>
+						)}
 						{personalSkills.length > 0 && (
 							<CommandGroup heading="Personal skills">
 								{personalSkills.map((skill, index) =>
-									renderSkill(skill, index),
+									renderSkill(skill, commands.length + index),
 								)}
 							</CommandGroup>
 						)}
 						{workspaceSkills.length > 0 && (
 							<CommandGroup heading="Workspace skills">
 								{workspaceSkills.map((skill, index) =>
-									renderSkill(skill, personalSkills.length + index),
+									renderSkill(
+										skill,
+										commands.length + personalSkills.length + index,
+									),
 								)}
 							</CommandGroup>
 						)}

@@ -2629,3 +2629,138 @@ export const WithWaitAgentComputerUseVNC: Story = {
 		});
 	},
 };
+
+// ---------------------------------------------------------------------------
+// /compact slash command
+// ---------------------------------------------------------------------------
+
+const compactCommandMessages: TypesGen.ChatMessagesResponse = {
+	messages: [
+		{
+			id: 1,
+			chat_id: CHAT_ID,
+			role: "user",
+			created_at: "2024-01-01T00:00:00Z",
+			content: [{ type: "text", text: "Explain the auth flow" }],
+		},
+		{
+			id: 2,
+			chat_id: CHAT_ID,
+			role: "assistant",
+			created_at: "2024-01-01T00:00:30Z",
+			content: [
+				{ type: "text", text: "The auth flow starts at the login page." },
+			],
+		},
+	],
+	queued_messages: [],
+	has_more: false,
+};
+
+/** Submitting "/compact" alone requests a manual compaction instead of
+ *  sending a chat message. */
+export const SlashCompactCommandSubmits: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Compact command",
+				status: "waiting",
+			},
+			compactCommandMessages,
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const compactSpy = spyOn(API.experimental, "compactChat").mockResolvedValue(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Compact command",
+				status: "running",
+			} as TypesGen.Chat,
+		);
+		const sendSpy = spyOn(API.experimental, "createChatMessage");
+
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.keyboard("/compact");
+		// First Enter accepts the highlighted menu entry; second Enter
+		// submits the composer.
+		expect(await within(document.body).findByText("Commands")).toBeVisible();
+		await userEvent.keyboard("{Enter}");
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(compactSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(compactSpy).toHaveBeenCalledWith(CHAT_ID);
+		expect(sendSpy).not.toHaveBeenCalled();
+	},
+};
+
+/** A personal skill named "compact" takes precedence: "/compact" is sent
+ *  as a normal message (skill trigger) and no compaction is requested. */
+export const SlashCompactYieldsToPersonalSkill: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Compact skill precedence",
+				status: "waiting",
+			},
+			compactCommandMessages,
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([
+			{
+				id: "5f3f847b-6e77-4be4-a591-6c04ee0e0e78",
+				name: "compact",
+				description: "Personal compact skill",
+				created_at: "2024-01-01T00:00:00Z",
+				updated_at: "2024-01-01T00:00:00Z",
+			},
+		]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const compactSpy = spyOn(API.experimental, "compactChat");
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockResolvedValue({
+			queued: false,
+			message: {
+				id: 3,
+				chat_id: CHAT_ID,
+				role: "user",
+				created_at: "2024-01-01T00:01:00Z",
+				content: [{ type: "text", text: "/compact" }],
+			},
+		});
+
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.keyboard("/compact");
+		// The menu offers only the personal skill (the built-in command
+		// yields); first Enter accepts it, second Enter submits.
+		expect(
+			await within(document.body).findByText("Personal compact skill"),
+		).toBeVisible();
+		await userEvent.keyboard("{Enter}");
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(compactSpy).not.toHaveBeenCalled();
+	},
+};
