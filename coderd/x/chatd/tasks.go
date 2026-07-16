@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
