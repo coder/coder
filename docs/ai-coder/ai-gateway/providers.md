@@ -86,10 +86,16 @@ to have restricted permissions at the time of writing (June 2026).
 Bedrock providers serve Anthropic models hosted on AWS and authenticate
 with AWS credentials rather than a registered API key. Configure:
 
-- A **region** (or a full base URL when routing through a proxy or a
-  non-standard endpoint that does not follow the
-  `https://bedrock-runtime.<region>.amazonaws.com` format).
-- The **model** and **small fast model** identifiers.
+- A **protocol**, either `InvokeModel` or `Mantle`. It determines the
+  endpoint format and which of the fields below apply. See
+  [Protocol: InvokeModel vs Mantle](#protocol-invokemodel-vs-mantle).
+- An **endpoint** in the format the protocol requires:
+  `https://bedrock-runtime.<region>.amazonaws.com` for InvokeModel or
+  `https://bedrock-mantle.<region>.api.aws/anthropic` for Mantle. The AWS
+  region is read from the endpoint host.
+- The **model** and **small fast model** identifiers, for InvokeModel
+  only. Mantle providers do not set them; the client chooses the model on
+  each request and AI Gateway forwards it upstream.
 
 Do not attach API keys to a Bedrock provider.
 
@@ -110,6 +116,29 @@ AI Gateway resolves AWS credentials one of three ways:
   temporary credentials. This works on top of either of the above base
   identities and supports cross-account Bedrock access. See
   [Assuming an IAM role](#assuming-an-iam-role).
+
+#### Protocol: InvokeModel vs Mantle
+
+A Bedrock provider targets one of two AWS wire protocols:
+
+- **InvokeModel**: the legacy Bedrock runtime API. AI Gateway translates
+  each request into Bedrock's InvokeModel format and sends it to
+  `https://bedrock-runtime.<region>.amazonaws.com`. Still supported, but
+  Mantle is recommended for new deployments.
+- **Mantle**: the newer Anthropic-compatible Bedrock endpoint, recommended
+  by AWS for new deployments. AI Gateway serves Anthropic models through
+  the native Messages API, forwarding the request body **unchanged** and
+  only applying AWS SigV4 signing with the provider's base identity.
+
+To route Claude Code through a Mantle provider, run it in mantle mode with
+client-side signing disabled so the gateway signs centrally:
+
+```sh
+export CLAUDE_CODE_USE_MANTLE=1
+export CLAUDE_CODE_SKIP_MANTLE_AUTH=1
+export ANTHROPIC_BEDROCK_MANTLE_BASE_URL="<your-deployment-url>/api/v2/ai-gateway/<provider-name>"
+export ANTHROPIC_AUTH_TOKEN="<your-coder-api-token>"
+```
 
 #### Obtaining static Bedrock credentials
 
