@@ -13,6 +13,8 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -27,6 +29,7 @@ import (
 //  3. generate warnings related to usage
 func Entitlements(
 	ctx context.Context,
+	logger slog.Logger,
 	db database.Store,
 	replicaCount int,
 	externalAuthCount int,
@@ -58,7 +61,7 @@ func Entitlements(
 	var workspaceCapableUserCountFn WorkspaceCapableUserCountFn
 	if experiments.Enabled(codersdk.ExperimentPermissionBasedLicensing) && authorizer != nil {
 		workspaceCapableUserCountFn = func(ctx context.Context) (int64, error) {
-			return CountWorkspaceCapableUsers(ctx, db, authorizer)
+			return CountWorkspaceCapableUsers(ctx, logger, db, authorizer)
 		}
 	}
 
