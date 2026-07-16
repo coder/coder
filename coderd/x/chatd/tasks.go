@@ -995,7 +995,7 @@ func (r executionReconciler) resolveUnknownAfterIdentityWait(ctx context.Context
 		r.reconcileCancelRequested(ctx, record)
 		return
 	}
-	r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, sql.NullTime{})
+	r.resolveCancelOutcomeWithoutProcess(ctx, record, database.ChatToolCallExecutionStatusUnknown)
 }
 
 // reconcileCancelRequestedByToken resolves a cancel_requested row
@@ -1004,19 +1004,21 @@ func (r executionReconciler) resolveUnknownAfterIdentityWait(ctx context.Context
 // whether the dead claim's dispatch produced a process: a found
 // process gets the kill flow, and a token that is provably absent
 // within the trust window means nothing started, confirming the
-// cancellation. Paths where the index proves nothing (old agents
-// answering HTTP 404 on the probe route, untrustworthy absence, no
-// dispatch target) fall back to waiting for a late handle write
-// before resolving unknown.
+// cancellation. The probe dials the dispatch target recorded at
+// claim time, never the chat's current agent: a chat rebound to a
+// different agent after the dispatch would answer for an agent
+// that never saw the token. Paths where the index proves nothing
+// (old agents answering HTTP 404 on the probe route, untrustworthy
+// absence, no dispatch target) fall back to waiting for a late
+// handle write before resolving unknown.
 func (r executionReconciler) reconcileCancelRequestedByToken(ctx context.Context, record database.ChatToolCallExecution) {
-	chat, err := r.store.GetChatByID(ctx, record.ChatID)
-	if err != nil || !chat.AgentID.Valid {
+	if !record.WorkspaceAgentID.Valid {
 		r.resolveUnknownAfterIdentityWait(ctx, record)
 		return
 	}
 	dialCtx, cancel := context.WithTimeout(ctx, interruptKillDialTimeout)
 	defer cancel()
-	conn, release, err := r.agentConn(dialCtx, chat.AgentID.UUID)
+	conn, release, err := r.agentConn(dialCtx, record.WorkspaceAgentID.UUID)
 	if err != nil {
 		// Leave the row cancel_requested; a later reconciler can
 		// probe again.
@@ -1074,8 +1076,9 @@ func (r executionReconciler) reconcileCancelRequestedByToken(ctx context.Context
 	}
 	if record.ClaimedAt.Valid && chattool.TrustAbsentToken(resp, record.ClaimedAt.Time) {
 		// Nothing was dispatched under this token, so there is
-		// nothing to kill.
-		r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusCanceled, sql.NullTime{})
+		// nothing to kill. Guarded: a process handle landing
+		// concurrently wins and gets the kill flow.
+		r.resolveCancelOutcomeWithoutProcess(ctx, record, database.ChatToolCallExecutionStatusCanceled)
 		return
 	}
 	// The token may have been reaped with its exited process, or

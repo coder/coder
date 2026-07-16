@@ -67,8 +67,11 @@ func (r *executionRecorder) lineage() (int64, error) {
 // messages that predate the ledger) is always claimable, and a
 // starting claim older than staleBefore may be taken over. The tool
 // passes a non-zero staleBefore only after the agent's token index
-// proved the stale claimer's dispatch never happened.
-func (r *executionRecorder) Claim(ctx context.Context, toolCallID string, inputSHA256 string, command string, background bool, timeout time.Duration, staleBefore time.Time) (chattool.ExecutionRecord, bool, error) {
+// proved the stale claimer's dispatch never happened. agentID is
+// the dispatch target, recorded before the dispatch so recovery and
+// the interrupt reconciler probe the agent that actually received
+// it.
+func (r *executionRecorder) Claim(ctx context.Context, toolCallID string, inputSHA256 string, command string, background bool, timeout time.Duration, agentID uuid.UUID, staleBefore time.Time) (chattool.ExecutionRecord, bool, error) {
 	if toolCallID == "" {
 		// Rows are addressed by tool call ID; an empty ID would
 		// alias every ID-less call in the message to one row.
@@ -91,9 +94,10 @@ func (r *executionRecorder) Claim(ctx context.Context, toolCallID string, inputS
 		// deadline than the original attempt used; a sub-second
 		// timeout would otherwise floor to 0s and make re-attach
 		// treat a running process as instantly timed out.
-		TimeoutSecs: int64((timeout + time.Second - 1) / time.Second),
-		Now:         now,
-		StaleBefore: staleBefore,
+		TimeoutSecs:      int64((timeout + time.Second - 1) / time.Second),
+		WorkspaceAgentID: uuid.NullUUID{UUID: agentID, Valid: agentID != uuid.Nil},
+		Now:              now,
+		StaleBefore:      staleBefore,
 	})
 	if err == nil {
 		return executionRecordFromRow(row), true, nil

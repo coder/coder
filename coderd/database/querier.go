@@ -85,8 +85,11 @@ type sqlcQuerier interface {
 	// compare-and-set: only a reserved intent or a stale starting claim
 	// can be taken over, and each takeover advances claim_epoch. The
 	// input hash guard refuses to dispatch against a row created for
-	// different input. Zero rows means the row exists but is not
-	// claimable; the caller reads it to decide how to proceed.
+	// different input. workspace_agent_id records the dispatch target
+	// before the dispatch happens, so recovery can tell whether a token
+	// probe reaches the agent the dead claimer actually targeted. Zero
+	// rows means the row exists but is not claimable; the caller reads
+	// it to decide how to proceed.
 	ClaimChatToolCallExecution(ctx context.Context, arg ClaimChatToolCallExecutionParams) (ChatToolCallExecution, error)
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
 	// Claims a batch of cancel_requested rows whose reconciliation

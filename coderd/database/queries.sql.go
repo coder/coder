@@ -12678,6 +12678,7 @@ INSERT INTO chat_tool_call_executions (
     command,
     background,
     timeout_secs,
+    workspace_agent_id,
     claim_epoch,
     claimed_at,
     created_at,
@@ -12692,36 +12693,39 @@ INSERT INTO chat_tool_call_executions (
     $6::text,
     $7::boolean,
     $8::bigint,
+    $9::uuid,
     1,
-    $9::timestamptz,
-    $9::timestamptz,
-    $9::timestamptz
+    $10::timestamptz,
+    $10::timestamptz,
+    $10::timestamptz
 )
 ON CONFLICT (chat_id, assistant_message_id, tool_call_id) DO UPDATE SET
     status = 'starting',
     command = EXCLUDED.command,
     background = EXCLUDED.background,
     timeout_secs = EXCLUDED.timeout_secs,
+    workspace_agent_id = EXCLUDED.workspace_agent_id,
     claim_epoch = chat_tool_call_executions.claim_epoch + 1,
     claimed_at = EXCLUDED.claimed_at,
     updated_at = EXCLUDED.updated_at
 WHERE chat_tool_call_executions.input_sha256 = EXCLUDED.input_sha256
   AND (chat_tool_call_executions.status = 'reserved'
-   OR (chat_tool_call_executions.status = 'starting' AND chat_tool_call_executions.claimed_at < $10::timestamptz))
+   OR (chat_tool_call_executions.status = 'starting' AND chat_tool_call_executions.claimed_at < $11::timestamptz))
 RETURNING id, chat_id, assistant_message_id, tool_call_id, status, input_sha256, command, background, timeout_secs, claim_epoch, claimed_at, workspace_agent_id, process_id, cancel_signal_sent_at, result_committed_at, created_at, started_at, updated_at
 `
 
 type ClaimChatToolCallExecutionParams struct {
-	ID                 uuid.UUID `db:"id" json:"id"`
-	ChatID             uuid.UUID `db:"chat_id" json:"chat_id"`
-	AssistantMessageID int64     `db:"assistant_message_id" json:"assistant_message_id"`
-	ToolCallID         string    `db:"tool_call_id" json:"tool_call_id"`
-	InputSha256        string    `db:"input_sha256" json:"input_sha256"`
-	Command            string    `db:"command" json:"command"`
-	Background         bool      `db:"background" json:"background"`
-	TimeoutSecs        int64     `db:"timeout_secs" json:"timeout_secs"`
-	Now                time.Time `db:"now" json:"now"`
-	StaleBefore        time.Time `db:"stale_before" json:"stale_before"`
+	ID                 uuid.UUID     `db:"id" json:"id"`
+	ChatID             uuid.UUID     `db:"chat_id" json:"chat_id"`
+	AssistantMessageID int64         `db:"assistant_message_id" json:"assistant_message_id"`
+	ToolCallID         string        `db:"tool_call_id" json:"tool_call_id"`
+	InputSha256        string        `db:"input_sha256" json:"input_sha256"`
+	Command            string        `db:"command" json:"command"`
+	Background         bool          `db:"background" json:"background"`
+	TimeoutSecs        int64         `db:"timeout_secs" json:"timeout_secs"`
+	WorkspaceAgentID   uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	Now                time.Time     `db:"now" json:"now"`
+	StaleBefore        time.Time     `db:"stale_before" json:"stale_before"`
 }
 
 // Claims an execution for dispatch. The insert arm covers calls whose
@@ -12729,8 +12733,11 @@ type ClaimChatToolCallExecutionParams struct {
 // compare-and-set: only a reserved intent or a stale starting claim
 // can be taken over, and each takeover advances claim_epoch. The
 // input hash guard refuses to dispatch against a row created for
-// different input. Zero rows means the row exists but is not
-// claimable; the caller reads it to decide how to proceed.
+// different input. workspace_agent_id records the dispatch target
+// before the dispatch happens, so recovery can tell whether a token
+// probe reaches the agent the dead claimer actually targeted. Zero
+// rows means the row exists but is not claimable; the caller reads
+// it to decide how to proceed.
 func (q *sqlQuerier) ClaimChatToolCallExecution(ctx context.Context, arg ClaimChatToolCallExecutionParams) (ChatToolCallExecution, error) {
 	row := q.db.QueryRowContext(ctx, claimChatToolCallExecution,
 		arg.ID,
@@ -12741,6 +12748,7 @@ func (q *sqlQuerier) ClaimChatToolCallExecution(ctx context.Context, arg ClaimCh
 		arg.Command,
 		arg.Background,
 		arg.TimeoutSecs,
+		arg.WorkspaceAgentID,
 		arg.Now,
 		arg.StaleBefore,
 	)

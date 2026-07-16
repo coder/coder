@@ -256,10 +256,12 @@ type ExecutionRecord struct {
 	ClaimEpoch int64
 	ClaimedAt  time.Time
 	StartedAt  time.Time
-	// WorkspaceAgentID is the agent that owns the recorded
-	// process. A 404 from a different agent proves nothing about
-	// the process, so re-attach only treats it as loss when the
-	// probed agent matches.
+	// WorkspaceAgentID is the dispatch target recorded at claim
+	// time, before the dispatch happens. A chat rebound to a
+	// different agent cannot observe what the original target did
+	// with the dispatch, so recovery only trusts the token index
+	// when it probes this exact agent, and re-attach treats a 404
+	// as loss only from this agent.
 	WorkspaceAgentID uuid.UUID
 }
 
@@ -275,10 +277,11 @@ type ExecutionRecorder interface {
 	// caller must resume from its status instead of dispatching.
 	// A starting row claimed before staleBefore may be taken over
 	// (advancing the claim epoch); the zero time only accepts
-	// reserved or missing rows. Returns an error wrapping
-	// ErrExecutionInputMismatch when the row was created for
-	// different input.
-	Claim(ctx context.Context, toolCallID string, inputSHA256 string, command string, background bool, timeout time.Duration, staleBefore time.Time) (rec ExecutionRecord, claimed bool, err error)
+	// reserved or missing rows. agentID records the dispatch
+	// target on the claim so recovery can match probes against
+	// it. Returns an error wrapping ErrExecutionInputMismatch
+	// when the row was created for different input.
+	Claim(ctx context.Context, toolCallID string, inputSHA256 string, command string, background bool, timeout time.Duration, agentID uuid.UUID, staleBefore time.Time) (rec ExecutionRecord, claimed bool, err error)
 	// Get reads the current row without claiming it. Returns an
 	// error wrapping ErrExecutionRecordNotFound when no row
 	// exists for the tool call.
@@ -466,7 +469,7 @@ func executeTool(
 		}
 		var claimed bool
 		var err error
-		rec, claimed, err = options.Recorder.Claim(ctx, toolCallID, dispatch.inputSHA256, args.Command, background, claimTimeout, time.Time{})
+		rec, claimed, err = options.Recorder.Claim(ctx, toolCallID, dispatch.inputSHA256, args.Command, background, claimTimeout, options.connAgentID, time.Time{})
 		if err != nil {
 			if xerrors.Is(err, ErrExecutionInputMismatch) {
 				options.Logger.Warn(ctx, "execute claim targeted stale lineage",
@@ -723,6 +726,15 @@ func recoverStaleClaim(
 	rec ExecutionRecord,
 	dispatch dispatchInputs,
 ) (fantasy.ToolResponse, error) {
+	if rec.WorkspaceAgentID == uuid.Nil || rec.WorkspaceAgentID != options.connAgentID {
+		// The stale claim dispatched to a different agent (the
+		// workspace was rebuilt or the chat rebound). This
+		// connection's token index cannot observe what that agent
+		// did with the dispatch, so neither adoption nor
+		// re-dispatch is safe.
+		markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
+		return fantasy.NewTextErrorResponse(unknownOutcomeMessage), nil
+	}
 	probeCtx, cancel := context.WithTimeout(ctx, snapshotTimeout)
 	resp, err := conn.ProcessByToken(probeCtx, rec.ID)
 	cancel()
@@ -769,7 +781,7 @@ func recoverStaleClaim(
 	// safe to re-dispatch under the same token: the agent
 	// attaches to an in-flight start and dedups any race with
 	// the original dispatch. Take over the stale claim first.
-	reclaimed, claimed, err := options.Recorder.Claim(ctx, toolCallID, dispatch.inputSHA256, dispatch.command, dispatch.background, dispatch.timeout, time.Now().Add(-claimStaleAfter))
+	reclaimed, claimed, err := options.Recorder.Claim(ctx, toolCallID, dispatch.inputSHA256, dispatch.command, dispatch.background, dispatch.timeout, options.connAgentID, time.Now().Add(-claimStaleAfter))
 	if err != nil {
 		return errorResult(fmt.Sprintf("reclaim stale execution: %v", err)), nil
 	}

@@ -768,7 +768,7 @@ func newFakeRecorder() *fakeRecorder {
 	}
 }
 
-func (f *fakeRecorder) Claim(_ context.Context, toolCallID string, inputSHA256 string, command string, background bool, timeout time.Duration, staleBefore time.Time) (chattool.ExecutionRecord, bool, error) {
+func (f *fakeRecorder) Claim(_ context.Context, toolCallID string, inputSHA256 string, command string, background bool, timeout time.Duration, agentID uuid.UUID, staleBefore time.Time) (chattool.ExecutionRecord, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.claimCalls++
@@ -786,6 +786,7 @@ func (f *fakeRecorder) Claim(_ context.Context, toolCallID string, inputSHA256 s
 		f.commands[toolCallID] = command
 		rec.Background = background
 		rec.Timeout = timeout
+		rec.WorkspaceAgentID = agentID
 		rec.ClaimEpoch++
 		rec.ClaimedAt = time.Now()
 		f.records[toolCallID] = rec
@@ -1224,16 +1225,48 @@ func TestExecuteToolRecorder(t *testing.T) {
 	})
 
 	// seedStaleStarting seeds a starting claim whose owner died
-	// claimedAgo ago without recording a process handle.
+	// claimedAgo ago without recording a process handle. The claim
+	// targeted the same agent the current attempt is connected to.
 	seedStaleStarting := func(recorder *fakeRecorder, claimedAgo time.Duration) {
 		recorder.seed("call-1", chattool.ExecutionRecord{
-			ID:         "exec-call-1",
-			Status:     chattool.ExecutionStatusStarting,
-			Timeout:    time.Minute,
-			ClaimEpoch: 1,
-			ClaimedAt:  time.Now().Add(-claimedAgo),
+			ID:               "exec-call-1",
+			Status:           chattool.ExecutionStatusStarting,
+			Timeout:          time.Minute,
+			ClaimEpoch:       1,
+			ClaimedAt:        time.Now().Add(-claimedAgo),
+			WorkspaceAgentID: testAgentID,
 		})
 	}
+
+	t.Run("StaleClaimAgentRebindUnknown", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		// The stale claim dispatched to a different agent, so the
+		// current connection's token index cannot observe that
+		// dispatch: no probe, no re-dispatch, outcome unknown.
+		recorder.seed("call-1", chattool.ExecutionRecord{
+			ID:               "exec-call-1",
+			Status:           chattool.ExecutionStatusStarting,
+			Timeout:          time.Minute,
+			ClaimEpoch:       1,
+			ClaimedAt:        time.Now().Add(-2 * time.Minute),
+			WorkspaceAgentID: uuid.New(),
+		})
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "unknown")
+		assert.Equal(t, chattool.ExecutionStatusUnknown, recorder.record("call-1").Status)
+	})
 
 	t.Run("StaleClaimOldAgentUnknown", func(t *testing.T) {
 		t.Parallel()

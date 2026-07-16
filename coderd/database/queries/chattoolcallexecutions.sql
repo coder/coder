@@ -29,8 +29,11 @@ ON CONFLICT (chat_id, assistant_message_id, tool_call_id) DO NOTHING;
 -- compare-and-set: only a reserved intent or a stale starting claim
 -- can be taken over, and each takeover advances claim_epoch. The
 -- input hash guard refuses to dispatch against a row created for
--- different input. Zero rows means the row exists but is not
--- claimable; the caller reads it to decide how to proceed.
+-- different input. workspace_agent_id records the dispatch target
+-- before the dispatch happens, so recovery can tell whether a token
+-- probe reaches the agent the dead claimer actually targeted. Zero
+-- rows means the row exists but is not claimable; the caller reads
+-- it to decide how to proceed.
 INSERT INTO chat_tool_call_executions (
     id,
     chat_id,
@@ -41,6 +44,7 @@ INSERT INTO chat_tool_call_executions (
     command,
     background,
     timeout_secs,
+    workspace_agent_id,
     claim_epoch,
     claimed_at,
     created_at,
@@ -55,6 +59,7 @@ INSERT INTO chat_tool_call_executions (
     @command::text,
     @background::boolean,
     @timeout_secs::bigint,
+    sqlc.narg('workspace_agent_id')::uuid,
     1,
     @now::timestamptz,
     @now::timestamptz,
@@ -65,6 +70,7 @@ ON CONFLICT (chat_id, assistant_message_id, tool_call_id) DO UPDATE SET
     command = EXCLUDED.command,
     background = EXCLUDED.background,
     timeout_secs = EXCLUDED.timeout_secs,
+    workspace_agent_id = EXCLUDED.workspace_agent_id,
     claim_epoch = chat_tool_call_executions.claim_epoch + 1,
     claimed_at = EXCLUDED.claimed_at,
     updated_at = EXCLUDED.updated_at
