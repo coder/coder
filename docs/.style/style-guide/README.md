@@ -2,16 +2,16 @@
 
 This is the canonical prose style guide for the Coder documentation.
 It tells you *how* to write the words that go in the docs.
-For decisions about what belongs in the docs and what does not, refer to [`content-guidelines.md`](../content-guidelines.md).
+For decisions about what belongs in the docs and what doesn't, refer to [`content-guidelines.md`](../content-guidelines.md).
 
-Each rule on the pages below is a policy decision the Coder docs team has made.
+Each rule on the linked pages is a policy decision the Coder docs team has made.
 Where a Vale rule already enforces the policy, the rule name is listed in a parenthetical so you can reproduce the warning locally.
 Where the rule is documentation-only, the parenthetical says so.
 The doctrine for adding Vale rules lives in [`README.md`](../README.md).
 
 ## How to use this guide
 
-- **Contributors**: read the section that matches what you are writing.
+- **Contributors**: read the section that matches what you're writing.
   Each rule includes a brief rationale and **Do** / **Don't** examples.
 - **Reviewers**: cite the section in a review comment.
   Reviews are easier when the guidance lives in one place.
@@ -40,9 +40,9 @@ The style guide subpages dogfood them so contributors can see the rules in actio
 
 Source lines in Coder documentation follow a one-sentence-per-line policy.
 Each sentence sits on its own Markdown source line.
-Sentences are not split across lines, and lines do not wrap to a fixed column width.
+Sentences aren't split across lines, and lines don't wrap to a fixed column width.
 
-The rendered Markdown joins lines inside a paragraph back together, so the source line breaks do not appear in the rendered output.
+The rendered Markdown joins lines inside a paragraph back together, so the source line breaks don't appear in the rendered output.
 Reviewers reading the diff do encounter them, and they make diffs land cleanly at the sentence level.
 
 `markdownlint`'s `MD013` (line length) is already disabled, so the convention is editorial.
@@ -55,12 +55,12 @@ Much of the existing prose still wraps to a fixed column width or runs on a sing
 The convention is adopted incrementally.
 
 When a contributor edits any line inside a paragraph, the entire paragraph is reformatted to one sentence per line as part of the same edit.
-The contributor does not reformat surrounding paragraphs they did not otherwise touch.
+The contributor doesn't reformat surrounding paragraphs they didn't otherwise touch.
 
 For this rule, a bullet item, a numbered list entry, and a blockquote line are each their own paragraph.
 Headings, fenced code blocks, and tables are out of scope: headings are single lines by convention, code blocks render their source verbatim, and table rows are governed by `markdown-table-formatter`.
 
-### The style guide does not use "see" for navigation
+### The style guide doesn't use "see" for navigation
 
 The [Word choice page](./word-choice.md) bans "see" as a navigational verb across all docs.
 The style guide itself follows the rule: "refer to" for formal cross-references, "check out" for informal pointers in tutorial-style passages, "visit" for external URLs.
@@ -69,7 +69,7 @@ Reserve "see" for the rare case where the prose describes what a reader observes
 ## Vale enforcement
 
 The repo-root `.vale.ini` loads only the Coder rule package by default.
-Third-party rules from Google, alex, and write-good are not enabled until a per-rule PR brings each back in.
+Third-party rules from Google, alex, and write-good aren't enabled until a per-rule PR brings each back in.
 
 Each enabled rule lands via a dedicated PR that:
 
@@ -93,13 +93,13 @@ Run `make lint/prose` to reproduce the baseline locally.
 
 A public-facing prose summary lives today at [`docs/about/contributing/documentation.md`](../../about/contributing/documentation.md).
 A follow-up PR will redirect that page to this guide.
-Until then, follow the public summary for anything the subpages of this guide do not cover.
+Until then, follow the public summary for anything the subpages of this guide don't cover.
 New prose rules land here.
 The public page is frozen pending the redirect.
 
 ## Third-party references
 
-When this guide does not cover something, consult:
+When this guide doesn't cover something, consult:
 
 | Type of guidance         | Reference                                                                               |
 |--------------------------|-----------------------------------------------------------------------------------------|

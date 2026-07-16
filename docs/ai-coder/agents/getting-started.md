@@ -269,7 +269,7 @@ curl -X POST https://coder.example.com/api/experimental/chats \
 
 Stream updates in real time by connecting to the WebSocket endpoint:
 
-```text
+```txt
 GET /api/experimental/chats/{chat}/stream
 ```
 

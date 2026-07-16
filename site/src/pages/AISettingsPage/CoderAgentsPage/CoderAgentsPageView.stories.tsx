@@ -49,10 +49,21 @@ const generalModelConfig = buildModelConfig({
 
 const claudeSonnetModelConfig = buildModelConfig({
 	id: "model-claude-sonnet-4",
-	provider: "anthropic",
+	ai_provider_id: "provider-anthropic",
 	model: "claude-sonnet-4",
 	display_name: "Claude Sonnet 4",
 	context_limit: 200_000,
+});
+
+const advisorReasoningModelConfig = buildModelConfig({
+	id: "model-advisor-gpt-5.2",
+	model: "gpt-5.2",
+	display_name: "GPT 5.2",
+	context_limit: 200_000,
+	model_config: {
+		reasoning_effort: { default: "medium", max: "xhigh" },
+	},
+	reasoning_efforts: ["none", "minimal", "low", "medium", "high", "xhigh"],
 });
 
 const titleModelConfig = buildModelConfig({
@@ -64,7 +75,7 @@ const titleModelConfig = buildModelConfig({
 
 const exploreFallbackModelConfig = buildModelConfig({
 	id: "model-explore-blank-display",
-	provider: "anthropic",
+	ai_provider_id: "provider-anthropic",
 	model: "claude-sonnet-4-20250514",
 	display_name: "",
 	context_limit: 200_000,
@@ -87,22 +98,40 @@ const titleDisabledModelConfig = buildModelConfig({
 
 const exploreDisabledModelConfig = buildModelConfig({
 	id: "model-explore-disabled",
-	provider: "anthropic",
+	ai_provider_id: "provider-anthropic",
 	model: "claude-haiku-legacy",
 	display_name: "Claude Haiku Legacy",
 	enabled: false,
 	context_limit: 200_000,
 });
 
+const compactionDisabledModelConfig = buildModelConfig({
+	id: "model-compaction-disabled",
+	model: "gpt-4.1-nano-legacy",
+	display_name: "GPT 4.1 Nano Legacy",
+	enabled: false,
+	context_limit: 128_000,
+});
+
 const allModelConfigs: TypesGen.ChatModelConfig[] = [
 	generalModelConfig,
 	claudeSonnetModelConfig,
+	advisorReasoningModelConfig,
 	titleModelConfig,
 	exploreFallbackModelConfig,
 	generalDisabledModelConfig,
 	titleDisabledModelConfig,
 	exploreDisabledModelConfig,
+	compactionDisabledModelConfig,
 ];
+
+const providerInfoByID = new Map([
+	["provider-1", { provider: "openai", displayName: "OpenAI", icon: "" }],
+	[
+		"provider-anthropic",
+		{ provider: "anthropic", displayName: "Anthropic", icon: "" },
+	],
+]);
 
 const buildArgs = (
 	overrides: Partial<CoderAgentsPageViewProps> = {},
@@ -116,19 +145,40 @@ const buildArgs = (
 	isSaveAdminOverridesError: false,
 	generalModelOverrideData: buildOverrideData("general"),
 	titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData(),
+	compactionModelOverrideData: buildOverrideData("compaction"),
 	exploreModelOverrideData: buildOverrideData("explore"),
 	modelConfigsData: allModelConfigs,
+	providerInfoByID,
 	modelConfigsError: undefined,
 	isLoadingModelConfigs: false,
+	isFetchingModelConfigs: false,
 	onSaveGeneralModelOverride: fn(),
 	isSavingGeneralModelOverride: false,
 	isSaveGeneralModelOverrideError: false,
 	onSaveTitleGenerationModel: fn(),
 	isSavingTitleGenerationModel: false,
 	isSaveTitleGenerationModelError: false,
+	onSaveCompactionModel: fn(),
+	isSavingCompactionModel: false,
+	isSaveCompactionModelError: false,
 	onSaveExploreModelOverride: fn(),
 	isSavingExploreModelOverride: false,
 	isSaveExploreModelOverrideError: false,
+	showAdvisorSettings: false,
+	advisorConfigData: undefined,
+	isAdvisorConfigLoading: false,
+	isAdvisorConfigFetching: false,
+	isAdvisorConfigLoadError: false,
+	onSaveAdvisorConfig: fn(),
+	isSavingAdvisorConfig: false,
+	isSaveAdvisorConfigError: false,
+	saveAdvisorConfigError: undefined,
+	showVirtualDesktopSettings: false,
+	computerUseProviderData: undefined,
+	isLoadingComputerUseProvider: false,
+	onSaveComputerUseProvider: fn(),
+	isSavingComputerUseProvider: false,
+	computerUseProviderSaveError: null,
 	...overrides,
 });
 
@@ -186,6 +236,7 @@ export const AllOverridesUnset: Story = {
 		expect(headings.map((heading) => heading.textContent?.trim())).toEqual([
 			"General model",
 			"Title generation model",
+			"Compaction model",
 			"Explore subagent model",
 		]);
 		await canvas.findByText(
@@ -197,6 +248,10 @@ export const AllOverridesUnset: Story = {
 			{
 				headingName: "Title generation model",
 				placeholder: "Use title default",
+			},
+			{
+				headingName: "Compaction model",
+				placeholder: "Use chat model",
 			},
 			{
 				headingName: "Explore subagent model",
@@ -268,6 +323,9 @@ export const EachOverrideSetToEnabledModel: Story = {
 		titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData({
 			model_config_id: titleModelConfig.id,
 		}),
+		compactionModelOverrideData: buildOverrideData("compaction", {
+			model_config_id: claudeSonnetModelConfig.id,
+		}),
 		exploreModelOverrideData: buildOverrideData("explore", {
 			model_config_id: exploreFallbackModelConfig.id,
 		}),
@@ -277,6 +335,10 @@ export const EachOverrideSetToEnabledModel: Story = {
 		const titleSection = await getSection(
 			canvasElement,
 			"Title generation model",
+		);
+		const compactionSection = await getSection(
+			canvasElement,
+			"Compaction model",
 		);
 		const exploreSection = await getSection(
 			canvasElement,
@@ -335,6 +397,26 @@ export const EachOverrideSetToEnabledModel: Story = {
 			);
 		});
 
+		await selectModelInSection(
+			compactionSection,
+			canvasElement,
+			/claude sonnet 4/i,
+			"GPT 4o Mini",
+		);
+		const compactionSaveButton = within(compactionSection).getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(compactionSaveButton).toBeEnabled();
+		});
+		await userEvent.click(compactionSaveButton);
+		await waitFor(() => {
+			expect(args.onSaveCompactionModel).toHaveBeenCalledWith(
+				{ model_config_id: titleModelConfig.id },
+				expect.anything(),
+			);
+		});
+
 		const exploreClearButton = within(exploreSection).getByRole("button", {
 			name: "Clear",
 		});
@@ -363,6 +445,9 @@ export const MalformedOverridesRemainClearableAndSaveable: Story = {
 		titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData({
 			is_malformed: true,
 		}),
+		compactionModelOverrideData: buildOverrideData("compaction", {
+			is_malformed: true,
+		}),
 		exploreModelOverrideData: buildOverrideData("explore", {
 			is_malformed: true,
 		}),
@@ -373,12 +458,21 @@ export const MalformedOverridesRemainClearableAndSaveable: Story = {
 			canvasElement,
 			"Title generation model",
 		);
+		const compactionSection = await getSection(
+			canvasElement,
+			"Compaction model",
+		);
 		const exploreSection = await getSection(
 			canvasElement,
 			"Explore subagent model",
 		);
 
-		for (const section of [generalSection, titleSection, exploreSection]) {
+		for (const section of [
+			generalSection,
+			titleSection,
+			compactionSection,
+			exploreSection,
+		]) {
 			await within(section).findByText(OVERRIDE_MALFORMED_WARNING);
 		}
 
@@ -423,6 +517,20 @@ export const MalformedOverridesRemainClearableAndSaveable: Story = {
 				expect.anything(),
 			);
 		});
+
+		const compactionSaveButton = within(compactionSection).getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(compactionSaveButton).toBeEnabled();
+		});
+		await userEvent.click(compactionSaveButton);
+		await waitFor(() => {
+			expect(args.onSaveCompactionModel).toHaveBeenCalledWith(
+				{ model_config_id: "" },
+				expect.anything(),
+			);
+		});
 	},
 };
 
@@ -434,6 +542,9 @@ export const UnavailableSavedModels: Story = {
 		titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData({
 			model_config_id: titleDisabledModelConfig.id,
 		}),
+		compactionModelOverrideData: buildOverrideData("compaction", {
+			model_config_id: compactionDisabledModelConfig.id,
+		}),
 		exploreModelOverrideData: buildOverrideData("explore", {
 			model_config_id: exploreDisabledModelConfig.id,
 		}),
@@ -444,12 +555,16 @@ export const UnavailableSavedModels: Story = {
 			canvasElement,
 			"Title generation model",
 		);
+		const compactionSection = await getSection(
+			canvasElement,
+			"Compaction model",
+		);
 		const exploreSection = await getSection(
 			canvasElement,
 			"Explore subagent model",
 		);
 
-		for (const section of [generalSection, exploreSection]) {
+		for (const section of [generalSection, compactionSection, exploreSection]) {
 			await within(section).findByText(UNAVAILABLE_SAVED_MODEL_WARNING);
 			expect(
 				within(section).getByRole("combobox", { name: "Unavailable model" }),
@@ -463,5 +578,181 @@ export const UnavailableSavedModels: Story = {
 				name: "Unavailable model",
 			}),
 		).toBeInTheDocument();
+	},
+};
+
+export const AdvisorSettingsVisible: Story = {
+	args: buildArgs({
+		showAdvisorSettings: true,
+		advisorConfigData: {
+			enabled: true,
+			max_uses_per_run: 3,
+			max_output_tokens: 16384,
+			model_config_id: "00000000-0000-0000-0000-000000000000",
+		},
+	}),
+	play: async ({ canvasElement, args }) => {
+		const section = await getSection(canvasElement, "Advisor");
+		expect(
+			within(section).getByRole("spinbutton", {
+				name: "Max uses per turn",
+			}),
+		).toHaveValue(3);
+		expect(
+			within(section).getByRole("spinbutton", {
+				name: "Max output tokens",
+			}),
+		).toHaveValue(16384);
+		expect(
+			within(section).getByRole("combobox", { name: "Use chat model" }),
+		).toBeInTheDocument();
+
+		// Changing a value exposes the Save button.
+		const maxUses = within(section).getByRole("spinbutton", {
+			name: "Max uses per turn",
+		});
+		await userEvent.clear(maxUses);
+		await userEvent.type(maxUses, "5");
+		const saveButton = within(section).getByRole("button", { name: "Save" });
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+		await waitFor(() => {
+			expect(args.onSaveAdvisorConfig).toHaveBeenCalledWith(
+				expect.objectContaining({ max_uses_per_run: 5 }),
+				expect.anything(),
+			);
+		});
+	},
+};
+
+export const AdvisorReasoningEffort: Story = {
+	args: buildArgs({
+		showAdvisorSettings: true,
+		advisorConfigData: {
+			enabled: true,
+			max_uses_per_run: 3,
+			max_output_tokens: 16384,
+			model_config_id: advisorReasoningModelConfig.id,
+			reasoning_effort: "medium",
+		},
+	}),
+	play: async ({ canvasElement, args }) => {
+		const section = await getSection(canvasElement, "Advisor");
+		const modelSelector = within(section).getByRole("combobox", {
+			name: "GPT 5.2",
+		});
+		expect(modelSelector).toBeInTheDocument();
+		const maxUses = within(section).getByRole("spinbutton", {
+			name: "Max uses per turn",
+		});
+		await userEvent.clear(maxUses);
+		await userEvent.type(maxUses, "5");
+
+		const saveButton = await within(section).findByRole("button", {
+			name: "Save",
+		});
+		expect(saveButton).toBeEnabled();
+		await userEvent.click(saveButton);
+		await waitFor(() => {
+			expect(args.onSaveAdvisorConfig).toHaveBeenCalledWith(
+				expect.objectContaining({
+					max_uses_per_run: 5,
+					model_config_id: advisorReasoningModelConfig.id,
+					reasoning_effort: "medium",
+				}),
+				expect.anything(),
+			);
+		});
+	},
+};
+
+export const AdvisorClearButton: Story = {
+	args: buildArgs({
+		showAdvisorSettings: true,
+		advisorConfigData: {
+			enabled: true,
+			max_uses_per_run: 3,
+			max_output_tokens: 16384,
+			model_config_id: advisorReasoningModelConfig.id,
+			reasoning_effort: "high",
+		},
+	}),
+	play: async ({ canvasElement, args }) => {
+		const section = await getSection(canvasElement, "Advisor");
+		const clearButton = within(section).getByRole("button", { name: "Clear" });
+		await userEvent.click(clearButton);
+		expect(
+			within(section).getByRole("spinbutton", {
+				name: "Max uses per turn",
+			}),
+		).toHaveValue(0);
+		expect(
+			within(section).getByRole("spinbutton", {
+				name: "Max output tokens",
+			}),
+		).toHaveValue(0);
+		expect(
+			within(section).getByRole("combobox", { name: "Use chat model" }),
+		).toHaveTextContent("Use chat model");
+		const saveButton = within(section).getByRole("button", { name: "Save" });
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+		await waitFor(() => {
+			expect(args.onSaveAdvisorConfig).toHaveBeenCalledWith(
+				{
+					enabled: true,
+					max_uses_per_run: 0,
+					max_output_tokens: 0,
+					model_config_id: "00000000-0000-0000-0000-000000000000",
+				},
+				expect.anything(),
+			);
+		});
+	},
+};
+
+export const VirtualDesktopSettingsVisible: Story = {
+	args: buildArgs({
+		showVirtualDesktopSettings: true,
+		computerUseProviderData: { provider: "anthropic" },
+	}),
+	play: async ({ canvasElement }) => {
+		const section = await getSection(canvasElement, "Virtual desktop");
+		expect(
+			within(section).getByRole("combobox", {
+				name: "Computer use provider",
+			}),
+		).toHaveTextContent("Anthropic");
+	},
+};
+
+export const VirtualDesktopProviderChange: Story = {
+	args: buildArgs({
+		showVirtualDesktopSettings: true,
+		computerUseProviderData: { provider: "anthropic" },
+	}),
+	play: async ({ canvasElement, args }) => {
+		const section = await getSection(canvasElement, "Virtual desktop");
+		const trigger = within(section).getByRole("combobox", {
+			name: "Computer use provider",
+		});
+		await userEvent.click(trigger);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(await body.findByRole("option", { name: "OpenAI" }));
+		const saveButton = within(section).getByRole("button", { name: "Save" });
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+		await waitFor(() => {
+			expect(args.onSaveComputerUseProvider).toHaveBeenCalledWith(
+				{ provider: "openai" },
+				expect.anything(),
+			);
+		});
 	},
 };

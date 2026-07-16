@@ -612,6 +612,15 @@ var AIBudgetPeriods = []string{
 	string(AIBudgetPeriodMonth),
 }
 
+// NewAIBudgetPeriodFromString converts s to an AIBudgetPeriod, falling back to
+// AIBudgetPeriodMonth when s is empty or not a recognized period.
+func NewAIBudgetPeriodFromString(s string) AIBudgetPeriod {
+	if slices.Contains(AIBudgetPeriods, s) {
+		return AIBudgetPeriod(s)
+	}
+	return AIBudgetPeriodMonth
+}
+
 // DeploymentValues is the central configuration values the coder server.
 type DeploymentValues struct {
 	Verbose             serpent.Bool   `json:"verbose,omitempty"`
@@ -979,6 +988,15 @@ type OIDCConfig struct {
 	// brokers that do not issue a stable `sub` for the same user across
 	// connections.
 	EmailFallback serpent.Bool `json:"email_fallback" typescript:",notnull"`
+
+	// RedirectAllowedHosts is an allowlist of hostnames that may be used as
+	// the host of the OIDC redirect_uri. When non-empty, the redirect_uri is
+	// constructed from the incoming request's Host header (validated against
+	// this list) instead of from AccessURL. Every listed host must also be
+	// registered as a valid redirect URI in the OIDC provider. This setting
+	// is mutually exclusive with RedirectURL: if RedirectURL is set, this
+	// allowlist is ignored.
+	RedirectAllowedHosts serpent.StringArray `json:"redirect_allowed_hosts" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -2113,6 +2131,16 @@ communicating directly.`,
 		Group:       &deploymentGroupAIGatewayProxy,
 		YAML:        "listen_addr",
 	}
+	aiGatewayProxyTarget := serpent.Option{
+		Name:        "AI Gateway Proxy Target",
+		Description: "Base URL of the AI Gateway to forward intercepted requests to. Defaults to the embedded AI Gateway address at the Coder access URL plus /api/v2/ai-gateway.",
+		Flag:        "ai-gateway-proxy-target",
+		Env:         "CODER_AI_GATEWAY_PROXY_TARGET",
+		Value:       &c.AI.BridgeProxyConfig.Target,
+		Default:     "",
+		Group:       &deploymentGroupAIGatewayProxy,
+		YAML:        "target",
+	}
 	aiGatewayProxyTLSCertFile := serpent.Option{
 		Name:        "AI Gateway Proxy TLS Certificate File",
 		Description: "Path to the TLS certificate file for the AI Gateway Proxy listener. Must be set together with AI Gateway Proxy TLS Key File.",
@@ -2658,7 +2686,7 @@ communicating directly.`,
 		},
 		{
 			Name:        "OAuth2 GitHub Allowed Teams",
-			Description: "Teams inside organizations the user must be a member of to Login with GitHub. Structured as: <organization-name>/<team-slug>.",
+			Description: "Teams inside organizations the user must be a member of to Login with GitHub. Structured as: `<organization-name>/<team-slug>`.",
 			Flag:        "oauth2-github-allowed-teams",
 			Env:         "CODER_OAUTH2_GITHUB_ALLOWED_TEAMS",
 			Value:       &c.OAuth2.Github.AllowedTeams,
@@ -3053,6 +3081,21 @@ communicating directly.`,
 			YAML:   "dangerousOidcEmailFallback",
 			Value:  &c.OIDC.EmailFallback,
 			Group:  &deploymentGroupOIDC,
+			Hidden: true,
+		},
+		{
+			Name: "OIDC Redirect Allowed Hosts",
+			Description: "An allowlist of hostnames that may be used as the host of the OIDC redirect_uri. " +
+				"When set, the redirect_uri sent to the OIDC provider is built from the incoming request's Host header " +
+				"(validated against this list) instead of from access-url. Every listed host must also be registered " +
+				"as a valid redirect URI in the OIDC provider. Ignored when oidc-redirect-url is set.",
+			Flag:    "oidc-redirect-allowed-hosts",
+			Env:     "CODER_OIDC_REDIRECT_ALLOWED_HOSTS",
+			YAML:    "oidcRedirectAllowedHosts",
+			Default: "",
+			Value:   &c.OIDC.RedirectAllowedHosts,
+			Group:   &deploymentGroupOIDC,
+			// Niche feature for multi-domain deployments. Surface only to operators who need it.
 			Hidden: true,
 		},
 		// Telemetry settings
@@ -4252,7 +4295,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: AI Gateway Routing Enabled",
-			Description: "Route chat model requests through AI Gateway when both chat routing and AI Gateway are enabled. Otherwise, chat calls AI providers directly. Pending chats without API key metadata may need a retry or temporary direct routing.",
+			Description: "Deprecated: AI Gateway routing is now the only routing path. Setting this value has no effect. This option will be removed in a future release.",
 			Flag:        "chat-ai-gateway-routing-enabled",
 			Env:         "CODER_CHAT_AI_GATEWAY_ROUTING_ENABLED",
 			Value:       &c.AI.Chat.AIGatewayRoutingEnabled,
@@ -4617,6 +4660,7 @@ Write out the current server config as YAML to stdout.`,
 			UseInstead:  serpent.OptionSet{aiGatewayProxyListenAddr},
 		},
 		aiGatewayProxyListenAddr,
+		aiGatewayProxyTarget,
 		{
 			Name:        "AI Bridge Proxy TLS Certificate File",
 			Description: "Deprecated: use --ai-gateway-proxy-tls-cert-file or CODER_AI_GATEWAY_PROXY_TLS_CERT_FILE instead. Path to the TLS certificate file for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS Key File.",
@@ -4830,13 +4874,13 @@ Write out the current server config as YAML to stdout.`,
 
 type AIBridgeConfig struct {
 	Enabled serpent.Bool `json:"enabled" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	// Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
 	LegacyOpenAI AIBridgeOpenAIConfig `json:"openai" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	// Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
 	LegacyAnthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	// Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
 	LegacyBedrock AIBridgeBedrockConfig `json:"bedrock" typescript:",notnull"`
-	// Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>
+	// Providers holds provider instances populated from `CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>`
 	// env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
 	Providers []AIProviderConfig `json:"providers,omitempty"`
 	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
@@ -4918,6 +4962,7 @@ type AIProviderConfig struct {
 type AIBridgeProxyConfig struct {
 	Enabled             serpent.Bool        `json:"enabled" typescript:",notnull"`
 	ListenAddr          serpent.String      `json:"listen_addr" typescript:",notnull"`
+	Target              serpent.String      `json:"target" typescript:",notnull"`
 	TLSCertFile         serpent.String      `json:"tls_cert_file" typescript:",notnull"`
 	TLSKeyFile          serpent.String      `json:"tls_key_file" typescript:",notnull"`
 	MITMCertFile        serpent.String      `json:"cert_file" typescript:",notnull"`
@@ -4930,9 +4975,11 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize        serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
-	DebugLoggingEnabled     serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
-	AIGatewayRoutingEnabled serpent.Bool  `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
+	AcquireBatchSize    serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
+	DebugLoggingEnabled serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
+	// Deprecated: AI Gateway routing is now the only routing path. Setting this
+	// value has no effect. This option will be removed in a future release.
+	AIGatewayRoutingEnabled serpent.Bool `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
 }
 
 type AIConfig struct {
@@ -5197,7 +5244,8 @@ const (
 	ExperimentNATSPubsub            Experiment = "nats_pubsub"             // Enables embedded NATS pubsub.
 	ExperimentMinimumImplicitMember Experiment = "minimum-implicit-member" // Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.
 	ExperimentAIGatewayCostControl  Experiment = "ai-gateway-cost-control" // Enables AI Gateway cost control functionality.
-	ExperimentAgentAppTabs          Experiment = "agent-app-tabs"          // Enables workspace-app and port preview tabs in the Coder Agents right panel.
+	ExperimentChatAdvisor           Experiment = "chat-advisor"            // Enables the advisor tool for root agent chats.
+	ExperimentChatVirtualDesktop    Experiment = "chat-virtual-desktop"    // Enables virtual desktop and computer use provider for agents.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5222,8 +5270,10 @@ func (e Experiment) DisplayName() string {
 		return "Gateway Accounts (minimum implicit member)"
 	case ExperimentAIGatewayCostControl:
 		return "AI Gateway Cost Control"
-	case ExperimentAgentAppTabs:
-		return "Coder Agents App and Port Tabs"
+	case ExperimentChatAdvisor:
+		return "Chat Advisor"
+	case ExperimentChatVirtualDesktop:
+		return "Chat Virtual Desktop"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5244,7 +5294,8 @@ var ExperimentsKnown = Experiments{
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentMinimumImplicitMember,
 	ExperimentAIGatewayCostControl,
-	ExperimentAgentAppTabs,
+	ExperimentChatAdvisor,
+	ExperimentChatVirtualDesktop,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
@@ -5482,6 +5533,12 @@ const (
 	CryptoKeyFeatureWorkspaceAppsToken CryptoKeyFeature = "workspace_apps_token"
 	CryptoKeyFeatureOIDCConvert        CryptoKeyFeature = "oidc_convert"
 	CryptoKeyFeatureTailnetResume      CryptoKeyFeature = "tailnet_resume"
+	// CryptoKeyFeatureNATSCA is the CA that signs NATS cluster mTLS leaf
+	// certificates. Its secret is a PEM cert+key bundle (not a hex secret like
+	// the other features) and contains a private key, so it must never be
+	// served over the API. It is deliberately excluded from
+	// whitelistedCryptoKeyFeatures in enterprise/coderd/workspaceproxy.go.
+	CryptoKeyFeatureNATSCA CryptoKeyFeature = "nats_ca"
 )
 
 type CryptoKey struct {

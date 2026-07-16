@@ -1,5 +1,8 @@
 import { ChevronRightIcon } from "lucide-react";
-import type { AIProvider } from "#/api/typesGenerated";
+import {
+	AgentsUnsupportedProviderTypes,
+	type AIProvider,
+} from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Badge } from "#/components/Badge/Badge";
@@ -32,7 +35,10 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 							size="lg"
 							className="flex shrink-0 items-center justify-center"
 						>
-							<ProviderIcon provider={getProviderDisplayType(provider)} />
+							<ProviderIcon
+								provider={getProviderDisplayType(provider)}
+								icon={provider.icon}
+							/>
 						</Avatar>
 					}
 				/>
@@ -46,7 +52,17 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 				</span>
 			</TableCell>
 			<TableCell>
-				{provider.enabled && <Badge variant="default">Enabled</Badge>}
+				<div className="flex flex-wrap items-center gap-1">
+					{provider.enabled && <Badge variant="default">Enabled</Badge>}
+					{AgentsUnsupportedProviderTypes.some((t) => t === provider.type) && (
+						<Badge
+							variant="info"
+							title="This provider works with the AI Gateway proxy but Coder Agents can't use it."
+						>
+							Not supported in Agents
+						</Badge>
+					)}
+				</div>
 			</TableCell>
 			<TableCell className="w-10 text-center">
 				<div className="flex justify-end items-center gap-8 pr-4">

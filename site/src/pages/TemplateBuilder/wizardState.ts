@@ -1,4 +1,5 @@
 import type {
+	TemplateBuilderBase,
 	TemplateBuilderComposeModule,
 	TemplateBuilderComposeRequest,
 	TemplateBuilderCreateTemplateRequest,
@@ -19,6 +20,23 @@ export type SelectedBaseMeta = {
 };
 
 /**
+ * Maps an API TemplateBuilderBase to the UI-only SelectedBaseMeta.
+ */
+export function toSelectedBaseMeta(
+	base: TemplateBuilderBase,
+): SelectedBaseMeta {
+	return {
+		id: base.id,
+		name: base.name,
+		iconUrl: base.icon,
+		os: base.os,
+		hasParameters:
+			base.variables?.length > 0 && base.variables?.some((v) => !v.sensitive),
+		hasPrerequisites: Boolean(base.prerequisites?.length),
+	};
+}
+
+/**
  * UI-only metadata for a selected module.
  * Kept separate from the API request payload.
  */
@@ -34,6 +52,7 @@ export type TemplateBuilderWizardState = {
 	baseVariableValues: Record<string, string>;
 	modules: TemplateBuilderComposeModule[];
 	organizationId?: string;
+	hasProvisioners: boolean | undefined;
 	name: string;
 	displayName: string;
 	description: string;
@@ -46,6 +65,7 @@ export const initialWizardState: TemplateBuilderWizardState = {
 	baseTemplateId: null,
 	baseVariableValues: {},
 	modules: [],
+	hasProvisioners: undefined,
 	name: "",
 	displayName: "",
 	description: "",
@@ -53,6 +73,23 @@ export const initialWizardState: TemplateBuilderWizardState = {
 	selectedBase: null,
 	selectedModules: [],
 };
+
+/**
+ * Builds the initial wizard state, optionally preselecting a base
+ * template.
+ */
+export function initWizardState(
+	preselectedBase?: SelectedBaseMeta,
+): TemplateBuilderWizardState {
+	if (!preselectedBase) {
+		return initialWizardState;
+	}
+	return {
+		...initialWizardState,
+		baseTemplateId: preselectedBase.id,
+		selectedBase: preselectedBase,
+	};
+}
 
 export type WizardAction =
 	| { type: "SET_BASE"; base: SelectedBaseMeta }
@@ -72,6 +109,8 @@ export type WizardAction =
 			field: "organizationId" | "name" | "displayName" | "description" | "icon";
 			value: string;
 	  }
+	| { type: "SET_HAS_PROVISIONERS"; value: boolean | undefined }
+	| { type: "RESET_CUSTOMIZATIONS" }
 	| { type: "RESET" };
 
 export function wizardReducer(
@@ -122,6 +161,21 @@ export function wizardReducer(
 			return {
 				...state,
 				[action.field]: action.value,
+			};
+		case "SET_HAS_PROVISIONERS":
+			return {
+				...state,
+				hasProvisioners: action.value,
+			};
+		case "RESET_CUSTOMIZATIONS":
+			return {
+				...state,
+				organizationId: undefined,
+				hasProvisioners: undefined,
+				name: "",
+				displayName: "",
+				description: "",
+				icon: "",
 			};
 		case "RESET":
 			return initialWizardState;

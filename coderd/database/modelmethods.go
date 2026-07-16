@@ -2,7 +2,6 @@ package database
 
 import (
 	"database/sql"
-	"encoding/hex"
 	"fmt"
 	"slices"
 	"sort"
@@ -245,6 +244,10 @@ func (c ChatFile) RBACObject() rbac.Object {
 }
 
 func (c GetChatFileMetadataByChatIDRow) RBACObject() rbac.Object {
+	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
+}
+
+func (c GetChatFileDataPrefixesByIDsRow) RBACObject() rbac.Object {
 	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
 }
 
@@ -867,10 +870,6 @@ func (r GetAuthorizationUserRolesRow) RoleNames() ([]rbac.RoleIdentifier, error)
 
 func (k CryptoKey) ExpiresAt(keyDuration time.Duration) time.Time {
 	return k.StartsAt.Add(keyDuration).UTC()
-}
-
-func (k CryptoKey) DecodeString() ([]byte, error) {
-	return hex.DecodeString(k.Secret.String)
 }
 
 func (k CryptoKey) CanSign(now time.Time) bool {

@@ -452,7 +452,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 							return (
 								<div key={usage.slug} className="flex items-center gap-6">
 									<div className="flex items-center gap-2">
-										<div className="flex justify-center items-center w-5 h-5">
+										<div className="flex justify-center items-center size-5">
 											<ExternalImage
 												src={usage.icon}
 												alt=""
@@ -599,7 +599,7 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 		return (
 			<div className="flex items-center gap-4">
 				{icon && (
-					<div className="leading-none w-4 h-4">
+					<div className="leading-none size-4">
 						<ExternalImage
 							alt=""
 							src={icon}

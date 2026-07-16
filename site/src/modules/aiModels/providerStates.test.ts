@@ -9,7 +9,6 @@ import {
 	canManageProviderModels,
 	deriveProviderStates,
 	type ProviderState,
-	resolveModelProviderKey,
 } from "./providerStates";
 
 const baseProviderState: ProviderState = {
@@ -28,7 +27,7 @@ const baseProviderState: ProviderState = {
 };
 
 describe("deriveProviderStates", () => {
-	it("orders provider configs first, then catalog-only, then model-only providers", () => {
+	it("orders provider configs first, then catalog-only providers", () => {
 		const providerConfigs = [
 			{
 				...MockChatProviderConfig,
@@ -42,24 +41,16 @@ describe("deriveProviderStates", () => {
 				{ ...MockChatModelProvider, provider: "anthropic" },
 				{ ...MockChatModelProvider, provider: "google" },
 			],
+			unsupported_providers: [],
 		};
-		const modelConfigs = [
-			{ ...MockChatModelConfig, id: "m-vercel", provider: "vercel" },
-		];
 
-		const states = deriveProviderStates(modelConfigs, providerConfigs, catalog);
+		const states = deriveProviderStates([], providerConfigs, catalog);
 
-		expect(states.map((s) => s.provider)).toEqual([
-			"anthropic",
-			"google",
-			"vercel",
-		]);
+		expect(states.map((s) => s.provider)).toEqual(["anthropic", "google"]);
 		expect(states[0].key).toBe("prov-anthropic");
 		expect(states[1].key).toBe("google");
-		expect(states[2].key).toBe("vercel");
 		expect(states[0].hasEffectiveAPIKey).toBe(true);
 		expect(states[1].hasEffectiveAPIKey).toBe(true);
-		expect(states[2].hasEffectiveAPIKey).toBe(false);
 	});
 
 	it("matches model configs to provider configs by ai_provider_id", () => {
@@ -70,10 +61,9 @@ describe("deriveProviderStates", () => {
 			{
 				...MockChatModelConfig,
 				id: "m1",
-				provider: "openai",
 				ai_provider_id: "prov-openai",
 			},
-			{ ...MockChatModelConfig, id: "m2", provider: "openai" },
+			{ ...MockChatModelConfig, id: "m2", ai_provider_id: "prov-openai" },
 		];
 
 		const states = deriveProviderStates(modelConfigs, providerConfigs, null);
@@ -99,13 +89,13 @@ describe("deriveProviderStates", () => {
 		expect(states[0].hasEffectiveAPIKey).toBe(true);
 	});
 
-	it("drops models without ai_provider_id when multiple configs exist for the same provider", () => {
+	it("drops models without ai_provider_id", () => {
 		const providerConfigs = [
 			{ ...MockChatProviderConfig, id: "prov-a", provider: "openai" },
 			{ ...MockChatProviderConfig, id: "prov-b", provider: "openai" },
 		];
 		const modelConfigs = [
-			{ ...MockChatModelConfig, id: "m1", provider: "openai" },
+			{ ...MockChatModelConfig, id: "m1", ai_provider_id: "" },
 		];
 
 		const states = deriveProviderStates(modelConfigs, providerConfigs, null);
@@ -118,6 +108,7 @@ describe("deriveProviderStates", () => {
 			providers: [
 				{ ...MockChatModelProvider, provider: "openai", available: true },
 			],
+			unsupported_providers: [],
 		};
 
 		const states = deriveProviderStates([], null, catalog);
@@ -154,6 +145,7 @@ describe("deriveProviderStates", () => {
 					unavailable_reason: "fetch_failed",
 				},
 			],
+			unsupported_providers: [],
 		};
 
 		const states = deriveProviderStates([], null, catalog);
@@ -186,6 +178,7 @@ describe("deriveProviderStates", () => {
 					],
 				},
 			],
+			unsupported_providers: [],
 		};
 
 		const states = deriveProviderStates([], providerConfigs, catalog);
@@ -234,49 +227,5 @@ describe("canManageProviderModels", () => {
 
 	it("returns false for undefined provider state", () => {
 		expect(canManageProviderModels(undefined)).toBe(false);
-	});
-});
-
-describe("resolveModelProviderKey", () => {
-	const states: ProviderState[] = [
-		{ ...baseProviderState, key: "prov-a", provider: "openai" },
-		{ ...baseProviderState, key: "prov-b", provider: "openai" },
-		{ ...baseProviderState, key: "prov-anthropic", provider: "anthropic" },
-	];
-
-	it("prefers ai_provider_id when present", () => {
-		expect(
-			resolveModelProviderKey(
-				{ ...MockChatModelConfig, ai_provider_id: "prov-explicit" },
-				states,
-			),
-		).toBe("prov-explicit");
-	});
-
-	it("falls back to the single matching provider state key", () => {
-		expect(
-			resolveModelProviderKey(
-				{ ...MockChatModelConfig, provider: "anthropic" },
-				states,
-			),
-		).toBe("prov-anthropic");
-	});
-
-	it("returns an empty key when multiple states match the provider", () => {
-		expect(
-			resolveModelProviderKey(
-				{ ...MockChatModelConfig, provider: "openai" },
-				states,
-			),
-		).toBe("");
-	});
-
-	it("falls back to the provider name when no states match", () => {
-		expect(
-			resolveModelProviderKey(
-				{ ...MockChatModelConfig, provider: "google" },
-				states,
-			),
-		).toBe("google");
 	});
 });

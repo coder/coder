@@ -10,6 +10,7 @@ import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/Pr
 type ModelRowProps = {
 	model: ChatModelConfig;
 	providerLabel: string;
+	providerTypeByID: ReadonlyMap<string, string>;
 	onClick: () => void;
 };
 
@@ -23,6 +24,7 @@ const formatContextLimit = (contextLimit: number): string => {
 export const ModelRow: FC<ModelRowProps> = ({
 	model,
 	providerLabel,
+	providerTypeByID,
 	onClick,
 }) => {
 	const clickableProps = useClickableTableRow({ onClick });
@@ -36,14 +38,23 @@ export const ModelRow: FC<ModelRowProps> = ({
 						size="lg"
 						className="flex shrink-0 items-center justify-center"
 					>
-						<ProviderIcon provider={model.provider} />
+						<ProviderIcon
+							provider={providerTypeByID.get(model.ai_provider_id) ?? ""}
+						/>
 					</Avatar>
-					<span
-						className="truncate text-sm font-medium leading-6 text-content-primary"
-						title={displayName}
-					>
-						{displayName}
-					</span>
+					<div className="flex min-w-0 items-center gap-2">
+						<span
+							className="truncate text-sm font-medium leading-6 text-content-primary"
+							title={displayName}
+						>
+							{displayName}
+						</span>
+						{model.is_default && (
+							<Badge variant="default" className="shrink-0">
+								Default
+							</Badge>
+						)}
+					</div>
 				</div>
 			</TableCell>
 			<TableCell className="min-w-0">
@@ -60,12 +71,9 @@ export const ModelRow: FC<ModelRowProps> = ({
 				</span>
 			</TableCell>
 			<TableCell>
-				<div className="flex flex-wrap items-center gap-2">
-					{model.is_default && <Badge variant="default">Default</Badge>}
-					<Badge variant="default">
-						{model.enabled ? "Enabled" : "Disabled"}
-					</Badge>
-				</div>
+				<Badge variant="default">
+					{model.enabled ? "Enabled" : "Disabled"}
+				</Badge>
 			</TableCell>
 			<TableCell className="w-10 text-center">
 				<div className="flex justify-end items-center gap-8 pr-4">

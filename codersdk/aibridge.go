@@ -12,6 +12,49 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// AIBudgetLimitSource identifies which tier produced the user's
+// effective budget limit.
+type AIBudgetLimitSource string
+
+const (
+	// AIBudgetLimitSourceUserOverride indicates the limit came from a
+	// per-user override.
+	AIBudgetLimitSourceUserOverride AIBudgetLimitSource = "user_override"
+	// AIBudgetLimitSourceGroup indicates the limit came from a group
+	// budget selected by the deployment budget policy.
+	AIBudgetLimitSourceGroup AIBudgetLimitSource = "group"
+)
+
+// UserAIBudgetSummary is the effective AI budget for a user. When no
+// budget applies, all fields except UserID are null.
+type UserAIBudgetSummary struct {
+	UserID uuid.UUID `json:"user_id" format:"uuid"`
+	// EffectiveGroupID is the group the spend is attributed to. Null when
+	// no budget applies.
+	EffectiveGroupID *uuid.UUID `json:"effective_group_id" format:"uuid"`
+	// SpendLimitMicros is the effective spend limit in micro-units.
+	// Null when no budget applies to the user (unlimited).
+	SpendLimitMicros *int64 `json:"spend_limit_micros"`
+	// LimitSource identifies which tier produced the limit. Null when no
+	// budget applies.
+	LimitSource *AIBudgetLimitSource `json:"limit_source"`
+}
+
+// UserAISpendStatus is the current AI spend snapshot for a user within
+// the active budget period.
+type UserAISpendStatus struct {
+	UserAIBudgetSummary
+	// CurrentSpendMicros is the user's spend on their effective group over
+	// the current budget period.
+	CurrentSpendMicros int64 `json:"current_spend_micros"`
+	// PeriodStart is the inclusive lower bound of the current budget
+	// period.
+	PeriodStart time.Time `json:"period_start" format:"date-time"`
+	// PeriodEnd is the exclusive upper bound of the current budget
+	// period.
+	PeriodEnd time.Time `json:"period_end" format:"date-time"`
+}
+
 type AIBridgeSession struct {
 	ID                string                           `json:"id"`
 	Initiator         MinimalUser                      `json:"initiator"`
@@ -80,6 +123,13 @@ type AIBridgeThread struct {
 	EndedAt        *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsage     AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
 	AgenticActions []AIBridgeAgenticAction          `json:"agentic_actions"`
+	// ErrorType is the categorized terminal upstream error from the root
+	// interception, or nil when the interception succeeded. See the
+	// aibridge_interception_error_type enum for possible values.
+	ErrorType *string `json:"error_type,omitempty"`
+	// ErrorMessage is the raw terminal upstream error message from the root
+	// interception. Nil when the interception succeeded.
+	ErrorMessage *string `json:"error_message,omitempty"`
 	// AgentFirewallSessionID links this thread to an agent firewall
 	// confinement session. Nil when the request did not pass through
 	// the agent firewall.
@@ -374,4 +424,23 @@ func (c *Client) DeleteUserAIBudgetOverride(ctx context.Context, user uuid.UUID)
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// UserAISpendStatus returns the current AI spend snapshot for the given user
+// within the active budget period.
+func (c *Client) UserAISpendStatus(ctx context.Context, user uuid.UUID) (UserAISpendStatus, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/users/%s/ai/spend", user.String()),
+		nil,
+	)
+	if err != nil {
+		return UserAISpendStatus{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return UserAISpendStatus{}, ReadBodyAsError(res)
+	}
+	var resp UserAISpendStatus
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }

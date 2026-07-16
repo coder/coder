@@ -200,9 +200,6 @@ func assistantMessage(
 	if step.Runtime > 0 {
 		msg.RuntimeMs = sql.NullInt64{Int64: step.Runtime.Milliseconds(), Valid: true}
 	}
-	if step.ProviderResponseID != "" {
-		msg.ProviderResponseID = sql.NullString{String: step.ProviderResponseID, Valid: true}
-	}
 	return msg
 }
 

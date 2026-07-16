@@ -90,7 +90,7 @@ outranks a lower tier, regardless of usage.
 Within a relevance tier, or when no query is given, templates are ordered by
 an affinity score:
 
-```text
+```txt
 affinity = 10 x (active + 0.5 x deleted) x 0.5^(days_since_last_use / 14)
          + ln(1 + active_developers)
 ```

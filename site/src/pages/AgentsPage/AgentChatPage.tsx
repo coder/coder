@@ -1,4 +1,11 @@
-import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+	type FC,
+	useEffect,
+	useEffectEvent,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 
 import {
 	useInfiniteQuery,
@@ -19,7 +26,6 @@ import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
-	chatDesktopEnabled,
 	chatKey,
 	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
@@ -35,6 +41,7 @@ import {
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
 	userChatDebugLogging,
+	userChatProviderConfigs,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
@@ -48,6 +55,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
 import {
 	getDefaultOrganizationName,
 	useDashboard,
@@ -88,13 +96,14 @@ import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
 	countConfiguredProviderConfigs,
-	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
-	hasConfiguredModelsInCatalog,
+	getUnsupportedProviderNames,
 	hasUserFixableProviders,
 	resolveModelOptionId,
+	resolveModelSelector,
 } from "./utils/modelOptions";
 import { parsePullRequestUrl } from "./utils/pullRequest";
+import { pickReasoningEffort } from "./utils/reasoningEffort";
 import {
 	type ChatDetailError,
 	formatUsageLimitMessage,
@@ -198,7 +207,7 @@ export const runPromoteQueuedMessage = async (params: {
 		);
 		store.clearStreamState();
 		store.clearStreamError();
-		store.setChatStatus("pending");
+		store.setChatStatus("running");
 	});
 	if (agentId) {
 		clearChatErrorReason(agentId);
@@ -704,8 +713,11 @@ const AgentChatPage: FC = () => {
 		requestArchiveAgent,
 		requestArchiveAndDeleteWorkspace,
 		requestUnarchiveAgent,
-		onRegenerateTitle,
-		regeneratingTitleChatIds,
+		requestPinAgent,
+		requestUnpinAgent,
+		isArchiving,
+		archivingChatId,
+		onOpenRenameDialog,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onChatReady,
@@ -713,9 +725,11 @@ const AgentChatPage: FC = () => {
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
 	const { permissions, user: currentUser } = useAuthenticated();
-	const { organizations } = useDashboard();
+	const { organizations, experiments } = useDashboard();
 	const organizationName = getDefaultOrganizationName(organizations);
 	const [selectedModel, setSelectedModel] = useState("");
+	const [selectedReasoningEffort, setSelectedReasoningEffort] = useState("");
+	const isEditReasoningEffortDirtyRef = useRef(false);
 	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
@@ -742,10 +756,6 @@ const AgentChatPage: FC = () => {
 		});
 	};
 
-	const isRegeneratingThisChat = agentId
-		? regeneratingTitleChatIds.includes(agentId)
-		: false;
-
 	const chatQuery = useQuery({
 		...chat(agentId ?? ""),
 		enabled: Boolean(agentId),
@@ -760,6 +770,7 @@ const AgentChatPage: FC = () => {
 		enabled: Boolean(parentChatID),
 	});
 	const workspaceId = chatQuery.data?.workspace_id;
+	const chatAgentId = chatQuery.data?.agent_id;
 	const workspaceQuery = useQuery({
 		...workspaceById(workspaceId ?? ""),
 		enabled: Boolean(workspaceId),
@@ -772,9 +783,9 @@ const AgentChatPage: FC = () => {
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
 	});
+	const userProviderConfigsQuery = useQuery(userChatProviderConfigs());
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const preferencesQuery = useQuery(preferenceSettings());
-	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
@@ -783,7 +794,7 @@ const AgentChatPage: FC = () => {
 		workspace,
 		currentUser.id,
 	);
-	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
+	const desktopEnabled = experiments.includes("chat-virtual-desktop");
 	const debugLoggingEnabled =
 		userDebugLoggingQuery.data?.debug_logging_enabled ?? false;
 
@@ -802,9 +813,15 @@ const AgentChatPage: FC = () => {
 		void mcpServersQuery.refetch();
 	};
 
-	const modelOptions = getModelOptionsFromConfigs(
-		chatModelConfigsQuery.data,
-		chatModelsQuery.data,
+	const {
+		options: modelOptions,
+		isModelCatalogLoading,
+		modelCatalog,
+		hasConfiguredModels,
+	} = resolveModelSelector(
+		chatModelConfigsQuery,
+		chatModelsQuery,
+		userProviderConfigsQuery,
 	);
 	const modelConfigs = chatModelConfigsQuery.data ?? [];
 	const providerCount =
@@ -820,11 +837,42 @@ const AgentChatPage: FC = () => {
 		chatModelConfigsQuery.isSuccess && chatModelsQuery.isSuccess
 			? modelOptions.length
 			: undefined;
-	const modelCatalog = chatModelsQuery.data;
-	const isModelCatalogLoading = chatModelsQuery.isLoading;
+	const unsupportedProviderNames = getUnsupportedProviderNames(
+		chatModelsQuery.data,
+	);
 
 	// Subscribe to live workspace updates so that agent status changes
 	// (e.g. connected/disconnected) are reflected without a page refresh.
+	const applyWatchedWorkspaceUpdate = useEffectEvent(
+		(watchedWorkspaceId: string, next: TypesGen.Workspace) => {
+			queryClient.setQueryData<TypesGen.Workspace | undefined>(
+				workspaceByIdKey(watchedWorkspaceId),
+				(prev) => {
+					// Return the same reference when nothing the UI
+					// reads has changed. This prevents react-query
+					// from notifying subscribers and avoids a full
+					// AgentChatPage re-render on every heartbeat.
+					const prevAgent = getWorkspaceAgent(prev, chatAgentId);
+					const nextAgent = getWorkspaceAgent(next, chatAgentId);
+					if (
+						prev &&
+						prev.latest_build.status === next.latest_build.status &&
+						prev.health.healthy === next.health.healthy &&
+						prev.name === next.name &&
+						prev.owner_name === next.owner_name &&
+						prevAgent?.id === nextAgent?.id &&
+						prevAgent?.status === nextAgent?.status &&
+						prevAgent?.name === nextAgent?.name &&
+						prevAgent?.expanded_directory === nextAgent?.expanded_directory &&
+						prevAgent?.lifecycle_state === nextAgent?.lifecycle_state
+					) {
+						return prev;
+					}
+					return next;
+				},
+			);
+		},
+	);
 	useEffect(() => {
 		if (!workspaceId) {
 			return;
@@ -837,33 +885,9 @@ const AgentChatPage: FC = () => {
 						return;
 					}
 					if (event.parsedMessage.type === "data") {
-						const next = event.parsedMessage.data as TypesGen.Workspace;
-						queryClient.setQueryData<TypesGen.Workspace | undefined>(
-							workspaceByIdKey(workspaceId),
-							(prev) => {
-								// Return the same reference when nothing the UI
-								// reads has changed. This prevents react-query
-								// from notifying subscribers and avoids a full
-								// AgentChatPage re-render on every heartbeat.
-								const prevAgent = getWorkspaceAgent(prev, undefined);
-								const nextAgent = getWorkspaceAgent(next, undefined);
-								if (
-									prev &&
-									prev.latest_build.status === next.latest_build.status &&
-									prev.health.healthy === next.health.healthy &&
-									prev.name === next.name &&
-									prev.owner_name === next.owner_name &&
-									prevAgent?.id === nextAgent?.id &&
-									prevAgent?.status === nextAgent?.status &&
-									prevAgent?.name === nextAgent?.name &&
-									prevAgent?.expanded_directory ===
-										nextAgent?.expanded_directory &&
-									prevAgent?.lifecycle_state === nextAgent?.lifecycle_state
-								) {
-									return prev;
-								}
-								return next;
-							},
+						applyWatchedWorkspaceUpdate(
+							workspaceId,
+							event.parsedMessage.data as TypesGen.Workspace,
 						);
 					}
 				});
@@ -881,7 +905,7 @@ const AgentChatPage: FC = () => {
 		});
 	}, [workspaceId, queryClient]);
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
-	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
+	const workspaceAgent = getWorkspaceAgent(workspace, chatAgentId);
 	const { proxy } = useProxy();
 
 	const chatRecord = chatQuery.data;
@@ -974,7 +998,6 @@ const AgentChatPage: FC = () => {
 					has_more: chatMessagesQuery.data?.pages.at(-1)?.has_more ?? false,
 				}
 			: undefined;
-	const isRegenerateTitleDisabled = isArchived || isRegeneratingThisChat;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
 	// Destructure mutation results directly so the React Compiler
@@ -1050,6 +1073,7 @@ const AgentChatPage: FC = () => {
 		void trackedSync.catch(() => undefined);
 	};
 
+	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const { store, clearStreamError, upsertCacheMessages } = useChatStore({
 		chatID: agentId,
 		chatMessages: chatMessagesList,
@@ -1058,6 +1082,7 @@ const AgentChatPage: FC = () => {
 		chatQueuedMessages,
 		setChatErrorReason,
 		clearChatErrorReason,
+		aiGatewayDisabled,
 	});
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chatRecord?.status ?? null;
@@ -1125,13 +1150,23 @@ const AgentChatPage: FC = () => {
 		return modelOptions[0]?.id ?? "";
 	})();
 
+	const effectiveModelOption = modelOptions.find(
+		(option) => option.id === effectiveSelectedModel,
+	);
+	const effectiveReasoningEffort = effectiveModelOption
+		? pickReasoningEffort(
+				selectedReasoningEffort || chatRecord?.last_reasoning_effort,
+				effectiveModelOption.reasoningEfforts ?? [],
+				effectiveModelOption.reasoningEffortDefault,
+			)
+		: undefined;
+
 	const compressionThreshold = resolveCompactionThreshold(
 		chatLastModelConfigID,
 		userThresholdsQuery.data?.thresholds,
 		modelConfigs,
 	);
 	const hasModelOptions = modelOptions.length > 0;
-	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,
@@ -1150,7 +1185,11 @@ const AgentChatPage: FC = () => {
 	const isChatSettingsPending =
 		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
 	const isInputDisabled =
-		!hasModelOptions || isArchived || isChatSettingsPending || isViewerNotOwner;
+		!hasModelOptions ||
+		isArchived ||
+		isChatSettingsPending ||
+		isViewerNotOwner ||
+		aiGatewayDisabled;
 	const canUpdateChatWorkspace = !isArchived && !isViewerNotOwner;
 	const selectedWorkspaceId = chatQuery.data?.workspace_id ?? null;
 
@@ -1246,6 +1285,12 @@ const AgentChatPage: FC = () => {
 		chatInputRef,
 		inputValueRef,
 	});
+	const handleEditUserMessage = (
+		...args: Parameters<typeof editing.handleEditUserMessage>
+	) => {
+		isEditReasoningEffortDirtyRef.current = false;
+		editing.handleEditUserMessage(...args);
+	};
 
 	const chatTitle = chatQuery.data?.title;
 
@@ -1281,6 +1326,30 @@ const AgentChatPage: FC = () => {
 		}
 		requestUnarchiveAgent(agentId);
 	};
+
+	const handlePinAgentAction = () => {
+		if (!agentId || isArchived) {
+			return;
+		}
+		requestPinAgent(agentId);
+	};
+
+	const handleUnpinAgentAction = () => {
+		if (!agentId || isArchived) {
+			return;
+		}
+		requestUnpinAgent(agentId);
+	};
+
+	const handleOpenRenameDialogAction =
+		onOpenRenameDialog && chatRecord
+			? () => {
+					if (isArchived) {
+						return;
+					}
+					onOpenRenameDialog(chatRecord);
+				}
+			: undefined;
 
 	// Signal ready only after the store has synced fetched messages,
 	// so the DOM actually contains them when the parent scrolls.
@@ -1418,9 +1487,13 @@ const AgentChatPage: FC = () => {
 				pickerModelConfigID !== originalModelConfigID
 					? pickerModelConfigID
 					: undefined;
+			// Omit so the backend preserves the original effort.
 			const request: TypesGen.EditChatMessageRequest = {
 				content,
 				model_config_id: editSelectedModelConfigID,
+				reasoning_effort: isEditReasoningEffortDirtyRef.current
+					? effectiveReasoningEffort
+					: undefined,
 			};
 			const optimisticMessage = originalEditedMessage
 				? buildOptimisticEditedMessage({
@@ -1463,6 +1536,7 @@ const AgentChatPage: FC = () => {
 		const request: CreateChatMessageRequestWithClearablePlanMode = {
 			content,
 			model_config_id: selectedModelConfigID,
+			reasoning_effort: effectiveReasoningEffort,
 			mcp_server_ids:
 				effectiveMCPServerIds.length > 0
 					? [...effectiveMCPServerIds]
@@ -1533,13 +1607,6 @@ const AgentChatPage: FC = () => {
 			editedMessageID,
 		});
 	}
-
-	const handleRegenerateTitle = () => {
-		if (!agentId || isRegenerateTitleDisabled || !onRegenerateTitle) {
-			return;
-		}
-		onRegenerateTitle(agentId);
-	};
 
 	const handleSendAskUserQuestionResponse = async (message: string) => {
 		await submitChatTurn({
@@ -1615,15 +1682,24 @@ const AgentChatPage: FC = () => {
 			workspaceAgent={workspaceAgent}
 			chatBuildId={chatQuery.data?.build_id}
 			store={store}
-			editing={editing}
+			editing={{ ...editing, handleEditUserMessage }}
 			effectiveSelectedModel={effectiveSelectedModel}
 			setSelectedModel={setSelectedModel}
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			modelSelectorHelp={modelSelectorHelp}
+			reasoningEffort={effectiveReasoningEffort}
+			onReasoningEffortChange={(value) => {
+				setSelectedReasoningEffort(value);
+				if (editing.editingMessageId !== null) {
+					isEditReasoningEffortDirtyRef.current = true;
+				}
+			}}
 			canConfigureAgentSetup={permissions.editDeploymentConfig}
 			providerCount={providerCount}
 			modelCount={modelCount}
+			unsupportedProviderNames={unsupportedProviderNames}
+			aiGatewayDisabled={aiGatewayDisabled}
 			hasModelOptions={hasModelOptions}
 			isModelCatalogLoading={isModelCatalogLoading}
 			planModeEnabled={planModeEnabled}
@@ -1658,9 +1734,15 @@ const AgentChatPage: FC = () => {
 			handleArchiveAndDeleteWorkspaceAction={
 				handleArchiveAndDeleteWorkspaceAction
 			}
-			handleRegenerateTitle={handleRegenerateTitle}
-			isRegeneratingTitle={isRegeneratingThisChat}
-			isRegenerateTitleDisabled={isRegenerateTitleDisabled}
+			handlePinAgentAction={handlePinAgentAction}
+			handleUnpinAgentAction={handleUnpinAgentAction}
+			handleOpenRenameDialogAction={handleOpenRenameDialogAction}
+			isArchivingThisChat={
+				isArchiving &&
+				(archivingChatId === undefined || archivingChatId === agentId)
+			}
+			isPinned={(chatRecord?.pin_order ?? 0) > 0}
+			isChildChat={parentChatID !== undefined}
 			urlTransform={urlTransform}
 			scrollContainerRef={scrollContainerRef}
 			scrollToBottomRef={scrollToBottomRef}

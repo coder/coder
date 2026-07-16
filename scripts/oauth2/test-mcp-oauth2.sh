@@ -77,7 +77,7 @@ REDIRECT_URL=$(curl -s -X POST "$AUTH_URL" \
 	-w '\n%{redirect_url}' \
 	-o /dev/null)
 
-CODE=$(echo "$REDIRECT_URL" | grep -oP 'code=\K[^&]+')
+CODE=$(echo "$REDIRECT_URL" | grep -oE 'code=[^&]+' | sed 's/code=//')
 
 if [ -n "$CODE" ]; then
 	echo -e "${GREEN}✓ Got authorization code with PKCE${NC}"
@@ -93,6 +93,7 @@ TOKEN_RESPONSE=$(curl -s -X POST "$BASE_URL/oauth2/tokens" \
 	-d "code=$CODE" \
 	-d "client_id=$CLIENT_ID" \
 	-d "client_secret=$CLIENT_SECRET" \
+	-d "redirect_uri=http://localhost:9876/callback" \
 	-d "code_verifier=$CODE_VERIFIER")
 
 if echo "$TOKEN_RESPONSE" | jq -e '.access_token' >/dev/null; then
@@ -110,7 +111,7 @@ REDIRECT_URL=$(curl -s -X POST "$AUTH_URL" \
 	-H "Coder-Session-Token: $SESSION_TOKEN" \
 	-w '\n%{redirect_url}' \
 	-o /dev/null)
-CODE=$(echo "$REDIRECT_URL" | grep -oP 'code=\K[^&]+')
+CODE=$(echo "$REDIRECT_URL" | grep -oE 'code=[^&]+' | sed 's/code=//')
 
 ERROR_RESPONSE=$(curl -s -X POST "$BASE_URL/oauth2/tokens" \
 	-H "Content-Type: application/x-www-form-urlencoded" \
@@ -118,6 +119,7 @@ ERROR_RESPONSE=$(curl -s -X POST "$BASE_URL/oauth2/tokens" \
 	-d "code=$CODE" \
 	-d "client_id=$CLIENT_ID" \
 	-d "client_secret=$CLIENT_SECRET" \
+	-d "redirect_uri=http://localhost:9876/callback" \
 	-d "code_verifier=wrong-verifier")
 
 if echo "$ERROR_RESPONSE" | jq -e '.error' >/dev/null; then
@@ -130,14 +132,16 @@ fi
 echo -e "${YELLOW}Test 4: Resource Parameter Support${NC}"
 RESOURCE="https://api.example.com"
 STATE=$(openssl rand -hex 16)
-RESOURCE_AUTH_URL="$BASE_URL/oauth2/authorize?client_id=$CLIENT_ID&response_type=code&redirect_uri=http://localhost:9876/callback&state=$STATE&resource=$RESOURCE"
+RESOURCE_CODE_VERIFIER=$(openssl rand -base64 32 | tr -d "=+/" | cut -c -43)
+RESOURCE_CODE_CHALLENGE=$(echo -n "$RESOURCE_CODE_VERIFIER" | openssl dgst -sha256 -binary | base64 | tr -d "=" | tr '+/' '-_')
+RESOURCE_AUTH_URL="$BASE_URL/oauth2/authorize?client_id=$CLIENT_ID&response_type=code&redirect_uri=http://localhost:9876/callback&state=$STATE&resource=$RESOURCE&code_challenge=$RESOURCE_CODE_CHALLENGE&code_challenge_method=S256"
 
 REDIRECT_URL=$(curl -s -X POST "$RESOURCE_AUTH_URL" \
 	-H "Coder-Session-Token: $SESSION_TOKEN" \
 	-w '\n%{redirect_url}' \
 	-o /dev/null)
 
-CODE=$(echo "$REDIRECT_URL" | grep -oP 'code=\K[^&]+')
+CODE=$(echo "$REDIRECT_URL" | grep -oE 'code=[^&]+' | sed 's/code=//')
 
 TOKEN_RESPONSE=$(curl -s -X POST "$BASE_URL/oauth2/tokens" \
 	-H "Content-Type: application/x-www-form-urlencoded" \
@@ -145,6 +149,8 @@ TOKEN_RESPONSE=$(curl -s -X POST "$BASE_URL/oauth2/tokens" \
 	-d "code=$CODE" \
 	-d "client_id=$CLIENT_ID" \
 	-d "client_secret=$CLIENT_SECRET" \
+	-d "redirect_uri=http://localhost:9876/callback" \
+	-d "code_verifier=$RESOURCE_CODE_VERIFIER" \
 	-d "resource=$RESOURCE")
 
 if echo "$TOKEN_RESPONSE" | jq -e '.access_token' >/dev/null; then

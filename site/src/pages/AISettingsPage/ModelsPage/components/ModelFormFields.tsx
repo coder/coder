@@ -29,6 +29,7 @@ import {
 	GeneralModelConfigFields,
 	ModelConfigFields,
 	PricingModelConfigFields,
+	ReasoningEffortConfigFields,
 } from "#/pages/AgentsPage/components/ChatModelAdminPanel/ModelConfigFields";
 import { ModelIdentifierField } from "#/pages/AgentsPage/components/ChatModelAdminPanel/ModelIdentifierField";
 import type {
@@ -172,7 +173,7 @@ export const ModelFormFields: FC<{
 								}
 								disabled={setDefaultDisabled}
 							/>
-							Set as default model
+							Set as Coder Agents default model
 						</label>
 					</div>
 					<div className="grid gap-1.5">
@@ -239,6 +240,12 @@ export const ModelFormFields: FC<{
 							</InputGroupAddon>
 						</InputGroup>
 					</div>
+					<ReasoningEffortConfigFields
+						provider={selectedProviderState.provider}
+						form={form}
+						fieldErrors={modelConfigFormBuildResult.fieldErrors}
+						disabled={isSaving}
+					/>
 				</div>
 
 				<div className="overflow-hidden rounded-lg border border-solid border-border">

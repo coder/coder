@@ -4,28 +4,22 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	openaicomputeruse "github.com/coder/coder/v2/coderd/x/chatd/chatopenai/computeruse"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
 )
 
 const (
-	// ComputerUseProviderAnthropic identifies Anthropic computer use.
-	ComputerUseProviderAnthropic = "anthropic"
-	// ComputerUseProviderOpenAI identifies OpenAI computer use.
-	ComputerUseProviderOpenAI = "openai"
-	// ComputerUseModelProviderDefault is the default model provider name for
-	// computer use, equal to ComputerUseProviderAnthropic.
-	ComputerUseModelProviderDefault = ComputerUseProviderAnthropic
 	// ComputerUseAnthropicModelName is the default Anthropic model used for
 	// computer use subagents.
 	ComputerUseAnthropicModelName = "claude-opus-4-6"
@@ -36,33 +30,29 @@ const (
 // SupportedComputerUseProviders returns the providers supported by computer use.
 // The returned slice is a fresh copy and safe to mutate.
 func SupportedComputerUseProviders() []string {
-	return []string{
-		ComputerUseProviderAnthropic,
-		ComputerUseProviderOpenAI,
+	providers := make([]string, len(codersdk.AllChatComputerUseProviders))
+	for i, p := range codersdk.AllChatComputerUseProviders {
+		providers[i] = string(p)
 	}
-}
-
-// IsSupportedComputerUseProvider reports whether provider supports computer use.
-func IsSupportedComputerUseProvider(provider string) bool {
-	return slices.Contains(SupportedComputerUseProviders(), provider)
+	return providers
 }
 
 // DefaultComputerUseProvider returns the effective computer use provider.
-func DefaultComputerUseProvider(provider string) string {
+func DefaultComputerUseProvider(provider codersdk.ChatComputerUseProvider) codersdk.ChatComputerUseProvider {
 	if provider == "" {
-		return ComputerUseProviderAnthropic
+		return codersdk.ChatComputerUseProviderAnthropic
 	}
 	return provider
 }
 
 // DefaultComputerUseModel returns the default model for a computer use provider.
-func DefaultComputerUseModel(provider string) (modelProvider, modelName string, ok bool) {
+func DefaultComputerUseModel(provider codersdk.ChatComputerUseProvider) (modelProvider, modelName string, ok bool) {
 	switch DefaultComputerUseProvider(provider) {
-	case ComputerUseProviderAnthropic:
-		return ComputerUseModelProviderDefault, ComputerUseAnthropicModelName, true
-	case ComputerUseProviderOpenAI:
+	case codersdk.ChatComputerUseProviderAnthropic:
+		return fantasyanthropic.Name, ComputerUseAnthropicModelName, true
+	case codersdk.ChatComputerUseProviderOpenAI:
 		// Keep OpenAI isolated here because computer-use models may advance.
-		return ComputerUseProviderOpenAI, ComputerUseOpenAIModelName, true
+		return fantasyopenai.Name, ComputerUseOpenAIModelName, true
 	default:
 		return "", "", false
 	}
@@ -70,9 +60,9 @@ func DefaultComputerUseModel(provider string) (modelProvider, modelName string, 
 
 // DefaultComputerUseDesktopGeometry returns provider-specific model-facing
 // desktop geometry for computer use.
-func DefaultComputerUseDesktopGeometry(provider string) workspacesdk.DesktopGeometry {
+func DefaultComputerUseDesktopGeometry(provider codersdk.ChatComputerUseProvider) workspacesdk.DesktopGeometry {
 	switch DefaultComputerUseProvider(provider) {
-	case ComputerUseProviderOpenAI:
+	case codersdk.ChatComputerUseProviderOpenAI:
 		return workspacesdk.DefaultOpenAIComputerUseDesktopGeometry()
 	default:
 		return workspacesdk.DefaultDesktopGeometry()
@@ -81,7 +71,7 @@ func DefaultComputerUseDesktopGeometry(provider string) workspacesdk.DesktopGeom
 
 // computerUseTool implements fantasy.AgentTool and chatloop.ToolDefiner.
 type computerUseTool struct {
-	provider         string
+	provider         codersdk.ChatComputerUseProvider
 	declaredWidth    int
 	declaredHeight   int
 	getWorkspaceConn func(ctx context.Context) (workspacesdk.AgentConn, error)
@@ -96,7 +86,7 @@ type computerUseTool struct {
 // are the model-facing desktop dimensions advertised to providers and requested
 // for screenshots.
 func NewComputerUseTool(
-	provider string,
+	provider codersdk.ChatComputerUseProvider,
 	declaredWidth, declaredHeight int,
 	getWorkspaceConn func(ctx context.Context) (workspacesdk.AgentConn, error),
 	storeFile StoreFileFunc,
@@ -127,9 +117,9 @@ func (*computerUseTool) Info() fantasy.ToolInfo {
 
 // ComputerUseProviderTool creates the provider-defined computer-use tool
 // definition using the declared model-facing desktop geometry.
-func ComputerUseProviderTool(provider string, declaredWidth, declaredHeight int) (fantasy.Tool, error) {
+func ComputerUseProviderTool(provider codersdk.ChatComputerUseProvider, declaredWidth, declaredHeight int) (fantasy.Tool, error) {
 	switch DefaultComputerUseProvider(provider) {
-	case ComputerUseProviderAnthropic:
+	case codersdk.ChatComputerUseProviderAnthropic:
 		// The run callback is nil because execution is handled separately
 		// by the AgentTool runner in the chatloop. We extract just the
 		// provider-defined tool definition.
@@ -141,7 +131,7 @@ func ComputerUseProviderTool(provider string, declaredWidth, declaredHeight int)
 			},
 			nil,
 		).Definition(), nil
-	case ComputerUseProviderOpenAI:
+	case codersdk.ChatComputerUseProviderOpenAI:
 		// OpenAI's GA computer tool schema does not accept display
 		// dimensions. The declared geometry is applied through screenshot
 		// sizing and desktop action coordinate scaling.
@@ -162,9 +152,9 @@ func (t *computerUseTool) SetProviderOptions(opts fantasy.ProviderOptions) {
 
 func (t *computerUseTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 	switch DefaultComputerUseProvider(t.provider) {
-	case ComputerUseProviderAnthropic:
+	case codersdk.ChatComputerUseProviderAnthropic:
 		return t.runAnthropicComputerUse(ctx, call)
-	case ComputerUseProviderOpenAI:
+	case codersdk.ChatComputerUseProviderOpenAI:
 		return t.runOpenAIComputerUse(ctx, call)
 	default:
 		return fantasy.NewTextErrorResponse(fmt.Sprintf(

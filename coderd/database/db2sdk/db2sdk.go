@@ -2,12 +2,12 @@
 package db2sdk
 
 import (
+	"cmp"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/url"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -59,6 +59,7 @@ func AIProvider(row database.AIProvider, keys []database.AIProviderKey) (codersd
 		Type:        codersdk.AIProviderType(row.Type),
 		Name:        row.Name,
 		DisplayName: display,
+		Icon:        row.Icon,
 		Enabled:     row.Enabled,
 		BaseURL:     row.BaseUrl,
 		APIKeys:     maskAIProviderKeys(keys),
@@ -576,8 +577,8 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	if node != nil {
 		workspaceAgent.DERPLatency = map[string]codersdk.DERPRegion{}
 		for rawRegion, latency := range node.DERPLatency {
-			regionParts := strings.SplitN(rawRegion, "-", 2)
-			regionID, err := strconv.Atoi(regionParts[0])
+			regionIDStr, _, _ := strings.Cut(rawRegion, "-")
+			regionID, err := strconv.Atoi(regionIDStr)
 			if err != nil {
 				return codersdk.WorkspaceAgent{}, xerrors.Errorf("convert derp region id %q: %w", rawRegion, err)
 			}
@@ -667,14 +668,12 @@ func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerNa
 }
 
 func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus, agent database.WorkspaceAgent, ownerName string, workspace database.WorkspaceTable) []codersdk.WorkspaceApp {
-	sort.Slice(dbApps, func(i, j int) bool {
-		if dbApps[i].DisplayOrder != dbApps[j].DisplayOrder {
-			return dbApps[i].DisplayOrder < dbApps[j].DisplayOrder
-		}
-		if dbApps[i].DisplayName != dbApps[j].DisplayName {
-			return dbApps[i].DisplayName < dbApps[j].DisplayName
-		}
-		return dbApps[i].Slug < dbApps[j].Slug
+	slices.SortFunc(dbApps, func(a, b database.WorkspaceApp) int {
+		return cmp.Or(
+			cmp.Compare(a.DisplayOrder, b.DisplayOrder),
+			cmp.Compare(a.DisplayName, b.DisplayName),
+			cmp.Compare(a.Slug, b.Slug),
+		)
 	})
 
 	statusesByAppID := map[uuid.UUID][]database.WorkspaceAppStatus{}
@@ -806,8 +805,8 @@ func RecentProvisionerDaemons(now time.Time, staleInterval time.Duration, daemon
 	}
 
 	// Ensure stable order for display and for tests
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].Name < results[j].Name
+	slices.SortFunc(results, func(a, b codersdk.ProvisionerDaemon) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 
 	return results
@@ -1282,6 +1281,17 @@ func buildAIBridgeThread(
 			n := rootIntc.AgentFirewallSequenceNumber.Int32
 			thread.AgentFirewallSequenceNumber = &n
 		}
+		// Surface the terminal upstream error from the root interception. The
+		// message is only meaningful alongside a type, so it is nested to avoid
+		// a half-populated error on the response.
+		if rootIntc.ErrorType.Valid {
+			errType := string(rootIntc.ErrorType.AIBridgeInterceptionErrorType)
+			thread.ErrorType = &errType
+			if rootIntc.ErrorMessage.Valid {
+				errMsg := rootIntc.ErrorMessage.String
+				thread.ErrorMessage = &errMsg
+			}
+		}
 	}
 
 	// Compute thread time bounds from interceptions.
@@ -1702,6 +1712,10 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	}
 	if c.LastTurnSummary.Valid {
 		chat.LastTurnSummary = &c.LastTurnSummary.String
+	}
+	if c.LastReasoningEffort.Valid {
+		lastReasoningEffort := string(c.LastReasoningEffort.ChatReasoningEffort)
+		chat.LastReasoningEffort = &lastReasoningEffort
 	}
 	if c.PlanMode.Valid {
 		chat.PlanMode = codersdk.ChatPlanMode(c.PlanMode.ChatPlanMode)

@@ -18,7 +18,7 @@ export const TemplateBuilderAvatarData: FC<TemplateBuilderAvatarDataProps> = ({
 }) => {
 	return (
 		<AvatarData
-			avatar={<Avatar src={iconUrl} size="lg" />}
+			avatar={<Avatar src={iconUrl} size="lg" variant="icon" />}
 			title={<h3 className="m-0 text-xl font-semibold">{name}</h3>}
 			subtitle={
 				<>

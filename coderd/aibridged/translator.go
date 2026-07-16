@@ -25,30 +25,40 @@ type recorderTranslation struct {
 
 func (t *recorderTranslation) RecordInterception(ctx context.Context, req *aibridge.InterceptionRecord) error {
 	_, err := t.client.RecordInterception(ctx, &proto.RecordInterceptionRequest{
-		Id:                    req.ID,
-		ApiKeyId:              t.apiKeyID,
-		InitiatorId:           req.InitiatorID,
-		Provider:              req.Provider,
-		ProviderName:          req.ProviderName,
-		Model:                 req.Model,
-		UserAgent:             req.UserAgent,
-		Client:                req.Client,
-		ClientSessionId:       req.ClientSessionID,
-		Metadata:              marshalForProto(req.Metadata),
-		StartedAt:             timestamppb.New(req.StartedAt),
-		CorrelatingToolCallId: req.CorrelatingToolCallID,
-		CredentialKind:        req.CredentialKind,
-		CredentialHint:        req.CredentialHint,
+		Id:                          req.ID,
+		ApiKeyId:                    t.apiKeyID,
+		InitiatorId:                 req.InitiatorID,
+		Provider:                    req.Provider,
+		ProviderName:                req.ProviderName,
+		Model:                       req.Model,
+		UserAgent:                   req.UserAgent,
+		Client:                      req.Client,
+		ClientSessionId:             req.ClientSessionID,
+		Metadata:                    marshalForProto(req.Metadata),
+		StartedAt:                   timestamppb.New(req.StartedAt),
+		CorrelatingToolCallId:       req.CorrelatingToolCallID,
+		CredentialKind:              req.CredentialKind,
+		CredentialHint:              req.CredentialHint,
+		AgentFirewallSessionId:      req.AgentFirewallSessionID,
+		AgentFirewallSequenceNumber: req.AgentFirewallSequenceNumber,
 	})
 	return err
 }
 
 func (t *recorderTranslation) RecordInterceptionEnded(ctx context.Context, req *aibridge.InterceptionRecordEnded) error {
-	_, err := t.client.RecordInterceptionEnded(ctx, &proto.RecordInterceptionEndedRequest{
+	endedReq := &proto.RecordInterceptionEndedRequest{
 		Id:             req.ID,
 		EndedAt:        timestamppb.New(req.EndedAt),
 		CredentialHint: req.CredentialHint,
-	})
+	}
+	if req.ErrorType != "" {
+		errType := string(req.ErrorType)
+		endedReq.ErrorType = &errType
+	}
+	if req.ErrorMessage != "" {
+		endedReq.ErrorMessage = &req.ErrorMessage
+	}
+	_, err := t.client.RecordInterceptionEnded(ctx, endedReq)
 	return err
 }
 
@@ -102,6 +112,7 @@ func (t *recorderTranslation) RecordToolUsage(ctx context.Context, req *aibridge
 		InterceptionId:  req.InterceptionID,
 		MsgId:           req.MsgID,
 		ToolCallId:      req.ToolCallID,
+		ItemId:          req.ItemID,
 		ServerUrl:       req.ServerURL,
 		Tool:            req.Tool,
 		Input:           string(serialized),

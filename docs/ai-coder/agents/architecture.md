@@ -143,6 +143,14 @@ They traverse the same Tailnet tunnel used by web terminals and IDE connections.
 | `process_signal` | Sends a signal (SIGTERM or SIGKILL) to a tracked process.                                                                                                                                                                                                                          |
 | `attach_file`    | Attach a workspace file to the current chat so the user can download it directly from the conversation. Use this when the user should receive an artifact such as a screenshot, log, patch, or document. Pass an absolute file path. The file must already exist in the workspace. |
 
+#### Windows workspace shell requirement
+
+Coder Agents run workspace commands through a POSIX-compatible shell (`sh`).
+Windows workspaces must provide `sh` on `PATH`, for example from
+[Git for Windows](https://gitforwindows.org/) (Git Bash), MSYS2, or WSL.
+PowerShell alone cannot run the `execute` tool. After installing a
+shell, restart the workspace to pick up the updated `PATH`.
+
 ### Platform tools
 
 These tools run entirely within the control plane. They do not require a
@@ -173,14 +181,14 @@ provider-native, and computer-use tools are not available.
 These tools manage sub-agents — child chats that work on independent tasks in
 parallel.
 
-| Tool                                        | What it does                                                                                                                                                                                                                                                                     |
-|---------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `spawn_agent` (`type=general` or `explore`) | Delegates a task to a sub-agent with its own context window.                                                                                                                                                                                                                     |
-| `wait_agent`                                | Waits for a sub-agent to finish and collects its result.                                                                                                                                                                                                                         |
-| `message_agent`                             | Sends a follow-up message to a running sub-agent.                                                                                                                                                                                                                                |
-| `interrupt_agent`                           | Halts a sub-agent's current turn; it transitions to waiting or running if there are queued messages.                                                                                                                                                                             |
-| `spawn_agent` (`type=computer_use`)         | Spawns a sub-agent with desktop interaction capabilities (screenshot, mouse, keyboard). Requires an administrator-configured computer-use provider (Anthropic or OpenAI) and the [virtual desktop experiment](./platform-controls/experiments.md#virtual-desktop) to be enabled. |
-| `list_agents`                               | Lists spawned child agents, most recently active first.                                                                                                                                                                                                                          |
+| Tool                                        | What it does                                                                                                                                                                                                                                                         |
+|---------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `spawn_agent` (`type=general` or `explore`) | Delegates a task to a sub-agent with its own context window.                                                                                                                                                                                                         |
+| `wait_agent`                                | Waits for a sub-agent to finish and collects its result.                                                                                                                                                                                                             |
+| `message_agent`                             | Sends a follow-up message to a running sub-agent.                                                                                                                                                                                                                    |
+| `interrupt_agent`                           | Halts a sub-agent's current turn; it transitions to waiting or running if there are queued messages.                                                                                                                                                                 |
+| `spawn_agent` (`type=computer_use`)         | Spawns a sub-agent with desktop interaction capabilities (screenshot, mouse, keyboard). Requires an administrator-configured computer-use provider (Anthropic or OpenAI) and the [virtual desktop experiment](./platform-controls/virtual-desktop.md) to be enabled. |
+| `list_agents`                               | Lists spawned child agents, most recently active first.                                                                                                                                                                                                              |
 
 ### Provider tools
 

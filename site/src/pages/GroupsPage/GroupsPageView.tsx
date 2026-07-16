@@ -2,6 +2,7 @@ import { ChevronRightIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
 import type { GroupWithAICostControl } from "#/api/api";
+import { AIBudgetUsage } from "#/components/AIBudgetUsage/AIBudgetUsage";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
@@ -24,7 +25,6 @@ import {
 } from "#/components/TableLoader/TableLoader";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { docs } from "#/utils/docs";
-import { AIBudgetUsage } from "./AIBudgetUsage";
 import { InfoIconTooltip } from "./InfoIconTooltip";
 
 type GroupsPageViewProps = {

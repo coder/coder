@@ -73,7 +73,7 @@ const WorkspaceProxyPage: FC = () => {
 						>
 							<header className="p-6 flex items-center justify-between gap-6">
 								<div className="flex items-center gap-6">
-									<div className="w-9 h-9 flex items-center justify-center">
+									<div className="size-9 flex items-center justify-center">
 										<ExternalImage
 											src={region.icon_url}
 											className="object-fill w-full h-full"

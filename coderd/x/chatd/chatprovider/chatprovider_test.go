@@ -265,7 +265,6 @@ func TestResolveUserProviderKeys(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -348,82 +347,6 @@ type roundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (fn roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return fn(req)
-}
-
-func TestReasoningEffortFromChat(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		provider string
-		input    *string
-		want     *string
-	}{
-		{
-			name:     "OpenAICaseInsensitive",
-			provider: "openai",
-			input:    ptr.Ref(" HIGH "),
-			want:     ptr.Ref(string(fantasyopenai.ReasoningEffortHigh)),
-		},
-		{
-			name:     "OpenAIXHighEffort",
-			provider: "openai",
-			input:    ptr.Ref("xhigh"),
-			want:     ptr.Ref(string(fantasyopenai.ReasoningEffortXHigh)),
-		},
-		{
-			name:     "AnthropicEffort",
-			provider: "anthropic",
-			input:    ptr.Ref("max"),
-			want:     ptr.Ref(string(fantasyanthropic.EffortMax)),
-		},
-		{
-			name:     "AnthropicXHighEffort",
-			provider: "anthropic",
-			input:    ptr.Ref("xhigh"),
-			want:     ptr.Ref(string(fantasyanthropic.EffortXHigh)),
-		},
-		{
-			name:     "OpenRouterEffort",
-			provider: "openrouter",
-			input:    ptr.Ref("medium"),
-			want:     ptr.Ref(string(fantasyopenrouter.ReasoningEffortMedium)),
-		},
-		{
-			name:     "VercelEffort",
-			provider: "vercel",
-			input:    ptr.Ref("xhigh"),
-			want:     ptr.Ref(string(fantasyvercel.ReasoningEffortXHigh)),
-		},
-		{
-			name:     "InvalidEffortReturnsNil",
-			provider: "openai",
-			input:    ptr.Ref("unknown"),
-			want:     nil,
-		},
-		{
-			name:     "UnsupportedProviderReturnsNil",
-			provider: "bedrock",
-			input:    ptr.Ref("high"),
-			want:     nil,
-		},
-		{
-			name:     "NilInputReturnsNil",
-			provider: "openai",
-			input:    nil,
-			want:     nil,
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := chatprovider.ReasoningEffortFromChat(tt.provider, tt.input)
-			require.Equal(t, tt.want, got)
-		})
-	}
 }
 
 func TestAnthropicThinkingDisplayFromChat(t *testing.T) {
@@ -509,7 +432,6 @@ func TestResolveUserProviderKeys_UnavailableReason(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -658,7 +580,6 @@ func TestListConfiguredModels_PolicyAwareAvailability(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -742,7 +663,6 @@ func TestListConfiguredProviderAvailability_PolicyAwareFiltering(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -890,7 +810,6 @@ func TestPruneDisabledProviderKeys(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1742,4 +1661,41 @@ func TestResolveModelWithProviderHint(t *testing.T) {
 			require.Equal(t, tt.wantModel, model)
 		})
 	}
+}
+
+func TestUnsupportedProviders(t *testing.T) {
+	t.Parallel()
+
+	t.Run("copilot only", func(t *testing.T) {
+		t.Parallel()
+		got := chatprovider.UnsupportedProviders([]chatprovider.ConfiguredProvider{
+			{Provider: string(codersdk.AIProviderTypeCopilot)},
+		})
+		require.Equal(t, []codersdk.ChatUnsupportedProvider{
+			{
+				Provider:    "copilot",
+				DisplayName: "GitHub Copilot",
+			},
+		}, got)
+	})
+
+	t.Run("supported provider omitted", func(t *testing.T) {
+		t.Parallel()
+		got := chatprovider.UnsupportedProviders([]chatprovider.ConfiguredProvider{
+			{Provider: fantasyanthropic.Name},
+			{Provider: fantasyopenai.Name},
+		})
+		require.Empty(t, got)
+	})
+
+	t.Run("dedup by type and skip supported", func(t *testing.T) {
+		t.Parallel()
+		got := chatprovider.UnsupportedProviders([]chatprovider.ConfiguredProvider{
+			{Provider: fantasyanthropic.Name},
+			{Provider: string(codersdk.AIProviderTypeCopilot)},
+			{Provider: "Copilot"},
+		})
+		require.Len(t, got, 1)
+		require.Equal(t, "copilot", got[0].Provider)
+	})
 }

@@ -44,6 +44,11 @@ const (
 	OAuth2PKCEVerifier = "oauth_pkce_verifier"
 	// OAuth2RedirectCookie is the name of the cookie that stores the oauth2 redirect.
 	OAuth2RedirectCookie = "oauth_redirect"
+	// OAuth2RedirectURICookie stores the dynamically computed OIDC redirect_uri
+	// when CODER_OIDC_REDIRECT_ALLOWED_HOSTS is enabled. The same value must be
+	// used for both the authorization request and the token exchange (RFC 6749
+	// section 4.1.3).
+	OAuth2RedirectURICookie = "oauth_redirect_uri"
 
 	// PathAppSessionTokenCookie is the name of the cookie that stores an
 	// application-scoped API token on workspace proxy path app domains.

@@ -371,9 +371,9 @@ func TestNewRuntimeValidation(t *testing.T) {
 func TestNewRuntimeDeepClonesOpenAIResponsesProviderOptions(t *testing.T) {
 	t.Parallel()
 
-	parentPrevID := "resp_parent_abc123"
+	parentStore := true
 	parentOpts := &fantasyopenai.ResponsesProviderOptions{
-		PreviousResponseID: &parentPrevID,
+		Store: &parentStore,
 	}
 	parentProviderOpts := fantasy.ProviderOptions{
 		fantasyopenai.Name: parentOpts,
@@ -402,30 +402,29 @@ func TestNewRuntimeDeepClonesOpenAIResponsesProviderOptions(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
 
-	// Parent's OpenAI Responses entry must still carry its PreviousResponseID;
-	// the advisor's nested chatloop run must not have mutated the shared pointer.
-	require.NotNil(t, parentOpts.PreviousResponseID)
-	require.Equal(t, parentPrevID, *parentOpts.PreviousResponseID)
+	// Parent's OpenAI Responses entry must still carry its Store setting;
+	// the advisor must have mutated only its per-call clone, never the
+	// shared pointer.
+	require.NotNil(t, parentOpts.Store)
+	require.True(t, *parentOpts.Store)
 }
 
-func TestAdvisorRunStripsChainStateAndIsConsistentAcrossCalls(t *testing.T) {
+func TestAdvisorRunDisablesStoreAndIsConsistentAcrossCalls(t *testing.T) {
 	t.Parallel()
 
-	parentPrevID := "resp_parent_xyz"
+	parentStore := true
 	parentOpts := &fantasyopenai.ResponsesProviderOptions{
-		PreviousResponseID: &parentPrevID,
+		Store: &parentStore,
 	}
 	parentProviderOpts := fantasy.ProviderOptions{
 		fantasyopenai.Name: parentOpts,
 	}
 
-	// Snapshot PreviousResponseID and Store at stream time, before chatloop
-	// has any chance to clear them on the shared map. Comparing across calls
-	// proves the advisor observes consistent (non-chained, non-persisted)
-	// options each invocation.
+	// Snapshot Store at stream time to capture exactly what each call sent.
+	// Comparing across calls proves the advisor observes consistent
+	// (non-persisted) options each invocation.
 	type observedOpts struct {
-		prevID *string
-		store  *bool
+		store *bool
 	}
 	var observed []observedOpts
 	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
@@ -438,10 +437,6 @@ func TestAdvisorRunStripsChainStateAndIsConsistentAcrossCalls(t *testing.T) {
 					observed = append(observed, observedOpts{})
 				} else {
 					snap := observedOpts{}
-					if openaiOpts.PreviousResponseID != nil {
-						copied := *openaiOpts.PreviousResponseID
-						snap.prevID = &copied
-					}
 					if openaiOpts.Store != nil {
 						copied := *openaiOpts.Store
 						snap.store = &copied
@@ -470,19 +465,15 @@ func TestAdvisorRunStripsChainStateAndIsConsistentAcrossCalls(t *testing.T) {
 
 	require.Len(t, observed, 2)
 	for i, snap := range observed {
-		// Each nested call must run without chain mode so prompts built
-		// from full history by BuildAdvisorMessages are accepted.
-		require.Nil(t, snap.prevID, "call %d unexpectedly ran in chain mode", i)
-		// Store must be explicitly disabled so the provider does not
-		// persist an orphan response that later chain-mode calls would
-		// fail to resume.
+		// Store must be explicitly disabled so the advisor call leaves no
+		// stored response behind on the provider.
 		require.NotNil(t, snap.store, "call %d did not disable Store", i)
 		require.False(t, *snap.store, "call %d ran with Store enabled", i)
 	}
 
 	// The parent's pointer must be untouched across repeated advisor runs.
-	require.NotNil(t, parentOpts.PreviousResponseID)
-	require.Equal(t, parentPrevID, *parentOpts.PreviousResponseID)
+	require.NotNil(t, parentOpts.Store)
+	require.True(t, *parentOpts.Store)
 }
 
 func TestBuildAdvisorMessagesTruncatesToRecentMessageLimit(t *testing.T) {

@@ -36,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/fixtures"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/intercept/messages"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/provider"
@@ -377,7 +378,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 
 				// Verify PRM attribution is appended to the User-Agent header.
 				ua := received[0].Header.Get("User-Agent")
-				require.Contains(t, ua, "sdk-ua-app-id/APN_1.1%2Fpc_cdfmjwn8i6u8l9fwz8h82e4w3%24",
+				require.Contains(t, ua, messages.BedrockPRMUserAgent,
 					"expected AWS PRM attribution in User-Agent header")
 
 				interceptions := bridgeServer.Recorder.RecordedInterceptions()
@@ -386,6 +387,62 @@ func TestAWSBedrockIntegration(t *testing.T) {
 				bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
 			})
 		}
+	})
+
+	// The mantle protocol is a passthrough: the client's model is forwarded in the body
+	// without remapping, only SigV4 signing (service "bedrock-mantle") is applied.
+	t.Run("mantle/v1/messages", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+		t.Cleanup(cancel)
+
+		fix := fixtures.Parse(t, fixtures.AntSingleBuiltinTool)
+		upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
+
+		// Mantle needs only region + credentials for signing (no Model fields:
+		// the client supplies the model).
+		bedrockCfg := &config.AWSBedrock{
+			Region:          "us-west-2",
+			AccessKey:       "test-access-key",
+			AccessKeySecret: "test-secret-key",
+			BaseURL:         upstream.URL + "/anthropic", // Use the mock server.
+			Protocol:        config.BedrockProtocolMantle,
+		}
+		// The client's model must be forwarded unchanged.
+		wantModel := gjson.GetBytes(fix.Request(), "model").String()
+		require.NotEmpty(t, wantModel)
+
+		bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
+			withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(upstream.URL, apiKey), bedrockCfg)),
+		)
+
+		resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, fix.Request())
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		received := upstream.ReceivedRequests()
+		require.Len(t, received, 1)
+
+		// Native passthrough: /anthropic Messages path, model kept in the body
+		// unchanged.
+		require.Equal(t, "/anthropic/v1/messages", received[0].Path)
+		require.Equal(t, wantModel, gjson.GetBytes(received[0].Body, "model").String(),
+			"model should be forwarded unchanged")
+
+		// SigV4-signed for the bedrock-mantle service.
+		authHeader := received[0].Header.Get("Authorization")
+		require.True(t, strings.HasPrefix(authHeader, "AWS4-HMAC-SHA256"), "missing SigV4 auth: %q", authHeader)
+		require.Contains(t, authHeader, "/bedrock-mantle/aws4_request",
+			"signature must be scoped to the bedrock-mantle service")
+
+		require.Contains(t, received[0].Header.Get("User-Agent"),
+			messages.BedrockPRMUserAgent)
+
+		interceptions := bridgeServer.Recorder.RecordedInterceptions()
+		require.Len(t, interceptions, 1)
+		require.Equal(t, wantModel, interceptions[0].Model)
+		bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
 	})
 
 	// Tests that Bedrock-incompatible fields are stripped and adaptive thinking

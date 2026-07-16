@@ -16,6 +16,79 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+type AIBridgeInterceptionErrorType string
+
+const (
+	AibridgeInterceptionErrorTypeBadRequest   AIBridgeInterceptionErrorType = "bad_request"
+	AibridgeInterceptionErrorTypeUnauthorized AIBridgeInterceptionErrorType = "unauthorized"
+	AibridgeInterceptionErrorTypeRateLimited  AIBridgeInterceptionErrorType = "rate_limited"
+	AibridgeInterceptionErrorTypeOverloaded   AIBridgeInterceptionErrorType = "overloaded"
+	AibridgeInterceptionErrorTypeServerError  AIBridgeInterceptionErrorType = "server_error"
+	AibridgeInterceptionErrorTypeTimeout      AIBridgeInterceptionErrorType = "timeout"
+	AibridgeInterceptionErrorTypeUnknown      AIBridgeInterceptionErrorType = "unknown"
+)
+
+func (e *AIBridgeInterceptionErrorType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AIBridgeInterceptionErrorType(s)
+	case string:
+		*e = AIBridgeInterceptionErrorType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AIBridgeInterceptionErrorType: %T", src)
+	}
+	return nil
+}
+
+type NullAIBridgeInterceptionErrorType struct {
+	AIBridgeInterceptionErrorType AIBridgeInterceptionErrorType `json:"aibridge_interception_error_type"`
+	Valid                         bool                          `json:"valid"` // Valid is true if AIBridgeInterceptionErrorType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAIBridgeInterceptionErrorType) Scan(value interface{}) error {
+	if value == nil {
+		ns.AIBridgeInterceptionErrorType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AIBridgeInterceptionErrorType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAIBridgeInterceptionErrorType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AIBridgeInterceptionErrorType), nil
+}
+
+func (e AIBridgeInterceptionErrorType) Valid() bool {
+	switch e {
+	case AibridgeInterceptionErrorTypeBadRequest,
+		AibridgeInterceptionErrorTypeUnauthorized,
+		AibridgeInterceptionErrorTypeRateLimited,
+		AibridgeInterceptionErrorTypeOverloaded,
+		AibridgeInterceptionErrorTypeServerError,
+		AibridgeInterceptionErrorTypeTimeout,
+		AibridgeInterceptionErrorTypeUnknown:
+		return true
+	}
+	return false
+}
+
+func AllAIBridgeInterceptionErrorTypeValues() []AIBridgeInterceptionErrorType {
+	return []AIBridgeInterceptionErrorType{
+		AibridgeInterceptionErrorTypeBadRequest,
+		AibridgeInterceptionErrorTypeUnauthorized,
+		AibridgeInterceptionErrorTypeRateLimited,
+		AibridgeInterceptionErrorTypeOverloaded,
+		AibridgeInterceptionErrorTypeServerError,
+		AibridgeInterceptionErrorTypeTimeout,
+		AibridgeInterceptionErrorTypeUnknown,
+	}
+}
+
 type AIProviderType string
 
 const (
@@ -387,6 +460,11 @@ const (
 	ApiKeyScopeAIGatewayKeyDelete                  APIKeyScope = "ai_gateway_key:delete"
 	ApiKeyScopeAIGatewayKeyRead                    APIKeyScope = "ai_gateway_key:read"
 	ApiKeyScopeAIGatewayKeyUpdate                  APIKeyScope = "ai_gateway_key:update"
+	ApiKeyScopeWorkspaceBuildOrchestration         APIKeyScope = "workspace_build_orchestration:*"
+	ApiKeyScopeWorkspaceBuildOrchestrationCreate   APIKeyScope = "workspace_build_orchestration:create"
+	ApiKeyScopeWorkspaceBuildOrchestrationDelete   APIKeyScope = "workspace_build_orchestration:delete"
+	ApiKeyScopeWorkspaceBuildOrchestrationRead     APIKeyScope = "workspace_build_orchestration:read"
+	ApiKeyScopeWorkspaceBuildOrchestrationUpdate   APIKeyScope = "workspace_build_orchestration:update"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -656,7 +734,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeAIGatewayKeyCreate,
 		ApiKeyScopeAIGatewayKeyDelete,
 		ApiKeyScopeAIGatewayKeyRead,
-		ApiKeyScopeAIGatewayKeyUpdate:
+		ApiKeyScopeAIGatewayKeyUpdate,
+		ApiKeyScopeWorkspaceBuildOrchestration,
+		ApiKeyScopeWorkspaceBuildOrchestrationCreate,
+		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
+		ApiKeyScopeWorkspaceBuildOrchestrationRead,
+		ApiKeyScopeWorkspaceBuildOrchestrationUpdate:
 		return true
 	}
 	return false
@@ -895,6 +978,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeAIGatewayKeyDelete,
 		ApiKeyScopeAIGatewayKeyRead,
 		ApiKeyScopeAIGatewayKeyUpdate,
+		ApiKeyScopeWorkspaceBuildOrchestration,
+		ApiKeyScopeWorkspaceBuildOrchestrationCreate,
+		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
+		ApiKeyScopeWorkspaceBuildOrchestrationRead,
+		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
 	}
 }
 
@@ -1560,14 +1648,84 @@ func AllChatPlanModeValues() []ChatPlanMode {
 	}
 }
 
+type ChatReasoningEffort string
+
+const (
+	ChatReasoningEffortNone    ChatReasoningEffort = "none"
+	ChatReasoningEffortMinimal ChatReasoningEffort = "minimal"
+	ChatReasoningEffortLow     ChatReasoningEffort = "low"
+	ChatReasoningEffortMedium  ChatReasoningEffort = "medium"
+	ChatReasoningEffortHigh    ChatReasoningEffort = "high"
+	ChatReasoningEffortXhigh   ChatReasoningEffort = "xhigh"
+	ChatReasoningEffortMax     ChatReasoningEffort = "max"
+)
+
+func (e *ChatReasoningEffort) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatReasoningEffort(s)
+	case string:
+		*e = ChatReasoningEffort(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatReasoningEffort: %T", src)
+	}
+	return nil
+}
+
+type NullChatReasoningEffort struct {
+	ChatReasoningEffort ChatReasoningEffort `json:"chat_reasoning_effort"`
+	Valid               bool                `json:"valid"` // Valid is true if ChatReasoningEffort is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatReasoningEffort) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatReasoningEffort, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatReasoningEffort.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatReasoningEffort) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatReasoningEffort), nil
+}
+
+func (e ChatReasoningEffort) Valid() bool {
+	switch e {
+	case ChatReasoningEffortNone,
+		ChatReasoningEffortMinimal,
+		ChatReasoningEffortLow,
+		ChatReasoningEffortMedium,
+		ChatReasoningEffortHigh,
+		ChatReasoningEffortXhigh,
+		ChatReasoningEffortMax:
+		return true
+	}
+	return false
+}
+
+func AllChatReasoningEffortValues() []ChatReasoningEffort {
+	return []ChatReasoningEffort{
+		ChatReasoningEffortNone,
+		ChatReasoningEffortMinimal,
+		ChatReasoningEffortLow,
+		ChatReasoningEffortMedium,
+		ChatReasoningEffortHigh,
+		ChatReasoningEffortXhigh,
+		ChatReasoningEffortMax,
+	}
+}
+
 type ChatStatus string
 
 const (
 	ChatStatusWaiting        ChatStatus = "waiting"
-	ChatStatusPending        ChatStatus = "pending"
 	ChatStatusRunning        ChatStatus = "running"
-	ChatStatusPaused         ChatStatus = "paused"
-	ChatStatusCompleted      ChatStatus = "completed"
 	ChatStatusError          ChatStatus = "error"
 	ChatStatusRequiresAction ChatStatus = "requires_action"
 	ChatStatusInterrupting   ChatStatus = "interrupting"
@@ -1611,10 +1769,7 @@ func (ns NullChatStatus) Value() (driver.Value, error) {
 func (e ChatStatus) Valid() bool {
 	switch e {
 	case ChatStatusWaiting,
-		ChatStatusPending,
 		ChatStatusRunning,
-		ChatStatusPaused,
-		ChatStatusCompleted,
 		ChatStatusError,
 		ChatStatusRequiresAction,
 		ChatStatusInterrupting:
@@ -1626,10 +1781,7 @@ func (e ChatStatus) Valid() bool {
 func AllChatStatusValues() []ChatStatus {
 	return []ChatStatus{
 		ChatStatusWaiting,
-		ChatStatusPending,
 		ChatStatusRunning,
-		ChatStatusPaused,
-		ChatStatusCompleted,
 		ChatStatusError,
 		ChatStatusRequiresAction,
 		ChatStatusInterrupting,
@@ -4555,6 +4707,10 @@ type AIBridgeInterception struct {
 	AgentFirewallSessionID uuid.NullUUID `db:"agent_firewall_session_id" json:"agent_firewall_session_id"`
 	// The Agent Firewall sequence number from the request header. Used to determine exact ordering of network requests relative to Agent Firewall audit events. NULL when the request did not pass through Agent Firewall.
 	AgentFirewallSequenceNumber sql.NullInt32 `db:"agent_firewall_sequence_number" json:"agent_firewall_sequence_number"`
+	// Categorised terminal upstream error for a failed interception; NULL when the interception succeeded.
+	ErrorType NullAIBridgeInterceptionErrorType `db:"error_type" json:"error_type"`
+	// Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.
+	ErrorMessage sql.NullString `db:"error_message" json:"error_message"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge
@@ -4602,6 +4758,8 @@ type AIBridgeToolUsage struct {
 	Metadata           pqtype.NullRawMessage `db:"metadata" json:"metadata"`
 	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
 	ProviderToolCallID sql.NullString        `db:"provider_tool_call_id" json:"provider_tool_call_id"`
+	// Specific to the OpenAI Responses API: the unique id of the output item that carried the tool call. Distinct from provider_tool_call_id (the call_id correlation key), which is empty for hosted tools. Empty for the chat completions and Anthropic messages APIs, which have no separate item id.
+	ProviderItemID sql.NullString `db:"provider_item_id" json:"provider_item_id"`
 }
 
 // Audit log of prompts used by intercepted requests in AI Bridge
@@ -4655,6 +4813,7 @@ type AIProvider struct {
 	SettingsKeyID sql.NullString `db:"settings_key_id" json:"settings_key_id"`
 	CreatedAt     time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt     time.Time      `db:"updated_at" json:"updated_at"`
+	Icon          string         `db:"icon" json:"icon"`
 }
 
 // API keys associated with AI providers. Bedrock providers have zero keys (they authenticate via settings). OpenAI and Anthropic providers have one or more keys for failover.
@@ -4676,6 +4835,18 @@ type AISeatState struct {
 	LastEventType        AISeatUsageReason `db:"last_event_type" json:"last_event_type"`
 	LastEventDescription string            `db:"last_event_description" json:"last_event_description"`
 	UpdatedAt            time.Time         `db:"updated_at" json:"updated_at"`
+}
+
+// Daily AI spend per user and effective group.
+type AIUserDailySpend struct {
+	// The user who incurred the spend.
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	// The group this spend is attributed to for budget purposes.
+	EffectiveGroupID uuid.UUID `db:"effective_group_id" json:"effective_group_id"`
+	// UTC calendar day the spend was incurred.
+	Day time.Time `db:"day" json:"day"`
+	// Accumulated spend in micro-units (1 unit = 1,000,000).
+	SpendMicros int64 `db:"spend_micros" json:"spend_micros"`
 }
 
 type APIKey struct {
@@ -4771,49 +4942,50 @@ type BoundaryUsageStat struct {
 }
 
 type Chat struct {
-	ID                       uuid.UUID             `db:"id" json:"id"`
-	OwnerID                  uuid.UUID             `db:"owner_id" json:"owner_id"`
-	WorkspaceID              uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
-	Title                    string                `db:"title" json:"title"`
-	Status                   ChatStatus            `db:"status" json:"status"`
-	WorkerID                 uuid.NullUUID         `db:"worker_id" json:"worker_id"`
-	StartedAt                sql.NullTime          `db:"started_at" json:"started_at"`
-	HeartbeatAt              sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
-	CreatedAt                time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt                time.Time             `db:"updated_at" json:"updated_at"`
-	ParentChatID             uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
-	RootChatID               uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
-	LastModelConfigID        uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
-	Archived                 bool                  `db:"archived" json:"archived"`
-	LastError                pqtype.NullRawMessage `db:"last_error" json:"last_error"`
-	Mode                     NullChatMode          `db:"mode" json:"mode"`
-	MCPServerIDs             []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
-	Labels                   StringMap             `db:"labels" json:"labels"`
-	BuildID                  uuid.NullUUID         `db:"build_id" json:"build_id"`
-	AgentID                  uuid.NullUUID         `db:"agent_id" json:"agent_id"`
-	PinOrder                 int32                 `db:"pin_order" json:"pin_order"`
-	LastReadMessageID        sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
-	DynamicTools             pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
-	OrganizationID           uuid.UUID             `db:"organization_id" json:"organization_id"`
-	PlanMode                 NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
-	ClientType               ChatClientType        `db:"client_type" json:"client_type"`
-	LastTurnSummary          sql.NullString        `db:"last_turn_summary" json:"last_turn_summary"`
-	SnapshotVersion          int64                 `db:"snapshot_version" json:"snapshot_version"`
-	HistoryVersion           int64                 `db:"history_version" json:"history_version"`
-	QueueVersion             int64                 `db:"queue_version" json:"queue_version"`
-	GenerationAttempt        int64                 `db:"generation_attempt" json:"generation_attempt"`
-	RetryState               pqtype.NullRawMessage `db:"retry_state" json:"retry_state"`
-	RetryStateVersion        int64                 `db:"retry_state_version" json:"retry_state_version"`
-	RunnerID                 uuid.NullUUID         `db:"runner_id" json:"runner_id"`
-	RequiresActionDeadlineAt sql.NullTime          `db:"requires_action_deadline_at" json:"requires_action_deadline_at"`
-	UserACL                  ChatACL               `db:"user_acl" json:"user_acl"`
-	GroupACL                 ChatACL               `db:"group_acl" json:"group_acl"`
-	OwnerUsername            string                `db:"owner_username" json:"owner_username"`
-	OwnerName                string                `db:"owner_name" json:"owner_name"`
-	ContextAggregateHash     []byte                `db:"context_aggregate_hash" json:"context_aggregate_hash"`
-	ContextDirtySince        sql.NullTime          `db:"context_dirty_since" json:"context_dirty_since"`
-	ContextDirtyResources    pqtype.NullRawMessage `db:"context_dirty_resources" json:"context_dirty_resources"`
-	ContextError             string                `db:"context_error" json:"context_error"`
+	ID                       uuid.UUID               `db:"id" json:"id"`
+	OwnerID                  uuid.UUID               `db:"owner_id" json:"owner_id"`
+	WorkspaceID              uuid.NullUUID           `db:"workspace_id" json:"workspace_id"`
+	Title                    string                  `db:"title" json:"title"`
+	Status                   ChatStatus              `db:"status" json:"status"`
+	WorkerID                 uuid.NullUUID           `db:"worker_id" json:"worker_id"`
+	StartedAt                sql.NullTime            `db:"started_at" json:"started_at"`
+	HeartbeatAt              sql.NullTime            `db:"heartbeat_at" json:"heartbeat_at"`
+	CreatedAt                time.Time               `db:"created_at" json:"created_at"`
+	UpdatedAt                time.Time               `db:"updated_at" json:"updated_at"`
+	ParentChatID             uuid.NullUUID           `db:"parent_chat_id" json:"parent_chat_id"`
+	RootChatID               uuid.NullUUID           `db:"root_chat_id" json:"root_chat_id"`
+	LastModelConfigID        uuid.UUID               `db:"last_model_config_id" json:"last_model_config_id"`
+	LastReasoningEffort      NullChatReasoningEffort `db:"last_reasoning_effort" json:"last_reasoning_effort"`
+	Archived                 bool                    `db:"archived" json:"archived"`
+	LastError                pqtype.NullRawMessage   `db:"last_error" json:"last_error"`
+	Mode                     NullChatMode            `db:"mode" json:"mode"`
+	MCPServerIDs             []uuid.UUID             `db:"mcp_server_ids" json:"mcp_server_ids"`
+	Labels                   StringMap               `db:"labels" json:"labels"`
+	BuildID                  uuid.NullUUID           `db:"build_id" json:"build_id"`
+	AgentID                  uuid.NullUUID           `db:"agent_id" json:"agent_id"`
+	PinOrder                 int32                   `db:"pin_order" json:"pin_order"`
+	LastReadMessageID        sql.NullInt64           `db:"last_read_message_id" json:"last_read_message_id"`
+	DynamicTools             pqtype.NullRawMessage   `db:"dynamic_tools" json:"dynamic_tools"`
+	OrganizationID           uuid.UUID               `db:"organization_id" json:"organization_id"`
+	PlanMode                 NullChatPlanMode        `db:"plan_mode" json:"plan_mode"`
+	ClientType               ChatClientType          `db:"client_type" json:"client_type"`
+	LastTurnSummary          sql.NullString          `db:"last_turn_summary" json:"last_turn_summary"`
+	SnapshotVersion          int64                   `db:"snapshot_version" json:"snapshot_version"`
+	HistoryVersion           int64                   `db:"history_version" json:"history_version"`
+	QueueVersion             int64                   `db:"queue_version" json:"queue_version"`
+	GenerationAttempt        int64                   `db:"generation_attempt" json:"generation_attempt"`
+	RetryState               pqtype.NullRawMessage   `db:"retry_state" json:"retry_state"`
+	RetryStateVersion        int64                   `db:"retry_state_version" json:"retry_state_version"`
+	RunnerID                 uuid.NullUUID           `db:"runner_id" json:"runner_id"`
+	RequiresActionDeadlineAt sql.NullTime            `db:"requires_action_deadline_at" json:"requires_action_deadline_at"`
+	UserACL                  ChatACL                 `db:"user_acl" json:"user_acl"`
+	GroupACL                 ChatACL                 `db:"group_acl" json:"group_acl"`
+	OwnerUsername            string                  `db:"owner_username" json:"owner_username"`
+	OwnerName                string                  `db:"owner_name" json:"owner_name"`
+	ContextAggregateHash     []byte                  `db:"context_aggregate_hash" json:"context_aggregate_hash"`
+	ContextDirtySince        sql.NullTime            `db:"context_dirty_since" json:"context_dirty_since"`
+	ContextDirtyResources    pqtype.NullRawMessage   `db:"context_dirty_resources" json:"context_dirty_resources"`
+	ContextError             string                  `db:"context_error" json:"context_error"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
@@ -4949,11 +5121,12 @@ type ChatMessage struct {
 	ProviderResponseID  sql.NullString        `db:"provider_response_id" json:"provider_response_id"`
 	APIKeyID            sql.NullString        `db:"api_key_id" json:"api_key_id"`
 	Revision            int64                 `db:"revision" json:"revision"`
+	// Stores the selected effort for the turn triggered by this message.
+	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
 type ChatModelConfig struct {
 	ID                   uuid.UUID       `db:"id" json:"id"`
-	Provider             string          `db:"provider" json:"provider"`
 	Model                string          `db:"model" json:"model"`
 	DisplayName          string          `db:"display_name" json:"display_name"`
 	CreatedBy            uuid.NullUUID   `db:"created_by" json:"created_by"`
@@ -4979,6 +5152,8 @@ type ChatQueuedMessage struct {
 	APIKeyID      sql.NullString  `db:"api_key_id" json:"api_key_id"`
 	Position      int64           `db:"position" json:"position"`
 	CreatedBy     uuid.UUID       `db:"created_by" json:"created_by"`
+	// Stores the selected effort until the queued row is promoted.
+	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
 type ChatTable struct {
@@ -5030,6 +5205,8 @@ type ChatTable struct {
 	ContextDirtyResources pqtype.NullRawMessage `db:"context_dirty_resources" json:"context_dirty_resources"`
 	// Snapshot-level error copied from the pinned snapshot (count cap exceeded, watcher degraded, etc.). Empty when healthy.
 	ContextError string `db:"context_error" json:"context_error"`
+	// Stores the most recent message effort once per-turn selection is wired.
+	LastReasoningEffort NullChatReasoningEffort `db:"last_reasoning_effort" json:"last_reasoning_effort"`
 }
 
 type ChatUsageLimitConfig struct {
@@ -6445,6 +6622,31 @@ type WorkspaceBuild struct {
 	InitiatorByAvatarUrl     string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
 	InitiatorByUsername      string              `db:"initiator_by_username" json:"initiator_by_username"`
 	InitiatorByName          string              `db:"initiator_by_name" json:"initiator_by_name"`
+}
+
+// Tracks durable follow-up workspace build operations, such as server-side restart, where one child build is created after a parent build completes successfully.
+type WorkspaceBuildOrchestration struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	// Copied from the parent build so the database can enforce that parent and child builds belong to the same workspace.
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	// Unique because we only support sequences with one child build per parent build.
+	ParentBuildID uuid.UUID `db:"parent_build_id" json:"parent_build_id"`
+	// Nullable because the child build is created only after the parent build completes successfully.
+	ChildBuildID                 uuid.NullUUID       `db:"child_build_id" json:"child_build_id"`
+	ChildTransition              WorkspaceTransition `db:"child_transition" json:"child_transition"`
+	ChildTemplateVersionID       uuid.NullUUID       `db:"child_template_version_id" json:"child_template_version_id"`
+	ChildTemplateVersionPresetID uuid.NullUUID       `db:"child_template_version_preset_id" json:"child_template_version_preset_id"`
+	ChildRichParameterValues     json.RawMessage     `db:"child_rich_parameter_values" json:"child_rich_parameter_values"`
+	ChildLogLevel                string              `db:"child_log_level" json:"child_log_level"`
+	ChildReason                  NullBuildReason     `db:"child_reason" json:"child_reason"`
+	// Counts retryable child build creation failures for this orchestration row.
+	AttemptCount int32 `db:"attempt_count" json:"attempt_count"`
+	// When set, the orchestrator skips this pending row until the timestamp has passed.
+	NextRetryAfter sql.NullTime   `db:"next_retry_after" json:"next_retry_after"`
+	Status         string         `db:"status" json:"status"`
+	Error          sql.NullString `db:"error" json:"error"`
 }
 
 type WorkspaceBuildParameter struct {

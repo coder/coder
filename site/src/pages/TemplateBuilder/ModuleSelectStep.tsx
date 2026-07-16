@@ -112,6 +112,7 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 	const { data, error, isLoading } = useQuery(templateBuilderModules(baseId));
 	const [moduleSearchText, setModuleSearchText] = useState("");
 	const modules = data?.modules ?? [];
+	const doesBaseTemplateHaveModules = modules.length > 0;
 	const sortedModules = sortByPriority(modules, MODULE_PRIORITY);
 	const categories = [
 		...new Set(sortedModules.map((module) => module.category)),
@@ -243,7 +244,8 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 				</TabsList>
 			</Tabs>
 
-			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+			{/* 420px accounts for navbar, page header, card padding, search, tabs, and nav controls */}
+			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[calc(100vh-420px)] overflow-y-auto">
 				{visibleModules.length ? (
 					visibleModules.map((m) => (
 						<ModuleCard
@@ -260,7 +262,9 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 					<div className="col-span-full my-12 flex flex-col items-center gap-1 text-content-secondary">
 						<SearchIcon />
 						<p className="m-0 text-sm font-normal">
-							No module matched your search
+							{doesBaseTemplateHaveModules
+								? "No module matched your search"
+								: "No modules available for this base template"}
 						</p>
 					</div>
 				)}

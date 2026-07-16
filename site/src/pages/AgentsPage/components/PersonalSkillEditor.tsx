@@ -401,7 +401,7 @@ export const PersonalSkillEditor: FC<PersonalSkillEditorProps> = ({
 							type="submit"
 							disabled={isSubmitting || !form.isValid || !form.dirty}
 						>
-							{isSubmitting && <Spinner className="h-4 w-4" loading />}
+							{isSubmitting && <Spinner className="size-4" loading />}
 							{submitLabel}
 						</Button>
 					</DialogFooter>

@@ -6,7 +6,9 @@ description: Checks if code changes require documentation updates
 # Documentation Check Skill
 
 Review code changes and determine if documentation updates or new
-documentation is needed.
+documentation is needed. This skill decides *whether* a change needs docs;
+its counterpart, the [`write-docs` skill](../write-docs/SKILL.md), covers
+writing them.
 
 > [!IMPORTANT]
 > The **canonical** rules for what belongs in the Coder docs (and what

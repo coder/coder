@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"io"
-	"net/url"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -32,28 +31,11 @@ import (
 
 func (r *RootCmd) Server(_ func()) *serpent.Command {
 	cmd := r.RootCmd.Server(func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
-		var (
-			derpURL *url.URL
-			err     error
-		)
-		if options.DeploymentValues.DERP.Server.RelayURL.String() != "" {
-			derpURL, err = url.Parse(options.DeploymentValues.DERP.Server.RelayURL.String())
-			if err != nil {
-				return nil, nil, xerrors.Errorf("derp-server-relay-address must be a valid HTTP URL: %w", err)
-			}
-		}
-		clusterHost := options.DeploymentValues.Cluster.Host.String()
-		if clusterHost == "" && derpURL != nil {
-			// Use the DERP host if the operator didn't specify an explicit cluster host, since this is an older setting
-			// and more likely to be configured by longtime HA customers.
-			clusterHost = derpURL.Hostname()
-		}
-
 		// Always generate a mesh key, even if the built-in DERP server is
 		// disabled. This mesh key is still used by workspace proxies running
 		// HA.
 		var meshKey string
-		err = options.Database.InTx(func(tx database.Store) error {
+		err := options.Database.InTx(func(tx database.Store) error {
 			// This will block until the lock is acquired, and will be
 			// automatically released when the transaction ends.
 			err := tx.AcquireLock(ctx, database.LockIDEnterpriseDeploymentSetup)
@@ -107,7 +89,6 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			SCIMAPIKey:                []byte(options.DeploymentValues.SCIMAPIKey.Value()),
 			UseLegacySCIM:             options.DeploymentValues.UseLegacySCIM.Value(),
 			RBAC:                      true,
-			ClusterHost:               clusterHost,
 			DERPServerRelayAddress:    options.DeploymentValues.DERP.Server.RelayURL.String(),
 			DERPServerRegionID:        int(options.DeploymentValues.DERP.Server.RegionID.Value()),
 			ProxyHealthInterval:       options.DeploymentValues.ProxyHealthStatusInterval.Value(),

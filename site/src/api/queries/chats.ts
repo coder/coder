@@ -1197,38 +1197,6 @@ export const reorderPinnedChat = (queryClient: QueryClient) => ({
 	},
 });
 
-export const regenerateChatTitle = (queryClient: QueryClient) => ({
-	mutationFn: (chatId: string) => API.experimental.regenerateChatTitle(chatId),
-
-	onSuccess: (updatedChat: TypesGen.Chat) => {
-		queryClient.setQueryData<TypesGen.Chat>(
-			chatKey(updatedChat.id),
-			(previousChat) =>
-				previousChat ? { ...previousChat, ...updatedChat } : updatedChat,
-		);
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) =>
-				chat.id === updatedChat.id
-					? { ...chat, title: updatedChat.title }
-					: chat,
-			),
-		);
-	},
-
-	onSettled: async (
-		_data: TypesGen.Chat | undefined,
-		_error: unknown,
-		chatId: string,
-	) => {
-		await invalidateChatListQueries(queryClient);
-		await queryClient.invalidateQueries({
-			queryKey: chatKey(chatId),
-			exact: true,
-		});
-		void invalidateChatDebugRuns(queryClient, chatId);
-	},
-});
-
 export const proposeChatTitle = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) => API.experimental.proposeChatTitle(chatId),
 
@@ -1581,22 +1549,6 @@ export const updateChatPlanModeInstructions = (queryClient: QueryClient) => ({
 	},
 });
 
-const chatDesktopEnabledKey = ["chat-desktop-enabled"] as const;
-
-export const chatDesktopEnabled = () => ({
-	queryKey: chatDesktopEnabledKey,
-	queryFn: () => API.experimental.getChatDesktopEnabled(),
-});
-
-export const updateChatDesktopEnabled = (queryClient: QueryClient) => ({
-	mutationFn: API.experimental.updateChatDesktopEnabled,
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatDesktopEnabledKey,
-		});
-	},
-});
-
 const chatPersonalModelOverridesAdminSettingsKey = [
 	...chatsKey,
 	"admin-personal-model-overrides",
@@ -1833,6 +1785,7 @@ const toChatProviderConfig = (
 	id: provider.id,
 	provider: provider.type,
 	display_name: provider.display_name || provider.type,
+	icon: provider.icon,
 	enabled: provider.enabled,
 	has_api_key: provider.api_keys.length > 0,
 	central_api_key_enabled: true,
@@ -1872,6 +1825,7 @@ export const userChatProviderConfigs = () => ({
 			provider_id: config.provider.id,
 			provider: config.provider.type,
 			display_name: config.provider.display_name || config.provider.type,
+			icon: config.provider.icon,
 			has_user_api_key: config.has_user_api_key,
 			byok_enabled: config.byok_enabled,
 			has_central_api_key_fallback: config.has_provider_api_key,

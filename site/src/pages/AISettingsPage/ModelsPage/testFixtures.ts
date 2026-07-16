@@ -7,6 +7,7 @@ const MockOpenAIProviderConfig: ChatProviderConfig = {
 	id: "prov-openai",
 	provider: "openai",
 	display_name: "OpenAI",
+	icon: "",
 	enabled: true,
 	has_api_key: true,
 	central_api_key_enabled: true,
@@ -27,7 +28,6 @@ const MockAnthropicProviderConfig: ChatProviderConfig = {
 
 export const mockGPT5: ChatModelConfig = {
 	id: "model-gpt5",
-	provider: "openai",
 	ai_provider_id: "prov-openai",
 	model: "gpt-5",
 	display_name: "GPT-5",
@@ -42,7 +42,6 @@ export const mockGPT5: ChatModelConfig = {
 export const mockClaude: ChatModelConfig = {
 	...mockGPT5,
 	id: "model-claude",
-	provider: "anthropic",
 	ai_provider_id: "prov-anthropic",
 	model: "claude-sonnet-4-5",
 	display_name: "Claude Sonnet 4.5",
@@ -93,7 +92,6 @@ const MockBedrockProviderConfig: ChatProviderConfig = {
 export const mockBedrockClaude: ChatModelConfig = {
 	...mockClaude,
 	id: "model-bedrock-claude",
-	provider: "bedrock",
 	ai_provider_id: "prov-bedrock",
 	model: "anthropic.claude-sonnet-4-5",
 	display_name: "Claude Sonnet 4.5 (Bedrock)",

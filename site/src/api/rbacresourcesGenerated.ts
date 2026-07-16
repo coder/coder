@@ -259,6 +259,12 @@ export const RBACResourceActions: Partial<
 		read: "read workspace agent resource monitor",
 		update: "update workspace agent resource monitor",
 	},
+	workspace_build_orchestration: {
+		create: "create a workspace build orchestration",
+		delete: "delete a workspace build orchestration",
+		read: "read a workspace build orchestration",
+		update: "update a workspace build orchestration",
+	},
 	workspace_dormant: {
 		application_connect: "connect to workspace apps via browser",
 		create: "create a new workspace",

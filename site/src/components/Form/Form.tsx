@@ -99,7 +99,7 @@ export const FormSection: FC<FormSectionProps> = ({
 		>
 			<div
 				className={cn(
-					"w-full shrink-0 top-6",
+					"w-full shrink-0 top-24",
 					direction === "horizontal" && "lg:sticky lg:max-w-[312px]",
 					classes.sectionInfo,
 				)}

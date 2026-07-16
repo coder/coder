@@ -15,6 +15,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/coderd/aibridgedtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/llmmock"
@@ -29,13 +30,11 @@ func TestScaleTestChat(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	values := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
 		require.NoError(t, dv.AI.BridgeConfig.Enabled.Set("true"))
-		// Keep AI Gateway routing disabled so the chat uses the direct model
-		// route to the mock provider, avoiding the need for an aibridged daemon.
-		require.NoError(t, dv.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
 	})
-	client := coderdtest.New(t, &coderdtest.Options{
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		DeploymentValues: values,
 	})
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	coderdtest.CreateFirstUser(t, client)
 
 	server := new(llmmock.Server)
@@ -129,7 +128,7 @@ func chatMessageText(messages []codersdk.ChatMessage, role codersdk.ChatMessageR
 func scaletestModelConfigsForProvider(configs []codersdk.ChatModelConfig, providerID uuid.UUID) []codersdk.ChatModelConfig {
 	matches := make([]codersdk.ChatModelConfig, 0, 1)
 	for _, config := range configs {
-		if config.AIProviderID == nil || *config.AIProviderID != providerID {
+		if config.AIProviderID != providerID {
 			continue
 		}
 		if config.Model != "scaletest-model" {
