@@ -1030,6 +1030,22 @@
 | `last_heartbeat_at` | string | false    |              |             |
 | `name`              | string | false    |              |             |
 
+## codersdk.AIGroupBudget
+
+```json
+{
+  "limit_source": "user_override",
+  "spend_limit_micros": 0
+}
+```
+
+### Properties
+
+| Name                 | Type                                                         | Required | Restrictions | Description |
+|----------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `limit_source`       | [codersdk.AIBudgetLimitSource](#codersdkaibudgetlimitsource) | false    |              |             |
+| `spend_limit_micros` | integer                                                      | false    |              |             |
+
 ## codersdk.AIProvider
 
 ```json
@@ -7690,22 +7706,23 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 ```json
 {
   "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+  "group_budget": {
+    "limit_source": "user_override",
+    "spend_limit_micros": 0
+  },
   "group_spend_micros": 0,
-  "limit_source": "user_override",
-  "spend_limit_micros": 0,
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
 }
 ```
 
 ### Properties
 
-| Name                 | Type                                                         | Required | Restrictions | Description                                                                                                                                                                                                                                         |
-|----------------------|--------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `effective_group_id` | string                                                       | false    |              | Effective group ID is the user's effective budget group within the queried group's organization. Null when no effective budget group is visible in this organization, including when the user's budget resolves to a group in another organization. |
-| `group_spend_micros` | integer                                                      | false    |              | Group spend micros is the user's spend attributed to the queried group over the current budget period.                                                                                                                                              |
-| `limit_source`       | [codersdk.AIBudgetLimitSource](#codersdkaibudgetlimitsource) | false    |              | Limit source identifies the tier that produced the limit. Null when the user's budget resolves to another group or no budget applies to the user (unlimited).                                                                                       |
-| `spend_limit_micros` | integer                                                      | false    |              | Spend limit micros is the spend limit when the queried group is this user's effective budget source. Null when the user's budget resolves to another group or no budget applies to the user (unlimited).                                            |
-| `user_id`            | string                                                       | false    |              |                                                                                                                                                                                                                                                     |
+| Name                 | Type                                             | Required | Restrictions | Description                                                                                                                                                                                                                                         |
+|----------------------|--------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `effective_group_id` | string                                           | false    |              | Effective group ID is the user's effective budget group within the queried group's organization. Null when no effective budget group is visible in this organization, including when the user's budget resolves to a group in another organization. |
+| `group_budget`       | [codersdk.AIGroupBudget](#codersdkaigroupbudget) | false    |              | Group budget is the budget when the queried group is this user's effective budget source. Null when the user's budget resolves to another group or no budget applies to the user.                                                                   |
+| `group_spend_micros` | integer                                          | false    |              | Group spend micros is the user's spend attributed to the queried group over the current budget period.                                                                                                                                              |
+| `user_id`            | string                                           | false    |              |                                                                                                                                                                                                                                                     |
 
 ## codersdk.GroupMembersAISpend
 
@@ -7714,9 +7731,11 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "members": [
     {
       "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+      "group_budget": {
+        "limit_source": "user_override",
+        "spend_limit_micros": 0
+      },
       "group_spend_micros": 0,
-      "limit_source": "user_override",
-      "spend_limit_micros": 0,
       "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
     }
   ],

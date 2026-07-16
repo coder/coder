@@ -292,6 +292,16 @@ export interface AIGatewayKey {
  */
 export const AIGatewayKeyHeader = "X-Coder-AI-Governance-Gateway-Key";
 
+// From codersdk/aibridge.go
+/**
+ * AIGroupBudget is an AI spend limit and the tier that produced it. Both
+ * fields are always populated together.
+ */
+export interface AIGroupBudget {
+	readonly spend_limit_micros: number;
+	readonly limit_source: AIBudgetLimitSource;
+}
+
 // From codersdk/aiproviders.go
 /**
  * AIProvider represents an AI provider configuration row as returned
@@ -5191,17 +5201,11 @@ export interface GroupMemberAISpend {
 	 */
 	readonly effective_group_id: string | null;
 	/**
-	 * SpendLimitMicros is the spend limit when the queried group is this
-	 * user's effective budget source. Null when the user's budget resolves to
-	 * another group or no budget applies to the user (unlimited).
+	 * GroupBudget is the budget when the queried group is this user's
+	 * effective budget source. Null when the user's budget resolves to another
+	 * group or no budget applies to the user.
 	 */
-	readonly spend_limit_micros: number | null;
-	/**
-	 * LimitSource identifies the tier that produced the limit. Null when the
-	 * user's budget resolves to another group or no budget applies to the user
-	 * (unlimited).
-	 */
-	readonly limit_source: AIBudgetLimitSource | null;
+	readonly group_budget: AIGroupBudget | null;
 	/**
 	 * GroupSpendMicros is the user's spend attributed to the queried group
 	 * over the current budget period.

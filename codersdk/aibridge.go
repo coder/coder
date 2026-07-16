@@ -27,6 +27,13 @@ const (
 	AIBudgetLimitSourceGroup AIBudgetLimitSource = "group"
 )
 
+// AIGroupBudget is an AI spend limit and the tier that produced it. Both
+// fields are always populated together.
+type AIGroupBudget struct {
+	SpendLimitMicros int64               `json:"spend_limit_micros"`
+	LimitSource      AIBudgetLimitSource `json:"limit_source"`
+}
+
 // UserAIBudgetSummary is the effective AI budget for a user. When no
 // budget applies, all fields except UserID are null.
 type UserAIBudgetSummary struct {
@@ -98,14 +105,10 @@ type GroupMemberAISpend struct {
 	// this organization, including when the user's budget resolves to a group
 	// in another organization.
 	EffectiveGroupID *uuid.UUID `json:"effective_group_id" format:"uuid"`
-	// SpendLimitMicros is the spend limit when the queried group is this
-	// user's effective budget source. Null when the user's budget resolves to
-	// another group or no budget applies to the user (unlimited).
-	SpendLimitMicros *int64 `json:"spend_limit_micros"`
-	// LimitSource identifies the tier that produced the limit. Null when the
-	// user's budget resolves to another group or no budget applies to the user
-	// (unlimited).
-	LimitSource *AIBudgetLimitSource `json:"limit_source"`
+	// GroupBudget is the budget when the queried group is this user's
+	// effective budget source. Null when the user's budget resolves to another
+	// group or no budget applies to the user.
+	GroupBudget *AIGroupBudget `json:"group_budget"`
 	// GroupSpendMicros is the user's spend attributed to the queried group
 	// over the current budget period.
 	GroupSpendMicros int64 `json:"group_spend_micros"`

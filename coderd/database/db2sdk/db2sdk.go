@@ -1478,11 +1478,10 @@ func GroupMemberAISpend(row database.GetGroupMembersAISpendRow) codersdk.GroupMe
 		member.EffectiveGroupID = &row.EffectiveGroupID.UUID
 	}
 	if row.SpendLimitMicros.Valid {
-		member.SpendLimitMicros = &row.SpendLimitMicros.Int64
-	}
-	if row.LimitSource.Valid {
-		source := codersdk.AIBudgetLimitSource(row.LimitSource.String)
-		member.LimitSource = &source
+		member.GroupBudget = &codersdk.AIGroupBudget{
+			SpendLimitMicros: row.SpendLimitMicros.Int64,
+			LimitSource:      codersdk.AIBudgetLimitSource(row.LimitSource.String),
+		}
 	}
 	return member
 }
