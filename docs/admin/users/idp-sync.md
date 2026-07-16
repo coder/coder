@@ -206,7 +206,7 @@ You can limit which groups from your identity provider can log in to Coder with
 [CODER_OIDC_ALLOWED_GROUPS](../../reference/cli/server.md#--oidc-allowed-groups).
 Users who are not in a matching group will see the following error:
 
-<Image height="412px" src="../../images/admin/group-allowlist.png" alt="Unauthorized group error" align="center" />
+<img height="412px" src="../../images/admin/group-allowlist.png" alt="Unauthorized group error" align="center" />
 
 ## Role Sync
 
