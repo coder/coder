@@ -20,6 +20,12 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// Exceeding this timeout fails the entitlements computation; the caller
+// keeps serving the previous entitlements. The count normally completes
+// in well under a second, but its cost scales with the number of unique
+// role sets and it runs on a context with no deadline of its own.
+const workspaceCapableUserCountTimeout = 60 * time.Second
+
 // Entitlements processes licenses to return whether features are enabled or not.
 // TODO(@deansheather): This function and the related LicensesEntitlements
 // function should be refactored into smaller functions that:
@@ -60,6 +66,8 @@ func Entitlements(
 	var workspaceCapableUserCountFn WorkspaceCapableUserCountFn
 	if experiments.Enabled(codersdk.ExperimentPermissionBasedLicensing) && authorizer != nil {
 		workspaceCapableUserCountFn = func(ctx context.Context) (int64, error) {
+			ctx, cancel := context.WithTimeout(ctx, workspaceCapableUserCountTimeout)
+			defer cancel()
 			return CountWorkspaceCapableUsers(ctx, logger, db, authorizer)
 		}
 	}
