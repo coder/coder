@@ -125,6 +125,29 @@ const (
 		"https://coder.com/docs/ai-coder/agents/architecture#windows-workspace-shell-requirement"
 )
 
+// startFailureResponse resolves a StartProcess failure after the
+// ledger claim. A structured agent response other than the token
+// conflict means the spawn failed and the agent released the token
+// reservation, so nothing is running: the row resolves no_effect
+// and the error commits as a normal tool result the model can act
+// on. Transport errors leave the dispatch unobservable and a 409
+// means a process may exist under this token, so the row stays
+// starting and the attempt aborts uncommitted: the token is
+// durable, and the retried call resolves the dispatch through the
+// agent's token index instead of committing a result that would
+// end same-token recovery.
+func startFailureResponse(ctx context.Context, options ExecuteOptions, toolCallID string, action string, err error) (fantasy.ToolResponse, error) {
+	var sdkErr *codersdk.Error
+	structured := xerrors.As(err, &sdkErr) && sdkErr.StatusCode() != http.StatusConflict
+	// Without a ledger there is no token to recover through, so
+	// aborting buys nothing over the model-facing error.
+	if structured || options.Recorder == nil {
+		markTerminal(ctx, options, toolCallID, ExecutionStatusNoEffect)
+		return errorResult(enrichStartError(fmt.Sprintf("%s: %v", action, err))), nil
+	}
+	return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("%s: %w", action, err)}
+}
+
 // enrichStartError appends actionable guidance when a StartProcess
 // error indicates the workspace has no sh binary.
 func enrichStartError(msg string) string {
@@ -494,9 +517,9 @@ func executeTool(
 	}
 
 	if background {
-		return executeBackground(ctx, conn, options, toolCallID, rec, args.Command, workDir, env), nil
+		return executeBackground(ctx, conn, options, toolCallID, rec, args.Command, workDir, env)
 	}
-	return executeForeground(ctx, conn, options, toolCallID, rec, args.Command, timeout, workDir, env), nil
+	return executeForeground(ctx, conn, options, toolCallID, rec, args.Command, timeout, workDir, env)
 }
 
 // dispatchInputs carries the validated execute arguments so
@@ -749,9 +772,10 @@ func recoverStaleClaim(
 			markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
 			return fantasy.NewTextErrorResponse(unknownOutcomeMessage), nil
 		}
-		// Transport errors prove nothing. Leave the row for a
-		// later attempt to probe again.
-		return errorResult(fmt.Sprintf("probe execution token: %v; retry the command", err)), nil
+		// Transport errors prove nothing. Abort uncommitted so
+		// the retried call probes the same token again; a
+		// committed result would end same-token recovery.
+		return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("probe execution token: %w", err)}
 	}
 
 	if resp.Found {
@@ -776,12 +800,11 @@ func recoverStaleClaim(
 		// The adoption write did not land and the row is still
 		// starting: re-attaching now could terminalize a row
 		// that carries no process handle, stranding a later
-		// retry. The token index is durable, so a retry probes
-		// and adopts again.
-		return errorResult(fmt.Sprintf(
-			"found process %s for a previous attempt of this command but failed to record it; retry the command",
-			resp.ProcessID,
-		)), nil
+		// retry. Abort uncommitted so the retried call probes
+		// the durable token index and adopts again.
+		return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf(
+			"found process %s for a previous attempt but failed to record it", resp.ProcessID,
+		)}
 	}
 
 	if !resp.Pending && !TrustAbsentToken(resp, rec.ClaimedAt) {
@@ -809,9 +832,9 @@ func recoverStaleClaim(
 		slog.F("claim_epoch", reclaimed.ClaimEpoch),
 	)
 	if dispatch.background {
-		return executeBackground(ctx, conn, options, toolCallID, reclaimed, dispatch.command, dispatch.workDir, dispatch.env), nil
+		return executeBackground(ctx, conn, options, toolCallID, reclaimed, dispatch.command, dispatch.workDir, dispatch.env)
 	}
-	return executeForeground(ctx, conn, options, toolCallID, reclaimed, dispatch.command, dispatch.timeout, dispatch.workDir, dispatch.env), nil
+	return executeForeground(ctx, conn, options, toolCallID, reclaimed, dispatch.command, dispatch.timeout, dispatch.workDir, dispatch.env)
 }
 
 // reattachProcess resumes an execute tool call whose process was
@@ -946,7 +969,7 @@ func executeBackground(
 	command string,
 	workDir string,
 	env map[string]string,
-) fantasy.ToolResponse {
+) (fantasy.ToolResponse, error) {
 	resp, err := conn.StartProcess(ctx, workspacesdk.StartProcessRequest{
 		Command:     command,
 		WorkDir:     workDir,
@@ -955,13 +978,7 @@ func executeBackground(
 		ClientToken: rec.ID,
 	})
 	if err != nil {
-		// The request may or may not have reached the agent. The
-		// row stays starting: the token is durable, so a later
-		// attempt resolves the dispatch through the agent's token
-		// index (adopting the process or safely re-dispatching)
-		// instead of dead-ending on a terminal status. An
-		// interrupt likewise resolves it through its reconciler.
-		return errorResult(enrichStartError(fmt.Sprintf("start background process: %v", err)))
+		return startFailureResponse(ctx, options, toolCallID, "start background process", err)
 	}
 	logStartIdempotency(ctx, options.Logger, resp, toolCallID)
 	// Mark detached only when the handle write landed: a detached
@@ -975,7 +992,7 @@ func executeBackground(
 	return marshalResult(ExecuteResult{
 		Success:             true,
 		BackgroundProcessID: resp.ID,
-	})
+	}), nil
 }
 
 // recordProcessStart persists a freshly started process identity on
@@ -1050,7 +1067,7 @@ func executeForeground(
 	timeout time.Duration,
 	workDir string,
 	env map[string]string,
-) fantasy.ToolResponse {
+) (fantasy.ToolResponse, error) {
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -1064,13 +1081,7 @@ func executeForeground(
 		ClientToken: rec.ID,
 	})
 	if err != nil {
-		// The request may or may not have reached the agent. The
-		// row stays starting: the token is durable, so a later
-		// attempt resolves the dispatch through the agent's token
-		// index (adopting the process or safely re-dispatching)
-		// instead of dead-ending on a terminal status. An
-		// interrupt likewise resolves it through its reconciler.
-		return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err)))
+		return startFailureResponse(ctx, options, toolCallID, "start process", err)
 	}
 	logStartIdempotency(ctx, options.Logger, resp, toolCallID)
 	recorded := recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ID, time.Now())
@@ -1078,7 +1089,7 @@ func executeForeground(
 	result, lost := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)
 	if lost {
 		markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
-		return processLostResponse(resp.ID)
+		return processLostResponse(resp.ID), nil
 	}
 	result.WallDurationMs = time.Since(start).Milliseconds()
 	// Record the wait outcome only when the handle write landed:
@@ -1094,7 +1105,7 @@ func executeForeground(
 		result.Note = note
 	}
 
-	return marshalResult(result)
+	return marshalResult(result), nil
 }
 
 // timedOutRunningResult builds the ExecuteResult for a process that

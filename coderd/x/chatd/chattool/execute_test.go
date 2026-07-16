@@ -3,6 +3,7 @@ package chattool_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -913,18 +914,23 @@ func newRecordedExecuteTool(t *testing.T, mockConn *agentconnmock.MockAgentConn,
 
 func notFoundError(t *testing.T) error {
 	t.Helper()
+	return agentAPIError(t, http.StatusNotFound, "process not found")
+}
+
+func agentAPIError(t *testing.T, status int, message string) error {
+	t.Helper()
 	res := &http.Response{
-		StatusCode: http.StatusNotFound,
+		StatusCode: status,
 		Request: &http.Request{
 			Method: http.MethodGet,
 			URL:    &url.URL{Path: "/api/v0/processes/proc-1"},
 		},
-		Body: io.NopCloser(strings.NewReader(`{"message":"process not found"}`)),
+		Body: io.NopCloser(strings.NewReader(fmt.Sprintf(`{"message":%q}`, message))),
 	}
 	err := codersdk.ReadBodyAsError(res)
 	var sdkErr *codersdk.Error
 	require.ErrorAs(t, err, &sdkErr)
-	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	require.Equal(t, status, sdkErr.StatusCode())
 	return err
 }
 
@@ -1348,24 +1354,22 @@ func TestExecuteToolRecorder(t *testing.T) {
 
 		// No ProcessOutput expectation: without the recorded
 		// handle, re-attaching could terminalize a handle-less
-		// row, so the attempt must return a retryable error and
-		// leave the row starting for the next probe.
+		// row, so the attempt must abort uncommitted and leave
+		// the row starting for the next probe.
 		mockConn.EXPECT().
 			ProcessByToken(gomock.Any(), "exec-call-1").
 			Return(workspacesdk.ProcessByTokenResponse{Found: true, ProcessID: "proc-1"}, nil)
 
 		tool := newRecordedExecuteTool(t, mockConn, recorder)
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		resp, err := tool.Run(ctx, fantasy.ToolCall{
+		_, err := tool.Run(ctx, fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "execute",
 			Input: `{"command":"echo hi"}`,
 		})
-		require.NoError(t, err)
-		var result chattool.ExecuteResult
-		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-		assert.False(t, result.Success)
-		assert.Contains(t, result.Error, "retry the command")
+		require.Error(t, err)
+		var abortErr *chattool.AbortToolExecutionError
+		require.ErrorAs(t, err, &abortErr)
 		assert.Equal(t, chattool.ExecutionStatusStarting, recorder.record("call-1").Status)
 	})
 
@@ -1530,17 +1534,16 @@ func TestExecuteToolRecorder(t *testing.T) {
 
 		tool := newRecordedExecuteTool(t, mockConn, recorder)
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		resp, err := tool.Run(ctx, fantasy.ToolCall{
+		_, err := tool.Run(ctx, fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "execute",
 			Input: `{"command":"echo hi"}`,
 		})
-		require.NoError(t, err)
-		var result chattool.ExecuteResult
-		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-		assert.False(t, result.Success)
-		assert.Contains(t, result.Error, "probe execution token")
-		// The row is untouched so a later attempt can probe again.
+		// The attempt aborts uncommitted and the row is untouched,
+		// so the retried call probes the same token again.
+		require.Error(t, err)
+		var abortErr *chattool.AbortToolExecutionError
+		require.ErrorAs(t, err, &abortErr)
 		assert.Equal(t, chattool.ExecutionStatusStarting, recorder.record("call-1").Status)
 	})
 
@@ -2076,23 +2079,49 @@ func TestExecuteToolRecorder(t *testing.T) {
 
 		tool := newRecordedExecuteTool(t, mockConn, recorder)
 		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		// The request may have reached the agent, and the token is
+		// durable. The attempt aborts uncommitted and the row stays
+		// starting, so the retried call resolves the dispatch
+		// through the token probe instead of committing a result
+		// that would end same-token recovery.
+		require.Error(t, err)
+		var abortErr *chattool.AbortToolExecutionError
+		require.ErrorAs(t, err, &abortErr)
+		assert.Equal(t, chattool.ExecutionStatusStarting, recorder.record("call-1").Status)
+	})
+
+	t.Run("StartErrorStructuredMarksNoEffect", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+
+		// A structured agent response means the spawn failed and
+		// the token reservation was released: nothing is running,
+		// so the error commits normally.
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{}, agentAPIError(t, http.StatusInternalServerError, "Failed to start process."))
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		resp, err := tool.Run(ctx, fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "execute",
 			Input: `{"command":"echo hi"}`,
 		})
 		require.NoError(t, err)
-		assert.False(t, resp.IsError)
 
 		var result chattool.ExecuteResult
 		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 		assert.False(t, result.Success)
 		assert.Contains(t, result.Error, "start process")
-		// The request may have reached the agent, and the token is
-		// durable. The row stays starting so a retry resolves the
-		// dispatch through the token probe instead of dead-ending
-		// on a terminal unknown.
-		assert.Equal(t, chattool.ExecutionStatusStarting, recorder.record("call-1").Status)
+		assert.Equal(t, chattool.ExecutionStatusNoEffect, recorder.record("call-1").Status)
 	})
 
 	t.Run("BackgroundStartMarksDetached", func(t *testing.T) {
