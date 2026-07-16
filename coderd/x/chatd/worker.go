@@ -97,6 +97,9 @@ func (w *chatWorker) Start(ctx context.Context) error {
 	w.wg.Go(func() {
 		w.archiveLoop(workerCtx)
 	})
+	w.wg.Go(func() {
+		w.executionSweepLoop(workerCtx)
+	})
 	wake(wakeCh)
 	return nil
 }

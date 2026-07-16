@@ -273,6 +273,14 @@ func (m queryMetricsStore) ClaimPrebuiltWorkspace(ctx context.Context, arg datab
 	return r0, r1
 }
 
+func (m queryMetricsStore) ClaimStaleChatToolCallExecutionCancels(ctx context.Context, arg database.ClaimStaleChatToolCallExecutionCancelsParams) ([]database.ChatToolCallExecution, error) {
+	start := time.Now()
+	r0, r1 := m.s.ClaimStaleChatToolCallExecutionCancels(ctx, arg)
+	m.queryLatencies.WithLabelValues("ClaimStaleChatToolCallExecutionCancels").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClaimStaleChatToolCallExecutionCancels").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) CleanTailnetCoordinators(ctx context.Context) error {
 	start := time.Now()
 	r0 := m.s.CleanTailnetCoordinators(ctx)

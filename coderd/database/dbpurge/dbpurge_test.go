@@ -2887,24 +2887,38 @@ func TestDeleteOldChatToolCallExecutions(t *testing.T) {
 	})
 
 	now := dbtime.Now()
-	err := db.InsertChatToolCallExecutionIntent(ctx, database.InsertChatToolCallExecutionIntentParams{
-		ID:                 uuid.New(),
-		ChatID:             chat.ID,
-		AssistantMessageID: msg.ID,
-		ToolCallID:         "old-call",
-		InputSha256:        "hash-old",
-		CreatedAt:          now.Add(-8 * 24 * time.Hour),
-	})
-	require.NoError(t, err)
-	err = db.InsertChatToolCallExecutionIntent(ctx, database.InsertChatToolCallExecutionIntentParams{
-		ID:                 uuid.New(),
-		ChatID:             chat.ID,
-		AssistantMessageID: msg.ID,
-		ToolCallID:         "new-call",
-		InputSha256:        "hash-new",
-		CreatedAt:          now,
-	})
-	require.NoError(t, err)
+	for _, call := range []struct {
+		id        string
+		createdAt time.Time
+		committed bool
+	}{
+		// Old and committed: the only purgeable combination.
+		{id: "old-call", createdAt: now.Add(-8 * 24 * time.Hour), committed: true},
+		// Old but uncommitted: still guards dedup for a call a
+		// future retry may re-execute, so age alone never purges
+		// it.
+		{id: "old-uncommitted-call", createdAt: now.Add(-8 * 24 * time.Hour), committed: false},
+		{id: "new-call", createdAt: now, committed: true},
+	} {
+		err := db.InsertChatToolCallExecutionIntent(ctx, database.InsertChatToolCallExecutionIntentParams{
+			ID:                 uuid.New(),
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         call.id,
+			InputSha256:        "hash-" + call.id,
+			CreatedAt:          call.createdAt,
+		})
+		require.NoError(t, err)
+		if call.committed {
+			err = db.MarkChatToolCallExecutionsResultCommitted(ctx, database.MarkChatToolCallExecutionsResultCommittedParams{
+				ChatID:             chat.ID,
+				AssistantMessageID: msg.ID,
+				ToolCallIds:        []string{call.id},
+				ResultCommittedAt:  call.createdAt,
+			})
+			require.NoError(t, err)
+		}
+	}
 
 	deleted, err := db.DeleteOldChatToolCallExecutions(ctx, database.DeleteOldChatToolCallExecutionsParams{
 		BeforeTime: now.Add(-7 * 24 * time.Hour),
@@ -2914,6 +2928,8 @@ func TestDeleteOldChatToolCallExecutions(t *testing.T) {
 	require.EqualValues(t, 1, deleted)
 
 	_, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: msg.ID, ToolCallID: "new-call"})
+	require.NoError(t, err)
+	_, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: msg.ID, ToolCallID: "old-uncommitted-call"})
 	require.NoError(t, err)
 	_, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: msg.ID, ToolCallID: "old-call"})
 	require.ErrorIs(t, err, sql.ErrNoRows)

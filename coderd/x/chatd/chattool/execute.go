@@ -185,6 +185,11 @@ type ExecutionRecord struct {
 	ClaimEpoch int64
 	ClaimedAt  time.Time
 	StartedAt  time.Time
+	// WorkspaceAgentID is the agent that owns the recorded
+	// process. A 404 from a different agent proves nothing about
+	// the process, so re-attach only treats it as loss when the
+	// probed agent matches.
+	WorkspaceAgentID uuid.UUID
 }
 
 // ExecutionRecorder is the tool's view of the execution ledger.
@@ -448,7 +453,8 @@ func terminalRowResponse(ctx context.Context, options ExecuteOptions, toolCallID
 
 // resolveWithoutConn resolves a tool call from the ledger alone
 // when the workspace connection is unavailable. ok is true only for
-// rows whose terminal status makes agent access unnecessary.
+// rows that need no agent access: terminal rows, and background
+// rows whose recorded handle is the entire result.
 func resolveWithoutConn(ctx context.Context, options ExecuteOptions, toolCallID string) (fantasy.ToolResponse, bool) {
 	if options.Recorder == nil {
 		return fantasy.ToolResponse{}, false
@@ -457,7 +463,27 @@ func resolveWithoutConn(ctx context.Context, options ExecuteOptions, toolCallID 
 	if err != nil {
 		return fantasy.ToolResponse{}, false
 	}
+	if rec.Background && rec.ProcessID != "" {
+		switch rec.Status {
+		case ExecutionStatusRunning, ExecutionStatusExited, ExecutionStatusDetached:
+			return resolveBackgroundRow(ctx, options, toolCallID, rec), true
+		}
+	}
 	return terminalRowResponse(ctx, options, toolCallID, rec)
+}
+
+// resolveBackgroundRow returns the durable result for a background
+// execute whose process was already dispatched: the handle itself.
+// Output retrieval stays with process_output, so no agent access is
+// needed.
+func resolveBackgroundRow(ctx context.Context, options ExecuteOptions, toolCallID string, rec ExecutionRecord) fantasy.ToolResponse {
+	if rec.Status != ExecutionStatusDetached {
+		markTerminal(ctx, options, toolCallID, ExecutionStatusDetached)
+	}
+	return marshalResult(ExecuteResult{
+		Success:             true,
+		BackgroundProcessID: rec.ProcessID,
+	})
 }
 
 // awaitRecordedProcess polls a starting claim until its owner
@@ -499,15 +525,7 @@ func reattachProcess(
 	rec ExecutionRecord,
 ) fantasy.ToolResponse {
 	if rec.Background {
-		// Background executes only ever return the process
-		// handle; output retrieval happens via process_output.
-		if rec.Status != ExecutionStatusDetached {
-			markTerminal(ctx, options, toolCallID, ExecutionStatusDetached)
-		}
-		return marshalResult(ExecuteResult{
-			Success:             true,
-			BackgroundProcessID: rec.ProcessID,
-		})
+		return resolveBackgroundRow(ctx, options, toolCallID, rec)
 	}
 
 	snapCtx, cancel := context.WithTimeout(ctx, snapshotTimeout)
@@ -515,11 +533,15 @@ func reattachProcess(
 	cancel()
 	if err != nil {
 		// Only a definite 404 (the agent was reached and does not
-		// know the process) means the result is gone. Transport
-		// errors, cancellations, and server errors leave the
-		// process potentially retrievable.
+		// know the process) means the result is gone, and only
+		// when the connection targets the agent that owns the
+		// process: a chat rebound to a different agent asks the
+		// wrong agent, which knows nothing about the process.
+		// Transport errors, cancellations, and server errors
+		// likewise leave the process potentially retrievable.
 		var sdkErr *codersdk.Error
-		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound &&
+			(rec.WorkspaceAgentID == uuid.Nil || rec.WorkspaceAgentID == options.connAgentID) {
 			markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
 			return processLostResponse(rec.ProcessID)
 		}

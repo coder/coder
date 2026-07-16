@@ -1856,6 +1856,15 @@ func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.Claim
 	return q.db.ClaimPrebuiltWorkspace(ctx, arg)
 }
 
+func (q *querier) ClaimStaleChatToolCallExecutionCancels(ctx context.Context, arg database.ClaimStaleChatToolCallExecutionCancelsParams) ([]database.ChatToolCallExecution, error) {
+	// The sweep crosses all chats, so it authorizes like other
+	// system-wide chat maintenance instead of per-chat.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.ClaimStaleChatToolCallExecutionCancels(ctx, arg)
+}
+
 func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
 		return err

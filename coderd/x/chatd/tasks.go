@@ -763,10 +763,11 @@ const interruptRecordGrace = time.Minute
 // ledger rows left by an interrupt commit. Everything is
 // best-effort: the interrupt already committed and must not fail
 // because an agent is slow or gone. A row whose kill cannot be
-// confirmed keeps cancel_requested with its full process identity
-// so a later reconciler can still act on it. Background executes
-// were marked detached in the commit and are left running; the
-// model chose to detach them.
+// confirmed keeps cancel_requested with its full process identity;
+// the periodic execution sweep retries it until a terminal outcome
+// is recorded. Background executes with a recorded handle were
+// marked detached in the commit and are left running; the model
+// chose to detach them.
 func (s *taskStarter) reconcileInterruptedExecutions(ctx context.Context, records []database.ChatToolCallExecution) {
 	if len(records) == 0 {
 		return
@@ -777,6 +778,7 @@ func (s *taskStarter) reconcileInterruptedExecutions(ctx context.Context, record
 	// wait plus the kill round-trips.
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
 	defer cancel()
+	r := s.executionReconciler()
 	for _, record := range records {
 		if record.Status != database.ChatToolCallExecutionStatusCancelRequested {
 			continue
@@ -787,15 +789,35 @@ func (s *taskStarter) reconcileInterruptedExecutions(ctx context.Context, record
 			// runs on an uncanceled context, so an interrupted
 			// in-flight StartProcess can still land its handle on
 			// this cancel_requested row moments after the commit.
-			// This pass is the only reconciler, so wait out that
-			// window here instead of resolving early.
-			record = s.awaitInterruptedIdentity(ctx, record)
+			// Wait out that window here instead of resolving
+			// early.
+			record = r.awaitInterruptedIdentity(ctx, record)
+			if record.Status != database.ChatToolCallExecutionStatusCancelRequested {
+				continue
+			}
 			if !record.ProcessID.Valid || !record.WorkspaceAgentID.Valid {
-				s.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, sql.NullTime{})
+				r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, sql.NullTime{})
 				continue
 			}
 		}
-		s.reconcileCancelRequested(ctx, record)
+		r.reconcileCancelRequested(ctx, record)
+	}
+}
+
+// executionReconciler resolves cancel_requested execution rows. It
+// is shared between the immediate post-interrupt pass and the
+// periodic sweep that retries rows whose first pass failed.
+type executionReconciler struct {
+	store     database.Store
+	logger    slog.Logger
+	agentConn AgentConnFunc
+}
+
+func (s *taskStarter) executionReconciler() executionReconciler {
+	return executionReconciler{
+		store:     s.opts.Store,
+		logger:    s.opts.Logger,
+		agentConn: s.server.agentConnFn,
 	}
 }
 
@@ -803,7 +825,7 @@ func (s *taskStarter) reconcileInterruptedExecutions(ctx context.Context, record
 // recorded process identity while the dead dispatch's uncanceled
 // recordProcessStart write can still land (recordWriteTimeout plus
 // slack from the claim). It returns the freshest row observed.
-func (s *taskStarter) awaitInterruptedIdentity(ctx context.Context, record database.ChatToolCallExecution) database.ChatToolCallExecution {
+func (r executionReconciler) awaitInterruptedIdentity(ctx context.Context, record database.ChatToolCallExecution) database.ChatToolCallExecution {
 	if !record.ClaimedAt.Valid {
 		return record
 	}
@@ -814,7 +836,7 @@ func (s *taskStarter) awaitInterruptedIdentity(ctx context.Context, record datab
 			return record
 		case <-time.After(2 * time.Second):
 		}
-		latest, err := s.opts.Store.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+		latest, err := r.store.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
 			ChatID:             record.ChatID,
 			AssistantMessageID: record.AssistantMessageID,
 			ToolCallID:         record.ToolCallID,
@@ -833,34 +855,44 @@ func (s *taskStarter) awaitInterruptedIdentity(ctx context.Context, record datab
 	return record
 }
 
-// reconcileCancelRequested delivers a kill signal for one
-// cancel_requested row and records how far confirmation got:
-// canceled when the agent definitively has no such process or a
-// post-kill snapshot shows it exited, otherwise cancel_requested
-// stays, with cancel_signal_sent_at set when the signal was
-// delivered.
-func (s *taskStarter) reconcileCancelRequested(ctx context.Context, record database.ChatToolCallExecution) {
+// reconcileCancelRequested resolves one cancel_requested row with
+// recorded process identity. Background rows are resolved to
+// detached without signaling: the interrupt spares background
+// processes, and this row only reached cancel_requested because its
+// handle had not landed at commit time. Foreground rows get a kill
+// signal, recording how far confirmation got: canceled when the
+// agent definitively has no such process or a post-kill snapshot
+// shows it exited, otherwise cancel_requested stays (with
+// cancel_signal_sent_at set when the signal was delivered) for the
+// periodic sweep to retry.
+func (r executionReconciler) reconcileCancelRequested(ctx context.Context, record database.ChatToolCallExecution) {
+	if record.Background {
+		r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusDetached, sql.NullTime{})
+		return
+	}
 	dialCtx, cancel := context.WithTimeout(ctx, interruptKillDialTimeout)
 	defer cancel()
-	conn, release, err := s.server.agentConnFn(dialCtx, record.WorkspaceAgentID.UUID)
+	conn, release, err := r.agentConn(dialCtx, record.WorkspaceAgentID.UUID)
 	if err != nil {
-		s.opts.Logger.Warn(ctx, "failed to dial agent to kill interrupted process",
+		r.logger.Warn(ctx, "failed to dial agent to kill interrupted process",
 			slog.F("chat_id", record.ChatID),
 			slog.F("process_id", record.ProcessID.String),
 			slog.Error(err),
 		)
 		return
 	}
-	defer release()
+	if release != nil {
+		defer release()
+	}
 	if err := conn.SignalProcess(dialCtx, record.ProcessID.String, "kill"); err != nil {
 		var sdkErr *codersdk.Error
 		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
 			// The agent was reached and has no such process:
 			// termination is confirmed.
-			s.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusCanceled, sql.NullTime{})
+			r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusCanceled, sql.NullTime{})
 			return
 		}
-		s.opts.Logger.Warn(ctx, "failed to kill interrupted process",
+		r.logger.Warn(ctx, "failed to kill interrupted process",
 			slog.F("chat_id", record.ChatID),
 			slog.F("process_id", record.ProcessID.String),
 			slog.Error(err),
@@ -868,24 +900,24 @@ func (s *taskStarter) reconcileCancelRequested(ctx context.Context, record datab
 		return
 	}
 	signalSentAt := sql.NullTime{Time: dbtime.Now(), Valid: true}
-	s.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusCancelRequested, signalSentAt)
+	r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusCancelRequested, signalSentAt)
 	snapCtx, cancelSnap := context.WithTimeout(ctx, interruptKillDialTimeout)
 	defer cancelSnap()
 	resp, err := conn.ProcessOutput(snapCtx, record.ProcessID.String, nil)
 	if err != nil {
 		var sdkErr *codersdk.Error
 		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
-			s.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusCanceled, signalSentAt)
+			r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusCanceled, signalSentAt)
 		}
 		return
 	}
 	if !resp.Running {
-		s.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusCanceled, signalSentAt)
+		r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusCanceled, signalSentAt)
 	}
 }
 
-func (s *taskStarter) resolveCancelOutcome(ctx context.Context, record database.ChatToolCallExecution, status database.ChatToolCallExecutionStatus, signalSentAt sql.NullTime) {
-	_, err := s.opts.Store.UpdateChatToolCallExecutionCancelOutcome(ctx, database.UpdateChatToolCallExecutionCancelOutcomeParams{
+func (r executionReconciler) resolveCancelOutcome(ctx context.Context, record database.ChatToolCallExecution, status database.ChatToolCallExecutionStatus, signalSentAt sql.NullTime) {
+	_, err := r.store.UpdateChatToolCallExecutionCancelOutcome(ctx, database.UpdateChatToolCallExecutionCancelOutcomeParams{
 		ChatID:             record.ChatID,
 		AssistantMessageID: record.AssistantMessageID,
 		ToolCallID:         record.ToolCallID,
@@ -894,11 +926,71 @@ func (s *taskStarter) resolveCancelOutcome(ctx context.Context, record database.
 		UpdatedAt:          dbtime.Now(),
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		s.opts.Logger.Warn(ctx, "failed to record interrupt cancel outcome",
+		r.logger.Warn(ctx, "failed to record interrupt cancel outcome",
 			slog.F("chat_id", record.ChatID),
 			slog.F("tool_call_id", record.ToolCallID),
 			slog.F("status", string(status)),
 			slog.Error(err),
 		)
+	}
+}
+
+// executionSweepRetryAge is how long a cancel_requested row must sit
+// unchanged before the periodic sweep retries it. Sized past the
+// immediate post-interrupt pass's bound so the sweep never races a
+// pass that is still working the row.
+const executionSweepRetryAge = 3 * time.Minute
+
+// executionSweepBatchSize bounds one sweep pass.
+const executionSweepBatchSize = 100
+
+// executionSweepLoop periodically retries stalled cancel_requested
+// executions. The immediate post-interrupt pass is best-effort, so
+// this loop is what guarantees an interrupted process is eventually
+// killed even when its agent was unreachable at interrupt time or
+// the server died mid-reconciliation.
+func (w *chatWorker) executionSweepLoop(ctx context.Context) {
+	r := executionReconciler{
+		store:     w.opts.Store,
+		logger:    w.opts.Logger,
+		agentConn: w.server.agentConnFn,
+	}
+	ticker := w.opts.Clock.NewTicker(w.opts.ExecutionSweepInterval, "chatworker", "execution-sweep")
+	defer ticker.Stop("chatworker", "execution-sweep")
+	for {
+		select {
+		case tick := <-ticker.C:
+			ticker.Stop("chatworker", "execution-sweep")
+			r.sweepOnce(ctx, dbtime.Time(tick).UTC())
+			ticker.Reset(w.opts.ExecutionSweepInterval, "chatworker", "execution-sweep")
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// sweepOnce retries cancel_requested rows with recorded process
+// identity whose reconciliation stalled: the post-interrupt pass is
+// best-effort, so an unreachable agent or a dying server leaves the
+// row unresolved. The claim query bumps updated_at as a lease, so
+// unresolved rows retry on the next sweep without hammering the
+// same agent from every replica.
+func (r executionReconciler) sweepOnce(ctx context.Context, now time.Time) {
+	records, err := r.store.ClaimStaleChatToolCallExecutionCancels(ctx, database.ClaimStaleChatToolCallExecutionCancelsParams{
+		UpdatedBefore: now.Add(-executionSweepRetryAge),
+		LimitCount:    executionSweepBatchSize,
+		Now:           now,
+	})
+	if err != nil {
+		r.logger.Warn(ctx, "failed to claim stale interrupted executions", slog.Error(err))
+		return
+	}
+	for _, record := range records {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		r.reconcileCancelRequested(ctx, record)
 	}
 }

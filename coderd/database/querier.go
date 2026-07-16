@@ -89,6 +89,13 @@ type sqlcQuerier interface {
 	// claimable; the caller reads it to decide how to proceed.
 	ClaimChatToolCallExecution(ctx context.Context, arg ClaimChatToolCallExecutionParams) (ChatToolCallExecution, error)
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
+	// Claims a batch of cancel_requested rows with recorded process
+	// identity whose reconciliation stalled (the post-interrupt pass
+	// lost its agent dial or died). Bumping updated_at inside the claim
+	// acts as a cross-replica lease so concurrent sweepers do not
+	// hammer the same unreachable agent; FOR UPDATE SKIP LOCKED keeps
+	// sweepers from serializing on each other.
+	ClaimStaleChatToolCallExecutionCancels(ctx context.Context, arg ClaimStaleChatToolCallExecutionCancelsParams) ([]ChatToolCallExecution, error)
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
 	CleanTailnetTunnels(ctx context.Context) error
@@ -200,11 +207,12 @@ type sqlcQuerier interface {
 	//    than the retention period.
 	DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error)
 	// Age-based retention of ledger history, deleted in bounded batches
-	// to keep transactions short. Deleting a row never affects a
-	// still-running detached process, which stays addressable through
-	// the process handle in its committed tool result; dedup protection
-	// is not needed at this age because no attempt can still be
-	// re-executing a call this old.
+	// to keep transactions short. Only rows whose tool result was
+	// committed are eligible: an uncommitted row still guards dedup for
+	// a call a future retry may re-execute, no matter how old it is.
+	// Deleting a committed row never affects a still-running detached
+	// process, which stays addressable through the process handle in
+	// its committed tool result.
 	DeleteOldChatToolCallExecutions(ctx context.Context, arg DeleteOldChatToolCallExecutionsParams) (int64, error)
 	// Deletes chats that have been archived for longer than the given
 	// threshold. Active (non-archived) chats are never deleted.
@@ -1221,10 +1229,14 @@ type sqlcQuerier interface {
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
 	// Maps unresolved executions to their interrupt outcome in the same
 	// transaction that commits the synthetic cancellation results:
-	// background processes are deliberately left alive (detached),
-	// never-dispatched reservations are canceled outright, and
-	// dispatched foreground claims become cancel_requested for the
-	// post-commit reconciler. Rows already in a terminal state keep it.
+	// background processes with a recorded handle are deliberately left
+	// alive (detached), never-dispatched reservations are canceled
+	// outright, and dispatched claims without a resolved handle
+	// (foreground, or background whose start is still in flight) become
+	// cancel_requested for the post-commit reconciler. A background row
+	// must not be terminalized as detached before its handle lands:
+	// that would strand a running process with no recoverable ID. Rows
+	// already in a terminal state keep it.
 	MarkChatToolCallExecutionsInterrupted(ctx context.Context, arg MarkChatToolCallExecutionsInterruptedParams) ([]ChatToolCallExecution, error)
 	// Runs in the same transaction that commits the tool result messages
 	// (real or synthetic). status is untouched so diagnostic states keep

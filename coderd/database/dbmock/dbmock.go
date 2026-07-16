@@ -352,6 +352,21 @@ func (mr *MockStoreMockRecorder) ClaimPrebuiltWorkspace(ctx, arg any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimPrebuiltWorkspace", reflect.TypeOf((*MockStore)(nil).ClaimPrebuiltWorkspace), ctx, arg)
 }
 
+// ClaimStaleChatToolCallExecutionCancels mocks base method.
+func (m *MockStore) ClaimStaleChatToolCallExecutionCancels(ctx context.Context, arg database.ClaimStaleChatToolCallExecutionCancelsParams) ([]database.ChatToolCallExecution, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClaimStaleChatToolCallExecutionCancels", ctx, arg)
+	ret0, _ := ret[0].([]database.ChatToolCallExecution)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClaimStaleChatToolCallExecutionCancels indicates an expected call of ClaimStaleChatToolCallExecutionCancels.
+func (mr *MockStoreMockRecorder) ClaimStaleChatToolCallExecutionCancels(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimStaleChatToolCallExecutionCancels", reflect.TypeOf((*MockStore)(nil).ClaimStaleChatToolCallExecutionCancels), ctx, arg)
+}
+
 // CleanTailnetCoordinators mocks base method.
 func (m *MockStore) CleanTailnetCoordinators(ctx context.Context) error {
 	m.ctrl.T.Helper()

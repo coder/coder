@@ -251,5 +251,8 @@ func executionRecordFromRow(row database.ChatToolCallExecution) chattool.Executi
 	if row.StartedAt.Valid {
 		rec.StartedAt = row.StartedAt.Time
 	}
+	if row.WorkspaceAgentID.Valid {
+		rec.WorkspaceAgentID = row.WorkspaceAgentID.UUID
+	}
 	return rec
 }

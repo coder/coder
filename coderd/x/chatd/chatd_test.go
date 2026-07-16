@@ -13822,14 +13822,32 @@ func TestChatToolCallExecutionLedgerQueries(t *testing.T) {
 			StartedAt:          dbtime.Now(),
 		})
 		require.NoError(t, err)
-		// background running: detached by the interrupt instead of
-		// cancel_requested.
+		// background with a recorded handle: detached by the
+		// interrupt instead of cancel_requested.
 		bgParams := claimParams(chat, msg, "call-bg", "hash", time.Time{})
 		bgParams.Background = true
-		_, err = db.ClaimChatToolCallExecution(ctx, bgParams)
+		bgClaimed, err := db.ClaimChatToolCallExecution(ctx, bgParams)
+		require.NoError(t, err)
+		_, err = db.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         "call-bg",
+			ClaimEpoch:         bgClaimed.ClaimEpoch,
+			ProcessID:          "proc-bg",
+			WorkspaceAgentID:   agentID,
+			StartedAt:          dbtime.Now(),
+		})
+		require.NoError(t, err)
+		// background whose start is still in flight (no handle):
+		// must not be terminalized as detached with nothing to
+		// re-attach to; the reconciler resolves it once the handle
+		// lands.
+		bgPendingParams := claimParams(chat, msg, "call-bg-pending", "hash", time.Time{})
+		bgPendingParams.Background = true
+		_, err = db.ClaimChatToolCallExecution(ctx, bgPendingParams)
 		require.NoError(t, err)
 
-		callIDs := []string{"call-reserved", "call-starting", "call-running", "call-bg"}
+		callIDs := []string{"call-reserved", "call-starting", "call-running", "call-bg", "call-bg-pending"}
 		rows, err := db.MarkChatToolCallExecutionsInterrupted(ctx, database.MarkChatToolCallExecutionsInterruptedParams{
 			ChatID:             chat.ID,
 			AssistantMessageID: msg.ID,
@@ -13845,6 +13863,7 @@ func TestChatToolCallExecutionLedgerQueries(t *testing.T) {
 		require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, byCall["call-starting"].Status)
 		require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, byCall["call-running"].Status)
 		require.Equal(t, database.ChatToolCallExecutionStatusDetached, byCall["call-bg"].Status)
+		require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, byCall["call-bg-pending"].Status)
 		// The cancel_requested row keeps its process identity for
 		// the reconciler.
 		require.Equal(t, "proc-running", byCall["call-running"].ProcessID.String)

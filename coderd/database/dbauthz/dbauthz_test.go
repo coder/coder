@@ -1501,6 +1501,15 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteStaleChatHeartbeats(gomock.Any(), staleSeconds).Return(int64(1), nil).AnyTimes()
 		check.Args(staleSeconds).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(int64(1))
 	}))
+	s.Run("ClaimStaleChatToolCallExecutionCancels", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ClaimStaleChatToolCallExecutionCancelsParams{
+			UpdatedBefore: dbtime.Now(),
+			LimitCount:    10,
+			Now:           dbtime.Now(),
+		}
+		dbm.EXPECT().ClaimStaleChatToolCallExecutionCancels(gomock.Any(), arg).Return([]database.ChatToolCallExecution{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns([]database.ChatToolCallExecution{})
+	}))
 	s.Run("UpdateChatByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpdateChatByIDParams{

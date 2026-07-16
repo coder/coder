@@ -129,14 +129,18 @@ WHERE chat_id = @chat_id::uuid
 -- name: MarkChatToolCallExecutionsInterrupted :many
 -- Maps unresolved executions to their interrupt outcome in the same
 -- transaction that commits the synthetic cancellation results:
--- background processes are deliberately left alive (detached),
--- never-dispatched reservations are canceled outright, and
--- dispatched foreground claims become cancel_requested for the
--- post-commit reconciler. Rows already in a terminal state keep it.
+-- background processes with a recorded handle are deliberately left
+-- alive (detached), never-dispatched reservations are canceled
+-- outright, and dispatched claims without a resolved handle
+-- (foreground, or background whose start is still in flight) become
+-- cancel_requested for the post-commit reconciler. A background row
+-- must not be terminalized as detached before its handle lands:
+-- that would strand a running process with no recoverable ID. Rows
+-- already in a terminal state keep it.
 UPDATE chat_tool_call_executions
 SET status = CASE
-        WHEN background THEN 'detached'::chat_tool_call_execution_status
         WHEN status = 'reserved' THEN 'canceled'::chat_tool_call_execution_status
+        WHEN background AND process_id IS NOT NULL THEN 'detached'::chat_tool_call_execution_status
         ELSE 'cancel_requested'::chat_tool_call_execution_status
     END,
     updated_at = @updated_at::timestamptz
@@ -145,6 +149,30 @@ WHERE chat_id = @chat_id::uuid
   AND tool_call_id = ANY(@tool_call_ids::text[])
   AND status IN ('reserved', 'starting', 'running')
 RETURNING *;
+
+-- name: ClaimStaleChatToolCallExecutionCancels :many
+-- Claims a batch of cancel_requested rows with recorded process
+-- identity whose reconciliation stalled (the post-interrupt pass
+-- lost its agent dial or died). Bumping updated_at inside the claim
+-- acts as a cross-replica lease so concurrent sweepers do not
+-- hammer the same unreachable agent; FOR UPDATE SKIP LOCKED keeps
+-- sweepers from serializing on each other.
+WITH candidates AS (
+    SELECT id
+    FROM chat_tool_call_executions
+    WHERE status = 'cancel_requested'
+      AND process_id IS NOT NULL
+      AND workspace_agent_id IS NOT NULL
+      AND updated_at < @updated_before::timestamptz
+    ORDER BY updated_at ASC
+    LIMIT @limit_count::int
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE chat_tool_call_executions
+SET updated_at = @now::timestamptz
+FROM candidates
+WHERE chat_tool_call_executions.id = candidates.id
+RETURNING chat_tool_call_executions.*;
 
 -- name: UpdateChatToolCallExecutionCancelOutcome :one
 -- Resolves a cancel_requested row after a post-commit kill attempt:
@@ -163,15 +191,17 @@ RETURNING *;
 
 -- name: DeleteOldChatToolCallExecutions :execrows
 -- Age-based retention of ledger history, deleted in bounded batches
--- to keep transactions short. Deleting a row never affects a
--- still-running detached process, which stays addressable through
--- the process handle in its committed tool result; dedup protection
--- is not needed at this age because no attempt can still be
--- re-executing a call this old.
+-- to keep transactions short. Only rows whose tool result was
+-- committed are eligible: an uncommitted row still guards dedup for
+-- a call a future retry may re-execute, no matter how old it is.
+-- Deleting a committed row never affects a still-running detached
+-- process, which stays addressable through the process handle in
+-- its committed tool result.
 WITH deletable AS (
     SELECT id
     FROM chat_tool_call_executions
     WHERE created_at < @before_time::timestamptz
+      AND result_committed_at IS NOT NULL
     ORDER BY created_at ASC
     LIMIT @limit_count::int
 )

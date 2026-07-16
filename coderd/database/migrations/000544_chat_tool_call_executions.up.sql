@@ -52,3 +52,8 @@ CREATE INDEX idx_chat_tool_call_executions_created_at ON chat_tool_call_executio
 -- when chat_messages rows are deleted; the unique lineage index starts
 -- with chat_id and cannot serve it.
 CREATE INDEX idx_chat_tool_call_executions_assistant_message_id ON chat_tool_call_executions (assistant_message_id);
+
+-- Serves the workspace-agent FK's ON DELETE SET NULL check when
+-- agents are deleted. Partial: most retained rows have a NULL agent
+-- after their workspace is cleaned up.
+CREATE INDEX idx_chat_tool_call_executions_workspace_agent_id ON chat_tool_call_executions (workspace_agent_id) WHERE workspace_agent_id IS NOT NULL;

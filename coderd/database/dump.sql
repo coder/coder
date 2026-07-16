@@ -4806,6 +4806,8 @@ CREATE INDEX idx_chat_tool_call_executions_assistant_message_id ON chat_tool_cal
 
 CREATE INDEX idx_chat_tool_call_executions_created_at ON chat_tool_call_executions USING btree (created_at);
 
+CREATE INDEX idx_chat_tool_call_executions_workspace_agent_id ON chat_tool_call_executions USING btree (workspace_agent_id) WHERE (workspace_agent_id IS NOT NULL);
+
 CREATE INDEX idx_chats_agent_id ON chats USING btree (agent_id) WHERE (agent_id IS NOT NULL);
 
 CREATE INDEX idx_chats_auto_archive_candidates ON chats USING btree (created_at) WHERE ((archived = false) AND (pin_order = 0) AND (parent_chat_id IS NULL));
