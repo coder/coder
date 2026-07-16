@@ -340,6 +340,8 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		// - Each row with search_tsv = NULL is present in idx_chat_messages_search_tsv_pending.
 		// - Content of chat_messages is not changed after insert.
 		// - Rows that are soft-deleted are no longer part of the index.
+		// NOTE: This should not remain in dbpurge and should be adjusted when the "DBOps" gets
+		//   implemented.
 		var backfilledChatSearchRows int64
 		for range i.chatSearchBackfillMaxBatches {
 			n, err := tx.BackfillChatMessagesSearchTsv(ctx, i.chatSearchBackfillBatchSize)
