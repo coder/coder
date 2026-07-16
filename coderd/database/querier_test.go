@@ -13114,228 +13114,115 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 	now := monthStart.AddDate(0, 0, 14)              // 2024-06-15
 	prevMonthLastDay := monthStart.AddDate(0, 0, -1) // 2024-05-31
 
-	t.Run("NoBudgetNoSpend", func(t *testing.T) {
-		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
+	tests := []struct {
+		name               string
+		groupLimit         int64
+		overrideLimit      int64
+		spend              int64
+		wantEffectiveGroup bool
+		wantLimit          sql.NullInt64
+		wantSource         sql.NullString
+		wantSpend          int64
+	}{
+		{
+			name:               "NoBudgetNoSpend",
+			wantEffectiveGroup: false,
+			wantLimit:          sql.NullInt64{},
+			wantSource:         sql.NullString{},
+			wantSpend:          0,
+		},
+		{
+			name:               "GroupBudget",
+			groupLimit:         1_000_000,
+			wantEffectiveGroup: true,
+			wantLimit:          sql.NullInt64{Int64: 1_000_000, Valid: true},
+			wantSource:         sql.NullString{String: "group", Valid: true},
+			wantSpend:          0,
+		},
+		{
+			name:               "OverrideBudget",
+			overrideLimit:      500_000,
+			wantEffectiveGroup: true,
+			wantLimit:          sql.NullInt64{Int64: 500_000, Valid: true},
+			wantSource:         sql.NullString{String: "user_override", Valid: true},
+			wantSpend:          0,
+		},
+		{
+			name:               "NoBudgetWithSpend",
+			spend:              250,
+			wantEffectiveGroup: false,
+			wantLimit:          sql.NullInt64{},
+			wantSource:         sql.NullString{},
+			wantSpend:          250,
+		},
+		{
+			name:               "BudgetWithSpend",
+			groupLimit:         1_000_000,
+			spend:              250,
+			wantEffectiveGroup: true,
+			wantLimit:          sql.NullInt64{Int64: 1_000_000, Valid: true},
+			wantSource:         sql.NullString{String: "group", Valid: true},
+			wantSpend:          250,
+		},
+	}
 
-		// Given: a group member with no budget and no spend.
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
-		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: user.ID})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			db, _ := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
 
-		// When: querying spend for the user.
-		got, err := db.GetGroupMembersAISpend(ctx, database.GetGroupMembersAISpendParams{
-			GroupID:     group.ID,
-			UserIds:     []uuid.UUID{user.ID},
-			PeriodStart: monthStart,
+			// Given: a member of the queried group, optionally with a group
+			// budget, a user override, and seeded spend.
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+			dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: user.ID})
+			if tt.groupLimit > 0 {
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+					GroupID:          group.ID,
+					SpendLimitMicros: tt.groupLimit,
+				})
+				require.NoError(t, err)
+			}
+			if tt.overrideLimit > 0 {
+				_, err := db.UpsertUserAIBudgetOverride(ctx, database.UpsertUserAIBudgetOverrideParams{
+					UserID:           user.ID,
+					GroupID:          group.ID,
+					SpendLimitMicros: tt.overrideLimit,
+				})
+				require.NoError(t, err)
+			}
+			if tt.spend > 0 {
+				_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+					UserID: user.ID, EffectiveGroupID: group.ID, Day: now, CostMicros: tt.spend,
+				})
+				require.NoError(t, err)
+			}
+
+			// When: querying spend for the user.
+			got, err := db.GetGroupMembersAISpend(ctx, database.GetGroupMembersAISpendParams{
+				GroupID:     group.ID,
+				UserIds:     []uuid.UUID{user.ID},
+				PeriodStart: monthStart,
+			})
+			require.NoError(t, err)
+
+			// Then: one row with the expected effective group, limit, source, and spend.
+			require.Len(t, got, 1)
+			require.Equal(t, user.ID, got[0].UserID)
+			require.Equal(t, org.ID, got[0].OrganizationID)
+			if tt.wantEffectiveGroup {
+				require.Equal(t, uuid.NullUUID{UUID: group.ID, Valid: true}, got[0].EffectiveGroupID)
+			} else {
+				require.False(t, got[0].EffectiveGroupID.Valid, "expected no effective group")
+			}
+			require.Equal(t, tt.wantLimit, got[0].SpendLimitMicros)
+			require.Equal(t, tt.wantSource, got[0].LimitSource)
+			require.Equal(t, tt.wantSpend, got[0].GroupSpendMicros)
 		})
-		require.NoError(t, err)
-
-		// Then: one row with no effective group and zero spend.
-		require.Len(t, got, 1)
-		require.Equal(t, user.ID, got[0].UserID)
-		require.Equal(t, org.ID, got[0].OrganizationID)
-		require.False(t, got[0].EffectiveGroupID.Valid, "expected no effective group")
-		require.Equal(t, int64(0), got[0].GroupSpendMicros)
-	})
-
-	t.Run("GroupBudget", func(t *testing.T) {
-		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		// Given: a user in the queried group and the queried group has a budget.
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
-		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: user.ID})
-		_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
-			GroupID:          group.ID,
-			SpendLimitMicros: 1_000_000,
-		})
-		require.NoError(t, err)
-
-		// When: querying spend for the user.
-		got, err := db.GetGroupMembersAISpend(ctx, database.GetGroupMembersAISpendParams{
-			GroupID:     group.ID,
-			UserIds:     []uuid.UUID{user.ID},
-			PeriodStart: monthStart,
-		})
-		require.NoError(t, err)
-
-		// Then: the effective group is the queried group, and the limit and
-		// source reflect the group budget.
-		require.Len(t, got, 1)
-		require.Equal(t, uuid.NullUUID{UUID: group.ID, Valid: true}, got[0].EffectiveGroupID)
-		require.Equal(t, sql.NullInt64{Int64: 1_000_000, Valid: true}, got[0].SpendLimitMicros)
-		require.Equal(t, sql.NullString{String: "group", Valid: true}, got[0].LimitSource)
-	})
-
-	t.Run("OverrideOnQueriedGroup", func(t *testing.T) {
-		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		// Given: a group member with a user override targeting the queried group.
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
-		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: user.ID})
-		_, err := db.UpsertUserAIBudgetOverride(ctx, database.UpsertUserAIBudgetOverrideParams{
-			UserID:           user.ID,
-			GroupID:          group.ID,
-			SpendLimitMicros: 500_000,
-		})
-		require.NoError(t, err)
-
-		// When: querying spend for the user.
-		got, err := db.GetGroupMembersAISpend(ctx, database.GetGroupMembersAISpendParams{
-			GroupID:     group.ID,
-			UserIds:     []uuid.UUID{user.ID},
-			PeriodStart: monthStart,
-		})
-		require.NoError(t, err)
-
-		// Then: the limit comes from the override, with the user_override source.
-		require.Len(t, got, 1)
-		require.Equal(t, uuid.NullUUID{UUID: group.ID, Valid: true}, got[0].EffectiveGroupID)
-		require.Equal(t, sql.NullInt64{Int64: 500_000, Valid: true}, got[0].SpendLimitMicros)
-		require.Equal(t, sql.NullString{String: "user_override", Valid: true}, got[0].LimitSource)
-	})
-
-	t.Run("Spend", func(t *testing.T) {
-		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		// Given: a group member with spend attributed to the queried group.
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
-		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: user.ID})
-		_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
-			UserID: user.ID, EffectiveGroupID: group.ID, Day: now, CostMicros: 250,
-		})
-		require.NoError(t, err)
-
-		// When: querying spend for the user.
-		got, err := db.GetGroupMembersAISpend(ctx, database.GetGroupMembersAISpendParams{
-			GroupID:     group.ID,
-			UserIds:     []uuid.UUID{user.ID},
-			PeriodStart: monthStart,
-		})
-		require.NoError(t, err)
-
-		// Then: the queried-group spend is aggregated.
-		require.Len(t, got, 1)
-		require.Equal(t, int64(250), got[0].GroupSpendMicros)
-	})
-
-	t.Run("SpendWithDifferentEffectiveGroup", func(t *testing.T) {
-		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		// Given: a group member with spend attributed to the queried group,
-		// whose current effective group is a different same-org group.
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-		queried := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
-		other := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
-		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: queried.ID, UserID: user.ID})
-		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: other.ID, UserID: user.ID})
-		_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
-			GroupID:          other.ID,
-			SpendLimitMicros: 1_000_000,
-		})
-		require.NoError(t, err)
-		_, err = db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
-			UserID: user.ID, EffectiveGroupID: queried.ID, Day: now, CostMicros: 250,
-		})
-		require.NoError(t, err)
-
-		// When: querying the queried group's spend for the user.
-		got, err := db.GetGroupMembersAISpend(ctx, database.GetGroupMembersAISpendParams{
-			GroupID:     queried.ID,
-			UserIds:     []uuid.UUID{user.ID},
-			PeriodStart: monthStart,
-		})
-		require.NoError(t, err)
-
-		// Then: queried-group spend is returned, effective_group_id is the
-		// other group, and the limit and source are null because the queried
-		// group is not the effective source.
-		require.Len(t, got, 1)
-		require.Equal(t, uuid.NullUUID{UUID: other.ID, Valid: true}, got[0].EffectiveGroupID)
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
-		require.Equal(t, int64(250), got[0].GroupSpendMicros)
-	})
-
-	t.Run("HidesFormerMember", func(t *testing.T) {
-		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		// Given: a user who has historical spend attributed to the queried
-		// group but is not currently a member of it.
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-		queried := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
-		_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
-			UserID: user.ID, EffectiveGroupID: queried.ID, Day: now, CostMicros: 500,
-		})
-		require.NoError(t, err)
-
-		// When: querying the queried group's spend for the user.
-		got, err := db.GetGroupMembersAISpend(ctx, database.GetGroupMembersAISpendParams{
-			GroupID:     queried.ID,
-			UserIds:     []uuid.UUID{user.ID},
-			PeriodStart: monthStart,
-		})
-		require.NoError(t, err)
-
-		// Then: the user is filtered out and their historical spend is not returned.
-		require.Empty(t, got)
-	})
-
-	t.Run("ExcludesOtherGroupSpend", func(t *testing.T) {
-		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		// Given: a group member with spend attributed to a different group in the same org.
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
-		otherGroup := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
-		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: user.ID})
-		_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
-			UserID: user.ID, EffectiveGroupID: otherGroup.ID, Day: now, CostMicros: 500,
-		})
-		require.NoError(t, err)
-
-		// When: querying spend for the queried group.
-		got, err := db.GetGroupMembersAISpend(ctx, database.GetGroupMembersAISpendParams{
-			GroupID:     group.ID,
-			UserIds:     []uuid.UUID{user.ID},
-			PeriodStart: monthStart,
-		})
-		require.NoError(t, err)
-
-		// Then: spend attributed to the other group is not counted.
-		require.Len(t, got, 1)
-		require.Equal(t, int64(0), got[0].GroupSpendMicros)
-	})
+	}
 
 	t.Run("MultipleMembers", func(t *testing.T) {
 		t.Parallel()
@@ -13371,69 +13258,38 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		// Then: both users are returned with their own aggregate spend.
 		require.Len(t, got, 2)
 		byID := make(map[uuid.UUID]database.GetGroupMembersAISpendRow, len(got))
-		for _, r := range got {
-			byID[r.UserID] = r
+		for _, row := range got {
+			byID[row.UserID] = row
 		}
 		require.Equal(t, int64(100), byID[userA.ID].GroupSpendMicros)
 		require.Equal(t, int64(250), byID[userB.ID].GroupSpendMicros)
+		for _, row := range got {
+			require.False(t, row.EffectiveGroupID.Valid)
+			require.False(t, row.SpendLimitMicros.Valid)
+			require.False(t, row.LimitSource.Valid)
+		}
 	})
 
-	t.Run("ExcludesNonMembers", func(t *testing.T) {
+	t.Run("AggregatesSpendAcrossDays", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		// Given: a member of the queried group and a non-member in the same org.
-		member := dbgen.User(t, db, database.User{})
-		nonMember := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: member.ID, OrganizationID: org.ID})
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: nonMember.ID, OrganizationID: org.ID})
-		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: member.ID})
-
-		// When: querying with both user IDs.
-		got, err := db.GetGroupMembersAISpend(ctx, database.GetGroupMembersAISpendParams{
-			GroupID:     group.ID,
-			UserIds:     []uuid.UUID{member.ID, nonMember.ID},
-			PeriodStart: monthStart,
-		})
-		require.NoError(t, err)
-
-		// Then: only the group member is returned.
-		require.Len(t, got, 1)
-		require.Equal(t, member.ID, got[0].UserID)
-	})
-
-	t.Run("CrossOrgEffectiveGroupMasked", func(t *testing.T) {
-		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		// Given: a member of the queried group whose highest-limit budget
-		// group is in a different org (via cross-org group membership).
+		// Given: a group member with spend on multiple days in the period.
 		user := dbgen.User(t, db, database.User{})
 		org := dbgen.Organization(t, db, database.Organization{})
-		otherOrg := dbgen.Organization(t, db, database.Organization{})
 		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
-		otherOrgGroup := dbgen.Group(t, db, database.Group{OrganizationID: otherOrg.ID})
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: otherOrg.ID})
 		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: user.ID})
-		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: otherOrgGroup.ID, UserID: user.ID})
-		_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
-			GroupID:          otherOrgGroup.ID,
-			SpendLimitMicros: 9_999_999,
-		})
-		require.NoError(t, err)
-		// Seed spend attributed to the queried group so we can assert it is
-		// still returned even when the effective group is masked.
-		_, err = db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
-			UserID: user.ID, EffectiveGroupID: group.ID, Day: now, CostMicros: 250,
-		})
-		require.NoError(t, err)
+		days := []time.Time{monthStart, monthStart.AddDate(0, 0, 7), monthStart.AddDate(0, 0, 14)}
+		for i, day := range days {
+			_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+				UserID: user.ID, EffectiveGroupID: group.ID, Day: day, CostMicros: int64((i + 1) * 100),
+			})
+			require.NoError(t, err)
+		}
 
-		// When: querying spend for the user in the queried group's org.
+		// When: querying the group's member spend.
 		got, err := db.GetGroupMembersAISpend(ctx, database.GetGroupMembersAISpendParams{
 			GroupID:     group.ID,
 			UserIds:     []uuid.UUID{user.ID},
@@ -13441,13 +13297,12 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Then: effective_group_id is masked to NULL, the highest-limit group is cross-org.
-		// The queried-group spend is still returned.
+		// Then: per-user spend is summed across all days in the period.
 		require.Len(t, got, 1)
-		require.False(t, got[0].EffectiveGroupID.Valid, "cross-org effective group must be masked")
+		require.False(t, got[0].EffectiveGroupID.Valid)
 		require.False(t, got[0].SpendLimitMicros.Valid)
 		require.False(t, got[0].LimitSource.Valid)
-		require.Equal(t, int64(250), got[0].GroupSpendMicros)
+		require.Equal(t, int64(600), got[0].GroupSpendMicros)
 	})
 
 	t.Run("OverrideWins", func(t *testing.T) {
@@ -13495,9 +13350,12 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		// Then: the override target wins over the highest-limit group.
 		require.Len(t, got, 1)
 		require.Equal(t, uuid.NullUUID{UUID: overrideTarget.ID, Valid: true}, got[0].EffectiveGroupID)
+		require.False(t, got[0].SpendLimitMicros.Valid)
+		require.False(t, got[0].LimitSource.Valid)
+		require.Equal(t, int64(0), got[0].GroupSpendMicros)
 	})
 
-	t.Run("TieBreakByGroupName", func(t *testing.T) {
+	t.Run("EqualBudgetTieBreak", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -13535,6 +13393,9 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		// Then: the tie is broken by group name ascending, so groupA wins.
 		require.Len(t, got, 1)
 		require.Equal(t, uuid.NullUUID{UUID: groupA.ID, Valid: true}, got[0].EffectiveGroupID)
+		require.False(t, got[0].SpendLimitMicros.Valid)
+		require.False(t, got[0].LimitSource.Valid)
+		require.Equal(t, int64(0), got[0].GroupSpendMicros)
 	})
 
 	t.Run("EveryoneGroupCounts", func(t *testing.T) {
@@ -13568,9 +13429,191 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Then: effective_group_id resolves to the Everyone group (org.ID).
+		// Then: effective_group_id resolves to the Everyone group.
 		require.Len(t, got, 1)
 		require.Equal(t, uuid.NullUUID{UUID: org.ID, Valid: true}, got[0].EffectiveGroupID)
+		require.False(t, got[0].SpendLimitMicros.Valid)
+		require.False(t, got[0].LimitSource.Valid)
+		require.Equal(t, int64(0), got[0].GroupSpendMicros)
+	})
+
+	t.Run("SpendWithDifferentEffectiveGroup", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: a group member with spend attributed to the queried group,
+		// whose current effective group is a different same-org group.
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		queried := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+		other := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: queried.ID, UserID: user.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: other.ID, UserID: user.ID})
+		_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+			GroupID:          other.ID,
+			SpendLimitMicros: 1_000_000,
+		})
+		require.NoError(t, err)
+		_, err = db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+			UserID: user.ID, EffectiveGroupID: queried.ID, Day: now, CostMicros: 250,
+		})
+		require.NoError(t, err)
+
+		// When: querying the queried group's spend for the user.
+		got, err := db.GetGroupMembersAISpend(ctx, database.GetGroupMembersAISpendParams{
+			GroupID:     queried.ID,
+			UserIds:     []uuid.UUID{user.ID},
+			PeriodStart: monthStart,
+		})
+		require.NoError(t, err)
+
+		// Then: queried-group spend is returned, effective_group_id is the
+		// other group, and the limit and source are null because the queried
+		// group is not the effective source.
+		require.Len(t, got, 1)
+		require.Equal(t, uuid.NullUUID{UUID: other.ID, Valid: true}, got[0].EffectiveGroupID)
+		require.False(t, got[0].SpendLimitMicros.Valid)
+		require.False(t, got[0].LimitSource.Valid)
+		require.Equal(t, int64(250), got[0].GroupSpendMicros)
+	})
+
+	t.Run("ExcludesOtherGroupSpend", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: a group member with spend attributed to a different group in the same org.
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+		otherGroup := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: user.ID})
+		_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+			UserID: user.ID, EffectiveGroupID: otherGroup.ID, Day: now, CostMicros: 500,
+		})
+		require.NoError(t, err)
+
+		// When: querying spend for the queried group.
+		got, err := db.GetGroupMembersAISpend(ctx, database.GetGroupMembersAISpendParams{
+			GroupID:     group.ID,
+			UserIds:     []uuid.UUID{user.ID},
+			PeriodStart: monthStart,
+		})
+		require.NoError(t, err)
+
+		// Then: spend attributed to the other group is not counted.
+		require.Len(t, got, 1)
+		require.False(t, got[0].EffectiveGroupID.Valid)
+		require.False(t, got[0].SpendLimitMicros.Valid)
+		require.False(t, got[0].LimitSource.Valid)
+		require.Equal(t, int64(0), got[0].GroupSpendMicros)
+	})
+
+	t.Run("ExcludesNonMembers", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: a member of the queried group and a non-member in the same org.
+		member := dbgen.User(t, db, database.User{})
+		nonMember := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: member.ID, OrganizationID: org.ID})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: nonMember.ID, OrganizationID: org.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: member.ID})
+
+		// When: querying with both user IDs.
+		got, err := db.GetGroupMembersAISpend(ctx, database.GetGroupMembersAISpendParams{
+			GroupID:     group.ID,
+			UserIds:     []uuid.UUID{member.ID, nonMember.ID},
+			PeriodStart: monthStart,
+		})
+		require.NoError(t, err)
+
+		// Then: only the group member is returned.
+		require.Len(t, got, 1)
+		require.Equal(t, member.ID, got[0].UserID)
+		require.False(t, got[0].EffectiveGroupID.Valid)
+		require.False(t, got[0].SpendLimitMicros.Valid)
+		require.False(t, got[0].LimitSource.Valid)
+		require.Equal(t, int64(0), got[0].GroupSpendMicros)
+	})
+
+	t.Run("HidesFormerMember", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: a user who has historical spend attributed to the queried
+		// group but is not currently a member of it.
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		queried := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+		_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+			UserID: user.ID, EffectiveGroupID: queried.ID, Day: now, CostMicros: 500,
+		})
+		require.NoError(t, err)
+
+		// When: querying the queried group's spend for the user.
+		got, err := db.GetGroupMembersAISpend(ctx, database.GetGroupMembersAISpendParams{
+			GroupID:     queried.ID,
+			UserIds:     []uuid.UUID{user.ID},
+			PeriodStart: monthStart,
+		})
+		require.NoError(t, err)
+
+		// Then: the user is filtered out and their historical spend is not returned.
+		require.Empty(t, got)
+	})
+
+	t.Run("CrossOrgEffectiveGroupMasked", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: a member of the queried group whose highest-limit budget
+		// group is in a different org.
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		otherOrg := dbgen.Organization(t, db, database.Organization{})
+		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+		otherOrgGroup := dbgen.Group(t, db, database.Group{OrganizationID: otherOrg.ID})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: otherOrg.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: user.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: otherOrgGroup.ID, UserID: user.ID})
+		_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+			GroupID:          otherOrgGroup.ID,
+			SpendLimitMicros: 9_999_999,
+		})
+		require.NoError(t, err)
+		// Seed spend attributed to the queried group so we can assert it is
+		// still returned even when the effective group is masked.
+		_, err = db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+			UserID: user.ID, EffectiveGroupID: group.ID, Day: now, CostMicros: 250,
+		})
+		require.NoError(t, err)
+
+		// When: querying spend for the user in the queried group's org.
+		got, err := db.GetGroupMembersAISpend(ctx, database.GetGroupMembersAISpendParams{
+			GroupID:     group.ID,
+			UserIds:     []uuid.UUID{user.ID},
+			PeriodStart: monthStart,
+		})
+		require.NoError(t, err)
+
+		// Then: effective_group_id is masked to NULL, the highest-limit group is cross-org.
+		// The queried-group spend is still returned.
+		require.Len(t, got, 1)
+		require.False(t, got[0].EffectiveGroupID.Valid, "cross-org effective group must be masked")
+		require.False(t, got[0].SpendLimitMicros.Valid)
+		require.False(t, got[0].LimitSource.Valid)
+		require.Equal(t, int64(250), got[0].GroupSpendMicros)
 	})
 
 	t.Run("ExcludesSpendBeforePeriodStart", func(t *testing.T) {
@@ -13603,39 +13646,10 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 
 		// Then: only current-period spend is aggregated.
 		require.Len(t, got, 1)
+		require.False(t, got[0].EffectiveGroupID.Valid)
+		require.False(t, got[0].SpendLimitMicros.Valid)
+		require.False(t, got[0].LimitSource.Valid)
 		require.Equal(t, int64(25), got[0].GroupSpendMicros)
-	})
-
-	t.Run("AggregatesSpendAcrossDays", func(t *testing.T) {
-		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		// Given: a group member with spend on multiple days in the period.
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
-		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: user.ID})
-		days := []time.Time{monthStart, monthStart.AddDate(0, 0, 7), monthStart.AddDate(0, 0, 14)}
-		for i, day := range days {
-			_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
-				UserID: user.ID, EffectiveGroupID: group.ID, Day: day, CostMicros: int64((i + 1) * 100),
-			})
-			require.NoError(t, err)
-		}
-
-		// When: querying the group's member spend.
-		got, err := db.GetGroupMembersAISpend(ctx, database.GetGroupMembersAISpendParams{
-			GroupID:     group.ID,
-			UserIds:     []uuid.UUID{user.ID},
-			PeriodStart: monthStart,
-		})
-		require.NoError(t, err)
-
-		// Then: per-user spend is summed across all days in the period.
-		require.Len(t, got, 1)
-		require.Equal(t, int64(600), got[0].GroupSpendMicros)
 	})
 
 	t.Run("NormalizesNonUTCPeriodStart", func(t *testing.T) {
@@ -13670,6 +13684,9 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 
 		// Then: the prior UTC day's spend is excluded from the aggregate.
 		require.Len(t, got, 1)
+		require.False(t, got[0].EffectiveGroupID.Valid)
+		require.False(t, got[0].SpendLimitMicros.Valid)
+		require.False(t, got[0].LimitSource.Valid)
 		require.Equal(t, int64(25), got[0].GroupSpendMicros,
 			"sum must exclude prevMonthLastDay row after normalization")
 	})

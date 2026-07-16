@@ -3671,7 +3671,117 @@ func TestGroupMembersAISpend(t *testing.T) {
 		// Then: only the primary-org user is returned.
 		require.Len(t, resp.Members, 1)
 		require.Equal(t, targetUser.ID, resp.Members[0].UserID)
+		require.Nil(t, resp.Members[0].EffectiveGroupID)
+		require.Nil(t, resp.Members[0].SpendLimitMicros)
+		require.Nil(t, resp.Members[0].LimitSource)
+		require.Equal(t, int64(0), resp.Members[0].GroupSpendMicros)
 	})
+
+	tests := []struct {
+		name               string
+		groupLimit         int64
+		overrideLimit      int64
+		spent              int64
+		wantEffectiveGroup bool
+		wantSpendLimit     *int64
+		wantLimitSource    *codersdk.AIBudgetLimitSource
+		wantSpendMicros    int64
+	}{
+		{
+			name: "NoBudgetNoSpend",
+		},
+		{
+			name:               "BudgetZeroSpend",
+			groupLimit:         1_000_000_000,
+			wantEffectiveGroup: true,
+			wantSpendLimit:     ptr.Ref(int64(1_000_000_000)),
+			wantLimitSource:    ptr.Ref(codersdk.AIBudgetLimitSourceGroup),
+		},
+		{
+			name:               "BudgetWithSpend",
+			groupLimit:         1_000_000_000,
+			spent:              250_000_000,
+			wantEffectiveGroup: true,
+			wantSpendLimit:     ptr.Ref(int64(1_000_000_000)),
+			wantLimitSource:    ptr.Ref(codersdk.AIBudgetLimitSourceGroup),
+			wantSpendMicros:    250_000_000,
+		},
+		{
+			name:            "NoBudgetWithSpend",
+			spent:           100_000_000,
+			wantSpendMicros: 100_000_000,
+		},
+		{
+			name:               "OverrideBudget",
+			overrideLimit:      500_000_000,
+			wantEffectiveGroup: true,
+			wantSpendLimit:     ptr.Ref(int64(500_000_000)),
+			wantLimitSource:    ptr.Ref(codersdk.AIBudgetLimitSourceUserOverride),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Given: an admin, a group with a member, optionally a group budget,
+			// a user override, and seeded spend attributed to the group.
+			clock := quartz.NewMock(t)
+			db, ps := dbtestutil.NewDB(t)
+			adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+				GroupName: "members-spend-test-group",
+				Clock:     clock,
+				Database:  db,
+				Pubsub:    ps,
+			})
+			ctx := testutil.Context(t, testutil.WaitLong)
+			clock.Set(time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC))
+			wantPeriodStart := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+			wantPeriodEnd := time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC)
+
+			if tt.groupLimit > 0 {
+				_, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+					SpendLimitMicros: tt.groupLimit,
+				})
+				require.NoError(t, err)
+			}
+			if tt.overrideLimit > 0 {
+				_, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+					GroupID:          group.ID,
+					SpendLimitMicros: tt.overrideLimit,
+				})
+				require.NoError(t, err)
+			}
+			if tt.spent > 0 {
+				_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+					UserID:           targetUser.ID,
+					EffectiveGroupID: group.ID,
+					Day:              clock.Now(),
+					CostMicros:       tt.spent,
+				})
+				require.NoError(t, err)
+			}
+
+			// When: querying the group's member spend.
+			got, err := adminClient.GroupMembersAISpend(ctx, group.ID, []uuid.UUID{targetUser.ID})
+			require.NoError(t, err)
+
+			// Then: one row is returned with the expected fields.
+			require.Equal(t, wantPeriodStart, got.PeriodStart)
+			require.Equal(t, wantPeriodEnd, got.PeriodEnd)
+			require.Len(t, got.Members, 1)
+			require.Equal(t, targetUser.ID, got.Members[0].UserID)
+			if tt.wantEffectiveGroup {
+				require.NotNil(t, got.Members[0].EffectiveGroupID)
+				require.Equal(t, group.ID, *got.Members[0].EffectiveGroupID)
+			} else {
+				require.Nil(t, got.Members[0].EffectiveGroupID)
+			}
+			require.Equal(t, tt.wantSpendLimit, got.Members[0].SpendLimitMicros)
+			require.Equal(t, tt.wantLimitSource, got.Members[0].LimitSource)
+			require.Equal(t, tt.wantSpendMicros, got.Members[0].GroupSpendMicros)
+		})
+	}
 
 	t.Run("CrossOrgEffectiveGroupMasked", func(t *testing.T) {
 		t.Parallel()
@@ -3728,69 +3838,9 @@ func TestGroupMembersAISpend(t *testing.T) {
 		require.Len(t, resp.Members, 1)
 		require.Equal(t, targetUser.ID, resp.Members[0].UserID)
 		require.Nil(t, resp.Members[0].EffectiveGroupID, "cross-org effective group must be masked even for the owner")
-	})
-
-	t.Run("UserOverrideLimitSource", func(t *testing.T) {
-		t.Parallel()
-
-		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "override-source-group"})
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		// Given: a user override targeting the queried group.
-		_, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
-			GroupID:          group.ID,
-			SpendLimitMicros: 500_000_000,
-		})
-		require.NoError(t, err)
-
-		// When: querying the group's member spend.
-		resp, err := adminClient.GroupMembersAISpend(ctx, group.ID, []uuid.UUID{targetUser.ID})
-		require.NoError(t, err)
-
-		// Then: the limit and source reflect the override.
-		require.Len(t, resp.Members, 1)
-		require.NotNil(t, resp.Members[0].SpendLimitMicros)
-		require.Equal(t, int64(500_000_000), *resp.Members[0].SpendLimitMicros)
-		require.NotNil(t, resp.Members[0].LimitSource)
-		require.Equal(t, codersdk.AIBudgetLimitSourceUserOverride, *resp.Members[0].LimitSource)
-	})
-
-	t.Run("MemberCanOnlyReadOwnRow", func(t *testing.T) {
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
-		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{DeploymentValues: dv},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureTemplateRBAC: 1,
-					codersdk.FeatureAIBridge:     1,
-				},
-			},
-		})
-		userAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
-		memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
-		_, otherMember := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		group, err := userAdminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
-			Name: "member-privacy-group",
-		})
-		require.NoError(t, err)
-		_, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
-			AddUsers: []string{member.ID.String(), otherMember.ID.String()},
-		})
-		require.NoError(t, err)
-
-		// When: the member queries spend for themselves and another member.
-		resp, err := memberClient.GroupMembersAISpend(ctx, group.ID, []uuid.UUID{member.ID, otherMember.ID})
-		require.NoError(t, err)
-
-		// Then: only the caller's own row is returned.
-		require.Len(t, resp.Members, 1)
-		require.Equal(t, member.ID, resp.Members[0].UserID)
+		require.Nil(t, resp.Members[0].SpendLimitMicros)
+		require.Nil(t, resp.Members[0].LimitSource)
+		require.Equal(t, int64(0), resp.Members[0].GroupSpendMicros)
 	})
 
 	t.Run("OrgScopedRoute", func(t *testing.T) {
@@ -3818,99 +3868,11 @@ func TestGroupMembersAISpend(t *testing.T) {
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&got))
 		require.Len(t, got.Members, 1)
 		require.Equal(t, targetUser.ID, got.Members[0].UserID)
+		require.Nil(t, got.Members[0].EffectiveGroupID)
+		require.Nil(t, got.Members[0].SpendLimitMicros)
+		require.Nil(t, got.Members[0].LimitSource)
+		require.Equal(t, int64(0), got.Members[0].GroupSpendMicros)
 	})
-
-	groupSource := codersdk.AIBudgetLimitSourceGroup
-	tests := []struct {
-		name             string
-		setBudget        bool
-		spent            int64
-		wantEffectiveSet bool
-		wantSpendLimit   *int64
-		wantLimitSource  *codersdk.AIBudgetLimitSource
-		wantSpendMicros  int64
-	}{
-		{
-			name: "NoBudgetNoSpend",
-		},
-		{
-			name:             "BudgetZeroSpend",
-			setBudget:        true,
-			wantEffectiveSet: true,
-			wantSpendLimit:   ptr.Ref(int64(1_000_000_000)),
-			wantLimitSource:  &groupSource,
-		},
-		{
-			name:             "BudgetWithSpend",
-			setBudget:        true,
-			spent:            250_000_000,
-			wantEffectiveSet: true,
-			wantSpendLimit:   ptr.Ref(int64(1_000_000_000)),
-			wantLimitSource:  &groupSource,
-			wantSpendMicros:  250_000_000,
-		},
-		{
-			name:            "NoBudgetWithSpend",
-			spent:           100_000_000,
-			wantSpendMicros: 100_000_000,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Given: an admin, a group with a member, optionally a budget on the
-			// group and seeded spend attributed to the group.
-			clock := quartz.NewMock(t)
-			db, ps := dbtestutil.NewDB(t)
-			adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
-				GroupName: "members-spend-test-group",
-				Clock:     clock,
-				Database:  db,
-				Pubsub:    ps,
-			})
-			ctx := testutil.Context(t, testutil.WaitLong)
-			clock.Set(time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC))
-			wantPeriodStart := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
-			wantPeriodEnd := time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC)
-
-			if tt.setBudget {
-				_, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
-					SpendLimitMicros: 1_000_000_000,
-				})
-				require.NoError(t, err)
-			}
-			if tt.spent > 0 {
-				_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
-					UserID:           targetUser.ID,
-					EffectiveGroupID: group.ID,
-					Day:              clock.Now(),
-					CostMicros:       tt.spent,
-				})
-				require.NoError(t, err)
-			}
-
-			// When: querying the group's member spend.
-			got, err := adminClient.GroupMembersAISpend(ctx, group.ID, []uuid.UUID{targetUser.ID})
-			require.NoError(t, err)
-
-			// Then: one row is returned with the expected fields.
-			require.Equal(t, wantPeriodStart, got.PeriodStart)
-			require.Equal(t, wantPeriodEnd, got.PeriodEnd)
-			require.Len(t, got.Members, 1)
-			require.Equal(t, targetUser.ID, got.Members[0].UserID)
-			if tt.wantEffectiveSet {
-				require.NotNil(t, got.Members[0].EffectiveGroupID)
-				require.Equal(t, group.ID, *got.Members[0].EffectiveGroupID)
-			} else {
-				require.Nil(t, got.Members[0].EffectiveGroupID)
-			}
-			require.Equal(t, tt.wantSpendLimit, got.Members[0].SpendLimitMicros)
-			require.Equal(t, tt.wantLimitSource, got.Members[0].LimitSource)
-			require.Equal(t, tt.wantSpendMicros, got.Members[0].GroupSpendMicros)
-		})
-	}
 }
 
 func TestGroupMembersAISpendRoleAccess(t *testing.T) {
@@ -3933,6 +3895,7 @@ func TestGroupMembersAISpendRoleAccess(t *testing.T) {
 	orgAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
 	orgUserAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgUserAdmin(owner.OrganizationID))
 	memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+	_, otherMember := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
 	otherOrg := coderdenttest.CreateOrganization(t, ownerClient, coderdenttest.CreateOrganizationOptions{})
 	otherOrgMemberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, otherOrg.ID)
@@ -3943,7 +3906,7 @@ func TestGroupMembersAISpendRoleAccess(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
-		AddUsers: []string{member.ID.String()},
+		AddUsers: []string{member.ID.String(), otherMember.ID.String()},
 	})
 	require.NoError(t, err)
 
@@ -3978,6 +3941,20 @@ func TestGroupMembersAISpendRoleAccess(t *testing.T) {
 			require.Equal(t, member.ID, resp.Members[0].UserID)
 		})
 	}
+
+	t.Run("MemberCanOnlyReadOwnRow", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// When: a member queries spend for themselves and another member.
+		resp, err := memberClient.GroupMembersAISpend(ctx, group.ID, []uuid.UUID{member.ID, otherMember.ID})
+		require.NoError(t, err)
+
+		// Then: only the caller's own row is returned.
+		require.Len(t, resp.Members, 1)
+		require.Equal(t, member.ID, resp.Members[0].UserID)
+	})
 }
 
 // aiCostControlTestOptions configures the setup of an AI cost control test

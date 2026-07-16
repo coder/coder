@@ -1109,22 +1109,7 @@ func (api *API) groupMembersAISpend(rw http.ResponseWriter, r *http.Request) {
 		Members: make([]codersdk.GroupMemberAISpend, 0, len(rows)),
 	}
 	for _, row := range rows {
-		entry := codersdk.GroupMemberAISpend{
-			UserID:           row.UserID,
-			GroupSpendMicros: row.GroupSpendMicros,
-		}
-		if row.EffectiveGroupID.Valid {
-			uid := row.EffectiveGroupID.UUID
-			entry.EffectiveGroupID = &uid
-		}
-		if row.SpendLimitMicros.Valid {
-			entry.SpendLimitMicros = &row.SpendLimitMicros.Int64
-		}
-		if row.LimitSource.Valid {
-			source := codersdk.AIBudgetLimitSource(row.LimitSource.String)
-			entry.LimitSource = &source
-		}
-		resp.Members = append(resp.Members, entry)
+		resp.Members = append(resp.Members, db2sdk.GroupMemberAISpend(row))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)

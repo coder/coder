@@ -1469,6 +1469,24 @@ func OrganizationGroupAISpend(row database.GetOrganizationGroupsAISpendRow) code
 	return group
 }
 
+func GroupMemberAISpend(row database.GetGroupMembersAISpendRow) codersdk.GroupMemberAISpend {
+	member := codersdk.GroupMemberAISpend{
+		UserID:           row.UserID,
+		GroupSpendMicros: row.GroupSpendMicros,
+	}
+	if row.EffectiveGroupID.Valid {
+		member.EffectiveGroupID = &row.EffectiveGroupID.UUID
+	}
+	if row.SpendLimitMicros.Valid {
+		member.SpendLimitMicros = &row.SpendLimitMicros.Int64
+	}
+	if row.LimitSource.Valid {
+		source := codersdk.AIBudgetLimitSource(row.LimitSource.String)
+		member.LimitSource = &source
+	}
+	return member
+}
+
 func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidatedAtRow) []codersdk.InvalidatedPreset {
 	var presets []codersdk.InvalidatedPreset
 	for _, p := range invalidatedPresets {
