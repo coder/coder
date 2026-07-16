@@ -110,6 +110,13 @@ func requestAudience(r *http.Request) string {
 	}
 	if requestURL.Host == "" {
 		requestURL.Host = r.Host
+		// A reverse proxy may rewrite Host to the upstream service
+		// name and carry the client-facing host in X-Forwarded-Host.
+		// Trusting it cannot admit foreign tokens for the same reason
+		// as the scheme: the audience is signature-protected.
+		if host := forwardedHost(r); host != "" {
+			requestURL.Host = host
+		}
 	}
 	return canonicalAudience(requestURL.String())
 }
@@ -120,6 +127,13 @@ func forwardedProto(r *http.Request) string {
 	// client-facing scheme the audience was signed with.
 	proto, _, _ = strings.Cut(proto, ",")
 	return strings.ToLower(strings.TrimSpace(proto))
+}
+
+func forwardedHost(r *http.Request) string {
+	host := r.Header.Get("X-Forwarded-Host")
+	// First entry, as with X-Forwarded-Proto.
+	host, _, _ = strings.Cut(host, ",")
+	return strings.TrimSpace(host)
 }
 
 // canonicalAudience drops a bare "/" path so that root-path hook URLs

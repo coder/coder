@@ -326,6 +326,24 @@ func TestHTTPHandlerHonorsForwardedProto(t *testing.T) {
 	require.Equal(t, http.StatusOK, response.StatusCode)
 }
 
+// A reverse proxy may rewrite Host to the upstream service name and
+// carry the public host in X-Forwarded-Host; the audience signed for
+// the public URL must still verify.
+func TestHTTPHandlerHonorsForwardedHost(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
+	t.Cleanup(server.Close)
+	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
+		claims.Audience = "https://hooks.example.com"
+	}, func(r *http.Request) {
+		r.Header.Set("X-Forwarded-Proto", "https")
+		r.Header.Set("X-Forwarded-Host", "hooks.example.com, internal-lb")
+	})
+	defer response.Body.Close()
+	require.Equal(t, http.StatusOK, response.StatusCode)
+}
+
 func postEvent(t *testing.T, target string, eventType agenthooks.EventType, data any, updateRequest func(*agenthooks.Request), updateClaims func(*agenthooks.Claims), updateHTTPRequest ...func(*http.Request)) *http.Response {
 	t.Helper()
 

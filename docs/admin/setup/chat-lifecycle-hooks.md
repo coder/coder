@@ -27,7 +27,7 @@ Changing deployment options requires the normal `coder server` configuration rol
 Use a dedicated secret and rotate it through your existing secret-management process.
 Coder requires the configured URL to use HTTPS.
 A TLS terminator can forward the request to a consumer over plain HTTP on a trusted local network.
-It must preserve the original `Host` header and set `X-Forwarded-Proto: https` for the SDK handler's audience check.
+It must set `X-Forwarded-Proto: https` and either preserve the original `Host` header or carry it in `X-Forwarded-Host` for the SDK handler's audience check.
 
 ## Handle lifecycle events
 
