@@ -187,6 +187,71 @@ func TestExecutionSweep(t *testing.T) {
 		require.Equal(t, database.ChatToolCallExecutionStatusCanceled, row.Status)
 	})
 
+	t.Run("HandleLessRowResolvesUnknown", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// A crash between the interrupt commit and reconciliation
+		// leaves a cancel_requested row with no process identity.
+		// The grace window since its claim has long closed, so the
+		// sweep resolves it unknown without dialing.
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+		_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+		mc := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "test-model", ContextLimit: 8192})
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: mc.ID,
+			Title:             "sweep-handle-less",
+		})
+		msg := dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID: chat.ID,
+			Role:   database.ChatMessageRoleAssistant,
+		})
+		past := dbtime.Now().Add(-10 * time.Minute)
+		_, err := db.ClaimChatToolCallExecution(ctx, database.ClaimChatToolCallExecutionParams{
+			ID:                 uuid.New(),
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         "handle-less-call",
+			InputSha256:        "hash",
+			Command:            "sleep 600",
+			TimeoutSecs:        600,
+			Now:                past,
+			StaleBefore:        time.Time{},
+		})
+		require.NoError(t, err)
+		rows, err := db.MarkChatToolCallExecutionsInterrupted(ctx, database.MarkChatToolCallExecutionsInterruptedParams{
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallIds:        []string{"handle-less-call"},
+			UpdatedAt:          past,
+		})
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		require.False(t, rows[0].ProcessID.Valid)
+
+		r := executionReconciler{
+			store:  db,
+			logger: slogtest.Make(t, nil),
+			agentConn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return nil, nil, xerrors.New("should not dial")
+			},
+		}
+		r.sweepOnce(ctx, dbtime.Now())
+
+		row, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         "handle-less-call",
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusUnknown, row.Status)
+	})
+
 	t.Run("ClaimSkipsFreshAndResolvedRows", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)

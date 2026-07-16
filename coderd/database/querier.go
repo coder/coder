@@ -89,12 +89,14 @@ type sqlcQuerier interface {
 	// claimable; the caller reads it to decide how to proceed.
 	ClaimChatToolCallExecution(ctx context.Context, arg ClaimChatToolCallExecutionParams) (ChatToolCallExecution, error)
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
-	// Claims a batch of cancel_requested rows with recorded process
-	// identity whose reconciliation stalled (the post-interrupt pass
-	// lost its agent dial or died). Bumping updated_at inside the claim
-	// acts as a cross-replica lease so concurrent sweepers do not
-	// hammer the same unreachable agent; FOR UPDATE SKIP LOCKED keeps
-	// sweepers from serializing on each other.
+	// Claims a batch of cancel_requested rows whose reconciliation
+	// stalled (the post-interrupt pass lost its agent dial or died).
+	// Rows without recorded process identity are claimed too, so a
+	// server crash between the interrupt commit and reconciliation
+	// cannot strand them. Bumping updated_at inside the claim acts as
+	// a cross-replica lease so concurrent sweepers do not hammer the
+	// same unreachable agent; FOR UPDATE SKIP LOCKED keeps sweepers
+	// from serializing on each other.
 	ClaimStaleChatToolCallExecutionCancels(ctx context.Context, arg ClaimStaleChatToolCallExecutionCancelsParams) ([]ChatToolCallExecution, error)
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error

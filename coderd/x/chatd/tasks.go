@@ -974,7 +974,11 @@ func (w *chatWorker) executionSweepLoop(ctx context.Context) {
 // best-effort, so an unreachable agent or a dying server leaves the
 // row unresolved. The claim query bumps updated_at as a lease, so
 // unresolved rows retry on the next sweep without hammering the
-// same agent from every replica.
+// same agent from every replica. Rows without recorded process
+// identity (a crash between the interrupt commit and
+// reconciliation) get the same late-handle wait as the immediate
+// pass, then resolve unknown; the sweep retry age exceeds the
+// record grace window, so the wait normally returns immediately.
 func (r executionReconciler) sweepOnce(ctx context.Context, now time.Time) {
 	records, err := r.store.ClaimStaleChatToolCallExecutionCancels(ctx, database.ClaimStaleChatToolCallExecutionCancelsParams{
 		UpdatedBefore: now.Add(-executionSweepRetryAge),
@@ -990,6 +994,16 @@ func (r executionReconciler) sweepOnce(ctx context.Context, now time.Time) {
 		case <-ctx.Done():
 			return
 		default:
+		}
+		if !record.ProcessID.Valid || !record.WorkspaceAgentID.Valid {
+			record = r.awaitInterruptedIdentity(ctx, record)
+			if record.Status != database.ChatToolCallExecutionStatusCancelRequested {
+				continue
+			}
+			if !record.ProcessID.Valid || !record.WorkspaceAgentID.Valid {
+				r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, sql.NullTime{})
+				continue
+			}
 		}
 		r.reconcileCancelRequested(ctx, record)
 	}

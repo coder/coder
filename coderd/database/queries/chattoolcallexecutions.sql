@@ -151,18 +151,18 @@ WHERE chat_id = @chat_id::uuid
 RETURNING *;
 
 -- name: ClaimStaleChatToolCallExecutionCancels :many
--- Claims a batch of cancel_requested rows with recorded process
--- identity whose reconciliation stalled (the post-interrupt pass
--- lost its agent dial or died). Bumping updated_at inside the claim
--- acts as a cross-replica lease so concurrent sweepers do not
--- hammer the same unreachable agent; FOR UPDATE SKIP LOCKED keeps
--- sweepers from serializing on each other.
+-- Claims a batch of cancel_requested rows whose reconciliation
+-- stalled (the post-interrupt pass lost its agent dial or died).
+-- Rows without recorded process identity are claimed too, so a
+-- server crash between the interrupt commit and reconciliation
+-- cannot strand them. Bumping updated_at inside the claim acts as
+-- a cross-replica lease so concurrent sweepers do not hammer the
+-- same unreachable agent; FOR UPDATE SKIP LOCKED keeps sweepers
+-- from serializing on each other.
 WITH candidates AS (
     SELECT id
     FROM chat_tool_call_executions
     WHERE status = 'cancel_requested'
-      AND process_id IS NOT NULL
-      AND workspace_agent_id IS NOT NULL
       AND updated_at < @updated_before::timestamptz
     ORDER BY updated_at ASC
     LIMIT @limit_count::int
