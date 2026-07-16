@@ -192,6 +192,28 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		require.Equal(t, int64(1), count)
 	})
 
+	t.Run("MalformedRoleNotCounted", func(t *testing.T) {
+		rbac.ReloadBuiltinRoles(nil)
+		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
+
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		// Authorization fails closed on an unparseable stored role, so
+		// this user is not workspace-capable even though their org
+		// membership would otherwise qualify them.
+		corrupt := activeUser(t, db, database.User{RBACRoles: []string{"bad:role:extra"}})
+		member(t, db, org.ID, corrupt)
+
+		// The bad row must not fail the count for everyone else.
+		capable := activeUser(t, db, database.User{})
+		member(t, db, org.ID, capable)
+
+		count, err := license.CountWorkspaceCapableUsers(ctx, db, authorizer)
+		require.NoError(t, err)
+		require.Equal(t, int64(1), count)
+	})
+
 	t.Run("EntitlementsAddonGate", func(t *testing.T) {
 		// Permission-based counting is gated on both the experiment and a
 		// valid license carrying the AI Governance addon. Without either,
