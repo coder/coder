@@ -8,6 +8,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/codersdk"
@@ -27,6 +28,12 @@ func (api *API) getWorkspaceSkills(rw http.ResponseWriter, r *http.Request) { //
 	workspace := httpmw.WorkspaceParam(r)
 	logger := api.Logger.With(slog.F("workspace_id", workspace.ID))
 
+	// Match chat workspace binding: listing skills is part of attaching a
+	// workspace to a chat, which requires SSH-level access, not just read.
+	if !api.Authorize(r, policy.ActionSSH, workspace) {
+		httpapi.Forbidden(rw)
+		return
+	}
 	if workspace.Deleted {
 		writeWorkspaceSkills(ctx, rw, nil)
 		return

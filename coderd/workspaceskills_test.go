@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
@@ -50,6 +51,11 @@ func TestGetWorkspaceSkills(t *testing.T) {
 	memberClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 	_, err = codersdk.NewExperimentalClient(memberClient).WorkspaceSkills(ctx, workspace.ID)
 	requireWorkspaceSkillsSDKError(t, err, http.StatusNotFound)
+
+	// Read access without SSH access is not enough.
+	templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(user.OrganizationID))
+	_, err = codersdk.NewExperimentalClient(templateAdminClient).WorkspaceSkills(ctx, workspace.ID)
+	requireWorkspaceSkillsSDKError(t, err, http.StatusForbidden)
 
 	// The agent has not pushed a context snapshot yet.
 	skills, err := expClient.WorkspaceSkills(ctx, workspace.ID)
