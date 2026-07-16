@@ -1,18 +1,16 @@
 import {
 	CheckIcon,
-	FolderSyncIcon,
-	HammerIcon,
-	KeyIcon,
-	ListChecksIcon,
+	NetworkIcon,
 	PanelLeftIcon,
 	PlusIcon,
+	RepeatIcon,
 	SettingsIcon,
 	ShieldIcon,
-	UsersIcon,
-	UsersRoundIcon,
+	UserIcon,
+	WebhookIcon,
 } from "lucide-react";
-import { type FC, useState } from "react";
-import { NavLink, useNavigate } from "react-router";
+import { type FC, useCallback, useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router";
 import type { Organization } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -32,6 +30,7 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { SettingsSidebarNavItem } from "#/components/Sidebar/Sidebar";
+import { SidebarAccordion } from "#/components/Sidebar/SidebarAccordion";
 import { useSidebarContext } from "#/components/Sidebar/SidebarContext";
 import {
 	Tooltip,
@@ -42,6 +41,7 @@ import {
 import type { Permissions } from "#/modules/permissions";
 import type { OrganizationPermissions } from "#/modules/permissions/organizations";
 import { cn } from "#/utils/cn";
+import { SidebarTopLevelNavItem } from "./SidebarTopLevelNavItem";
 
 interface OrganizationsSettingsNavigationProps {
 	/** The organization selected from the dropdown */
@@ -224,51 +224,12 @@ function urlForSubpage(organizationName: string, subpage = ""): string {
 		.join("/");
 }
 
-interface CollapsedNavItemProps {
-	label: string;
-	href: string;
-	icon: FC<{ className?: string }>;
-	end?: boolean;
+function isRouteActive(pathname: string, url: string, end = false): boolean {
+	if (end) {
+		return pathname === url;
+	}
+	return pathname === url || pathname.startsWith(`${url}/`);
 }
-
-/**
- * Icon-only nav link with a tooltip for collapsed mode. Clicking it
- * navigates and re-expands the sidebar, matching the other push-mode
- * settings sections.
- */
-const CollapsedNavItem: FC<CollapsedNavItemProps> = ({
-	label,
-	href,
-	icon: Icon,
-	end,
-}) => {
-	const { expand } = useSidebarContext();
-
-	return (
-		<TooltipProvider>
-			<Tooltip delayDuration={0}>
-				<TooltipTrigger asChild>
-					<NavLink
-						end={end}
-						to={href}
-						onClick={expand}
-						className="flex items-center justify-center w-10 h-10 rounded-md no-underline hover:bg-surface-secondary"
-					>
-						{({ isActive }) => (
-							<Icon
-								className={cn(
-									"size-4 flex-shrink-0 text-content-secondary",
-									isActive && "text-content-primary",
-								)}
-							/>
-						)}
-					</NavLink>
-				</TooltipTrigger>
-				<TooltipContent side="right">{label}</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
-	);
-};
 
 interface OrganizationSettingsNavigationProps {
 	organization: Organization;
@@ -278,86 +239,107 @@ interface OrganizationSettingsNavigationProps {
 const OrganizationSettingsNavigation: FC<
 	OrganizationSettingsNavigationProps
 > = ({ organization, orgPermissions }) => {
-	const { collapsed } = useSidebarContext();
+	const { pathname } = useLocation();
 
-	const navItems = [
-		{
-			label: "Members",
-			href: urlForSubpage(organization.name),
-			icon: UsersIcon,
-			end: true,
-			visible: true,
-		},
-		{
-			label: "Groups",
-			href: urlForSubpage(organization.name, "groups"),
-			icon: UsersRoundIcon,
-			visible: orgPermissions.viewGroups,
-		},
-		{
-			label: "Roles",
-			href: urlForSubpage(organization.name, "roles"),
-			icon: ShieldIcon,
-			visible: orgPermissions.viewOrgRoles,
-		},
-		{
-			label: "Provisioners",
-			href: urlForSubpage(organization.name, "provisioners"),
-			icon: HammerIcon,
-			visible:
-				orgPermissions.viewProvisioners && orgPermissions.viewProvisionerJobs,
-		},
-		{
-			label: "Provisioner Keys",
-			href: urlForSubpage(organization.name, "provisioner-keys"),
-			icon: KeyIcon,
-			visible:
-				orgPermissions.viewProvisioners && orgPermissions.viewProvisionerJobs,
-		},
-		{
-			label: "Provisioner Jobs",
-			href: urlForSubpage(organization.name, "provisioner-jobs"),
-			icon: ListChecksIcon,
-			visible:
-				orgPermissions.viewProvisioners && orgPermissions.viewProvisionerJobs,
-		},
-		{
-			label: "IdP Sync",
-			href: urlForSubpage(organization.name, "idp-sync"),
-			icon: FolderSyncIcon,
-			visible: orgPermissions.viewIdpSyncSettings,
-		},
-		{
-			label: "Settings",
-			href: urlForSubpage(organization.name, "settings"),
-			icon: SettingsIcon,
-			visible: orgPermissions.editSettings,
-		},
-	];
+	const membersUrl = urlForSubpage(organization.name);
+	const groupsUrl = urlForSubpage(organization.name, "groups");
+	const rolesUrl = urlForSubpage(organization.name, "roles");
+	const provisionersUrl = urlForSubpage(organization.name, "provisioners");
+	const provisionerKeysUrl = urlForSubpage(
+		organization.name,
+		"provisioner-keys",
+	);
+	const provisionerJobsUrl = urlForSubpage(
+		organization.name,
+		"provisioner-jobs",
+	);
+	const idpSyncUrl = urlForSubpage(organization.name, "idp-sync");
+	const settingsUrl = urlForSubpage(organization.name, "settings");
+
+	// The accordion owns the current route when any provisioner page
+	// is open.
+	const provisionersActive = [
+		provisionersUrl,
+		provisionerKeysUrl,
+		provisionerJobsUrl,
+	].some((url) => isRouteActive(pathname, url));
+
+	const [provisionersOpen, setProvisionersOpen] = useState(provisionersActive);
+
+	// When navigation changes the active route, open the accordion
+	// only when one of its pages is active, close otherwise.
+	useEffect(() => {
+		setProvisionersOpen(provisionersActive);
+	}, [provisionersActive]);
+
+	const toggleProvisioners = useCallback(() => {
+		setProvisionersOpen((prev) => !prev);
+	}, []);
 
 	return (
 		<div className="flex flex-col gap-1 my-2">
-			{navItems
-				.filter((item) => item.visible)
-				.map((item) =>
-					collapsed ? (
-						<CollapsedNavItem
-							key={item.href}
-							label={item.label}
-							href={item.href}
-							icon={item.icon}
-							end={item.end}
-						/>
-					) : (
-						<SettingsSidebarNavItem
-							key={item.href}
-							href={item.href}
-							end={item.end}
-						>
-							{item.label}
-						</SettingsSidebarNavItem>
-					),
+			{orgPermissions.viewGroups && (
+				<SidebarTopLevelNavItem
+					label="Groups"
+					href={groupsUrl}
+					icon={NetworkIcon}
+					active={isRouteActive(pathname, groupsUrl)}
+				/>
+			)}
+			<SidebarTopLevelNavItem
+				label="Members"
+				href={membersUrl}
+				icon={UserIcon}
+				end
+				active={isRouteActive(pathname, membersUrl, true)}
+			/>
+			{orgPermissions.viewOrgRoles && (
+				<SidebarTopLevelNavItem
+					label="Roles"
+					href={rolesUrl}
+					icon={ShieldIcon}
+					active={isRouteActive(pathname, rolesUrl)}
+				/>
+			)}
+			{orgPermissions.viewProvisioners &&
+				orgPermissions.viewProvisionerJobs && (
+					<SidebarAccordion
+						icon={WebhookIcon}
+						label="Provisioners"
+						href={provisionersUrl}
+						open={provisionersOpen}
+						onToggle={toggleProvisioners}
+						active={provisionersActive}
+					>
+						<div className="flex flex-col gap-1">
+							<SettingsSidebarNavItem end href={provisionersUrl}>
+								Provisioners
+							</SettingsSidebarNavItem>
+							<SettingsSidebarNavItem href={provisionerKeysUrl}>
+								Keys
+							</SettingsSidebarNavItem>
+							<SettingsSidebarNavItem href={provisionerJobsUrl}>
+								Jobs
+							</SettingsSidebarNavItem>
+						</div>
+					</SidebarAccordion>
 				)}
+			{orgPermissions.viewIdpSyncSettings && (
+				<SidebarTopLevelNavItem
+					label="IdP sync"
+					href={idpSyncUrl}
+					icon={RepeatIcon}
+					active={isRouteActive(pathname, idpSyncUrl)}
+				/>
+			)}
+			{orgPermissions.editSettings && (
+				<SidebarTopLevelNavItem
+					label="Settings"
+					href={settingsUrl}
+					icon={SettingsIcon}
+					active={isRouteActive(pathname, settingsUrl)}
+				/>
+			)}
 		</div>
 	);
 };

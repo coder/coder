@@ -14,6 +14,8 @@ interface SidebarTopLevelNavItemProps {
 	href: string;
 	icon: FC<{ className?: string }>;
 	active: boolean;
+	/** Match the route exactly instead of by prefix (NavLink end). */
+	end?: boolean;
 	/** Called after the link is clicked, in both collapsed and expanded modes. */
 	onNavigate?: () => void;
 	/**
@@ -34,6 +36,7 @@ export const SidebarTopLevelNavItem: FC<SidebarTopLevelNavItemProps> = ({
 	href,
 	icon: Icon,
 	active,
+	end,
 	onNavigate,
 	expandOnCollapsedClick = true,
 }) => {
@@ -71,6 +74,7 @@ export const SidebarTopLevelNavItem: FC<SidebarTopLevelNavItemProps> = ({
 	return (
 		<NavLink
 			to={href}
+			end={end}
 			onClick={onNavigate}
 			className={({ isActive }) =>
 				cn(

@@ -184,6 +184,24 @@ export const Collapsed: Story = {
 	],
 };
 
+export const ProvisionersAccordion: Story = {
+	args: {
+		activeOrganization: MockOrganization,
+		orgPermissions: MockOrganizationPermissions,
+		organizations: [MockOrganization],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Provisioners/i }),
+		);
+		await waitFor(() =>
+			expect(canvas.getByRole("link", { name: "Keys" })).toBeVisible(),
+		);
+		await expect(canvas.getByRole("link", { name: "Jobs" })).toBeVisible();
+	},
+};
+
 export const AllPermissions: Story = {
 	args: {
 		activeOrganization: MockOrganization,
