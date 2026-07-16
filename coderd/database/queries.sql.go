@@ -30115,37 +30115,44 @@ func (q *sqlQuerier) GetActiveUserCount(ctx context.Context, includeSystem bool)
 }
 
 const getActiveUsersAuthorizationRoles = `-- name: GetActiveUsersAuthorizationRoles :many
+WITH org_roles AS (
+	-- Aggregated once over all memberships and hash-joined to users below;
+	-- a correlated per-user subquery would re-execute per user row.
+	SELECT
+		organization_members.user_id,
+		-- The roles are returned as a flat array, org scoped and site side.
+		-- Concatenating the organization id scopes the organization roles.
+		array_agg(org_role || ':' || organization_members.organization_id::text) AS roles
+	FROM
+		organization_members
+		JOIN organizations ON organizations.id = organization_members.organization_id,
+		-- All org members get an implied organization-member role for
+		-- their orgs. Memberships of service accounts are aggregated here
+		-- too, but their rows never survive the join against the outer
+		-- WHERE, so the organization-service-account case does not apply.
+		--
+		-- organizations.default_org_member_roles is unioned in so changes
+		-- to org defaults propagate on the next entitlement refresh.
+		unnest(
+			array_cat(
+				array_append(organization_members.roles, 'organization-member'),
+				organizations.default_org_member_roles
+			)
+		) AS org_role
+	GROUP BY
+		organization_members.user_id
+)
 SELECT
-	id,
+	users.id,
 	array_cat(
 		-- All users are members
 		array_append(users.rbac_roles, 'member'),
-		(
-			SELECT
-				-- The roles are returned as a flat array, org scoped and site side.
-				-- Concatenating the organization id scopes the organization roles.
-				array_agg(org_roles || ':' || organization_members.organization_id::text)
-			FROM
-				organization_members
-				JOIN organizations ON organizations.id = organization_members.organization_id,
-				-- All org members get an implied organization-member role for
-				-- their orgs. Service accounts are excluded by the outer WHERE,
-				-- so the organization-service-account case does not apply here.
-				--
-				-- organizations.default_org_member_roles is unioned in so changes
-				-- to org defaults propagate on the next entitlement refresh.
-				unnest(
-					array_cat(
-						array_append(roles, 'organization-member'),
-						organizations.default_org_member_roles
-					)
-				) AS org_roles
-			WHERE
-				user_id = users.id
-		)
+		-- Users with no org memberships have no org_roles row.
+		coalesce(org_roles.roles, ARRAY[]::text[])
 	) :: text[] AS roles
 FROM
 	users
+	LEFT JOIN org_roles ON org_roles.user_id = users.id
 WHERE
 	users.status = 'active'::user_status
 	AND users.deleted = false
