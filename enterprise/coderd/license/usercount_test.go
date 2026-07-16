@@ -346,6 +346,26 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			require.Equal(t, int64(7), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
 		})
 
+		t.Run("AddonMissingDependenciesIgnored", func(t *testing.T) {
+			// A license carrying the addon without its required features
+			// records a validation error and the addon is skipped, so
+			// permission-based counting must not activate.
+			opts := (&coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureUserLimit: 100},
+			}).Valid(now)
+			opts.Addons = append(opts.Addons, codersdk.AddonAIGovernance)
+			entitlements, err := license.LicensesEntitlements(ctx, now, []database.License{dbLicense(*opts)}, enablements, coderdenttest.Keys, license.FeatureArguments{
+				ActiveUserCount: 7,
+				WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
+					t.Fatal("count fn must not be called when addon dependencies are unmet")
+					return 0, nil
+				},
+			})
+			require.NoError(t, err)
+			require.NotEmpty(t, entitlements.Errors)
+			require.Equal(t, int64(7), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
+		})
+
 		t.Run("AddonUsesFn", func(t *testing.T) {
 			entitlements, err := license.LicensesEntitlements(ctx, now, []database.License{addonLicense()}, enablements, coderdenttest.Keys, license.FeatureArguments{
 				ActiveUserCount: 7,
