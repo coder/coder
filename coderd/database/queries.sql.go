@@ -2565,7 +2565,7 @@ effective AS (
 	-- highest-limit group.
 	SELECT
 		filtered_users.user_id,
-		COALESCE(override.group_id, user_highest_group.group_id) AS effective_group_id,
+		COALESCE(override.group_id, user_highest_group.group_id) AS raw_effective_group_id,
 		COALESCE(override.spend_limit_micros, user_highest_group.spend_limit_micros) AS spend_limit_micros,
 		(CASE
 			WHEN override.group_id IS NOT NULL THEN 'user_override'
@@ -2580,7 +2580,7 @@ applied_budget AS (
 	-- queried group.
 	SELECT user_id, spend_limit_micros, limit_source
 	FROM effective
-	WHERE effective_group_id = $1
+	WHERE raw_effective_group_id = $1
 )
 SELECT
 	effective.user_id,
@@ -2592,7 +2592,7 @@ SELECT
 FROM effective
 CROSS JOIN queried_group
 LEFT JOIN groups effective_group
-	ON effective_group.id = effective.effective_group_id
+	ON effective_group.id = effective.raw_effective_group_id
 	AND effective_group.organization_id = queried_group.organization_id
 LEFT JOIN applied_budget ON applied_budget.user_id = effective.user_id
 LEFT JOIN ai_user_daily_spend spend
