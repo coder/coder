@@ -424,7 +424,7 @@ func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]opti
 // augmentRequestForBedrockInvokeModel changes the model used for the request since AWS Bedrock doesn't support
 // Anthropics' model names. It also converts adaptive thinking to enabled with a budget for models that
 // don't support adaptive thinking natively, or enabled thinking to adaptive for models that only support
-// adaptive (Opus 4.7+).
+// adaptive.
 func (i *interceptionBase) augmentRequestForBedrockInvokeModel() {
 	if i.bedrock == nil {
 		return
@@ -440,7 +440,7 @@ func (i *interceptionBase) augmentRequestForBedrockInvokeModel() {
 
 	switch {
 	case bedrockModelRequiresAdaptiveThinking(model):
-		// Symmetric conversion for adaptive-only models (Opus 4.7+): rewrite
+		// Symmetric conversion for adaptive-only models: rewrite
 		// thinking.type "enabled" with budget_tokens to the "adaptive" shape,
 		// since Bedrock returns 400 for these models when the legacy shape is
 		// used. Claude Code falls back to the legacy shape when it cannot
@@ -468,7 +468,7 @@ func (i *interceptionBase) augmentRequestForBedrockInvokeModel() {
 	}
 
 	// Strip body fields that Bedrock does not accept. Adaptive-only models
-	// (Opus 4.7+) support output_config natively without a beta flag, so
+	// support output_config natively without a beta flag, so
 	// keep it for those models even when the effort-2025-11-24 flag is
 	// absent from the request.
 	var exemptFields []string
@@ -496,8 +496,8 @@ func (i *interceptionBase) augmentRequestForBedrockInvokeModel() {
 }
 
 // bedrockModelSupportsAdaptiveThinking returns true if the given Bedrock model ID
-// supports the "adaptive" thinking type natively (i.e. Claude 4.6 models, and
-// adaptive-only models such as Opus 4.7+).
+// supports the "adaptive" thinking type natively (i.e. Claude 4.6 models and
+// adaptive-only models).
 // See https://docs.aws.amazon.com/bedrock/latest/userguide/claude-messages-adaptive-thinking.html
 func bedrockModelSupportsAdaptiveThinking(model string) bool {
 	return strings.Contains(model, "anthropic.claude-opus-4-6") ||
@@ -507,13 +507,13 @@ func bedrockModelSupportsAdaptiveThinking(model string) bool {
 
 // bedrockModelRequiresAdaptiveThinking returns true if the given Bedrock model
 // ID only supports the "adaptive" thinking type and rejects the legacy
-// "enabled" + budget_tokens shape with a 400. Claude Opus 4.7 was the first
-// model in this category.
+// "enabled" + budget_tokens shape with a 400.
 //
 // See https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-7.html
 func bedrockModelRequiresAdaptiveThinking(model string) bool {
 	return strings.Contains(model, "anthropic.claude-opus-4-7") ||
-		strings.Contains(model, "anthropic.claude-opus-4-8")
+		strings.Contains(model, "anthropic.claude-opus-4-8") ||
+		strings.Contains(model, "anthropic.claude-sonnet-5")
 }
 
 // filterBedrockBetaFlags removes unsupported beta flags from the Anthropic-Beta

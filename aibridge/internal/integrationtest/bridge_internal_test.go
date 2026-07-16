@@ -460,13 +460,14 @@ func TestAWSBedrockIntegration(t *testing.T) {
 		}
 
 		cases := []struct {
-			name               string
-			model              string
-			smallFastModel     string
-			expectThinkingType string
-			expectBudgetTokens int64    // 0 means budget_tokens should not be present
-			expectKeptFields   []string // fields from strippableFields expected to survive
-			expectedBetaFlags  []string // values expected in the anthropic_beta array in the forwarded body
+			name                string
+			model               string
+			smallFastModel      string
+			expectThinkingType  string
+			expectBudgetTokens  int64    // 0 means budget_tokens should not be present
+			sendThinkingEnabled bool     // send enabled thinking with budget_tokens instead of the fixture's adaptive thinking
+			expectKeptFields    []string // fields from strippableFields expected to survive
+			expectedBetaFlags   []string // values expected in the anthropic_beta array in the forwarded body
 		}{
 			// "beddel" matches no model prefix, so adaptive thinking is converted
 			// to enabled with budget, and all model-gated beta flags are stripped.
@@ -507,6 +508,17 @@ func TestAWSBedrockIntegration(t *testing.T) {
 				expectThinkingType: "adaptive",
 				expectedBetaFlags:  []string{"interleaved-thinking-2025-05-14"},
 			},
+			// Sonnet 5 requires adaptive thinking, so legacy enabled thinking is
+			// converted and output_config.effort is preserved.
+			{
+				name:                "sonnet-5",
+				model:               "us.anthropic.claude-sonnet-5",
+				smallFastModel:      "anthropic.claude-haiku-4-5-20241022-v1:0",
+				expectThinkingType:  "adaptive",
+				sendThinkingEnabled: true,
+				expectKeptFields:    []string{"output_config"},
+				expectedBetaFlags:   []string{"interleaved-thinking-2025-05-14"},
+			},
 		}
 
 		for _, tc := range cases {
@@ -535,6 +547,13 @@ func TestAWSBedrockIntegration(t *testing.T) {
 
 					reqBody, err := sjson.SetBytes(fix.Request(), "stream", streaming)
 					require.NoError(t, err)
+					if tc.sendThinkingEnabled {
+						reqBody, err = sjson.SetBytes(reqBody, "thinking", map[string]any{
+							"type":          "enabled",
+							"budget_tokens": 16000,
+						})
+						require.NoError(t, err)
+					}
 
 					// Send with Anthropic-Beta header containing flags that should be filtered.
 					resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, reqBody, http.Header{
@@ -561,6 +580,9 @@ func TestAWSBedrockIntegration(t *testing.T) {
 						assert.Equal(t, tc.expectBudgetTokens, gjson.GetBytes(body, "thinking.budget_tokens").Int(), "budget_tokens mismatch")
 					} else {
 						assert.False(t, gjson.GetBytes(body, "thinking.budget_tokens").Exists(), "budget_tokens should not be present")
+					}
+					if tc.sendThinkingEnabled {
+						assert.Equal(t, "medium", gjson.GetBytes(body, "output_config.effort").String(), "effort mismatch")
 					}
 
 					// The Bedrock SDK middleware moves Anthropic-Beta from the header
