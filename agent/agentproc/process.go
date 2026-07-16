@@ -113,9 +113,13 @@ type manager struct {
 	// index already existed when the token was first dispatched.
 	tokenIndexBirth time.Time
 	closed          bool
-	updateEnv       func(current []string) (updated []string, err error)
-	workingDir      func() string
-	envInfo         usershell.EnvInfoer
+	// closeCh is closed by Close so starts blocked waiting on a
+	// concurrent same-token reservation unblock at shutdown
+	// instead of waiting for their request contexts to expire.
+	closeCh    chan struct{}
+	updateEnv  func(current []string) (updated []string, err error)
+	workingDir func() string
+	envInfo    usershell.EnvInfoer
 }
 
 // newManager creates a new process manager.
@@ -135,6 +139,7 @@ func newManager(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, envInf
 		procs:           make(map[string]*process),
 		tokens:          make(map[string]*tokenEntry),
 		tokenIndexBirth: clock.Now(),
+		closeCh:         make(chan struct{}),
 		updateEnv:       updateEnv,
 		workingDir:      workingDir,
 		envInfo:         envInfo,
@@ -198,6 +203,8 @@ func (m *manager) start(ctx context.Context, req workspacesdk.StartProcessReques
 		// and attach to its process.
 		select {
 		case <-entry.done:
+		case <-m.closeCh:
+			return nil, false, xerrors.New("manager is closed")
 		case <-ctx.Done():
 			return nil, false, xerrors.Errorf("wait for concurrent start with the same token: %w", ctx.Err())
 		}
@@ -493,6 +500,7 @@ func (m *manager) Close() error {
 		return nil
 	}
 	m.closed = true
+	close(m.closeCh)
 	procs := make([]*process, 0, len(m.procs))
 	for _, p := range m.procs {
 		procs = append(procs, p)

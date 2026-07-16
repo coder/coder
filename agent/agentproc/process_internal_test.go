@@ -203,3 +203,60 @@ func TestSameTokenWaiterHonorsCancellation(t *testing.T) {
 	require.True(t, attached)
 	<-proc.done
 }
+
+func TestSameTokenWaiterUnblocksOnClose(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	release := make(chan struct{})
+	releaseOnce := sync.OnceFunc(func() { close(release) })
+	t.Cleanup(releaseOnce)
+	// Block the owning start after it reserves the token so a
+	// concurrent waiter is stuck behind it when Close runs.
+	updateEnv := func(current []string) ([]string, error) {
+		<-release
+		return current, nil
+	}
+	m := newManager(logger, agentexec.DefaultExecer, nil, nil, updateEnv, nil)
+
+	req := workspacesdk.StartProcessRequest{
+		Command:     "echo hello",
+		ClientToken: "tok-close",
+	}
+
+	ownerErr := make(chan error, 1)
+	go func() {
+		_, _, err := m.start(context.Background(), req, "chat-1")
+		ownerErr <- err
+	}()
+	require.Eventually(t, func() bool {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		return len(m.tokens) == 1
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	waiterErr := make(chan error, 1)
+	go func() {
+		_, _, err := m.start(context.Background(), req, "chat-1")
+		waiterErr <- err
+	}()
+
+	require.NoError(t, m.Close())
+
+	// The waiter must not stay stuck behind the blocked owner
+	// after the manager shut down.
+	select {
+	case err := <-waiterErr:
+		require.ErrorContains(t, err, "manager is closed")
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("waiter did not return after Close")
+	}
+
+	releaseOnce()
+	select {
+	case err := <-ownerErr:
+		require.Error(t, err)
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("owner start did not finish")
+	}
+}

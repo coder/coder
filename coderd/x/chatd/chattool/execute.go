@@ -75,10 +75,13 @@ const (
 // the claim: a restarted agent answers with an empty index, so a
 // young index proves nothing about what an earlier agent process
 // may have started. Both sides of the index comparison are
-// durations, so agent and coderd wall clocks never mix.
+// durations, so agent and coderd wall clocks never mix. A negative
+// claim age means the claim was written by a replica whose clock
+// is ahead of this one; the index comparison is then meaningless,
+// so the answer is not trusted.
 func TrustAbsentToken(resp workspacesdk.ProcessByTokenResponse, claimedAt time.Time) bool {
 	claimAge := time.Since(claimedAt)
-	if claimAge >= TokenTrustWindow {
+	if claimAge < 0 || claimAge >= TokenTrustWindow {
 		return false
 	}
 	return time.Duration(resp.TokenIndexAgeMS)*time.Millisecond >= claimAge

@@ -2452,3 +2452,21 @@ func TestExecuteToolClientToken(t *testing.T) {
 		assert.Empty(t, sink.Entries(deduped))
 	})
 }
+
+func TestTrustAbsentToken(t *testing.T) {
+	t.Parallel()
+
+	oldIndex := workspacesdk.ProcessByTokenResponse{TokenIndexAgeMS: time.Hour.Milliseconds()}
+	youngIndex := workspacesdk.ProcessByTokenResponse{TokenIndexAgeMS: 0}
+
+	assert.True(t, chattool.TrustAbsentToken(oldIndex, time.Now().Add(-time.Minute)))
+	// Past the trust window the token may have been reaped with its
+	// exited process.
+	assert.False(t, chattool.TrustAbsentToken(oldIndex, time.Now().Add(-chattool.TokenTrustWindow-time.Minute)))
+	// A restarted agent's young index postdates the claim.
+	assert.False(t, chattool.TrustAbsentToken(youngIndex, time.Now().Add(-time.Minute)))
+	// A future-dated claim (written by a replica with a faster
+	// clock) makes the index comparison meaningless.
+	assert.False(t, chattool.TrustAbsentToken(youngIndex, time.Now().Add(time.Minute)))
+	assert.False(t, chattool.TrustAbsentToken(oldIndex, time.Now().Add(time.Minute)))
+}
