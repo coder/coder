@@ -28,7 +28,7 @@ const LogsSidebarView: FC<LogsSidebarViewProps> = ({
 	canViewAIBridge,
 	activeSection,
 }) => {
-	const { collapsed, toggle } = useSidebarContext();
+	const { collapsed, collapse, toggle } = useSidebarContext();
 
 	return (
 		<div className="flex flex-col gap-1">
@@ -59,6 +59,8 @@ const LogsSidebarView: FC<LogsSidebarViewProps> = ({
 					href={linkToAuditing}
 					icon={ScrollTextIcon}
 					active={activeSection === "audit"}
+					onNavigate={collapse}
+					expandOnCollapsedClick={false}
 				/>
 			)}
 			{canViewConnectionLog && (
@@ -67,6 +69,8 @@ const LogsSidebarView: FC<LogsSidebarViewProps> = ({
 					href="/connectionlog"
 					icon={CableIcon}
 					active={activeSection === "connection"}
+					onNavigate={collapse}
+					expandOnCollapsedClick={false}
 				/>
 			)}
 			{canViewAIBridge && (
@@ -75,6 +79,8 @@ const LogsSidebarView: FC<LogsSidebarViewProps> = ({
 					href="/ai-gateway/sessions"
 					icon={BotMessageSquareIcon}
 					active={activeSection === "ai-sessions"}
+					onNavigate={collapse}
+					expandOnCollapsedClick={false}
 				/>
 			)}
 		</div>

@@ -102,7 +102,12 @@ export const Collapsed: Story = {
 	decorators: [
 		(Story) => (
 			<SidebarContext.Provider
-				value={{ collapsed: true, expand: () => {}, toggle: () => {} }}
+				value={{
+					collapsed: true,
+					expand: () => {},
+					collapse: () => {},
+					toggle: () => {},
+				}}
 			>
 				<Story />
 			</SidebarContext.Provider>

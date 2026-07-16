@@ -1,16 +1,20 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const EXPANDED_WIDTH = 240;
 // Icon center sits at nav-pl(12) + btn-px(12) + icon/2(8) = 32px.
 // Double that so the icon is horizontally centered when collapsed.
 const COLLAPSED_WIDTH = 64;
 
-function readCollapsed(key: string): boolean {
+function readPersisted(key: string): string | null {
 	try {
-		return localStorage.getItem(key) === "collapsed";
+		return localStorage.getItem(key);
 	} catch {
-		return false;
+		return null;
 	}
+}
+
+function readCollapsed(key: string): boolean {
+	return readPersisted(key) === "collapsed";
 }
 
 function persistCollapsed(key: string, collapsed: boolean): void {
@@ -21,15 +25,31 @@ function persistCollapsed(key: string, collapsed: boolean): void {
 	}
 }
 
+interface UseSidebarResizeOptions {
+	/**
+	 * On mount, briefly expand the sidebar then collapse it after a
+	 * short delay, unless the user previously left it expanded. The
+	 * peek expansion is never persisted; any user interaction cancels
+	 * the pending collapse.
+	 */
+	peekOnMount?: boolean;
+}
+
 interface UseSidebarResizeReturn {
 	width: number;
 	collapsed: boolean;
 	/** Force the sidebar to expand. */
 	expand: () => void;
+	/** Force the sidebar to collapse. */
+	collapse: () => void;
 	/** Toggle collapsed/expanded state. */
 	toggle: () => void;
+	/** Cancel a pending peek-on-mount auto-collapse, if any. */
+	cancelPeek: () => void;
 	onDragStart: (e: React.PointerEvent) => () => void;
 }
+
+const PEEK_COLLAPSE_DELAY_MS = 1500;
 
 /**
  * Two-state sidebar that drags smoothly by writing directly to the
@@ -39,21 +59,53 @@ interface UseSidebarResizeReturn {
  */
 export function useSidebarResize(
 	storageKey = "sidebar-width",
+	{ peekOnMount = false }: UseSidebarResizeOptions = {},
 ): UseSidebarResizeReturn {
 	const [collapsed, setCollapsed] = useState(() => readCollapsed(storageKey));
+	const peekTimerRef = useRef<number | undefined>(undefined);
+
+	const cancelPeek = useCallback(() => {
+		if (peekTimerRef.current !== undefined) {
+			window.clearTimeout(peekTimerRef.current);
+			peekTimerRef.current = undefined;
+		}
+	}, []);
+
+	// Peek: expand on mount, then collapse after a delay. Skipped when
+	// the user explicitly left the sidebar expanded. Neither the
+	// expansion nor the auto-collapse is persisted.
+	useEffect(() => {
+		if (!peekOnMount || readPersisted(storageKey) === "expanded") {
+			return;
+		}
+		setCollapsed(false);
+		peekTimerRef.current = window.setTimeout(() => {
+			peekTimerRef.current = undefined;
+			setCollapsed(true);
+		}, PEEK_COLLAPSE_DELAY_MS);
+		return cancelPeek;
+	}, [peekOnMount, storageKey, cancelPeek]);
 
 	const expand = useCallback(() => {
+		cancelPeek();
 		setCollapsed(false);
 		persistCollapsed(storageKey, false);
-	}, [storageKey]);
+	}, [storageKey, cancelPeek]);
+
+	const collapse = useCallback(() => {
+		cancelPeek();
+		setCollapsed(true);
+		persistCollapsed(storageKey, true);
+	}, [storageKey, cancelPeek]);
 
 	const toggle = useCallback(() => {
+		cancelPeek();
 		setCollapsed((prev) => {
 			const next = !prev;
 			persistCollapsed(storageKey, next);
 			return next;
 		});
-	}, [storageKey]);
+	}, [storageKey, cancelPeek]);
 
 	const onDragStart = useCallback(
 		(e: React.PointerEvent): (() => void) => {
@@ -134,5 +186,13 @@ export function useSidebarResize(
 
 	const width = collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
 
-	return { width, collapsed, expand, toggle, onDragStart };
+	return {
+		width,
+		collapsed,
+		expand,
+		collapse,
+		toggle,
+		cancelPeek,
+		onDragStart,
+	};
 }
