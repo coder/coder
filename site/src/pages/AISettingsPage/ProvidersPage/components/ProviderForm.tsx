@@ -47,7 +47,7 @@ export type ProviderFormValues = {
 
 const HTTP_SCHEME_REGEX = /^https?:\/\//i;
 // AWS Bedrock InvokeModel URL, e.g. https://bedrock-runtime.{region}.amazonaws.com
-const BEDROCK_CANONICAL_URL_REGEX =
+const BEDROCK_INVOKE_MODEL_URL_REGEX =
 	/^https:\/\/bedrock-runtime\.([a-z0-9-]+)\.amazonaws\.com\/?$/i;
 // AWS Bedrock Mantle URL, e.g. https://bedrock-mantle.{region}.api.aws/anthropic
 const BEDROCK_MANTLE_URL_REGEX =
@@ -64,7 +64,7 @@ export const parseBedrockRegionFromBaseUrl = (
 ): string | undefined => {
 	const trimmed = baseUrl.trim();
 	const match =
-		BEDROCK_CANONICAL_URL_REGEX.exec(trimmed) ??
+		BEDROCK_INVOKE_MODEL_URL_REGEX.exec(trimmed) ??
 		BEDROCK_MANTLE_URL_REGEX.exec(trimmed);
 	return match?.[1]?.toLowerCase();
 };
@@ -211,7 +211,7 @@ const makeBedrockSchema = (editing: boolean) =>
 					),
 				otherwise: (schema) =>
 					schema.matches(
-						BEDROCK_CANONICAL_URL_REGEX,
+						BEDROCK_INVOKE_MODEL_URL_REGEX,
 						"Endpoint must be a Bedrock InvokeModel URL (https://bedrock-runtime.{region}.amazonaws.com).",
 					),
 			})
@@ -590,21 +590,14 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 							field={getFieldHelpers("baseUrl")}
 							label="Endpoint"
 							description={
-								isMantle ? (
-									<>
-										In the format of{" "}
-										<code>
-											{"https://bedrock-mantle.{region}.api.aws/anthropic"}
-										</code>
-									</>
-								) : (
-									<>
-										In the format of{" "}
-										<code>
-											{"https://bedrock-runtime.{region}.amazonaws.com"}
-										</code>
-									</>
-								)
+								<>
+									In the format of{" "}
+									<code>
+										{isMantle
+											? "https://bedrock-mantle.{region}.api.aws/anthropic"
+											: "https://bedrock-runtime.{region}.amazonaws.com"}
+									</code>
+								</>
 							}
 							className="w-full"
 							placeholder={

@@ -217,6 +217,67 @@ export const AddBedrockProtocolSwitchKeepsSaveEnabled: Story = {
 	},
 };
 
+// Reverse switch: Mantle -> InvokeModel restores the model fields and rewrites
+// the endpoint back to the InvokeModel host, preserving the region the user
+// already entered.
+export const AddBedrockSwitchToInvokeModel: Story = {
+	args: {
+		initialValues: {
+			type: "bedrock",
+			name: "bedrock",
+			protocol: "mantle",
+			baseUrl: "https://bedrock-mantle.eu-west-1.api.aws/anthropic",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Model fields are hidden under Mantle.
+		expect(canvas.queryByLabelText(/^model\s*\*?$/i)).not.toBeInTheDocument();
+
+		await userEvent.click(canvas.getByRole("combobox", { name: /protocol/i }));
+		await userEvent.click(
+			await screen.findByRole("option", { name: /invokemodel/i }),
+		);
+
+		// The model fields return and the endpoint is rewritten to the
+		// InvokeModel host, keeping the eu-west-1 region.
+		await canvas.findByLabelText(/^model\s*\*?$/i);
+		await canvas.findByLabelText(/^small-fast model\s*\*?$/i);
+		await waitFor(() =>
+			expect(canvas.getByLabelText(/^endpoint\s*\*?$/i)).toHaveValue(
+				"https://bedrock-runtime.eu-west-1.amazonaws.com",
+			),
+		);
+	},
+};
+
+// When the current endpoint has no parseable region (e.g. a blank field),
+// switching protocol falls back to us-east-1 rather than producing an
+// invalid URL.
+export const AddBedrockProtocolSwitchRegionFallback: Story = {
+	args: {
+		initialValues: { type: "bedrock", baseUrl: "" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Model fields are present for the default InvokeModel protocol.
+		await canvas.findByLabelText(/^model\s*\*?$/i);
+
+		await userEvent.click(canvas.getByRole("combobox", { name: /protocol/i }));
+		await userEvent.click(
+			await screen.findByRole("option", { name: /mantle/i }),
+		);
+
+		// The blank endpoint has no region, so the rewrite falls back to
+		// us-east-1.
+		await waitFor(() =>
+			expect(canvas.getByLabelText(/^endpoint\s*\*?$/i)).toHaveValue(
+				"https://bedrock-mantle.us-east-1.api.aws/anthropic",
+			),
+		);
+	},
+};
+
 // Regression coverage for CODAGT-626. The create form must accept Bedrock
 // configurations whose credentials come from the AWS environment (IAM
 // role, instance profile, AWS_PROFILE) instead of static access keys.
