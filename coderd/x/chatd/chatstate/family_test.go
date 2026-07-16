@@ -247,8 +247,10 @@ func TestEndChatArchivesChildren(t *testing.T) {
 
 	pub := newRecordingPubsub()
 	machine := chatstate.NewChatMachine(db, pub, root.ID)
+	var endResult chatstate.EndChatResult
 	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.EndChat(chatstate.EndChatInput{})
+		var err error
+		endResult, err = tx.EndChat(chatstate.EndChatInput{})
 		return err
 	}))
 
@@ -267,6 +269,13 @@ func TestEndChatArchivesChildren(t *testing.T) {
 		require.Contains(t, pub.channels, coderdpubsub.ChatStateUpdateChannel(chatID),
 			"ended child must publish a chat:update")
 	}
+	endedIDs := make([]uuid.UUID, 0, len(endResult.EndedDescendants))
+	for _, desc := range endResult.EndedDescendants {
+		require.True(t, desc.Archived, "returned descendant must carry the post-transition row")
+		endedIDs = append(endedIDs, desc.ID)
+	}
+	require.ElementsMatch(t, []uuid.UUID{child.ID, grandchild.ID}, endedIDs,
+		"cascade must surface newly ended descendants for caller side effects")
 }
 
 // Ending a child chat (for example via a lifecycle hook end_chat)
@@ -315,8 +324,10 @@ func TestEndChatOnChildArchivesSubtreeOnly(t *testing.T) {
 
 	pub := newRecordingPubsub()
 	machine := chatstate.NewChatMachine(db, pub, child.ID)
+	var endResult chatstate.EndChatResult
 	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.EndChat(chatstate.EndChatInput{})
+		var err error
+		endResult, err = tx.EndChat(chatstate.EndChatInput{})
 		return err
 	}))
 
@@ -336,6 +347,12 @@ func TestEndChatOnChildArchivesSubtreeOnly(t *testing.T) {
 	}
 	require.Contains(t, pub.channels, coderdpubsub.ChatStateUpdateChannel(grandchild.ID),
 		"ended grandchild must publish a chat:update")
+	endedIDs := make([]uuid.UUID, 0, len(endResult.EndedDescendants))
+	for _, desc := range endResult.EndedDescendants {
+		endedIDs = append(endedIDs, desc.ID)
+	}
+	require.ElementsMatch(t, []uuid.UUID{grandchild.ID}, endedIDs,
+		"subtree cascade must surface only newly ended descendants")
 }
 
 func seedFamilyDeps(t *testing.T, db database.Store) (database.User, database.Organization, database.ChatModelConfig) {

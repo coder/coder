@@ -1,6 +1,7 @@
 package chatd_test
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -528,9 +529,71 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 }
 
 // An accepted end_chat from the clear session_start must archive the
-// chat even when the following user_prompt_submit dispatch fails,
-// instead of moving the chat to error.
-func TestEditMessageSessionEndAppliedOnPromptDispatchFailure(t *testing.T) {
+// chat immediately: the edited prompt must never be dispatched to the
+// hook pipeline or reach history.
+func TestEditMessageSessionStartEndChatSkipsPromptDispatch(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	apiKeyID := testAPIKeyID(t, db, user.ID)
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("original")})
+	require.NoError(t, err)
+	inserted, err := db.InsertChatMessages(ctx, chatd.BuildSingleUserChatMessageInsertParams(
+		chat.ID, apiKeyID, content, database.ChatMessageVisibilityBoth, model.ID, chatprompt.CurrentContentVersion, user.ID,
+	))
+	require.NoError(t, err)
+	require.Len(t, inserted, 1)
+	var promptDispatches atomic.Int32
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request agenthooks.Request
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		if request.Type == agenthooks.EventUserPromptSubmit {
+			promptDispatches.Add(1)
+			_, err := w.Write([]byte(`{}`))
+			require.NoError(t, err)
+			return
+		}
+		_, err := w.Write([]byte(`{"end_chat":true,"user_message":"ended by session policy","model_context":"session context note"}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+	server := newHookTestServer(t, db, ps, consumer)
+
+	result, err := server.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: inserted[0].ID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited original")},
+		APIKeyID:        apiKeyID,
+	})
+	require.NoError(t, err)
+	require.True(t, result.Ended, "session end_chat must return an ended edit result")
+	require.True(t, result.Chat.Archived)
+	require.Zero(t, promptDispatches.Load(), "edited prompt must not be dispatched after session end_chat")
+
+	updated, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.True(t, updated.Archived, "accepted session end_chat must archive the chat")
+	require.Equal(t, database.ChatStatusWaiting, updated.Status)
+	require.False(t, updated.LastError.Valid)
+	original, err := db.GetChatMessageByID(ctx, inserted[0].ID)
+	require.NoError(t, err)
+	require.Equal(t, "original", hookMessageText(t, original))
+	require.False(t, original.Deleted)
+
+	assertSessionEndMessagesPersisted(ctx, t, db, chat.ID)
+}
+
+// A prompt denial's accepted end_chat must archive the chat and
+// persist messages from the accepted non-end session response instead
+// of dropping them on the failure path.
+func TestEditMessagePromptDenialEndChatPersistsSessionMessages(t *testing.T) {
 	t.Parallel()
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -552,10 +615,11 @@ func TestEditMessageSessionEndAppliedOnPromptDispatchFailure(t *testing.T) {
 		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type == agenthooks.EventUserPromptSubmit {
-			w.WriteHeader(http.StatusInternalServerError)
+			_, err := w.Write([]byte(`{"permission":{"decision":"deny"},"end_chat":true}`))
+			require.NoError(t, err)
 			return
 		}
-		_, err := w.Write([]byte(`{"end_chat":true,"user_message":"ended by session policy","model_context":"session context note"}`))
+		_, err := w.Write([]byte(`{"user_message":"ended by session policy","model_context":"session context note"}`))
 		require.NoError(t, err)
 	}))
 	t.Cleanup(consumer.Close)
@@ -568,12 +632,12 @@ func TestEditMessageSessionEndAppliedOnPromptDispatchFailure(t *testing.T) {
 		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited original")},
 		APIKeyID:        apiKeyID,
 	})
-	var dispatchErr *chathooks.DispatchError
-	require.ErrorAs(t, err, &dispatchErr)
+	var denied *chatd.UserPromptDeniedError
+	require.ErrorAs(t, err, &denied)
 
 	updated, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.True(t, updated.Archived, "accepted session end_chat must archive the chat")
+	require.True(t, updated.Archived, "accepted denial end_chat must archive the chat")
 	require.Equal(t, database.ChatStatusWaiting, updated.Status)
 	require.False(t, updated.LastError.Valid)
 	original, err := db.GetChatMessageByID(ctx, inserted[0].ID)
@@ -581,7 +645,12 @@ func TestEditMessageSessionEndAppliedOnPromptDispatchFailure(t *testing.T) {
 	require.Equal(t, "original", hookMessageText(t, original))
 	require.False(t, original.Deleted)
 
-	rows, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	assertSessionEndMessagesPersisted(ctx, t, db, chat.ID)
+}
+
+func assertSessionEndMessagesPersisted(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID) {
+	t.Helper()
+	rows, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chatID})
 	require.NoError(t, err)
 	noticePersisted := false
 	for _, row := range rows {
@@ -590,7 +659,7 @@ func TestEditMessageSessionEndAppliedOnPromptDispatchFailure(t *testing.T) {
 		}
 	}
 	require.True(t, noticePersisted, "accepted session user_message must persist with the archive")
-	promptRows, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	promptRows, err := db.GetChatMessagesForPromptByChatID(ctx, chatID)
 	require.NoError(t, err)
 	contextPersisted := false
 	for _, row := range promptRows {

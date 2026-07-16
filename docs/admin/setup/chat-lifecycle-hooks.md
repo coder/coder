@@ -95,6 +95,7 @@ Permission rules depend on the event:
 - For either event, `deny` blocks the input.
   A denied prompt isn't persisted, and a denied tool call becomes a synthetic error result so the model can choose another action.
   A `user_prompt_submit` denial that also sets `end_chat` rejects the prompt and ends the existing chat. During chat creation there is no chat to end.
+  When the `clear` `session_start` emitted for a message edit sets `end_chat`, Coder ends the chat immediately and never dispatches `user_prompt_submit` for the edited content.
 - For all other events, omit `permission`.
 
 ## Plan failure recovery

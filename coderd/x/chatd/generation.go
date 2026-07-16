@@ -1008,6 +1008,7 @@ func (s *taskStarter) applyPostCompactResponse(
 	}
 	endChat := preEndChat || response.EndChat
 	committed := compacted
+	var endedDescendants []database.Chat
 	if len(prefixMessages) > 0 || response.AllowedTools != nil || endChat {
 		err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 			if _, err := loadChatForGeneration(ctx, store, input, generationAttemptNotRequired); err != nil {
@@ -1017,9 +1018,11 @@ func (s *taskStarter) applyPostCompactResponse(
 				return err
 			}
 			if endChat {
-				if _, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages}); err != nil {
+				endResult, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages})
+				if err != nil {
 					return xerrors.Errorf("tx.EndChat: %w", err)
 				}
+				endedDescendants = endResult.EndedDescendants
 			} else if len(prefixMessages) > 0 {
 				if _, err := tx.CommitStep(chatstate.CommitStepInput{Messages: prefixMessages}); err != nil {
 					return xerrors.Errorf("commit post_compact messages: %w", err)
@@ -1038,7 +1041,7 @@ func (s *taskStarter) applyPostCompactResponse(
 	}
 	if endChat {
 		input.StopNudges.reset()
-		return s.finishEndedChat(ctx, input, committed)
+		return s.finishEndedChat(ctx, input, committed, endedDescendants)
 	}
 	s.routeStateHint(ctx, stateUpdateFromChat(committed))
 	return s.afterGenerationOutcome(ctx, generationOutcome{
@@ -1152,6 +1155,7 @@ func (s *taskStarter) commitGenerationStep(
 		return s.finishGenerationTurn(ctx, machine, input, generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, requireGenerationAttempt(attempt))
 	}
 	var committed database.Chat
+	var endedDescendants []database.Chat
 	insertedMessages := []runnerActionMessage{}
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForGeneration(ctx, store, input, requireGenerationAttempt(attempt)); err != nil {
@@ -1173,6 +1177,7 @@ func (s *taskStarter) commitGenerationStep(
 				return xerrors.Errorf("tx.EndChat: %w", err)
 			}
 			inserted = endResult.InsertedMessages
+			endedDescendants = endResult.EndedDescendants
 		} else {
 			commitResult, err := tx.CommitStep(chatstate.CommitStepInput{Messages: messages.Messages})
 			if err != nil {
@@ -1201,7 +1206,7 @@ func (s *taskStarter) commitGenerationStep(
 		return s.finishGenerationError(postCommitCtx, machine, input, hooks.PostCommitError, generationAttemptNotRequired)
 	}
 	if hooks.EndChat {
-		return s.finishEndedChat(ctx, input, committed)
+		return s.finishEndedChat(ctx, input, committed, endedDescendants)
 	}
 	s.routeStateHint(ctx, stateUpdateFromChat(committed))
 	return s.afterGenerationOutcome(ctx, generationOutcome{
@@ -1224,6 +1229,7 @@ func (s *taskStarter) enterRequiresAction(
 		return err
 	}
 	var committed database.Chat
+	var endedDescendants []database.Chat
 	insertedMessages := []runnerActionMessage{}
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForTask(ctx, store, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
@@ -1245,6 +1251,7 @@ func (s *taskStarter) enterRequiresAction(
 				return xerrors.Errorf("tx.EndChat: %w", err)
 			}
 			inserted = result.InsertedMessages
+			endedDescendants = result.EndedDescendants
 		} else {
 			if len(messages.Messages) > 0 {
 				result, err := tx.CommitStep(chatstate.CommitStepInput{Messages: messages.Messages})
@@ -1271,7 +1278,7 @@ func (s *taskStarter) enterRequiresAction(
 		return normalizeTaskTransitionError(err, "enter requires action")
 	}
 	if endChat {
-		return s.finishEndedChat(ctx, input, committed)
+		return s.finishEndedChat(ctx, input, committed, endedDescendants)
 	}
 	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindActionRequired); err != nil {
 		return xerrors.Errorf("publish watch and route: %w", err)
@@ -1332,9 +1339,10 @@ func recordGenerationFinishFailure(turn *runnerDebugTurn, err error) {
 	turn.RecordOutcome(chatdebug.StatusError)
 }
 
-func (s *taskStarter) finishEndedChat(ctx context.Context, input chatWorkerTaskStartInput, committed database.Chat) error {
+func (s *taskStarter) finishEndedChat(ctx context.Context, input chatWorkerTaskStartInput, committed database.Chat, descendants []database.Chat) error {
 	input.DebugTurn.RecordOutcome(chatdebug.StatusCompleted)
-	s.server.scheduleArchiveDebugCleanup(ctx, []database.Chat{committed})
+	s.server.scheduleArchiveDebugCleanup(ctx, append([]database.Chat{committed}, descendants...))
+	s.server.publishChatPubsubEvents(descendants, codersdk.ChatWatchEventKindDeleted)
 	return s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindDeleted)
 }
 
@@ -1427,6 +1435,7 @@ func (s *taskStarter) finishGenerationTurn(
 	continueTurn := response.ModelContext != "" && !response.EndChat && input.StopNudges.claim(turnID)
 
 	var committed database.Chat
+	var endedDescendants []database.Chat
 	ended := false
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
@@ -1436,9 +1445,11 @@ func (s *taskStarter) finishGenerationTurn(
 			return err
 		}
 		if response.EndChat {
-			if _, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages}); err != nil {
+			endResult, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages})
+			if err != nil {
 				return xerrors.Errorf("tx.EndChat: %w", err)
 			}
+			endedDescendants = endResult.EndedDescendants
 			ended = true
 		} else {
 			if len(prefixMessages) > 0 {
@@ -1475,7 +1486,7 @@ func (s *taskStarter) finishGenerationTurn(
 	}
 	if ended {
 		input.StopNudges.reset()
-		return s.finishEndedChat(ctx, input, committed)
+		return s.finishEndedChat(ctx, input, committed, endedDescendants)
 	}
 	if continueTurn {
 		s.routeStateHint(ctx, stateUpdateFromChat(committed))

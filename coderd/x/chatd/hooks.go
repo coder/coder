@@ -479,12 +479,17 @@ func (p *Server) dispatchUserPromptSubmit(
 // A chat that is already archived or gone satisfies the instruction,
 // so those transition failures are ignored.
 func (p *Server) endChatAfterPromptDenial(ctx context.Context, chatID uuid.UUID, prefixMessages []chatstate.Message) error {
-	var ended database.Chat
+	var (
+		ended       database.Chat
+		descendants []database.Chat
+	)
 	machine := p.newChatMachine(chatID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		if _, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages}); err != nil {
+		endResult, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages})
+		if err != nil {
 			return err
 		}
+		descendants = endResult.EndedDescendants
 		chat, err := store.GetChatByID(ctx, chatID)
 		if err != nil {
 			return xerrors.Errorf("reload ended chat: %w", err)
@@ -498,9 +503,48 @@ func (p *Server) endChatAfterPromptDenial(ctx context.Context, chatID uuid.UUID,
 	if err != nil {
 		return xerrors.Errorf("end chat after prompt denial: %w", err)
 	}
-	p.scheduleArchiveDebugCleanup(ctx, []database.Chat{ended})
-	p.publishChatPubsubEvent(ended, codersdk.ChatWatchEventKindDeleted, nil)
+	p.publishEndChatSideEffects(ctx, ended, descendants)
 	return nil
+}
+
+// endChatFromEditSessionStart archives a chat whose clear
+// session_start response accepted end_chat before the edited prompt
+// was dispatched. The response's messages persist with the archive
+// and the edit returns an ended result without touching history.
+func (p *Server) endChatFromEditSessionStart(
+	ctx context.Context,
+	chat database.Chat,
+	turnID *uuid.UUID,
+	response agenthooks.Response,
+) (EditMessageResult, error) {
+	prefixMessages, err := hookPrefixMessages(response, chat.LastModelConfigID, turnID)
+	if err != nil {
+		return EditMessageResult{}, err
+	}
+	var (
+		result      EditMessageResult
+		descendants []database.Chat
+	)
+	machine := p.newChatMachine(chat.ID)
+	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		endResult, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages})
+		if err != nil {
+			return xerrors.Errorf("end chat from session_start: %w", err)
+		}
+		descendants = endResult.EndedDescendants
+		refreshed, err := store.GetChatByID(ctx, chat.ID)
+		if err != nil {
+			return xerrors.Errorf("reload ended chat: %w", err)
+		}
+		result.Chat = refreshed
+		result.Ended = true
+		return nil
+	})
+	if err != nil {
+		return EditMessageResult{}, err
+	}
+	p.publishEndChatSideEffects(ctx, result.Chat, descendants)
+	return result, nil
 }
 
 // endChatAfterToolHookFailure archives a chat whose earlier
@@ -514,11 +558,16 @@ func (p *Server) endChatAfterToolHookFailure(
 	chatID uuid.UUID,
 	suffixMessages []chatstate.Message,
 ) error {
-	var ended database.Chat
+	var (
+		ended       database.Chat
+		descendants []database.Chat
+	)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		if _, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: suffixMessages}); err != nil {
+		endResult, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: suffixMessages})
+		if err != nil {
 			return err
 		}
+		descendants = endResult.EndedDescendants
 		chat, err := store.GetChatByID(ctx, chatID)
 		if err != nil {
 			return xerrors.Errorf("reload ended chat: %w", err)
@@ -532,8 +581,7 @@ func (p *Server) endChatAfterToolHookFailure(
 	if err != nil {
 		return xerrors.Errorf("end chat after tool hook failure: %w", err)
 	}
-	p.scheduleArchiveDebugCleanup(ctx, []database.Chat{ended})
-	p.publishChatPubsubEvent(ended, codersdk.ChatWatchEventKindDeleted, nil)
+	p.publishEndChatSideEffects(ctx, ended, descendants)
 	return nil
 }
 
@@ -598,8 +646,9 @@ func generationHookDispatchError(eventType agenthooks.EventType, dispatchErr err
 }
 
 type sessionStartResult struct {
-	Chat  database.Chat
-	Ended bool
+	Chat             database.Chat
+	Ended            bool
+	EndedDescendants []database.Chat
 }
 
 func applySessionStartResponse(
@@ -631,10 +680,12 @@ func applySessionStartResponse(
 			return err
 		}
 		if response.EndChat {
-			if _, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages}); err != nil {
+			endResult, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages})
+			if err != nil {
 				return xerrors.Errorf("end chat from session_start: %w", err)
 			}
 			result.Ended = true
+			result.EndedDescendants = endResult.EndedDescendants
 		} else if len(prefixMessages) > 0 {
 			if _, err := tx.CommitStep(chatstate.CommitStepInput{Messages: prefixMessages}); err != nil {
 				return xerrors.Errorf("insert session_start response messages: %w", err)
@@ -653,7 +704,7 @@ func applySessionStartResponse(
 }
 
 func (s *taskStarter) finishSessionStartEnd(ctx context.Context, input chatWorkerTaskStartInput, result sessionStartResult) error {
-	return s.finishEndedChat(ctx, input, result.Chat)
+	return s.finishEndedChat(ctx, input, result.Chat, result.EndedDescendants)
 }
 
 func hookPrefixMessages(response agenthooks.Response, modelConfigID uuid.UUID, turnID *uuid.UUID) ([]chatstate.Message, error) {

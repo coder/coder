@@ -425,8 +425,16 @@ type EndChatInput struct {
 
 // EndChatResult is returned by [Tx.EndChat].
 type EndChatResult struct {
+	// Chat is the addressed chat's post-transition row.
+	Chat                    database.Chat
 	InsertedMessages        []database.ChatMessage
 	DeletedQueuedMessageIDs []int64
+	// EndedDescendants holds the post-transition rows of descendants
+	// the cascade newly archived, so callers can apply the same
+	// post-commit side effects (debug cleanup, watch events) they
+	// run for the addressed chat. Already-archived descendants are
+	// excluded.
+	EndedDescendants []database.Chat
 }
 
 // EndChat archives the addressed chat and every descendant below it,
@@ -443,9 +451,11 @@ func (tx *Tx) EndChat(input EndChatInput) (EndChatResult, error) {
 	if err != nil {
 		return EndChatResult{}, err
 	}
-	if err := tx.endDescendantChats(chat); err != nil {
+	descendants, err := tx.endDescendantChats(chat)
+	if err != nil {
 		return EndChatResult{}, err
 	}
+	result.EndedDescendants = descendants
 	return result, nil
 }
 
@@ -464,17 +474,19 @@ func (tx *Tx) applyEndChat(chat database.Chat, prefixMessages []Message) (EndCha
 	if err != nil {
 		return EndChatResult{}, err
 	}
-	if _, err := tx.applyExecutionState(executionStateUpdate{
+	updated, err := tx.applyExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusWaiting,
 		Archived:                 true,
 		WorkerID:                 uuid.NullUUID{},
 		RunnerID:                 uuid.NullUUID{},
 		LastError:                pqtype.NullRawMessage{},
 		RequiresActionDeadlineAt: sql.NullTime{},
-	}); err != nil {
+	})
+	if err != nil {
 		return EndChatResult{}, xerrors.Errorf("end chat: %w", err)
 	}
 	return EndChatResult{
+		Chat:                    updated,
 		InsertedMessages:        inserted,
 		DeletedQueuedMessageIDs: deletedQueuedIDs,
 	}, nil
@@ -487,7 +499,7 @@ func (tx *Tx) applyEndChat(chat database.Chat, prefixMessages []Message) (EndCha
 // Already-archived descendants are skipped. Both listings order by
 // creation time, a subsequence of the root-then-family lock order, so
 // the cascade cannot deadlock with SetFamilyArchived.
-func (tx *Tx) endDescendantChats(chat database.Chat) error {
+func (tx *Tx) endDescendantChats(chat database.Chat) ([]database.Chat, error) {
 	var ids []uuid.UUID
 	var err error
 	if chat.ParentChatID.Valid {
@@ -496,8 +508,9 @@ func (tx *Tx) endDescendantChats(chat database.Chat) error {
 		ids, err = tx.store.GetChatFamilyIDsByRootID(tx.ctx, chat.ID)
 	}
 	if err != nil {
-		return xerrors.Errorf("get chat descendants: %w", err)
+		return nil, xerrors.Errorf("get chat descendants: %w", err)
 	}
+	var ended []database.Chat
 	for _, id := range ids {
 		if id == chat.ID {
 			continue
@@ -519,14 +532,18 @@ func (tx *Tx) endDescendantChats(chat database.Chat) error {
 			if err := requireExecutionTransition(TransitionEndChat, from); err != nil {
 				return err
 			}
-			_, err = child.applyEndChat(chat, nil)
-			return err
+			result, err := child.applyEndChat(chat, nil)
+			if err != nil {
+				return err
+			}
+			ended = append(ended, result.Chat)
+			return nil
 		})
 		if err != nil {
-			return xerrors.Errorf("end child chat %s: %w", id, err)
+			return nil, xerrors.Errorf("end child chat %s: %w", id, err)
 		}
 	}
-	return nil
+	return ended, nil
 }
 
 // BusyBehavior controls how SendMessage behaves when the chat is

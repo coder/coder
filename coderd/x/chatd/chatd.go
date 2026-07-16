@@ -1525,6 +1525,7 @@ func (p *Server) SendMessage(
 	requestedMCPServerIDs := opts.MCPServerIDs
 
 	var result SendMessageResult
+	var endedDescendants []database.Chat
 	machine := p.newChatMachine(opts.ChatID)
 	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
@@ -1573,9 +1574,11 @@ func (p *Server) SendMessage(
 			return err
 		}
 		if hookResponse.EndChat {
-			if _, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages}); err != nil {
+			endResult, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages})
+			if err != nil {
 				return err
 			}
+			endedDescendants = endResult.EndedDescendants
 			result.Ended = true
 			refreshed, err := store.GetChatByID(ctx, opts.ChatID)
 			if err != nil {
@@ -1650,8 +1653,7 @@ func (p *Server) SendMessage(
 	// Sidebar watch event keeps the chat list in sync. Stream side
 	// effects are handled by chat:update consumers.
 	if result.Ended {
-		p.scheduleArchiveDebugCleanup(ctx, []database.Chat{result.Chat})
-		p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindDeleted, nil)
+		p.publishEndChatSideEffects(ctx, result.Chat, endedDescendants)
 	} else {
 		p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
@@ -1856,14 +1858,18 @@ func (p *Server) EditMessage(
 		if err != nil {
 			return EditMessageResult{}, p.handleAPIDispatchError(ctx, opts.ChatID, agenthooks.EventSessionStart, err)
 		}
+		if sessionStartResponse.EndChat {
+			// The session policy ended the chat, so the edited prompt
+			// must never reach the hook pipeline or history.
+			return p.endChatFromEditSessionStart(ctx, chat, &turnID, sessionStartResponse)
+		}
 		hookResponse, err = p.dispatchUserPromptSubmit(ctx, chat, turnID, contentParts)
 		if err != nil {
-			// An accepted end_chat, from the clear session_start or a
-			// denial response, outranks the failure path: archive the
-			// chat, persisting the accepted session response's
-			// messages, instead of moving it to error.
+			// A denial's accepted end_chat outranks the failure path:
+			// archive the chat, persisting messages from the accepted
+			// session response, instead of moving it to error.
 			var denied *UserPromptDeniedError
-			if (errors.As(err, &denied) && hookResponse.EndChat) || sessionStartResponse.EndChat {
+			if errors.As(err, &denied) && hookResponse.EndChat {
 				sessionMessages, prefixErr := hookPrefixMessages(sessionStartResponse, chat.LastModelConfigID, &turnID)
 				if prefixErr != nil {
 					return EditMessageResult{}, errors.Join(err, prefixErr)
@@ -1890,9 +1896,10 @@ func (p *Server) EditMessage(
 	}
 
 	var (
-		result        EditMessageResult
-		editedMsg     database.ChatMessage
-		editedCutoffT time.Time
+		result           EditMessageResult
+		editedMsg        database.ChatMessage
+		editedCutoffT    time.Time
+		endedDescendants []database.Chat
 	)
 	machine := p.newChatMachine(opts.ChatID)
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
@@ -1946,9 +1953,11 @@ func (p *Server) EditMessage(
 			return err
 		}
 		if hookEndChat {
-			if _, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages}); err != nil {
+			endResult, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages})
+			if err != nil {
 				return err
 			}
+			endedDescendants = endResult.EndedDescendants
 			result.Ended = true
 			refreshed, err := store.GetChatByID(ctx, opts.ChatID)
 			if err != nil {
@@ -1999,8 +2008,7 @@ func (p *Server) EditMessage(
 	// Sidebar watch event keeps the chat list responsive. Stream
 	// side effects are handled by chat:update consumers.
 	if result.Ended {
-		p.scheduleArchiveDebugCleanup(ctx, []database.Chat{result.Chat})
-		p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindDeleted, nil)
+		p.publishEndChatSideEffects(ctx, result.Chat, endedDescendants)
 		return result, nil
 	}
 	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
@@ -2378,9 +2386,10 @@ func (p *Server) SubmitToolResults(
 	}
 
 	var (
-		statusConflict *ToolResultStatusConflictError
-		refreshChat    database.Chat
-		refreshedOK    bool
+		statusConflict   *ToolResultStatusConflictError
+		refreshChat      database.Chat
+		refreshedOK      bool
+		endedDescendants []database.Chat
 	)
 	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		locked, err := store.GetChatByID(ctx, opts.ChatID)
@@ -2423,9 +2432,11 @@ func (p *Server) SubmitToolResults(
 			return xerrors.Errorf("complete requires action: %w", err)
 		}
 		if hookEndChat {
-			if _, err := tx.EndChat(chatstate.EndChatInput{}); err != nil {
+			endResult, err := tx.EndChat(chatstate.EndChatInput{})
+			if err != nil {
 				return xerrors.Errorf("end chat from post_tool_use: %w", err)
 			}
+			endedDescendants = endResult.EndedDescendants
 		}
 		refreshed, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
@@ -2443,12 +2454,11 @@ func (p *Server) SubmitToolResults(
 	}
 
 	if refreshedOK {
-		kind := codersdk.ChatWatchEventKindStatusChange
 		if refreshChat.Archived {
-			kind = codersdk.ChatWatchEventKindDeleted
-			p.scheduleArchiveDebugCleanup(ctx, []database.Chat{refreshChat})
+			p.publishEndChatSideEffects(ctx, refreshChat, endedDescendants)
+		} else {
+			p.publishChatPubsubEvent(refreshChat, codersdk.ChatWatchEventKindStatusChange, nil)
 		}
-		p.publishChatPubsubEvent(refreshChat, kind, nil)
 	}
 	return nil
 }
@@ -3533,6 +3543,15 @@ func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind codersdk.Ch
 	for _, chat := range chats {
 		p.publishChatPubsubEvent(chat, kind, nil)
 	}
+}
+
+// publishEndChatSideEffects runs the post-commit side effects for an
+// end-chat transition: archive debug cleanup and Deleted watch events
+// for the ended chat and every descendant its cascade archived.
+func (p *Server) publishEndChatSideEffects(ctx context.Context, ended database.Chat, descendants []database.Chat) {
+	p.scheduleArchiveDebugCleanup(ctx, append([]database.Chat{ended}, descendants...))
+	p.publishChatPubsubEvents(descendants, codersdk.ChatWatchEventKindDeleted)
+	p.publishChatPubsubEvent(ended, codersdk.ChatWatchEventKindDeleted, nil)
 }
 
 // chatWatchEventSDKChat builds the chat embedded in ChatWatchEvent
