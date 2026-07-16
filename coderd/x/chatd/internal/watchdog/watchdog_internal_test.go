@@ -94,3 +94,25 @@ func TestTimer_DisarmPreservesCause(t *testing.T) {
 	require.NoError(t, ctx.Err())
 	require.Nil(t, context.Cause(ctx))
 }
+
+func TestTimer_StaleFireAfterResetIsIgnored(t *testing.T) {
+	t.Parallel()
+
+	clock := quartz.NewMock(t)
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+
+	wd := New(clock, time.Minute, cancel, errTestTimeout, "test-watchdog")
+
+	// Simulate the boundary race: the timeout callback was
+	// dispatched but a Reset re-armed the timer before the
+	// callback acquired the lock. The stale fire must not settle
+	// or cancel; the re-armed window owns the outcome.
+	wd.Reset()
+	wd.onTimeout()
+	require.NoError(t, context.Cause(ctx))
+
+	// The re-armed window still fires when it truly elapses.
+	clock.Advance(time.Minute).MustWait(context.Background())
+	require.ErrorIs(t, context.Cause(ctx), errTestTimeout)
+}
