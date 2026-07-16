@@ -2494,8 +2494,6 @@ CREATE TABLE mcp_server_user_tokens (
     oauth_refresh_failure_reason text DEFAULT ''::text NOT NULL
 );
 
-COMMENT ON COLUMN mcp_server_user_tokens.oauth_refresh_failure_reason IS 'A permanent refresh failure (e.g. the upstream grant was revoked). Cached so we can avoid calling the provider again for the same error.';
-
 CREATE TABLE notification_messages (
     id uuid NOT NULL,
     notification_template_id uuid NOT NULL,
