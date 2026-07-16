@@ -97,26 +97,6 @@ with AWS credentials rather than a registered API key. Configure:
   only. Mantle providers do not set them; the client chooses the model on
   each request and AI Gateway forwards it upstream.
 
-Do not attach API keys to a Bedrock provider.
-
-AI Gateway resolves AWS credentials one of three ways:
-
-- **AWS SDK default credential chain (recommended).** When no explicit
-  credentials are configured, the AWS SDK resolves them automatically
-  from the environment: IAM Roles (instance profiles, IRSA, ECS task
-  roles), shared config files, environment variables, SSO, and more.
-  Attaching an IAM Role to the compute running Coder follows
-  [AWS best practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html)
-  for temporary credentials. The role must permit `bedrock:InvokeModel`
-  and `bedrock:InvokeModelWithResponseStream` for the configured models.
-- **Static credentials.** Provide an access key and secret for an IAM
-  user with the same Bedrock permissions.
-- **Assumed IAM role.** Set a **Role ARN** to have the gateway assume
-  that role before calling Bedrock, signing requests with the resulting
-  temporary credentials. This works on top of either of the above base
-  identities and supports cross-account Bedrock access. See
-  [Assuming an IAM role](#assuming-an-iam-role).
-
 #### Protocol: InvokeModel vs Mantle
 
 A Bedrock provider targets one of two AWS wire protocols:
@@ -139,6 +119,28 @@ export CLAUDE_CODE_SKIP_MANTLE_AUTH=1
 export ANTHROPIC_BEDROCK_MANTLE_BASE_URL="<your-deployment-url>/api/v2/ai-gateway/<provider-name>"
 export ANTHROPIC_AUTH_TOKEN="<your-coder-api-token>"
 ```
+
+#### AWS credentials
+
+Do not attach API keys to a Bedrock provider.
+
+AI Gateway resolves AWS credentials one of three ways:
+
+- **AWS SDK default credential chain (recommended).** When no explicit
+  credentials are configured, the AWS SDK resolves them automatically
+  from the environment: IAM Roles (instance profiles, IRSA, ECS task
+  roles), shared config files, environment variables, SSO, and more.
+  Attaching an IAM Role to the compute running Coder follows
+  [AWS best practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html)
+  for temporary credentials. The role must permit `bedrock:InvokeModel`
+  and `bedrock:InvokeModelWithResponseStream` for the configured models.
+- **Static credentials.** Provide an access key and secret for an IAM
+  user with the same Bedrock permissions.
+- **Assumed IAM role.** Set a **Role ARN** to have the gateway assume
+  that role before calling Bedrock, signing requests with the resulting
+  temporary credentials. This works on top of either of the above base
+  identities and supports cross-account Bedrock access. See
+  [Assuming an IAM role](#assuming-an-iam-role).
 
 #### Obtaining static Bedrock credentials
 
