@@ -1300,6 +1300,11 @@ func TestExecuteToolRecorder(t *testing.T) {
 		assert.True(t, result.Success)
 		assert.Equal(t, "done", result.Output)
 		assert.True(t, recorder.recordStartCalled)
+		// Without the recorded handle, the wait outcome must not
+		// terminalize the row: an exited row with no process would
+		// strand a retry, while a starting row resolves through
+		// claim recovery.
+		assert.Equal(t, chattool.ExecutionStatusStarting, recorder.record("call-1").Status)
 	})
 
 	t.Run("ClaimInputMismatch", func(t *testing.T) {
@@ -1373,6 +1378,50 @@ func TestExecuteToolRecorder(t *testing.T) {
 		assert.True(t, resp.IsError)
 		assert.Contains(t, resp.Content, "unknown")
 		assert.Contains(t, resp.Content, "safe")
+	})
+
+	t.Run("TerminalRowResolvesWithoutConn", func(t *testing.T) {
+		t.Parallel()
+		recorder := newFakeRecorder()
+		recorder.seed("call-1", chattool.ExecutionRecord{
+			Status:  chattool.ExecutionStatusUnknown,
+			Command: "echo hi",
+		})
+		recorder.seed("call-2", chattool.ExecutionRecord{
+			Status:  chattool.ExecutionStatusCanceled,
+			Command: "echo hi",
+		})
+		recorder.seed("call-3", chattool.ExecutionRecord{
+			Status:    chattool.ExecutionStatusRunning,
+			Command:   "echo hi",
+			ProcessID: "proc-1",
+		})
+		tool := chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, uuid.UUID, error) {
+				return nil, uuid.Nil, xerrors.New("workspace agent unreachable")
+			},
+			Recorder: recorder,
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Rows the ledger already resolved return their stable
+		// results even though the workspace is unreachable.
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "execute", Input: `{"command":"echo hi"}`})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "unknown")
+
+		resp, err = tool.Run(ctx, fantasy.ToolCall{ID: "call-2", Name: "execute", Input: `{"command":"echo hi"}`})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "already resolved")
+
+		// A row that needs the agent to make progress still
+		// surfaces the connection error.
+		resp, err = tool.Run(ctx, fantasy.ToolCall{ID: "call-3", Name: "execute", Input: `{"command":"echo hi"}`})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "unreachable")
 	})
 
 	t.Run("ValidationFailureMarksNoEffect", func(t *testing.T) {

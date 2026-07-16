@@ -265,6 +265,12 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 			}
 			conn, agentID, err := options.GetWorkspaceConn(ctx)
 			if err != nil {
+				// A row the ledger already resolved needs no
+				// workspace to finish: return its stable result
+				// instead of coupling it to agent availability.
+				if resp, ok := resolveWithoutConn(ctx, options, call.ID); ok {
+					return resp, nil
+				}
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
 			// Concurrent execute calls in one step share this
@@ -404,13 +410,29 @@ func resumeExecution(
 		return resumeExecution(ctx, conn, options, toolCallID, latest)
 	case ExecutionStatusRunning, ExecutionStatusExited, ExecutionStatusDetached:
 		return reattachProcess(ctx, conn, options, toolCallID, rec)
-	case ExecutionStatusUnknown:
-		return fantasy.NewTextErrorResponse(unknownOutcomeMessage)
 	default:
-		// The ledger resolved this call (canceled or no_effect)
-		// but history has no result for it, so the chat is
-		// re-executing a call the ledger considers finished.
-		// Never dispatch on top of a resolved row.
+		resp, ok := terminalRowResponse(ctx, options, toolCallID, rec)
+		if !ok {
+			// Reserved rows are always claimable, so resume
+			// should never see one.
+			return errorResult(fmt.Sprintf("execution row in unexpected state %s; retry the command", rec.Status))
+		}
+		return resp
+	}
+}
+
+// terminalRowResponse returns the stable response for a ledger row
+// whose status forbids both dispatch and re-attach. ok is false for
+// statuses that need a workspace connection to make progress.
+func terminalRowResponse(ctx context.Context, options ExecuteOptions, toolCallID string, rec ExecutionRecord) (fantasy.ToolResponse, bool) {
+	switch rec.Status {
+	case ExecutionStatusUnknown:
+		return fantasy.NewTextErrorResponse(unknownOutcomeMessage), true
+	case ExecutionStatusCanceled, ExecutionStatusCancelRequested, ExecutionStatusNoEffect:
+		// The ledger resolved this call but history has no result
+		// for it, so the chat is re-executing a call the ledger
+		// considers finished. Never dispatch on top of a resolved
+		// row.
 		options.Logger.Warn(ctx, "execution ledger row already resolved for unresolved tool call",
 			slog.F("tool_call_id", toolCallID),
 			slog.F("status", string(rec.Status)),
@@ -418,8 +440,24 @@ func resumeExecution(
 		return fantasy.NewTextErrorResponse(fmt.Sprintf(
 			"the recorded execution for this command was already resolved (%s) and will not be restarted. Re-run the command only if it is safe to run twice.",
 			rec.Status,
-		))
+		)), true
+	default:
+		return fantasy.ToolResponse{}, false
 	}
+}
+
+// resolveWithoutConn resolves a tool call from the ledger alone
+// when the workspace connection is unavailable. ok is true only for
+// rows whose terminal status makes agent access unnecessary.
+func resolveWithoutConn(ctx context.Context, options ExecuteOptions, toolCallID string) (fantasy.ToolResponse, bool) {
+	if options.Recorder == nil {
+		return fantasy.ToolResponse{}, false
+	}
+	rec, err := options.Recorder.Get(ctx, toolCallID)
+	if err != nil {
+		return fantasy.ToolResponse{}, false
+	}
+	return terminalRowResponse(ctx, options, toolCallID, rec)
 }
 
 // awaitRecordedProcess polls a starting claim until its owner
@@ -674,7 +712,7 @@ func executeForeground(
 		markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
 		return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err)))
 	}
-	recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ID)
+	recorded := recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ID)
 
 	result, lost := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)
 	if lost {
@@ -682,7 +720,13 @@ func executeForeground(
 		return processLostResponse(resp.ID)
 	}
 	result.WallDurationMs = time.Since(start).Milliseconds()
-	markWaitOutcome(ctx, options, toolCallID, result)
+	// Record the wait outcome only when the handle write landed:
+	// an exited or detached row without a recorded process would
+	// strand a retry with nothing to re-attach to, while a
+	// still-starting row resolves through claim recovery.
+	if recorded {
+		markWaitOutcome(ctx, options, toolCallID, result)
+	}
 
 	// Add an advisory note for file-dump commands.
 	if note := detectFileDump(command); note != "" {

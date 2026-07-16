@@ -911,14 +911,14 @@ Ledger writes that must agree with chat state run inside the same `ChatMachine.U
 
 ### Claim and re-attach
 
-Before dispatching, the execute tool claims the row: a compare-and-set that takes a `reserved` intent or a stale `starting` claim (one whose `claimed_at` is older than the staleness window), advancing `claim_epoch`. A row missing entirely (an assistant message that predates the ledger) is claimed by insert. The claimer calls `StartProcess` and records the process identity, guarded by `claim_epoch` so a superseded claimer never overwrites the current claim's process.
+Before dispatching, the execute tool claims the row: a compare-and-set that takes a `reserved` intent or a stale `starting` claim (one whose `claimed_at` is older than the staleness window), advancing `claim_epoch`. A row missing entirely (an assistant message that predates the ledger) is claimed by insert. The claimer calls `StartProcess` and records the process identity, guarded by `claim_epoch` so a superseded claimer never overwrites the current claim's process. Lifecycle observations (`exited`, `detached`) are recorded only when that identity write landed: a terminal row without a process handle would strand a retry, while a still-`starting` row resolves through claim recovery.
 
 An attempt that cannot claim decides from the row's status:
 
 - A fresh `starting` claim is polled until its owner records a process or the claim goes stale; a stale claim yields `unknown`.
 - Background rows with a process handle return the started-in-background result directly; output retrieval stays with `process_output`. Foreground `running`, `exited`, and `detached` rows re-attach via an output snapshot. An exited process yields the real result, even past the deadline, and marks `exited`. A running process with time left is block-waited for the remainder. A running process past the deadline yields the graceful timed-out result with `background_process_id` and marks `detached`.
 - Only a definite HTTP 404 from the snapshot (the agent was reached and does not know the process) marks `unknown` and produces an `is_error` result stating the command may have run but its outcome is unknown. Transport errors, cancellations, and server errors keep the lifecycle state unchanged and the process retrievable via `process_output`.
-- Rows already resolved (`cancel_requested`, `canceled`, `unknown`, `no_effect`) never re-dispatch; the tool returns a stable error result.
+- Rows already resolved (`cancel_requested`, `canceled`, `unknown`, `no_effect`) never re-dispatch; the tool returns a stable error result. These rows need no agent access, so the stable result is also returned when the workspace connection cannot be established, instead of coupling an already-resolved call to agent availability.
 
 The execute timeout is clamped to 4 hours at claim time and the clamped value is stored on the row so re-attaching attempts agree on the deadline.
 
