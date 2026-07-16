@@ -244,16 +244,13 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, a
 	// Start the span after the object type is detected. If we are filtering 0
 	// objects, then the span is not interesting. It would just add excessive
 	// 0 time spans that provide no insight.
-	ctx, span := tracing.StartSpan(ctx,
-		rbacTraceAttributes(subject, action, objectType,
-			// For filtering, we are only measuring the total time for the entire
-			// set of objects. This and the 'Prepare' span time
-			// is all that is required to measure the performance of this
-			// function on a per-object basis.
-			attribute.Int("num_objects", len(objects)),
-		),
-	)
+	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
+	// For filtering, we are only measuring the total time for the entire set of
+	// objects. This and the 'Prepare' span time is all that is required to
+	// measure the performance of this function on a per-object basis.
+	setRBACAttributes(span, subject, action, objectType,
+		attribute.Int("num_objects", len(objects)))
 
 	// Below the threshold, a full evaluation per object is faster than paying
 	// the Prepare overhead once and reusing it.
@@ -441,14 +438,13 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action p
 	start := time.Now()
 	ctx, span := tracing.StartSpan(ctx,
 		trace.WithTimestamp(start), // Reuse the time.Now for metric and trace
-		rbacTraceAttributes(subject, action, object.Type,
-			// For authorizing a single object, this data is useful to know how
-			// complex our objects are getting.
-			attribute.Int("object_num_groups", len(object.ACLGroupList)),
-			attribute.Int("object_num_users", len(object.ACLUserList)),
-		),
 	)
 	defer span.End()
+	// For authorizing a single object, this data is useful to know how complex
+	// our objects are getting.
+	setRBACAttributes(span, subject, action, object.Type,
+		attribute.Int("object_num_groups", len(object.ACLGroupList)),
+		attribute.Int("object_num_users", len(object.ACLUserList)))
 
 	err := a.authorize(ctx, subject, action, object)
 	authorized := err == nil
@@ -506,9 +502,9 @@ func (a RegoAuthorizer) Prepare(ctx context.Context, subject Subject, action pol
 	start := time.Now()
 	ctx, span := tracing.StartSpan(ctx,
 		trace.WithTimestamp(start),
-		rbacTraceAttributes(subject, action, objectType),
 	)
 	defer span.End()
+	setRBACAttributes(span, subject, action, objectType)
 
 	prepared, err := a.newPartialAuthorizer(ctx, subject, action, objectType)
 	if err != nil {
@@ -823,18 +819,24 @@ func (c *authCache) Prepare(ctx context.Context, subject Subject, action policy.
 	return c.authz.Prepare(ctx, subject, action, objectType)
 }
 
-// rbacTraceAttributes are the attributes that are added to all spans created by
-// the rbac package. These attributes should help to debug slow spans.
-func rbacTraceAttributes(actor Subject, action policy.Action, objectType string, extra ...attribute.KeyValue) trace.SpanStartOption {
+// setRBACAttributes attaches the attributes added to all spans created by the
+// rbac package, to help debug slow spans. It only does the work when the span
+// is recording: materializing the subject's role names allocates one string
+// per role, so untraced calls (benchmarks, unsampled spans) skip the O(roles)
+// cost entirely.
+func setRBACAttributes(span trace.Span, actor Subject, action policy.Action, objectType string, extra ...attribute.KeyValue) {
+	if !span.IsRecording() {
+		return
+	}
 	uniqueRoleNames := actor.SafeRoleNames()
 	roleStrings := make([]string, 0, len(uniqueRoleNames))
 	for _, roleName := range uniqueRoleNames {
 		roleStrings = append(roleStrings, roleName.String())
 	}
-	return trace.WithAttributes(
+	span.SetAttributes(
 		append(extra,
 			attribute.StringSlice("subject_roles", roleStrings),
-			attribute.Int("num_subject_roles", len(actor.SafeRoleNames())),
+			attribute.Int("num_subject_roles", len(uniqueRoleNames)),
 			attribute.Int("num_groups", len(actor.Groups)),
 			attribute.String("scope", actor.SafeScopeName()),
 			attribute.String("action", string(action)),
