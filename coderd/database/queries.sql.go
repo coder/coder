@@ -13281,11 +13281,11 @@ SET status = CASE WHEN status = 'starting' THEN 'running'::chat_tool_call_execut
     process_id = $1::text,
     workspace_agent_id = $2::uuid,
     started_at = $3::timestamptz,
-    updated_at = $3::timestamptz
-WHERE chat_id = $4::uuid
-  AND assistant_message_id = $5::bigint
-  AND tool_call_id = $6::text
-  AND claim_epoch = $7::bigint
+    updated_at = $4::timestamptz
+WHERE chat_id = $5::uuid
+  AND assistant_message_id = $6::bigint
+  AND tool_call_id = $7::text
+  AND claim_epoch = $8::bigint
   AND status IN ('starting', 'cancel_requested', 'detached')
 RETURNING id, chat_id, assistant_message_id, tool_call_id, status, input_sha256, command, background, timeout_secs, claim_epoch, claimed_at, workspace_agent_id, process_id, cancel_signal_sent_at, result_committed_at, created_at, started_at, updated_at
 `
@@ -13294,6 +13294,7 @@ type UpdateChatToolCallExecutionProcessParams struct {
 	ProcessID          string    `db:"process_id" json:"process_id"`
 	WorkspaceAgentID   uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
 	StartedAt          time.Time `db:"started_at" json:"started_at"`
+	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
 	ChatID             uuid.UUID `db:"chat_id" json:"chat_id"`
 	AssistantMessageID int64     `db:"assistant_message_id" json:"assistant_message_id"`
 	ToolCallID         string    `db:"tool_call_id" json:"tool_call_id"`
@@ -13313,6 +13314,7 @@ func (q *sqlQuerier) UpdateChatToolCallExecutionProcess(ctx context.Context, arg
 		arg.ProcessID,
 		arg.WorkspaceAgentID,
 		arg.StartedAt,
+		arg.UpdatedAt,
 		arg.ChatID,
 		arg.AssistantMessageID,
 		arg.ToolCallID,

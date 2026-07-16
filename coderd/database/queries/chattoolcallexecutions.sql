@@ -99,7 +99,7 @@ SET status = CASE WHEN status = 'starting' THEN 'running'::chat_tool_call_execut
     process_id = @process_id::text,
     workspace_agent_id = @workspace_agent_id::uuid,
     started_at = @started_at::timestamptz,
-    updated_at = @started_at::timestamptz
+    updated_at = @updated_at::timestamptz
 WHERE chat_id = @chat_id::uuid
   AND assistant_message_id = @assistant_message_id::bigint
   AND tool_call_id = @tool_call_id::text

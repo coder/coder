@@ -81,6 +81,7 @@ func seedCancelRequestedExecution(ctx context.Context, t *testing.T, db database
 		ProcessID:          "proc-sweep",
 		WorkspaceAgentID:   agent.ID,
 		StartedAt:          claimPast,
+		UpdatedAt:          claimPast,
 	})
 	require.NoError(t, err)
 	rows, err := db.MarkChatToolCallExecutionsInterrupted(ctx, database.MarkChatToolCallExecutionsInterruptedParams{
@@ -582,6 +583,7 @@ func TestReconcileCancelRequestedLateBackgroundKills(t *testing.T) {
 		ProcessID:          "proc-bg",
 		WorkspaceAgentID:   agent.ID,
 		StartedAt:          dbtime.Now(),
+		UpdatedAt:          dbtime.Now(),
 	})
 	require.NoError(t, err)
 
@@ -764,6 +766,12 @@ func TestExecutionSweepTokenOnlyRows(t *testing.T) {
 		require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, row.Status)
 		require.Equal(t, "proc-adopt", row.ProcessID.String)
 		require.True(t, row.WorkspaceAgentID.Valid)
+		// started_at anchors the deadline at the claim time, but
+		// the adoption must not rewind updated_at with it: that
+		// would void the sweep lease and re-claim the row on every
+		// sweep while the agent keeps failing.
+		require.True(t, row.StartedAt.Time.Equal(record.ClaimedAt.Time))
+		require.True(t, row.UpdatedAt.After(record.ClaimedAt.Time))
 	})
 
 	t.Run("BackgroundFoundByTokenDetaches", func(t *testing.T) {

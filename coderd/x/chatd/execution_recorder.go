@@ -165,6 +165,7 @@ func (r *executionRecorder) RecordStart(ctx context.Context, toolCallID string, 
 		ProcessID:          processID,
 		WorkspaceAgentID:   agentID,
 		StartedAt:          dbtime.Time(startedAt),
+		UpdatedAt:          dbtime.Now(),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return xerrors.Errorf("claim epoch %d was superseded before the process start was recorded", claimEpoch)

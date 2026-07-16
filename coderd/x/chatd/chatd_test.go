@@ -13990,6 +13990,7 @@ func TestChatToolCallExecutionLedgerQueries(t *testing.T) {
 			ProcessID:          "proc-stale",
 			WorkspaceAgentID:   agentID,
 			StartedAt:          dbtime.Now(),
+			UpdatedAt:          dbtime.Now(),
 		})
 		require.ErrorIs(t, err, sql.ErrNoRows)
 
@@ -14001,6 +14002,7 @@ func TestChatToolCallExecutionLedgerQueries(t *testing.T) {
 			ProcessID:          "proc-1",
 			WorkspaceAgentID:   agentID,
 			StartedAt:          dbtime.Now(),
+			UpdatedAt:          dbtime.Now(),
 		})
 		require.NoError(t, err)
 		require.Equal(t, database.ChatToolCallExecutionStatusRunning, row.Status)
@@ -14036,6 +14038,7 @@ func TestChatToolCallExecutionLedgerQueries(t *testing.T) {
 			ProcessID:          "proc-late",
 			WorkspaceAgentID:   agentID,
 			StartedAt:          dbtime.Now(),
+			UpdatedAt:          dbtime.Now(),
 		})
 		require.NoError(t, err)
 		require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, row.Status)
@@ -14095,6 +14098,7 @@ func TestChatToolCallExecutionLedgerQueries(t *testing.T) {
 			ProcessID:          "proc-running",
 			WorkspaceAgentID:   agentID,
 			StartedAt:          dbtime.Now(),
+			UpdatedAt:          dbtime.Now(),
 		})
 		require.NoError(t, err)
 		// background with a recorded handle: detached by the
@@ -14111,6 +14115,7 @@ func TestChatToolCallExecutionLedgerQueries(t *testing.T) {
 			ProcessID:          "proc-bg",
 			WorkspaceAgentID:   agentID,
 			StartedAt:          dbtime.Now(),
+			UpdatedAt:          dbtime.Now(),
 		})
 		require.NoError(t, err)
 		// background whose start is still in flight (no handle):
@@ -14134,6 +14139,7 @@ func TestChatToolCallExecutionLedgerQueries(t *testing.T) {
 			ProcessID:          "proc-fg-detached",
 			WorkspaceAgentID:   agentID,
 			StartedAt:          dbtime.Now(),
+			UpdatedAt:          dbtime.Now(),
 		})
 		require.NoError(t, err)
 		_, err = db.UpdateChatToolCallExecutionStatus(ctx, database.UpdateChatToolCallExecutionStatusParams{
@@ -14158,6 +14164,7 @@ func TestChatToolCallExecutionLedgerQueries(t *testing.T) {
 			ProcessID:          "proc-bg-detached",
 			WorkspaceAgentID:   agentID,
 			StartedAt:          dbtime.Now(),
+			UpdatedAt:          dbtime.Now(),
 		})
 		require.NoError(t, err)
 		_, err = db.UpdateChatToolCallExecutionStatus(ctx, database.UpdateChatToolCallExecutionStatusParams{

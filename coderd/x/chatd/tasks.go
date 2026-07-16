@@ -1138,6 +1138,9 @@ func (r executionReconciler) adoptProbedProcess(ctx context.Context, record data
 	if record.ClaimedAt.Valid {
 		startedAt = record.ClaimedAt.Time
 	}
+	// updated_at is stamped fresh, independent of the started_at
+	// lower bound: rewinding it to the claim time would void the
+	// sweep lease and make the row immediately re-claimable.
 	updated, err := r.store.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
 		ChatID:             record.ChatID,
 		AssistantMessageID: record.AssistantMessageID,
@@ -1146,6 +1149,7 @@ func (r executionReconciler) adoptProbedProcess(ctx context.Context, record data
 		ProcessID:          processID,
 		WorkspaceAgentID:   record.WorkspaceAgentID.UUID,
 		StartedAt:          startedAt,
+		UpdatedAt:          dbtime.Now(),
 	})
 	if err != nil {
 		r.logger.Warn(ctx, "failed to record probed process on interrupted execution",
