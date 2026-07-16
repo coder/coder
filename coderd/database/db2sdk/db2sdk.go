@@ -1458,6 +1458,17 @@ func UserAIBudgetOverride(o database.UserAIBudgetOverride) codersdk.UserAIBudget
 	}
 }
 
+func OrganizationGroupAISpend(row database.GetOrganizationGroupsAISpendRow) codersdk.OrganizationGroupAISpend {
+	group := codersdk.OrganizationGroupAISpend{
+		GroupID:            row.GroupID,
+		CurrentSpendMicros: row.CurrentSpendMicros,
+	}
+	if row.SpendLimitMicros.Valid {
+		group.SpendLimitMicros = &row.SpendLimitMicros.Int64
+	}
+	return group
+}
+
 func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidatedAtRow) []codersdk.InvalidatedPreset {
 	var presets []codersdk.InvalidatedPreset
 	for _, p := range invalidatedPresets {

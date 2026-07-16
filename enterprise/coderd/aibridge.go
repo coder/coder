@@ -1017,14 +1017,7 @@ func (api *API) organizationGroupsAISpend(rw http.ResponseWriter, r *http.Reques
 		Groups: make([]codersdk.OrganizationGroupAISpend, 0, len(rows)),
 	}
 	for _, row := range rows {
-		entry := codersdk.OrganizationGroupAISpend{
-			GroupID:            row.GroupID,
-			CurrentSpendMicros: row.CurrentSpendMicros,
-		}
-		if row.SpendLimitMicros.Valid {
-			entry.SpendLimitMicros = &row.SpendLimitMicros.Int64
-		}
-		resp.Groups = append(resp.Groups, entry)
+		resp.Groups = append(resp.Groups, db2sdk.OrganizationGroupAISpend(row))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
