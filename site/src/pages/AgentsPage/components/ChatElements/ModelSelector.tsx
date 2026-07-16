@@ -43,6 +43,11 @@ interface ModelSelectorProps {
 	options: readonly ModelSelectorOption[];
 	value: string;
 	onValueChange: (value: string) => void;
+	/**
+	 * When set, the trigger's accessible name is this contextual label followed
+	 * by the selected model's display name or the placeholder.
+	 */
+	triggerAriaLabel?: string;
 	disabled?: boolean;
 	placeholder?: string;
 	/**
@@ -92,6 +97,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	options,
 	value,
 	onValueChange,
+	triggerAriaLabel,
 	disabled = false,
 	placeholder = "Select model",
 	unsetLabel,
@@ -115,6 +121,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 		setOpen(nextOpen);
 	};
 	const selectedModel = options.find((option) => option.id === value);
+	const triggerLabel = selectedModel?.displayName ?? placeholder;
 	// With an unset option the selector stays usable even when no model
 	// options exist, so a saved override can still be switched back.
 	const isDisabled = disabled || (options.length === 0 && !unsetLabel);
@@ -144,7 +151,11 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild disabled={isDisabled}>
 				<Button
-					aria-label={selectedModel ? selectedModel.displayName : placeholder}
+					aria-label={
+						triggerAriaLabel
+							? `${triggerAriaLabel}, ${triggerLabel}`
+							: triggerLabel
+					}
 					aria-expanded={open}
 					aria-haspopup="listbox"
 					disabled={isDisabled}
@@ -157,9 +168,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					)}
 					onTouchStart={onTriggerTouchStart}
 				>
-					<span className="truncate">
-						{selectedModel ? selectedModel.displayName : placeholder}
-					</span>
+					<span className="truncate">{triggerLabel}</span>
 					<ChevronDownIcon open={open} className="size-icon-sm" />
 				</Button>
 			</PopoverTrigger>
@@ -263,7 +272,13 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 											isSelected={option.id === value}
 											onSelect={() => {
 												onValueChange(option.id);
-												handleOpenChange(false);
+												setSearch("");
+												if (
+													!option.reasoningEfforts?.length ||
+													!onReasoningEffortChange
+												) {
+													handleOpenChange(false);
+												}
 											}}
 										/>
 									))}

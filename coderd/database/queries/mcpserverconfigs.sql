@@ -200,7 +200,31 @@ ON CONFLICT (mcp_server_config_id, user_id) DO UPDATE SET
     refresh_token_key_id = sqlc.narg('refresh_token_key_id')::text,
     token_type = @token_type::text,
     expiry = sqlc.narg('expiry')::timestamptz,
+    -- New token material means the user re-authenticated, so any
+    -- cached permanent refresh failure no longer applies.
+    oauth_refresh_failure_reason = '',
     updated_at = NOW()
+RETURNING
+    *;
+
+-- name: MarkMCPServerUserTokenRefreshFailure :one
+-- Records a permanent refresh failure (e.g. revoked grant) and clears
+-- the dead token material so it is never attached to a request again.
+-- The updated_at predicate provides optimistic concurrency: if another
+-- request refreshed or replaced the token since it was read, this
+-- update matches zero rows and returns sql.ErrNoRows.
+UPDATE mcp_server_user_tokens
+SET
+    access_token = '',
+    access_token_key_id = NULL,
+    refresh_token = '',
+    refresh_token_key_id = NULL,
+    expiry = NULL,
+    oauth_refresh_failure_reason = @oauth_refresh_failure_reason::text,
+    updated_at = NOW()
+WHERE
+    id = @id::uuid
+    AND updated_at = @updated_at::timestamptz
 RETURNING
     *;
 

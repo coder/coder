@@ -9114,6 +9114,21 @@ func (mr *MockStoreMockRecorder) MarkChatsContextDirtyByAgent(ctx, arg any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkChatsContextDirtyByAgent", reflect.TypeOf((*MockStore)(nil).MarkChatsContextDirtyByAgent), ctx, arg)
 }
 
+// MarkMCPServerUserTokenRefreshFailure mocks base method.
+func (m *MockStore) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, arg database.MarkMCPServerUserTokenRefreshFailureParams) (database.MCPServerUserToken, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkMCPServerUserTokenRefreshFailure", ctx, arg)
+	ret0, _ := ret[0].(database.MCPServerUserToken)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkMCPServerUserTokenRefreshFailure indicates an expected call of MarkMCPServerUserTokenRefreshFailure.
+func (mr *MockStoreMockRecorder) MarkMCPServerUserTokenRefreshFailure(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkMCPServerUserTokenRefreshFailure", reflect.TypeOf((*MockStore)(nil).MarkMCPServerUserTokenRefreshFailure), ctx, arg)
+}
+
 // OIDCClaimFieldValues mocks base method.
 func (m *MockStore) OIDCClaimFieldValues(ctx context.Context, arg database.OIDCClaimFieldValuesParams) ([]string, error) {
 	m.ctrl.T.Helper()

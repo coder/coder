@@ -6869,6 +6869,13 @@ func (q *querier) MarkChatsContextDirtyByAgent(ctx context.Context, arg database
 	return q.db.MarkChatsContextDirtyByAgent(ctx, arg)
 }
 
+func (q *querier) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, arg database.MarkMCPServerUserTokenRefreshFailureParams) (database.MCPServerUserToken, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return database.MCPServerUserToken{}, err
+	}
+	return q.db.MarkMCPServerUserTokenRefreshFailure(ctx, arg)
+}
+
 func (q *querier) OIDCClaimFieldValues(ctx context.Context, args database.OIDCClaimFieldValuesParams) ([]string, error) {
 	resource := rbac.ResourceIdpsyncSettings
 	if args.OrganizationID != uuid.Nil {

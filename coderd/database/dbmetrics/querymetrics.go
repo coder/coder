@@ -4841,6 +4841,14 @@ func (m queryMetricsStore) MarkChatsContextDirtyByAgent(ctx context.Context, arg
 	return r0, r1
 }
 
+func (m queryMetricsStore) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, arg database.MarkMCPServerUserTokenRefreshFailureParams) (database.MCPServerUserToken, error) {
+	start := time.Now()
+	r0, r1 := m.s.MarkMCPServerUserTokenRefreshFailure(ctx, arg)
+	m.queryLatencies.WithLabelValues("MarkMCPServerUserTokenRefreshFailure").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "MarkMCPServerUserTokenRefreshFailure").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) OIDCClaimFieldValues(ctx context.Context, arg database.OIDCClaimFieldValuesParams) ([]string, error) {
 	start := time.Now()
 	r0, r1 := m.s.OIDCClaimFieldValues(ctx, arg)

@@ -1024,7 +1024,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 					// Only update DERP mesh if the built-in server is enabled.
 					if api.Options.DeploymentValues.DERP.Server.Enable {
 						addresses := make([]string, 0)
-						for _, replica := range api.replicaManager.Regional() {
+						for _, replica := range api.replicaManager.DERPReplicasThisRegion() {
 							// Don't add replicas with an empty relay address.
 							if replica.RelayAddress == "" {
 								continue
