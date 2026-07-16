@@ -624,13 +624,12 @@ const ChatMessageInput = ({
 		// Avoid refetching on each trigger toggle from caret movement.
 		staleTime: 60_000,
 	});
+	// No staleTime: the list tracks the workspace's build and agent context
+	// snapshot, so each menu open refetches (a cheap DB-backed read) while
+	// the cached list keeps rendering during the refetch.
 	const workspaceSkillsQuery = useQuery({
 		...workspaceSkills(workspaceId ?? ""),
 		enabled: workspaceSkillsQueryEnabled,
-		// An empty list is transient (workspace stopped or starting, or the
-		// agent has not pushed context yet), so only cache non-empty results.
-		staleTime: (query) =>
-			query.state.data && query.state.data.length > 0 ? 60_000 : 0,
 	});
 	const personalSkills = personalSkillsOverride ?? skillsQuery.data ?? [];
 	const loadedWorkspaceSkills =
