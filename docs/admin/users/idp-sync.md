@@ -575,6 +575,8 @@ Steps to troubleshoot.
      groups claim field.
      Use [this answer from Stack Overflow](https://stackoverflow.com/a/55570286) for an example.
 
+</div>
+
 ## Next Steps
 
 - [Configure OIDC Refresh Tokens](./oidc-auth/refresh-tokens.md)
