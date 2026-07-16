@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { SidebarContext } from "#/components/Sidebar/SidebarContext";
 import {
 	MockBuildInfo,
 	MockNoPermissions,
@@ -16,11 +17,38 @@ const meta: Meta<typeof DeploymentSidebarView> = {
 		permissions: MockPermissions,
 		experiments: [],
 		buildInfo: MockBuildInfo,
+		activeSection: "general",
 	},
 };
 
 export default meta;
 type Story = StoryObj<typeof DeploymentSidebarView>;
+
+export const GeneralOpen: Story = {};
+
+export const InfrastructureOpen: Story = {
+	args: {
+		activeSection: "infrastructure",
+	},
+};
+
+export const AuthenticationOpen: Story = {
+	args: {
+		activeSection: "authentication",
+	},
+};
+
+export const Collapsed: Story = {
+	decorators: [
+		(Story) => (
+			<SidebarContext.Provider
+				value={{ collapsed: true, expand: () => {}, toggle: () => {} }}
+			>
+				<Story />
+			</SidebarContext.Provider>
+		),
+	],
+};
 
 export const NoViewUsers: Story = {
 	args: {

@@ -1,78 +1,195 @@
-import type { FC, ReactNode } from "react";
-import { NavLink } from "react-router";
 import {
-	Sidebar as BaseSidebar,
-	SettingsSidebarNavItem as SidebarNavItem,
-} from "#/components/Sidebar/Sidebar";
+	BotIcon,
+	KeyIcon,
+	PanelLeftIcon,
+	ShieldCheckIcon,
+	StoreIcon,
+} from "lucide-react";
+import { type FC, useCallback, useEffect, useState } from "react";
+import { Link, NavLink } from "react-router";
+import { SettingsSidebarNavItem as SidebarNavItem } from "#/components/Sidebar/Sidebar";
+import { SidebarAccordion } from "#/components/Sidebar/SidebarAccordion";
+import { useSidebarContext } from "#/components/Sidebar/SidebarContext";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import type { Permissions } from "#/modules/permissions";
 import { cn } from "#/utils/cn";
+import type { AISection } from "./useActiveAISection";
 
 interface AISettingsSidebarViewProps {
 	/** Site-wide permissions. */
 	permissions: Permissions;
+	/** Which section is active based on the current route. */
+	activeSection: AISection;
 }
 
-const SubNavItem: FC<{ href: string; children?: ReactNode }> = ({
-	href,
-	children,
-}) => (
-	<NavLink
-		to={href}
-		className={({ isActive }) =>
-			cn(
-				"relative -ml-px text-sm text-content-secondary no-underline font-medium py-2 pl-4 pr-3 transition-colors",
-				"border-0 border-solid border-l border-l-transparent hover:text-content-primary",
-				isActive &&
-					"border-l-content-primary font-semibold text-content-primary",
-			)
-		}
-	>
-		{children}
-	</NavLink>
-);
+interface TopLevelNavItemProps {
+	label: string;
+	href: string;
+	icon: FC<{ className?: string }>;
+	active: boolean;
+}
 
+/**
+ * A flat icon+label link. In collapsed mode it renders as an icon
+ * with a tooltip; clicking it navigates and re-expands the sidebar.
+ */
+const TopLevelNavItem: FC<TopLevelNavItemProps> = ({
+	label,
+	href,
+	icon: Icon,
+	active,
+}) => {
+	const { collapsed, expand } = useSidebarContext();
+
+	if (collapsed) {
+		return (
+			<TooltipProvider>
+				<Tooltip delayDuration={0}>
+					<TooltipTrigger asChild>
+						<Link
+							to={href}
+							onClick={expand}
+							className="flex items-center justify-center w-10 h-10 rounded-md no-underline hover:bg-surface-secondary"
+						>
+							<Icon
+								className={cn(
+									"size-4 flex-shrink-0 text-content-secondary",
+									active && "text-content-primary",
+								)}
+							/>
+						</Link>
+					</TooltipTrigger>
+					<TooltipContent side="right">{label}</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
+		);
+	}
+
+	return (
+		<NavLink
+			to={href}
+			className={({ isActive }) =>
+				cn(
+					"flex items-center gap-2 px-3 py-2 h-10 rounded-md no-underline text-sm font-medium text-content-secondary hover:bg-surface-secondary transition-colors",
+					isActive && "text-content-primary font-semibold",
+				)
+			}
+		>
+			<Icon className="size-4 flex-shrink-0" />
+			{label}
+		</NavLink>
+	);
+};
+
+/**
+ * Displays navigation for the AI settings section. Top-level items
+ * are rendered as flat icon+label links, while the Coder Agents
+ * section uses an accordion with sub-items.
+ */
 const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 	permissions,
+	activeSection,
 }) => {
+	const { collapsed, toggle } = useSidebarContext();
+
+	const [agentsOpen, setAgentsOpen] = useState(
+		() => activeSection === "coder-agents",
+	);
+
+	// When navigation changes the active section, open the Coder
+	// Agents accordion only when its section is active.
+	useEffect(() => {
+		setAgentsOpen(activeSection === "coder-agents");
+	}, [activeSection]);
+
+	const toggleAgents = useCallback(() => {
+		setAgentsOpen((prev) => !prev);
+	}, []);
+
 	return (
-		<BaseSidebar>
-			<div className="flex flex-col gap-1">
-				{permissions.viewDeploymentConfig && (
-					<SidebarNavItem href="/ai/settings/governance">
-						AI Governance
-					</SidebarNavItem>
+		<div className="flex flex-col gap-1">
+			<button
+				type="button"
+				onClick={toggle}
+				className={cn(
+					"group flex items-center bg-transparent border-none cursor-pointer mb-1 p-0",
+					collapsed
+						? "w-10 h-10 justify-center rounded-md"
+						: "w-full px-3 rounded-md h-10",
 				)}
-				{permissions.viewAIGatewayKeys && (
-					<SidebarNavItem href="/ai/settings/gateway-keys">
-						AI Gateway keys
-					</SidebarNavItem>
+			>
+				{!collapsed && (
+					<span className="text-sm text-content-secondary">AI</span>
 				)}
-				{permissions.viewAnyAIProvider && (
-					<SidebarNavItem href="/ai/settings/providers">
-						Providers
-					</SidebarNavItem>
-				)}
-				{permissions.editDeploymentConfig && (
-					<>
+				<PanelLeftIcon
+					className={cn(
+						"size-4 text-content-secondary group-hover:text-content-primary transition-colors",
+						!collapsed && "ml-auto",
+					)}
+				/>
+			</button>
+
+			{permissions.viewDeploymentConfig && (
+				<TopLevelNavItem
+					label="AI Governance"
+					href="/ai/settings/governance"
+					icon={ShieldCheckIcon}
+					active={activeSection === "governance"}
+				/>
+			)}
+			{permissions.viewAIGatewayKeys && (
+				<TopLevelNavItem
+					label="AI Gateway keys"
+					href="/ai/settings/gateway-keys"
+					icon={KeyIcon}
+					active={activeSection === "gateway-keys"}
+				/>
+			)}
+			{permissions.viewAnyAIProvider && (
+				<TopLevelNavItem
+					label="Providers"
+					href="/ai/settings/providers"
+					icon={StoreIcon}
+					active={activeSection === "providers"}
+				/>
+			)}
+
+			{permissions.editDeploymentConfig && (
+				<SidebarAccordion
+					icon={BotIcon}
+					label="Coder Agents"
+					href="/ai/settings/coder-agents"
+					open={agentsOpen}
+					onToggle={toggleAgents}
+					active={activeSection === "coder-agents"}
+				>
+					<div className="flex flex-col gap-1">
 						<SidebarNavItem href="/ai/settings/coder-agents">
 							Coder Agents
 						</SidebarNavItem>
-						<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
-							<SubNavItem href="/ai/settings/models">Models</SubNavItem>
-							<SubNavItem href="/ai/settings/mcp-servers">
-								MCP servers
-							</SubNavItem>
-							<SubNavItem href="/ai/settings/templates">Templates</SubNavItem>
-							<SubNavItem href="/ai/settings/spend">Spend</SubNavItem>
-							<SubNavItem href="/ai/settings/instructions">
-								Instructions
-							</SubNavItem>
-							<SubNavItem href="/ai/settings/lifecycle">Lifecycle</SubNavItem>
-						</div>
-					</>
-				)}
-			</div>
-		</BaseSidebar>
+						<SidebarNavItem href="/ai/settings/models">Models</SidebarNavItem>
+						<SidebarNavItem href="/ai/settings/mcp-servers">
+							MCP servers
+						</SidebarNavItem>
+						<SidebarNavItem href="/ai/settings/templates">
+							Templates
+						</SidebarNavItem>
+						<SidebarNavItem href="/ai/settings/spend">Spend</SidebarNavItem>
+						<SidebarNavItem href="/ai/settings/instructions">
+							Instructions
+						</SidebarNavItem>
+						<SidebarNavItem href="/ai/settings/lifecycle">
+							Lifecycle
+						</SidebarNavItem>
+					</div>
+				</SidebarAccordion>
+			)}
+		</div>
 	);
 };
 
