@@ -25,14 +25,20 @@ export const DefaultTTLHelperText = (props: { ttl?: number }) => {
 export const ActivityBumpHelperText = (props: {
 	bump?: number;
 	defaultTTL?: number;
+	allowUserAutostop?: boolean;
 }) => {
-	const { bump = 0, defaultTTL = 0 } = props;
+	const { bump = 0, defaultTTL = 0, allowUserAutostop = false } = props;
 
-	if (!defaultTTL) {
+	// Activity bump extends a workspace's scheduled stop time. If there is no
+	// default TTL AND users cannot set their own autostop, there is no stop
+	// time to bump, so the field has no effect.
+	if (!defaultTTL && !allowUserAutostop) {
 		return (
 			<span>
-				Activity bump only applies when a default TTL is configured. Set a
-				default TTL above to enable activity bumping.
+				Activity bump only applies when "Default autostop" is configured or
+				users are allowed to customize autostop. Set "Default autostop" above or
+				check "Allow users to customize autostop duration for workspaces" below
+				to enable activity bumping.
 			</span>
 		);
 	}
