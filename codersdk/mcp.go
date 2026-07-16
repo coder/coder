@@ -17,18 +17,27 @@ func (c *Client) MCPServerOAuth2ConnectURL(id uuid.UUID) string {
 	return fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/connect", c.URL.String(), id)
 }
 
+// MCPServerOAuth2DisconnectResponse reports the result of removing a
+// user's OAuth2 token for an MCP server. TokenRevoked is true when the
+// token was also revoked at the OAuth provider.
+type MCPServerOAuth2DisconnectResponse struct {
+	TokenRevoked         bool   `json:"token_revoked"`
+	TokenRevocationError string `json:"token_revocation_error,omitempty"`
+}
+
 // MCPServerOAuth2Disconnect removes the user's OAuth2 token for an
-// MCP server.
-func (c *Client) MCPServerOAuth2Disconnect(ctx context.Context, id uuid.UUID) error {
+// MCP server and attempts to revoke it at the OAuth provider.
+func (c *Client) MCPServerOAuth2Disconnect(ctx context.Context, id uuid.UUID) (MCPServerOAuth2DisconnectResponse, error) {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/disconnect", id), nil)
 	if err != nil {
-		return err
+		return MCPServerOAuth2DisconnectResponse{}, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
+	if res.StatusCode != http.StatusOK {
+		return MCPServerOAuth2DisconnectResponse{}, ReadBodyAsError(res)
 	}
-	return nil
+	var resp MCPServerOAuth2DisconnectResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // MCPServerConfig represents an admin-configured MCP server.
@@ -45,11 +54,12 @@ type MCPServerConfig struct {
 	AuthType string `json:"auth_type"` // "none", "oauth2", "api_key", "custom_headers", "user_oidc"
 
 	// OAuth2 fields (only populated for admins).
-	OAuth2ClientID  string `json:"oauth2_client_id,omitempty"`
-	HasOAuth2Secret bool   `json:"has_oauth2_secret"`
-	OAuth2AuthURL   string `json:"oauth2_auth_url,omitempty"`
-	OAuth2TokenURL  string `json:"oauth2_token_url,omitempty"`
-	OAuth2Scopes    string `json:"oauth2_scopes,omitempty"`
+	OAuth2ClientID      string `json:"oauth2_client_id,omitempty"`
+	HasOAuth2Secret     bool   `json:"has_oauth2_secret"`
+	OAuth2AuthURL       string `json:"oauth2_auth_url,omitempty"`
+	OAuth2TokenURL      string `json:"oauth2_token_url,omitempty"`
+	OAuth2RevocationURL string `json:"oauth2_revocation_url,omitempty"`
+	OAuth2Scopes        string `json:"oauth2_scopes,omitempty"`
 
 	// API key fields (only populated for admins).
 	APIKeyHeader string `json:"api_key_header,omitempty"`
@@ -91,15 +101,19 @@ type CreateMCPServerConfigRequest struct {
 	Transport string `json:"transport" validate:"required,oneof=streamable_http sse"`
 	URL       string `json:"url" validate:"required,url"`
 
-	AuthType           string            `json:"auth_type" validate:"required,oneof=none oauth2 api_key custom_headers user_oidc"`
-	OAuth2ClientID     string            `json:"oauth2_client_id,omitempty"`
-	OAuth2ClientSecret string            `json:"oauth2_client_secret,omitempty"`
-	OAuth2AuthURL      string            `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
-	OAuth2TokenURL     string            `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
-	OAuth2Scopes       string            `json:"oauth2_scopes,omitempty"`
-	APIKeyHeader       string            `json:"api_key_header,omitempty"`
-	APIKeyValue        string            `json:"api_key_value,omitempty"`
-	CustomHeaders      map[string]string `json:"custom_headers,omitempty"`
+	AuthType           string `json:"auth_type" validate:"required,oneof=none oauth2 api_key custom_headers user_oidc"`
+	OAuth2ClientID     string `json:"oauth2_client_id,omitempty"`
+	OAuth2ClientSecret string `json:"oauth2_client_secret,omitempty"`
+	OAuth2AuthURL      string `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
+	OAuth2TokenURL     string `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
+	// OAuth2RevocationURL is the provider's RFC 7009 token revocation
+	// endpoint. Optional; when set, disconnect revokes the grant at the
+	// provider. Auto-populated by OAuth2 discovery when available.
+	OAuth2RevocationURL string            `json:"oauth2_revocation_url,omitempty" validate:"omitempty,url"`
+	OAuth2Scopes        string            `json:"oauth2_scopes,omitempty"`
+	APIKeyHeader        string            `json:"api_key_header,omitempty"`
+	APIKeyValue         string            `json:"api_key_value,omitempty"`
+	CustomHeaders       map[string]string `json:"custom_headers,omitempty"`
 
 	ToolAllowList []string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  []string `json:"tool_deny_list,omitempty"`
@@ -124,15 +138,16 @@ type UpdateMCPServerConfigRequest struct {
 	Transport *string `json:"transport,omitempty" validate:"omitempty,oneof=streamable_http sse"`
 	URL       *string `json:"url,omitempty" validate:"omitempty,url"`
 
-	AuthType           *string            `json:"auth_type,omitempty" validate:"omitempty,oneof=none oauth2 api_key custom_headers user_oidc"`
-	OAuth2ClientID     *string            `json:"oauth2_client_id,omitempty"`
-	OAuth2ClientSecret *string            `json:"oauth2_client_secret,omitempty"`
-	OAuth2AuthURL      *string            `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
-	OAuth2TokenURL     *string            `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
-	OAuth2Scopes       *string            `json:"oauth2_scopes,omitempty"`
-	APIKeyHeader       *string            `json:"api_key_header,omitempty"`
-	APIKeyValue        *string            `json:"api_key_value,omitempty"`
-	CustomHeaders      *map[string]string `json:"custom_headers,omitempty"`
+	AuthType            *string            `json:"auth_type,omitempty" validate:"omitempty,oneof=none oauth2 api_key custom_headers user_oidc"`
+	OAuth2ClientID      *string            `json:"oauth2_client_id,omitempty"`
+	OAuth2ClientSecret  *string            `json:"oauth2_client_secret,omitempty"`
+	OAuth2AuthURL       *string            `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
+	OAuth2TokenURL      *string            `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
+	OAuth2RevocationURL *string            `json:"oauth2_revocation_url,omitempty" validate:"omitempty,url"`
+	OAuth2Scopes        *string            `json:"oauth2_scopes,omitempty"`
+	APIKeyHeader        *string            `json:"api_key_header,omitempty"`
+	APIKeyValue         *string            `json:"api_key_value,omitempty"`
+	CustomHeaders       *map[string]string `json:"custom_headers,omitempty"`
 
 	ToolAllowList *[]string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  *[]string `json:"tool_deny_list,omitempty"`

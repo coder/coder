@@ -5437,6 +5437,7 @@ type MCPServerConfig struct {
 	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
 	AllowInPlanMode         bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
 	ForwardCoderHeaders     bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
+	OAuth2RevocationURL     string         `db:"oauth2_revocation_url" json:"oauth2_revocation_url"`
 }
 
 type MCPServerUserToken struct {

@@ -2496,6 +2496,7 @@ CREATE TABLE mcp_server_configs (
     model_intent boolean DEFAULT false NOT NULL,
     allow_in_plan_mode boolean DEFAULT false NOT NULL,
     forward_coder_headers boolean DEFAULT false NOT NULL,
+    oauth2_revocation_url text DEFAULT ''::text NOT NULL,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text])))

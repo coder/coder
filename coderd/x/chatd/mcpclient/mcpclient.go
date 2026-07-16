@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"slices"
@@ -961,4 +962,68 @@ func RefreshOAuth2Token(
 		Expiry:       newToken.Expiry,
 		Refreshed:    refreshed,
 	}, nil
+}
+
+const revokeErrBodyLimit = 512
+
+// RevokeOAuth2Token revokes the user's token at the provider's RFC 7009 endpoint.
+// It prefers the refresh token to request invalidation of associated access tokens.
+// It returns false with no error when the config has no revocation endpoint.
+func RevokeOAuth2Token(
+	ctx context.Context,
+	httpClient *http.Client,
+	cfg database.MCPServerConfig,
+	tok database.MCPServerUserToken,
+) (bool, error) {
+	if cfg.OAuth2RevocationURL == "" {
+		return false, nil
+	}
+
+	form := url.Values{}
+	if tok.RefreshToken != "" {
+		form.Set("token", tok.RefreshToken)
+		form.Set("token_type_hint", "refresh_token")
+	} else {
+		form.Set("token", tok.AccessToken)
+		form.Set("token_type_hint", "access_token")
+	}
+	form.Set("client_id", cfg.OAuth2ClientID)
+	if cfg.OAuth2ClientSecret != "" {
+		form.Set("client_secret", cfg.OAuth2ClientSecret)
+	}
+
+	revokeCtx, cancel := context.WithTimeout(ctx, connectTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(
+		revokeCtx, http.MethodPost,
+		cfg.OAuth2RevocationURL, strings.NewReader(form.Encode()),
+	)
+	if err != nil {
+		return false, xerrors.Errorf("create revocation request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	if httpClient == nil {
+		httpClient = mcpHTTPClient()
+	}
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return false, xerrors.Errorf("revoke oauth2 token: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, revokeErrBodyLimit))
+		_, _ = io.Copy(io.Discard, resp.Body)
+		return false, xerrors.Errorf(
+			"revocation endpoint returned HTTP %d: %s",
+			resp.StatusCode, string(body),
+		)
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	return true, nil
 }

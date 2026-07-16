@@ -3760,6 +3760,12 @@ export interface CreateMCPServerConfigRequest {
 	readonly oauth2_client_secret?: string;
 	readonly oauth2_auth_url?: string;
 	readonly oauth2_token_url?: string;
+	/**
+	 * OAuth2RevocationURL is the provider's RFC 7009 token revocation
+	 * endpoint. Optional; when set, disconnect revokes the grant at the
+	 * provider. Auto-populated by OAuth2 discovery when available.
+	 */
+	readonly oauth2_revocation_url?: string;
 	readonly oauth2_scopes?: string;
 	readonly api_key_header?: string;
 	readonly api_key_value?: string;
@@ -5597,6 +5603,7 @@ export interface MCPServerConfig {
 	readonly has_oauth2_secret: boolean;
 	readonly oauth2_auth_url?: string;
 	readonly oauth2_token_url?: string;
+	readonly oauth2_revocation_url?: string;
 	readonly oauth2_scopes?: string;
 	/**
 	 * API key fields (only populated for admins).
@@ -5630,6 +5637,17 @@ export interface MCPServerConfig {
 	 * Per-user state (populated for non-admin requests).
 	 */
 	readonly auth_connected: boolean;
+}
+
+// From codersdk/mcp.go
+/**
+ * MCPServerOAuth2DisconnectResponse reports the result of removing a
+ * user's OAuth2 token for an MCP server. TokenRevoked is true when the
+ * token was also revoked at the OAuth provider.
+ */
+export interface MCPServerOAuth2DisconnectResponse {
+	readonly token_revoked: boolean;
+	readonly token_revocation_error?: string;
 }
 
 // From codersdk/provisionerdaemons.go
@@ -9281,6 +9299,7 @@ export interface UpdateMCPServerConfigRequest {
 	readonly oauth2_client_secret?: string;
 	readonly oauth2_auth_url?: string;
 	readonly oauth2_token_url?: string;
+	readonly oauth2_revocation_url?: string;
 	readonly oauth2_scopes?: string;
 	readonly api_key_header?: string;
 	readonly api_key_value?: string;
