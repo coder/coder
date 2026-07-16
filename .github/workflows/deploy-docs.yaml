@@ -481,8 +481,12 @@ jobs:
           if [ "$RC" -ne 0 ]; then
             # This repository is public: run logs and the step summary are
             # both world-readable, so surface only the bounded error code,
-            # never the raw response body.
-            ERR_CODE=$(jq -r '(.error | objects | .code) // empty' "$RESPONSE" 2>/dev/null || true)
+            # never the raw response body. Sanitize the extracted code so the
+            # "bounded" claim holds literally: `tr -cd` drops anything outside
+            # [A-Za-z0-9_.-] (removing newlines and `::` so a hostile response
+            # body can't inject a runner workflow command) and `head -c 64`
+            # caps the length.
+            ERR_CODE=$(jq -r '(.error | objects | .code) // empty' "$RESPONSE" 2>/dev/null | tr -cd 'A-Za-z0-9_.-' | head -c 64 || true)
             echo "Algolia docs sync request failed: HTTP ${HTTP_STATUS:-n/a}, error code: ${ERR_CODE:-unknown}."
             exit "$RC"
           fi
@@ -551,8 +555,12 @@ jobs:
           if [ "$RC" -ne 0 ]; then
             # This repository is public: run logs and the step summary are
             # both world-readable, so surface only the bounded error code,
-            # never the raw response body.
-            ERR_CODE=$(jq -r '(.error | objects | .code) // empty' "$RESPONSE" 2>/dev/null || true)
+            # never the raw response body. Sanitize the extracted code so the
+            # "bounded" claim holds literally: `tr -cd` drops anything outside
+            # [A-Za-z0-9_.-] (removing newlines and `::` so a hostile response
+            # body can't inject a runner workflow command) and `head -c 64`
+            # caps the length.
+            ERR_CODE=$(jq -r '(.error | objects | .code) // empty' "$RESPONSE" 2>/dev/null | tr -cd 'A-Za-z0-9_.-' | head -c 64 || true)
             echo "Vercel deploy hook request failed: HTTP ${HTTP_STATUS:-n/a}, error code: ${ERR_CODE:-unknown}."
             exit "$RC"
           fi
