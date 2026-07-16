@@ -520,12 +520,39 @@ func resolveConnFailure(ctx context.Context, options ExecuteOptions, toolCallID 
 	if resp, ok := terminalRowResponse(ctx, options, toolCallID, rec); ok {
 		return resp, nil
 	}
+	if rec.Status == ExecutionStatusStarting && staleStartingClaim(rec, claimStaleAfter) {
+		// Stale-claim resolution needs no agent access: the
+		// connected path would also resolve this row to unknown.
+		// Aborting instead would wedge the chat for as long as
+		// the agent stays unreachable.
+		fresh, applied, markErr := options.Recorder.MarkStaleClaimUnknown(ctx, toolCallID)
+		if markErr != nil {
+			return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("mark stale execution claim unknown: %w", markErr)}
+		}
+		if applied {
+			return fantasy.NewTextErrorResponse(unknownOutcomeMessage), nil
+		}
+		if fresh.Background && fresh.ProcessID != "" {
+			return resolveBackgroundRow(ctx, options, toolCallID, fresh), nil
+		}
+		if resp, ok := terminalRowResponse(ctx, options, toolCallID, fresh); ok {
+			return resp, nil
+		}
+		// The owner recorded a foreground process concurrently;
+		// resuming it needs the agent connection.
+	}
 	switch rec.Status {
 	case ExecutionStatusStarting, ExecutionStatusRunning, ExecutionStatusExited, ExecutionStatusDetached:
 		return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("workspace connection unavailable while execution needs re-attach (status %s): %w", rec.Status, dialErr)}
 	}
 	// A reserved row proves nothing was dispatched.
 	return fantasy.NewTextErrorResponse(dialErr.Error()), nil
+}
+
+// staleStartingClaim reports whether a starting claim's owner has
+// had at least `after` since the claim to record a process handle.
+func staleStartingClaim(rec ExecutionRecord, after time.Duration) bool {
+	return !rec.ClaimedAt.IsZero() && !time.Now().Before(rec.ClaimedAt.Add(after))
 }
 
 // resolveBackgroundRow returns the durable result for a background

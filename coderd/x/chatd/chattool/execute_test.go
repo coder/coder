@@ -1460,6 +1460,75 @@ func TestExecuteToolRecorder(t *testing.T) {
 		require.Equal(t, chattool.ExecutionStatusRunning, recorder.record("call-1").Status)
 	})
 
+	t.Run("ConnFailureStaleStartingResolvesUnknown", func(t *testing.T) {
+		t.Parallel()
+		recorder := newFakeRecorder()
+		recorder.seed("call-1", chattool.ExecutionRecord{
+			Status:    chattool.ExecutionStatusStarting,
+			Command:   "echo hi",
+			Timeout:   time.Minute,
+			ClaimedAt: time.Now().Add(-2 * time.Minute),
+		})
+
+		// Stale-claim resolution is a ledger write, so an
+		// unreachable agent must not wedge the chat by aborting.
+		tool := chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, uuid.UUID, error) {
+				return nil, uuid.Nil, xerrors.New("workspace agent unreachable")
+			},
+			Recorder: recorder,
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "process state is unknown")
+		require.Equal(t, chattool.ExecutionStatusUnknown, recorder.record("call-1").Status)
+	})
+
+	t.Run("ConnFailureStaleStartingLateProcessAborts", func(t *testing.T) {
+		t.Parallel()
+		recorder := newFakeRecorder()
+		recorder.seed("call-1", chattool.ExecutionRecord{
+			Status:    chattool.ExecutionStatusStarting,
+			Command:   "echo hi",
+			Timeout:   time.Minute,
+			ClaimedAt: time.Now().Add(-2 * time.Minute),
+		})
+		// The dead owner's uncanceled RecordStart lands in the
+		// race window: the guarded unknown write must lose, and
+		// resuming the foreground process needs the agent, so the
+		// attempt aborts instead of committing a result.
+		recorder.onMarkStaleClaim = func() {
+			rec := recorder.record("call-1")
+			rec.Status = chattool.ExecutionStatusRunning
+			rec.ProcessID = "proc-late"
+			rec.StartedAt = time.Now()
+			recorder.seed("call-1", rec)
+		}
+
+		tool := chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, uuid.UUID, error) {
+				return nil, uuid.Nil, xerrors.New("workspace agent unreachable")
+			},
+			Recorder: recorder,
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.Error(t, err)
+		var abortErr *chattool.AbortToolExecutionError
+		require.ErrorAs(t, err, &abortErr)
+		require.Equal(t, chattool.ExecutionStatusRunning, recorder.record("call-1").Status)
+	})
+
 	t.Run("ConnFailureUndispatchedRowErrors", func(t *testing.T) {
 		t.Parallel()
 		recorder := newFakeRecorder()
