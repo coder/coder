@@ -1,6 +1,5 @@
 import {
 	BotIcon,
-	KeyIcon,
 	PanelLeftIcon,
 	ShieldCheckIcon,
 	StoreIcon,
@@ -87,9 +86,9 @@ const TopLevelNavItem: FC<TopLevelNavItemProps> = ({
 };
 
 /**
- * Displays navigation for the AI settings section. Top-level items
- * are rendered as flat icon+label links, while the Coder Agents
- * section uses an accordion with sub-items.
+ * Displays navigation for the AI settings section. Providers renders
+ * as a flat icon+label link, while the AI Governance and Coder Agents
+ * sections use accordions with sub-items.
  */
 const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 	permissions,
@@ -100,15 +99,25 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 	const [agentsOpen, setAgentsOpen] = useState(
 		() => activeSection === "coder-agents",
 	);
+	const governanceActive =
+		activeSection === "governance" || activeSection === "gateway-keys";
+	const [governanceOpen, setGovernanceOpen] = useState(governanceActive);
 
-	// When navigation changes the active section, open the Coder
-	// Agents accordion only when its section is active.
+	// When navigation changes the active section, open only the
+	// accordion that owns the active route.
 	useEffect(() => {
 		setAgentsOpen(activeSection === "coder-agents");
+		setGovernanceOpen(
+			activeSection === "governance" || activeSection === "gateway-keys",
+		);
 	}, [activeSection]);
 
 	const toggleAgents = useCallback(() => {
 		setAgentsOpen((prev) => !prev);
+	}, []);
+
+	const toggleGovernance = useCallback(() => {
+		setGovernanceOpen((prev) => !prev);
 	}, []);
 
 	return (
@@ -134,21 +143,32 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 				/>
 			</button>
 
-			{permissions.viewDeploymentConfig && (
-				<TopLevelNavItem
-					label="AI Governance"
-					href="/ai/settings/governance"
+			{(permissions.viewDeploymentConfig || permissions.viewAIGatewayKeys) && (
+				<SidebarAccordion
 					icon={ShieldCheckIcon}
-					active={activeSection === "governance"}
-				/>
-			)}
-			{permissions.viewAIGatewayKeys && (
-				<TopLevelNavItem
-					label="AI Gateway keys"
-					href="/ai/settings/gateway-keys"
-					icon={KeyIcon}
-					active={activeSection === "gateway-keys"}
-				/>
+					label="AI Governance"
+					href={
+						permissions.viewDeploymentConfig
+							? "/ai/settings/governance"
+							: "/ai/settings/gateway-keys"
+					}
+					open={governanceOpen}
+					onToggle={toggleGovernance}
+					active={governanceActive}
+				>
+					<div className="flex flex-col gap-1">
+						{permissions.viewDeploymentConfig && (
+							<SidebarNavItem href="/ai/settings/governance">
+								AI Gateway
+							</SidebarNavItem>
+						)}
+						{permissions.viewAIGatewayKeys && (
+							<SidebarNavItem href="/ai/settings/gateway-keys">
+								AI Gateway keys
+							</SidebarNavItem>
+						)}
+					</div>
+				</SidebarAccordion>
 			)}
 			{permissions.viewAnyAIProvider && (
 				<TopLevelNavItem
