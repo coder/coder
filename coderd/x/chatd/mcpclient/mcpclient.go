@@ -966,9 +966,10 @@ func RefreshOAuth2Token(
 
 // RevokeOAuth2Token revokes the user's token at the provider's RFC 7009 endpoint.
 // It prefers the refresh token to request invalidation of associated access tokens.
-// It returns false with no error when the config has no revocation endpoint.
-// Errors carry only the HTTP status: provider bodies may echo request
-// parameters such as the client secret and must stay out of logs.
+// It returns false with no error when the config has no revocation endpoint or
+// the row holds no token material (e.g. cleared after a permanent refresh
+// failure). Errors carry only the HTTP status: provider bodies may echo
+// request parameters such as the client secret and must stay out of logs.
 func RevokeOAuth2Token(
 	ctx context.Context,
 	httpClient *http.Client,
@@ -976,6 +977,9 @@ func RevokeOAuth2Token(
 	tok database.MCPServerUserToken,
 ) (bool, error) {
 	if cfg.OAuth2RevocationURL == "" {
+		return false, nil
+	}
+	if tok.RefreshToken == "" && tok.AccessToken == "" {
 		return false, nil
 	}
 
@@ -988,9 +992,6 @@ func RevokeOAuth2Token(
 		form.Set("token_type_hint", "access_token")
 	}
 	form.Set("client_id", cfg.OAuth2ClientID)
-	if cfg.OAuth2ClientSecret != "" {
-		form.Set("client_secret", cfg.OAuth2ClientSecret)
-	}
 
 	revokeCtx, cancel := context.WithTimeout(ctx, connectTimeout)
 	defer cancel()
@@ -1003,6 +1004,12 @@ func RevokeOAuth2Token(
 		return false, xerrors.Errorf("create revocation request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	// Confidential clients authenticate with client_secret_basic, the
+	// only scheme RFC 6749 section 2.3.1 requires servers to support.
+	// Credentials are form-encoded per that section (mirrors x/oauth2).
+	if cfg.OAuth2ClientSecret != "" {
+		req.SetBasicAuth(url.QueryEscape(cfg.OAuth2ClientID), url.QueryEscape(cfg.OAuth2ClientSecret))
+	}
 
 	if httpClient == nil {
 		httpClient = mcpHTTPClient()

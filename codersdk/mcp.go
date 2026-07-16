@@ -33,6 +33,10 @@ func (c *Client) MCPServerOAuth2Disconnect(ctx context.Context, id uuid.UUID) (M
 		return MCPServerOAuth2DisconnectResponse{}, err
 	}
 	defer res.Body.Close()
+	// Servers from before provider revocation respond 204 without a body.
+	if res.StatusCode == http.StatusNoContent {
+		return MCPServerOAuth2DisconnectResponse{}, nil
+	}
 	if res.StatusCode != http.StatusOK {
 		return MCPServerOAuth2DisconnectResponse{}, ReadBodyAsError(res)
 	}

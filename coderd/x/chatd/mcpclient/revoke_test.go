@@ -13,6 +13,24 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 )
 
+// revokeRequest carries a captured revocation request from the
+// httptest handler goroutine to the test goroutine.
+type revokeRequest struct {
+	form      map[string][]string
+	basicUser string
+	basicPass string
+	basicSet  bool
+}
+
+func captureRevoke(t *testing.T, got chan<- revokeRequest) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		user, pass, ok := r.BasicAuth()
+		got <- revokeRequest{form: r.PostForm, basicUser: user, basicPass: pass, basicSet: ok}
+		w.WriteHeader(http.StatusOK)
+	}
+}
+
 func TestRevokeOAuth2Token(t *testing.T) {
 	t.Parallel()
 
@@ -32,12 +50,8 @@ func TestRevokeOAuth2Token(t *testing.T) {
 	t.Run("RevokesRefreshToken", func(t *testing.T) {
 		t.Parallel()
 
-		var gotForm map[string][]string
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			require.NoError(t, r.ParseForm())
-			gotForm = r.PostForm
-			w.WriteHeader(http.StatusOK)
-		}))
+		got := make(chan revokeRequest, 1)
+		srv := httptest.NewServer(captureRevoke(t, got))
 		defer srv.Close()
 
 		revoked, err := mcpclient.RevokeOAuth2Token(
@@ -51,21 +65,20 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.True(t, revoked)
-		require.Equal(t, []string{"rt"}, gotForm["token"])
-		require.Equal(t, []string{"refresh_token"}, gotForm["token_type_hint"])
-		require.Equal(t, []string{"cid"}, gotForm["client_id"])
-		require.NotContains(t, gotForm, "client_secret")
+		c := <-got
+		require.Equal(t, []string{"rt"}, c.form["token"])
+		require.Equal(t, []string{"refresh_token"}, c.form["token_type_hint"])
+		require.Equal(t, []string{"cid"}, c.form["client_id"])
+		// Public clients must not authenticate.
+		require.False(t, c.basicSet)
+		require.NotContains(t, c.form, "client_secret")
 	})
 
-	t.Run("AccessTokenFallback", func(t *testing.T) {
+	t.Run("AccessTokenFallbackWithBasicAuth", func(t *testing.T) {
 		t.Parallel()
 
-		var gotForm map[string][]string
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			require.NoError(t, r.ParseForm())
-			gotForm = r.PostForm
-			w.WriteHeader(http.StatusOK)
-		}))
+		got := make(chan revokeRequest, 1)
+		srv := httptest.NewServer(captureRevoke(t, got))
 		defer srv.Close()
 
 		revoked, err := mcpclient.RevokeOAuth2Token(
@@ -80,9 +93,36 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.True(t, revoked)
-		require.Equal(t, []string{"at"}, gotForm["token"])
-		require.Equal(t, []string{"access_token"}, gotForm["token_type_hint"])
-		require.Equal(t, []string{"secret"}, gotForm["client_secret"])
+		c := <-got
+		require.Equal(t, []string{"at"}, c.form["token"])
+		require.Equal(t, []string{"access_token"}, c.form["token_type_hint"])
+		// Confidential clients use client_secret_basic, not form fields.
+		require.True(t, c.basicSet)
+		require.Equal(t, "cid", c.basicUser)
+		require.Equal(t, "secret", c.basicPass)
+		require.NotContains(t, c.form, "client_secret")
+	})
+
+	t.Run("NoTokenMaterial", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			t.Error("provider must not be called without token material")
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer srv.Close()
+
+		revoked, err := mcpclient.RevokeOAuth2Token(
+			context.Background(),
+			srv.Client(),
+			database.MCPServerConfig{
+				OAuth2ClientID:      "cid",
+				OAuth2RevocationURL: srv.URL,
+			},
+			database.MCPServerUserToken{},
+		)
+		require.NoError(t, err)
+		require.False(t, revoked)
 	})
 
 	t.Run("ProviderError", func(t *testing.T) {
