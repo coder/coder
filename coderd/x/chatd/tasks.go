@@ -804,12 +804,12 @@ func interruptedToolResultPayload(row database.ChatToolCallExecution) (json.RawM
 // fast even when the agent is slow or unreachable.
 const interruptKillDialTimeout = 5 * time.Second
 
-// interruptRecordGrace is how long after a claim an interrupted
-// row without recorded process identity is left unresolved,
-// giving an in-flight StartProcess time to land its handle on the
-// cancel_requested row. Matches the execute tool's claim staleness
-// bound.
-const interruptRecordGrace = time.Minute
+// interruptRecordGrace bounds how long after its claim an
+// interrupted dispatch can still produce a process: StartProcess
+// must return within the claim freshness window and the uncanceled
+// handle write is bounded by recordWriteTimeout. Pending token
+// probes re-check until this deadline.
+const interruptRecordGrace = time.Minute + 15*time.Second
 
 // interruptReconcileTimeout bounds the immediate post-interrupt
 // reconcile pass: the per-row identity wait plus slack for the
@@ -884,22 +884,12 @@ func (r executionReconciler) reconcile(ctx context.Context, record database.Chat
 	}
 	if !record.ProcessID.Valid {
 		// The claim may have dispatched a process whose identity
-		// is not recorded yet: recordProcessStart runs on an
-		// uncanceled context, so an interrupted in-flight
-		// StartProcess can still land its handle on this
-		// cancel_requested row moments after the commit. Wait out
-		// that window, then resolve through the agent's token
-		// index: a found process is killed, a pending reservation
-		// stays cancel_requested, and a trustworthy absent token
-		// cancels.
-		record = r.awaitInterruptedIdentity(ctx, record)
-		if record.Status != database.ChatToolCallExecutionStatusCancelRequested {
-			return
-		}
-		if record.ProcessID.Valid && record.WorkspaceAgentID.Valid {
-			r.reconcileCancelRequested(ctx, record)
-			return
-		}
+		// is not recorded yet; the agent's token index is the way
+		// to observe it. The probe loop handles an interrupted
+		// in-flight dispatch: a found process is killed, and a
+		// pending reservation is re-probed until the dispatch
+		// window closes so a process that appears moments after
+		// the commit is still killed.
 		r.reconcileCancelRequestedByToken(ctx, record)
 		return
 	}
@@ -935,21 +925,6 @@ func (r executionReconciler) resolveExpiredCancel(ctx context.Context, record da
 	)
 	r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, record.CancelSignalSentAt)
 	return true
-}
-
-// resolveUnknownAfterIdentityWait handles a cancel_requested row
-// without recorded process identity: wait out the late-handle
-// window, kill a handle that lands, and only then resolve unknown.
-func (r executionReconciler) resolveUnknownAfterIdentityWait(ctx context.Context, record database.ChatToolCallExecution) {
-	record = r.awaitInterruptedIdentity(ctx, record)
-	if record.Status != database.ChatToolCallExecutionStatusCancelRequested {
-		return
-	}
-	if record.ProcessID.Valid && record.WorkspaceAgentID.Valid {
-		r.reconcileCancelRequested(ctx, record)
-		return
-	}
-	r.resolveCancelOutcomeWithoutProcess(ctx, record, database.ChatToolCallExecutionStatusUnknown)
 }
 
 // executionReconciler resolves cancel_requested execution rows. It
@@ -1007,18 +982,36 @@ func (r executionReconciler) awaitInterruptedIdentity(ctx context.Context, recor
 	return record
 }
 
+// resolveUnknownAfterIdentityWait is the fallback when the token
+// index cannot prove whether an interrupted dispatch produced a
+// process: wait out the late-handle window, kill a handle that
+// lands, and only then resolve unknown.
+func (r executionReconciler) resolveUnknownAfterIdentityWait(ctx context.Context, record database.ChatToolCallExecution) {
+	record = r.awaitInterruptedIdentity(ctx, record)
+	if record.Status != database.ChatToolCallExecutionStatusCancelRequested {
+		return
+	}
+	if record.ProcessID.Valid && record.WorkspaceAgentID.Valid {
+		r.reconcileCancelRequested(ctx, record)
+		return
+	}
+	r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, sql.NullTime{})
+}
+
 // reconcileCancelRequestedByToken resolves a cancel_requested row
 // with no recorded process identity. The execution ID doubles as
 // the agent's idempotency token, so the token index can prove
 // whether the dead claim's dispatch produced a process: a found
 // process gets the kill flow, and a token that is provably absent
 // within the trust window means nothing started, confirming the
-// cancellation. Old agents (HTTP 404 on the probe route) and
-// answers past the trust window leave the outcome unknown.
+// cancellation. Paths where the index proves nothing (old agents
+// answering HTTP 404 on the probe route, untrustworthy absence, no
+// dispatch target) fall back to waiting for a late handle write
+// before resolving unknown.
 func (r executionReconciler) reconcileCancelRequestedByToken(ctx context.Context, record database.ChatToolCallExecution) {
 	chat, err := r.store.GetChatByID(ctx, record.ChatID)
 	if err != nil || !chat.AgentID.Valid {
-		r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, sql.NullTime{})
+		r.resolveUnknownAfterIdentityWait(ctx, record)
 		return
 	}
 	dialCtx, cancel := context.WithTimeout(ctx, interruptKillDialTimeout)
@@ -1037,29 +1030,47 @@ func (r executionReconciler) reconcileCancelRequestedByToken(ctx context.Context
 	if release != nil {
 		defer release()
 	}
-	resp, err := conn.ProcessByToken(dialCtx, record.ID.String())
-	if err != nil {
-		if isAgentNotFound(err) {
-			// The agent predates the token probe endpoint.
-			r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, sql.NullTime{})
+	var resp workspacesdk.ProcessByTokenResponse
+	for {
+		probeCtx, probeCancel := context.WithTimeout(ctx, interruptKillDialTimeout)
+		resp, err = conn.ProcessByToken(probeCtx, record.ID.String())
+		probeCancel()
+		if err != nil {
+			if isAgentNotFound(err) {
+				// The agent predates the token probe endpoint, so
+				// the only observable signal left is a late handle
+				// write on the row itself.
+				r.resolveUnknownAfterIdentityWait(ctx, record)
+				return
+			}
+			r.logger.Warn(ctx, "failed to probe interrupted execution token",
+				slog.F("chat_id", record.ChatID),
+				slog.F("execution_id", record.ID),
+				slog.Error(err),
+			)
 			return
 		}
-		r.logger.Warn(ctx, "failed to probe interrupted execution token",
-			slog.F("chat_id", record.ChatID),
-			slog.F("execution_id", record.ID),
-			slog.Error(err),
-		)
-		return
-	}
-	if resp.Found {
-		r.killAndConfirm(ctx, conn, record, resp.ProcessID)
-		return
-	}
-	if resp.Pending {
+		if resp.Found {
+			r.killAndConfirm(ctx, conn, record, resp.ProcessID)
+			return
+		}
+		if !resp.Pending {
+			break
+		}
 		// A start owning this token is still in flight on the
-		// agent, so a process may yet appear. Leave the row
-		// cancel_requested for a later reconciler.
-		return
+		// agent. This pass is the only reconciler, so re-probe
+		// until the dispatch window closes; a process appearing
+		// moments after the interrupt is still killed. A start
+		// still pending past the window stays cancel_requested
+		// as a diagnostic.
+		if !record.ClaimedAt.Valid || !time.Now().Before(record.ClaimedAt.Time.Add(interruptRecordGrace)) {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(2 * time.Second):
+		}
 	}
 	if record.ClaimedAt.Valid && chattool.TrustAbsentToken(resp, record.ClaimedAt.Time) {
 		// Nothing was dispatched under this token, so there is
@@ -1069,8 +1080,9 @@ func (r executionReconciler) reconcileCancelRequestedByToken(ctx context.Context
 	}
 	// The token may have been reaped with its exited process, or
 	// the agent restarted with an empty token index, so absence
-	// proves nothing.
-	r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, sql.NullTime{})
+	// proves nothing. A late handle write can still identify the
+	// process.
+	r.resolveUnknownAfterIdentityWait(ctx, record)
 }
 
 // isAgentNotFound reports a definite HTTP 404 from the agent: the
