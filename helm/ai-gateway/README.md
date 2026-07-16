@@ -106,7 +106,9 @@ Gateway certificate. Ingress backend TLS is controller-specific and can usually
 be configured with `ingress.annotations`. Gateway API backend TLS is configured
 with a separate `BackendTLSPolicy`, which can be managed outside this chart or
 rendered with `extraTemplates`. The chart does not infer or validate this
-controller-specific backend configuration.
+controller-specific backend configuration. Without backend TLS, the entry point
+sends plaintext HTTP to the HTTPS listener which typically results in a
+TLS handshake error reported as HTTP 502.
 
 All referenced TLS Secrets must exist in the Helm release namespace.
 
