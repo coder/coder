@@ -28,7 +28,7 @@ import type { ProxyContextValue } from "#/contexts/ProxyContext";
 import { cn } from "#/utils/cn";
 import {
 	type AdminSettingsPermissions,
-	getAdminSettingsItems,
+	getAdminSettingsSections,
 } from "./adminSettings";
 import { sortProxiesByLatency } from "./proxyUtils";
 
@@ -204,7 +204,7 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 
 const AdminSettingsSub: FC<AdminSettingsPermissions> = (permissions) => {
 	const [open, setOpen] = useState(false);
-	const items = getAdminSettingsItems(permissions);
+	const sections = getAdminSettingsSections(permissions);
 
 	return (
 		<Collapsible open={open} onOpenChange={setOpen}>
@@ -223,14 +223,29 @@ const AdminSettingsSub: FC<AdminSettingsPermissions> = (permissions) => {
 				</DropdownMenuItem>
 			</CollapsibleTrigger>
 			<CollapsibleContent>
-				{items.map((item) => (
-					<DropdownMenuItem
-						key={item.to}
-						asChild
-						className={cn(itemStyles.default, itemStyles.sub)}
-					>
-						<Link to={item.to}>{item.label}</Link>
-					</DropdownMenuItem>
+				{sections.map((section) => (
+					<div key={section.label ?? section.items[0].to}>
+						{section.label && (
+							<div
+								className={cn(
+									itemStyles.default,
+									itemStyles.sub,
+									"flex items-center text-xs font-medium text-content-secondary",
+								)}
+							>
+								{section.label}
+							</div>
+						)}
+						{section.items.map((item) => (
+							<DropdownMenuItem
+								key={item.to}
+								asChild
+								className={cn(itemStyles.default, itemStyles.sub)}
+							>
+								<Link to={item.to}>{item.label}</Link>
+							</DropdownMenuItem>
+						))}
+					</div>
 				))}
 			</CollapsibleContent>
 		</Collapsible>

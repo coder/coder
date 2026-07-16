@@ -20,31 +20,56 @@ type AdminSettingsItem = {
 	to: string;
 };
 
+type AdminSettingsSection = {
+	/** Optional heading rendered above the section's items. */
+	label?: string;
+	items: AdminSettingsItem[];
+};
+
 /**
- * Builds the ordered list of Admin settings menu items for the given
- * permissions. Organizations is always available; the rest are gated behind
- * their respective permissions.
+ * Builds the ordered, sectioned list of Admin settings menu items for the
+ * given permissions. Organizations is always available; the rest are gated
+ * behind their respective permissions. Sections with no visible items are
+ * omitted.
  */
-export const getAdminSettingsItems = ({
+export const getAdminSettingsSections = ({
 	canViewDeployment,
 	canViewAuditLog,
 	canViewConnectionLog,
 	canViewAIBridge,
 	canViewAISettings,
 	canViewHealth,
-}: AdminSettingsPermissions): AdminSettingsItem[] => [
-	...(canViewDeployment ? [{ label: "Deployment", to: "/deployment" }] : []),
-	{ label: "Organizations", to: "/organizations" },
-	...(canViewAISettings ? [{ label: "AI", to: "/ai/settings" }] : []),
-	...(canViewAuditLog ? [{ label: "Audit logs", to: linkToAuditing }] : []),
-	...(canViewConnectionLog
-		? [{ label: "Connection logs", to: "/connectionlog" }]
-		: []),
-	...(canViewAIBridge
-		? [{ label: "AI sessions", to: "/ai-gateway/sessions" }]
-		: []),
-	...(canViewHealth ? [{ label: "Healthcheck", to: "/health" }] : []),
-];
+}: AdminSettingsPermissions): AdminSettingsSection[] => {
+	const sections: AdminSettingsSection[] = [
+		{
+			items: [
+				...(canViewDeployment
+					? [{ label: "Deployment", to: "/deployment" }]
+					: []),
+				{ label: "Organizations", to: "/organizations" },
+				...(canViewAISettings ? [{ label: "AI", to: "/ai/settings" }] : []),
+			],
+		},
+		{
+			label: "Logs",
+			items: [
+				...(canViewAuditLog
+					? [{ label: "Audit logs", to: linkToAuditing }]
+					: []),
+				...(canViewConnectionLog
+					? [{ label: "Connection logs", to: "/connectionlog" }]
+					: []),
+				...(canViewAIBridge
+					? [{ label: "AI session logs", to: "/ai-gateway/sessions" }]
+					: []),
+			],
+		},
+		{
+			items: canViewHealth ? [{ label: "Healthcheck", to: "/health" }] : [],
+		},
+	];
+	return sections.filter((section) => section.items.length > 0);
+};
 
 /**
  * Whether the user has any permission that should surface the Admin settings

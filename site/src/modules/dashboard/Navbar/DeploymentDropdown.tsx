@@ -6,12 +6,13 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import {
 	type AdminSettingsPermissions,
 	canViewAdminSettings,
-	getAdminSettingsItems,
+	getAdminSettingsSections,
 } from "./adminSettings";
 
 type DeploymentDropdownProps = AdminSettingsPermissions;
@@ -23,7 +24,7 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = (
 		return null;
 	}
 
-	const items = getAdminSettingsItems(permissions);
+	const sections = getAdminSettingsSections(permissions);
 
 	return (
 		<DropdownMenu>
@@ -36,10 +37,20 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = (
 
 			<DropdownMenuContent align="end" className="w-[180px] min-w-auto">
 				<nav>
-					{items.map((item) => (
-						<DropdownMenuItem key={item.to} asChild>
-							<Link to={item.to}>{item.label}</Link>
-						</DropdownMenuItem>
+					{sections.map((section, index) => (
+						<div key={section.label ?? section.items[0].to}>
+							{index > 0 && <DropdownMenuSeparator />}
+							{section.label && (
+								<div className="px-2 py-1.5 text-xs font-medium text-content-secondary">
+									{section.label}
+								</div>
+							)}
+							{section.items.map((item) => (
+								<DropdownMenuItem key={item.to} asChild>
+									<Link to={item.to}>{item.label}</Link>
+								</DropdownMenuItem>
+							))}
+						</div>
 					))}
 				</nav>
 			</DropdownMenuContent>
