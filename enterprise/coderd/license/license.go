@@ -428,6 +428,7 @@ func LicensesEntitlements(
 	// The resolved count overwrites featureArguments.ActiveUserCount,
 	// which the user_limit feature's Actual pointer aliases, so both the
 	// feature value and the over-limit warnings below observe it.
+	permissionBasedUserCount := false
 	if hasAIGovernanceAddon && featureArguments.WorkspaceCapableUserCountFn != nil {
 		capableCount, err := featureArguments.WorkspaceCapableUserCountFn(ctx)
 		if err != nil {
@@ -438,6 +439,7 @@ func LicensesEntitlements(
 			return entitlements, xerrors.Errorf("count workspace capable users: %w", err)
 		}
 		featureArguments.ActiveUserCount = capableCount
+		permissionBasedUserCount = true
 	}
 
 	// Now the license specific warnings and errors are added to the entitlements.
@@ -534,14 +536,21 @@ func LicensesEntitlements(
 
 	if entitlements.HasLicense {
 		userLimit := entitlements.Features[codersdk.FeatureUserLimit]
+		// With permission-based counting, ActiveUserCount holds only
+		// workspace-capable users, not all active users; the warning must
+		// name what was counted.
+		userNoun := "active users"
+		if permissionBasedUserCount {
+			userNoun = "workspace-capable users"
+		}
 		if userLimit.Limit != nil && featureArguments.ActiveUserCount > *userLimit.Limit {
 			entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf(
-				"Your deployment has %d active users but is only licensed for %d.",
-				featureArguments.ActiveUserCount, *userLimit.Limit))
+				"Your deployment has %d %s but is only licensed for %d.",
+				featureArguments.ActiveUserCount, userNoun, *userLimit.Limit))
 		} else if userLimit.Limit != nil && userLimit.Entitlement == codersdk.EntitlementGracePeriod {
 			entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf(
-				"Your deployment has %d active users but the license with the limit %d is expired.",
-				featureArguments.ActiveUserCount, *userLimit.Limit))
+				"Your deployment has %d %s but the license with the limit %d is expired.",
+				featureArguments.ActiveUserCount, userNoun, *userLimit.Limit))
 		}
 		if featureArguments.ActiveAISeatCount > 0 {
 			actual := featureArguments.ActiveAISeatCount
