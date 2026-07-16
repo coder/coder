@@ -811,7 +811,6 @@ export const PlusMenuOpen: Story = {
 	},
 };
 
-/** Connected OAuth2 servers show a disconnect control; others do not. */
 export const MCPDisconnectControls: Story = {
 	args: {
 		...mcpDefaults,
@@ -835,7 +834,6 @@ export const MCPDisconnectControls: Story = {
 	},
 };
 
-/** Cancelling the disconnect dialog makes no API call. */
 export const MCPDisconnectCancel: Story = {
 	args: {
 		...mcpDefaults,
@@ -861,7 +859,6 @@ export const MCPDisconnectCancel: Story = {
 	},
 };
 
-/** Confirming the disconnect dialog calls the disconnect endpoint. */
 export const MCPDisconnectConfirm: Story = {
 	args: {
 		...mcpDefaults,
@@ -890,7 +887,6 @@ export const MCPDisconnectConfirm: Story = {
 	},
 };
 
-/** A failed disconnect keeps the dialog open so the user can retry. */
 export const MCPDisconnectError: Story = {
 	args: {
 		...mcpDefaults,

@@ -555,7 +555,6 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 	err = memberClient.MCPServerOAuth2Disconnect(ctx, created.ID)
 	require.NoError(t, err)
 
-	// Seed valid tokens for two users.
 	for _, userID := range []uuid.UUID{member.ID, other.ID} {
 		//nolint:gocritic // Seeding test state requires system access.
 		_, err = db.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
@@ -578,13 +577,11 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 	requireAuthConnected(memberClient, true)
 	requireAuthConnected(otherClient, true)
 
-	// Disconnecting removes only the calling user's token.
 	err = memberClient.MCPServerOAuth2Disconnect(ctx, created.ID)
 	require.NoError(t, err)
 	requireAuthConnected(memberClient, false)
 	requireAuthConnected(otherClient, true)
 
-	// Repeat disconnect after the token is gone is still a no-op.
 	err = memberClient.MCPServerOAuth2Disconnect(ctx, created.ID)
 	require.NoError(t, err)
 }

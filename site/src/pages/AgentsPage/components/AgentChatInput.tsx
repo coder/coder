@@ -566,18 +566,20 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		);
 	};
 
-	const handleMcpDisconnectConfirm = async () => {
+	const handleMcpDisconnectConfirm = () => {
 		if (!mcpDisconnectTarget) {
 			return;
 		}
 		const name = mcpDisconnectTarget.display_name;
-		try {
-			await mcpDisconnectMutation.mutateAsync(mcpDisconnectTarget.id);
-			setMcpDisconnectTarget(null);
-			toast.success(`Disconnected ${name}.`);
-		} catch (error) {
-			toast.error(getErrorMessage(error, `Failed to disconnect ${name}.`));
-		}
+		mcpDisconnectMutation.mutate(mcpDisconnectTarget.id, {
+			onSuccess: () => {
+				setMcpDisconnectTarget(null);
+				toast.success(`Disconnected ${name}.`);
+			},
+			onError: (error) => {
+				toast.error(getErrorMessage(error, `Failed to disconnect ${name}.`));
+			},
+		});
 	};
 
 	const selectedWorkspace = workspaceOptions?.find(
@@ -1698,7 +1700,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				type="delete"
 				confirmText="Disconnect"
 				confirmLoading={mcpDisconnectMutation.isPending}
-				onConfirm={() => void handleMcpDisconnectConfirm()}
+				onConfirm={handleMcpDisconnectConfirm}
 				onClose={() => setMcpDisconnectTarget(null)}
 			/>
 		</>
