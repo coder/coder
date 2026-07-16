@@ -412,7 +412,10 @@ type EndChatResult struct {
 	DeletedQueuedMessageIDs []int64
 }
 
-// EndChat archives a root chat and clears active execution state.
+// EndChat archives a root chat and every child in its family, and
+// clears their active execution state. The cascade keeps the
+// parent-archived-implies-child-archived invariant intact at write
+// time even when children are still running.
 func (tx *Tx) EndChat(input EndChatInput) (EndChatResult, error) {
 	chat, _, err := tx.requireFromAllowed(TransitionEndChat)
 	if err != nil {
@@ -421,11 +424,24 @@ func (tx *Tx) EndChat(input EndChatInput) (EndChatResult, error) {
 	if chat.ParentChatID.Valid {
 		return EndChatResult{}, ErrChatNotRoot
 	}
-	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted because the chat was ended", false, input.PrefixMessages...)
+	result, err := tx.applyEndChat(chat, input.PrefixMessages)
 	if err != nil {
 		return EndChatResult{}, err
 	}
-	inserted, err := tx.insertMessages(append(cancels, input.PrefixMessages...))
+	if err := tx.endChildChats(chat.ID); err != nil {
+		return EndChatResult{}, err
+	}
+	return result, nil
+}
+
+// applyEndChat applies the end-chat mutations to the Tx's own chat. The
+// caller has already validated the transition.
+func (tx *Tx) applyEndChat(chat database.Chat, prefixMessages []Message) (EndChatResult, error) {
+	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted because the chat was ended", false, prefixMessages...)
+	if err != nil {
+		return EndChatResult{}, err
+	}
+	inserted, err := tx.insertMessages(append(cancels, prefixMessages...))
 	if err != nil {
 		return EndChatResult{}, xerrors.Errorf("insert end chat prefix messages: %w", err)
 	}
@@ -447,6 +463,47 @@ func (tx *Tx) EndChat(input EndChatInput) (EndChatResult, error) {
 		InsertedMessages:        inserted,
 		DeletedQueuedMessageIDs: deletedQueuedIDs,
 	}, nil
+}
+
+// endChildChats force-ends every child in the root's family through a
+// nested machine update, so each child gets its own snapshot bump and
+// buffered chat:update publication. Clearing worker and runner IDs
+// makes an owning child worker exit cleanly at its next task fence.
+// Already-archived children are skipped.
+func (tx *Tx) endChildChats(rootID uuid.UUID) error {
+	ids, err := tx.store.GetChatFamilyIDsByRootID(tx.ctx, rootID)
+	if err != nil {
+		return xerrors.Errorf("get chat family: %w", err)
+	}
+	for _, id := range ids {
+		if id == rootID {
+			continue
+		}
+		machine := NewChatMachine(tx.store, tx.publisher, id)
+		err := machine.Update(tx.ctx, func(child *Tx, _ database.Store) error {
+			chat, from, err := child.loadState()
+			if err != nil {
+				return err
+			}
+			// Match SetFamilyArchived: invalid-state detection is never
+			// bypassed, even when the child is already archived.
+			if from == StateInvalid {
+				return ErrInvalidState
+			}
+			if chat.Archived {
+				return nil
+			}
+			if err := requireExecutionTransition(TransitionEndChat, from); err != nil {
+				return err
+			}
+			_, err = child.applyEndChat(chat, nil)
+			return err
+		})
+		if err != nil {
+			return xerrors.Errorf("end child chat %s: %w", id, err)
+		}
+	}
+	return nil
 }
 
 // BusyBehavior controls how SendMessage behaves when the chat is

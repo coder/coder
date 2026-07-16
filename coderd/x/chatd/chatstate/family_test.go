@@ -9,6 +9,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
@@ -195,6 +196,77 @@ func TestSetFamilyArchivedAcceptsAlreadyDesiredMembers(t *testing.T) {
 	childAfter, err := db.GetChatByID(ctx, child.ID)
 	require.NoError(t, err)
 	require.True(t, childAfter.Archived)
+}
+
+// TestEndChatArchivesChildren verifies that ending a root chat
+// archives its whole family in the same transaction, including
+// running children and their queued backlogs, so the
+// parent-archived-implies-child-archived invariant holds at write
+// time.
+func TestEndChatArchivesChildren(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	user, org, model := seedFamilyDeps(t, db)
+
+	root := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "root",
+		Status:            database.ChatStatusWaiting,
+	})
+	child := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "child",
+		Status:            database.ChatStatusRunning,
+		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+	})
+	grandchild := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "grandchild",
+		Status:            database.ChatStatusRunning,
+		ParentChatID:      uuid.NullUUID{UUID: child.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+	})
+	rawContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("queued"),
+	})
+	require.NoError(t, err)
+	_, err = db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+		ChatID:        child.ID,
+		Content:       rawContent.RawMessage,
+		ModelConfigID: uuid.NullUUID{},
+	})
+	require.NoError(t, err)
+
+	pub := newRecordingPubsub()
+	machine := chatstate.NewChatMachine(db, pub, root.ID)
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.EndChat(chatstate.EndChatInput{})
+		return err
+	}))
+
+	for _, chatID := range []uuid.UUID{root.ID, child.ID, grandchild.ID} {
+		after, err := db.GetChatByID(ctx, chatID)
+		require.NoError(t, err)
+		require.True(t, after.Archived, "family member must be archived")
+		require.Equal(t, database.ChatStatusWaiting, after.Status)
+		require.False(t, after.WorkerID.Valid, "worker ownership must be cleared")
+		require.False(t, after.RunnerID.Valid, "runner ownership must be cleared")
+	}
+	count, err := db.CountChatQueuedMessages(ctx, child.ID)
+	require.NoError(t, err)
+	require.Zero(t, count, "child queue must be cleared")
+	for _, chatID := range []uuid.UUID{child.ID, grandchild.ID} {
+		require.Contains(t, pub.channels, coderdpubsub.ChatStateUpdateChannel(chatID),
+			"ended child must publish a chat:update")
+	}
 }
 
 func seedFamilyDeps(t *testing.T, db database.Store) (database.User, database.Organization, database.ChatModelConfig) {

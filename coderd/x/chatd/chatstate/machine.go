@@ -63,6 +63,11 @@ type Tx struct {
 	ctx    context.Context
 	store  database.Store
 	chatID uuid.UUID
+	// publisher is the surrounding Update's publish buffer. Transitions
+	// that cascade to other chats (EndChat archiving children) pass it
+	// to nested machines so child publications flush with the outer
+	// transaction.
+	publisher Publisher
 }
 
 // Ctx returns the context the surrounding [ChatMachine.Update] call
@@ -169,9 +174,10 @@ func (m *ChatMachine) Update(
 			return xerrors.Errorf("lock chat and bump snapshot: %w", err)
 		}
 		tx := &Tx{
-			ctx:    ctx,
-			store:  store,
-			chatID: m.chatID,
+			ctx:       ctx,
+			store:     store,
+			chatID:    m.chatID,
+			publisher: buffer,
 		}
 		if err := fn(tx, store); err != nil {
 			return err
