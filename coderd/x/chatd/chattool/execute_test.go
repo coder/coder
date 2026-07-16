@@ -1373,6 +1373,53 @@ func TestExecuteToolRecorder(t *testing.T) {
 		assert.Equal(t, chattool.ExecutionStatusStarting, recorder.record("call-1").Status)
 	})
 
+	t.Run("StaleClaimLateRecordResumesProcess", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		seedStaleStarting(recorder, 2*time.Minute)
+
+		// The probe cannot verify the dispatch, but the claim
+		// owner's RecordStart lands between that verdict and the
+		// unknown write. The guarded write must lose and the
+		// attempt must resume the recorded process instead of
+		// downgrading it.
+		mockConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{}, notFoundError(t))
+		recorder.onMarkStaleClaim = func() {
+			recorder.seed("call-1", chattool.ExecutionRecord{
+				Status:     chattool.ExecutionStatusRunning,
+				Command:    "echo hi",
+				ProcessID:  "proc-1",
+				Timeout:    time.Minute,
+				ClaimEpoch: 1,
+				StartedAt:  time.Now(),
+			})
+		}
+		exitCode := 0
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode, Output: "hi"}, nil)
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.True(t, result.Success)
+		assert.Equal(t, "hi", result.Output)
+		assert.Equal(t, chattool.ExecutionStatusExited, recorder.record("call-1").Status)
+	})
+
 	t.Run("StaleClaimAbsentTokenYoungIndexUnknown", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)

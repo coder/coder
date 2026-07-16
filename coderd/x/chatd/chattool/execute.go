@@ -737,6 +737,24 @@ func awaitRecordedProcess(
 	return ExecutionRecord{}, xerrors.New("claim went stale without a recorded process")
 }
 
+// resolveStaleClaimUnknown resolves a stale starting claim to
+// unknown through the guarded transition: the claim owner's
+// RecordStart can land concurrently with the staleness verdict, and
+// that write wins, with the attempt resuming the recorded process
+// instead of downgrading it. A write failure aborts uncommitted,
+// because committing unknown on an unverified row could end
+// recovery of a real process.
+func resolveStaleClaimUnknown(ctx context.Context, conn workspacesdk.AgentConn, options ExecuteOptions, toolCallID string, dispatch dispatchInputs) (fantasy.ToolResponse, error) {
+	fresh, applied, err := options.Recorder.MarkStaleClaimUnknown(ctx, toolCallID)
+	if err != nil {
+		return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("mark stale execution claim unknown: %w", err)}
+	}
+	if !applied {
+		return resumeExecution(ctx, conn, options, toolCallID, fresh, dispatch)
+	}
+	return fantasy.NewTextErrorResponse(unknownOutcomeMessage), nil
+}
+
 // recoverStaleClaim resolves a starting claim whose owner never
 // recorded a process handle. The execution ID doubles as the
 // agent-side idempotency token, so the agent's token index reveals
@@ -758,8 +776,7 @@ func recoverStaleClaim(
 		// connection's token index cannot observe what that agent
 		// did with the dispatch, so neither adoption nor
 		// re-dispatch is safe.
-		markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
-		return fantasy.NewTextErrorResponse(unknownOutcomeMessage), nil
+		return resolveStaleClaimUnknown(ctx, conn, options, toolCallID, dispatch)
 	}
 	probeCtx, cancel := context.WithTimeout(ctx, snapshotTimeout)
 	resp, err := workspacesdk.ProbeProcessToken(probeCtx, conn, rec.ID)
@@ -769,8 +786,7 @@ func recoverStaleClaim(
 			// The agent predates the token probe endpoint or the
 			// connection cannot probe, so the dead claimer's
 			// dispatch cannot be verified.
-			markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
-			return fantasy.NewTextErrorResponse(unknownOutcomeMessage), nil
+			return resolveStaleClaimUnknown(ctx, conn, options, toolCallID, dispatch)
 		}
 		// Transport errors prove nothing. Abort uncommitted so
 		// the retried call probes the same token again; a
@@ -811,8 +827,7 @@ func recoverStaleClaim(
 		// The agent may have reaped the token with its exited
 		// process, or restarted with an empty token index, so
 		// absence proves nothing.
-		markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
-		return fantasy.NewTextErrorResponse(unknownOutcomeMessage), nil
+		return resolveStaleClaimUnknown(ctx, conn, options, toolCallID, dispatch)
 	}
 
 	// A pending reservation or a trustworthy absent token is
