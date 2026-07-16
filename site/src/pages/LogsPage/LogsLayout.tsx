@@ -33,7 +33,7 @@ const LogsLayout = () => {
 
 	return (
 		<div className="flex flex-row min-h-screen">
-			<div className="border-0 border-r border-solid border-border">
+			<div className="relative z-30 border-0 border-r border-solid border-border">
 				<CollapsibleSidebar storageKey="logs-sidebar-width" overlay peekOnMount>
 					<LogsSidebar />
 				</CollapsibleSidebar>

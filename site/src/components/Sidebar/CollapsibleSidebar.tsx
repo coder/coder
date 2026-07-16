@@ -82,7 +82,7 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 				<div
 					ref={containerRef}
 					data-sidebar-container
-					className="relative flex-shrink-0 sticky top-0 h-screen w-16"
+					className="relative flex-shrink-0 sticky top-0 h-screen w-16 z-30"
 					onPointerDown={cancelPeek}
 				>
 					<div
