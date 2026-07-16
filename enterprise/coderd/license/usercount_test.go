@@ -150,6 +150,39 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		require.Equal(t, int64(4), count)
 	})
 
+	t.Run("MultiOrgSplitCapability", func(t *testing.T) {
+		// Users whose capability differs between their organizations:
+		// workspace-create in any one org is sufficient to be counted.
+		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{MinimumImplicitMember: true})
+		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
+
+		db, _ := dbtestutil.NewDB(t)
+		orgA := dbgen.Organization(t, db, database.Organization{})
+		orgB := dbgen.Organization(t, db, database.Organization{})
+		emptyDefaultRoles(t, db, orgA)
+		emptyDefaultRoles(t, db, orgB)
+
+		// Gateway in org A, workspace-create in org B. Counted.
+		split := activeUser(t, db, database.User{})
+		member(t, db, orgA.ID, split)
+		member(t, db, orgB.ID, split, rbac.RoleOrgWorkspaceAccess())
+
+		// The creation ban is scoped to org A and must not negate the
+		// org B grant. Counted.
+		bannedSplit := activeUser(t, db, database.User{})
+		member(t, db, orgA.ID, bannedSplit, rbac.RoleOrgWorkspaceAccess(), rbac.RoleOrgWorkspaceCreationBan())
+		member(t, db, orgB.ID, bannedSplit, rbac.RoleOrgWorkspaceAccess())
+
+		// Gateway in both orgs. Not counted.
+		gateway := activeUser(t, db, database.User{})
+		member(t, db, orgA.ID, gateway)
+		member(t, db, orgB.ID, gateway)
+
+		count, err := license.CountWorkspaceCapableUsers(ctx, testutil.Logger(t), db, authorizer)
+		require.NoError(t, err)
+		require.Equal(t, int64(2), count)
+	})
+
 	t.Run("CustomOrgRole", func(t *testing.T) {
 		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{MinimumImplicitMember: true})
 		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
