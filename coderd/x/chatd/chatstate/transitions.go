@@ -462,11 +462,18 @@ func (tx *Tx) EndChat(input EndChatInput) (EndChatResult, error) {
 // applyEndChat applies the end-chat mutations to the Tx's own chat. The
 // caller has already validated the transition.
 func (tx *Tx) applyEndChat(chat database.Chat, prefixMessages []Message) (EndChatResult, error) {
-	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted because the chat was ended", false, prefixMessages...)
+	const endChatCancelReason = "Tool execution interrupted because the chat was ended"
+	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, endChatCancelReason, false, prefixMessages...)
 	if err != nil {
 		return EndChatResult{}, err
 	}
-	inserted, err := tx.insertMessages(append(cancels, prefixMessages...))
+	// Calls carried by the batch itself (e.g. a freshly streamed
+	// assistant step) cancel after the batch so results follow calls.
+	batchCancels, err := synthesizeBatchToolCancellations(chat, endChatCancelReason, prefixMessages)
+	if err != nil {
+		return EndChatResult{}, err
+	}
+	inserted, err := tx.insertMessages(append(append(cancels, prefixMessages...), batchCancels...))
 	if err != nil {
 		return EndChatResult{}, xerrors.Errorf("insert end chat prefix messages: %w", err)
 	}

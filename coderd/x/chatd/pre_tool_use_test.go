@@ -372,8 +372,15 @@ func TestPreToolUseHookEndChat(t *testing.T) {
 	}, testutil.IntervalFast)
 	require.Equal(t, int32(1), modelCalls.Load())
 	require.False(t, archived.RequiresActionDeadlineAt.Valid)
-	call := requireToolCallPart(t, chatToolParts(ctx, t, db, chat.ID), "my_dynamic_tool")
+	parts := chatToolParts(ctx, t, db, chat.ID)
+	call := requireToolCallPart(t, parts, "my_dynamic_tool")
 	require.Equal(t, "call_end_chat", call.ToolCallID)
+	// The never-executed call from the archived step must resolve to a
+	// synthetic cancellation so the transcript has no dangling calls.
+	result := requireToolResultPart(t, parts, "my_dynamic_tool")
+	require.Equal(t, "call_end_chat", result.ToolCallID)
+	require.True(t, result.IsError)
+	require.Contains(t, string(result.Result), "chat was ended")
 }
 
 // An end_chat pre_tool_use response for a pending local tool must end

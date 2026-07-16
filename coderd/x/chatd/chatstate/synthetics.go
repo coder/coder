@@ -165,6 +165,66 @@ func synthesizePendingToolCancellations(
 	return out, nil
 }
 
+// synthesizeBatchToolCancellations builds synthetic error results for
+// tool calls carried by not-yet-committed batch messages, such as a
+// freshly streamed assistant step archived by an end-chat transition.
+// Calls resolved by a result in the same batch and provider-executed
+// calls are skipped. The returned messages must insert after the batch
+// so every result follows its call.
+func synthesizeBatchToolCancellations(chat database.Chat, reason string, batch []Message) ([]Message, error) {
+	handled := make(map[string]bool)
+	var calls []codersdk.ChatMessagePart
+	for _, msg := range batch {
+		parts, err := chatprompt.ParseContent(database.ChatMessage{
+			Role:           msg.Role,
+			ContentVersion: msg.ContentVersion,
+			Content:        msg.Content,
+		})
+		if err != nil {
+			continue
+		}
+		for _, part := range parts {
+			switch part.Type {
+			case codersdk.ChatMessagePartTypeToolCall:
+				if msg.Role == database.ChatMessageRoleAssistant && !part.ProviderExecuted {
+					calls = append(calls, part)
+				}
+			case codersdk.ChatMessagePartTypeToolResult:
+				handled[part.ToolCallID] = true
+			default:
+			}
+		}
+	}
+	out := make([]Message, 0)
+	for _, part := range calls {
+		if handled[part.ToolCallID] {
+			continue
+		}
+		resultPart := codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolResult,
+			ToolCallID: part.ToolCallID,
+			ToolName:   part.ToolName,
+			Result:     json.RawMessage(fmt.Sprintf("%q", reason)),
+			IsError:    true,
+		}
+		raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{resultPart})
+		if err != nil {
+			return nil, xerrors.Errorf("marshal synthetic tool result: %w", err)
+		}
+		out = append(out, Message{
+			Role:           database.ChatMessageRoleTool,
+			Content:        raw,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			ContentVersion: chatprompt.CurrentContentVersion,
+			ModelConfigID:  uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: true},
+		})
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
+}
+
 // pendingDynamicToolCallIDs returns the dynamic tool-call IDs on the
 // chat's last assistant message that do not yet have a matching
 // tool-result message in active history. The returned map is keyed by
