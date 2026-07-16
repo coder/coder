@@ -701,6 +701,7 @@ func New(options *Options) *API {
 			options.Logger.Named("acquirer"),
 			options.Database,
 			options.Pubsub,
+			provisionerdserver.WithClock(options.Clock),
 		),
 		dbRolluper:       options.DatabaseRolluper,
 		ProfileCollector: defaultProfileCollector{},
