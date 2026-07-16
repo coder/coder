@@ -91,6 +91,24 @@ func TestCreateChatUserPromptSubmitHook(t *testing.T) {
 		require.Equal(t, "create hook test", chat.Title)
 	})
 
+	t.Run("invalid model config rejected before dispatch", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		server, requests := newCreateHookTestServer(t, db, ps, http.StatusOK, `{}`)
+
+		opts := createHookOptions(t, db, user.ID, org.ID, model.ID, "prompt")
+		opts.ModelConfigID = uuid.New()
+		_, err := server.CreateChat(ctx, opts)
+		require.ErrorIs(t, err, chatd.ErrInvalidModelConfigID)
+		select {
+		case request := <-requests:
+			t.Fatalf("unexpected hook dispatch %s for rejected create", request.Type)
+		default:
+		}
+	})
+
 	t.Run("override recomputes paste-derived title", func(t *testing.T) {
 		t.Parallel()
 		db, ps := dbtestutil.NewDB(t)

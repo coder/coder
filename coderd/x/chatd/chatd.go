@@ -1305,6 +1305,13 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	contentParts := opts.InitialUserContent
 	var hookResponse agenthooks.Response
 	if p.hookDispatcher != nil && p.hookDispatcher.Enabled() {
+		// Mirror the transaction's model config admission before
+		// dispatching so hook consumers never observe prompts for
+		// creates the API rejects. The insert below stays
+		// authoritative.
+		if err := validateCreateModelConfigID(ctx, p.db, opts.ModelConfigID); err != nil {
+			return database.Chat{}, err
+		}
 		mintedTurnID := uuid.New()
 		turnID = &mintedTurnID
 		hookChat := database.Chat{}
@@ -1708,6 +1715,20 @@ func resolveSendMessageModelConfigID(
 		)
 	}
 	return requested, nil
+}
+
+func validateCreateModelConfigID(ctx context.Context, store database.Store, modelConfigID uuid.UUID) error {
+	if modelConfigID == uuid.Nil {
+		return xerrors.Errorf("%w: %s", ErrInvalidModelConfigID, modelConfigID)
+	}
+	chatdCtx := chatdModelConfigLookupContext(ctx)
+	if _, err := store.GetChatModelConfigByID(chatdCtx, modelConfigID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("%w: %s", ErrInvalidModelConfigID, modelConfigID)
+		}
+		return xerrors.Errorf("get requested model config %s: %w", modelConfigID, err)
+	}
+	return nil
 }
 
 func resolveFallbackModelConfigID(
