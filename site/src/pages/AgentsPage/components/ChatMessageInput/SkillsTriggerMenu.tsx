@@ -31,6 +31,10 @@ type SkillMetadata = {
 export type SkillMenuItem = SkillMetadata & {
 	source: SkillSource;
 	triggerText: string;
+	// The qualified alias stays searchable even when the displayed
+	// trigger is bare, so a typed qualified query keeps matching after
+	// collision state changes mid-trigger.
+	altTriggerText: string;
 };
 
 export const createSkillMenuItem = (
@@ -44,6 +48,7 @@ export const createSkillMenuItem = (
 	description: skill.description,
 	source,
 	triggerText: qualifyTrigger ? `/${source}/${skill.name}` : `/${skill.name}`,
+	altTriggerText: `/${source}/${skill.name}`,
 });
 
 type SkillsTriggerMenuProps = {

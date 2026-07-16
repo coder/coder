@@ -18,6 +18,9 @@ type SkillSearchMetadata = {
 	name: string;
 	description: string;
 	triggerText?: string;
+	// Alternate trigger form that stays searchable regardless of which
+	// form is displayed, e.g. the qualified /source/name alias.
+	altTriggerText?: string;
 };
 
 type RankedSkill<T extends SkillSearchMetadata> = {
@@ -71,16 +74,21 @@ export const filterSkillsByQuery = <T extends SkillSearchMetadata>(
 		const triggerText = skill.triggerText
 			?.replace(/^\//, "")
 			.toLocaleLowerCase("en-US");
+		const altTriggerText = skill.altTriggerText
+			?.replace(/^\//, "")
+			.toLocaleLowerCase("en-US");
 		const description = skill.description.toLocaleLowerCase("en-US");
 		let rank: number | undefined;
 		if (
 			name.startsWith(normalizedQuery) ||
-			triggerText?.startsWith(normalizedQuery)
+			triggerText?.startsWith(normalizedQuery) ||
+			altTriggerText?.startsWith(normalizedQuery)
 		) {
 			rank = 0;
 		} else if (
 			name.includes(normalizedQuery) ||
-			triggerText?.includes(normalizedQuery)
+			triggerText?.includes(normalizedQuery) ||
+			altTriggerText?.includes(normalizedQuery)
 		) {
 			rank = 1;
 		} else if (description.includes(normalizedQuery)) {

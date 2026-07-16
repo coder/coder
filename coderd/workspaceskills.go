@@ -3,22 +3,14 @@ package coderd
 import (
 	"context"
 	"net/http"
-	"time"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
-	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
-)
-
-const (
-	workspaceSkillsAgentConnTimeout     = 30 * time.Second
-	workspaceSkillsContextConfigTimeout = 5 * time.Second
 )
 
 // @Summary List workspace skills
@@ -35,10 +27,6 @@ func (api *API) getWorkspaceSkills(rw http.ResponseWriter, r *http.Request) { //
 	workspace := httpmw.WorkspaceParam(r)
 	logger := api.Logger.With(slog.F("workspace_id", workspace.ID))
 
-	if !api.Authorize(r, policy.ActionSSH, workspace) {
-		httpapi.Forbidden(rw)
-		return
-	}
 	if workspace.Deleted {
 		writeWorkspaceSkills(ctx, rw, nil)
 		return
@@ -83,56 +71,28 @@ func (api *API) getWorkspaceSkills(rw http.ResponseWriter, r *http.Request) { //
 		return
 	}
 
-	apiAgent, err := db2sdk.WorkspaceAgent(
-		api.DERPMap(),
-		*api.TailnetCoordinator.Load(),
-		agent,
-		nil,
-		nil,
-		nil,
-		api.AgentInactiveDisconnectTimeout,
-		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
-	)
+	// The agent-pushed context snapshot is the same inventory chats pin and
+	// read_skill resolves from, so the slash menu matches skill resolution.
+	// An agent that has not pushed a snapshot yet simply has no rows.
+	resources, err := api.Database.ListWorkspaceAgentContextResources(ctx, agent.ID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
-		writeWorkspaceSkills(ctx, rw, nil)
-		return
-	}
 
-	dialCtx, cancel := context.WithTimeout(ctx, workspaceSkillsAgentConnTimeout)
-	conn, release, err := api.agentProvider.AgentConn(dialCtx, agent.ID)
-	cancel()
-	if err != nil {
-		logger.Debug(ctx, "failed to dial workspace skills agent", slog.F("agent_id", agent.ID), slog.Error(err))
-		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
-			Message: "Failed to connect to workspace agent.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	defer release()
-
-	configCtx, cancel := context.WithTimeout(ctx, workspaceSkillsContextConfigTimeout)
-	cfg, err := conn.ContextConfig(configCtx)
-	cancel()
-	if err != nil {
-		logger.Debug(ctx, "failed to fetch workspace skills context config", slog.F("agent_id", agent.ID), slog.Error(err))
-		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
-			Message: "Failed to fetch workspace skills from agent.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	metas := chattool.SkillMetasFromContextParts(cfg.Parts)
-	skills := make([]codersdk.WorkspaceSkillMetadata, 0, len(metas))
-	for _, meta := range metas {
+	skills := make([]codersdk.WorkspaceSkillMetadata, 0, len(resources))
+	for _, resource := range resources {
+		if resource.BodyKind != database.WorkspaceAgentContextBodyKindSkill ||
+			resource.Status != database.WorkspaceAgentContextResourceStatusOk {
+			continue
+		}
+		name, description, ok := chatd.SkillIdentityFromResourceBody(resource.Body)
+		if !ok || name == "" {
+			continue
+		}
 		skills = append(skills, codersdk.WorkspaceSkillMetadata{
-			Name:        meta.Name,
-			Description: meta.Description,
+			Name:        name,
+			Description: description,
 		})
 	}
 	writeWorkspaceSkills(ctx, rw, skills)

@@ -627,8 +627,8 @@ const ChatMessageInput = ({
 	const workspaceSkillsQuery = useQuery({
 		...workspaceSkills(workspaceId ?? ""),
 		enabled: workspaceSkillsQueryEnabled,
-		// An empty list is transient (workspace stopped or starting, agent
-		// not connected yet), so only cache non-empty results.
+		// An empty list is transient (workspace stopped or starting, or the
+		// agent has not pushed context yet), so only cache non-empty results.
 		staleTime: (query) =>
 			query.state.data && query.state.data.length > 0 ? 60_000 : 0,
 	});

@@ -157,6 +157,14 @@ func decodeInstructionContent(body json.RawMessage) (content string, decoded boo
 	return SanitizePromptText(string(decodedBody.GetContent())), true
 }
 
+// SkillIdentityFromResourceBody decodes a protojson skill resource body
+// written by the agent context push path and returns its name and
+// description. ok is false when the body cannot be decoded; callers should
+// skip skills with an empty name.
+func SkillIdentityFromResourceBody(body json.RawMessage) (name, description string, ok bool) {
+	return decodeSkillIdentity(body)
+}
+
 // decodeSkillIdentity decodes a skill resource body and returns its name and
 // description. decoded is false when the body cannot be decoded, letting the
 // prompt path count it as malformed; callers skip a skill with an empty name.

@@ -227,6 +227,23 @@ export const PersonalTriggersQualifiedWhileWorkspaceSkillsUnknown: Story = {
 	},
 };
 
+export const QualifiedPersonalQueryMatchesBareTrigger: Story = {
+	args: {
+		workspaceId: "workspace-1",
+		// Workspace skills resolve without collisions, so personal items
+		// display bare triggers while the typed query stays qualified.
+		workspaceSkillsOverride: mockWorkspaceSkills,
+	},
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/personal/rev");
+		expect(await findVisibleText("/reviewer")).toBeDefined();
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/reviewer");
+		});
+	},
+};
+
 export const UniqueWorkspaceQualifiedPrefixStaysSearchable: Story = {
 	args: {
 		workspaceId: "workspace-1",

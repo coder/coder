@@ -87,6 +87,21 @@ describe("filterSkillsByQuery", () => {
 			),
 		).toEqual(["/workspace/test-runner"]);
 	});
+
+	it("matches the alternate qualified trigger of a bare item", () => {
+		const skills = [
+			{
+				name: "reviewer",
+				description: "Review changed files",
+				triggerText: "/reviewer",
+				altTriggerText: "/personal/reviewer",
+			},
+		];
+
+		expect(
+			filterSkillsByQuery(skills, "personal/rev").map(({ name }) => name),
+		).toEqual(["reviewer"]);
+	});
 });
 
 describe("personal skill slash triggers", () => {
