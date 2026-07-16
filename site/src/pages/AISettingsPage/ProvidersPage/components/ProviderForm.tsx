@@ -573,9 +573,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value="invoke-model">
-										InvokeModel (default)
-									</SelectItem>
+									<SelectItem value="invoke-model">InvokeModel</SelectItem>
 									<SelectItem value="mantle">Mantle</SelectItem>
 								</SelectContent>
 							</Select>
