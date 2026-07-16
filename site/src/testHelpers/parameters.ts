@@ -47,9 +47,12 @@ export async function checkParameters(...parameters: Parameter[]) {
 				case "tag-select":
 					// TODO: Validate these values as well, not just that they exist.
 					break;
-				default:
+				case "input":
+				case "slider":
 					expect(within(field).getByDisplayValue(value)).toBeInTheDocument();
 					break;
+				default:
+					throw new Error(`checking ${type} fields is not implemented`);
 			}
 		}
 		const fields = within(form).queryAllByTestId(/^parameter-field-/);
@@ -70,7 +73,7 @@ export async function editParameters(...parameters: Parameter[]) {
 		const type = parameter.form_type || "input";
 		const label = parameter.display_name || parameter.name;
 		switch (type) {
-			default: {
+			case "input": {
 				const input = await within(field).findByLabelText(
 					new RegExp(label, "i"),
 				);
@@ -80,6 +83,8 @@ export async function editParameters(...parameters: Parameter[]) {
 				}
 				break;
 			}
+			default:
+				throw new Error(`editing ${type} fields is not implemented`);
 		}
 	}
 }
