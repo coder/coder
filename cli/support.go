@@ -46,8 +46,9 @@ func (r *RootCmd) support() *serpent.Command {
 	return supportCmd
 }
 
-var supportBundleBlurb = cliui.Bold("This will collect the following information:\n") +
-	`  - Coder deployment version
+func supportBundleBlurb(workspaceFilePatterns []string) string {
+	blurb := cliui.Bold("This will collect the following information:\n") +
+		`  - Coder deployment version
   - Coder deployment Configuration (sanitized), including enabled experiments
   - Coder deployment health snapshot
   - Coder deployment stats (aggregated workspace/session metrics)
@@ -60,15 +61,22 @@ var supportBundleBlurb = cliui.Bold("This will collect the following information
   - Agent details (with environment variable sanitized)
   - Agent network diagnostics
   - Agent logs
-  - Requested workspace files (if --workspace-file is specified)
-  - License status
+`
+	if len(workspaceFilePatterns) > 0 {
+		blurb += "  - Workspace files matching:\n"
+		for _, pattern := range workspaceFilePatterns {
+			blurb += "    - " + pattern + "\n"
+		}
+	}
+	return blurb + `  - License status
   - pprof profiling data (if --pprof is enabled)
 ` + cliui.Bold("Note: ") +
-	cliui.Wrap("While we try to sanitize sensitive data from support bundles, we cannot guarantee that they do not contain information that you or your organization may consider sensitive.\n") +
-	cliui.Bold("Please confirm that you will:\n") +
-	"  - Review the support bundle before distribution\n" +
-	"  - Only distribute it via trusted channels\n" +
-	cliui.Bold("Continue? ")
+		cliui.Wrap("While we try to sanitize sensitive data from support bundles, we cannot guarantee that they do not contain information that you or your organization may consider sensitive.\n") +
+		cliui.Bold("Please confirm that you will:\n") +
+		"  - Review the support bundle before distribution\n" +
+		"  - Only distribute it via trusted channels\n" +
+		cliui.Bold("Continue? ")
+}
 
 func (r *RootCmd) supportBundle() *serpent.Command {
 	var outputPath string
@@ -96,7 +104,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				cliLog = cliLog.AppendSinks(sloghuman.Sink(inv.Stderr))
 			}
 			ans, err := cliui.Prompt(inv, cliui.PromptOptions{
-				Text:      supportBundleBlurb,
+				Text:      supportBundleBlurb(workspaceFilePatterns),
 				Secret:    false,
 				IsConfirm: true,
 			})
@@ -607,8 +615,10 @@ func writeWorkspaceFilesArchive(src []byte, dest *zip.Writer, maxBytes int64) er
 			continue
 		}
 		if hdr.Size > remaining {
-			skipped = append(skipped, fmt.Sprintf("%s: %d bytes exceeds remaining %d byte budget", name, hdr.Size, remaining))
-			continue
+			// Only a misbehaving agent exceeds the budget; stop trusting
+			// the rest of the archive.
+			skipped = append(skipped, fmt.Sprintf("%s: %d bytes exceeds remaining %d byte budget, aborting", name, hdr.Size, remaining))
+			break
 		}
 		// A failed create means the output zip itself is broken.
 		f, err := dest.Create(path.Join("agent/workspace_files", name))

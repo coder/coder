@@ -503,6 +503,10 @@ type BundleFilesLimits struct {
 	MaxTotalBytes   int64 `json:"max_total_bytes"`
 }
 
+// bundleFilesResponseMaxBytes guards against a misbehaving agent; the
+// agent itself caps collection at 100 MiB.
+const bundleFilesResponseMaxBytes int64 = 110 * 1024 * 1024
+
 // BundleFiles returns a tar archive of explicitly requested workspace
 // files.
 func (c *agentConn) BundleFiles(ctx context.Context, req BundleFilesRequest) ([]byte, error) {
@@ -516,9 +520,12 @@ func (c *agentConn) BundleFiles(ctx context.Context, req BundleFilesRequest) ([]
 	if res.StatusCode != http.StatusOK {
 		return nil, codersdk.ReadBodyAsError(res)
 	}
-	bs, err := io.ReadAll(res.Body)
+	bs, err := io.ReadAll(io.LimitReader(res.Body, bundleFilesResponseMaxBytes+1))
 	if err != nil {
 		return nil, xerrors.Errorf("read response body: %w", err)
+	}
+	if int64(len(bs)) > bundleFilesResponseMaxBytes {
+		return nil, xerrors.Errorf("response exceeds %d bytes", bundleFilesResponseMaxBytes)
 	}
 	return bs, nil
 }

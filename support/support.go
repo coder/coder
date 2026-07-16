@@ -686,6 +686,7 @@ func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.L
 			if err != nil {
 				if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusNotFound {
 					log.Warn(ctx, "workspace file collection is unsupported by this agent")
+					a.WorkspaceFilesArchive = unsupportedWorkspaceFilesArchive(workspaceFilePatterns)
 					return nil
 				}
 				return xerrors.Errorf("fetch workspace files: %w", err)
@@ -705,6 +706,38 @@ func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.L
 	})
 
 	return closer
+}
+
+// unsupportedWorkspaceFilesArchive builds a manifest-only archive recording
+// the requested patterns, for agents that predate the bundle-files endpoint.
+func unsupportedWorkspaceFilesArchive(patterns []string) []byte {
+	manifest, err := json.MarshalIndent(workspacesdk.BundleFilesManifest{
+		Requested: patterns,
+		Errors: []workspacesdk.BundleFilesManifestError{
+			{Reason: "workspace file collection is not supported by this agent version"},
+		},
+	}, "", "  ")
+	if err != nil {
+		return nil
+	}
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	err = tw.WriteHeader(&tar.Header{
+		Name:    "manifest.json",
+		Mode:    0o644,
+		Size:    int64(len(manifest)),
+		ModTime: time.Now(),
+	})
+	if err != nil {
+		return nil
+	}
+	if _, err := tw.Write(manifest); err != nil {
+		return nil
+	}
+	if err := tw.Close(); err != nil {
+		return nil
+	}
+	return buf.Bytes()
 }
 
 func PprofInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) *PprofCollection {

@@ -22,29 +22,9 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestHandleBundleFiles(t *testing.T) {
+func TestBundleFilesCollectsExpandedPathsAndGlobs(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name string
-		run  func(t *testing.T)
-	}{
-		{"CollectsExpandedPathsAndGlobs", testBundleFilesCollectsExpandedPathsAndGlobs},
-		{"CollectsAbsolutePathsOutsideHome", testBundleFilesCollectsAbsolutePathsOutsideHome},
-		{"RejectedPathsAreNonFatal", testBundleFilesRejectedPathsAreNonFatal},
-		{"TailBytesTruncation", testBundleFilesTailBytesTruncation},
-		{"FileAndByteLimits", testBundleFilesFileAndByteLimits},
-		{"DedupeByCleanedPath", testBundleFilesDedupeByCleanedPath},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			tt.run(t)
-		})
-	}
-}
-
-func testBundleFilesCollectsExpandedPathsAndGlobs(t *testing.T) {
 	home := testutil.TempDirResolved(t)
 	writeBundleSourceFile(t, home, ".vscode-server/data/logs/20260706T101112/remoteagent.log", "remote agent")
 	writeBundleSourceFile(t, home, ".vscode-server/data/logs/20260706T101112/exthost1/exthost.log", "exthost")
@@ -77,7 +57,9 @@ func testBundleFilesCollectsExpandedPathsAndGlobs(t *testing.T) {
 	require.Len(t, entries.manifest.Files, 6)
 }
 
-func testBundleFilesCollectsAbsolutePathsOutsideHome(t *testing.T) {
+func TestBundleFilesCollectsAbsolutePathsOutsideHome(t *testing.T) {
+	t.Parallel()
+
 	home := testutil.TempDirResolved(t)
 	outside := testutil.TempDirResolved(t)
 	writeBundleSourceFile(t, outside, "service.log", "outside log")
@@ -94,7 +76,9 @@ func testBundleFilesCollectsAbsolutePathsOutsideHome(t *testing.T) {
 	require.Len(t, entries.manifest.Files, 2)
 }
 
-func testBundleFilesRejectedPathsAreNonFatal(t *testing.T) {
+func TestBundleFilesRejectedPathsAreNonFatal(t *testing.T) {
+	t.Parallel()
+
 	home := testutil.TempDirResolved(t)
 	writeBundleSourceFile(t, home, "kept.log", "kept")
 	require.NoError(t, os.MkdirAll(filepath.Join(home, "somedir"), 0o700))
@@ -117,7 +101,9 @@ func testBundleFilesRejectedPathsAreNonFatal(t *testing.T) {
 	)
 }
 
-func testBundleFilesTailBytesTruncation(t *testing.T) {
+func TestBundleFilesTailBytesTruncation(t *testing.T) {
+	t.Parallel()
+
 	home := testutil.TempDirResolved(t)
 	writeBundleSourceFile(t, home, "large.log", "0123456789")
 
@@ -134,7 +120,9 @@ func testBundleFilesTailBytesTruncation(t *testing.T) {
 	require.Equal(t, int64(4), entries.manifest.Files[0].BytesWritten)
 }
 
-func testBundleFilesFileAndByteLimits(t *testing.T) {
+func TestBundleFilesFileAndByteLimits(t *testing.T) {
+	t.Parallel()
+
 	home := testutil.TempDirResolved(t)
 	writeBundleSourceFile(t, home, "one.log", "1111")
 	writeBundleSourceFile(t, home, "two.log", "2222")
@@ -155,7 +143,9 @@ func testBundleFilesFileAndByteLimits(t *testing.T) {
 	requireBundleFilesManifestErrors(t, entries.manifest.Errors, "file count limit reached")
 }
 
-func testBundleFilesDedupeByCleanedPath(t *testing.T) {
+func TestBundleFilesDedupeByCleanedPath(t *testing.T) {
+	t.Parallel()
+
 	home := testutil.TempDirResolved(t)
 	writeBundleSourceFile(t, home, "dup.log", "one")
 	writeBundleSourceFile(t, home, "other.log", "two")

@@ -65,23 +65,26 @@ func TestWriteWorkspaceFilesArchive(t *testing.T) {
 		require.Len(t, entries, 3)
 	})
 
-	t.Run("SkipsEntriesBeyondBudget", func(t *testing.T) {
+	t.Run("AbortsOnEntryBeyondBudget", func(t *testing.T) {
 		t.Parallel()
 
 		agentArchive := makeWorkspaceFilesArchive(t,
+			"files/ok.log", "ok",
 			"files/big.log", "this entry is too big",
-			"files/small.log", "ok",
+			"files/after.log", "never reached",
 		)
 
 		var bundle bytes.Buffer
 		bundleZip := zip.NewWriter(&bundle)
-		// A 4 byte budget fits small.log but not big.log.
+		// A 4 byte budget fits ok.log; big.log exceeds it and aborts the
+		// rest.
 		require.NoError(t, writeWorkspaceFilesArchive(agentArchive, bundleZip, 4))
 		require.NoError(t, bundleZip.Close())
 
 		entries := testutil.ReadZip(t, bundle.Bytes())
-		require.Equal(t, "ok", string(entries["agent/workspace_files/files/small.log"]))
+		require.Equal(t, "ok", string(entries["agent/workspace_files/files/ok.log"]))
 		require.NotContains(t, entries, "agent/workspace_files/files/big.log")
+		require.NotContains(t, entries, "agent/workspace_files/files/after.log")
 		errs := string(entries["agent/workspace_files/collection_errors.txt"])
 		require.Contains(t, errs, "files/big.log")
 		require.Contains(t, errs, "budget")
