@@ -3,7 +3,7 @@ Coder AI Gateway is installed as {{ include "coder.name" . }}.
 {{- if .Values.service.enable }}
 Configure the Coder deployment with:
 
-  CODER_AI_GATEWAY_PROXY_TARGET={{ ternary "https" "http" (not (empty .Values.aigateway.listenerTLS.secretName)) }}://{{ include "coder.name" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+  CODER_AI_GATEWAY_PROXY_TARGET={{ ternary "https" "http" (not (empty .Values.aigateway.listenerTLS.name)) }}://{{ include "coder.name" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
 {{- else }}
 The chart-managed Service is disabled. Configure CODER_AI_GATEWAY_PROXY_TARGET
 with the URL of the user-managed route to this deployment.

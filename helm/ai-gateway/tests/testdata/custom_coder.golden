@@ -116,6 +116,16 @@ spec:
         image: ghcr.io/coder/coder:v2.30.0
         imagePullPolicy: Always
         lifecycle: {}
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 3
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 2
         name: coder
         ports:
         - containerPort: 4001

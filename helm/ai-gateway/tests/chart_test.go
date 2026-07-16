@@ -32,7 +32,7 @@ var testCases = []testCase{
 	{name: "missing_key_field", expectedError: "aigateway.keySecret.key is required."},
 	{name: "invalid_url", expectedError: "aigateway.coderURL must begin with http:// or https://."},
 	{name: "missing_coder_scheme", expectedError: "aigateway.coderService.scheme must be set to http or https when aigateway.coderURL is empty."},
-	{name: "partial_listener_tls", expectedError: "aigateway.listenerTLS.certKey and keyKey are required when secretName is set."},
+	{name: "partial_listener_tls", expectedError: "aigateway.listenerTLS.certKey and keyKey are required when name is set."},
 	{name: "listener_tls_with_ingress"},
 	{name: "partial_client_tls", expectedError: "aigateway.coderTLS.clientSecret.certKey and keyKey are required when name is set."},
 	{name: "partial_ca_tls", expectedError: "aigateway.coderTLS.caSecret.key is required when name is set."},

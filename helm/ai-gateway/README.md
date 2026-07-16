@@ -13,6 +13,7 @@ It does not create credentials or TLS Secrets.
 
    ```console
    kubectl create secret generic coder-ai-gateway-key \
+     --namespace <release-namespace> \
      --from-literal=key='<AI gateway key>'
    ```
 
@@ -36,10 +37,6 @@ aigateway:
   coderURL: https://coder.example.com
 ```
 
-When installing a released chart package, the chart automatically uses the
-matching Coder image version. Set `coder.image.tag` only when installing
-directly from Git or overriding the image version.
-
 Alternatively, the Gateway can connect to Coder through an in-cluster Service.
 Replace `coderURL` with:
 
@@ -61,10 +58,21 @@ The chart constructs
 certificate must cover the internal Service hostname and the Gateway must trust
 its issuing CA.
 
+When installing a released chart package, the chart automatically uses the
+matching Coder image version. Set `coder.image.tag` only when installing
+directly from Git or overriding the image version.
+
+The chart rejects chart-owned variable names in `coder.env`. Helm cannot inspect
+keys supplied by `coder.envFrom`, do not include chart-owned variables there.
+In particular, `CODER_AI_GATEWAY_KEY` conflicts with the chart-managed
+`CODER_AI_GATEWAY_KEY_FILE` variable and prevents startup.
+
 ### Install the chart
 
 ```console
-helm install ai-gateway ./helm/ai-gateway --values values.yaml
+helm install ai-gateway ./helm/ai-gateway \
+  --namespace <release-namespace> \
+  --values values.yaml
 ```
 
 If AI Gateway Proxy is enabled and should forward intercepted requests to
@@ -84,7 +92,7 @@ For Gateway-to-Coder HTTPS with a private CA, set
 
 Prefer terminating client-facing TLS at a Kubernetes Ingress or a `Gateway`
 resource from the Kubernetes Gateway API. To terminate TLS in the AI Gateway
-process, configure `aigateway.listenerTLS.secretName`.
+process, configure `aigateway.listenerTLS.name`.
 
 Client-facing TLS and backend TLS are independent. The `ingress.tls` settings
 configure TLS between clients and the Ingress. For HTTPRoute, the Gateway
@@ -117,7 +125,7 @@ on concurrent requests and payload size.
 
 Adjust `coder.resources` after observing production traffic. Consider setting
 `CODER_AI_GATEWAY_MAX_CONCURRENCY` through `coder.env` to bound concurrent
-requests per replica. Application default is unlimited. The chart does not
+requests per replica. The application default is unlimited. The chart does not
 set resource limits by default, which avoids CPU throttling and fixed memory
 limits for bursty workloads. Manage resources such as a Horizontal Pod
 Autoscaler or PodDisruptionBudget through your platform configuration or

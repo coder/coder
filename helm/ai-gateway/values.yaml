@@ -1,12 +1,15 @@
 # coder -- Common workload configuration options.
 coder:
   # coder.env -- Additional environment variables for the AI Gateway
-  # container. Chart-owned variables cannot be overridden.
+  # container. Chart-owned variables cannot be overridden through this list.
   env: []
   # - name: "CODER_VERBOSE"
   #   value: "true"
 
   # coder.envFrom -- Additional envFrom sources for the AI Gateway container.
+  # Keys in these sources cannot be validated by Helm. Do not include
+  # chart-owned variables. CODER_AI_GATEWAY_KEY conflicts with the key file
+  # configured by the chart and prevents the Gateway from starting.
   envFrom: []
 
   # coder.image -- The image to use for the AI Gateway.
@@ -116,13 +119,15 @@ coder:
       memory: 1Gi
 
   # coder.startupProbe -- Startup probe configuration for the AI Gateway.
-  # Keep this disabled until /healthz is independent of initial provider load.
+  # Enable this with a failure threshold long enough for initial provider load
+  # before enabling the liveness probe.
   startupProbe:
     enabled: false
     initialDelaySeconds: 0
 
   # coder.livenessProbe -- Liveness probe configuration for the AI Gateway.
-  # Keep this disabled until /healthz is independent of initial provider load.
+  # Without this probe, Kubernetes does not restart a running but unresponsive
+  # Gateway. Enable and tune the startup probe before enabling this probe.
   livenessProbe:
     enabled: false
     initialDelaySeconds: 0
@@ -191,9 +196,10 @@ aigateway:
       keyKey: tls.key
   # The certificate must cover every hostname clients use.
   listenerTLS:
-    secretName: ""
+    name: ""
     certKey: tls.crt
     keyKey: tls.key
+  # Allow the binary's 300-second shutdown timeout plus termination headroom.
   terminationGracePeriodSeconds: 330
 
 # Stable data-plane Service fronting the container's port 4001 listener.

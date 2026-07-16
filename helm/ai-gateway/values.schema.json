@@ -95,8 +95,8 @@
           }
         },
         "listenerTLS": {
-          "type": "object", "additionalProperties": false, "required": ["secretName", "certKey", "keyKey"],
-          "properties": {"secretName": {"type": "string"}, "certKey": {"type": "string"}, "keyKey": {"type": "string"}}
+          "type": "object", "additionalProperties": false, "required": ["name", "certKey", "keyKey"],
+          "properties": {"name": {"type": "string"}, "certKey": {"type": "string"}, "keyKey": {"type": "string"}}
         },
         "terminationGracePeriodSeconds": {"type": "integer", "minimum": 0}
       }

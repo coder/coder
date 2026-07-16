@@ -24,8 +24,12 @@ coder:
     successThreshold: 1
     failureThreshold: 12
   livenessProbe:
-    enabled: false
-    initialDelaySeconds: 0
+    enabled: true
+    initialDelaySeconds: 3
+    periodSeconds: 5
+    timeoutSeconds: 2
+    successThreshold: 1
+    failureThreshold: 3
   readinessProbe:
     enabled: true
     initialDelaySeconds: 4

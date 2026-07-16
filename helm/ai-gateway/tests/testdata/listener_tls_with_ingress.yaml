@@ -7,7 +7,7 @@ aigateway:
   keySecret:
     name: ai-gateway-key
   listenerTLS:
-    secretName: listener-tls
+    name: listener-tls
 ingress:
   enable: true
   host: ai.example.com

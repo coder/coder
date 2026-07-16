@@ -15,6 +15,6 @@ aigateway:
       certKey: client.crt
       keyKey: client.key
   listenerTLS:
-    secretName: gateway-tls
+    name: gateway-tls
     certKey: cert.pem
     keyKey: key.pem

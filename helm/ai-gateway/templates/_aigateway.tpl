@@ -7,6 +7,22 @@ automountServiceAccountToken: false
 {{- end }}
 
 {{/*
+HTTP probe shared by startup, liveness, and readiness configuration.
+*/}}
+{{- define "coder-ai-gateway.probe" -}}
+httpGet:
+  path: {{ .path }}
+  port: http
+  scheme: {{ .scheme }}
+initialDelaySeconds: {{ .probe.initialDelaySeconds }}
+{{- range $field := list "periodSeconds" "timeoutSeconds" "successThreshold" "failureThreshold" }}
+{{- if hasKey $.probe $field }}
+{{ $field }}: {{ index $.probe $field }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
 Component annotation for pod metadata.
 */}}
 {{- define "coder.componentAnnotation" -}}
@@ -37,10 +53,10 @@ spec:
             items:
               - key: {{ .Values.aigateway.keySecret.key }}
                 path: key
-        {{- if .Values.aigateway.listenerTLS.secretName }}
+        {{- if .Values.aigateway.listenerTLS.name }}
         - name: ai-gateway-listener
           secret:
-            secretName: {{ .Values.aigateway.listenerTLS.secretName }}
+            secretName: {{ .Values.aigateway.listenerTLS.name }}
             items:
               - key: {{ .Values.aigateway.listenerTLS.certKey }}
                 path: tls.crt
@@ -95,51 +111,24 @@ ports:
 - name: metrics
   containerPort: 2112
   protocol: TCP
-{{- $scheme := ternary "HTTPS" "HTTP" (not (empty .Values.aigateway.listenerTLS.secretName)) }}
+{{- $scheme := ternary "HTTPS" "HTTP" (not (empty .Values.aigateway.listenerTLS.name)) }}
 {{- if .Values.coder.startupProbe.enabled }}
 startupProbe:
-  httpGet:
-    path: /healthz
-    port: http
-    scheme: {{ $scheme }}
-  initialDelaySeconds: {{ .Values.coder.startupProbe.initialDelaySeconds }}
-  {{- range $field := list "periodSeconds" "timeoutSeconds" "successThreshold" "failureThreshold" }}
-  {{- if hasKey $.Values.coder.startupProbe $field }}
-  {{ $field }}: {{ index $.Values.coder.startupProbe $field }}
-  {{- end }}
-  {{- end }}
+{{ include "coder-ai-gateway.probe" (dict "probe" .Values.coder.startupProbe "path" "/healthz" "scheme" $scheme) | indent 2 }}
 {{- end }}
 {{- if .Values.coder.livenessProbe.enabled }}
 livenessProbe:
-  httpGet:
-    path: /healthz
-    port: http
-    scheme: {{ $scheme }}
-  initialDelaySeconds: {{ .Values.coder.livenessProbe.initialDelaySeconds }}
-  {{- range $field := list "periodSeconds" "timeoutSeconds" "successThreshold" "failureThreshold" }}
-  {{- if hasKey $.Values.coder.livenessProbe $field }}
-  {{ $field }}: {{ index $.Values.coder.livenessProbe $field }}
-  {{- end }}
-  {{- end }}
+{{ include "coder-ai-gateway.probe" (dict "probe" .Values.coder.livenessProbe "path" "/healthz" "scheme" $scheme) | indent 2 }}
 {{- end }}
 {{- if .Values.coder.readinessProbe.enabled }}
 readinessProbe:
-  httpGet:
-    path: /readyz
-    port: http
-    scheme: {{ $scheme }}
-  initialDelaySeconds: {{ .Values.coder.readinessProbe.initialDelaySeconds }}
-  {{- range $field := list "periodSeconds" "timeoutSeconds" "successThreshold" "failureThreshold" }}
-  {{- if hasKey $.Values.coder.readinessProbe $field }}
-  {{ $field }}: {{ index $.Values.coder.readinessProbe $field }}
-  {{- end }}
-  {{- end }}
+{{ include "coder-ai-gateway.probe" (dict "probe" .Values.coder.readinessProbe "path" "/readyz" "scheme" $scheme) | indent 2 }}
 {{- end }}
 volumeMounts:
 - name: ai-gateway-auth
   mountPath: /etc/coder/ai-gateway-auth
   readOnly: true
-{{- if .Values.aigateway.listenerTLS.secretName }}
+{{- if .Values.aigateway.listenerTLS.name }}
 - name: ai-gateway-listener
   mountPath: /etc/coder/ai-gateway-listener
   readOnly: true

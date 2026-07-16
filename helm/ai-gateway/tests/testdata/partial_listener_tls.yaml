@@ -7,5 +7,5 @@ aigateway:
   keySecret:
     name: key
   listenerTLS:
-    secretName: listener
+    name: listener
     keyKey: ""
