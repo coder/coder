@@ -233,7 +233,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		org := dbgen.Organization(t, db, database.Organization{})
 
-		// Authorization fails closed on an unparseable stored role, so
+		// Authorization fails closed on an unparsable stored role, so
 		// this user is not workspace-capable even though their org
 		// membership would otherwise qualify them.
 		corrupt := activeUser(t, db, database.User{RBACRoles: []string{"bad:role:extra"}})
