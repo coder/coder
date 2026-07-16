@@ -205,6 +205,11 @@ export const buildUpdateMCPServerConfigRequest = (
 	const { enabled: _enabled, ...updateFields } = base;
 	return {
 		...updateFields,
+		// On update an omitted field means "keep the stored value", so
+		// the optional revocation URL is always sent to allow clearing it.
+		...(values.authType === "oauth2" && {
+			oauth2_revocation_url: values.oauth2RevocationURL.trim(),
+		}),
 		tool_allow_list: [...(base.tool_allow_list ?? [])],
 		tool_deny_list: [...(base.tool_deny_list ?? [])],
 	};
