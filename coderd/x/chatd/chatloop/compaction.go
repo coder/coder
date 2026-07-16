@@ -29,6 +29,10 @@ const (
 		"Summarize the conversation so a new assistant can seamlessly " +
 		"continue the work in progress.\n\n" +
 		"Include:\n" +
+		// The constraints bullet below is deliberately verbose: offline replay
+		// of production chats showed compaction summaries dropping or softening
+		// user-stated constraints, and this wording measurably improved their
+		// survival (see PR #27230). Reword only with re-validation.
 		"- User constraints, corrections, and prohibitions: rules, " +
 		"scope limits, style rules, and process corrections stated by " +
 		"the user. Quote or closely paraphrase the user's wording; do " +
