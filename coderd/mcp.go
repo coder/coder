@@ -344,6 +344,13 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				oauth2Scopes = result.scopes
 			}
 
+			// Same fallback for the revocation URL: an explicit
+			// request value wins over discovered metadata.
+			oauth2RevocationURL := strings.TrimSpace(req.OAuth2RevocationURL)
+			if oauth2RevocationURL == "" {
+				oauth2RevocationURL = result.revocationURL
+			}
+
 			// Update the record with discovered OAuth2 credentials.
 			updated, err := api.Database.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
 				ID:                      inserted.ID,
@@ -359,7 +366,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				OAuth2ClientSecretKeyID: sql.NullString{},
 				OAuth2AuthURL:           result.authURL,
 				OAuth2TokenURL:          result.tokenURL,
-				OAuth2RevocationURL:     result.revocationURL,
+				OAuth2RevocationURL:     oauth2RevocationURL,
 				OAuth2Scopes:            oauth2Scopes,
 				APIKeyHeader:            inserted.APIKeyHeader,
 				APIKeyValue:             inserted.APIKeyValue,

@@ -818,6 +818,22 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		require.Equal(t, authServer.URL+"/token", created.OAuth2TokenURL)
 		require.Equal(t, authServer.URL+"/revoke", created.OAuth2RevocationURL)
 		require.Equal(t, "read write", created.OAuth2Scopes)
+
+		// An explicit revocation URL wins over the discovered one.
+		overridden, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:         "Auto-Discovery Override",
+			Slug:                "auto-discovery-override",
+			Transport:           "streamable_http",
+			URL:                 mcpServer.URL + "/v1/mcp",
+			AuthType:            "oauth2",
+			OAuth2RevocationURL: "https://override.example.com/revoke",
+			Availability:        "default_on",
+			Enabled:             true,
+			ToolAllowList:       []string{},
+			ToolDenyList:        []string{},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "https://override.example.com/revoke", overridden.OAuth2RevocationURL)
 	})
 
 	// Verify that when both path-aware and root-level protected
