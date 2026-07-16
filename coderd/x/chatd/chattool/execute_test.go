@@ -747,6 +747,9 @@ type fakeRecorder struct {
 	getCalls       int
 	recordStartErr error
 	claimErr       error
+	// reclaimErr fails only stale-takeover claims (non-zero
+	// staleBefore), letting the initial claim succeed.
+	reclaimErr error
 	// recordStartCtxErr captures ctx.Err() as observed by
 	// RecordStart, so tests can assert the write runs on an
 	// uncanceled context.
@@ -775,6 +778,9 @@ func (f *fakeRecorder) Claim(_ context.Context, toolCallID string, inputSHA256 s
 	f.claimCalls++
 	if f.claimErr != nil {
 		return chattool.ExecutionRecord{}, false, f.claimErr
+	}
+	if f.reclaimErr != nil && !staleBefore.IsZero() {
+		return chattool.ExecutionRecord{}, false, f.reclaimErr
 	}
 	if storedHash, ok := f.inputHashes[toolCallID]; ok && storedHash != inputSHA256 {
 		return chattool.ExecutionRecord{}, false, xerrors.Errorf("tool call %s: %w", toolCallID, chattool.ErrExecutionInputMismatch)
@@ -1540,6 +1546,34 @@ func TestExecuteToolRecorder(t *testing.T) {
 		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 		assert.True(t, result.Success)
 		assert.Equal(t, "done", result.Output)
+	})
+
+	t.Run("StaleClaimReclaimFailureAborts", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		seedStaleStarting(recorder, chattool.TokenTrustWindow+time.Minute)
+		recorder.reclaimErr = xerrors.New("database connection lost")
+
+		mockConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{Pending: true}, nil)
+
+		// No StartProcess expectation: a failed reclaim must
+		// abort uncommitted so a later retry can recover the
+		// same token, not commit an error result.
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.Error(t, err)
+		var abortErr *chattool.AbortToolExecutionError
+		require.ErrorAs(t, err, &abortErr)
+		assert.Equal(t, chattool.ExecutionStatusStarting, recorder.record("call-1").Status)
 	})
 
 	t.Run("StaleClaimBeyondTrustWindowUnknown", func(t *testing.T) {

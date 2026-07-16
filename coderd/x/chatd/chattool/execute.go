@@ -836,7 +836,12 @@ func recoverStaleClaim(
 	// the original dispatch. Take over the stale claim first.
 	reclaimed, claimed, err := options.Recorder.Claim(ctx, toolCallID, dispatch.inputSHA256, dispatch.command, dispatch.background, dispatch.timeout, options.connAgentID, time.Now().Add(-claimStaleAfter))
 	if err != nil {
-		return errorResult(fmt.Sprintf("reclaim stale execution: %v", err)), nil
+		// A transient reclaim failure must not commit a result:
+		// that would stamp result_committed_at and stop later
+		// retries from recovering this token even though the
+		// original dispatch may still publish a process. Abort
+		// uncommitted like the initial claim path.
+		return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("reclaim stale execution: %w", err)}
 	}
 	if !claimed {
 		return resumeExecution(ctx, conn, options, toolCallID, reclaimed, dispatch)
