@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"sort"
 	"time"
 
@@ -58,7 +57,7 @@ func (api *API) Routes() http.Handler {
 	r := chi.NewRouter()
 	r.Post("/start", api.handleStartProcess)
 	r.Get("/list", api.handleListProcesses)
-	r.Get("/tokens/{token}", api.handleProcessByToken)
+	r.Get("/tokens", api.handleProcessByToken)
 	r.Get("/{id}/output", api.handleProcessOutput)
 	r.Post("/{id}/signal", api.handleSignalProcess)
 	return r
@@ -67,17 +66,14 @@ func (api *API) Routes() http.Handler {
 // handleProcessByToken reports whether an idempotency token has a
 // process attached. It always answers 200 for a known route, so an
 // HTTP 404 unambiguously identifies an agent that predates the
-// endpoint.
+// endpoint. The token travels as a query parameter because it is
+// an opaque string that can contain any byte: query decoding is a
+// single well-defined unescape, while a path segment's decoding
+// depends on how the router matched it.
 func (api *API) handleProcessByToken(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// chi matches escaped paths on RawPath, so the parameter may
-	// arrive percent-encoded; tokens are opaque strings that can
-	// contain any byte.
-	token := chi.URLParam(r, "token")
-	if unescaped, err := url.PathUnescape(token); err == nil {
-		token = unescaped
-	}
+	token := r.URL.Query().Get("token")
 	proc, pending, ok := api.manager.byToken(token)
 
 	// Enforce chat ID isolation like the other process routes.

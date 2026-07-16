@@ -673,7 +673,7 @@ func TestProcessByToken(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		w := httptest.NewRecorder()
-		r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tokens/"+token, nil)
+		r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/tokens?token="+url.QueryEscape(token), nil)
 		for _, h := range headers {
 			for k, vals := range h {
 				for _, v := range vals {
@@ -717,17 +717,23 @@ func TestProcessByToken(t *testing.T) {
 	t.Run("EscapedToken", func(t *testing.T) {
 		t.Parallel()
 
-		// Tokens are opaque strings, so a path-reserved byte must
-		// round-trip through the escaped probe URL.
-		handler := newTestAPI(t)
-		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
-			Command:     "echo hello",
-			ClientToken: "tok/with reserved?bytes",
-		})
+		// Tokens are opaque strings, so reserved bytes and literal
+		// percent escapes must round-trip through the probe URL
+		// without double-decoding.
+		for _, token := range []string{
+			"tok/with reserved?bytes",
+			"abc%2Fdef",
+		} {
+			handler := newTestAPI(t)
+			id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
+				Command:     "echo hello",
+				ClientToken: token,
+			})
 
-		resp := probe(t, handler, url.PathEscape("tok/with reserved?bytes"))
-		require.True(t, resp.Found)
-		require.Equal(t, id, resp.ProcessID)
+			resp := probe(t, handler, token)
+			require.True(t, resp.Found)
+			require.Equal(t, id, resp.ProcessID)
+		}
 	})
 
 	t.Run("ChatIsolation", func(t *testing.T) {
