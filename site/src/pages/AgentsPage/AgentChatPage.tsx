@@ -28,6 +28,7 @@ import {
 	chat,
 	chatKey,
 	chatMessagesForInfiniteScroll,
+	chatMessagesKey,
 	chatModelConfigs,
 	chatModels,
 	chatProviderConfigs,
@@ -1566,10 +1567,15 @@ const AgentChatPage: FC = () => {
 		// A lifecycle hook ended the chat instead of accepting the
 		// message: there is no message to insert and the chat is
 		// archived, so skip the running-state optimism and refetch
-		// chat metadata to reflect the ended chat.
+		// chat metadata to reflect the ended chat. EndChat can still
+		// persist hook notice messages, so refetch the transcript too.
 		if (response.ended) {
 			store.clearStreamState();
 			void queryClient.invalidateQueries({ queryKey: chatKey(agentId) });
+			void queryClient.invalidateQueries({
+				queryKey: chatMessagesKey(agentId),
+				exact: true,
+			});
 			return;
 		}
 		// When the server accepts the message immediately (not

@@ -111,6 +111,98 @@ func TestSendMessageUserPromptSubmitHook(t *testing.T) {
 	})
 }
 
+// A user_prompt_submit denial that also sets end_chat must reject the
+// prompt and archive the chat instead of leaving it active.
+func TestUserPromptSubmitDenyEndChat(t *testing.T) {
+	t.Parallel()
+
+	consumerResponse := `{"permission":{"decision":"deny"},"user_message":"blocked","end_chat":true}`
+
+	t.Run("send", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+		})
+		server := newHookTestServer(t, db, ps, hookConsumer(t, consumerResponse))
+
+		_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:    chat.ID,
+			CreatedBy: user.ID,
+			Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("blocked prompt")},
+			APIKeyID:  testAPIKeyID(t, db, user.ID),
+		})
+		var denied *chatd.UserPromptDeniedError
+		require.ErrorAs(t, err, &denied)
+		require.Equal(t, "blocked", denied.UserMessage)
+
+		updated, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.True(t, updated.Archived, "denied end_chat must archive the chat")
+		require.Equal(t, database.ChatStatusWaiting, updated.Status)
+		messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+		require.NoError(t, err)
+		require.Empty(t, messages, "denied prompt must not persist")
+	})
+
+	t.Run("edit", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+		})
+		apiKeyID := testAPIKeyID(t, db, user.ID)
+		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("original")})
+		require.NoError(t, err)
+		inserted, err := db.InsertChatMessages(ctx, chatd.BuildSingleUserChatMessageInsertParams(
+			chat.ID, apiKeyID, content, database.ChatMessageVisibilityBoth, model.ID, chatprompt.CurrentContentVersion, user.ID,
+		))
+		require.NoError(t, err)
+		require.Len(t, inserted, 1)
+		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var request agenthooks.Request
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+			response := `{}`
+			if request.Type == agenthooks.EventUserPromptSubmit {
+				response = consumerResponse
+			}
+			_, err := w.Write([]byte(response))
+			require.NoError(t, err)
+		}))
+		t.Cleanup(consumer.Close)
+		server := newHookTestServer(t, db, ps, consumer)
+
+		_, err = server.EditMessage(ctx, chatd.EditMessageOptions{
+			ChatID:          chat.ID,
+			CreatedBy:       user.ID,
+			EditedMessageID: inserted[0].ID,
+			Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
+			APIKeyID:        apiKeyID,
+		})
+		var denied *chatd.UserPromptDeniedError
+		require.ErrorAs(t, err, &denied)
+
+		updated, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.True(t, updated.Archived, "denied end_chat must archive the chat")
+		lastUser, err := db.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
+			ChatID: chat.ID,
+			Role:   database.ChatMessageRoleUser,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "original", hookMessageText(t, lastUser),
+			"denied edit must keep the original message")
+	})
+}
+
 func newHookDispatcher(t *testing.T, db database.Store, consumer *httptest.Server) *chathooks.Dispatcher {
 	t.Helper()
 	return chathooks.New(

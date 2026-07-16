@@ -466,9 +466,40 @@ func (p *Server) dispatchUserPromptSubmit(
 		return agenthooks.Response{}, err
 	}
 	if response.Permission != nil && response.Permission.Decision == agenthooks.PermissionDeny {
-		return agenthooks.Response{}, &UserPromptDeniedError{UserMessage: response.UserMessage}
+		// Return the response alongside the error so callers can honor
+		// an end_chat instruction that accompanied the denial.
+		return response, &UserPromptDeniedError{UserMessage: response.UserMessage}
 	}
 	return response, nil
+}
+
+// endChatAfterPromptDenial archives a chat whose lifecycle hook denied
+// a prompt and simultaneously instructed Coder to end the chat. A chat
+// that is already archived or gone satisfies the instruction, so those
+// transition failures are ignored.
+func (p *Server) endChatAfterPromptDenial(ctx context.Context, chatID uuid.UUID) error {
+	var ended database.Chat
+	machine := p.newChatMachine(chatID)
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		if _, err := tx.EndChat(chatstate.EndChatInput{}); err != nil {
+			return err
+		}
+		chat, err := store.GetChatByID(ctx, chatID)
+		if err != nil {
+			return xerrors.Errorf("reload ended chat: %w", err)
+		}
+		ended = chat
+		return nil
+	})
+	if errors.Is(err, chatstate.ErrTransitionNotAllowed) || errors.Is(err, chatstate.ErrChatNotFound) {
+		return nil
+	}
+	if err != nil {
+		return xerrors.Errorf("end chat after prompt denial: %w", err)
+	}
+	p.scheduleArchiveDebugCleanup(ctx, []database.Chat{ended})
+	p.publishChatPubsubEvent(ended, codersdk.ChatWatchEventKindDeleted, nil)
+	return nil
 }
 
 func (p *Server) handleUserPromptDispatchError(ctx context.Context, chatID uuid.UUID, dispatchErr error) error {

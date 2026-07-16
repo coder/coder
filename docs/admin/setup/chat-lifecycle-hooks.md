@@ -94,6 +94,7 @@ Permission rules depend on the event:
   Coder persists the replacement with the tool call and executes the tool with it.
 - For either event, `deny` blocks the input.
   A denied prompt isn't persisted, and a denied tool call becomes a synthetic error result so the model can choose another action.
+  A `user_prompt_submit` denial that also sets `end_chat` rejects the prompt and ends the existing chat. During chat creation there is no chat to end.
 - For all other events, omit `permission`.
 
 ## Plan failure recovery

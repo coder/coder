@@ -1489,6 +1489,13 @@ func (p *Server) SendMessage(
 		}
 		hookResponse, err = p.dispatchUserPromptSubmit(ctx, chat, turnID, contentParts)
 		if err != nil {
+			var denied *UserPromptDeniedError
+			if errors.As(err, &denied) && hookResponse.EndChat {
+				if endErr := p.endChatAfterPromptDenial(ctx, opts.ChatID); endErr != nil {
+					return SendMessageResult{}, errors.Join(err, endErr)
+				}
+				return SendMessageResult{}, err
+			}
 			return SendMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, err)
 		}
 		override, overridden, err := userPromptOverride(hookResponse)
@@ -1823,6 +1830,13 @@ func (p *Server) EditMessage(
 		}
 		hookResponse, err = p.dispatchUserPromptSubmit(ctx, chat, turnID, contentParts)
 		if err != nil {
+			var denied *UserPromptDeniedError
+			if errors.As(err, &denied) && (hookResponse.EndChat || sessionStartResponse.EndChat) {
+				if endErr := p.endChatAfterPromptDenial(ctx, opts.ChatID); endErr != nil {
+					return EditMessageResult{}, errors.Join(err, endErr)
+				}
+				return EditMessageResult{}, err
+			}
 			return EditMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, err)
 		}
 		override, overridden, err := userPromptOverride(hookResponse)
