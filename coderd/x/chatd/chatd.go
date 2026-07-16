@@ -120,6 +120,12 @@ var (
 			"to stop the workspace, then start_workspace to start it " +
 			"again",
 	)
+	errChatAgentNeverConnected = xerrors.New(
+		"workspace agent never connected and its connection timeout has " +
+			"elapsed, so it cannot execute tools. To recover, call " +
+			"stop_workspace to stop the workspace, then start_workspace " +
+			"to start it again",
+	)
 	errChatDialTimeout = xerrors.New(
 		"connection to the workspace agent timed out. " +
 			"The agent may still be reachable on the next attempt.",
@@ -846,17 +852,17 @@ func agentDisconnectedFor(now time.Time, agent database.WorkspaceAgent, inactive
 	return disconnectedFor, true
 }
 
-func (c *turnWorkspaceContext) latestWorkspaceAgentNeedsRestart(
+func (c *turnWorkspaceContext) latestWorkspaceAgentRecoveryError(
 	ctx context.Context,
 	workspaceID uuid.UUID,
-) (bool, error) {
+) error {
 	agentID, err := c.latestWorkspaceAgentID(ctx, workspaceID)
 	if err != nil {
 		if xerrors.Is(err, errChatHasNoWorkspaceAgent) {
-			return false, err
+			return err
 		}
 		c.server.logger.Warn(ctx, "failed to resolve latest agent for timeout classification", slog.Error(err))
-		return false, nil
+		return errChatDialTimeout
 	}
 
 	agent, err := c.server.db.GetWorkspaceAgentByID(ctx, agentID)
@@ -865,11 +871,24 @@ func (c *turnWorkspaceContext) latestWorkspaceAgentNeedsRestart(
 			slog.F("agent_id", agentID),
 			slog.Error(err),
 		)
-		return false, nil
+		return errChatDialTimeout
 	}
 
-	disconnectedFor, disconnected := agentDisconnectedFor(c.server.clock.Now(), agent, c.server.agentInactiveDisconnectTimeout)
-	return disconnected && disconnectedFor >= agentDisconnectedRecoveryThreshold, nil
+	now := c.server.clock.Now()
+	status := agent.Status(now, c.server.agentInactiveDisconnectTimeout)
+	recoveryErr := errChatDialTimeout
+	if status.Status == database.WorkspaceAgentStatusTimeout {
+		recoveryErr = errChatAgentNeverConnected
+	} else if status.Status == database.WorkspaceAgentStatusDisconnected && status.DisconnectedAt != nil {
+		disconnectedFor := now.Sub(*status.DisconnectedAt)
+		if disconnectedFor < 0 {
+			disconnectedFor = 0
+		}
+		if disconnectedFor >= agentDisconnectedRecoveryThreshold {
+			recoveryErr = errChatAgentDisconnected
+		}
+	}
+	return c.externalAgentError(ctx, agent, recoveryErr)
 }
 
 func (c *turnWorkspaceContext) externalAgentError(
@@ -1002,14 +1021,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			// propagate unchanged so the chatloop can detect it.
 			if ctx.Err() == nil && errors.Is(context.Cause(dialCtx), errChatDialTimeout) {
 				c.clearCachedWorkspaceState()
-				needsRestart, statusErr := c.latestWorkspaceAgentNeedsRestart(ctx, chatSnapshot.WorkspaceID.UUID)
-				if statusErr != nil {
-					return nil, statusErr
-				}
-				if needsRestart {
-					return nil, c.externalAgentError(ctx, agent, errChatAgentDisconnected)
-				}
-				return nil, c.externalAgentError(ctx, agent, errChatDialTimeout)
+				return nil, c.latestWorkspaceAgentRecoveryError(ctx, chatSnapshot.WorkspaceID.UUID)
 			}
 			return nil, err
 		}
