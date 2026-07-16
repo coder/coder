@@ -727,6 +727,43 @@ func TestExecutionSweepTokenOnlyRows(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, database.ChatToolCallExecutionStatusCanceled, row.Status)
+		// The probed handle was adopted onto the row.
+		require.Equal(t, "proc-token", row.ProcessID.String)
+	})
+
+	t.Run("FoundProcessAdoptedBeforeKill", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		record := seedTokenOnlyCancelRequested(ctx, t, db, 10*time.Minute, false)
+
+		// The kill fails transiently after the probe found the
+		// process; the row must keep the adopted handle so the
+		// sweep can retry through the durable identity.
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		conn.EXPECT().ProcessByToken(gomock.Any(), record.ID.String()).
+			Return(workspacesdk.ProcessByTokenResponse{Found: true, ProcessID: "proc-adopt"}, nil)
+		conn.EXPECT().SignalProcess(gomock.Any(), "proc-adopt", "kill").
+			Return(xerrors.New("transient signal failure"))
+		r := executionReconciler{
+			store:  db,
+			logger: slogtest.Make(t, nil),
+			agentConn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return conn, func() {}, nil
+			},
+		}
+		r.sweepOnce(ctx, dbtime.Now())
+
+		row, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, row.Status)
+		require.Equal(t, "proc-adopt", row.ProcessID.String)
+		require.True(t, row.WorkspaceAgentID.Valid)
 	})
 
 	t.Run("BackgroundFoundByTokenDetaches", func(t *testing.T) {

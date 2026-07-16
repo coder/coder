@@ -13374,14 +13374,14 @@ func TestInterruptProbesUnrecordedExecute(t *testing.T) {
 	require.Equal(t, "tc-exec-probe", result.ToolCallID)
 	require.True(t, result.IsError)
 
-	// The probe found the unrecorded process and the kill was
-	// confirmed: the row resolves to canceled with the signal
-	// stamp, still without a recorded process identity.
+	// The probe found the unrecorded process, adopted its handle
+	// onto the row, and the kill was confirmed: the row resolves
+	// to canceled with the signal stamp and the adopted identity.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		row, ok := lookupExecutionRow(ctx, db, chat.ID, "tc-exec-probe")
 		return ok &&
 			row.Status == database.ChatToolCallExecutionStatusCanceled &&
-			!row.ProcessID.Valid &&
+			row.ProcessID.String == "proc-probe" &&
 			row.CancelSignalSentAt.Valid &&
 			row.ResultCommittedAt.Valid
 	}, testutil.IntervalFast)

@@ -1053,11 +1053,20 @@ func (r executionReconciler) reconcileCancelRequestedByToken(ctx context.Context
 			return
 		}
 		if resp.Found {
+			// Persist the probed handle before acting on it: a
+			// transient kill failure then leaves a row with
+			// durable process identity for the sweep, instead of
+			// a token-only row whose process may keep running.
+			record, adopted := r.adoptProbedProcess(ctx, record, resp.ProcessID)
 			if record.Background {
-				// The interrupt spares background processes;
-				// adopt the probed handle and detach instead of
-				// killing.
-				r.adoptBackgroundAndDetach(ctx, record, resp.ProcessID)
+				// The interrupt spares background processes:
+				// resolve to detached without signaling. Without
+				// the handle write the row must stay
+				// cancel_requested (no detach without a durable
+				// handle); the sweep re-probes and retries.
+				if adopted {
+					r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusDetached, sql.NullTime{})
+				}
 				return
 			}
 			r.killAndConfirm(ctx, conn, record, resp.ProcessID)
@@ -1118,19 +1127,17 @@ func (r executionReconciler) resolveInterruptedWithoutProbe(ctx context.Context,
 	r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, sql.NullTime{})
 }
 
-// adoptBackgroundAndDetach resolves a background cancel_requested
-// row whose process the token probe found: the interrupt spares
-// background processes, so the handle is recorded on the row and it
-// resolves to detached without signaling. A failed handle write
-// leaves the row cancel_requested for the next sweep, keeping the
-// no-detach-without-handle invariant.
-func (r executionReconciler) adoptBackgroundAndDetach(ctx context.Context, record database.ChatToolCallExecution, processID string) {
+// adoptProbedProcess records a process handle discovered through
+// the token probe onto the cancel_requested row, under the row's
+// existing claim epoch and with the claim time as the started_at
+// lower bound. A failed write leaves the row token-only; the sweep
+// re-probes it.
+func (r executionReconciler) adoptProbedProcess(ctx context.Context, record database.ChatToolCallExecution, processID string) (database.ChatToolCallExecution, bool) {
 	startedAt := dbtime.Now()
 	if record.ClaimedAt.Valid {
-		// The claim time is the lower bound of the true start.
 		startedAt = record.ClaimedAt.Time
 	}
-	_, err := r.store.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
+	updated, err := r.store.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
 		ChatID:             record.ChatID,
 		AssistantMessageID: record.AssistantMessageID,
 		ToolCallID:         record.ToolCallID,
@@ -1140,15 +1147,15 @@ func (r executionReconciler) adoptBackgroundAndDetach(ctx context.Context, recor
 		StartedAt:          startedAt,
 	})
 	if err != nil {
-		r.logger.Warn(ctx, "failed to record probed background process on interrupted execution",
+		r.logger.Warn(ctx, "failed to record probed process on interrupted execution",
 			slog.F("chat_id", record.ChatID),
 			slog.F("execution_id", record.ID),
 			slog.F("process_id", processID),
 			slog.Error(err),
 		)
-		return
+		return record, false
 	}
-	r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusDetached, sql.NullTime{})
+	return updated, true
 }
 
 // isAgentNotFound reports a definite HTTP 404 from the agent: the
