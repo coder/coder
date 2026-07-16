@@ -1397,7 +1397,6 @@ func TestExecuteToolRecorder(t *testing.T) {
 		recorder.onMarkStaleClaim = func() {
 			recorder.seed("call-1", chattool.ExecutionRecord{
 				Status:     chattool.ExecutionStatusRunning,
-				Command:    "echo hi",
 				ProcessID:  "proc-1",
 				Timeout:    time.Minute,
 				ClaimEpoch: 1,
@@ -1880,7 +1879,6 @@ func TestExecuteToolRecorder(t *testing.T) {
 		recorder := newFakeRecorder()
 		recorder.seed("call-1", chattool.ExecutionRecord{
 			Status:    chattool.ExecutionStatusStarting,
-			Command:   "echo hi",
 			Timeout:   time.Minute,
 			ClaimedAt: time.Now().Add(-chattool.TokenTrustWindow - time.Minute),
 		})
