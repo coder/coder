@@ -3,6 +3,7 @@ package testutil
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -23,6 +24,10 @@ import (
 // context argument for cancellation if required.
 func Eventually(ctx context.Context, t testing.TB, condition func(ctx context.Context) (done bool), tick time.Duration, msgAndArgs ...interface{}) (done bool) {
 	t.Helper()
+	started := time.Now()
+	defer func() {
+		recordEventually(t, time.Since(started))
+	}()
 
 	if _, ok := ctx.Deadline(); !ok {
 		panic("developer error: must set deadline or timeout on ctx")
@@ -53,4 +58,11 @@ func Eventually(ctx context.Context, t testing.TB, condition func(ctx context.Co
 			}
 		}
 	}
+}
+
+func recordEventually(t testing.TB, duration time.Duration) {
+	if os.Getenv("CODER_TESTMETRICS") != "1" {
+		return
+	}
+	_, _ = fmt.Fprintf(os.Stderr, "CODER_TESTMETRICS eventually_ns=%d test=%s\n", duration.Nanoseconds(), t.Name())
 }

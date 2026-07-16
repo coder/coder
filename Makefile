@@ -1686,6 +1686,10 @@ test-tailnet-integration:
 # Note: we used to add this to the test target, but it's not necessary and we can
 # achieve the desired result by specifying -count=1 in the go test invocation
 # instead. Keeping it here for convenience.
+test-metrics:
+	go run ./scripts/testmetrics -packages "$(TEST_PACKAGES)" -run "$(or $(RUN),.*)" -output "$(or $(TEST_METRICS_OUTPUT),testmetrics.csv)"
+.PHONY: test-metrics
+
 test-clean:
 	go clean -testcache
 .PHONY: test-clean
