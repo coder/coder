@@ -1,4 +1,4 @@
-import { BanIcon, InfoIcon, TriangleAlertIcon } from "lucide-react";
+import { BanIcon, InfoIcon } from "lucide-react";
 import type { FC } from "react";
 import type { AIBridgeSessionNetworkCallSummary } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -60,12 +60,6 @@ export const NetworkCallBadges: FC<NetworkCallBadgesProps> = ({
 							<BanIcon className="flex-shrink-0" />
 							{summary.blocked.toLocaleString("en-US")}
 						</Badge>
-						{summary.errored > 0 && (
-							<Badge variant="destructive" size={size} svgSize="sm">
-								<TriangleAlertIcon className="flex-shrink-0" />
-								{summary.errored.toLocaleString("en-US")}
-							</Badge>
-						)}
 					</span>
 				</TooltipTrigger>
 				<TooltipContent
@@ -81,10 +75,6 @@ export const NetworkCallBadges: FC<NetworkCallBadgesProps> = ({
 						<div className="flex items-center justify-between gap-4">
 							<span className="text-content-secondary">Blocked</span>
 							<span>{summary.blocked.toLocaleString("en-US")}</span>
-						</div>
-						<div className="flex items-center justify-between gap-4">
-							<span className="text-content-secondary">Errored</span>
-							<span>{summary.errored.toLocaleString("en-US")}</span>
 						</div>
 					</div>
 				</TooltipContent>

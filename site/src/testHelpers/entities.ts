@@ -5526,7 +5526,6 @@ export const MockSession: TypesGen.AIBridgeSession = {
 	network_calls: {
 		total: 23,
 		blocked: 2,
-		errored: 0,
 	},
 	last_prompt: "But *can* I really fix it?",
 	last_active_at: "2026-03-09T10:28:15.03152Z",

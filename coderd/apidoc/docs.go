@@ -15098,7 +15098,7 @@ const docTemplate = `{
                     }
                 },
                 "network_calls": {
-                    "description": "NetworkCalls summarizes the tool/network calls made during the session.\nA nil value means network call monitoring was not active for the\nsession, which the UI surfaces as \"Disabled\".",
+                    "description": "NetworkCalls summarizes the Agent Firewall network calls made during the\nsession. A nil value means the session did not pass through Agent\nFirewall, so network call monitoring was not active, which the UI\nsurfaces as \"Disabled\".",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.AIBridgeSessionNetworkCallSummary"
@@ -15127,9 +15127,6 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "blocked": {
-                    "type": "integer"
-                },
-                "errored": {
                     "type": "integer"
                 },
                 "total": {

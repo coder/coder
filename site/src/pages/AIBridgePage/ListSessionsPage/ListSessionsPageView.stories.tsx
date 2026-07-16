@@ -106,14 +106,14 @@ export const MultipleSessions: Story = {
 				cache_read_input_tokens: 800 * (i + 1),
 				cache_write_input_tokens: 50 * (i + 1),
 			},
-			// Span every network call state: total/blocked, total/blocked/error,
-			// no activity, disabled, and total with nothing blocked.
+			// Span every network call state: total with blocked, no activity,
+			// disabled, and total with nothing blocked.
 			network_calls: [
-				{ total: 23, blocked: 2, errored: 0 },
-				{ total: 23, blocked: 2, errored: 1 },
-				{ total: 0, blocked: 0, errored: 0 },
+				{ total: 23, blocked: 2 },
+				{ total: 5, blocked: 1 },
+				{ total: 0, blocked: 0 },
 				undefined,
-				{ total: 150, blocked: 0, errored: 0 },
+				{ total: 150, blocked: 0 },
 			][i],
 		})),
 	},

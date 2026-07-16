@@ -2115,7 +2115,10 @@ SELECT
 	COALESCE(st.cache_read_input_tokens, 0)::bigint AS cache_read_input_tokens,
 	COALESCE(st.cache_write_input_tokens, 0)::bigint AS cache_write_input_tokens,
 	COALESCE(slp.prompt, '') AS last_prompt,
-	sp.last_active_at AS last_active_at
+	sp.last_active_at AS last_active_at,
+	COALESCE(bnc.total, 0)::bigint AS network_calls_total,
+	COALESCE(bnc.blocked, 0)::bigint AS network_calls_blocked,
+	COALESCE(sr.firewall_active, false) AS firewall_active
 FROM
 	session_page sp
 JOIN
@@ -2126,7 +2129,11 @@ LEFT JOIN LATERAL (
 		(ARRAY_AGG(ai.metadata ORDER BY ai.started_at, ai.id))[1] AS metadata,
 		ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider) AS providers,
 		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model) AS models,
-		ARRAY_AGG(ai.id) AS interception_ids
+		ARRAY_AGG(ai.id) AS interception_ids,
+		-- firewall_active reports whether any interception in the session
+		-- passed through Agent Firewall. When false, network call monitoring
+		-- was not active and db2sdk leaves NetworkCalls nil ("Disabled").
+		BOOL_OR(ai.agent_firewall_session_id IS NOT NULL) AS firewall_active
 	FROM aibridge_interceptions ai
 	WHERE ai.session_id = sp.session_id
 		AND ai.initiator_id = sp.initiator_id
@@ -2151,6 +2158,33 @@ LEFT JOIN LATERAL (
 	ORDER BY up.created_at DESC, up.id DESC
 	LIMIT 1
 ) slp ON true
+LEFT JOIN LATERAL (
+	-- Count Agent Firewall network calls attributed to this session. Each
+	-- interception marks a point in its firewall session's monotonic sequence
+	-- stream; the boundary logs it triggered fall in the open interval
+	-- (this seq, next interception's seq) within the same firewall session.
+	-- The exclusive lower bound drops the interception's own LLM-provider call
+	-- (logged at exactly its sequence number), leaving the agent's other
+	-- egress. next_seq considers all interceptions in the firewall session so
+	-- windows never bleed across AI sessions that share one firewall session.
+	SELECT
+		COUNT(bl.id)::bigint AS total,
+		COUNT(bl.id) FILTER (WHERE bl.matched_rule IS NULL)::bigint AS blocked
+	FROM aibridge_interceptions afi
+	LEFT JOIN LATERAL (
+		SELECT MIN(nxt.agent_firewall_sequence_number) AS next_seq
+		FROM aibridge_interceptions nxt
+		WHERE nxt.agent_firewall_session_id = afi.agent_firewall_session_id
+			AND nxt.agent_firewall_sequence_number > afi.agent_firewall_sequence_number
+	) w ON true
+	JOIN boundary_logs bl
+		ON bl.session_id = afi.agent_firewall_session_id
+		AND bl.sequence_number > afi.agent_firewall_sequence_number
+		AND (w.next_seq IS NULL OR bl.sequence_number < w.next_seq)
+	WHERE afi.id = ANY(sr.interception_ids)
+		AND afi.agent_firewall_session_id IS NOT NULL
+		AND afi.agent_firewall_sequence_number IS NOT NULL
+) bnc ON true
 ORDER BY
 	sp.last_active_at DESC,
 	sp.session_id DESC
@@ -2189,6 +2223,9 @@ type ListAIBridgeSessionsRow struct {
 	CacheWriteInputTokens int64           `db:"cache_write_input_tokens" json:"cache_write_input_tokens"`
 	LastPrompt            string          `db:"last_prompt" json:"last_prompt"`
 	LastActiveAt          time.Time       `db:"last_active_at" json:"last_active_at"`
+	NetworkCallsTotal     int64           `db:"network_calls_total" json:"network_calls_total"`
+	NetworkCallsBlocked   int64           `db:"network_calls_blocked" json:"network_calls_blocked"`
+	FirewallActive        bool            `db:"firewall_active" json:"firewall_active"`
 }
 
 // Returns paginated sessions with aggregated metadata, token counts, and
@@ -2198,13 +2235,6 @@ type ListAIBridgeSessionsRow struct {
 // Pagination-first strategy: identify the page of sessions cheaply via a
 // single GROUP BY scan, then do expensive lateral joins (tokens, prompts,
 // first-interception metadata) only for the ~page-size result set.
-// TODO(aibridge network calls): add a LEFT JOIN LATERAL over
-// aibridge_tool_usages (keyed by sr.interception_ids, mirroring the token
-// aggregation above) to compute total / blocked / errored network call counts
-// per session, then expose them as columns for db2sdk.AIBridgeSession to map
-// onto AIBridgeSession.NetworkCalls. The count expressions already exist in
-// CalculateAIBridgeInterceptionsTelemetrySummary (injected filters and
-// invocation_error IS NOT NULL).
 func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeSessionsParams) ([]ListAIBridgeSessionsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAIBridgeSessions,
 		arg.AfterSessionID,
@@ -2245,6 +2275,9 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 			&i.CacheWriteInputTokens,
 			&i.LastPrompt,
 			&i.LastActiveAt,
+			&i.NetworkCallsTotal,
+			&i.NetworkCallsBlocked,
+			&i.FirewallActive,
 		); err != nil {
 			return nil, err
 		}

@@ -66,9 +66,10 @@ type AIBridgeSession struct {
 	EndedAt           *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	Threads           int64                            `json:"threads"`
 	TokenUsageSummary AIBridgeSessionTokenUsageSummary `json:"token_usage_summary"`
-	// NetworkCalls summarizes the tool/network calls made during the session.
-	// A nil value means network call monitoring was not active for the
-	// session, which the UI surfaces as "Disabled".
+	// NetworkCalls summarizes the Agent Firewall network calls made during the
+	// session. A nil value means the session did not pass through Agent
+	// Firewall, so network call monitoring was not active, which the UI
+	// surfaces as "Disabled".
 	NetworkCalls *AIBridgeSessionNetworkCallSummary `json:"network_calls,omitempty"`
 	LastPrompt   *string                            `json:"last_prompt,omitempty"`
 	LastActiveAt time.Time                          `json:"last_active_at" format:"date-time"`
@@ -81,13 +82,12 @@ type AIBridgeSessionTokenUsageSummary struct {
 	CacheWriteInputTokens int64 `json:"cache_write_input_tokens"`
 }
 
-// AIBridgeSessionNetworkCallSummary aggregates the tool/network calls made
-// during a session. Blocked counts calls denied by policy; Errored counts
-// calls that failed to complete.
+// AIBridgeSessionNetworkCallSummary aggregates the Agent Firewall network
+// calls made during a session. Blocked counts calls denied by the firewall
+// allow-list.
 type AIBridgeSessionNetworkCallSummary struct {
 	Total   int64 `json:"total"`
 	Blocked int64 `json:"blocked"`
-	Errored int64 `json:"errored"`
 }
 
 type AIBridgeListSessionsResponse struct {

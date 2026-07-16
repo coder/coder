@@ -4668,7 +4668,7 @@ CREATE INDEX idx_ai_providers_enabled ON ai_providers USING btree (enabled) WHER
 
 CREATE INDEX idx_ai_user_daily_spend_effective_group_id_day ON ai_user_daily_spend USING btree (effective_group_id, day);
 
-CREATE INDEX idx_aibridge_interceptions_agent_firewall_session_id ON aibridge_interceptions USING btree (agent_firewall_session_id) WHERE (agent_firewall_session_id IS NOT NULL);
+CREATE INDEX idx_aibridge_interceptions_agent_firewall_session_seq ON aibridge_interceptions USING btree (agent_firewall_session_id, agent_firewall_sequence_number) WHERE (agent_firewall_session_id IS NOT NULL);
 
 CREATE INDEX idx_aibridge_interceptions_client ON aibridge_interceptions USING btree (client);
 
