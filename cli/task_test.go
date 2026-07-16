@@ -278,6 +278,19 @@ func fakeAgentAPIEcho(ctx context.Context, t testing.TB, initMsg agentapisdk.Mes
 	}
 }
 
+// setupCLITaskTestOpts controls optional behavior of setupCLITaskTest.
+type setupCLITaskTestOpts struct {
+	skipInitialAppStatus bool
+}
+
+type setupCLITaskTestOpt func(*setupCLITaskTestOpts)
+
+// withoutInitialAppStatus skips the default idle status, avoiding
+// timestamp collisions on platforms with coarse time.Now() resolution.
+func withoutInitialAppStatus() setupCLITaskTestOpt {
+	return func(o *setupCLITaskTestOpts) { o.skipInitialAppStatus = true }
+}
+
 // setupCLITaskTest creates a test workspace with an AI task template and agent,
 // with a fake agent API configured with the provided set of handlers.
 // Returns the user client and workspace.
@@ -290,8 +303,13 @@ type setupCLITaskTestResult struct {
 	agent       agent.Agent
 }
 
-func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[string]http.HandlerFunc) setupCLITaskTestResult {
+func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[string]http.HandlerFunc, opts ...setupCLITaskTestOpt) setupCLITaskTestResult {
 	t.Helper()
+
+	setupOpts := setupCLITaskTestOpts{}
+	for _, opt := range opts {
+		opt(&setupOpts)
+	}
 
 	ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
@@ -324,13 +342,15 @@ func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[st
 	coderdtest.NewWorkspaceAgentWaiter(t, userClient, workspace.ID).
 		WaitFor(coderdtest.AgentsReady)
 
-	// Report the task app as idle so that waitForTaskIdle can proceed.
-	err = agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
-		AppSlug: "task-sidebar",
-		State:   codersdk.WorkspaceAppStatusStateIdle,
-		Message: "ready",
-	})
-	require.NoError(t, err)
+	if !setupOpts.skipInitialAppStatus {
+		// Report the task app as idle so that waitForTaskIdle can proceed.
+		err = agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+			AppSlug: "task-sidebar",
+			State:   codersdk.WorkspaceAppStatusStateIdle,
+			Message: "ready",
+		})
+		require.NoError(t, err)
+	}
 
 	return setupCLITaskTestResult{
 		ownerClient: ownerClient,

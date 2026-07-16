@@ -589,9 +589,13 @@ func TestSubscribeError(t *testing.T) {
 			})
 			require.ErrorIs(t, err, assert.AnError)
 			require.Nil(t, cancel)
-			ps.mu.Lock()
-			defer ps.mu.Unlock()
-			require.Empty(t, ps.subscriptions)
+			// subscribeDone closes before failed-group cleanup to avoid a
+			// lock-order deadlock, so SubscribeWithErr may return first.
+			require.Eventually(t, func() bool {
+				ps.mu.Lock()
+				defer ps.mu.Unlock()
+				return len(ps.subscriptions) == 0
+			}, testutil.WaitShort, testutil.IntervalFast)
 		})
 	}
 }
@@ -613,13 +617,19 @@ func defaultTestOptions() Options {
 	return Options{disableCluster: true}
 }
 
+// testClusterTLSTimeout relaxes the cluster route TLS handshake timeout in
+// tests. NATS defaults to a tight 2s, which is flaky under load and in CI;
+// production keeps the default until it is shown to need changing.
+const testClusterTLSTimeout = 10 * time.Second
+
 func clusterTestOptions(t *testing.T) Options {
 	t.Helper()
 	return Options{
-		ClusterHost:      "127.0.0.1",
-		ClusterPort:      natsserver.RANDOM_PORT,
-		disableCluster:   false,
-		ClusterAuthToken: fmt.Sprintf("shared-token-%d", time.Now().UnixNano()),
+		ClusterHost:       "127.0.0.1",
+		ClusterPort:       natsserver.RANDOM_PORT,
+		disableCluster:    false,
+		ClusterAuthToken:  fmt.Sprintf("shared-token-%d", time.Now().UnixNano()),
+		clusterTLSTimeout: testClusterTLSTimeout,
 	}
 }
 

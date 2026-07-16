@@ -39,7 +39,7 @@ following:
 
 Here's an example Dockerfile:
 
-```Dockerfile
+```dockerfile
 FROM ghcr.io/coder/coder:latest
 
 USER root
@@ -147,13 +147,13 @@ filesystem mirror without re-building the image.
 
 First, create an empty plugins directory:
 
-```shell
+```sh
 mkdir $HOME/plugins
 ```
 
 Next, add a volume mount to compose.yaml:
 
-```shell
+```sh
 vim compose.yaml
 ```
 

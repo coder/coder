@@ -1,4 +1,6 @@
 import type { FC } from "react";
+import { useQuery } from "react-query";
+import { meAISpend } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {
@@ -7,10 +9,17 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { severityBorderClassName } from "#/utils/budget";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { getSeverity, type UsageSeverity } from "#/utils/budget";
 import { UserDropdownAISpend } from "./UserDropdownAISpend";
 import { UserDropdownContent } from "./UserDropdownContent";
-import { useAISpend } from "./useAISpend";
+
+const severityBorderClasses = {
+	normal: "border-content-secondary",
+	warning: "border-content-warning",
+	exceeded: "border-content-destructive",
+} as const satisfies Record<UsageSeverity, string>;
 
 interface UserDropdownProps {
 	user: TypesGen.User;
@@ -25,7 +34,32 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 	supportLinks,
 	onSignOut,
 }) => {
-	const spend = useAISpend();
+	const { experiments } = useDashboard();
+	// TODO(AIGOV-443): drop the experiment gate once cost control is stable.
+	const aibridgeVisible =
+		Boolean(useFeatureVisibility().aibridge) &&
+		experiments.includes("ai-gateway-cost-control");
+	const { data, isError } = useQuery({
+		...meAISpend(),
+		enabled: aibridgeVisible,
+	});
+
+	// A null limit is unlimited and still shown.
+	const hasValidSpend =
+		data !== undefined &&
+		data.current_spend_micros >= 0 &&
+		(data.spend_limit_micros === null || data.spend_limit_micros >= 0);
+	const spend =
+		aibridgeVisible && !isError && hasValidSpend
+			? {
+					currentSpend: data.current_spend_micros,
+					spendLimit: data.spend_limit_micros,
+				}
+			: null;
+	const severity =
+		spend && spend.spendLimit !== null
+			? getSeverity(spend.currentSpend, spend.spendLimit)
+			: "normal";
 
 	return (
 		<DropdownMenu>
@@ -38,9 +72,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 						fallback={user.username}
 						src={user.avatar_url}
 						size="lg"
-						className={
-							spend ? severityBorderClassName(spend.severity) : undefined
-						}
+						className={spend ? severityBorderClasses[severity] : undefined}
 					/>
 				</button>
 			</DropdownMenuTrigger>
@@ -50,10 +82,12 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 					user={user}
 					buildInfo={buildInfo}
 					profileExtra={
-						<UserDropdownAISpend
-							spend={spend}
-							header={<DropdownMenuSeparator />}
-						/>
+						spend && (
+							<>
+								<DropdownMenuSeparator />
+								<UserDropdownAISpend {...spend} />
+							</>
+						)
 					}
 					supportLinks={supportLinks}
 					onSignOut={onSignOut}

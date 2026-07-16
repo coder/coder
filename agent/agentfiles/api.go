@@ -8,20 +8,46 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentgit"
+	"github.com/coder/coder/v2/agent/usershell"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 // API exposes file-related operations performed through the agent.
 type API struct {
-	logger     slog.Logger
-	filesystem afero.Fs
-	pathStore  *agentgit.PathStore
+	logger            slog.Logger
+	filesystem        afero.Fs
+	pathStore         *agentgit.PathStore
+	envInfo           usershell.EnvInfoer
+	bundleFilesLimits workspacesdk.BundleFilesLimits
 }
 
-func NewAPI(logger slog.Logger, filesystem afero.Fs, pathStore *agentgit.PathStore) *API {
+// Option configures the API.
+type Option func(*API)
+
+// WithBundleFilesLimits overrides the bundle files collection limits.
+func WithBundleFilesLimits(limits workspacesdk.BundleFilesLimits) Option {
+	return func(api *API) {
+		api.bundleFilesLimits = limits
+	}
+}
+
+// WithEnvInfo overrides how the agent user's home directory is resolved.
+func WithEnvInfo(envInfo usershell.EnvInfoer) Option {
+	return func(api *API) {
+		api.envInfo = envInfo
+	}
+}
+
+func NewAPI(logger slog.Logger, filesystem afero.Fs, pathStore *agentgit.PathStore, opts ...Option) *API {
 	api := &API{
-		logger:     logger,
-		filesystem: filesystem,
-		pathStore:  pathStore,
+		logger:            logger,
+		filesystem:        filesystem,
+		pathStore:         pathStore,
+		envInfo:           usershell.SystemEnvInfo{},
+		bundleFilesLimits: defaultBundleFilesLimits,
+	}
+	for _, opt := range opts {
+		opt(api)
 	}
 	return api
 }
@@ -36,6 +62,7 @@ func (api *API) Routes() http.Handler {
 	r.Get("/read-file-lines", api.HandleReadFileLines)
 	r.Post("/write-file", api.HandleWriteFile)
 	r.Post("/edit-files", api.HandleEditFiles)
+	r.Post("/bundle-files", api.HandleBundleFiles)
 
 	return r
 }

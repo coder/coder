@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"storj.io/drpc"
@@ -381,6 +382,7 @@ func TestAcquireJob(t *testing.T) {
 					externalAuthConfigs: []*externalauth.Config{{
 						ID:                       gitAuthProvider.Id,
 						InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+						RefreshGroup:             new(singleflight.Group),
 					}},
 				})
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)

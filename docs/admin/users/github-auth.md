@@ -34,13 +34,13 @@ To use the default configuration:
 1. By default, only the admin user can sign up.
    To allow additional users to sign up with GitHub, add:
 
-   ```shell
+   ```sh
    CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS=true
    ```
 
 1. (Optional) If you want to limit sign-ups to specific GitHub organizations, set:
 
-   ```shell
+   ```sh
    CODER_OAUTH2_GITHUB_ALLOWED_ORGS="your-org"
    ```
 
@@ -49,7 +49,7 @@ To use the default configuration:
 You can disable the default GitHub app by [configuring your own app](#step-1-configure-the-oauth-application-in-github)
 or by adding the following environment variable to your [Coder server configuration](../../reference/cli/server.md#options):
 
-```shell
+```sh
 CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE=false
 ```
 
@@ -87,7 +87,7 @@ CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE=false
 
 Go to your Coder host and run the following command to start up the Coder server:
 
-```shell
+```sh
 coder server --oauth2-github-allow-signups=true --oauth2-github-allowed-orgs="your-org" --oauth2-github-client-id="8d1...e05" --oauth2-github-client-secret="57ebc9...02c24c"
 ```
 
@@ -98,7 +98,7 @@ Alternatively, if you are running Coder as a system service, you can achieve the
 same result as the command above by adding the following environment variables
 to the `/etc/coder.d/coder.env` file:
 
-```shell
+```sh
 CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS=true
 CODER_OAUTH2_GITHUB_ALLOWED_ORGS="your-org"
 CODER_OAUTH2_GITHUB_CLIENT_ID="8d1...e05"
@@ -136,7 +136,7 @@ coder:
 
 To upgrade Coder, run:
 
-```shell
+```sh
 helm upgrade <release-name> coder-v2/coder -n <namespace> -f values.yaml
 ```
 
@@ -152,7 +152,7 @@ This is enabled by default for the default GitHub app and cannot be disabled for
 
 For your own custom GitHub OAuth app, you can enable device flow by setting:
 
-```shell
+```sh
 CODER_OAUTH2_GITHUB_DEVICE_FLOW=true
 ```
 

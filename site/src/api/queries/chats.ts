@@ -2070,6 +2070,13 @@ export const deleteMCPServerConfig = (queryClient: QueryClient) => ({
 	},
 });
 
+export const disconnectMCPServerOAuth2 = (queryClient: QueryClient) => ({
+	mutationFn: (id: string) => API.experimental.disconnectMCPServerOAuth2(id),
+	onSuccess: async () => {
+		await invalidateMCPServerConfigQueries(queryClient);
+	},
+});
+
 type SetChatUserRoleVariables = {
 	chatId: string;
 	userId: string;

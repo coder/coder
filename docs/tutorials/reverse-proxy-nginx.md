@@ -5,7 +5,7 @@
 1. Start a Coder deployment and be sure to set the following
    [configuration values](../admin/setup/index.md):
 
-   ```env
+   ```dotenv
    CODER_HTTP_ADDRESS=127.0.0.1:3000
    CODER_ACCESS_URL=https://coder.example.com
    CODER_WILDCARD_ACCESS_URL=*.coder.example.com
@@ -24,13 +24,13 @@
 
 3. Install NGINX (assuming you're on Debian/Ubuntu):
 
-   ```shell
+   ```sh
    sudo apt install nginx
    ```
 
 4. Stop NGINX service:
 
-   ```shell
+   ```sh
    sudo systemctl stop nginx
    ```
 
@@ -41,13 +41,13 @@ you're using `coder.example.com` as your subdomain.
 
 1. Create NGINX configuration for this app:
 
-   ```shell
+   ```sh
    sudo touch /etc/nginx/sites-available/coder.example.com
    ```
 
 2. Activate this file:
 
-   ```shell
+   ```sh
    sudo ln -s /etc/nginx/sites-available/coder.example.com /etc/nginx/sites-enabled/coder.example.com
    ```
 
@@ -77,7 +77,7 @@ providers, refer to the
    dns_cloudflare_api_token = YOUR_API_TOKEN
    ```
 
-   ```shell
+   ```sh
    mkdir -p ~/.secrets/certbot
    touch ~/.secrets/certbot/cloudflare.ini
    nano ~/.secrets/certbot/cloudflare.ini
@@ -85,7 +85,7 @@ providers, refer to the
 
 3. Set the correct permissions:
 
-   ```shell
+   ```sh
    sudo chmod 600 ~/.secrets/certbot/cloudflare.ini
    ```
 
@@ -93,7 +93,7 @@ providers, refer to the
 
 1. Create the wildcard certificate:
 
-   ```shell
+   ```sh
    sudo certbot certonly --dns-cloudflare --dns-cloudflare-credentials ~/.secrets/certbot/cloudflare.ini -d coder.example.com -d *.coder.example.com
    ```
 
@@ -101,7 +101,7 @@ providers, refer to the
 
 1. Edit the file with:
 
-   ```shell
+   ```sh
    sudo nano /etc/nginx/sites-available/coder.example.com
    ```
 
@@ -144,7 +144,7 @@ providers, refer to the
 
 3. Test the configuration:
 
-   ```shell
+   ```sh
    sudo nginx -t
    ```
 
@@ -152,26 +152,26 @@ providers, refer to the
 
 1. Create a new file in `/etc/cron.weekly`:
 
-   ```shell
+   ```sh
    sudo touch /etc/cron.weekly/certbot
    ```
 
 2. Make it executable:
 
-   ```shell
+   ```sh
    sudo chmod +x /etc/cron.weekly/certbot
    ```
 
 3. And add this code:
 
-   ```shell
+   ```sh
    #!/bin/sh
    sudo certbot renew -q
    ```
 
 ## Restart NGINX
 
-```shell
+```sh
 sudo systemctl restart nginx
 ```
 

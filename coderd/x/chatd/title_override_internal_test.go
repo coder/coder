@@ -642,15 +642,13 @@ func TestGenerateManualTitleCandidate_ActiveAPIKeyIDFallback(t *testing.T) {
 
 			server := titleOverrideTestServer(db, logger)
 			server.aibridgeTransportFactory = aibridgeTestFactoryPointer(factory)
-			result, err := server.generateManualTitleCandidate(ctx, db, chat)
+			title, err := server.generateManualTitleCandidate(ctx, db, chat)
 			if tt.wantErrContains != "" {
 				require.ErrorContains(t, err, tt.wantErrContains)
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, wantTitle, result.title)
-			require.True(t, result.hasMessages)
-			require.Equal(t, tt.wantAPIKeyID, result.activeAPIKeyID)
+			require.Equal(t, wantTitle, title)
 			require.Equal(t, tt.wantAPIKeyID, testutil.RequireReceive(ctx, t, seenAPIKeyID))
 		})
 	}

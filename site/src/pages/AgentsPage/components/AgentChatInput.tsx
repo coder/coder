@@ -10,6 +10,7 @@ import {
 	PlusIcon,
 	ServerIcon,
 	SquareIcon,
+	UnlinkIcon,
 	XIcon,
 } from "lucide-react";
 import type React from "react";
@@ -20,7 +21,11 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { useMutation, useQueryClient } from "react-query";
 import { Link } from "react-router";
+import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
+import { disconnectMCPServerOAuth2 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type {
 	AgentChatSendShortcut,
@@ -37,6 +42,7 @@ import {
 	CommandItem,
 	CommandList,
 } from "#/components/Command/Command";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Popover,
@@ -428,6 +434,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
 	const [mcpConnectingId, setMcpConnectingId] = useState<string | null>(null);
 	const mcpPopupRef = useRef<Window | null>(null);
+	const [mcpDisconnectTarget, setMcpDisconnectTarget] =
+		useState<TypesGen.MCPServerConfig | null>(null);
+	const queryClient = useQueryClient();
+	const mcpDisconnectMutation = useMutation(
+		disconnectMCPServerOAuth2(queryClient),
+	);
 
 	const [hasFileReferences, setHasFileReferences] = useState(false);
 	const [cycleIndex, setCycleIndex] = useState<number | null>(null);
@@ -552,6 +564,22 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			"_blank",
 			"width=900,height=600",
 		);
+	};
+
+	const handleMcpDisconnectConfirm = () => {
+		if (!mcpDisconnectTarget) {
+			return;
+		}
+		const name = mcpDisconnectTarget.display_name;
+		mcpDisconnectMutation.mutate(mcpDisconnectTarget.id, {
+			onSuccess: () => {
+				setMcpDisconnectTarget(null);
+				toast.success(`Disconnected ${name}.`);
+			},
+			onError: (error) => {
+				toast.error(getErrorMessage(error, `Failed to disconnect ${name}.`));
+			},
+		});
 	};
 
 	const selectedWorkspace = workspaceOptions?.find(
@@ -1400,15 +1428,32 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 																	Auth
 																</Button>
 															) : (
-																<Switch
-																	size="sm"
-																	checked={isSelected}
-																	onCheckedChange={(checked) =>
-																		handleMcpToggle(server.id, checked)
-																	}
-																	disabled={isDisabled || isForceOn}
-																	aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
-																/>
+																<>
+																	{server.auth_type === "oauth2" && (
+																		<Button
+																			variant="subtle"
+																			size="icon"
+																			className="size-6 shrink-0 text-content-secondary [&>svg]:size-3"
+																			onClick={() => {
+																				setPlusMenuOpen(false);
+																				setMcpDisconnectTarget(server);
+																			}}
+																			disabled={isDisabled}
+																			aria-label={`Disconnect ${server.display_name}`}
+																		>
+																			<UnlinkIcon />
+																		</Button>
+																	)}
+																	<Switch
+																		size="sm"
+																		checked={isSelected}
+																		onCheckedChange={(checked) =>
+																			handleMcpToggle(server.id, checked)
+																		}
+																		disabled={isDisabled || isForceOn}
+																		aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
+																	/>
+																</>
 															)}
 														</div>
 													);
@@ -1648,6 +1693,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					}}
 				/>
 			)}
+			<ConfirmDialog
+				open={mcpDisconnectTarget !== null}
+				title={`Disconnect ${mcpDisconnectTarget?.display_name ?? "MCP server"}?`}
+				description="This removes your credentials for this MCP server from Coder. You can authenticate again later."
+				type="delete"
+				confirmText="Disconnect"
+				confirmLoading={mcpDisconnectMutation.isPending}
+				onConfirm={handleMcpDisconnectConfirm}
+				onClose={() => setMcpDisconnectTarget(null)}
+			/>
 		</>
 	);
 };

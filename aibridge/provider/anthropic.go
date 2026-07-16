@@ -79,6 +79,9 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 		if runtimeCfg.Region == "" {
 			runtimeCfg.Region = resolvedRegion
 		}
+		if err := runtimeCfg.Validate(); err != nil {
+			return nil, xerrors.Errorf("bedrock config: %w", err)
+		}
 		bedrock = &messages.BedrockRuntime{Cfg: runtimeCfg, Creds: creds}
 	}
 

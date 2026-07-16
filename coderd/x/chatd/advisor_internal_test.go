@@ -316,6 +316,10 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		providerID := uuid.New()
 		rawOptions, err := json.Marshal(codersdk.ChatModelCallConfig{
 			Temperature: func() *float64 { v := 0.42; return &v }(),
+			ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+				Default: ptr.Ref(codersdk.ChatModelReasoningEffortLow),
+				Max:     ptr.Ref(codersdk.ChatModelReasoningEffortXHigh),
+			},
 		})
 		require.NoError(t, err)
 		store := &advisorOverrideStubStore{
@@ -343,7 +347,10 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		gotModel, gotCfg := p.resolveAdvisorModelOverrideOrFallback(
 			ctx,
 			database.Chat{},
-			codersdk.AdvisorConfig{ModelConfigID: configID},
+			codersdk.AdvisorConfig{
+				ModelConfigID:   configID,
+				ReasoningEffort: ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+			},
 			fallbackModel,
 			fallbackCallConfig,
 			modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
@@ -359,6 +366,9 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		require.Equal(t, "gpt-5.2", gotModel.Model())
 		require.NotNil(t, gotCfg.Temperature)
 		require.InDelta(t, 0.42, *gotCfg.Temperature, 1e-9)
+		require.NotNil(t, gotCfg.ReasoningEffort)
+		require.Equal(t, codersdk.ChatModelReasoningEffortHigh, *gotCfg.ReasoningEffort.Default)
+		require.Equal(t, codersdk.ChatModelReasoningEffortHigh, *gotCfg.ReasoningEffort.Max)
 	})
 	t.Run("AIProviderIDResolvesOverrideProviderKeys", func(t *testing.T) {
 		t.Parallel()

@@ -234,18 +234,14 @@ describe("getWorkspaceAgent", () => {
 		);
 	});
 
-	it("returns the first agent when workspaceAgentId does not match", () => {
+	it("returns undefined when workspaceAgentId does not match", () => {
 		const ws = buildWorkspace([buildAgent("a1"), buildAgent("a2")]);
-		expect(getWorkspaceAgent(ws, "no-match")).toEqual(
-			expect.objectContaining({ id: "a1" }),
-		);
+		expect(getWorkspaceAgent(ws, "no-match")).toBeUndefined();
 	});
 
-	it("returns the first agent when workspaceAgentId is undefined", () => {
+	it("returns undefined when workspaceAgentId is undefined", () => {
 		const ws = buildWorkspace([buildAgent("a1")]);
-		expect(getWorkspaceAgent(ws, undefined)).toEqual(
-			expect.objectContaining({ id: "a1" }),
-		);
+		expect(getWorkspaceAgent(ws, undefined)).toBeUndefined();
 	});
 
 	it("collects agents from multiple resources", () => {
