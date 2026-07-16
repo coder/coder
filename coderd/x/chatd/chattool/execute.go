@@ -250,7 +250,7 @@ type ProcessToolOptions struct {
 type ExecuteArgs struct {
 	Command         string  `json:"command" description:"The shell command to execute. Runs under \"sh -c\" (POSIX)."`
 	ModelIntent     *string `json:"model_intent,omitempty" description:"A short, natural-language, present-participle phrase describing what you are doing. This is shown to the user alongside the command. Use plain English with no underscores or technical jargon. The UI appends \"using <command>\" and \"for <duration>\" automatically, so do not repeat the command or include a duration. Keep it under 100 characters. Good examples: \"Running the unit tests\", \"Checking repository state\", \"Inspecting build output\"."`
-	Timeout         *string `json:"timeout,omitempty" description:"How long to wait for completion (e.g. '30s', '5m'). Default is 10s. The process keeps running if this expires and you get a background_process_id to re-attach. Only applies to foreground commands."`
+	Timeout         *string `json:"timeout,omitempty" description:"How long to wait for completion (e.g. '30s', '5m'). Default is 10s, maximum is 4h (longer values are clamped). The process keeps running if this expires and you get a background_process_id to re-attach. Only applies to foreground commands."`
 	WorkDir         *string `json:"workdir,omitempty" description:"Working directory for the command."`
 	RunInBackground *bool   `json:"run_in_background,omitempty" description:"Run without blocking. Use for persistent processes (dev servers, file watchers) or when you want to continue working while a command runs and check the result later with process_output. For commands whose result you need before continuing, prefer foreground with a longer timeout. Do NOT use shell & to background processes. It will not work correctly. Always use this parameter instead."`
 }
@@ -913,7 +913,6 @@ func errorResultWithProcess(msg string, processID string) fantasy.ToolResponse {
 	return fantasy.NewTextResponse(string(data))
 }
 
-// marshalResult serializes an ExecuteResult into a tool response.
 func marshalResult(result ExecuteResult) fantasy.ToolResponse {
 	data, err := json.Marshal(result)
 	if err != nil {
@@ -947,7 +946,7 @@ const (
 // process_output tool.
 type ProcessOutputArgs struct {
 	ProcessID   string  `json:"process_id"`
-	WaitTimeout *string `json:"wait_timeout,omitempty" description:"Override the default 10s block duration. The call blocks until the process exits or this timeout is reached. Set to '0s' for an immediate snapshot without waiting."`
+	WaitTimeout *string `json:"wait_timeout,omitempty" description:"Override the default 10s block duration, up to 4h (longer values are clamped). The call blocks until the process exits or this timeout is reached. Set to '0s' for an immediate snapshot without waiting."`
 }
 
 // ProcessOutput returns an AgentTool that retrieves the output

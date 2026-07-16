@@ -1617,3 +1617,42 @@ func TestExecuteToolRecorder(t *testing.T) {
 		})
 	})
 }
+
+func TestProcessOutputToolWaitTimeoutClamp(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+	var deadline time.Time
+	var hasDeadline bool
+	exitCode := 0
+	mockConn.EXPECT().
+		ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+		DoAndReturn(func(ctx context.Context, _ string, _ *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+			deadline, hasDeadline = ctx.Deadline()
+			return workspacesdk.ProcessOutputResponse{
+				Running:  false,
+				ExitCode: &exitCode,
+			}, nil
+		})
+
+	tool := chattool.ProcessOutput(chattool.ProcessToolOptions{
+		GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
+			return mockConn, nil
+		},
+	})
+	before := time.Now()
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "process_output",
+		Input: `{"process_id":"proc-1","wait_timeout":"25h"}`,
+	})
+	require.NoError(t, err)
+	assert.False(t, resp.IsError)
+
+	require.True(t, hasDeadline, "the blocking wait must carry a deadline")
+	remaining := deadline.Sub(before)
+	assert.Less(t, remaining, 4*time.Hour+time.Minute, "wait_timeout must be clamped to 4h")
+	assert.Greater(t, remaining, 3*time.Hour+55*time.Minute, "clamp must not shorten the wait below the maximum")
+}
