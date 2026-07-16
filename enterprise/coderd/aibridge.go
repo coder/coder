@@ -1025,7 +1025,9 @@ func (api *API) organizationGroupsAISpend(rw http.ResponseWriter, r *http.Reques
 }
 
 // @Summary Get group members AI spend by organization
-// @Description Returns aggregate AI spend attributed to the group per requested user. User IDs that are not members of the group, or that the caller has no read access to, are silently omitted.
+// @Description Returns aggregate AI spend attributed to the group per requested user.
+// @Description A maximum of 100 user IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.
+// @Description User IDs that are not members of the group, or that the caller has no read access to, are silently omitted.
 // @ID get-group-members-ai-spend-by-organization
 // @Security CoderSessionToken
 // @Produce json
@@ -1040,7 +1042,9 @@ func (api *API) groupMembersAISpendByOrganization(rw http.ResponseWriter, r *htt
 }
 
 // @Summary Get group members AI spend
-// @Description Returns aggregate AI spend attributed to the group per requested user. User IDs that are not members of the group, or that the caller has no read access to, are silently omitted.
+// @Description Returns aggregate AI spend attributed to the group per requested user.
+// @Description A maximum of 100 user IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.
+// @Description User IDs that are not members of the group, or that the caller has no read access to, are silently omitted.
 // @ID get-group-members-ai-spend
 // @Security CoderSessionToken
 // @Produce json

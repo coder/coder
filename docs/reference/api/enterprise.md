@@ -1105,7 +1105,9 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group}/members/ai/spend?user
 
 `GET /api/v2/groups/{group}/members/ai/spend`
 
-Returns aggregate AI spend attributed to the group per requested user. User IDs that are not members of the group, or that the caller has no read access to, are silently omitted.
+Returns aggregate AI spend attributed to the group per requested user.
+A maximum of 100 user IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.
+User IDs that are not members of the group, or that the caller has no read access to, are silently omitted.
 
 ### Parameters
 
@@ -2073,7 +2075,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
 
 `GET /api/v2/organizations/{organization}/groups/{groupName}/members/ai/spend`
 
-Returns aggregate AI spend attributed to the group per requested user. User IDs that are not members of the group, or that the caller has no read access to, are silently omitted.
+Returns aggregate AI spend attributed to the group per requested user.
+A maximum of 100 user IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.
+User IDs that are not members of the group, or that the caller has no read access to, are silently omitted.
 
 ### Parameters
 

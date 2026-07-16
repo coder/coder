@@ -3386,7 +3386,7 @@ const docTemplate = `{
         },
         "/api/v2/groups/{group}/members/ai/spend": {
             "get": {
-                "description": "Returns aggregate AI spend attributed to the group per requested user. User IDs that are not members of the group, or that the caller has no read access to, are silently omitted.",
+                "description": "Returns aggregate AI spend attributed to the group per requested user.\nA maximum of 100 user IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.\nUser IDs that are not members of the group, or that the caller has no read access to, are silently omitted.",
                 "produces": [
                     "application/json"
                 ],
@@ -4949,7 +4949,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/groups/{groupName}/members/ai/spend": {
             "get": {
-                "description": "Returns aggregate AI spend attributed to the group per requested user. User IDs that are not members of the group, or that the caller has no read access to, are silently omitted.",
+                "description": "Returns aggregate AI spend attributed to the group per requested user.\nA maximum of 100 user IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.\nUser IDs that are not members of the group, or that the caller has no read access to, are silently omitted.",
                 "produces": [
                     "application/json"
                 ],
