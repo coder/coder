@@ -12801,12 +12801,12 @@ type ClaimStaleChatToolCallExecutionCancelsParams struct {
 
 // Claims a batch of cancel_requested rows whose reconciliation
 // stalled (the post-interrupt pass lost its agent dial or died).
-// Rows without recorded process identity are claimed too, so a
-// server crash between the interrupt commit and reconciliation
-// cannot strand them. Bumping updated_at inside the claim acts as
-// a cross-replica lease so concurrent sweepers do not hammer the
-// same unreachable agent; FOR UPDATE SKIP LOCKED keeps sweepers
-// from serializing on each other.
+// Rows without recorded process identity are claimed too: the
+// sweeper resolves them through the dispatch target's token index.
+// Bumping updated_at inside the claim acts as a cross-replica lease
+// so concurrent sweepers do not hammer the same unreachable agent;
+// FOR UPDATE SKIP LOCKED keeps sweepers from serializing on each
+// other.
 func (q *sqlQuerier) ClaimStaleChatToolCallExecutionCancels(ctx context.Context, arg ClaimStaleChatToolCallExecutionCancelsParams) ([]ChatToolCallExecution, error) {
 	rows, err := q.db.QueryContext(ctx, claimStaleChatToolCallExecutionCancels, arg.Now, arg.UpdatedBefore, arg.LimitCount)
 	if err != nil {

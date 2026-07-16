@@ -1053,6 +1053,13 @@ func (r executionReconciler) reconcileCancelRequestedByToken(ctx context.Context
 			return
 		}
 		if resp.Found {
+			if record.Background {
+				// The interrupt spares background processes;
+				// adopt the probed handle and detach instead of
+				// killing.
+				r.adoptBackgroundAndDetach(ctx, record, resp.ProcessID)
+				return
+			}
 			r.killAndConfirm(ctx, conn, record, resp.ProcessID)
 			return
 		}
@@ -1060,11 +1067,10 @@ func (r executionReconciler) reconcileCancelRequestedByToken(ctx context.Context
 			break
 		}
 		// A start owning this token is still in flight on the
-		// agent. This pass is the only reconciler, so re-probe
-		// until the dispatch window closes; a process appearing
-		// moments after the interrupt is still killed. A start
-		// still pending past the window stays cancel_requested
-		// as a diagnostic.
+		// agent. Re-probe until the dispatch window closes so a
+		// process appearing moments after the interrupt is still
+		// killed. A start still pending past the window stays
+		// cancel_requested; the periodic sweep re-probes it.
 		if !record.ClaimedAt.Valid || !time.Now().Before(record.ClaimedAt.Time.Add(interruptRecordGrace)) {
 			return
 		}
@@ -1100,10 +1106,49 @@ func (r executionReconciler) resolveInterruptedWithoutProbe(ctx context.Context,
 		return
 	}
 	if record.ProcessID.Valid {
+		if record.Background {
+			// The interrupt spares background processes; the late
+			// handle write already landed, so just resolve.
+			r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusDetached, sql.NullTime{})
+			return
+		}
 		r.killAndConfirm(ctx, conn, record, record.ProcessID.String)
 		return
 	}
 	r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, sql.NullTime{})
+}
+
+// adoptBackgroundAndDetach resolves a background cancel_requested
+// row whose process the token probe found: the interrupt spares
+// background processes, so the handle is recorded on the row and it
+// resolves to detached without signaling. A failed handle write
+// leaves the row cancel_requested for the next sweep, keeping the
+// no-detach-without-handle invariant.
+func (r executionReconciler) adoptBackgroundAndDetach(ctx context.Context, record database.ChatToolCallExecution, processID string) {
+	startedAt := dbtime.Now()
+	if record.ClaimedAt.Valid {
+		// The claim time is the lower bound of the true start.
+		startedAt = record.ClaimedAt.Time
+	}
+	_, err := r.store.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
+		ChatID:             record.ChatID,
+		AssistantMessageID: record.AssistantMessageID,
+		ToolCallID:         record.ToolCallID,
+		ClaimEpoch:         record.ClaimEpoch,
+		ProcessID:          processID,
+		WorkspaceAgentID:   record.WorkspaceAgentID.UUID,
+		StartedAt:          startedAt,
+	})
+	if err != nil {
+		r.logger.Warn(ctx, "failed to record probed background process on interrupted execution",
+			slog.F("chat_id", record.ChatID),
+			slog.F("execution_id", record.ID),
+			slog.F("process_id", processID),
+			slog.Error(err),
+		)
+		return
+	}
+	r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusDetached, sql.NullTime{})
 }
 
 // isAgentNotFound reports a definite HTTP 404 from the agent: the
@@ -1312,10 +1357,8 @@ func (w *chatWorker) executionSweepLoop(ctx context.Context) {
 // row unresolved. The claim query bumps updated_at as a lease, so
 // unresolved rows retry on the next sweep without hammering the
 // same agent from every replica. Rows without recorded process
-// identity (a crash between the interrupt commit and
-// reconciliation) get the same late-handle wait as the immediate
-// pass, then resolve unknown; the sweep retry age exceeds the
-// record grace window, so the wait normally returns immediately.
+// identity go through the token probe, matching the immediate
+// pass's routing.
 func (r executionReconciler) sweepOnce(ctx context.Context, now time.Time) {
 	ctx, cancel := context.WithTimeout(ctx, executionSweepPassTimeout)
 	defer cancel()
