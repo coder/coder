@@ -773,8 +773,9 @@ func (s *taskStarter) reconcileInterruptedExecutions(ctx context.Context, record
 	}
 	// The runner may cancel the task context as soon as the
 	// interrupt's state transition lands, so run on an uncanceled
-	// context with its own bound.
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Minute)
+	// context with its own bound, sized for the per-row identity
+	// wait plus the kill round-trips.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
 	defer cancel()
 	for _, record := range records {
 		if record.Status != database.ChatToolCallExecutionStatusCancelRequested {
@@ -782,19 +783,54 @@ func (s *taskStarter) reconcileInterruptedExecutions(ctx context.Context, record
 		}
 		if !record.ProcessID.Valid || !record.WorkspaceAgentID.Valid {
 			// The claim may have dispatched a process whose
-			// identity is not recorded yet: an interrupted
+			// identity is not recorded yet: recordProcessStart
+			// runs on an uncanceled context, so an interrupted
 			// in-flight StartProcess can still land its handle on
-			// this cancel_requested row. Leave young claims for a
-			// later reconciler pass; only a claim old enough that
-			// no dispatch can still be in flight is unobservable.
-			if record.ClaimedAt.Valid && time.Since(record.ClaimedAt.Time) < interruptRecordGrace {
+			// this cancel_requested row moments after the commit.
+			// This pass is the only reconciler, so wait out that
+			// window here instead of resolving early.
+			record = s.awaitInterruptedIdentity(ctx, record)
+			if !record.ProcessID.Valid || !record.WorkspaceAgentID.Valid {
+				s.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, sql.NullTime{})
 				continue
 			}
-			s.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, sql.NullTime{})
-			continue
 		}
 		s.reconcileCancelRequested(ctx, record)
 	}
+}
+
+// awaitInterruptedIdentity polls a cancel_requested row without
+// recorded process identity while the dead dispatch's uncanceled
+// recordProcessStart write can still land (recordWriteTimeout plus
+// slack from the claim). It returns the freshest row observed.
+func (s *taskStarter) awaitInterruptedIdentity(ctx context.Context, record database.ChatToolCallExecution) database.ChatToolCallExecution {
+	if !record.ClaimedAt.Valid {
+		return record
+	}
+	deadline := record.ClaimedAt.Time.Add(interruptRecordGrace)
+	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return record
+		case <-time.After(2 * time.Second):
+		}
+		latest, err := s.opts.Store.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		if err != nil {
+			continue
+		}
+		record = latest
+		if record.ProcessID.Valid && record.WorkspaceAgentID.Valid {
+			return record
+		}
+		if record.Status != database.ChatToolCallExecutionStatusCancelRequested {
+			return record
+		}
+	}
+	return record
 }
 
 // reconcileCancelRequested delivers a kill signal for one

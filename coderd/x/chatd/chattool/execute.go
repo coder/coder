@@ -390,6 +390,14 @@ func resumeExecution(
 		// the command twice.
 		latest, err := awaitRecordedProcess(ctx, options, toolCallID, rec)
 		if err != nil {
+			// Cancellation is an expected exit for this attempt,
+			// not evidence about the claim owner: marking unknown
+			// here could race ahead of the owner's RecordStart and
+			// orphan a real process. Only a claim that actually
+			// went stale is unobservable.
+			if ctx.Err() != nil {
+				return errorResult(fmt.Sprintf("wait for execution claim owner: %v", ctx.Err()))
+			}
 			markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
 			return fantasy.NewTextErrorResponse(unknownOutcomeMessage)
 		}
