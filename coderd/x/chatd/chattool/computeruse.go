@@ -322,12 +322,20 @@ func (*computerUseTool) desktopAction(
 	}
 }
 
+// maxComputerWait caps a single model-supplied wait action. Without
+// it, an oversized wait could ride an attempt whose watchdog a
+// concurrently progressing execute keeps kicking, far past the
+// attempt idle window. The model repeats the wait action when a UI
+// needs longer to settle.
+const maxComputerWait = 30 * time.Second
+
 func (t *computerUseTool) wait(ctx context.Context, durationMillis int64) {
-	d := durationMillis
+	d := time.Duration(durationMillis) * time.Millisecond
 	if d <= 0 {
-		d = 1000
+		d = time.Second
 	}
-	timer := t.clock.NewTimer(time.Duration(d)*time.Millisecond, "computeruse", "wait")
+	d = min(d, maxComputerWait)
+	timer := t.clock.NewTimer(d, "computeruse", "wait")
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():
