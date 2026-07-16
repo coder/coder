@@ -43,8 +43,9 @@ import {
 } from "./pricingFields";
 
 const booleanFieldOptions = [
-	{ label: "On", value: "true" },
 	{ label: "Off", value: "false" },
+	{ label: "On", value: "true" },
+	{ label: "Default", value: "" },
 ] as const;
 
 /** Sentinel value for Select components to represent "no selection". */
@@ -325,13 +326,12 @@ const SegmentedField: FC<
 	const currentValue = (getIn(form.values, fieldKey) as string) || "";
 
 	return (
-		<div className="flex min-w-0 flex-col gap-1.5">
-			<FieldLabel htmlFor={fieldKey} label={label} description={description} />
+		<div className="flex min-w-0 flex-wrap items-center gap-2 self-stretch">
 			<div
 				role="radiogroup"
 				aria-label={label}
 				className={cn(
-					"flex h-9 items-stretch rounded-md border border-solid border-border p-0.5",
+					"flex items-center gap-0.75 rounded-lg border border-solid border-border p-2",
 					fieldError && "border-content-destructive",
 				)}
 			>
@@ -345,23 +345,34 @@ const SegmentedField: FC<
 							aria-checked={isActive}
 							disabled={disabled}
 							className={cn(
-								"h-8 flex-1 cursor-pointer rounded-[5px] border-0 px-3 text-[13px] font-medium transition-colors",
+								"flex h-6 cursor-pointer items-center justify-center gap-2.5 rounded-xl border-0 px-2 pb-px text-sm font-normal leading-6 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
 								isActive
-									? "bg-surface-secondary text-content-primary"
+									? "rounded bg-surface-tertiary text-content-primary"
 									: "bg-transparent text-content-secondary hover:text-content-primary",
 								disabled && "pointer-events-none opacity-60",
 							)}
-							onClick={() =>
-								void form.setFieldValue(fieldKey, isActive ? "" : opt.value)
-							}
+							onClick={() => void form.setFieldValue(fieldKey, opt.value)}
 						>
 							{opt.label}
 						</button>
 					);
 				})}
 			</div>
+			<div className="flex items-center gap-1 text-sm font-normal leading-6 text-content-primary">
+				<span>{label}</span>
+				{description && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<InfoIcon className="size-3 text-content-secondary" />
+						</TooltipTrigger>
+						<TooltipContent side="top" className="max-w-[240px]">
+							{description}
+						</TooltipContent>
+					</Tooltip>
+				)}
+			</div>
 			{fieldError && (
-				<p id={errorId} className="m-0 text-xs text-content-destructive">
+				<p id={errorId} className="m-0 w-full text-xs text-content-destructive">
 					{fieldError}
 				</p>
 			)}
@@ -518,18 +529,14 @@ const SchemaField: FC<SchemaFieldProps> = ({
 
 /**
  * How many grid columns a field should span in the 3-col layout.
- *   1 = default (inputs, booleans, small enums)
- *   3 = full-width (large enums, json textareas)
+ *   1 = default (inputs, small enums)
+ *   3 = full-width (booleans, large enums, json textareas)
  */
 function colSpan(field: FieldSchema): 1 | 3 {
-	if (field.input_type === "json") {
+	if (field.type === "boolean" || field.input_type === "json") {
 		return 3;
 	}
-	if (
-		field.input_type === "select" &&
-		field.type !== "boolean" &&
-		(field.enum?.length ?? 0) > 3
-	) {
+	if (field.input_type === "select" && (field.enum?.length ?? 0) > 3) {
 		return 3;
 	}
 	return 1;
