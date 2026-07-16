@@ -499,10 +499,16 @@ type turnWorkspaceContext struct {
 	currentChat      *database.Chat
 	loadChatSnapshot func(context.Context, uuid.UUID) (database.Chat, error)
 
-	mu                sync.Mutex
-	agent             database.WorkspaceAgent
-	agentLoaded       bool
-	conn              workspacesdk.AgentConn
+	mu          sync.Mutex
+	agent       database.WorkspaceAgent
+	agentLoaded bool
+	conn        workspacesdk.AgentConn
+	// connAgentID is the agent that owns conn, captured when conn
+	// is installed. It can differ from agent.ID mid-race: a
+	// concurrent dial may rebind agent while conn still belongs to
+	// the previous winner, and callers must attribute work to the
+	// connection's true owner.
+	connAgentID       uuid.UUID
 	releaseConn       func()
 	cachedWorkspaceID uuid.NullUUID
 }
@@ -517,6 +523,7 @@ func (c *turnWorkspaceContext) clearCachedWorkspaceState() {
 	c.agent = database.WorkspaceAgent{}
 	c.agentLoaded = false
 	c.conn = nil
+	c.connAgentID = uuid.Nil
 	c.releaseConn = nil
 	c.cachedWorkspaceID = uuid.NullUUID{}
 	c.mu.Unlock()
@@ -824,6 +831,7 @@ func (c *turnWorkspaceContext) getWorkspaceConnLocked() (workspacesdk.AgentConn,
 	c.agent = database.WorkspaceAgent{}
 	c.agentLoaded = false
 	c.conn = nil
+	c.connAgentID = uuid.Nil
 	c.releaseConn = nil
 	c.cachedWorkspaceID = uuid.NullUUID{}
 	return nil, agentRelease
@@ -950,10 +958,11 @@ func (c *turnWorkspaceContext) getWorkspaceConnAndAgent(ctx context.Context) (wo
 	for attempt := 0; attempt < 2; attempt++ {
 		c.mu.Lock()
 		currentConn, staleRelease := c.getWorkspaceConnLocked()
-		// Capture agentID in the same lock section as
-		// currentConn to prevent a TOCTOU race with
-		// concurrent clearCachedWorkspaceState calls.
-		agentID := c.agent.ID
+		// Capture the connection's owning agent in the same lock
+		// section as currentConn: c.agent can be rebound by a
+		// concurrent dial while c.conn still belongs to the
+		// previous winner.
+		agentID := c.connAgentID
 		c.mu.Unlock()
 
 		// Status check on cache hit: re-fetch the agent
@@ -1087,6 +1096,7 @@ func (c *turnWorkspaceContext) getWorkspaceConnAndAgent(ctx context.Context) (wo
 		c.mu.Lock()
 		if c.conn == nil {
 			c.conn = agentConn
+			c.connAgentID = dialResult.AgentID
 			c.releaseConn = agentRelease
 			c.cachedWorkspaceID = chatSnapshot.WorkspaceID
 
@@ -1113,8 +1123,11 @@ func (c *turnWorkspaceContext) getWorkspaceConnAndAgent(ctx context.Context) (wo
 			c.trackWorkspaceUsage(ctx, chatSnapshot)
 			return agentConn, dialResult.AgentID, nil
 		}
+		// A concurrent dial won the install race. Return its
+		// connection paired with the agent that owns it, not
+		// c.agent, which this goroutine may have rebound above.
 		currentConn = c.conn
-		raceAgentID := c.agent.ID
+		raceAgentID := c.connAgentID
 		c.mu.Unlock()
 
 		if agentRelease != nil {
