@@ -170,7 +170,7 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 				>
 					<div className="flex flex-col gap-1">
 						<SidebarNavItem href="/ai/settings/coder-agents">
-							Coder Agents
+							General
 						</SidebarNavItem>
 						<SidebarNavItem href="/ai/settings/models">Models</SidebarNavItem>
 						<SidebarNavItem href="/ai/settings/mcp-servers">
