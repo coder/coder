@@ -1224,7 +1224,10 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 				slog.F("server_slug", config.Slug),
 				slog.Error(err),
 			)
-			resp.TokenRevocationError = err.Error()
+			// Provider error bodies may echo request parameters,
+			// including the OAuth client secret, so only a generic
+			// message is exposed to callers.
+			resp.TokenRevocationError = "The OAuth provider rejected the revocation request."
 		}
 	}
 

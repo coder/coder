@@ -667,10 +667,13 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		memberClient, memberID, db, configID := newDisconnectFixture(t, "disc-err", revokeSrv.URL)
 		seedToken(t, db, configID, memberID)
 
+		// Provider bodies may echo the OAuth client secret, so members
+		// only receive a generic revocation error.
 		resp, err := memberClient.MCPServerOAuth2Disconnect(ctx, configID)
 		require.NoError(t, err)
 		require.False(t, resp.TokenRevoked)
-		require.Contains(t, resp.TokenRevocationError, "HTTP 500")
+		require.NotEmpty(t, resp.TokenRevocationError)
+		require.NotContains(t, resp.TokenRevocationError, "HTTP 500")
 
 		requireTokenDeleted(t, db, configID, memberID)
 	})
