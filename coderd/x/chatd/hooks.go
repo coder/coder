@@ -575,20 +575,16 @@ func applySessionStartResponse(
 	turnID *uuid.UUID,
 	response agenthooks.Response,
 ) (sessionStartResult, error) {
-	if turnID == nil && (response.ModelContext != "" || response.UserMessage != "") {
-		return sessionStartResult{}, xerrors.New("session_start response messages require an active turn")
-	}
 	if response.ModelContext == "" && response.UserMessage == "" && response.AllowedTools == nil && !response.EndChat {
 		return sessionStartResult{Chat: chat}, nil
 	}
 
-	var prefixMessages []chatstate.Message
-	var err error
-	if turnID != nil {
-		prefixMessages, err = hookPrefixMessages(response, chat.LastModelConfigID, turnID)
-		if err != nil {
-			return sessionStartResult{}, err
-		}
+	// Chats whose history predates turn IDs resume without one; hook
+	// messages then persist with a NULL turn_id like any other
+	// turn-less row.
+	prefixMessages, err := hookPrefixMessages(response, chat.LastModelConfigID, turnID)
+	if err != nil {
+		return sessionStartResult{}, err
 	}
 
 	var result sessionStartResult

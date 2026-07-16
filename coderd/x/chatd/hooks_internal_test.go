@@ -205,6 +205,49 @@ func TestApplySessionStartResponse(t *testing.T) {
 	require.JSONEq(t, `["read_file"]`, string(result.Chat.HookAllowedTools.RawMessage))
 }
 
+// Chats whose history predates turn IDs resume without one; hook
+// notices must persist with a NULL turn_id instead of failing the chat.
+func TestApplySessionStartResponseNilTurnID(t *testing.T) {
+	t.Parallel()
+	f := newTaskTestFixture(t)
+	chat := f.createRunningChat(t)
+	workerID := uuid.New()
+	runnerID := uuid.New()
+	chat = f.acquireChat(t, chat.ID, workerID, runnerID)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	input := chatWorkerTaskStartInput{
+		ChatID:         chat.ID,
+		WorkerID:       workerID,
+		RunnerID:       runnerID,
+		HistoryVersion: chat.HistoryVersion,
+		Status:         database.ChatStatusRunning,
+	}
+	result, err := applySessionStartResponse(
+		ctx,
+		chatstate.NewChatMachine(f.db, f.pubsub, chat.ID),
+		input,
+		chat,
+		nil,
+		agenthooks.Response{
+			ModelContext: "legacy context",
+			UserMessage:  "legacy notice",
+		},
+	)
+	require.NoError(t, err)
+	require.False(t, result.Ended)
+
+	promptRows, err := f.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	modelContext := promptRows[len(promptRows)-1]
+	require.Equal(t, "legacy context", hookMessageTextInternal(t, modelContext))
+	require.False(t, modelContext.TurnID.Valid)
+	allRows, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	userNotice := allRows[len(allRows)-1]
+	require.Equal(t, "legacy notice", hookMessageTextInternal(t, userNotice))
+	require.False(t, userNotice.TurnID.Valid)
+}
+
 func TestApplySessionStartResponseNoOp(t *testing.T) {
 	t.Parallel()
 	f := newTaskTestFixture(t)
