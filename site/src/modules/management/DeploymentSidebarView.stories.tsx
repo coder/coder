@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, waitFor, within } from "storybook/test";
+import { CollapsibleSidebar } from "#/components/Sidebar/CollapsibleSidebar";
 import { SidebarContext } from "#/components/Sidebar/SidebarContext";
 import {
 	MockBuildInfo,
@@ -95,5 +97,34 @@ export const NoDeploymentValues: Story = {
 export const NoPermissions: Story = {
 	args: {
 		permissions: MockNoPermissions,
+	},
+};
+
+// Renders inside a real CollapsibleSidebar at a narrow viewport. Even
+// though the persisted preference is "expanded", the sidebar must
+// auto-collapse to the icon rail below the lg breakpoint.
+export const NarrowViewportAutoCollapse: Story = {
+	decorators: [
+		(Story) => {
+			localStorage.setItem("story-deployment-narrow", "expanded");
+			return (
+				<CollapsibleSidebar storageKey="story-deployment-narrow">
+					<Story />
+				</CollapsibleSidebar>
+			);
+		},
+	],
+	parameters: {
+		viewport: { defaultViewport: "iphone12" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Collapsed accordions render icon-only triggers, so the labeled
+		// "General" trigger must not exist at a narrow viewport.
+		await waitFor(() => {
+			expect(
+				canvas.queryByRole("button", { name: /general/i }),
+			).not.toBeInTheDocument();
+		});
 	},
 };

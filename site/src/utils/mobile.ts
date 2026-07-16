@@ -21,3 +21,14 @@ export const belowMdViewportMediaQuery = "(max-width: 767px)";
 export const isBelowMdViewport = (): boolean => {
 	return window.matchMedia(belowMdViewportMediaQuery).matches;
 };
+
+export const belowLgViewportMediaQuery = "(max-width: 1023px)";
+
+/**
+ * Returns `true` when the viewport width is below the `lg` Tailwind
+ * breakpoint (< 1024 px). Settings sidebars auto-collapse to their
+ * icon rail at this width so page content is not cut off.
+ */
+export const isBelowLgViewport = (): boolean => {
+	return window.matchMedia(belowLgViewportMediaQuery).matches;
+};

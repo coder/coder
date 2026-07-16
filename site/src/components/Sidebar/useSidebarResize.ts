@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useIsBelowLgViewport } from "#/hooks/useIsBelowLgViewport";
+import { isBelowLgViewport } from "#/utils/mobile";
 
 const EXPANDED_WIDTH = 240;
 // Icon center sits at nav-pl(12) + btn-px(12) + icon/2(8) = 32px.
@@ -61,8 +63,13 @@ export function useSidebarResize(
 	storageKey = "sidebar-width",
 	{ peekOnMount = false }: UseSidebarResizeOptions = {},
 ): UseSidebarResizeReturn {
-	const [collapsed, setCollapsed] = useState(() => readCollapsed(storageKey));
+	// Start collapsed on narrow viewports regardless of the persisted
+	// preference, so page content is not cut off on load.
+	const [collapsed, setCollapsed] = useState(
+		() => isBelowLgViewport() || readCollapsed(storageKey),
+	);
 	const peekTimerRef = useRef<number | undefined>(undefined);
+	const isNarrowViewport = useIsBelowLgViewport();
 
 	const cancelPeek = useCallback(() => {
 		if (peekTimerRef.current !== undefined) {
@@ -71,11 +78,35 @@ export function useSidebarResize(
 		}
 	}, []);
 
-	// Peek: expand on mount, then collapse after a delay. Skipped when
-	// the user explicitly left the sidebar expanded. Neither the
-	// expansion nor the auto-collapse is persisted.
+	// Auto-collapse when the viewport shrinks below the lg breakpoint
+	// and restore the persisted preference when it grows back. Forced
+	// collapses are environmental, not user choices, so they are never
+	// persisted. The ref limits this to actual crossings; the initial
+	// narrow state is handled by the state initializer above.
+	const prevNarrowRef = useRef(isNarrowViewport);
 	useEffect(() => {
-		if (!peekOnMount || readPersisted(storageKey) === "expanded") {
+		if (prevNarrowRef.current === isNarrowViewport) {
+			return;
+		}
+		prevNarrowRef.current = isNarrowViewport;
+		if (isNarrowViewport) {
+			cancelPeek();
+			setCollapsed(true);
+		} else {
+			setCollapsed(readCollapsed(storageKey));
+		}
+	}, [isNarrowViewport, storageKey, cancelPeek]);
+
+	// Peek: expand on mount, then collapse after a delay. Skipped when
+	// the user explicitly left the sidebar expanded, and on narrow
+	// viewports where the expansion would cover or squish content.
+	// Neither the expansion nor the auto-collapse is persisted.
+	useEffect(() => {
+		if (
+			!peekOnMount ||
+			isBelowLgViewport() ||
+			readPersisted(storageKey) === "expanded"
+		) {
 			return;
 		}
 		setCollapsed(false);
