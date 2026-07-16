@@ -323,6 +323,27 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			require.NoError(t, err)
 			require.Empty(t, entitlements.Errors)
 			require.Equal(t, int64(3), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
+			// Under the limit: no user-limit warning, even though the
+			// legacy active user count would also have been under it.
+			for _, warning := range entitlements.Warnings {
+				require.NotContains(t, warning, "users but")
+			}
+		})
+
+		t.Run("OverLimitWarnsWithCapableCount", func(t *testing.T) {
+			// The over-limit warning must report the workspace-capable
+			// count it was compared against, and say so, rather than
+			// claiming that many "active users" exist.
+			entitlements, err := license.LicensesEntitlements(ctx, now, []database.License{addonLicense()}, enablements, coderdenttest.Keys, license.FeatureArguments{
+				ActiveUserCount: 7,
+				WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
+					return 150, nil
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, int64(150), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
+			require.Contains(t, entitlements.Warnings,
+				"Your deployment has 150 workspace-capable users but is only licensed for 100.")
 		})
 
 		t.Run("GracePeriodAddonUsesFn", func(t *testing.T) {
@@ -339,6 +360,8 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Equal(t, int64(3), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
+			require.Contains(t, entitlements.Warnings,
+				"Your deployment has 3 workspace-capable users but the license with the limit 100 is expired.")
 		})
 
 		t.Run("FnErrorPropagates", func(t *testing.T) {
