@@ -34,6 +34,10 @@ const (
 	capacityWaitLimit       = 250 * time.Millisecond
 	retryBackoff            = 250 * time.Millisecond
 	finalizeTimeout         = 2 * time.Second
+	// clockSkewLeeway widens the JWT validity window in both
+	// directions to tolerate small clock differences between coderd
+	// and the hook consumer.
+	clockSkewLeeway = 30 * time.Second
 )
 
 // Dispatches begin as pending, then finalize as ok, denied, http_error,
@@ -251,12 +255,14 @@ func (d *Dispatcher) prepareAndPost(ctx context.Context, event Event, dispatchID
 	digest := sha256.Sum256(body)
 	now := time.Now()
 	token, err := agenthooks.SignClaims(d.secret, agenthooks.Claims{
-		Issuer:     d.deploymentID,
-		Subject:    "coder:chat:" + event.ChatID.String(),
-		Audience:   d.hookURL,
-		IssuedAt:   now.Unix(),
-		NotBefore:  now.Unix(),
-		Expires:    now.Add(d.timeout + 30*time.Second).Unix(),
+		Issuer:   d.deploymentID,
+		Subject:  "coder:chat:" + event.ChatID.String(),
+		Audience: d.hookURL,
+		IssuedAt: now.Unix(),
+		// Backdated so consumers whose clocks lag coderd slightly do
+		// not reject otherwise-valid tokens on nbf.
+		NotBefore:  now.Add(-clockSkewLeeway).Unix(),
+		Expires:    now.Add(d.timeout + clockSkewLeeway).Unix(),
 		JTI:        dispatchID,
 		Type:       event.Type,
 		BodySHA256: hex.EncodeToString(digest[:]),

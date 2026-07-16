@@ -75,6 +75,12 @@ func TestSendMessageUserPromptSubmitHook(t *testing.T) {
 		parts, err := chatprompt.ParseContent(result.Message)
 		require.NoError(t, err)
 		require.Equal(t, []codersdk.ChatMessagePart{codersdk.ChatMessageText("after")}, parts)
+		// Direct sends enter history immediately, so the tool policy
+		// applies to the chat in the same transaction.
+		updated, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.True(t, updated.HookAllowedTools.Valid)
+		require.JSONEq(t, `["read","write"]`, string(updated.HookAllowedTools.RawMessage))
 	})
 
 	t.Run("deny", func(t *testing.T) {
@@ -299,7 +305,7 @@ func TestSendMessageUserPromptSubmitQueue(t *testing.T) {
 		APIKeyID:           testAPIKeyID(t, db, user.ID),
 	})
 	require.NoError(t, err)
-	consumer := hookConsumer(t, `{"permission":{"decision":"allow","input_override":{"prompt":"queued override"}},"model_context":"queued context"}`)
+	consumer := hookConsumer(t, `{"permission":{"decision":"allow","input_override":{"prompt":"queued override"}},"model_context":"queued context","allowed_tools":["read_file"]}`)
 	server := newHookTestServer(t, db, ps, consumer)
 
 	result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
@@ -329,6 +335,14 @@ func TestSendMessageUserPromptSubmitQueue(t *testing.T) {
 	}
 	require.True(t, result.QueuedMessage.HookPrefix.Valid)
 	require.Contains(t, string(result.QueuedMessage.HookPrefix.RawMessage), "queued context")
+	// The tool policy rides on the queued row too: it must not affect
+	// the active turn before this prompt is promoted.
+	require.True(t, result.QueuedMessage.HookAllowedTools.Valid)
+	require.JSONEq(t, `["read_file"]`, string(result.QueuedMessage.HookAllowedTools.RawMessage))
+	queuedChat, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.False(t, queuedChat.HookAllowedTools.Valid,
+		"queued prompt's tool policy must not apply before promotion")
 }
 
 func TestSendMessageUserPromptSubmitQueuedRejections(t *testing.T) {

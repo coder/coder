@@ -5183,6 +5183,8 @@ type ChatQueuedMessage struct {
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 	TurnID          uuid.NullUUID           `db:"turn_id" json:"turn_id"`
 	HookPrefix      pqtype.NullRawMessage   `db:"hook_prefix" json:"hook_prefix"`
+	// Tool policy from the queued prompt's user_prompt_submit hook; NULL means no policy. Copied to chats.hook_allowed_tools at promotion.
+	HookAllowedTools pqtype.NullRawMessage `db:"hook_allowed_tools" json:"hook_allowed_tools"`
 }
 
 type ChatTable struct {

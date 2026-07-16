@@ -53,6 +53,9 @@ func TestDispatcherSuccess(t *testing.T) {
 		assert.Equal(t, event.ChatID, chatID)
 		digest := sha256.Sum256(body)
 		assert.Equal(t, hex.EncodeToString(digest[:]), claims.BodySHA256)
+		// A consumer clock lagging coderd by less than the leeway must
+		// still accept the token.
+		assert.Equal(t, claims.IssuedAt-int64(clockSkewLeeway/time.Second), claims.NotBefore)
 
 		var request agenthooks.Request
 		assert.NoError(t, json.Unmarshal(body, &request))

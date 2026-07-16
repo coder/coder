@@ -248,7 +248,7 @@ func (tx *Tx) requireQueueCapacity() error {
 // back to chats.owner_id only when the message does not supply one.
 // Hook prefix messages ride on the queued row and enter history only
 // when the queued prompt is promoted.
-func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, hookPrefix []Message) (database.ChatQueuedMessage, error) {
+func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, hookPrefix []Message, hookAllowedTools pqtype.NullRawMessage) (database.ChatQueuedMessage, error) {
 	createdBy := ownerFallback
 	if m.CreatedBy.Valid {
 		createdBy = m.CreatedBy.UUID
@@ -265,15 +265,32 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, hookPrefix
 		return database.ChatQueuedMessage{}, err
 	}
 	return tx.store.InsertChatQueuedMessageWithCreator(tx.ctx, database.InsertChatQueuedMessageWithCreatorParams{
-		ChatID:          tx.chatID,
-		TurnID:          m.TurnID,
-		Content:         rawContent,
-		ModelConfigID:   m.ModelConfigID,
-		ReasoningEffort: m.ReasoningEffort,
-		CreatedBy:       createdBy,
-		APIKeyID:        m.APIKeyID,
-		HookPrefix:      encodedPrefix,
+		ChatID:           tx.chatID,
+		TurnID:           m.TurnID,
+		Content:          rawContent,
+		ModelConfigID:    m.ModelConfigID,
+		ReasoningEffort:  m.ReasoningEffort,
+		CreatedBy:        createdBy,
+		APIKeyID:         m.APIKeyID,
+		HookPrefix:       encodedPrefix,
+		HookAllowedTools: hookAllowedTools,
 	})
+}
+
+// applyHookAllowedTools copies a prompt's hook tool policy onto the
+// chat. Invalid means the hook expressed no policy, which leaves the
+// current chat policy untouched.
+func (tx *Tx) applyHookAllowedTools(allowedTools pqtype.NullRawMessage) error {
+	if !allowedTools.Valid {
+		return nil
+	}
+	if err := tx.store.UpdateChatHookAllowedTools(tx.ctx, database.UpdateChatHookAllowedToolsParams{
+		HookAllowedTools: allowedTools,
+		ID:               tx.chatID,
+	}); err != nil {
+		return xerrors.Errorf("apply hook allowed tools: %w", err)
+	}
+	return nil
 }
 
 // queuedHookPrefixMessage is the persisted shape of one lifecycle hook
@@ -520,7 +537,12 @@ const (
 type SendMessageInput struct {
 	Message        Message
 	PrefixMessages []Message
-	BusyBehavior   BusyBehavior
+	// HookAllowedTools is the tool policy from the prompt's
+	// user_prompt_submit hook. It applies to the chat when the prompt
+	// enters history: immediately on direct sends, at promotion for
+	// queued sends.
+	HookAllowedTools pqtype.NullRawMessage
+	BusyBehavior     BusyBehavior
 }
 
 // SendMessageResult is returned by [Tx.SendMessage].
@@ -561,50 +583,53 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	// Idle / empty-queue error: insert directly into history, clear
 	// last_error, leave queue alone.
 	case StateW, StateE0:
-		return tx.sendMessageDirect(chat, input.PrefixMessages, input.Message)
+		return tx.sendMessageDirect(chat, input)
 
 	// Error-with-queue: append to tail, promote previous head into
 	// history, clear last_error.
 	case StateE1:
-		return tx.sendMessageE1(chat, input.PrefixMessages, input.Message)
+		return tx.sendMessageE1(chat, input)
 
 	// Running with no queue.
 	case StateR0:
 		if input.BusyBehavior == BusyBehaviorInterrupt {
-			return tx.sendMessageQueueAndSetStatus(chat, input.PrefixMessages, input.Message, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
+			return tx.sendMessageQueueAndSetStatus(chat, input, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
 		}
-		return tx.sendMessageQueueAndSetStatus(chat, input.PrefixMessages, input.Message, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
+		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
 	// Running with queue.
 	case StateR1:
 		if input.BusyBehavior == BusyBehaviorInterrupt {
-			return tx.sendMessageQueueAndSetStatus(chat, input.PrefixMessages, input.Message, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
+			return tx.sendMessageQueueAndSetStatus(chat, input, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
 		}
-		return tx.sendMessageQueueAndSetStatus(chat, input.PrefixMessages, input.Message, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
+		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
 	// Interrupting: queue regardless of busy behavior.
 	case StateI0, StateI1:
-		return tx.sendMessageQueueAndSetStatus(chat, input.PrefixMessages, input.Message, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
+		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
 	// Requires-action: queue keeps A*; interrupt cancels pending
 	// dynamic calls and resumes in running.
 	case StateA0, StateA1:
 		if input.BusyBehavior == BusyBehaviorInterrupt {
-			return tx.sendMessageInterruptRequiresAction(chat, input.PrefixMessages, input.Message)
+			return tx.sendMessageInterruptRequiresAction(chat, input)
 		}
-		return tx.sendMessageQueueAndSetStatus(chat, input.PrefixMessages, input.Message, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
+		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 	}
 	return SendMessageResult{}, newTransitionError(TransitionSendMessage, from, "unhandled state in SendMessage")
 }
 
-func (tx *Tx) sendMessageDirect(chat database.Chat, prefix []Message, m Message) (SendMessageResult, error) {
+func (tx *Tx) sendMessageDirect(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by new user message", false)
 	if err != nil {
 		return SendMessageResult{}, err
 	}
-	inserted, err := tx.insertMessages(append(append(cancels, prefix...), m))
+	inserted, err := tx.insertMessages(append(append(cancels, input.PrefixMessages...), input.Message))
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert direct user message: %w", err)
+	}
+	if err := tx.applyHookAllowedTools(input.HookAllowedTools); err != nil {
+		return SendMessageResult{}, err
 	}
 	if _, err := tx.applyExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,
@@ -621,8 +646,8 @@ func (tx *Tx) sendMessageDirect(chat database.Chat, prefix []Message, m Message)
 	}, nil
 }
 
-func (tx *Tx) sendMessageE1(chat database.Chat, prefix []Message, m Message) (SendMessageResult, error) {
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, m, prefix)
+func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
+	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, input.PrefixMessages, input.HookAllowedTools)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}
@@ -642,6 +667,9 @@ func (tx *Tx) sendMessageE1(chat database.Chat, prefix []Message, m Message) (Se
 	inserted, err := tx.insertMessages(append(append(cancels, headPrefix...), promoted))
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert promoted queued head: %w", err)
+	}
+	if err := tx.applyHookAllowedTools(head.HookAllowedTools); err != nil {
+		return SendMessageResult{}, err
 	}
 	if _, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
 		ID:     head.ID,
@@ -667,13 +695,12 @@ func (tx *Tx) sendMessageE1(chat database.Chat, prefix []Message, m Message) (Se
 
 func (tx *Tx) sendMessageQueueAndSetStatus(
 	chat database.Chat,
-	prefix []Message,
-	m Message,
+	input SendMessageInput,
 	status database.ChatStatus,
 	lastError pqtype.NullRawMessage,
 	deadline sql.NullTime,
 ) (SendMessageResult, error) {
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, m, prefix)
+	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, input.PrefixMessages, input.HookAllowedTools)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}
@@ -692,7 +719,7 @@ func (tx *Tx) sendMessageQueueAndSetStatus(
 	}, nil
 }
 
-func (tx *Tx) sendMessageInterruptRequiresAction(chat database.Chat, prefix []Message, m Message) (SendMessageResult, error) {
+func (tx *Tx) sendMessageInterruptRequiresAction(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by user message", true)
 	if err != nil {
 		return SendMessageResult{}, err
@@ -700,7 +727,7 @@ func (tx *Tx) sendMessageInterruptRequiresAction(chat database.Chat, prefix []Me
 	if _, err := tx.insertMessages(cancels); err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert requires-action cancellations: %w", err)
 	}
-	return tx.sendMessageQueueAndSetStatus(chat, prefix, m, database.ChatStatusRunning, chat.LastError, sql.NullTime{})
+	return tx.sendMessageQueueAndSetStatus(chat, input, database.ChatStatusRunning, chat.LastError, sql.NullTime{})
 }
 
 // EditMessageInput configures [Tx.EditMessage].
@@ -956,6 +983,9 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 	inserted, err := tx.insertMessages(append(append(cancels, targetPrefix...), promotedMsg))
 	if err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("insert promoted queued message: %w", err)
+	}
+	if err := tx.applyHookAllowedTools(target.HookAllowedTools); err != nil {
+		return PromoteQueuedMessageResult{}, err
 	}
 	if len(inserted) != len(cancels)+len(targetPrefix)+1 {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf(
@@ -1447,6 +1477,9 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
 	}
+	if err := tx.applyHookAllowedTools(head.HookAllowedTools); err != nil {
+		return FinishInterruptionResult{}, err
+	}
 	if _, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
 		ID:     head.ID,
 		ChatID: tx.chatID,
@@ -1520,6 +1553,9 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 	inserted, err := tx.insertMessages(append(append(cancels, headPrefix...), promotedMsg))
 	if err != nil {
 		return FinishTurnResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
+	}
+	if err := tx.applyHookAllowedTools(head.HookAllowedTools); err != nil {
+		return FinishTurnResult{}, err
 	}
 	if _, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
 		ID:     head.ID,

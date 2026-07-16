@@ -2026,10 +2026,13 @@ CREATE TABLE chat_queued_messages (
     created_by uuid NOT NULL,
     reasoning_effort chat_reasoning_effort,
     turn_id uuid,
-    hook_prefix jsonb
+    hook_prefix jsonb,
+    hook_allowed_tools jsonb
 );
 
 COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'Stores the selected effort until the queued row is promoted.';
+
+COMMENT ON COLUMN chat_queued_messages.hook_allowed_tools IS 'Tool policy from the queued prompt''s user_prompt_submit hook; NULL means no policy. Copied to chats.hook_allowed_tools at promotion.';
 
 CREATE SEQUENCE chat_queued_messages_id_seq
     START WITH 1

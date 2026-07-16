@@ -1556,7 +1556,11 @@ func (p *Server) SendMessage(
 		if err != nil {
 			return err
 		}
-		if err := applyHookAllowedTools(ctx, store, opts.ChatID, hookResponse); err != nil {
+		// The hook tool policy travels with the prompt through
+		// tx.SendMessage so queued prompts apply it at promotion, not
+		// while an older turn is still active.
+		hookToolPolicy, err := hookAllowedTools(hookResponse)
+		if err != nil {
 			return err
 		}
 		if hookResponse.EndChat {
@@ -1601,9 +1605,10 @@ func (p *Server) SendMessage(
 		message := userMessageWithAPIKeyID(content, modelConfigID, messageCreatedBy, opts.APIKeyID, opts.ReasoningEffort)
 		message.TurnID = uuid.NullUUID{UUID: turnID, Valid: true}
 		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
-			Message:        message,
-			PrefixMessages: prefixMessages,
-			BusyBehavior:   busyBehaviorToChatState(busyBehavior),
+			Message:          message,
+			PrefixMessages:   prefixMessages,
+			HookAllowedTools: hookToolPolicy,
+			BusyBehavior:     busyBehaviorToChatState(busyBehavior),
 		})
 		if err != nil {
 			return err
