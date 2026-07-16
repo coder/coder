@@ -132,7 +132,7 @@ ORDER BY groups.id;
 -- The period_start parameter is normalized to its UTC calendar day.
 WITH queried_group AS (
 	-- The queried group's org, used to detect cross-org effective groups.
-	SELECT id, organization_id
+	SELECT organization_id
 	FROM groups
 	WHERE id = @group_id
 ),

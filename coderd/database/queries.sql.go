@@ -2536,7 +2536,7 @@ func (q *sqlQuerier) GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (G
 const getGroupMembersAISpend = `-- name: GetGroupMembersAISpend :many
 WITH queried_group AS (
 	-- The queried group's org, used to detect cross-org effective groups.
-	SELECT id, organization_id
+	SELECT organization_id
 	FROM groups
 	WHERE id = $1
 ),

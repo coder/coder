@@ -5193,12 +5193,13 @@ export interface GroupMemberAISpend {
 	/**
 	 * SpendLimitMicros is the spend limit when the queried group is this
 	 * user's effective budget source. Null when the user's budget resolves to
-	 * another group.
+	 * another group or no budget applies to the user (unlimited).
 	 */
 	readonly spend_limit_micros: number | null;
 	/**
 	 * LimitSource identifies the tier that produced the limit. Null when the
-	 * user's budget resolves to another group.
+	 * user's budget resolves to another group or no budget applies to the user
+	 * (unlimited).
 	 */
 	readonly limit_source: AIBudgetLimitSource | null;
 	/**

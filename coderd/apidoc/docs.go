@@ -20364,7 +20364,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "limit_source": {
-                    "description": "LimitSource identifies the tier that produced the limit. Null when the\nuser's budget resolves to another group.",
+                    "description": "LimitSource identifies the tier that produced the limit. Null when the\nuser's budget resolves to another group or no budget applies to the user\n(unlimited).",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.AIBudgetLimitSource"
@@ -20372,7 +20372,7 @@ const docTemplate = `{
                     ]
                 },
                 "spend_limit_micros": {
-                    "description": "SpendLimitMicros is the spend limit when the queried group is this\nuser's effective budget source. Null when the user's budget resolves to\nanother group.",
+                    "description": "SpendLimitMicros is the spend limit when the queried group is this\nuser's effective budget source. Null when the user's budget resolves to\nanother group or no budget applies to the user (unlimited).",
                     "type": "integer"
                 },
                 "user_id": {

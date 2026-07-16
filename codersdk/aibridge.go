@@ -100,10 +100,11 @@ type GroupMemberAISpend struct {
 	EffectiveGroupID *uuid.UUID `json:"effective_group_id" format:"uuid"`
 	// SpendLimitMicros is the spend limit when the queried group is this
 	// user's effective budget source. Null when the user's budget resolves to
-	// another group.
+	// another group or no budget applies to the user (unlimited).
 	SpendLimitMicros *int64 `json:"spend_limit_micros"`
 	// LimitSource identifies the tier that produced the limit. Null when the
-	// user's budget resolves to another group.
+	// user's budget resolves to another group or no budget applies to the user
+	// (unlimited).
 	LimitSource *AIBudgetLimitSource `json:"limit_source"`
 	// GroupSpendMicros is the user's spend attributed to the queried group
 	// over the current budget period.
@@ -528,12 +529,11 @@ func (c *Client) OrganizationGroupsAISpend(ctx context.Context, organization uui
 }
 
 // GroupMembersAISpend returns AI spend attributed to the given group for the
-// specified users within the active budget period.
+// specified users within the active budget period. At most 100 user IDs may be
+// requested per call, and callers with more members are expected to batch
+// across multiple requests.
 func (c *Client) GroupMembersAISpend(ctx context.Context, group uuid.UUID, userIDs []uuid.UUID) (GroupMembersAISpend, error) {
-	ids := make([]string, len(userIDs))
-	for i, id := range userIDs {
-		ids[i] = id.String()
-	}
+	ids := slice.List(userIDs, func(id uuid.UUID) string { return id.String() })
 	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/groups/%s/members/ai/spend", group.String()),
 		nil,

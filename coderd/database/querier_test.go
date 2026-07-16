@@ -13426,6 +13426,12 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 			SpendLimitMicros: 9_999_999,
 		})
 		require.NoError(t, err)
+		// Seed spend attributed to the queried group so we can assert it is
+		// still returned even when the effective group is masked.
+		_, err = db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+			UserID: user.ID, EffectiveGroupID: group.ID, Day: now, CostMicros: 250,
+		})
+		require.NoError(t, err)
 
 		// When: querying spend for the user in the queried group's org.
 		got, err := db.GetGroupMembersAISpend(ctx, database.GetGroupMembersAISpendParams{
@@ -13436,10 +13442,12 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then: effective_group_id is masked to NULL, the highest-limit group is cross-org.
+		// The queried-group spend is still returned.
 		require.Len(t, got, 1)
 		require.False(t, got[0].EffectiveGroupID.Valid, "cross-org effective group must be masked")
 		require.False(t, got[0].SpendLimitMicros.Valid)
 		require.False(t, got[0].LimitSource.Valid)
+		require.Equal(t, int64(250), got[0].GroupSpendMicros)
 	})
 
 	t.Run("OverrideWins", func(t *testing.T) {
@@ -13487,6 +13495,46 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		// Then: the override target wins over the highest-limit group.
 		require.Len(t, got, 1)
 		require.Equal(t, uuid.NullUUID{UUID: overrideTarget.ID, Valid: true}, got[0].EffectiveGroupID)
+	})
+
+	t.Run("TieBreakByGroupName", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: a member of the queried group who is in two same-org groups
+		// with identical spend limits.
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		queried := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+		groupA := dbgen.Group(t, db, database.Group{OrganizationID: org.ID, Name: "aaa-tie-group"})
+		groupB := dbgen.Group(t, db, database.Group{OrganizationID: org.ID, Name: "bbb-tie-group"})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: queried.ID, UserID: user.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: groupA.ID, UserID: user.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: groupB.ID, UserID: user.ID})
+		_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+			GroupID:          groupA.ID,
+			SpendLimitMicros: 1_000_000,
+		})
+		require.NoError(t, err)
+		_, err = db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+			GroupID:          groupB.ID,
+			SpendLimitMicros: 1_000_000,
+		})
+		require.NoError(t, err)
+
+		// When: querying spend for the user.
+		got, err := db.GetGroupMembersAISpend(ctx, database.GetGroupMembersAISpendParams{
+			GroupID:     queried.ID,
+			UserIds:     []uuid.UUID{user.ID},
+			PeriodStart: monthStart,
+		})
+		require.NoError(t, err)
+
+		// Then: the tie is broken by group name ascending, so groupA wins.
+		require.Len(t, got, 1)
+		require.Equal(t, uuid.NullUUID{UUID: groupA.ID, Valid: true}, got[0].EffectiveGroupID)
 	})
 
 	t.Run("EveryoneGroupCounts", func(t *testing.T) {
