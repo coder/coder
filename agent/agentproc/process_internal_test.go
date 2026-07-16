@@ -73,15 +73,27 @@ func TestByTokenPendingReservation(t *testing.T) {
 	// A reservation whose start has not published a process yet
 	// must report pending, never a definitive not-found.
 	m.mu.Lock()
-	m.tokens["tok-pending"] = &tokenEntry{done: make(chan struct{})}
+	m.tokens["tok-pending"] = &tokenEntry{done: make(chan struct{}), chatID: "chat-1"}
 	m.mu.Unlock()
 
-	proc, pending, found := m.byToken("tok-pending")
+	proc, pending, found := m.byToken("tok-pending", "")
 	require.Nil(t, proc)
 	require.True(t, pending)
 	require.False(t, found)
 
-	_, pending, found = m.byToken("tok-absent")
+	proc, pending, found = m.byToken("tok-pending", "chat-1")
+	require.Nil(t, proc)
+	require.True(t, pending)
+	require.False(t, found)
+
+	// Another chat's probe must not learn that a reservation for
+	// this token exists.
+	proc, pending, found = m.byToken("tok-pending", "chat-2")
+	require.Nil(t, proc)
+	require.False(t, pending)
+	require.False(t, found)
+
+	_, pending, found = m.byToken("tok-absent", "")
 	require.False(t, pending)
 	require.False(t, found)
 }

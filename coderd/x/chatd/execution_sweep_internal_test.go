@@ -3,6 +3,10 @@ package chatd //nolint:testpackage // Tests the unexported execution sweep recon
 import (
 	"context"
 	"database/sql"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/testutil"
@@ -862,6 +867,49 @@ func TestExecutionSweepTokenOnlyRows(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, database.ChatToolCallExecutionStatusCanceled, row.Status)
 		require.Equal(t, "proc-late", row.ProcessID.String)
+	})
+
+	t.Run("ExitedProcessFoundByTokenCanceled", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		record := seedTokenOnlyCancelRequested(ctx, t, db, 10*time.Minute, false)
+
+		// The token index keeps exited processes until reaping,
+		// and signaling one answers 409. That is a definitive
+		// exit, so the row must resolve canceled instead of
+		// staying cancel_requested for every sweep to re-signal.
+		signalConflict := codersdk.ReadBodyAsError(&http.Response{
+			StatusCode: http.StatusConflict,
+			Request: &http.Request{
+				Method: http.MethodPost,
+				URL:    &url.URL{Path: "/api/v0/processes/proc-exited/signal"},
+			},
+			Body: io.NopCloser(strings.NewReader(`{"message":"Process is not running."}`)),
+		})
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		conn.EXPECT().ProcessByToken(gomock.Any(), record.ID.String()).
+			Return(workspacesdk.ProcessByTokenResponse{Found: true, ProcessID: "proc-exited"}, nil)
+		conn.EXPECT().SignalProcess(gomock.Any(), "proc-exited", "kill").
+			Return(signalConflict)
+		r := executionReconciler{
+			store:  db,
+			logger: slogtest.Make(t, nil),
+			agentConn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return conn, func() {}, nil
+			},
+		}
+		r.sweepOnce(ctx, dbtime.Now())
+
+		row, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusCanceled, row.Status)
+		require.Equal(t, "proc-exited", row.ProcessID.String)
 	})
 
 	t.Run("BackgroundFoundByTokenKilled", func(t *testing.T) {

@@ -74,16 +74,11 @@ func (api *API) handleProcessByToken(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	token := r.URL.Query().Get("token")
-	proc, pending, ok := api.manager.byToken(token)
-
-	// Enforce chat ID isolation like the other process routes.
-	if ok {
-		if chatContext, chatOK := agentchat.FromContext(ctx); chatOK {
-			if proc.chatID != "" && proc.chatID != chatContext.ID.String() {
-				ok = false
-			}
-		}
+	var chatID string
+	if chatContext, chatOK := agentchat.FromContext(ctx); chatOK {
+		chatID = chatContext.ID.String()
 	}
+	proc, pending, ok := api.manager.byToken(token, chatID)
 
 	resp := workspacesdk.ProcessByTokenResponse{
 		Found:           ok,

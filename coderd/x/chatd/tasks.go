@@ -1168,6 +1168,11 @@ func isAgentNotFound(err error) bool {
 	return xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound
 }
 
+func isAgentConflict(err error) bool {
+	var sdkErr *codersdk.Error
+	return xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusConflict
+}
+
 // reconcileCancelRequested resolves one cancel_requested row with
 // recorded process identity by killing the process. Background rows
 // only reach cancel_requested when no committed result carries their
@@ -1217,9 +1222,13 @@ func (r executionReconciler) killAndConfirm(ctx context.Context, conn workspaces
 	sigCtx, cancel := context.WithTimeout(ctx, interruptKillDialTimeout)
 	defer cancel()
 	if err := conn.SignalProcess(sigCtx, processID, "kill"); err != nil {
-		if isAgentNotFound(err) {
-			// The agent was reached and has no such process:
-			// termination is confirmed.
+		if isAgentNotFound(err) || isAgentConflict(err) {
+			// The agent was reached and has no such process (404)
+			// or the process already exited (409, kept in the
+			// index until reaping): termination is confirmed.
+			// Without the 409 case a fast command that exits
+			// before the probe would stay cancel_requested with
+			// every sweep re-signaling it.
 			r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusCanceled, sql.NullTime{})
 			return
 		}

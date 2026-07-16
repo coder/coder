@@ -49,6 +49,10 @@ var (
 // success and err on failure.
 type tokenEntry struct {
 	procID string
+	// chatID scopes a still-pending reservation to the chat that
+	// created it, mirroring process-level isolation: other chats
+	// must not learn that a token has an in-flight start.
+	chatID string
 	err    error
 	done   chan struct{}
 }
@@ -206,7 +210,7 @@ func (m *manager) start(ctx context.Context, req workspacesdk.StartProcessReques
 			// Reserve the token before dropping the lock so a
 			// concurrent start with the same token waits for
 			// this attempt instead of spawning a duplicate.
-			reserved = &tokenEntry{done: make(chan struct{})}
+			reserved = &tokenEntry{done: make(chan struct{}), chatID: chatID}
 			m.tokens[tokenKey] = reserved
 			m.mu.Unlock()
 			break
@@ -408,8 +412,12 @@ func (m *manager) get(id string) (*process, bool) {
 // It is non-blocking: a token whose start is still in flight (the
 // reservation exists but no process is published yet) reports
 // pending instead of found, so callers never mistake an in-flight
-// dispatch for proof that nothing started.
-func (m *manager) byToken(token string) (proc *process, pending bool, found bool) {
+// dispatch for proof that nothing started. A non-empty chatID
+// enforces chat isolation like the other process routes: entries
+// owned by a different chat are reported as absent, including
+// pending reservations, so a token leaks nothing across chats at
+// any point in its lifecycle.
+func (m *manager) byToken(token string, chatID string) (proc *process, pending bool, found bool) {
 	if token == "" {
 		return nil, false, false
 	}
@@ -420,10 +428,19 @@ func (m *manager) byToken(token string) (proc *process, pending bool, found bool
 		return nil, false, false
 	}
 	if entry.procID == "" {
+		if chatID != "" && entry.chatID != "" && entry.chatID != chatID {
+			return nil, false, false
+		}
 		return nil, true, false
 	}
 	proc, ok = m.procs[entry.procID]
-	return proc, false, ok
+	if !ok {
+		return nil, false, false
+	}
+	if chatID != "" && proc.chatID != "" && proc.chatID != chatID {
+		return nil, false, false
+	}
+	return proc, false, true
 }
 
 // list returns info about all tracked processes. Exited
