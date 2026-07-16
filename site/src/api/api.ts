@@ -3976,6 +3976,12 @@ class ExperimentalApiMethods {
 		);
 	};
 
+	disconnectMCPServerOAuth2 = async (id: string): Promise<void> => {
+		await this.axios.delete(
+			`${mcpServerConfigsPath}/${encodeURIComponent(id)}/oauth2/disconnect`,
+		);
+	};
+
 	getChatCostSummary = async (
 		user = "me",
 		params?: ChatCostDateParams,

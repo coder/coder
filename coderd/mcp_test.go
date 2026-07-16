@@ -526,9 +526,14 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	adminClient := newMCPClient(t)
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
+	})
 	firstUser := coderdtest.CreateFirstUser(t, adminClient)
-	memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+	memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+	otherClient, other := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
 	created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
 		DisplayName:    "OAuth Disconnect Test",
@@ -547,6 +552,39 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 	require.NoError(t, err)
 
 	// Disconnect should succeed even when no token exists (idempotent).
+	err = memberClient.MCPServerOAuth2Disconnect(ctx, created.ID)
+	require.NoError(t, err)
+
+	// Seed valid tokens for two users.
+	for _, userID := range []uuid.UUID{member.ID, other.ID} {
+		//nolint:gocritic // Seeding test state requires system access.
+		_, err = db.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
+			MCPServerConfigID: created.ID,
+			UserID:            userID,
+			AccessToken:       "valid-access",
+			TokenType:         "Bearer",
+			Expiry:            sql.NullTime{Time: time.Now().Add(time.Hour), Valid: true},
+		})
+		require.NoError(t, err)
+	}
+
+	requireAuthConnected := func(client *codersdk.Client, want bool) {
+		t.Helper()
+		configs, err := client.MCPServerConfigs(ctx)
+		require.NoError(t, err)
+		require.Len(t, configs, 1)
+		require.Equal(t, want, configs[0].AuthConnected)
+	}
+	requireAuthConnected(memberClient, true)
+	requireAuthConnected(otherClient, true)
+
+	// Disconnecting removes only the calling user's token.
+	err = memberClient.MCPServerOAuth2Disconnect(ctx, created.ID)
+	require.NoError(t, err)
+	requireAuthConnected(memberClient, false)
+	requireAuthConnected(otherClient, true)
+
+	// Repeat disconnect after the token is gone is still a no-op.
 	err = memberClient.MCPServerOAuth2Disconnect(ctx, created.ID)
 	require.NoError(t, err)
 }
