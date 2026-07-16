@@ -8,6 +8,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -22,7 +24,7 @@ import (
 // accounts") do not consume license seats. System users and service
 // accounts are excluded by the underlying query, matching
 // GetActiveUserCount.
-func CountWorkspaceCapableUsers(ctx context.Context, db database.Store, authorizer rbac.Authorizer) (int64, error) {
+func CountWorkspaceCapableUsers(ctx context.Context, logger slog.Logger, db database.Store, authorizer rbac.Authorizer) (int64, error) {
 	//nolint:gocritic // Counting licensed seats is a system function.
 	rows, err := db.GetActiveUsersAuthorizationRoles(dbauthz.AsSystemRestricted(ctx))
 	if err != nil {
@@ -44,7 +46,7 @@ func CountWorkspaceCapableUsers(ctx context.Context, db database.Store, authoriz
 		sig := authorizationSignature(row)
 		capable, ok := capableBySignature[sig]
 		if !ok {
-			capable, err = canCreateWorkspace(ctx, db, authorizer, row)
+			capable, err = canCreateWorkspace(ctx, logger, db, authorizer, row)
 			if err != nil {
 				return 0, xerrors.Errorf("evaluate workspace-create for user %s: %w", row.ID, err)
 			}
@@ -61,14 +63,19 @@ func CountWorkspaceCapableUsers(ctx context.Context, db database.Store, authoriz
 // to create a workspace they own, checked against every organization the
 // user is a member of plus the any-organization form that site-wide roles
 // satisfy regardless of org membership.
-func canCreateWorkspace(ctx context.Context, db database.Store, authorizer rbac.Authorizer, row database.GetActiveUsersAuthorizationRolesRow) (bool, error) {
+func canCreateWorkspace(ctx context.Context, logger slog.Logger, db database.Store, authorizer rbac.Authorizer, row database.GetActiveUsersAuthorizationRolesRow) (bool, error) {
 	roleNames, err := row.RoleNames()
 	if err != nil {
 		// A stored role string that fails to parse grants nothing:
 		// authorization fails closed on it, so this user cannot create a
 		// workspace. Treat the user as not capable rather than returning
 		// the error, which would fail the count for every user over one
-		// bad row.
+		// bad row. Role-signature dedupe means this logs once per unique
+		// role set, not once per user sharing it.
+		logger.Warn(ctx, "user has an unparseable role, counting them as not workspace-capable for license seats",
+			slog.F("user_id", row.ID),
+			slog.Error(err),
+		)
 		return false, nil
 	}
 

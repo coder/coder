@@ -904,7 +904,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 
 		reloadedEntitlements, err := license.Entitlements(
-			ctx, api.Database,
+			ctx, api.Logger, api.Database,
 			len(agedReplicas), len(api.ExternalAuthConfigs), api.LicenseKeys, map[codersdk.FeatureName]bool{
 				codersdk.FeatureAuditLog:                   api.AuditLogging,
 				codersdk.FeatureConnectionLog:              api.ConnectionLogging,
