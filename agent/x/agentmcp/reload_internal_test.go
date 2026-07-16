@@ -19,7 +19,23 @@ import (
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
+
+// freezeWatcher installs a mock clock on the Manager so the
+// fsnotify config watcher's debounce timer never fires on its own.
+// Tests that mutate a config file and then synchronously assert on
+// SnapshotChanged (or drive Reload manually) use this to keep the
+// assertion deterministic: a real-clock watcher can otherwise fire a
+// background reload that refreshes the snapshot before the assertion
+// runs, masking the change. Must be called before the first Reload
+// arms the watcher.
+func freezeWatcher(t *testing.T, m *Manager) {
+	t.Helper()
+	m.mu.Lock()
+	m.clock = quartz.NewMock(t)
+	m.mu.Unlock()
+}
 
 // catalogTool is a flattened (server, tool) pair taken from the
 // Manager's per-server catalog. Tests assert on these pairs instead of
@@ -191,6 +207,7 @@ func TestSnapshotChanged(t *testing.T) {
 			paths := tc.setup(t, dir)
 
 			m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+			freezeWatcher(t, m)
 			t.Cleanup(func() { _ = m.Close() })
 
 			err := m.Reload(ctx, paths)
@@ -232,6 +249,7 @@ func TestSnapshotChanged_MultipleConfigFiles(t *testing.T) {
 	paths := []string{path1, path2}
 
 	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	freezeWatcher(t, m)
 	t.Cleanup(func() { _ = m.Close() })
 
 	// Initial reload with both config files.
@@ -369,6 +387,7 @@ func TestReload(t *testing.T) {
 		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv1": entry1})
 
 		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+		freezeWatcher(t, m)
 		t.Cleanup(func() { _ = m.Close() })
 
 		// First reload.
