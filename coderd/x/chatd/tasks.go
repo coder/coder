@@ -797,6 +797,18 @@ const interruptKillDialTimeout = 5 * time.Second
 // bound.
 const interruptRecordGrace = time.Minute
 
+// interruptReconcileTimeout bounds the immediate post-interrupt
+// reconcile pass: the per-row identity wait plus slack for the
+// serial kill round-trips.
+const interruptReconcileTimeout = interruptRecordGrace + time.Minute
+
+// executionCancelGiveUpAfter is how long after its claim a
+// cancel_requested row keeps being retried before the sweep
+// records unknown and stops. Without this bound a row whose agent
+// is stopped but never deleted would be retention-exempt and
+// re-swept forever.
+const executionCancelGiveUpAfter = 24 * time.Hour
+
 // reconcileInterruptedExecutions resolves the cancel_requested
 // ledger rows left by an interrupt commit. Everything is
 // best-effort: the interrupt already committed and must not fail
@@ -811,29 +823,79 @@ func (s *taskStarter) reconcileInterruptedExecutions(ctx context.Context, record
 		return
 	}
 	// The runner may cancel the task context as soon as the
-	// interrupt's state transition lands, so run on an uncanceled
-	// context with its own bound, sized for the per-row identity
-	// wait plus the kill round-trips.
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+	// interrupt's state transition lands, so that cancellation
+	// must be ignored. Server shutdown must still abort this pass
+	// promptly: it is awaited by the runner's task drain, and the
+	// periodic sweep converges anything it abandons.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), interruptReconcileTimeout)
 	defer cancel()
+	if s.server != nil && s.server.ctx != nil {
+		stop := context.AfterFunc(s.server.ctx, cancel)
+		defer stop()
+	}
 	r := s.executionReconciler()
 	for _, record := range records {
-		if record.Status != database.ChatToolCallExecutionStatusCancelRequested {
-			continue
-		}
-		if !record.ProcessID.Valid || !record.WorkspaceAgentID.Valid {
-			// The claim may have dispatched a process whose
-			// identity is not recorded yet: recordProcessStart
-			// runs on an uncanceled context, so an interrupted
-			// in-flight StartProcess can still land its handle on
-			// this cancel_requested row moments after the commit.
-			// Wait out that window here instead of resolving
-			// early.
-			r.resolveUnknownAfterIdentityWait(ctx, record)
-			continue
-		}
-		r.reconcileCancelRequested(ctx, record)
+		r.reconcile(ctx, record)
 	}
+}
+
+// reconcile resolves one cancel_requested ledger row. It is the
+// single dispatch shared by the immediate post-interrupt pass and
+// the periodic sweep, so give-up and agent-gone handling cannot
+// drift between them.
+func (r executionReconciler) reconcile(ctx context.Context, record database.ChatToolCallExecution) {
+	if record.Status != database.ChatToolCallExecutionStatusCancelRequested {
+		return
+	}
+	if r.resolveExpiredCancel(ctx, record) {
+		return
+	}
+	if record.ProcessID.Valid && !record.WorkspaceAgentID.Valid {
+		// The owning agent row was deleted out from under the
+		// process (the FK nulls on delete): its workspace is gone
+		// and the process died with it. Neither the kill flow nor
+		// the missing-process guard can ever resolve this shape.
+		r.logger.Info(ctx, "interrupted process's agent row is gone; resolving execution canceled",
+			slog.F("chat_id", record.ChatID),
+			slog.F("tool_call_id", record.ToolCallID),
+			slog.F("process_id", record.ProcessID.String),
+		)
+		r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusCanceled, record.CancelSignalSentAt)
+		return
+	}
+	if !record.ProcessID.Valid {
+		// The claim may have dispatched a process whose identity
+		// is not recorded yet: recordProcessStart runs on an
+		// uncanceled context, so an interrupted in-flight
+		// StartProcess can still land its handle on this
+		// cancel_requested row moments after the commit. Wait out
+		// that window instead of resolving early.
+		r.resolveUnknownAfterIdentityWait(ctx, record)
+		return
+	}
+	r.reconcileCancelRequested(ctx, record)
+}
+
+// resolveExpiredCancel gives up on a cancel_requested row whose
+// kill has been unconfirmable since the claim for longer than
+// executionCancelGiveUpAfter, recording unknown. It reports whether
+// the row was resolved.
+func (r executionReconciler) resolveExpiredCancel(ctx context.Context, record database.ChatToolCallExecution) bool {
+	anchor := record.CreatedAt
+	if record.ClaimedAt.Valid {
+		anchor = record.ClaimedAt.Time
+	}
+	if dbtime.Now().Before(anchor.Add(executionCancelGiveUpAfter)) {
+		return false
+	}
+	r.logger.Warn(ctx, "giving up on interrupted execution whose kill was never confirmed; resolving unknown",
+		slog.F("chat_id", record.ChatID),
+		slog.F("tool_call_id", record.ToolCallID),
+		slog.F("process_id", record.ProcessID.String),
+		slog.F("claimed_at", anchor),
+	)
+	r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, record.CancelSignalSentAt)
+	return true
 }
 
 // resolveUnknownAfterIdentityWait handles a cancel_requested row
@@ -860,12 +922,16 @@ type executionReconciler struct {
 	agentConn AgentConnFunc
 }
 
-func (s *taskStarter) executionReconciler() executionReconciler {
+func newExecutionReconciler(store database.Store, logger slog.Logger, agentConn AgentConnFunc) executionReconciler {
 	return executionReconciler{
-		store:     s.opts.Store,
-		logger:    s.opts.Logger,
-		agentConn: s.server.agentConnFn,
+		store:     store,
+		logger:    logger,
+		agentConn: agentConn,
 	}
+}
+
+func (s *taskStarter) executionReconciler() executionReconciler {
+	return newExecutionReconciler(s.opts.Store, s.opts.Logger, s.server.agentConnFn)
 }
 
 // awaitInterruptedIdentity polls a cancel_requested row without
@@ -914,12 +980,25 @@ func (r executionReconciler) awaitInterruptedIdentity(ctx context.Context, recor
 // stays (with cancel_signal_sent_at set when the signal was
 // delivered) for the periodic sweep to retry.
 func (r executionReconciler) reconcileCancelRequested(ctx context.Context, record database.ChatToolCallExecution) {
+	if _, err := r.store.GetWorkspaceAgentByID(ctx, record.WorkspaceAgentID.UUID); errors.Is(err, sql.ErrNoRows) {
+		// The agent row is deleted (or soft-deleted): its
+		// workspace pod is gone and the process died with it.
+		// Dialing would fail every sweep forever.
+		r.logger.Info(ctx, "interrupted process's agent is deleted; resolving execution canceled",
+			slog.F("chat_id", record.ChatID),
+			slog.F("tool_call_id", record.ToolCallID),
+			slog.F("process_id", record.ProcessID.String),
+		)
+		r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusCanceled, record.CancelSignalSentAt)
+		return
+	}
 	dialCtx, cancel := context.WithTimeout(ctx, interruptKillDialTimeout)
 	defer cancel()
 	conn, release, err := r.agentConn(dialCtx, record.WorkspaceAgentID.UUID)
 	if err != nil {
 		r.logger.Warn(ctx, "failed to dial agent to kill interrupted process",
 			slog.F("chat_id", record.ChatID),
+			slog.F("tool_call_id", record.ToolCallID),
 			slog.F("process_id", record.ProcessID.String),
 			slog.Error(err),
 		)
@@ -938,6 +1017,7 @@ func (r executionReconciler) reconcileCancelRequested(ctx context.Context, recor
 		}
 		r.logger.Warn(ctx, "failed to kill interrupted process",
 			slog.F("chat_id", record.ChatID),
+			slog.F("tool_call_id", record.ToolCallID),
 			slog.F("process_id", record.ProcessID.String),
 			slog.Error(err),
 		)
@@ -1045,17 +1125,19 @@ const executionSweepRetryAge = 3 * time.Minute
 // executionSweepBatchSize bounds one sweep pass.
 const executionSweepBatchSize = 100
 
+// executionSweepPassTimeout bounds one sweep pass so a batch of
+// unreachable agents (each burning serial dial timeouts) cannot
+// collapse the retry cadence. Rows the deadline abandons keep
+// their lease and retry after executionSweepRetryAge.
+const executionSweepPassTimeout = time.Minute
+
 // executionSweepLoop periodically retries stalled cancel_requested
 // executions. The immediate post-interrupt pass is best-effort, so
 // this loop is what guarantees an interrupted process is eventually
 // killed even when its agent was unreachable at interrupt time or
 // the server died mid-reconciliation.
 func (w *chatWorker) executionSweepLoop(ctx context.Context) {
-	r := executionReconciler{
-		store:     w.opts.Store,
-		logger:    w.opts.Logger,
-		agentConn: w.server.agentConnFn,
-	}
+	r := newExecutionReconciler(w.opts.Store, w.opts.Logger, w.server.agentConnFn)
 	ticker := w.opts.Clock.NewTicker(w.opts.ExecutionSweepInterval, "chatworker", "execution-sweep")
 	defer ticker.Stop("chatworker", "execution-sweep")
 	for {
@@ -1081,6 +1163,8 @@ func (w *chatWorker) executionSweepLoop(ctx context.Context) {
 // pass, then resolve unknown; the sweep retry age exceeds the
 // record grace window, so the wait normally returns immediately.
 func (r executionReconciler) sweepOnce(ctx context.Context, now time.Time) {
+	ctx, cancel := context.WithTimeout(ctx, executionSweepPassTimeout)
+	defer cancel()
 	records, err := r.store.ClaimStaleChatToolCallExecutionCancels(ctx, database.ClaimStaleChatToolCallExecutionCancelsParams{
 		UpdatedBefore: now.Add(-executionSweepRetryAge),
 		LimitCount:    executionSweepBatchSize,
@@ -1096,10 +1180,6 @@ func (r executionReconciler) sweepOnce(ctx context.Context, now time.Time) {
 			return
 		default:
 		}
-		if !record.ProcessID.Valid || !record.WorkspaceAgentID.Valid {
-			r.resolveUnknownAfterIdentityWait(ctx, record)
-			continue
-		}
-		r.reconcileCancelRequested(ctx, record)
+		r.reconcile(ctx, record)
 	}
 }

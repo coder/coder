@@ -53,9 +53,11 @@ const (
 	chatDebugRunsBatchSize = 1000
 	// Execution ledger rows are kept after resolution as diagnostic
 	// history; rows this old can no longer be re-executed by any
-	// attempt, so deleting them only discards diagnostics.
-	chatToolCallExecutionRetention  = 7 * 24 * time.Hour
-	chatToolCallExecutionsBatchSize = 1000
+	// attempt, so deleting them only discards diagnostics. One row
+	// per execute call makes this the highest-volume chat table, so
+	// it drains at the high-frequency batch size.
+	chatToolCallExecutionsRetention = 7 * 24 * time.Hour
+	chatToolCallExecutionsBatchSize = 10000
 )
 
 type Option func(*instance)
@@ -294,7 +296,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			return xerrors.Errorf("failed to delete old workspace build orchestrations: %w", err)
 		}
 
-		deleteChatToolCallExecutionsBefore := start.Add(-chatToolCallExecutionRetention)
+		deleteChatToolCallExecutionsBefore := start.Add(-chatToolCallExecutionsRetention)
 		purgedChatToolCallExecutions, err := tx.DeleteOldChatToolCallExecutions(ctx, database.DeleteOldChatToolCallExecutionsParams{
 			BeforeTime: deleteChatToolCallExecutionsBefore,
 			LimitCount: chatToolCallExecutionsBatchSize,

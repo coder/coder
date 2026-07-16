@@ -837,6 +837,11 @@ var fakeTerminalSources = map[chattool.ExecutionStatus][]chattool.ExecutionStatu
 func (f *fakeRecorder) MarkTerminal(_ context.Context, toolCallID string, status chattool.ExecutionStatus) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if _, ok := fakeTerminalSources[status]; !ok {
+		// Mirror the production recorder, which rejects statuses
+		// that are not tool-observable.
+		return xerrors.Errorf("status %q is not a tool-observable terminal status", status)
+	}
 	rec, ok := f.records[toolCallID]
 	if !ok {
 		return nil
@@ -2018,6 +2023,51 @@ func TestProcessOutputToolWaitTimeoutClamp(t *testing.T) {
 	remaining := deadline.Sub(before)
 	assert.Less(t, remaining, 4*time.Hour+time.Minute, "wait_timeout must be clamped to 4h")
 	assert.Greater(t, remaining, 3*time.Hour+55*time.Minute, "clamp must not shorten the wait below the maximum")
+}
+
+// TestExecuteWaitRetriesEarlyServerReturn covers the blocking-wait
+// retry: the agent's server-side wait bound can elapse before the
+// process exits, and the client must re-issue the wait (with a
+// pause) instead of treating the running snapshot as final.
+func TestExecuteWaitRetriesEarlyServerReturn(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	mockConn.EXPECT().
+		StartProcess(gomock.Any(), gomock.Any()).
+		Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
+
+	exitCode := 0
+	calls := 0
+	mockConn.EXPECT().
+		ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+		Times(3).
+		DoAndReturn(func(_ context.Context, _ string, opts *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+			calls++
+			require.NotNil(t, opts)
+			require.True(t, opts.Wait)
+			if calls < 3 {
+				return workspacesdk.ProcessOutputResponse{Running: true, Output: "partial"}, nil
+			}
+			return workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode, Output: "done"}, nil
+		})
+
+	tool := newExecuteTool(t, mockConn)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	resp, err := tool.Run(ctx, fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "execute",
+		Input: `{"command":"echo hi","timeout":"30s"}`,
+	})
+	require.NoError(t, err)
+	assert.False(t, resp.IsError)
+
+	var result chattool.ExecuteResult
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	assert.True(t, result.Success)
+	assert.Equal(t, "done", result.Output)
+	assert.Equal(t, 3, calls)
 }
 
 func TestProcessOutputToolRejectsNegativeWaitTimeout(t *testing.T) {

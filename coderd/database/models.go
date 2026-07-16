@@ -5289,7 +5289,7 @@ type ChatTable struct {
 }
 
 type ChatToolCallExecution struct {
-	// Stable execution identity, generated at intent creation. Doubles as the opaque idempotency token sent to the workspace agent.
+	// Stable execution identity, generated at intent creation.
 	ID     uuid.UUID `db:"id" json:"id"`
 	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
 	// Lineage: the assistant message that issued the tool call. Provider tool call IDs may repeat across regenerated messages, so identity is (chat_id, assistant_message_id, tool_call_id).

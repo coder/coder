@@ -1,8 +1,9 @@
 -- chat_tool_call_executions is a durable ledger of execute tool call
--- lifecycles. One logical tool call creates at most one external
--- process: retried task attempts claim the ledger row instead of
+-- lifecycles. Retried task attempts claim the ledger row instead of
 -- dispatching again, and later attempts re-attach, observe, or
--- reconcile instead of silently starting another process.
+-- reconcile instead of silently starting another process. The ledger
+-- cannot dedup a dispatch whose response was lost in transit; such a
+-- call resolves to unknown rather than dispatching again.
 CREATE TYPE chat_tool_call_execution_status AS ENUM (
     'reserved',
     'starting',
@@ -40,7 +41,7 @@ CREATE TABLE chat_tool_call_executions (
     CHECK ((process_id IS NULL) = (started_at IS NULL))
 );
 
-COMMENT ON COLUMN chat_tool_call_executions.id IS 'Stable execution identity, generated at intent creation. Doubles as the opaque idempotency token sent to the workspace agent.';
+COMMENT ON COLUMN chat_tool_call_executions.id IS 'Stable execution identity, generated at intent creation.';
 COMMENT ON COLUMN chat_tool_call_executions.assistant_message_id IS 'Lineage: the assistant message that issued the tool call. Provider tool call IDs may repeat across regenerated messages, so identity is (chat_id, assistant_message_id, tool_call_id).';
 COMMENT ON COLUMN chat_tool_call_executions.input_sha256 IS 'SHA-256 of the persisted tool input, asserted at claim time to catch stale lineage.';
 COMMENT ON COLUMN chat_tool_call_executions.command IS 'Recorded at claim time for diagnostics only; never used for deduplication.';

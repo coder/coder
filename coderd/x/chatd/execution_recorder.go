@@ -37,11 +37,11 @@ type executionRecorder struct {
 
 var _ chattool.ExecutionRecorder = (*executionRecorder)(nil)
 
-func (server *Server) newExecutionRecorder(chatID uuid.UUID) *executionRecorder {
+func (p *Server) newExecutionRecorder(chatID uuid.UUID) *executionRecorder {
 	return &executionRecorder{
-		db:     server.db,
+		db:     p.db,
 		chatID: chatID,
-		logger: server.logger,
+		logger: p.logger,
 	}
 }
 
@@ -95,7 +95,11 @@ func (r *executionRecorder) Claim(ctx context.Context, toolCallID string, inputS
 		Now:         now,
 		// The zero time disables stale-claim takeover: no
 		// claimed_at precedes it, so the CAS only accepts
-		// reserved rows.
+		// reserved rows. The StaleBefore arm is forward
+		// scaffolding for the stacked agent-token work; taking
+		// over a stale claim without first proving through the
+		// agent that its dispatch never happened would re-enable
+		// double dispatch.
 		StaleBefore: time.Time{},
 	})
 	if err == nil {

@@ -325,6 +325,95 @@ func TestExecutionSweep(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, claimed)
 	})
+
+	t.Run("GiveUpAfterCancelAgeResolvesUnknown", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		record := seedCancelRequestedExecution(ctx, t, db, executionCancelGiveUpAfter+time.Hour)
+
+		// The kill has been unconfirmable for over a day; the row
+		// must terminalize without another dial.
+		r := executionReconciler{
+			store:  db,
+			logger: slogtest.Make(t, nil),
+			agentConn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				t.Fatal("an expired cancel must not dial the agent")
+				return nil, nil, nil
+			},
+		}
+		r.sweepOnce(ctx, dbtime.Now())
+
+		row, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusUnknown, row.Status)
+	})
+
+	t.Run("AgentRowGoneResolvesCanceled", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		record := seedCancelRequestedExecution(ctx, t, db, 10*time.Minute)
+
+		ws, err := db.GetWorkspaceByAgentID(ctx, record.WorkspaceAgentID.UUID)
+		require.NoError(t, err)
+		require.NoError(t, db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, ws.ID))
+
+		// The agent row is gone, so its workspace pod (and the
+		// process) died with it; dialing would fail every sweep
+		// forever.
+		r := executionReconciler{
+			store:  db,
+			logger: slogtest.Make(t, nil),
+			agentConn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				t.Fatal("a deleted agent must not be dialed")
+				return nil, nil, nil
+			},
+		}
+		r.sweepOnce(ctx, dbtime.Now())
+
+		row, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusCanceled, row.Status)
+	})
+
+	t.Run("AgentFKNulledResolvesCanceled", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		record := seedCancelRequestedExecution(ctx, t, db, 10*time.Minute)
+
+		// Simulate the workspace_agents FK having nulled the agent
+		// on hard delete while the process handle stays recorded.
+		// Neither the kill flow nor the missing-process guard can
+		// resolve this shape.
+		record.WorkspaceAgentID = uuid.NullUUID{}
+		r := executionReconciler{
+			store:  db,
+			logger: slogtest.Make(t, nil),
+			agentConn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				t.Fatal("a row without an agent must not be dialed")
+				return nil, nil, nil
+			},
+		}
+		r.reconcile(ctx, record)
+
+		row, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusCanceled, row.Status)
+	})
 }
 
 // TestReconcileCancelRequestedLateBackgroundKills asserts that a

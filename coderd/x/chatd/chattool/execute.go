@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -54,6 +55,12 @@ const (
 	// re-read while waiting for its owner to record the process
 	// handle.
 	claimPollInterval = 2 * time.Second
+
+	// processWaitRetryDelay is the pause before re-issuing a
+	// blocking process wait whose server-side bound returned
+	// early, so a short agent-side wait cannot degenerate into a
+	// zero-delay request loop.
+	processWaitRetryDelay = time.Second
 )
 
 // nonInteractiveEnvVars are set on every process to prevent
@@ -183,7 +190,10 @@ var ErrExecutionInputMismatch = xerrors.New("execution ledger input hash mismatc
 
 // HashToolInput returns the hex SHA-256 of a tool call's raw
 // persisted input. The intent writer and the claiming tool hash the
-// same persisted bytes, so a mismatch proves stale lineage.
+// same persisted bytes, so a mismatch proves stale lineage. Callers
+// must pass the persisted bytes verbatim: any re-encoding (JSON
+// re-marshaling, key reordering, whitespace changes) would fail
+// every replayed claim closed with ErrExecutionInputMismatch.
 func HashToolInput(input string) string {
 	sum := sha256.Sum256([]byte(input))
 	return hex.EncodeToString(sum[:])
@@ -667,8 +677,7 @@ func reattachProcess(
 		// when the connection targets the agent that owns the
 		// process. Transport errors, cancellations, and server
 		// errors leave the process potentially retrievable.
-		var sdkErr *codersdk.Error
-		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+		if sdkErr, ok := errors.AsType[*codersdk.Error](err); ok && sdkErr.StatusCode() == http.StatusNotFound {
 			if connTargetsOwner {
 				options.Logger.Warn(ctx, "recorded execute process is no longer known to its agent; resolving execution unknown",
 					slog.F("tool_call_id", toolCallID),
@@ -937,11 +946,40 @@ func waitForProcess(
 	processID string,
 	timeout time.Duration,
 ) (result ExecuteResult, lost bool) {
-	// Block until the process exits or the context is
-	// canceled.
-	resp, err := conn.ProcessOutput(ctx, processID, &workspacesdk.ProcessOutputOptions{
-		Wait: true,
-	})
+	for {
+		// Block until the process exits or the context is
+		// canceled.
+		resp, err := conn.ProcessOutput(ctx, processID, &workspacesdk.ProcessOutputOptions{
+			Wait: true,
+		})
+		if err == nil && resp.Running && ctx.Err() == nil {
+			// The server-side wait can return before the process
+			// exits when its maximum wait is shorter than the
+			// caller's timeout. Pause briefly, then re-issue the
+			// wait with the remaining budget.
+			select {
+			case <-ctx.Done():
+			case <-time.After(processWaitRetryDelay):
+			}
+			if ctx.Err() == nil {
+				continue
+			}
+		}
+		return resolveProcessWait(ctx, parentCtx, conn, processID, timeout, resp, err)
+	}
+}
+
+// resolveProcessWait turns the final blocking-wait response (or
+// error) into the ExecuteResult returned to the model.
+func resolveProcessWait(
+	ctx context.Context,
+	parentCtx context.Context,
+	conn workspacesdk.AgentConn,
+	processID string,
+	timeout time.Duration,
+	resp workspacesdk.ProcessOutputResponse,
+	err error,
+) (result ExecuteResult, lost bool) {
 	if err != nil {
 		origErr := err
 		timedOut := ctx.Err() != nil
@@ -958,8 +996,7 @@ func waitForProcess(
 		defer bgCancel()
 		resp, err = conn.ProcessOutput(bgCtx, processID, nil)
 		if err != nil {
-			var sdkErr *codersdk.Error
-			if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+			if sdkErr, ok := errors.AsType[*codersdk.Error](err); ok && sdkErr.StatusCode() == http.StatusNotFound {
 				return ExecuteResult{Success: false, ExitCode: -1}, true
 			}
 			errMsg := fmt.Sprintf("get process output: %v; use process_output with ID %s to retry", origErr, processID)
@@ -996,15 +1033,10 @@ func waitForProcess(
 		}, false
 	}
 
-	// The server-side wait may return before the
-	// process exits if maxWaitDuration is shorter than
-	// the client's timeout. Retry if our context still
-	// has time left.
 	if resp.Running {
-		if ctx.Err() == nil {
-			// Still within the caller's timeout, retry.
-			return waitForProcess(ctx, parentCtx, conn, processID, timeout)
-		}
+		// Only reachable once the caller's timeout expired while
+		// the process was still running; waitForProcess retries
+		// early server-side wait returns itself.
 		output := truncateOutput(resp.Output)
 		return ExecuteResult{
 			Success:             false,

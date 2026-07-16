@@ -2045,7 +2045,7 @@ CREATE TABLE chat_tool_call_executions (
     CONSTRAINT chat_tool_call_executions_check CHECK (((process_id IS NULL) = (started_at IS NULL)))
 );
 
-COMMENT ON COLUMN chat_tool_call_executions.id IS 'Stable execution identity, generated at intent creation. Doubles as the opaque idempotency token sent to the workspace agent.';
+COMMENT ON COLUMN chat_tool_call_executions.id IS 'Stable execution identity, generated at intent creation.';
 
 COMMENT ON COLUMN chat_tool_call_executions.assistant_message_id IS 'Lineage: the assistant message that issued the tool call. Provider tool call IDs may repeat across regenerated messages, so identity is (chat_id, assistant_message_id, tool_call_id).';
 
