@@ -64,7 +64,12 @@ func CountWorkspaceCapableUsers(ctx context.Context, db database.Store, authoriz
 func canCreateWorkspace(ctx context.Context, db database.Store, authorizer rbac.Authorizer, row database.GetActiveUsersAuthorizationRolesRow) (bool, error) {
 	roleNames, err := row.RoleNames()
 	if err != nil {
-		return false, xerrors.Errorf("expand role names: %w", err)
+		// A stored role string that fails to parse grants nothing:
+		// authorization fails closed on it, so this user cannot create a
+		// workspace. Treat the user as not capable rather than returning
+		// the error, which would fail the count for every user over one
+		// bad row.
+		return false, nil
 	}
 
 	//nolint:gocritic // Expanding custom roles requires system access.
