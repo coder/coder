@@ -30177,8 +30177,6 @@ func (q *sqlQuerier) GetActiveUserCount(ctx context.Context, includeSystem bool)
 
 const getActiveUsersAuthorizationRoles = `-- name: GetActiveUsersAuthorizationRoles :many
 WITH org_roles AS (
-	-- Aggregated once over all memberships and hash-joined to users below;
-	-- a correlated per-user subquery would re-execute per user row.
 	SELECT
 		organization_members.user_id,
 		-- The roles are returned as a flat array, org scoped and site side.
