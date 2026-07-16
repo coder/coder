@@ -650,8 +650,17 @@ const ChatMessageInput = ({
 		hasSkillsTrigger &&
 		!(isResolvedEmptyPersonalSkills && isResolvedEmptyWorkspaceSkills);
 	const skillsSearchQuery = skillsTrigger?.query ?? "";
+	const workspaceSkillNames = new Set(
+		loadedWorkspaceSkills.map((skill) => skill.name),
+	);
 	const personalSkillItems: readonly SkillMenuItem[] = filterSkillsByQuery(
-		personalSkills.map((skill) => createSkillMenuItem("personal", skill)),
+		personalSkills.map((skill) =>
+			createSkillMenuItem(
+				"personal",
+				skill,
+				workspaceSkillNames.has(skill.name),
+			),
+		),
 		skillsSearchQuery,
 	);
 	const workspaceSkillItems: readonly SkillMenuItem[] = filterSkillsByQuery(

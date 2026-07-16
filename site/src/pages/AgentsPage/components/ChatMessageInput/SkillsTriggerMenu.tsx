@@ -36,12 +36,14 @@ export type SkillMenuItem = SkillMetadata & {
 export const createSkillMenuItem = (
 	source: SkillSource,
 	skill: SkillMetadata,
+	// Bare personal names are ambiguous to read_skill when a workspace
+	// skill shares the name, so colliding triggers must stay qualified.
+	qualifyTrigger = source === "workspace",
 ): SkillMenuItem => ({
 	name: skill.name,
 	description: skill.description,
 	source,
-	triggerText:
-		source === "workspace" ? `/workspace/${skill.name}` : `/${skill.name}`,
+	triggerText: qualifyTrigger ? `/${source}/${skill.name}` : `/${skill.name}`,
 });
 
 type SkillsTriggerMenuProps = {

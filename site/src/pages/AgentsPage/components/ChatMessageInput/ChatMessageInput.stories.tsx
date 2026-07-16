@@ -197,6 +197,24 @@ export const ArrowDownSelectsWorkspaceSkill: Story = {
 	},
 };
 
+export const CollidingPersonalSkillInsertsQualifiedTrigger: Story = {
+	args: {
+		workspaceId: "workspace-1",
+		workspaceSkillsOverride: [
+			{ name: "reviewer", description: "Workspace review process." },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/rev");
+		expect(await findVisibleText("/personal/reviewer")).toBeDefined();
+		expect(await findVisibleText("/workspace/reviewer")).toBeDefined();
+		await userEvent.click(await findVisibleText("/personal/reviewer"));
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/personal/reviewer");
+		});
+	},
+};
+
 export const UniqueWorkspaceQualifiedPrefixStaysSearchable: Story = {
 	args: {
 		workspaceId: "workspace-1",
