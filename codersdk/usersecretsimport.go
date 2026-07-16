@@ -33,7 +33,9 @@ type secretEntry struct {
 
 // ParseSecretsFile parses a secrets file into CreateUserSecretRequests.
 // It checks structure and duplicate keys; per-entry validation is left to
-// ValidateCreateUserSecretRequest.
+// ValidateCreateUserSecretRequest. EnvName is set only when the key passes
+// env-name validation (best-effort; keys like MY-TOKEN or PATH get an empty
+// EnvName so they are still imported without env injection).
 func ParseSecretsFile(format SecretsFileFormat, content string) ([]CreateUserSecretRequest, error) {
 	if len(content) > MaxSecretsFileBytes {
 		return nil, xerrors.Errorf("secrets file exceeds the maximum allowed size of %d bytes", MaxSecretsFileBytes)
@@ -80,15 +82,25 @@ func ParseSecretsFile(format SecretsFileFormat, content string) ([]CreateUserSec
 
 	reqs := make([]CreateUserSecretRequest, 0, len(entries))
 	for _, e := range entries {
-		reqs = append(reqs, CreateUserSecretRequest{
-			Name:    e.key,
-			EnvName: e.key,
-			Value:   e.value,
-		})
+		req := CreateUserSecretRequest{Name: e.key, Value: e.value}
+		// Best-effort env injection: only set EnvName when the key is a
+		// valid POSIX env variable name and not reserved. Keys such as
+		// "MY-TOKEN" (hyphens) or "PATH" (reserved) are silently imported
+		// without env injection rather than failing the entire batch.
+		// The env_name uniqueness index is a partial index
+		// (WHERE env_name != ''), so multiple empty env_names are fine.
+		if UserSecretEnvNameValid(e.key) == nil {
+			req.EnvName = e.key
+		}
+		reqs = append(reqs, req)
 	}
 	return reqs, nil
 }
 
+// detectDuplicateKeys scans for repeated keys in source order. Because
+// the flat mapping sets Name == KEY (and EnvName == KEY when valid),
+// catching duplicates here gives a clear up-front error (citing the
+// line for env files) instead of a later per-row uniqueness violation.
 func detectDuplicateKeys(entries []secretEntry) error {
 	seen := make(map[string]struct{}, len(entries))
 	for _, e := range entries {

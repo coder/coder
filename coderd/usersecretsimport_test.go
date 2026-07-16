@@ -87,9 +87,10 @@ func TestImportUserSecretsValidationRollback(t *testing.T) {
 		name    string
 		badLine string
 	}{
-		{name: "ReservedEnvName", badLine: "PATH=whatever"},
+		// Empty values are always invalid; this is the canonical rollback case.
 		{name: "EmptyValue", badLine: "EMPTY_ONE="},
 		{name: "OversizedValue", badLine: "BIG=" + strings.Repeat("a", codersdk.MaxUserSecretValueBytes+1)},
+		// A slash in the name is invalid regardless of env-name handling.
 		{name: "NameWithSlash", badLine: "bad/name=value"},
 	}
 	for _, tc := range cases {
@@ -124,7 +125,50 @@ func TestImportUserSecretsValidationRollback(t *testing.T) {
 	}
 }
 
-// TestImportUserSecretsConflict imports a batch that reuses the name of
+// TestImportUserSecretsReservedEnvNameBestEffort verifies that a
+// reserved env name (e.g. PATH) no longer causes the whole batch to
+// roll back. With best-effort env injection the secret is created
+// successfully with an empty env_name, and the rest of the batch is
+// unaffected.
+func TestImportUserSecretsReservedEnvNameBestEffort(t *testing.T) {
+	t.Parallel()
+	auditor := audit.NewMock()
+	client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+	_ = coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	auditor.ResetLogs()
+
+	secrets, err := client.ImportUserSecrets(ctx, codersdk.Me, codersdk.ImportUserSecretsRequest{
+		Format:  codersdk.SecretsFileFormatEnv,
+		Content: "GOOD_ENTRY=fine\nPATH=whatever",
+	})
+	require.NoError(t, err)
+	require.Len(t, secrets, 2)
+
+	// The PATH secret must be created, but without env injection.
+	var pathSecret *codersdk.UserSecret
+	for i := range secrets {
+		if secrets[i].Name == "PATH" {
+			pathSecret = &secrets[i]
+			break
+		}
+	}
+	require.NotNilf(t, pathSecret, "PATH secret not found in response")
+	assert.Equal(t, "", pathSecret.EnvName, "reserved env name must be left empty")
+
+	// Both secrets should be in the list.
+	listed, err := client.UserSecrets(ctx, codersdk.Me)
+	require.NoError(t, err)
+	names := make([]string, 0, len(listed))
+	for _, s := range listed {
+		names = append(names, s.Name)
+	}
+	assert.ElementsMatch(t, []string{"GOOD_ENTRY", "PATH"}, names)
+
+	// Both creates must be audited.
+	assert.Len(t, auditor.AuditLogs(), 2)
+}
+
 // an already-existing secret. The conflict aborts the whole batch, so
 // the other (new) entry is not created and no audit log is written.
 func TestImportUserSecretsConflict(t *testing.T) {
@@ -225,10 +269,9 @@ func TestImportUserSecretsLimits(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Pre-fill the total-bytes budget to the cap using file-only
-		// secrets, which do not count against the smaller env budget.
-		// The import parser always sets env_name, so a file-only secret
-		// is the only way to load the total budget without first
-		// tripping the env budget.
+		// secrets (no env_name), which do not count against the smaller
+		// env budget. Creating them via CreateUserSecret directly avoids
+		// going through the import parser.
 		big := strings.Repeat("a", codersdk.MaxUserSecretValueBytes)
 		numBig := codersdk.MaxUserSecretsTotalValueBytes / codersdk.MaxUserSecretValueBytes
 		remainder := codersdk.MaxUserSecretsTotalValueBytes % codersdk.MaxUserSecretValueBytes
