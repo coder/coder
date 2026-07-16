@@ -32,10 +32,12 @@ import {
 	chatModelConfigs,
 	chatModels,
 	chatProviderConfigs,
+	chatsByWorkspaceKeyPrefix,
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
 	interruptChat,
+	invalidateChatListQueries,
 	mcpServerConfigs,
 	promoteChatQueuedMessage,
 	updateChatPlanMode,
@@ -1580,13 +1582,19 @@ const AgentChatPage: FC = () => {
 		// message: there is no message to insert and the chat is
 		// archived, so skip the running-state optimism and refetch
 		// chat metadata to reflect the ended chat. EndChat can still
-		// persist hook notice messages, so refetch the transcript too.
+		// persist hook notice messages, so refetch the transcript too,
+		// and refresh chat lists so the archived chat drops out
+		// without relying on the WebSocket delete event.
 		if (response.ended) {
 			store.clearStreamState();
 			void queryClient.invalidateQueries({ queryKey: chatKey(agentId) });
 			void queryClient.invalidateQueries({
 				queryKey: chatMessagesKey(agentId),
 				exact: true,
+			});
+			void invalidateChatListQueries(queryClient);
+			void queryClient.invalidateQueries({
+				queryKey: chatsByWorkspaceKeyPrefix,
 			});
 			return;
 		}

@@ -1410,7 +1410,9 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	) => {
 		// message is absent when a lifecycle hook ended the chat
 		// instead of committing the edit. Drop the optimistic edit and
-		// refetch the transcript the server actually kept.
+		// refetch the transcript the server actually kept. The chat
+		// row itself refetches via the unconditional chatKey
+		// invalidation in onSettled.
 		const responseMessage = response.message;
 		if (!responseMessage) {
 			if (context?.previousData) {
@@ -1419,6 +1421,12 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 			void queryClient.invalidateQueries({
 				queryKey: chatMessagesKey(chatId),
 				exact: true,
+			});
+			// The backend archived the chat; refresh chat lists so it
+			// drops out without relying on the WebSocket delete event.
+			void invalidateChatListQueries(queryClient);
+			void queryClient.invalidateQueries({
+				queryKey: chatsByWorkspaceKeyPrefix,
 			});
 			return;
 		}
