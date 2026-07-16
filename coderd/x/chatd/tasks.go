@@ -949,9 +949,9 @@ func (s *taskStarter) executionReconciler() executionReconciler {
 }
 
 // awaitInterruptedIdentity polls a cancel_requested row without
-// recorded process identity while the dead dispatch's uncanceled
-// recordProcessStart write can still land (recordWriteTimeout plus
-// slack from the claim). It returns the freshest row observed.
+// process identity until the identity lands, the row leaves
+// cancel_requested, or the record grace window since its claim
+// closes. It returns the latest row observed.
 func (r executionReconciler) awaitInterruptedIdentity(ctx context.Context, record database.ChatToolCallExecution) database.ChatToolCallExecution {
 	if !record.ClaimedAt.Valid {
 		return record
@@ -972,7 +972,7 @@ func (r executionReconciler) awaitInterruptedIdentity(ctx context.Context, recor
 			continue
 		}
 		record = latest
-		if record.ProcessID.Valid && record.WorkspaceAgentID.Valid {
+		if record.ProcessID.Valid {
 			return record
 		}
 		if record.Status != database.ChatToolCallExecutionStatusCancelRequested {
@@ -1007,10 +1007,11 @@ func (r executionReconciler) resolveUnknownAfterIdentityWait(ctx context.Context
 // cancellation. The probe dials the dispatch target recorded at
 // claim time, never the chat's current agent: a chat rebound to a
 // different agent after the dispatch would answer for an agent
-// that never saw the token. Paths where the index proves nothing
-// (old agents answering HTTP 404 on the probe route, untrustworthy
-// absence, no dispatch target) fall back to waiting for a late
-// handle write before resolving unknown.
+// that never saw the token. When the token index cannot help (old
+// agents without the probe route, untrustworthy absence, no
+// dispatch target), the row waits out the record grace window for
+// a late handle write before resolving unknown, so a process whose
+// identity was about to land is killed instead of orphaned.
 func (r executionReconciler) reconcileCancelRequestedByToken(ctx context.Context, record database.ChatToolCallExecution) {
 	if !record.WorkspaceAgentID.Valid {
 		r.resolveUnknownAfterIdentityWait(ctx, record)
@@ -1040,9 +1041,8 @@ func (r executionReconciler) reconcileCancelRequestedByToken(ctx context.Context
 		if err != nil {
 			if isAgentNotFound(err) {
 				// The agent predates the token probe endpoint, so
-				// the only observable signal left is a late handle
-				// write on the row itself.
-				r.resolveUnknownAfterIdentityWait(ctx, record)
+				// the token index cannot be consulted.
+				r.resolveInterruptedWithoutProbe(ctx, conn, record)
 				return
 			}
 			r.logger.Warn(ctx, "failed to probe interrupted execution token",
@@ -1083,9 +1083,27 @@ func (r executionReconciler) reconcileCancelRequestedByToken(ctx context.Context
 	}
 	// The token may have been reaped with its exited process, or
 	// the agent restarted with an empty token index, so absence
-	// proves nothing. A late handle write can still identify the
-	// process.
-	r.resolveUnknownAfterIdentityWait(ctx, record)
+	// proves nothing.
+	r.resolveInterruptedWithoutProbe(ctx, conn, record)
+}
+
+// resolveInterruptedWithoutProbe handles a cancel_requested row
+// whose dispatch cannot be proven dead through the token index. A
+// late handle write can still land on the row (recordProcessStart
+// runs on an uncanceled bound after StartProcess returns), so wait
+// through the record grace window before terminalizing: a handle
+// that arrives gets the kill flow instead of being orphaned by an
+// unknown status that blocks the process-identity CAS.
+func (r executionReconciler) resolveInterruptedWithoutProbe(ctx context.Context, conn workspacesdk.AgentConn, record database.ChatToolCallExecution) {
+	record = r.awaitInterruptedIdentity(ctx, record)
+	if record.Status != database.ChatToolCallExecutionStatusCancelRequested {
+		return
+	}
+	if record.ProcessID.Valid {
+		r.killAndConfirm(ctx, conn, record, record.ProcessID.String)
+		return
+	}
+	r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, sql.NullTime{})
 }
 
 // isAgentNotFound reports a definite HTTP 404 from the agent: the
