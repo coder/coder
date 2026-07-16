@@ -381,6 +381,35 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			for _, warning := range entitlements.Warnings {
 				require.NotContains(t, warning, "users but")
 			}
+			// A fully valid addon license must not warn about the
+			// counting-mode revert.
+			for _, warning := range entitlements.Warnings {
+				require.NotContains(t, warning, "fully expires")
+			}
+		})
+
+		t.Run("AddonLimitBindsCounting", func(t *testing.T) {
+			// A higher user limit from a license without the addon must not
+			// apply to workspace-capable counting: the merged limit is
+			// clamped to the addon license's own user limit.
+			licenses := []database.License{
+				dbLicense(*(&coderdenttest.LicenseOptions{
+					Features: license.Features{codersdk.FeatureUserLimit: 500},
+				}).Valid(now)),
+				addonLicense(),
+			}
+			entitlements, err := license.LicensesEntitlements(ctx, now, licenses, enablements, coderdenttest.Keys, license.FeatureArguments{
+				ActiveUserCount: 7,
+				WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
+					return 150, nil
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, int64(150), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
+			require.Equal(t, int64(100), *entitlements.Features[codersdk.FeatureUserLimit].Limit,
+				"the non-addon license's higher limit must not apply")
+			require.Contains(t, entitlements.Warnings,
+				"Your deployment has 150 workspace-capable users but is only licensed for 100.")
 		})
 
 		t.Run("OverLimitWarnsWithCapableCount", func(t *testing.T) {
@@ -415,6 +444,10 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			require.Equal(t, int64(3), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
 			require.Contains(t, entitlements.Warnings,
 				"Your deployment has 3 workspace-capable users but the license with the limit 100 is expired.")
+			// The revert warning gives admins the legacy count they will be
+			// measured by once the grace period ends.
+			require.Contains(t, entitlements.Warnings,
+				"Your license with the AI Governance addon is expired. When it fully expires, all 7 active users will count toward the user limit instead of the 3 workspace-capable users.")
 		})
 
 		t.Run("FnErrorPropagates", func(t *testing.T) {
