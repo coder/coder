@@ -129,6 +129,16 @@ type sqlcQuerier interface {
 	DeleteAIProviderKey(ctx context.Context, id uuid.UUID) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
+	// Long-horizon reaping of rows whose tool result never committed:
+	// a crashed turn, a terminal task failure, or an unclaimed reserved
+	// intent leaves result_committed_at NULL forever, and without this
+	// delete such rows are only reaped by chat retention, which many
+	// deployments leave unset. The horizon is anchored on updated_at so
+	// any reconciler or re-attach activity defers deletion; a row idle
+	// for the whole horizon guards a dedup that will never fire.
+	// cancel_requested rows are excluded: the sweep owns them and
+	// terminalizes them within the give-up bound.
+	DeleteAbandonedChatToolCallExecutions(ctx context.Context, arg DeleteAbandonedChatToolCallExecutionsParams) (int64, error)
 	// Deletes all heartbeat rows for the chat. Used during ownership
 	// transitions that abandon a lease.
 	DeleteAllChatHeartbeats(ctx context.Context, chatID uuid.UUID) error

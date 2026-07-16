@@ -221,3 +221,26 @@ WITH deletable AS (
 DELETE FROM chat_tool_call_executions
 USING deletable
 WHERE chat_tool_call_executions.id = deletable.id;
+
+-- name: DeleteAbandonedChatToolCallExecutions :execrows
+-- Long-horizon reaping of rows whose tool result never committed:
+-- a crashed turn, a terminal task failure, or an unclaimed reserved
+-- intent leaves result_committed_at NULL forever, and without this
+-- delete such rows are only reaped by chat retention, which many
+-- deployments leave unset. The horizon is anchored on updated_at so
+-- any reconciler or re-attach activity defers deletion; a row idle
+-- for the whole horizon guards a dedup that will never fire.
+-- cancel_requested rows are excluded: the sweep owns them and
+-- terminalizes them within the give-up bound.
+WITH deletable AS (
+    SELECT id
+    FROM chat_tool_call_executions
+    WHERE updated_at < @before_time::timestamptz
+      AND result_committed_at IS NULL
+      AND status <> 'cancel_requested'
+    ORDER BY updated_at ASC
+    LIMIT @limit_count::int
+)
+DELETE FROM chat_tool_call_executions
+USING deletable
+WHERE chat_tool_call_executions.id = deletable.id;

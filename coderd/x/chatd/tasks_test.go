@@ -1247,7 +1247,7 @@ func newTestTaskStarter(t *testing.T, f *taskTestFixture, recorder *taskSideEffe
 	t.Helper()
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
 	t.Cleanup(buffer.Close)
-	starter, err := newTaskStarter(newUnstartedServer(t, f.rawPS, f.db), chatWorkerOptions{
+	starter, err := newTaskStarter(context.Background(), newUnstartedServer(t, f.rawPS, f.db), chatWorkerOptions{
 		Store:                   f.db,
 		Pubsub:                  f.pubsub,
 		Logger:                  slog.Make(),

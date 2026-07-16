@@ -1071,6 +1071,13 @@ func (s *MethodTestSuite) TestChats() {
 			LimitCount: 1000,
 		}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
+	s.Run("DeleteAbandonedChatToolCallExecutions", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().DeleteAbandonedChatToolCallExecutions(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
+		check.Args(database.DeleteAbandonedChatToolCallExecutionsParams{
+			BeforeTime: dbtime.Now(),
+			LimitCount: 1000,
+		}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
 	s.Run("GetChatRetentionDays", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(30), nil).AnyTimes()
 		check.Args().Asserts()

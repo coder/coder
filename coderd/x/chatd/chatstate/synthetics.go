@@ -12,7 +12,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -99,7 +101,7 @@ func synthesizePendingToolCancellations(
 			}
 		}
 	}
-	out := make([]Message, 0)
+	pending := make([]codersdk.ChatMessagePart, 0)
 	for _, part := range assistantParts {
 		if part.Type != codersdk.ChatMessagePartTypeToolCall {
 			continue
@@ -117,12 +119,33 @@ func synthesizePendingToolCancellations(
 		if handled[part.ToolCallID] {
 			continue
 		}
+		pending = append(pending, part)
+	}
+	if len(pending) == 0 {
+		return nil, nil
+	}
+	mappedByCallID, err := mapCanceledExecutions(ctx, store, chat.ID, lastAssistant.ID, pending)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Message, 0, len(pending))
+	for _, part := range pending {
 		resultPart := codersdk.ChatMessagePart{
 			Type:       codersdk.ChatMessagePartTypeToolResult,
 			ToolCallID: part.ToolCallID,
 			ToolName:   part.ToolName,
 			Result:     json.RawMessage(fmt.Sprintf("%q", reason)),
 			IsError:    true,
+		}
+		if row, ok := mappedByCallID[part.ToolCallID]; ok && row.Status == database.ChatToolCallExecutionStatusDetached && row.ProcessID.Valid {
+			// The mapping spared this background process, so the
+			// permanent synthetic result must carry its handle.
+			payload, err := chattool.SparedBackgroundInterruptResult(row.ProcessID.String)
+			if err != nil {
+				return nil, err
+			}
+			resultPart.Result = payload
+			resultPart.IsError = false
 		}
 		raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{resultPart})
 		if err != nil {
@@ -136,8 +159,53 @@ func synthesizePendingToolCancellations(
 			ModelConfigID:  uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: true},
 		})
 	}
-	if len(out) == 0 {
-		return nil, nil
+	return out, nil
+}
+
+// mapCanceledExecutions maps the ledger rows of tool calls a
+// transition is about to resolve with synthetic cancellation
+// results, mirroring the interrupt commit: the mapping and the
+// result-committed stamp run in the same transaction that commits
+// the synthetic results. Rows the mapping routes to cancel_requested
+// are picked up by the worker's periodic execution sweep, which
+// kills their processes; without this every non-interrupt
+// cancellation (message edit, queued promotion, new message,
+// abandon, archive) would orphan a live process and leave an
+// uncommitted ledger row no purge can reap. Returns the mapped rows
+// keyed by tool-call ID so spared background processes keep their
+// handle in the committed result.
+func mapCanceledExecutions(
+	ctx context.Context,
+	store database.Store,
+	chatID uuid.UUID,
+	assistantMessageID int64,
+	pending []codersdk.ChatMessagePart,
+) (map[string]database.ChatToolCallExecution, error) {
+	toolCallIDs := make([]string, 0, len(pending))
+	for _, part := range pending {
+		toolCallIDs = append(toolCallIDs, part.ToolCallID)
+	}
+	now := dbtime.Now()
+	mapped, err := store.MarkChatToolCallExecutionsInterrupted(ctx, database.MarkChatToolCallExecutionsInterruptedParams{
+		ChatID:             chatID,
+		AssistantMessageID: assistantMessageID,
+		ToolCallIds:        toolCallIDs,
+		UpdatedAt:          now,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("mark tool call executions interrupted: %w", err)
+	}
+	if err := store.MarkChatToolCallExecutionsResultCommitted(ctx, database.MarkChatToolCallExecutionsResultCommittedParams{
+		ChatID:             chatID,
+		AssistantMessageID: assistantMessageID,
+		ToolCallIds:        toolCallIDs,
+		ResultCommittedAt:  now,
+	}); err != nil {
+		return nil, xerrors.Errorf("mark tool call executions result committed: %w", err)
+	}
+	out := make(map[string]database.ChatToolCallExecution, len(mapped))
+	for _, row := range mapped {
+		out[row.ToolCallID] = row
 	}
 	return out, nil
 }

@@ -1126,8 +1126,7 @@ func executeTools(
 	keptCompletedAt := completedAt[:0]
 	for i, tr := range results {
 		if resultErr, ok := tr.Result.(fantasy.ToolResultOutputContentError); ok {
-			var abort *chattool.AbortToolExecutionError
-			if xerrors.As(resultErr.Error, &abort) {
+			if abort, ok := errors.AsType[*chattool.AbortToolExecutionError](resultErr.Error); ok {
 				if abortErr == nil {
 					abortErr = xerrors.Errorf("tool %s (call %s) aborted the batch: %w", tr.ToolName, tr.ToolCallID, abort)
 				}

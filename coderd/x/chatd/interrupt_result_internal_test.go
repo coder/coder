@@ -17,9 +17,10 @@ import (
 )
 
 // TestInterruptedToolResultPayload asserts that the synthetic result
-// committed at interrupt carries the process handle for a background
-// execute whose handle already landed, and the generic cancellation
-// error for everything else.
+// committed at interrupt derives from the mapped ledger row: a
+// background row the mapping spared as detached carries the process
+// handle, and everything else (foreground rows and calls with no
+// ledger row) gets the generic cancellation error.
 func TestInterruptedToolResultPayload(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)
@@ -58,20 +59,35 @@ func TestInterruptedToolResultPayload(t *testing.T) {
 		require.NoError(t, err)
 		return row
 	}
+	recordProcess := func(row database.ChatToolCallExecution, processID string) {
+		_, err := db.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         row.ToolCallID,
+			ClaimEpoch:         row.ClaimEpoch,
+			ProcessID:          processID,
+			WorkspaceAgentID:   agent.ID,
+			StartedAt:          dbtime.Now(),
+		})
+		require.NoError(t, err)
+	}
 
-	bg := claim("bg-call", true)
-	_, err := db.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
+	recordProcess(claim("bg-call", true), "proc-bg")
+	recordProcess(claim("fg-call", false), "proc-fg")
+
+	mapped, err := db.MarkChatToolCallExecutionsInterrupted(ctx, database.MarkChatToolCallExecutionsInterruptedParams{
 		ChatID:             chat.ID,
 		AssistantMessageID: msg.ID,
-		ToolCallID:         "bg-call",
-		ClaimEpoch:         bg.ClaimEpoch,
-		ProcessID:          "proc-bg",
-		WorkspaceAgentID:   agent.ID,
-		StartedAt:          dbtime.Now(),
+		ToolCallIds:        []string{"bg-call", "fg-call"},
+		UpdatedAt:          dbtime.Now(),
 	})
 	require.NoError(t, err)
+	byCallID := make(map[string]database.ChatToolCallExecution, len(mapped))
+	for _, row := range mapped {
+		byCallID[row.ToolCallID] = row
+	}
 
-	payload, isError, err := interruptedToolResultPayload(ctx, db, chat.ID, msg.ID, "bg-call")
+	payload, isError, err := interruptedToolResultPayload(byCallID["bg-call"])
 	require.NoError(t, err)
 	require.False(t, isError)
 	var result chattool.ExecuteResult
@@ -82,24 +98,13 @@ func TestInterruptedToolResultPayload(t *testing.T) {
 
 	// A foreground row with a handle still cancels: the interrupt
 	// reconciler kills its process.
-	fg := claim("fg-call", false)
-	_, err = db.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
-		ChatID:             chat.ID,
-		AssistantMessageID: msg.ID,
-		ToolCallID:         "fg-call",
-		ClaimEpoch:         fg.ClaimEpoch,
-		ProcessID:          "proc-fg",
-		WorkspaceAgentID:   agent.ID,
-		StartedAt:          dbtime.Now(),
-	})
-	require.NoError(t, err)
-	payload, isError, err = interruptedToolResultPayload(ctx, db, chat.ID, msg.ID, "fg-call")
+	payload, isError, err = interruptedToolResultPayload(byCallID["fg-call"])
 	require.NoError(t, err)
 	require.True(t, isError)
 	require.Contains(t, string(payload), "error")
 
 	// A call without a ledger row gets the generic cancellation.
-	payload, isError, err = interruptedToolResultPayload(ctx, db, chat.ID, msg.ID, "no-row")
+	payload, isError, err = interruptedToolResultPayload(database.ChatToolCallExecution{})
 	require.NoError(t, err)
 	require.True(t, isError)
 	require.Contains(t, string(payload), "error")

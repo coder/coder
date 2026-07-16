@@ -441,6 +441,14 @@ func (m queryMetricsStore) DeleteAPIKeysByUserID(ctx context.Context, userID uui
 	return r0
 }
 
+func (m queryMetricsStore) DeleteAbandonedChatToolCallExecutions(ctx context.Context, arg database.DeleteAbandonedChatToolCallExecutionsParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteAbandonedChatToolCallExecutions(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteAbandonedChatToolCallExecutions").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAbandonedChatToolCallExecutions").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteAllChatHeartbeats(ctx context.Context, chatID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteAllChatHeartbeats(ctx, chatID)

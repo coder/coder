@@ -693,8 +693,7 @@ func (s *taskStarter) executeLocalTools(
 		Clock:              s.opts.Clock,
 	})
 	if err != nil {
-		var abortErr *chattool.AbortToolExecutionError
-		if !errors.As(err, &abortErr) {
+		if _, ok := errors.AsType[*chattool.AbortToolExecutionError](err); !ok {
 			return xerrors.Errorf("execute local tools: %w", err)
 		}
 		return s.abortLocalToolBatch(ctx, machine, input, attempt.number, prepared, decision, outcome, err)

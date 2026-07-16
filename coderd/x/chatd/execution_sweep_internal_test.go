@@ -353,6 +353,53 @@ func TestExecutionSweep(t *testing.T) {
 		require.Equal(t, database.ChatToolCallExecutionStatusUnknown, row.Status)
 	})
 
+	t.Run("OldClaimFreshCancelStillKills", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		record := seedCancelRequestedExecution(ctx, t, db, executionCancelGiveUpAfter+time.Hour)
+
+		// The cancellation commit stamps result_committed_at; the
+		// give-up bound anchors on it, so a call claimed over a day
+		// ago that was interrupted just now still gets its kill.
+		err := db.MarkChatToolCallExecutionsResultCommitted(ctx, database.MarkChatToolCallExecutionsResultCommittedParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallIds:        []string{record.ToolCallID},
+			ResultCommittedAt:  dbtime.Now(),
+		})
+		require.NoError(t, err)
+		record, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		require.NoError(t, err)
+
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		conn.EXPECT().SignalProcess(gomock.Any(), "proc-sweep", "kill").Return(nil)
+		exitCode := -1
+		conn.EXPECT().ProcessOutput(gomock.Any(), "proc-sweep", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode}, nil)
+		r := executionReconciler{
+			store:  db,
+			logger: slogtest.Make(t, nil),
+			agentConn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return conn, func() {}, nil
+			},
+		}
+		r.reconcile(ctx, record)
+
+		row, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusCanceled, row.Status)
+	})
+
 	t.Run("AgentRowGoneResolvesCanceled", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)

@@ -183,14 +183,21 @@ type interruptionOutcome struct {
 }
 
 type taskStarter struct {
-	server                   *Server
-	opts                     chatWorkerOptions
+	server *Server
+	opts   chatWorkerOptions
+	// shutdownCtx is the worker's root context, canceled at the
+	// start of chatWorker.Close before the runner drain waits on
+	// in-flight tasks. Deferred best-effort work that must ignore
+	// normal task cancellation aborts on this context instead, so
+	// graceful shutdown is not blocked by it.
+	shutdownCtx              context.Context
 	routeStateHint           func(context.Context, runnerStateUpdate)
 	requestCleanup           func(context.Context, runnerKey)
 	afterInterruptionOutcome func(context.Context, interruptionOutcome) error
 }
 
 func newTaskStarter(
+	shutdownCtx context.Context,
 	server *Server,
 	opts chatWorkerOptions,
 	routeStateHint func(context.Context, runnerStateUpdate),
@@ -229,6 +236,7 @@ func newTaskStarter(
 	return &taskStarter{
 		server:         server,
 		opts:           opts,
+		shutdownCtx:    shutdownCtx,
 		routeStateHint: routeStateHint,
 		requestCleanup: requestCleanup,
 	}, nil
@@ -301,10 +309,15 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		messages := partialMessages
 		interruptedExecutions = nil
 		interruptedAt := s.opts.Clock.Now("chatworker", "interrupt")
-		committedCancels, canceledIDs, assistantMessageID, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, interruptedAt)
+		// The ledger's interrupt mapping runs inside the builder so
+		// each synthetic result derives from its mapped row; the
+		// synthetic results and the mapping commit atomically in
+		// this transaction.
+		committedCancels, canceledIDs, assistantMessageID, mapped, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, interruptedAt)
 		if err != nil {
 			return xerrors.Errorf("committed pending local tool cancellation messages: %w", err)
 		}
+		interruptedExecutions = mapped
 		if len(committedCancels) > 0 {
 			messages = append(append([]chatstate.Message{}, partialMessages...), committedCancels...)
 		}
@@ -312,18 +325,6 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 			return xerrors.Errorf("finish interruption: %w", err)
 		}
 		if len(canceledIDs) > 0 {
-			// The synthetic cancellation results for these calls
-			// commit in this transaction, so the ledger's interrupt
-			// mapping and result-committed marks belong to it too.
-			interruptedExecutions, err = store.MarkChatToolCallExecutionsInterrupted(ctx, database.MarkChatToolCallExecutionsInterruptedParams{
-				ChatID:             input.ChatID,
-				AssistantMessageID: assistantMessageID,
-				ToolCallIds:        canceledIDs,
-				UpdatedAt:          interruptedAt,
-			})
-			if err != nil {
-				return xerrors.Errorf("mark tool call executions interrupted: %w", err)
-			}
 			err = store.MarkChatToolCallExecutionsResultCommitted(ctx, database.MarkChatToolCallExecutionsResultCommittedParams{
 				ChatID:             input.ChatID,
 				AssistantMessageID: assistantMessageID,
@@ -704,32 +705,58 @@ func dynamicToolNamesFromChat(chat database.Chat) map[string]bool {
 	return names
 }
 
+// committedPendingLocalToolCancellationMessages builds the synthetic
+// cancellation results for the unresolved local tool calls at
+// interrupt and maps their ledger rows in the same transaction. The
+// ledger mapping runs first so each synthetic payload derives from
+// the mapping's RETURNING row: a background execute the mapping
+// spares as detached carries its process handle in the committed
+// result, and the handle-in-result and spare-as-detached decisions
+// are one observation instead of two racy reads. Everything else
+// gets the generic cancellation error. Returns the mapped ledger
+// rows for the post-commit reconcile pass.
 func committedPendingLocalToolCancellationMessages(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
 	interruptedAt time.Time,
-) ([]chatstate.Message, []string, int64, error) {
+) ([]chatstate.Message, []string, int64, []database.ChatToolCallExecution, error) {
 	messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,
 		AfterID: 0,
 	})
 	if err != nil {
-		return nil, nil, 0, xerrors.Errorf("load committed messages for interruption: %w", err)
+		return nil, nil, 0, nil, xerrors.Errorf("load committed messages for interruption: %w", err)
 	}
 	assistantMessageID, localCalls, _, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
 	if err != nil {
-		return nil, nil, 0, err
+		return nil, nil, 0, nil, err
 	}
 	if len(localCalls) == 0 {
-		return nil, nil, 0, nil
+		return nil, nil, 0, nil, nil
 	}
-	result := make([]chatstate.Message, 0, len(localCalls))
 	toolCallIDs := make([]string, 0, len(localCalls))
 	for _, call := range localCalls {
-		payload, isError, err := interruptedToolResultPayload(ctx, store, chat.ID, assistantMessageID, call.ToolCallID)
+		toolCallIDs = append(toolCallIDs, call.ToolCallID)
+	}
+	mapped, err := store.MarkChatToolCallExecutionsInterrupted(ctx, database.MarkChatToolCallExecutionsInterruptedParams{
+		ChatID:             chat.ID,
+		AssistantMessageID: assistantMessageID,
+		ToolCallIds:        toolCallIDs,
+		UpdatedAt:          interruptedAt,
+	})
+	if err != nil {
+		return nil, nil, 0, nil, xerrors.Errorf("mark tool call executions interrupted: %w", err)
+	}
+	mappedByCallID := make(map[string]database.ChatToolCallExecution, len(mapped))
+	for _, row := range mapped {
+		mappedByCallID[row.ToolCallID] = row
+	}
+	result := make([]chatstate.Message, 0, len(localCalls))
+	for _, call := range localCalls {
+		payload, isError, err := interruptedToolResultPayload(mappedByCallID[call.ToolCallID])
 		if err != nil {
-			return nil, nil, 0, err
+			return nil, nil, 0, nil, err
 		}
 		part := codersdk.ChatMessageToolResult(call.ToolCallID, call.ToolName, payload, isError, false)
 		if !interruptedAt.IsZero() {
@@ -737,7 +764,7 @@ func committedPendingLocalToolCancellationMessages(
 		}
 		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{part})
 		if err != nil {
-			return nil, nil, 0, xerrors.Errorf("marshal interrupted tool result part: %w", err)
+			return nil, nil, 0, nil, xerrors.Errorf("marshal interrupted tool result part: %w", err)
 		}
 		result = append(result, chatstate.Message{
 			Role:           database.ChatMessageRoleTool,
@@ -746,37 +773,23 @@ func committedPendingLocalToolCancellationMessages(
 			ModelConfigID:  uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: chat.LastModelConfigID != uuid.Nil},
 			ContentVersion: chatprompt.CurrentContentVersion,
 		})
-		toolCallIDs = append(toolCallIDs, call.ToolCallID)
 	}
-	return result, toolCallIDs, assistantMessageID, nil
+	return result, toolCallIDs, assistantMessageID, mapped, nil
 }
 
 // interruptedToolResultPayload builds the synthetic result committed
-// for an unresolved tool call at interrupt. A background execute
-// whose handle already landed is deliberately spared by the
-// interrupt, so its result carries the process handle: this result
-// is committed permanently, and a generic cancellation would strand
-// the live process without an addressable ID. Everything else gets
-// the generic cancellation error.
-func interruptedToolResultPayload(ctx context.Context, store database.Store, chatID uuid.UUID, assistantMessageID int64, toolCallID string) (json.RawMessage, bool, error) {
-	row, err := store.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
-		ChatID:             chatID,
-		AssistantMessageID: assistantMessageID,
-		ToolCallID:         toolCallID,
-	})
-	if err == nil && row.Background && row.ProcessID.Valid {
-		payload, err := json.Marshal(chattool.ExecuteResult{
-			Success:             true,
-			BackgroundProcessID: row.ProcessID.String,
-			Note:                "the turn was interrupted; the background process was left alone. Use process_output with this ID to check on it.",
-		})
+// for an unresolved tool call at interrupt, from the ledger row the
+// interrupt mapping returned. A background execute the mapping
+// spared as detached carries its process handle; everything else
+// (including calls with no ledger row) gets the generic cancellation
+// error.
+func interruptedToolResultPayload(row database.ChatToolCallExecution) (json.RawMessage, bool, error) {
+	if row.Status == database.ChatToolCallExecutionStatusDetached && row.ProcessID.Valid {
+		payload, err := chattool.SparedBackgroundInterruptResult(row.ProcessID.String)
 		if err != nil {
-			return nil, false, xerrors.Errorf("marshal interrupted background result: %w", err)
+			return nil, false, err
 		}
 		return payload, false, nil
-	}
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, false, xerrors.Errorf("load execution for interrupted tool result: %w", err)
 	}
 	payload, err := json.Marshal(map[string]string{"error": interruptedToolResultErrorMessage})
 	if err != nil {
@@ -824,13 +837,16 @@ func (s *taskStarter) reconcileInterruptedExecutions(ctx context.Context, record
 	}
 	// The runner may cancel the task context as soon as the
 	// interrupt's state transition lands, so that cancellation
-	// must be ignored. Server shutdown must still abort this pass
+	// must be ignored. Worker shutdown must still abort this pass
 	// promptly: it is awaited by the runner's task drain, and the
-	// periodic sweep converges anything it abandons.
+	// periodic sweep converges anything it abandons. The abort
+	// hooks onto the worker context, which cancels at the start of
+	// Close, not the server context: that one cancels only after
+	// the drain this pass would otherwise block.
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), interruptReconcileTimeout)
 	defer cancel()
-	if s.server != nil && s.server.ctx != nil {
-		stop := context.AfterFunc(s.server.ctx, cancel)
+	if s.shutdownCtx != nil {
+		stop := context.AfterFunc(s.shutdownCtx, cancel)
 		defer stop()
 	}
 	r := s.executionReconciler()
@@ -847,20 +863,22 @@ func (r executionReconciler) reconcile(ctx context.Context, record database.Chat
 	if record.Status != database.ChatToolCallExecutionStatusCancelRequested {
 		return
 	}
-	if r.resolveExpiredCancel(ctx, record) {
-		return
-	}
 	if record.ProcessID.Valid && !record.WorkspaceAgentID.Valid {
 		// The owning agent row was deleted out from under the
 		// process (the FK nulls on delete): its workspace is gone
 		// and the process died with it. Neither the kill flow nor
 		// the missing-process guard can ever resolve this shape.
+		// Checked before the give-up bound so an old row with a
+		// provably dead process resolves canceled, not unknown.
 		r.logger.Info(ctx, "interrupted process's agent row is gone; resolving execution canceled",
 			slog.F("chat_id", record.ChatID),
 			slog.F("tool_call_id", record.ToolCallID),
 			slog.F("process_id", record.ProcessID.String),
 		)
 		r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusCanceled, record.CancelSignalSentAt)
+		return
+	}
+	if r.resolveExpiredCancel(ctx, record) {
 		return
 	}
 	if !record.ProcessID.Valid {
@@ -877,13 +895,21 @@ func (r executionReconciler) reconcile(ctx context.Context, record database.Chat
 }
 
 // resolveExpiredCancel gives up on a cancel_requested row whose
-// kill has been unconfirmable since the claim for longer than
-// executionCancelGiveUpAfter, recording unknown. It reports whether
-// the row was resolved.
+// kill has been unconfirmable for longer than
+// executionCancelGiveUpAfter, recording unknown. The bound is
+// anchored on the cancellation commit (result_committed_at is
+// stamped in the same transaction that maps the row
+// cancel_requested and is never bumped afterwards), not the claim:
+// a long-lived call interrupted a day after its dispatch still gets
+// its full kill-retry budget. It reports whether the row was
+// resolved.
 func (r executionReconciler) resolveExpiredCancel(ctx context.Context, record database.ChatToolCallExecution) bool {
 	anchor := record.CreatedAt
 	if record.ClaimedAt.Valid {
 		anchor = record.ClaimedAt.Time
+	}
+	if record.ResultCommittedAt.Valid {
+		anchor = record.ResultCommittedAt.Time
 	}
 	if dbtime.Now().Before(anchor.Add(executionCancelGiveUpAfter)) {
 		return false
@@ -892,7 +918,7 @@ func (r executionReconciler) resolveExpiredCancel(ctx context.Context, record da
 		slog.F("chat_id", record.ChatID),
 		slog.F("tool_call_id", record.ToolCallID),
 		slog.F("process_id", record.ProcessID.String),
-		slog.F("claimed_at", anchor),
+		slog.F("cancel_requested_at", anchor),
 	)
 	r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, record.CancelSignalSentAt)
 	return true
@@ -999,6 +1025,7 @@ func (r executionReconciler) reconcileCancelRequested(ctx context.Context, recor
 		r.logger.Warn(ctx, "failed to dial agent to kill interrupted process",
 			slog.F("chat_id", record.ChatID),
 			slog.F("tool_call_id", record.ToolCallID),
+			slog.F("workspace_agent_id", record.WorkspaceAgentID.UUID),
 			slog.F("process_id", record.ProcessID.String),
 			slog.Error(err),
 		)
@@ -1008,8 +1035,7 @@ func (r executionReconciler) reconcileCancelRequested(ctx context.Context, recor
 		defer release()
 	}
 	if err := conn.SignalProcess(dialCtx, record.ProcessID.String, "kill"); err != nil {
-		var sdkErr *codersdk.Error
-		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+		if sdkErr, ok := errors.AsType[*codersdk.Error](err); ok && sdkErr.StatusCode() == http.StatusNotFound {
 			// The agent was reached and has no such process:
 			// termination is confirmed.
 			r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusCanceled, sql.NullTime{})
@@ -1018,6 +1044,7 @@ func (r executionReconciler) reconcileCancelRequested(ctx context.Context, recor
 		r.logger.Warn(ctx, "failed to kill interrupted process",
 			slog.F("chat_id", record.ChatID),
 			slog.F("tool_call_id", record.ToolCallID),
+			slog.F("workspace_agent_id", record.WorkspaceAgentID.UUID),
 			slog.F("process_id", record.ProcessID.String),
 			slog.Error(err),
 		)
@@ -1029,8 +1056,7 @@ func (r executionReconciler) reconcileCancelRequested(ctx context.Context, recor
 	defer cancelSnap()
 	resp, err := conn.ProcessOutput(snapCtx, record.ProcessID.String, nil)
 	if err != nil {
-		var sdkErr *codersdk.Error
-		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+		if sdkErr, ok := errors.AsType[*codersdk.Error](err); ok && sdkErr.StatusCode() == http.StatusNotFound {
 			r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusCanceled, signalSentAt)
 		}
 		return

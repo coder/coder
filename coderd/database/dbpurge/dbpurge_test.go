@@ -256,6 +256,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldChatDebugRuns(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatDebugRunsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().DeleteOldChatToolCallExecutions(gomock.Any(), gomock.Any()).Return(int64(0), nil).MinTimes(1)
+		mDB.EXPECT().DeleteAbandonedChatToolCallExecutions(gomock.Any(), gomock.Any()).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
 			DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
 				return f(mDB)
@@ -309,6 +310,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().DeleteOldChats(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().DeleteOldChatFiles(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatFilesParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().DeleteOldChatToolCallExecutions(gomock.Any(), gomock.Any()).Return(int64(0), nil).MinTimes(1)
+		mDB.EXPECT().DeleteAbandonedChatToolCallExecutions(gomock.Any(), gomock.Any()).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
 			DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
 				return f(mDB)
@@ -2964,4 +2966,143 @@ func TestDeleteOldChatToolCallExecutions(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: msg.ID, ToolCallID: "old-call"})
 	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
+// TestDeleteOldChatToolCallExecutionsBatchLimit asserts the LIMIT
+// and oldest-first ordering: the batch cap is the whole mechanism
+// bounding this table under sustained volume.
+func TestDeleteOldChatToolCallExecutionsBatchLimit(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	mc := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "test-model", ContextLimit: 8192})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: mc.ID,
+		Title:             "test-chat",
+	})
+	msg := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID: chat.ID,
+		Role:   database.ChatMessageRoleAssistant,
+	})
+
+	now := dbtime.Now()
+	seedCommitted := func(id string, createdAt time.Time) {
+		err := db.InsertChatToolCallExecutionIntent(ctx, database.InsertChatToolCallExecutionIntentParams{
+			ID:                 uuid.New(),
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         id,
+			InputSha256:        "hash-" + id,
+			CreatedAt:          createdAt,
+		})
+		require.NoError(t, err)
+		err = db.MarkChatToolCallExecutionsResultCommitted(ctx, database.MarkChatToolCallExecutionsResultCommittedParams{
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallIds:        []string{id},
+			ResultCommittedAt:  createdAt,
+		})
+		require.NoError(t, err)
+	}
+	seedCommitted("oldest-call", now.Add(-10*24*time.Hour))
+	seedCommitted("older-call", now.Add(-9*24*time.Hour))
+
+	deleted, err := db.DeleteOldChatToolCallExecutions(ctx, database.DeleteOldChatToolCallExecutionsParams{
+		BeforeTime: now.Add(-7 * 24 * time.Hour),
+		LimitCount: 1,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, deleted)
+
+	_, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: msg.ID, ToolCallID: "oldest-call"})
+	require.ErrorIs(t, err, sql.ErrNoRows, "the oldest row is deleted first")
+	_, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: msg.ID, ToolCallID: "older-call"})
+	require.NoError(t, err, "the newer row survives the capped batch")
+}
+
+// TestDeleteAbandonedChatToolCallExecutions asserts the long-horizon
+// reaping of rows whose tool result never committed: only rows idle
+// past the horizon are deleted, and cancel_requested rows are left
+// to the sweep.
+func TestDeleteAbandonedChatToolCallExecutions(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	mc := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "test-model", ContextLimit: 8192})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: mc.ID,
+		Title:             "test-chat",
+	})
+	msg := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID: chat.ID,
+		Role:   database.ChatMessageRoleAssistant,
+	})
+
+	now := dbtime.Now()
+	seedIntent := func(id string, at time.Time) {
+		err := db.InsertChatToolCallExecutionIntent(ctx, database.InsertChatToolCallExecutionIntentParams{
+			ID:                 uuid.New(),
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         id,
+			InputSha256:        "hash-" + id,
+			CreatedAt:          at,
+		})
+		require.NoError(t, err)
+	}
+	// Uncommitted and idle past the horizon: reaped.
+	seedIntent("abandoned-call", now.Add(-31*24*time.Hour))
+	// Uncommitted but recently touched: still guards dedup.
+	seedIntent("recent-uncommitted-call", now.Add(-8*24*time.Hour))
+	// Uncommitted, old, but cancel_requested: the sweep owns it.
+	seedIntent("abandoned-cancel-call", now.Add(-31*24*time.Hour))
+	_, err := db.ClaimChatToolCallExecution(ctx, database.ClaimChatToolCallExecutionParams{
+		ID:                 uuid.New(),
+		ChatID:             chat.ID,
+		AssistantMessageID: msg.ID,
+		ToolCallID:         "abandoned-cancel-call",
+		InputSha256:        "hash-abandoned-cancel-call",
+		Command:            "sleep 600",
+		TimeoutSecs:        600,
+		Now:                now.Add(-31 * 24 * time.Hour),
+		StaleBefore:        time.Time{},
+	})
+	require.NoError(t, err)
+	rows, err := db.MarkChatToolCallExecutionsInterrupted(ctx, database.MarkChatToolCallExecutionsInterruptedParams{
+		ChatID:             chat.ID,
+		AssistantMessageID: msg.ID,
+		ToolCallIds:        []string{"abandoned-cancel-call"},
+		UpdatedAt:          now.Add(-31 * 24 * time.Hour),
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, rows[0].Status)
+
+	deleted, err := db.DeleteAbandonedChatToolCallExecutions(ctx, database.DeleteAbandonedChatToolCallExecutionsParams{
+		BeforeTime: now.Add(-30 * 24 * time.Hour),
+		LimitCount: 1000,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, deleted)
+
+	_, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: msg.ID, ToolCallID: "abandoned-call"})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: msg.ID, ToolCallID: "recent-uncommitted-call"})
+	require.NoError(t, err)
+	_, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: msg.ID, ToolCallID: "abandoned-cancel-call"})
+	require.NoError(t, err)
 }

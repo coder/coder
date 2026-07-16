@@ -12841,6 +12841,43 @@ func (q *sqlQuerier) ClaimStaleChatToolCallExecutionCancels(ctx context.Context,
 	return items, nil
 }
 
+const deleteAbandonedChatToolCallExecutions = `-- name: DeleteAbandonedChatToolCallExecutions :execrows
+WITH deletable AS (
+    SELECT id
+    FROM chat_tool_call_executions
+    WHERE updated_at < $1::timestamptz
+      AND result_committed_at IS NULL
+      AND status <> 'cancel_requested'
+    ORDER BY updated_at ASC
+    LIMIT $2::int
+)
+DELETE FROM chat_tool_call_executions
+USING deletable
+WHERE chat_tool_call_executions.id = deletable.id
+`
+
+type DeleteAbandonedChatToolCallExecutionsParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+// Long-horizon reaping of rows whose tool result never committed:
+// a crashed turn, a terminal task failure, or an unclaimed reserved
+// intent leaves result_committed_at NULL forever, and without this
+// delete such rows are only reaped by chat retention, which many
+// deployments leave unset. The horizon is anchored on updated_at so
+// any reconciler or re-attach activity defers deletion; a row idle
+// for the whole horizon guards a dedup that will never fire.
+// cancel_requested rows are excluded: the sweep owns them and
+// terminalizes them within the give-up bound.
+func (q *sqlQuerier) DeleteAbandonedChatToolCallExecutions(ctx context.Context, arg DeleteAbandonedChatToolCallExecutionsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteAbandonedChatToolCallExecutions, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteOldChatToolCallExecutions = `-- name: DeleteOldChatToolCallExecutions :execrows
 WITH deletable AS (
     SELECT id

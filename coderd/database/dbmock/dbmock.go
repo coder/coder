@@ -704,6 +704,21 @@ func (mr *MockStoreMockRecorder) DeleteAPIKeysByUserID(ctx, userID any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteAPIKeysByUserID), ctx, userID)
 }
 
+// DeleteAbandonedChatToolCallExecutions mocks base method.
+func (m *MockStore) DeleteAbandonedChatToolCallExecutions(ctx context.Context, arg database.DeleteAbandonedChatToolCallExecutionsParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAbandonedChatToolCallExecutions", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteAbandonedChatToolCallExecutions indicates an expected call of DeleteAbandonedChatToolCallExecutions.
+func (mr *MockStoreMockRecorder) DeleteAbandonedChatToolCallExecutions(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAbandonedChatToolCallExecutions", reflect.TypeOf((*MockStore)(nil).DeleteAbandonedChatToolCallExecutions), ctx, arg)
+}
+
 // DeleteAllChatHeartbeats mocks base method.
 func (m *MockStore) DeleteAllChatHeartbeats(ctx context.Context, chatID uuid.UUID) error {
 	m.ctrl.T.Helper()

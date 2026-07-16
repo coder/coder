@@ -123,6 +123,24 @@ type ExecuteResult struct {
 	BackgroundProcessID string                          `json:"background_process_id,omitempty"`
 }
 
+// SparedBackgroundInterruptResult is the tool result committed for a
+// background execute whose process an interrupt or cancellation
+// transition deliberately leaves running. The result is committed
+// permanently, so it must carry the process handle: a generic
+// cancellation would strand the live process without an addressable
+// ID.
+func SparedBackgroundInterruptResult(processID string) (json.RawMessage, error) {
+	payload, err := json.Marshal(ExecuteResult{
+		Success:             true,
+		BackgroundProcessID: processID,
+		Note:                "the turn was interrupted; the background process was left alone. Use process_output with this ID to check on it.",
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal spared background result: %w", err)
+	}
+	return payload, nil
+}
+
 // ExecutionStatus mirrors the chat_tool_call_executions status enum.
 // Lifecycle statuses are orthogonal to chat-result commit: a row
 // keeps its lifecycle truth (for example unknown or detached) after
@@ -720,14 +738,7 @@ func reattachProcess(
 	deadline := rec.StartedAt.Add(rec.Timeout)
 	if !time.Now().Before(deadline) {
 		markTerminal(ctx, options, toolCallID, ExecutionStatusDetached)
-		return marshalResult(ExecuteResult{
-			Success:             false,
-			Output:              truncateOutput(resp.Output),
-			ExitCode:            -1,
-			Error:               fmt.Sprintf("command timed out after %s", rec.Timeout),
-			Truncated:           resp.Truncated,
-			BackgroundProcessID: rec.ProcessID,
-		}), nil
+		return marshalResult(timedOutRunningResult(resp, rec.Timeout, rec.ProcessID)), nil
 	}
 
 	cmdCtx, cancelWait := context.WithDeadline(ctx, deadline)
@@ -904,6 +915,20 @@ func executeForeground(
 	return marshalResult(result)
 }
 
+// timedOutRunningResult builds the ExecuteResult for a process that
+// is still running when the caller's timeout expires: partial output
+// plus the process handle so the model can re-attach or poll.
+func timedOutRunningResult(resp workspacesdk.ProcessOutputResponse, timeout time.Duration, processID string) ExecuteResult {
+	return ExecuteResult{
+		Success:             false,
+		Output:              truncateOutput(resp.Output),
+		ExitCode:            -1,
+		Error:               fmt.Sprintf("command timed out after %s", timeout),
+		Truncated:           resp.Truncated,
+		BackgroundProcessID: processID,
+	}
+}
+
 // completedResult builds the ExecuteResult for a process output
 // snapshot, treating a missing exit code as success. Callers
 // override the running-process fields when resp.Running is true.
@@ -1037,15 +1062,7 @@ func resolveProcessWait(
 		// Only reachable once the caller's timeout expired while
 		// the process was still running; waitForProcess retries
 		// early server-side wait returns itself.
-		output := truncateOutput(resp.Output)
-		return ExecuteResult{
-			Success:             false,
-			Output:              output,
-			ExitCode:            -1,
-			Error:               fmt.Sprintf("command timed out after %s", timeout),
-			Truncated:           resp.Truncated,
-			BackgroundProcessID: processID,
-		}, false
+		return timedOutRunningResult(resp, timeout, processID), false
 	}
 
 	return completedResult(resp), false
