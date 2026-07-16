@@ -964,11 +964,11 @@ func RefreshOAuth2Token(
 	}, nil
 }
 
-const revokeErrBodyLimit = 512
-
 // RevokeOAuth2Token revokes the user's token at the provider's RFC 7009 endpoint.
 // It prefers the refresh token to request invalidation of associated access tokens.
 // It returns false with no error when the config has no revocation endpoint.
+// Errors carry only the HTTP status: provider bodies may echo request
+// parameters such as the client secret and must stay out of logs.
 func RevokeOAuth2Token(
 	ctx context.Context,
 	httpClient *http.Client,
@@ -1016,14 +1016,11 @@ func RevokeOAuth2Token(
 	}
 	defer resp.Body.Close()
 
+	_, _ = io.Copy(io.Discard, resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, revokeErrBodyLimit))
-		_, _ = io.Copy(io.Discard, resp.Body)
 		return false, xerrors.Errorf(
-			"revocation endpoint returned HTTP %d: %s",
-			resp.StatusCode, string(body),
+			"revocation endpoint returned HTTP %d", resp.StatusCode,
 		)
 	}
-	_, _ = io.Copy(io.Discard, resp.Body)
 	return true, nil
 }

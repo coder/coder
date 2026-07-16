@@ -90,7 +90,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = w.Write([]byte(strings.Repeat("x", 2048)))
+			_, _ = w.Write([]byte("SECRET-ECHO " + strings.Repeat("x", 2048)))
 		}))
 		defer srv.Close()
 
@@ -106,6 +106,8 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		require.Error(t, err)
 		require.False(t, revoked)
 		require.Contains(t, err.Error(), "HTTP 500")
-		require.Less(t, len(err.Error()), 1024)
+		// The provider body may echo request secrets and must not
+		// surface in the error.
+		require.NotContains(t, err.Error(), "SECRET-ECHO")
 	})
 }

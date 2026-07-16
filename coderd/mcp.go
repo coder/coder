@@ -1217,7 +1217,10 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 
 	resp := codersdk.MCPServerOAuth2DisconnectResponse{}
 	if config.AuthType == "oauth2" {
-		revoked, err := mcpclient.RevokeOAuth2Token(ctx, api.HTTPClient, config, token)
+		// The local token is already deleted, so a client abort must
+		// not cancel the provider revocation; RevokeOAuth2Token caps
+		// the call with its own timeout.
+		revoked, err := mcpclient.RevokeOAuth2Token(context.WithoutCancel(ctx), api.HTTPClient, config, token)
 		resp.TokenRevoked = revoked
 		if err != nil {
 			api.Logger.Warn(ctx, "failed to revoke MCP oauth2 token at provider",
