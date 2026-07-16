@@ -775,6 +775,15 @@ func (s *taskStarter) executeLocalTools(
 	if err != nil {
 		return generationHookDispatchError(agenthooks.EventPreToolUse, err)
 	}
+	for _, response := range preflight.Responses {
+		if response.EndChat {
+			// A pre_tool_use end_chat stops the chat before any tool
+			// runs. Denied results and hook messages commit with the
+			// end-chat transition; allowed calls never execute and
+			// become synthetic cancellations.
+			return s.commitPreToolUseDeniedResults(ctx, machine, input, prepared, preflight)
+		}
+	}
 	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
 		return xerrors.Errorf("beginGenerationAttempt: %w", err)
@@ -1151,7 +1160,10 @@ func (s *taskStarter) commitGenerationStep(
 	messages stepMessagesForCommit,
 	hooks generationCommitHooks,
 ) error {
-	if len(messages.Messages) == 0 {
+	// An accepted end_chat must still archive the chat even when the
+	// step carries no messages, e.g. a pre_tool_use response that only
+	// sets end_chat while allowing the call.
+	if len(messages.Messages) == 0 && !hooks.EndChat {
 		return s.finishGenerationTurn(ctx, machine, input, generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, requireGenerationAttempt(attempt))
 	}
 	var committed database.Chat

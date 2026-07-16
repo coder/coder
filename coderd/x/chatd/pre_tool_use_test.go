@@ -376,6 +376,160 @@ func TestPreToolUseHookEndChat(t *testing.T) {
 	require.Equal(t, "call_end_chat", call.ToolCallID)
 }
 
+// An end_chat pre_tool_use response for a pending local tool must end
+// the chat before the tool executes, even when the response leaves the
+// call allowed. The never-executed call becomes a synthetic
+// cancellation.
+func TestPreToolUseHookEndChatSkipsLocalToolExecution(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	chatID := seedPendingToolCall(ctx, t, db, ps, pendingToolCallSeed{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    ws.ID,
+		AgentID:        dbAgent.ID,
+		ModelConfigID:  model.ID,
+		APIKeyID:       testAPIKeyID(t, db, user.ID),
+		ToolCallID:     "call_local_end_chat",
+		ToolName:       "read_file",
+		ToolInput:      `{"path":"/tmp/secret.txt"}`,
+	})
+
+	var hookCalls atomic.Int32
+	consumer := preToolUseConsumer(t, func(data agenthooks.PreToolUseData) string {
+		hookCalls.Add(1)
+		require.Equal(t, "call_local_end_chat", data.ToolUseID)
+		return `{"end_chat":true}`
+	})
+
+	// No ReadFileLines expectation: executing the tool fails the test.
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+
+	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	server.Start()
+
+	var archived database.Chat
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		var err error
+		archived, err = db.GetChatByID(ctx, chatID)
+		return err == nil && archived.Archived && archived.Status == database.ChatStatusWaiting
+	}, testutil.IntervalFast)
+	require.Equal(t, int32(1), hookCalls.Load())
+	require.False(t, archived.LastError.Valid)
+	parts := chatToolParts(ctx, t, db, chatID)
+	call := requireToolCallPart(t, parts, "read_file")
+	require.Equal(t, "call_local_end_chat", call.ToolCallID)
+	result := requireToolResultPart(t, parts, "read_file")
+	require.Equal(t, "call_local_end_chat", result.ToolCallID)
+	require.True(t, result.IsError, "never-executed call must persist as a synthetic cancellation")
+}
+
+// A recorded end_chat decision replayed on worker resume must also end
+// the chat before executing the pending tool, without re-dispatching
+// pre_tool_use, and must mark the replayed effects applied.
+func TestPreToolUseHookRecordedEndChatSkipsExecution(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	chatID := seedPendingToolCall(ctx, t, db, ps, pendingToolCallSeed{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    ws.ID,
+		AgentID:        dbAgent.ID,
+		ModelConfigID:  model.ID,
+		APIKeyID:       testAPIKeyID(t, db, user.ID),
+		ToolCallID:     "call_recorded_end_chat",
+		ToolName:       "read_file",
+		ToolInput:      `{"path":"/tmp/end.txt"}`,
+	})
+	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chatID)
+	require.NoError(t, err)
+	require.True(t, messages[0].TurnID.Valid)
+	turnID := messages[0].TurnID.UUID
+	recordPreToolUseResponse(ctx, t, db, chatID, user.ID, turnID, "call_recorded_end_chat", agenthooks.PermissionAllow, "", nil, agenthooks.Response{
+		EndChat: true,
+	})
+
+	var preToolUseCalls, postToolUseCalls atomic.Int32
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request agenthooks.Request
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		switch request.Type {
+		case agenthooks.EventPreToolUse:
+			preToolUseCalls.Add(1)
+		case agenthooks.EventPostToolUse:
+			postToolUseCalls.Add(1)
+		}
+		_, err := w.Write([]byte(`{}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+
+	// No ReadFileLines expectation: executing the tool fails the test.
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+
+	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	server.Start()
+
+	var archived database.Chat
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		var err error
+		archived, err = db.GetChatByID(ctx, chatID)
+		return err == nil && archived.Archived && archived.Status == database.ChatStatusWaiting
+	}, testutil.IntervalFast)
+	require.False(t, archived.LastError.Valid)
+	require.Zero(t, preToolUseCalls.Load(), "recorded decision must not re-dispatch")
+	require.Zero(t, postToolUseCalls.Load(), "never-executed call must not dispatch post_tool_use")
+
+	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chatID), "read_file")
+	require.Equal(t, "call_recorded_end_chat", result.ToolCallID)
+	require.True(t, result.IsError, "never-executed call must persist as a synthetic cancellation")
+	row, err := db.GetChatHookDispatchDecision(ctx, database.GetChatHookDispatchDecisionParams{
+		ChatID:    chatID,
+		ToolUseID: "call_recorded_end_chat",
+		TurnID:    uuid.NullUUID{UUID: turnID, Valid: true},
+	})
+	require.NoError(t, err)
+	require.True(t, row.EffectsAppliedAt.Valid, "replayed end_chat effects must be marked applied")
+}
+
 func TestPreToolUseHookDispatchFailure(t *testing.T) {
 	t.Parallel()
 
