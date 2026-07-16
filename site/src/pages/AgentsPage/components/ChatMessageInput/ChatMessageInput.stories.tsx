@@ -215,6 +215,18 @@ export const CollidingPersonalSkillInsertsQualifiedTrigger: Story = {
 	},
 };
 
+export const PersonalTriggersQualifiedWhileWorkspaceSkillsUnknown: Story = {
+	args: {
+		// No workspaceSkillsOverride: the workspace skills query stays
+		// unresolved in the story environment, so collisions are unknown.
+		workspaceId: "workspace-unknown",
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/rev");
+		expect(await findVisibleText("/personal/reviewer")).toBeDefined();
+	},
+};
+
 export const UniqueWorkspaceQualifiedPrefixStaysSearchable: Story = {
 	args: {
 		workspaceId: "workspace-1",

@@ -627,7 +627,10 @@ const ChatMessageInput = ({
 	const workspaceSkillsQuery = useQuery({
 		...workspaceSkills(workspaceId ?? ""),
 		enabled: workspaceSkillsQueryEnabled,
-		staleTime: 60_000,
+		// An empty list is transient (workspace stopped or starting, agent
+		// not connected yet), so only cache non-empty results.
+		staleTime: (query) =>
+			query.state.data && query.state.data.length > 0 ? 60_000 : 0,
 	});
 	const personalSkills = personalSkillsOverride ?? skillsQuery.data ?? [];
 	const loadedWorkspaceSkills =
@@ -650,6 +653,10 @@ const ChatMessageInput = ({
 		hasSkillsTrigger &&
 		!(isResolvedEmptyPersonalSkills && isResolvedEmptyWorkspaceSkills);
 	const skillsSearchQuery = skillsTrigger?.query ?? "";
+	// Until workspace skills resolve, collisions are unknown, so keep
+	// personal triggers qualified; a qualified alias always resolves.
+	const workspaceSkillsKnown =
+		!workspaceSkillsQueryEnabled || workspaceSkillsQuery.data !== undefined;
 	const workspaceSkillNames = new Set(
 		loadedWorkspaceSkills.map((skill) => skill.name),
 	);
@@ -658,7 +665,7 @@ const ChatMessageInput = ({
 			createSkillMenuItem(
 				"personal",
 				skill,
-				workspaceSkillNames.has(skill.name),
+				!workspaceSkillsKnown || workspaceSkillNames.has(skill.name),
 			),
 		),
 		skillsSearchQuery,
