@@ -107,6 +107,11 @@ If `post_tool_use` fails for a client-submitted tool result, Coder rejects the s
 If `post_tool_use` fails for a tool that Coder already executed, Coder commits the tool result first so the transcript reflects the completed side effect, then moves the chat to the error state.
 An `end_chat` instruction that Coder already accepted from a successful dispatch in the same step takes precedence over the error state: if `post_tool_use` or `post_compact` fails after an accepted `end_chat`, Coder still ends the chat and records the failed dispatch.
 
+Dispatch precedes persistence, so a delivered event doesn't guarantee that the operation commits.
+Coder checks admission before dispatching, but concurrent requests can still fail admission afterward, for example two sends racing for the last queue slot or duplicate submissions of the same tool results.
+The consumer then observes an event for a request that Coder rejects, and the rejected request doesn't persist a prompt or tool result.
+Treat events as attempt notifications rather than proof of a committed operation, and key idempotent tool-event processing on `tool_use_id`.
+
 After the consumer is healthy, send another message to an existing errored chat to resume it.
 Coder emits `session_start` with `source` set to `resume` when the agent loop starts again.
 If the consumer continues blocking chat activity, set `CODER_CHAT_HOOK_ENABLED=false` and roll out the Coder deployment configuration before users retry.

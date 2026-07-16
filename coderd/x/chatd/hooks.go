@@ -473,10 +473,10 @@ func (p *Server) dispatchUserPromptSubmit(
 	return response, nil
 }
 
-// endChatAfterPromptDenial archives a chat whose lifecycle hook denied
-// a prompt and simultaneously instructed Coder to end the chat. A chat
-// that is already archived or gone satisfies the instruction, so those
-// transition failures are ignored.
+// endChatAfterPromptDenial archives a chat after a lifecycle hook
+// instructed Coder to end it while the prompt path was denied or
+// failed. A chat that is already archived or gone satisfies the
+// instruction, so those transition failures are ignored.
 func (p *Server) endChatAfterPromptDenial(ctx context.Context, chatID uuid.UUID) error {
 	var ended database.Chat
 	machine := p.newChatMachine(chatID)

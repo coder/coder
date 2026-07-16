@@ -233,7 +233,7 @@ export async function submitEditAndScroll({
 		messageId: number;
 		optimisticMessage?: TypesGen.ChatMessage;
 		req: TypesGen.EditChatMessageRequest;
-	}) => Promise<unknown>;
+	}) => Promise<TypesGen.EditChatMessageResponse>;
 	editArgs: {
 		messageId: number;
 		optimisticMessage?: TypesGen.ChatMessage;
@@ -241,9 +241,10 @@ export async function submitEditAndScroll({
 	};
 	scrollToBottom: (() => void) | null | undefined;
 	onError: (error: unknown) => void;
-}): Promise<void> {
+}): Promise<TypesGen.EditChatMessageResponse> {
+	let response: TypesGen.EditChatMessageResponse;
 	try {
-		await editMessage(editArgs);
+		response = await editMessage(editArgs);
 	} catch (error) {
 		onError(error);
 		throw error;
@@ -255,6 +256,7 @@ export async function submitEditAndScroll({
 	// as the IntersectionObserver reacts to rapid layout
 	// shifts between the old and truncated content.
 	scrollToBottom?.();
+	return response;
 }
 
 /** @internal Exported for testing. */
@@ -1511,7 +1513,7 @@ const AgentChatPage: FC = () => {
 				store.setChatStatus("running");
 				store.clearStreamState();
 			});
-			await submitEditAndScroll({
+			const editResponse = await submitEditAndScroll({
 				editMessage,
 				editArgs: {
 					messageId: editedMessageID,
@@ -1524,6 +1526,16 @@ const AgentChatPage: FC = () => {
 					handleUsageLimitError(error);
 				},
 			});
+			// A lifecycle hook ended the chat instead of committing the
+			// edit. The mutation restores the messages cache; undo the
+			// optimistic running status too so the UI does not stay
+			// running for an archived chat if the WebSocket event is
+			// missed.
+			if (editResponse.ended) {
+				restoreOptimisticRequestSnapshot(store, previousSnapshot);
+				store.clearStreamState();
+				return;
+			}
 			if (editSelectedModelConfigID) {
 				localStorage.setItem(
 					lastModelConfigIDStorageKey,

@@ -527,6 +527,61 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 	require.JSONEq(t, `["read_file"]`, string(updated.HookAllowedTools.RawMessage))
 }
 
+// An accepted end_chat from the clear session_start must archive the
+// chat even when the following user_prompt_submit dispatch fails,
+// instead of moving the chat to error.
+func TestEditMessageSessionEndAppliedOnPromptDispatchFailure(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	apiKeyID := testAPIKeyID(t, db, user.ID)
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("original")})
+	require.NoError(t, err)
+	inserted, err := db.InsertChatMessages(ctx, chatd.BuildSingleUserChatMessageInsertParams(
+		chat.ID, apiKeyID, content, database.ChatMessageVisibilityBoth, model.ID, chatprompt.CurrentContentVersion, user.ID,
+	))
+	require.NoError(t, err)
+	require.Len(t, inserted, 1)
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request agenthooks.Request
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		if request.Type == agenthooks.EventUserPromptSubmit {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		_, err := w.Write([]byte(`{"end_chat":true}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+	server := newHookTestServer(t, db, ps, consumer)
+
+	_, err = server.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: inserted[0].ID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited original")},
+		APIKeyID:        apiKeyID,
+	})
+	var dispatchErr *chathooks.DispatchError
+	require.ErrorAs(t, err, &dispatchErr)
+
+	updated, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.True(t, updated.Archived, "accepted session end_chat must archive the chat")
+	require.Equal(t, database.ChatStatusWaiting, updated.Status)
+	require.False(t, updated.LastError.Valid)
+	original, err := db.GetChatMessageByID(ctx, inserted[0].ID)
+	require.NoError(t, err)
+	require.Equal(t, "original", hookMessageText(t, original))
+	require.False(t, original.Deleted)
+}
+
 func TestEditMessageInvalidTargetSkipsHooks(t *testing.T) {
 	t.Parallel()
 	db, ps := dbtestutil.NewDB(t)

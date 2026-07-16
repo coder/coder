@@ -1837,8 +1837,11 @@ func (p *Server) EditMessage(
 		}
 		hookResponse, err = p.dispatchUserPromptSubmit(ctx, chat, turnID, contentParts)
 		if err != nil {
+			// An accepted end_chat, from the clear session_start or a
+			// denial response, outranks the failure path: archive the
+			// chat instead of moving it to error.
 			var denied *UserPromptDeniedError
-			if errors.As(err, &denied) && (hookResponse.EndChat || sessionStartResponse.EndChat) {
+			if (errors.As(err, &denied) && hookResponse.EndChat) || sessionStartResponse.EndChat {
 				if endErr := p.endChatAfterPromptDenial(ctx, opts.ChatID); endErr != nil {
 					return EditMessageResult{}, errors.Join(err, endErr)
 				}
