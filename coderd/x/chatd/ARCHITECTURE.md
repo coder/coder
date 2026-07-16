@@ -907,7 +907,7 @@ Ledger writes that must agree with chat state run inside the same `ChatMachine.U
 
 - The assistant-step commit inserts one `reserved` intent per `execute` tool call in the step. A replayed commit conflicts on the lineage key and is a no-op.
 - The tool-result commit sets `result_committed_at` for the executed calls.
-- The interrupt commit maps unresolved calls' rows: background to `detached`, `reserved` to `canceled`, foreground `starting`/`running` to `cancel_requested`. Their synthetic cancellation results commit in the same transaction, which also sets `result_committed_at`.
+- The interrupt commit maps unresolved calls' rows: background to `detached`, `reserved` to `canceled`, foreground `starting`/`running`/`detached` to `cancel_requested`. A foreground row detached by a timed-out wait is reopened because its result, the only carrier of the process handle, never committed; leaving it detached would strand a running process behind a handle-less synthetic cancellation. Their synthetic cancellation results commit in the same transaction, which also sets `result_committed_at`.
 
 ### Claim and re-attach
 

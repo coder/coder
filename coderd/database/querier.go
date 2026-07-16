@@ -1240,8 +1240,12 @@ type sqlcQuerier interface {
 	// (foreground, or background whose start is still in flight) become
 	// cancel_requested for the post-commit reconciler. A background row
 	// must not be terminalized as detached before its handle lands:
-	// that would strand a running process with no recoverable ID. Rows
-	// already in a terminal state keep it.
+	// that would strand a running process with no recoverable ID.
+	// Foreground detached rows (a timed-out wait) are reopened to
+	// cancel_requested: only unresolved calls reach this query, so
+	// their handle-bearing result never committed and the process
+	// must be killed, not stranded behind a handle-less synthetic
+	// cancellation.
 	MarkChatToolCallExecutionsInterrupted(ctx context.Context, arg MarkChatToolCallExecutionsInterruptedParams) ([]ChatToolCallExecution, error)
 	// Runs in the same transaction that commits the tool result messages
 	// (real or synthetic). status is untouched so diagnostic states keep

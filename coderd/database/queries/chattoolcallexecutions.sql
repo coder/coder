@@ -135,8 +135,12 @@ WHERE chat_id = @chat_id::uuid
 -- (foreground, or background whose start is still in flight) become
 -- cancel_requested for the post-commit reconciler. A background row
 -- must not be terminalized as detached before its handle lands:
--- that would strand a running process with no recoverable ID. Rows
--- already in a terminal state keep it.
+-- that would strand a running process with no recoverable ID.
+-- Foreground detached rows (a timed-out wait) are reopened to
+-- cancel_requested: only unresolved calls reach this query, so
+-- their handle-bearing result never committed and the process
+-- must be killed, not stranded behind a handle-less synthetic
+-- cancellation.
 UPDATE chat_tool_call_executions
 SET status = CASE
         WHEN status = 'reserved' THEN 'canceled'::chat_tool_call_execution_status
@@ -147,7 +151,7 @@ SET status = CASE
 WHERE chat_id = @chat_id::uuid
   AND assistant_message_id = @assistant_message_id::bigint
   AND tool_call_id = ANY(@tool_call_ids::text[])
-  AND status IN ('reserved', 'starting', 'running')
+  AND status IN ('reserved', 'starting', 'running', 'detached')
 RETURNING *;
 
 -- name: ClaimStaleChatToolCallExecutionCancels :many

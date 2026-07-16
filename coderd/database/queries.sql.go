@@ -12976,7 +12976,7 @@ SET status = CASE
 WHERE chat_id = $2::uuid
   AND assistant_message_id = $3::bigint
   AND tool_call_id = ANY($4::text[])
-  AND status IN ('reserved', 'starting', 'running')
+  AND status IN ('reserved', 'starting', 'running', 'detached')
 RETURNING id, chat_id, assistant_message_id, tool_call_id, status, input_sha256, command, background, timeout_secs, claim_epoch, claimed_at, workspace_agent_id, process_id, cancel_signal_sent_at, result_committed_at, created_at, started_at, updated_at
 `
 
@@ -12995,8 +12995,12 @@ type MarkChatToolCallExecutionsInterruptedParams struct {
 // (foreground, or background whose start is still in flight) become
 // cancel_requested for the post-commit reconciler. A background row
 // must not be terminalized as detached before its handle lands:
-// that would strand a running process with no recoverable ID. Rows
-// already in a terminal state keep it.
+// that would strand a running process with no recoverable ID.
+// Foreground detached rows (a timed-out wait) are reopened to
+// cancel_requested: only unresolved calls reach this query, so
+// their handle-bearing result never committed and the process
+// must be killed, not stranded behind a handle-less synthetic
+// cancellation.
 func (q *sqlQuerier) MarkChatToolCallExecutionsInterrupted(ctx context.Context, arg MarkChatToolCallExecutionsInterruptedParams) ([]ChatToolCallExecution, error) {
 	rows, err := q.db.QueryContext(ctx, markChatToolCallExecutionsInterrupted,
 		arg.UpdatedAt,

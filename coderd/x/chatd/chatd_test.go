@@ -13846,8 +13846,56 @@ func TestChatToolCallExecutionLedgerQueries(t *testing.T) {
 		bgPendingParams.Background = true
 		_, err = db.ClaimChatToolCallExecution(ctx, bgPendingParams)
 		require.NoError(t, err)
+		// foreground detached by a timed-out wait whose result never
+		// committed: the model never got the handle, so the
+		// interrupt reopens it as cancel_requested for the kill.
+		fgDetachedClaimed, err := db.ClaimChatToolCallExecution(ctx, claimParams(chat, msg, "call-fg-detached", "hash", time.Time{}))
+		require.NoError(t, err)
+		_, err = db.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         "call-fg-detached",
+			ClaimEpoch:         fgDetachedClaimed.ClaimEpoch,
+			ProcessID:          "proc-fg-detached",
+			WorkspaceAgentID:   agentID,
+			StartedAt:          dbtime.Now(),
+		})
+		require.NoError(t, err)
+		_, err = db.UpdateChatToolCallExecutionStatus(ctx, database.UpdateChatToolCallExecutionStatusParams{
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         "call-fg-detached",
+			Status:             database.ChatToolCallExecutionStatusDetached,
+			FromStatuses:       []database.ChatToolCallExecutionStatus{database.ChatToolCallExecutionStatusRunning},
+			UpdatedAt:          dbtime.Now(),
+		})
+		require.NoError(t, err)
+		// background already detached with a handle: stays detached.
+		bgDetachedParams := claimParams(chat, msg, "call-bg-detached", "hash", time.Time{})
+		bgDetachedParams.Background = true
+		bgDetachedClaimed, err := db.ClaimChatToolCallExecution(ctx, bgDetachedParams)
+		require.NoError(t, err)
+		_, err = db.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         "call-bg-detached",
+			ClaimEpoch:         bgDetachedClaimed.ClaimEpoch,
+			ProcessID:          "proc-bg-detached",
+			WorkspaceAgentID:   agentID,
+			StartedAt:          dbtime.Now(),
+		})
+		require.NoError(t, err)
+		_, err = db.UpdateChatToolCallExecutionStatus(ctx, database.UpdateChatToolCallExecutionStatusParams{
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         "call-bg-detached",
+			Status:             database.ChatToolCallExecutionStatusDetached,
+			FromStatuses:       []database.ChatToolCallExecutionStatus{database.ChatToolCallExecutionStatusRunning},
+			UpdatedAt:          dbtime.Now(),
+		})
+		require.NoError(t, err)
 
-		callIDs := []string{"call-reserved", "call-starting", "call-running", "call-bg", "call-bg-pending"}
+		callIDs := []string{"call-reserved", "call-starting", "call-running", "call-bg", "call-bg-pending", "call-fg-detached", "call-bg-detached"}
 		rows, err := db.MarkChatToolCallExecutionsInterrupted(ctx, database.MarkChatToolCallExecutionsInterruptedParams{
 			ChatID:             chat.ID,
 			AssistantMessageID: msg.ID,
@@ -13864,9 +13912,12 @@ func TestChatToolCallExecutionLedgerQueries(t *testing.T) {
 		require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, byCall["call-running"].Status)
 		require.Equal(t, database.ChatToolCallExecutionStatusDetached, byCall["call-bg"].Status)
 		require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, byCall["call-bg-pending"].Status)
-		// The cancel_requested row keeps its process identity for
+		require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, byCall["call-fg-detached"].Status)
+		require.Equal(t, database.ChatToolCallExecutionStatusDetached, byCall["call-bg-detached"].Status)
+		// The cancel_requested rows keep their process identity for
 		// the reconciler.
 		require.Equal(t, "proc-running", byCall["call-running"].ProcessID.String)
+		require.Equal(t, "proc-fg-detached", byCall["call-fg-detached"].ProcessID.String)
 
 		err = db.MarkChatToolCallExecutionsResultCommitted(ctx, database.MarkChatToolCallExecutionsResultCommittedParams{
 			ChatID:             chat.ID,

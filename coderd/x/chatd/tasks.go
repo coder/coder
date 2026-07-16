@@ -346,7 +346,10 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		return normalizeTaskTransitionError(err, "finish interruption")
 	}
 	input.DebugTurn.RecordOutcome(chatdebug.StatusInterrupted)
-	s.reconcileInterruptedExecutions(ctx, interruptedExecutions)
+	// Deferred so clients and queued follow-up work observe the
+	// committed interruption before this best-effort pass, which
+	// can wait on identity grace windows and slow agent dials.
+	defer s.reconcileInterruptedExecutions(ctx, interruptedExecutions)
 	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
 		return xerrors.Errorf("publish watch and route: %w", err)
 	}
