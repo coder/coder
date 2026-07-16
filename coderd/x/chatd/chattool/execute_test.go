@@ -795,7 +795,7 @@ func (f *fakeRecorder) Get(_ context.Context, toolCallID string) (chattool.Execu
 	}
 	rec, ok := f.records[toolCallID]
 	if !ok {
-		return chattool.ExecutionRecord{}, xerrors.New("record not found")
+		return chattool.ExecutionRecord{}, xerrors.Errorf("tool call %s: %w", toolCallID, chattool.ErrExecutionRecordNotFound)
 	}
 	return rec, nil
 }
@@ -1358,6 +1358,99 @@ func TestExecuteToolRecorder(t *testing.T) {
 		require.ErrorAs(t, err, &abortErr)
 	})
 
+	t.Run("ConnFailureResumableRowAborts", func(t *testing.T) {
+		t.Parallel()
+		recorder := newFakeRecorder()
+		recorder.seed("call-1", chattool.ExecutionRecord{
+			Status:    chattool.ExecutionStatusRunning,
+			ProcessID: "proc-1",
+			Command:   "echo hi",
+			Timeout:   time.Minute,
+			StartedAt: time.Now(),
+		})
+
+		tool := chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, uuid.UUID, error) {
+				return nil, uuid.Nil, xerrors.New("workspace agent unreachable")
+			},
+			Recorder: recorder,
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.Error(t, err)
+		var abortErr *chattool.AbortToolExecutionError
+		require.ErrorAs(t, err, &abortErr)
+		// The lifecycle stays running so a later attempt with a
+		// working connection re-attaches.
+		require.Equal(t, chattool.ExecutionStatusRunning, recorder.record("call-1").Status)
+	})
+
+	t.Run("ConnFailureUndispatchedRowErrors", func(t *testing.T) {
+		t.Parallel()
+		recorder := newFakeRecorder()
+		recorder.seed("call-reserved", chattool.ExecutionRecord{
+			Status: chattool.ExecutionStatusReserved,
+		})
+
+		tool := chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, uuid.UUID, error) {
+				return nil, uuid.Nil, xerrors.New("workspace agent unreachable")
+			},
+			Recorder: recorder,
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		// A reserved row and a row that predates the ledger both
+		// prove nothing was dispatched: the dial error commits as
+		// a normal tool result.
+		for _, callID := range []string{"call-reserved", "call-missing"} {
+			resp, err := tool.Run(ctx, fantasy.ToolCall{
+				ID:    callID,
+				Name:  "execute",
+				Input: `{"command":"echo hi"}`,
+			})
+			require.NoError(t, err)
+			assert.True(t, resp.IsError)
+			assert.Contains(t, resp.Content, "unreachable")
+		}
+	})
+
+	t.Run("Reattach404WrongAgentAborts", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		recorder.seed("call-1", chattool.ExecutionRecord{
+			Status:           chattool.ExecutionStatusRunning,
+			ProcessID:        "proc-1",
+			Command:          "echo hi",
+			Timeout:          time.Minute,
+			StartedAt:        time.Now(),
+			WorkspaceAgentID: uuid.New(),
+		})
+
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{}, notFoundError(t))
+
+		// The connection targets testAgentID, not the recorded
+		// owner, so its 404 proves nothing about the process.
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.Error(t, err)
+		var abortErr *chattool.AbortToolExecutionError
+		require.ErrorAs(t, err, &abortErr)
+		require.Equal(t, chattool.ExecutionStatusRunning, recorder.record("call-1").Status)
+	})
+
 	t.Run("ResolvedRowNeverRestarts", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
@@ -1442,12 +1535,13 @@ func TestExecuteToolRecorder(t *testing.T) {
 		assert.True(t, resp.IsError)
 		assert.Contains(t, resp.Content, "already resolved")
 
-		// A row that needs the agent to make progress still
-		// surfaces the connection error.
-		resp, err = tool.Run(ctx, fantasy.ToolCall{ID: "call-3", Name: "execute", Input: `{"command":"echo hi"}`})
-		require.NoError(t, err)
-		assert.True(t, resp.IsError)
-		assert.Contains(t, resp.Content, "unreachable")
+		// A row that needs the agent to make progress aborts
+		// instead of committing an error result that would end
+		// re-attachment.
+		_, err = tool.Run(ctx, fantasy.ToolCall{ID: "call-3", Name: "execute", Input: `{"command":"echo hi"}`})
+		require.Error(t, err)
+		var abortErr *chattool.AbortToolExecutionError
+		require.ErrorAs(t, err, &abortErr)
 	})
 
 	t.Run("ValidationFailureMarksNoEffect", func(t *testing.T) {

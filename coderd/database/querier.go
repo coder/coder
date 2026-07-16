@@ -1446,7 +1446,11 @@ type sqlcQuerier interface {
 	// Resolves a cancel_requested row after a post-commit kill attempt:
 	// canceled when termination was confirmed, unknown when the outcome
 	// is unobservable, or cancel_requested to record a delivered signal
-	// whose effect is unconfirmed.
+	// whose effect is unconfirmed. require_missing_process guards
+	// outcomes decided from the absence of a process handle: a late
+	// RecordStart can land identity on the row concurrently, and it
+	// must win so the row stays cancel_requested and the sweep kills
+	// the now-identified process.
 	UpdateChatToolCallExecutionCancelOutcome(ctx context.Context, arg UpdateChatToolCallExecutionCancelOutcomeParams) (ChatToolCallExecution, error)
 	// Records the started process on the claim that dispatched it. The
 	// claim_epoch guard keeps a superseded claimer from overwriting the

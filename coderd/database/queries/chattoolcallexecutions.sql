@@ -182,7 +182,11 @@ RETURNING chat_tool_call_executions.*;
 -- Resolves a cancel_requested row after a post-commit kill attempt:
 -- canceled when termination was confirmed, unknown when the outcome
 -- is unobservable, or cancel_requested to record a delivered signal
--- whose effect is unconfirmed.
+-- whose effect is unconfirmed. require_missing_process guards
+-- outcomes decided from the absence of a process handle: a late
+-- RecordStart can land identity on the row concurrently, and it
+-- must win so the row stays cancel_requested and the sweep kills
+-- the now-identified process.
 UPDATE chat_tool_call_executions
 SET status = @status::chat_tool_call_execution_status,
     cancel_signal_sent_at = COALESCE(sqlc.narg('cancel_signal_sent_at')::timestamptz, cancel_signal_sent_at),
@@ -191,6 +195,7 @@ WHERE chat_id = @chat_id::uuid
   AND assistant_message_id = @assistant_message_id::bigint
   AND tool_call_id = @tool_call_id::text
   AND status = 'cancel_requested'
+  AND (NOT @require_missing_process::boolean OR process_id IS NULL)
 RETURNING *;
 
 -- name: DeleteOldChatToolCallExecutions :execrows

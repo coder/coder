@@ -13087,22 +13087,28 @@ WHERE chat_id = $4::uuid
   AND assistant_message_id = $5::bigint
   AND tool_call_id = $6::text
   AND status = 'cancel_requested'
+  AND (NOT $7::boolean OR process_id IS NULL)
 RETURNING id, chat_id, assistant_message_id, tool_call_id, status, input_sha256, command, background, timeout_secs, claim_epoch, claimed_at, workspace_agent_id, process_id, cancel_signal_sent_at, result_committed_at, created_at, started_at, updated_at
 `
 
 type UpdateChatToolCallExecutionCancelOutcomeParams struct {
-	Status             ChatToolCallExecutionStatus `db:"status" json:"status"`
-	CancelSignalSentAt sql.NullTime                `db:"cancel_signal_sent_at" json:"cancel_signal_sent_at"`
-	UpdatedAt          time.Time                   `db:"updated_at" json:"updated_at"`
-	ChatID             uuid.UUID                   `db:"chat_id" json:"chat_id"`
-	AssistantMessageID int64                       `db:"assistant_message_id" json:"assistant_message_id"`
-	ToolCallID         string                      `db:"tool_call_id" json:"tool_call_id"`
+	Status                ChatToolCallExecutionStatus `db:"status" json:"status"`
+	CancelSignalSentAt    sql.NullTime                `db:"cancel_signal_sent_at" json:"cancel_signal_sent_at"`
+	UpdatedAt             time.Time                   `db:"updated_at" json:"updated_at"`
+	ChatID                uuid.UUID                   `db:"chat_id" json:"chat_id"`
+	AssistantMessageID    int64                       `db:"assistant_message_id" json:"assistant_message_id"`
+	ToolCallID            string                      `db:"tool_call_id" json:"tool_call_id"`
+	RequireMissingProcess bool                        `db:"require_missing_process" json:"require_missing_process"`
 }
 
 // Resolves a cancel_requested row after a post-commit kill attempt:
 // canceled when termination was confirmed, unknown when the outcome
 // is unobservable, or cancel_requested to record a delivered signal
-// whose effect is unconfirmed.
+// whose effect is unconfirmed. require_missing_process guards
+// outcomes decided from the absence of a process handle: a late
+// RecordStart can land identity on the row concurrently, and it
+// must win so the row stays cancel_requested and the sweep kills
+// the now-identified process.
 func (q *sqlQuerier) UpdateChatToolCallExecutionCancelOutcome(ctx context.Context, arg UpdateChatToolCallExecutionCancelOutcomeParams) (ChatToolCallExecution, error) {
 	row := q.db.QueryRowContext(ctx, updateChatToolCallExecutionCancelOutcome,
 		arg.Status,
@@ -13111,6 +13117,7 @@ func (q *sqlQuerier) UpdateChatToolCallExecutionCancelOutcome(ctx context.Contex
 		arg.ChatID,
 		arg.AssistantMessageID,
 		arg.ToolCallID,
+		arg.RequireMissingProcess,
 	)
 	var i ChatToolCallExecution
 	err := row.Scan(

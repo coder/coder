@@ -794,17 +794,26 @@ func (s *taskStarter) reconcileInterruptedExecutions(ctx context.Context, record
 			// this cancel_requested row moments after the commit.
 			// Wait out that window here instead of resolving
 			// early.
-			record = r.awaitInterruptedIdentity(ctx, record)
-			if record.Status != database.ChatToolCallExecutionStatusCancelRequested {
-				continue
-			}
-			if !record.ProcessID.Valid || !record.WorkspaceAgentID.Valid {
-				r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, sql.NullTime{})
-				continue
-			}
+			r.resolveUnknownAfterIdentityWait(ctx, record)
+			continue
 		}
 		r.reconcileCancelRequested(ctx, record)
 	}
+}
+
+// resolveUnknownAfterIdentityWait handles a cancel_requested row
+// without recorded process identity: wait out the late-handle
+// window, kill a handle that lands, and only then resolve unknown.
+func (r executionReconciler) resolveUnknownAfterIdentityWait(ctx context.Context, record database.ChatToolCallExecution) {
+	record = r.awaitInterruptedIdentity(ctx, record)
+	if record.Status != database.ChatToolCallExecutionStatusCancelRequested {
+		return
+	}
+	if record.ProcessID.Valid && record.WorkspaceAgentID.Valid {
+		r.reconcileCancelRequested(ctx, record)
+		return
+	}
+	r.resolveCancelOutcomeWithoutProcess(ctx, record, database.ChatToolCallExecutionStatusUnknown)
 }
 
 // executionReconciler resolves cancel_requested execution rows. It
@@ -919,14 +928,62 @@ func (r executionReconciler) reconcileCancelRequested(ctx context.Context, recor
 	}
 }
 
-func (r executionReconciler) resolveCancelOutcome(ctx context.Context, record database.ChatToolCallExecution, status database.ChatToolCallExecutionStatus, signalSentAt sql.NullTime) {
+// resolveCancelOutcomeWithoutProcess resolves a cancel_requested
+// row whose outcome was decided from the absence of a process
+// handle. The dead dispatch's recordProcessStart runs on an
+// uncanceled context and can land identity on the row after the
+// identity wait gave up; the guarded update loses to that write and
+// the freshly identified process gets the kill flow instead of
+// being orphaned behind a terminal status the sweep never retries.
+func (r executionReconciler) resolveCancelOutcomeWithoutProcess(ctx context.Context, record database.ChatToolCallExecution, status database.ChatToolCallExecutionStatus) {
 	_, err := r.store.UpdateChatToolCallExecutionCancelOutcome(ctx, database.UpdateChatToolCallExecutionCancelOutcomeParams{
+		ChatID:                record.ChatID,
+		AssistantMessageID:    record.AssistantMessageID,
+		ToolCallID:            record.ToolCallID,
+		Status:                status,
+		CancelSignalSentAt:    sql.NullTime{},
+		RequireMissingProcess: true,
+		UpdatedAt:             dbtime.Now(),
+	})
+	if err == nil {
+		return
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		r.logger.Warn(ctx, "failed to record interrupt cancel outcome",
+			slog.F("chat_id", record.ChatID),
+			slog.F("tool_call_id", record.ToolCallID),
+			slog.F("status", string(status)),
+			slog.Error(err),
+		)
+		return
+	}
+	latest, getErr := r.store.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
 		ChatID:             record.ChatID,
 		AssistantMessageID: record.AssistantMessageID,
 		ToolCallID:         record.ToolCallID,
-		Status:             status,
-		CancelSignalSentAt: signalSentAt,
-		UpdatedAt:          dbtime.Now(),
+	})
+	if getErr != nil {
+		r.logger.Warn(ctx, "failed to re-read interrupted execution after guarded cancel outcome",
+			slog.F("chat_id", record.ChatID),
+			slog.F("tool_call_id", record.ToolCallID),
+			slog.Error(getErr),
+		)
+		return
+	}
+	if latest.Status == database.ChatToolCallExecutionStatusCancelRequested && latest.ProcessID.Valid && latest.WorkspaceAgentID.Valid {
+		r.reconcileCancelRequested(ctx, latest)
+	}
+}
+
+func (r executionReconciler) resolveCancelOutcome(ctx context.Context, record database.ChatToolCallExecution, status database.ChatToolCallExecutionStatus, signalSentAt sql.NullTime) {
+	_, err := r.store.UpdateChatToolCallExecutionCancelOutcome(ctx, database.UpdateChatToolCallExecutionCancelOutcomeParams{
+		ChatID:                record.ChatID,
+		AssistantMessageID:    record.AssistantMessageID,
+		ToolCallID:            record.ToolCallID,
+		Status:                status,
+		CancelSignalSentAt:    signalSentAt,
+		RequireMissingProcess: false,
+		UpdatedAt:             dbtime.Now(),
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		r.logger.Warn(ctx, "failed to record interrupt cancel outcome",
@@ -999,14 +1056,8 @@ func (r executionReconciler) sweepOnce(ctx context.Context, now time.Time) {
 		default:
 		}
 		if !record.ProcessID.Valid || !record.WorkspaceAgentID.Valid {
-			record = r.awaitInterruptedIdentity(ctx, record)
-			if record.Status != database.ChatToolCallExecutionStatusCancelRequested {
-				continue
-			}
-			if !record.ProcessID.Valid || !record.WorkspaceAgentID.Valid {
-				r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusUnknown, sql.NullTime{})
-				continue
-			}
+			r.resolveUnknownAfterIdentityWait(ctx, record)
+			continue
 		}
 		r.reconcileCancelRequested(ctx, record)
 	}

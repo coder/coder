@@ -171,6 +171,11 @@ func (e *AbortToolExecutionError) Unwrap() error {
 	return e.Err
 }
 
+// ErrExecutionRecordNotFound reports that no ledger row exists for
+// the tool call, distinguishing a call that predates the ledger
+// from an unreadable ledger.
+var ErrExecutionRecordNotFound = xerrors.New("execution record not found")
+
 // ErrExecutionInputMismatch reports that the ledger row targeted by
 // a claim was created for different tool input, meaning the caller
 // is executing against stale lineage.
@@ -223,7 +228,9 @@ type ExecutionRecorder interface {
 	// Returns an error wrapping ErrExecutionInputMismatch when the
 	// row was created for different input.
 	Claim(ctx context.Context, toolCallID string, inputSHA256 string, command string, background bool, timeout time.Duration) (rec ExecutionRecord, claimed bool, err error)
-	// Get reads the current row without claiming it.
+	// Get reads the current row without claiming it. Returns an
+	// error wrapping ErrExecutionRecordNotFound when no row
+	// exists for the tool call.
 	Get(ctx context.Context, toolCallID string) (ExecutionRecord, error)
 	// RecordStart stores the process identity on the claim that
 	// dispatched it and moves the row to running. claimEpoch must
@@ -288,13 +295,7 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 			}
 			conn, agentID, err := options.GetWorkspaceConn(ctx)
 			if err != nil {
-				// A row the ledger already resolved needs no
-				// workspace to finish: return its stable result
-				// instead of coupling it to agent availability.
-				if resp, ok := resolveWithoutConn(ctx, options, call.ID); ok {
-					return resp, nil
-				}
-				return fantasy.NewTextErrorResponse(err.Error()), nil
+				return resolveConnFailure(ctx, options, call.ID, err)
 			}
 			// Concurrent execute calls in one step share this
 			// closure; stamp the agent on a per-call copy so one
@@ -394,7 +395,7 @@ func executeTool(
 			return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("claim execution record: %w", err)}
 		}
 		if !claimed {
-			return resumeExecution(ctx, conn, options, toolCallID, rec), nil
+			return resumeExecution(ctx, conn, options, toolCallID, rec)
 		}
 	}
 
@@ -413,7 +414,7 @@ func resumeExecution(
 	options ExecuteOptions,
 	toolCallID string,
 	rec ExecutionRecord,
-) fantasy.ToolResponse {
+) (fantasy.ToolResponse, error) {
 	switch rec.Status {
 	case ExecutionStatusStarting:
 		// Another claim owns dispatch. Give it until the claim
@@ -428,10 +429,10 @@ func resumeExecution(
 			// orphan a real process. Only a claim that actually
 			// went stale is unobservable.
 			if ctx.Err() != nil {
-				return errorResult(fmt.Sprintf("wait for execution claim owner: %v", ctx.Err()))
+				return errorResult(fmt.Sprintf("wait for execution claim owner: %v", ctx.Err())), nil
 			}
 			markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
-			return fantasy.NewTextErrorResponse(unknownOutcomeMessage)
+			return fantasy.NewTextErrorResponse(unknownOutcomeMessage), nil
 		}
 		return resumeExecution(ctx, conn, options, toolCallID, latest)
 	case ExecutionStatusRunning, ExecutionStatusExited, ExecutionStatusDetached:
@@ -441,9 +442,9 @@ func resumeExecution(
 		if !ok {
 			// Reserved rows are always claimable, so resume
 			// should never see one.
-			return errorResult(fmt.Sprintf("execution row in unexpected state %s; retry the command", rec.Status))
+			return errorResult(fmt.Sprintf("execution row in unexpected state %s; retry the command", rec.Status)), nil
 		}
-		return resp
+		return resp, nil
 	}
 }
 
@@ -472,25 +473,41 @@ func terminalRowResponse(ctx context.Context, options ExecuteOptions, toolCallID
 	}
 }
 
-// resolveWithoutConn resolves a tool call from the ledger alone
-// when the workspace connection is unavailable. ok is true only for
-// rows that need no agent access: terminal rows, and background
-// rows whose recorded handle is the entire result.
-func resolveWithoutConn(ctx context.Context, options ExecuteOptions, toolCallID string) (fantasy.ToolResponse, bool) {
+// resolveConnFailure resolves a tool call when the workspace
+// connection is unavailable. Rows the ledger already resolved and
+// background rows whose handle is the entire result return their
+// stable response. Rows that may carry a dispatched process abort
+// the batch: committing a result would set result_committed_at and
+// permanently end re-attachment. Only rows proving nothing was
+// dispatched surface the dial error as a normal tool result.
+func resolveConnFailure(ctx context.Context, options ExecuteOptions, toolCallID string, dialErr error) (fantasy.ToolResponse, error) {
 	if options.Recorder == nil {
-		return fantasy.ToolResponse{}, false
+		return fantasy.NewTextErrorResponse(dialErr.Error()), nil
 	}
 	rec, err := options.Recorder.Get(ctx, toolCallID)
 	if err != nil {
-		return fantasy.ToolResponse{}, false
+		if xerrors.Is(err, ErrExecutionRecordNotFound) {
+			// The call predates the ledger; nothing the ledger
+			// dispatched needs this connection.
+			return fantasy.NewTextErrorResponse(dialErr.Error()), nil
+		}
+		return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("read execution record with workspace connection unavailable: %w", err)}
 	}
 	if rec.Background && rec.ProcessID != "" {
 		switch rec.Status {
 		case ExecutionStatusRunning, ExecutionStatusExited, ExecutionStatusDetached:
-			return resolveBackgroundRow(ctx, options, toolCallID, rec), true
+			return resolveBackgroundRow(ctx, options, toolCallID, rec), nil
 		}
 	}
-	return terminalRowResponse(ctx, options, toolCallID, rec)
+	if resp, ok := terminalRowResponse(ctx, options, toolCallID, rec); ok {
+		return resp, nil
+	}
+	switch rec.Status {
+	case ExecutionStatusStarting, ExecutionStatusRunning, ExecutionStatusExited, ExecutionStatusDetached:
+		return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("workspace connection unavailable while execution needs re-attach (status %s): %w", rec.Status, dialErr)}
+	}
+	// A reserved row proves nothing was dispatched.
+	return fantasy.NewTextErrorResponse(dialErr.Error()), nil
 }
 
 // resolveBackgroundRow returns the durable result for a background
@@ -544,9 +561,9 @@ func reattachProcess(
 	options ExecuteOptions,
 	toolCallID string,
 	rec ExecutionRecord,
-) fantasy.ToolResponse {
+) (fantasy.ToolResponse, error) {
 	if rec.Background {
-		return resolveBackgroundRow(ctx, options, toolCallID, rec)
+		return resolveBackgroundRow(ctx, options, toolCallID, rec), nil
 	}
 
 	snapCtx, cancel := context.WithTimeout(ctx, snapshotTimeout)
@@ -556,20 +573,27 @@ func reattachProcess(
 		// Only a definite 404 (the agent was reached and does not
 		// know the process) means the result is gone, and only
 		// when the connection targets the agent that owns the
-		// process: a chat rebound to a different agent asks the
-		// wrong agent, which knows nothing about the process.
-		// Transport errors, cancellations, and server errors
-		// likewise leave the process potentially retrievable.
+		// process. Transport errors, cancellations, and server
+		// errors leave the process potentially retrievable.
 		var sdkErr *codersdk.Error
-		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound &&
-			(rec.WorkspaceAgentID == uuid.Nil || rec.WorkspaceAgentID == options.connAgentID) {
-			markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
-			return processLostResponse(rec.ProcessID)
+		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+			if rec.WorkspaceAgentID == uuid.Nil || rec.WorkspaceAgentID == options.connAgentID {
+				markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
+				return processLostResponse(rec.ProcessID), nil
+			}
+			// A chat rebound to a different agent asked the wrong
+			// agent, which knows nothing about the process. Abort
+			// instead of committing a result that would end
+			// re-attachment without ever asking the owning agent.
+			return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf(
+				"process %s belongs to agent %s but the workspace connection targets agent %s: %w",
+				rec.ProcessID, rec.WorkspaceAgentID, options.connAgentID, err,
+			)}
 		}
 		return errorResultWithProcess(
 			fmt.Sprintf("re-attach to process: %v; use process_output with ID %s to retry", err, rec.ProcessID),
 			rec.ProcessID,
-		)
+		), nil
 	}
 
 	if !resp.Running {
@@ -589,7 +613,7 @@ func reattachProcess(
 		if !rec.StartedAt.IsZero() {
 			result.WallDurationMs = time.Since(rec.StartedAt).Milliseconds()
 		}
-		return marshalResult(result)
+		return marshalResult(result), nil
 	}
 
 	deadline := rec.StartedAt.Add(rec.Timeout)
@@ -602,7 +626,7 @@ func reattachProcess(
 			Error:               fmt.Sprintf("command timed out after %s", rec.Timeout),
 			Truncated:           resp.Truncated,
 			BackgroundProcessID: rec.ProcessID,
-		})
+		}), nil
 	}
 
 	cmdCtx, cancelWait := context.WithDeadline(ctx, deadline)
@@ -610,11 +634,11 @@ func reattachProcess(
 	result, lost := waitForProcess(cmdCtx, ctx, conn, rec.ProcessID, rec.Timeout)
 	if lost {
 		markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
-		return processLostResponse(rec.ProcessID)
+		return processLostResponse(rec.ProcessID), nil
 	}
 	result.WallDurationMs = time.Since(rec.StartedAt).Milliseconds()
 	markWaitOutcome(ctx, options, toolCallID, result)
-	return marshalResult(result)
+	return marshalResult(result), nil
 }
 
 // processLostResponse is the stable result for a process the agent

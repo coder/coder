@@ -126,6 +126,9 @@ func (r *executionRecorder) Get(ctx context.Context, toolCallID string) (chattoo
 		AssistantMessageID: msgID,
 		ToolCallID:         toolCallID,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return chattool.ExecutionRecord{}, xerrors.Errorf("tool call %s: %w", toolCallID, chattool.ErrExecutionRecordNotFound)
+	}
 	if err != nil {
 		return chattool.ExecutionRecord{}, xerrors.Errorf("get chat tool call execution: %w", err)
 	}

@@ -252,6 +252,45 @@ func TestExecutionSweep(t *testing.T) {
 		require.Equal(t, database.ChatToolCallExecutionStatusUnknown, row.Status)
 	})
 
+	t.Run("LateHandleBlocksUnknownResolution", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// The row carries full process identity, but the
+		// reconciler decided unknown from a stale snapshot taken
+		// before the handle landed. The guarded write must lose
+		// and the kill flow must run on the fresh identity.
+		record := seedCancelRequestedExecution(ctx, t, db, time.Minute)
+
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		conn.EXPECT().SignalProcess(gomock.Any(), "proc-sweep", "kill").Return(nil)
+		exitCode := -1
+		conn.EXPECT().ProcessOutput(gomock.Any(), "proc-sweep", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode}, nil)
+
+		r := executionReconciler{
+			store:  db,
+			logger: slogtest.Make(t, nil),
+			agentConn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return conn, nil, nil
+			},
+		}
+		stale := record
+		stale.ProcessID = sql.NullString{}
+		stale.WorkspaceAgentID = uuid.NullUUID{}
+		r.resolveCancelOutcomeWithoutProcess(ctx, stale, database.ChatToolCallExecutionStatusUnknown)
+
+		row, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusCanceled, row.Status)
+		require.Equal(t, "proc-sweep", row.ProcessID.String)
+	})
+
 	t.Run("ClaimSkipsFreshAndResolvedRows", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
