@@ -1,4 +1,4 @@
-import { FilterIcon, FunnelXIcon } from "lucide-react";
+import { FilterIcon } from "lucide-react";
 import {
 	type ComponentProps,
 	type FC,
@@ -252,8 +252,6 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 		setOptionSearch("");
 	};
 
-	const filtersActive = hasActiveFilters(filters);
-
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
@@ -263,10 +261,10 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 					aria-label="Filter agents"
 					className={cn(
 						"size-7 min-w-0 -mr-0.5 justify-end px-0 text-content-secondary hover:text-content-primary",
-						filtersActive && "text-content-primary",
+						hasActiveFilters(filters) && "text-content-primary",
 					)}
 				>
-					{filtersActive ? <FunnelXIcon /> : <FilterIcon />}
+					<FilterIcon />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
