@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -23,6 +24,8 @@ import (
 // role such as owner. System users and service accounts are excluded by
 // the underlying query, matching GetActiveUserCount.
 func CountWorkspaceCapableUsers(ctx context.Context, logger slog.Logger, db database.Store, authorizer rbac.Authorizer) (int64, error) {
+	start := time.Now()
+
 	// All custom roles are prefetched into the context's role cache in a
 	// single query; role expansion below then resolves both builtin and
 	// custom roles without per-role-set database lookups.
@@ -63,6 +66,17 @@ func CountWorkspaceCapableUsers(ctx context.Context, logger slog.Logger, db data
 			count++
 		}
 	}
+
+	// This line doubles as the counting-mode signal: it is emitted only
+	// when permission-based seat counting ran, and it carries both the
+	// counted seats and the total eligible active users so the two can be
+	// compared when diagnosing seat disputes.
+	logger.Info(ctx, "counted workspace-capable users for license seats",
+		slog.F("workspace_capable_users", count),
+		slog.F("active_users", len(rows)),
+		slog.F("unique_role_sets", len(capableBySignature)),
+		slog.F("elapsed", time.Since(start)),
+	)
 	return count, nil
 }
 
