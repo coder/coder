@@ -474,36 +474,40 @@ describe("CreateWorkspacePage", () => {
 			});
 
 			// Respond to the client's edit with an error.
-			const originalSend = mockSocket.send;
-			mockSocket.send = vi.fn((data) => {
-				originalSend.call(mockSocket, data);
-				if (typeof data === "string" && data.includes('"200"')) {
-					mockPublisher.publishMessage(
-						new MessageEvent("message", {
-							data: JSON.stringify({
-								id: 2,
-								parameters: [
-									{
-										...MockValidationParameter,
-										value: { value: "200", valid: false },
-										diagnostics: [
-											{
-												severity: "error",
-												summary:
-													"Invalid parameter value according to 'validation' block",
-												detail: "value 200 is more than the maximum 100",
-												extra: {
-													code: "",
-												},
+			mockSocket.send.mockImplementation((data) => {
+				expect(JSON.parse(data as string)).toEqual(
+					expect.objectContaining({
+						id: 0,
+						inputs: {
+							[MockValidationParameter.name]: "200",
+						},
+					}),
+				);
+				mockPublisher.publishMessage(
+					new MessageEvent("message", {
+						data: JSON.stringify({
+							id: 2,
+							parameters: [
+								{
+									...MockValidationParameter,
+									value: { value: "200", valid: false },
+									diagnostics: [
+										{
+											severity: "error",
+											summary:
+												"Invalid parameter value according to 'validation' block",
+											detail: "value 200 is more than the maximum 100",
+											extra: {
+												code: "",
 											},
-										],
-									},
-								],
-								diagnostics: [],
-							}),
+										},
+									],
+								},
+							],
+							diagnostics: [],
 						}),
-					);
-				}
+					}),
+				);
 			});
 
 			const edited = {
