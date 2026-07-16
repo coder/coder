@@ -743,6 +743,7 @@ type fakeRecorder struct {
 	claimCalls     int
 	getCalls       int
 	recordStartErr error
+	claimErr       error
 	// recordStartCtxErr captures ctx.Err() as observed by
 	// RecordStart, so tests can assert the write runs on an
 	// uncanceled context.
@@ -764,6 +765,9 @@ func (f *fakeRecorder) Claim(_ context.Context, toolCallID string, inputSHA256 s
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.claimCalls++
+	if f.claimErr != nil {
+		return chattool.ExecutionRecord{}, false, f.claimErr
+	}
 	if storedHash, ok := f.inputHashes[toolCallID]; ok && storedHash != inputSHA256 {
 		return chattool.ExecutionRecord{}, false, xerrors.Errorf("tool call %s: %w", toolCallID, chattool.ErrExecutionInputMismatch)
 	}
@@ -1330,6 +1334,28 @@ func TestExecuteToolRecorder(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
 		assert.Contains(t, resp.Content, "stale lineage")
+	})
+
+	t.Run("ClaimInfrastructureFailureAborts", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		recorder.claimErr = xerrors.New("database connection lost")
+
+		// No StartProcess expectation: a failed claim must never
+		// dispatch, and the failure aborts the batch instead of
+		// committing an error result that would end the call.
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.Error(t, err)
+		var abortErr *chattool.AbortToolExecutionError
+		require.ErrorAs(t, err, &abortErr)
 	})
 
 	t.Run("ResolvedRowNeverRestarts", func(t *testing.T) {

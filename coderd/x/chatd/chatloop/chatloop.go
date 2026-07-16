@@ -549,7 +549,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 	}
 
 	maxResultBytes := toolResultByteBudget(opts.ContextLimit)
-	toolResults := executeTools(
+	toolResults, err := executeTools(
 		ctx,
 		opts.Clock,
 		opts.Tools,
@@ -571,6 +571,9 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 			publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
 		},
 	)
+	if err != nil {
+		return ToolExecutionOutcome{}, err
+	}
 	if ctx.Err() != nil {
 		return ToolExecutionOutcome{}, ctx.Err()
 	}
@@ -1026,9 +1029,9 @@ func executeTools(
 	maxResultBytes int,
 	toolNameAliases map[string]string,
 	onResult func(fantasy.ToolResultContent, time.Time),
-) []fantasy.ToolResultContent {
+) ([]fantasy.ToolResultContent, error) {
 	if len(toolCalls) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	// Filter out provider-executed tool calls. These were
@@ -1042,7 +1045,7 @@ func executeTools(
 		}
 	}
 	if len(localToolCalls) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	toolMap := make(map[string]fantasy.AgentTool, len(allTools))
@@ -1110,6 +1113,20 @@ func executeTools(
 	}
 	wg.Wait()
 
+	// A tool that failed with an abort-class error (for example an
+	// execution ledger infrastructure failure) poisons the whole
+	// batch: none of its results are published or committed, so the
+	// task retry re-runs the batch instead of persisting a bogus
+	// result for the aborted call.
+	for _, tr := range results {
+		if resultErr, ok := tr.Result.(fantasy.ToolResultOutputContentError); ok {
+			var abortErr *chattool.AbortToolExecutionError
+			if xerrors.As(resultErr.Error, &abortErr) {
+				return nil, xerrors.Errorf("tool %s (call %s) aborted the batch: %w", tr.ToolName, tr.ToolCallID, abortErr)
+			}
+		}
+	}
+
 	// Publish results in the original tool-call order so SSE
 	// subscribers see a deterministic event sequence.
 	if onResult != nil {
@@ -1117,7 +1134,7 @@ func executeTools(
 			onResult(tr, completedAt[i])
 		}
 	}
-	return results
+	return results, nil
 }
 
 // applyExclusiveToolPolicy checks whether toolCalls violate the

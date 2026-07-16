@@ -153,6 +153,24 @@ const (
 	ExecutionStatusNoEffect ExecutionStatus = "no_effect"
 )
 
+// AbortToolExecutionError marks a tool failure that must abort the
+// whole local tool batch instead of committing an error tool
+// result. Used for execution ledger infrastructure failures before
+// any process is dispatched: committing a bogus result would end
+// the call permanently, while aborting lets the task retry re-claim
+// the intent (dispatched siblings re-attach through the ledger).
+type AbortToolExecutionError struct {
+	Err error
+}
+
+func (e *AbortToolExecutionError) Error() string {
+	return e.Err.Error()
+}
+
+func (e *AbortToolExecutionError) Unwrap() error {
+	return e.Err
+}
+
 // ErrExecutionInputMismatch reports that the ledger row targeted by
 // a claim was created for different tool input, meaning the caller
 // is executing against stale lineage.
@@ -283,7 +301,7 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 			// call cannot overwrite another's attribution.
 			callOptions := options
 			callOptions.connAgentID = agentID
-			return executeTool(ctx, conn, args, callOptions, call), nil
+			return executeTool(ctx, conn, args, callOptions, call)
 		},
 	)
 }
@@ -299,11 +317,11 @@ func executeTool(
 	args ExecuteArgs,
 	options ExecuteOptions,
 	call fantasy.ToolCall,
-) fantasy.ToolResponse {
+) (fantasy.ToolResponse, error) {
 	toolCallID := call.ID
 	if args.Command == "" {
 		markTerminal(ctx, options, toolCallID, ExecutionStatusNoEffect)
-		return fantasy.NewTextErrorResponse("command is required")
+		return fantasy.NewTextErrorResponse("command is required"), nil
 	}
 
 	background := args.RunInBackground != nil && *args.RunInBackground
@@ -331,13 +349,13 @@ func executeTool(
 			markTerminal(ctx, options, toolCallID, ExecutionStatusNoEffect)
 			return fantasy.NewTextErrorResponse(
 				fmt.Sprintf("invalid timeout %q: %v", *args.Timeout, err),
-			)
+			), nil
 		}
 		if parsed <= 0 {
 			markTerminal(ctx, options, toolCallID, ExecutionStatusNoEffect)
 			return fantasy.NewTextErrorResponse(
 				fmt.Sprintf("timeout must be positive, got %q", *args.Timeout),
-			)
+			), nil
 		}
 		timeout = parsed
 	}
@@ -368,19 +386,22 @@ func executeTool(
 				)
 				return fantasy.NewTextErrorResponse(
 					"the recorded execution for this tool call was created for different input; refusing to run against stale lineage. Retry the request.",
-				)
+				), nil
 			}
-			return errorResult(fmt.Sprintf("claim execution record: %v", err))
+			// An infrastructure failure before dispatch must not
+			// commit a bogus result: abort the batch so the task
+			// retry re-claims the intent.
+			return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("claim execution record: %w", err)}
 		}
 		if !claimed {
-			return resumeExecution(ctx, conn, options, toolCallID, rec)
+			return resumeExecution(ctx, conn, options, toolCallID, rec), nil
 		}
 	}
 
 	if background {
-		return executeBackground(ctx, conn, options, toolCallID, rec, args.Command, workDir, env)
+		return executeBackground(ctx, conn, options, toolCallID, rec, args.Command, workDir, env), nil
 	}
-	return executeForeground(ctx, conn, options, toolCallID, rec, args.Command, timeout, workDir, env)
+	return executeForeground(ctx, conn, options, toolCallID, rec, args.Command, timeout, workDir, env), nil
 }
 
 // resumeExecution handles a tool call whose ledger row is owned by
