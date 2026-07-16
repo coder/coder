@@ -344,9 +344,8 @@ describe("WorkspaceParametersPage", () => {
 
 		// The client should now send all parameters.
 		await waitFor(() => {
-			const data = mockPublisher.clientSentData;
-			expect(data.length).toBeGreaterThan(0);
-			expect(JSON.parse(data[data.length - 1] as string)).toEqual(
+			expect(mockPublisher.clientSentData).toHaveLength(1);
+			expect(JSON.parse(mockPublisher.clientSentData[0] as string)).toEqual(
 				expect.objectContaining({
 					id: 0,
 					inputs: Object.fromEntries(
