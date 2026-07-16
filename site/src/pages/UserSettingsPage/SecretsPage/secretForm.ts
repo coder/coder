@@ -30,6 +30,25 @@ interface SecretFormErrors {
 
 // secretsFileFormatFromFilename maps a filename extension to its import
 // format, or undefined when the extension is unsupported.
+export const buildImportSuccessMessage = (secrets: UserSecret[]): string => {
+	const total = secrets.length;
+	const noEnvName = secrets.filter((s) => s.env_name === "").length;
+	const secretWord = total === 1 ? "secret" : "secrets";
+	if (noEnvName === 0) {
+		return `Imported ${total} ${secretWord} successfully.`;
+	}
+	const wasWere = noEnvName === 1 ? "was" : "were";
+	const keyPhrase =
+		noEnvName === 1
+			? "its key is not a valid environment variable name. Edit it to set one."
+			: "their keys are not valid environment variable names. Edit them to set one.";
+	return (
+		`Imported ${total} ${secretWord}. ` +
+		`${noEnvName} ${wasWere} imported without an environment variable name ` +
+		`because ${keyPhrase}`
+	);
+};
+
 export const secretsFileFormatFromFilename = (
 	filename: string,
 ): SecretsFileFormat | undefined => {

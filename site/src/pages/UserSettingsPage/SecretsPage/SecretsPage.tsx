@@ -11,6 +11,7 @@ import {
 } from "#/api/queries/userSecrets";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { SecretsPageView } from "./SecretsPageView";
+import { buildImportSuccessMessage } from "./secretForm";
 
 const SecretsPage: FC = () => {
 	const { user: me } = useAuthenticated();
@@ -60,11 +61,7 @@ const SecretsPage: FC = () => {
 			}}
 			onImportSecrets={async (request) => {
 				const secrets = await importSecretsMutation.mutateAsync(request);
-				toast.success(
-					`Imported ${secrets.length} secret${
-						secrets.length === 1 ? "" : "s"
-					} successfully.`,
-				);
+				toast.success(buildImportSuccessMessage(secrets));
 				return secrets;
 			}}
 			onDeleteSecret={async (secret) => {
