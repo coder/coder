@@ -35,9 +35,12 @@ func seedSweepWorkspaceAgent(t *testing.T, db database.Store, userID uuid.UUID, 
 }
 
 // seedCancelRequestedExecution creates a chat with one execution
-// row in cancel_requested carrying full process identity, with
-// updated_at backdated by staleAgo.
-func seedCancelRequestedExecution(ctx context.Context, t *testing.T, db database.Store, staleAgo time.Duration) database.ChatToolCallExecution {
+// row in cancel_requested carrying full process identity, claimed
+// claimAgo ago and canceled cancelAgo ago. result_committed_at is
+// stamped at the cancellation like both production mappings, so the
+// suite runs the shape the interrupt commit and the transition
+// mapping actually create.
+func seedCancelRequestedExecution(ctx context.Context, t *testing.T, db database.Store, claimAgo, cancelAgo time.Duration) database.ChatToolCallExecution {
 	t.Helper()
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -56,7 +59,8 @@ func seedCancelRequestedExecution(ctx context.Context, t *testing.T, db database
 	})
 	agent := seedSweepWorkspaceAgent(t, db, user.ID, org.ID)
 
-	past := dbtime.Now().Add(-staleAgo)
+	claimPast := dbtime.Now().Add(-claimAgo)
+	cancelPast := dbtime.Now().Add(-cancelAgo)
 	claimed, err := db.ClaimChatToolCallExecution(ctx, database.ClaimChatToolCallExecutionParams{
 		ID:                 uuid.New(),
 		ChatID:             chat.ID,
@@ -65,7 +69,7 @@ func seedCancelRequestedExecution(ctx context.Context, t *testing.T, db database
 		InputSha256:        "hash",
 		Command:            "sleep 600",
 		TimeoutSecs:        600,
-		Now:                past,
+		Now:                claimPast,
 		StaleBefore:        time.Time{},
 	})
 	require.NoError(t, err)
@@ -76,19 +80,32 @@ func seedCancelRequestedExecution(ctx context.Context, t *testing.T, db database
 		ClaimEpoch:         claimed.ClaimEpoch,
 		ProcessID:          "proc-sweep",
 		WorkspaceAgentID:   agent.ID,
-		StartedAt:          past,
+		StartedAt:          claimPast,
 	})
 	require.NoError(t, err)
 	rows, err := db.MarkChatToolCallExecutionsInterrupted(ctx, database.MarkChatToolCallExecutionsInterruptedParams{
 		ChatID:             chat.ID,
 		AssistantMessageID: msg.ID,
 		ToolCallIds:        []string{"sweep-call"},
-		UpdatedAt:          past,
+		UpdatedAt:          cancelPast,
 	})
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, rows[0].Status)
-	return rows[0]
+	err = db.MarkChatToolCallExecutionsResultCommitted(ctx, database.MarkChatToolCallExecutionsResultCommittedParams{
+		ChatID:             chat.ID,
+		AssistantMessageID: msg.ID,
+		ToolCallIds:        []string{"sweep-call"},
+		ResultCommittedAt:  cancelPast,
+	})
+	require.NoError(t, err)
+	record, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+		ChatID:             chat.ID,
+		AssistantMessageID: msg.ID,
+		ToolCallID:         "sweep-call",
+	})
+	require.NoError(t, err)
+	return record
 }
 
 func TestExecutionSweep(t *testing.T) {
@@ -98,7 +115,7 @@ func TestExecutionSweep(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		record := seedCancelRequestedExecution(ctx, t, db, 10*time.Minute)
+		record := seedCancelRequestedExecution(ctx, t, db, 10*time.Minute, 10*time.Minute)
 
 		ctrl := gomock.NewController(t)
 		conn := agentconnmock.NewMockAgentConn(ctrl)
@@ -132,7 +149,7 @@ func TestExecutionSweep(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		record := seedCancelRequestedExecution(ctx, t, db, 10*time.Minute)
+		record := seedCancelRequestedExecution(ctx, t, db, 10*time.Minute, 10*time.Minute)
 
 		dialErr := xerrors.New("agent unreachable")
 		r := executionReconciler{
@@ -260,7 +277,7 @@ func TestExecutionSweep(t *testing.T) {
 		// reconciler decided unknown from a stale snapshot taken
 		// before the handle landed. The guarded write must lose
 		// and the kill flow must run on the fresh identity.
-		record := seedCancelRequestedExecution(ctx, t, db, time.Minute)
+		record := seedCancelRequestedExecution(ctx, t, db, time.Minute, time.Minute)
 
 		ctrl := gomock.NewController(t)
 		conn := agentconnmock.NewMockAgentConn(ctrl)
@@ -295,7 +312,7 @@ func TestExecutionSweep(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		record := seedCancelRequestedExecution(ctx, t, db, time.Minute)
+		record := seedCancelRequestedExecution(ctx, t, db, time.Minute, time.Minute)
 
 		// Fresh row (updated during the immediate pass's window):
 		// not claimable.
@@ -330,7 +347,7 @@ func TestExecutionSweep(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		record := seedCancelRequestedExecution(ctx, t, db, executionCancelGiveUpAfter+time.Hour)
+		record := seedCancelRequestedExecution(ctx, t, db, executionCancelGiveUpAfter+time.Hour, executionCancelGiveUpAfter+time.Hour)
 
 		// The kill has been unconfirmable for over a day; the row
 		// must terminalize without another dial.
@@ -357,24 +374,10 @@ func TestExecutionSweep(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		record := seedCancelRequestedExecution(ctx, t, db, executionCancelGiveUpAfter+time.Hour)
-
-		// The cancellation commit stamps result_committed_at; the
-		// give-up bound anchors on it, so a call claimed over a day
-		// ago that was interrupted just now still gets its kill.
-		err := db.MarkChatToolCallExecutionsResultCommitted(ctx, database.MarkChatToolCallExecutionsResultCommittedParams{
-			ChatID:             record.ChatID,
-			AssistantMessageID: record.AssistantMessageID,
-			ToolCallIds:        []string{record.ToolCallID},
-			ResultCommittedAt:  dbtime.Now(),
-		})
-		require.NoError(t, err)
-		record, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
-			ChatID:             record.ChatID,
-			AssistantMessageID: record.AssistantMessageID,
-			ToolCallID:         record.ToolCallID,
-		})
-		require.NoError(t, err)
+		// The give-up bound anchors on the cancellation commit's
+		// result_committed_at, so a call claimed over a day ago
+		// that was interrupted just now still gets its kill.
+		record := seedCancelRequestedExecution(ctx, t, db, executionCancelGiveUpAfter+time.Hour, 0)
 
 		ctrl := gomock.NewController(t)
 		conn := agentconnmock.NewMockAgentConn(ctrl)
@@ -404,7 +407,7 @@ func TestExecutionSweep(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		record := seedCancelRequestedExecution(ctx, t, db, 10*time.Minute)
+		record := seedCancelRequestedExecution(ctx, t, db, 10*time.Minute, 10*time.Minute)
 
 		ws, err := db.GetWorkspaceByAgentID(ctx, record.WorkspaceAgentID.UUID)
 		require.NoError(t, err)
@@ -436,7 +439,10 @@ func TestExecutionSweep(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		record := seedCancelRequestedExecution(ctx, t, db, 10*time.Minute)
+		// Canceled past the give-up bound: the agent-gone check
+		// must still win, so a provably dead process records
+		// canceled rather than unknown.
+		record := seedCancelRequestedExecution(ctx, t, db, executionCancelGiveUpAfter+time.Hour, executionCancelGiveUpAfter+time.Hour)
 
 		// Simulate the workspace_agents FK having nulled the agent
 		// on hard delete while the process handle stays recorded.

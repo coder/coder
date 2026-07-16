@@ -30,6 +30,127 @@ func seedLedgerWorkspaceAgent(t *testing.T, f *testFixture) database.WorkspaceAg
 	return dbgen.WorkspaceAgent(t, f.DB, database.WorkspaceAgent{ResourceID: res.ID})
 }
 
+// TestEditMessage_MapsExecutionLedgerBeforeHistoryDelete asserts
+// that editing a message whose deleted suffix carries in-flight
+// execute calls still maps the ledger: the deleted turn gets no
+// synthetic history results, but the foreground row must become
+// cancel_requested for the sweep and the background row detached,
+// both with result_committed_at stamped.
+func TestEditMessage_MapsExecutionLedgerBeforeHistoryDelete(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+	agent := seedLedgerWorkspaceAgent(t, f)
+
+	fgCallID := "call_fg_" + uuid.NewString()
+	bgCallID := "call_bg_" + uuid.NewString()
+	raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: fgCallID,
+			ToolName:   "execute",
+			Args:       json.RawMessage(`{}`),
+		},
+		{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: bgCallID,
+			ToolName:   "execute",
+			Args:       json.RawMessage(`{}`),
+		},
+	})
+	require.NoError(t, err)
+	// The edited user message precedes the in-flight assistant
+	// message, so the edit soft-deletes the assistant message too.
+	var step chatstate.CommitStepResult
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		var err error
+		step, err = tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{
+			userTextMessage("first user", f.User.ID, f.Model.ID),
+			{
+				Role:           database.ChatMessageRoleAssistant,
+				Content:        raw,
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ContentVersion: chatprompt.CurrentContentVersion,
+				ModelConfigID:  uuid.NullUUID{UUID: f.Model.ID, Valid: true},
+			},
+		}})
+		return err
+	}))
+	require.Len(t, step.InsertedMessages, 2)
+	firstUserID := step.InsertedMessages[0].ID
+	assistantID := step.InsertedMessages[1].ID
+
+	claim := func(toolCallID string, background bool) database.ChatToolCallExecution {
+		row, err := f.DB.ClaimChatToolCallExecution(ctx, database.ClaimChatToolCallExecutionParams{
+			ID:                 uuid.New(),
+			ChatID:             created.Chat.ID,
+			AssistantMessageID: assistantID,
+			ToolCallID:         toolCallID,
+			InputSha256:        "hash-" + toolCallID,
+			Command:            "sleep 600",
+			Background:         background,
+			TimeoutSecs:        600,
+			Now:                dbtime.Now(),
+			StaleBefore:        time.Time{},
+		})
+		require.NoError(t, err)
+		return row
+	}
+	recordProcess := func(row database.ChatToolCallExecution, processID string) {
+		_, err := f.DB.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
+			ChatID:             created.Chat.ID,
+			AssistantMessageID: assistantID,
+			ToolCallID:         row.ToolCallID,
+			ClaimEpoch:         row.ClaimEpoch,
+			ProcessID:          processID,
+			WorkspaceAgentID:   agent.ID,
+			StartedAt:          dbtime.Now(),
+		})
+		require.NoError(t, err)
+	}
+	recordProcess(claim(fgCallID, false), "proc-fg")
+	recordProcess(claim(bgCallID, true), "proc-bg")
+
+	var edit chatstate.EditMessageResult
+	editedContent := mustMarshalParts(t, []codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("edited"),
+	})
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		var err error
+		edit, err = tx.EditMessage(chatstate.EditMessageInput{
+			MessageID: firstUserID,
+			CreatedBy: f.User.ID,
+			Content:   editedContent,
+			APIKeyID:  f.apiKeyID(),
+		})
+		return err
+	}))
+	require.Empty(t, edit.CancellationMessages,
+		"the deleted turn gets no synthetic history results")
+
+	fgRow, err := f.DB.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+		ChatID:             created.Chat.ID,
+		AssistantMessageID: assistantID,
+		ToolCallID:         fgCallID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, fgRow.Status,
+		"the dispatched foreground row is left for the sweep to kill")
+	require.True(t, fgRow.ResultCommittedAt.Valid)
+
+	bgRow, err := f.DB.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+		ChatID:             created.Chat.ID,
+		AssistantMessageID: assistantID,
+		ToolCallID:         bgCallID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, database.ChatToolCallExecutionStatusDetached, bgRow.Status,
+		"the background row with a handle is spared")
+	require.True(t, bgRow.ResultCommittedAt.Valid)
+}
+
 // TestSyntheticCancellation_MapsExecutionLedger asserts that a
 // non-interrupt cancellation transition (a new user message during a
 // run) maps the execution ledger exactly like the interrupt commit:

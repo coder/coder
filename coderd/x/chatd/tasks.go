@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
-	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
@@ -784,14 +783,14 @@ func committedPendingLocalToolCancellationMessages(
 // (including calls with no ledger row) gets the generic cancellation
 // error.
 func interruptedToolResultPayload(row database.ChatToolCallExecution) (json.RawMessage, bool, error) {
-	if row.Status == database.ChatToolCallExecutionStatusDetached && row.ProcessID.Valid {
-		payload, err := chattool.SparedBackgroundInterruptResult(row.ProcessID.String)
-		if err != nil {
-			return nil, false, err
-		}
+	payload, spared, err := chatstate.SparedBackgroundResult(row)
+	if err != nil {
+		return nil, false, err
+	}
+	if spared {
 		return payload, false, nil
 	}
-	payload, err := json.Marshal(map[string]string{"error": interruptedToolResultErrorMessage})
+	payload, err = json.Marshal(map[string]string{"error": interruptedToolResultErrorMessage})
 	if err != nil {
 		return nil, false, xerrors.Errorf("marshal interrupted tool result: %w", err)
 	}
@@ -917,6 +916,7 @@ func (r executionReconciler) resolveExpiredCancel(ctx context.Context, record da
 	r.logger.Warn(ctx, "giving up on interrupted execution whose kill was never confirmed; resolving unknown",
 		slog.F("chat_id", record.ChatID),
 		slog.F("tool_call_id", record.ToolCallID),
+		slog.F("workspace_agent_id", record.WorkspaceAgentID.UUID),
 		slog.F("process_id", record.ProcessID.String),
 		slog.F("cancel_requested_at", anchor),
 	)

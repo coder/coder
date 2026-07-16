@@ -124,7 +124,11 @@ func synthesizePendingToolCancellations(
 	if len(pending) == 0 {
 		return nil, nil
 	}
-	mappedByCallID, err := mapCanceledExecutions(ctx, store, chat.ID, lastAssistant.ID, pending)
+	toolCallIDs := make([]string, 0, len(pending))
+	for _, part := range pending {
+		toolCallIDs = append(toolCallIDs, part.ToolCallID)
+	}
+	mappedByCallID, err := mapCanceledExecutions(ctx, store, chat.ID, lastAssistant.ID, toolCallIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -137,13 +141,9 @@ func synthesizePendingToolCancellations(
 			Result:     json.RawMessage(fmt.Sprintf("%q", reason)),
 			IsError:    true,
 		}
-		if row, ok := mappedByCallID[part.ToolCallID]; ok && row.Status == database.ChatToolCallExecutionStatusDetached && row.ProcessID.Valid {
-			// The mapping spared this background process, so the
-			// permanent synthetic result must carry its handle.
-			payload, err := chattool.SparedBackgroundInterruptResult(row.ProcessID.String)
-			if err != nil {
-				return nil, err
-			}
+		if payload, spared, err := SparedBackgroundResult(mappedByCallID[part.ToolCallID]); err != nil {
+			return nil, err
+		} else if spared {
 			resultPart.Result = payload
 			resultPart.IsError = false
 		}
@@ -179,12 +179,8 @@ func mapCanceledExecutions(
 	store database.Store,
 	chatID uuid.UUID,
 	assistantMessageID int64,
-	pending []codersdk.ChatMessagePart,
+	toolCallIDs []string,
 ) (map[string]database.ChatToolCallExecution, error) {
-	toolCallIDs := make([]string, 0, len(pending))
-	for _, part := range pending {
-		toolCallIDs = append(toolCallIDs, part.ToolCallID)
-	}
 	now := dbtime.Now()
 	mapped, err := store.MarkChatToolCallExecutionsInterrupted(ctx, database.MarkChatToolCallExecutionsInterruptedParams{
 		ChatID:             chatID,
@@ -208,6 +204,56 @@ func mapCanceledExecutions(
 		out[row.ToolCallID] = row
 	}
 	return out, nil
+}
+
+// SparedBackgroundResult returns the synthetic tool result payload
+// for a mapped ledger row spared as a detached background process,
+// and reports whether the row is such a spare. It is the single
+// spare-detection predicate for every cancellation path, so the
+// spared-row status cannot drift between consumers.
+func SparedBackgroundResult(row database.ChatToolCallExecution) (json.RawMessage, bool, error) {
+	if row.Status != database.ChatToolCallExecutionStatusDetached || !row.ProcessID.Valid {
+		return nil, false, nil
+	}
+	payload, err := chattool.SparedBackgroundCancellationResult(row.ProcessID.String)
+	if err != nil {
+		return nil, false, err
+	}
+	return payload, true, nil
+}
+
+// mapOutstandingExecutionsForHistoryDelete maps the execution ledger
+// rows of every outstanding tool call on the chat's last assistant
+// message. EditMessage calls it before soft-deleting the history
+// suffix: the deleted turn gets no synthetic history results (its
+// tool calls are deleted with it), but the ledger still owns any
+// live process, and after the delete the assistant message is
+// invisible to the pending scan, so mapping afterwards would orphan
+// the process behind an uncommitted row no sweep can claim.
+func mapOutstandingExecutionsForHistoryDelete(ctx context.Context, store database.Store, chat database.Chat) error {
+	lastAssistant, err := store.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
+		ChatID: chat.ID,
+		Role:   database.ChatMessageRoleAssistant,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return xerrors.Errorf("get last assistant message: %w", err)
+	}
+	pending, err := pendingAllToolCallIDs(ctx, store, chat)
+	if err != nil {
+		return err
+	}
+	if len(pending) == 0 {
+		return nil
+	}
+	toolCallIDs := make([]string, 0, len(pending))
+	for id := range pending {
+		toolCallIDs = append(toolCallIDs, id)
+	}
+	_, err = mapCanceledExecutions(ctx, store, chat.ID, lastAssistant.ID, toolCallIDs)
+	return err
 }
 
 // pendingDynamicToolCallIDs returns the dynamic tool-call IDs on the

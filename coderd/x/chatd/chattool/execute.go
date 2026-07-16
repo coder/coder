@@ -123,17 +123,17 @@ type ExecuteResult struct {
 	BackgroundProcessID string                          `json:"background_process_id,omitempty"`
 }
 
-// SparedBackgroundInterruptResult is the tool result committed for a
-// background execute whose process an interrupt or cancellation
-// transition deliberately leaves running. The result is committed
-// permanently, so it must carry the process handle: a generic
-// cancellation would strand the live process without an addressable
-// ID.
-func SparedBackgroundInterruptResult(processID string) (json.RawMessage, error) {
+// SparedBackgroundCancellationResult is the tool result committed
+// for a background execute whose process a cancellation transition
+// (interrupt, message edit, new message) deliberately leaves
+// running. The result is committed permanently, so it must carry the
+// process handle: a generic cancellation would strand the live
+// process without an addressable ID.
+func SparedBackgroundCancellationResult(processID string) (json.RawMessage, error) {
 	payload, err := json.Marshal(ExecuteResult{
 		Success:             true,
 		BackgroundProcessID: processID,
-		Note:                "the turn was interrupted; the background process was left alone. Use process_output with this ID to check on it.",
+		Note:                "the run was canceled; the background process was left alone. Use process_output with this ID to check on it.",
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("marshal spared background result: %w", err)
@@ -955,8 +955,6 @@ func truncateOutput(output string) string {
 	return output
 }
 
-// waitForProcess waits for process completion using the
-// blocking process output API instead of polling.
 // waitForProcess blocks until the process exits or the context
 // expires. On any error (timeout or transport), it tries a
 // non-blocking snapshot to recover. Total wall time may exceed
@@ -1043,16 +1041,14 @@ func resolveProcessWait(
 		}
 
 		// Process still running, return partial output.
-		output := truncateOutput(resp.Output)
-		errMsg := fmt.Sprintf("command timed out after %s", timeout)
-		if !timedOut {
-			errMsg = fmt.Sprintf("get process output: %v (process still running, use process_output to check later)", origErr)
+		if timedOut {
+			return timedOutRunningResult(resp, timeout, processID), false
 		}
 		return ExecuteResult{
 			Success:             false,
-			Output:              output,
+			Output:              truncateOutput(resp.Output),
 			ExitCode:            -1,
-			Error:               errMsg,
+			Error:               fmt.Sprintf("get process output: %v (process still running, use process_output to check later)", origErr),
 			Truncated:           resp.Truncated,
 			BackgroundProcessID: processID,
 		}, false

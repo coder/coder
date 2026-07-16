@@ -66,3 +66,9 @@ CREATE INDEX idx_chat_tool_call_executions_workspace_agent_id ON chat_tool_call_
 -- which claims cancel_requested rows ordered by updated_at.
 -- Partial: cancel_requested rows are rare and transient.
 CREATE INDEX idx_chat_tool_call_executions_cancel_sweep ON chat_tool_call_executions (updated_at) WHERE status = 'cancel_requested';
+
+-- Serves the abandoned-row purge, which reaps uncommitted rows idle
+-- past a long horizon. Uncommitted rows are rare relative to the
+-- committed population, so without this partial index the purge
+-- seq-scans the whole table every tick.
+CREATE INDEX idx_chat_tool_call_executions_uncommitted ON chat_tool_call_executions (updated_at) WHERE result_committed_at IS NULL;

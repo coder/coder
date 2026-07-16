@@ -3027,6 +3027,58 @@ func TestDeleteOldChatToolCallExecutionsBatchLimit(t *testing.T) {
 	require.NoError(t, err, "the newer row survives the capped batch")
 }
 
+// TestDeleteAbandonedChatToolCallExecutionsBatchLimit asserts the
+// LIMIT and oldest-first ordering of the abandoned-row purge: the cap
+// keeps the shared purge transaction bounded over a 30-day backlog.
+func TestDeleteAbandonedChatToolCallExecutionsBatchLimit(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	mc := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "test-model", ContextLimit: 8192})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: mc.ID,
+		Title:             "test-chat",
+	})
+	msg := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID: chat.ID,
+		Role:   database.ChatMessageRoleAssistant,
+	})
+
+	now := dbtime.Now()
+	seedIntent := func(id string, at time.Time) {
+		err := db.InsertChatToolCallExecutionIntent(ctx, database.InsertChatToolCallExecutionIntentParams{
+			ID:                 uuid.New(),
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         id,
+			InputSha256:        "hash-" + id,
+			CreatedAt:          at,
+		})
+		require.NoError(t, err)
+	}
+	seedIntent("oldest-abandoned-call", now.Add(-32*24*time.Hour))
+	seedIntent("older-abandoned-call", now.Add(-31*24*time.Hour))
+
+	deleted, err := db.DeleteAbandonedChatToolCallExecutions(ctx, database.DeleteAbandonedChatToolCallExecutionsParams{
+		BeforeTime: now.Add(-30 * 24 * time.Hour),
+		LimitCount: 1,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, deleted)
+
+	_, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: msg.ID, ToolCallID: "oldest-abandoned-call"})
+	require.ErrorIs(t, err, sql.ErrNoRows, "the oldest row is deleted first")
+	_, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: msg.ID, ToolCallID: "older-abandoned-call"})
+	require.NoError(t, err, "the newer row survives the capped batch")
+}
+
 // TestDeleteAbandonedChatToolCallExecutions asserts the long-horizon
 // reaping of rows whose tool result never committed: only rows idle
 // past the horizon are deleted, and cancel_requested rows are left

@@ -544,6 +544,14 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 		}
 	}
 
+	// Map the ledger before the soft-deletes: the deleted suffix can
+	// carry an in-flight execute call, and once its assistant message
+	// is deleted the pending scan below cannot see it, leaving a live
+	// process orphaned behind an uncommitted ledger row.
+	if err := mapOutstandingExecutionsForHistoryDelete(tx.ctx, tx.store, chat); err != nil {
+		return EditMessageResult{}, err
+	}
+
 	if err := tx.store.SoftDeleteChatMessageByID(tx.ctx, target.ID); err != nil {
 		return EditMessageResult{}, xerrors.Errorf("soft-delete target: %w", err)
 	}
