@@ -10,7 +10,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -93,7 +92,7 @@ func canCreateWorkspace(ctx context.Context, logger slog.Logger, db database.Sto
 		// the error, which would fail the count for every user over one
 		// bad row. Role-signature dedupe means this logs once per unique
 		// role set, not once per user sharing it.
-		logger.Warn(ctx, "user has an unparseable role, counting them as not workspace-capable for license seats",
+		logger.Warn(ctx, "user has an unparsable role, counting them as not workspace-capable for license seats",
 			slog.F("user_id", row.ID),
 			slog.Error(err),
 		)
