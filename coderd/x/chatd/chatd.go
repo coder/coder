@@ -1500,7 +1500,7 @@ func (p *Server) SendMessage(
 		if err != nil {
 			var denied *UserPromptDeniedError
 			if errors.As(err, &denied) && hookResponse.EndChat {
-				if endErr := p.endChatAfterPromptDenial(ctx, opts.ChatID); endErr != nil {
+				if endErr := p.endChatAfterPromptDenial(ctx, opts.ChatID, nil); endErr != nil {
 					return SendMessageResult{}, errors.Join(err, endErr)
 				}
 				return SendMessageResult{}, err
@@ -1860,10 +1860,15 @@ func (p *Server) EditMessage(
 		if err != nil {
 			// An accepted end_chat, from the clear session_start or a
 			// denial response, outranks the failure path: archive the
-			// chat instead of moving it to error.
+			// chat, persisting the accepted session response's
+			// messages, instead of moving it to error.
 			var denied *UserPromptDeniedError
 			if (errors.As(err, &denied) && hookResponse.EndChat) || sessionStartResponse.EndChat {
-				if endErr := p.endChatAfterPromptDenial(ctx, opts.ChatID); endErr != nil {
+				sessionMessages, prefixErr := hookPrefixMessages(sessionStartResponse, chat.LastModelConfigID, &turnID)
+				if prefixErr != nil {
+					return EditMessageResult{}, errors.Join(err, prefixErr)
+				}
+				if endErr := p.endChatAfterPromptDenial(ctx, opts.ChatID, sessionMessages); endErr != nil {
 					return EditMessageResult{}, errors.Join(err, endErr)
 				}
 				return EditMessageResult{}, err

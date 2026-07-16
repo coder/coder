@@ -475,13 +475,14 @@ func (p *Server) dispatchUserPromptSubmit(
 
 // endChatAfterPromptDenial archives a chat after a lifecycle hook
 // instructed Coder to end it while the prompt path was denied or
-// failed. A chat that is already archived or gone satisfies the
-// instruction, so those transition failures are ignored.
-func (p *Server) endChatAfterPromptDenial(ctx context.Context, chatID uuid.UUID) error {
+// failed. Messages from accepted responses persist with the archive.
+// A chat that is already archived or gone satisfies the instruction,
+// so those transition failures are ignored.
+func (p *Server) endChatAfterPromptDenial(ctx context.Context, chatID uuid.UUID, prefixMessages []chatstate.Message) error {
 	var ended database.Chat
 	machine := p.newChatMachine(chatID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		if _, err := tx.EndChat(chatstate.EndChatInput{}); err != nil {
+		if _, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages}); err != nil {
 			return err
 		}
 		chat, err := store.GetChatByID(ctx, chatID)

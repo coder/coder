@@ -555,7 +555,7 @@ func TestEditMessageSessionEndAppliedOnPromptDispatchFailure(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		_, err := w.Write([]byte(`{"end_chat":true}`))
+		_, err := w.Write([]byte(`{"end_chat":true,"user_message":"ended by session policy","model_context":"session context note"}`))
 		require.NoError(t, err)
 	}))
 	t.Cleanup(consumer.Close)
@@ -580,6 +580,25 @@ func TestEditMessageSessionEndAppliedOnPromptDispatchFailure(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "original", hookMessageText(t, original))
 	require.False(t, original.Deleted)
+
+	rows, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	noticePersisted := false
+	for _, row := range rows {
+		if row.Role == database.ChatMessageRoleSystem && row.Visibility == database.ChatMessageVisibilityUser && hookMessageText(t, row) == "ended by session policy" {
+			noticePersisted = true
+		}
+	}
+	require.True(t, noticePersisted, "accepted session user_message must persist with the archive")
+	promptRows, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	contextPersisted := false
+	for _, row := range promptRows {
+		if row.Visibility == database.ChatMessageVisibilityModel && hookMessageText(t, row) == "session context note" {
+			contextPersisted = true
+		}
+	}
+	require.True(t, contextPersisted, "accepted session model_context must persist with the archive")
 }
 
 func TestEditMessageInvalidTargetSkipsHooks(t *testing.T) {
