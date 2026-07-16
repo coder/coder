@@ -774,19 +774,23 @@ func TestExecutionSweepTokenOnlyRows(t *testing.T) {
 		require.True(t, row.UpdatedAt.After(record.ClaimedAt.Time))
 	})
 
-	t.Run("BackgroundFoundByTokenDetaches", func(t *testing.T) {
+	t.Run("BackgroundFoundByTokenKilled", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		record := seedTokenOnlyCancelRequested(ctx, t, db, 10*time.Minute, true)
 
-		// No SignalProcess expectation: the interrupt spares
-		// background processes, so the found process is adopted
-		// and detached, never killed.
+		// The committed synthetic result carries no handle, so a
+		// background process found by token is adopted and killed,
+		// not spared as detached.
 		ctrl := gomock.NewController(t)
 		conn := agentconnmock.NewMockAgentConn(ctrl)
 		conn.EXPECT().ProcessByToken(gomock.Any(), record.ID.String()).
 			Return(workspacesdk.ProcessByTokenResponse{Found: true, ProcessID: "proc-bg"}, nil)
+		conn.EXPECT().SignalProcess(gomock.Any(), "proc-bg", "kill").Return(nil)
+		exitCode := -1
+		conn.EXPECT().ProcessOutput(gomock.Any(), "proc-bg", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode}, nil)
 		r := executionReconciler{
 			store:  db,
 			logger: slogtest.Make(t, nil),
@@ -802,7 +806,7 @@ func TestExecutionSweepTokenOnlyRows(t *testing.T) {
 			ToolCallID:         record.ToolCallID,
 		})
 		require.NoError(t, err)
-		require.Equal(t, database.ChatToolCallExecutionStatusDetached, row.Status)
+		require.Equal(t, database.ChatToolCallExecutionStatusCanceled, row.Status)
 		require.Equal(t, "proc-bg", row.ProcessID.String)
 	})
 }

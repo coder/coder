@@ -1058,18 +1058,10 @@ func (r executionReconciler) reconcileCancelRequestedByToken(ctx context.Context
 			// transient kill failure then leaves a row with
 			// durable process identity for the sweep, instead of
 			// a token-only row whose process may keep running.
-			record, adopted := r.adoptProbedProcess(ctx, record, resp.ProcessID)
-			if record.Background {
-				// The interrupt spares background processes:
-				// resolve to detached without signaling. Without
-				// the handle write the row must stay
-				// cancel_requested (no detach without a durable
-				// handle); the sweep re-probes and retries.
-				if adopted {
-					r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusDetached, sql.NullTime{})
-				}
-				return
-			}
+			// Background rows get the same kill: their committed
+			// synthetic result carries no handle, so sparing the
+			// process would leave it running unaddressable.
+			record, _ = r.adoptProbedProcess(ctx, record, resp.ProcessID)
 			r.killAndConfirm(ctx, conn, record, resp.ProcessID)
 			return
 		}
@@ -1116,12 +1108,9 @@ func (r executionReconciler) resolveInterruptedWithoutProbe(ctx context.Context,
 		return
 	}
 	if record.ProcessID.Valid {
-		if record.Background {
-			// The interrupt spares background processes; the late
-			// handle write already landed, so just resolve.
-			r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusDetached, sql.NullTime{})
-			return
-		}
+		// Background rows are killed too: their committed
+		// synthetic result carries no handle, so sparing the
+		// process would leave it running unaddressable.
 		r.killAndConfirm(ctx, conn, record, record.ProcessID.String)
 		return
 	}
