@@ -426,16 +426,19 @@ func LicensesEntitlements(
 	// Governance addon, only workspace-capable users consume user_limit
 	// seats; gateway accounts (users without workspace-create) are free.
 	// The resolved count overwrites featureArguments.ActiveUserCount,
-	// which the user_limit feature's Actual pointer aliases, so both the
-	// feature value and the over-limit warnings below observe it.
+	// which the user_limit feature's Actual pointer aliases: Feature
+	// values copy the pointer, not the int64, so every copy of the
+	// feature observes the write, as do the over-limit warnings below.
+	// Replacing Actual with a fresh allocation would break this.
 	permissionBasedUserCount := false
 	if hasAIGovernanceAddon && featureArguments.WorkspaceCapableUserCountFn != nil {
 		capableCount, err := featureArguments.WorkspaceCapableUserCountFn(ctx)
 		if err != nil {
-			// A failed seat count aborts the entitlements computation,
-			// matching the legacy active-user-count error semantics. The
-			// caller keeps the previous entitlements, so a failure yields a
-			// stale count rather than a silently different one.
+			// A failed seat count is deliberately a hard failure rather
+			// than a recorded entitlement error: continuing with
+			// ActiveUserCount would silently change what user_limit
+			// measures. The caller keeps the previous entitlements, so a
+			// failure yields a stale count rather than a different one.
 			return entitlements, xerrors.Errorf("count workspace capable users: %w", err)
 		}
 		featureArguments.ActiveUserCount = capableCount
