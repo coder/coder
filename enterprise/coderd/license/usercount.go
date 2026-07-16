@@ -20,10 +20,8 @@ import (
 // CountWorkspaceCapableUsers returns the number of active users the RBAC
 // engine authorizes to create a workspace, either in one of the
 // organizations they belong to or in any organization via a site-wide
-// role such as owner. Users without workspace-create capability ("gateway
-// accounts") do not consume license seats. System users and service
-// accounts are excluded by the underlying query, matching
-// GetActiveUserCount.
+// role such as owner. System users and service accounts are excluded by
+// the underlying query, matching GetActiveUserCount.
 func CountWorkspaceCapableUsers(ctx context.Context, logger slog.Logger, db database.Store, authorizer rbac.Authorizer) (int64, error) {
 	// All custom roles are prefetched into the context's role cache in a
 	// single query; role expansion below then resolves both builtin and
