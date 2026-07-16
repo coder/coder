@@ -55,26 +55,23 @@ describe("CreateWorkspacePage", () => {
 		mockPublisher: MockWebSocketServer;
 	};
 
-	// Mocks the web socket using the specified parameters in the init message
-	// then renders the page.
-	//
-	// If there are auto-fill parameters (whether from a URL or a preset), also
-	// waits for the client's initial message.
+	// Mocks the required endpoints, most importantly the web socket, constructs
+	// the route with the required query parameters, then renders the page on that
+	// route.
 	//
 	// Returns the mock web socket and router context for further testing.
-	const renderCreateWorkspacePageWithSocket = async (opts: {
-		// route can be overridden to set additional query variables.
-		route?: string;
-		// parameters are template parameters send via the initial message from the
-		// backend to the client.
-		parameters: PreviewParameter[];
-		// urlfill contains template parameters auto-filled via the query string.
-		urlfill?: Record<string, string>;
-		// version will be added to the query string.
-		version?: string;
-		// preset will be added to the query string and set on the preset endpoint.
-		preset?: Preset;
-	}): Promise<Context> => {
+	const renderPageWithSocket = async (
+		opts: {
+			// route can be overridden to set additional query variables.
+			route?: string;
+			// urlfill contains template parameters auto-filled via the query string.
+			urlfill?: Record<string, string>;
+			// version will be added to the query string.
+			version?: string;
+			// preset will be added to the query string and set on the preset endpoint.
+			preset?: Preset;
+		} = {},
+	): Promise<Context> => {
 		const [mockSocket, mockPublisher] = mockDynamicParameterWebSocket();
 
 		const params = new URLSearchParams();
@@ -102,7 +99,24 @@ describe("CreateWorkspacePage", () => {
 			}
 		}
 		const router = renderCreateWorkspacePage(route);
+		return { mockSocket, mockPublisher, ...router };
+	};
 
+	// Waits for the client to connect to the socket then sends the initial
+	// message.  Then, if there are auto-fill parameters (whether from a URL or a
+	// preset), also waits for the client's initial message.
+	const expectSocketHandshake = async (opts: {
+		mockPublisher: MockWebSocketServer;
+		// parameters are template parameters to send via the initial message from
+		// the backend to the client.
+		parameters: PreviewParameter[];
+		// urlfill will be expected in the client's init message.
+		urlfill?: Record<string, string>;
+		// version will be asserted in the web socket API call.
+		version?: string;
+		// preset will be expected in the client's init message.
+		preset?: Preset;
+	}): Promise<void> => {
 		// Wait for the web socket connection.
 		const version = opts.version || MockTemplate.active_version_id;
 		await waitFor(() => {
@@ -119,9 +133,9 @@ describe("CreateWorkspacePage", () => {
 
 		// Open and and send the initial message.
 		await act(async () => {
-			mockPublisher.publishOpen(new Event("open"));
+			opts.mockPublisher.publishOpen(new Event("open"));
 			// The initial message always has the default values.
-			mockPublisher.publishMessage(
+			opts.mockPublisher.publishMessage(
 				new MessageEvent("message", {
 					data: JSON.stringify({
 						id: -1,
@@ -141,8 +155,10 @@ describe("CreateWorkspacePage", () => {
 		});
 		if (Object.keys(inputs).length > 0) {
 			await waitFor(() => {
-				expect(mockPublisher.clientSentData).toHaveLength(1);
-				expect(JSON.parse(mockPublisher.clientSentData[0] as string)).toEqual(
+				expect(opts.mockPublisher.clientSentData).toHaveLength(1);
+				expect(
+					JSON.parse(opts.mockPublisher.clientSentData[0] as string),
+				).toEqual(
 					expect.objectContaining({
 						id: 0,
 						inputs,
@@ -150,13 +166,11 @@ describe("CreateWorkspacePage", () => {
 				);
 			});
 		}
-
-		return { mockSocket, mockPublisher, ...router };
 	};
 
 	// Wait for the loader to be removed then asserts form fields based on
 	// parameters and auto-fill.  Lastly asserts the submit button is enabled.
-	const waitForCreateWorkspacePageRender = async (opts: {
+	const expectFormFields = async (opts: {
 		parameters: PreviewParameter[];
 		urlfill?: Record<string, string>;
 		preset?: Preset;
@@ -225,11 +239,10 @@ describe("CreateWorkspacePage", () => {
 				MockTagSelectParameter,
 				MockMultiSelectParameter,
 			];
-			const { mockPublisher } = await renderCreateWorkspacePageWithSocket({
-				parameters,
-			});
+			const { mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters });
 			// Should render without any sending any init message.
-			await waitForCreateWorkspacePageRender({ parameters });
+			await expectFormFields({ parameters });
 			expect(mockPublisher.clientSentData).toHaveLength(0);
 		});
 
@@ -248,10 +261,8 @@ describe("CreateWorkspacePage", () => {
 				[MockTagSelectParameter.name]: JSON.stringify(["tag1", "tag2"]),
 				[MockMultiSelectParameter.name]: JSON.stringify(["goland", "vscode"]),
 			};
-			await renderCreateWorkspacePageWithSocket({
-				parameters,
-				urlfill,
-			});
+			const { mockPublisher } = await renderPageWithSocket({ urlfill });
+			await expectSocketHandshake({ mockPublisher, parameters, urlfill });
 			// Should still see the loader as the client wais for the response to the
 			// client's init message.
 			expect(screen.queryByTestId("loader")).toBeInTheDocument();
@@ -283,9 +294,8 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("handles close", async () => {
-			const { mockPublisher } = await renderCreateWorkspacePageWithSocket({
-				parameters: [],
-			});
+			const { mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters: [] });
 
 			await waitForLoaderToBeRemoved();
 
@@ -306,16 +316,16 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("displays no parameters if none from init message", async () => {
-			await renderCreateWorkspacePageWithSocket({ parameters: [] });
-			await waitForCreateWorkspacePageRender({ parameters: [] });
+			const { mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters: [] });
+			await expectFormFields({ parameters: [] });
 		});
 
 		it("only parameters from the latest response are displayed", async () => {
 			const parameters = [MockDropdownParameter];
-			const { mockPublisher } = await renderCreateWorkspacePageWithSocket({
-				parameters,
-			});
-			await waitForCreateWorkspacePageRender({ parameters });
+			const { mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters });
+			await expectFormFields({ parameters });
 
 			// Send multiple messages.
 			await act(async () => {
@@ -352,10 +362,9 @@ describe("CreateWorkspacePage", () => {
 
 		it("does not clobber edited parameters", async () => {
 			const parameters = [MockPreviewParameter1, MockPreviewParameter7];
-			const { mockPublisher } = await renderCreateWorkspacePageWithSocket({
-				parameters,
-			});
-			await waitForCreateWorkspacePageRender({ parameters });
+			const { mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters });
+			await expectFormFields({ parameters });
 
 			// Blank out one field and fill out another.
 			const editedParameters = [
@@ -407,10 +416,8 @@ describe("CreateWorkspacePage", () => {
 				[MockPreviewParameter1.name]: "",
 				[MockPreviewParameter7.name]: "not-blank",
 			};
-			const { mockPublisher } = await renderCreateWorkspacePageWithSocket({
-				urlfill,
-				parameters,
-			});
+			const { mockPublisher } = await renderPageWithSocket({ urlfill });
+			await expectSocketHandshake({ mockPublisher, parameters, urlfill });
 
 			// Respond to the client's init message with different values.
 			await act(async () => {
@@ -428,7 +435,7 @@ describe("CreateWorkspacePage", () => {
 				);
 			});
 
-			await waitForCreateWorkspacePageRender({
+			await expectFormFields({
 				parameters: [...parameters, MockPreviewParameter2],
 				urlfill,
 			});
@@ -460,10 +467,11 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("displays parameter validation errors for min/max constraints", async () => {
-			const { mockSocket, mockPublisher } =
-				await renderCreateWorkspacePageWithSocket({
-					parameters: [MockValidationParameter],
-				});
+			const { mockSocket, mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({
+				mockPublisher,
+				parameters: [MockValidationParameter],
+			});
 
 			// Respond to the client's edit with an error.
 			const originalSend = mockSocket.send;
@@ -534,7 +542,8 @@ describe("CreateWorkspacePage", () => {
 				MockTemplateVersionExternalAuthGithub,
 			]);
 
-			await renderCreateWorkspacePageWithSocket({ parameters: [] });
+			const { mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters: [] });
 
 			await waitFor(() => {
 				expect(screen.getByText("GitHub")).toBeInTheDocument();
@@ -549,7 +558,8 @@ describe("CreateWorkspacePage", () => {
 				MockTemplateVersionExternalAuthGithubAuthenticated,
 			]);
 
-			await renderCreateWorkspacePageWithSocket({ parameters: [] });
+			const { mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters: [] });
 
 			await waitFor(() => {
 				expect(screen.getByText("GitHub")).toBeInTheDocument();
@@ -562,11 +572,12 @@ describe("CreateWorkspacePage", () => {
 				MockTemplateVersionExternalAuthGithub,
 			]);
 
-			await renderCreateWorkspacePageWithSocket({
+			const version = MockTemplate.id;
+			const { mockPublisher } = await renderPageWithSocket({
 				route: `/templates/${MockTemplate.name}/workspace?mode=auto`,
-				parameters: [],
-				version: MockTemplate.id,
+				version,
 			});
+			await expectSocketHandshake({ mockPublisher, parameters: [], version });
 
 			await waitFor(() => {
 				expect(
@@ -597,10 +608,10 @@ describe("CreateWorkspacePage", () => {
 				MockTagSelectParameter,
 				MockMultiSelectParameter,
 			];
-			await renderCreateWorkspacePageWithSocket({
+			const { mockPublisher } = await renderPageWithSocket({
 				route: `/templates/${MockTemplate.name}/workspace?mode=auto`,
-				parameters,
 			});
+			await expectSocketHandshake({ mockPublisher, parameters });
 
 			// Consent dialog appears for mode=auto. Confirm to proceed.
 			await act(async () => {
@@ -610,7 +621,7 @@ describe("CreateWorkspacePage", () => {
 				await userEvent.click(confirmButton);
 			});
 
-			await waitForCreateWorkspacePageRender({ parameters });
+			await expectFormFields({ parameters });
 
 			await waitFor(() => {
 				expect(screen.getByText("Create workspace")).toBeInTheDocument();
@@ -630,8 +641,9 @@ describe("CreateWorkspacePage", () => {
 				MockTagSelectParameter,
 				MockMultiSelectParameter,
 			];
-			await renderCreateWorkspacePageWithSocket({ parameters });
-			await waitForCreateWorkspacePageRender({ parameters });
+			const { mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters });
+			await expectFormFields({ parameters });
 
 			const nameInput = screen.getByRole("textbox", {
 				name: /workspace name/i,
@@ -663,19 +675,18 @@ describe("CreateWorkspacePage", () => {
 
 	describe("URL Parameters", () => {
 		it("uses custom template version when specified", async () => {
-			await renderCreateWorkspacePageWithSocket({
-				parameters: [],
-				version: "custom-version-123",
-			});
+			const version = "custom-version-123";
+			const { mockPublisher } = await renderPageWithSocket({ version });
+			await expectSocketHandshake({ mockPublisher, parameters: [], version });
 		});
 
 		it("pre-fills workspace name from URL", async () => {
 			const workspaceName = "my-custom-workspace";
 
-			await renderCreateWorkspacePageWithSocket({
+			const { mockPublisher } = await renderPageWithSocket({
 				route: `/templates/${MockTemplate.name}/workspace?name=${workspaceName}`,
-				parameters: [],
 			});
+			await expectSocketHandshake({ mockPublisher, parameters: [] });
 
 			await waitForLoaderToBeRemoved();
 
@@ -691,10 +702,10 @@ describe("CreateWorkspacePage", () => {
 	describe("URL Presets", () => {
 		const parameters = [MockDropdownParameter];
 		it("resolves a preset from the URL and selects it in the form", async () => {
-			const { mockPublisher } = await renderCreateWorkspacePageWithSocket({
-				parameters,
+			const { mockPublisher } = await renderPageWithSocket({
 				preset: mockGpuPreset,
 			});
+			await expectSocketHandshake({ mockPublisher, parameters });
 
 			// Respond to the client's init message.
 			await act(async () => {
@@ -717,11 +728,12 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("resolves a preset against the pinned template version", async () => {
-			await renderCreateWorkspacePageWithSocket({
-				parameters: [],
-				version: "custom-version",
+			const version = "custom-version";
+			const { mockPublisher } = await renderPageWithSocket({
+				version,
 				preset: mockGpuPreset,
 			});
+			await expectSocketHandshake({ mockPublisher, parameters, version });
 		});
 
 		it("falls back to form mode when auto-create cannot resolve the preset", async () => {
@@ -732,10 +744,10 @@ describe("CreateWorkspacePage", () => {
 				mockGpuPreset,
 			]);
 
-			await renderCreateWorkspacePageWithSocket({
+			const { mockPublisher } = await renderPageWithSocket({
 				route: `/templates/${MockTemplate.name}/workspace?mode=auto&preset=missing`,
-				parameters: [],
 			});
+			await expectSocketHandshake({ mockPublisher, parameters: [] });
 
 			await waitForLoaderToBeRemoved();
 
@@ -761,10 +773,10 @@ describe("CreateWorkspacePage", () => {
 				new Error("presets unavailable"),
 			);
 
-			await renderCreateWorkspacePageWithSocket({
+			const { mockPublisher } = await renderPageWithSocket({
 				route: `/templates/${MockTemplate.name}/workspace?mode=auto&preset=gpu-large`,
-				parameters: [],
 			});
+			await expectSocketHandshake({ mockPublisher, parameters: [] });
 
 			expect(
 				screen.queryByRole("button", { name: /confirm and create/i }),
@@ -780,14 +792,20 @@ describe("CreateWorkspacePage", () => {
 
 		it("uses preset parameters instead of param values", async () => {
 			const parameters = [MockDropdownParameter, MockSliderParameter];
-			const { mockPublisher } = await renderCreateWorkspacePageWithSocket({
-				parameters,
+			const urlfill = {
+				[MockDropdownParameter.name]: "t3.small",
+				[MockSliderParameter.name]: "99",
+			};
+			const { mockPublisher } = await renderPageWithSocket({
 				preset: mockGpuPreset,
 				// Will be overridden by the preset values.
-				urlfill: {
-					[MockDropdownParameter.name]: "t3.small",
-					[MockSliderParameter.name]: "99",
-				},
+				urlfill,
+			});
+			await expectSocketHandshake({
+				mockPublisher,
+				parameters,
+				urlfill,
+				preset: mockGpuPreset,
 			});
 
 			// Respond to the client's init message.  Even though this uses the
@@ -805,7 +823,7 @@ describe("CreateWorkspacePage", () => {
 			});
 
 			// No parameters show since they are under the preset section toggle.
-			await waitForCreateWorkspacePageRender({ parameters: [] });
+			await expectFormFields({ parameters: [] });
 
 			const nameInput = screen.getByRole("textbox", {
 				name: /workspace name/i,
@@ -835,8 +853,12 @@ describe("CreateWorkspacePage", () => {
 				MockTemplateVersionExternalAuthGithubAuthenticated,
 			]);
 
-			await renderCreateWorkspacePageWithSocket({
+			const { mockPublisher } = await renderPageWithSocket({
 				route: `/templates/${MockTemplate.name}/workspace?mode=auto&name=preset-workspace`,
+				preset: mockGpuPreset,
+			});
+			await expectSocketHandshake({
+				mockPublisher,
 				parameters: [],
 				preset: mockGpuPreset,
 			});
@@ -861,9 +883,8 @@ describe("CreateWorkspacePage", () => {
 
 	describe("Navigation", () => {
 		it("navigates to workspace after successful creation", async () => {
-			const { router } = await renderCreateWorkspacePageWithSocket({
-				parameters: [],
-			});
+			const { mockPublisher, router } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters: [] });
 
 			const nameInput = screen.getByRole("textbox", {
 				name: /workspace name/i,
