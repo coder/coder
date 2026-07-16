@@ -341,6 +341,86 @@ func TestPostToolUseHookDynamicFailureRejectsSubmission(t *testing.T) {
 	require.JSONEq(t, `{"answer":42}`, string(result.Result))
 }
 
+// An end_chat accepted from an earlier result's post_tool_use dispatch
+// must archive the chat when a later result's dispatch fails, instead
+// of leaving the chat in requires_action.
+func TestPostToolUseHookDynamicFailurePreservesAcceptedEndChat(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		chunk := chattest.OpenAIToolCallChunk("my_dynamic_tool", `{}`)
+		chunk.Choices[0].ToolCalls[0].ID = "call_end_first"
+		second := chattest.OpenAIToolCallChunk("my_dynamic_tool", `{}`)
+		second.Choices[0].ToolCalls[0].ID = "call_fail_second"
+		second.Choices[0].ToolCalls[0].Index = 1
+		chunk.Choices[0].ToolCalls = append(chunk.Choices[0].ToolCalls, second.Choices[0].ToolCalls[0])
+		return chattest.OpenAIStreamingResponse(chunk)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request agenthooks.Request
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		if request.Type != agenthooks.EventPostToolUse {
+			_, err := w.Write([]byte(`{}`))
+			require.NoError(t, err)
+			return
+		}
+		decoded, err := request.Decode()
+		require.NoError(t, err)
+		data, ok := decoded.(*agenthooks.PostToolUseData)
+		require.True(t, ok)
+		if data.ToolUseID == "call_fail_second" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		_, err = w.Write([]byte(`{"end_chat":true}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		APIKeyID:       testAPIKeyID(t, db, user.ID),
+		Title:          "post-tool-use-end-chat-precedence",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("call the dynamic tool twice"),
+		},
+		DynamicTools: dynamicToolJSON(t, "my_dynamic_tool"),
+	})
+	require.NoError(t, err)
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		updated, err := db.GetChatByID(ctx, chat.ID)
+		return err == nil && updated.Status == database.ChatStatusRequiresAction
+	}, testutil.IntervalFast)
+
+	require.NoError(t, server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
+		ChatID:        chat.ID,
+		UserID:        user.ID,
+		ModelConfigID: model.ID,
+		Results: []codersdk.ToolResult{
+			{ToolCallID: "call_end_first", Output: json.RawMessage(`{"answer":42}`)},
+			{ToolCallID: "call_fail_second", Output: json.RawMessage(`{"answer":43}`)},
+		},
+	}))
+
+	ended, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.True(t, ended.Archived, "accepted end_chat must archive the chat")
+	require.Equal(t, database.ChatStatusWaiting, ended.Status)
+	require.False(t, ended.LastError.Valid)
+}
+
 func TestPostToolUseHookFailureCommitsResultThenErrors(t *testing.T) {
 	t.Parallel()
 

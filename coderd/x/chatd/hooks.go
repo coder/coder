@@ -502,6 +502,40 @@ func (p *Server) endChatAfterPromptDenial(ctx context.Context, chatID uuid.UUID)
 	return nil
 }
 
+// endChatAfterToolHookFailure archives a chat whose earlier
+// post_tool_use response in the same submission accepted end_chat
+// before a later dispatch failed. Accumulated hook messages persist
+// with the archive and pending tool calls become synthetic
+// cancellations.
+func (p *Server) endChatAfterToolHookFailure(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	chatID uuid.UUID,
+	suffixMessages []chatstate.Message,
+) error {
+	var ended database.Chat
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		if _, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: suffixMessages}); err != nil {
+			return err
+		}
+		chat, err := store.GetChatByID(ctx, chatID)
+		if err != nil {
+			return xerrors.Errorf("reload ended chat: %w", err)
+		}
+		ended = chat
+		return nil
+	})
+	if errors.Is(err, chatstate.ErrTransitionNotAllowed) || errors.Is(err, chatstate.ErrChatNotFound) {
+		return nil
+	}
+	if err != nil {
+		return xerrors.Errorf("end chat after tool hook failure: %w", err)
+	}
+	p.scheduleArchiveDebugCleanup(ctx, []database.Chat{ended})
+	p.publishChatPubsubEvent(ended, codersdk.ChatWatchEventKindDeleted, nil)
+	return nil
+}
+
 func (p *Server) handleUserPromptDispatchError(ctx context.Context, chatID uuid.UUID, dispatchErr error) error {
 	return p.handleAPIDispatchError(ctx, chatID, agenthooks.EventUserPromptSubmit, dispatchErr)
 }

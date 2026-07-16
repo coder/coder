@@ -2349,6 +2349,13 @@ func (p *Server) SubmitToolResults(
 		for _, result := range opts.Results {
 			response, err := p.dispatchPostToolUseData(ctx, state.chat, state.turnID, dynamicPostToolUseData(result, state.toolNames[result.ToolCallID]))
 			if err != nil {
+				// An end_chat accepted from an earlier result's
+				// dispatch outranks the fail-closed path: end the
+				// chat (canceling the pending calls) and leave the
+				// failure on its dispatch row.
+				if hookEndChat {
+					return p.endChatAfterToolHookFailure(ctx, machine, opts.ChatID, hookSuffix)
+				}
 				// Fail closed without committing: the client still
 				// holds the results and can resubmit them once the
 				// consumer recovers, so the chat stays in

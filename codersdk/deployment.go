@@ -5072,18 +5072,22 @@ func (c *DeploymentValues) Validate() error {
 		)
 	}
 
-	if c.AI.Chat.HookURL.String() != "" {
-		if c.AI.Chat.HookURL.Value().Scheme != "https" {
-			return xerrors.New("chat hook URL must use HTTPS; set --chat-hook-url to an HTTPS URL")
+	// Hook settings are inert while hooks are disabled, so a stale
+	// URL or missing secret must not block startup.
+	if c.AI.Chat.HookEnabled.Value() {
+		if c.AI.Chat.HookURL.String() != "" {
+			if c.AI.Chat.HookURL.Value().Scheme != "https" {
+				return xerrors.New("chat hook URL must use HTTPS; set --chat-hook-url to an HTTPS URL")
+			}
+			if c.AI.Chat.HookSecret.Value() == "" {
+				return xerrors.New("chat hook secret is required when chat hook URL is set; set --chat-hook-secret")
+			}
 		}
-		if c.AI.Chat.HookSecret.Value() == "" {
-			return xerrors.New("chat hook secret is required when chat hook URL is set; set --chat-hook-secret")
-		}
-	}
 
-	hookTimeout := c.AI.Chat.HookTimeout.Value()
-	if hookTimeout <= 0 || hookTimeout > 5*time.Second {
-		return xerrors.Errorf("chat hook timeout (%s) must be greater than zero and no more than 5s; set --chat-hook-timeout to a valid duration", hookTimeout)
+		hookTimeout := c.AI.Chat.HookTimeout.Value()
+		if hookTimeout <= 0 || hookTimeout > 5*time.Second {
+			return xerrors.Errorf("chat hook timeout (%s) must be greater than zero and no more than 5s; set --chat-hook-timeout to a valid duration", hookTimeout)
+		}
 	}
 
 	return nil

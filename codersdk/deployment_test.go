@@ -778,15 +778,25 @@ func TestDeploymentValues_Validate_ChatHooks(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		url     string
-		secret  string
-		timeout time.Duration
-		wantErr string
+		name     string
+		disabled bool
+		url      string
+		secret   string
+		timeout  time.Duration
+		wantErr  string
 	}{
 		{
-			name:    "Disabled",
+			name:    "NoURL",
 			timeout: 1500 * time.Millisecond,
+		},
+		{
+			// Hook settings are inert while hooks are disabled; a
+			// stale URL, missing secret, or bad timeout must not
+			// block startup.
+			name:     "DisabledSkipsValidation",
+			disabled: true,
+			url:      "http://hooks.example.com/agent",
+			timeout:  0,
 		},
 		{
 			name:    "Valid",
@@ -831,6 +841,7 @@ func TestDeploymentValues_Validate_ChatHooks(t *testing.T) {
 			dv := &codersdk.DeploymentValues{}
 			dv.Sessions.DefaultDuration = serpent.Duration(time.Hour)
 			dv.Sessions.RefreshDefaultDuration = serpent.Duration(48 * time.Hour)
+			dv.AI.Chat.HookEnabled = serpent.Bool(!tt.disabled)
 			dv.AI.Chat.HookSecret = serpent.String(tt.secret)
 			dv.AI.Chat.HookTimeout = serpent.Duration(tt.timeout)
 			if tt.url != "" {
