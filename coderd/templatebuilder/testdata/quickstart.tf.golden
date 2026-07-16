@@ -71,105 +71,6 @@ data "coder_parameter" "languages" {
   }
 }
 
-data "coder_parameter" "ides" {
-  name         = "ides"
-  display_name = "IDEs & Editors"
-  description  = "Select the development environments for your workspace"
-  type         = "list(string)"
-  form_type    = "multi-select"
-  default      = jsonencode(["code-server"])
-  mutable      = true
-  icon         = "/icon/code.svg"
-  order        = 2
-
-  option {
-    name  = "VS Code (Browser)"
-    value = "code-server"
-    icon  = "/icon/code.svg"
-  }
-  option {
-    name  = "Cursor"
-    value = "cursor"
-    icon  = "/icon/cursor.svg"
-  }
-  option {
-    name  = "JetBrains IDEs"
-    value = "jetbrains"
-    icon  = "/icon/jetbrains.svg"
-  }
-  option {
-    name  = "Zed"
-    value = "zed"
-    icon  = "/icon/zed.svg"
-  }
-  option {
-    name  = "Windsurf"
-    value = "windsurf"
-    icon  = "/icon/windsurf.svg"
-  }
-}
-
-# Shown only when "JetBrains IDEs" is selected in the IDEs parameter.
-# Pre-selects IDEs that match the chosen languages.
-data "coder_parameter" "jetbrains_ides" {
-  count        = contains(local.ides, "jetbrains") ? 1 : 0
-  name         = "jetbrains_ides"
-  display_name = "JetBrains IDEs"
-  description  = "Select the JetBrains IDEs to install"
-  type         = "list(string)"
-  form_type    = "multi-select"
-  default      = jsonencode(local.jetbrains_ides_from_languages)
-  mutable      = true
-  icon         = "/icon/jetbrains.svg"
-  order        = 3
-
-  option {
-    name  = "IntelliJ IDEA"
-    value = "IU"
-    icon  = "/icon/intellij.svg"
-  }
-  option {
-    name  = "PyCharm"
-    value = "PY"
-    icon  = "/icon/pycharm.svg"
-  }
-  option {
-    name  = "GoLand"
-    value = "GO"
-    icon  = "/icon/goland.svg"
-  }
-  option {
-    name  = "WebStorm"
-    value = "WS"
-    icon  = "/icon/webstorm.svg"
-  }
-  option {
-    name  = "RustRover"
-    value = "RR"
-    icon  = "/icon/rustrover.svg"
-  }
-  option {
-    name  = "CLion"
-    value = "CL"
-    icon  = "/icon/clion.svg"
-  }
-  option {
-    name  = "PhpStorm"
-    value = "PS"
-    icon  = "/icon/phpstorm.svg"
-  }
-  option {
-    name  = "RubyMine"
-    value = "RM"
-    icon  = "/icon/rubymine.svg"
-  }
-  option {
-    name  = "Rider"
-    value = "RD"
-    icon  = "/icon/rider.svg"
-  }
-}
-
 data "coder_parameter" "git_repo" {
   name         = "git_repo"
   display_name = "Git Repository (Optional)"
@@ -178,7 +79,7 @@ data "coder_parameter" "git_repo" {
   default      = ""
   mutable      = true
   icon         = "/icon/git.svg"
-  order        = 4
+  order        = 2
 }
 
 # --- Locals ---
@@ -186,25 +87,6 @@ data "coder_parameter" "git_repo" {
 locals {
   username  = data.coder_workspace_owner.me.name
   languages = jsondecode(data.coder_parameter.languages.value)
-  ides      = jsondecode(data.coder_parameter.ides.value)
-
-  # Map selected languages to the relevant JetBrains IDE product codes.
-  # Used as the default for the JetBrains IDE selector parameter.
-  jetbrains_by_language = {
-    python = ["PY"]
-    go     = ["GO"]
-    java   = ["IU"]
-    nodejs = ["WS"]
-    rust   = ["RR"]
-    cpp    = ["CL"]
-  }
-  jetbrains_ides_from_languages = distinct(flatten([
-    for lang in local.languages : lookup(local.jetbrains_by_language, lang, [])
-  ]))
-
-  # The actual JetBrains IDEs to install, from the user's selection
-  # in the conditional JetBrains parameter (or empty if not shown).
-  jetbrains_selected = contains(local.ides, "jetbrains") ? jsondecode(data.coder_parameter.jetbrains_ides[0].value) : []
 }
 
 # --- Agent ---
@@ -268,57 +150,6 @@ resource "coder_script" "install_languages" {
   })
 }
 
-# --- IDE modules ---
-
-module "code-server" {
-  count    = data.coder_workspace.me.start_count * (contains(local.ides, "code-server") ? 1 : 0)
-  source   = "registry.coder.com/coder/code-server/coder"
-  version  = "~> 1.0"
-  agent_id = coder_agent.main.id
-  order    = 1
-}
-
-
-module "cursor" {
-  count    = data.coder_workspace.me.start_count * (contains(local.ides, "cursor") ? 1 : 0)
-  source   = "registry.coder.com/coder/cursor/coder"
-  version  = "~> 1.0"
-  agent_id = coder_agent.main.id
-  folder   = "/home/coder"
-  order    = 3
-}
-
-# TODO: Re-add the coder/jetbrains module once Coder's dynamic
-# parameter system respects module count for parameter visibility.
-# The module's internal coder_parameter appears even when count = 0,
-# creating a ghost parameter in the workspace creation form.
-# module "jetbrains" {
-#   count    = data.coder_workspace.me.start_count * (contains(local.ides, "jetbrains") && length(local.jetbrains_selected) > 0 ? 1 : 0)
-#   source   = "registry.coder.com/coder/jetbrains/coder"
-#   version  = "~> 1.0"
-#   agent_id = coder_agent.main.id
-#   folder   = "/home/coder"
-#   default  = toset(local.jetbrains_selected)
-# }
-
-module "zed" {
-  count    = data.coder_workspace.me.start_count * (contains(local.ides, "zed") ? 1 : 0)
-  source   = "registry.coder.com/coder/zed/coder"
-  version  = "~> 1.0"
-  agent_id = coder_agent.main.id
-  folder   = "/home/coder"
-  order    = 5
-}
-
-module "windsurf" {
-  count    = data.coder_workspace.me.start_count * (contains(local.ides, "windsurf") ? 1 : 0)
-  source   = "registry.coder.com/coder/windsurf/coder"
-  version  = "~> 1.0"
-  agent_id = coder_agent.main.id
-  folder   = "/home/coder"
-  order    = 6
-}
-
 # --- Git clone ---
 
 module "git-clone" {
@@ -336,7 +167,6 @@ data "coder_workspace_preset" "web_dev" {
   icon = "/icon/nodejs.svg"
   parameters = {
     languages = jsonencode(["python", "nodejs"])
-    ides      = jsonencode(["code-server"])
     git_repo  = ""
   }
 }
@@ -345,10 +175,8 @@ data "coder_workspace_preset" "backend_go" {
   name = "Backend (Go)"
   icon = "/icon/go.svg"
   parameters = {
-    languages      = jsonencode(["go"])
-    ides           = jsonencode(["code-server", "jetbrains"])
-    jetbrains_ides = jsonencode(["GO"])
-    git_repo       = ""
+    languages = jsonencode(["go"])
+    git_repo  = ""
   }
 }
 
@@ -357,7 +185,6 @@ data "coder_workspace_preset" "data_science" {
   icon = "/icon/python.svg"
   parameters = {
     languages = jsonencode(["python"])
-    ides      = jsonencode(["code-server"])
     git_repo  = ""
   }
 }
@@ -367,7 +194,6 @@ data "coder_workspace_preset" "full_stack" {
   icon = "/icon/code.svg"
   parameters = {
     languages = jsonencode(["python", "nodejs", "go"])
-    ides      = jsonencode(["code-server", "cursor"])
     git_repo  = ""
   }
 }
