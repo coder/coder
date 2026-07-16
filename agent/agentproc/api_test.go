@@ -581,6 +581,64 @@ func TestStartProcessClientToken(t *testing.T) {
 		require.Equal(t, http.StatusConflict, w2.Code)
 	})
 
+	t.Run("SameTokenWaiterTimeoutConflicts", func(t *testing.T) {
+		t.Parallel()
+
+		release := make(chan struct{})
+		releaseOnce := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(releaseOnce)
+		ownerBlocked := make(chan struct{})
+		ownerBlockedOnce := sync.OnceFunc(func() { close(ownerBlocked) })
+		// Block the owning start after it reserves the token;
+		// updateEnv runs only for spawning starts, so it also
+		// signals that the reservation is held.
+		handler := newTestAPIWithUpdateEnv(t, func(current []string) ([]string, error) {
+			ownerBlockedOnce()
+			<-release
+			return current, nil
+		})
+		req := workspacesdk.StartProcessRequest{
+			Command:     "echo hello",
+			ClientToken: "tok-wait",
+		}
+
+		ownerDone := make(chan *httptest.ResponseRecorder, 1)
+		go func() {
+			body, err := json.Marshal(req)
+			assert.NoError(t, err)
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, "/start", bytes.NewReader(body))
+			handler.ServeHTTP(w, r)
+			ownerDone <- w
+		}()
+		select {
+		case <-ownerBlocked:
+		case <-time.After(testutil.WaitShort):
+			t.Fatal("owner start never reserved the token")
+		}
+
+		// The waiter's request context expires while the owner is
+		// blocked. The result must be 409, not 500: the owner may
+		// still publish a process under this token, so callers
+		// must keep the dispatch recoverable.
+		body, err := json.Marshal(req)
+		require.NoError(t, err)
+		waitCtx, cancelWait := context.WithCancel(context.Background())
+		cancelWait()
+		w := httptest.NewRecorder()
+		r := httptest.NewRequestWithContext(waitCtx, http.MethodPost, "/start", bytes.NewReader(body))
+		handler.ServeHTTP(w, r)
+		require.Equal(t, http.StatusConflict, w.Code)
+
+		releaseOnce()
+		select {
+		case w := <-ownerDone:
+			require.Equal(t, http.StatusOK, w.Code)
+		case <-time.After(testutil.WaitLong):
+			t.Fatal("owner request did not return")
+		}
+	})
+
 	t.Run("SameTokenDifferentBackgroundConflicts", func(t *testing.T) {
 		t.Parallel()
 

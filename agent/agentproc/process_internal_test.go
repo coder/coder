@@ -185,6 +185,10 @@ func TestSameTokenWaiterHonorsCancellation(t *testing.T) {
 	select {
 	case err := <-waiterErr:
 		require.ErrorIs(t, err, context.Canceled)
+		// The wait-abort sentinel routes the failure to a 409:
+		// the reservation owner may still publish a process, so
+		// callers must not treat the dispatch as failed.
+		require.ErrorIs(t, err, errTokenWaitAborted)
 	case <-time.After(testutil.WaitShort):
 		t.Fatal("waiter did not return after cancellation")
 	}
@@ -248,6 +252,7 @@ func TestSameTokenWaiterUnblocksOnClose(t *testing.T) {
 	select {
 	case err := <-waiterErr:
 		require.ErrorContains(t, err, "manager is closed")
+		require.ErrorIs(t, err, errTokenWaitAborted)
 	case <-time.After(testutil.WaitShort):
 		t.Fatal("waiter did not return after Close")
 	}

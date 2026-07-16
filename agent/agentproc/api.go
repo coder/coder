@@ -130,6 +130,17 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		if errors.Is(err, errTokenWaitAborted) {
+			// The reservation owner may still publish a process
+			// under this token, so the outcome is unresolved. 409
+			// tells callers to keep the dispatch recoverable
+			// instead of treating it as failed-before-spawn.
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Timed out waiting for the concurrent start that owns this client token.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to start process.",
 			Detail:  err.Error(),

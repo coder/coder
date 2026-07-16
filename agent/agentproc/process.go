@@ -2,6 +2,7 @@ package agentproc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -25,6 +26,12 @@ var (
 	errProcessNotFound     = xerrors.New("process not found")
 	errProcessNotRunning   = xerrors.New("process is not running")
 	errClientTokenMismatch = xerrors.New("client token was already used to start a process with different parameters")
+
+	// errTokenWaitAborted wraps failures to wait out a concurrent
+	// start owning the same client token. The reservation owner
+	// may still publish a process, so callers must treat the
+	// dispatch as unresolved rather than failed.
+	errTokenWaitAborted = xerrors.New("aborted waiting for the concurrent start owning this client token")
 
 	// exitedProcessReapAge is how long an exited process is
 	// kept before being automatically removed from the map.
@@ -176,7 +183,14 @@ func (m *manager) start(ctx context.Context, req workspacesdk.StartProcessReques
 	for {
 		m.mu.Lock()
 		if m.closed {
+			_, tokenOwned := m.tokens[tokenKey]
 			m.mu.Unlock()
+			if tokenKey != "" && tokenOwned {
+				// Another start owns this token, and its outcome
+				// is unknown to this request: it may have
+				// published a process before the shutdown.
+				return nil, false, xerrors.Errorf("manager is closed: %w", errTokenWaitAborted)
+			}
 			return nil, false, xerrors.New("manager is closed")
 		}
 		// Sweep exited processes on start as well as on list so
@@ -204,9 +218,12 @@ func (m *manager) start(ctx context.Context, req workspacesdk.StartProcessReques
 		select {
 		case <-entry.done:
 		case <-m.closeCh:
-			return nil, false, xerrors.New("manager is closed")
+			return nil, false, xerrors.Errorf("manager is closed: %w", errTokenWaitAborted)
 		case <-ctx.Done():
-			return nil, false, xerrors.Errorf("wait for concurrent start with the same token: %w", ctx.Err())
+			// Join keeps the context error visible to callers
+			// alongside the sentinel; xerrors wraps only one
+			// trailing %w.
+			return nil, false, xerrors.Errorf("wait for concurrent start with the same token: %w", errors.Join(errTokenWaitAborted, ctx.Err()))
 		}
 		m.mu.Lock()
 		if entry.err != nil {

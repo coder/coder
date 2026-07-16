@@ -126,13 +126,14 @@ const (
 )
 
 // startFailureResponse resolves a StartProcess failure after the
-// ledger claim. A structured agent response other than the token
-// conflict means the spawn failed and the agent released the token
-// reservation, so nothing is running: the row resolves no_effect
-// and the error commits as a normal tool result the model can act
-// on. Transport errors leave the dispatch unobservable and a 409
-// means a process may exist under this token, so the row stays
-// starting and the attempt aborts uncommitted: the token is
+// ledger claim. A structured agent response other than 409 means
+// the spawn failed and the agent released the token reservation,
+// so nothing is running: the row resolves no_effect and the error
+// commits as a normal tool result the model can act on. Transport
+// errors leave the dispatch unobservable and a 409 means a process
+// may exist under this token (a mismatched reuse, or an aborted
+// wait on a reservation whose owner may still publish), so the row
+// stays starting and the attempt aborts uncommitted: the token is
 // durable, and the retried call resolves the dispatch through the
 // agent's token index instead of committing a result that would
 // end same-token recovery.
