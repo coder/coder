@@ -792,6 +792,13 @@ Retriable conditions include, but are not limited to:
 - database connection error;
 - LLM API request error, with the exception of hitting the generation attempt limit, which is considered to be a successful completion of the operation the goroutine was meant to perform.
 
+#### Task attempt watchdog
+
+Every attempt of a runner goroutine runs under two watchdog timers. Both cancel the attempt with a timeout error that the retry wrapper classifies as retryable:
+
+- An **idle window** (15 minutes). Only the `execute` and `process_output` tools reset it, after every successful process-API round-trip: process starts, blocking output polls (including rounds where the process is still running), and `process_output` retrievals. Long-running `execute` calls therefore survive as long as the workspace agent keeps responding, and the re-attach path resumes them across retries. This scoping is deliberate: other workspace tools finish well within the idle window, and letting quick tools extend an attempt would change how long a stuck attempt can live without real command progress. The window is attempt-scoped, so a progressing `execute` also extends sibling tools running in the same step; a stuck sibling is then canceled 15 minutes after the last kick instead of 15 minutes after the step started, bounded by the execute timeout clamp plus one idle window rather than the 24-hour cap. Sibling tools that block on model-supplied durations are bounded per call instead of riding the attempt: a single `wait_agent` block is clamped to 10 minutes, below the idle window so its resumable timeout result commits before the watchdog cancels the attempt, and a single `computer` wait action is clamped to 30 seconds (the model repeats the action for longer settles). The reset function travels in the attempt context and resetting is a safe no-op once the attempt has ended. Streaming code never resets the watchdog, so the idle window stays above chatloop's 10 minute stream-silence guard and silent provider streams keep failing through chat-specific retry handling before the attempt times out.
+- An **absolute cap** (24 hours) that is never reset. It bounds a single attempt regardless of tool progress.
+
 #### Generation goroutine
 
 The generation goroutine is responsible for calling the LLM API and executing tools. It is spawned when the event indicates the core state machine is in `R0` or `R1` (status is `running`).
@@ -936,7 +943,7 @@ The immediate post-interrupt pass ignores the task context's cancellation (the r
 
 ### Retention
 
-Rows are never deleted at resolution time; they stay diagnostically useful. `dbpurge` deletes rows older than 7 days, but only rows whose tool result was committed: an uncommitted row still guards dedup for a call a future retry may re-execute. `cancel_requested` rows are kept regardless of age: the cancelling transaction stamps `result_committed_at` on them, but they still carry the only stored identity of a process the sweep must kill. Uncommitted rows are reaped on a separate 30-day horizon anchored on `updated_at`: a row idle that long belongs to a turn that will never rerun (a crashed turn, a terminal task failure, an unclaimed `reserved` intent), and without this horizon it would only ever be reaped by chat retention, which many deployments leave unset. Deletion only discards ledger history: a still-running detached process is unaffected and stays addressable through the process handle in its committed tool result.
+Rows are never deleted at resolution time; they stay diagnostically useful. `dbpurge` deletes rows older than 7 days, but only rows whose tool result was committed: an uncommitted row still guards dedup for a call a future retry may re-execute. `cancel_requested` rows are kept regardless of age: the cancelling transaction stamps `result_committed_at` on them, but they still carry the only stored identity of a process the sweep must kill. Uncommitted rows are reaped on a separate 30-day horizon anchored on `updated_at`: a row idle that long belongs to a turn that will never rerun (a crashed turn, a terminal task failure, an unclaimed `reserved` intent), and without this horizon it would only ever be reaped by chat retention, which many deployments leave unset. Deletion only discards ledger history: a still-running detached process is unaffected and stays addressable through the process handle in its committed tool result, and the 4-hour timeout clamp plus the 24-hour attempt cap mean no attempt can still be re-executing a call that old.
 
 # Stream loop
 

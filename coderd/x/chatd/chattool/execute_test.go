@@ -240,6 +240,83 @@ func TestExecuteTool(t *testing.T) {
 		assert.Equal(t, "true", capturedReq.Env["CODER_CHAT_AGENT"])
 	})
 
+	t.Run("KeepaliveKickedOnAgentRoundTrips", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
+		exitCode := 0
+		gomock.InOrder(
+			// The server-side wait returns while the process is
+			// still running, then a second poll sees it exit.
+			mockConn.EXPECT().
+				ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+				Return(workspacesdk.ProcessOutputResponse{Running: true}, nil),
+			mockConn.EXPECT().
+				ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+				Return(workspacesdk.ProcessOutputResponse{
+					Running:  false,
+					ExitCode: &exitCode,
+					Output:   "done",
+				}, nil),
+		)
+
+		kicks := 0
+		ctx := chattool.WithAttemptKeepalive(
+			testutil.Context(t, testutil.WaitMedium),
+			func() { kicks++ },
+		)
+		tool := newExecuteTool(t, mockConn)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"sleep 1"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		// One kick for the successful start, one per successful
+		// poll round, including the round where the process was
+		// still running.
+		assert.Equal(t, 3, kicks)
+	})
+
+	t.Run("ProcessOutputToolKicksKeepalive", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		exitCode := 0
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running:  false,
+				ExitCode: &exitCode,
+				Output:   "done",
+			}, nil)
+
+		kicks := 0
+		ctx := chattool.WithAttemptKeepalive(
+			testutil.Context(t, testutil.WaitMedium),
+			func() { kicks++ },
+		)
+		tool := chattool.ProcessOutput(chattool.ProcessToolOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+		})
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "process_output",
+			Input: `{"process_id":"proc-1"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		assert.Equal(t, 1, kicks)
+	})
+
 	t.Run("ModelIntentIgnoredByExecution", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
@@ -1115,7 +1192,11 @@ func TestExecuteToolRecorder(t *testing.T) {
 			}, nil)
 
 		tool := newRecordedExecuteTool(t, mockConn, recorder)
-		ctx := testutil.Context(t, testutil.WaitMedium)
+		kicks := 0
+		ctx := chattool.WithAttemptKeepalive(
+			testutil.Context(t, testutil.WaitMedium),
+			func() { kicks++ },
+		)
 		resp, err := tool.Run(ctx, fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "execute",
@@ -1131,6 +1212,9 @@ func TestExecuteToolRecorder(t *testing.T) {
 		assert.Equal(t, "build failed", result.Output)
 		assert.Empty(t, result.BackgroundProcessID)
 		assert.Equal(t, chattool.ExecutionStatusExited, recorder.record("call-1").Status)
+		// The successful re-attach snapshot is an agent round-trip
+		// and must reset the attempt idle watchdog.
+		assert.Equal(t, 1, kicks)
 	})
 
 	t.Run("ReattachRunningPastDeadline", func(t *testing.T) {
@@ -3130,6 +3214,53 @@ func TestExecuteWaitRetriesEarlyServerReturn(t *testing.T) {
 	assert.True(t, result.Success)
 	assert.Equal(t, "done", result.Output)
 	assert.Equal(t, 3, calls)
+}
+
+// TestProcessOutputToolKicksKeepalivePerPoll asserts that a long
+// blocking wait resets the attempt idle watchdog on every
+// successful poll: the agent bounds each request well below the
+// requested wait, so waiting only for the final response would
+// trip the watchdog while the agent is demonstrably responsive.
+func TestProcessOutputToolKicksKeepalivePerPoll(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+	exitCode := 0
+	calls := 0
+	mockConn.EXPECT().
+		ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+		Times(3).
+		DoAndReturn(func(_ context.Context, _ string, _ *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+			calls++
+			if calls < 3 {
+				return workspacesdk.ProcessOutputResponse{Running: true, Output: "partial"}, nil
+			}
+			return workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode, Output: "done"}, nil
+		})
+
+	tool := chattool.ProcessOutput(chattool.ProcessToolOptions{
+		GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
+			return mockConn, nil
+		},
+	})
+	kicks := 0
+	ctx := chattool.WithAttemptKeepalive(
+		testutil.Context(t, testutil.WaitMedium),
+		func() { kicks++ },
+	)
+	resp, err := tool.Run(ctx, fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "process_output",
+		Input: `{"process_id":"proc-1","wait_timeout":"30s"}`,
+	})
+	require.NoError(t, err)
+	assert.False(t, resp.IsError)
+	assert.Equal(t, 3, calls)
+	// Two in-loop kicks for the early running responses plus the
+	// final kick for the terminal response.
+	assert.Equal(t, 3, kicks)
 }
 
 func TestProcessOutputToolRejectsNegativeWaitTimeout(t *testing.T) {

@@ -1175,6 +1175,7 @@ func reattachProcess(
 			rec.ProcessID,
 		), nil
 	}
+	KickAttemptKeepalive(ctx)
 
 	if !resp.Running {
 		// The process finished while no attempt was watching.
@@ -1246,6 +1247,7 @@ func executeBackground(
 	if err != nil {
 		return startFailureResponse(ctx, options, toolCallID, rec.ClaimEpoch, claimKind, "start background process", err)
 	}
+	KickAttemptKeepalive(ctx)
 	logStartIdempotency(ctx, options.Logger, resp, toolCallID)
 	startedAt := time.Now()
 	if resp.Attached && !rec.ClaimedAt.IsZero() {
@@ -1360,6 +1362,7 @@ func executeForeground(
 	if err != nil {
 		return startFailureResponse(ctx, options, toolCallID, rec.ClaimEpoch, claimKind, "start process", err)
 	}
+	KickAttemptKeepalive(ctx)
 	logStartIdempotency(ctx, options.Logger, resp, toolCallID)
 	startedAt := time.Now()
 	if resp.Attached && !rec.ClaimedAt.IsZero() {
@@ -1475,6 +1478,9 @@ func waitForProcess(
 		resp, err := conn.ProcessOutput(ctx, processID, &workspacesdk.ProcessOutputOptions{
 			Wait: true,
 		})
+		if err == nil {
+			KickAttemptKeepalive(parentCtx)
+		}
 		if err == nil && resp.Running && ctx.Err() == nil {
 			// The server-side wait can return before the process
 			// exits when its maximum wait is shorter than the
@@ -1559,6 +1565,8 @@ func resolveProcessWait(
 				BackgroundProcessID: processID,
 			}, false
 		}
+
+		KickAttemptKeepalive(parentCtx)
 
 		// Snapshot succeeded. If the process finished, return
 		// its real result (transparent recovery).
@@ -1710,6 +1718,11 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 			}
 			resp, err := conn.ProcessOutput(ctx, args.ProcessID, opts)
 			for err == nil && opts != nil && resp.Running && ctx.Err() == nil {
+				// Each successful poll is agent progress, so kick
+				// the attempt keepalive like waitForProcess does:
+				// a wait longer than the attempt idle window must
+				// not trip the watchdog while the agent responds.
+				KickAttemptKeepalive(parentCtx)
 				// The agent bounds each blocking wait below the
 				// requested timeout, so an early running response
 				// is not the wait's end. Re-issue the wait with
@@ -1748,6 +1761,7 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 				}
 				// Fall through to normal response handling below.
 			}
+			KickAttemptKeepalive(parentCtx)
 			result := completedResult(resp)
 			if resp.Running {
 				// Process is still running, success is not
