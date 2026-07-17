@@ -1,12 +1,53 @@
 package workspacesdk
 
 import (
+	"context"
 	neturl "net/url"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
+
+type fakeProberConn struct {
+	AgentConn
+	probed string
+}
+
+func (c *fakeProberConn) ProcessByToken(_ context.Context, token string) (ProcessByTokenResponse, error) {
+	c.probed = token
+	return ProcessByTokenResponse{Found: true, ProcessID: "proc-1"}, nil
+}
+
+func TestProbeProcessToken(t *testing.T) {
+	t.Parallel()
+
+	t.Run("unsupported connection degrades", func(t *testing.T) {
+		t.Parallel()
+		// A bare interface embed satisfies AgentConn without the
+		// optional prober capability.
+		conn := struct{ AgentConn }{}
+		_, err := ProbeProcessToken(context.Background(), conn, "tok")
+		require.ErrorIs(t, err, ErrProcessTokenProbeUnsupported)
+	})
+
+	t.Run("wrapping preserves the capability", func(t *testing.T) {
+		t.Parallel()
+		inner := &fakeProberConn{}
+		wrapped := WrapAgentConn(inner, nil)
+		resp, err := ProbeProcessToken(context.Background(), wrapped, "tok")
+		require.NoError(t, err)
+		require.True(t, resp.Found)
+		require.Equal(t, "tok", inner.probed)
+	})
+
+	t.Run("wrapping an unsupported connection degrades", func(t *testing.T) {
+		t.Parallel()
+		wrapped := WrapAgentConn(struct{ AgentConn }{}, nil)
+		_, err := ProbeProcessToken(context.Background(), wrapped, "tok")
+		require.ErrorIs(t, err, ErrProcessTokenProbeUnsupported)
+	})
+}
 
 func TestAgentAPIPath(t *testing.T) {
 	t.Parallel()

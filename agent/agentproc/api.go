@@ -57,9 +57,38 @@ func (api *API) Routes() http.Handler {
 	r := chi.NewRouter()
 	r.Post("/start", api.handleStartProcess)
 	r.Get("/list", api.handleListProcesses)
+	r.Get("/tokens", api.handleProcessByToken)
 	r.Get("/{id}/output", api.handleProcessOutput)
 	r.Post("/{id}/signal", api.handleSignalProcess)
 	return r
+}
+
+// handleProcessByToken reports whether an idempotency token has a
+// process attached. It always answers 200 for a known route, so an
+// HTTP 404 unambiguously identifies an agent that predates the
+// endpoint. The token travels as a query parameter because it is
+// an opaque string that can contain any byte: query decoding is a
+// single well-defined unescape, while a path segment's decoding
+// depends on how the router matched it.
+func (api *API) handleProcessByToken(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	token := r.URL.Query().Get("token")
+	var chatID string
+	if chatContext, chatOK := agentchat.FromContext(ctx); chatOK {
+		chatID = chatContext.ID.String()
+	}
+	proc, pending, ok := api.manager.byToken(token, chatID)
+
+	resp := workspacesdk.ProcessByTokenResponse{
+		Found:           ok,
+		Pending:         pending,
+		TokenIndexAgeMS: api.manager.tokenIndexAge().Milliseconds(),
+	}
+	if ok {
+		resp.ProcessID = proc.id
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
 // handleStartProcess starts a new process.
@@ -87,8 +116,26 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 		chatID = chatContext.ID.String()
 	}
 
-	proc, err := api.manager.start(req, chatID)
+	proc, attached, err := api.manager.start(ctx, req, chatID)
 	if err != nil {
+		if errors.Is(err, errClientTokenMismatch) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Client token was already used to start a process with different parameters.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if errors.Is(err, errTokenWaitAborted) {
+			// The reservation owner may still publish a process
+			// under this token, so the outcome is unresolved. 409
+			// tells callers to keep the dispatch recoverable
+			// instead of treating it as failed-before-spawn.
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Timed out waiting for the concurrent start that owns this client token.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to start process.",
 			Detail:  err.Error(),
@@ -99,7 +146,9 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 	// Notify git watchers after the process finishes so that
 	// file changes made by the command are visible in the scan.
 	// If a workdir is provided, track it as a path as well.
-	if api.pathStore != nil {
+	// Attaching returns a process whose watcher was already
+	// registered by the request that started it.
+	if api.pathStore != nil && !attached {
 		if chatContext, ok := agentchat.FromContext(ctx); ok {
 			allIDs := append([]uuid.UUID{chatContext.ID}, chatContext.AncestorIDs...)
 			go func() {
@@ -114,8 +163,10 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.StartProcessResponse{
-		ID:      proc.id,
-		Started: true,
+		ID:          proc.id,
+		Started:     !attached,
+		ClientToken: req.ClientToken,
+		Attached:    attached,
 	})
 }
 

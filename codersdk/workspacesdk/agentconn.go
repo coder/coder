@@ -78,6 +78,13 @@ func (c *wrappedAgentConn) Close() error {
 	return c.closeErr
 }
 
+// ProcessByToken forwards the optional token probe capability of
+// the wrapped connection, which interface embedding alone would
+// hide from callers asserting ProcessTokenProber.
+func (c *wrappedAgentConn) ProcessByToken(ctx context.Context, token string) (ProcessByTokenResponse, error) {
+	return ProbeProcessToken(ctx, c.AgentConn, token)
+}
+
 const (
 	// CoderChatIDHeader is the HTTP header containing the current
 	// chat ID. Set by coderd on agentconn requests originating
@@ -134,6 +141,32 @@ type AgentConn interface {
 	ExecuteDesktopAction(ctx context.Context, action DesktopAction) (DesktopActionResponse, error)
 	StartDesktopRecording(ctx context.Context, req StartDesktopRecordingRequest) error
 	StopDesktopRecording(ctx context.Context, req StopDesktopRecordingRequest) (StopDesktopRecordingResponse, error)
+}
+
+// ProcessTokenProber is an optional capability of AgentConn
+// implementations: probing whether an idempotency token has a
+// process attached on the agent. It is kept off the AgentConn
+// contract so existing out-of-tree implementations keep compiling.
+// Probe through ProbeProcessToken, which degrades a missing
+// implementation to ErrProcessTokenProbeUnsupported.
+// @typescript-ignore ProcessTokenProber
+type ProcessTokenProber interface {
+	ProcessByToken(ctx context.Context, token string) (ProcessByTokenResponse, error)
+}
+
+// ErrProcessTokenProbeUnsupported reports an AgentConn
+// implementation without the token probe capability. Like an HTTP
+// 404 from an agent that predates the probe endpoint, it is a
+// definite capability gap, not a transient failure.
+var ErrProcessTokenProbeUnsupported = xerrors.New("agent connection does not support process token probes")
+
+// ProbeProcessToken probes token ownership when conn supports it.
+func ProbeProcessToken(ctx context.Context, conn AgentConn, token string) (ProcessByTokenResponse, error) {
+	prober, ok := conn.(ProcessTokenProber)
+	if !ok {
+		return ProcessByTokenResponse{}, ErrProcessTokenProbeUnsupported
+	}
+	return prober.ProcessByToken(ctx, token)
 }
 
 // AgentConn represents a connection to a workspace agent.
@@ -911,12 +944,48 @@ type StartProcessRequest struct {
 	WorkDir    string            `json:"workdir,omitempty"`
 	Env        map[string]string `json:"env,omitempty"`
 	Background bool              `json:"background,omitempty"`
+	// ClientToken is an optional idempotency token. When a
+	// process was already started with the same token for the
+	// same chat, the agent returns that process instead of
+	// starting a duplicate. A repeated token with different
+	// command, workdir, env, or background parameters is
+	// rejected. The token index is in-memory and time-limited:
+	// it is lost on agent restart, and entries are reaped with
+	// their exited processes, so a retry after that window
+	// starts a new process.
+	ClientToken string `json:"client_token,omitempty"`
 }
 
 // StartProcessResponse is returned when a process is started.
 type StartProcessResponse struct {
-	ID      string `json:"id"`
-	Started bool   `json:"started"`
+	ID string `json:"id"`
+	// Started is true when this request started a new process.
+	Started bool `json:"started"`
+	// ClientToken echoes the accepted idempotency token. Agents
+	// that predate idempotent starts omit it, which tells the
+	// caller no agent-side deduplication happened.
+	ClientToken string `json:"client_token,omitempty"`
+	// Attached is true when an existing process started with the
+	// same token was returned instead of starting a new one.
+	Attached bool `json:"attached,omitempty"`
+}
+
+// ProcessByTokenResponse reports whether an idempotency token has
+// a process attached on the agent. The route always answers 200,
+// so an HTTP 404 unambiguously identifies an agent that predates
+// the token probe endpoint.
+type ProcessByTokenResponse struct {
+	Found bool `json:"found"`
+	// Pending reports that a start owning this token is still in
+	// flight: no process is published yet, but Found=false must
+	// not be read as proof that nothing started.
+	Pending   bool   `json:"pending,omitempty"`
+	ProcessID string `json:"process_id,omitempty"`
+	// TokenIndexAgeMS is how long the agent's in-memory token
+	// index has existed. The index does not survive agent
+	// restarts, so Found=false only proves nothing started if
+	// the index predates the token's first dispatch.
+	TokenIndexAgeMS int64 `json:"token_index_age_ms"`
 }
 
 // ListProcessesResponse contains information about tracked
@@ -1327,6 +1396,33 @@ func (c *agentConn) CallMCPTool(ctx context.Context, req CallMCPToolRequest) (Ca
 		return CallMCPToolResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp CallMCPToolResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// ProcessByToken reports whether an idempotency token has a
+// process attached on the agent.
+func (c *agentConn) ProcessByToken(ctx context.Context, token string) (ProcessByTokenResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	// Tokens are opaque caller-chosen strings, carried as a query
+	// parameter so the value round-trips through exactly one
+	// escape/unescape regardless of its bytes.
+	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/processes/tokens?token="+neturl.QueryEscape(token), nil)
+	if err != nil {
+		return ProcessByTokenResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusNotFound {
+		// An unknown token still answers 200 with found=false, so a
+		// 404 can only mean the route itself is missing: the agent
+		// predates the probe endpoint. Surface the documented
+		// sentinel so callers take their unsupported-probe fallback.
+		return ProcessByTokenResponse{}, xerrors.Errorf("agent does not serve the process token probe route: %w", ErrProcessTokenProbeUnsupported)
+	}
+	if res.StatusCode != http.StatusOK {
+		return ProcessByTokenResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp ProcessByTokenResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
