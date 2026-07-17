@@ -203,10 +203,13 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		t.Parallel()
 
 		// Loopback is exempt from the HTTPS requirement only for
-		// plain http, not arbitrary schemes.
-		for _, u := range []string{
-			"http://revoke.example.com/revoke",
-			"ftp://localhost/revoke",
+		// plain http, not arbitrary schemes. Hostless forms parse
+		// but can never be POSTed to.
+		for u, wantErr := range map[string]string{
+			"http://revoke.example.com/revoke": "must use https",
+			"ftp://localhost/revoke":           "must use https",
+			"https:/revoke":                    "has no host",
+			"https:///revoke":                  "has no host",
 		} {
 			revoked, err := mcpclient.RevokeOAuth2Token(
 				context.Background(),
@@ -219,7 +222,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 			)
 			require.Error(t, err, u)
 			require.False(t, revoked, u)
-			require.Contains(t, err.Error(), "must use https", u)
+			require.Contains(t, err.Error(), wantErr, u)
 		}
 	})
 

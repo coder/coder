@@ -1052,6 +1052,13 @@ func ValidateRevocationEndpoint(rawURL string) error {
 	if err != nil {
 		return xerrors.Errorf("parse revocation URL: %w", err)
 	}
+	// url.Parse accepts hostless forms like "https:/revoke", which
+	// http.Client can never POST to.
+	if parsed.Hostname() == "" {
+		return xerrors.Errorf(
+			"revocation endpoint %q has no host", parsed.Redacted(),
+		)
+	}
 	if !isAllowedRevocationScheme(parsed) {
 		return xerrors.Errorf(
 			"revocation endpoint %q must use https", parsed.Redacted(),
