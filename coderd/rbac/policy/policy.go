@@ -30,10 +30,14 @@ const (
 	ActionUpdateAgent Action = "update_agent"
 
 	ActionShare Action = "share"
-	// ActionUseShared gates access granted through workspace ACLs. A
+	// ActionUseShared is a subject-side mask over incoming ACL grants: a
 	// workspace ACL entry only takes effect while the subject holds this
 	// action (member-scoped) in the workspace's organization, so revoking
-	// workspace access also revokes shared access.
+	// workspace access also revokes shared access. It is never performed
+	// as an operation on an object; the policy reads it from the
+	// subject's roles as a capability precondition. Binary per
+	// (subject, org, type): it gates whether ACL entries apply at all,
+	// not which actions they may carry.
 	ActionUseShared Action = "use_shared"
 )
 

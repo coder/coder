@@ -89,6 +89,18 @@ The final policy decision is determined by evaluating each of these checks in th
 
 ## ACL use_shared precondition
 
+Conceptually, `use_shared` is a subject-side mask over incoming ACL
+grants: ACL entries describe what other subjects have granted *to* you,
+and the mask decides whether any of them apply at all. It is
+deliberately binary per (subject, org, type) — it does not filter which
+actions a grant may carry — and deliberately member-scoped, because it
+is a statement about the subject in that org, not about any particular
+object. Role-derived access (site/org/member keys) is never masked;
+only the ACL path is. Finer-grained masking (e.g. accepting use-tier
+but not admin-tier shares) should be modeled as sibling capability
+actions reusing this precondition, not as a second precondition in
+`acl_allow`.
+
 ACL grants on gated resource types only take effect while the subject
 holds the type's `use_shared` action at the member level in the object's
 organization (`acl_use_precondition` / `shared_use_orgs`). A resource
