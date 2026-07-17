@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -103,17 +104,17 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		require.NotContains(t, c.form, "client_secret")
 	})
 
-	t.Run("AccessTokenFallbackAfterRefreshRejected", func(t *testing.T) {
+	t.Run("AccessTokenFallbackAfterUnsupportedTokenType", func(t *testing.T) {
 		t.Parallel()
 
 		got := make(chan revokeRequest, 2)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			require.NoError(t, r.ParseForm())
 			got <- revokeRequest{form: r.PostForm}
-			// Reject refresh-token revocation like a provider that
-			// only supports access tokens (unsupported_token_type).
 			if r.PostForm.Get("token_type_hint") == "refresh_token" {
+				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"error":"unsupported_token_type"}`))
 				return
 			}
 			w.WriteHeader(http.StatusOK)
@@ -137,6 +138,63 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		second := <-got
 		require.Equal(t, []string{"at"}, second.form["token"])
 		require.Equal(t, []string{"access_token"}, second.form["token_type_hint"])
+	})
+
+	t.Run("NoFallbackWithoutUnsupportedTokenType", func(t *testing.T) {
+		t.Parallel()
+
+		var calls atomic.Int64
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			calls.Add(1)
+			w.WriteHeader(http.StatusUnauthorized)
+		}))
+		defer srv.Close()
+
+		revoked, err := mcpclient.RevokeOAuth2Token(
+			context.Background(),
+			srv.Client(),
+			database.MCPServerConfig{
+				OAuth2ClientID:      "cid",
+				OAuth2RevocationURL: srv.URL,
+			},
+			database.MCPServerUserToken{AccessToken: "at", RefreshToken: "rt"},
+		)
+		require.Error(t, err)
+		require.False(t, revoked)
+		require.Contains(t, err.Error(), "HTTP 401")
+		// A rejection without unsupported_token_type must not retry:
+		// claiming success on the access token would hide that the
+		// refresh token may still be live at the provider.
+		require.EqualValues(t, 1, calls.Load())
+	})
+
+	t.Run("FallbackAlsoFails", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.NoError(t, r.ParseForm())
+			if r.PostForm.Get("token_type_hint") == "refresh_token" {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"error":"unsupported_token_type"}`))
+				return
+			}
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}))
+		defer srv.Close()
+
+		revoked, err := mcpclient.RevokeOAuth2Token(
+			context.Background(),
+			srv.Client(),
+			database.MCPServerConfig{
+				OAuth2ClientID:      "cid",
+				OAuth2RevocationURL: srv.URL,
+			},
+			database.MCPServerUserToken{AccessToken: "at", RefreshToken: "rt"},
+		)
+		require.Error(t, err)
+		require.False(t, revoked)
+		require.Contains(t, err.Error(), "HTTP 400 for the refresh token")
+		require.Contains(t, err.Error(), "HTTP 503 for the access token")
 	})
 
 	t.Run("NoTokenMaterial", func(t *testing.T) {
@@ -181,8 +239,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		)
 		require.Error(t, err)
 		require.False(t, revoked)
-		require.Contains(t, err.Error(), "HTTP 500 for the refresh token")
-		require.Contains(t, err.Error(), "HTTP 500 for the access token")
+		require.Contains(t, err.Error(), "HTTP 500")
 		// The provider body may echo request secrets and must not
 		// surface in the error.
 		require.NotContains(t, err.Error(), "SECRET-ECHO")

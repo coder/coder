@@ -966,12 +966,15 @@ func RefreshOAuth2Token(
 
 // RevokeOAuth2Token revokes the user's token at the provider's RFC 7009 endpoint.
 // It prefers the refresh token to request invalidation of associated access
-// tokens, and falls back to the access token when the provider rejects the
-// refresh-token request (e.g. RFC 7009 unsupported_token_type). It returns
-// false with no error when the config has no revocation endpoint or the row
-// holds no token material (e.g. cleared after a permanent refresh failure).
-// Errors carry only the HTTP status: provider bodies may echo request
-// parameters such as the client secret and must stay out of logs.
+// tokens. When the provider answers with the RFC 7009 unsupported_token_type
+// error code, it retries with the access token: revoking the access token is
+// then the most complete revocation the endpoint offers. Other refresh-token
+// failures do not fall back, because reporting an access-token success would
+// hide that the refresh token may still be live. It returns false with no
+// error when the config has no revocation endpoint or the row holds no token
+// material (e.g. cleared after a permanent refresh failure). Errors carry
+// only the HTTP status: provider bodies may echo request parameters such as
+// the client secret and must stay out of logs.
 func RevokeOAuth2Token(
 	ctx context.Context,
 	httpClient *http.Client,
@@ -996,7 +999,7 @@ func RevokeOAuth2Token(
 	if tok.RefreshToken != "" {
 		token, hint = tok.RefreshToken, "refresh_token"
 	}
-	status, err := postTokenRevocation(ctx, httpClient, cfg, token, hint)
+	status, errorCode, err := postTokenRevocation(ctx, httpClient, cfg, token, hint)
 	if err != nil {
 		return false, err
 	}
@@ -1004,10 +1007,8 @@ func RevokeOAuth2Token(
 		return true, nil
 	}
 
-	// Fall back only on an HTTP rejection: a transport error would just
-	// repeat against an unreachable endpoint and double the wait.
-	if hint == "refresh_token" && tok.AccessToken != "" {
-		fbStatus, fbErr := postTokenRevocation(ctx, httpClient, cfg, tok.AccessToken, "access_token")
+	if hint == "refresh_token" && tok.AccessToken != "" && errorCode == "unsupported_token_type" {
+		fbStatus, _, fbErr := postTokenRevocation(ctx, httpClient, cfg, tok.AccessToken, "access_token")
 		if fbErr != nil {
 			return false, fbErr
 		}
@@ -1024,12 +1025,15 @@ func RevokeOAuth2Token(
 	)
 }
 
+// postTokenRevocation returns the HTTP status and, for non-200 responses,
+// the RFC 6749 error code parsed from the body. Only that code is
+// extracted; the raw body never propagates.
 func postTokenRevocation(
 	ctx context.Context,
 	httpClient *http.Client,
 	cfg database.MCPServerConfig,
 	token, tokenTypeHint string,
-) (int, error) {
+) (int, string, error) {
 	form := url.Values{}
 	form.Set("token", token)
 	form.Set("token_type_hint", tokenTypeHint)
@@ -1043,7 +1047,7 @@ func postTokenRevocation(
 		cfg.OAuth2RevocationURL, strings.NewReader(form.Encode()),
 	)
 	if err != nil {
-		return 0, xerrors.Errorf("create revocation request: %w", err)
+		return 0, "", xerrors.Errorf("create revocation request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	// Confidential clients authenticate with client_secret_basic, the
@@ -1055,10 +1059,18 @@ func postTokenRevocation(
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return 0, xerrors.Errorf("revoke oauth2 token: %w", err)
+		return 0, "", xerrors.Errorf("revoke oauth2 token: %w", err)
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusOK {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		return resp.StatusCode, "", nil
+	}
+	var errBody struct {
+		Error string `json:"error"`
+	}
+	_ = json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&errBody)
 	_, _ = io.Copy(io.Discard, resp.Body)
-	return resp.StatusCode, nil
+	return resp.StatusCode, errBody.Error, nil
 }
