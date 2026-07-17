@@ -103,6 +103,42 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		require.NotContains(t, c.form, "client_secret")
 	})
 
+	t.Run("AccessTokenFallbackAfterRefreshRejected", func(t *testing.T) {
+		t.Parallel()
+
+		got := make(chan revokeRequest, 2)
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.NoError(t, r.ParseForm())
+			got <- revokeRequest{form: r.PostForm}
+			// Reject refresh-token revocation like a provider that
+			// only supports access tokens (unsupported_token_type).
+			if r.PostForm.Get("token_type_hint") == "refresh_token" {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer srv.Close()
+
+		revoked, err := mcpclient.RevokeOAuth2Token(
+			context.Background(),
+			srv.Client(),
+			database.MCPServerConfig{
+				OAuth2ClientID:      "cid",
+				OAuth2RevocationURL: srv.URL,
+			},
+			database.MCPServerUserToken{AccessToken: "at", RefreshToken: "rt"},
+		)
+		require.NoError(t, err)
+		require.True(t, revoked)
+		first := <-got
+		require.Equal(t, []string{"rt"}, first.form["token"])
+		require.Equal(t, []string{"refresh_token"}, first.form["token_type_hint"])
+		second := <-got
+		require.Equal(t, []string{"at"}, second.form["token"])
+		require.Equal(t, []string{"access_token"}, second.form["token_type_hint"])
+	})
+
 	t.Run("NoTokenMaterial", func(t *testing.T) {
 		t.Parallel()
 
@@ -145,7 +181,8 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		)
 		require.Error(t, err)
 		require.False(t, revoked)
-		require.Contains(t, err.Error(), "HTTP 500")
+		require.Contains(t, err.Error(), "HTTP 500 for the refresh token")
+		require.Contains(t, err.Error(), "HTTP 500 for the access token")
 		// The provider body may echo request secrets and must not
 		// surface in the error.
 		require.NotContains(t, err.Error(), "SECRET-ECHO")

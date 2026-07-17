@@ -965,11 +965,13 @@ func RefreshOAuth2Token(
 }
 
 // RevokeOAuth2Token revokes the user's token at the provider's RFC 7009 endpoint.
-// It prefers the refresh token to request invalidation of associated access tokens.
-// It returns false with no error when the config has no revocation endpoint or
-// the row holds no token material (e.g. cleared after a permanent refresh
-// failure). Errors carry only the HTTP status: provider bodies may echo
-// request parameters such as the client secret and must stay out of logs.
+// It prefers the refresh token to request invalidation of associated access
+// tokens, and falls back to the access token when the provider rejects the
+// refresh-token request (e.g. RFC 7009 unsupported_token_type). It returns
+// false with no error when the config has no revocation endpoint or the row
+// holds no token material (e.g. cleared after a permanent refresh failure).
+// Errors carry only the HTTP status: provider bodies may echo request
+// parameters such as the client secret and must stay out of logs.
 func RevokeOAuth2Token(
 	ctx context.Context,
 	httpClient *http.Client,
@@ -983,14 +985,54 @@ func RevokeOAuth2Token(
 		return false, nil
 	}
 
-	form := url.Values{}
-	if tok.RefreshToken != "" {
-		form.Set("token", tok.RefreshToken)
-		form.Set("token_type_hint", "refresh_token")
-	} else {
-		form.Set("token", tok.AccessToken)
-		form.Set("token_type_hint", "access_token")
+	if httpClient == nil {
+		httpClient = mcpHTTPClient()
 	}
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+
+	token, hint := tok.AccessToken, "access_token"
+	if tok.RefreshToken != "" {
+		token, hint = tok.RefreshToken, "refresh_token"
+	}
+	status, err := postTokenRevocation(ctx, httpClient, cfg, token, hint)
+	if err != nil {
+		return false, err
+	}
+	if status == http.StatusOK {
+		return true, nil
+	}
+
+	// Fall back only on an HTTP rejection: a transport error would just
+	// repeat against an unreachable endpoint and double the wait.
+	if hint == "refresh_token" && tok.AccessToken != "" {
+		fbStatus, fbErr := postTokenRevocation(ctx, httpClient, cfg, tok.AccessToken, "access_token")
+		if fbErr != nil {
+			return false, fbErr
+		}
+		if fbStatus == http.StatusOK {
+			return true, nil
+		}
+		return false, xerrors.Errorf(
+			"revocation endpoint returned HTTP %d for the refresh token and HTTP %d for the access token",
+			status, fbStatus,
+		)
+	}
+	return false, xerrors.Errorf(
+		"revocation endpoint returned HTTP %d", status,
+	)
+}
+
+func postTokenRevocation(
+	ctx context.Context,
+	httpClient *http.Client,
+	cfg database.MCPServerConfig,
+	token, tokenTypeHint string,
+) (int, error) {
+	form := url.Values{}
+	form.Set("token", token)
+	form.Set("token_type_hint", tokenTypeHint)
 	form.Set("client_id", cfg.OAuth2ClientID)
 
 	revokeCtx, cancel := context.WithTimeout(ctx, connectTimeout)
@@ -1001,7 +1043,7 @@ func RevokeOAuth2Token(
 		cfg.OAuth2RevocationURL, strings.NewReader(form.Encode()),
 	)
 	if err != nil {
-		return false, xerrors.Errorf("create revocation request: %w", err)
+		return 0, xerrors.Errorf("create revocation request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	// Confidential clients authenticate with client_secret_basic, the
@@ -1011,23 +1053,12 @@ func RevokeOAuth2Token(
 		req.SetBasicAuth(url.QueryEscape(cfg.OAuth2ClientID), url.QueryEscape(cfg.OAuth2ClientSecret))
 	}
 
-	if httpClient == nil {
-		httpClient = mcpHTTPClient()
-	}
-	if httpClient == nil {
-		httpClient = http.DefaultClient
-	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return false, xerrors.Errorf("revoke oauth2 token: %w", err)
+		return 0, xerrors.Errorf("revoke oauth2 token: %w", err)
 	}
 	defer resp.Body.Close()
 
 	_, _ = io.Copy(io.Discard, resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		return false, xerrors.Errorf(
-			"revocation endpoint returned HTTP %d", resp.StatusCode,
-		)
-	}
-	return true, nil
+	return resp.StatusCode, nil
 }
