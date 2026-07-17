@@ -1342,6 +1342,12 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, opts.ModelConfigID))
 	initialMessages = append(initialMessages, userMessageWithAPIKeyID(userContent, opts.ModelConfigID, opts.OwnerID, opts.APIKeyID, opts.ReasoningEffort))
 
+	if opts.ModelConfigID != uuid.Nil {
+		if err := requireEnabledChatModelConfig(ctx, p.db, opts.ModelConfigID); err != nil {
+			return database.Chat{}, err
+		}
+	}
+
 	result, err := chatstate.CreateChat(ctx, p.db, p.pubsub, chatstate.CreateChatInput{
 		OrganizationID:    opts.OrganizationID,
 		OwnerID:           opts.OwnerID,
@@ -1565,24 +1571,35 @@ func resolveSendMessageModelConfigID(
 		return resolveFallbackModelConfigID(ctx, store, chat.LastModelConfigID)
 	}
 
-	// Recheck enabled state inside the daemon: the coderd preflight can
-	// race an admin disabling the model or provider.
+	if err := requireEnabledChatModelConfig(ctx, store, requested); err != nil {
+		return uuid.Nil, err
+	}
+	return requested, nil
+}
+
+// requireEnabledChatModelConfig rechecks enabled state inside the daemon:
+// the coderd preflight can race an admin disabling the model or provider.
+func requireEnabledChatModelConfig(
+	ctx context.Context,
+	store database.Store,
+	modelConfigID uuid.UUID,
+) error {
 	chatdCtx := chatdModelConfigLookupContext(ctx)
-	if _, err := store.GetEnabledChatModelConfigByID(chatdCtx, requested); err != nil {
+	if _, err := store.GetEnabledChatModelConfigByID(chatdCtx, modelConfigID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return uuid.Nil, xerrors.Errorf(
+			return xerrors.Errorf(
 				"%w: %s",
 				ErrInvalidModelConfigID,
-				requested,
+				modelConfigID,
 			)
 		}
-		return uuid.Nil, xerrors.Errorf(
+		return xerrors.Errorf(
 			"get requested model config %s: %w",
-			requested,
+			modelConfigID,
 			err,
 		)
 	}
-	return requested, nil
+	return nil
 }
 
 func resolveFallbackModelConfigID(
@@ -1692,22 +1709,8 @@ func (p *Server) EditMessage(
 		// foreign-key error from the message-insert path.
 		var modelOverride uuid.NullUUID
 		if opts.ModelConfigID != uuid.Nil {
-			if _, err := store.GetEnabledChatModelConfigByID(
-				chatdModelConfigLookupContext(ctx),
-				opts.ModelConfigID,
-			); err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					return xerrors.Errorf(
-						"%w: %s",
-						ErrInvalidModelConfigID,
-						opts.ModelConfigID,
-					)
-				}
-				return xerrors.Errorf(
-					"get requested model config %s: %w",
-					opts.ModelConfigID,
-					err,
-				)
+			if err := requireEnabledChatModelConfig(ctx, store, opts.ModelConfigID); err != nil {
+				return err
 			}
 			modelOverride = uuid.NullUUID{UUID: opts.ModelConfigID, Valid: true}
 		} else {

@@ -1446,6 +1446,13 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		if maybeWriteLimitErr(ctx, rw, err) {
 			return
 		}
+		if xerrors.Is(err, chatd.ErrInvalidModelConfigID) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid model config ID.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		if database.IsForeignKeyViolation(
 			err,
 			database.ForeignKeyChatsLastModelConfigID,
