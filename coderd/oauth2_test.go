@@ -1468,6 +1468,7 @@ func TestOAuth2DynamicClientRegistrationDisabled(t *testing.T) {
 
 	t.Run("NewRegistrationRejected", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
 			RedirectURIs: []string{oauth2providertest.TestRedirectURI},
 		})
@@ -1479,6 +1480,7 @@ func TestOAuth2DynamicClientRegistrationDisabled(t *testing.T) {
 
 	t.Run("DiscoveryOmitsRegistrationEndpoint", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		res, err := client.Request(ctx, http.MethodGet, "/.well-known/oauth-authorization-server", nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
@@ -1491,6 +1493,7 @@ func TestOAuth2DynamicClientRegistrationDisabled(t *testing.T) {
 
 	t.Run("ExistingClientSelfManagementUnaffected", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		config, err := client.GetOAuth2ClientConfiguration(ctx, regResp.ClientID, regResp.RegistrationAccessToken)
 		require.NoError(t, err)
 		require.Equal(t, regResp.ClientID, config.ClientID)
