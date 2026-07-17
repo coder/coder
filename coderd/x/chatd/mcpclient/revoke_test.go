@@ -202,18 +202,25 @@ func TestRevokeOAuth2Token(t *testing.T) {
 	t.Run("RejectsNonHTTPSEndpoint", func(t *testing.T) {
 		t.Parallel()
 
-		revoked, err := mcpclient.RevokeOAuth2Token(
-			context.Background(),
-			nil,
-			database.MCPServerConfig{
-				OAuth2ClientID:      "cid",
-				OAuth2RevocationURL: "http://revoke.example.com/revoke",
-			},
-			database.MCPServerUserToken{AccessToken: "at", RefreshToken: "rt"},
-		)
-		require.Error(t, err)
-		require.False(t, revoked)
-		require.Contains(t, err.Error(), "must use https")
+		// Loopback is exempt from the HTTPS requirement only for
+		// plain http, not arbitrary schemes.
+		for _, u := range []string{
+			"http://revoke.example.com/revoke",
+			"ftp://localhost/revoke",
+		} {
+			revoked, err := mcpclient.RevokeOAuth2Token(
+				context.Background(),
+				nil,
+				database.MCPServerConfig{
+					OAuth2ClientID:      "cid",
+					OAuth2RevocationURL: u,
+				},
+				database.MCPServerUserToken{AccessToken: "at", RefreshToken: "rt"},
+			)
+			require.Error(t, err, u)
+			require.False(t, revoked, u)
+			require.Contains(t, err.Error(), "must use https", u)
+		}
 	})
 
 	t.Run("RejectsPlaintextRedirect", func(t *testing.T) {

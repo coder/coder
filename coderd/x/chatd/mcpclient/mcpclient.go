@@ -1007,7 +1007,7 @@ func RevokeOAuth2Token(
 		if len(via) >= 10 {
 			return xerrors.New("stopped after 10 redirects")
 		}
-		if req.URL.Scheme != "https" && !isLoopbackHost(req.URL.Hostname()) {
+		if !isAllowedRevocationScheme(req.URL) {
 			return xerrors.Errorf(
 				"revocation redirect target %q must use https", req.URL.Redacted(),
 			)
@@ -1056,20 +1056,27 @@ func isLoopbackHost(host string) bool {
 
 // ValidateRevocationEndpoint enforces the RFC 7009 HTTPS requirement:
 // the revocation request carries token material and, for confidential
-// clients, the client secret. Loopback hosts are exempt for local
-// development and tests. Config save paths apply the same rule so
-// stored URLs are never refused later at disconnect time.
+// clients, the client secret. Plain HTTP is allowed only for loopback
+// hosts (local development and tests). Config save paths apply the
+// same rule so stored URLs are never refused later at disconnect time.
 func ValidateRevocationEndpoint(rawURL string) error {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
 		return xerrors.Errorf("parse revocation URL: %w", err)
 	}
-	if parsed.Scheme != "https" && !isLoopbackHost(parsed.Hostname()) {
+	if !isAllowedRevocationScheme(parsed) {
 		return xerrors.Errorf(
 			"revocation endpoint %q must use https", parsed.Redacted(),
 		)
 	}
 	return nil
+}
+
+func isAllowedRevocationScheme(u *url.URL) bool {
+	if u.Scheme == "https" {
+		return true
+	}
+	return u.Scheme == "http" && isLoopbackHost(u.Hostname())
 }
 
 // postTokenRevocation returns the HTTP status and, for non-200 responses,
