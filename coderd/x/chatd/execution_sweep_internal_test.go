@@ -372,6 +372,57 @@ func TestExecutionSweep(t *testing.T) {
 		require.Equal(t, database.ChatToolCallExecutionStatusUnknown, row.Status)
 	})
 
+	t.Run("EditOfOldDetachedRowStillKills", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// A background row detached (with result_committed_at
+		// stamped) over a give-up window ago, then edited away.
+		record := seedCancelRequestedExecution(ctx, t, db, executionCancelGiveUpAfter+2*time.Hour, executionCancelGiveUpAfter+time.Hour)
+		_, err := db.UpdateChatToolCallExecutionCancelOutcome(ctx, database.UpdateChatToolCallExecutionCancelOutcomeParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+			Status:             database.ChatToolCallExecutionStatusDetached,
+			CancelSignalSentAt: sql.NullTime{},
+			UpdatedAt:          dbtime.Now().Add(-executionCancelGiveUpAfter - time.Hour),
+		})
+		require.NoError(t, err)
+		mapped, err := db.MarkChatToolCallExecutionsCancelRequestedForHistoryDelete(ctx, database.MarkChatToolCallExecutionsCancelRequestedForHistoryDeleteParams{
+			ChatID:        record.ChatID,
+			FromMessageID: record.AssistantMessageID,
+			UpdatedAt:     dbtime.Now(),
+		})
+		require.NoError(t, err)
+		require.Len(t, mapped, 1)
+
+		// The history-delete mapping restarts the give-up clock, so
+		// the sweep must attempt the kill instead of resolving
+		// unknown with zero attempts.
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		conn.EXPECT().SignalProcess(gomock.Any(), "proc-sweep", "kill").Return(nil)
+		exitCode := -1
+		conn.EXPECT().ProcessOutput(gomock.Any(), "proc-sweep", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode}, nil)
+		r := executionReconciler{
+			store:  db,
+			logger: slogtest.Make(t, nil),
+			agentConn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return conn, func() {}, nil
+			},
+		}
+		r.reconcile(ctx, mapped[0])
+
+		row, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusCanceled, row.Status)
+	})
+
 	t.Run("OldClaimFreshCancelStillKills", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)

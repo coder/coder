@@ -273,6 +273,14 @@ func TestEditMessage_KillsPriorDetachedExecutions(t *testing.T) {
 		f, m, chatID, user1ID, assistantID, _, bgCallID := setup(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
+		preEdit, err := f.DB.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             chatID,
+			AssistantMessageID: assistantID,
+			ToolCallID:         bgCallID,
+		})
+		require.NoError(t, err)
+		require.True(t, preEdit.ResultCommittedAt.Valid)
+
 		// Editing user1 deletes the whole suffix including the
 		// synthetic result that carried the detached row's handle.
 		edit(t, f, m, user1ID)
@@ -285,6 +293,9 @@ func TestEditMessage_KillsPriorDetachedExecutions(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, bgRow.Status,
 			"the deleted suffix carried the handle, so the detached row is killed")
+		require.True(t, bgRow.ResultCommittedAt.Valid)
+		require.True(t, bgRow.ResultCommittedAt.Time.After(preEdit.ResultCommittedAt.Time),
+			"the give-up anchor restarts at the edit so the sweep gets its full kill budget")
 	})
 
 	t.Run("SurvivingCarrierIsSpared", func(t *testing.T) {
@@ -305,6 +316,113 @@ func TestEditMessage_KillsPriorDetachedExecutions(t *testing.T) {
 		require.Equal(t, database.ChatToolCallExecutionStatusDetached, bgRow.Status,
 			"the handle carrier survives the edit, so the detached row stays spared")
 	})
+}
+
+// TestEditMessage_KillsRunningRowWhoseDetachWriteFailed asserts the
+// edit rescue matches the interrupt map's process-bearing coverage:
+// a background row whose best-effort detach write failed stays
+// running with a recorded handle while its committed result carries
+// background_process_id. The result makes the call not outstanding,
+// so only the history-delete query can catch it; the old
+// detached-only filter missed it and the edit orphaned the process.
+func TestEditMessage_KillsRunningRowWhoseDetachWriteFailed(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+	agent := seedLedgerWorkspaceAgent(t, f)
+
+	bgCallID := "call_bg_" + uuid.NewString()
+	callRaw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+		Type:       codersdk.ChatMessagePartTypeToolCall,
+		ToolCallID: bgCallID,
+		ToolName:   "execute",
+		Args:       json.RawMessage(`{}`),
+	}})
+	require.NoError(t, err)
+	resultRaw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+		Type:       codersdk.ChatMessagePartTypeToolResult,
+		ToolCallID: bgCallID,
+		ToolName:   "execute",
+		Result:     json.RawMessage(`{"background_process_id":"proc-bg"}`),
+	}})
+	require.NoError(t, err)
+
+	var step chatstate.CommitStepResult
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		var err error
+		step, err = tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{
+			userTextMessage("first user", f.User.ID, f.Model.ID),
+			{
+				Role:           database.ChatMessageRoleAssistant,
+				Content:        callRaw,
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ContentVersion: chatprompt.CurrentContentVersion,
+				ModelConfigID:  uuid.NullUUID{UUID: f.Model.ID, Valid: true},
+			},
+		}})
+		return err
+	}))
+	require.Len(t, step.InsertedMessages, 2)
+	user1ID := step.InsertedMessages[0].ID
+	assistantID := step.InsertedMessages[1].ID
+
+	row, err := f.DB.ClaimChatToolCallExecution(ctx, database.ClaimChatToolCallExecutionParams{
+		ID:                 uuid.New(),
+		ChatID:             created.Chat.ID,
+		AssistantMessageID: assistantID,
+		ToolCallID:         bgCallID,
+		InputSha256:        "hash-" + bgCallID,
+		Command:            "sleep 600",
+		Background:         true,
+		TimeoutSecs:        600,
+		Now:                dbtime.Now(),
+		StaleBefore:        time.Time{},
+	})
+	require.NoError(t, err)
+	_, err = f.DB.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
+		ChatID:             created.Chat.ID,
+		AssistantMessageID: assistantID,
+		ToolCallID:         bgCallID,
+		ClaimEpoch:         row.ClaimEpoch,
+		ProcessID:          "proc-bg",
+		WorkspaceAgentID:   agent.ID,
+		StartedAt:          dbtime.Now(),
+	})
+	require.NoError(t, err)
+	// The detach write failed, so the row stays running while the
+	// result commits.
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{{
+			Role:           database.ChatMessageRoleTool,
+			Content:        resultRaw,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			ContentVersion: chatprompt.CurrentContentVersion,
+			ModelConfigID:  uuid.NullUUID{UUID: f.Model.ID, Valid: true},
+		}}})
+		return err
+	}))
+
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := tx.EditMessage(chatstate.EditMessageInput{
+			MessageID: user1ID,
+			CreatedBy: f.User.ID,
+			Content:   mustMarshalParts(t, []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")}),
+			APIKeyID:  f.apiKeyID(),
+		})
+		return err
+	}))
+
+	bgRow, err := f.DB.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+		ChatID:             created.Chat.ID,
+		AssistantMessageID: assistantID,
+		ToolCallID:         bgCallID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, bgRow.Status,
+		"a running row with a recorded handle loses its carrier to the edit and must be killed")
+	require.True(t, bgRow.ResultCommittedAt.Valid)
 }
 
 // TestSyntheticCancellation_MapsExecutionLedger asserts that a

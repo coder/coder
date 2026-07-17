@@ -13002,6 +13002,86 @@ func (q *sqlQuerier) InsertChatToolCallExecutionIntent(ctx context.Context, arg 
 	return err
 }
 
+const markChatToolCallExecutionsCancelRequestedForHistoryDelete = `-- name: MarkChatToolCallExecutionsCancelRequestedForHistoryDelete :many
+UPDATE chat_tool_call_executions
+SET status = 'cancel_requested'::chat_tool_call_execution_status,
+    updated_at = $1::timestamptz,
+    result_committed_at = $1::timestamptz
+WHERE chat_id = $2::uuid
+  AND assistant_message_id >= $3::bigint
+  AND status IN ('running', 'detached')
+RETURNING id, chat_id, assistant_message_id, tool_call_id, status, input_sha256, command, background, timeout_secs, claim_epoch, claimed_at, workspace_agent_id, process_id, cancel_signal_sent_at, result_committed_at, created_at, started_at, updated_at
+`
+
+type MarkChatToolCallExecutionsCancelRequestedForHistoryDeleteParams struct {
+	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
+	ChatID        uuid.UUID `db:"chat_id" json:"chat_id"`
+	FromMessageID int64     `db:"from_message_id" json:"from_message_id"`
+}
+
+// A dispatched process is spared only while a committed tool result
+// carries its handle. History-delete transitions soft-delete every
+// message from the edited one onward, including the results that
+// carry the handles of process-bearing rows (background starts,
+// timed-out foregrounds, interrupt-spared backgrounds, and rows
+// whose best-effort detach write failed and stayed running), so
+// those processes would stay alive but unaddressable through the
+// chat. This routes every process-bearing row anchored at or after
+// the deleted boundary to cancel_requested for the sweep to kill,
+// matching the status coverage of the interrupt map for rows with
+// recorded process identity. Rows anchored before the boundary keep
+// their carriers and are not touched.
+// result_committed_at is re-stamped because the sweep anchors its
+// give-up bound on it: a long-detached row edited away later must
+// get its full kill-retry budget from the edit, not resolve unknown
+// with zero kill attempts because its original result committed
+// long ago.
+// from_message_id is the edited message's own ID (any role); the
+// comparison against assistant_message_id is correct because chat
+// message IDs are a single monotonic sequence across roles, so it
+// selects exactly the deleted-suffix turns.
+func (q *sqlQuerier) MarkChatToolCallExecutionsCancelRequestedForHistoryDelete(ctx context.Context, arg MarkChatToolCallExecutionsCancelRequestedForHistoryDeleteParams) ([]ChatToolCallExecution, error) {
+	rows, err := q.db.QueryContext(ctx, markChatToolCallExecutionsCancelRequestedForHistoryDelete, arg.UpdatedAt, arg.ChatID, arg.FromMessageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatToolCallExecution
+	for rows.Next() {
+		var i ChatToolCallExecution
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.AssistantMessageID,
+			&i.ToolCallID,
+			&i.Status,
+			&i.InputSha256,
+			&i.Command,
+			&i.Background,
+			&i.TimeoutSecs,
+			&i.ClaimEpoch,
+			&i.ClaimedAt,
+			&i.WorkspaceAgentID,
+			&i.ProcessID,
+			&i.CancelSignalSentAt,
+			&i.ResultCommittedAt,
+			&i.CreatedAt,
+			&i.StartedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markChatToolCallExecutionsInterrupted = `-- name: MarkChatToolCallExecutionsInterrupted :many
 UPDATE chat_tool_call_executions
 SET status = CASE
@@ -13120,74 +13200,6 @@ func (q *sqlQuerier) MarkChatToolCallExecutionsResultCommitted(ctx context.Conte
 		pq.Array(arg.ToolCallIds),
 	)
 	return err
-}
-
-const markDetachedChatToolCallExecutionsCancelRequested = `-- name: MarkDetachedChatToolCallExecutionsCancelRequested :many
-UPDATE chat_tool_call_executions
-SET status = 'cancel_requested'::chat_tool_call_execution_status,
-    updated_at = $1::timestamptz
-WHERE chat_id = $2::uuid
-  AND assistant_message_id >= $3::bigint
-  AND status = 'detached'
-RETURNING id, chat_id, assistant_message_id, tool_call_id, status, input_sha256, command, background, timeout_secs, claim_epoch, claimed_at, workspace_agent_id, process_id, cancel_signal_sent_at, result_committed_at, created_at, started_at, updated_at
-`
-
-type MarkDetachedChatToolCallExecutionsCancelRequestedParams struct {
-	UpdatedAt             time.Time `db:"updated_at" json:"updated_at"`
-	ChatID                uuid.UUID `db:"chat_id" json:"chat_id"`
-	MinAssistantMessageID int64     `db:"min_assistant_message_id" json:"min_assistant_message_id"`
-}
-
-// A detached row is spared only while a committed tool result
-// carries its process handle. History-delete transitions soft-delete
-// every message from the edited one onward, including the results
-// that carry the handles of previously detached rows (background
-// starts, timed-out foregrounds, interrupt-spared backgrounds), so
-// those processes would stay alive but unaddressable through the
-// chat. This routes every detached row anchored at or after the
-// deleted boundary to cancel_requested for the sweep to kill. Rows
-// anchored before the boundary keep their carriers and are not
-// touched.
-func (q *sqlQuerier) MarkDetachedChatToolCallExecutionsCancelRequested(ctx context.Context, arg MarkDetachedChatToolCallExecutionsCancelRequestedParams) ([]ChatToolCallExecution, error) {
-	rows, err := q.db.QueryContext(ctx, markDetachedChatToolCallExecutionsCancelRequested, arg.UpdatedAt, arg.ChatID, arg.MinAssistantMessageID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ChatToolCallExecution
-	for rows.Next() {
-		var i ChatToolCallExecution
-		if err := rows.Scan(
-			&i.ID,
-			&i.ChatID,
-			&i.AssistantMessageID,
-			&i.ToolCallID,
-			&i.Status,
-			&i.InputSha256,
-			&i.Command,
-			&i.Background,
-			&i.TimeoutSecs,
-			&i.ClaimEpoch,
-			&i.ClaimedAt,
-			&i.WorkspaceAgentID,
-			&i.ProcessID,
-			&i.CancelSignalSentAt,
-			&i.ResultCommittedAt,
-			&i.CreatedAt,
-			&i.StartedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const updateChatToolCallExecutionCancelOutcome = `-- name: UpdateChatToolCallExecutionCancelOutcome :one

@@ -6916,6 +6916,17 @@ func (q *querier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg datab
 	return q.db.MarkAllInboxNotificationsAsRead(ctx, arg)
 }
 
+func (q *querier) MarkChatToolCallExecutionsCancelRequestedForHistoryDelete(ctx context.Context, arg database.MarkChatToolCallExecutionsCancelRequestedForHistoryDeleteParams) ([]database.ChatToolCallExecution, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return nil, err
+	}
+	return q.db.MarkChatToolCallExecutionsCancelRequestedForHistoryDelete(ctx, arg)
+}
+
 func (q *querier) MarkChatToolCallExecutionsInterrupted(ctx context.Context, arg database.MarkChatToolCallExecutionsInterruptedParams) ([]database.ChatToolCallExecution, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -6945,17 +6956,6 @@ func (q *querier) MarkChatsContextDirtyByAgent(ctx context.Context, arg database
 		return nil, err
 	}
 	return q.db.MarkChatsContextDirtyByAgent(ctx, arg)
-}
-
-func (q *querier) MarkDetachedChatToolCallExecutionsCancelRequested(ctx context.Context, arg database.MarkDetachedChatToolCallExecutionsCancelRequestedParams) ([]database.ChatToolCallExecution, error) {
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return nil, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return nil, err
-	}
-	return q.db.MarkDetachedChatToolCallExecutionsCancelRequested(ctx, arg)
 }
 
 func (q *querier) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, arg database.MarkMCPServerUserTokenRefreshFailureParams) (database.MCPServerUserToken, error) {

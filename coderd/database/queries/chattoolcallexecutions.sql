@@ -159,23 +159,35 @@ WHERE chat_id = @chat_id::uuid
   AND status IN ('reserved', 'starting', 'running', 'detached')
 RETURNING *;
 
--- name: MarkDetachedChatToolCallExecutionsCancelRequested :many
--- A detached row is spared only while a committed tool result
--- carries its process handle. History-delete transitions soft-delete
--- every message from the edited one onward, including the results
--- that carry the handles of previously detached rows (background
--- starts, timed-out foregrounds, interrupt-spared backgrounds), so
+-- name: MarkChatToolCallExecutionsCancelRequestedForHistoryDelete :many
+-- A dispatched process is spared only while a committed tool result
+-- carries its handle. History-delete transitions soft-delete every
+-- message from the edited one onward, including the results that
+-- carry the handles of process-bearing rows (background starts,
+-- timed-out foregrounds, interrupt-spared backgrounds, and rows
+-- whose best-effort detach write failed and stayed running), so
 -- those processes would stay alive but unaddressable through the
--- chat. This routes every detached row anchored at or after the
--- deleted boundary to cancel_requested for the sweep to kill. Rows
--- anchored before the boundary keep their carriers and are not
--- touched.
+-- chat. This routes every process-bearing row anchored at or after
+-- the deleted boundary to cancel_requested for the sweep to kill,
+-- matching the status coverage of the interrupt map for rows with
+-- recorded process identity. Rows anchored before the boundary keep
+-- their carriers and are not touched.
+-- result_committed_at is re-stamped because the sweep anchors its
+-- give-up bound on it: a long-detached row edited away later must
+-- get its full kill-retry budget from the edit, not resolve unknown
+-- with zero kill attempts because its original result committed
+-- long ago.
+-- from_message_id is the edited message's own ID (any role); the
+-- comparison against assistant_message_id is correct because chat
+-- message IDs are a single monotonic sequence across roles, so it
+-- selects exactly the deleted-suffix turns.
 UPDATE chat_tool_call_executions
 SET status = 'cancel_requested'::chat_tool_call_execution_status,
-    updated_at = @updated_at::timestamptz
+    updated_at = @updated_at::timestamptz,
+    result_committed_at = @updated_at::timestamptz
 WHERE chat_id = @chat_id::uuid
-  AND assistant_message_id >= @min_assistant_message_id::bigint
-  AND status = 'detached'
+  AND assistant_message_id >= @from_message_id::bigint
+  AND status IN ('running', 'detached')
 RETURNING *;
 
 -- name: ClaimStaleChatToolCallExecutionCancels :many

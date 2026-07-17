@@ -9188,6 +9188,21 @@ func (mr *MockStoreMockRecorder) MarkAllInboxNotificationsAsRead(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkAllInboxNotificationsAsRead", reflect.TypeOf((*MockStore)(nil).MarkAllInboxNotificationsAsRead), ctx, arg)
 }
 
+// MarkChatToolCallExecutionsCancelRequestedForHistoryDelete mocks base method.
+func (m *MockStore) MarkChatToolCallExecutionsCancelRequestedForHistoryDelete(ctx context.Context, arg database.MarkChatToolCallExecutionsCancelRequestedForHistoryDeleteParams) ([]database.ChatToolCallExecution, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkChatToolCallExecutionsCancelRequestedForHistoryDelete", ctx, arg)
+	ret0, _ := ret[0].([]database.ChatToolCallExecution)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkChatToolCallExecutionsCancelRequestedForHistoryDelete indicates an expected call of MarkChatToolCallExecutionsCancelRequestedForHistoryDelete.
+func (mr *MockStoreMockRecorder) MarkChatToolCallExecutionsCancelRequestedForHistoryDelete(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkChatToolCallExecutionsCancelRequestedForHistoryDelete", reflect.TypeOf((*MockStore)(nil).MarkChatToolCallExecutionsCancelRequestedForHistoryDelete), ctx, arg)
+}
+
 // MarkChatToolCallExecutionsInterrupted mocks base method.
 func (m *MockStore) MarkChatToolCallExecutionsInterrupted(ctx context.Context, arg database.MarkChatToolCallExecutionsInterruptedParams) ([]database.ChatToolCallExecution, error) {
 	m.ctrl.T.Helper()
@@ -9230,21 +9245,6 @@ func (m *MockStore) MarkChatsContextDirtyByAgent(ctx context.Context, arg databa
 func (mr *MockStoreMockRecorder) MarkChatsContextDirtyByAgent(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkChatsContextDirtyByAgent", reflect.TypeOf((*MockStore)(nil).MarkChatsContextDirtyByAgent), ctx, arg)
-}
-
-// MarkDetachedChatToolCallExecutionsCancelRequested mocks base method.
-func (m *MockStore) MarkDetachedChatToolCallExecutionsCancelRequested(ctx context.Context, arg database.MarkDetachedChatToolCallExecutionsCancelRequestedParams) ([]database.ChatToolCallExecution, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MarkDetachedChatToolCallExecutionsCancelRequested", ctx, arg)
-	ret0, _ := ret[0].([]database.ChatToolCallExecution)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// MarkDetachedChatToolCallExecutionsCancelRequested indicates an expected call of MarkDetachedChatToolCallExecutionsCancelRequested.
-func (mr *MockStoreMockRecorder) MarkDetachedChatToolCallExecutionsCancelRequested(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkDetachedChatToolCallExecutionsCancelRequested", reflect.TypeOf((*MockStore)(nil).MarkDetachedChatToolCallExecutionsCancelRequested), ctx, arg)
 }
 
 // MarkMCPServerUserTokenRefreshFailure mocks base method.

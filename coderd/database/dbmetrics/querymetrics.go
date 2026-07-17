@@ -4881,6 +4881,14 @@ func (m queryMetricsStore) MarkAllInboxNotificationsAsRead(ctx context.Context, 
 	return r0
 }
 
+func (m queryMetricsStore) MarkChatToolCallExecutionsCancelRequestedForHistoryDelete(ctx context.Context, arg database.MarkChatToolCallExecutionsCancelRequestedForHistoryDeleteParams) ([]database.ChatToolCallExecution, error) {
+	start := time.Now()
+	r0, r1 := m.s.MarkChatToolCallExecutionsCancelRequestedForHistoryDelete(ctx, arg)
+	m.queryLatencies.WithLabelValues("MarkChatToolCallExecutionsCancelRequestedForHistoryDelete").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "MarkChatToolCallExecutionsCancelRequestedForHistoryDelete").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) MarkChatToolCallExecutionsInterrupted(ctx context.Context, arg database.MarkChatToolCallExecutionsInterruptedParams) ([]database.ChatToolCallExecution, error) {
 	start := time.Now()
 	r0, r1 := m.s.MarkChatToolCallExecutionsInterrupted(ctx, arg)
@@ -4902,14 +4910,6 @@ func (m queryMetricsStore) MarkChatsContextDirtyByAgent(ctx context.Context, arg
 	r0, r1 := m.s.MarkChatsContextDirtyByAgent(ctx, arg)
 	m.queryLatencies.WithLabelValues("MarkChatsContextDirtyByAgent").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "MarkChatsContextDirtyByAgent").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) MarkDetachedChatToolCallExecutionsCancelRequested(ctx context.Context, arg database.MarkDetachedChatToolCallExecutionsCancelRequestedParams) ([]database.ChatToolCallExecution, error) {
-	start := time.Now()
-	r0, r1 := m.s.MarkDetachedChatToolCallExecutionsCancelRequested(ctx, arg)
-	m.queryLatencies.WithLabelValues("MarkDetachedChatToolCallExecutionsCancelRequested").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "MarkDetachedChatToolCallExecutionsCancelRequested").Inc()
 	return r0, r1
 }
 

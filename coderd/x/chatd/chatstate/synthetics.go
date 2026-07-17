@@ -238,11 +238,14 @@ func SparedBackgroundResult(row database.ChatToolCallExecution) (json.RawMessage
 //     turn gets no synthetic history results, so nothing can carry a
 //     background handle back to the user and backgrounds are not
 //     spared: every dispatched row becomes cancel_requested.
-//   - Already-resolved detached rows anchored in the deleted suffix
-//     (background starts, timed-out foregrounds, interrupt-spared
-//     backgrounds). Their committed results were the only carriers
-//     of their process handles and are deleted with the suffix, so
-//     they are routed to cancel_requested as well.
+//   - Process-bearing rows (running or detached) anchored in the
+//     deleted suffix: background starts, timed-out foregrounds,
+//     interrupt-spared backgrounds, and rows whose best-effort
+//     detach write failed. Their committed results were the only
+//     carriers of their process handles and are deleted with the
+//     suffix, so they are routed to cancel_requested as well, with
+//     result_committed_at re-stamped so the sweep's give-up clock
+//     starts at the edit.
 //
 // The sweep kills every cancel_requested row's process.
 func mapExecutionsForHistoryDelete(ctx context.Context, store database.Store, chat database.Chat, fromMessageID int64) error {
@@ -259,13 +262,13 @@ func mapExecutionsForHistoryDelete(ctx context.Context, store database.Store, ch
 			return err
 		}
 	}
-	_, err = store.MarkDetachedChatToolCallExecutionsCancelRequested(ctx, database.MarkDetachedChatToolCallExecutionsCancelRequestedParams{
-		ChatID:                chat.ID,
-		MinAssistantMessageID: fromMessageID,
-		UpdatedAt:             dbtime.Now(),
+	_, err = store.MarkChatToolCallExecutionsCancelRequestedForHistoryDelete(ctx, database.MarkChatToolCallExecutionsCancelRequestedForHistoryDeleteParams{
+		ChatID:        chat.ID,
+		FromMessageID: fromMessageID,
+		UpdatedAt:     dbtime.Now(),
 	})
 	if err != nil {
-		return xerrors.Errorf("mark detached executions cancel requested: %w", err)
+		return xerrors.Errorf("mark executions cancel requested for history delete: %w", err)
 	}
 	return nil
 }
