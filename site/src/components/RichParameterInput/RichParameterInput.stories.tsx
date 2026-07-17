@@ -1,11 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { TemplateVersionParameter } from "#/api/typesGenerated";
-import { chromatic } from "#/testHelpers/chromatic";
 import { RichParameterInput } from "./RichParameterInput";
 
 const meta: Meta<typeof RichParameterInput> = {
 	title: "components/RichParameterInput",
-	parameters: { chromatic },
 	component: RichParameterInput,
 };
 

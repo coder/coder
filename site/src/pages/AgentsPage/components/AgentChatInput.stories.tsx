@@ -938,7 +938,6 @@ export const PlanningIndicator: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
-		chromatic: { viewports: [720] },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1186,7 +1185,6 @@ export const UncheckSelectedWorkspaceFromPicker: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		chromatic: { viewports: [375] },
 	},
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1278,7 +1276,6 @@ export const OverflowBadges: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile2" },
-		chromatic: { viewports: [414] },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1357,7 +1354,6 @@ export const LongWorkspaceNameMobile: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		chromatic: { viewports: [375] },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

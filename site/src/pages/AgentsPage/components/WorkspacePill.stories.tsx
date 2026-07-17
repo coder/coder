@@ -490,7 +490,6 @@ const mobilePortsStoryConfig = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		chromatic: { viewports: [375] },
 		queries: [
 			{ key: ["me", "apiKey"], data: { key: "mock-api-key" } },
 			{

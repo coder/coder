@@ -4,7 +4,6 @@
  * https://v0.dev/ help.
  */
 
-import isChromatic from "chromatic/isChromatic";
 import { cva, type VariantProps } from "class-variance-authority";
 import type { ReactNode } from "react";
 import { cn } from "#/utils/cn";
@@ -58,9 +57,7 @@ export function Spinner({
 					height="5.5"
 					rx="1"
 					// 0.8 = leaves * 0.1
-					className={
-						isChromatic() ? "" : "animate-[loading_0.8s_ease-in-out_infinite]"
-					}
+					className="animate-[loading_0.8s_ease-in-out_infinite]"
 					style={{
 						transform: `rotate(${leaf * (360 / leaves.length)}deg)`,
 						transformOrigin: "center",

@@ -9,7 +9,6 @@ import {
 	mockSuccessResult,
 } from "#/components/PaginationWidget/PaginationContainer.mocks";
 import type { UsePaginatedQueryResult } from "#/hooks/usePaginatedQuery";
-import { chromaticWithTablet } from "#/testHelpers/chromatic";
 import {
 	MockConnectedSSHConnectionLog,
 	MockDisconnectedSSHConnectionLog,
@@ -51,7 +50,6 @@ export default meta;
 type Story = StoryObj<typeof ConnectionLogPageView>;
 
 export const ConnectionLog: Story = {
-	parameters: { chromatic: chromaticWithTablet },
 	args: {
 		connectionLogsQuery: mockSuccessResult,
 	},

@@ -45,17 +45,11 @@ export const LongTemplateVersion: Story = {
 			name: "thisisareallyreallylongnamefortesting",
 		},
 	},
-	parameters: {
-		chromatic: { viewports: [960] },
-	},
 };
 
 export const SmallViewport: Story = {
 	args: {
 		template: MockTemplate,
 		activeVersion: MockTemplateVersion,
-	},
-	parameters: {
-		chromatic: { viewports: [600] },
 	},
 };

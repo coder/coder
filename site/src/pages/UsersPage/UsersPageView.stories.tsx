@@ -49,12 +49,6 @@ type Story = StoryObj<typeof UsersPageView>;
 
 export const Admin: Story = {};
 
-export const SmallViewport: Story = {
-	parameters: {
-		chromatic: { viewports: [600] },
-	},
-};
-
 export const Member: Story = {
 	args: { canEditUsers: false },
 };

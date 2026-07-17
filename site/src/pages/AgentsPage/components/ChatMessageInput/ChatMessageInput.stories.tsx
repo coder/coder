@@ -365,7 +365,6 @@ export const MobileAboveChatInput: Story = {
 	decorators: [MobileDecorator],
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		chromatic: { viewports: [320] },
 	},
 	play: async ({ canvasElement }) => {
 		const restoreMatchMedia = mockMobileMatchMedia();
@@ -473,7 +472,6 @@ export const MobileLongListScrolls: Story = {
 	decorators: [MobileDecorator],
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		chromatic: { viewports: [320] },
 	},
 	play: async ({ canvasElement }) => {
 		const restoreMatchMedia = mockMobileMatchMedia();

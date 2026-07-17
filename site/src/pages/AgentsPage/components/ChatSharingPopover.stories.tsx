@@ -208,9 +208,6 @@ export const PopulatedACL: Story = {
 
 export const MobilePopulatedACL: Story = {
 	decorators: [MobileFrame],
-	parameters: {
-		chromatic: { viewports: [390] },
-	},
 	beforeEach: () => mockDialogRequests({ acl: populatedACL }),
 	play: async ({ canvasElement }) => {
 		const body = await openChatSharing(canvasElement);
