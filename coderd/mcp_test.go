@@ -610,6 +610,45 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		require.Empty(t, resp.TokenRevocationError)
 	})
 
+	t.Run("DoesNotRevealHiddenConfigs", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+		adminClient, _ := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues:    mcpDeploymentValues(t),
+			ChatProviderAPIKeys: &providerKeys,
+		})
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:    "OAuth Disconnect Hidden",
+			Slug:           "disc-hidden",
+			Transport:      "streamable_http",
+			URL:            "https://mcp.example.com/disc-hidden",
+			AuthType:       "oauth2",
+			OAuth2ClientID: "cid",
+			OAuth2AuthURL:  "https://auth.example.com/authorize",
+			OAuth2TokenURL: "https://auth.example.com/token",
+			Availability:   "default_on",
+			Enabled:        false,
+			ToolAllowList:  []string{},
+			ToolDenyList:   []string{},
+		})
+		require.NoError(t, err)
+
+		// Disconnecting a disabled config the member cannot see must be
+		// indistinguishable from disconnecting a nonexistent config ID.
+		hiddenResp, err := memberClient.MCPServerOAuth2Disconnect(ctx, created.ID)
+		require.NoError(t, err)
+		missingResp, err := memberClient.MCPServerOAuth2Disconnect(ctx, uuid.New())
+		require.NoError(t, err)
+		require.Equal(t, missingResp, hiddenResp)
+		require.False(t, hiddenResp.TokenRevoked)
+		require.Empty(t, hiddenResp.TokenRevocationError)
+	})
+
 	t.Run("RevokesAtProvider", func(t *testing.T) {
 		t.Parallel()
 

@@ -1169,28 +1169,24 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 	}
 
 	//nolint:gocritic // Users manage their own tokens.
-	config, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get MCP server config.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	//nolint:gocritic // Users manage their own tokens.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
-	var token database.MCPServerUserToken
+	var (
+		config database.MCPServerConfig
+		token  database.MCPServerUserToken
+	)
 	// Serializable isolation keeps the revoked token aligned with the row deleted locally.
-	err = api.Database.InTx(func(tx database.Store) error {
+	err := api.Database.InTx(func(tx database.Store) error {
 		dbToken, err := tx.GetMCPServerUserToken(systemCtx, database.GetMCPServerUserTokenParams{
 			MCPServerConfigID: mcpServerID,
 			UserID:            apiKey.UserID,
 		})
+		if err != nil {
+			return err
+		}
+		// The config is loaded only after the caller's token is found so
+		// that the response does not reveal whether hidden config IDs
+		// exist to users without a stored token.
+		dbConfig, err := tx.GetMCPServerConfigByID(systemCtx, mcpServerID)
 		if err != nil {
 			return err
 		}
@@ -1200,11 +1196,14 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 		}); err != nil {
 			return err
 		}
+		config = dbConfig
 		token = dbToken
 		return nil
 	}, &database.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			// Nonexistent config IDs take this same path, so a caller
+			// without a token cannot probe which configs exist.
 			httpapi.Write(ctx, rw, http.StatusOK, codersdk.MCPServerOAuth2DisconnectResponse{})
 			return
 		}
