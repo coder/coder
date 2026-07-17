@@ -1,0 +1,26 @@
+{
+  "id": "git-commit-signing",
+  "display_name": "Git commit signing",
+  "description": "Configures Git to sign commits using your Coder SSH key",
+  "icon": "/icon/git.svg",
+  "category": "Source Control",
+  "tags": [
+    "helper",
+    "git"
+  ],
+  "compatible_os": [
+    "linux"
+  ],
+  "conflicts_with": [],
+  "pinned_version": "1.0.32",
+  "variables": [
+    {
+      "name": "agent_id",
+      "type": "string",
+      "description": "The ID of a Coder agent.",
+      "required": false,
+      "sensitive": false,
+      "computed": true
+    }
+  ]
+}

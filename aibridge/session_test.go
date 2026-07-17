@@ -106,6 +106,18 @@ func TestGuessSessionID(t *testing.T) {
 			sessionID: utils.PtrTo("codex-session-123"),
 		},
 		{
+			name:      "codex_with_hyphenated_session_header",
+			client:    aibridge.ClientCodex,
+			headers:   map[string]string{"session-id": "codex-session-456"},
+			sessionID: utils.PtrTo("codex-session-456"),
+		},
+		{
+			name:      "codex_hyphenated_header_takes_precedence",
+			client:    aibridge.ClientCodex,
+			headers:   map[string]string{"session-id": "codex-session-new", "session_id": "codex-session-old"},
+			sessionID: utils.PtrTo("codex-session-new"),
+		},
+		{
 			name:      "codex_with_whitespace_in_header",
 			client:    aibridge.ClientCodex,
 			headers:   map[string]string{"session_id": "  codex-session-123  "},

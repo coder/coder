@@ -22,6 +22,7 @@ func TestTerminalErrorPayloadUsesNormalizedClassification(t *testing.T) {
 
 	require.Equal(t, &codersdk.ChatError{
 		Message:    "Azure OpenAI is rate limiting requests.",
+		Detail:     "azure openai received status 429 from upstream",
 		Kind:       codersdk.ChatErrorKindRateLimit,
 		Provider:   "azure",
 		Retryable:  true,

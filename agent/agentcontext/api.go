@@ -38,6 +38,7 @@ type SnapshotResource struct {
 	SizeBytes   uint64 `json:"size_bytes"`
 	Status      string `json:"status"`
 	Error       string `json:"error,omitempty"`
+	Name        string `json:"name,omitempty"`
 	Description string `json:"description,omitempty"`
 }
 
@@ -45,7 +46,6 @@ type SnapshotResource struct {
 // returned by the resync endpoint.
 type SnapshotResponse struct {
 	Version       uint64             `json:"version"`
-	SchemaVersion uint64             `json:"schema_version"`
 	AggregateHash string             `json:"aggregate_hash"`
 	Resources     []SnapshotResource `json:"resources"`
 	PayloadBytes  uint64             `json:"payload_bytes"`
@@ -175,13 +175,14 @@ func (a *API) handleResync(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, snapshotResponse(snap))
 }
 
-// snapshotResponse converts a Snapshot to its on-wire form for
+// snapshotResponse converts a Snapshot to the JSON form returned by
 // the resync endpoint. Payloads are omitted; the per-resource
-// payload bytes ship via the drpc PushContextState path.
+// payload bytes ship via the drpc PushContextState path. Keep the
+// per-resource field mapping in sync with contextSnapshotToProto in
+// agent/agentsocket/service.go.
 func snapshotResponse(s Snapshot) SnapshotResponse {
 	out := SnapshotResponse{
 		Version:       s.Version,
-		SchemaVersion: s.SchemaVersion,
 		AggregateHash: hex.EncodeToString(s.AggregateHash[:]),
 		Resources:     make([]SnapshotResource, 0, len(s.Resources)),
 		PayloadBytes:  s.PayloadBytes,
@@ -197,6 +198,7 @@ func snapshotResponse(s Snapshot) SnapshotResponse {
 			SizeBytes:   r.SizeBytes,
 			Status:      r.Status.String(),
 			Error:       r.Error,
+			Name:        r.Name,
 			Description: r.Description,
 		})
 	}

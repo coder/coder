@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/agentcontext"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // switchHomeEnv overrides the platform-specific environment
@@ -65,6 +66,17 @@ func TestCanonicalizePath_BareTildeExpandsToHome(t *testing.T) {
 	require.Equal(t, want, got)
 }
 
+func TestCanonicalizePathIn_ExpandsAgainstGivenHome(t *testing.T) {
+	t.Parallel()
+	home := testutil.TempDirResolved(t)
+	got, err := agentcontext.CanonicalizePathIn(home, "~/.coder")
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(home, ".coder"), got)
+
+	_, err = agentcontext.CanonicalizePathIn(home, "relative/path")
+	require.Error(t, err)
+}
+
 func TestCanonicalizePath_FollowsSymlinks(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
@@ -99,7 +111,7 @@ func TestValidateSourcePath_RejectsParentSegments(t *testing.T) {
 
 func TestValidateSourcePath_AllowsInsideRoot(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
+	dir := testutil.TempDirResolved(t)
 	child := filepath.Join(dir, "child")
 	require.NoError(t, os.MkdirAll(child, 0o755))
 

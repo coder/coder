@@ -1,0 +1,26 @@
+
+variable "claude_code_oauth_token" {
+  description = "OAuth token passed to Claude Code via the CLAUDE_CODE_OAUTH_TOKEN env var. Generate one with `claude setup-token`."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+module "claude-code" {
+  count    = data.coder_workspace.me.start_count
+  source   = "{{ .RegistryBase }}/coder/claude-code/coder"
+  version  = "{{ .PinnedVersion }}"
+  agent_id = coder_agent.{{ .AgentResourceName }}.id
+  anthropic_api_key = {{ .Variables.anthropic_api_key }}
+  claude_binary_path = {{ .Variables.claude_binary_path }}
+  claude_code_oauth_token = var.claude_code_oauth_token
+  claude_code_version = {{ .Variables.claude_code_version }}
+  disable_autoupdater = {{ .Variables.disable_autoupdater }}
+  enable_ai_gateway = {{ .Variables.enable_ai_gateway }}
+  icon = {{ .Variables.icon }}
+  install_claude_code = {{ .Variables.install_claude_code }}
+  mcp = {{ .Variables.mcp }}
+  model = {{ .Variables.model }}
+  post_install_script = {{ .Variables.post_install_script }}
+  pre_install_script = {{ .Variables.pre_install_script }}
+  workdir = {{ .Variables.workdir }}
+}

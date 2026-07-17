@@ -30,8 +30,8 @@ handling, and how to monitor providers.
 > configuration that is ineffectual.**
 >
 > The environment variables can be safely removed once seeding has
-> completed. Visit `https://<your-coder-host>/ai/settings` to see which
-> providers have been seeded.
+> completed. Visit `https://<your-coder-host>/ai/settings/providers` to see
+> which providers have been seeded.
 
 After seeding, manage providers through the dashboard or API. A provider
 that has been edited or removed there is not recreated or overwritten
@@ -86,14 +86,46 @@ to have restricted permissions at the time of writing (June 2026).
 Bedrock providers serve Anthropic models hosted on AWS and authenticate
 with AWS credentials rather than a registered API key. Configure:
 
-- A **region** (or a full base URL when routing through a proxy or a
-  non-standard endpoint that does not follow the
-  `https://bedrock-runtime.<region>.amazonaws.com` format).
-- The **model** and **small fast model** identifiers.
+- A **protocol**, either `InvokeModel` or `Mantle`. It determines the
+  endpoint format and which of the fields below apply. See
+  [InvokeModel](#invokemodel) and [Mantle](#mantle).
+- An **endpoint** in the format the protocol requires:
+  `https://bedrock-runtime.<region>.amazonaws.com` for InvokeModel or
+  `https://bedrock-mantle.<region>.api.aws/anthropic` for Mantle. The AWS
+  region is read from the endpoint host.
+- The **model** and **small fast model** identifiers, for InvokeModel
+  only. Mantle providers do not set them; the client chooses the model on
+  each request and AI Gateway forwards it upstream.
+
+#### InvokeModel
+
+The legacy Bedrock runtime API. AI Gateway translates each request into
+Bedrock's InvokeModel format and sends it to
+`https://bedrock-runtime.<region>.amazonaws.com`. Still supported, but
+Mantle is recommended for new deployments.
+
+#### Mantle
+
+The newer Anthropic-compatible Bedrock endpoint, recommended by AWS for new
+deployments. AI Gateway serves Anthropic models through the native Messages
+API, forwarding the request body **unchanged** and only applying AWS SigV4
+signing with the provider's base identity.
+
+To route Claude Code through a Mantle provider, run it in mantle mode with
+client-side signing disabled so the gateway signs centrally:
+
+```sh
+export CLAUDE_CODE_USE_MANTLE=1
+export CLAUDE_CODE_SKIP_MANTLE_AUTH=1
+export ANTHROPIC_BEDROCK_MANTLE_BASE_URL="<your-deployment-url>/api/v2/ai-gateway/<provider-name>"
+export ANTHROPIC_AUTH_TOKEN="<your-coder-api-token>"
+```
+
+#### AWS credentials
 
 Do not attach API keys to a Bedrock provider.
 
-AI Gateway resolves AWS credentials one of two ways:
+AI Gateway resolves AWS credentials one of three ways:
 
 - **AWS SDK default credential chain (recommended).** When no explicit
   credentials are configured, the AWS SDK resolves them automatically
@@ -105,6 +137,92 @@ AI Gateway resolves AWS credentials one of two ways:
   and `bedrock:InvokeModelWithResponseStream` for the configured models.
 - **Static credentials.** Provide an access key and secret for an IAM
   user with the same Bedrock permissions.
+- **Assumed IAM role.** Set a **Role ARN** to have the gateway assume
+  that role before calling Bedrock, signing requests with the resulting
+  temporary credentials. This works on top of either of the above base
+  identities and supports cross-account Bedrock access. See
+  [Assuming an IAM role](#assuming-an-iam-role).
+
+#### Obtaining static Bedrock credentials
+
+When you cannot use the default credential chain, create a dedicated IAM
+user and generate a static access key:
+
+1. **Choose a region** where you want to use Bedrock.
+
+2. **Generate API keys** in the [AWS Bedrock console](https://us-east-1.console.aws.amazon.com/bedrock/home?region=us-east-1#/api-keys/long-term/create) (replace `us-east-1` in the URL with your chosen region):
+   - Choose an expiry period for the key.
+   - Select **Generate**.
+   - This creates an IAM user with strictly-scoped permissions for Bedrock access.
+
+3. **Create an access key** for the IAM user:
+   - After generating the API key, click **"You can directly modify permissions for the IAM user associated"**.
+   - In the IAM user page, navigate to the **Security credentials** tab.
+   - Under **Access keys**, select **Create access key**.
+   - Select **"Application running outside AWS"** as the use case.
+   - Select **Next**.
+   - Add a description like "Coder AI Gateway token".
+   - Select **Create access key**.
+   - Save both the access key ID and secret access key securely.
+
+4. **Enter the access key ID and secret access key** when you add or edit
+   the Bedrock provider from the dashboard or the
+   [AI Providers API](../../reference/api/aiproviders.md), along with the
+   region (or base URL) and model identifiers.
+
+#### Assuming an IAM role
+
+Set the optional **Role ARN** field to have the gateway assume an IAM
+role before calling Bedrock. The base identity (static credentials or the
+default credential chain) signs an STS `AssumeRole` call, and the
+temporary credentials it returns sign Bedrock requests. The field is
+optional: a provider with no Role ARN authenticates with its base
+identity directly, exactly as described above.
+
+To use role assumption:
+
+1. **Create the IAM role** in the target account and grant it
+   `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` for
+   the configured models. The base identity does not need Bedrock
+   permissions itself; the assumed role does.
+
+2. **Configure the role's trust policy** to allow the gateway's base
+   identity to assume it.
+
+3. **Enter the Role ARN** when you add or edit the Bedrock provider. It must be a
+   valid IAM role ARN, for example `arn:aws:iam::123456789012:role/BedrockRole`.
+
+Each provider assumes a single role. To use several roles, configure one
+provider per role.
+
+#### External ID
+
+When a Bedrock provider assumes a role, the gateway generates a unique
+**external ID** for it and sends that value on every `AssumeRole` call.
+The external ID guards against the
+[confused deputy problem](https://docs.aws.amazon.com/IAM/latest/UserGuide/confused-deputy.html)
+on cross-account assumption. The gateway generates and owns the value, as
+AWS [recommends](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html):
+you cannot set or change it. It is not a secret, and it is shown on the
+provider's edit page once a Role ARN is configured.
+
+To enforce it, add the external ID to the target role's trust policy as an
+`sts:ExternalId` condition:
+
+```json
+{
+  "Effect": "Allow",
+  "Principal": { "AWS": "<gateway base identity>" },
+  "Action": "sts:AssumeRole",
+  "Condition": { "StringEquals": { "sts:ExternalId": "<the provider's External ID>" } }
+}
+```
+
+> [!IMPORTANT]
+> The gateway sends the external ID whether or not the trust policy checks
+> it. Until you add the `sts:ExternalId` condition, the value is sent but
+> not enforced, and the role can still be assumed without it. To rotate the
+> external ID, recreate the provider.
 
 ### GitHub Copilot
 
@@ -122,6 +240,27 @@ Copilot providers authenticate with each user's request-time GitHub
 OAuth token, so do not attach API keys. For client-side setup (proxy,
 certificates, IDE configuration), see
 [GitHub Copilot client configuration](./clients/copilot.md).
+
+### ChatGPT
+
+ChatGPT subscriptions (Plus, Pro, Business) are supported through a
+provider of type `openai` with a specific name and base URL:
+
+| Field    | Value                                   |
+|----------|-----------------------------------------|
+| Type     | `openai`                                |
+| Name     | `chatgpt`                               |
+| Base URL | `https://chatgpt.com/backend-api/codex` |
+
+The name must be exactly `chatgpt`. It determines the route clients use
+to reach the provider: `/api/v2/ai-gateway/chatgpt/v1`. If no provider
+with this name exists, requests to that route fail with
+`404 route not supported`.
+
+Do not attach API keys. ChatGPT providers authenticate with each user's
+ChatGPT OAuth token through [BYOK](./auth.md#bring-your-own-key-byok),
+so BYOK must remain enabled. For client-side setup, see the
+[Codex CLI ChatGPT subscription configuration](./clients/codex.md#byok-chatgpt-subscription).
 
 ### OpenAI-compatible providers
 
@@ -154,11 +293,11 @@ Provider configuration changes take effect automatically, without
 restarting `coderd`. AI Gateway records the timestamp of each reload
 attempt and each successful reload, exposed as Prometheus metrics:
 
-- `coder_aibridged_providers_last_reload_timestamp_seconds`
-- `coder_aibridged_providers_last_reload_success_timestamp_seconds`
+- `coder_ai_gateway_providers_last_reload_timestamp_seconds`
+- `coder_ai_gateway_providers_last_reload_success_timestamp_seconds`
 
 If you run the [external proxy](./ai-gateway-proxy/index.md), it exposes
-the same pair under the `coder_aibridgeproxyd_` prefix.
+the same pair under the `coder_ai_gateway_proxy_` prefix.
 
 A growing gap between the attempt and success timestamps means reloads
 are firing but failing to apply. Alert on that gap rather than on a

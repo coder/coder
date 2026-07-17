@@ -4,7 +4,7 @@
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templates \
   -H 'Accept: application/json' \
@@ -79,6 +79,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "organization_name": "string",
     "provisioner": "terraform",
     "require_active_version": true,
+    "time_til_autostop_notify_ms": 0,
     "time_til_dormant_autodelete_ms": 0,
     "time_til_dormant_ms": 0,
     "updated_at": "2019-08-24T14:15:22Z",
@@ -138,6 +139,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» organization_name`|string(url)|false|||
 |`» provisioner`|string|false|||
 |`» require_active_version`|boolean|false||Require active version mandates that workspaces are built with the active template version.|
+|`» time_til_autostop_notify_ms`|integer|false||Time til autostop notify ms is the duration before the workspace's autostop deadline at which a reminder notification is sent. 0 disables the notification.|
 |`» time_til_dormant_autodelete_ms`|integer|false|||
 |`» time_til_dormant_ms`|integer|false|||
 |`» updated_at`|string(date-time)|false|||
@@ -157,7 +159,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templates \
   -H 'Content-Type: application/json' \
@@ -199,7 +201,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "name": "string",
   "require_active_version": true,
   "template_use_classic_parameter_flow": true,
-  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "time_til_autostop_notify_ms": 0
 }
 ```
 
@@ -265,6 +268,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "organization_name": "string",
   "provisioner": "terraform",
   "require_active_version": true,
+  "time_til_autostop_notify_ms": 0,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
@@ -284,7 +288,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templates/examples \
   -H 'Accept: application/json' \
@@ -346,7 +350,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templates/{templatename} \
   -H 'Accept: application/json' \
@@ -417,6 +421,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "organization_name": "string",
   "provisioner": "terraform",
   "require_active_version": true,
+  "time_til_autostop_notify_ms": 0,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
@@ -436,7 +441,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname} \
   -H 'Accept: application/json' \
@@ -539,7 +544,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous \
   -H 'Accept: application/json' \
@@ -643,7 +648,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templateversions \
   -H 'Content-Type: application/json' \
@@ -770,7 +775,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templates \
   -H 'Accept: application/json' \
@@ -839,6 +844,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "organization_name": "string",
     "provisioner": "terraform",
     "require_active_version": true,
+    "time_til_autostop_notify_ms": 0,
     "time_til_dormant_autodelete_ms": 0,
     "time_til_dormant_ms": 0,
     "updated_at": "2019-08-24T14:15:22Z",
@@ -898,6 +904,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» organization_name`|string(url)|false|||
 |`» provisioner`|string|false|||
 |`» require_active_version`|boolean|false||Require active version mandates that workspaces are built with the active template version.|
+|`» time_til_autostop_notify_ms`|integer|false||Time til autostop notify ms is the duration before the workspace's autostop deadline at which a reminder notification is sent. 0 disables the notification.|
 |`» time_til_dormant_autodelete_ms`|integer|false|||
 |`» time_til_dormant_ms`|integer|false|||
 |`» updated_at`|string(date-time)|false|||
@@ -917,7 +924,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templates/examples \
   -H 'Accept: application/json' \
@@ -973,7 +980,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   -H 'Accept: application/json' \
@@ -1043,6 +1050,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "organization_name": "string",
   "provisioner": "terraform",
   "require_active_version": true,
+  "time_til_autostop_notify_ms": 0,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
@@ -1062,7 +1070,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/templates/{template} \
   -H 'Accept: application/json' \
@@ -1106,7 +1114,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   -H 'Content-Type: application/json' \
@@ -1147,6 +1155,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "max_port_share_level": "owner",
   "name": "string",
   "require_active_version": true,
+  "time_til_autostop_notify_ms": 0,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "update_workspace_dormant_at": true,
@@ -1217,6 +1226,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "organization_name": "string",
   "provisioner": "terraform",
   "require_active_version": true,
+  "time_til_autostop_notify_ms": 0,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
@@ -1236,7 +1246,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templates/{template}/daus \
   -H 'Accept: application/json' \
@@ -1279,7 +1289,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
   -H 'Accept: application/json' \
@@ -1457,7 +1467,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/versions \
   -H 'Content-Type: application/json' \
@@ -1511,7 +1521,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/templates/{template}/versions/archive \
   -H 'Content-Type: application/json' \
@@ -1565,7 +1575,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templateversionname} \
   -H 'Accept: application/json' \
@@ -1740,7 +1750,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
   -H 'Accept: application/json' \
@@ -1841,7 +1851,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion} \
   -H 'Content-Type: application/json' \
@@ -1953,7 +1963,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/archive \
   -H 'Accept: application/json' \
@@ -1997,7 +2007,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}/cancel \
   -H 'Accept: application/json' \
@@ -2041,7 +2051,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/dry-run \
   -H 'Content-Type: application/json' \
@@ -2138,7 +2148,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/dry-run/{jobID} \
   -H 'Accept: application/json' \
@@ -2214,7 +2224,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}/dry-run/{jobID}/cancel \
   -H 'Accept: application/json' \
@@ -2259,7 +2269,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/dry-run/{jobID}/logs \
   -H 'Accept: application/json' \
@@ -2335,7 +2345,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/dry-run/{jobID}/matched-provisioners \
   -H 'Accept: application/json' \
@@ -2375,7 +2385,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/dry-run/{jobID}/resources \
   -H 'Accept: application/json' \
@@ -2672,7 +2682,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/dynamic-parameters \
   -H 'Coder-Session-Token: API_KEY'
@@ -2698,7 +2708,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/dynamic-parameters/evaluate \
   -H 'Content-Type: application/json' \
@@ -2818,7 +2828,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/external-auth \
   -H 'Accept: application/json' \
@@ -2878,7 +2888,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/logs \
   -H 'Accept: application/json' \
@@ -2953,7 +2963,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/parameters \
   -H 'Coder-Session-Token: API_KEY'
@@ -2979,7 +2989,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/presets \
   -H 'Accept: application/json' \
@@ -3046,7 +3056,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/resources \
   -H 'Accept: application/json' \
@@ -3342,7 +3352,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/rich-parameters \
   -H 'Accept: application/json' \
@@ -3441,7 +3451,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/schema \
   -H 'Coder-Session-Token: API_KEY'
@@ -3467,7 +3477,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/unarchive \
   -H 'Accept: application/json' \
@@ -3511,7 +3521,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/variables \
   -H 'Accept: application/json' \

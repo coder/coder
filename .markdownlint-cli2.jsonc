@@ -1,3 +1,11 @@
 {
-	"ignores": ["PLAN.md"],
+	"ignores": [
+		"PLAN.md",
+		// Synced Vale packages (pulled by `vale sync`). Keep aligned with the
+		// Packages directive in .vale.ini so markdownlint never lints upstream
+		// style files we did not author.
+		"docs/.style/styles/Google/**",
+		"docs/.style/styles/alex/**",
+		"docs/.style/styles/write-good/**"
+	],
 }

@@ -16,6 +16,7 @@ import { API, watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import {
 	addChildToParentInCache,
+	applyChatArchiveStateToCaches,
 	archiveChat,
 	cancelChatListRefetches,
 	chatDiffContentsKey,
@@ -30,7 +31,6 @@ import {
 	prependToInfiniteChatsCache,
 	proposeChatTitle,
 	readInfiniteChatsCache,
-	regenerateChatTitle,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
 	unarchiveChat,
@@ -38,10 +38,12 @@ import {
 	updateChatTitle,
 	updateInfiniteChatsCache,
 	userChatPersonalModelOverrides,
+	userChatProviderConfigs,
 } from "#/api/queries/chats";
 import {
 	invalidateWorkspaceMutationQueries,
 	workspaceById,
+	workspaceByIdKey,
 } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
@@ -58,12 +60,19 @@ import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
+	ArchiveAndDeleteError,
 	archiveChatAndDeleteWorkspace,
+	notifyArchiveAndDeleteFailed,
+	notifyDeleteQueueState,
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
-import { getModelOptionsFromConfigs } from "./utils/modelOptions";
+import {
+	getModelOptionsFromConfigs,
+	providerInfoByIDFromUserConfigs,
+} from "./utils/modelOptions";
+import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 import {
 	type ChatDetailError,
@@ -163,6 +172,7 @@ const AgentsPage: FC = () => {
 	// deduplicates the requests.
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const chatProviderConfigsQuery = useQuery(userChatProviderConfigs());
 	const personalModelOverridesQuery = useQuery(
 		userChatPersonalModelOverrides(),
 	);
@@ -206,9 +216,11 @@ const AgentsPage: FC = () => {
 	const archiveChatBase = archiveChat(queryClient);
 	const archiveAgentMutation = useMutation({
 		...archiveChatBase,
-		onSuccess: (_data, chatId) => {
+		onSuccess: (data, chatId) => {
+			archiveChatBase.onSuccess(data, chatId);
 			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
+			clearPersistedRightPanelState(chatId);
 		},
 		onError: (error, chatId, context) => {
 			archiveChatBase.onError(error, chatId, context);
@@ -229,26 +241,46 @@ const AgentsPage: FC = () => {
 				(id) => API.experimental.updateChat(id, { archived: true }),
 				(id) => API.deleteWorkspace(id),
 			),
-		onSuccess: async ({ chatId }) => {
+		onSuccess: ({ chatId, workspaceId, deleteBuild }) => {
+			applyChatArchiveStateToCaches(queryClient, chatId, true);
 			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
-			await invalidateChatListQueries(queryClient);
-			await queryClient.invalidateQueries({
+			clearPersistedRightPanelState(chatId);
+			void invalidateChatListQueries(queryClient);
+			void queryClient.invalidateQueries({
 				queryKey: chatKey(chatId),
 				exact: true,
 			});
-			await queryClient.invalidateQueries({
+			void queryClient.invalidateQueries({
 				queryKey: chatsByWorkspaceKeyPrefix,
 			});
-			await invalidateWorkspaceMutationQueries(queryClient, {
+			void invalidateWorkspaceMutationQueries(queryClient, {
 				organizationName,
 				username: user.username,
 			});
-		},
-		onError: (error) => {
-			toast.error(
-				getErrorMessage(error, "Failed to archive and delete workspace."),
+			notifyDeleteQueueState(
+				queryClient.getQueryData<TypesGen.Workspace>(
+					workspaceByIdKey(workspaceId),
+				),
+				deleteBuild,
 			);
+		},
+		onError: (error, { workspaceId }) => {
+			notifyArchiveAndDeleteFailed(
+				queryClient.getQueryData<TypesGen.Workspace>(
+					workspaceByIdKey(workspaceId),
+				),
+				error,
+				(path) => navigate(path),
+			);
+			// Archive failed after the delete already ran; refresh
+			// workspace state so consumers see the deletion.
+			if (error instanceof ArchiveAndDeleteError && error.step === "archive") {
+				void invalidateWorkspaceMutationQueries(queryClient, {
+					organizationName,
+					username: user.username,
+				});
+			}
 		},
 	});
 	const [pendingArchiveChatId, setPendingArchiveChatId] = useState<
@@ -288,12 +320,6 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to reorder pinned agents."));
 		},
 	});
-	const regenerateTitleMutation = useMutation({
-		...regenerateChatTitle(queryClient),
-		onError: (error: unknown) => {
-			toast.error(getErrorMessage(error, "Failed to generate new title."));
-		},
-	});
 	const proposeTitleMutation = useMutation(proposeChatTitle(queryClient));
 	const renameTitleMutation = useMutation({
 		...updateChatTitle(queryClient),
@@ -301,17 +327,11 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to rename chat."));
 		},
 	});
-	const regeneratingTitleChatIdsRef = useRef<ReadonlySet<string>>(new Set());
-	const [regeneratingTitleChatIds, setRegeneratingTitleChatIds] = useState<
-		readonly string[]
-	>([]);
-	const regeneratingTitlePromisesRef = useRef(
-		new Map<string, Promise<string>>(),
-	);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const catalogModelOptions = getModelOptionsFromConfigs(
 		chatModelConfigsQuery.data,
 		chatModelsQuery.data,
+		providerInfoByIDFromUserConfigs(chatProviderConfigsQuery.data),
 	);
 	const chatList = chatsQuery.data?.pages.flat() ?? [];
 	const isArchiving =
@@ -323,8 +343,12 @@ const AgentsPage: FC = () => {
 		(archiveAndDeleteMutation.isPending
 			? archiveAndDeleteMutation.variables?.chatId
 			: undefined);
+	// A chat in any of these statuses has an in-flight run that
+	// archiving would interrupt, so ask for confirmation first.
 	const isActiveChat = (chat: TypesGen.Chat | undefined) =>
-		chat?.status === "pending" || chat?.status === "running";
+		chat?.status === "running" ||
+		chat?.status === "interrupting" ||
+		chat?.status === "requires_action";
 	const requestArchiveAgent = (chatId: string) => {
 		if (isArchiving) {
 			return;
@@ -406,7 +430,7 @@ const AgentsPage: FC = () => {
 				archiveAndDeleteMutation.mutate(
 					{ chatId, workspaceId },
 					{
-						onSettled: () => {
+						onSuccess: () => {
 							navigateAfterArchive(chatId);
 						},
 					},
@@ -417,11 +441,6 @@ const AgentsPage: FC = () => {
 				// about interrupting a live workspace, which is moot
 				// when the workspace no longer exists.
 				archiveAgentMutation.mutate(chatId, {
-					// Navigate only on success. The proceed/confirm paths
-					// use onSettled because their pre-existing behavior
-					// navigates regardless of delete outcome. This path
-					// has no delete step, so a failed archive should not
-					// redirect the user.
 					onSuccess: () => {
 						navigateAfterArchive(chatId);
 					},
@@ -441,6 +460,8 @@ const AgentsPage: FC = () => {
 			archiveAndDeleteMutation.mutate(pendingArchiveAndDelete, {
 				onSettled: () => {
 					setPendingArchiveAndDelete(null);
+				},
+				onSuccess: () => {
 					navigateAfterArchive(archivedChatId);
 				},
 			});
@@ -457,48 +478,6 @@ const AgentsPage: FC = () => {
 	};
 	const requestReorderPinnedAgent = (chatId: string, pinOrder: number) => {
 		reorderPinnedChatMutation.mutate({ chatId, pinOrder });
-	};
-	const addRegeneratingTitleChatId = (chatId: string) => {
-		if (!chatId || regeneratingTitleChatIdsRef.current.has(chatId)) {
-			return false;
-		}
-		const next = new Set(regeneratingTitleChatIdsRef.current);
-		next.add(chatId);
-		regeneratingTitleChatIdsRef.current = next;
-		setRegeneratingTitleChatIds(Array.from(next));
-		return true;
-	};
-	const removeRegeneratingTitleChatId = (chatId: string) => {
-		if (!regeneratingTitleChatIdsRef.current.has(chatId)) {
-			return;
-		}
-		const next = new Set(regeneratingTitleChatIdsRef.current);
-		next.delete(chatId);
-		regeneratingTitleChatIdsRef.current = next;
-		setRegeneratingTitleChatIds(Array.from(next));
-	};
-	const requestRegenerateTitle = (chatId: string): Promise<string> => {
-		const existing = regeneratingTitlePromisesRef.current.get(chatId);
-		if (existing) {
-			return existing;
-		}
-		addRegeneratingTitleChatId(chatId);
-		const clearRegenerateTitleTracking = () => {
-			regeneratingTitlePromisesRef.current.delete(chatId);
-			removeRegeneratingTitleChatId(chatId);
-		};
-		const promise = regenerateTitleMutation.mutateAsync(chatId).then(
-			(updated) => {
-				clearRegenerateTitleTracking();
-				return updated.title;
-			},
-			(error) => {
-				clearRegenerateTitleTracking();
-				throw error;
-			},
-		);
-		regeneratingTitlePromisesRef.current.set(chatId, promise);
-		return promise;
 	};
 	const requestProposeTitle = async (chatId: string): Promise<string> => {
 		const result = await proposeTitleMutation.mutateAsync(chatId);
@@ -642,6 +621,18 @@ const AgentsPage: FC = () => {
 						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
 							void invalidateChatListQueries(queryClient);
 						}
+						if (chatEvent.kind === "context_dirty") {
+							// The watch payload carries only the lightweight
+							// context flags (the merge above applies them);
+							// refetch the open chat to pull the pinned
+							// resources the single-chat GET computes. Only the
+							// active chat has an observer, so other chats are
+							// merely marked stale.
+							void queryClient.invalidateQueries({
+								queryKey: chatKey(updatedChat.id),
+								exact: true,
+							});
+						}
 					}
 				});
 				return ws;
@@ -676,6 +667,7 @@ const AgentsPage: FC = () => {
 			<AgentsPageView
 				agentId={agentId}
 				chatList={chatList}
+				currentUserId={user.id}
 				catalogModelOptions={catalogModelOptions}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
 				handleNewAgent={handleNewAgent}
@@ -699,10 +691,8 @@ const AgentsPage: FC = () => {
 				requestPinAgent={requestPinAgent}
 				requestUnpinAgent={requestUnpinAgent}
 				requestReorderPinnedAgent={requestReorderPinnedAgent}
-				onRegenerateTitle={requestRegenerateTitle}
 				onProposeTitle={requestProposeTitle}
 				onRenameTitle={requestRenameTitle}
-				regeneratingTitleChatIds={regeneratingTitleChatIds}
 				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
 				isPersonalModelOverridesEnabled={
 					personalModelOverridesQuery.data?.enabled

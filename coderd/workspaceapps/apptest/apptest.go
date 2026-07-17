@@ -1247,6 +1247,34 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			assertWorkspaceLastUsedAtNotUpdated(t, appDetails, testutil.WaitLong)
 		})
 
+		// Security (PLAT-260): must 404 when the URL username segment
+		// names a different owner than the resolved workspace.
+		t.Run("WorkspaceUUIDOwnerMismatchShould404", func(t *testing.T) {
+			t.Parallel()
+
+			appDetails := setupProxyTest(t, nil)
+			otherUserClient, otherUser := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
+			appClient := appDetails.AppClient(t)
+			appClient.SetSessionToken(otherUserClient.SessionToken())
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			forgedApp := appDetails.Apps.Public
+			forgedApp.Username = otherUser.Username
+			forgedApp.WorkspaceName = appDetails.Workspace.ID.String()
+
+			resp, err := requestWithRetries(ctx, t, appClient, http.MethodGet, appDetails.SubdomainAppURL(forgedApp).String(), nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Contains(t, string(body), "404 - Application Not Found")
+			assertWorkspaceLastUsedAtNotUpdated(t, appDetails, testutil.WaitLong)
+		})
+
 		t.Run("RedirectsWithSlash", func(t *testing.T) {
 			t.Parallel()
 

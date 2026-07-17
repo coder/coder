@@ -3659,10 +3659,23 @@ func TestAgent_DebugServer(t *testing.T) {
 	randLogStr, err := cryptorand.String(32)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(logPath, []byte(randLogStr), 0o600))
+	newRotatedLogPath := filepath.Join(logDir, "coder-agent-2026-05-17T20-00-00.000.log")
+	oldRotatedLogPath := filepath.Join(logDir, "coder-agent-2026-05-17T19-00-00.000.log")
+	require.NoError(t, os.WriteFile(newRotatedLogPath, []byte("new rotated log"), 0o600))
+	require.NoError(t, os.WriteFile(oldRotatedLogPath, []byte("old rotated log"), 0o600))
+	now := time.Now()
+	newRotatedModTime := now.Add(-time.Minute)
+	oldRotatedModTime := now.Add(-48 * time.Hour)
+	require.NoError(t, os.Chtimes(newRotatedLogPath, newRotatedModTime, newRotatedModTime))
+	require.NoError(t, os.Chtimes(oldRotatedLogPath, oldRotatedModTime, oldRotatedModTime))
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	//nolint:dogsled
 	conn, _, _, _, agnt := setupAgentWithSecrets(t, agentsdk.Manifest{
 		DERPMap: derpMap,
+		EnvironmentVariables: map[string]string{
+			"AWS_SECRET_ACCESS_KEY": "env-value-should-be-redacted-67890",
+			"EMPTY_VAR":             "",
+		},
 	}, []agentsdk.WorkspaceSecret{
 		{EnvName: "DEBUG_SECRET", Value: []byte("super-secret-value-12345")},
 	}, 0, func(c *agenttest.Client, o *agent.Options) {
@@ -3791,6 +3804,34 @@ func TestAgent_DebugServer(t *testing.T) {
 		require.NoError(t, json.Unmarshal(body, &v))
 	})
 
+	t.Run("ManifestEnvVarValuesRedacted", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/debug/manifest", nil)
+		require.NoError(t, err)
+
+		res, err := srv.Client().Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+
+		require.NotContains(t, string(body), "env-value-should-be-redacted-67890")
+
+		var v agentsdk.Manifest
+		require.NoError(t, json.Unmarshal(body, &v))
+
+		require.Contains(t, v.EnvironmentVariables, "AWS_SECRET_ACCESS_KEY")
+		require.Equal(t, "***REDACTED***", v.EnvironmentVariables["AWS_SECRET_ACCESS_KEY"])
+
+		// Empty values carry no secret and are preserved as empty.
+		require.Contains(t, v.EnvironmentVariables, "EMPTY_VAR")
+		require.Equal(t, "", v.EnvironmentVariables["EMPTY_VAR"])
+	})
+
 	t.Run("Logs", func(t *testing.T) {
 		t.Parallel()
 
@@ -3806,6 +3847,85 @@ func TestAgent_DebugServer(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, string(resBody))
 		require.Contains(t, string(resBody), randLogStr)
+		require.NotContains(t, string(resBody), "new rotated log")
+	})
+
+	t.Run("LogsIncludeActiveOnlyWithAfter", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		url := srv.URL + "/debug/logs?after=" + newRotatedModTime.Add(time.Minute).UTC().Format(time.RFC3339Nano)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		require.NoError(t, err)
+
+		res, err := srv.Client().Do(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		defer res.Body.Close()
+		resBody, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		body := string(resBody)
+		require.Contains(t, body, randLogStr)
+		require.Contains(t, body, "coder-agent.log")
+		require.NotContains(t, body, "new rotated log")
+		require.NotContains(t, body, "old rotated log")
+	})
+
+	t.Run("LogsIncludeRotatedWithAfter", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		url := srv.URL + "/debug/logs?after=" + newRotatedModTime.Add(-time.Minute).UTC().Format(time.RFC3339Nano)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		require.NoError(t, err)
+
+		res, err := srv.Client().Do(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		defer res.Body.Close()
+		resBody, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		body := string(resBody)
+		require.Contains(t, body, randLogStr)
+		require.Contains(t, body, "coder-agent.log")
+		require.Contains(t, body, "coder-agent-2026-05-17T20-00-00.000.log")
+		require.Contains(t, body, "new rotated log")
+		require.NotContains(t, body, "old rotated log")
+	})
+
+	t.Run("LogsIncludeRotatedWithOlderAfter", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		url := srv.URL + "/debug/logs?after=" + oldRotatedModTime.Add(-time.Minute).UTC().Format(time.RFC3339Nano)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		require.NoError(t, err)
+
+		res, err := srv.Client().Do(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		defer res.Body.Close()
+		resBody, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		body := string(resBody)
+		require.Contains(t, body, randLogStr)
+		require.Contains(t, body, "new rotated log")
+		require.Contains(t, body, "old rotated log")
+		require.Less(t, strings.Index(body, randLogStr), strings.Index(body, "new rotated log"))
+		require.Less(t, strings.Index(body, "new rotated log"), strings.Index(body, "old rotated log"))
+	})
+
+	t.Run("LogsInvalidAfter", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/debug/logs?after=nope", nil)
+		require.NoError(t, err)
+
+		res, err := srv.Client().Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
 	})
 }
 

@@ -49,6 +49,36 @@ func TestRateLimit(t *testing.T) {
 		}
 	})
 
+	t.Run("PathNormalizationBypass", func(t *testing.T) {
+		t.Parallel()
+		rtr := chi.NewRouter()
+		rtr.Use(httpmw.RateLimit(1, time.Second))
+		// A wildcard route so that requests for both the canonical path and
+		// its redundant-slash variants reach the same handler, mirroring
+		// how chi's router resolves /api/v2/users//validate-password to the
+		// same handler as /api/v2/users/validate-password in production.
+		rtr.Post("/*", func(rw http.ResponseWriter, r *http.Request) {
+			rw.WriteHeader(http.StatusOK)
+		})
+
+		remoteAddr := randRemoteAddr()
+		paths := []string{
+			"/api/v2/users/validate-password",
+			"/api/v2/users//validate-password",
+			"/api/v2/users///validate-password",
+			"/api/v2/users/validate-password",
+		}
+		for i, p := range paths {
+			req := httptest.NewRequest("POST", p, nil)
+			req.RemoteAddr = remoteAddr
+			rec := httptest.NewRecorder()
+			rtr.ServeHTTP(rec, req)
+			resp := rec.Result()
+			_ = resp.Body.Close()
+			require.Equal(t, i != 0, resp.StatusCode == http.StatusTooManyRequests, "request %d (%s)", i, p)
+		}
+	})
+
 	t.Run("RandomIPs", func(t *testing.T) {
 		t.Parallel()
 		rtr := chi.NewRouter()
@@ -286,9 +316,7 @@ func TestConcurrencyLimit(t *testing.T) {
 
 		var wg sync.WaitGroup
 		for i := 0; i < maxConcurrency; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/", nil)
 				if err != nil {
 					results <- result{err: err}
@@ -301,7 +329,7 @@ func TestConcurrencyLimit(t *testing.T) {
 				}
 				defer resp.Body.Close()
 				results <- result{statusCode: resp.StatusCode}
-			}()
+			})
 		}
 
 		// Wait for all requests to enter the handler with a timeout.

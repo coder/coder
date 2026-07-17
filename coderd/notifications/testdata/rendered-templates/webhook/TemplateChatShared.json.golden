@@ -1,0 +1,30 @@
+{
+  "_version": "1.1",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
+  "payload": {
+    "_version": "1.2",
+    "notification_name": "Chat Shared",
+    "notification_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [
+      {
+        "label": "View chat",
+        "url": "http://test.com/agents/00000000-0000-0000-0000-000000000000"
+      }
+    ],
+    "labels": {
+      "chat_id": "00000000-0000-0000-0000-000000000000",
+      "chat_title": "Onboarding kickoff",
+      "initiator": "alice"
+    },
+    "data": {},
+    "targets": null
+  },
+  "title": "alice shared a chat with you",
+  "title_markdown": "alice shared a chat with you",
+  "body": "alice shared the chat \"Onboarding kickoff\" with you.",
+  "body_markdown": "alice shared the chat \"**Onboarding kickoff**\" with you."
+}

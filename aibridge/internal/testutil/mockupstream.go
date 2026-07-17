@@ -23,6 +23,7 @@ import (
 
 	"github.com/coder/coder/v2/aibridge/fixtures"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
+	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 // UpstreamResponse defines a single response that MockUpstream will replay
@@ -81,6 +82,16 @@ func NewErrorResponse(status int, retryAfter string) UpstreamResponse {
 
 	rawBytes := []byte(raw)
 	return UpstreamResponse{Streaming: rawBytes, Blocking: rawBytes}
+}
+
+// KeyFromHeader reads the API key an upstream request carried in the named
+// auth header. Authorization headers are unwrapped from their "Bearer "
+// prefix, and other headers are returned verbatim.
+func KeyFromHeader(name string, h http.Header) string {
+	if name == "Authorization" {
+		return utils.ExtractBearerToken(h.Get(name))
+	}
+	return h.Get(name)
 }
 
 // ReceivedRequest captures the details of a single request handled by MockUpstream.

@@ -6,13 +6,6 @@ import { Shimmer } from "./Shimmer";
 const meta: Meta<typeof Conversation> = {
 	title: "pages/AgentsPage/ChatElements/Conversation",
 	component: Conversation,
-	decorators: [
-		(Story) => (
-			<div className="max-w-3xl rounded-lg border border-solid border-border-default bg-surface-primary p-4">
-				<Story />
-			</div>
-		),
-	],
 };
 
 export default meta;

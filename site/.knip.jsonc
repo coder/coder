@@ -20,9 +20,10 @@
 		// exclusion once the settings page lands.
 		"src/api/queries/chatDebugLogging.ts"
 	],
-	"ignoreBinaries": ["protoc"],
+	"ignoreBinaries": ["make", "protoc"],
 	"ignoreDependencies": [
 		"@babel/plugin-syntax-typescript",
+		"@coder/pixel-storybook",
 		"@types/react-virtualized-auto-sizer",
 		"ts-proto"
 	]

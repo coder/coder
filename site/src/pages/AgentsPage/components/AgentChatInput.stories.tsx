@@ -1,9 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { MonitorDotIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import {
+	MockChatContextClean,
+	MockMCPServerConfig,
+} from "#/testHelpers/chatEntities";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
+import { createMockFile } from "#/testHelpers/files";
 import { withProxyProvider } from "#/testHelpers/storybook";
 import {
 	AgentChatInput,
@@ -330,6 +336,23 @@ export const NoModelOptions: Story = {
 	},
 };
 
+export const AIGatewayDisabledShowsSetupNotice: Story = {
+	args: {
+		// canConfigureAgentSetup: false and providerCount/modelCount left
+		// undefined simulates the model-catalog query still loading, which
+		// used to make an admin briefly see the wrong copy before this was
+		// fixed to short-circuit on aiGatewayDisabled directly.
+		canConfigureAgentSetup: false,
+		aiGatewayDisabled: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(/Enable it in your deployment config/),
+		).toBeInTheDocument();
+	},
+};
+
 export const LoadingSpinner: Story = {
 	args: {
 		isDisabled: true,
@@ -402,9 +425,6 @@ export const LongContentScrollable: Story = {
 // Tiny 1x1 transparent PNG as data URI for attachment previews.
 const TINY_PNG =
 	"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-
-const createMockFile = (name: string, type: string) =>
-	new File(["mock-data"], name, { type });
 
 export const WithAttachments: Story = {
 	args: (() => {
@@ -611,9 +631,7 @@ export const LargePasteCreatesAttachmentPreview: Story = {
 		onRemoveAttachment: fn(),
 	},
 	parameters: {
-		chromatic: {
-			disableSnapshot: true,
-		},
+		pixel: { exclude: true },
 	},
 	play: async ({ canvasElement, args }) => {
 		const target = getPasteTarget(canvasElement);
@@ -646,9 +664,7 @@ export const CtrlShiftVBypassesAttachmentCollapse: Story = {
 		onRemoveAttachment: fn(),
 	},
 	parameters: {
-		chromatic: {
-			disableSnapshot: true,
-		},
+		pixel: { exclude: true },
 	},
 	play: async ({ canvasElement, args }) => {
 		const target = getPasteTarget(canvasElement);
@@ -681,39 +697,17 @@ export const CtrlShiftVBypassesAttachmentCollapse: Story = {
 
 const now = "2026-03-19T12:00:00.000Z";
 
-const makeMCPServer = (
+const buildMCPServer = (
 	overrides: Partial<TypesGen.MCPServerConfig> &
 		Pick<TypesGen.MCPServerConfig, "id" | "display_name" | "slug">,
 ): TypesGen.MCPServerConfig => ({
-	id: overrides.id,
-	display_name: overrides.display_name,
-	slug: overrides.slug,
-	description: overrides.description ?? "",
-	icon_url: overrides.icon_url ?? "",
-	transport: overrides.transport ?? "streamable_http",
-	url: overrides.url ?? "https://mcp.example.com/sse",
-	auth_type: overrides.auth_type ?? "none",
-	oauth2_client_id: overrides.oauth2_client_id,
-	has_oauth2_secret: overrides.has_oauth2_secret ?? false,
-	oauth2_auth_url: overrides.oauth2_auth_url,
-	oauth2_token_url: overrides.oauth2_token_url,
-	oauth2_scopes: overrides.oauth2_scopes,
-	api_key_header: overrides.api_key_header,
-	has_api_key: overrides.has_api_key ?? false,
-	has_custom_headers: overrides.has_custom_headers ?? false,
-	tool_allow_list: overrides.tool_allow_list ?? [],
-	tool_deny_list: overrides.tool_deny_list ?? [],
-	availability: overrides.availability ?? "default_on",
-	enabled: overrides.enabled ?? true,
-	model_intent: overrides.model_intent ?? false,
-	allow_in_plan_mode: overrides.allow_in_plan_mode ?? false,
-	forward_coder_headers: overrides.forward_coder_headers ?? false,
-	created_at: overrides.created_at ?? now,
-	updated_at: overrides.updated_at ?? now,
-	auth_connected: overrides.auth_connected ?? false,
+	...MockMCPServerConfig,
+	created_at: now,
+	updated_at: now,
+	...overrides,
 });
 
-const sentryMCP = makeMCPServer({
+const sentryMCP = buildMCPServer({
 	id: "mcp-sentry",
 	display_name: "Sentry",
 	slug: "sentry",
@@ -724,7 +718,7 @@ const sentryMCP = makeMCPServer({
 	enabled: true,
 });
 
-const linearMCP = makeMCPServer({
+const linearMCP = buildMCPServer({
 	id: "mcp-linear",
 	display_name: "Linear",
 	slug: "linear",
@@ -733,7 +727,7 @@ const linearMCP = makeMCPServer({
 	enabled: true,
 });
 
-const githubMCP = makeMCPServer({
+const githubMCP = buildMCPServer({
 	id: "mcp-github",
 	display_name: "GitHub",
 	slug: "github",
@@ -745,6 +739,16 @@ const githubMCP = makeMCPServer({
 });
 
 const githubMCPConnected = { ...githubMCP, auth_connected: true };
+
+const notionMCPConnected = buildMCPServer({
+	id: "mcp-notion",
+	display_name: "Notion",
+	slug: "notion",
+	availability: "default_on",
+	auth_type: "oauth2",
+	auth_connected: true,
+	enabled: true,
+});
 
 const mcpDefaults = {
 	onMCPSelectionChange: fn(),
@@ -804,6 +808,109 @@ export const PlusMenuOpen: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+	},
+};
+
+export const MCPDisconnectControls: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP, githubMCP, notionMCPConnected],
+		selectedMCPServerIds: [linearMCP.id, notionMCPConnected.id],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		expect(
+			await body.findByRole("button", { name: "Disconnect Notion" }),
+		).toBeInTheDocument();
+		expect(
+			body.queryByRole("button", { name: "Disconnect GitHub" }),
+		).not.toBeInTheDocument();
+		expect(body.getByRole("button", { name: "Auth" })).toBeInTheDocument();
+		expect(
+			body.queryByRole("button", { name: "Disconnect Linear" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const MCPDisconnectCancel: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue();
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Disconnect GitHub" }),
+		);
+		expect(await body.findByText("Disconnect GitHub?")).toBeInTheDocument();
+		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
+		await waitFor(() =>
+			expect(body.queryByText("Disconnect GitHub?")).not.toBeInTheDocument(),
+		);
+		expect(API.experimental.disconnectMCPServerOAuth2).not.toHaveBeenCalled();
+	},
+};
+
+export const MCPDisconnectConfirm: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue();
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Disconnect GitHub" }),
+		);
+		await body.findByText("Disconnect GitHub?");
+		await userEvent.click(body.getByRole("button", { name: "Disconnect" }));
+		await waitFor(() =>
+			expect(body.queryByText("Disconnect GitHub?")).not.toBeInTheDocument(),
+		);
+		expect(API.experimental.disconnectMCPServerOAuth2).toHaveBeenCalledTimes(1);
+		expect(API.experimental.disconnectMCPServerOAuth2).toHaveBeenCalledWith(
+			githubMCPConnected.id,
+		);
+	},
+};
+
+export const MCPDisconnectError: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockRejectedValue(
+			new Error("disconnect failed"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Disconnect GitHub" }),
+		);
+		await body.findByText("Disconnect GitHub?");
+		await userEvent.click(body.getByRole("button", { name: "Disconnect" }));
+		await waitFor(() =>
+			expect(API.experimental.disconnectMCPServerOAuth2).toHaveBeenCalled(),
+		);
+		expect(body.getByText("Disconnect GitHub?")).toBeInTheDocument();
 	},
 };
 
@@ -1111,7 +1218,7 @@ export const UncheckSelectedWorkspaceFromPicker: Story = {
 	},
 };
 
-const confluenceMCP = makeMCPServer({
+const confluenceMCP = buildMCPServer({
 	id: "mcp-confluence",
 	display_name: "Confluence Cloud",
 	slug: "confluence",
@@ -1120,7 +1227,7 @@ const confluenceMCP = makeMCPServer({
 	enabled: true,
 });
 
-const datadogMCP = makeMCPServer({
+const datadogMCP = buildMCPServer({
 	id: "mcp-datadog",
 	display_name: "Datadog Monitoring",
 	slug: "datadog",
@@ -1129,7 +1236,7 @@ const datadogMCP = makeMCPServer({
 	enabled: true,
 });
 
-const pagerdutyMCP = makeMCPServer({
+const pagerdutyMCP = buildMCPServer({
 	id: "mcp-pagerduty",
 	display_name: "PagerDuty",
 	slug: "pagerduty",
@@ -1211,32 +1318,12 @@ export const WithContextUsage: Story = {
 	},
 };
 
-/** Tooltip includes loaded AGENTS.md files and discovered skills. */
+/** Tooltip lists the chat's pinned context resources. */
 export const WithContextFiles: Story = {
 	args: {
 		contextUsage: {
 			...baseContextUsage,
-			lastInjectedContext: [
-				{
-					type: "context-file" as const,
-					context_file_path: "/home/coder/project/AGENTS.md",
-				},
-				{
-					type: "context-file" as const,
-					context_file_path: "/home/coder/project/.claude/docs/WORKFLOWS.md",
-					context_file_truncated: true,
-				},
-				{
-					type: "skill" as const,
-					skill_name: "pull-requests",
-					skill_description: "Guide for creating and updating pull requests",
-				},
-				{
-					type: "skill" as const,
-					skill_name: "deep-review",
-					skill_description: "Multi-reviewer code review",
-				},
-			] as TypesGen.ChatMessagePart[],
+			context: MockChatContextClean,
 		},
 	},
 };
@@ -1251,12 +1338,6 @@ export const ContextNearLimit: Story = {
 			outputTokens: 20_000,
 			cacheReadTokens: 4_000,
 			compressionThreshold: 90,
-			lastInjectedContext: [
-				{
-					type: "context-file" as const,
-					context_file_path: "/home/coder/project/AGENTS.md",
-				},
-			] as TypesGen.ChatMessagePart[],
 		},
 	},
 };

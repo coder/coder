@@ -83,6 +83,7 @@ type Options struct {
 	Telemetry         telemetry.Reporter
 	Logger            slog.Logger
 	HideAITasks       bool
+	AIGatewayEnabled  bool
 }
 
 func New(opts *Options) (*Handler, error) {
@@ -266,9 +267,10 @@ type htmlState struct {
 	Regions        string
 	DocsURL        string
 
-	TasksTabVisible string
-	Permissions     string
-	Organizations   string
+	TasksTabVisible  string
+	AIGatewayEnabled string
+	Permissions      string
+	Organizations    string
 }
 
 type csrfState struct {
@@ -434,9 +436,10 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 		return err
 	})
 	eg.Go(func() error {
-		orgs, err := h.opts.Database.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
-			UserID: apiKey.UserID,
-		})
+		// Match the /api/v2/organizations endpoint: RBAC-filtered and
+		// excluding deleted organizations. Membership-scoped queries would
+		// hide organizations that roles like owner can view.
+		orgs, err := h.opts.Database.GetOrganizations(ctx, database.GetOrganizationsParams{})
 		if err == nil {
 			userOrgs = orgs
 		}
@@ -517,6 +520,12 @@ func (h *Handler) populateHTMLState(
 		data, err := json.Marshal(!h.opts.HideAITasks)
 		if err == nil {
 			state.TasksTabVisible = html.EscapeString(string(data))
+		}
+	})
+	wg.Go(func() {
+		data, err := json.Marshal(h.opts.AIGatewayEnabled)
+		if err == nil {
+			state.AIGatewayEnabled = html.EscapeString(string(data))
 		}
 	})
 	wg.Go(func() {

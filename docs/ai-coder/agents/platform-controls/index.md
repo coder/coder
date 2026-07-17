@@ -52,9 +52,7 @@ Administrators can set a system prompt that applies to all agent sessions. This
 is useful for establishing organizational conventions: coding standards,
 commit message formats, preferred libraries, or repository-specific context.
 
-This setting is available under **Agents** > **Settings** >
-**Manage Agents** > **Instructions** and is only accessible to
-administrators. Developers do not see or interact with it.
+This setting is available under **AI Settings** > **Coder Agents** > **Instructions** and is only accessible to administrators. Developers do not see or interact with it.
 
 ### Plan mode instructions
 
@@ -63,8 +61,7 @@ enters plan mode. These instructions supplement the built-in planning behavior
 and are useful for organization-specific planning requirements such as required
 plan sections, approval checkpoints, or review workflows.
 
-This setting is available under **Agents** > **Settings** >
-**Manage Agents** > **Instructions**. Developers do not edit it directly.
+This setting is available under **AI Settings** > **Coder Agents** > **Instructions**. Developers do not edit it directly.
 
 The same value is exposed over the experimental chat configuration API:
 
@@ -147,12 +144,17 @@ for details.
 
 ### Experiments
 
-Administrators can opt in to experimental features under **Agents** >
-**Settings** > **Manage Agents** > **Experiments**. Behavior, configuration
-surface, and APIs may change between releases.
+Administrators enable experimental features using the `--experiments` flag on
+`coder server` (or the `CODER_EXPERIMENTS` environment variable). Once enabled,
+runtime configuration for those features is available under **AI Settings** >
+**Coder Agents**.
 
-See [Experiments](./experiments.md) for the current list of experiments, how
-to enable them, and the relevant API endpoints.
+See the following pages for experiment-gated features:
+
+- [Advisor](./advisor.md) (`--experiments=chat-advisor`)
+- [Virtual desktop](./virtual-desktop.md) (`--experiments=chat-virtual-desktop`)
+
+For chat debug logging (not experiment-gated), see [Chat debug logging](./chat-debug-logging.md).
 
 ## Where we are headed
 

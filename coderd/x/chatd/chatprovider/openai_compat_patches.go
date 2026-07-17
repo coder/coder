@@ -6,16 +6,13 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/coder/coder/v2/internal/googleopenai"
 )
 
 // OpenAI-compatible providers share an API shape but differ in the exact JSON
 // they accept. These patches adjust Fantasy's serialized request body at the
 // transport boundary so higher-level generation code can stay provider agnostic.
-//
-// googleOpenAICompatDummyThoughtSignature is Google's documented last-resort
-// bypass for callers that cannot preserve a real Gemini thought signature.
-// See https://ai.google.dev/gemini-api/docs/thought-signatures.
-const googleOpenAICompatDummyThoughtSignature = "skip_thought_signature_validator"
 
 func withOpenAICompatRequestPatches(
 	client *http.Client,
@@ -91,8 +88,8 @@ func patchOpenAICompatChatCompletionsBody(body []byte, baseURL string, modelID s
 	}
 
 	changed := rewriteOpenAICompatSingleToolChoice(payload)
-	if shouldAddGoogleOpenAICompatThoughtSignatures(baseURL, modelID) {
-		changed = addGoogleOpenAICompatThoughtSignatures(payload) || changed
+	if googleopenai.ShouldPatchOpenAICompatRequest(baseURL, modelID) {
+		changed = googleopenai.AddThoughtSignaturesToLatestTurn(payload) || changed
 	}
 	if !changed {
 		return body
@@ -142,95 +139,5 @@ func rewriteOpenAICompatSingleToolChoice(payload map[string]any) bool {
 	}
 
 	payload["tool_choice"] = "required"
-	return true
-}
-
-// shouldAddGoogleOpenAICompatThoughtSignatures detects direct Gemini OpenAI
-// endpoints and Coder AI Bridge Gemini routes. Other gateways, such as Vercel,
-// keep their own provider-specific compatibility behavior.
-func shouldAddGoogleOpenAICompatThoughtSignatures(baseURL string, modelID string) bool {
-	parsed, ok := parseProviderBaseURL(baseURL)
-	if !ok {
-		return false
-	}
-	host := strings.ToLower(parsed.Hostname())
-	path := strings.ToLower(parsed.EscapedPath())
-	if host == "generativelanguage.googleapis.com" && strings.Contains(path, "/openai") {
-		return true
-	}
-	return host == "coder-aibridge" && isGeminiModelID(modelID)
-}
-
-func isGeminiModelID(modelID string) bool {
-	modelID = strings.ToLower(strings.TrimSpace(modelID))
-	return strings.HasPrefix(modelID, "gemini-") || strings.Contains(modelID, "/gemini-")
-}
-
-// addGoogleOpenAICompatThoughtSignatures adds a dummy thought signature to the
-// first tool call on each assistant tool-call message in the latest user turn.
-// Gemini validates tool-call history with thought signatures, but
-// OpenAI-compatible serialization can drop the original provider metadata.
-func addGoogleOpenAICompatThoughtSignatures(payload map[string]any) bool {
-	messages, ok := payload["messages"].([]any)
-	if !ok {
-		return false
-	}
-
-	currentTurnStart := -1
-	for i, raw := range messages {
-		message, ok := raw.(map[string]any)
-		if !ok {
-			continue
-		}
-		if role, _ := message["role"].(string); role == "user" {
-			currentTurnStart = i
-		}
-	}
-
-	if currentTurnStart == -1 {
-		return false
-	}
-
-	changed := false
-	for _, raw := range messages[currentTurnStart+1:] {
-		message, ok := raw.(map[string]any)
-		if !ok || !isOpenAICompatAssistantRole(message["role"]) {
-			continue
-		}
-		toolCalls, ok := message["tool_calls"].([]any)
-		if !ok || len(toolCalls) == 0 {
-			continue
-		}
-		firstToolCall, ok := toolCalls[0].(map[string]any)
-		if !ok {
-			continue
-		}
-		if ensureGoogleOpenAICompatThoughtSignature(firstToolCall) {
-			changed = true
-		}
-	}
-	return changed
-}
-
-func isOpenAICompatAssistantRole(role any) bool {
-	roleValue, _ := role.(string)
-	return roleValue == "assistant" || roleValue == "model"
-}
-
-func ensureGoogleOpenAICompatThoughtSignature(toolCall map[string]any) bool {
-	extraContent, _ := toolCall["extra_content"].(map[string]any)
-	google, _ := extraContent["google"].(map[string]any)
-	if signature, _ := google["thought_signature"].(string); signature != "" {
-		return false
-	}
-	if extraContent == nil {
-		extraContent = map[string]any{}
-		toolCall["extra_content"] = extraContent
-	}
-	if google == nil {
-		google = map[string]any{}
-		extraContent["google"] = google
-	}
-	google["thought_signature"] = googleOpenAICompatDummyThoughtSignature
 	return true
 }

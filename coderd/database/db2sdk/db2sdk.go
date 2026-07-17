@@ -2,12 +2,12 @@
 package db2sdk
 
 import (
+	"cmp"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/url"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -59,6 +59,7 @@ func AIProvider(row database.AIProvider, keys []database.AIProviderKey) (codersd
 		Type:        codersdk.AIProviderType(row.Type),
 		Name:        row.Name,
 		DisplayName: display,
+		Icon:        row.Icon,
 		Enabled:     row.Enabled,
 		BaseURL:     row.BaseUrl,
 		APIKeys:     maskAIProviderKeys(keys),
@@ -576,8 +577,8 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	if node != nil {
 		workspaceAgent.DERPLatency = map[string]codersdk.DERPRegion{}
 		for rawRegion, latency := range node.DERPLatency {
-			regionParts := strings.SplitN(rawRegion, "-", 2)
-			regionID, err := strconv.Atoi(regionParts[0])
+			regionIDStr, _, _ := strings.Cut(rawRegion, "-")
+			regionID, err := strconv.Atoi(regionIDStr)
 			if err != nil {
 				return codersdk.WorkspaceAgent{}, xerrors.Errorf("convert derp region id %q: %w", rawRegion, err)
 			}
@@ -667,14 +668,12 @@ func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerNa
 }
 
 func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus, agent database.WorkspaceAgent, ownerName string, workspace database.WorkspaceTable) []codersdk.WorkspaceApp {
-	sort.Slice(dbApps, func(i, j int) bool {
-		if dbApps[i].DisplayOrder != dbApps[j].DisplayOrder {
-			return dbApps[i].DisplayOrder < dbApps[j].DisplayOrder
-		}
-		if dbApps[i].DisplayName != dbApps[j].DisplayName {
-			return dbApps[i].DisplayName < dbApps[j].DisplayName
-		}
-		return dbApps[i].Slug < dbApps[j].Slug
+	slices.SortFunc(dbApps, func(a, b database.WorkspaceApp) int {
+		return cmp.Or(
+			cmp.Compare(a.DisplayOrder, b.DisplayOrder),
+			cmp.Compare(a.DisplayName, b.DisplayName),
+			cmp.Compare(a.Slug, b.Slug),
+		)
 	})
 
 	statusesByAppID := map[uuid.UUID][]database.WorkspaceAppStatus{}
@@ -806,8 +805,8 @@ func RecentProvisionerDaemons(now time.Time, staleInterval time.Duration, daemon
 	}
 
 	// Ensure stable order for display and for tests
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].Name < results[j].Name
+	slices.SortFunc(results, func(a, b codersdk.ProvisionerDaemon) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 
 	return results
@@ -1093,46 +1092,6 @@ func PreviewParameterValidation(v *previewtypes.ParameterValidation) codersdk.Pr
 	}
 }
 
-func AIBridgeInterception(interception database.AIBridgeInterception, initiator database.VisibleUser, tokenUsages []database.AIBridgeTokenUsage, userPrompts []database.AIBridgeUserPrompt, toolUsages []database.AIBridgeToolUsage) codersdk.AIBridgeInterception {
-	sdkTokenUsages := slice.List(tokenUsages, AIBridgeTokenUsage)
-	sort.Slice(sdkTokenUsages, func(i, j int) bool {
-		// created_at ASC
-		return sdkTokenUsages[i].CreatedAt.Before(sdkTokenUsages[j].CreatedAt)
-	})
-	sdkUserPrompts := slice.List(userPrompts, AIBridgeUserPrompt)
-	sort.Slice(sdkUserPrompts, func(i, j int) bool {
-		// created_at ASC
-		return sdkUserPrompts[i].CreatedAt.Before(sdkUserPrompts[j].CreatedAt)
-	})
-	sdkToolUsages := slice.List(toolUsages, AIBridgeToolUsage)
-	sort.Slice(sdkToolUsages, func(i, j int) bool {
-		// created_at ASC
-		return sdkToolUsages[i].CreatedAt.Before(sdkToolUsages[j].CreatedAt)
-	})
-	intc := codersdk.AIBridgeInterception{
-		ID:           interception.ID,
-		Initiator:    MinimalUserFromVisibleUser(initiator),
-		Provider:     interception.Provider,
-		ProviderName: interception.ProviderName,
-		Model:        interception.Model,
-		Metadata:     jsonOrEmptyMap(interception.Metadata),
-		StartedAt:    interception.StartedAt,
-		TokenUsages:  sdkTokenUsages,
-		UserPrompts:  sdkUserPrompts,
-		ToolUsages:   sdkToolUsages,
-	}
-	if interception.APIKeyID.Valid {
-		intc.APIKeyID = &interception.APIKeyID.String
-	}
-	if interception.EndedAt.Valid {
-		intc.EndedAt = &interception.EndedAt.Time
-	}
-	if interception.Client.Valid {
-		intc.Client = &interception.Client.String
-	}
-	return intc
-}
-
 func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSession {
 	session := codersdk.AIBridgeSession{
 		ID: row.SessionID,
@@ -1172,46 +1131,6 @@ func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSess
 		session.LastPrompt = &row.LastPrompt
 	}
 	return session
-}
-
-func AIBridgeTokenUsage(usage database.AIBridgeTokenUsage) codersdk.AIBridgeTokenUsage {
-	return codersdk.AIBridgeTokenUsage{
-		ID:                    usage.ID,
-		InterceptionID:        usage.InterceptionID,
-		ProviderResponseID:    usage.ProviderResponseID,
-		InputTokens:           usage.InputTokens,
-		OutputTokens:          usage.OutputTokens,
-		CacheReadInputTokens:  usage.CacheReadInputTokens,
-		CacheWriteInputTokens: usage.CacheWriteInputTokens,
-		Metadata:              jsonOrEmptyMap(usage.Metadata),
-		CreatedAt:             usage.CreatedAt,
-	}
-}
-
-func AIBridgeUserPrompt(prompt database.AIBridgeUserPrompt) codersdk.AIBridgeUserPrompt {
-	return codersdk.AIBridgeUserPrompt{
-		ID:                 prompt.ID,
-		InterceptionID:     prompt.InterceptionID,
-		ProviderResponseID: prompt.ProviderResponseID,
-		Prompt:             prompt.Prompt,
-		Metadata:           jsonOrEmptyMap(prompt.Metadata),
-		CreatedAt:          prompt.CreatedAt,
-	}
-}
-
-func AIBridgeToolUsage(usage database.AIBridgeToolUsage) codersdk.AIBridgeToolUsage {
-	return codersdk.AIBridgeToolUsage{
-		ID:                 usage.ID,
-		InterceptionID:     usage.InterceptionID,
-		ProviderResponseID: usage.ProviderResponseID,
-		ServerURL:          usage.ServerUrl.String,
-		Tool:               usage.Tool,
-		Input:              usage.Input,
-		Injected:           usage.Injected,
-		InvocationError:    usage.InvocationError.String,
-		Metadata:           jsonOrEmptyMap(usage.Metadata),
-		CreatedAt:          usage.CreatedAt,
-	}
 }
 
 // AIBridgeSessionThreads converts session metadata and thread interceptions
@@ -1353,6 +1272,25 @@ func buildAIBridgeThread(
 		// only store the last prompt observed in an interception.
 		if prompts := promptsByInterception[rootIntc.ID]; len(prompts) > 0 {
 			thread.Prompt = &prompts[0].Prompt
+		}
+		if rootIntc.AgentFirewallSessionID.Valid {
+			id := rootIntc.AgentFirewallSessionID.UUID
+			thread.AgentFirewallSessionID = &id
+		}
+		if rootIntc.AgentFirewallSequenceNumber.Valid {
+			n := rootIntc.AgentFirewallSequenceNumber.Int32
+			thread.AgentFirewallSequenceNumber = &n
+		}
+		// Surface the terminal upstream error from the root interception. The
+		// message is only meaningful alongside a type, so it is nested to avoid
+		// a half-populated error on the response.
+		if rootIntc.ErrorType.Valid {
+			errType := string(rootIntc.ErrorType.AIBridgeInterceptionErrorType)
+			thread.ErrorType = &errType
+			if rootIntc.ErrorMessage.Valid {
+				errMsg := rootIntc.ErrorMessage.String
+				thread.ErrorMessage = &errMsg
+			}
 		}
 	}
 
@@ -1501,7 +1439,7 @@ func flattenAndSum(sums map[string]int64, prefix string, m map[string]json.RawMe
 	}
 }
 
-func GroupAIBudget(b database.GroupAiBudget) codersdk.GroupAIBudget {
+func GroupAIBudget(b database.GroupAIBudget) codersdk.GroupAIBudget {
 	return codersdk.GroupAIBudget{
 		GroupID:          b.GroupID,
 		SpendLimitMicros: b.SpendLimitMicros,
@@ -1510,7 +1448,7 @@ func GroupAIBudget(b database.GroupAiBudget) codersdk.GroupAIBudget {
 	}
 }
 
-func UserAIBudgetOverride(o database.UserAiBudgetOverride) codersdk.UserAIBudgetOverride {
+func UserAIBudgetOverride(o database.UserAIBudgetOverride) codersdk.UserAIBudgetOverride {
 	return codersdk.UserAIBudgetOverride{
 		UserID:           o.UserID,
 		GroupID:          o.GroupID,
@@ -1775,6 +1713,10 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	if c.LastTurnSummary.Valid {
 		chat.LastTurnSummary = &c.LastTurnSummary.String
 	}
+	if c.LastReasoningEffort.Valid {
+		lastReasoningEffort := string(c.LastReasoningEffort.ChatReasoningEffort)
+		chat.LastReasoningEffort = &lastReasoningEffort
+	}
 	if c.PlanMode.Valid {
 		chat.PlanMode = codersdk.ChatPlanMode(c.PlanMode.ChatPlanMode)
 	}
@@ -1824,16 +1766,18 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 			})
 		}
 	}
-	if c.LastInjectedContext.Valid {
-		var parts []codersdk.ChatMessagePart
-		// Internal fields are stripped at write time in
-		// chatd.updateLastInjectedContext, so no
-		// StripInternal call is needed here. Unmarshal
-		// errors are suppressed — the column is written by
-		// us with a known schema.
-		if err := json.Unmarshal(c.LastInjectedContext.RawMessage, &parts); err == nil {
-			chat.LastInjectedContext = parts
+	// Report pinned-context state when the chat is context-tracked
+	// (has a pinned hash), dirty, or carries a snapshot error.
+	if len(c.ContextAggregateHash) > 0 || c.ContextDirtySince.Valid || c.ContextError != "" {
+		chatContext := &codersdk.ChatContext{
+			Dirty: c.ContextDirtySince.Valid,
+			Error: c.ContextError,
 		}
+		if c.ContextDirtySince.Valid {
+			dirtySince := c.ContextDirtySince.Time
+			chatContext.DirtySince = &dirtySince
+		}
+		chat.Context = chatContext
 	}
 	return chat
 }

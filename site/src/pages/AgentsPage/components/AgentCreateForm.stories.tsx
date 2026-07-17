@@ -11,6 +11,7 @@ import {
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -18,7 +19,6 @@ import {
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { AgentCreateForm } from "./AgentCreateForm";
-import { AgentSetupNotice } from "./AgentSetupNotice";
 
 // Query key used by permittedOrganizations() in the form.
 const permittedOrgsKey = [
@@ -48,14 +48,10 @@ const modelOptions = [
 const buildModelConfig = (
 	overrides: Partial<TypesGen.ChatModelConfig> = {},
 ): TypesGen.ChatModelConfig => ({
+	...MockChatModelConfig,
 	id: modelConfigID,
-	provider: "openai",
 	model: "gpt-4o",
 	display_name: "GPT-4o",
-	enabled: true,
-	is_default: false,
-	context_limit: 200_000,
-	compression_threshold: 70,
 	created_at: "2026-02-18T00:00:00.000Z",
 	updated_at: "2026-02-18T00:00:00.000Z",
 	...overrides,
@@ -65,7 +61,7 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	buildModelConfig({ is_default: true }),
 	buildModelConfig({
 		id: claudeModelConfigID,
-		provider: "anthropic",
+		ai_provider_id: "provider-anthropic",
 		model: "claude-sonnet-4",
 		display_name: "Claude Sonnet 4",
 		context_limit: 200_000,
@@ -161,6 +157,7 @@ const getCreateOptions = (onCreateChat: unknown): CreateChatSubmission => {
 
 type CreateChatSubmission = {
 	model?: string;
+	reasoningEffort?: string;
 };
 
 export const RootPersonalModelOverrideModelSelected: Story = {
@@ -306,6 +303,64 @@ export const ManualSelectionOverridesRootChatDefault: Story = {
 			expect(args.onCreateChat).toHaveBeenCalled();
 		});
 		expect(getCreateOptions(args.onCreateChat).model).toBe(claudeModelConfigID);
+	},
+};
+
+// Model options with reasoning effort bounds configured. GPT-4o uses the
+// full global scale; Claude is capped at medium.
+const effortModelOptions = [
+	{
+		...modelOptions[0],
+		reasoningEffortDefault: "medium",
+		reasoningEfforts: [
+			"none",
+			"minimal",
+			"low",
+			"medium",
+			"high",
+			"xhigh",
+			"max",
+		],
+	},
+	{
+		...modelOptions[1],
+		reasoningEffortDefault: "low",
+		reasoningEfforts: ["low", "medium"],
+	},
+] as const;
+
+export const SubmitsReasoningEffort: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+		modelOptions: [...effortModelOptions],
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Open the model selector; the effort row shows the model default.
+		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
+		const slider = await body.findByRole("slider");
+		// "medium" is the fourth of seven selectable efforts.
+		expect(slider).toHaveAttribute("aria-valuenow", "3");
+
+		// Bump the effort to "high" with the keyboard, then close.
+		await userEvent.tab();
+		expect(slider).toHaveFocus();
+		await userEvent.keyboard("{ArrowRight}");
+		await waitFor(() => {
+			expect(slider).toHaveAttribute("aria-valuenow", "4");
+		});
+		await userEvent.keyboard("{Escape}");
+
+		await submitMessage(canvasElement, "create with reasoning effort");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		const options = getCreateOptions(args.onCreateChat);
+		expect(options.model).toBe(modelConfigID);
+		expect(options.reasoningEffort).toBe("high");
 	},
 };
 
@@ -461,7 +516,7 @@ export const LoadingPersonalModelOverrides: Story = {
 export const NoModelsConfigured: Story = {
 	args: {
 		...defaultArgs,
-		modelCatalog: { providers: [] },
+		modelCatalog: { providers: [], unsupported_providers: [] },
 		modelOptions: [],
 		isModelCatalogLoading: false,
 		isModelConfigsLoading: false,
@@ -471,10 +526,10 @@ export const NoModelsConfigured: Story = {
 export const MissingProviderAndModelSetup: Story = {
 	args: {
 		...defaultArgs,
-		agentSetupNotice: (
-			<AgentSetupNotice isAdmin providerCount={0} modelCount={0} />
-		),
-		modelCatalog: { providers: [] },
+		canConfigureAgentSetup: true,
+		providerCount: 0,
+		modelCount: 0,
+		modelCatalog: { providers: [], unsupported_providers: [] },
 		modelOptions: [],
 		isModelCatalogLoading: false,
 		isModelConfigsLoading: false,
@@ -494,11 +549,25 @@ export const MissingProviderAndModelSetup: Story = {
 		});
 		expect(canvas.getByRole("link", { name: "provider" })).toHaveAttribute(
 			"href",
-			"/ai/settings",
+			"/ai/settings/providers",
 		);
 		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
 			"href",
-			"/agents/settings/models",
+			"/ai/settings/models",
+		);
+	},
+};
+
+export const AIGatewayDisabled: Story = {
+	args: {
+		...defaultArgs,
+		aiGatewayDisabled: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("textbox")).toHaveAttribute(
+			"aria-disabled",
+			"true",
 		);
 	},
 };

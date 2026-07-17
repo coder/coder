@@ -78,7 +78,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query. Supports title:\u003csubstring\u003e (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:\u003cdraft\\|open\\|merged\\|closed\u003e as repeated or comma-separated values, source:\u003ccreated_by_me\\|shared_with_me\u003e, diff_url:\u003curl\u003e (quote values containing colons), pr:\u003cnumber\u003e (exact PR number match), repo:\u003cowner/repo\u003e (case-insensitive substring match against git remote origin or URL), pr_title:\u003ctext\u003e (case-insensitive PR title substring). Bare terms are not supported; use title:\u003cvalue\u003e for title filtering.",
+                        "description": "Search query. Supports ` + "`" + `title:\u003csubstring\u003e` + "`" + ` (case-insensitive, quote multi-word values), ` + "`" + `archived:bool` + "`" + `, ` + "`" + `has_unread:bool` + "`" + `, ` + "`" + `pr_status:\u003cdraft\\|open\\|merged\\|closed\u003e` + "`" + ` as repeated or comma-separated values, ` + "`" + `source:\u003ccreated_by_me\\|shared_with_me\u003e` + "`" + `, ` + "`" + `diff_url:\u003curl\u003e` + "`" + ` (quote values containing colons), ` + "`" + `pr:\u003cnumber\u003e` + "`" + ` (exact PR number match), ` + "`" + `repo:\u003cowner/repo\u003e` + "`" + ` (case-insensitive substring match against git remote origin or URL), ` + "`" + `pr_title:\u003ctext\u003e` + "`" + ` (case-insensitive PR title substring), ` + "`" + `search:\u003ctext\u003e` + "`" + ` (full-text search across chat titles, PR titles, PR numbers, and message bodies; quote multi-word values; cannot be combined with title, pr_title, or pr). Bare terms are not supported; use ` + "`" + `title:\u003cvalue\u003e` + "`" + ` or ` + "`" + `search:\u003cvalue\u003e` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
@@ -295,50 +295,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/api/experimental/chats/insights/pull-requests": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Get PR insights",
-                "operationId": "get-pr-insights",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Start date (RFC3339)",
-                        "name": "start_date",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "End date (RFC3339)",
-                        "name": "end_date",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.PRInsightsResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
         "/api/experimental/chats/models": {
             "get": {
                 "description": "Experimental: this endpoint is subject to change.",
@@ -547,6 +503,42 @@ const docTemplate = `{
                 "x-apidocgen": {
                     "skip": true
                 }
+            }
+        },
+        "/api/experimental/chats/{chat}/context": {
+            "put": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Refresh chat context",
+                "operationId": "refresh-chat-context",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
             }
         },
         "/api/experimental/chats/{chat}/diff": {
@@ -818,6 +810,42 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/experimental/chats/{chat}/reconcile-invalid": {
+            "post": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Reconcile invalid chat state",
+                "operationId": "reconcile-invalid-chat-state",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/experimental/chats/{chat}/stream": {
             "get": {
                 "description": "Experimental: this endpoint is subject to change.",
@@ -921,6 +949,45 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ]
+            }
+        },
+        "/api/experimental/chats/{chat}/stream/parts": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Stream chat parts via WebSockets",
+                "operationId": "stream-chat-parts-via-websockets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatStreamEvent"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
             }
         },
         "/api/experimental/chats/{chat}/title/regenerate": {
@@ -1225,6 +1292,370 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v2/agent-firewall/sessions/{id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get agent firewall session by ID",
+                "operationId": "get-agent-firewall-session-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Agent firewall session ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AgentFirewallSession"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/agent-firewall/sessions/{id}/logs": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get agent firewall session logs",
+                "operationId": "get-agent-firewall-session-logs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Agent firewall session ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Inclusive lower bound on sequence number",
+                        "name": "seq_after",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Exclusive upper bound on sequence number",
+                        "name": "seq_before",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of logs to return (default 100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AgentFirewallSessionLogsResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/ai-gateway/clients": {
+            "get": {
+                "description": "Alias: also available at /api/v2/aibridge/clients for backward compatibility.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Gateway"
+                ],
+                "summary": "List AI Gateway clients",
+                "operationId": "list-ai-gateway-clients",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/ai-gateway/keys": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "List AI Gateway keys",
+                "operationId": "list-ai-gateway-keys",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.AIGatewayKey"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Create AI Gateway key",
+                "operationId": "create-ai-gateway-key",
+                "parameters": [
+                    {
+                        "description": "Create AI Gateway key request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateAIGatewayKeyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateAIGatewayKeyResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/ai-gateway/keys/{key}": {
+            "delete": {
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete AI Gateway key",
+                "operationId": "delete-ai-gateway-key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Key ID",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/ai-gateway/models": {
+            "get": {
+                "description": "Alias: also available at /api/v2/aibridge/models for backward compatibility.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Gateway"
+                ],
+                "summary": "List AI Gateway models",
+                "operationId": "list-ai-gateway-models",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/ai-gateway/serve": {
+            "get": {
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "AI Gateway serve",
+                "operationId": "ai-gateway-serve",
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                },
+                "security": [
+                    {
+                        "AIGatewayKey": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/ai-gateway/sessions": {
+            "get": {
+                "description": "Alias: also available at /api/v2/aibridge/sessions for backward compatibility.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Gateway"
+                ],
+                "summary": "List AI Gateway sessions",
+                "operationId": "list-ai-gateway-sessions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: initiator, provider, provider_name, model, client, session_id, started_after, started_before.",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Cursor pagination after session ID (cannot be used with offset)",
+                        "name": "after_session_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset pagination (cannot be used with after_session_id)",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIBridgeListSessionsResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/ai-gateway/sessions/{session_id}": {
+            "get": {
+                "description": "Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward compatibility.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Gateway"
+                ],
+                "summary": "Get AI Gateway session threads",
+                "operationId": "get-ai-gateway-session-threads",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Session ID (client_session_id or interception UUID)",
+                        "name": "session_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Thread pagination cursor (forward/older)",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Thread pagination cursor (backward/newer)",
+                        "name": "before_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Number of threads per page (default 50)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIBridgeSessionThreadsResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/ai/providers": {
             "get": {
                 "produces": [
@@ -1384,311 +1815,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.AIProvider"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/v2/aibridge/clients": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "AI Bridge"
-                ],
-                "summary": "List AI Bridge clients",
-                "operationId": "list-ai-bridge-clients",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/v2/aibridge/interceptions": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "AI Bridge"
-                ],
-                "summary": "List AI Bridge interceptions",
-                "operationId": "list-ai-bridge-interceptions",
-                "deprecated": true,
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: initiator, provider, provider_name, model, started_after, started_before.",
-                        "name": "q",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page limit",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Cursor pagination after ID (cannot be used with offset)",
-                        "name": "after_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Offset pagination (cannot be used with after_id)",
-                        "name": "offset",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.AIBridgeListInterceptionsResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/v2/aibridge/keys": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "List AI Gateway keys",
-                "operationId": "list-ai-gateway-keys",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.AIGatewayKey"
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            },
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "Create AI Gateway key",
-                "operationId": "create-ai-gateway-key",
-                "parameters": [
-                    {
-                        "description": "Create AI Gateway key request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.CreateAIGatewayKeyRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.CreateAIGatewayKeyResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/v2/aibridge/keys/{key}": {
-            "delete": {
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "Delete AI Gateway key",
-                "operationId": "delete-ai-gateway-key",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Key ID",
-                        "name": "key",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/v2/aibridge/models": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "AI Bridge"
-                ],
-                "summary": "List AI Bridge models",
-                "operationId": "list-ai-bridge-models",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/v2/aibridge/sessions": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "AI Bridge"
-                ],
-                "summary": "List AI Bridge sessions",
-                "operationId": "list-ai-bridge-sessions",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: initiator, provider, provider_name, model, client, session_id, started_after, started_before.",
-                        "name": "q",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page limit",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Cursor pagination after session ID (cannot be used with offset)",
-                        "name": "after_session_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Offset pagination (cannot be used with after_session_id)",
-                        "name": "offset",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.AIBridgeListSessionsResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/v2/aibridge/sessions/{session_id}": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "AI Bridge"
-                ],
-                "summary": "Get AI Bridge session threads",
-                "operationId": "get-ai-bridge-session-threads",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Session ID (client_session_id or interception UUID)",
-                        "name": "session_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Thread pagination cursor (forward/older)",
-                        "name": "after_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Thread pagination cursor (backward/newer)",
-                        "name": "before_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Number of threads per page (default 50)",
-                        "name": "limit",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.AIBridgeSessionThreadsResponse"
                         }
                     }
                 },
@@ -2087,6 +2213,12 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -5394,7 +5526,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "object",
-                        "description": "Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'})",
+                        "description": "Provisioner tags to filter by (JSON of the form ` + "`" + `{'tag1':'value1','tag2':'value2'}` + "`" + `)",
                         "name": "tags",
                         "in": "query"
                     }
@@ -5505,7 +5637,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "object",
-                        "description": "Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'})",
+                        "description": "Provisioner tags to filter by (JSON of the form ` + "`" + `{'tag1':'value1','tag2':'value2'}` + "`" + `)",
                         "name": "tags",
                         "in": "query"
                     },
@@ -6951,7 +7083,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query for filtering tasks. Supports: owner:\u003cusername/uuid/me\u003e, organization:\u003corg-name/uuid\u003e, status:\u003cstatus\u003e",
+                        "description": "Search query for filtering tasks. Supports: ` + "`" + `owner:\u003cusername/uuid/me\u003e` + "`" + `, ` + "`" + `organization:\u003corg-name/uuid\u003e` + "`" + `, ` + "`" + `status:\u003cstatus\u003e` + "`" + `",
                         "name": "q",
                         "in": "query"
                     }
@@ -7301,6 +7433,163 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/templatebuilder/bases": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "TemplateBuilder"
+                ],
+                "summary": "List template builder base templates",
+                "operationId": "list-template-builder-base-templates",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateBuilderBasesResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/templatebuilder/compose": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/x-tar"
+                ],
+                "tags": [
+                    "TemplateBuilder"
+                ],
+                "summary": "Compose template from base and modules",
+                "operationId": "compose-template-from-base-and-modules",
+                "parameters": [
+                    {
+                        "description": "Compose request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateBuilderComposeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/templatebuilder/compose/template": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "TemplateBuilder"
+                ],
+                "summary": "Compose and create a template",
+                "operationId": "compose-and-create-a-template",
+                "parameters": [
+                    {
+                        "description": "Create template request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateBuilderCreateTemplateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateBuilderCreateTemplateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "504": {
+                        "description": "Gateway Timeout",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/templatebuilder/modules": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "TemplateBuilder"
+                ],
+                "summary": "List template builder modules",
+                "operationId": "list-template-builder-modules",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Base template example ID for OS-compatibility filtering",
+                        "name": "base",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateBuilderModulesResponse"
+                        }
                     }
                 },
                 "security": [
@@ -9360,6 +9649,40 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/users/{user}/ai/spend": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get user AI spend",
+                "operationId": "get-user-ai-spend",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserAISpendStatus"
+                        }
                     }
                 },
                 "security": [
@@ -14348,6 +14671,10 @@ const docTemplate = `{
                 "access_token": {
                     "type": "string"
                 },
+                "expires_at": {
+                    "description": "ExpiresAt is the time the token expires, normalized to UTC (for\nexample, \"2024-06-01T15:04:05Z\"). Zero value means no expiry.",
+                    "type": "string"
+                },
                 "password": {
                     "type": "string"
                 },
@@ -14576,7 +14903,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "anthropic": {
-                    "description": "Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_* env vars instead.",
+                    "description": "Deprecated: Use Providers with indexed ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_*` + "`" + ` env vars instead.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
@@ -14588,7 +14915,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "bedrock": {
-                    "description": "Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_* env vars instead.",
+                    "description": "Deprecated: Use Providers with indexed ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_*` + "`" + ` env vars instead.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.AIBridgeBedrockConfig"
@@ -14629,7 +14956,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "openai": {
-                    "description": "Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_* env vars instead.",
+                    "description": "Deprecated: Use Providers with indexed ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_*` + "`" + ` env vars instead.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
@@ -14637,7 +14964,7 @@ const docTemplate = `{
                     ]
                 },
                 "providers": {
-                    "description": "Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_\u003cKEY\u003e\nenv vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.",
+                    "description": "Providers holds provider instances populated from ` + "`" + `CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_\u003cKEY\u003e` + "`" + `\nenv vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.AIProviderConfig"
@@ -14654,77 +14981,6 @@ const docTemplate = `{
                 },
                 "structured_logging": {
                     "type": "boolean"
-                }
-            }
-        },
-        "codersdk.AIBridgeInterception": {
-            "type": "object",
-            "properties": {
-                "api_key_id": {
-                    "type": "string"
-                },
-                "client": {
-                    "type": "string"
-                },
-                "ended_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "initiator": {
-                    "$ref": "#/definitions/codersdk.MinimalUser"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "model": {
-                    "type": "string"
-                },
-                "provider": {
-                    "type": "string"
-                },
-                "provider_name": {
-                    "type": "string"
-                },
-                "started_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "token_usages": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIBridgeTokenUsage"
-                    }
-                },
-                "tool_usages": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIBridgeToolUsage"
-                    }
-                },
-                "user_prompts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIBridgeUserPrompt"
-                    }
-                }
-            }
-        },
-        "codersdk.AIBridgeListInterceptionsResponse": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "results": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIBridgeInterception"
-                    }
                 }
             }
         },
@@ -14789,6 +15045,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "listen_addr": {
+                    "type": "string"
+                },
+                "target": {
                     "type": "string"
                 },
                 "tls_cert_file": {
@@ -14952,6 +15211,15 @@ const docTemplate = `{
         "codersdk.AIBridgeThread": {
             "type": "object",
             "properties": {
+                "agent_firewall_sequence_number": {
+                    "description": "AgentFirewallSequenceNumber is the firewall sequence number from\nthe root interception. Used to determine the position of this\nLLM request in the firewall event stream. Nil when the request\ndid not pass through the agent firewall.",
+                    "type": "integer"
+                },
+                "agent_firewall_session_id": {
+                    "description": "AgentFirewallSessionID links this thread to an agent firewall\nconfinement session. Nil when the request did not pass through\nthe agent firewall.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "agentic_actions": {
                     "type": "array",
                     "items": {
@@ -14967,6 +15235,14 @@ const docTemplate = `{
                 "ended_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "error_message": {
+                    "description": "ErrorMessage is the raw terminal upstream error message from the root\ninterception. Nil when the interception succeeded.",
+                    "type": "string"
+                },
+                "error_type": {
+                    "description": "ErrorType is the categorized terminal upstream error from the root\ninterception, or nil when the interception succeeded. See the\naibridge_interception_error_type enum for possible values.",
+                    "type": "string"
                 },
                 "id": {
                     "type": "string",
@@ -14987,42 +15263,6 @@ const docTemplate = `{
                 },
                 "token_usage": {
                     "$ref": "#/definitions/codersdk.AIBridgeSessionThreadsTokenUsage"
-                }
-            }
-        },
-        "codersdk.AIBridgeTokenUsage": {
-            "type": "object",
-            "properties": {
-                "cache_read_input_tokens": {
-                    "type": "integer"
-                },
-                "cache_write_input_tokens": {
-                    "type": "integer"
-                },
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "input_tokens": {
-                    "type": "integer"
-                },
-                "interception_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "output_tokens": {
-                    "type": "integer"
-                },
-                "provider_response_id": {
-                    "type": "string"
                 }
             }
         },
@@ -15062,71 +15302,16 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.AIBridgeToolUsage": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "injected": {
-                    "type": "boolean"
-                },
-                "input": {
-                    "type": "string"
-                },
-                "interception_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "invocation_error": {
-                    "type": "string"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "provider_response_id": {
-                    "type": "string"
-                },
-                "server_url": {
-                    "type": "string"
-                },
-                "tool": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.AIBridgeUserPrompt": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "interception_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "prompt": {
-                    "type": "string"
-                },
-                "provider_response_id": {
-                    "type": "string"
-                }
-            }
+        "codersdk.AIBudgetLimitSource": {
+            "type": "string",
+            "enum": [
+                "user_override",
+                "group"
+            ],
+            "x-enum-varnames": [
+                "AIBudgetLimitSourceUserOverride",
+                "AIBudgetLimitSourceGroup"
+            ]
         },
         "codersdk.AIConfig": {
             "type": "object",
@@ -15156,7 +15341,7 @@ const docTemplate = `{
                 "key_prefix": {
                     "type": "string"
                 },
-                "last_used_at": {
+                "last_heartbeat_at": {
                     "type": "string",
                     "format": "date-time"
                 },
@@ -15186,6 +15371,9 @@ const docTemplate = `{
                 },
                 "enabled": {
                     "type": "boolean"
+                },
+                "icon": {
+                    "type": "string"
                 },
                 "id": {
                     "type": "string",
@@ -15390,6 +15578,7 @@ const docTemplate = `{
                 "ai_gateway_key:create",
                 "ai_gateway_key:delete",
                 "ai_gateway_key:read",
+                "ai_gateway_key:update",
                 "ai_model_price:*",
                 "ai_model_price:read",
                 "ai_model_price:update",
@@ -15598,6 +15787,11 @@ const docTemplate = `{
                 "workspace_agent_resource_monitor:create",
                 "workspace_agent_resource_monitor:read",
                 "workspace_agent_resource_monitor:update",
+                "workspace_build_orchestration:*",
+                "workspace_build_orchestration:create",
+                "workspace_build_orchestration:delete",
+                "workspace_build_orchestration:read",
+                "workspace_build_orchestration:update",
                 "workspace_dormant:*",
                 "workspace_dormant:application_connect",
                 "workspace_dormant:create",
@@ -15624,6 +15818,7 @@ const docTemplate = `{
                 "APIKeyScopeAiGatewayKeyCreate",
                 "APIKeyScopeAiGatewayKeyDelete",
                 "APIKeyScopeAiGatewayKeyRead",
+                "APIKeyScopeAiGatewayKeyUpdate",
                 "APIKeyScopeAiModelPriceAll",
                 "APIKeyScopeAiModelPriceRead",
                 "APIKeyScopeAiModelPriceUpdate",
@@ -15832,6 +16027,11 @@ const docTemplate = `{
                 "APIKeyScopeWorkspaceAgentResourceMonitorCreate",
                 "APIKeyScopeWorkspaceAgentResourceMonitorRead",
                 "APIKeyScopeWorkspaceAgentResourceMonitorUpdate",
+                "APIKeyScopeWorkspaceBuildOrchestrationAll",
+                "APIKeyScopeWorkspaceBuildOrchestrationCreate",
+                "APIKeyScopeWorkspaceBuildOrchestrationDelete",
+                "APIKeyScopeWorkspaceBuildOrchestrationRead",
+                "APIKeyScopeWorkspaceBuildOrchestrationUpdate",
                 "APIKeyScopeWorkspaceDormantAll",
                 "APIKeyScopeWorkspaceDormantApplicationConnect",
                 "APIKeyScopeWorkspaceDormantCreate",
@@ -15908,6 +16108,80 @@ const docTemplate = `{
                 "AgentDisplayModeAlwaysExpanded",
                 "AgentDisplayModeAlwaysCollapsed"
             ]
+        },
+        "codersdk.AgentFirewallLog": {
+            "type": "object",
+            "properties": {
+                "allowed": {
+                    "type": "boolean"
+                },
+                "captured_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "detail": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "matched_rule": {
+                    "type": "string"
+                },
+                "method": {
+                    "type": "string"
+                },
+                "proto": {
+                    "type": "string"
+                },
+                "sequence_number": {
+                    "type": "integer"
+                },
+                "session_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.AgentFirewallSession": {
+            "type": "object",
+            "properties": {
+                "confined_process": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.AgentFirewallSessionLogsResponse": {
+            "type": "object",
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentFirewallLog"
+                    }
+                }
+            }
         },
         "codersdk.AgentScriptTiming": {
             "type": "object",
@@ -16443,6 +16717,14 @@ const docTemplate = `{
                 "client_type": {
                     "$ref": "#/definitions/codersdk.ChatClientType"
                 },
+                "context": {
+                    "description": "Context reports the chat's pinned workspace-context state and\nwhether it has drifted from the agent's latest pushed snapshot.\nNil when the chat has no pinned context yet.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatContext"
+                        }
+                    ]
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -16473,16 +16755,12 @@ const docTemplate = `{
                 "last_error": {
                     "$ref": "#/definitions/codersdk.ChatError"
                 },
-                "last_injected_context": {
-                    "description": "LastInjectedContext holds the most recently persisted\ninjected context parts (AGENTS.md files and skills). It\nis updated only when context changes, on first workspace\nattach or agent change.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ChatMessagePart"
-                    }
-                },
                 "last_model_config_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "last_reasoning_effort": {
+                    "type": "string"
                 },
                 "last_turn_summary": {
                     "type": "string"
@@ -16595,6 +16873,118 @@ const docTemplate = `{
                 },
                 "debug_logging_enabled": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ChatContext": {
+            "type": "object",
+            "properties": {
+                "dirty": {
+                    "description": "Dirty is true when the agent's latest snapshot hash differs from the\nchat's pinned hash.",
+                    "type": "boolean"
+                },
+                "dirty_since": {
+                    "description": "DirtySince is when drift was first detected; nil when not dirty.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "error": {
+                    "description": "Error is the snapshot-level error copied from the pinned snapshot\n(empty when healthy).",
+                    "type": "string"
+                },
+                "resources": {
+                    "description": "Resources is the chat's pinned context (instruction files and\nskills) the prompt is built from, metadata only (no bodies). It is\npopulated only on the single-chat GET response; list and watch\npayloads leave it nil to stay lightweight.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatContextResource"
+                    }
+                }
+            }
+        },
+        "codersdk.ChatContextResource": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "description": "Error explains a non-ok Status; empty when healthy. May also carry a\nnon-fatal warning when Status is ok.",
+                    "type": "string"
+                },
+                "kind": {
+                    "$ref": "#/definitions/codersdk.ChatContextResourceKind"
+                },
+                "size_bytes": {
+                    "description": "SizeBytes is the original payload size in bytes.",
+                    "type": "integer"
+                },
+                "skill_description": {
+                    "type": "string"
+                },
+                "skill_name": {
+                    "description": "SkillName and SkillDescription are populated only for skill kinds.",
+                    "type": "string"
+                },
+                "source": {
+                    "description": "Source is the resource locator: the canonical file path for an\ninstruction file, the skill directory for a skill, the file path for\nan MCP config, or the server name for an MCP server.",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Status is the resource's health. Non-ok resources (invalid, unreadable,\noversize, excluded) are still reported so the UI can surface why a\nresource was dropped from the prompt instead of silently omitting it;\ntheir body-specific fields (skill name, tools) are empty.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatContextResourceStatus"
+                        }
+                    ]
+                },
+                "tools": {
+                    "description": "Tools lists the tools exposed by an MCP server. Populated only for the\nmcp_server kind; nil otherwise.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatContextTool"
+                    }
+                }
+            }
+        },
+        "codersdk.ChatContextResourceKind": {
+            "type": "string",
+            "enum": [
+                "instruction_file",
+                "skill",
+                "mcp_config",
+                "mcp_server"
+            ],
+            "x-enum-varnames": [
+                "ChatContextResourceKindInstructionFile",
+                "ChatContextResourceKindSkill",
+                "ChatContextResourceKindMCPConfig",
+                "ChatContextResourceKindMCPServer"
+            ]
+        },
+        "codersdk.ChatContextResourceStatus": {
+            "type": "string",
+            "enum": [
+                "ok",
+                "oversize",
+                "unreadable",
+                "invalid",
+                "excluded"
+            ],
+            "x-enum-varnames": [
+                "ChatContextResourceStatusOK",
+                "ChatContextResourceStatusOversize",
+                "ChatContextResourceStatusUnreadable",
+                "ChatContextResourceStatusInvalid",
+                "ChatContextResourceStatusExcluded"
+            ]
+        },
+        "codersdk.ChatContextTool": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "description": "Description is the tool's human-readable summary; may be empty.",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Name is the tool name with the \"\u003cserver\u003e__\" prefix the agent adds\nstripped, so it reads as the server exposes it.",
+                    "type": "string"
                 }
             }
         },
@@ -16732,7 +17122,8 @@ const docTemplate = `{
                 "config",
                 "usage_limit",
                 "missing_key",
-                "provider_disabled"
+                "provider_disabled",
+                "content_filter"
             ],
             "x-enum-varnames": [
                 "ChatErrorKindGeneric",
@@ -16744,7 +17135,8 @@ const docTemplate = `{
                 "ChatErrorKindConfig",
                 "ChatErrorKindUsageLimit",
                 "ChatErrorKindMissingKey",
-                "ChatErrorKindProviderDisabled"
+                "ChatErrorKindProviderDisabled",
+                "ChatErrorKindContentFilter"
             ]
         },
         "codersdk.ChatFileMetadata": {
@@ -17224,6 +17616,13 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatModelProvider"
                     }
+                },
+                "unsupported_providers": {
+                    "description": "UnsupportedProviders lists configured providers the Agents harness\ncannot use, so the UI can explain the empty state.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatUnsupportedProvider"
+                    }
                 }
             }
         },
@@ -17307,21 +17706,17 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "waiting",
-                "pending",
                 "running",
-                "paused",
-                "completed",
                 "error",
-                "requires_action"
+                "requires_action",
+                "interrupting"
             ],
             "x-enum-varnames": [
                 "ChatStatusWaiting",
-                "ChatStatusPending",
                 "ChatStatusRunning",
-                "ChatStatusPaused",
-                "ChatStatusCompleted",
                 "ChatStatusError",
-                "ChatStatusRequiresAction"
+                "ChatStatusRequiresAction",
+                "ChatStatusInterrupting"
             ]
         },
         "codersdk.ChatStreamActionRequired": {
@@ -17380,7 +17775,9 @@ const docTemplate = `{
                 "error",
                 "queue_update",
                 "retry",
-                "action_required"
+                "action_required",
+                "preview_reset",
+                "history_reset"
             ],
             "x-enum-varnames": [
                 "ChatStreamEventTypeMessagePart",
@@ -17389,17 +17786,28 @@ const docTemplate = `{
                 "ChatStreamEventTypeError",
                 "ChatStreamEventTypeQueueUpdate",
                 "ChatStreamEventTypeRetry",
-                "ChatStreamEventTypeActionRequired"
+                "ChatStreamEventTypeActionRequired",
+                "ChatStreamEventTypePreviewReset",
+                "ChatStreamEventTypeHistoryReset"
             ]
         },
         "codersdk.ChatStreamMessagePart": {
             "type": "object",
             "properties": {
+                "generation_attempt": {
+                    "type": "integer"
+                },
+                "history_version": {
+                    "type": "integer"
+                },
                 "part": {
                     "$ref": "#/definitions/codersdk.ChatMessagePart"
                 },
                 "role": {
                     "$ref": "#/definitions/codersdk.ChatMessageRole"
+                },
+                "seq": {
+                    "type": "integer"
                 }
             }
         },
@@ -17463,6 +17871,18 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatUnsupportedProvider": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "provider": {
+                    "description": "Provider is the provider type, e.g. \"copilot\".",
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ChatUser": {
             "type": "object",
             "required": [
@@ -17522,7 +17942,8 @@ const docTemplate = `{
                 "created",
                 "deleted",
                 "diff_status_change",
-                "action_required"
+                "action_required",
+                "context_dirty"
             ],
             "x-enum-varnames": [
                 "ChatWatchEventKindStatusChange",
@@ -17531,8 +17952,17 @@ const docTemplate = `{
                 "ChatWatchEventKindCreated",
                 "ChatWatchEventKindDeleted",
                 "ChatWatchEventKindDiffStatusChange",
-                "ChatWatchEventKindActionRequired"
+                "ChatWatchEventKindActionRequired",
+                "ChatWatchEventKindContextDirty"
             ]
+        },
+        "codersdk.ClusterConfig": {
+            "type": "object",
+            "properties": {
+                "host": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.ConnectionLatency": {
             "type": "object",
@@ -17754,6 +18184,9 @@ const docTemplate = `{
                 "enabled": {
                     "type": "boolean"
                 },
+                "icon": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -17803,6 +18236,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ChatPlanMode"
                         }
                     ]
+                },
+                "reasoning_effort": {
+                    "type": "string"
                 }
             }
         },
@@ -17861,6 +18297,9 @@ const docTemplate = `{
                 },
                 "plan_mode": {
                     "$ref": "#/definitions/codersdk.ChatPlanMode"
+                },
+                "reasoning_effort": {
+                    "type": "string"
                 },
                 "system_prompt": {
                     "type": "string"
@@ -18133,6 +18572,10 @@ const docTemplate = `{
                     "description": "VersionID is an in-progress or completed job to use as an initial version\nof the template.\n\nThis is required on creation to enable a user-flow of validating a\ntemplate works. There is no reason the data-model cannot support empty\ntemplates, but it doesn't make sense for users.",
                     "type": "string",
                     "format": "uuid"
+                },
+                "time_til_autostop_notify_ms": {
+                    "description": "TimeTilAutostopNotifyMillis allows optionally specifying the duration\nbefore the autostop deadline at which a reminder notification is sent for\nworkspaces created from this template. Defaults to 0 (disabled).",
+                    "type": "integer"
                 }
             }
         },
@@ -18397,6 +18840,42 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateWorkspaceBuildOnSuccessRequest": {
+            "type": "object",
+            "required": [
+                "transition"
+            ],
+            "properties": {
+                "rich_parameter_values": {
+                    "description": "RichParameterValues are applied to the child build. Parameters\nnot listed here fall back to their values from the previous\nbuild, matching normal build behavior.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
+                    }
+                },
+                "template_version_id": {
+                    "description": "TemplateVersionID pins the child build to a specific template\nversion. Pinning requires permission to update the template,\nsince the active version may change before the child build\nruns. When empty, the child build uses the template's active\nversion at the time it runs.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "template_version_preset_id": {
+                    "description": "TemplateVersionPresetID selects a preset for the child build.\nIt requires TemplateVersionID to also be set.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "transition": {
+                    "description": "Transition must be \"start\". The parent build's transition must\nbe \"stop\".",
+                    "enum": [
+                        "start"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceTransition"
+                        }
+                    ]
+                }
+            }
+        },
         "codersdk.CreateWorkspaceBuildReason": {
             "type": "string",
             "enum": [
@@ -18435,6 +18914,14 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ProvisionerLogLevel"
+                        }
+                    ]
+                },
+                "on_success": {
+                    "description": "OnSuccess queues a follow-up workspace build after this build succeeds.\nIt currently supports restarting a workspace by starting it after a\nsuccessful stop build.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.CreateWorkspaceBuildOnSuccessRequest"
                         }
                     ]
                 },
@@ -18581,13 +19068,15 @@ const docTemplate = `{
                 "workspace_apps_api_key",
                 "workspace_apps_token",
                 "oidc_convert",
-                "tailnet_resume"
+                "tailnet_resume",
+                "nats_ca"
             ],
             "x-enum-varnames": [
                 "CryptoKeyFeatureWorkspaceAppsAPIKey",
                 "CryptoKeyFeatureWorkspaceAppsToken",
                 "CryptoKeyFeatureOIDCConvert",
-                "CryptoKeyFeatureTailnetResume"
+                "CryptoKeyFeatureTailnetResume",
+                "CryptoKeyFeatureNATSCA"
             ]
         },
         "codersdk.CustomNotificationContent": {
@@ -18865,6 +19354,9 @@ const docTemplate = `{
                 },
                 "cli_upgrade_message": {
                     "type": "string"
+                },
+                "cluster": {
+                    "$ref": "#/definitions/codersdk.ClusterConfig"
                 },
                 "config": {
                     "type": "string"
@@ -19180,6 +19672,9 @@ const docTemplate = `{
                     "description": "ModelConfigID, when set, overrides the model used for the\nreplacement user message and the assistant turn that follows.\nWhen nil the original message's model is preserved.",
                     "type": "string",
                     "format": "uuid"
+                },
+                "reasoning_effort": {
+                    "type": "string"
                 }
             }
         },
@@ -19257,10 +19752,16 @@ const docTemplate = `{
                 "mcp-server-http",
                 "workspace-build-updates",
                 "nats_pubsub",
-                "minimum-implicit-member"
+                "minimum-implicit-member",
+                "ai-gateway-cost-control",
+                "chat-advisor",
+                "chat-virtual-desktop"
             ],
             "x-enum-comments": {
+                "ExperimentAIGatewayCostControl": "Enables AI Gateway cost control functionality.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
+                "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+                "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentMinimumImplicitMember": "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
@@ -19279,7 +19780,10 @@ const docTemplate = `{
                 "Enables the MCP HTTP server functionality.",
                 "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "Enables embedded NATS pubsub.",
-                "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts."
+                "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
+                "Enables AI Gateway cost control functionality.",
+                "Enables the advisor tool for root agent chats.",
+                "Enables virtual desktop and computer use provider for agents."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -19290,7 +19794,10 @@ const docTemplate = `{
                 "ExperimentMCPServerHTTP",
                 "ExperimentWorkspaceBuildUpdates",
                 "ExperimentNATSPubsub",
-                "ExperimentMinimumImplicitMember"
+                "ExperimentMinimumImplicitMember",
+                "ExperimentAIGatewayCostControl",
+                "ExperimentChatAdvisor",
+                "ExperimentChatVirtualDesktop"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
@@ -20934,6 +21441,9 @@ const docTemplate = `{
                 "auth_url_params": {
                     "type": "object"
                 },
+                "auto_repair_links": {
+                    "type": "boolean"
+                },
                 "client_cert_file": {
                     "type": "string"
                 },
@@ -20952,6 +21462,10 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "email_fallback": {
+                    "description": "EmailFallback allows OIDC logins to fall back to email-based matching\nwhen the ` + "`" + `linked_id` + "`" + ` (issuer+subject) does not match an existing user\nlink. INSECURE: weakens the linked_id check. It exists for IdP\nbrokers that do not issue a stable ` + "`" + `sub` + "`" + ` for the same user across\nconnections.",
+                    "type": "boolean"
                 },
                 "email_field": {
                     "type": "string"
@@ -20998,6 +21512,13 @@ const docTemplate = `{
                 },
                 "organization_mapping": {
                     "type": "object"
+                },
+                "redirect_allowed_hosts": {
+                    "description": "RedirectAllowedHosts is an allowlist of hostnames that may be used as\nthe host of the OIDC redirect_uri. When non-empty, the redirect_uri is\nconstructed from the incoming request's Host header (validated against\nthis list) instead of from AccessURL. Every listed host must also be\nregistered as a valid redirect URI in the OIDC provider. This setting\nis mutually exclusive with RedirectURL: if RedirectURL is set, this\nallowlist is ignored.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "redirect_url": {
                     "description": "RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche\nsituations where the OIDC callback domain is different from the ACCESS_URL\ndomain.",
@@ -21228,191 +21749,6 @@ const docTemplate = `{
                 "organization_assign_default": {
                     "description": "AssignDefault will ensure the default org is always included\nfor every user, regardless of their claims. This preserves legacy behavior.",
                     "type": "boolean"
-                }
-            }
-        },
-        "codersdk.PRInsightsModelBreakdown": {
-            "type": "object",
-            "properties": {
-                "cost_per_merged_pr_micros": {
-                    "type": "integer"
-                },
-                "display_name": {
-                    "type": "string"
-                },
-                "merge_rate": {
-                    "type": "number"
-                },
-                "merged_prs": {
-                    "type": "integer"
-                },
-                "model_config_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "provider": {
-                    "type": "string"
-                },
-                "total_additions": {
-                    "type": "integer"
-                },
-                "total_cost_micros": {
-                    "type": "integer"
-                },
-                "total_deletions": {
-                    "type": "integer"
-                },
-                "total_prs": {
-                    "type": "integer"
-                }
-            }
-        },
-        "codersdk.PRInsightsPullRequest": {
-            "type": "object",
-            "properties": {
-                "additions": {
-                    "type": "integer"
-                },
-                "approved": {
-                    "type": "boolean"
-                },
-                "author_avatar_url": {
-                    "type": "string"
-                },
-                "author_login": {
-                    "type": "string"
-                },
-                "base_branch": {
-                    "type": "string"
-                },
-                "changed_files": {
-                    "type": "integer"
-                },
-                "changes_requested": {
-                    "type": "boolean"
-                },
-                "chat_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "commits": {
-                    "type": "integer"
-                },
-                "cost_micros": {
-                    "type": "integer"
-                },
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "deletions": {
-                    "type": "integer"
-                },
-                "draft": {
-                    "type": "boolean"
-                },
-                "model_display_name": {
-                    "type": "string"
-                },
-                "pr_number": {
-                    "type": "integer"
-                },
-                "pr_title": {
-                    "type": "string"
-                },
-                "pr_url": {
-                    "type": "string"
-                },
-                "reviewer_count": {
-                    "type": "integer"
-                },
-                "state": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.PRInsightsResponse": {
-            "type": "object",
-            "properties": {
-                "by_model": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.PRInsightsModelBreakdown"
-                    }
-                },
-                "recent_prs": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.PRInsightsPullRequest"
-                    }
-                },
-                "summary": {
-                    "$ref": "#/definitions/codersdk.PRInsightsSummary"
-                },
-                "time_series": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.PRInsightsTimeSeriesEntry"
-                    }
-                }
-            }
-        },
-        "codersdk.PRInsightsSummary": {
-            "type": "object",
-            "properties": {
-                "approval_rate": {
-                    "type": "number"
-                },
-                "cost_per_merged_pr_micros": {
-                    "type": "integer"
-                },
-                "merge_rate": {
-                    "type": "number"
-                },
-                "prev_cost_per_merged_pr_micros": {
-                    "type": "integer"
-                },
-                "prev_merge_rate": {
-                    "type": "number"
-                },
-                "prev_total_prs_created": {
-                    "type": "integer"
-                },
-                "prev_total_prs_merged": {
-                    "type": "integer"
-                },
-                "total_additions": {
-                    "type": "integer"
-                },
-                "total_cost_micros": {
-                    "type": "integer"
-                },
-                "total_deletions": {
-                    "type": "integer"
-                },
-                "total_prs_created": {
-                    "type": "integer"
-                },
-                "total_prs_merged": {
-                    "type": "integer"
-                }
-            }
-        },
-        "codersdk.PRInsightsTimeSeriesEntry": {
-            "type": "object",
-            "properties": {
-                "date": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "prs_closed": {
-                    "type": "integer"
-                },
-                "prs_created": {
-                    "type": "integer"
-                },
-                "prs_merged": {
-                    "type": "integer"
                 }
             }
         },
@@ -22553,6 +22889,7 @@ const docTemplate = `{
                 "workspace",
                 "workspace_agent_devcontainers",
                 "workspace_agent_resource_monitor",
+                "workspace_build_orchestration",
                 "workspace_dormant",
                 "workspace_proxy"
             ],
@@ -22605,6 +22942,7 @@ const docTemplate = `{
                 "ResourceWorkspace",
                 "ResourceWorkspaceAgentDevcontainers",
                 "ResourceWorkspaceAgentResourceMonitor",
+                "ResourceWorkspaceBuildOrchestration",
                 "ResourceWorkspaceDormant",
                 "ResourceWorkspaceProxy"
             ]
@@ -22822,6 +23160,7 @@ const docTemplate = `{
                 "ai_provider_key",
                 "ai_gateway_key",
                 "group_ai_budget",
+                "user_ai_budget_override",
                 "chat",
                 "user_secret",
                 "user_skill"
@@ -22858,6 +23197,7 @@ const docTemplate = `{
                 "ResourceTypeAIProviderKey",
                 "ResourceTypeAIGatewayKey",
                 "ResourceTypeGroupAIBudget",
+                "ResourceTypeUserAIBudgetOverride",
                 "ResourceTypeChat",
                 "ResourceTypeUserSecret",
                 "ResourceTypeUserSkill"
@@ -22900,6 +23240,10 @@ const docTemplate = `{
                 },
                 "audit_logs": {
                     "description": "AuditLogs controls how long audit log entries are retained.\nSet to 0 to disable (keep indefinitely).",
+                    "type": "integer"
+                },
+                "boundary_logs": {
+                    "description": "BoundaryLogs controls how long boundary audit log entries are\nretained. Boundary logs record every HTTP request processed by\na Boundary confinement proxy. Set to 0 to disable automatic\ndeletion (keep indefinitely). Adjust to match your\norganization's regulatory requirements.",
                     "type": "integer"
                 },
                 "connection_logs": {
@@ -23596,6 +23940,10 @@ const docTemplate = `{
                     "description": "RequireActiveVersion mandates that workspaces are built with the active\ntemplate version.",
                     "type": "boolean"
                 },
+                "time_til_autostop_notify_ms": {
+                    "description": "TimeTilAutostopNotifyMillis is the duration before the workspace's\nautostop deadline at which a reminder notification is sent. 0 disables\nthe notification.",
+                    "type": "integer"
+                },
                 "time_til_dormant_autodelete_ms": {
                     "type": "integer"
                 },
@@ -23730,6 +24078,80 @@ const docTemplate = `{
                 "$ref": "#/definitions/codersdk.TransitionStats"
             }
         },
+        "codersdk.TemplateBuilderBase": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "os": {
+                    "type": "string"
+                },
+                "prerequisites": {
+                    "type": "string"
+                },
+                "variables": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateBuilderModuleVariable"
+                    }
+                }
+            }
+        },
+        "codersdk.TemplateBuilderBasesResponse": {
+            "type": "object",
+            "properties": {
+                "bases": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateBuilderBase"
+                    }
+                }
+            }
+        },
+        "codersdk.TemplateBuilderComposeModule": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "variables": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.TemplateBuilderComposeRequest": {
+            "type": "object",
+            "properties": {
+                "base_template_id": {
+                    "type": "string"
+                },
+                "base_variable_values": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "modules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateBuilderComposeModule"
+                    }
+                }
+            }
+        },
         "codersdk.TemplateBuilderConfig": {
             "type": "object",
             "properties": {
@@ -23740,6 +24162,151 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.TemplateBuilderCreateTemplateRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "organization_id"
+            ],
+            "properties": {
+                "base_template_id": {
+                    "type": "string"
+                },
+                "base_variable_values": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "modules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateBuilderComposeModule"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "provisioner_tags": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.TemplateBuilderCreateTemplateResponse": {
+            "type": "object",
+            "properties": {
+                "template": {
+                    "$ref": "#/definitions/codersdk.Template"
+                }
+            }
+        },
+        "codersdk.TemplateBuilderModule": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "compatible_os": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "conflicts_with": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "variables": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateBuilderModuleVariable"
+                    }
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.TemplateBuilderModuleVariable": {
+            "type": "object",
+            "properties": {
+                "default": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "sensitive": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.TemplateBuilderVariableType"
+                }
+            }
+        },
+        "codersdk.TemplateBuilderModulesResponse": {
+            "type": "object",
+            "properties": {
+                "modules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateBuilderModule"
+                    }
+                }
+            }
+        },
+        "codersdk.TemplateBuilderVariableType": {
+            "type": "string",
+            "enum": [
+                "string",
+                "number",
+                "bool"
+            ],
+            "x-enum-varnames": [
+                "TemplateBuilderVariableTypeString",
+                "TemplateBuilderVariableTypeNumber",
+                "TemplateBuilderVariableTypeBool"
+            ]
         },
         "codersdk.TemplateExample": {
             "type": "object",
@@ -24413,6 +24980,9 @@ const docTemplate = `{
                 "enabled": {
                     "type": "boolean"
                 },
+                "icon": {
+                    "type": "string"
+                },
                 "settings": {
                     "$ref": "#/definitions/codersdk.AIProviderSettings"
                 }
@@ -24667,6 +25237,10 @@ const docTemplate = `{
                     "description": "RequireActiveVersion mandates workspaces built using this template\nuse the active version of the template. This option has no\neffect on template admins.",
                     "type": "boolean"
                 },
+                "time_til_autostop_notify_ms": {
+                    "description": "TimeTilAutostopNotifyMillis allows optionally specifying the duration\nbefore the autostop deadline at which a reminder notification is sent for\nworkspaces created from this template. Defaults to 0 (disabled). Omitting\nthe field keeps the existing value.",
+                    "type": "integer"
+                },
                 "time_til_dormant_autodelete_ms": {
                     "type": "integer"
                 },
@@ -24789,6 +25363,11 @@ const docTemplate = `{
                 "username"
             ],
             "properties": {
+                "avatar_url": {
+                    "description": "AvatarURL is only applied for users whose login type is password or\nnone. For other login types the avatar is synced from the identity\nprovider on login, so a submitted value is ignored.",
+                    "type": "string",
+                    "format": "uri"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -25143,6 +25722,46 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.UserAISpendStatus": {
+            "type": "object",
+            "properties": {
+                "current_spend_micros": {
+                    "description": "CurrentSpendMicros is the user's spend on their effective group over\nthe current budget period.",
+                    "type": "integer"
+                },
+                "effective_group_id": {
+                    "description": "EffectiveGroupID is the group the spend is attributed to. Null when\nno budget applies.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "limit_source": {
+                    "description": "LimitSource identifies which tier produced the limit. Null when no\nbudget applies.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBudgetLimitSource"
+                        }
+                    ]
+                },
+                "period_end": {
+                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "period_start": {
+                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "spend_limit_micros": {
+                    "description": "SpendLimitMicros is the effective spend limit in micro-units.\nNull when no budget applies to the user (unlimited).",
+                    "type": "integer"
                 },
                 "user_id": {
                     "type": "string",
@@ -28528,6 +29147,11 @@ const docTemplate = `{
         }
     },
     "securityDefinitions": {
+        "AIGatewayKey": {
+            "type": "apiKey",
+            "name": "X-AI-Governance-Gateway-Key",
+            "in": "header"
+        },
         "Authorization": {
             "type": "apiKey",
             "name": "Authorizaiton",
@@ -28538,7 +29162,17 @@ const docTemplate = `{
             "name": "Coder-Session-Token",
             "in": "header"
         }
-    }
+    },
+    "tags": [
+        {
+            "description": "Workspace agent endpoints. These power the workspace agent daemon defined by the ` + "`" + `coder_agent` + "`" + ` Terraform resource. This API is NOT the Coder Agents Chats API. For programmatic access to AI Coder Agents, see the Chats API.",
+            "name": "Agents"
+        },
+        {
+            "description": "Programmatic API for Coder Agents (the user-facing \"Coder Agents\" / \"Chats\" product). Use these endpoints to create, list, and manage AI coding agent sessions.",
+            "name": "Chats"
+        }
+    ]
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it

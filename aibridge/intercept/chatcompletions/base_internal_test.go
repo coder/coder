@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/openai/openai-go/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,10 +16,134 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/quartz"
 )
+
+func TestRecordTokenUsage(t *testing.T) {
+	t.Parallel()
+
+	id := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+
+	tests := []struct {
+		name     string
+		msgID    string
+		usage    openai.CompletionUsage
+		expected *recorder.TokenUsageRecord
+	}{
+		{
+			name:  "with_all_token_details",
+			msgID: "cmpl_full",
+			usage: openai.CompletionUsage{
+				PromptTokens:     100,
+				CompletionTokens: 50,
+				TotalTokens:      150,
+				PromptTokensDetails: openai.CompletionUsagePromptTokensDetails{
+					CachedTokens: 40,
+					AudioTokens:  3,
+				},
+				CompletionTokensDetails: openai.CompletionUsageCompletionTokensDetails{
+					AcceptedPredictionTokens: 7,
+					RejectedPredictionTokens: 2,
+					AudioTokens:              1,
+					ReasoningTokens:          9,
+				},
+			},
+			expected: &recorder.TokenUsageRecord{
+				InterceptionID:       id.String(),
+				MsgID:                "cmpl_full",
+				Input:                60, // 100 prompt - 40 cached
+				Output:               50,
+				CacheReadInputTokens: 40,
+				ExtraTokenTypes: map[string]int64{
+					"prompt_audio":                   3,
+					"completion_accepted_prediction": 7,
+					"completion_rejected_prediction": 2,
+					"completion_audio":               1,
+					"completion_reasoning":           9,
+				},
+			},
+		},
+		{
+			name:  "all_tokens_cached",
+			msgID: "cmpl_cached",
+			usage: openai.CompletionUsage{
+				PromptTokens:     100,
+				CompletionTokens: 20,
+				PromptTokensDetails: openai.CompletionUsagePromptTokensDetails{
+					CachedTokens: 100,
+				},
+			},
+			expected: &recorder.TokenUsageRecord{
+				InterceptionID:       id.String(),
+				MsgID:                "cmpl_cached",
+				Input:                0, // 100 prompt - 100 cached
+				Output:               20,
+				CacheReadInputTokens: 100,
+				ExtraTokenTypes: map[string]int64{
+					"prompt_audio":                   0,
+					"completion_accepted_prediction": 0,
+					"completion_rejected_prediction": 0,
+					"completion_audio":               0,
+					"completion_reasoning":           0,
+				},
+			},
+		},
+		{
+			// Upstream violates the invariant that PromptTokens includes
+			// CachedTokens. Input must clamp to 0 so it never panics a
+			// Prometheus counter when used as an increment.
+			name:  "cached_tokens_exceed_prompt_tokens_clamps_to_zero",
+			msgID: "cmpl_clamp",
+			usage: openai.CompletionUsage{
+				PromptTokens:     40,
+				CompletionTokens: 20,
+				PromptTokensDetails: openai.CompletionUsagePromptTokensDetails{
+					CachedTokens: 100,
+				},
+			},
+			expected: &recorder.TokenUsageRecord{
+				InterceptionID:       id.String(),
+				MsgID:                "cmpl_clamp",
+				Input:                0, // max(0, 40 prompt - 100 cached)
+				Output:               20,
+				CacheReadInputTokens: 100,
+				ExtraTokenTypes: map[string]int64{
+					"prompt_audio":                   0,
+					"completion_accepted_prediction": 0,
+					"completion_rejected_prediction": 0,
+					"completion_audio":               0,
+					"completion_reasoning":           0,
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			rec := &testutil.MockRecorder{}
+			base := &interceptionBase{
+				id:       id,
+				recorder: rec,
+				logger:   slog.Make(),
+			}
+
+			base.recordTokenUsage(t.Context(), tc.msgID, tc.usage)
+
+			tokens := rec.RecordedTokenUsages()
+			require.Len(t, tokens, 1)
+			got := tokens[0]
+			got.CreatedAt = time.Time{} // ignore time
+			require.Equal(t, tc.expected, got)
+			require.GreaterOrEqual(t, got.Input, int64(0), "input must never be negative")
+		})
+	}
+}
 
 func TestScanForCorrelatingToolCallID(t *testing.T) {
 	t.Parallel()
@@ -141,7 +266,7 @@ func TestMarkKeyOnError(t *testing.T) {
 			key, keyPoolErr := pool.Walker().Next()
 			require.Nil(t, keyPoolErr)
 
-			base := &interceptionBase{cfg: config.OpenAI{KeyPool: pool}, logger: slog.Make()}
+			base := &interceptionBase{cred: &intercept.CentralizedPool{Pool: pool}, logger: slog.Make()}
 
 			got := base.markKeyOnError(context.Background(), key, tc.err)
 			assert.Equal(t, tc.expectedReturn, got)

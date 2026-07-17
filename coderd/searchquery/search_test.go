@@ -27,6 +27,7 @@ func TestSearchWorkspace(t *testing.T) {
 		Expected              database.GetWorkspacesParams
 		ExpectedErrorContains string
 		Setup                 func(t *testing.T, db database.Store)
+		ActorID               uuid.UUID
 	}{
 		{
 			Name:     "Empty",
@@ -341,6 +342,19 @@ func TestSearchWorkspace(t *testing.T) {
 			},
 		},
 		{
+			Name:  "SharedWithMe",
+			Query: `shared_with_user:me`,
+			Setup: func(t *testing.T, db database.Store) {
+				dbgen.User(t, db, database.User{
+					ID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+				})
+			},
+			Expected: database.GetWorkspacesParams{
+				SharedWithUserID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+			},
+			ActorID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+		},
+		{
 			Name:  "SharedWithUser",
 			Query: `shared_with_user:3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf`,
 			Setup: func(t *testing.T, db database.Store) {
@@ -485,7 +499,7 @@ func TestSearchWorkspace(t *testing.T) {
 			if c.Setup != nil {
 				c.Setup(t, db)
 			}
-			values, errs := searchquery.Workspaces(context.Background(), db, c.Query, codersdk.Pagination{}, 0)
+			values, errs := searchquery.Workspaces(context.Background(), db, c.Query, codersdk.Pagination{}, 0, c.ActorID)
 			if c.ExpectedErrorContains != "" {
 				assert.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder
@@ -517,7 +531,7 @@ func TestSearchWorkspace(t *testing.T) {
 		query := ``
 		timeout := 1337 * time.Second
 		db, _ := dbtestutil.NewDB(t)
-		values, errs := searchquery.Workspaces(context.Background(), db, query, codersdk.Pagination{}, timeout)
+		values, errs := searchquery.Workspaces(context.Background(), db, query, codersdk.Pagination{}, timeout, uuid.Nil)
 		require.Empty(t, errs)
 		require.Equal(t, int64(timeout.Seconds()), values.AgentInactiveDisconnectTimeoutSeconds)
 	})
@@ -1224,6 +1238,8 @@ func TestSearchChats(t *testing.T) {
 		Query                 string
 		Expected              database.GetChatsParams
 		ExpectedErrorContains string
+		// When non-zero, asserts the exact number of validation errors.
+		ExpectedErrorCount int
 	}{
 		{
 			Name:  "Empty",
@@ -1583,6 +1599,90 @@ func TestSearchChats(t *testing.T) {
 			Query:                 "some random words",
 			ExpectedErrorContains: `unsupported search term: "some random words"`,
 		},
+		{
+			Name:  "Search",
+			Query: "search:foo",
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
+				Search:    "foo",
+			},
+		},
+		{
+			Name:  "SearchQuoted",
+			Query: `search:"foo bar"`,
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly: true,
+				Search:    "foo bar",
+			},
+		},
+		{
+			Name:  "SearchWithStructuralFilters",
+			Query: `repo:coder/coder archived:true search:"foo bar"`,
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: true, Valid: true},
+				OwnedOnly: true,
+				RepoQuery: "coder/coder",
+				Search:    "foo bar",
+			},
+		},
+		{
+			Name:  "SearchWithAllStructuralFilters",
+			Query: `search:foo archived:true repo:coder/coder diff_url:"https://github.com/coder/coder/pull/1" has_unread:true pr_status:open source:created_by_me`,
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: true, Valid: true},
+				OwnedOnly:           true,
+				RepoQuery:           "coder/coder",
+				DiffURL:             sql.NullString{String: "https://github.com/coder/coder/pull/1", Valid: true},
+				HasUnread:           sql.NullBool{Bool: true, Valid: true},
+				PullRequestStatuses: []string{"open"},
+				Search:              "foo",
+			},
+		},
+		{
+			Name:                  "SearchRepeated",
+			Query:                 "search:foo search:bar",
+			ExpectedErrorContains: `search: Query param "search" provided more than once`,
+			ExpectedErrorCount:    1,
+		},
+		{
+			Name:                  "SearchConflictsWithTitle",
+			Query:                 "search:foo title:bar",
+			ExpectedErrorContains: `search: "search" cannot be combined with "title"`,
+		},
+		{
+			Name:                  "SearchConflictsWithPrTitle",
+			Query:                 "search:foo pr_title:bar",
+			ExpectedErrorContains: `search: "search" cannot be combined with "pr_title"`,
+		},
+		{
+			Name:                  "SearchConflictsWithPr",
+			Query:                 "search:foo pr:12",
+			ExpectedErrorContains: `search: "search" cannot be combined with "pr"`,
+		},
+		{
+			Name:                  "SearchConflictsOrderIndependent",
+			Query:                 "title:bar search:foo",
+			ExpectedErrorContains: `search: "search" cannot be combined with "title"`,
+		},
+		{
+			Name:                  "SearchConflictsWithMultiple",
+			Query:                 "search:foo title:bar pr:12",
+			ExpectedErrorContains: `search: "search" cannot be combined with "title", "pr"`,
+		},
+		{
+			// The tokenizer rejects trailing colons before search validation runs.
+			Name:                  "SearchBareKey",
+			Query:                 "search:",
+			ExpectedErrorContains: "cannot start or end with ':'",
+		},
+		{
+			Name:                  "SearchEmptyQuoted",
+			Query:                 `search:""`,
+			ExpectedErrorContains: `search: Query param "search" is required and cannot be empty`,
+			ExpectedErrorCount:    1,
+		},
 	}
 
 	for _, c := range testCases {
@@ -1592,6 +1692,9 @@ func TestSearchChats(t *testing.T) {
 			values, errs := searchquery.Chats(c.Query)
 			if c.ExpectedErrorContains != "" {
 				require.True(t, len(errs) > 0, "expect some errors")
+				if c.ExpectedErrorCount > 0 {
+					require.Len(t, errs, c.ExpectedErrorCount, "expected exact error count")
+				}
 				var s strings.Builder
 				for _, err := range errs {
 					_, _ = s.WriteString(fmt.Sprintf("%s: %s\n", err.Field, err.Detail))

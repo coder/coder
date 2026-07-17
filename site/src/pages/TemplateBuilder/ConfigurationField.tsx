@@ -1,4 +1,5 @@
-import type { FC, ReactNode } from "react";
+import type { FC, PropsWithChildren, ReactNode } from "react";
+import type { TemplateBuilderModuleVariable } from "#/api/typesGenerated";
 import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
@@ -118,20 +119,23 @@ const SelectField: FC<SelectFieldDefinition> = ({
 }) => {
 	const descriptionId = `${id}-description`;
 	return (
-		<div className="flex flex-col gap-2">
+		// All fields span 2 columns, except for dropdowns which can only be 1 column (50% width)
+		<div className="!col-end-1 flex flex-col gap-2">
 			<Label htmlFor={id}>
 				{label}
-				{required && (
+				{required ? (
 					<>
 						{" "}
-						<span className="text-xs font-bold text-content-destructive">
+						<span className="text-sm font-bold text-content-destructive">
 							*
 						</span>
 					</>
+				) : (
+					<OptionalIndicator />
 				)}
 			</Label>
 			{description && (
-				<div id={descriptionId} className="text-xs text-content-secondary">
+				<div id={descriptionId} className="text-sm text-content-secondary">
 					{description}
 				</div>
 			)}
@@ -169,17 +173,19 @@ const RadioField: FC<RadioFieldDefinition> = ({
 		<div className="flex flex-col gap-2">
 			<Label id={labelId}>
 				{label}
-				{required && (
+				{required ? (
 					<>
 						{" "}
-						<span className="text-xs font-bold text-content-destructive">
+						<span className="text-sm font-bold text-content-destructive">
 							*
 						</span>
 					</>
+				) : (
+					<OptionalIndicator />
 				)}
 			</Label>
 			{description && (
-				<div id={descriptionId} className="text-xs text-content-secondary">
+				<div id={descriptionId} className="text-sm text-content-secondary">
 					{description}
 				</div>
 			)}
@@ -231,9 +237,7 @@ const SwitchRow: FC<{
 			onCheckedChange={onCheckedChange}
 			aria-describedby={describedBy}
 		/>
-		<Label htmlFor={id} className="font-normal">
-			{label}
-		</Label>
+		<Label htmlFor={id}>{label}</Label>
 	</div>
 );
 
@@ -257,7 +261,7 @@ const SwitchField: FC<SwitchFieldDefinition> = ({
 						{required && (
 							<>
 								{" "}
-								<span className="text-xs font-bold text-content-destructive">
+								<span className="text-sm font-bold text-content-destructive">
 									*
 								</span>
 							</>
@@ -270,7 +274,10 @@ const SwitchField: FC<SwitchFieldDefinition> = ({
 				describedBy={description ? descriptionId : undefined}
 			/>
 			{description && (
-				<div id={descriptionId} className="text-xs text-content-secondary">
+				<div
+					id={descriptionId}
+					className="ml-[44px] text-sm font-normal text-content-secondary"
+				>
 					{description}
 				</div>
 			)}
@@ -291,17 +298,19 @@ const SwitchGroupField: FC<SwitchGroupFieldDefinition> = ({
 		<div className="flex flex-col gap-2">
 			<Label id={labelId}>
 				{label}
-				{required && (
+				{required ? (
 					<>
 						{" "}
-						<span className="text-xs font-bold text-content-destructive">
+						<span className="text-sm font-bold text-content-destructive">
 							*
 						</span>
 					</>
+				) : (
+					<OptionalIndicator />
 				)}
 			</Label>
 			{description && (
-				<div id={descriptionId} className="text-xs text-content-secondary">
+				<div id={descriptionId} className="text-sm text-content-secondary">
 					{description}
 				</div>
 			)}
@@ -321,5 +330,35 @@ const SwitchGroupField: FC<SwitchGroupFieldDefinition> = ({
 				))}
 			</div>
 		</div>
+	);
+};
+
+export const ConfigurationFieldContainer: FC<PropsWithChildren> = ({
+	children,
+}) => {
+	return (
+		<div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start *:col-start-1 *:col-span-full">
+			{children}
+		</div>
+	);
+};
+
+const OptionalIndicator: FC = () => {
+	return (
+		<>
+			{" "}
+			<span className="text-content-secondary">(optional)</span>
+		</>
+	);
+};
+
+export const ConfigurationFieldLabel: FC<{
+	variable: TemplateBuilderModuleVariable;
+}> = ({ variable }) => {
+	return (
+		<>
+			{variable.name}
+			{!variable.required && <OptionalIndicator />}
+		</>
 	);
 };

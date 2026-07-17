@@ -85,6 +85,11 @@ const ActiveDefaultRolesDialog: FC<ActiveProps> = ({
 					availableRoles={availableRoles}
 					selectedRoles={selected}
 					onChange={setSelected}
+					disabledReason={(role) =>
+						role.built_in
+							? undefined
+							: "Only built-in roles are supported as organization default roles"
+					}
 				/>
 				<DialogFooter>
 					<DialogActions

@@ -48,8 +48,8 @@ func TestTransportFactory_TransportFor(t *testing.T) {
 		t.Parallel()
 
 		// The round-tripper must adapt an upstream-shaped URL.Path
-		// ("/v1/messages") to the aibridge mount layout
-		// ("/api/v2/aibridge/<provider>/v1/messages") so callers don't
+		// ("/v1/messages") to the ai-gateway mount layout
+		// ("/api/v2/ai-gateway/<provider>/v1/messages") so callers don't
 		// have to encode the daemon's routing key into their requests.
 		got := make(chan string, 1)
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +73,7 @@ func TestTransportFactory_TransportFor(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		require.Equal(t, "/api/v2/aibridge/my-anthropic/v1/messages", <-got)
+		require.Equal(t, "/api/v2/ai-gateway/my-anthropic/v1/messages", <-got)
 		require.Equal(t, origPath, req.URL.Path,
 			"caller's request URL must not be mutated by RoundTrip")
 	})

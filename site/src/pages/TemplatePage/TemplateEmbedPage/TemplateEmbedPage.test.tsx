@@ -63,10 +63,17 @@ describe("TemplateEmbedPage", () => {
 	});
 
 	it("populates parameters", async () => {
-		mockDynamicParameterWebSocket({
-			id: 0,
-			parameters: [paramRegion, paramCpu],
-			diagnostics: [],
+		mockDynamicParameterWebSocket((publisher) => {
+			publisher.publishOpen(new Event("open"));
+			publisher.publishMessage(
+				new MessageEvent("message", {
+					data: JSON.stringify({
+						id: 0,
+						parameters: [paramRegion, paramCpu],
+						diagnostics: [],
+					}),
+				}),
+			);
 		});
 
 		renderEmbedPage();
@@ -90,10 +97,18 @@ describe("TemplateEmbedPage", () => {
 			order: 0,
 			ephemeral: true,
 		};
-		mockDynamicParameterWebSocket({
-			id: 0,
-			parameters: [paramRegion, paramEphemeral],
-			diagnostics: [],
+
+		mockDynamicParameterWebSocket((publisher) => {
+			publisher.publishOpen(new Event("open"));
+			publisher.publishMessage(
+				new MessageEvent("message", {
+					data: JSON.stringify({
+						id: 0,
+						parameters: [paramRegion, paramEphemeral],
+						diagnostics: [],
+					}),
+				}),
+			);
 		});
 
 		renderEmbedPage();
@@ -119,10 +134,17 @@ describe("TemplateEmbedPage", () => {
 			order: 0,
 		};
 
-		mockDynamicParameterWebSocket({
-			id: 0,
-			parameters: [param],
-			diagnostics: [],
+		mockDynamicParameterWebSocket((publisher) => {
+			publisher.publishOpen(new Event("open"));
+			publisher.publishMessage(
+				new MessageEvent("message", {
+					data: JSON.stringify({
+						id: 0,
+						parameters: [param],
+						diagnostics: [],
+					}),
+				}),
+			);
 		});
 
 		renderEmbedPage();
@@ -159,10 +181,17 @@ describe("TemplateEmbedPage", () => {
 	});
 
 	it("changes mode to auto when selected", async () => {
-		mockDynamicParameterWebSocket({
-			id: 0,
-			parameters: [paramRegion],
-			diagnostics: [],
+		mockDynamicParameterWebSocket((publisher) => {
+			publisher.publishOpen(new Event("open"));
+			publisher.publishMessage(
+				new MessageEvent("message", {
+					data: JSON.stringify({
+						id: 0,
+						parameters: [paramRegion],
+						diagnostics: [],
+					}),
+				}),
+			);
 		});
 
 		renderEmbedPage();
@@ -197,10 +226,17 @@ describe("TemplateEmbedPage", () => {
 	});
 
 	it("sends updated values when a parameter changes", async () => {
-		const [mockWebSocket] = mockDynamicParameterWebSocket({
-			id: 0,
-			parameters: [paramRegion],
-			diagnostics: [],
+		const [mockWebSocket] = mockDynamicParameterWebSocket((publisher) => {
+			publisher.publishOpen(new Event("open"));
+			publisher.publishMessage(
+				new MessageEvent("message", {
+					data: JSON.stringify({
+						id: 0,
+						parameters: [paramRegion],
+						diagnostics: [],
+					}),
+				}),
+			);
 		});
 
 		renderEmbedPage();
@@ -221,10 +257,17 @@ describe("TemplateEmbedPage", () => {
 	});
 
 	it("updates form state when server responds", async () => {
-		const [, mockPublisher] = mockDynamicParameterWebSocket({
-			id: 0,
-			parameters: [paramRegion],
-			diagnostics: [],
+		const [_, mockPublisher] = mockDynamicParameterWebSocket((publisher) => {
+			publisher.publishOpen(new Event("open"));
+			publisher.publishMessage(
+				new MessageEvent("message", {
+					data: JSON.stringify({
+						id: 0,
+						parameters: [paramRegion],
+						diagnostics: [],
+					}),
+				}),
+			);
 		});
 
 		renderEmbedPage();

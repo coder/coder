@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/google/uuid"
@@ -588,6 +589,15 @@ var AIBudgetPolicies = []string{
 	string(AIBudgetPolicyHighest),
 }
 
+// NewAIBudgetPolicyFromString converts s to an AIBudgetPolicy, falling back to
+// AIBudgetPolicyHighest when s is empty or not a recognized policy.
+func NewAIBudgetPolicyFromString(s string) AIBudgetPolicy {
+	if slices.Contains(AIBudgetPolicies, s) {
+		return AIBudgetPolicy(s)
+	}
+	return AIBudgetPolicyHighest
+}
+
 // AIBudgetPeriod determines when accumulated AI spend resets to zero,
 // aligned to UTC calendar boundaries.
 type AIBudgetPeriod string
@@ -602,6 +612,15 @@ var AIBudgetPeriods = []string{
 	string(AIBudgetPeriodMonth),
 }
 
+// NewAIBudgetPeriodFromString converts s to an AIBudgetPeriod, falling back to
+// AIBudgetPeriodMonth when s is empty or not a recognized period.
+func NewAIBudgetPeriodFromString(s string) AIBudgetPeriod {
+	if slices.Contains(AIBudgetPeriods, s) {
+		return AIBudgetPeriod(s)
+	}
+	return AIBudgetPeriodMonth
+}
+
 // DeploymentValues is the central configuration values the coder server.
 type DeploymentValues struct {
 	Verbose             serpent.Bool   `json:"verbose,omitempty"`
@@ -613,6 +632,7 @@ type DeploymentValues struct {
 	HTTPAddress                             serpent.String                       `json:"http_address,omitempty" typescript:",notnull"`
 	AutobuildPollInterval                   serpent.Duration                     `json:"autobuild_poll_interval,omitempty"`
 	JobReaperDetectorInterval               serpent.Duration                     `json:"job_hang_detector_interval,omitempty"`
+	Cluster                                 ClusterConfig                        `json:"cluster,omitempty" typescript:",notnull"`
 	DERP                                    DERP                                 `json:"derp,omitempty" typescript:",notnull"`
 	Prometheus                              PrometheusConfig                     `json:"prometheus,omitempty" typescript:",notnull"`
 	Pprof                                   PprofConfig                          `json:"pprof,omitempty" typescript:",notnull"`
@@ -706,16 +726,113 @@ func (c SSHConfig) ParseOptions() (map[string]string, error) {
 	return m, nil
 }
 
-// ParseSSHConfigOption parses a single ssh config option into it's key/value pair.
+// ParseSSHConfigOption parses a single ssh config option into its key/value pair.
 func ParseSSHConfigOption(opt string) (key string, value string, err error) {
-	// An equal sign or whitespace is the separator between the key and value.
+	if strings.ContainsAny(opt, "\r\n\x00") {
+		return "", "", xerrors.Errorf("config-ssh option %q must not contain carriage return, newline, or NUL characters", opt)
+	}
+
+	// An equal sign or a space is the separator between the key and value.
 	idx := strings.IndexFunc(opt, func(r rune) bool {
 		return r == ' ' || r == '='
 	})
 	if idx == -1 {
-		return "", "", xerrors.Errorf("invalid config-ssh option %q", opt)
+		return "", "", xerrors.Errorf("config-ssh option %q is missing a key/value separator ('=' or ' ')", opt)
 	}
 	return opt[:idx], opt[idx+1:], nil
+}
+
+// isSingleHostPatternToken reports whether s is safe to write as a single SSH
+// host pattern token. Whitespace or control characters could break out into
+// additional SSH config directives.
+func isSingleHostPatternToken(s string) bool {
+	return !strings.ContainsFunc(s, func(r rune) bool {
+		return unicode.IsSpace(r) || unicode.IsControl(r)
+	})
+}
+
+// ValidateWorkspaceHostnameSuffix validates a deployment-provided SSH hostname
+// suffix before it is made available to clients.
+func ValidateWorkspaceHostnameSuffix(suffix string) error {
+	// The suffix is implicitly prefixed with a dot when matching, so a leading
+	// dot is a config error: it forces the suffix to be a separate DNS label
+	// rather than an ordinary string suffix. E.g. "coder" matches "en.coder"
+	// but not "encoder".
+	if strings.HasPrefix(suffix, ".") {
+		return xerrors.Errorf("workspace hostname suffix %q must not start with a leading dot", suffix)
+	}
+	if strings.ContainsAny(suffix, "*?") {
+		return xerrors.Errorf("workspace hostname suffix %q must not contain glob characters", suffix)
+	}
+	if !isSingleHostPatternToken(suffix) {
+		return xerrors.Errorf("workspace hostname suffix %q must not contain whitespace or control characters", suffix)
+	}
+	return nil
+}
+
+// ValidateWorkspaceHostnamePrefix validates a deployment-provided SSH hostname
+// prefix before it is made available to clients. Unlike the suffix, a prefix
+// may legitimately contain a trailing dot (the default is "coder."), so only
+// the single-token requirement is enforced.
+func ValidateWorkspaceHostnamePrefix(prefix string) error {
+	if !isSingleHostPatternToken(prefix) {
+		return xerrors.Errorf("workspace hostname prefix %q must not contain whitespace or control characters", prefix)
+	}
+	return nil
+}
+
+// ValidateSSHConfigOptions validates deployment SSH settings before they are
+// written to users' local SSH configs.
+func ValidateSSHConfigOptions(options map[string]string) error {
+	// Sort the keys so that, when several options are invalid, the surfaced
+	// error is deterministic across restarts rather than dependent on map
+	// iteration order.
+	keys := make([]string, 0, len(options))
+	for key := range options {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	for _, key := range keys {
+		if err := ValidateSSHConfigOption(key, options[key]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ValidateSSHConfigOption validates one deployment SSH option before it is
+// written to users' local SSH configs.
+func ValidateSSHConfigOption(key, value string) error {
+	if key == "" {
+		return xerrors.New("ssh config option key must not be empty")
+	}
+	if strings.ContainsAny(key, "=\r\n\x00") || strings.ContainsFunc(key, unicode.IsSpace) {
+		return xerrors.Errorf("ssh config option key %q is invalid", key)
+	}
+	// These options are rejected because, written into a user's SSH config by a
+	// deployment, they can execute code, load shared libraries, or override
+	// Coder's managed SSH settings on the client machine. When extending this
+	// list, classify the directive against these categories; the newline and
+	// whitespace checks above already prevent multi-line injection, so only
+	// single-line dangerous directives belong here.
+	switch strings.ToLower(key) {
+	// Structural directives that escape Coder's managed block.
+	case "host", "match", "include",
+		// Directives that run an attacker-supplied command string.
+		"proxycommand", "localcommand", "permitlocalcommand", "remotecommand", "knownhostscommand",
+		// Directives that dlopen an attacker-controlled shared library.
+		"pkcs11provider", "securitykeyprovider", "smartcarddevice",
+		// Directives that execute a command for X11 authentication.
+		"xauthlocation":
+		return xerrors.Errorf("ssh config option %q is not allowed: it can execute code, load shared libraries, or override Coder's managed SSH settings on client machines", key)
+	// ProxyJump conflicts with Coder's managed ProxyCommand.
+	case "proxyjump":
+		return xerrors.Errorf("ssh config option %q is not allowed: it conflicts with Coder's managed ProxyCommand", key)
+	}
+	if strings.ContainsAny(value, "\r\n\x00") {
+		return xerrors.Errorf("ssh config option %q must not contain carriage return, newline, or NUL characters", key)
+	}
+	return nil
 }
 
 // SessionLifetime refers to "sessions" authenticating into Coderd. Coder has
@@ -773,6 +890,10 @@ type DERPConfig struct {
 	ForceWebSockets serpent.Bool   `json:"force_websockets" typescript:",notnull"`
 	URL             serpent.String `json:"url" typescript:",notnull"`
 	Path            serpent.String `json:"path" typescript:",notnull"`
+}
+
+type ClusterConfig struct {
+	Host serpent.String `json:"host" typescript:",notnull"`
 }
 
 type UsageStatsConfig struct {
@@ -858,6 +979,24 @@ type OIDCConfig struct {
 	// situations where the OIDC callback domain is different from the ACCESS_URL
 	// domain.
 	RedirectURL serpent.URL `json:"redirect_url" typescript:",notnull"`
+
+	AutoRepairLinks serpent.Bool `json:"auto_repair_links" typescript:",notnull"`
+
+	// EmailFallback allows OIDC logins to fall back to email-based matching
+	// when the `linked_id` (issuer+subject) does not match an existing user
+	// link. INSECURE: weakens the linked_id check. It exists for IdP
+	// brokers that do not issue a stable `sub` for the same user across
+	// connections.
+	EmailFallback serpent.Bool `json:"email_fallback" typescript:",notnull"`
+
+	// RedirectAllowedHosts is an allowlist of hostnames that may be used as
+	// the host of the OIDC redirect_uri. When non-empty, the redirect_uri is
+	// constructed from the incoming request's Host header (validated against
+	// this list) instead of from AccessURL. Every listed host must also be
+	// registered as a valid redirect URI in the OIDC provider. This setting
+	// is mutually exclusive with RedirectURL: if RedirectURL is set, this
+	// allowlist is ignored.
+	RedirectAllowedHosts serpent.StringArray `json:"redirect_allowed_hosts" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -1096,6 +1235,12 @@ type RetentionConfig struct {
 	// Logs from the latest build are always retained regardless of age.
 	// Defaults to 7 days to preserve existing behavior.
 	WorkspaceAgentLogs serpent.Duration `json:"workspace_agent_logs" typescript:",notnull"`
+	// BoundaryLogs controls how long boundary audit log entries are
+	// retained. Boundary logs record every HTTP request processed by
+	// a Boundary confinement proxy. Set to 0 to disable automatic
+	// deletion (keep indefinitely). Adjust to match your
+	// organization's regulatory requirements.
+	BoundaryLogs serpent.Duration `json:"boundary_logs" typescript:",notnull"`
 }
 
 type NotificationsConfig struct {
@@ -1334,6 +1479,13 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
  a peer to peer connection, Coder uses a distributed relay network backed by
  Tailscale and WireGuard.`,
 			YAML: "derp",
+		}
+		deploymentGroupNetworkingCluster = serpent.Group{
+			Parent: &deploymentGroupNetworking,
+			Name:   "Cluster",
+			Description: `Configure network clustering. Coder Servers in the primary region form a cluster by
+communicating directly.`,
+			YAML: "cluster",
 		}
 		deploymentGroupIntrospection = serpent.Group{
 			Name:        "Introspection",
@@ -1689,7 +1841,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 	workspaceHostnameSuffix := serpent.Option{
 		Name:        "Workspace Hostname Suffix",
-		Description: "Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop. By default it is coder, resulting in names like myworkspace.coder.",
+		Description: "Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop. By default it is coder, resulting in names like myworkspace.coder. The suffix must not start with a dot, and must not contain spaces, newlines, or glob characters (* and ?).",
 		Flag:        "workspace-hostname-suffix",
 		Env:         "CODER_WORKSPACE_HOSTNAME_SUFFIX",
 		YAML:        "workspaceHostnameSuffix",
@@ -1865,7 +2017,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 	aiGatewayAPIDumpDir := serpent.Option{
 		Name:        "AI Gateway API Dump Directory",
-		Description: "Base directory for dumping AI Bridge request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.",
+		Description: "Base directory for dumping AI Gateway request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.",
 		Flag:        "ai-gateway-dump-dir",
 		Env:         "CODER_AI_GATEWAY_DUMP_DIR",
 		Value:       &c.AI.BridgeConfig.APIDumpDir,
@@ -1978,6 +2130,16 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		Default:     ":8888",
 		Group:       &deploymentGroupAIGatewayProxy,
 		YAML:        "listen_addr",
+	}
+	aiGatewayProxyTarget := serpent.Option{
+		Name:        "AI Gateway Proxy Target",
+		Description: "Base URL of the AI Gateway to forward intercepted requests to. Defaults to the embedded AI Gateway address at the Coder access URL plus /api/v2/ai-gateway.",
+		Flag:        "ai-gateway-proxy-target",
+		Env:         "CODER_AI_GATEWAY_PROXY_TARGET",
+		Value:       &c.AI.BridgeProxyConfig.Target,
+		Default:     "",
+		Group:       &deploymentGroupAIGatewayProxy,
+		YAML:        "target",
 	}
 	aiGatewayProxyTLSCertFile := serpent.Option{
 		Name:        "AI Gateway Proxy TLS Certificate File",
@@ -2524,7 +2686,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "OAuth2 GitHub Allowed Teams",
-			Description: "Teams inside organizations the user must be a member of to Login with GitHub. Structured as: <organization-name>/<team-slug>.",
+			Description: "Teams inside organizations the user must be a member of to Login with GitHub. Structured as: `<organization-name>/<team-slug>`.",
 			Flag:        "oauth2-github-allowed-teams",
 			Env:         "CODER_OAUTH2_GITHUB_ALLOWED_TEAMS",
 			Value:       &c.OAuth2.Github.AllowedTeams,
@@ -2888,6 +3050,52 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			UseInstead: nil,
 			// In most deployments, this setting can only complicate and break OIDC.
 			// So hide it, and only surface it to the small number of users that need it.
+			Hidden: true,
+		},
+		{
+			Name: "OIDC Auto Repair Links",
+			Description: "OIDC based users require the IdP issuer and subject in the claims to be static. " +
+				"If a new provider is configured, this option is required to be 'true'. It will reset any existing users to the " +
+				"previous provider, and match by email on their next login.",
+			Required:   false,
+			Default:    "true",
+			Flag:       "oidc-repair-links",
+			Env:        "CODER_OIDC_REPAIR_LINKS",
+			YAML:       "oidc-repair-links",
+			Value:      &c.OIDC.AutoRepairLinks,
+			Group:      &deploymentGroupOIDC,
+			UseInstead: nil,
+			// This flag should be removed after validation in real deployments. Leaving it
+			// as a flag as an escape hatch for now.
+			Hidden: true,
+		},
+		{
+			Name: "OIDC Insecure Email Fallback (DANGEROUS)",
+			Description: "INSECURE: Allow OIDC logins to fall back to email-based matching when " +
+				"the linked_id (issuer+subject) does not match an existing user link. " +
+				"Required for IdP brokers that do not issue a stable 'sub' for the same user across connections. " +
+				"The existing user_link's linked_id is preserved on fallback. " +
+				"Only enable if you understand and accept the risk.",
+			Flag:   "dangerous-oidc-email-fallback",
+			Env:    "CODER_DANGEROUS_OIDC_EMAIL_FALLBACK",
+			YAML:   "dangerousOidcEmailFallback",
+			Value:  &c.OIDC.EmailFallback,
+			Group:  &deploymentGroupOIDC,
+			Hidden: true,
+		},
+		{
+			Name: "OIDC Redirect Allowed Hosts",
+			Description: "An allowlist of hostnames that may be used as the host of the OIDC redirect_uri. " +
+				"When set, the redirect_uri sent to the OIDC provider is built from the incoming request's Host header " +
+				"(validated against this list) instead of from access-url. Every listed host must also be registered " +
+				"as a valid redirect URI in the OIDC provider. Ignored when oidc-redirect-url is set.",
+			Flag:    "oidc-redirect-allowed-hosts",
+			Env:     "CODER_OIDC_REDIRECT_ALLOWED_HOSTS",
+			YAML:    "oidcRedirectAllowedHosts",
+			Default: "",
+			Value:   &c.OIDC.RedirectAllowedHosts,
+			Group:   &deploymentGroupOIDC,
+			// Niche feature for multi-domain deployments. Surface only to operators who need it.
 			Hidden: true,
 		},
 		// Telemetry settings
@@ -3254,7 +3462,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:        "Proxy Trusted Origins",
 			Flag:        "proxy-trusted-origins",
 			Env:         "CODER_PROXY_TRUSTED_ORIGINS",
-			Description: "Origin addresses to respect \"proxy-trusted-headers\". e.g. 192.168.1.0/24.",
+			Description: "Origin addresses to respect \"proxy-trusted-headers\" and X-Forwarded-Host for subdomain app routing. e.g. 192.168.1.0/24.",
 			Value:       &c.ProxyTrustedOrigins,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "proxyTrustedOrigins",
@@ -3440,6 +3648,16 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			YAML:        "browserOnly",
 		},
 		{
+			Name:        "Cluster Host",
+			Description: "Hostname or (more commonly) IP to reach this replica for clustering.",
+			Flag:        "cluster-host",
+			Env:         "CODER_CLUSTER_HOST",
+			Annotations: serpent.Annotations{}.Mark(annotationEnterpriseKey, "true"),
+			Value:       &c.Cluster.Host,
+			Group:       &deploymentGroupNetworkingCluster,
+			YAML:        "clusterHost",
+		},
+		{
 			Name:        "SCIM API Key",
 			Description: "Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.",
 			Flag:        "scim-auth-header",
@@ -3453,7 +3671,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "Use the legacy SCIM implementation instead of the SCIM 2.0 handler. This is provided for backward compatibility for existing users.",
 			Flag:        "scim-use-legacy",
 			Env:         "CODER_SCIM_USE_LEGACY",
-			Hidden:      true,
+			YAML:        "scimUseLegacy",
 			// TODO: When SCIM 2.0 has been tested more, flip this to false to default to the new scim
 			Default:     "true",
 			Annotations: serpent.Annotations{}.Mark(annotationEnterpriseKey, "true"),
@@ -3562,8 +3780,13 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		{
 			Name: "SSH Config Options",
 			Description: "These SSH config options will override the default SSH config options. " +
-				"Provide options in \"key=value\" or \"key value\" format separated by commas." +
-				"Using this incorrectly can break SSH to your deployment, use cautiously.",
+				"Provide options in \"key=value\" or \"key value\" format separated by commas. " +
+				"Using this incorrectly can break SSH to your deployment, use cautiously. " +
+				"The following options are not allowed: " +
+				"Host, Match, Include, ProxyCommand, ProxyJump, LocalCommand, PermitLocalCommand, " +
+				"RemoteCommand, KnownHostsCommand, PKCS11Provider, SecurityKeyProvider, " +
+				"SmartcardDevice, XAuthLocation. " +
+				"Option values must not contain newline, carriage return, or NUL characters.",
 			Flag:   "ssh-config-options",
 			Env:    "CODER_SSH_CONFIG_OPTIONS",
 			YAML:   "sshConfigOptions",
@@ -4072,7 +4295,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: AI Gateway Routing Enabled",
-			Description: "Route chat model requests through AI Gateway when both chat routing and AI Gateway are enabled. Otherwise, chat calls AI providers directly. Pending chats without API key metadata may need a retry or temporary direct routing.",
+			Description: "Deprecated: AI Gateway routing is now the only routing path. Setting this value has no effect. This option will be removed in a future release.",
 			Flag:        "chat-ai-gateway-routing-enabled",
 			Env:         "CODER_CHAT_AI_GATEWAY_ROUTING_ENABLED",
 			Value:       &c.AI.Chat.AIGatewayRoutingEnabled,
@@ -4437,6 +4660,7 @@ Write out the current server config as YAML to stdout.`,
 			UseInstead:  serpent.OptionSet{aiGatewayProxyListenAddr},
 		},
 		aiGatewayProxyListenAddr,
+		aiGatewayProxyTarget,
 		{
 			Name:        "AI Bridge Proxy TLS Certificate File",
 			Description: "Deprecated: use --ai-gateway-proxy-tls-cert-file or CODER_AI_GATEWAY_PROXY_TLS_CERT_FILE instead. Path to the TLS certificate file for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS Key File.",
@@ -4601,6 +4825,17 @@ Write out the current server config as YAML to stdout.`,
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
+			Name:        "Boundary Log Retention",
+			Description: "How long boundary audit log entries are retained. Boundary logs record HTTP requests processed by a Boundary confinement proxy. Set to 0 to disable automatic deletion (keep indefinitely). Adjust to match your organization's regulatory requirements.",
+			Flag:        "boundary-log-retention",
+			Env:         "CODER_BOUNDARY_LOG_RETENTION",
+			Value:       &c.Retention.BoundaryLogs,
+			Default:     "0",
+			Group:       &deploymentGroupRetention,
+			YAML:        "boundary_logs",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
 			Name: "Enable Authorization Recordings",
 			Description: "All api requests will have a header including all authorization calls made during the request. " +
 				"This is used for debugging purposes and only available for dev builds.",
@@ -4628,7 +4863,7 @@ Write out the current server config as YAML to stdout.`,
 			Flag:        "template-builder-registry-url",
 			Env:         "CODER_TEMPLATE_BUILDER_REGISTRY_URL",
 			Value:       &c.TemplateBuilder.RegistryURL,
-			Default:     "https://registry.coder.com",
+			Default:     "registry.coder.com",
 			Group:       &deploymentGroupTemplateBuilder,
 			YAML:        "registryURL",
 		},
@@ -4639,13 +4874,13 @@ Write out the current server config as YAML to stdout.`,
 
 type AIBridgeConfig struct {
 	Enabled serpent.Bool `json:"enabled" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	// Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
 	LegacyOpenAI AIBridgeOpenAIConfig `json:"openai" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	// Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
 	LegacyAnthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	// Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
 	LegacyBedrock AIBridgeBedrockConfig `json:"bedrock" typescript:",notnull"`
-	// Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>
+	// Providers holds provider instances populated from `CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>`
 	// env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
 	Providers []AIProviderConfig `json:"providers,omitempty"`
 	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
@@ -4727,6 +4962,7 @@ type AIProviderConfig struct {
 type AIBridgeProxyConfig struct {
 	Enabled             serpent.Bool        `json:"enabled" typescript:",notnull"`
 	ListenAddr          serpent.String      `json:"listen_addr" typescript:",notnull"`
+	Target              serpent.String      `json:"target" typescript:",notnull"`
 	TLSCertFile         serpent.String      `json:"tls_cert_file" typescript:",notnull"`
 	TLSKeyFile          serpent.String      `json:"tls_key_file" typescript:",notnull"`
 	MITMCertFile        serpent.String      `json:"cert_file" typescript:",notnull"`
@@ -4739,9 +4975,11 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize        serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
-	DebugLoggingEnabled     serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
-	AIGatewayRoutingEnabled serpent.Bool  `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
+	AcquireBatchSize    serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
+	DebugLoggingEnabled serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
+	// Deprecated: AI Gateway routing is now the only routing path. Setting this
+	// value has no effect. This option will be removed in a future release.
+	AIGatewayRoutingEnabled serpent.Bool `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
 }
 
 type AIConfig struct {
@@ -5005,6 +5243,9 @@ const (
 	ExperimentWorkspaceBuildUpdates Experiment = "workspace-build-updates" // Enables publishing workspace build updates to the all builds pubsub channel.
 	ExperimentNATSPubsub            Experiment = "nats_pubsub"             // Enables embedded NATS pubsub.
 	ExperimentMinimumImplicitMember Experiment = "minimum-implicit-member" // Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.
+	ExperimentAIGatewayCostControl  Experiment = "ai-gateway-cost-control" // Enables AI Gateway cost control functionality.
+	ExperimentChatAdvisor           Experiment = "chat-advisor"            // Enables the advisor tool for root agent chats.
+	ExperimentChatVirtualDesktop    Experiment = "chat-virtual-desktop"    // Enables virtual desktop and computer use provider for agents.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5027,6 +5268,12 @@ func (e Experiment) DisplayName() string {
 		return "NATS Pubsub"
 	case ExperimentMinimumImplicitMember:
 		return "Gateway Accounts (minimum implicit member)"
+	case ExperimentAIGatewayCostControl:
+		return "AI Gateway Cost Control"
+	case ExperimentChatAdvisor:
+		return "Chat Advisor"
+	case ExperimentChatVirtualDesktop:
+		return "Chat Virtual Desktop"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5046,13 +5293,18 @@ var ExperimentsKnown = Experiments{
 	ExperimentNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentMinimumImplicitMember,
+	ExperimentAIGatewayCostControl,
+	ExperimentChatAdvisor,
+	ExperimentChatVirtualDesktop,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsSafe = Experiments{}
+var ExperimentsSafe = Experiments{
+	ExperimentMinimumImplicitMember,
+}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.
@@ -5239,6 +5491,23 @@ type SSHConfigResponse struct {
 	SSHConfigOptions map[string]string `json:"ssh_config_options"`
 }
 
+// Validate checks that the deployment-provided SSH configuration is safe to
+// write into a user's local SSH config. Validating here ensures a deployment
+// can never serve config that the client would reject.
+func (r SSHConfigResponse) Validate() error {
+	if r.HostnamePrefix != "" {
+		if err := ValidateWorkspaceHostnamePrefix(r.HostnamePrefix); err != nil {
+			return err
+		}
+	}
+	if r.HostnameSuffix != "" {
+		if err := ValidateWorkspaceHostnameSuffix(r.HostnameSuffix); err != nil {
+			return err
+		}
+	}
+	return ValidateSSHConfigOptions(r.SSHConfigOptions)
+}
+
 // SSHConfiguration returns information about the SSH configuration for the
 // Coder instance.
 func (c *Client) SSHConfiguration(ctx context.Context) (SSHConfigResponse, error) {
@@ -5264,6 +5533,12 @@ const (
 	CryptoKeyFeatureWorkspaceAppsToken CryptoKeyFeature = "workspace_apps_token"
 	CryptoKeyFeatureOIDCConvert        CryptoKeyFeature = "oidc_convert"
 	CryptoKeyFeatureTailnetResume      CryptoKeyFeature = "tailnet_resume"
+	// CryptoKeyFeatureNATSCA is the CA that signs NATS cluster mTLS leaf
+	// certificates. Its secret is a PEM cert+key bundle (not a hex secret like
+	// the other features) and contains a private key, so it must never be
+	// served over the API. It is deliberately excluded from
+	// whitelistedCryptoKeyFeatures in enterprise/coderd/workspaceproxy.go.
+	CryptoKeyFeatureNATSCA CryptoKeyFeature = "nats_ca"
 )
 
 type CryptoKey struct {

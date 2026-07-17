@@ -13,7 +13,7 @@ For public `github.com`, no additional configuration is needed.
 For self-hosted GitHub Enterprise, add `API_BASE_URL` to your
 [existing configuration](../../../admin/external-auth/index.md#github-enterprise):
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_ID="primary-github"
 CODER_EXTERNAL_AUTH_0_TYPE=github
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
@@ -45,7 +45,7 @@ The default GitLab scopes (`read_user`) are sufficient for basic
 authentication. To use merge request features (diffs, status checks) with
 Coder Agents, configure:
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_ID="primary-gitlab"
 CODER_EXTERNAL_AUTH_0_TYPE=gitlab
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
@@ -62,7 +62,7 @@ pushing commits and creating merge requests.
 For self-hosted GitLab, set `AUTH_URL` and `TOKEN_URL` to your instance.
 Coder derives `API_BASE_URL` automatically from `AUTH_URL`:
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_ID="primary-gitlab"
 CODER_EXTERNAL_AUTH_0_TYPE=gitlab
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx

@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FC, PropsWithChildren } from "react";
-import { QueryClient, QueryClientProvider } from "react-query";
+import { QueryClientProvider } from "react-query";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -9,6 +9,7 @@ import type { Chat } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
+import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
@@ -16,6 +17,7 @@ import {
 	MockEntitlements,
 	MockUserOwner,
 } from "#/testHelpers/entities";
+import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import { ChatsSidebar } from "./ChatsSidebar";
@@ -55,25 +57,11 @@ vi.mock("#/hooks/useAuthenticated", async () => {
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
+	...MockChat,
 	id: "chat-default",
-	organization_id: "test-org-id",
-	owner_id: MockUserOwner.id,
-	owner_username: MockUserOwner.username,
-	owner_name: MockUserOwner.name,
-	title: "Agent",
-	status: "completed",
 	last_model_config_id: "model-1",
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
-	archived: false,
-	shared: false,
-	pin_order: 0,
-	has_unread: false,
-	client_type: "ui",
-	last_turn_summary: null,
-	mcp_server_ids: [],
-	labels: {},
-	children: [],
 	...overrides,
 });
 
@@ -88,11 +76,7 @@ const dashboardValue = {
 };
 
 const Wrapper: FC<PropsWithChildren> = ({ children }) => {
-	const queryClient = new QueryClient({
-		defaultOptions: {
-			queries: { retry: false, refetchOnWindowFocus: false },
-		},
-	});
+	const queryClient = createTestQueryClient();
 	return (
 		<QueryClientProvider client={queryClient}>
 			<ThemeOverride theme={themes[DEFAULT_THEME]}>
@@ -127,16 +111,88 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	onPinAgent: vi.fn(),
 	onUnpinAgent: vi.fn(),
 	onRenameTitle: vi.fn(async () => {}),
-	regeneratingTitleChatIds: [],
 	onBeforeNewAgent: vi.fn(),
 	isSearchDialogOpen: false,
 	onSearchDialogOpenChange: vi.fn(),
 	isCreating: false,
 	sidebarFilters: defaultSidebarFilters,
 	onSidebarFiltersChange: vi.fn(),
+	currentUserId: MockUserOwner.id,
 };
 
 // ---- Tests ----
+
+describe("ChatsSidebar sections", () => {
+	it("renders unpinned shared chats in Shared with you before date sections", () => {
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "pinned-shared-chat",
+							title: "Pinned shared chat",
+							shared: true,
+							pin_order: 1,
+						}),
+						buildChat({
+							id: "shared-chat",
+							title: "Shared chat",
+							owner_id: "sharing-user-id",
+							shared: true,
+						}),
+						buildChat({
+							id: "owned-shared-chat",
+							title: "Owned shared chat",
+							shared: true,
+							updated_at: new Date().toISOString(),
+						}),
+						buildChat({
+							id: "owned-chat",
+							title: "Owned chat",
+							updated_at: new Date().toISOString(),
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		const pinnedSection = screen.getByTestId("agents-section-toggle-Pinned");
+		const pinnedSharedNode = screen.getByTestId(
+			"agents-tree-node-pinned-shared-chat",
+		);
+		const sharedSection = screen.getByTestId(
+			"agents-section-toggle-Shared-with-you",
+		);
+		const sharedNode = screen.getByTestId("agents-tree-node-shared-chat");
+		const todaySection = screen.getByTestId("agents-section-toggle-Today");
+		const ownedNode = screen.getByTestId("agents-tree-node-owned-chat");
+
+		expect(pinnedSection).toHaveTextContent("Pinned (1)");
+		expect(sharedSection).toHaveTextContent("Shared with you (1)");
+		expect(todaySection).toHaveTextContent("Today (2)");
+		expect(
+			pinnedSection.compareDocumentPosition(pinnedSharedNode) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(
+			pinnedSharedNode.compareDocumentPosition(sharedSection) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(
+			sharedSection.compareDocumentPosition(sharedNode) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(
+			sharedNode.compareDocumentPosition(todaySection) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(
+			todaySection.compareDocumentPosition(ownedNode) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+	});
+});
 
 describe("ChatsSidebar filters", () => {
 	it("calls the sidebar filter change callback after Apply is clicked", async () => {
@@ -527,7 +583,7 @@ describe("ChatsSidebar model display names", () => {
 		const modelConfigs: TypesGen.ChatModelConfig[] = [
 			{
 				id: "config-fast",
-				provider: "openai",
+				ai_provider_id: "prov-openai",
 				model: "gpt-4o",
 				display_name: "GPT-4o (Fast)",
 				enabled: true,
@@ -539,7 +595,7 @@ describe("ChatsSidebar model display names", () => {
 			},
 			{
 				id: "config-quality",
-				provider: "openai",
+				ai_provider_id: "prov-openai",
 				model: "gpt-4o",
 				display_name: "GPT-4o (Quality)",
 				enabled: true,
@@ -570,33 +626,6 @@ describe("ChatsSidebar model display names", () => {
 
 		expect(getByText("GPT-4o (Quality)")).toBeInTheDocument();
 		expect(queryByText("GPT-4o (Fast)")).not.toBeInTheDocument();
-	});
-
-	it("falls back to legacy provider/model matching when no config ID match exists", () => {
-		const { getByText } = render(
-			<Wrapper>
-				<ChatsSidebar
-					{...defaultProps}
-					chats={[
-						buildChat({
-							id: "legacy-chat",
-							title: "Legacy chat",
-							last_model_config_id: "openai:gpt-4o",
-						}),
-					]}
-					modelOptions={[
-						{
-							id: "config-quality",
-							provider: "openai",
-							model: "gpt-4o",
-							displayName: "GPT-4o (Quality)",
-						},
-					]}
-				/>
-			</Wrapper>,
-		);
-
-		expect(getByText("GPT-4o (Quality)")).toBeInTheDocument();
 	});
 
 	it("shows Default model when last_model_config_id is a nil UUID", () => {

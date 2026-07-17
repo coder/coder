@@ -56,7 +56,6 @@ func newGeneratorHarness(t *testing.T) *generatorHarness {
 		DisplayName: "OpenAI",
 	})
 	mc := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:     "openai",
 		Model:        "test-model",
 		ContextLimit: 8192,
 	})

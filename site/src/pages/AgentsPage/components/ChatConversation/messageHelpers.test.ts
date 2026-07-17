@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockChatMessage } from "#/testHelpers/chatEntities";
 import {
 	buildDisplayMessages,
 	deriveMessageDisplayState,
@@ -17,13 +18,7 @@ import type {
 const buildMessage = (
 	content: TypesGen.ChatMessagePart[],
 	role: "user" | "assistant" = "user",
-): TypesGen.ChatMessage => ({
-	id: 1,
-	chat_id: "chat-1",
-	created_at: "2026-05-11T00:00:00.000Z",
-	role,
-	content,
-});
+): TypesGen.ChatMessage => ({ ...MockChatMessage, content, role });
 
 const getDisplayState = (
 	message: TypesGen.ChatMessage,
@@ -204,6 +199,82 @@ describe("deriveMessageDisplayState", () => {
 		);
 
 		expect(getDisplayState(message).hasCopyableContent).toBe(false);
+	});
+
+	it("does not mark assistant messages ending with a tool call as copyable", () => {
+		const tool: MergedTool = {
+			id: "execute-1",
+			name: "execute",
+			args: { command: "pnpm test" },
+			isError: false,
+			status: "completed",
+		};
+		const message = buildMessage(
+			[{ type: "text", text: "Running the tests now." }],
+			"assistant",
+		);
+
+		const state = getDisplayState(message, {
+			parsed: parsed({
+				markdown: "Running the tests now.",
+				tools: [tool],
+				blocks: [
+					{ type: "response", text: "Running the tests now." },
+					{ type: "tool", id: tool.id },
+				],
+			}),
+		});
+
+		expect(state.hasCopyableContent).toBe(false);
+	});
+
+	it("marks assistant messages ending with text after a tool call as copyable", () => {
+		const tool: MergedTool = {
+			id: "execute-1",
+			name: "execute",
+			args: { command: "pnpm test" },
+			isError: false,
+			status: "completed",
+		};
+		const message = buildMessage(
+			[{ type: "text", text: "All tests passed." }],
+			"assistant",
+		);
+
+		const state = getDisplayState(message, {
+			parsed: parsed({
+				markdown: "All tests passed.",
+				tools: [tool],
+				blocks: [
+					{ type: "tool", id: tool.id },
+					{ type: "response", text: "All tests passed." },
+				],
+			}),
+		});
+
+		expect(state.hasCopyableContent).toBe(true);
+	});
+
+	it("does not mark assistant messages ending with a thinking block as copyable", () => {
+		// Intended: the action row renders below the whole message, so a
+		// trailing thinking disclosure has the same visual problem as a
+		// trailing tool call even though copyable markdown exists.
+		const message = buildMessage(
+			[{ type: "text", text: "Here is my answer." }],
+			"assistant",
+		);
+
+		const state = getDisplayState(message, {
+			parsed: parsed({
+				markdown: "Here is my answer.",
+				blocks: [
+					{ type: "response", text: "Here is my answer." },
+					{ type: "thinking", text: "Reconsidering the edge cases." },
+				],
+			}),
+		});
+
+		expect(state.hasCopyableContent).toBe(false);
 	});
 
 	it("shows the assistant spacer for reasoning messages when no suppressing flags apply", () => {

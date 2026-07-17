@@ -57,6 +57,7 @@ var (
 	constTool       = string(constant.ValueOf[constant.Tool]())
 	constToolResult = string(constant.ValueOf[constant.ToolResult]())
 	constUser       = string(anthropic.MessageParamRoleUser)
+	constSystem     = "system"
 
 	// bedrockUnsupportedFields are top-level fields present in the Anthropic Messages
 	// API that are absent from the Bedrock request body schema. Sending them results
@@ -166,6 +167,16 @@ func (p RequestPayload) lastUserPrompt() (string, bool, error) {
 	}
 
 	lastMessage := messageItems[len(messageItems)-1]
+	// Clients using the mid-conversation system beta (e.g. Claude Code with
+	// anthropic-beta: mid-conversation-system-*) append a trailing role=system
+	// message after the user's prompt, such as an injected skills list. When the
+	// last message is that system message, step back exactly one message to find
+	// the user's prompt. We only step back past a single trailing system message
+	// so we never re-record a stale prompt from an earlier turn that contained no
+	// new user input. See https://docs.claude.com/en/api/beta-headers.
+	if lastMessage.Get(messagesReqFieldRole).String() == constSystem && len(messageItems) >= 2 {
+		lastMessage = messageItems[len(messageItems)-2]
+	}
 	if lastMessage.Get(messagesReqFieldRole).String() != constUser {
 		return "", false, nil
 	}
@@ -329,7 +340,7 @@ func (RequestPayload) resultToRawMessage(items []gjson.Result) []json.RawMessage
 }
 
 // The two Bedrock thinking-type conversions below are a temporary shim.
-// AI Bridge relays the Anthropic Messages API shape to Bedrock, whose Claude
+// AI Gateway relays the Anthropic Messages API shape to Bedrock, whose Claude
 // models accept a disjoint subset on each generation (older models reject
 // "adaptive"; Opus 4.7+ rejects "enabled"). A planned native Bedrock provider
 // removes the impedance mismatch and lets us delete this whole block. Hopefully.

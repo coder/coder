@@ -1,6 +1,18 @@
 # Documentation Style Guide
 
-This guide documents documentation patterns observed in the Coder repository, based on analysis of existing admin guides, tutorials, and reference documentation. This is specifically for documentation files in the `docs/` directory - see [CONTRIBUTING.md](../../docs/about/contributing/CONTRIBUTING.md) for general contribution guidelines.
+This guide documents structure, research, and content patterns for documentation files in the `docs/` directory. It complements, and does not replace, the canonical content rules or the prose style guide.
+
+> [!IMPORTANT]
+> **What belongs in the docs (and what doesn't)** is governed by
+> [`docs/.style/content-guidelines.md`](../../docs/.style/content-guidelines.md).
+> Read that first. When this style guide conflicts with the content
+> guidelines, the content guidelines govern.
+>
+> **For prose rules**, refer to the canonical Coder documentation style guide at [`docs/.style/style-guide/`](../../docs/.style/style-guide/README.md).
+> Vale rules under `docs/.style/styles/Coder/` enforce those rules incrementally as each rule lands.
+> This file remains authoritative for structure, research, and content patterns.
+
+See [CONTRIBUTING.md](../../docs/about/contributing/CONTRIBUTING.md) for general contribution guidelines.
 
 ## Research Before Writing
 
@@ -79,32 +91,23 @@ Use bold labels for capabilities, provides high-level understanding before detai
 - Caption: Use `<small>` tag below images
 - Alt text: Describe what's shown, not just repeat heading
 
-### Image-Driven Documentation
+### Screenshot policy
 
-When you have multiple screenshots showing different aspects of a feature:
+Screenshots are governed by the canonical content guidelines. See
+[Screenshots, used wisely](../../docs/.style/content-guidelines.md#what-belongs-in-the-docs)
+in `docs/.style/content-guidelines.md`. The short version:
 
-1. **Structure sections around images** - Each major screenshot gets its own section
-2. **Describe what's visible** - Reference specific UI elements, data values shown in the screenshot
-3. **Flow naturally** - Let screenshots guide the reader through the feature
+- Include a screenshot only when the topic would be confusing without
+  the visual aid.
+- No PHI or PII.
+- No internal secrets leaked without obfuscation.
+- Capture the minimally necessary surface area.
+- Alt text is always required and must explain the screenshot's
+  purpose for accessibility.
 
-**Example**: Template Insights documentation has 3 screenshots that define the 3 main content sections.
-
-### Screenshot Guidelines
-
-**When screenshots are not yet available**: If you're documenting a feature before screenshots exist, you can use image placeholders with descriptive alt text and ask the user to provide screenshots:
-
-```markdown
-![Placeholder: Template Insights page showing weekly active users chart](../../images/admin/templates/template-insights.png)
-```
-
-Then ask: "Could you provide a screenshot of the Template Insights page? I've added a placeholder at [location]."
-
-**When documenting with screenshots**:
-
-- Illustrate features being discussed in preceding text
-- Show actual UI/data, not abstract concepts
-- Reference specific values shown when explaining features
-- Organize documentation around key screenshots
+Do not structure sections around screenshots, and do not insert
+placeholders for missing screenshots. Those older patterns are
+superseded by the canonical content guidelines.
 
 ## Content Organization
 
@@ -237,28 +240,35 @@ Document exact values from code:
 
 **CRITICAL**: All documentation pages must be added to `docs/manifest.json` to appear in navigation. Read the manifest file to understand the structure and find the appropriate section for your documentation. Place new pages in logical sections matching the existing hierarchy.
 
-## Proactive Documentation
+## Documentation lands with the change
 
-When documenting features that depend on upcoming PRs:
-
-1. **Reference the PR explicitly** - Mention PR number and what it adds
-2. **Document the feature anyway** - Write as if feature exists
-3. **Link to auto-generated docs** - Point to CLI reference sections that will be created
-4. **Update PR description** - Note documentation is included proactively
-
-**Example**: Template Insights docs include `--disable-template-insights` flag from PR #20940 before it merged, with link to `../../reference/cli/server.md#--disable-template-insights` that will exist when the PR lands.
+This rule lives in the canonical content guidelines. See
+[Documentation lands with the change](../../docs/.style/content-guidelines.md#documentation-lands-with-the-change)
+in `docs/.style/content-guidelines.md` for the rule, the definition of
+"user-facing," the three corollaries, and the experiments-versus-feature-stages
+distinction.
 
 ## Special Sections
-
-### Troubleshooting
-
-- **H3 subheadings** for each issue
-- Format: Issue description followed by solution steps
 
 ### Prerequisites
 
 - Bullet or numbered list
 - Include version requirements, dependencies, permissions
+
+## Sections that don't belong
+
+### Troubleshooting
+
+Troubleshooting and failure-mode content routes to the Support
+knowledge base (Pylon), not the docs. Support is the primary owner;
+Docs is secondary owner where needed. See the
+[routing table](../../docs/.style/content-guidelines.md#routing-table)
+in the canonical content guidelines.
+
+Don't add a Troubleshooting section to a docs page. If a page would
+benefit from troubleshooting context, surface it via the embedded
+Pylon KB widget when that work lands; until then, link out to the
+relevant Pylon article from the page body.
 
 ## Formatting and Linting
 

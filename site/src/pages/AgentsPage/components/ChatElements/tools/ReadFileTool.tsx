@@ -1,16 +1,10 @@
 import { useTheme } from "@emotion/react";
 import { File as FileViewer } from "@pierre/diffs/react";
-import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import type React from "react";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+import { getPathBasename } from "../../../utils/path";
 import { asRecord, asString } from "../runtimeTypeUtils";
-import { ToolCollapsible } from "./ToolCollapsible";
-import { ToolIcon } from "./ToolIcon";
+import { ToolCall } from "./ToolCall";
 import {
 	DIFFS_FONT_STYLE,
 	getFileViewerOptionsMinimal,
@@ -88,45 +82,30 @@ export const ReadFileTool: React.FC<{
 }) => {
 	const hasContent = content.length > 0 || isError;
 	const isRunning = status === "running";
-	const filename = path.split("/").pop() || path;
+	const filename = getPathBasename(path);
 	const label = isRunning ? `Reading ${filename}…` : `Read ${filename}`;
 
 	return (
-		<ToolCollapsible
+		<ToolCall.Root
 			className="w-full"
+			status={status}
+			isError={isError}
+			errorMessage={errorMessage || "Failed to read file"}
 			hasContent={hasContent}
 			expanded={expanded}
 			onExpandedChange={onExpandedChange}
-			header={
-				<>
-					<ToolIcon name="read_file" isError={isError} isRunning={isRunning} />
-					<span className="text-[13px] leading-6">{label}</span>
-				</>
-			}
-			headerStatus={
-				<>
-					{isError && (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<TriangleAlertIcon className="size-3.5 shrink-0 text-current" />
-							</TooltipTrigger>
-							<TooltipContent>
-								{errorMessage || "Failed to read file"}
-							</TooltipContent>
-						</Tooltip>
-					)}
-					{isRunning && (
-						<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
-					)}
-				</>
-			}
 		>
-			{isError && (
-				<div className="mt-1 text-xs text-content-destructive">
-					{errorMessage || "Failed to read file"}
-				</div>
-			)}
-			{content.length > 0 && <ReadFileContent path={path} content={content} />}
-		</ToolCollapsible>
+			<ToolCall.Header iconName="read_file" label={label} />
+			<ToolCall.Content>
+				{isError && (
+					<div className="mt-1 text-xs text-content-destructive">
+						{errorMessage || "Failed to read file"}
+					</div>
+				)}
+				{content.length > 0 && (
+					<ReadFileContent path={path} content={content} />
+				)}
+			</ToolCall.Content>
+		</ToolCall.Root>
 	);
 };

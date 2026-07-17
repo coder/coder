@@ -56,6 +56,12 @@ export type AvatarProps = AvatarPrimitive.AvatarProps &
 	VariantProps<typeof avatarVariants> & {
 		src?: string;
 		fallback?: string;
+		/**
+		 * Alt text for the inner `<img>`. Defaults to `""` (decorative,
+		 * hidden from assistive tech). Pass a descriptive value when no
+		 * adjacent text identifies the content.
+		 */
+		alt?: string;
 		ref?: React.Ref<React.ComponentRef<typeof AvatarPrimitive.Root>>;
 	};
 
@@ -65,6 +71,7 @@ export const Avatar: React.FC<AvatarProps> = ({
 	variant,
 	src,
 	fallback,
+	alt = "",
 	children,
 	...props
 }) => {
@@ -77,6 +84,7 @@ export const Avatar: React.FC<AvatarProps> = ({
 		>
 			<AvatarPrimitive.Image
 				src={src}
+				alt={alt}
 				className="aspect-square size-full object-contain"
 				style={getExternalImageStylesFromUrl(theme.externalImages, src)}
 			/>

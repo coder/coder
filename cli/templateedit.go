@@ -23,6 +23,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		icon                           string
 		defaultTTL                     time.Duration
 		activityBump                   time.Duration
+		timeTilAutostopNotify          time.Duration
 		autostopRequirementDaysOfWeek  []string
 		autostopRequirementWeeks       int64
 		autostartRequirementDaysOfWeek []string
@@ -113,6 +114,10 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				activityBump = time.Duration(template.ActivityBumpMillis) * time.Millisecond
 			}
 
+			if !userSetOption(inv, "autostop-reminder") {
+				timeTilAutostopNotify = time.Duration(template.TimeTilAutostopNotifyMillis) * time.Millisecond
+			}
+
 			if !userSetOption(inv, "allow-user-autostop") {
 				allowUserAutostop = template.AllowUserAutostop
 			}
@@ -174,12 +179,13 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 			}
 
 			req := codersdk.UpdateTemplateMeta{
-				Name:               &name,
-				DisplayName:        &displayName,
-				Description:        &description,
-				Icon:               &icon,
-				DefaultTTLMillis:   ptr.Ref(defaultTTL.Milliseconds()),
-				ActivityBumpMillis: ptr.Ref(activityBump.Milliseconds()),
+				Name:                        &name,
+				DisplayName:                 &displayName,
+				Description:                 &description,
+				Icon:                        &icon,
+				DefaultTTLMillis:            ptr.Ref(defaultTTL.Milliseconds()),
+				ActivityBumpMillis:          ptr.Ref(activityBump.Milliseconds()),
+				TimeTilAutostopNotifyMillis: ptr.Ref(timeTilAutostopNotify.Milliseconds()),
 				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 					DaysOfWeek: autostopRequirementDaysOfWeek,
 					Weeks:      autostopRequirementWeeks,
@@ -247,6 +253,11 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 			Flag:        "activity-bump",
 			Description: "Edit the template activity bump - workspaces created from this template will have their shutdown time bumped by this value when activity is detected. Maps to \"Activity bump\" in the UI.",
 			Value:       serpent.DurationOf(&activityBump),
+		},
+		{
+			Flag:        "autostop-reminder",
+			Description: "Edit how long before the autostop deadline a reminder notification is sent for workspaces created from this template, in Go duration format (e.g. 1h, 30m). Set to 0 to disable.",
+			Value:       serpent.DurationOf(&timeTilAutostopNotify),
 		},
 		{
 			Flag:        "autostart-requirement-weekdays",

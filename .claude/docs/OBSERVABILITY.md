@@ -30,8 +30,10 @@ under a named logger such as `api`, `site`, `proxy`, `ext-provisioner`, or
 `prometheus`.
 
 HTTP request logging is implemented in `coderd/httpmw/loggermw`. Request log
-fields include `user_agent`, `host`, `path`, `proto`, `remote_addr`, `start`,
-`status_code`, `latency_ms`, route params, and selected safe query params.
+fields include `user_agent`, `host`, the effective trust-aware host,
+`received_host`, the raw received Host header, `path`, `proto`,
+`remote_addr`, `start`, `status_code`, `latency_ms`, route params, and
+selected safe query params.
 Responses with status codes of 500 or higher include the response body in the
 request log. Successful `GET /api/v2` requests are skipped.
 

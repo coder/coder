@@ -239,21 +239,30 @@ export const getDisplayWorkspaceStatus = (
 	}
 };
 
+export const getWorkspaceAgents = (
+	workspace: TypesGen.Workspace,
+): TypesGen.WorkspaceAgent[] => {
+	return workspace.latest_build.resources.flatMap(
+		(resource) => resource.agents ?? [],
+	);
+};
+
+export const findWorkspaceAgent = (
+	workspace: TypesGen.Workspace,
+	agentId: string,
+): TypesGen.WorkspaceAgent | undefined => {
+	return getWorkspaceAgents(workspace).find((agent) => agent.id === agentId);
+};
+
 export const getMatchingAgentOrFirst = (
 	workspace: TypesGen.Workspace,
 	agentName: string | undefined,
 ): TypesGen.WorkspaceAgent | undefined => {
-	return workspace.latest_build.resources
-		.map((resource) => {
-			if (!resource.agents || resource.agents.length === 0) {
-				return;
-			}
-			if (!agentName) {
-				return resource.agents[0];
-			}
-			return resource.agents.find((agent) => agent.name === agentName);
-		})
-		.filter((a) => a)[0];
+	const agents = getWorkspaceAgents(workspace);
+	if (!agentName) {
+		return agents[0];
+	}
+	return agents.find((agent) => agent.name === agentName);
 };
 
 export const mustUpdateWorkspace = (

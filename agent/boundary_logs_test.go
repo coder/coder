@@ -42,111 +42,134 @@ func sendBoundaryLogsRequest(t *testing.T, conn net.Conn, req *agentproto.Report
 	require.NoError(t, err)
 }
 
-// TestBoundaryLogs_EndToEnd is an end-to-end test that sends a protobuf
-// message over the agent's unix socket (as boundary would) and verifies
-// it is ultimately logged by coderd with the correct structured fields.
 func TestBoundaryLogs_EndToEnd(t *testing.T) {
 	t.Parallel()
 
-	socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "boundary.sock")
-	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath, prometheus.NewRegistry())
-
-	err := srv.Start()
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, srv.Close()) })
-
-	sink := testutil.NewFakeSink(t)
-	logger := sink.Logger(slog.LevelInfo)
-	workspaceID := uuid.New()
-	templateID := uuid.New()
-	templateVersionID := uuid.New()
-	reporter := &agentapi.BoundaryLogsAPI{
-		Log:               logger,
-		WorkspaceID:       workspaceID,
-		TemplateID:        templateID,
-		TemplateVersionID: templateVersionID,
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	forwarderDone := make(chan error, 1)
-	go func() {
-		forwarderDone <- srv.RunForwarder(ctx, reporter)
-	}()
-
-	conn, err := net.Dial("unix", socketPath)
-	require.NoError(t, err)
-	defer conn.Close()
-
-	// Allowed HTTP request.
-	req := &agentproto.ReportBoundaryLogsRequest{
-		Logs: []*agentproto.BoundaryLog{
-			{
-				Allowed: true,
-				Time:    timestamppb.Now(),
-				Resource: &agentproto.BoundaryLog_HttpRequest_{
-					HttpRequest: &agentproto.BoundaryLog_HttpRequest{
-						Method:      "GET",
-						Url:         "https://example.com/allowed",
-						MatchedRule: "*.example.com",
-					},
-				},
-			},
+	tests := []struct {
+		name      string
+		sessionID string
+	}{
+		{
+			name:      "NoSessionID",
+			sessionID: "",
+		},
+		{
+			name:      "WithSessionID",
+			sessionID: uuid.New().String(),
 		},
 	}
-	sendBoundaryLogsRequest(t, conn, req)
 
-	require.Eventually(t, func() bool {
-		return len(sink.Entries()) >= 1
-	}, testutil.WaitShort, testutil.IntervalFast)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	entries := sink.Entries()
-	require.Len(t, entries, 1)
-	entry := entries[0]
-	require.Equal(t, slog.LevelInfo, entry.Level)
-	require.Equal(t, "boundary_request", entry.Message)
-	require.Equal(t, "allow", getField(entry.Fields, "decision"))
-	require.Equal(t, workspaceID.String(), getField(entry.Fields, "workspace_id"))
-	require.Equal(t, templateID.String(), getField(entry.Fields, "template_id"))
-	require.Equal(t, templateVersionID.String(), getField(entry.Fields, "template_version_id"))
-	require.Equal(t, "GET", getField(entry.Fields, "http_method"))
-	require.Equal(t, "https://example.com/allowed", getField(entry.Fields, "http_url"))
-	require.Equal(t, "*.example.com", getField(entry.Fields, "matched_rule"))
+			socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "boundary.sock")
+			srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath, prometheus.NewRegistry())
 
-	// Denied HTTP request.
-	req2 := &agentproto.ReportBoundaryLogsRequest{
-		Logs: []*agentproto.BoundaryLog{
-			{
-				Allowed: false,
-				Time:    timestamppb.Now(),
-				Resource: &agentproto.BoundaryLog_HttpRequest_{
-					HttpRequest: &agentproto.BoundaryLog_HttpRequest{
-						Method: "POST",
-						Url:    "https://blocked.com/denied",
+			err := srv.Start()
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, srv.Close()) })
+
+			sink := testutil.NewFakeSink(t)
+			logger := sink.Logger(slog.LevelInfo)
+			workspaceID := uuid.New()
+			templateID := uuid.New()
+			templateVersionID := uuid.New()
+			reporter := &agentapi.BoundaryLogsAPI{
+				Log:               logger,
+				WorkspaceID:       workspaceID,
+				TemplateID:        templateID,
+				TemplateVersionID: templateVersionID,
+			}
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			forwarderDone := make(chan error, 1)
+			go func() {
+				forwarderDone <- srv.RunForwarder(ctx, reporter)
+			}()
+
+			conn, err := net.Dial("unix", socketPath)
+			require.NoError(t, err)
+			defer conn.Close()
+
+			req := &agentproto.ReportBoundaryLogsRequest{
+				SessionId: tc.sessionID,
+				Logs: []*agentproto.BoundaryLog{
+					{
+						Allowed: true,
+						Time:    timestamppb.Now(),
+						Resource: &agentproto.BoundaryLog_HttpRequest_{
+							HttpRequest: &agentproto.BoundaryLog_HttpRequest{
+								Method:      "GET",
+								Url:         "https://example.com/allowed",
+								MatchedRule: "*.example.com",
+							},
+						},
+						SequenceNumber: 0,
 					},
 				},
-			},
-		},
+			}
+			sendBoundaryLogsRequest(t, conn, req)
+
+			require.Eventually(t, func() bool {
+				return len(sink.Entries()) >= 1
+			}, testutil.WaitShort, testutil.IntervalFast)
+
+			entries := sink.Entries()
+			require.Len(t, entries, 1)
+			entry := entries[0]
+			require.Equal(t, slog.LevelInfo, entry.Level)
+			require.Equal(t, "boundary_request", entry.Message)
+			require.Equal(t, "allow", getField(entry.Fields, "decision"))
+			require.Equal(t, workspaceID.String(), getField(entry.Fields, "workspace_id"))
+			require.Equal(t, templateID.String(), getField(entry.Fields, "template_id"))
+			require.Equal(t, templateVersionID.String(), getField(entry.Fields, "template_version_id"))
+			require.Equal(t, "GET", getField(entry.Fields, "http_method"))
+			require.Equal(t, "https://example.com/allowed", getField(entry.Fields, "http_url"))
+			require.Equal(t, "*.example.com", getField(entry.Fields, "matched_rule"))
+			require.Equal(t, tc.sessionID, getField(entry.Fields, "session_id"))
+			require.Equal(t, int32(0), getField(entry.Fields, "sequence_number"))
+
+			req2 := &agentproto.ReportBoundaryLogsRequest{
+				SessionId: tc.sessionID,
+				Logs: []*agentproto.BoundaryLog{
+					{
+						Allowed: false,
+						Time:    timestamppb.Now(),
+						Resource: &agentproto.BoundaryLog_HttpRequest_{
+							HttpRequest: &agentproto.BoundaryLog_HttpRequest{
+								Method: "POST",
+								Url:    "https://blocked.com/denied",
+							},
+						},
+						SequenceNumber: 1,
+					},
+				},
+			}
+			sendBoundaryLogsRequest(t, conn, req2)
+
+			require.Eventually(t, func() bool {
+				return len(sink.Entries()) >= 2
+			}, testutil.WaitShort, testutil.IntervalFast)
+
+			entries = sink.Entries()
+			entry = entries[1]
+			require.Len(t, entries, 2)
+			require.Equal(t, slog.LevelInfo, entry.Level)
+			require.Equal(t, "boundary_request", entry.Message)
+			require.Equal(t, "deny", getField(entry.Fields, "decision"))
+			require.Equal(t, workspaceID.String(), getField(entry.Fields, "workspace_id"))
+			require.Equal(t, templateID.String(), getField(entry.Fields, "template_id"))
+			require.Equal(t, templateVersionID.String(), getField(entry.Fields, "template_version_id"))
+			require.Equal(t, "POST", getField(entry.Fields, "http_method"))
+			require.Equal(t, "https://blocked.com/denied", getField(entry.Fields, "http_url"))
+			require.Equal(t, nil, getField(entry.Fields, "matched_rule"))
+			require.Equal(t, tc.sessionID, getField(entry.Fields, "session_id"))
+			require.Equal(t, int32(1), getField(entry.Fields, "sequence_number"))
+
+			cancel()
+			<-forwarderDone
+		})
 	}
-	sendBoundaryLogsRequest(t, conn, req2)
-
-	require.Eventually(t, func() bool {
-		return len(sink.Entries()) >= 2
-	}, testutil.WaitShort, testutil.IntervalFast)
-
-	entries = sink.Entries()
-	entry = entries[1]
-	require.Len(t, entries, 2)
-	require.Equal(t, slog.LevelInfo, entry.Level)
-	require.Equal(t, "boundary_request", entry.Message)
-	require.Equal(t, "deny", getField(entry.Fields, "decision"))
-	require.Equal(t, workspaceID.String(), getField(entry.Fields, "workspace_id"))
-	require.Equal(t, templateID.String(), getField(entry.Fields, "template_id"))
-	require.Equal(t, templateVersionID.String(), getField(entry.Fields, "template_version_id"))
-	require.Equal(t, "POST", getField(entry.Fields, "http_method"))
-	require.Equal(t, "https://blocked.com/denied", getField(entry.Fields, "http_url"))
-	require.Equal(t, nil, getField(entry.Fields, "matched_rule"))
-
-	cancel()
-	<-forwarderDone
 }

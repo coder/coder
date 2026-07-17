@@ -54,7 +54,7 @@ var (
 
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	return &Runner{
-		client: newChatClient(client),
+		client: codersdk.NewExperimentalClient(client),
 		cfg:    cfg,
 	}
 }
@@ -108,15 +108,18 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	r.resetConversation(time.Now(), markTurnStartReady)
 
 	createStartedAt := time.Now()
-	chat, err := r.client.CreateChat(ctx, codersdk.CreateChatRequest{
+	createReq := codersdk.CreateChatRequest{
 		OrganizationID: r.cfg.OrganizationID,
-		WorkspaceID:    &workspaceID,
 		ModelConfigID:  &modelConfigID,
 		Content: []codersdk.ChatInputPart{{
 			Type: codersdk.ChatInputPartTypeText,
 			Text: r.cfg.Prompt,
 		}},
-	})
+	}
+	if workspaceID != uuid.Nil {
+		createReq.WorkspaceID = &workspaceID
+	}
+	chat, err := r.client.CreateChat(ctx, createReq)
 	if err != nil {
 		r.result.failureStage = failureStageCreateChat
 		r.cfg.Metrics.ChatStageFailuresTotal.WithLabelValues(r.result.failureStage).Inc()

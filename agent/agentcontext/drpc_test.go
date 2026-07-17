@@ -42,7 +42,6 @@ func TestDRPCPusher_HappyPathSerializesAllFields(t *testing.T) {
 		Version:       7,
 		AggregateHash: [32]byte{0xaa, 0xbb, 0xcc},
 		Initial:       true,
-		SchemaVersion: 1,
 		SnapshotError: "watcher degraded",
 		Resources: []agentcontext.Resource{
 			{
@@ -116,7 +115,6 @@ func TestDRPCPusher_HappyPathSerializesAllFields(t *testing.T) {
 	require.Equal(t, uint64(7), pb.Version)
 	require.Equal(t, []byte{0xaa, 0xbb, 0xcc, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, pb.AggregateHash)
 	require.True(t, pb.Initial)
-	require.Equal(t, uint64(1), pb.SchemaVersion)
 	require.Equal(t, "watcher degraded", pb.SnapshotError)
 
 	require.Len(t, pb.Resources, 5)

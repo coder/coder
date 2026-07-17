@@ -78,7 +78,7 @@ export const ProvisionerKeyRow: FC<ProvisionerKeyRowProps> = ({
 							])}
 						>
 							<dt>Creation time:</dt>
-							<dd data-chromatic="ignore">{provisionerKey.created_at}</dd>
+							<dd data-pixel="ignore">{provisionerKey.created_at}</dd>
 
 							<dt>Tags:</dt>
 							<dd>

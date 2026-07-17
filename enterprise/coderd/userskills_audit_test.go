@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -71,6 +72,7 @@ func TestUserSkillAuditDiffTracksContent(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Len(t, rows, 2, "expected exactly two rows")
+	sort.Slice(rows, func(i, j int) bool { return rows[i].AuditLog.Action > rows[j].AuditLog.Action })
 	createLog := rows[1].AuditLog
 	updateLog := rows[0].AuditLog
 

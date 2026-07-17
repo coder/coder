@@ -24,6 +24,12 @@ on:
       - reopened
     paths:
       - "docs/**"
+      # docs/.style/** is contributor tooling and never deploys to coder.com.
+      # Skipping the workflow on .style-only PRs avoids posting a preview
+      # link that 404s, since manifest-driven coder.com routing rejects
+      # paths under .style. Mixed PRs still trigger; the selection logic
+      # below filters .style files out of the preview-target pick.
+      - "!docs/.style/**"
 
 concurrency:
   group: docs-preview-${{ github.event.pull_request.number }}
@@ -69,11 +75,18 @@ jobs:
             "repos/${REPO}/pulls/${PR_NUMBER}/files" \
             --jq '.[] | select(.status != "removed") | .filename')
 
-          # Pick the first Markdown file under docs/.  `|| true` keeps
-          # the pipeline from failing when grep finds no matches or
-          # head triggers SIGPIPE under `set -o pipefail`.
+          # Pick the first Markdown file under docs/, excluding the
+          # contributor-tooling subtree at docs/.style/**. Mixed PRs that
+          # touch both .style and a public docs page should land the
+          # preview link on the public page; .style-only PRs already get
+          # short-circuited by the trigger filter above and never reach
+          # this code path.
+          #
+          # `|| true` keeps the pipeline from failing when grep finds no
+          # matches or head triggers SIGPIPE under `set -o pipefail`.
           first_doc=$(printf '%s\n' "$all_files" \
             | grep -E '^docs/.*\.md$' \
+            | grep -v '^docs/\.style/' \
             | head -n 1) || true
 
           if [ -z "$first_doc" ]; then

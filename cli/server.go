@@ -30,7 +30,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"testing"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
@@ -65,7 +64,9 @@ import (
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/aibridged"
+	"github.com/coder/coder/v2/coderd/authlink"
 	"github.com/coder/coder/v2/coderd/autobuild"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -117,6 +118,58 @@ import (
 	"github.com/coder/wgtunnel/tunnelsdk"
 )
 
+// oidcAuthLinks validates and can repair any broken OIDC auth links from changes in
+// OIDC providers. This function should avoid returning a fatal error as much as possible.
+// If this function fails, it should just log the error and exit.
+func oidcAuthLinks(ctx context.Context, logger slog.Logger, cli *http.Client, vals *codersdk.DeploymentValues, db database.Store) error {
+	// nolint:gocritic // Requires system privileges
+	ctx = dbauthz.AsSystemRestricted(ctx)
+	expectedIssuer, err := authlink.ResolveIssuer(ctx, cli, vals.OIDC.IssuerURL.String())
+	if err != nil {
+		// Always log if there is a failure here
+		logger.Error(ctx, "unable to resolve OIDC 'issuer'",
+			slog.F("error", err.Error()),
+			slog.F("url", vals.OIDC.IssuerURL.String()),
+		)
+		return nil
+	}
+
+	analysis, err := authlink.AnalyzeOIDCLinks(ctx, db, expectedIssuer)
+	if err != nil {
+		// Do not make this error fatal
+		logger.Error(ctx, "unable to analyze OIDC links, OIDC user links cannot be verified as linked to this issuer",
+			slog.F("error", err.Error()),
+			slog.F("url", vals.OIDC.IssuerURL.String()),
+			slog.F("issuer", expectedIssuer),
+		)
+		return nil
+	}
+
+	if !vals.OIDC.AutoRepairLinks.Value() {
+		return nil
+	}
+
+	// Repair any broken OIDC links
+	if analysis.MismatchedTotal() > 0 {
+		count, err := authlink.ResetMismatchedOIDCLinks(ctx, db, expectedIssuer)
+		if err != nil {
+			logger.Error(ctx, "unable to reset mismatched OIDC links",
+				slog.F("error", err.Error()),
+				slog.F("url", vals.OIDC.IssuerURL.String()),
+				slog.F("issuer", expectedIssuer),
+			)
+			return nil
+		}
+
+		logger.Info(ctx, "oidc users OIDC links reset",
+			slog.F("url", vals.OIDC.IssuerURL.String()),
+			slog.F("issuer", expectedIssuer),
+			slog.F("count", count),
+		)
+	}
+	return nil
+}
+
 func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.DeploymentValues) (*coderd.OIDCConfig, error) {
 	if vals.OIDC.ClientID == "" {
 		return nil, xerrors.Errorf("OIDC client ID must be set!")
@@ -148,7 +201,16 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 			return nil, xerrors.Errorf("parse oidc redirect url %q", err)
 		}
 		logger.Warn(ctx, "custom OIDC redirect URL used instead of 'access_url', ensure this matches the value configured in your OIDC provider")
+		if len(vals.OIDC.RedirectAllowedHosts.Value()) > 0 {
+			// Static override takes precedence; keep the behavior explicit and
+			// loud rather than silently mixing the two modes.
+			logger.Warn(ctx, "ignoring CODER_OIDC_REDIRECT_ALLOWED_HOSTS because CODER_OIDC_REDIRECT_URL is set")
+		}
 	}
+	// Capture the configured scheme for the dynamic-host code path so that
+	// the dynamic redirect_uri uses the same scheme as the static one even
+	// when upstream proxies report a misleading X-Forwarded-Proto.
+	redirectDefaultScheme := redirectURL.Scheme
 
 	// If the scopes contain 'groups', we enable group support.
 	// Do not override any custom value set by the user.
@@ -207,6 +269,17 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		return nil, xerrors.Errorf("pkce detect in claims: %w", err)
 	}
 
+	// CODER_OIDC_REDIRECT_URL is a strict override: when set, the redirect_uri
+	// is fixed at startup and dynamic-host selection is disabled. Otherwise,
+	// surface the allowlist to the middleware.
+	var redirectAllowedHosts []string
+	if vals.OIDC.RedirectURL.String() == "" {
+		redirectAllowedHosts = vals.OIDC.RedirectAllowedHosts.Value()
+	} else {
+		// Static-override mode does not need the dynamic default scheme.
+		redirectDefaultScheme = ""
+	}
+
 	return &coderd.OIDCConfig{
 		OAuth2Config: useCfg,
 		Provider:     oidcProvider,
@@ -216,18 +289,21 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 			// matches the issuer URL. This is not recommended.
 			SkipIssuerCheck: vals.OIDC.SkipIssuerChecks.Value(),
 		}),
-		EmailDomain:         vals.OIDC.EmailDomain,
-		AllowSignups:        vals.OIDC.AllowSignups.Value(),
-		UsernameField:       vals.OIDC.UsernameField.String(),
-		NameField:           vals.OIDC.NameField.String(),
-		EmailField:          vals.OIDC.EmailField.String(),
-		AuthURLParams:       vals.OIDC.AuthURLParams.Value,
-		SecondaryClaims:     secondaryClaimsSrc,
-		SignInText:          vals.OIDC.SignInText.String(),
-		SignupsDisabledText: vals.OIDC.SignupsDisabledText.String(),
-		IconURL:             vals.OIDC.IconURL.String(),
-		IgnoreEmailVerified: vals.OIDC.IgnoreEmailVerified.Value(),
-		PKCEMethods:         pkceSupport.CodeChallengeMethodsSupported,
+		EmailDomain:           vals.OIDC.EmailDomain,
+		AllowSignups:          vals.OIDC.AllowSignups.Value(),
+		UsernameField:         vals.OIDC.UsernameField.String(),
+		NameField:             vals.OIDC.NameField.String(),
+		EmailField:            vals.OIDC.EmailField.String(),
+		AuthURLParams:         vals.OIDC.AuthURLParams.Value,
+		SecondaryClaims:       secondaryClaimsSrc,
+		SignInText:            vals.OIDC.SignInText.String(),
+		SignupsDisabledText:   vals.OIDC.SignupsDisabledText.String(),
+		IconURL:               vals.OIDC.IconURL.String(),
+		IgnoreEmailVerified:   vals.OIDC.IgnoreEmailVerified.Value(),
+		PKCEMethods:           pkceSupport.CodeChallengeMethodsSupported,
+		EmailFallback:         vals.OIDC.EmailFallback.Value(),
+		RedirectAllowedHosts:  redirectAllowedHosts,
+		RedirectDefaultScheme: redirectDefaultScheme,
 	}, nil
 }
 
@@ -430,6 +506,19 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				traceCloseErr := shutdownWithTimeout(closeTracing, 5*time.Second)
 				logger.Debug(ctx, "tracing closed", slog.Error(traceCloseErr))
 			}()
+
+			configSSHOptions, err := vals.SSHConfig.ParseOptions()
+			if err != nil {
+				return xerrors.Errorf("parse ssh config options %q: %w", vals.SSHConfig.SSHConfigOptions.String(), err)
+			}
+			sshConfigResponse := codersdk.SSHConfigResponse{
+				HostnamePrefix:   vals.SSHConfig.DeploymentName.String(),
+				HostnameSuffix:   vals.WorkspaceHostnameSuffix.String(),
+				SSHConfigOptions: configSSHOptions,
+			}
+			if err := sshConfigResponse.Validate(); err != nil {
+				return xerrors.Errorf("invalid ssh config: %w", err)
+			}
 
 			httpServers, err := ConfigureHTTPServers(logger, inv, vals)
 			if err != nil {
@@ -641,18 +730,13 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("parse real ip config: %w", err)
 			}
 
-			configSSHOptions, err := vals.SSHConfig.ParseOptions()
-			if err != nil {
-				return xerrors.Errorf("parse ssh config options %q: %w", vals.SSHConfig.SSHConfigOptions.String(), err)
-			}
-
-			// The workspace hostname suffix is always interpreted as implicitly beginning with a single dot, so it is
-			// a config error to explicitly include the dot. This ensures that we always interpret the suffix as a
-			// separate DNS label, and not just an ordinary string suffix. E.g. a suffix of 'coder' will match
-			// 'en.coder' but not 'encoder'.
-			if strings.HasPrefix(vals.WorkspaceHostnameSuffix.String(), ".") {
-				return xerrors.Errorf("you must omit any leading . in workspace hostname suffix: %s",
-					vals.WorkspaceHostnameSuffix.String())
+			// Resolve this replica's cluster host: the explicit Cluster.Host,
+			// else the DERP relay host for older HA deployments that predate the
+			// setting. Used as the NATS cluster route host and, when an IP, the
+			// cluster mTLS leaf IP SAN.
+			clusterHost := vals.Cluster.Host.String()
+			if clusterHost == "" {
+				clusterHost = vals.DERP.Server.RelayURL.Value().Hostname()
 			}
 
 			options := &coderd.Options{
@@ -662,6 +746,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				Logger:                      logger.Named("coderd"),
 				Database:                    nil,
 				BaseDERPMap:                 derpMap,
+				ClusterHost:                 clusterHost,
 				Pubsub:                      nil,
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
@@ -684,14 +769,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				HTTPClient:                  httpClient,
 				TemplateScheduleStore:       &atomic.Pointer[schedule.TemplateScheduleStore]{},
 				UserQuietHoursScheduleStore: &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{},
-				SSHConfig: codersdk.SSHConfigResponse{
-					HostnamePrefix:   vals.SSHConfig.DeploymentName.String(),
-					SSHConfigOptions: configSSHOptions,
-					HostnameSuffix:   vals.WorkspaceHostnameSuffix.String(),
-				},
-				AllowWorkspaceRenames: vals.AllowWorkspaceRenames.Value(),
-				Entitlements:          entitlements.New(),
-				NotificationsEnqueuer: notifications.NewNoopEnqueuer(), // Changed further down if notifications enabled.
+				SSHConfig:                   sshConfigResponse,
+				AllowWorkspaceRenames:       vals.AllowWorkspaceRenames.Value(),
+				Entitlements:                entitlements.New(),
+				NotificationsEnqueuer:       notifications.NewNoopEnqueuer(), // Changed further down if notifications enabled.
 			}
 			if httpServers.TLSConfig != nil {
 				options.TLSCertificates = httpServers.TLSConfig.Certificates
@@ -723,29 +804,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 						}
 					},
 				}
-			}
-
-			// As OIDC clients can be confidential or public,
-			// we should only check for a client id being set.
-			// The underlying library handles the case of no
-			// client secrets correctly. For more details on
-			// client types: https://oauth.net/2/client-types/
-			if vals.OIDC.ClientID != "" {
-				if vals.OIDC.IgnoreEmailVerified {
-					logger.Warn(ctx, "coder will not check email_verified for OIDC logins")
-				}
-
-				// This OIDC config is **not** being instrumented with the
-				// oauth2 instrument wrapper. If we implement the missing
-				// oidc methods, then we can instrument it.
-				// Missing:
-				//	- Userinfo
-				//	- Verify
-				oc, err := createOIDCConfig(ctx, options.Logger, vals)
-				if err != nil {
-					return xerrors.Errorf("create oidc config: %w", err)
-				}
-				options.OIDCConfig = oc
 			}
 
 			// We'll read from this channel in the select below that tracks shutdown.  If it remains
@@ -797,14 +855,36 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Use NATS for pubsub if the experiment is enabled.
 			if experiments.Enabled(codersdk.ExperimentNATSPubsub) {
 				token := fmt.Sprintf("%x", sha256.Sum256([]byte(dbURL)))
-				natsps, err := nats.New(ctx, logger.Named("pubsub"), nats.Options{
+				natsps, err := nats.New(ctx, logger.Named("nats_pubsub"), nats.Options{
 					ClusterAuthToken: token,
+					// ClusterHost is this replica's routable cluster address
+					// (Cluster.Host, or the DERP relay host fallback resolved
+					// above). It is the NATS route listener host and, when it is
+					// an IP, the leaf certificate's IP SAN for cluster mTLS.
+					ClusterHost: options.ClusterHost,
+					// Install the cluster TLS callbacks with a noop CA cache so a
+					// single node (or pre-license deployment) boots without a CA
+					// dependency and forms no routes. Enterprise HA swaps in the
+					// real nats_ca cache via Pubsub.SetCACache once clustering is
+					// licensed.
+					//
+					// TODO: the real CA cache cannot be built here because
+					// options.Database is not yet fully instantiated (it is
+					// wrapped with metrics/dbauthz downstream). This split boot
+					// (noop here, real cache swapped in by enterprise) wants a
+					// refactor so the CA cache can be constructed once alongside
+					// the database.
+					ClusterCA: cryptokeys.NoopSigningKeycache{},
 				})
 				if err != nil {
 					return xerrors.Errorf("create nats pubsub: %w", err)
 				}
 				options.Pubsub = natsps
 				defer natsps.Close()
+
+				if options.DeploymentValues.Prometheus.Enable {
+					options.PrometheusRegistry.MustRegister(natsps)
+				}
 			}
 
 			psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), options.Pubsub)
@@ -841,6 +921,35 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}, nil)
 			if err != nil {
 				return xerrors.Errorf("set deployment id: %w", err)
+			}
+
+			// As OIDC clients can be confidential or public,
+			// we should only check for a client id being set.
+			// The underlying library handles the case of no
+			// client secrets correctly. For more details on
+			// client types: https://oauth.net/2/client-types/
+			if vals.OIDC.ClientID != "" {
+				if vals.OIDC.IgnoreEmailVerified {
+					logger.Warn(ctx, "coder will not check email_verified for OIDC logins")
+				}
+
+				// This OIDC config is **not** being instrumented with the
+				// oauth2 instrument wrapper. If we implement the missing
+				// oidc methods, then we can instrument it.
+				// Missing:
+				//	- Userinfo
+				//	- Verify
+				oc, err := createOIDCConfig(ctx, options.Logger, vals)
+				if err != nil {
+					return xerrors.Errorf("create oidc config: %w", err)
+				}
+				options.OIDCConfig = oc
+
+				// Repair any existing broken OIDC
+				err = oidcAuthLinks(ctx, logger, httpClient, vals, options.Database)
+				if err != nil {
+					return xerrors.Errorf("oidc auth links: %w", err)
+				}
 			}
 
 			extAuthEnv, err := ReadExternalAuthProvidersFromEnv(os.Environ())
@@ -931,6 +1040,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				URL:              vals.Telemetry.URL.Value(),
 				Tunnel:           tunnel != nil,
 				DeploymentConfig: deploymentConfigWithoutSecrets,
+				// SCIMAPIKey is a secret and is scrubbed by WithoutSecrets above,
+				// so we derive SCIMEnabled from vals (pre-scrub) instead.
+				SCIMEnabled:   vals.SCIMAPIKey != "",
+				SCIMUseLegacy: vals.UseLegacySCIM.Value(),
 				ParseLicenseJWT: func(lic *telemetry.License) error {
 					// This will be nil when running in AGPL-only mode.
 					if options.ParseLicenseClaims == nil {
@@ -1053,23 +1166,24 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			); err != nil {
 				return xerrors.Errorf("seed ai providers from env: %w", err)
 			}
+			// Must run after newAPI so options.Database is dbcrypt-wrapped.
+			coderd.BackfillBedrockProviderType(aibridgeInitCtx, options.Database, logger.Named("aibridge.backfill"))
 
 			// In-memory aibridge daemon. Registered on coderd so chatd can
 			// dispatch LLM requests via the in-process transport without
-			// crossing the gated /api/v2/aibridge HTTP route. The HTTP route
+			// crossing the gated /api/v2/ai-gateway HTTP route. The HTTP route
 			// itself is registered (and license-gated) only by enterprise/coderd;
 			// in AGPL builds it does not exist at all. The daemon starts here
 			// unconditionally when the bridge feature is enabled by config so
 			// chatd can use it regardless of license entitlement.
 			if vals.AI.BridgeConfig.Enabled.Value() {
-				aibridgeReg := prometheus.WrapRegistererWithPrefix("coder_aibridged_", coderAPI.PrometheusRegistry)
+				// TODO(deprecation): Remove "coder_aibridged_" in v2.37.
+				// See AIGOV-447:
+				// https://linear.app/codercom/issue/AIGOV-447/remove-legacy-ai-gateway-metric-aliases
+				aibridgeReg := prometheusmetrics.NewMetricAliasRegisterer(coderAPI.PrometheusRegistry, "coder_ai_gateway_", "coder_aibridged_")
 				aibridgeMetrics := aibridge.NewMetrics(aibridgeReg)
-				aibridgeProviders, _, err := BuildProviders(aibridgeInitCtx, options.Database, vals.AI.BridgeConfig, logger.Named("aibridge.providers"), aibridgeMetrics)
-				if err != nil {
-					return xerrors.Errorf("build AI providers: %w", err)
-				}
 				var unsubscribeProviderReload func()
-				aibridgeDaemon, unsubscribeProviderReload, err = newAIBridgeDaemon(coderAPI, aibridgeProviders, vals.AI.BridgeConfig, aibridgeReg, aibridgeMetrics)
+				aibridgeDaemon, unsubscribeProviderReload, err = newAIBridgeDaemon(coderAPI, vals.AI.BridgeConfig, aibridgeReg, aibridgeMetrics)
 				if err != nil {
 					return xerrors.Errorf("create aibridged: %w", err)
 				}
@@ -1158,7 +1272,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer shutdownConns()
 
 			// Ensures that old database entries are cleaned up over time!
-			purger := dbpurge.New(ctx, logger.Named("dbpurge"), options.Database, options.DeploymentValues, options.PrometheusRegistry, &coderAPI.Auditor, dbpurge.WithNotificationsEnqueuer(options.NotificationsEnqueuer))
+			purger := dbpurge.New(ctx, logger.Named("dbpurge"), options.Database, options.DeploymentValues, options.PrometheusRegistry)
 			defer purger.Close()
 
 			// Updates workspace usage
@@ -1427,6 +1541,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 	createAdminUserCmd := r.newCreateAdminUserCommand()
 	regenerateVapidKeypairCmd := r.newRegenerateVapidKeypairCommand()
+	fixOIDCLinksCmd := r.newFixOIDCLinksCommand()
 
 	rawURLOpt := serpent.Option{
 		Flag: "raw-url",
@@ -1440,7 +1555,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 	serverCmd.Children = append(
 		serverCmd.Children,
-		createAdminUserCmd, postgresBuiltinURLCmd, postgresBuiltinServeCmd, regenerateVapidKeypairCmd,
+		createAdminUserCmd, postgresBuiltinURLCmd, postgresBuiltinServeCmd, regenerateVapidKeypairCmd, fixOIDCLinksCmd,
 	)
 
 	return serverCmd
@@ -2326,6 +2441,15 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	if customCacheDir != "" {
 		cachePath = filepath.Join(customCacheDir, "postgres")
 	}
+	// Tests get a fresh config root per invocation, so the default cache path
+	// never hits and each test re-downloads the archive from Maven, which
+	// rate-limits CI runners. EMBEDDED_PG_CACHE_DIR (restored from the actions
+	// cache) lets them share one copy.
+	if flag.Lookup("test.v") != nil {
+		if dir := os.Getenv("EMBEDDED_PG_CACHE_DIR"); dir != "" {
+			cachePath = dir
+		}
+	}
 	stdlibLogger := slog.Stdlib(ctx, logger.Named("postgres"), slog.LevelDebug)
 
 	// If the port is not defined, an available port will be found dynamically. This has
@@ -2337,10 +2461,10 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	// in CI and cause flaky tests.
 	maxAttempts := 1
 	_, err = cfg.PostgresPort().Read()
-	// Important: if retryPortDiscovery is changed to not include testing.Testing(),
+	// Important: if retryPortDiscovery is changed to not include flag.Lookup("test.v") != nil,
 	// the retry logic below also needs to be updated to ensure we don't delete an
 	// existing database
-	retryPortDiscovery := errors.Is(err, os.ErrNotExist) && testing.Testing()
+	retryPortDiscovery := errors.Is(err, os.ErrNotExist) && flag.Lookup("test.v") != nil
 	if retryPortDiscovery {
 		maxAttempts = 10
 	}
@@ -2700,10 +2824,27 @@ func (s *HTTPServers) Close() {
 	}
 }
 
+// ConfigureTraceProvider configures tracing for coderd. When tracing is
+// disabled, it returns a noop provider, the default postgres driver name, and
+// a noop close function. The SQL driver name switches to the tracing driver when
+// postgres tracing is available. The close function flushes and shuts down the
+// exporter, and this function installs the global OpenTelemetry text map
+// propagator as a side effect.
 func ConfigureTraceProvider(
 	ctx context.Context,
 	logger slog.Logger,
 	cfg *codersdk.DeploymentValues,
+) (trace.TracerProvider, string, func(context.Context) error) {
+	return ConfigureTraceProviderWithService(ctx, logger, cfg, "coderd")
+}
+
+// ConfigureTraceProviderWithService is the parameterized variant of
+// ConfigureTraceProvider.
+func ConfigureTraceProviderWithService(
+	ctx context.Context,
+	logger slog.Logger,
+	cfg *codersdk.DeploymentValues,
+	serviceName string,
 ) (trace.TracerProvider, string, func(context.Context) error) {
 	var (
 		tracerProvider = trace.NewNoopTracerProvider()
@@ -2719,7 +2860,7 @@ func ConfigureTraceProvider(
 	)
 
 	if cfg.Trace.Enable.Value() || cfg.Trace.DataDog.Value() || cfg.Trace.HoneycombAPIKey != "" {
-		sdkTracerProvider, _closeTracing, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
+		sdkTracerProvider, _closeTracing, err := tracing.TracerProvider(ctx, serviceName, tracing.TracerOpts{
 			Default:   cfg.Trace.Enable.Value(),
 			DataDog:   cfg.Trace.DataDog.Value(),
 			Honeycomb: cfg.Trace.HoneycombAPIKey.String(),
@@ -2909,11 +3050,22 @@ func ReadExternalAuthProvidersFromEnv(environ []string) ([]codersdk.ExternalAuth
 // external auth providers. A prefix is provided to support the legacy
 // parsing of `GITAUTH` environment variables.
 func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]codersdk.ExternalAuthConfig, error) {
-	// The index numbers must be in-order.
-	slices.Sort(environ)
+	parsed := serpent.ParseEnviron(environ, prefix)
+
+	// Sort by numeric index so that PROVIDER_2 comes before PROVIDER_10.
+	// A lexicographic sort would order PROVIDER_10 between PROVIDER_1 and
+	// PROVIDER_2 and trip the "provider num skipped" check below.
+	slices.SortFunc(parsed, func(a, b serpent.EnvVar) int {
+		aIdx, _ := strconv.Atoi(strings.SplitN(a.Name, "_", 2)[0])
+		bIdx, _ := strconv.Atoi(strings.SplitN(b.Name, "_", 2)[0])
+		if aIdx != bIdx {
+			return aIdx - bIdx
+		}
+		return strings.Compare(a.Name, b.Name)
+	})
 
 	var providers []codersdk.ExternalAuthConfig
-	for _, v := range serpent.ParseEnviron(environ, prefix) {
+	for _, v := range parsed {
 		tokens := strings.SplitN(v.Name, "_", 2)
 		if len(tokens) != 2 {
 			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
@@ -3063,26 +3215,26 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 		// BEDROCK_* fields are accepted on anthropic (mutually exclusive
 		// with KEYS) and required on bedrock. Any other TYPE rejecting
 		// them prevents silently-ignored credentials.
-		isBedrockType := providerType == database.AiProviderTypeBedrock
-		isAnthropicType := providerType == database.AiProviderTypeAnthropic
+		isBedrockType := providerType == database.AIProviderTypeBedrock
+		isAnthropicType := providerType == database.AIProviderTypeAnthropic
 		if !isAnthropicType && !isBedrockType && isBedrock {
 			return nil, xerrors.Errorf("provider %d (%s): BEDROCK_* fields are only supported with TYPE %q or %q",
-				i, p.Type, database.AiProviderTypeAnthropic, database.AiProviderTypeBedrock)
+				i, p.Type, database.AIProviderTypeAnthropic, database.AIProviderTypeBedrock)
 		}
 
 		if isBedrockType && !isBedrock {
 			return nil, xerrors.Errorf("provider %d (%s): TYPE %q requires BEDROCK_* fields to be configured",
-				i, p.Type, database.AiProviderTypeBedrock)
+				i, p.Type, database.AIProviderTypeBedrock)
 		}
 
 		if isBedrockType && len(p.Keys) > 0 {
 			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS are not supported for TYPE %q (use BEDROCK_* fields)",
-				i, p.Type, database.AiProviderTypeBedrock)
+				i, p.Type, database.AIProviderTypeBedrock)
 		}
 
-		if providerType == database.AiProviderTypeCopilot && len(p.Keys) > 0 {
+		if providerType == database.AIProviderTypeCopilot && len(p.Keys) > 0 {
 			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS are not supported for TYPE %q",
-				i, p.Type, database.AiProviderTypeCopilot)
+				i, p.Type, database.AIProviderTypeCopilot)
 		}
 
 		// An Anthropic provider authenticates either via a bearer

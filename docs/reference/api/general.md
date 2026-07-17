@@ -4,7 +4,7 @@
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/ \
   -H 'Accept: application/json'
@@ -39,7 +39,7 @@ curl -X GET http://coder-server:8080/api/v2/ \
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/buildinfo \
   -H 'Accept: application/json'
@@ -76,10 +76,11 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/csp/reports \
   -H 'Content-Type: application/json' \
+  -H 'Accept: */*' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -99,11 +100,16 @@ curl -X POST http://coder-server:8080/api/v2/csp/reports \
 |--------|------|------------------------------------------------------|----------|------------------|
 | `body` | body | [coderd.cspViolation](schemas.md#coderdcspviolation) | true     | Violation report |
 
+### Example responses
+
+> 413 Response
+
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema |
-|--------|---------------------------------------------------------|-------------|--------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+| Status | Meaning                                                                 | Description              | Schema                                           |
+|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       |                                                  |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -111,7 +117,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/deployment/config \
   -H 'Accept: application/json' \
@@ -174,6 +180,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "enabled": true,
         "key_file": "string",
         "listen_addr": "string",
+        "target": "string",
         "tls_cert_file": "string",
         "tls_key_file": "string",
         "upstream_proxy": "string",
@@ -233,6 +240,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "browser_only": true,
     "cache_directory": "string",
     "cli_upgrade_message": "string",
+    "cluster": {
+      "host": "string"
+    },
     "config": "string",
     "config_ssh": {
       "deploymentName": "string",
@@ -424,6 +434,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "oidc": {
       "allow_signups": true,
       "auth_url_params": {},
+      "auto_repair_links": true,
       "client_cert_file": "string",
       "client_id": "string",
       "client_key_file": "string",
@@ -431,6 +442,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "email_domain": [
         "string"
       ],
+      "email_fallback": true,
       "email_field": "string",
       "group_allow_list": [
         "string"
@@ -459,6 +471,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "organization_assign_default": true,
       "organization_field": "string",
       "organization_mapping": {},
+      "redirect_allowed_hosts": [
+        "string"
+      ],
       "redirect_url": {
         "forceQuery": true,
         "fragment": "string",
@@ -534,6 +549,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "retention": {
       "api_keys": 0,
       "audit_logs": 0,
+      "boundary_logs": 0,
       "connection_logs": 0,
       "workspace_agent_logs": 0
     },
@@ -689,7 +705,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/deployment/ssh \
   -H 'Accept: application/json' \
@@ -725,7 +741,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/deployment/stats \
   -H 'Accept: application/json' \
@@ -777,7 +793,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/experiments \
   -H 'Accept: application/json' \
@@ -816,7 +832,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/experiments/available \
   -H 'Accept: application/json' \
@@ -855,7 +871,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/updatecheck \
   -H 'Accept: application/json'
@@ -885,7 +901,7 @@ curl -X GET http://coder-server:8080/api/v2/updatecheck \
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens/tokenconfig \
   -H 'Accept: application/json' \

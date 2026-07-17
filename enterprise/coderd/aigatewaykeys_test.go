@@ -59,7 +59,7 @@ func TestAIGatewayKeys(t *testing.T) {
 		require.Equal(t, created.ID, keys[0].ID)
 		require.Equal(t, created.Name, keys[0].Name)
 		require.Equal(t, created.KeyPrefix, keys[0].KeyPrefix)
-		require.Nil(t, keys[0].LastUsedAt)
+		require.Nil(t, keys[0].LastHeartbeatAt)
 
 		require.NoError(t, ownerClient.DeleteAIGatewayKey(ctx, created.ID))
 
@@ -81,7 +81,7 @@ func TestAIGatewayKeys(t *testing.T) {
 		require.NoError(t, err)
 		fullKey := created.Key
 
-		resp, err := ownerClient.Request(ctx, http.MethodGet, "/api/v2/aibridge/keys", nil)
+		resp, err := ownerClient.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/keys", nil)
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = resp.Body.Close() })
 		require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -137,7 +137,7 @@ func TestAIGatewayKeys(t *testing.T) {
 
 		// Invalid UUID -> 400 (raw request; SDK method accepts uuid.UUID).
 		//nolint:gocritic // Managing AI Gateway keys is owner-only.
-		resp, err := ownerClient.Request(ctx, http.MethodDelete, "/api/v2/aibridge/keys/not-a-uuid", nil)
+		resp, err := ownerClient.Request(ctx, http.MethodDelete, "/api/v2/ai-gateway/keys/not-a-uuid", nil)
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = resp.Body.Close() })
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -148,7 +148,7 @@ func TestAIGatewayKeys(t *testing.T) {
 		})
 		require.NoError(t, err)
 		// SDK returns no code on success, using raw request to check for 204.
-		delResp, err := ownerClient.Request(ctx, http.MethodDelete, "/api/v2/aibridge/keys/"+created.ID.String(), nil)
+		delResp, err := ownerClient.Request(ctx, http.MethodDelete, "/api/v2/ai-gateway/keys/"+created.ID.String(), nil)
 		require.NoError(t, err)
 		defer delResp.Body.Close()
 		require.Equal(t, http.StatusNoContent, delResp.StatusCode)
@@ -333,7 +333,7 @@ func TestAIGatewayKeysDatabaseErrors(t *testing.T) {
 			name:       "CreateDBError",
 			errStore:   aiGatewayKeyErrorStore{insertErr: dbErr},
 			method:     http.MethodPost,
-			path:       "/api/v2/aibridge/keys",
+			path:       "/api/v2/ai-gateway/keys",
 			body:       codersdk.CreateAIGatewayKeyRequest{Name: "db-err-create"},
 			wantStatus: http.StatusInternalServerError,
 			wantMsg:    "Failed to create key. Please retry.",
@@ -342,7 +342,7 @@ func TestAIGatewayKeysDatabaseErrors(t *testing.T) {
 			name:       "ListDBError",
 			errStore:   aiGatewayKeyErrorStore{listErr: dbErr},
 			method:     http.MethodGet,
-			path:       "/api/v2/aibridge/keys",
+			path:       "/api/v2/ai-gateway/keys",
 			wantStatus: http.StatusInternalServerError,
 			wantMsg:    "Failed to list keys.",
 		},
@@ -350,7 +350,7 @@ func TestAIGatewayKeysDatabaseErrors(t *testing.T) {
 			name:       "DeleteDBError",
 			errStore:   aiGatewayKeyErrorStore{deleteErr: dbErr},
 			method:     http.MethodDelete,
-			path:       "/api/v2/aibridge/keys/" + uuid.New().String(),
+			path:       "/api/v2/ai-gateway/keys/" + uuid.New().String(),
 			wantStatus: http.StatusInternalServerError,
 			wantMsg:    "Failed to delete key.",
 		},

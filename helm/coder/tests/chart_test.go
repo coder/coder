@@ -157,6 +157,14 @@ var testCases = []testCase{
 		name:          "host_aliases",
 		expectedError: "",
 	},
+	{
+		name:          "listenerset",
+		expectedError: "",
+	},
+	{
+		name:          "listenerset_redirect",
+		expectedError: "",
+	},
 }
 
 type testCase struct {

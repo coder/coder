@@ -11,6 +11,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
+import { ConfirmDeleteDialog } from "#/components/Dialogs/ConfirmDeleteDialog/ConfirmDeleteDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Loader } from "#/components/Loader/Loader";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -23,7 +24,6 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { formatDate } from "#/utils/time";
-import { ConfirmDeleteDialog } from "./components/ConfirmDeleteDialog";
 import type { PersonalSkillErrorDisplay } from "./components/PersonalSkillEditor";
 import { PersonalSkillEditor } from "./components/PersonalSkillEditor";
 import { SectionHeader } from "./components/SectionHeader";
@@ -142,7 +142,7 @@ const EditSkillDialog: FC<{
 							Close
 						</Button>
 						<Button onClick={state.onRetry} disabled={state.isRetrying}>
-							{state.isRetrying && <Spinner className="h-4 w-4" loading />}
+							{state.isRetrying && <Spinner className="size-4" loading />}
 							Retry
 						</Button>
 					</DialogFooter>
@@ -247,7 +247,7 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 						onClick={onRetry}
 						disabled={isRetrying}
 					>
-						{isRetrying && <Spinner className="h-4 w-4" loading />}
+						{isRetrying && <Spinner className="size-4" loading />}
 						Retry
 					</Button>
 				</div>

@@ -24,6 +24,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	aidmcp "github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
 )
@@ -38,6 +39,15 @@ import (
 // This doesn't affect tool invocation since originalName is used
 // directly when calling the remote server.
 const toolNameSep = "__"
+
+// truncateToolName caps the assembled tool name at MaxToolNameLen so
+// it fits within provider limits (e.g. OpenAI 64, Bedrock 128).
+func truncateToolName(name string) string {
+	if len(name) > aidmcp.MaxToolNameLen {
+		return name[:aidmcp.MaxToolNameLen]
+	}
+	return name
+}
 
 // connectTimeout bounds how long we wait for a single MCP server
 // to start its transport and complete initialization. Servers that
@@ -162,6 +172,31 @@ func ConnectAll(
 			cmp.Compare(aTool.MCPServerConfigID().String(), bTool.MCPServerConfigID().String()),
 		)
 	})
+
+	// Warn about name collisions that may result from sanitization
+	// and truncation. When two tools resolve to the same name, the
+	// LLM tool-call dispatch map keeps only one, so the other
+	// becomes silently unreachable.
+	for i := 1; i < len(tools); i++ {
+		if tools[i-1].Info().Name == tools[i].Info().Name {
+			prevTool, ok := tools[i-1].(MCPToolIdentifier)
+			if !ok {
+				continue
+			}
+			currTool, ok := tools[i].(MCPToolIdentifier)
+			if !ok {
+				continue
+			}
+			if prevTool.MCPServerConfigID() != currTool.MCPServerConfigID() {
+				logger.Warn(ctx,
+					"duplicate tool name after sanitization; one tool will be unreachable",
+					slog.F("tool_name", tools[i].Info().Name),
+					slog.F("prev_config_id", prevTool.MCPServerConfigID()),
+					slog.F("curr_config_id", currTool.MCPServerConfigID()),
+				)
+			}
+		}
+	}
 
 	return tools, cleanup
 }
@@ -331,6 +366,16 @@ func buildAuthHeaders(
 		if !ok {
 			logger.Warn(ctx,
 				"no oauth2 token found for MCP server",
+				slog.F("server_slug", cfg.Slug),
+			)
+			break
+		}
+		if tok.OauthRefreshFailureReason != "" {
+			// The grant is permanently unusable (e.g. revoked
+			// upstream) and the user must reconnect. Do not attach
+			// any leftover token material.
+			logger.Warn(ctx,
+				"oauth2 token for MCP server requires reconnect, skipping auth header",
 				slog.F("server_slug", cfg.Slug),
 			)
 			break
@@ -520,7 +565,7 @@ func newMCPTool(
 ) *mcpToolWrapper {
 	return &mcpToolWrapper{
 		configID:     configID,
-		prefixedName: serverSlug + toolNameSep + tool.Name,
+		prefixedName: truncateToolName(aidmcp.SanitizeToolName(serverSlug) + toolNameSep + aidmcp.SanitizeToolName(tool.Name)),
 		originalName: tool.Name,
 		description:  tool.Description,
 		parameters:   tool.InputSchema.Properties,
@@ -821,6 +866,43 @@ type RefreshResult struct {
 	// meaning a refresh occurred. When false the token was still
 	// valid and no network call was made.
 	Refreshed bool
+}
+
+// refreshFailureReasonLimit caps the error text persisted to
+// mcp_server_user_tokens.oauth_refresh_failure_reason, matching the
+// external auth failure reason limit.
+const refreshFailureReasonLimit = 400
+
+// IsPermanentRefreshError reports whether an OAuth2 token refresh
+// error means the user's grant is permanently unusable (for example
+// the upstream grant was revoked) rather than a transient provider
+// failure. Only error codes tied to the grant itself count: client
+// or config problems (invalid_client, unauthorized_client, ...)
+// affect every user of the server and cannot be fixed by the user
+// reconnecting, so they are treated as transient here. See RFC 6749
+// section 5.2.
+func IsPermanentRefreshError(err error) bool {
+	var oauthErr *oauth2.RetrieveError
+	if !xerrors.As(err, &oauthErr) {
+		return false
+	}
+	switch oauthErr.ErrorCode {
+	case "invalid_grant", // RFC 6749: grant invalid, expired, or revoked
+		"bad_refresh_token": // GitHub's equivalent, returned with HTTP 200
+		return true
+	}
+	return false
+}
+
+// RefreshFailureReason converts a refresh error into a bounded string
+// safe to persist as oauth_refresh_failure_reason. It is stored for
+// operator debugging only and is never returned through the API.
+func RefreshFailureReason(err error) string {
+	reason := err.Error()
+	if len(reason) > refreshFailureReasonLimit {
+		reason = reason[:refreshFailureReasonLimit]
+	}
+	return reason
 }
 
 // RefreshOAuth2Token checks whether the given MCP user token is

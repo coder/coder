@@ -22,9 +22,7 @@ export const DeleteTaskSuccess: Story = {
 		onClose: () => {},
 	},
 	parameters: {
-		chromatic: {
-			disableSnapshot: false,
-		},
+		pixel: { exclude: false },
 	},
 	beforeEach: () => {
 		spyOn(API, "deleteTask").mockResolvedValue();

@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"io"
-	"net/url"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -33,13 +32,6 @@ import (
 
 func (r *RootCmd) Server(_ func()) *serpent.Command {
 	cmd := r.RootCmd.Server(func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
-		if options.DeploymentValues.DERP.Server.RelayURL.String() != "" {
-			_, err := url.Parse(options.DeploymentValues.DERP.Server.RelayURL.String())
-			if err != nil {
-				return nil, nil, xerrors.Errorf("derp-server-relay-address must be a valid HTTP URL: %w", err)
-			}
-		}
-
 		// Always generate a mesh key, even if the built-in DERP server is
 		// disabled. This mesh key is still used by workspace proxies running
 		// HA.

@@ -26,7 +26,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
@@ -42,55 +41,47 @@ const (
 )
 
 type responsesInterceptionBase struct {
-	id           uuid.UUID
-	providerName string
-	// clientHeaders are the original HTTP headers from the client request.
-	clientHeaders  http.Header
-	authHeaderName string
-	reqPayload     RequestPayload
+	id         uuid.UUID
+	reqPayload RequestPayload
 
-	cfg      config.OpenAI
+	cfg  intercept.Config
+	cred intercept.Credential
+
+	// clientHeaders are the original HTTP headers from the client request.
+	clientHeaders http.Header
+
+	logger slog.Logger
+	tracer trace.Tracer
+
 	recorder recorder.Recorder
 	mcpProxy mcp.ServerProxier
-
-	logger     slog.Logger
-	tracer     trace.Tracer
-	credential intercept.CredentialInfo
 }
 
-// newResponsesService builds the SDK service used for upstream
-// calls. BYOK auth is set here. Centralized auth is set
-// per-attempt by the failover loop.
-func (i *responsesInterceptionBase) newResponsesService() responses.ResponseService {
-	// TODO(ssncferreira): validate auth is configured per
-	// https://github.com/coder/aibridge/issues/266.
-
+// newResponsesService builds the SDK service used for upstream calls.
+func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) responses.ResponseService {
 	var opts []option.RequestOption
-	// BYOK auth.
-	if i.cfg.KeyPool == nil {
-		opts = append(opts, option.WithAPIKey(i.cfg.Key))
+	// Only BYOK sets its credential here. Centralized keys are injected
+	// per-attempt in the failover loop.
+	if byok, ok := intercept.AsBYOK(i.cred); ok {
+		i.logger.Debug(ctx, "using byok auth",
+			slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
+		)
+		opts = append(opts, option.WithAPIKey(byok.Secret))
 	}
 	opts = append(opts, option.WithBaseURL(i.cfg.BaseURL))
-
-	// Add extra headers if configured.
-	// Some providers require additional headers that are not added by the SDK.
-	// TODO(ssncferreira): remove as part of https://github.com/coder/aibridge/issues/192
-	for key, value := range i.cfg.ExtraHeaders {
-		opts = append(opts, option.WithHeader(key, value))
-	}
 
 	// Forward client headers to upstream. This middleware runs after the SDK
 	// has built the request, and replaces the outgoing headers with the sanitized
 	// client headers plus provider auth.
 	if i.clientHeaders != nil {
 		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.authHeaderName)
+			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader())
 			return next(req)
 		}))
 	}
 
 	// Add API dump middleware if configured
-	if mw := apidump.NewBridgeMiddleware(i.cfg.APIDumpDir, i.providerName, i.Model(), i.id, i.logger, quartz.NewReal()); mw != nil {
+	if mw := apidump.NewBridgeMiddleware(i.cfg.APIDumpDir, i.cfg.ProviderName, i.Model(), i.id, i.logger, quartz.NewReal()); mw != nil {
 		opts = append(opts, option.WithMiddleware(mw))
 	}
 
@@ -101,8 +92,8 @@ func (i *responsesInterceptionBase) ID() uuid.UUID {
 	return i.id
 }
 
-func (i *responsesInterceptionBase) Credential() intercept.CredentialInfo {
-	return i.credential
+func (i *responsesInterceptionBase) Credential() intercept.Credential {
+	return i.cred
 }
 
 func (i *responsesInterceptionBase) Setup(logger slog.Logger, rec recorder.Recorder, mcpProxy mcp.ServerProxier) {
@@ -124,7 +115,7 @@ func (i *responsesInterceptionBase) baseTraceAttributes(r *http.Request, streami
 		attribute.String(tracing.RequestPath, r.URL.Path),
 		attribute.String(tracing.InterceptionID, i.id.String()),
 		attribute.String(tracing.InitiatorID, aibcontext.ActorIDFromContext(r.Context())),
-		attribute.String(tracing.Provider, i.providerName),
+		attribute.String(tracing.Provider, i.cfg.ProviderName),
 		attribute.String(tracing.Model, i.Model()),
 		attribute.Bool(tracing.Streaming, streaming),
 	}
@@ -132,7 +123,7 @@ func (i *responsesInterceptionBase) baseTraceAttributes(r *http.Request, streami
 
 func (i *responsesInterceptionBase) validateRequest(ctx context.Context, w http.ResponseWriter) error {
 	if i.reqPayload.background() {
-		err := xerrors.New("background requests are currently not supported by AI Bridge")
+		err := xerrors.New("background requests are currently not supported by AI Gateway")
 		i.sendCustomErr(ctx, w, http.StatusNotImplemented, err)
 		return err
 	}
@@ -174,14 +165,15 @@ func (i *responsesInterceptionBase) writeUpstreamError(w http.ResponseWriter, oa
 // code. Returns true if the status was a key-specific failover
 // trigger so callers can retry with the next key.
 func (i *responsesInterceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key, err error) bool {
-	if i.cfg.KeyPool == nil {
+	cp, ok := intercept.AsCentralizedPool(i.cred)
+	if !ok {
 		return false
 	}
 	var apiErr *openai.Error
 	if !errors.As(err, &apiErr) {
 		return false
 	}
-	return i.cfg.KeyPool.MarkKeyOnStatus(
+	return cp.Pool.MarkKeyOnStatus(
 		ctx, key, apiErr.Response, i.logger,
 	)
 }
@@ -265,25 +257,49 @@ func (i *responsesInterceptionBase) recordNonInjectedToolUsage(ctx context.Conte
 	for _, item := range response.Output {
 		var args recorder.ToolArgs
 
-		// recording other function types to be considered: https://github.com/coder/aibridge/issues/121
+		// Whitelist the output item types that represent tool calls. Every
+		// other output type (message, reasoning, *_output, etc.) is skipped.
+		// Only function_call and custom_tool_call carry arguments we parse;
+		// the remaining built-in tool calls are recorded for visibility but
+		// have no uniform argument representation.
 		switch item.Type {
 		case string(constant.ValueOf[constant.FunctionCall]()):
 			args = i.parseFunctionCallJSONArgs(ctx, item.Arguments)
 		case string(constant.ValueOf[constant.CustomToolCall]()):
 			args = item.Input
+		case string(constant.ValueOf[constant.WebSearchCall]()),
+			// computer_call has no SDK constant; only computer_call_output does.
+			"computer_call",
+			string(constant.ValueOf[constant.LocalShellCall]()),
+			string(constant.ValueOf[constant.ShellCall]()),
+			string(constant.ValueOf[constant.ApplyPatchCall]()),
+			string(constant.ValueOf[constant.CodeInterpreterCall]()),
+			string(constant.ValueOf[constant.McpCall]()),
+			string(constant.ValueOf[constant.FileSearchCall]()),
+			string(constant.ValueOf[constant.ImageGenerationCall]()):
+			// Built-in tool calls carry no uniform argument payload.
 		default:
 			continue
+		}
+
+		// Built-in tools usually have no name, so fall back to the type.
+		toolName := item.Name
+		if toolName == "" {
+			toolName = item.Type
 		}
 
 		if err := i.recorder.RecordToolUsage(ctx, &recorder.ToolUsageRecord{
 			InterceptionID: i.ID().String(),
 			MsgID:          response.ID,
-			ToolCallID:     item.CallID,
-			Tool:           item.Name,
-			Args:           args,
-			Injected:       false,
+			// ItemID is always present; ToolCallID (call_id) is empty for
+			// hosted tools that the provider executes internally.
+			ItemID:     item.ID,
+			ToolCallID: item.CallID,
+			Tool:       toolName,
+			Args:       args,
+			Injected:   false,
 		}); err != nil {
-			i.logger.Warn(ctx, "failed to record tool usage", slog.Error(err), slog.F("tool", item.Name))
+			i.logger.Warn(ctx, "failed to record tool usage", slog.Error(err), slog.F("tool", toolName))
 		}
 	}
 }
@@ -311,7 +327,7 @@ func (i *responsesInterceptionBase) recordTokenUsage(ctx context.Context, respon
 
 	// Keeping logic consistent with chat completions
 	// Input *includes* the cached tokens, so we subtract them here to reflect actual input token usage.
-	inputNonCacheTokens := usage.InputTokens - usage.InputTokensDetails.CachedTokens
+	inputNonCacheTokens := max(0, usage.InputTokens-usage.InputTokensDetails.CachedTokens)
 
 	if err := i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
 		InterceptionID:       i.ID().String(),
@@ -397,7 +413,7 @@ type responseCopier struct {
 	// this closer to makes sure whole response body is in the buffer.
 	responseBody io.ReadCloser
 
-	// responseReceived flag is used to determine if AI Bridge needs to write custom error:
+	// responseReceived flag is used to determine if AI Gateway needs to write custom error:
 	// - If responseReceived is true, the upstream response is forwarded as-is.
 	// - If responseReceived is false, no response was returned and there is nothing to forward (eg. connection/client error). Custom error will be returned.
 	responseReceived atomic.Bool

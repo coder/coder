@@ -3,11 +3,74 @@ package coderd
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
+
+func TestEnrichMissingChatAgentIDs(t *testing.T) {
+	t.Parallel()
+	newAPI := func(t *testing.T) (*API, *dbmock.MockStore) {
+		t.Helper()
+		mDB := dbmock.NewMockStore(gomock.NewController(t))
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		return &API{Options: &Options{Database: mDB, Logger: logger}}, mDB
+	}
+	workspaceID, otherWorkspaceID := uuid.New(), uuid.New()
+	rootAgentID, otherAgentID := uuid.New(), uuid.New()
+	row := func(workspaceID, id uuid.UUID, parentID uuid.NullUUID, name string) database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow {
+		return database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow{
+			WorkspaceID: workspaceID,
+			WorkspaceAgent: database.WorkspaceAgent{
+				ID:       id,
+				ParentID: parentID,
+				Name:     name,
+			},
+		}
+	}
+	t.Run("batch selection and shared workspace", func(t *testing.T) {
+		t.Parallel()
+		api, mDB := newAPI(t)
+		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(gomock.Any(), gomock.Any()).DoAndReturn(func(_ any, ids []uuid.UUID) ([]database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow, error) {
+			require.ElementsMatch(t, []uuid.UUID{workspaceID, otherWorkspaceID}, ids)
+			return []database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow{
+				row(workspaceID, uuid.New(), uuid.NullUUID{UUID: rootAgentID, Valid: true}, "sub"), row(workspaceID, rootAgentID, uuid.NullUUID{}, "root"), row(otherWorkspaceID, otherAgentID, uuid.NullUUID{}, "root"),
+			}, nil
+		}).Times(1)
+		chats := []codersdk.Chat{{WorkspaceID: &workspaceID, Children: []codersdk.Chat{{WorkspaceID: &workspaceID}}}, {WorkspaceID: &otherWorkspaceID}}
+		api.enrichChatWithWorkspaceAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
+		require.Equal(t, rootAgentID, *chats[0].AgentID)
+		require.Equal(t, rootAgentID, *chats[0].Children[0].AgentID)
+		require.Equal(t, otherAgentID, *chats[1].AgentID)
+	})
+	t.Run("query error", func(t *testing.T) {
+		t.Parallel()
+		api, mDB := newAPI(t)
+		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(gomock.Any(), gomock.Any()).Return(nil, xerrors.New("boom"))
+		chats := []codersdk.Chat{{WorkspaceID: &workspaceID}, {WorkspaceID: &otherWorkspaceID}}
+		api.enrichChatWithWorkspaceAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
+		require.Nil(t, chats[0].AgentID)
+		require.Nil(t, chats[1].AgentID)
+	})
+	t.Run("selection error and skips bound or unbound", func(t *testing.T) {
+		t.Parallel()
+		api, mDB := newAPI(t)
+		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(gomock.Any(), []uuid.UUID{workspaceID}).Return([]database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow{row(workspaceID, uuid.New(), uuid.NullUUID{UUID: rootAgentID, Valid: true}, "sub")}, nil)
+		bound := otherAgentID
+		chats := []codersdk.Chat{{}, {WorkspaceID: &workspaceID}, {WorkspaceID: &workspaceID, AgentID: &bound}}
+		api.enrichChatWithWorkspaceAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
+		require.Nil(t, chats[1].AgentID)
+		require.Equal(t, bound, *chats[2].AgentID)
+	})
+}
 
 func TestValidateChatModelProviderOptions_AnthropicThinkingDisplay(t *testing.T) {
 	t.Parallel()
@@ -60,7 +123,7 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 			model: "anthropic/claude-opus-4.6",
 			provider: database.AIProvider{
 				Name: "openrouter",
-				Type: database.AiProviderTypeOpenai,
+				Type: database.AIProviderTypeOpenai,
 			},
 			wantErr:    true,
 			wantDetail: "Change the AI provider type to openrouter or openai-compat.",
@@ -70,7 +133,7 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 			model: "anthropic/claude-opus-4.6",
 			provider: database.AIProvider{
 				Name: " OpenRouter ",
-				Type: database.AiProviderTypeOpenai,
+				Type: database.AIProviderTypeOpenai,
 			},
 			wantErr:    true,
 			wantDetail: "Change the AI provider type to openrouter or openai-compat.",
@@ -80,7 +143,7 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 			model: "anthropic/claude-opus-4.6",
 			provider: database.AIProvider{
 				Name:    "private-relay",
-				Type:    database.AiProviderTypeOpenai,
+				Type:    database.AIProviderTypeOpenai,
 				BaseUrl: "https://openrouter.ai/api/v1",
 			},
 			wantErr:    true,
@@ -91,7 +154,7 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 			model: "anthropic/claude-opus-4.6",
 			provider: database.AIProvider{
 				Name:    "private-relay",
-				Type:    database.AiProviderTypeOpenai,
+				Type:    database.AIProviderTypeOpenai,
 				BaseUrl: "https://openrouter.ai:443/api/v1",
 			},
 			wantErr:    true,
@@ -102,7 +165,7 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 			model: "anthropic/claude-opus-4.6",
 			provider: database.AIProvider{
 				Name:    "private-relay",
-				Type:    database.AiProviderTypeOpenai,
+				Type:    database.AIProviderTypeOpenai,
 				BaseUrl: "https://api.openrouter.ai/v1",
 			},
 			wantErr:    true,
@@ -113,7 +176,7 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 			model: "anthropic/claude-opus-4.6",
 			provider: database.AIProvider{
 				Name: "openrouter",
-				Type: database.AiProviderTypeOpenrouter,
+				Type: database.AIProviderTypeOpenrouter,
 			},
 		},
 		{
@@ -121,7 +184,7 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 			model: "anthropic/claude-opus-4.6",
 			provider: database.AIProvider{
 				Name: "openrouter",
-				Type: database.AiProviderTypeOpenaiCompat,
+				Type: database.AIProviderTypeOpenaiCompat,
 			},
 		},
 		{
@@ -129,7 +192,7 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 			model: "anthropic/claude-opus-4.6",
 			provider: database.AIProvider{
 				Name:    "private-relay",
-				Type:    database.AiProviderTypeOpenai,
+				Type:    database.AIProviderTypeOpenai,
 				BaseUrl: "https://llm-relay.internal/v1",
 			},
 		},
@@ -138,7 +201,7 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 			model: "gpt-4.1",
 			provider: database.AIProvider{
 				Name: "openrouter",
-				Type: database.AiProviderTypeOpenai,
+				Type: database.AIProviderTypeOpenai,
 			},
 		},
 	}

@@ -104,3 +104,74 @@ export const Accessibility: Story = {
 		).toBeGreaterThanOrEqual(3);
 	},
 };
+
+// type="always" forces the thumb to render so its `::before` hit-target
+// pseudo-element is measurable.
+export const ThumbHitAreaOverride: Story = {
+	render: () => (
+		<div className="flex gap-4">
+			<div
+				data-testid="default-area"
+				className="w-48 rounded-md border border-solid border-border-default bg-surface-primary"
+			>
+				<ScrollArea className="h-48" type="always" scrollBarClassName="w-1.5">
+					<OverflowingContent />
+				</ScrollArea>
+			</div>
+			<div
+				data-testid="override-area"
+				className="w-48 rounded-md border border-solid border-border-default bg-surface-primary"
+			>
+				<ScrollArea
+					className="h-48"
+					type="always"
+					orientation="both"
+					scrollBarClassName="w-1.5"
+					horizontalScrollBarClassName="h-1.5"
+					scrollThumbClassName="before:hidden"
+				>
+					<OverflowingContent />
+				</ScrollArea>
+			</div>
+		</div>
+	),
+	play: async ({ canvasElement }) => {
+		const getThumb = (
+			testid: string,
+			orientation: "vertical" | "horizontal",
+		) => {
+			const area = canvasElement.querySelector(`[data-testid='${testid}']`);
+			return area?.querySelector(`[data-orientation="${orientation}"]`)
+				?.firstElementChild as HTMLElement | null | undefined;
+		};
+
+		await waitFor(() => {
+			expect(getThumb("default-area", "vertical")).toBeTruthy();
+			expect(getThumb("override-area", "vertical")).toBeTruthy();
+			expect(getThumb("override-area", "horizontal")).toBeTruthy();
+		});
+
+		const defaultThumb = getThumb("default-area", "vertical");
+		const overrideThumb = getThumb("override-area", "vertical");
+		const overrideHorizontalThumb = getThumb("override-area", "horizontal");
+		if (!defaultThumb || !overrideThumb || !overrideHorizontalThumb) {
+			throw new Error("scrollbar thumbs not found");
+		}
+
+		const defaultBefore = getComputedStyle(defaultThumb, "::before");
+		await expect(defaultBefore.display).not.toBe("none");
+		await expect(Number.parseFloat(defaultBefore.width)).toBeGreaterThanOrEqual(
+			24,
+		);
+
+		await expect(getComputedStyle(overrideThumb, "::before").display).toBe(
+			"none",
+		);
+		await expect(
+			getComputedStyle(overrideHorizontalThumb, "::before").display,
+		).toBe("none");
+		await expect(overrideThumb.getBoundingClientRect().width).toBeGreaterThan(
+			0,
+		);
+	},
+};

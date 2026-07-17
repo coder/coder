@@ -15,6 +15,7 @@ var (
 	TemplateWorkspaceDormant           = uuid.MustParse("0ea69165-ec14-4314-91f1-69566ac3c5a0")
 	TemplateWorkspaceAutoUpdated       = uuid.MustParse("c34a0c09-0704-4cac-bd1c-0c0146811c2b")
 	TemplateWorkspaceMarkedForDeletion = uuid.MustParse("51ce2fdf-c9ca-4be1-8d70-628674f9bc42")
+	TemplateWorkspaceAutostopReminder  = uuid.MustParse("6f6cb984-c167-4fa5-bb87-1058dd642779")
 	TemplateWorkspaceManualBuildFailed = uuid.MustParse("2faeee0f-26cb-4e96-821c-85ccb9f71513")
 	TemplateWorkspaceOutOfMemory       = uuid.MustParse("a9d027b4-ac49-4fb1-9f6d-45af15f64e7a")
 	TemplateWorkspaceOutOfDisk         = uuid.MustParse("f047f6a3-5713-40f7-85aa-0394cce9fa3a")
@@ -66,4 +67,5 @@ var (
 // Chat-related events.
 var (
 	TemplateChatAutoArchiveDigest = uuid.MustParse("764031be-4863-4220-867b-6ce1a1b7a5f5")
+	TemplateChatShared            = uuid.MustParse("b789bd75-d7c6-4cab-9757-1147ab184903")
 )

@@ -15,7 +15,6 @@ import { checkAuthorization } from "#/api/queries/authCheck";
 import {
 	templateByName,
 	templateVersion,
-	templateVersionExternalAuth,
 	templateVersionPresets,
 } from "#/api/queries/templates";
 import { autoCreateWorkspace, createWorkspace } from "#/api/queries/workspaces";
@@ -23,12 +22,11 @@ import type {
 	DynamicParametersRequest,
 	DynamicParametersResponse,
 	MinimalUser,
-	PreviewParameter,
 	Workspace,
 } from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { getInitialParameterValues } from "#/modules/workspaces/DynamicParameter/DynamicParameter";
+import { useExternalAuth } from "#/hooks/useExternalAuth";
 import { generateWorkspaceName } from "#/modules/workspaces/generateWorkspaceName";
 import { pageTitle } from "#/utils/page";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
@@ -41,7 +39,6 @@ import {
 
 const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
-type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
 const CreateWorkspacePage: FC = () => {
 	const { organization: organizationName = "default", template: templateName } =
@@ -52,10 +49,14 @@ const CreateWorkspacePage: FC = () => {
 
 	const [latestResponse, setLatestResponse] =
 		useState<DynamicParametersResponse | null>(null);
+	// The current expected response ID.  Starts at -1 because the backend sends
+	// an initial message when the web socket is connected with -1.
 	const wsResponseId = useRef<number>(-1);
 	const ws = useRef<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
-	const initialParamsSentRef = useRef(false);
+	// The expected ID of the init message, so we can wait until the initial
+	// parameters have gone through before rendering the form.
+	const [initId, setInitId] = useState(Number.NaN);
 
 	const customVersionId = searchParams.get("version") ?? undefined;
 	const defaultName = searchParams.get("name");
@@ -156,61 +157,50 @@ const CreateWorkspacePage: FC = () => {
 	const hasIgnoredUrlParams =
 		urlAutofillParameters.length > 0 && urlPresetResult.preset !== undefined;
 
+	// sendMessage increments the ID and sends the form values on the web socket
+	// and returns true.  If the socket is not open, it does not increment the ID
+	// and returns false.
 	const sendMessage = (
 		formValues: Record<string, string>,
 		ownerId?: string,
-	) => {
+	): boolean => {
 		const request: DynamicParametersRequest = {
 			id: wsResponseId.current + 1,
 			owner_id: ownerId ?? owner.id,
 			inputs: formValues,
 		};
 		if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-			ws.current.send(JSON.stringify(request));
 			wsResponseId.current = wsResponseId.current + 1;
+			ws.current.send(JSON.stringify(request));
+			return true;
 		}
+		if (ws.current) {
+			console.error(
+				"Tried to send message but the web socket state is %s",
+				ws.current.readyState,
+				request,
+			);
+		}
+		return false;
 	};
 
-	// On page load, sends all initial parameter values to the websocket
-	// (including defaults and autofilled from the url)
-	// This ensures the backend has the complete initial state of the form,
-	// which is vital for correctly rendering dynamic UI elements where parameter visibility
-	// or options might depend on the initial values of other parameters.
-	const sendInitialParameters = useEffectEvent(
-		(parameters: PreviewParameter[]) => {
-			if (initialParamsSentRef.current) return;
-			if (parameters.length === 0) return;
-
-			const initialFormValues = getInitialParameterValues(
-				parameters,
-				autofillParameters,
-			);
-			if (initialFormValues.length === 0) return;
-
-			const initialParamsToSend: Record<string, string> = {};
-			for (const param of initialFormValues) {
-				if (param.name && param.value) {
-					initialParamsToSend[param.name] = param.value;
-				}
-			}
-
-			if (Object.keys(initialParamsToSend).length === 0) return;
-
-			sendMessage(initialParamsToSend);
-			initialParamsSentRef.current = true;
-		},
-	);
-
-	const onMessage = useEffectEvent((response: DynamicParametersResponse) => {
-		if (latestResponse && latestResponse?.id >= response.id) {
+	// Send the initial parameters if necessary and mark the ID of the response we
+	// need to wait for until we can finally render the form with the right state.
+	const sendInitialParameters = useEffectEvent(() => {
+		if (!Number.isNaN(initId)) {
 			return;
 		}
-
-		if (!initialParamsSentRef.current && response.parameters?.length > 0) {
-			sendInitialParameters([...response.parameters]);
+		if (autofillParameters.length > 0) {
+			const values = Object.fromEntries(
+				autofillParameters.map((afp) => [afp.name, afp.value]),
+			);
+			if (!sendMessage(values)) {
+				return;
+			}
 		}
-
-		setLatestResponse(response);
+		// If there were no parameters to send, this will end up just using the
+		// response we already have.  Otherwise it will wait for the next response.
+		setInitId(wsResponseId.current);
 	});
 
 	// Initialize the WebSocket connection when there is a valid template version ID
@@ -221,7 +211,17 @@ const CreateWorkspacePage: FC = () => {
 			realizedVersionId,
 			defaultOwner.id,
 			{
-				onMessage,
+				// Send initial parameters once the web socket is open.
+				onOpen: () => {
+					sendInitialParameters();
+				},
+				// Record the latest message every time we get one from the web
+				// socket.  Stale responses are discarded.
+				onMessage: (response: DynamicParametersResponse) => {
+					if (response.id >= wsResponseId.current) {
+						setLatestResponse(response);
+					}
+				},
 				onError: (error) => {
 					if (ws.current === socket) {
 						setWsError(error);
@@ -374,12 +374,19 @@ const CreateWorkspacePage: FC = () => {
 		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
 	}, [latestResponse?.parameters]);
 
+	const isInitializing =
+		!latestResponse ||
+		Number.isNaN(initId) ||
+		latestResponse.id < initId ||
+		(ws.current && ws.current.readyState === WebSocket.CONNECTING);
+
 	const shouldShowLoader =
 		!templateQuery.data ||
 		isLoadingFormData ||
 		isLoadingExternalAuth ||
 		autoCreateReady ||
 		(!latestResponse && !wsError) ||
+		(isInitializing && !wsError) ||
 		(effectivePresetName &&
 			!templateVersionPresetsQuery.isSuccess &&
 			!templateVersionPresetsQuery.isError);
@@ -459,50 +466,6 @@ const CreateWorkspacePage: FC = () => {
 			)}
 		</>
 	);
-};
-
-const useExternalAuth = (versionId: string | undefined) => {
-	const [externalAuthPollingState, setExternalAuthPollingState] =
-		useState<ExternalAuthPollingState>("idle");
-
-	const startPollingExternalAuth = useCallback(() => {
-		setExternalAuthPollingState("polling");
-	}, []);
-
-	const { data: externalAuth, isLoading: isLoadingExternalAuth } = useQuery({
-		...templateVersionExternalAuth(versionId ?? ""),
-		enabled: Boolean(versionId),
-		refetchInterval: externalAuthPollingState === "polling" ? 1000 : false,
-	});
-
-	const allSignedIn = externalAuth?.every((it) => it.authenticated);
-
-	useEffect(() => {
-		if (allSignedIn) {
-			setExternalAuthPollingState("idle");
-			return;
-		}
-
-		if (externalAuthPollingState !== "polling") {
-			return;
-		}
-
-		// Poll for a maximum of one minute
-		const quitPolling = setTimeout(
-			() => setExternalAuthPollingState("abandoned"),
-			60_000,
-		);
-		return () => {
-			clearTimeout(quitPolling);
-		};
-	}, [externalAuthPollingState, allSignedIn]);
-
-	return {
-		startPollingExternalAuth,
-		externalAuth,
-		externalAuthPollingState,
-		isLoadingExternalAuth,
-	};
 };
 
 const getAutofillParameters = (

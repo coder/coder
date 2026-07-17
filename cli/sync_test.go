@@ -409,4 +409,81 @@ func TestSyncCommands_Golden(t *testing.T) {
 
 		clitest.TestGoldenFile(t, "TestSyncCommands_Golden/status_json_format", outBuf.Bytes(), nil)
 	})
+
+	t.Run("list_no_units", func(t *testing.T) {
+		t.Parallel()
+		path, cleanup := setupSocketServer(t)
+		defer cleanup()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		var outBuf bytes.Buffer
+		inv, _ := clitest.New(t, "exp", "sync", "list", "--socket-path", path)
+		inv.Stdout = &outBuf
+		inv.Stderr = &outBuf
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		clitest.TestGoldenFile(t, "TestSyncCommands_Golden/list_no_units", outBuf.Bytes(), nil)
+	})
+
+	t.Run("list_with_units", func(t *testing.T) {
+		t.Parallel()
+		path, cleanup := setupSocketServer(t)
+		defer cleanup()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Register some units in various states.
+		client, err := agentsocket.NewClient(ctx, agentsocket.WithPath(path))
+		require.NoError(t, err)
+		// unit-a: started
+		err = client.SyncStart(ctx, "unit-a")
+		require.NoError(t, err)
+		// unit-b: completed
+		err = client.SyncStart(ctx, "unit-b")
+		require.NoError(t, err)
+		err = client.SyncComplete(ctx, "unit-b")
+		require.NoError(t, err)
+		// unit-c: pending (has unsatisfied dependency on unit-a completing)
+		err = client.SyncWant(ctx, "unit-c", "unit-a")
+		require.NoError(t, err)
+		client.Close()
+
+		var outBuf bytes.Buffer
+		inv, _ := clitest.New(t, "exp", "sync", "list", "--socket-path", path)
+		inv.Stdout = &outBuf
+		inv.Stderr = &outBuf
+
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		clitest.TestGoldenFile(t, "TestSyncCommands_Golden/list_with_units", outBuf.Bytes(), nil)
+	})
+
+	t.Run("list_json_format", func(t *testing.T) {
+		t.Parallel()
+		path, cleanup := setupSocketServer(t)
+		defer cleanup()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Register a unit.
+		client, err := agentsocket.NewClient(ctx, agentsocket.WithPath(path))
+		require.NoError(t, err)
+		err = client.SyncStart(ctx, "my-unit")
+		require.NoError(t, err)
+		client.Close()
+
+		var outBuf bytes.Buffer
+		inv, _ := clitest.New(t, "exp", "sync", "list", "--output", "json", "--socket-path", path)
+		inv.Stdout = &outBuf
+		inv.Stderr = &outBuf
+
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		clitest.TestGoldenFile(t, "TestSyncCommands_Golden/list_json_format", outBuf.Bytes(), nil)
+	})
 }

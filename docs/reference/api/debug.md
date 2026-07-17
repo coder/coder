@@ -4,7 +4,7 @@
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/debug/coordinator \
   -H 'Coder-Session-Token: API_KEY'
@@ -24,7 +24,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/debug/health \
   -H 'Accept: application/json' \
@@ -427,7 +427,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/debug/health/settings \
   -H 'Accept: application/json' \
@@ -460,7 +460,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/debug/health/settings \
   -H 'Content-Type: application/json' \
@@ -510,7 +510,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/debug/tailnet \
   -H 'Coder-Session-Token: API_KEY'

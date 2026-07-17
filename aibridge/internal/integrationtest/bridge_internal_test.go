@@ -32,9 +32,11 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/fixtures"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/intercept/messages"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/provider"
@@ -316,19 +318,8 @@ func TestAWSBedrockIntegration(t *testing.T) {
 			SmallFastModel:  "test-haiku",
 		}
 
-		bridgeServer := newBridgeTestServer(ctx, t, "http://unused",
-			withCustomProvider(provider.NewAnthropic(anthropicCfg("http://unused", apiKey), bedrockCfg)),
-		)
-
-		resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, fixtures.Request(t, fixtures.AntSingleBuiltinTool))
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		require.Contains(t, string(body), "create anthropic client")
-		require.Contains(t, string(body), "region or base url required")
+		_, err := provider.NewAnthropic(ctx, anthropicCfg("http://unused", apiKey), bedrockCfg)
+		require.ErrorContains(t, err, "region or base url required")
 	})
 
 	t.Run("/v1/messages", func(t *testing.T) {
@@ -353,7 +344,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 				}
 
 				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
-					withCustomProvider(provider.NewAnthropic(anthropicCfg(upstream.URL, apiKey), bedrockCfg)),
+					withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(upstream.URL, apiKey), bedrockCfg)),
 				)
 
 				// Make API call to aibridge for Anthropic /v1/messages, which will be routed via AWS Bedrock.
@@ -387,7 +378,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 
 				// Verify PRM attribution is appended to the User-Agent header.
 				ua := received[0].Header.Get("User-Agent")
-				require.Contains(t, ua, "sdk-ua-app-id/APN_1.1%2Fpc_cdfmjwn8i6u8l9fwz8h82e4w3%24",
+				require.Contains(t, ua, messages.BedrockPRMUserAgent,
 					"expected AWS PRM attribution in User-Agent header")
 
 				interceptions := bridgeServer.Recorder.RecordedInterceptions()
@@ -396,6 +387,62 @@ func TestAWSBedrockIntegration(t *testing.T) {
 				bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
 			})
 		}
+	})
+
+	// The mantle protocol is a passthrough: the client's model is forwarded in the body
+	// without remapping, only SigV4 signing (service "bedrock-mantle") is applied.
+	t.Run("mantle/v1/messages", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+		t.Cleanup(cancel)
+
+		fix := fixtures.Parse(t, fixtures.AntSingleBuiltinTool)
+		upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
+
+		// Mantle needs only region + credentials for signing (no Model fields:
+		// the client supplies the model).
+		bedrockCfg := &config.AWSBedrock{
+			Region:          "us-west-2",
+			AccessKey:       "test-access-key",
+			AccessKeySecret: "test-secret-key",
+			BaseURL:         upstream.URL + "/anthropic", // Use the mock server.
+			Protocol:        config.BedrockProtocolMantle,
+		}
+		// The client's model must be forwarded unchanged.
+		wantModel := gjson.GetBytes(fix.Request(), "model").String()
+		require.NotEmpty(t, wantModel)
+
+		bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
+			withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(upstream.URL, apiKey), bedrockCfg)),
+		)
+
+		resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, fix.Request())
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		received := upstream.ReceivedRequests()
+		require.Len(t, received, 1)
+
+		// Native passthrough: /anthropic Messages path, model kept in the body
+		// unchanged.
+		require.Equal(t, "/anthropic/v1/messages", received[0].Path)
+		require.Equal(t, wantModel, gjson.GetBytes(received[0].Body, "model").String(),
+			"model should be forwarded unchanged")
+
+		// SigV4-signed for the bedrock-mantle service.
+		authHeader := received[0].Header.Get("Authorization")
+		require.True(t, strings.HasPrefix(authHeader, "AWS4-HMAC-SHA256"), "missing SigV4 auth: %q", authHeader)
+		require.Contains(t, authHeader, "/bedrock-mantle/aws4_request",
+			"signature must be scoped to the bedrock-mantle service")
+
+		require.Contains(t, received[0].Header.Get("User-Agent"),
+			messages.BedrockPRMUserAgent)
+
+		interceptions := bridgeServer.Recorder.RecordedInterceptions()
+		require.Len(t, interceptions, 1)
+		require.Equal(t, wantModel, interceptions[0].Model)
+		bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
 	})
 
 	// Tests that Bedrock-incompatible fields are stripped and adaptive thinking
@@ -483,7 +530,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 					}
 
 					bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
-						withCustomProvider(provider.NewAnthropic(anthropicCfg(upstream.URL, apiKey), bCfg)),
+						withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(upstream.URL, apiKey), bCfg)),
 					)
 
 					reqBody, err := sjson.SetBytes(fix.Request(), "stream", streaming)
@@ -637,7 +684,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 		bCfg.Region = region
 
 		bridgeServer := newBridgeTestServer(ctx, t, mockEgressProxy.URL,
-			withCustomProvider(provider.NewAnthropic(anthropicCfg(mockEgressProxy.URL, apiKey), bCfg)),
+			withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(mockEgressProxy.URL, apiKey), bCfg)),
 		)
 
 		// Sends a bridge request through a mock egress proxy that
@@ -2292,7 +2339,7 @@ func TestActorHeaders(t *testing.T) {
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := anthropicCfg(url, key)
 				cfg.SendActorHeaders = sendHeaders
-				return provider.NewAnthropic(cfg, nil)
+				return aibridgetest.NewAnthropicProvider(t, cfg, nil)
 			},
 			fixture:   fixtures.AntSimple,
 			streaming: true,
@@ -2303,7 +2350,7 @@ func TestActorHeaders(t *testing.T) {
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := anthropicCfg(url, key)
 				cfg.SendActorHeaders = sendHeaders
-				return provider.NewAnthropic(cfg, nil)
+				return aibridgetest.NewAnthropicProvider(t, cfg, nil)
 			},
 			fixture:   fixtures.AntSimple,
 			streaming: false,

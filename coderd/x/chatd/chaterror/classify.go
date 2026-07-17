@@ -29,15 +29,6 @@ type ClassifiedError struct {
 	// RetryAfter is a normalized minimum retry delay derived from
 	// provider response metadata when available.
 	RetryAfter time.Duration
-
-	// ChainBroken is true when the provider reported that the
-	// previous_response_id (or analogous chain anchor) is no longer
-	// retrievable. The chatloop retry path uses this signal to exit
-	// chain mode and replay full history before the next attempt.
-	// This is an internal signal; it is not surfaced as a separate
-	// codersdk.ChatErrorKind so the user-visible kind set stays
-	// stable.
-	ChainBroken bool
 }
 
 // http2PeerResetCause mirrors golang.org/x/net/http2's unexported
@@ -186,25 +177,16 @@ func Classify(err error) ClassifiedError {
 		return classified
 	}
 
-	// Chain-broken detection runs before the generic rule table so a
-	// 404 carrying a chain anchor failure is not classified as a
-	// generic non-retryable error. The chatloop retry callback uses
-	// the ChainBroken flag to exit chain mode and replay full
-	// history.
-	if classified, ok := chainBrokenClassification(
-		lower,
-		provider,
-		statusCode,
-		structured,
-	); ok {
-		return classified
-	}
-
 	retryableHTTP2StreamReset, hasHTTP2StreamReset := classifyHTTP2StreamReset(err)
 	providerDisabledMatch := containsAny(lower, providerDisabledPatterns...)
 	deadline := errors.Is(err, context.DeadlineExceeded) || strings.Contains(lower, "context deadline exceeded")
 	overloadedMatch := statusCode == 529 || containsAny(lower, overloadedPatterns...)
-	usageLimitMatch := containsAny(lower, usageLimitPatterns...)
+	// Usage limits do not have a dedicated status code, so provider
+	// response bodies can be the only reliable signal. Other classes
+	// already have status-code signals or transport wrapper text.
+	usageLimitText := lower + "\n" + strings.ToLower(structured.detail)
+	usageLimitMatch := containsAny(usageLimitText, usageLimitAnyStatusPatterns...) ||
+		(statusCode != 429 && containsAny(usageLimitText, usageLimitPatterns...))
 	authStrong := statusCode == 401 || containsAny(lower, authStrongPatterns...)
 	configMatch := containsAny(lower, configPatterns...)
 	authWeak := statusCode == 403 || containsAny(lower, authWeakPatterns...)
@@ -226,8 +208,8 @@ func Classify(err error) ClassifiedError {
 	// transient-looking errors like "503 invalid model" fail fast.
 	// Overloaded stays ahead because 529/overloaded is a dedicated
 	// provider saturation signal, not a common transport wrapper.
-	// Usage-limit fires before auth so that quota/billing text wins
-	// over whatever HTTP status code the provider happened to use.
+	// Usage-limit fires before auth so non-429 quota/billing text,
+	// plus insufficient_quota at any status, wins over auth signals.
 	// Strong auth still stays above config because bad credentials are
 	// the root cause when both signals appear.
 	// Provider-disabled must precede timeout because disabled providers
@@ -287,8 +269,12 @@ func Classify(err error) ClassifiedError {
 		if !rule.match {
 			continue
 		}
+		detail := structured.detail
+		if rule.kind != codersdk.ChatErrorKindAuth {
+			detail = resolveDiagnosticDetail(structured.detail, err)
+		}
 		return normalizeClassification(ClassifiedError{
-			Detail:     structured.detail,
+			Detail:     detail,
 			Kind:       rule.kind,
 			Provider:   provider,
 			Retryable:  rule.retryable,
@@ -309,7 +295,7 @@ func Classify(err error) ClassifiedError {
 	}
 
 	return normalizeClassification(ClassifiedError{
-		Detail:     structured.detail,
+		Detail:     resolveDiagnosticDetail(structured.detail, err),
 		Kind:       codersdk.ChatErrorKindGeneric,
 		Provider:   provider,
 		StatusCode: statusCode,
@@ -385,35 +371,6 @@ func streamIncompleteClassification(
 
 func streamIncompleteMessage(provider string) string {
 	return providerSubject(provider) + " stream closed unexpectedly before the response completed."
-}
-
-// chainBrokenClassification recognizes the OpenAI error
-// "Previous response with id ... not found" returned when a
-// chained turn references a previous_response_id the provider no
-// longer recognizes.
-func chainBrokenClassification(
-	lowerMessage string,
-	provider string,
-	statusCode int,
-	structured providerErrorDetails,
-) (ClassifiedError, bool) {
-	if !(strings.Contains(lowerMessage, "previous response with id") &&
-		strings.Contains(lowerMessage, "not found")) {
-		return ClassifiedError{}, false
-	}
-	// This class of error has so far only been observed with OpenAI.
-	if provider == "" {
-		provider = "openai"
-	}
-	return normalizeClassification(ClassifiedError{
-		Detail:      structured.detail,
-		Kind:        codersdk.ChatErrorKindGeneric,
-		Provider:    provider,
-		Retryable:   true,
-		StatusCode:  statusCode,
-		RetryAfter:  structured.retryAfter,
-		ChainBroken: true,
-	}), true
 }
 
 func responsesAPIDiagnostic(lowerMessage, detail string) (string, bool) {

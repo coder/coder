@@ -54,7 +54,7 @@ Try prompts such as:
 - "document the project structure"
 - "change the primary color theme to purple"
 
-To import the template and begin configuring it, import the example [Run Coder Tasks on Docker](https://github.com/coder/coder/tree/main/examples/templates/tasks-docker) template.
+To import the template and begin configuring it, import the example [Run Coder Tasks on Docker](../../examples/templates/tasks-docker) template.
 
 ### Option 2&rpar; Create or Duplicate Your Own Template
 
@@ -63,7 +63,7 @@ A template becomes a Task-capable template if it defines a `coder_ai_task` resou
 > [!NOTE]
 > The `coder_ai_task` resource is not defined within the [Claude Code Module](https://registry.coder.com/modules/coder/claude-code?tab=readme). You need to define it yourself.
 
-```hcl
+```tf
 terraform {
   required_providers {
     coder = {

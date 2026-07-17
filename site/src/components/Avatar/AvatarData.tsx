@@ -17,6 +17,8 @@ interface AvatarDataProps {
 	 */
 	imgFallbackText?: string;
 
+	alt?: string;
+
 	/**
 	 * When true, the title and subtitle clip with an ellipsis if they overflow
 	 * the available width. Off by default because callers that pass non-text
@@ -31,6 +33,7 @@ export const AvatarData: FC<AvatarDataProps> = ({
 	src,
 	imgFallbackText,
 	avatar,
+	alt = "",
 	truncate = false,
 }) => {
 	if (!avatar) {
@@ -39,6 +42,7 @@ export const AvatarData: FC<AvatarDataProps> = ({
 				size="lg"
 				src={src}
 				fallback={(typeof title === "string" ? title : imgFallbackText) || "-"}
+				alt={alt}
 			/>
 		);
 	}

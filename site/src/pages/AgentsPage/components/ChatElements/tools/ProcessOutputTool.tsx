@@ -1,4 +1,4 @@
-import { ChevronDownIcon, LoaderIcon, OctagonXIcon } from "lucide-react";
+import { ChevronDownIcon, OctagonXIcon } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -15,8 +15,7 @@ import {
 	isAgentDisplayFullyExpanded,
 	resolveAgentDisplayState,
 } from "./displayMode";
-import { AgentDisplayModeToolCollapsible } from "./ToolCollapsible";
-import { ToolIcon } from "./ToolIcon";
+import { ToolCall } from "./ToolCall";
 import { COLLAPSED_OUTPUT_HEIGHT, signalTooltipLabel } from "./utils";
 
 type ProcessOutputToolProps = {
@@ -24,12 +23,13 @@ type ProcessOutputToolProps = {
 	isRunning: boolean;
 	exitCode: number | null;
 	isError: boolean;
+	errorMessage?: string;
 	killedBySignal?: "kill" | "terminate";
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 };
 
 type ProcessOutputToolInnerProps = ProcessOutputToolProps & {
-	autoDisplayState: AgentDisplayState;
+	defaultView: AgentDisplayState;
 	outputInitiallyFullyExpanded: boolean;
 };
 
@@ -44,7 +44,7 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = (props) => {
 		<ProcessOutputToolInner
 			key={`${props.shellToolDisplayMode ?? "auto"}:${autoDisplayState}`}
 			{...props}
-			autoDisplayState={autoDisplayState}
+			defaultView={resolvedDisplayState}
 			outputInitiallyFullyExpanded={isAgentDisplayFullyExpanded(
 				resolvedDisplayState,
 			)}
@@ -57,9 +57,9 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 	isRunning,
 	exitCode,
 	isError,
+	errorMessage,
 	killedBySignal,
-	shellToolDisplayMode,
-	autoDisplayState,
+	defaultView,
 	outputInitiallyFullyExpanded,
 }) => {
 	const [outputFullyExpanded, setOutputFullyExpanded] = useState(
@@ -81,32 +81,26 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 	const hasHeaderActions = Boolean(killedBySignal) || showExitCode || hasOutput;
 
 	return (
-		<AgentDisplayModeToolCollapsible
+		<ToolCall.Root
 			className="group/proc w-full"
+			status={isRunning ? "running" : isError ? "error" : "completed"}
+			isError={isError}
+			errorMessage={errorMessage || "Failed to read process output"}
 			hasContent={hasOutput}
-			displayMode={shellToolDisplayMode}
-			autoDisplayState={autoDisplayState}
+			defaultView={defaultView}
 			ariaLabel={(expanded) =>
 				expanded ? "Collapse process output" : "Expand process output"
 			}
-			header={
-				<>
-					<ToolIcon
-						name="process_output"
-						isError={isError}
-						isRunning={isRunning}
-					/>
-					<span className="text-[13px] leading-6">Process output</span>
-				</>
-			}
-			headerStatus={
-				isRunning ? (
-					<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
-				) : undefined
-			}
-			headerActions={
-				hasHeaderActions ? (
-					<>
+		>
+			<ToolCall.HeaderLayout>
+				<ToolCall.HeaderButton>
+					<ToolCall.LeadingIcon name="process_output" />
+					<ToolCall.Label>Process output</ToolCall.Label>
+					<ToolCall.Status />
+					<ToolCall.Chevron />
+				</ToolCall.HeaderButton>
+				{hasHeaderActions && (
+					<ToolCall.HeaderActions>
 						{killedBySignal && !isRunning && (
 							<Tooltip>
 								<TooltipTrigger asChild>
@@ -126,53 +120,54 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 							<CopyButton
 								text={output}
 								label="Copy output"
-								className="-my-0.5 size-6 p-0"
+								className="-my-0.5 size-6 p-0 opacity-0 transition-opacity hover:bg-surface-tertiary group-hover/proc:opacity-100 focus-visible:opacity-100"
 							/>
 						)}
-					</>
-				) : undefined
-			}
-		>
-			<ScrollArea
-				className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-				viewportClassName={outputFullyExpanded ? "max-h-64" : ""}
-				scrollBarClassName="w-1.5"
-			>
-				<pre
-					ref={measureRef}
-					style={
-						outputFullyExpanded
-							? undefined
-							: { maxHeight: COLLAPSED_OUTPUT_HEIGHT, overflow: "hidden" }
-					}
-					className={cn(
-						"m-0 border-0 whitespace-pre-wrap break-all bg-transparent px-3 py-2 font-mono text-xs",
-						isError ? "text-content-destructive" : "text-content-secondary",
-					)}
+					</ToolCall.HeaderActions>
+				)}
+			</ToolCall.HeaderLayout>
+			<ToolCall.Content>
+				<ScrollArea
+					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+					viewportClassName={outputFullyExpanded ? "max-h-64" : ""}
+					scrollBarClassName="w-1.5"
 				>
-					{output}
-				</pre>
-			</ScrollArea>
-			{overflows && (
-				<button
-					type="button"
-					aria-expanded={outputFullyExpanded}
-					onClick={toggleOutputExpansion}
-					className="border-0 bg-transparent m-0 mt-0.5 font-[inherit] text-[inherit] flex w-full cursor-pointer items-center justify-center rounded-md py-0.5 text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content-primary"
-					aria-label={
-						outputFullyExpanded
-							? "Collapse full process output"
-							: "Expand full process output"
-					}
-				>
-					<ChevronDownIcon
+					<pre
+						ref={measureRef}
+						style={
+							outputFullyExpanded
+								? undefined
+								: { maxHeight: COLLAPSED_OUTPUT_HEIGHT, overflow: "hidden" }
+						}
 						className={cn(
-							"size-3 transition-transform",
-							outputFullyExpanded && "rotate-180",
+							"m-0 border-0 whitespace-pre-wrap break-all bg-transparent px-3 py-2 font-mono text-xs",
+							isError ? "text-content-destructive" : "text-content-secondary",
 						)}
-					/>
-				</button>
-			)}
-		</AgentDisplayModeToolCollapsible>
+					>
+						{output}
+					</pre>
+				</ScrollArea>
+				{overflows && (
+					<button
+						type="button"
+						aria-expanded={outputFullyExpanded}
+						onClick={toggleOutputExpansion}
+						className="border-0 bg-transparent m-0 mt-0.5 font-[inherit] text-[inherit] flex w-full cursor-pointer items-center justify-center rounded-md py-0.5 text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content-primary"
+						aria-label={
+							outputFullyExpanded
+								? "Collapse full process output"
+								: "Expand full process output"
+						}
+					>
+						<ChevronDownIcon
+							className={cn(
+								"size-3 transition-transform",
+								outputFullyExpanded && "rotate-180",
+							)}
+						/>
+					</button>
+				)}
+			</ToolCall.Content>
+		</ToolCall.Root>
 	);
 };

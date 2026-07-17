@@ -2,7 +2,6 @@ package database
 
 import (
 	"database/sql"
-	"encoding/hex"
 	"fmt"
 	"slices"
 	"sort"
@@ -84,21 +83,41 @@ type AuditableGroup struct {
 	Members []GroupMemberTable `json:"members"`
 }
 
-// AuditableGroupAiBudget is the audit-log representation of GroupAiBudget.
+// AuditableGroupAIBudget is the audit-log representation of GroupAIBudget.
 // It enriches the raw record with the group's name and a human-readable
 // spend limit so audit entries can display meaningful values instead of
 // UUIDs and micros.
-type AuditableGroupAiBudget struct {
-	GroupAiBudget
+type AuditableGroupAIBudget struct {
+	GroupAIBudget
 	GroupName  string `json:"group_name"`
 	SpendLimit string `json:"spend_limit"`
 }
 
-func (b GroupAiBudget) Auditable(groupName string) AuditableGroupAiBudget {
-	return AuditableGroupAiBudget{
-		GroupAiBudget: b,
+func (b GroupAIBudget) Auditable(groupName string) AuditableGroupAIBudget {
+	return AuditableGroupAIBudget{
+		GroupAIBudget: b,
 		GroupName:     groupName,
 		SpendLimit:    fmt.Sprintf("$%.2f", float64(b.SpendLimitMicros)/1_000_000),
+	}
+}
+
+// AuditableUserAIBudgetOverride is the audit-log representation of
+// UserAIBudgetOverride. It enriches the raw record with the username, the
+// attributed group's name, and a human-readable spend limit so audit
+// entries can display meaningful values instead of UUIDs and micros.
+type AuditableUserAIBudgetOverride struct {
+	UserAIBudgetOverride
+	Username   string `json:"username"`
+	GroupName  string `json:"group_name"`
+	SpendLimit string `json:"spend_limit"`
+}
+
+func (o UserAIBudgetOverride) Auditable(username, groupName string) AuditableUserAIBudgetOverride {
+	return AuditableUserAIBudgetOverride{
+		UserAIBudgetOverride: o,
+		Username:             username,
+		GroupName:            groupName,
+		SpendLimit:           fmt.Sprintf("$%.2f", float64(o.SpendLimitMicros)/1_000_000),
 	}
 }
 
@@ -225,6 +244,10 @@ func (c ChatFile) RBACObject() rbac.Object {
 }
 
 func (c GetChatFileMetadataByChatIDRow) RBACObject() rbac.Object {
+	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
+}
+
+func (c GetChatFileDataPrefixesByIDsRow) RBACObject() rbac.Object {
 	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
 }
 
@@ -849,10 +872,6 @@ func (k CryptoKey) ExpiresAt(keyDuration time.Duration) time.Time {
 	return k.StartsAt.Add(keyDuration).UTC()
 }
 
-func (k CryptoKey) DecodeString() ([]byte, error) {
-	return hex.DecodeString(k.Secret.String)
-}
-
 func (k CryptoKey) CanSign(now time.Time) bool {
 	isAfterStart := !k.StartsAt.IsZero() && !now.Before(k.StartsAt)
 	return isAfterStart && k.CanVerify(now)
@@ -1002,11 +1021,4 @@ type UpsertConnectionLogParams struct {
 
 func (r GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow) RBACObject() rbac.Object {
 	return r.WorkspaceTable.RBACObject()
-}
-
-func (s BoundarySession) RBACObject() rbac.Object {
-	if s.OwnerID.Valid {
-		return rbac.ResourceBoundaryLog.WithOwner(s.OwnerID.UUID.String())
-	}
-	return rbac.ResourceBoundaryLog
 }

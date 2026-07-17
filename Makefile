@@ -101,6 +101,7 @@ CLIDOC_SRC_FILES := \
 
 CLIDOCGEN_INPUTS := \
 	$(wildcard scripts/clidocgen/*.go) \
+	$(filter-out %_test.go,$(wildcard scripts/docgenenv/*.go)) \
 	scripts/clidocgen/command.tpl \
 	$(CLIDOC_SRC_FILES)
 
@@ -168,7 +169,7 @@ _gen/bin/apikeyscopesgen: $(wildcard scripts/apikeyscopesgen/*.go) $(RBAC_GO_FIL
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/apikeyscopesgen
 
-_gen/bin/aibridgepricesgen: $(wildcard scripts/aibridgepricesgen/*.go) | _gen
+_gen/bin/aibridgepricesgen: $(wildcard scripts/aibridgepricesgen/*.go) scripts/aibridgepricesgen/curation.json | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/aibridgepricesgen
 
@@ -825,6 +826,35 @@ lint/typos:
 	typos --config .github/workflows/typos.toml
 .PHONY: lint/typos
 
+# Vale (prose linter).
+#
+# Invoked through `mise exec` like actionlint and zizmor above, so the
+# version pinned in mise.toml ("aqua:errata-ai/vale") is the single source
+# of truth and mise downloads the right OS/arch build. Always pass the full
+# aqua key: the bare `vale` short name ignores the pin and resolves to the
+# latest release.
+
+# `vale sync` pulls the packages listed in .vale.ini's Packages directive
+# into StylesPath (docs/.style/styles/). The .vale-synced sentinel makes
+# sync idempotent across `make lint/prose` calls and lets warm checkouts
+# skip the re-sync entirely. Make rebuilds this target when `.vale.ini`
+# changes.
+docs/.style/.vale-synced: .vale.ini
+	@echo "$(GREEN)==>$(RESET) $(BOLD)vale sync$(RESET)"
+	mise exec "aqua:errata-ai/vale" -- vale sync
+	@touch $@
+
+# Vale exits non-zero only on error-level alerts. `--no-exit` keeps the
+# target green while the un-overridden Google error-level rules still
+# produce a baseline error count; real failures (bad config, missing
+# files) still propagate. Once the baseline error count reaches zero, drop
+# `--no-exit` and surface error-level violations as real failures. See
+# DOCS-40.
+lint/prose: docs/.style/.vale-synced
+	@echo "$(GREEN)==>$(RESET) $(BOLD)lint/prose$(RESET)"
+	mise exec "aqua:errata-ai/vale" -- vale --no-exit docs/
+.PHONY: lint/prose
+
 # pre-commit and pre-push mirror CI checks locally.
 #
 # pre-commit runs checks that don't need external services (Docker,
@@ -967,6 +997,7 @@ GEN_FILES := \
 	docs/admin/integrations/prometheus.md \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
+	docs/install/releases/feature-stages.md \
 	coderd/apidoc/swagger.json \
 	docs/manifest.json \
 	provisioner/terraform/testdata/version \
@@ -991,14 +1022,33 @@ gen: gen/db $(if $(GEN_SKIP_GOLDEN),,gen/golden-files) $(GEN_FILES)
 gen/db: $(DB_GEN_FILES)
 .PHONY: gen/db
 
-# Refresh the AI Bridge pricing seed file from models.dev. Kept out of
-# `make gen`. Phony so each invocation regenerates.
-coderd/aibridge/prices/data/prices.json: _gen/bin/aibridgepricesgen | _gen
+# Patched snapshot of the models.dev catalog. Fetched once per
+# gen/aibridge-prices run, with upstream corrections applied by
+# overrides.jq; both prices.json and the frontend known-models catalog are
+# generated from this single snapshot. Phony so each invocation refreshes it.
+_gen/models-dev.json: | _gen
+	set -o pipefail; $(call atomic_write,curl -fsSL https://models.dev/api.json | jq -f scripts/aibridgepricesgen/overrides.jq)
+.PHONY: _gen/models-dev.json
+
+# Refresh the AI Bridge pricing seed file from the patched models.dev
+# snapshot. Kept out of `make gen` because the output depends on live
+# upstream data. Phony so each invocation regenerates.
+coderd/aibridge/prices/data/prices.json: _gen/bin/aibridgepricesgen _gen/models-dev.json | _gen
 	@mkdir -p $(dir $@)
-	$(call atomic_write,_gen/bin/aibridgepricesgen)
+	$(call atomic_write,_gen/bin/aibridgepricesgen -upstream _gen/models-dev.json)
 .PHONY: coderd/aibridge/prices/data/prices.json
 
-gen/aibridge-prices: coderd/aibridge/prices/data/prices.json
+# Frontend known-models catalog, generated from the same patched models.dev
+# snapshot joined with the editorial curation in
+# scripts/aibridgepricesgen/curation.json. Kept out of `make gen` for the
+# same live-upstream-data reason as prices.json.
+site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json: _gen/bin/aibridgepricesgen _gen/models-dev.json | _gen
+	$(call atomic_write,_gen/bin/aibridgepricesgen -format=catalog -upstream _gen/models-dev.json,./scripts/biome_format.sh)
+.PHONY: site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json
+
+gen/aibridge-prices: \
+	coderd/aibridge/prices/data/prices.json \
+	site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json
 .PHONY: gen/aibridge-prices
 
 gen/golden-files: \
@@ -1044,6 +1094,7 @@ gen/mark-fresh:
 		docs/admin/integrations/prometheus.md \
 		docs/reference/cli/index.md \
 		docs/admin/security/audit-logs.md \
+		docs/install/releases/feature-stages.md \
 		coderd/apidoc/swagger.json \
 		docs/manifest.json \
 		site/e2e/provisionerGenerated.ts \
@@ -1275,6 +1326,17 @@ docs/reference/cli/index.md: node_modules/.installed examples/examples.gen.json 
 docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go | _gen _gen/bin/auditdocgen
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
 		_gen/bin/auditdocgen --audit-doc-file="$$tmpfile" && \
+		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
+		pnpm exec markdown-table-formatter "$$tmpfile" && \
+		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
+
+docs/install/releases/feature-stages.md: \
+	node_modules/.installed \
+	scripts/release/docs_update_feature_stages.sh \
+	codersdk/deployment.go \
+	docs/manifest.json | _gen
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
+		./scripts/release/docs_update_feature_stages.sh "$$tmpfile" && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
@@ -1598,6 +1660,15 @@ test-postgres-docker:
 	done
 .PHONY: test-postgres-docker
 
+# test-postgres-docker-logs prints the PostgreSQL container's logs. The
+# postgres image logs to stderr (no logging_collector), which Docker captures,
+# so combined with log_statement=all in test-postgres-docker these logs include
+# every executed statement. Redirect to a file to save them, e.g.
+# `make test-postgres-docker-logs > postgres.log`.
+test-postgres-docker-logs:
+	docker logs test-postgres-docker-${POSTGRES_VERSION}
+.PHONY: test-postgres-docker-logs
+
 test-tailnet-integration:
 	env \
 		CODER_TAILNET_TESTS=true \
@@ -1619,9 +1690,9 @@ test-clean:
 	go clean -testcache
 .PHONY: test-clean
 
-site/e2e/bin/coder: go.mod go.sum $(GO_SRC_FILES)
+site/e2e/bin/coder: go.mod go.sum $(GO_SRC_FILES) site/out/index.html
 	go build -o $@ \
-		-tags ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube \
+		-tags embed,ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube \
 		./enterprise/cmd/coder
 
 test-e2e: site/e2e/bin/coder site/node_modules/.installed site/out/index.html

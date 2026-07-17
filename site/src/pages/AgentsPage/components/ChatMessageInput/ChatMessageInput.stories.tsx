@@ -3,32 +3,12 @@ import { type PropsWithChildren, useEffect } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatMessageInput } from "./ChatMessageInput";
-
-const now = "2026-05-08T00:00:00Z";
-
-const mockSkills: TypesGen.UserSkillMetadata[] = [
-	{
-		id: "skill-reviewer",
-		name: "reviewer",
-		description: "Review changed files and suggest fixes.",
-		created_at: now,
-		updated_at: now,
-	},
-	{
-		id: "skill-docs",
-		name: "docs",
-		description: "Draft docs for user-facing behavior.",
-		created_at: now,
-		updated_at: now,
-	},
-	{
-		id: "skill-plan",
-		name: "plan",
-		description: "",
-		created_at: now,
-		updated_at: now,
-	},
-];
+import {
+	expectNoVisibleText,
+	findVisibleText,
+	MockSkill,
+	MockSkills,
+} from "./storyHelpers";
 
 const meta: Meta<typeof ChatMessageInput> = {
 	title: "components/ChatMessageInput/ChatMessageInput",
@@ -36,7 +16,7 @@ const meta: Meta<typeof ChatMessageInput> = {
 	args: {
 		"aria-label": "Chat message input",
 		placeholder: "Message the agent",
-		personalSkillsOverride: mockSkills,
+		personalSkillsOverride: MockSkills,
 		onChange: fn(),
 		onEnter: fn(),
 	},
@@ -54,27 +34,6 @@ const meta: Meta<typeof ChatMessageInput> = {
 
 export default meta;
 type Story = StoryObj<typeof ChatMessageInput>;
-
-const findVisibleText = async (text: string) => {
-	let visibleElement: HTMLElement | undefined;
-	await waitFor(() => {
-		const matches = within(document.body).queryAllByText(text);
-		visibleElement = matches.find(
-			(element) => element.getClientRects().length > 0,
-		);
-		expect(visibleElement).toBeDefined();
-	});
-	return visibleElement as HTMLElement;
-};
-
-const expectNoVisibleText = async (text: string) => {
-	await waitFor(() => {
-		const matches = within(document.body).queryAllByText(text);
-		expect(
-			matches.every((element) => element.getClientRects().length === 0),
-		).toBe(true);
-	});
-};
 
 const expectNoVisibleTextImmediately = (text: string) => {
 	const matches = within(document.body).queryAllByText(text);
@@ -120,10 +79,26 @@ export const EmptySkills: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const editor = await typeInEditor(canvasElement, "/");
-		expect(await findVisibleText("No personal skills found.")).toBeDefined();
+		// "/" is plain text when the skills list is empty.
+		expectNoVisibleTextImmediately("No personal skills found.");
+		await userEvent.keyboard("{Enter}");
+		expect(args.onEnter).toHaveBeenCalledTimes(1);
+		expect(editor.textContent).toBe("/");
+	},
+};
+
+export const FilteredEmptyKeepsMenuOpen: Story = {
+	args: {
+		onEnter: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const editor = await typeInEditor(canvasElement, "/zzzz");
+		expect(
+			await findVisibleText("No personal skills match that query."),
+		).toBeDefined();
 		await userEvent.keyboard("{Enter}");
 		expect(args.onEnter).not.toHaveBeenCalled();
-		expect(editor.textContent).toBe("/");
+		expect(editor.textContent).toBe("/zzzz");
 	},
 };
 
@@ -285,11 +260,10 @@ const mockMobileMatchMedia = (): (() => void) => {
 const longSkillList: TypesGen.UserSkillMetadata[] = Array.from(
 	{ length: 30 },
 	(_, index) => ({
+		...MockSkill,
 		id: `skill-${index}`,
 		name: `skill-${index}`,
 		description: `Long description for skill ${index} that explains what it does in detail.`,
-		created_at: now,
-		updated_at: now,
 	}),
 );
 
@@ -424,7 +398,7 @@ export const MobileShiftedVisualViewport: Story = {
 	decorators: [MobileDecorator],
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		chromatic: { disableSnapshot: true },
+		pixel: { exclude: true },
 	},
 	play: async ({ canvasElement }) => {
 		const restoreMatchMedia = mockMobileMatchMedia();
@@ -460,7 +434,7 @@ export const MobileOffsetTopDoesNotCollapse: Story = {
 	decorators: [MobileDecorator],
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		chromatic: { disableSnapshot: true },
+		pixel: { exclude: true },
 	},
 	play: async ({ canvasElement }) => {
 		const restoreMatchMedia = mockMobileMatchMedia();
