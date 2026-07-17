@@ -817,6 +817,71 @@ func TestAuthorizeUserACLOrgMembership(t *testing.T) {
 	})
 }
 
+// TestAuthorizeACLUseSharedPrecondition runs the acl_use_precondition
+// through the testAuthorize harness, which exercises the direct, partial,
+// and SQL-compile evaluation paths. An org member holding an ACL entry on
+// a gated type is denied unless they also hold member-level use_shared in
+// the object's organization.
+func TestAuthorizeACLUseSharedPrecondition(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.New()
+	shared := ResourceWorkspace.WithID(uuid.New()).InOrg(orgID).WithOwner(uuid.NewString())
+
+	// Org member with no member-level permissions at all, so no
+	// use_shared capability.
+	floorMember := Subject{
+		ID:    "floor-member",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			{
+				Identifier: RoleIdentifier{Name: "org-floor", OrganizationID: orgID},
+				ByOrgID: map[string]OrgPermissions{
+					orgID.String(): {},
+				},
+			},
+		},
+	}
+	testAuthorize(t, "ACLWithoutUseShared", floorMember, []authTestCase{
+		{
+			resource: shared.WithACLUserList(map[string][]policy.Action{
+				floorMember.ID: {policy.ActionSSH},
+			}),
+			actions: []policy.Action{policy.ActionSSH},
+			allow:   false,
+		},
+		{
+			// A wildcard ACL entry does not bypass the precondition.
+			resource: shared.WithACLUserList(map[string][]policy.Action{
+				floorMember.ID: {policy.WildcardSymbol},
+			}),
+			actions: []policy.Action{policy.ActionSSH},
+			allow:   false,
+		},
+	})
+
+	// The same shape of subject with the workspace-access role holds
+	// member-level use_shared, so the ACL entry applies.
+	elevatedMember := Subject{
+		ID:    "elevated-member",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(orgID))),
+		},
+	}
+	testAuthorize(t, "ACLWithUseShared", elevatedMember, []authTestCase{
+		{
+			resource: shared.WithACLUserList(map[string][]policy.Action{
+				elevatedMember.ID: {policy.ActionSSH},
+			}),
+			actions: []policy.Action{policy.ActionSSH},
+			allow:   true,
+		},
+	})
+}
+
 // TestAuthorizeLevels ensures level overrides are acting appropriately
 func TestAuthorizeLevels(t *testing.T) {
 	t.Parallel()

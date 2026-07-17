@@ -645,6 +645,13 @@ func TestWorkspaceSharingUseSharedPrecondition(t *testing.T) {
 	require.NoError(t, err)
 	_, err = fullClient.Workspace(ctx, ws.ID)
 	require.NoError(t, err)
+	// The list endpoint authorizes via the compiled SQL filter rather
+	// than per-object checks; the shared workspace must appear there too.
+	listed, err := fullClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.True(t, slices.ContainsFunc(listed.Workspaces, func(w codersdk.Workspace) bool {
+		return w.ID == ws.ID
+	}), "shared workspace should appear in the recipient's list")
 
 	// Revoking the recipient's workspace access role revokes the shared
 	// access at authorization time; the ACL entry remains but is inert.
@@ -655,4 +662,10 @@ func TestWorkspaceSharingUseSharedPrecondition(t *testing.T) {
 	_, err = fullClient.Workspace(ctx, ws.ID)
 	require.ErrorAs(t, err, &apiErr)
 	require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	// The SQL filter must exclude it as well.
+	listed, err = fullClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.False(t, slices.ContainsFunc(listed.Workspaces, func(w codersdk.Workspace) bool {
+		return w.ID == ws.ID
+	}), "workspace should not appear in the list after the capability is revoked")
 }
