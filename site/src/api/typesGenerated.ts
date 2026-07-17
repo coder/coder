@@ -9299,6 +9299,11 @@ export interface UpdateMCPServerConfigRequest {
 	readonly oauth2_client_secret?: string;
 	readonly oauth2_auth_url?: string;
 	readonly oauth2_token_url?: string;
+	/**
+	 * OAuth2RevocationURL must be a valid URL or an empty string,
+	 * which clears the stored value. Validated in the handler
+	 * because a validate tag would reject the pointer to "".
+	 */
 	readonly oauth2_revocation_url?: string;
 	readonly oauth2_scopes?: string;
 	readonly api_key_header?: string;

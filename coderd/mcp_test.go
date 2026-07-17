@@ -404,6 +404,29 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, newRevocationURL, updated.OAuth2RevocationURL)
 
+	invalidURL := "not a url"
+	_, err = client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+		OAuth2RevocationURL: &invalidURL,
+	})
+	require.Error(t, err)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
+	// An explicit empty string clears the stored URL.
+	emptyURL := ""
+	updated, err = client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+		OAuth2RevocationURL: &emptyURL,
+	})
+	require.NoError(t, err)
+	require.Empty(t, updated.OAuth2RevocationURL)
+
+	updated, err = client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+		OAuth2RevocationURL: &newRevocationURL,
+	})
+	require.NoError(t, err)
+	require.Equal(t, newRevocationURL, updated.OAuth2RevocationURL)
+
 	newAuth := "user_oidc"
 	updated, err = client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
 		AuthType: &newAuth,
@@ -604,7 +627,7 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		memberClient, _, _, configID := newDisconnectFixture(t, "disc-no-token", "")
 
-		resp, err := memberClient.MCPServerOAuth2Disconnect(ctx, configID)
+		resp, err := memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, configID)
 		require.NoError(t, err)
 		require.False(t, resp.TokenRevoked)
 		require.Empty(t, resp.TokenRevocationError)
@@ -640,9 +663,9 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 
 		// Disconnecting a disabled config the member cannot see must be
 		// indistinguishable from disconnecting a nonexistent config ID.
-		hiddenResp, err := memberClient.MCPServerOAuth2Disconnect(ctx, created.ID)
+		hiddenResp, err := memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, created.ID)
 		require.NoError(t, err)
-		missingResp, err := memberClient.MCPServerOAuth2Disconnect(ctx, uuid.New())
+		missingResp, err := memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, uuid.New())
 		require.NoError(t, err)
 		require.Equal(t, missingResp, hiddenResp)
 		require.False(t, hiddenResp.TokenRevoked)
@@ -665,7 +688,7 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		memberClient, memberID, db, configID := newDisconnectFixture(t, "disc-revoke", revokeSrv.URL)
 		seedToken(t, db, configID, memberID)
 
-		resp, err := memberClient.MCPServerOAuth2Disconnect(ctx, configID)
+		resp, err := memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, configID)
 		require.NoError(t, err)
 		require.True(t, resp.TokenRevoked)
 		require.Empty(t, resp.TokenRevocationError)
@@ -686,7 +709,7 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		memberClient, memberID, db, configID := newDisconnectFixture(t, "disc-no-url", "")
 		seedToken(t, db, configID, memberID)
 
-		resp, err := memberClient.MCPServerOAuth2Disconnect(ctx, configID)
+		resp, err := memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, configID)
 		require.NoError(t, err)
 		require.False(t, resp.TokenRevoked)
 		require.Empty(t, resp.TokenRevocationError)
@@ -708,7 +731,7 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 
 		// Provider bodies may echo the OAuth client secret, so members
 		// only receive a generic revocation error.
-		resp, err := memberClient.MCPServerOAuth2Disconnect(ctx, configID)
+		resp, err := memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, configID)
 		require.NoError(t, err)
 		require.False(t, resp.TokenRevoked)
 		require.NotEmpty(t, resp.TokenRevocationError)
@@ -768,12 +791,12 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		requireAuthConnected(memberClient, true)
 		requireAuthConnected(otherClient, true)
 
-		_, err = memberClient.MCPServerOAuth2Disconnect(ctx, created.ID)
+		_, err = memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, created.ID)
 		require.NoError(t, err)
 		requireAuthConnected(memberClient, false)
 		requireAuthConnected(otherClient, true)
 
-		_, err = memberClient.MCPServerOAuth2Disconnect(ctx, created.ID)
+		_, err = memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, created.ID)
 		require.NoError(t, err)
 	})
 }

@@ -573,6 +573,20 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validated here rather than via a struct tag because an empty
+	// string is a valid value that clears the stored URL.
+	if req.OAuth2RevocationURL != nil {
+		if trimmed := strings.TrimSpace(*req.OAuth2RevocationURL); trimmed != "" {
+			if err := httpapi.Validate.VarCtx(ctx, trimmed, "url"); err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Invalid OAuth2 revocation URL.",
+					Detail:  "oauth2_revocation_url must be a valid URL or an empty string.",
+				})
+				return
+			}
+		}
+	}
+
 	// Pre-validate custom headers before entering the transaction.
 	var customHeadersJSON string
 	if req.CustomHeaders != nil {

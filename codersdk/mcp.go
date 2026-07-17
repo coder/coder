@@ -26,8 +26,18 @@ type MCPServerOAuth2DisconnectResponse struct {
 }
 
 // MCPServerOAuth2Disconnect removes the user's OAuth2 token for an
-// MCP server and attempts to revoke it at the OAuth provider.
-func (c *Client) MCPServerOAuth2Disconnect(ctx context.Context, id uuid.UUID) (MCPServerOAuth2DisconnectResponse, error) {
+// MCP server and attempts to revoke it at the OAuth provider. It
+// keeps the pre-revocation error-only signature; use
+// MCPServerOAuth2DisconnectWithResponse for the revocation outcome.
+func (c *Client) MCPServerOAuth2Disconnect(ctx context.Context, id uuid.UUID) error {
+	_, err := c.MCPServerOAuth2DisconnectWithResponse(ctx, id)
+	return err
+}
+
+// MCPServerOAuth2DisconnectWithResponse removes the user's OAuth2
+// token for an MCP server, attempts to revoke it at the OAuth
+// provider, and reports the revocation outcome.
+func (c *Client) MCPServerOAuth2DisconnectWithResponse(ctx context.Context, id uuid.UUID) (MCPServerOAuth2DisconnectResponse, error) {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/disconnect", id), nil)
 	if err != nil {
 		return MCPServerOAuth2DisconnectResponse{}, err
@@ -142,12 +152,15 @@ type UpdateMCPServerConfigRequest struct {
 	Transport *string `json:"transport,omitempty" validate:"omitempty,oneof=streamable_http sse"`
 	URL       *string `json:"url,omitempty" validate:"omitempty,url"`
 
-	AuthType            *string            `json:"auth_type,omitempty" validate:"omitempty,oneof=none oauth2 api_key custom_headers user_oidc"`
-	OAuth2ClientID      *string            `json:"oauth2_client_id,omitempty"`
-	OAuth2ClientSecret  *string            `json:"oauth2_client_secret,omitempty"`
-	OAuth2AuthURL       *string            `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
-	OAuth2TokenURL      *string            `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
-	OAuth2RevocationURL *string            `json:"oauth2_revocation_url,omitempty" validate:"omitempty,url"`
+	AuthType           *string `json:"auth_type,omitempty" validate:"omitempty,oneof=none oauth2 api_key custom_headers user_oidc"`
+	OAuth2ClientID     *string `json:"oauth2_client_id,omitempty"`
+	OAuth2ClientSecret *string `json:"oauth2_client_secret,omitempty"`
+	OAuth2AuthURL      *string `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
+	OAuth2TokenURL     *string `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
+	// OAuth2RevocationURL must be a valid URL or an empty string,
+	// which clears the stored value. Validated in the handler
+	// because a validate tag would reject the pointer to "".
+	OAuth2RevocationURL *string            `json:"oauth2_revocation_url,omitempty"`
 	OAuth2Scopes        *string            `json:"oauth2_scopes,omitempty"`
 	APIKeyHeader        *string            `json:"api_key_header,omitempty"`
 	APIKeyValue         *string            `json:"api_key_value,omitempty"`
