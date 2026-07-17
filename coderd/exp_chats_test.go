@@ -4957,6 +4957,46 @@ func TestDeleteChatModelConfig(t *testing.T) {
 		}
 	})
 
+	// Deleting the default must not promote a config whose provider is
+	// disabled while a usable candidate exists.
+	t.Run("PromotesUsableConfigOverDisabledProvider", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		defaultConfig := createChatModelConfig(t, client)
+		// Same provider type as the enabled candidate with an
+		// alphabetically earlier model, so it sorts first in the
+		// reselection order.
+		createProviderDisabledChatModelConfig(
+			t,
+			client,
+			coderdtest.TestChatProviderOpenAICompat,
+			"a-provider-disabled-model",
+		)
+		enabledConfig := createAdditionalChatModelConfig(
+			t,
+			client,
+			coderdtest.TestChatProviderOpenAICompat,
+			"z-enabled-model",
+		)
+
+		err := client.DeleteChatModelConfig(ctx, defaultConfig.ID)
+		require.NoError(t, err)
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		defaultID := uuid.Nil
+		for _, config := range configs {
+			if config.IsDefault {
+				defaultID = config.ID
+			}
+		}
+		require.Equal(t, enabledConfig.ID, defaultID)
+	})
+
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 

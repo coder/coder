@@ -3554,4 +3554,31 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		_, err := resolveFallbackModelConfigID(ctx, db, lastModel.ID)
 		require.ErrorIs(t, err, ErrNoDefaultChatModelConfig)
 	})
+
+	t.Run("ExplicitEnabledModel", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		provider := newProvider(t, db, true)
+		model := newModelConfig(t, db, provider.ID, false)
+
+		resolved, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{}, model.ID)
+		require.NoError(t, err)
+		require.Equal(t, model.ID, resolved)
+	})
+
+	// An explicit model whose provider was disabled after the coderd
+	// preflight must still be rejected inside the daemon.
+	t.Run("ExplicitProviderDisabledRejected", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		disabledProvider := newProvider(t, db, false)
+		model := newModelConfig(t, db, disabledProvider.ID, false)
+
+		_, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{}, model.ID)
+		require.ErrorIs(t, err, ErrInvalidModelConfigID)
+	})
 }

@@ -7671,7 +7671,20 @@ func ensureDefaultChatModelConfig(
 		return nil
 	}
 
-	candidateConfig := modelConfigs[0]
+	// Prefer a config that can actually serve requests (enabled, under an
+	// enabled provider) so the promoted default does not reject
+	// omitted-model chat creation. Fall back to any non-excluded config
+	// when no usable candidate exists.
+	//nolint:gocritic // Candidate usability depends on deployment-wide provider state, not the caller's permissions.
+	enabledRows, err := tx.GetEnabledChatModelConfigs(dbauthz.AsChatd(ctx))
+	if err != nil {
+		return xerrors.Errorf("list enabled chat model configs: %w", err)
+	}
+	usable := make(map[uuid.UUID]struct{}, len(enabledRows))
+	for _, row := range enabledRows {
+		usable[row.ChatModelConfig.ID] = struct{}{}
+	}
+
 	excluded := make(map[uuid.UUID]struct{}, len(excludedConfigIDs))
 	for _, configID := range excludedConfigIDs {
 		if configID == uuid.Nil {
@@ -7679,12 +7692,24 @@ func ensureDefaultChatModelConfig(
 		}
 		excluded[configID] = struct{}{}
 	}
-	for _, config := range modelConfigs {
+
+	candidateConfig := modelConfigs[0]
+	var selected *database.ChatModelConfig
+	for i := range modelConfigs {
+		config := &modelConfigs[i]
 		if _, skip := excluded[config.ID]; skip {
 			continue
 		}
-		candidateConfig = config
-		break
+		if selected == nil {
+			selected = config
+		}
+		if _, ok := usable[config.ID]; ok {
+			selected = config
+			break
+		}
+	}
+	if selected != nil {
+		candidateConfig = *selected
 	}
 
 	if err := tx.UnsetDefaultChatModelConfigs(ctx); err != nil {

@@ -1120,7 +1120,8 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error)
 
 var (
-	// ErrInvalidModelConfigID indicates the requested model config does not exist.
+	// ErrInvalidModelConfigID indicates the requested model config does not
+	// exist, is disabled, or its provider is disabled.
 	ErrInvalidModelConfigID = xerrors.New("invalid model config ID")
 	// ErrEditedMessageNotFound indicates the edited message does not exist
 	// in the target chat.
@@ -1564,8 +1565,10 @@ func resolveSendMessageModelConfigID(
 		return resolveFallbackModelConfigID(ctx, store, chat.LastModelConfigID)
 	}
 
+	// Recheck enabled state inside the daemon: the coderd preflight can
+	// race an admin disabling the model or provider.
 	chatdCtx := chatdModelConfigLookupContext(ctx)
-	if _, err := store.GetChatModelConfigByID(chatdCtx, requested); err != nil {
+	if _, err := store.GetEnabledChatModelConfigByID(chatdCtx, requested); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return uuid.Nil, xerrors.Errorf(
 				"%w: %s",
@@ -1689,7 +1692,7 @@ func (p *Server) EditMessage(
 		// foreign-key error from the message-insert path.
 		var modelOverride uuid.NullUUID
 		if opts.ModelConfigID != uuid.Nil {
-			if _, err := store.GetChatModelConfigByID(
+			if _, err := store.GetEnabledChatModelConfigByID(
 				chatdModelConfigLookupContext(ctx),
 				opts.ModelConfigID,
 			); err != nil {
