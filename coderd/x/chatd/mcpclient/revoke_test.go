@@ -296,7 +296,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		)
 		require.Error(t, err)
 		require.False(t, revoked)
-		require.Contains(t, err.Error(), "must stay on host")
+		require.Contains(t, err.Error(), "must stay on origin")
 	})
 
 	t.Run("FollowsLoopbackRedirect", func(t *testing.T) {

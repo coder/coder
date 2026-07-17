@@ -999,41 +999,9 @@ func RevokeOAuth2Token(
 		httpClient = http.DefaultClient
 	}
 	// Shallow-copy so the policy does not leak into the shared caller
-	// client. A 307/308 redirect replays the POST body (token material
-	// and Basic credentials), so plaintext redirect targets get the
-	// same HTTPS-or-loopback rule as the configured endpoint.
+	// client.
 	redirectSafe := *httpClient
-	redirectSafe.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		if len(via) >= 10 {
-			return xerrors.New("stopped after 10 redirects")
-		}
-		// net/http follows 301/302/303 with a bodyless GET, so the
-		// token would never reach the final endpoint and a trailing
-		// 200 would be a false revocation success. Only
-		// method-preserving redirects (307/308) can complete one.
-		if req.Method != http.MethodPost {
-			return xerrors.New(
-				"revocation redirect dropped the POST body",
-			)
-		}
-		if !isAllowedRevocationScheme(req.URL) {
-			return xerrors.Errorf(
-				"revocation redirect target %q must use https", req.URL.Redacted(),
-			)
-		}
-		// The replayed POST carries token material, so the redirect
-		// must stay on the configured provider's host. Loopback to
-		// loopback is exempt for local development.
-		origin := via[0].URL
-		if !strings.EqualFold(req.URL.Hostname(), origin.Hostname()) &&
-			!(isLoopbackHost(req.URL.Hostname()) && isLoopbackHost(origin.Hostname())) {
-			return xerrors.Errorf(
-				"revocation redirect target %q must stay on host %q",
-				req.URL.Redacted(), origin.Hostname(),
-			)
-		}
-		return nil
-	}
+	redirectSafe.CheckRedirect = checkRevocationRedirect
 	httpClient = &redirectSafe
 
 	token, hint := tok.AccessToken, "access_token"
@@ -1097,6 +1065,59 @@ func isAllowedRevocationScheme(u *url.URL) bool {
 		return true
 	}
 	return u.Scheme == "http" && isLoopbackHost(u.Hostname())
+}
+
+// checkRevocationRedirect guards redirects of the RFC 7009 POST, which
+// carries token material and, for confidential clients, Basic
+// credentials. A 307/308 redirect replays that body, so targets must
+// keep the POST method, an allowed scheme, and the configured
+// provider's origin (scheme, host, and port). Loopback to loopback is
+// exempt from the origin check for local development.
+func checkRevocationRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return xerrors.New("stopped after 10 redirects")
+	}
+	// net/http follows 301/302/303 with a bodyless GET, so the token
+	// would never reach the final endpoint and a trailing 200 would be
+	// a false revocation success. Only method-preserving redirects
+	// (307/308) can complete one.
+	if req.Method != http.MethodPost {
+		return xerrors.New(
+			"revocation redirect dropped the POST body",
+		)
+	}
+	if !isAllowedRevocationScheme(req.URL) {
+		return xerrors.Errorf(
+			"revocation redirect target %q must use https", req.URL.Redacted(),
+		)
+	}
+	origin := via[0].URL
+	if isLoopbackHost(req.URL.Hostname()) && isLoopbackHost(origin.Hostname()) {
+		return nil
+	}
+	if req.URL.Scheme != origin.Scheme ||
+		!strings.EqualFold(req.URL.Hostname(), origin.Hostname()) ||
+		normalizedPort(req.URL) != normalizedPort(origin) {
+		return xerrors.Errorf(
+			"revocation redirect target %q must stay on origin %q",
+			req.URL.Redacted(), origin.Scheme+"://"+origin.Host,
+		)
+	}
+	return nil
+}
+
+func normalizedPort(u *url.URL) string {
+	if p := u.Port(); p != "" {
+		return p
+	}
+	switch u.Scheme {
+	case "https":
+		return "443"
+	case "http":
+		return "80"
+	default:
+		return ""
+	}
 }
 
 // postTokenRevocation returns the HTTP status and, for non-200 responses,
