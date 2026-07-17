@@ -98,11 +98,14 @@ type sqlcQuerier interface {
 	// claimable: its call is resolved in chat, so re-dispatching it
 	// could run the command twice. The stale-takeover arm requires
 	// stale_epoch to match the exact claim generation the caller
-	// verified: evidence gathered against one claim cannot take over
-	// a newer one, and a caller without a verified epoch (NULL) can
-	// never take over a starting claim. Zero rows means the row
-	// exists but is not claimable; the caller reads it to decide how
-	// to proceed.
+	// verified through the agent: evidence gathered against one claim
+	// cannot take over a newer one, and a caller without a verified
+	// epoch (NULL) can never take over a starting claim.
+	// workspace_agent_id records the dispatch target before the
+	// dispatch happens, so recovery can tell whether a token probe
+	// reaches the agent the dead claimer actually targeted. Zero rows
+	// means the row exists but is not claimable; the caller reads it
+	// to decide how to proceed.
 	ClaimChatToolCallExecution(ctx context.Context, arg ClaimChatToolCallExecutionParams) (ChatToolCallExecution, error)
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
 	// Claims a batch of cancel_requested rows whose reconciliation

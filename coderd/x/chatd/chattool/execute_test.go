@@ -3,6 +3,7 @@ package chattool_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -18,6 +19,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -790,6 +792,9 @@ type fakeRecorder struct {
 	getCalls       int
 	recordStartErr error
 	claimErr       error
+	// reclaimErr fails only stale-takeover claims (non-zero
+	// staleBefore), letting the initial claim succeed.
+	reclaimErr error
 	// recordStartCtxErr captures ctx.Err() as observed by
 	// RecordStart, so tests can assert the write runs on an
 	// uncanceled context.
@@ -812,23 +817,31 @@ func newFakeRecorder() *fakeRecorder {
 	}
 }
 
-func (f *fakeRecorder) Claim(_ context.Context, toolCallID string, inputSHA256 string, command string, background bool, timeout time.Duration) (chattool.ExecutionRecord, bool, error) {
+func (f *fakeRecorder) Claim(_ context.Context, toolCallID string, inputSHA256 string, command string, background bool, timeout time.Duration, agentID uuid.UUID, staleBefore time.Time, staleEpoch int64) (chattool.ExecutionRecord, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.claimCalls++
 	if f.claimErr != nil {
 		return chattool.ExecutionRecord{}, false, f.claimErr
 	}
+	if f.reclaimErr != nil && !staleBefore.IsZero() {
+		return chattool.ExecutionRecord{}, false, f.reclaimErr
+	}
 	if storedHash, ok := f.inputHashes[toolCallID]; ok && storedHash != inputSHA256 {
 		return chattool.ExecutionRecord{}, false, xerrors.Errorf("tool call %s: %w", toolCallID, chattool.ErrExecutionInputMismatch)
 	}
 	rec, ok := f.records[toolCallID]
-	if !ok || rec.Status == chattool.ExecutionStatusReserved {
+	// Mirrors the SQL fence: a takeover without a verified epoch
+	// (zero maps to NULL stale_epoch) never matches.
+	staleTakeover := rec.Status == chattool.ExecutionStatusStarting && !staleBefore.IsZero() && rec.ClaimedAt.Before(staleBefore) &&
+		staleEpoch != 0 && rec.ClaimEpoch == staleEpoch
+	if !ok || rec.Status == chattool.ExecutionStatusReserved || staleTakeover {
 		rec.ID = "exec-" + toolCallID
 		rec.Status = chattool.ExecutionStatusStarting
 		f.commands[toolCallID] = command
 		rec.Background = background
 		rec.Timeout = timeout
+		rec.WorkspaceAgentID = agentID
 		rec.ClaimEpoch++
 		rec.ClaimedAt = time.Now()
 		f.records[toolCallID] = rec
@@ -851,7 +864,7 @@ func (f *fakeRecorder) Get(_ context.Context, toolCallID string) (chattool.Execu
 	return rec, nil
 }
 
-func (f *fakeRecorder) RecordStart(ctx context.Context, toolCallID string, claimEpoch int64, processID string, agentID uuid.UUID) error {
+func (f *fakeRecorder) RecordStart(ctx context.Context, toolCallID string, claimEpoch int64, processID string, agentID uuid.UUID, startedAt time.Time) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.recordStartCalled = true
@@ -865,7 +878,8 @@ func (f *fakeRecorder) RecordStart(ctx context.Context, toolCallID string, claim
 	}
 	rec.Status = chattool.ExecutionStatusRunning
 	rec.ProcessID = processID
-	rec.StartedAt = time.Now()
+	rec.WorkspaceAgentID = agentID
+	rec.StartedAt = startedAt
 	f.records[toolCallID] = rec
 	return nil
 }
@@ -901,7 +915,24 @@ func (f *fakeRecorder) MarkTerminal(_ context.Context, toolCallID string, status
 	return nil
 }
 
-func (f *fakeRecorder) MarkStaleClaimUnknown(_ context.Context, toolCallID string) (chattool.ExecutionRecord, bool, error) {
+func (f *fakeRecorder) MarkClaimNoEffect(_ context.Context, toolCallID string, claimEpoch int64) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	rec, ok := f.records[toolCallID]
+	if !ok || rec.ClaimEpoch != claimEpoch {
+		return false, nil
+	}
+	for _, source := range fakeTerminalSources[chattool.ExecutionStatusNoEffect] {
+		if rec.Status == source {
+			rec.Status = chattool.ExecutionStatusNoEffect
+			f.records[toolCallID] = rec
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (f *fakeRecorder) MarkStaleClaimUnknown(_ context.Context, toolCallID string, claimEpoch int64) (chattool.ExecutionRecord, bool, error) {
 	if f.onMarkStaleClaim != nil {
 		f.onMarkStaleClaim()
 	}
@@ -911,7 +942,7 @@ func (f *fakeRecorder) MarkStaleClaimUnknown(_ context.Context, toolCallID strin
 	if !ok {
 		return chattool.ExecutionRecord{}, false, xerrors.Errorf("tool call %s: %w", toolCallID, chattool.ErrExecutionRecordNotFound)
 	}
-	if rec.Status != chattool.ExecutionStatusStarting {
+	if rec.Status != chattool.ExecutionStatusStarting || rec.ClaimEpoch != claimEpoch {
 		return rec, false, nil
 	}
 	rec.Status = chattool.ExecutionStatusUnknown
@@ -955,18 +986,23 @@ func newRecordedExecuteTool(t *testing.T, mockConn *agentconnmock.MockAgentConn,
 
 func notFoundError(t *testing.T) error {
 	t.Helper()
+	return agentAPIError(t, http.StatusNotFound, "process not found")
+}
+
+func agentAPIError(t *testing.T, status int, message string) error {
+	t.Helper()
 	res := &http.Response{
-		StatusCode: http.StatusNotFound,
+		StatusCode: status,
 		Request: &http.Request{
 			Method: http.MethodGet,
 			URL:    &url.URL{Path: "/api/v0/processes/proc-1"},
 		},
-		Body: io.NopCloser(strings.NewReader(`{"message":"process not found"}`)),
+		Body: io.NopCloser(strings.NewReader(fmt.Sprintf(`{"message":%q}`, message))),
 	}
 	err := codersdk.ReadBodyAsError(res)
 	var sdkErr *codersdk.Error
 	require.ErrorAs(t, err, &sdkErr)
-	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	require.Equal(t, status, sdkErr.StatusCode())
 	return err
 }
 
@@ -1266,17 +1302,192 @@ func TestExecuteToolRecorder(t *testing.T) {
 		assert.Equal(t, chattool.ExecutionStatusUnknown, recorder.record("call-1").Status)
 	})
 
-	t.Run("StaleStartingClaimUnknown", func(t *testing.T) {
+	// seedStaleStarting seeds a starting claim whose owner died
+	// claimedAgo ago without recording a process handle. The claim
+	// targeted the same agent the current attempt is connected to.
+	seedStaleStarting := func(recorder *fakeRecorder, claimedAgo time.Duration) {
+		recorder.seed("call-1", chattool.ExecutionRecord{
+			ID:               "exec-call-1",
+			Status:           chattool.ExecutionStatusStarting,
+			Timeout:          time.Minute,
+			ClaimEpoch:       1,
+			ClaimedAt:        time.Now().Add(-claimedAgo),
+			WorkspaceAgentID: testAgentID,
+		})
+	}
+
+	t.Run("StaleClaimTakeoverEpochBoundResolvesUnknown", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 		recorder := newFakeRecorder()
+		// The row has already been taken over up to the bound: a
+		// re-dispatch that keeps failing would refresh the claim
+		// forever, so recovery gives up through the guarded
+		// unknown write. No StartProcess expectation.
 		recorder.seed("call-1", chattool.ExecutionRecord{
-			Status:     chattool.ExecutionStatusStarting,
-			Timeout:    time.Minute,
-			ClaimEpoch: 1,
-			ClaimedAt:  time.Now().Add(-2 * time.Minute),
+			ID:               "exec-call-1",
+			Status:           chattool.ExecutionStatusStarting,
+			Timeout:          time.Minute,
+			ClaimEpoch:       5,
+			ClaimedAt:        time.Now().Add(-2 * time.Minute),
+			WorkspaceAgentID: testAgentID,
 		})
+		mockConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{Found: false, TokenIndexAgeMS: time.Hour.Milliseconds()}, nil)
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "process state is unknown")
+		require.Equal(t, chattool.ExecutionStatusUnknown, recorder.record("call-1").Status)
+	})
+
+	t.Run("StaleClaimPendingAtTakeoverBoundAborts", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		// At the takeover bound a pending reservation must not
+		// resolve unknown: a start under this token may still
+		// publish a process. No StartProcess expectation.
+		recorder.seed("call-1", chattool.ExecutionRecord{
+			ID:               "exec-call-1",
+			Status:           chattool.ExecutionStatusStarting,
+			Timeout:          time.Minute,
+			ClaimEpoch:       5,
+			ClaimedAt:        time.Now().Add(-2 * time.Minute),
+			WorkspaceAgentID: testAgentID,
+		})
+		mockConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{Pending: true}, nil)
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.Error(t, err)
+		var abortErr *chattool.AbortToolExecutionError
+		require.ErrorAs(t, err, &abortErr)
+		require.Equal(t, chattool.ExecutionStatusStarting, recorder.record("call-1").Status)
+	})
+
+	t.Run("ConnFailureStaleStartingProbesRecordedAgent", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		ownerConn := agentconnmock.NewMockAgentConn(ctrl)
+		ownerAgentID := uuid.New()
+		recorder := newFakeRecorder()
+		recorder.seed("call-1", chattool.ExecutionRecord{
+			ID:               "exec-call-1",
+			Status:           chattool.ExecutionStatusStarting,
+			Timeout:          time.Minute,
+			ClaimEpoch:       1,
+			ClaimedAt:        time.Now().Add(-2 * time.Minute),
+			WorkspaceAgentID: ownerAgentID,
+		})
+
+		// The turn's connection is down but the recorded dispatch
+		// target is reachable: its token index resolves the stale
+		// dispatch into a live process, which is adopted and
+		// re-attached there instead of aborting until the turn's
+		// agent comes back.
+		exitCode := 0
+		gomock.InOrder(
+			ownerConn.EXPECT().
+				ProcessByToken(gomock.Any(), "exec-call-1").
+				Return(workspacesdk.ProcessByTokenResponse{Found: true, ProcessID: "proc-owner"}, nil),
+			ownerConn.EXPECT().
+				ProcessOutput(gomock.Any(), "proc-owner", gomock.Any()).
+				Return(workspacesdk.ProcessOutputResponse{
+					Running:  false,
+					ExitCode: &exitCode,
+					Output:   "done",
+				}, nil),
+		)
+
+		tool := chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, uuid.UUID, error) {
+				return nil, uuid.Nil, xerrors.New("workspace agent unreachable")
+			},
+			Recorder: recorder,
+			DialAgent: func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				assert.Equal(t, ownerAgentID, agentID)
+				return ownerConn, func() {}, nil
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.True(t, result.Success)
+		assert.Equal(t, "done", result.Output)
+		rec := recorder.record("call-1")
+		assert.Equal(t, "proc-owner", rec.ProcessID)
+		assert.Equal(t, ownerAgentID, rec.WorkspaceAgentID)
+		assert.Equal(t, chattool.ExecutionStatusExited, rec.Status)
+	})
+
+	t.Run("StaleClaimAgentRebindUnknown", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		// The stale claim dispatched to a different agent, so the
+		// current connection's token index cannot observe that
+		// dispatch: no probe, no re-dispatch, outcome unknown.
+		recorder.seed("call-1", chattool.ExecutionRecord{
+			ID:               "exec-call-1",
+			Status:           chattool.ExecutionStatusStarting,
+			Timeout:          time.Minute,
+			ClaimEpoch:       1,
+			ClaimedAt:        time.Now().Add(-2 * time.Minute),
+			WorkspaceAgentID: uuid.New(),
+		})
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "unknown")
+		assert.Equal(t, chattool.ExecutionStatusUnknown, recorder.record("call-1").Status)
+	})
+
+	t.Run("StaleClaimOldAgentUnknown", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		seedStaleStarting(recorder, 2*time.Minute)
+
+		// An agent that predates the token probe endpoint
+		// answers 404 for the route itself.
+		mockConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{}, notFoundError(t))
 
 		tool := newRecordedExecuteTool(t, mockConn, recorder)
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -1292,21 +1503,240 @@ func TestExecuteToolRecorder(t *testing.T) {
 		assert.Equal(t, chattool.ExecutionStatusUnknown, recorder.record("call-1").Status)
 	})
 
+	t.Run("StaleClaimProbeFoundAdopts", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		seedStaleStarting(recorder, 2*time.Minute)
+
+		mockConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{Found: true, ProcessID: "proc-1"}, nil)
+		exitCode := 0
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running:  false,
+				ExitCode: &exitCode,
+				Output:   "done",
+			}, nil)
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.True(t, result.Success)
+		assert.Equal(t, "done", result.Output)
+
+		rec := recorder.record("call-1")
+		assert.Equal(t, "proc-1", rec.ProcessID)
+		assert.Equal(t, chattool.ExecutionStatusExited, rec.Status)
+		// Adoption anchors started_at at the claim time, the lower
+		// bound of the true start, so a long-running recovered
+		// process cannot win a fresh full timeout.
+		assert.WithinDuration(t, time.Now().Add(-2*time.Minute), rec.StartedAt, 30*time.Second)
+	})
+
+	t.Run("StaleClaimCrossAgentFoundAdoptsOnOwner", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		// No expectations on the turn's connection: both the token
+		// probe and the re-attach must go to the recorded owner.
+		turnConn := agentconnmock.NewMockAgentConn(ctrl)
+		ownerConn := agentconnmock.NewMockAgentConn(ctrl)
+		ownerAgentID := uuid.New()
+		recorder := newFakeRecorder()
+		recorder.seed("call-1", chattool.ExecutionRecord{
+			ID:               "exec-call-1",
+			Status:           chattool.ExecutionStatusStarting,
+			Timeout:          time.Minute,
+			ClaimEpoch:       1,
+			ClaimedAt:        time.Now().Add(-2 * time.Minute),
+			WorkspaceAgentID: ownerAgentID,
+		})
+
+		ownerConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{Found: true, ProcessID: "proc-owner"}, nil)
+		exitCode := 0
+		ownerConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-owner", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running:  false,
+				ExitCode: &exitCode,
+				Output:   "done",
+			}, nil)
+
+		tool := chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, uuid.UUID, error) {
+				return turnConn, testAgentID, nil
+			},
+			Recorder: recorder,
+			DialAgent: func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				assert.Equal(t, ownerAgentID, agentID)
+				return ownerConn, func() {}, nil
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.True(t, result.Success)
+		assert.Equal(t, "done", result.Output)
+
+		rec := recorder.record("call-1")
+		assert.Equal(t, "proc-owner", rec.ProcessID)
+		assert.Equal(t, chattool.ExecutionStatusExited, rec.Status)
+		// The adopted process is attributed to the probed owner,
+		// not the turn's agent, so later kill and re-attach paths
+		// dial the agent that actually runs it.
+		assert.Equal(t, ownerAgentID, rec.WorkspaceAgentID)
+	})
+
+	t.Run("StaleClaimCrossAgentDialErrorAborts", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		// No expectations: a failed dial must not probe the turn's
+		// agent or dispatch anything.
+		turnConn := agentconnmock.NewMockAgentConn(ctrl)
+		ownerAgentID := uuid.New()
+		recorder := newFakeRecorder()
+		recorder.seed("call-1", chattool.ExecutionRecord{
+			ID:               "exec-call-1",
+			Status:           chattool.ExecutionStatusStarting,
+			Timeout:          time.Minute,
+			ClaimEpoch:       1,
+			ClaimedAt:        time.Now().Add(-2 * time.Minute),
+			WorkspaceAgentID: ownerAgentID,
+		})
+
+		tool := chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, uuid.UUID, error) {
+				return turnConn, testAgentID, nil
+			},
+			Recorder: recorder,
+			DialAgent: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return nil, nil, xerrors.New("tailnet unreachable")
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		// A transient dial failure proves nothing about the
+		// dispatch: the attempt must abort uncommitted so a later
+		// retry can probe the owner once it reconnects, instead
+		// of terminalizing the row unknown.
+		require.Error(t, err)
+		var abortErr *chattool.AbortToolExecutionError
+		require.ErrorAs(t, err, &abortErr)
+		rec := recorder.record("call-1")
+		assert.Equal(t, chattool.ExecutionStatusStarting, rec.Status)
+	})
+
+	t.Run("StaleClaimCrossAgentDialErrorPastWindowUnknown", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		// No expectations: the turn's agent must not be probed for
+		// another agent's dispatch.
+		turnConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		recorder.seed("call-1", chattool.ExecutionRecord{
+			ID:               "exec-call-1",
+			Status:           chattool.ExecutionStatusStarting,
+			Timeout:          time.Minute,
+			ClaimEpoch:       1,
+			ClaimedAt:        time.Now().Add(-chattool.TokenTrustWindow - time.Minute),
+			WorkspaceAgentID: uuid.New(),
+		})
+
+		// Past the trust window even a successful probe could not
+		// trust an absence answer, so an unreachable prior agent
+		// (gone after a rebuild) must not wedge the chat: the row
+		// resolves unknown through the guarded write.
+		tool := chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, uuid.UUID, error) {
+				return turnConn, testAgentID, nil
+			},
+			Recorder: recorder,
+			DialAgent: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return nil, nil, xerrors.New("tailnet unreachable")
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "process state is unknown")
+		require.Equal(t, chattool.ExecutionStatusUnknown, recorder.record("call-1").Status)
+	})
+
+	t.Run("StaleClaimAdoptionRecordFailureRetryable", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		recorder.recordStartErr = xerrors.New("database gone")
+		seedStaleStarting(recorder, 2*time.Minute)
+
+		// No ProcessOutput expectation: without the recorded
+		// handle, re-attaching could terminalize a handle-less
+		// row, so the attempt must abort uncommitted and leave
+		// the row starting for the next probe.
+		mockConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{Found: true, ProcessID: "proc-1"}, nil)
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.Error(t, err)
+		var abortErr *chattool.AbortToolExecutionError
+		require.ErrorAs(t, err, &abortErr)
+		assert.Equal(t, chattool.ExecutionStatusStarting, recorder.record("call-1").Status)
+	})
+
 	t.Run("StaleClaimLateRecordResumesProcess", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 		recorder := newFakeRecorder()
-		recorder.seed("call-1", chattool.ExecutionRecord{
-			Status:     chattool.ExecutionStatusStarting,
-			Timeout:    time.Minute,
-			ClaimEpoch: 1,
-			ClaimedAt:  time.Now().Add(-2 * time.Minute),
-		})
-		// The claim owner's RecordStart lands between the
-		// staleness verdict and the unknown write. The guarded
-		// write must lose and the attempt must resume the
-		// recorded process instead of downgrading it.
+		seedStaleStarting(recorder, 2*time.Minute)
+
+		// The probe cannot verify the dispatch, but the claim
+		// owner's RecordStart lands between that verdict and the
+		// unknown write. The guarded write must lose and the
+		// attempt must resume the recorded process instead of
+		// downgrading it.
+		mockConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{}, notFoundError(t))
 		recorder.onMarkStaleClaim = func() {
 			recorder.seed("call-1", chattool.ExecutionRecord{
 				Status:     chattool.ExecutionStatusRunning,
@@ -1316,7 +1746,6 @@ func TestExecuteToolRecorder(t *testing.T) {
 				StartedAt:  time.Now(),
 			})
 		}
-
 		exitCode := 0
 		mockConn.EXPECT().
 			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
@@ -1337,6 +1766,416 @@ func TestExecuteToolRecorder(t *testing.T) {
 		assert.True(t, result.Success)
 		assert.Equal(t, "hi", result.Output)
 		assert.Equal(t, chattool.ExecutionStatusExited, recorder.record("call-1").Status)
+	})
+
+	t.Run("StaleClaimAbsentTokenYoungIndexUnknown", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		seedStaleStarting(recorder, 2*time.Minute)
+
+		// The agent restarted after the claim: its token index is
+		// younger than the claim, so absence proves nothing about
+		// what the previous agent process may have started.
+		mockConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{Found: false, TokenIndexAgeMS: (10 * time.Second).Milliseconds()}, nil)
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "unknown")
+		assert.Equal(t, chattool.ExecutionStatusUnknown, recorder.record("call-1").Status)
+	})
+
+	t.Run("StaleClaimProbeNotFoundRedispatches", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		seedStaleStarting(recorder, 2*time.Minute)
+
+		mockConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{Found: false, TokenIndexAgeMS: time.Hour.Milliseconds()}, nil)
+		// The re-dispatch reuses the same execution token so the
+		// agent dedups a race with the original dispatch.
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				assert.Equal(t, "exec-call-1", req.ClientToken)
+				return workspacesdk.StartProcessResponse{ID: "proc-2", Started: true, ClientToken: req.ClientToken}, nil
+			}).
+			Times(1)
+		exitCode := 0
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-2", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running:  false,
+				ExitCode: &exitCode,
+				Output:   "done",
+			}, nil)
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.True(t, result.Success)
+		assert.Equal(t, "done", result.Output)
+
+		rec := recorder.record("call-1")
+		assert.Equal(t, "proc-2", rec.ProcessID)
+		assert.EqualValues(t, 2, rec.ClaimEpoch)
+		assert.Equal(t, chattool.ExecutionStatusExited, rec.Status)
+	})
+
+	t.Run("StaleClaimRedispatchStartFailureAborts", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		seedStaleStarting(recorder, 2*time.Minute)
+
+		mockConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{Found: false, TokenIndexAgeMS: time.Hour.Milliseconds()}, nil)
+		// The re-dispatch fails structurally, releasing the
+		// agent-side reservation. The superseded original claimer
+		// could still spawn under this token, so no_effect (which
+		// would assert nothing ran and end token recovery) must
+		// not commit: the attempt aborts with the row still
+		// starting so retries keep probing the token.
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{}, agentAPIError(t, http.StatusInternalServerError, "Failed to start process."))
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.Error(t, err)
+		var abortErr *chattool.AbortToolExecutionError
+		require.ErrorAs(t, err, &abortErr)
+		rec := recorder.record("call-1")
+		assert.Equal(t, chattool.ExecutionStatusStarting, rec.Status)
+		assert.EqualValues(t, 2, rec.ClaimEpoch)
+	})
+
+	t.Run("StaleClaimProbePendingRedispatches", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		// Even past the trust window, a pending reservation means
+		// a start owning this token is in flight on the agent, so
+		// re-dispatching the same token attaches to it instead of
+		// resolving to unknown.
+		seedStaleStarting(recorder, chattool.TokenTrustWindow+time.Minute)
+
+		mockConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{Pending: true}, nil)
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				assert.Equal(t, "exec-call-1", req.ClientToken)
+				return workspacesdk.StartProcessResponse{ID: "proc-3", ClientToken: req.ClientToken, Attached: true}, nil
+			}).
+			Times(1)
+		exitCode := 0
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-3", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running:  false,
+				ExitCode: &exitCode,
+				Output:   "done",
+			}, nil)
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.True(t, result.Success)
+		assert.Equal(t, "done", result.Output)
+	})
+
+	t.Run("StaleClaimAttachPastDeadlineDetaches", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		// The original dispatch's process has been running since
+		// the stale claim, well past the 10s default timeout.
+		seedStaleStarting(recorder, 2*time.Minute)
+
+		mockConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{Pending: true}, nil)
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				assert.Equal(t, "exec-call-1", req.ClientToken)
+				return workspacesdk.StartProcessResponse{ID: "proc-attach", ClientToken: req.ClientToken, Attached: true}, nil
+			}).
+			Times(1)
+		// The attach resumes through the re-attach flow: one
+		// non-blocking snapshot, then the graceful timed-out
+		// result. No blocking wait may grant a fresh timeout.
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-attach", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{Running: true, Output: "partial output"}, nil)
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.False(t, result.Success)
+		assert.Contains(t, result.Error, "timed out")
+		assert.Equal(t, "proc-attach", result.BackgroundProcessID)
+
+		rec := recorder.record("call-1")
+		assert.Equal(t, chattool.ExecutionStatusDetached, rec.Status)
+		assert.Equal(t, "proc-attach", rec.ProcessID)
+		// The recorded start is anchored at the original claim
+		// time, not the attach time.
+		assert.True(t, rec.StartedAt.Before(time.Now().Add(-time.Minute)))
+	})
+
+	t.Run("StaleClaimAttachRecordFailureAborts", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		seedStaleStarting(recorder, 2*time.Minute)
+		recorder.recordStartErr = xerrors.New("database connection lost")
+
+		mockConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{Pending: true}, nil)
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{ID: "proc-attach", ClientToken: "exec-call-1", Attached: true}, nil)
+
+		// No ProcessOutput expectation: an attached process whose
+		// handle write failed must abort uncommitted instead of
+		// waiting with a fresh timeout and committing a result
+		// that carries no recorded handle.
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.Error(t, err)
+		var abortErr *chattool.AbortToolExecutionError
+		require.ErrorAs(t, err, &abortErr)
+		assert.Equal(t, chattool.ExecutionStatusStarting, recorder.record("call-1").Status)
+	})
+
+	t.Run("StaleClaimCrossAgentAbsentAborts", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		turnConn := agentconnmock.NewMockAgentConn(ctrl)
+		ownerConn := agentconnmock.NewMockAgentConn(ctrl)
+		ownerAgentID := uuid.New()
+		recorder := newFakeRecorder()
+		recorder.seed("call-1", chattool.ExecutionRecord{
+			ID:               "exec-call-1",
+			Status:           chattool.ExecutionStatusStarting,
+			Timeout:          time.Minute,
+			ClaimEpoch:       1,
+			ClaimedAt:        time.Now().Add(-2 * time.Minute),
+			WorkspaceAgentID: ownerAgentID,
+		})
+
+		// Even a trustworthy absence on the prior dispatch target
+		// cannot fence a paused original claimer that later
+		// dispatches to it, so no re-dispatch may happen on the
+		// current agent: the attempt aborts uncommitted.
+		ownerConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{TokenIndexAgeMS: time.Hour.Milliseconds()}, nil)
+
+		tool := chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, uuid.UUID, error) {
+				return turnConn, testAgentID, nil
+			},
+			Recorder: recorder,
+			DialAgent: func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				assert.Equal(t, ownerAgentID, agentID)
+				return ownerConn, func() {}, nil
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.Error(t, err)
+		var abortErr *chattool.AbortToolExecutionError
+		require.ErrorAs(t, err, &abortErr)
+		assert.Equal(t, chattool.ExecutionStatusStarting, recorder.record("call-1").Status)
+	})
+
+	t.Run("StaleStartFailureLosesToReclaim", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		seedStaleStarting(recorder, 2*time.Minute)
+
+		mockConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{Pending: true}, nil)
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				// A concurrent retry reclaims the row while this
+				// structured failure is in flight; the late
+				// no_effect write must lose to the fresh claim.
+				recorder.seed("call-1", chattool.ExecutionRecord{
+					ID:               "exec-call-1",
+					Status:           chattool.ExecutionStatusStarting,
+					Timeout:          time.Minute,
+					ClaimEpoch:       7,
+					ClaimedAt:        time.Now(),
+					WorkspaceAgentID: testAgentID,
+				})
+				return workspacesdk.StartProcessResponse{}, &codersdk.Error{}
+			})
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		// The no_effect write lost to the fresh claim, so the
+		// attempt must abort uncommitted instead of stamping a
+		// failure result over the reclaiming attempt's row.
+		require.Error(t, err)
+		var abortErr *chattool.AbortToolExecutionError
+		require.ErrorAs(t, err, &abortErr)
+
+		rec := recorder.record("call-1")
+		assert.Equal(t, chattool.ExecutionStatusStarting, rec.Status)
+		assert.EqualValues(t, 7, rec.ClaimEpoch)
+	})
+
+	t.Run("StaleClaimReclaimFailureAborts", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		seedStaleStarting(recorder, chattool.TokenTrustWindow+time.Minute)
+		recorder.reclaimErr = xerrors.New("database connection lost")
+
+		mockConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{Pending: true}, nil)
+
+		// No StartProcess expectation: a failed reclaim must
+		// abort uncommitted so a later retry can recover the
+		// same token, not commit an error result.
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.Error(t, err)
+		var abortErr *chattool.AbortToolExecutionError
+		require.ErrorAs(t, err, &abortErr)
+		assert.Equal(t, chattool.ExecutionStatusStarting, recorder.record("call-1").Status)
+	})
+
+	t.Run("StaleClaimBeyondTrustWindowUnknown", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		// Older than TokenTrustWindow: the agent may have reaped
+		// the token with its exited process.
+		seedStaleStarting(recorder, chattool.TokenTrustWindow+time.Minute)
+
+		mockConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{Found: false}, nil)
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "unknown")
+		assert.Equal(t, chattool.ExecutionStatusUnknown, recorder.record("call-1").Status)
+	})
+
+	t.Run("StaleClaimProbeTransportErrorKeepsRow", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+		seedStaleStarting(recorder, 2*time.Minute)
+
+		mockConn.EXPECT().
+			ProcessByToken(gomock.Any(), "exec-call-1").
+			Return(workspacesdk.ProcessByTokenResponse{}, xerrors.New("dial tcp: connection refused"))
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		// The attempt aborts uncommitted and the row is untouched,
+		// so the retried call probes the same token again.
+		require.Error(t, err)
+		var abortErr *chattool.AbortToolExecutionError
+		require.ErrorAs(t, err, &abortErr)
+		assert.Equal(t, chattool.ExecutionStatusStarting, recorder.record("call-1").Status)
 	})
 
 	t.Run("FreshStartingClaimRecovers", func(t *testing.T) {
@@ -1592,17 +2431,81 @@ func TestExecuteToolRecorder(t *testing.T) {
 		require.Equal(t, chattool.ExecutionStatusRunning, recorder.record("call-1").Status)
 	})
 
-	t.Run("ConnFailureStaleStartingResolvesUnknown", func(t *testing.T) {
+	t.Run("ConnFailureStaleStartingWithinTrustWindowAborts", func(t *testing.T) {
 		t.Parallel()
 		recorder := newFakeRecorder()
+		recorder.seed("call-1", chattool.ExecutionRecord{
+			Status:           chattool.ExecutionStatusStarting,
+			Timeout:          time.Minute,
+			ClaimedAt:        time.Now().Add(-2 * time.Minute),
+			WorkspaceAgentID: uuid.New(),
+		})
+
+		// Within TokenTrustWindow a row with a recorded dispatch
+		// target stays recoverable: once the agent is reachable
+		// again the token probe can adopt a live process, so a
+		// dial failure aborts instead of resolving unknown.
+		tool := chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, uuid.UUID, error) {
+				return nil, uuid.Nil, xerrors.New("workspace agent unreachable")
+			},
+			Recorder: recorder,
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.Error(t, err)
+		var abortErr *chattool.AbortToolExecutionError
+		require.ErrorAs(t, err, &abortErr)
+		require.Equal(t, chattool.ExecutionStatusStarting, recorder.record("call-1").Status)
+	})
+
+	t.Run("ConnFailureStaleStartingNoTargetResolvesUnknown", func(t *testing.T) {
+		t.Parallel()
+		recorder := newFakeRecorder()
+		// No recorded dispatch target: there is no token index to
+		// probe, so waiting out the trust window buys nothing and
+		// the row resolves as soon as the claim is stale, exactly
+		// as the connected path would.
 		recorder.seed("call-1", chattool.ExecutionRecord{
 			Status:    chattool.ExecutionStatusStarting,
 			Timeout:   time.Minute,
 			ClaimedAt: time.Now().Add(-2 * time.Minute),
 		})
 
-		// Stale-claim resolution is a ledger write, so an
-		// unreachable agent must not wedge the chat by aborting.
+		tool := chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, uuid.UUID, error) {
+				return nil, uuid.Nil, xerrors.New("workspace agent unreachable")
+			},
+			Recorder: recorder,
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "process state is unknown")
+		require.Equal(t, chattool.ExecutionStatusUnknown, recorder.record("call-1").Status)
+	})
+
+	t.Run("ConnFailureStaleStartingResolvesUnknown", func(t *testing.T) {
+		t.Parallel()
+		recorder := newFakeRecorder()
+		recorder.seed("call-1", chattool.ExecutionRecord{
+			Status:    chattool.ExecutionStatusStarting,
+			Timeout:   time.Minute,
+			ClaimedAt: time.Now().Add(-chattool.TokenTrustWindow - time.Minute),
+		})
+
+		// Past TokenTrustWindow the token probe could not prove
+		// anything anyway; the guarded ledger write resolves the
+		// row so an unreachable agent cannot wedge the chat.
 		tool := chattool.Execute(chattool.ExecuteOptions{
 			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, uuid.UUID, error) {
 				return nil, uuid.Nil, xerrors.New("workspace agent unreachable")
@@ -1627,7 +2530,7 @@ func TestExecuteToolRecorder(t *testing.T) {
 		recorder.seed("call-1", chattool.ExecutionRecord{
 			Status:    chattool.ExecutionStatusStarting,
 			Timeout:   time.Minute,
-			ClaimedAt: time.Now().Add(-2 * time.Minute),
+			ClaimedAt: time.Now().Add(-chattool.TokenTrustWindow - time.Minute),
 		})
 		// The dead owner's uncanceled RecordStart lands in the
 		// race window: the guarded unknown write must lose, and
@@ -1943,7 +2846,7 @@ func TestExecuteToolRecorder(t *testing.T) {
 		assert.Zero(t, recorder.claimCalls)
 	})
 
-	t.Run("StartErrorMarksUnknown", func(t *testing.T) {
+	t.Run("StartErrorKeepsRowRecoverable", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
@@ -1955,19 +2858,49 @@ func TestExecuteToolRecorder(t *testing.T) {
 
 		tool := newRecordedExecuteTool(t, mockConn, recorder)
 		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		// The request may have reached the agent, and the token is
+		// durable. The attempt aborts uncommitted and the row stays
+		// starting, so the retried call resolves the dispatch
+		// through the token probe instead of committing a result
+		// that would end same-token recovery.
+		require.Error(t, err)
+		var abortErr *chattool.AbortToolExecutionError
+		require.ErrorAs(t, err, &abortErr)
+		assert.Equal(t, chattool.ExecutionStatusStarting, recorder.record("call-1").Status)
+	})
+
+	t.Run("StartErrorStructuredMarksNoEffect", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+
+		// A structured agent response means the spawn failed and
+		// the token reservation was released: nothing is running,
+		// so the error commits normally.
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{}, agentAPIError(t, http.StatusInternalServerError, "Failed to start process."))
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		resp, err := tool.Run(ctx, fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "execute",
 			Input: `{"command":"echo hi"}`,
 		})
 		require.NoError(t, err)
-		assert.False(t, resp.IsError)
 
 		var result chattool.ExecuteResult
 		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 		assert.False(t, result.Success)
 		assert.Contains(t, result.Error, "start process")
-		assert.Equal(t, chattool.ExecutionStatusUnknown, recorder.record("call-1").Status)
+		assert.Equal(t, chattool.ExecutionStatusNoEffect, recorder.record("call-1").Status)
 	})
 
 	t.Run("BackgroundStartMarksDetached", func(t *testing.T) {
@@ -2220,4 +3153,128 @@ func TestProcessOutputToolRejectsNegativeWaitTimeout(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, resp.IsError)
 	assert.Contains(t, resp.Content, "must not be negative")
+}
+
+func TestExecuteToolClientToken(t *testing.T) {
+	t.Parallel()
+
+	// runExecute runs "echo hi" against a mock whose StartProcess
+	// response is produced by respond, returning the parsed result
+	// and the captured log entries. Every variant must produce the
+	// same tool result; only the logging differs.
+	runExecute := func(t *testing.T, respond func(req workspacesdk.StartProcessRequest) workspacesdk.StartProcessResponse) (chattool.ExecuteResult, *testutil.FakeSink) {
+		t.Helper()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		sink := testutil.NewFakeSink(t)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				assert.Equal(t, "exec-call-1", req.ClientToken)
+				return respond(req), nil
+			})
+		exitCode := 0
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running:  false,
+				ExitCode: &exitCode,
+				Output:   "done",
+			}, nil)
+
+		tool := chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, uuid.UUID, error) {
+				return mockConn, testAgentID, nil
+			},
+			Logger:   sink.Logger(),
+			Recorder: newFakeRecorder(),
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		return result, sink
+	}
+
+	missingSupport := func(entry slog.SinkEntry) bool {
+		return entry.Message == "workspace agent does not support idempotent process starts"
+	}
+	deduped := func(entry slog.SinkEntry) bool {
+		return entry.Message == "execute_agent_deduped"
+	}
+
+	t.Run("EchoWithoutAttach", func(t *testing.T) {
+		t.Parallel()
+
+		result, sink := runExecute(t, func(req workspacesdk.StartProcessRequest) workspacesdk.StartProcessResponse {
+			return workspacesdk.StartProcessResponse{
+				ID:          "proc-1",
+				Started:     true,
+				ClientToken: req.ClientToken,
+			}
+		})
+		assert.True(t, result.Success)
+		assert.Equal(t, "done", result.Output)
+		assert.Empty(t, sink.Entries(missingSupport))
+		assert.Empty(t, sink.Entries(deduped))
+	})
+
+	t.Run("EchoWithAttachLogsDeduped", func(t *testing.T) {
+		t.Parallel()
+
+		result, sink := runExecute(t, func(req workspacesdk.StartProcessRequest) workspacesdk.StartProcessResponse {
+			return workspacesdk.StartProcessResponse{
+				ID:          "proc-1",
+				ClientToken: req.ClientToken,
+				Attached:    true,
+			}
+		})
+		assert.True(t, result.Success)
+		assert.Equal(t, "done", result.Output)
+		assert.Empty(t, sink.Entries(missingSupport))
+		assert.Len(t, sink.Entries(deduped), 1)
+	})
+
+	t.Run("MissingEchoLogsAndKeepsBehavior", func(t *testing.T) {
+		t.Parallel()
+
+		result, sink := runExecute(t, func(workspacesdk.StartProcessRequest) workspacesdk.StartProcessResponse {
+			// An agent that predates idempotent starts drops the
+			// unknown request field and echoes nothing back.
+			return workspacesdk.StartProcessResponse{
+				ID:      "proc-1",
+				Started: true,
+			}
+		})
+		assert.True(t, result.Success)
+		assert.Equal(t, "done", result.Output)
+		assert.Len(t, sink.Entries(missingSupport), 1)
+		assert.Empty(t, sink.Entries(deduped))
+	})
+}
+
+func TestTrustAbsentToken(t *testing.T) {
+	t.Parallel()
+
+	oldIndex := workspacesdk.ProcessByTokenResponse{TokenIndexAgeMS: time.Hour.Milliseconds()}
+	youngIndex := workspacesdk.ProcessByTokenResponse{TokenIndexAgeMS: 0}
+
+	assert.True(t, chattool.TrustAbsentToken(oldIndex, time.Now().Add(-time.Minute)))
+	// Past the trust window the token may have been reaped with its
+	// exited process.
+	assert.False(t, chattool.TrustAbsentToken(oldIndex, time.Now().Add(-chattool.TokenTrustWindow-time.Minute)))
+	// A restarted agent's young index postdates the claim.
+	assert.False(t, chattool.TrustAbsentToken(youngIndex, time.Now().Add(-time.Minute)))
+	// A future-dated claim (written by a replica with a faster
+	// clock) makes the index comparison meaningless.
+	assert.False(t, chattool.TrustAbsentToken(youngIndex, time.Now().Add(time.Minute)))
+	assert.False(t, chattool.TrustAbsentToken(oldIndex, time.Now().Add(time.Minute)))
 }

@@ -12771,6 +12771,7 @@ INSERT INTO chat_tool_call_executions (
     command,
     background,
     timeout_secs,
+    workspace_agent_id,
     claim_epoch,
     claimed_at,
     created_at,
@@ -12785,16 +12786,18 @@ INSERT INTO chat_tool_call_executions (
     $6::text,
     $7::boolean,
     $8::bigint,
+    $9::uuid,
     1,
-    $9::timestamptz,
-    $9::timestamptz,
-    $9::timestamptz
+    $10::timestamptz,
+    $10::timestamptz,
+    $10::timestamptz
 )
 ON CONFLICT (chat_id, assistant_message_id, tool_call_id) DO UPDATE SET
     status = 'starting',
     command = EXCLUDED.command,
     background = EXCLUDED.background,
     timeout_secs = EXCLUDED.timeout_secs,
+    workspace_agent_id = EXCLUDED.workspace_agent_id,
     claim_epoch = chat_tool_call_executions.claim_epoch + 1,
     claimed_at = EXCLUDED.claimed_at,
     updated_at = EXCLUDED.updated_at
@@ -12802,8 +12805,8 @@ WHERE chat_tool_call_executions.input_sha256 = EXCLUDED.input_sha256
   AND chat_tool_call_executions.result_committed_at IS NULL
   AND (chat_tool_call_executions.status = 'reserved'
    OR (chat_tool_call_executions.status = 'starting'
-       AND chat_tool_call_executions.claimed_at < $10::timestamptz
-       AND chat_tool_call_executions.claim_epoch = $11::bigint))
+       AND chat_tool_call_executions.claimed_at < $11::timestamptz
+       AND chat_tool_call_executions.claim_epoch = $12::bigint))
 RETURNING id, chat_id, assistant_message_id, tool_call_id, status, input_sha256, command, background, timeout_secs, claim_epoch, claimed_at, workspace_agent_id, process_id, cancel_signal_sent_at, result_committed_at, created_at, started_at, updated_at
 `
 
@@ -12816,6 +12819,7 @@ type ClaimChatToolCallExecutionParams struct {
 	Command            string        `db:"command" json:"command"`
 	Background         bool          `db:"background" json:"background"`
 	TimeoutSecs        int64         `db:"timeout_secs" json:"timeout_secs"`
+	WorkspaceAgentID   uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
 	Now                time.Time     `db:"now" json:"now"`
 	StaleBefore        time.Time     `db:"stale_before" json:"stale_before"`
 	StaleEpoch         sql.NullInt64 `db:"stale_epoch" json:"stale_epoch"`
@@ -12830,11 +12834,14 @@ type ClaimChatToolCallExecutionParams struct {
 // claimable: its call is resolved in chat, so re-dispatching it
 // could run the command twice. The stale-takeover arm requires
 // stale_epoch to match the exact claim generation the caller
-// verified: evidence gathered against one claim cannot take over
-// a newer one, and a caller without a verified epoch (NULL) can
-// never take over a starting claim. Zero rows means the row
-// exists but is not claimable; the caller reads it to decide how
-// to proceed.
+// verified through the agent: evidence gathered against one claim
+// cannot take over a newer one, and a caller without a verified
+// epoch (NULL) can never take over a starting claim.
+// workspace_agent_id records the dispatch target before the
+// dispatch happens, so recovery can tell whether a token probe
+// reaches the agent the dead claimer actually targeted. Zero rows
+// means the row exists but is not claimable; the caller reads it
+// to decide how to proceed.
 func (q *sqlQuerier) ClaimChatToolCallExecution(ctx context.Context, arg ClaimChatToolCallExecutionParams) (ChatToolCallExecution, error) {
 	row := q.db.QueryRowContext(ctx, claimChatToolCallExecution,
 		arg.ID,
@@ -12845,6 +12852,7 @@ func (q *sqlQuerier) ClaimChatToolCallExecution(ctx context.Context, arg ClaimCh
 		arg.Command,
 		arg.Background,
 		arg.TimeoutSecs,
+		arg.WorkspaceAgentID,
 		arg.Now,
 		arg.StaleBefore,
 		arg.StaleEpoch,
@@ -13400,11 +13408,11 @@ SET status = CASE WHEN status = 'starting' THEN 'running'::chat_tool_call_execut
     -- rows: a late handle write anchored at an older start time
     -- must never move the lease backward and reopen a fresh
     -- interrupt to early sweep reclaim.
-    updated_at = GREATEST(updated_at, $3::timestamptz)
-WHERE chat_id = $4::uuid
-  AND assistant_message_id = $5::bigint
-  AND tool_call_id = $6::text
-  AND claim_epoch = $7::bigint
+    updated_at = GREATEST(updated_at, $4::timestamptz)
+WHERE chat_id = $5::uuid
+  AND assistant_message_id = $6::bigint
+  AND tool_call_id = $7::text
+  AND claim_epoch = $8::bigint
   AND status IN ('starting', 'cancel_requested', 'detached')
 RETURNING id, chat_id, assistant_message_id, tool_call_id, status, input_sha256, command, background, timeout_secs, claim_epoch, claimed_at, workspace_agent_id, process_id, cancel_signal_sent_at, result_committed_at, created_at, started_at, updated_at
 `
@@ -13413,6 +13421,7 @@ type UpdateChatToolCallExecutionProcessParams struct {
 	ProcessID          string    `db:"process_id" json:"process_id"`
 	WorkspaceAgentID   uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
 	StartedAt          time.Time `db:"started_at" json:"started_at"`
+	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
 	ChatID             uuid.UUID `db:"chat_id" json:"chat_id"`
 	AssistantMessageID int64     `db:"assistant_message_id" json:"assistant_message_id"`
 	ToolCallID         string    `db:"tool_call_id" json:"tool_call_id"`
@@ -13432,6 +13441,7 @@ func (q *sqlQuerier) UpdateChatToolCallExecutionProcess(ctx context.Context, arg
 		arg.ProcessID,
 		arg.WorkspaceAgentID,
 		arg.StartedAt,
+		arg.UpdatedAt,
 		arg.ChatID,
 		arg.AssistantMessageID,
 		arg.ToolCallID,

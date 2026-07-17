@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -46,9 +45,8 @@ const (
 
 	// claimStaleAfter is how long a starting claim stays fresh.
 	// A claimer that has not recorded a process handle within
-	// this window is presumed dead and the process state is
-	// declared unknown; it may have dispatched a process whose
-	// handle was lost.
+	// this window is presumed dead; recovery asks the agent
+	// whether the dead claimer's dispatch reached it.
 	claimStaleAfter = 60 * time.Second
 
 	// claimPollInterval is how often a fresh starting claim is
@@ -61,7 +59,42 @@ const (
 	// early, so a short agent-side wait cannot degenerate into a
 	// zero-delay request loop.
 	processWaitRetryDelay = time.Second
+
+	// TokenTrustWindow bounds how long after a claim a "token not
+	// found" probe answer proves the dispatch never reached the
+	// agent. Agents reap token entries together with exited
+	// processes after 60 minutes (exitedProcessReapAge), so a
+	// late answer proves nothing. Kept well under the reap age.
+	TokenTrustWindow = 30 * time.Minute
+
+	// maxStaleTakeoverEpoch bounds how many times stale-claim
+	// recovery may take over one row. Every takeover refreshes
+	// claimed_at, so a re-dispatch that keeps failing after the
+	// takeover (for example a workspace with no shell) would
+	// otherwise loop stale-wait/reclaim/fail forever without the
+	// row ever aging out. Past the bound the row resolves through
+	// the guarded unknown write instead.
+	maxStaleTakeoverEpoch = 5
 )
+
+// TrustAbsentToken reports whether a Found=false, Pending=false
+// token probe answer proves the dispatch never reached the agent.
+// It requires the claim to be within TokenTrustWindow (the token
+// was not reaped) and the agent's in-memory token index to predate
+// the claim: a restarted agent answers with an empty index, so a
+// young index proves nothing about what an earlier agent process
+// may have started. Both sides of the index comparison are
+// durations, so agent and coderd wall clocks never mix. A negative
+// claim age means the claim was written by a replica whose clock
+// is ahead of this one; the index comparison is then meaningless,
+// so the answer is not trusted.
+func TrustAbsentToken(resp workspacesdk.ProcessByTokenResponse, claimedAt time.Time) bool {
+	claimAge := time.Since(claimedAt)
+	if claimAge < 0 || claimAge >= TokenTrustWindow {
+		return false
+	}
+	return time.Duration(resp.TokenIndexAgeMS)*time.Millisecond >= claimAge
+}
 
 // nonInteractiveEnvVars are set on every process to prevent
 // interactive prompts that would hang a headless execution.
@@ -100,6 +133,88 @@ const (
 		"up the updated PATH. See " +
 		"https://coder.com/docs/ai-coder/agents/architecture#windows-workspace-shell-requirement"
 )
+
+// startFailureResponse resolves a StartProcess failure after the
+// ledger claim. A structured agent response other than 409 means
+// the spawn failed and the agent released the token reservation,
+// so this dispatch is not running: on an original claim (no prior
+// claimer ever dispatched under this token) the row resolves
+// no_effect and the error commits as a normal tool result the
+// model can act on. A dispatch that reclaimed a stale claim aborts
+// uncommitted instead: the superseded claimer may still issue its
+// own StartProcess under this token, and the released reservation
+// would let it spawn, so a committed no_effect would both assert
+// nothing ran and stop retries from ever probing the token that
+// could observe that late process. Transport errors leave the
+// dispatch unobservable and a 409 means a process may exist under
+// this token (a mismatched reuse, or an aborted wait on a
+// reservation whose owner may still publish), so the row stays
+// starting and the attempt aborts uncommitted: the token is
+// durable, and the retried call resolves the dispatch through the
+// agent's token index instead of committing a result that would
+// end same-token recovery.
+// startClaimKind records how the claim being dispatched was
+// obtained, because a start failure resolves differently for a
+// takeover.
+type startClaimKind int
+
+const (
+	// originalClaim dispatched a fresh claim: no prior claimer
+	// ever issued a StartProcess under this token.
+	originalClaim startClaimKind = iota
+	// reclaimedStaleClaim dispatched after a stale-claim
+	// takeover: the superseded claimer may still issue its own
+	// StartProcess under the same token.
+	reclaimedStaleClaim
+)
+
+func startFailureResponse(ctx context.Context, options ExecuteOptions, toolCallID string, claimEpoch int64, claimKind startClaimKind, action string, err error) (fantasy.ToolResponse, error) {
+	var sdkErr *codersdk.Error
+	structured := xerrors.As(err, &sdkErr) && sdkErr.StatusCode() != http.StatusConflict
+	// Without a ledger there is no token to recover through, so
+	// aborting buys nothing over the model-facing error.
+	if options.Recorder == nil {
+		return errorResult(enrichStartError(fmt.Sprintf("%s: %v", action, err))), nil
+	}
+	if structured {
+		if claimKind == reclaimedStaleClaim {
+			return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf(
+				"%s failed after a stale claim takeover; keeping the token recoverable: %w", action, err,
+			)}
+		}
+		if markClaimNoEffect(ctx, options, toolCallID, claimEpoch) {
+			return errorResult(enrichStartError(fmt.Sprintf("%s: %v", action, err))), nil
+		}
+		// The guarded write matched no row: a concurrent retry
+		// reclaimed the row (or an interrupt resolved it), so a
+		// newer attempt owns the call. Committing this failure
+		// would stamp the row's result while that attempt runs.
+		return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf(
+			"%s failed on a superseded claim: %w", action, err,
+		)}
+	}
+	return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("%s: %w", action, err)}
+}
+
+// markClaimNoEffect records a failed spawn on an uncanceled,
+// bounded context. The write is guarded by the claim epoch: a
+// late structured failure from a superseded dispatch must not
+// terminalize a row a concurrent retry has reclaimed. Returns
+// whether the write applied; a failed write reports false so the
+// caller aborts instead of committing a possibly stale result.
+func markClaimNoEffect(ctx context.Context, options ExecuteOptions, toolCallID string, claimEpoch int64) bool {
+	recordCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), recordWriteTimeout)
+	defer cancel()
+	applied, err := options.Recorder.MarkClaimNoEffect(recordCtx, toolCallID, claimEpoch)
+	if err != nil {
+		options.Logger.Warn(ctx, "failed to mark execution claim no_effect",
+			slog.F("tool_call_id", toolCallID),
+			slog.Error(err),
+		)
+		return false
+	}
+	return applied
+}
 
 // enrichStartError appends actionable guidance when a StartProcess
 // error indicates the workspace has no sh binary.
@@ -235,10 +350,12 @@ type ExecutionRecord struct {
 	ClaimEpoch int64
 	ClaimedAt  time.Time
 	StartedAt  time.Time
-	// WorkspaceAgentID is the agent that owns the recorded
-	// process. A 404 from a different agent proves nothing about
-	// the process, so re-attach only treats it as loss when the
-	// probed agent matches.
+	// WorkspaceAgentID is the dispatch target recorded at claim
+	// time, before the dispatch happens. A chat rebound to a
+	// different agent cannot observe what the original target did
+	// with the dispatch, so recovery only trusts the token index
+	// when it probes this exact agent, and re-attach treats a 404
+	// as loss only from this agent.
 	WorkspaceAgentID uuid.UUID
 }
 
@@ -252,24 +369,37 @@ type ExecutionRecorder interface {
 	// the ledger. claimed reports whether this caller owns the
 	// fresh dispatch; when false, rec is the current row and the
 	// caller must resume from its status instead of dispatching.
-	// Returns an error wrapping ErrExecutionInputMismatch when the
-	// row was created for different input.
-	Claim(ctx context.Context, toolCallID string, inputSHA256 string, command string, background bool, timeout time.Duration) (rec ExecutionRecord, claimed bool, err error)
+	// A starting row claimed before staleBefore may be taken over
+	// (advancing the claim epoch); the zero time only accepts
+	// reserved or missing rows. A non-zero staleEpoch fences that
+	// takeover to the exact claim generation the caller verified
+	// through the agent: a row that advanced past it is not taken
+	// over, so evidence gathered against one claim cannot displace
+	// a newer one. agentID records the dispatch target on the
+	// claim so recovery can match probes against it. Returns an
+	// error wrapping ErrExecutionInputMismatch when the row was
+	// created for different input.
+	Claim(ctx context.Context, toolCallID string, inputSHA256 string, command string, background bool, timeout time.Duration, agentID uuid.UUID, staleBefore time.Time, staleEpoch int64) (rec ExecutionRecord, claimed bool, err error)
 	// Get reads the current row without claiming it. Returns an
 	// error wrapping ErrExecutionRecordNotFound when no row
 	// exists for the tool call.
 	Get(ctx context.Context, toolCallID string) (ExecutionRecord, error)
-	// MarkStaleClaimUnknown resolves a stale starting claim to
-	// unknown. Unlike MarkTerminal it matches only starting rows:
-	// the claim owner can record its process concurrently with
-	// the staleness verdict, and that write must win. applied is
+	// MarkStaleClaimUnknown resolves the stale starting claim
+	// generation claimEpoch to unknown. Unlike MarkTerminal it
+	// matches only starting rows on that exact epoch: the claim
+	// owner can record its process concurrently with the
+	// staleness verdict, and a concurrent retry can reclaim the
+	// row and re-dispatch; both writes must win. applied is
 	// false when the row advanced first; latest is then the fresh
 	// row for the caller to resume from.
-	MarkStaleClaimUnknown(ctx context.Context, toolCallID string) (latest ExecutionRecord, applied bool, err error)
+	MarkStaleClaimUnknown(ctx context.Context, toolCallID string, claimEpoch int64) (latest ExecutionRecord, applied bool, err error)
 	// RecordStart stores the process identity on the claim that
 	// dispatched it and moves the row to running. claimEpoch must
 	// be the epoch returned by the Claim that owns the dispatch.
-	RecordStart(ctx context.Context, toolCallID string, claimEpoch int64, processID string, agentID uuid.UUID) error
+	// startedAt anchors re-attach deadlines; adoption of an
+	// already-running process passes the claim time as a lower
+	// bound of the true start instead of the adoption time.
+	RecordStart(ctx context.Context, toolCallID string, claimEpoch int64, processID string, agentID uuid.UUID, startedAt time.Time) error
 	// MarkTerminal applies a lifecycle observation (exited,
 	// detached, unknown, or no_effect). Observations never
 	// overwrite states written by the interrupt reconciler, and
@@ -277,6 +407,14 @@ type ExecutionRecorder interface {
 	// superseded claim is dropped instead of terminalizing the
 	// claim that replaced it.
 	MarkTerminal(ctx context.Context, toolCallID string, status ExecutionStatus, claimEpoch int64) error
+	// MarkClaimNoEffect resolves the claim generation claimEpoch
+	// to no_effect after a structured start failure. Guarded by
+	// the epoch so a late failure from a superseded dispatch
+	// cannot terminalize a row a concurrent retry reclaimed.
+	// applied is false when the guarded write matched no row;
+	// the caller must not commit a result for the superseded
+	// attempt.
+	MarkClaimNoEffect(ctx context.Context, toolCallID string, claimEpoch int64) (applied bool, err error)
 }
 
 // ExecuteOptions configures the execute tool.
@@ -422,6 +560,15 @@ func executeTool(
 		workDir = *args.WorkDir
 	}
 
+	dispatch := dispatchInputs{
+		inputSHA256: HashToolInput(call.Input),
+		command:     args.Command,
+		background:  background,
+		timeout:     timeout,
+		workDir:     workDir,
+		env:         env,
+	}
+
 	var rec ExecutionRecord
 	if options.Recorder != nil {
 		// Background executions have no completion deadline, so
@@ -433,7 +580,7 @@ func executeTool(
 		}
 		var claimed bool
 		var err error
-		rec, claimed, err = options.Recorder.Claim(ctx, toolCallID, HashToolInput(call.Input), args.Command, background, claimTimeout)
+		rec, claimed, err = options.Recorder.Claim(ctx, toolCallID, dispatch.inputSHA256, args.Command, background, claimTimeout, options.connAgentID, time.Time{}, 0)
 		if err != nil {
 			if xerrors.Is(err, ErrExecutionInputMismatch) {
 				options.Logger.Warn(ctx, "execute claim targeted stale lineage",
@@ -450,57 +597,79 @@ func executeTool(
 			return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("claim execution record: %w", err)}
 		}
 		if !claimed {
-			return resumeExecution(ctx, conn, options, toolCallID, rec)
+			return resumeExecution(ctx, conn, options, toolCallID, rec, dispatch)
 		}
 	}
 
 	if background {
-		return executeBackground(ctx, conn, options, toolCallID, rec, args.Command, workDir, env), nil
+		return executeBackground(ctx, conn, options, toolCallID, rec, originalClaim, args.Command, workDir, env)
 	}
-	return executeForeground(ctx, conn, options, toolCallID, rec, args.Command, timeout, workDir, env), nil
+	return executeForeground(ctx, conn, options, toolCallID, rec, originalClaim, args.Command, timeout, workDir, env)
+}
+
+// dispatchInputs carries the validated execute arguments so
+// recovery paths can re-dispatch the same request under the same
+// execution token.
+type dispatchInputs struct {
+	inputSHA256 string
+	command     string
+	background  bool
+	timeout     time.Duration
+	workDir     string
+	env         map[string]string
+}
+
+// logStartIdempotency records whether the agent honored the
+// idempotency token (the execution ID) sent with a StartProcess
+// request. A missing echo means the agent predates idempotent
+// starts, so only the durable execution ledger protects against
+// duplicate processes.
+func logStartIdempotency(ctx context.Context, logger slog.Logger, resp workspacesdk.StartProcessResponse, toolCallID string) {
+	if resp.ClientToken == "" {
+		logger.Warn(ctx, "workspace agent does not support idempotent process starts",
+			slog.F("tool_call_id", toolCallID),
+			slog.F("process_id", resp.ID),
+		)
+		return
+	}
+	if resp.Attached {
+		logger.Info(ctx, "execute_agent_deduped",
+			slog.F("tool_call_id", toolCallID),
+			slog.F("process_id", resp.ID),
+		)
+	}
 }
 
 // resumeExecution handles a tool call whose ledger row is owned by
-// another claim or already carries a lifecycle outcome. It never
-// dispatches a fresh process.
+// another claim or already carries a lifecycle outcome. It only
+// dispatches a process through the stale-claim recovery, which
+// proves via the agent's token index that the original dispatch
+// never happened.
 func resumeExecution(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	options ExecuteOptions,
 	toolCallID string,
 	rec ExecutionRecord,
+	dispatch dispatchInputs,
 ) (fantasy.ToolResponse, error) {
 	switch rec.Status {
 	case ExecutionStatusStarting:
 		// Another claim owns dispatch. Give it until the claim
-		// goes stale to record the process handle, then declare
-		// the process state unknown. Dispatching here could run
-		// the command twice.
+		// goes stale to record the process handle, then ask the
+		// agent what became of the dispatch. Dispatching here
+		// without that proof could run the command twice.
 		latest, err := awaitRecordedProcess(ctx, options, toolCallID, rec)
 		if err != nil {
 			// Cancellation is an expected exit for this attempt,
-			// not evidence about the claim owner: marking unknown
-			// here could race ahead of the owner's RecordStart and
-			// orphan a real process. Only a claim that actually
-			// went stale is unobservable.
+			// not evidence about the claim owner: acting on it
+			// could race ahead of the owner's RecordStart.
 			if ctx.Err() != nil {
 				return errorResult(fmt.Sprintf("wait for execution claim owner: %v", ctx.Err())), nil
 			}
-			fresh, applied, markErr := options.Recorder.MarkStaleClaimUnknown(ctx, toolCallID)
-			if markErr != nil {
-				// Committing unknown on an unverified row could end
-				// recovery of a real process; abort and retry.
-				return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("mark stale execution claim unknown: %w", markErr)}
-			}
-			if !applied {
-				// The owner recorded its process after the last
-				// poll; resume from the fresh row instead of
-				// downgrading it.
-				return resumeExecution(ctx, conn, options, toolCallID, fresh)
-			}
-			return fantasy.NewTextErrorResponse(unknownOutcomeMessage), nil
+			return recoverStaleClaim(ctx, conn, options, toolCallID, rec, dispatch)
 		}
-		return resumeExecution(ctx, conn, options, toolCallID, latest)
+		return resumeExecution(ctx, conn, options, toolCallID, latest, dispatch)
 	case ExecutionStatusRunning, ExecutionStatusExited, ExecutionStatusDetached:
 		return reattachProcess(ctx, conn, options, toolCallID, rec)
 	default:
@@ -568,12 +737,29 @@ func resolveConnFailure(ctx context.Context, options ExecuteOptions, toolCallID 
 	if resp, ok := terminalRowResponse(ctx, options, toolCallID, rec); ok {
 		return resp, nil
 	}
-	if rec.Status == ExecutionStatusStarting && staleStartingClaim(rec, claimStaleAfter) {
-		// Stale-claim resolution needs no agent access: the
-		// connected path would also resolve this row to unknown.
-		// Aborting instead would wedge the chat for as long as
-		// the agent stays unreachable.
-		fresh, applied, markErr := options.Recorder.MarkStaleClaimUnknown(ctx, toolCallID)
+	if rec.Status == ExecutionStatusStarting && staleStartingClaim(rec, claimStaleAfter) &&
+		rec.WorkspaceAgentID != uuid.Nil && options.DialAgent != nil {
+		// The recorded dispatch target can be reachable even when
+		// the turn's connection is not, and only its token index
+		// can answer for the stale dispatch. Run the normal
+		// stale-claim recovery against it. Dispatch inputs are
+		// zero because a disconnected attempt never re-dispatches:
+		// connAgentID is Nil here, so every takeover path in the
+		// recovery is cross-agent and aborts before dispatching.
+		return recoverStaleClaim(ctx, nil, options, toolCallID, rec, dispatchInputs{})
+	}
+	if rec.Status == ExecutionStatusStarting && staleStartingClaim(rec, staleResolveWindow(rec)) {
+		// Within the window the abort below is preferred: once
+		// the agent is reachable again, the token probe can
+		// still adopt a live process or prove nothing was
+		// dispatched. Past it the probe could not help anyway
+		// (absence answers prove nothing past TokenTrustWindow,
+		// and a row without a recorded dispatch target has no
+		// index to probe at all), so the guarded unknown write
+		// (which needs no agent access) resolves the row instead
+		// of wedging the chat for as long as the agent stays
+		// unreachable.
+		fresh, applied, markErr := options.Recorder.MarkStaleClaimUnknown(ctx, toolCallID, rec.ClaimEpoch)
 		if markErr != nil {
 			return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("mark stale execution claim unknown: %w", markErr)}
 		}
@@ -618,6 +804,22 @@ func resolveConnFailure(ctx context.Context, options ExecuteOptions, toolCallID 
 	}
 	// A reserved row proves nothing was dispatched.
 	return fantasy.NewTextErrorResponse(dialErr.Error()), nil
+}
+
+// staleResolveWindow is how long a disconnected attempt keeps
+// aborting on a stale starting claim before resolving it unknown
+// without agent access. A claim with a recorded dispatch target
+// gets the full trust window, because a reconnect within it can
+// still probe that agent's token index. A row without a target
+// (a claim written before dispatch targets were recorded) has no
+// index to probe, so waiting past the claim-staleness window buys
+// nothing: the connected path would mark the same row unknown
+// immediately.
+func staleResolveWindow(rec ExecutionRecord) time.Duration {
+	if rec.WorkspaceAgentID == uuid.Nil {
+		return claimStaleAfter
+	}
+	return TokenTrustWindow
 }
 
 // staleStartingClaim reports whether a starting claim's owner has
@@ -676,6 +878,214 @@ func awaitRecordedProcess(
 	return ExecutionRecord{}, xerrors.New("claim went stale without a recorded process")
 }
 
+// resolveStaleClaimUnknown resolves a stale starting claim to
+// unknown through the guarded transition: the claim owner's
+// RecordStart can land concurrently with the staleness verdict, and
+// that write wins, with the attempt resuming the recorded process
+// instead of downgrading it. A write failure aborts uncommitted,
+// because committing unknown on an unverified row could end
+// recovery of a real process.
+func resolveStaleClaimUnknown(ctx context.Context, conn workspacesdk.AgentConn, options ExecuteOptions, toolCallID string, claimEpoch int64, dispatch dispatchInputs) (fantasy.ToolResponse, error) {
+	fresh, applied, err := options.Recorder.MarkStaleClaimUnknown(ctx, toolCallID, claimEpoch)
+	if err != nil {
+		return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("mark stale execution claim unknown: %w", err)}
+	}
+	if !applied {
+		return resumeExecution(ctx, conn, options, toolCallID, fresh, dispatch)
+	}
+	return fantasy.NewTextErrorResponse(unknownOutcomeMessage), nil
+}
+
+// recoverStaleClaim resolves a starting claim whose owner never
+// recorded a process handle. The execution ID doubles as the
+// agent-side idempotency token, so the agent's token index reveals
+// what became of the dead claimer's dispatch. Recovery never mints
+// a new token for the tool call: a found process is adopted, and
+// re-dispatch reuses the same token so the agent dedups any race
+// with the original dispatch.
+func recoverStaleClaim(
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+	options ExecuteOptions,
+	toolCallID string,
+	rec ExecutionRecord,
+	dispatch dispatchInputs,
+) (fantasy.ToolResponse, error) {
+	if rec.WorkspaceAgentID == uuid.Nil {
+		// No dispatch target was recorded, so no agent's token
+		// index can answer for the dead claimer's dispatch.
+		return resolveStaleClaimUnknown(ctx, conn, options, toolCallID, rec.ClaimEpoch, dispatch)
+	}
+	probeConn := conn
+	crossAgent := rec.WorkspaceAgentID != options.connAgentID
+	if crossAgent {
+		// The stale claim dispatched to a different agent (the
+		// workspace was rebuilt or the chat rebound). Only that
+		// agent's token index can observe what became of the
+		// dispatch, so probe it directly. An unreachable target
+		// leaves the dispatch unverifiable, the same verdict as
+		// before the probe existed.
+		if options.DialAgent == nil {
+			return resolveStaleClaimUnknown(ctx, conn, options, toolCallID, rec.ClaimEpoch, dispatch)
+		}
+		ownerConn, release, dialErr := options.DialAgent(ctx, rec.WorkspaceAgentID)
+		if dialErr != nil {
+			// A transient dial failure proves nothing about the
+			// dispatch; resolving unknown now would terminalize a
+			// row whose owner may reconnect with the token still
+			// answerable. Abort uncommitted like other transport
+			// failures while the claim is within the trust window.
+			// Past the window even a successful probe could not
+			// trust an absence answer, so retrying the dial gains
+			// nothing: resolve through the guarded unknown write
+			// instead of wedging the chat for as long as the prior
+			// agent stays unreachable (it may be gone for good
+			// after a workspace rebuild).
+			if staleStartingClaim(rec, TokenTrustWindow) {
+				return resolveStaleClaimUnknown(ctx, conn, options, toolCallID, rec.ClaimEpoch, dispatch)
+			}
+			return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf(
+				"dial prior dispatch agent %s: %w", rec.WorkspaceAgentID, dialErr,
+			)}
+		}
+		if release != nil {
+			defer release()
+		}
+		probeConn = ownerConn
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, snapshotTimeout)
+	resp, err := workspacesdk.ProbeProcessToken(probeCtx, probeConn, rec.ID)
+	cancel()
+	if err != nil {
+		if isNotFoundError(err) || xerrors.Is(err, workspacesdk.ErrProcessTokenProbeUnsupported) {
+			// The agent predates the token probe endpoint or the
+			// connection cannot probe, so the dead claimer's
+			// dispatch cannot be verified.
+			return resolveStaleClaimUnknown(ctx, conn, options, toolCallID, rec.ClaimEpoch, dispatch)
+		}
+		// Transport errors prove nothing. Abort uncommitted so
+		// the retried call probes the same token again; a
+		// committed result would end same-token recovery.
+		return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("probe execution token: %w", err)}
+	}
+
+	if resp.Found {
+		// Adopt the process on the stale claim's epoch, then
+		// resume from the updated row. The claim time is the
+		// lower bound of the true start, so an adopted process
+		// never wins a fresh full timeout. The process is
+		// attributed to the agent whose token index answered the
+		// probe, so a cross-agent adoption re-attaches to and is
+		// killed on the agent that actually runs it.
+		ownerAgentID := rec.WorkspaceAgentID
+		if ownerAgentID == uuid.Nil {
+			ownerAgentID = options.connAgentID
+		}
+		recorded := recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ProcessID, ownerAgentID, rec.ClaimedAt)
+		latest, err := options.Recorder.Get(ctx, toolCallID)
+		if err == nil && latest.Status != ExecutionStatusStarting {
+			return resumeExecution(ctx, conn, options, toolCallID, latest, dispatch)
+		}
+		if recorded {
+			// The write landed but the read-back failed or
+			// lagged. Re-attach with the known handle, anchoring
+			// the deadline at the claim time as a lower bound of
+			// the true start.
+			rec.ProcessID = resp.ProcessID
+			rec.StartedAt = rec.ClaimedAt
+			return reattachProcess(ctx, conn, options, toolCallID, rec)
+		}
+		// The adoption write did not land and the row is still
+		// starting: re-attaching now could terminalize a row
+		// that carries no process handle, stranding a later
+		// retry. Abort uncommitted so the retried call probes
+		// the durable token index and adopts again.
+		return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf(
+			"found process %s for a previous attempt but failed to record it", resp.ProcessID,
+		)}
+	}
+
+	if !resp.Pending && !TrustAbsentToken(resp, rec.ClaimedAt) {
+		// The agent may have reaped the token with its exited
+		// process, or restarted with an empty token index, so
+		// absence proves nothing.
+		return resolveStaleClaimUnknown(ctx, conn, options, toolCallID, rec.ClaimEpoch, dispatch)
+	}
+
+	if crossAgent {
+		// The prior dispatch target's token index cannot fence a
+		// dispatch on the current agent: a pending reservation
+		// means a start is in flight there, and even a trustworthy
+		// absence does not stop a paused original claimer from
+		// dispatching to it later, so re-dispatching here could
+		// run the command twice. Abort uncommitted: the token
+		// resolves into a process a later probe adopts, or the
+		// claim ages past the trust window and the guarded
+		// unknown path resolves it.
+		return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf(
+			"execution token unresolved on prior agent %s", rec.WorkspaceAgentID,
+		)}
+	}
+
+	if rec.ClaimEpoch >= maxStaleTakeoverEpoch {
+		if resp.Pending {
+			// The agent says a start under this token may still
+			// publish a process. Abort uncommitted without a
+			// takeover: a later probe adopts the published
+			// process via Found, or the reservation fails, its
+			// token releases, and the next absence answer lands
+			// in the unknown branch below.
+			return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf(
+				"execution token reservation still pending at takeover bound",
+			)}
+		}
+		// Repeated takeovers keep proving the same thing: every
+		// prior claim dispatched nothing that survived, and every
+		// re-dispatch failed before recording a process. Give up
+		// through the guarded unknown write instead of refreshing
+		// the claim forever.
+		return resolveStaleClaimUnknown(ctx, conn, options, toolCallID, rec.ClaimEpoch, dispatch)
+	}
+
+	// On the claim's own dispatch target, a pending reservation
+	// or a trustworthy absent token is safe to re-dispatch under
+	// the same token: the agent attaches to an in-flight start
+	// and dedups any race with the original dispatch. Take over
+	// the stale claim first.
+	// The takeover is fenced to the epoch this probe verified: a
+	// concurrent retry that reclaimed the row (possibly onto a
+	// different agent) must not be displaced by evidence gathered
+	// against the older claim.
+	reclaimed, claimed, err := options.Recorder.Claim(ctx, toolCallID, dispatch.inputSHA256, dispatch.command, dispatch.background, dispatch.timeout, options.connAgentID, time.Now().Add(-claimStaleAfter), rec.ClaimEpoch)
+	if err != nil {
+		// A transient reclaim failure must not commit a result:
+		// that would stamp result_committed_at and stop later
+		// retries from recovering this token even though the
+		// original dispatch may still publish a process. Abort
+		// uncommitted like the initial claim path.
+		return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("reclaim stale execution: %w", err)}
+	}
+	if !claimed {
+		return resumeExecution(ctx, conn, options, toolCallID, reclaimed, dispatch)
+	}
+	// The takeover stamped a fresh claimed_at. Keep the original
+	// claim time on the dispatched record: if the agent attaches
+	// to the process the stale dispatch started, that time is the
+	// lower bound of the true start, and anchoring the deadline
+	// there stops the attached process from getting a fresh
+	// timeout.
+	reclaimed.ClaimedAt = rec.ClaimedAt
+	options.Logger.Info(ctx, "re-dispatching execution after stale claim takeover",
+		slog.F("tool_call_id", toolCallID),
+		slog.F("execution_id", reclaimed.ID),
+		slog.F("claim_epoch", reclaimed.ClaimEpoch),
+	)
+	if dispatch.background {
+		return executeBackground(ctx, conn, options, toolCallID, reclaimed, reclaimedStaleClaim, dispatch.command, dispatch.workDir, dispatch.env)
+	}
+	return executeForeground(ctx, conn, options, toolCallID, reclaimed, reclaimedStaleClaim, dispatch.command, dispatch.timeout, dispatch.workDir, dispatch.env)
+}
+
 // reattachProcess resumes an execute tool call whose process was
 // started by a previous attempt, without starting a second
 // process.
@@ -695,6 +1105,14 @@ func reattachProcess(
 	// dial the owner directly instead of probing an agent that
 	// knows nothing about the process.
 	connTargetsOwner := rec.WorkspaceAgentID == uuid.Nil || rec.WorkspaceAgentID == options.connAgentID
+	if conn == nil && connTargetsOwner {
+		// Disconnected recovery passes a nil turn connection; a
+		// row it cannot route to a dialable owner agent stays
+		// re-attachable for a connected attempt.
+		return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf(
+			"no workspace connection available to re-attach process %s", rec.ProcessID,
+		)}
+	}
 	if !connTargetsOwner {
 		if options.DialAgent == nil {
 			// Probing the turn's connection could commit a result
@@ -729,7 +1147,7 @@ func reattachProcess(
 		// when the connection targets the agent that owns the
 		// process. Transport errors, cancellations, and server
 		// errors leave the process potentially retrievable.
-		if sdkErr, ok := errors.AsType[*codersdk.Error](err); ok && sdkErr.StatusCode() == http.StatusNotFound {
+		if isNotFoundError(err) {
 			if connTargetsOwner {
 				options.Logger.Warn(ctx, "recorded execute process is no longer known to its agent; resolving execution unknown",
 					slog.F("tool_call_id", toolCallID),
@@ -787,6 +1205,14 @@ func reattachProcess(
 	return marshalResult(result), nil
 }
 
+// isNotFoundError reports a definite HTTP 404 from the agent: the
+// agent was reached and does not know the requested resource (or,
+// for a route-level 404, predates the endpoint).
+func isNotFoundError(err error) bool {
+	var sdkErr *codersdk.Error
+	return xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound
+}
+
 // processLostResponse is the stable result for a process the agent
 // was reached about but no longer knows: the command may have run,
 // but its outcome is unobservable.
@@ -805,34 +1231,41 @@ func executeBackground(
 	options ExecuteOptions,
 	toolCallID string,
 	rec ExecutionRecord,
+	claimKind startClaimKind,
 	command string,
 	workDir string,
 	env map[string]string,
-) fantasy.ToolResponse {
+) (fantasy.ToolResponse, error) {
 	resp, err := conn.StartProcess(ctx, workspacesdk.StartProcessRequest{
-		Command:    command,
-		WorkDir:    workDir,
-		Env:        env,
-		Background: true,
+		Command:     command,
+		WorkDir:     workDir,
+		Env:         env,
+		Background:  true,
+		ClientToken: rec.ID,
 	})
 	if err != nil {
-		// The request may or may not have reached the agent, so
-		// the honest lifecycle outcome is unobservable.
-		markTerminal(ctx, options, toolCallID, rec.ClaimEpoch, ExecutionStatusUnknown)
-		return errorResult(enrichStartError(fmt.Sprintf("start background process: %v", err)))
+		return startFailureResponse(ctx, options, toolCallID, rec.ClaimEpoch, claimKind, "start background process", err)
+	}
+	logStartIdempotency(ctx, options.Logger, resp, toolCallID)
+	startedAt := time.Now()
+	if resp.Attached && !rec.ClaimedAt.IsZero() {
+		// An attached process has been running since the earlier
+		// dispatch; its claim time is the lower bound of the
+		// true start.
+		startedAt = rec.ClaimedAt
 	}
 	// Mark detached only when the handle write landed: a detached
 	// row with no recorded process would make a retry return
 	// success without a usable handle instead of re-resolving the
 	// dispatch through the still-starting row.
-	if recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ID) {
+	if recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ID, options.connAgentID, startedAt) {
 		markTerminal(ctx, options, toolCallID, rec.ClaimEpoch, ExecutionStatusDetached)
 	}
 
 	return marshalResult(ExecuteResult{
 		Success:             true,
 		BackgroundProcessID: resp.ID,
-	})
+	}), nil
 }
 
 // recordProcessStart persists a freshly started process identity on
@@ -841,13 +1274,13 @@ func executeBackground(
 // the interrupt path needs the recorded handle to kill the process.
 // Failures are logged, never fatal: the process is already running
 // and attached, so discarding the wait would throw away real work.
-func recordProcessStart(ctx context.Context, options ExecuteOptions, toolCallID string, claimEpoch int64, processID string) bool {
+func recordProcessStart(ctx context.Context, options ExecuteOptions, toolCallID string, claimEpoch int64, processID string, agentID uuid.UUID, startedAt time.Time) bool {
 	if options.Recorder == nil {
 		return false
 	}
 	recordCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), recordWriteTimeout)
 	defer cancel()
-	if err := options.Recorder.RecordStart(recordCtx, toolCallID, claimEpoch, processID, options.connAgentID); err != nil {
+	if err := options.Recorder.RecordStart(recordCtx, toolCallID, claimEpoch, processID, agentID, startedAt); err != nil {
 		options.Logger.Warn(ctx, "failed to record execute process start",
 			slog.F("tool_call_id", toolCallID),
 			slog.F("process_id", processID),
@@ -906,34 +1339,64 @@ func executeForeground(
 	options ExecuteOptions,
 	toolCallID string,
 	rec ExecutionRecord,
+	claimKind startClaimKind,
 	command string,
 	timeout time.Duration,
 	workDir string,
 	env map[string]string,
-) fantasy.ToolResponse {
+) (fantasy.ToolResponse, error) {
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	start := time.Now()
 
 	resp, err := conn.StartProcess(cmdCtx, workspacesdk.StartProcessRequest{
-		Command:    command,
-		WorkDir:    workDir,
-		Env:        env,
-		Background: false,
+		Command:     command,
+		WorkDir:     workDir,
+		Env:         env,
+		Background:  false,
+		ClientToken: rec.ID,
 	})
 	if err != nil {
-		// The request may or may not have reached the agent, so
-		// the honest lifecycle outcome is unobservable.
-		markTerminal(ctx, options, toolCallID, rec.ClaimEpoch, ExecutionStatusUnknown)
-		return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err)))
+		return startFailureResponse(ctx, options, toolCallID, rec.ClaimEpoch, claimKind, "start process", err)
 	}
-	recorded := recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ID)
+	logStartIdempotency(ctx, options.Logger, resp, toolCallID)
+	startedAt := time.Now()
+	if resp.Attached && !rec.ClaimedAt.IsZero() {
+		// The agent deduped this start against a process an
+		// earlier dispatch of this token created. The claim time
+		// is the lower bound of the true start; anchoring the
+		// deadline and wall duration there stops the attached
+		// process from getting a fresh timeout on every retry.
+		startedAt = rec.ClaimedAt
+	}
+	recorded := recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ID, options.connAgentID, startedAt)
+	if resp.Attached {
+		if !recorded {
+			// The process has been running since the earlier
+			// dispatch, but the handle write did not land:
+			// waiting below would grant it a fresh timeout and
+			// commit a result with no recorded handle. Abort
+			// uncommitted so the retried call probes the token
+			// index and adopts it.
+			return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf(
+				"attached to process %s from a previous dispatch but failed to record it", resp.ID,
+			)}
+		}
+		// Resume through the re-attach flow so an attached
+		// process past its original deadline detaches with the
+		// graceful timed-out result instead of waiting a full
+		// timeout again.
+		rec.ProcessID = resp.ID
+		rec.StartedAt = startedAt
+		rec.Timeout = timeout
+		return reattachProcess(ctx, conn, options, toolCallID, rec)
+	}
 
 	result, lost := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)
 	if lost {
 		markTerminal(ctx, options, toolCallID, rec.ClaimEpoch, ExecutionStatusUnknown)
-		return processLostResponse(resp.ID)
+		return processLostResponse(resp.ID), nil
 	}
 	result.WallDurationMs = time.Since(start).Milliseconds()
 	// Record the wait outcome only when the handle write landed:
@@ -949,7 +1412,7 @@ func executeForeground(
 		result.Note = note
 	}
 
-	return marshalResult(result)
+	return marshalResult(result), nil
 }
 
 // timedOutRunningResult builds the ExecuteResult for a process that
@@ -1082,7 +1545,7 @@ func resolveProcessWait(
 		defer bgCancel()
 		resp, err = conn.ProcessOutput(bgCtx, processID, nil)
 		if err != nil {
-			if sdkErr, ok := errors.AsType[*codersdk.Error](err); ok && sdkErr.StatusCode() == http.StatusNotFound {
+			if isNotFoundError(err) {
 				return ExecuteResult{Success: false, ExitCode: -1}, true
 			}
 			errMsg := fmt.Sprintf("get process output: %v; use process_output with ID %s to retry", origErr, processID)

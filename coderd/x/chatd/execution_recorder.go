@@ -63,12 +63,15 @@ func (r *executionRecorder) lineage() (int64, error) {
 }
 
 // Claim takes dispatch ownership of the tool call's ledger row via
-// the claim CAS: only a reserved intent (or a missing row, for
-// assistant messages that predate the ledger) is claimable. Stale
-// starting claims are never taken over here because their owner may
-// have dispatched a process whose handle was lost; the tool resolves
-// those to unknown instead.
-func (r *executionRecorder) Claim(ctx context.Context, toolCallID string, inputSHA256 string, command string, background bool, timeout time.Duration) (chattool.ExecutionRecord, bool, error) {
+// the claim CAS: a reserved intent (or a missing row, for assistant
+// messages that predate the ledger) is always claimable, and a
+// starting claim older than staleBefore may be taken over. The tool
+// passes a non-zero staleBefore only after the agent's token index
+// proved the stale claimer's dispatch never happened. agentID is
+// the dispatch target, recorded before the dispatch so recovery and
+// the interrupt reconciler probe the agent that actually received
+// it.
+func (r *executionRecorder) Claim(ctx context.Context, toolCallID string, inputSHA256 string, command string, background bool, timeout time.Duration, agentID uuid.UUID, staleBefore time.Time, staleEpoch int64) (chattool.ExecutionRecord, bool, error) {
 	if toolCallID == "" {
 		// Rows are addressed by tool call ID; an empty ID would
 		// alias every ID-less call in the message to one row.
@@ -91,19 +94,11 @@ func (r *executionRecorder) Claim(ctx context.Context, toolCallID string, inputS
 		// deadline than the original attempt used; a sub-second
 		// timeout would otherwise floor to 0s and make re-attach
 		// treat a running process as instantly timed out.
-		TimeoutSecs: int64((timeout + time.Second - 1) / time.Second),
-		Now:         now,
-		// The zero time disables stale-claim takeover: no
-		// claimed_at precedes it, so the CAS only accepts
-		// reserved rows. The StaleBefore arm is forward
-		// scaffolding for the stacked agent-token work; taking
-		// over a stale claim without first proving through the
-		// agent that its dispatch never happened would re-enable
-		// double dispatch.
-		StaleBefore: time.Time{},
-		// NULL: no verified claim epoch, so the stale-takeover
-		// arm can never match.
-		StaleEpoch: sql.NullInt64{},
+		TimeoutSecs:      int64((timeout + time.Second - 1) / time.Second),
+		WorkspaceAgentID: uuid.NullUUID{UUID: agentID, Valid: agentID != uuid.Nil},
+		Now:              now,
+		StaleBefore:      staleBefore,
+		StaleEpoch:       sql.NullInt64{Int64: staleEpoch, Valid: staleEpoch != 0},
 	})
 	if err == nil {
 		return executionRecordFromRow(row), true, nil
@@ -155,7 +150,7 @@ func (r *executionRecorder) Get(ctx context.Context, toolCallID string) (chattoo
 // pinned to an agent that is no longer the latest one. The claim
 // epoch guard means a superseded claimer cannot overwrite the
 // current claim's identity.
-func (r *executionRecorder) RecordStart(ctx context.Context, toolCallID string, claimEpoch int64, processID string, agentID uuid.UUID) error {
+func (r *executionRecorder) RecordStart(ctx context.Context, toolCallID string, claimEpoch int64, processID string, agentID uuid.UUID, startedAt time.Time) error {
 	msgID, err := r.lineage()
 	if err != nil {
 		return err
@@ -170,7 +165,8 @@ func (r *executionRecorder) RecordStart(ctx context.Context, toolCallID string, 
 		ClaimEpoch:         claimEpoch,
 		ProcessID:          processID,
 		WorkspaceAgentID:   agentID,
-		StartedAt:          dbtime.Now(),
+		StartedAt:          dbtime.Time(startedAt),
+		UpdatedAt:          dbtime.Now(),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return xerrors.Errorf("claim epoch %d was superseded before the process start was recorded", claimEpoch)
@@ -258,11 +254,45 @@ func (r *executionRecorder) MarkTerminal(ctx context.Context, toolCallID string,
 	return nil
 }
 
+// MarkClaimNoEffect resolves a claim to no_effect after a
+// structured start failure. The claim-epoch guard drops a late
+// failure from a superseded dispatch instead of terminalizing a
+// row a concurrent retry has reclaimed; the caller sees
+// applied=false and must not commit the superseded result.
+func (r *executionRecorder) MarkClaimNoEffect(ctx context.Context, toolCallID string, claimEpoch int64) (bool, error) {
+	msgID, err := r.lineage()
+	if err != nil {
+		return false, err
+	}
+	_, err = r.db.UpdateChatToolCallExecutionStatus(ctx, database.UpdateChatToolCallExecutionStatusParams{
+		ChatID:             r.chatID,
+		AssistantMessageID: msgID,
+		ToolCallID:         toolCallID,
+		Status:             database.ChatToolCallExecutionStatusNoEffect,
+		FromStatuses:       terminalObservationSources[chattool.ExecutionStatusNoEffect],
+		ClaimEpoch:         sql.NullInt64{Int64: claimEpoch, Valid: true},
+		UpdatedAt:          dbtime.Now(),
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		r.logger.Debug(ctx, "stale start-failure observation dropped",
+			slog.F("chat_id", r.chatID),
+			slog.F("tool_call_id", toolCallID),
+			slog.F("claim_epoch", claimEpoch),
+		)
+		return false, nil
+	}
+	if err != nil {
+		return false, xerrors.Errorf("update chat tool call execution status: %w", err)
+	}
+	return true, nil
+}
+
 // MarkStaleClaimUnknown resolves a stale starting claim to unknown.
-// Only starting rows match: a concurrent RecordStart outranks the
-// staleness verdict, so the caller gets the fresh row back and
-// resumes from it instead of downgrading a running process.
-func (r *executionRecorder) MarkStaleClaimUnknown(ctx context.Context, toolCallID string) (chattool.ExecutionRecord, bool, error) {
+// Only starting rows on the observed claim epoch match: a concurrent
+// RecordStart outranks the staleness verdict, and a concurrent retry
+// that reclaimed the row advances the epoch, so both make the caller
+// resume from the fresh row instead of downgrading a live claim.
+func (r *executionRecorder) MarkStaleClaimUnknown(ctx context.Context, toolCallID string, claimEpoch int64) (chattool.ExecutionRecord, bool, error) {
 	msgID, err := r.lineage()
 	if err != nil {
 		return chattool.ExecutionRecord{}, false, err
@@ -273,7 +303,7 @@ func (r *executionRecorder) MarkStaleClaimUnknown(ctx context.Context, toolCallI
 		ToolCallID:         toolCallID,
 		Status:             database.ChatToolCallExecutionStatusUnknown,
 		FromStatuses:       []database.ChatToolCallExecutionStatus{database.ChatToolCallExecutionStatusStarting},
-		ClaimEpoch:         sql.NullInt64{},
+		ClaimEpoch:         sql.NullInt64{Int64: claimEpoch, Valid: true},
 		UpdatedAt:          dbtime.Now(),
 	})
 	if errors.Is(err, sql.ErrNoRows) {

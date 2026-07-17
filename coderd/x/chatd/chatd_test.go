@@ -13829,6 +13829,39 @@ func TestChatToolCallExecutionLedgerQueries(t *testing.T) {
 		require.Equal(t, database.ChatToolCallExecutionStatusRunning, row.Status)
 	})
 
+	t.Run("StatusUpdateEpochGuard", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, chat, msg := newLedgerFixture(t)
+		insertIntent(ctx, t, db, chat, msg, "call-1", "hash")
+		claimed, err := db.ClaimChatToolCallExecution(ctx, claimParams(chat, msg, "call-1", "hash", time.Time{}))
+		require.NoError(t, err)
+
+		// A staleness verdict pinned to a superseded epoch must not
+		// terminalize the row a concurrent retry has reclaimed.
+		_, err = db.UpdateChatToolCallExecutionStatus(ctx, database.UpdateChatToolCallExecutionStatusParams{
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         "call-1",
+			Status:             database.ChatToolCallExecutionStatusUnknown,
+			FromStatuses:       []database.ChatToolCallExecutionStatus{database.ChatToolCallExecutionStatusStarting},
+			ClaimEpoch:         sql.NullInt64{Int64: claimed.ClaimEpoch - 1, Valid: true},
+			UpdatedAt:          dbtime.Now(),
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+
+		row, err := db.UpdateChatToolCallExecutionStatus(ctx, database.UpdateChatToolCallExecutionStatusParams{
+			ChatID:             chat.ID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         "call-1",
+			Status:             database.ChatToolCallExecutionStatusUnknown,
+			FromStatuses:       []database.ChatToolCallExecutionStatus{database.ChatToolCallExecutionStatusStarting},
+			ClaimEpoch:         sql.NullInt64{Int64: claimed.ClaimEpoch, Valid: true},
+			UpdatedAt:          dbtime.Now(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusUnknown, row.Status)
+	})
+
 	t.Run("ProcessUpdateAfterInterrupt", func(t *testing.T) {
 		t.Parallel()
 		ctx, db, chat, msg := newLedgerFixture(t)
