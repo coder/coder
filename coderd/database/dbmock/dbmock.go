@@ -352,6 +352,21 @@ func (mr *MockStoreMockRecorder) ChatSearchQueryIsEmpty(ctx, search any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ChatSearchQueryIsEmpty", reflect.TypeOf((*MockStore)(nil).ChatSearchQueryIsEmpty), ctx, search)
 }
 
+// ClaimChatToolCallExecution mocks base method.
+func (m *MockStore) ClaimChatToolCallExecution(ctx context.Context, arg database.ClaimChatToolCallExecutionParams) (database.ChatToolCallExecution, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClaimChatToolCallExecution", ctx, arg)
+	ret0, _ := ret[0].(database.ChatToolCallExecution)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClaimChatToolCallExecution indicates an expected call of ClaimChatToolCallExecution.
+func (mr *MockStoreMockRecorder) ClaimChatToolCallExecution(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimChatToolCallExecution", reflect.TypeOf((*MockStore)(nil).ClaimChatToolCallExecution), ctx, arg)
+}
+
 // ClaimPrebuiltWorkspace mocks base method.
 func (m *MockStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	m.ctrl.T.Helper()
@@ -365,6 +380,21 @@ func (m *MockStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.Cla
 func (mr *MockStoreMockRecorder) ClaimPrebuiltWorkspace(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimPrebuiltWorkspace", reflect.TypeOf((*MockStore)(nil).ClaimPrebuiltWorkspace), ctx, arg)
+}
+
+// ClaimStaleChatToolCallExecutionCancels mocks base method.
+func (m *MockStore) ClaimStaleChatToolCallExecutionCancels(ctx context.Context, arg database.ClaimStaleChatToolCallExecutionCancelsParams) ([]database.ChatToolCallExecution, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClaimStaleChatToolCallExecutionCancels", ctx, arg)
+	ret0, _ := ret[0].([]database.ChatToolCallExecution)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClaimStaleChatToolCallExecutionCancels indicates an expected call of ClaimStaleChatToolCallExecutionCancels.
+func (mr *MockStoreMockRecorder) ClaimStaleChatToolCallExecutionCancels(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimStaleChatToolCallExecutionCancels", reflect.TypeOf((*MockStore)(nil).ClaimStaleChatToolCallExecutionCancels), ctx, arg)
 }
 
 // CleanTailnetCoordinators mocks base method.
@@ -702,6 +732,21 @@ func (m *MockStore) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID)
 func (mr *MockStoreMockRecorder) DeleteAPIKeysByUserID(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteAPIKeysByUserID), ctx, userID)
+}
+
+// DeleteAbandonedChatToolCallExecutions mocks base method.
+func (m *MockStore) DeleteAbandonedChatToolCallExecutions(ctx context.Context, arg database.DeleteAbandonedChatToolCallExecutionsParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAbandonedChatToolCallExecutions", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteAbandonedChatToolCallExecutions indicates an expected call of DeleteAbandonedChatToolCallExecutions.
+func (mr *MockStoreMockRecorder) DeleteAbandonedChatToolCallExecutions(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAbandonedChatToolCallExecutions", reflect.TypeOf((*MockStore)(nil).DeleteAbandonedChatToolCallExecutions), ctx, arg)
 }
 
 // DeleteAllChatHeartbeats mocks base method.
@@ -1249,6 +1294,21 @@ func (m *MockStore) DeleteOldChatFiles(ctx context.Context, arg database.DeleteO
 func (mr *MockStoreMockRecorder) DeleteOldChatFiles(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldChatFiles", reflect.TypeOf((*MockStore)(nil).DeleteOldChatFiles), ctx, arg)
+}
+
+// DeleteOldChatToolCallExecutions mocks base method.
+func (m *MockStore) DeleteOldChatToolCallExecutions(ctx context.Context, arg database.DeleteOldChatToolCallExecutionsParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOldChatToolCallExecutions", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteOldChatToolCallExecutions indicates an expected call of DeleteOldChatToolCallExecutions.
+func (mr *MockStoreMockRecorder) DeleteOldChatToolCallExecutions(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldChatToolCallExecutions", reflect.TypeOf((*MockStore)(nil).DeleteOldChatToolCallExecutions), ctx, arg)
 }
 
 // DeleteOldChats mocks base method.
@@ -3326,6 +3386,21 @@ func (m *MockStore) GetChatTitleGenerationModelOverride(ctx context.Context) (st
 func (mr *MockStoreMockRecorder) GetChatTitleGenerationModelOverride(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatTitleGenerationModelOverride", reflect.TypeOf((*MockStore)(nil).GetChatTitleGenerationModelOverride), ctx)
+}
+
+// GetChatToolCallExecution mocks base method.
+func (m *MockStore) GetChatToolCallExecution(ctx context.Context, arg database.GetChatToolCallExecutionParams) (database.ChatToolCallExecution, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatToolCallExecution", ctx, arg)
+	ret0, _ := ret[0].(database.ChatToolCallExecution)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatToolCallExecution indicates an expected call of GetChatToolCallExecution.
+func (mr *MockStoreMockRecorder) GetChatToolCallExecution(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatToolCallExecution", reflect.TypeOf((*MockStore)(nil).GetChatToolCallExecution), ctx, arg)
 }
 
 // GetChatUsageLimitConfig mocks base method.
@@ -7720,6 +7795,20 @@ func (mr *MockStoreMockRecorder) InsertChatQueuedMessageWithCreator(ctx, arg any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatQueuedMessageWithCreator", reflect.TypeOf((*MockStore)(nil).InsertChatQueuedMessageWithCreator), ctx, arg)
 }
 
+// InsertChatToolCallExecutionIntent mocks base method.
+func (m *MockStore) InsertChatToolCallExecutionIntent(ctx context.Context, arg database.InsertChatToolCallExecutionIntentParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatToolCallExecutionIntent", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertChatToolCallExecutionIntent indicates an expected call of InsertChatToolCallExecutionIntent.
+func (mr *MockStoreMockRecorder) InsertChatToolCallExecutionIntent(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatToolCallExecutionIntent", reflect.TypeOf((*MockStore)(nil).InsertChatToolCallExecutionIntent), ctx, arg)
+}
+
 // InsertCryptoKey mocks base method.
 func (m *MockStore) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
 	m.ctrl.T.Helper()
@@ -9129,6 +9218,50 @@ func (mr *MockStoreMockRecorder) MarkAllInboxNotificationsAsRead(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkAllInboxNotificationsAsRead", reflect.TypeOf((*MockStore)(nil).MarkAllInboxNotificationsAsRead), ctx, arg)
 }
 
+// MarkChatToolCallExecutionsCancelRequestedForHistoryDelete mocks base method.
+func (m *MockStore) MarkChatToolCallExecutionsCancelRequestedForHistoryDelete(ctx context.Context, arg database.MarkChatToolCallExecutionsCancelRequestedForHistoryDeleteParams) ([]database.ChatToolCallExecution, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkChatToolCallExecutionsCancelRequestedForHistoryDelete", ctx, arg)
+	ret0, _ := ret[0].([]database.ChatToolCallExecution)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkChatToolCallExecutionsCancelRequestedForHistoryDelete indicates an expected call of MarkChatToolCallExecutionsCancelRequestedForHistoryDelete.
+func (mr *MockStoreMockRecorder) MarkChatToolCallExecutionsCancelRequestedForHistoryDelete(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkChatToolCallExecutionsCancelRequestedForHistoryDelete", reflect.TypeOf((*MockStore)(nil).MarkChatToolCallExecutionsCancelRequestedForHistoryDelete), ctx, arg)
+}
+
+// MarkChatToolCallExecutionsInterrupted mocks base method.
+func (m *MockStore) MarkChatToolCallExecutionsInterrupted(ctx context.Context, arg database.MarkChatToolCallExecutionsInterruptedParams) ([]database.ChatToolCallExecution, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkChatToolCallExecutionsInterrupted", ctx, arg)
+	ret0, _ := ret[0].([]database.ChatToolCallExecution)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkChatToolCallExecutionsInterrupted indicates an expected call of MarkChatToolCallExecutionsInterrupted.
+func (mr *MockStoreMockRecorder) MarkChatToolCallExecutionsInterrupted(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkChatToolCallExecutionsInterrupted", reflect.TypeOf((*MockStore)(nil).MarkChatToolCallExecutionsInterrupted), ctx, arg)
+}
+
+// MarkChatToolCallExecutionsResultCommitted mocks base method.
+func (m *MockStore) MarkChatToolCallExecutionsResultCommitted(ctx context.Context, arg database.MarkChatToolCallExecutionsResultCommittedParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkChatToolCallExecutionsResultCommitted", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// MarkChatToolCallExecutionsResultCommitted indicates an expected call of MarkChatToolCallExecutionsResultCommitted.
+func (mr *MockStoreMockRecorder) MarkChatToolCallExecutionsResultCommitted(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkChatToolCallExecutionsResultCommitted", reflect.TypeOf((*MockStore)(nil).MarkChatToolCallExecutionsResultCommitted), ctx, arg)
+}
+
 // MarkChatsContextDirtyByAgent mocks base method.
 func (m *MockStore) MarkChatsContextDirtyByAgent(ctx context.Context, arg database.MarkChatsContextDirtyByAgentParams) ([]database.MarkChatsContextDirtyByAgentRow, error) {
 	m.ctrl.T.Helper()
@@ -9933,6 +10066,51 @@ func (m *MockStore) UpdateChatTitleByID(ctx context.Context, arg database.Update
 func (mr *MockStoreMockRecorder) UpdateChatTitleByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatTitleByID", reflect.TypeOf((*MockStore)(nil).UpdateChatTitleByID), ctx, arg)
+}
+
+// UpdateChatToolCallExecutionCancelOutcome mocks base method.
+func (m *MockStore) UpdateChatToolCallExecutionCancelOutcome(ctx context.Context, arg database.UpdateChatToolCallExecutionCancelOutcomeParams) (database.ChatToolCallExecution, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatToolCallExecutionCancelOutcome", ctx, arg)
+	ret0, _ := ret[0].(database.ChatToolCallExecution)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatToolCallExecutionCancelOutcome indicates an expected call of UpdateChatToolCallExecutionCancelOutcome.
+func (mr *MockStoreMockRecorder) UpdateChatToolCallExecutionCancelOutcome(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatToolCallExecutionCancelOutcome", reflect.TypeOf((*MockStore)(nil).UpdateChatToolCallExecutionCancelOutcome), ctx, arg)
+}
+
+// UpdateChatToolCallExecutionProcess mocks base method.
+func (m *MockStore) UpdateChatToolCallExecutionProcess(ctx context.Context, arg database.UpdateChatToolCallExecutionProcessParams) (database.ChatToolCallExecution, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatToolCallExecutionProcess", ctx, arg)
+	ret0, _ := ret[0].(database.ChatToolCallExecution)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatToolCallExecutionProcess indicates an expected call of UpdateChatToolCallExecutionProcess.
+func (mr *MockStoreMockRecorder) UpdateChatToolCallExecutionProcess(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatToolCallExecutionProcess", reflect.TypeOf((*MockStore)(nil).UpdateChatToolCallExecutionProcess), ctx, arg)
+}
+
+// UpdateChatToolCallExecutionStatus mocks base method.
+func (m *MockStore) UpdateChatToolCallExecutionStatus(ctx context.Context, arg database.UpdateChatToolCallExecutionStatusParams) (database.ChatToolCallExecution, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatToolCallExecutionStatus", ctx, arg)
+	ret0, _ := ret[0].(database.ChatToolCallExecution)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatToolCallExecutionStatus indicates an expected call of UpdateChatToolCallExecutionStatus.
+func (mr *MockStoreMockRecorder) UpdateChatToolCallExecutionStatus(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatToolCallExecutionStatus", reflect.TypeOf((*MockStore)(nil).UpdateChatToolCallExecutionStatus), ctx, arg)
 }
 
 // UpdateChatWorkspaceBinding mocks base method.

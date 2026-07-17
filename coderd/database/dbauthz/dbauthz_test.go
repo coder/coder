@@ -1010,6 +1010,90 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().ChatSearchQueryIsEmpty(gomock.Any(), "!!!").Return(true, nil).AnyTimes()
 		check.Args("!!!").Asserts(rbac.ResourceChat, policy.ActionRead)
 	}))
+	s.Run("InsertChatToolCallExecutionIntent", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.InsertChatToolCallExecutionIntentParams{ID: uuid.New(), ChatID: chat.ID, AssistantMessageID: 1, ToolCallID: "call-1", InputSha256: "hash", CreatedAt: dbtime.Now()}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().InsertChatToolCallExecutionIntent(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns()
+	}))
+	s.Run("ClaimChatToolCallExecution", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.ClaimChatToolCallExecutionParams{ID: uuid.New(), ChatID: chat.ID, AssistantMessageID: 1, ToolCallID: "call-1", InputSha256: "hash", Command: "echo hi", TimeoutSecs: 10, Now: dbtime.Now()}
+		row := testutil.Fake(s.T(), faker, database.ChatToolCallExecution{ChatID: chat.ID, ToolCallID: arg.ToolCallID})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().ClaimChatToolCallExecution(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(row)
+	}))
+	s.Run("GetChatToolCallExecution", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.GetChatToolCallExecutionParams{ChatID: chat.ID, AssistantMessageID: 1, ToolCallID: "call-1"}
+		row := testutil.Fake(s.T(), faker, database.ChatToolCallExecution{ChatID: chat.ID, ToolCallID: arg.ToolCallID})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().GetChatToolCallExecution(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(row)
+	}))
+	s.Run("UpdateChatToolCallExecutionProcess", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.UpdateChatToolCallExecutionProcessParams{ChatID: chat.ID, AssistantMessageID: 1, ToolCallID: "call-1", ClaimEpoch: 1, ProcessID: "proc-1", WorkspaceAgentID: uuid.New(), StartedAt: dbtime.Now()}
+		row := testutil.Fake(s.T(), faker, database.ChatToolCallExecution{ChatID: chat.ID, ToolCallID: arg.ToolCallID})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatToolCallExecutionProcess(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(row)
+	}))
+	s.Run("UpdateChatToolCallExecutionStatus", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.UpdateChatToolCallExecutionStatusParams{ChatID: chat.ID, AssistantMessageID: 1, ToolCallID: "call-1", Status: database.ChatToolCallExecutionStatusExited, FromStatuses: []database.ChatToolCallExecutionStatus{database.ChatToolCallExecutionStatusRunning}, UpdatedAt: dbtime.Now()}
+		row := testutil.Fake(s.T(), faker, database.ChatToolCallExecution{ChatID: chat.ID, ToolCallID: arg.ToolCallID})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatToolCallExecutionStatus(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(row)
+	}))
+	s.Run("UpdateChatToolCallExecutionCancelOutcome", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.UpdateChatToolCallExecutionCancelOutcomeParams{ChatID: chat.ID, AssistantMessageID: 1, ToolCallID: "call-1", Status: database.ChatToolCallExecutionStatusCanceled, UpdatedAt: dbtime.Now()}
+		row := testutil.Fake(s.T(), faker, database.ChatToolCallExecution{ChatID: chat.ID, ToolCallID: arg.ToolCallID})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatToolCallExecutionCancelOutcome(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(row)
+	}))
+	s.Run("MarkChatToolCallExecutionsInterrupted", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.MarkChatToolCallExecutionsInterruptedParams{ChatID: chat.ID, AssistantMessageID: 1, ToolCallIds: []string{"call-1"}, UpdatedAt: dbtime.Now()}
+		rows := []database.ChatToolCallExecution{testutil.Fake(s.T(), faker, database.ChatToolCallExecution{ChatID: chat.ID, ToolCallID: "call-1"})}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().MarkChatToolCallExecutionsInterrupted(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(rows)
+	}))
+	s.Run("MarkChatToolCallExecutionsCancelRequestedForHistoryDelete", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.MarkChatToolCallExecutionsCancelRequestedForHistoryDeleteParams{ChatID: chat.ID, FromMessageID: 1, UpdatedAt: dbtime.Now()}
+		rows := []database.ChatToolCallExecution{testutil.Fake(s.T(), faker, database.ChatToolCallExecution{ChatID: chat.ID})}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().MarkChatToolCallExecutionsCancelRequestedForHistoryDelete(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(rows)
+	}))
+	s.Run("MarkChatToolCallExecutionsResultCommitted", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.MarkChatToolCallExecutionsResultCommittedParams{ChatID: chat.ID, AssistantMessageID: 1, ToolCallIds: []string{"call-1"}, ResultCommittedAt: dbtime.Now()}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().MarkChatToolCallExecutionsResultCommitted(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns()
+	}))
+	s.Run("DeleteOldChatToolCallExecutions", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().DeleteOldChatToolCallExecutions(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
+		check.Args(database.DeleteOldChatToolCallExecutionsParams{
+			BeforeTime: dbtime.Now(),
+			LimitCount: 1000,
+		}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
+	s.Run("DeleteAbandonedChatToolCallExecutions", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().DeleteAbandonedChatToolCallExecutions(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
+		check.Args(database.DeleteAbandonedChatToolCallExecutionsParams{
+			BeforeTime: dbtime.Now(),
+			LimitCount: 1000,
+		}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
 	s.Run("GetChatRetentionDays", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(30), nil).AnyTimes()
 		check.Args().Asserts()
@@ -1439,6 +1523,15 @@ func (s *MethodTestSuite) TestChats() {
 		const staleSeconds int32 = 30
 		dbm.EXPECT().DeleteStaleChatHeartbeats(gomock.Any(), staleSeconds).Return(int64(1), nil).AnyTimes()
 		check.Args(staleSeconds).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(int64(1))
+	}))
+	s.Run("ClaimStaleChatToolCallExecutionCancels", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ClaimStaleChatToolCallExecutionCancelsParams{
+			UpdatedBefore: dbtime.Now(),
+			LimitCount:    10,
+			Now:           dbtime.Now(),
+		}
+		dbm.EXPECT().ClaimStaleChatToolCallExecutionCancels(gomock.Any(), arg).Return([]database.ChatToolCallExecution{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns([]database.ChatToolCallExecution{})
 	}))
 	s.Run("UpdateChatByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})

@@ -89,7 +89,31 @@ type sqlcQuerier interface {
 	// Reports whether search text tokenizes to an empty tsquery (e.g. '!!!').
 	// Used to reject input that would silently match nothing.
 	ChatSearchQueryIsEmpty(ctx context.Context, search string) (bool, error)
+	// Claims an execution for dispatch. The insert arm covers calls whose
+	// assistant message predates the ledger. The update arm is the
+	// compare-and-set: only a reserved intent or a stale starting claim
+	// can be taken over, and each takeover advances claim_epoch. The
+	// input hash guard refuses to dispatch against a row created for
+	// different input, and a row whose result already committed is never
+	// claimable: its call is resolved in chat, so re-dispatching it
+	// could run the command twice. The stale-takeover arm requires
+	// stale_epoch to match the exact claim generation the caller
+	// verified: evidence gathered against one claim cannot take over
+	// a newer one, and a caller without a verified epoch (NULL) can
+	// never take over a starting claim. Zero rows means the row
+	// exists but is not claimable; the caller reads it to decide how
+	// to proceed.
+	ClaimChatToolCallExecution(ctx context.Context, arg ClaimChatToolCallExecutionParams) (ChatToolCallExecution, error)
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
+	// Claims a batch of cancel_requested rows whose reconciliation
+	// stalled (the post-interrupt pass lost its agent dial or died).
+	// Rows without recorded process identity are claimed too, so a
+	// server crash between the interrupt commit and reconciliation
+	// cannot strand them. Bumping updated_at inside the claim acts as
+	// a cross-replica lease so concurrent sweepers do not hammer the
+	// same unreachable agent; FOR UPDATE SKIP LOCKED keeps sweepers
+	// from serializing on each other.
+	ClaimStaleChatToolCallExecutionCancels(ctx context.Context, arg ClaimStaleChatToolCallExecutionCancelsParams) ([]ChatToolCallExecution, error)
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
 	CleanTailnetTunnels(ctx context.Context) error
@@ -121,6 +145,19 @@ type sqlcQuerier interface {
 	DeleteAIProviderKey(ctx context.Context, id uuid.UUID) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
+	// Long-horizon reaping of rows whose tool result never committed:
+	// a crashed turn, a terminal task failure, or an unclaimed reserved
+	// intent leaves result_committed_at NULL forever, and without this
+	// delete such rows are only reaped by chat retention, which many
+	// deployments leave unset. The horizon is anchored on updated_at so
+	// any reconciler or re-attach activity defers deletion; a row idle
+	// for the whole horizon guards a dedup that will never fire.
+	// cancel_requested rows are excluded: the sweep owns them and
+	// terminalizes them within the give-up bound. running and detached
+	// rows are excluded like the committed arm above: they carry the
+	// only stored identity of a process that may still be alive, and
+	// deleting them would strand the history-delete cancel routing.
+	DeleteAbandonedChatToolCallExecutions(ctx context.Context, arg DeleteAbandonedChatToolCallExecutionsParams) (int64, error)
 	// Deletes all heartbeat rows for the chat. Used during ownership
 	// transitions that abandon a lease.
 	DeleteAllChatHeartbeats(ctx context.Context, chatID uuid.UUID) error
@@ -200,6 +237,21 @@ type sqlcQuerier interface {
 	// 2. Files whose every referencing chat has been archived for longer
 	//    than the retention period.
 	DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error)
+	// Age-based retention of ledger history, deleted in bounded batches
+	// to keep transactions short. Only rows whose tool result was
+	// committed are eligible: an uncommitted row still guards dedup for
+	// a call a future retry may re-execute, no matter how old it is.
+	// The window is anchored on result_committed_at, not created_at, so
+	// a long-running execution that resolves late still gets the full
+	// diagnostic retention after its result commits.
+	// cancel_requested rows are kept regardless of age: the interrupt
+	// commit stamps result_committed_at on them, but they still carry
+	// the only stored identity of a process the sweep must kill.
+	// running and detached rows are kept too: their processes may
+	// still be alive, and a later history delete relies on these rows
+	// to route the orphaned processes to the cancel path when the
+	// committed results carrying their handles are deleted.
+	DeleteOldChatToolCallExecutions(ctx context.Context, arg DeleteOldChatToolCallExecutionsParams) (int64, error)
 	// Deletes chats that have been archived for longer than the given
 	// threshold. Active (non-archived) chats are never deleted.
 	// All chat-scoped child tables are removed via ON DELETE CASCADE.
@@ -482,6 +534,7 @@ type sqlcQuerier interface {
 	// Returns an empty string when no allowlist has been configured (all templates allowed).
 	GetChatTemplateAllowlist(ctx context.Context) (string, error)
 	GetChatTitleGenerationModelOverride(ctx context.Context) (string, error)
+	GetChatToolCallExecution(ctx context.Context, arg GetChatToolCallExecutionParams) (ChatToolCallExecution, error)
 	GetChatUsageLimitConfig(ctx context.Context) (ChatUsageLimitConfig, error)
 	GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (GetChatUsageLimitGroupOverrideRow, error)
 	GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (GetChatUsageLimitUserOverrideRow, error)
@@ -1063,6 +1116,10 @@ type sqlcQuerier interface {
 	// sequence) and an explicit created_by reference. Use this when the
 	// queued-message creator differs from the chat owner.
 	InsertChatQueuedMessageWithCreator(ctx context.Context, arg InsertChatQueuedMessageWithCreatorParams) (ChatQueuedMessage, error)
+	// Persists the execution intent for an execute tool call in the same
+	// transaction that commits its assistant message. Conflicts on the
+	// lineage key are no-ops so a replayed commit never resets a row.
+	InsertChatToolCallExecutionIntent(ctx context.Context, arg InsertChatToolCallExecutionIntentParams) error
 	InsertCryptoKey(ctx context.Context, arg InsertCryptoKeyParams) (CryptoKey, error)
 	InsertCustomRole(ctx context.Context, arg InsertCustomRoleParams) (CustomRole, error)
 	InsertDBCryptKey(ctx context.Context, arg InsertDBCryptKeyParams) error
@@ -1208,6 +1265,59 @@ type sqlcQuerier interface {
 	// allocate a new snapshot version in one round trip.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
+	// A dispatched process is spared only while a committed tool result
+	// carries its handle. History-delete transitions soft-delete every
+	// message from the edited one onward, including the results that
+	// carry the handles of process-bearing rows (background starts,
+	// timed-out foregrounds, interrupt-spared backgrounds, and rows
+	// whose best-effort detach write failed and stayed running), so
+	// those processes would stay alive but unaddressable through the
+	// chat. This routes every process-bearing row anchored at or after
+	// the deleted boundary to cancel_requested for the sweep to kill,
+	// matching the status coverage of the interrupt map for rows with
+	// recorded process identity. starting claims are included: their
+	// dispatch may have published a process whose handle write never
+	// landed, and with the carrier deleted no retry will come back to
+	// resolve the claim, so only the cancel path can reach the process.
+	// Rows anchored before the boundary keep their carriers and are not
+	// touched.
+	// result_committed_at is re-stamped because the sweep anchors its
+	// give-up bound on it: a long-detached row edited away later must
+	// get its full kill-retry budget from the edit, not resolve unknown
+	// with zero kill attempts because its original result committed
+	// long ago.
+	// from_message_id is the edited message's own ID (any role); the
+	// comparison against assistant_message_id is correct because chat
+	// message IDs are a single monotonic sequence across roles, so it
+	// selects exactly the deleted-suffix turns.
+	MarkChatToolCallExecutionsCancelRequestedForHistoryDelete(ctx context.Context, arg MarkChatToolCallExecutionsCancelRequestedForHistoryDeleteParams) ([]ChatToolCallExecution, error)
+	// Maps unresolved executions to their cancellation outcome in the
+	// same transaction as the chat commit: never-dispatched reservations
+	// are canceled outright, and dispatched claims without a resolved
+	// handle (foreground, or background whose start is still in flight)
+	// become cancel_requested for the post-commit reconciler. A
+	// background row must not be terminalized as detached before its
+	// handle lands: that would strand a running process with no
+	// recoverable ID. Foreground detached rows (a timed-out wait) are
+	// reopened to cancel_requested: only unresolved calls reach this
+	// query, so their handle-bearing result never committed and the
+	// process must be killed, not stranded behind a handle-less
+	// synthetic cancellation.
+	// spare_background selects the fate of a background process with a
+	// recorded handle. Transitions that commit a synthetic result spare
+	// it (detached) because the result carries the handle back to the
+	// user. History-delete transitions must pass false: the deleted turn
+	// commits no result, so a spared handle would have no carrier and
+	// the process would leak; the row becomes cancel_requested and the
+	// sweep kills it. Sparing also requires a live dispatch agent: a
+	// NULLed or deleted workspace_agent_id means the process died with
+	// its workspace and a spared handle would be unusable, so the row
+	// routes to the cancel path and resolves terminally instead.
+	MarkChatToolCallExecutionsInterrupted(ctx context.Context, arg MarkChatToolCallExecutionsInterruptedParams) ([]ChatToolCallExecution, error)
+	// Runs in the same transaction that commits the tool result messages
+	// (real or synthetic). status is untouched so diagnostic states keep
+	// their lifecycle truth after the chat has moved on.
+	MarkChatToolCallExecutionsResultCommitted(ctx context.Context, arg MarkChatToolCallExecutionsResultCommittedParams) error
 	// Flips active, already-hydrated chats for an agent to dirty when the
 	// agent's latest snapshot hash differs from the chat's pinned hash. The
 	// pinned hash is intentionally left untouched; the refresh endpoint
@@ -1400,6 +1510,32 @@ type sqlcQuerier interface {
 	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)
 	UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error)
 	UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitleByIDParams) (Chat, error)
+	// Resolves a cancel_requested row after a post-commit kill attempt:
+	// canceled when termination was confirmed, unknown when the outcome
+	// is unobservable, or cancel_requested to record a delivered signal
+	// whose effect is unconfirmed. require_missing_process guards
+	// outcomes decided from the absence of a process handle: a late
+	// RecordStart can land identity on the row concurrently, and it
+	// must win so the row stays cancel_requested and the sweep kills
+	// the now-identified process.
+	UpdateChatToolCallExecutionCancelOutcome(ctx context.Context, arg UpdateChatToolCallExecutionCancelOutcomeParams) (ChatToolCallExecution, error)
+	// Records the started process on the claim that dispatched it. The
+	// claim_epoch guard keeps a superseded claimer from overwriting the
+	// process identity recorded by the current claim. An interrupt can
+	// move the row out of starting (to cancel_requested or detached)
+	// while the dispatch is still in flight; the handle write must
+	// still land on those rows, without reverting the interrupt-owned
+	// status, so the interrupt reconciler can kill the process instead
+	// of resolving it unknown.
+	UpdateChatToolCallExecutionProcess(ctx context.Context, arg UpdateChatToolCallExecutionProcessParams) (ChatToolCallExecution, error)
+	// Applies a lifecycle observation. from_statuses restricts which
+	// lifecycle states may be overwritten; interrupt-owned states are
+	// never listed, so tool observations cannot clobber them. A
+	// non-null claim_epoch is an ownership guard mirroring
+	// UpdateChatToolCallExecutionProcess: an observation from a
+	// superseded claim matches no row instead of terminalizing the
+	// claim that replaced it.
+	UpdateChatToolCallExecutionStatus(ctx context.Context, arg UpdateChatToolCallExecutionStatusParams) (ChatToolCallExecution, error)
 	UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateChatWorkspaceBindingParams) (Chat, error)
 	UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error)
 	UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleParams) (CustomRole, error)

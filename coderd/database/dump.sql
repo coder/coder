@@ -368,6 +368,18 @@ CREATE TYPE chat_status AS ENUM (
     'interrupting'
 );
 
+CREATE TYPE chat_tool_call_execution_status AS ENUM (
+    'reserved',
+    'starting',
+    'running',
+    'exited',
+    'detached',
+    'cancel_requested',
+    'canceled',
+    'unknown',
+    'no_effect'
+);
+
 CREATE TYPE connection_status AS ENUM (
     'connected',
     'disconnected'
@@ -2032,6 +2044,44 @@ CREATE SEQUENCE chat_queued_messages_id_seq
     CACHE 1;
 
 ALTER SEQUENCE chat_queued_messages_id_seq OWNED BY chat_queued_messages.id;
+
+CREATE TABLE chat_tool_call_executions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    chat_id uuid NOT NULL,
+    assistant_message_id bigint NOT NULL,
+    tool_call_id text NOT NULL,
+    status chat_tool_call_execution_status DEFAULT 'reserved'::chat_tool_call_execution_status NOT NULL,
+    input_sha256 text NOT NULL,
+    command text DEFAULT ''::text NOT NULL,
+    background boolean DEFAULT false NOT NULL,
+    timeout_secs bigint DEFAULT 0 NOT NULL,
+    claim_epoch bigint DEFAULT 0 NOT NULL,
+    claimed_at timestamp with time zone,
+    workspace_agent_id uuid,
+    process_id text,
+    cancel_signal_sent_at timestamp with time zone,
+    result_committed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    started_at timestamp with time zone,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_tool_call_executions_check CHECK (((process_id IS NULL) = (started_at IS NULL)))
+);
+
+COMMENT ON COLUMN chat_tool_call_executions.id IS 'Stable execution identity, generated at intent creation.';
+
+COMMENT ON COLUMN chat_tool_call_executions.assistant_message_id IS 'Lineage: the assistant message that issued the tool call. Provider tool call IDs may repeat across regenerated messages, so identity is (chat_id, assistant_message_id, tool_call_id).';
+
+COMMENT ON COLUMN chat_tool_call_executions.input_sha256 IS 'SHA-256 of the persisted tool input, asserted at claim time to catch stale lineage.';
+
+COMMENT ON COLUMN chat_tool_call_executions.command IS 'Recorded at claim time for diagnostics only; never used for deduplication.';
+
+COMMENT ON COLUMN chat_tool_call_executions.timeout_secs IS 'The clamped foreground tool timeout, recorded at claim time. Zero for background executions, which have no completion deadline.';
+
+COMMENT ON COLUMN chat_tool_call_executions.claim_epoch IS 'Incremented on every claim. Guards process-identity writes so a superseded claimer cannot overwrite the current claim.';
+
+COMMENT ON COLUMN chat_tool_call_executions.cancel_signal_sent_at IS 'Set when an interrupt delivered a kill signal whose effect was not yet confirmed.';
+
+COMMENT ON COLUMN chat_tool_call_executions.result_committed_at IS 'Set in the transaction that commits the tool result message (real or synthetic). History-delete transitions also re-stamp it to the edit time to restart the sweep''s give-up bound. Orthogonal to status, which keeps lifecycle truth.';
 
 CREATE TABLE chat_usage_limit_config (
     id bigint NOT NULL,
@@ -4301,6 +4351,12 @@ ALTER TABLE ONLY chat_model_configs
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_tool_call_executions
+    ADD CONSTRAINT chat_tool_call_executions_chat_id_assistant_message_id_tool_key UNIQUE (chat_id, assistant_message_id, tool_call_id);
+
+ALTER TABLE ONLY chat_tool_call_executions
+    ADD CONSTRAINT chat_tool_call_executions_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY chat_usage_limit_config
     ADD CONSTRAINT chat_usage_limit_config_pkey PRIMARY KEY (id);
 
@@ -4755,6 +4811,8 @@ CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);
 
 CREATE INDEX idx_chat_messages_chat_created ON chat_messages USING btree (chat_id, created_at);
 
+CREATE UNIQUE INDEX idx_chat_messages_chat_id_id ON chat_messages USING btree (chat_id, id);
+
 CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USING btree (chat_id, created_at DESC, id DESC) WHERE ((compressed = true) AND (role = 'system'::chat_message_role) AND (visibility = ANY (ARRAY['model'::chat_message_visibility, 'both'::chat_message_visibility])));
 
 CREATE INDEX idx_chat_messages_created_at ON chat_messages USING btree (created_at);
@@ -4776,6 +4834,14 @@ CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs USING btree (e
 CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs USING btree ((1)) WHERE ((is_default = true) AND (deleted = false));
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
+
+CREATE INDEX idx_chat_tool_call_executions_cancel_sweep ON chat_tool_call_executions USING btree (updated_at) WHERE (status = 'cancel_requested'::chat_tool_call_execution_status);
+
+CREATE INDEX idx_chat_tool_call_executions_committed_at ON chat_tool_call_executions USING btree (result_committed_at) WHERE (result_committed_at IS NOT NULL);
+
+CREATE INDEX idx_chat_tool_call_executions_uncommitted ON chat_tool_call_executions USING btree (updated_at) WHERE (result_committed_at IS NULL);
+
+CREATE INDEX idx_chat_tool_call_executions_workspace_agent_id ON chat_tool_call_executions USING btree (workspace_agent_id) WHERE (workspace_agent_id IS NOT NULL);
 
 CREATE INDEX idx_chats_agent_id ON chats USING btree (agent_id) WHERE (agent_id IS NOT NULL);
 
@@ -5162,6 +5228,15 @@ ALTER TABLE ONLY chat_queued_messages
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_tool_call_executions
+    ADD CONSTRAINT chat_tool_call_executions_chat_id_assistant_message_id_fkey FOREIGN KEY (chat_id, assistant_message_id) REFERENCES chat_messages(chat_id, id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_tool_call_executions
+    ADD CONSTRAINT chat_tool_call_executions_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_tool_call_executions
+    ADD CONSTRAINT chat_tool_call_executions_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE SET NULL;

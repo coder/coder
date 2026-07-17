@@ -1835,6 +1835,17 @@ func (q *querier) ChatSearchQueryIsEmpty(ctx context.Context, search string) (bo
 	return q.db.ChatSearchQueryIsEmpty(ctx, search)
 }
 
+func (q *querier) ClaimChatToolCallExecution(ctx context.Context, arg database.ClaimChatToolCallExecutionParams) (database.ChatToolCallExecution, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatToolCallExecution{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatToolCallExecution{}, err
+	}
+	return q.db.ClaimChatToolCallExecution(ctx, arg)
+}
+
 func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	empty := database.ClaimPrebuiltWorkspaceRow{}
 
@@ -1858,6 +1869,15 @@ func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.Claim
 	}
 
 	return q.db.ClaimPrebuiltWorkspace(ctx, arg)
+}
+
+func (q *querier) ClaimStaleChatToolCallExecutionCancels(ctx context.Context, arg database.ClaimStaleChatToolCallExecutionCancelsParams) ([]database.ChatToolCallExecution, error) {
+	// The sweep crosses all chats, so it authorizes like other
+	// system-wide chat maintenance instead of per-chat.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.ClaimStaleChatToolCallExecutionCancels(ctx, arg)
 }
 
 func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
@@ -2021,6 +2041,13 @@ func (q *querier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) e
 		return err
 	}
 	return q.db.DeleteAPIKeysByUserID(ctx, userID)
+}
+
+func (q *querier) DeleteAbandonedChatToolCallExecutions(ctx context.Context, arg database.DeleteAbandonedChatToolCallExecutionsParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteAbandonedChatToolCallExecutions(ctx, arg)
 }
 
 func (q *querier) DeleteAllChatHeartbeats(ctx context.Context, chatID uuid.UUID) error {
@@ -2347,6 +2374,13 @@ func (q *querier) DeleteOldChatFiles(ctx context.Context, arg database.DeleteOld
 		return 0, err
 	}
 	return q.db.DeleteOldChatFiles(ctx, arg)
+}
+
+func (q *querier) DeleteOldChatToolCallExecutions(ctx context.Context, arg database.DeleteOldChatToolCallExecutionsParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteOldChatToolCallExecutions(ctx, arg)
 }
 
 func (q *querier) DeleteOldChats(ctx context.Context, arg database.DeleteOldChatsParams) (int64, error) {
@@ -3534,6 +3568,17 @@ func (q *querier) GetChatTitleGenerationModelOverride(ctx context.Context) (stri
 		return "", err
 	}
 	return q.db.GetChatTitleGenerationModelOverride(ctx)
+}
+
+func (q *querier) GetChatToolCallExecution(ctx context.Context, arg database.GetChatToolCallExecutionParams) (database.ChatToolCallExecution, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatToolCallExecution{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
+		return database.ChatToolCallExecution{}, err
+	}
+	return q.db.GetChatToolCallExecution(ctx, arg)
 }
 
 func (q *querier) GetChatUsageLimitConfig(ctx context.Context) (database.ChatUsageLimitConfig, error) {
@@ -6011,6 +6056,17 @@ func (q *querier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg da
 	return q.db.InsertChatQueuedMessageWithCreator(ctx, arg)
 }
 
+func (q *querier) InsertChatToolCallExecutionIntent(ctx context.Context, arg database.InsertChatToolCallExecutionIntentParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.InsertChatToolCallExecutionIntent(ctx, arg)
+}
+
 func (q *querier) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err
@@ -6875,6 +6931,39 @@ func (q *querier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg datab
 	return q.db.MarkAllInboxNotificationsAsRead(ctx, arg)
 }
 
+func (q *querier) MarkChatToolCallExecutionsCancelRequestedForHistoryDelete(ctx context.Context, arg database.MarkChatToolCallExecutionsCancelRequestedForHistoryDeleteParams) ([]database.ChatToolCallExecution, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return nil, err
+	}
+	return q.db.MarkChatToolCallExecutionsCancelRequestedForHistoryDelete(ctx, arg)
+}
+
+func (q *querier) MarkChatToolCallExecutionsInterrupted(ctx context.Context, arg database.MarkChatToolCallExecutionsInterruptedParams) ([]database.ChatToolCallExecution, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return nil, err
+	}
+	return q.db.MarkChatToolCallExecutionsInterrupted(ctx, arg)
+}
+
+func (q *querier) MarkChatToolCallExecutionsResultCommitted(ctx context.Context, arg database.MarkChatToolCallExecutionsResultCommittedParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.MarkChatToolCallExecutionsResultCommitted(ctx, arg)
+}
+
 func (q *querier) MarkChatsContextDirtyByAgent(ctx context.Context, arg database.MarkChatsContextDirtyByAgentParams) ([]database.MarkChatsContextDirtyByAgentRow, error) {
 	// System-level operation: the dirty fan-out runs across every active
 	// chat for the agent in response to a context push.
@@ -7411,6 +7500,39 @@ func (q *querier) UpdateChatTitleByID(ctx context.Context, arg database.UpdateCh
 		return database.Chat{}, err
 	}
 	return q.db.UpdateChatTitleByID(ctx, arg)
+}
+
+func (q *querier) UpdateChatToolCallExecutionCancelOutcome(ctx context.Context, arg database.UpdateChatToolCallExecutionCancelOutcomeParams) (database.ChatToolCallExecution, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatToolCallExecution{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatToolCallExecution{}, err
+	}
+	return q.db.UpdateChatToolCallExecutionCancelOutcome(ctx, arg)
+}
+
+func (q *querier) UpdateChatToolCallExecutionProcess(ctx context.Context, arg database.UpdateChatToolCallExecutionProcessParams) (database.ChatToolCallExecution, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatToolCallExecution{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatToolCallExecution{}, err
+	}
+	return q.db.UpdateChatToolCallExecutionProcess(ctx, arg)
+}
+
+func (q *querier) UpdateChatToolCallExecutionStatus(ctx context.Context, arg database.UpdateChatToolCallExecutionStatusParams) (database.ChatToolCallExecution, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatToolCallExecution{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatToolCallExecution{}, err
+	}
+	return q.db.UpdateChatToolCallExecutionStatus(ctx, arg)
 }
 
 func (q *querier) UpdateChatWorkspaceBinding(ctx context.Context, arg database.UpdateChatWorkspaceBindingParams) (database.Chat, error) {

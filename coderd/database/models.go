@@ -1788,6 +1788,85 @@ func AllChatStatusValues() []ChatStatus {
 	}
 }
 
+type ChatToolCallExecutionStatus string
+
+const (
+	ChatToolCallExecutionStatusReserved        ChatToolCallExecutionStatus = "reserved"
+	ChatToolCallExecutionStatusStarting        ChatToolCallExecutionStatus = "starting"
+	ChatToolCallExecutionStatusRunning         ChatToolCallExecutionStatus = "running"
+	ChatToolCallExecutionStatusExited          ChatToolCallExecutionStatus = "exited"
+	ChatToolCallExecutionStatusDetached        ChatToolCallExecutionStatus = "detached"
+	ChatToolCallExecutionStatusCancelRequested ChatToolCallExecutionStatus = "cancel_requested"
+	ChatToolCallExecutionStatusCanceled        ChatToolCallExecutionStatus = "canceled"
+	ChatToolCallExecutionStatusUnknown         ChatToolCallExecutionStatus = "unknown"
+	ChatToolCallExecutionStatusNoEffect        ChatToolCallExecutionStatus = "no_effect"
+)
+
+func (e *ChatToolCallExecutionStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatToolCallExecutionStatus(s)
+	case string:
+		*e = ChatToolCallExecutionStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatToolCallExecutionStatus: %T", src)
+	}
+	return nil
+}
+
+type NullChatToolCallExecutionStatus struct {
+	ChatToolCallExecutionStatus ChatToolCallExecutionStatus `json:"chat_tool_call_execution_status"`
+	Valid                       bool                        `json:"valid"` // Valid is true if ChatToolCallExecutionStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatToolCallExecutionStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatToolCallExecutionStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatToolCallExecutionStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatToolCallExecutionStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatToolCallExecutionStatus), nil
+}
+
+func (e ChatToolCallExecutionStatus) Valid() bool {
+	switch e {
+	case ChatToolCallExecutionStatusReserved,
+		ChatToolCallExecutionStatusStarting,
+		ChatToolCallExecutionStatusRunning,
+		ChatToolCallExecutionStatusExited,
+		ChatToolCallExecutionStatusDetached,
+		ChatToolCallExecutionStatusCancelRequested,
+		ChatToolCallExecutionStatusCanceled,
+		ChatToolCallExecutionStatusUnknown,
+		ChatToolCallExecutionStatusNoEffect:
+		return true
+	}
+	return false
+}
+
+func AllChatToolCallExecutionStatusValues() []ChatToolCallExecutionStatus {
+	return []ChatToolCallExecutionStatus{
+		ChatToolCallExecutionStatusReserved,
+		ChatToolCallExecutionStatusStarting,
+		ChatToolCallExecutionStatusRunning,
+		ChatToolCallExecutionStatusExited,
+		ChatToolCallExecutionStatusDetached,
+		ChatToolCallExecutionStatusCancelRequested,
+		ChatToolCallExecutionStatusCanceled,
+		ChatToolCallExecutionStatusUnknown,
+		ChatToolCallExecutionStatusNoEffect,
+	}
+}
+
 type ConnectionStatus string
 
 const (
@@ -5209,6 +5288,35 @@ type ChatTable struct {
 	ContextError string `db:"context_error" json:"context_error"`
 	// Stores the most recent message effort once per-turn selection is wired.
 	LastReasoningEffort NullChatReasoningEffort `db:"last_reasoning_effort" json:"last_reasoning_effort"`
+}
+
+type ChatToolCallExecution struct {
+	// Stable execution identity, generated at intent creation.
+	ID     uuid.UUID `db:"id" json:"id"`
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+	// Lineage: the assistant message that issued the tool call. Provider tool call IDs may repeat across regenerated messages, so identity is (chat_id, assistant_message_id, tool_call_id).
+	AssistantMessageID int64                       `db:"assistant_message_id" json:"assistant_message_id"`
+	ToolCallID         string                      `db:"tool_call_id" json:"tool_call_id"`
+	Status             ChatToolCallExecutionStatus `db:"status" json:"status"`
+	// SHA-256 of the persisted tool input, asserted at claim time to catch stale lineage.
+	InputSha256 string `db:"input_sha256" json:"input_sha256"`
+	// Recorded at claim time for diagnostics only; never used for deduplication.
+	Command    string `db:"command" json:"command"`
+	Background bool   `db:"background" json:"background"`
+	// The clamped foreground tool timeout, recorded at claim time. Zero for background executions, which have no completion deadline.
+	TimeoutSecs int64 `db:"timeout_secs" json:"timeout_secs"`
+	// Incremented on every claim. Guards process-identity writes so a superseded claimer cannot overwrite the current claim.
+	ClaimEpoch       int64          `db:"claim_epoch" json:"claim_epoch"`
+	ClaimedAt        sql.NullTime   `db:"claimed_at" json:"claimed_at"`
+	WorkspaceAgentID uuid.NullUUID  `db:"workspace_agent_id" json:"workspace_agent_id"`
+	ProcessID        sql.NullString `db:"process_id" json:"process_id"`
+	// Set when an interrupt delivered a kill signal whose effect was not yet confirmed.
+	CancelSignalSentAt sql.NullTime `db:"cancel_signal_sent_at" json:"cancel_signal_sent_at"`
+	// Set in the transaction that commits the tool result message (real or synthetic). History-delete transitions also re-stamp it to the edit time to restart the sweep's give-up bound. Orthogonal to status, which keeps lifecycle truth.
+	ResultCommittedAt sql.NullTime `db:"result_committed_at" json:"result_committed_at"`
+	CreatedAt         time.Time    `db:"created_at" json:"created_at"`
+	StartedAt         sql.NullTime `db:"started_at" json:"started_at"`
+	UpdatedAt         time.Time    `db:"updated_at" json:"updated_at"`
 }
 
 type ChatUsageLimitConfig struct {

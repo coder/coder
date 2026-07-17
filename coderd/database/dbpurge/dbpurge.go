@@ -57,6 +57,19 @@ const (
 	// This is considered acceptable but may need dialing in later.
 	chatSearchBackfillBatchSize  = 10000
 	chatSearchBackfillMaxBatches = 5
+	// Execution ledger rows are kept after resolution as diagnostic
+	// history; rows this old can no longer be re-executed by any
+	// attempt, so deleting them only discards diagnostics. One row
+	// per execute call makes this the highest-volume chat table, so
+	// it drains at the high-frequency batch size.
+	chatToolCallExecutionsRetention = 7 * 24 * time.Hour
+	chatToolCallExecutionsBatchSize = 10000
+	// Uncommitted ledger rows normally guard dedup for a retry, but
+	// a row idle this long belongs to a turn that will never rerun
+	// (crashed turn, terminal task failure, unclaimed intent).
+	// Without this horizon such rows are only reaped by chat
+	// retention, which many deployments leave unset.
+	chatToolCallExecutionsAbandonedRetention = 30 * 24 * time.Hour
 )
 
 type Option func(*instance)
@@ -314,6 +327,25 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			return xerrors.Errorf("failed to delete old workspace build orchestrations: %w", err)
 		}
 
+		deleteChatToolCallExecutionsBefore := start.Add(-chatToolCallExecutionsRetention)
+		purgedChatToolCallExecutions, err := tx.DeleteOldChatToolCallExecutions(ctx, database.DeleteOldChatToolCallExecutionsParams{
+			BeforeTime: deleteChatToolCallExecutionsBefore,
+			LimitCount: chatToolCallExecutionsBatchSize,
+		})
+		if err != nil {
+			return xerrors.Errorf("failed to delete old chat tool call executions: %w", err)
+		}
+
+		deleteAbandonedChatToolCallExecutionsBefore := start.Add(-chatToolCallExecutionsAbandonedRetention)
+		purgedAbandonedChatToolCallExecutions, err := tx.DeleteAbandonedChatToolCallExecutions(ctx, database.DeleteAbandonedChatToolCallExecutionsParams{
+			BeforeTime: deleteAbandonedChatToolCallExecutionsBefore,
+			LimitCount: chatToolCallExecutionsBatchSize,
+		})
+		if err != nil {
+			return xerrors.Errorf("failed to delete abandoned chat tool call executions: %w", err)
+		}
+		purgedChatToolCallExecutions += purgedAbandonedChatToolCallExecutions
+
 		var purgedChats, purgedChatFiles, purgedChatDebugRuns int64
 		if purgeChats {
 			purgedChats, purgedChatFiles, err = i.purgeChatsInTx(ctx, tx, start, chatRetentionDays)
@@ -367,6 +399,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			slog.F("chat_files", purgedChatFiles),
 			slog.F("chat_debug_runs", purgedChatDebugRuns),
 			slog.F("chat_search_rows_backfilled", backfilledChatSearchRows),
+			slog.F("chat_tool_call_executions", purgedChatToolCallExecutions),
 			slog.F("duration", i.clk.Since(start)),
 		)
 
@@ -382,6 +415,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			i.recordsPurged.WithLabelValues("chats").Add(float64(purgedChats))
 			i.recordsPurged.WithLabelValues("chat_debug_runs").Add(float64(purgedChatDebugRuns))
 			i.recordsPurged.WithLabelValues("chat_files").Add(float64(purgedChatFiles))
+			i.recordsPurged.WithLabelValues("chat_tool_call_executions").Add(float64(purgedChatToolCallExecutions))
 		}
 		if i.chatSearchRowsBackfilled != nil {
 			i.chatSearchRowsBackfilled.Add(float64(backfilledChatSearchRows))
