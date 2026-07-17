@@ -14,7 +14,7 @@ import (
 func TestOAuth2ProviderSettings(t *testing.T) {
 	t.Parallel()
 
-	t.Run("DefaultEnabled", func(t *testing.T) {
+	t.Run("DefaultDisabled", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, nil)
@@ -23,7 +23,7 @@ func TestOAuth2ProviderSettings(t *testing.T) {
 
 		settings, err := client.OAuth2ProviderSettings(ctx)
 		require.NoError(t, err)
-		require.True(t, settings.DynamicClientRegistrationEnabled)
+		require.False(t, settings.DynamicClientRegistrationEnabled)
 	})
 
 	t.Run("RoundTrip", func(t *testing.T) {

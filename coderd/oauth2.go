@@ -232,9 +232,9 @@ func (api *API) oauth2ProviderSettings(rw http.ResponseWriter, r *http.Request) 
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	// Never configured means DCR defaults to enabled.
+	// Never configured means DCR defaults to disabled.
 	if errors.Is(err, sql.ErrNoRows) {
-		enabled = true
+		enabled = false
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2ProviderSettings{
 		DynamicClientRegistrationEnabled: enabled,

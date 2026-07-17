@@ -1346,6 +1346,7 @@ func TestOAuth2DynamicClientRegistration(t *testing.T) {
 
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
 
 	t.Run("BasicRegistration", func(t *testing.T) {
 		t.Parallel()
@@ -1452,7 +1453,9 @@ func TestOAuth2DynamicClientRegistrationDisabled(t *testing.T) {
 	_ = coderdtest.CreateFirstUser(t, client)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	// Register a client while DCR is still enabled (the default).
+	oauth2providertest.EnableDCR(t, client)
+
+	// Register a client while DCR is still enabled.
 	regResp, err := client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
 		RedirectURIs: []string{oauth2providertest.TestRedirectURI},
 	})
@@ -1526,6 +1529,7 @@ func TestOAuth2ClientConfiguration(t *testing.T) {
 
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
 
 	// Helper to register a client
 	registerClient := func(t *testing.T) (string, string, string) {
@@ -1650,6 +1654,7 @@ func TestOAuth2RegistrationAccessToken(t *testing.T) {
 
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
 
 	t.Run("ValidToken", func(t *testing.T) {
 		t.Parallel()

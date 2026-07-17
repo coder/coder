@@ -76,6 +76,20 @@ func CreateTestOAuth2App(t *testing.T, client *codersdk.Client) (*codersdk.OAuth
 	return &app, secret.ClientSecretFull
 }
 
+// EnableDCR turns on dynamic client registration for the deployment.
+// DCR defaults to disabled, so any test that registers a client via
+// POST /oauth2/register must call this first. The caller-provided client
+// must have owner-level permissions.
+func EnableDCR(t *testing.T, client *codersdk.Client) {
+	t.Helper()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	_, err := client.PutOAuth2ProviderSettings(ctx, codersdk.OAuth2ProviderSettings{
+		DynamicClientRegistrationEnabled: true,
+	})
+	require.NoError(t, err, "failed to enable dynamic client registration")
+}
+
 // GeneratePKCE generates a random PKCE code verifier and challenge
 func GeneratePKCE(t *testing.T) (verifier, challenge string) {
 	t.Helper()
