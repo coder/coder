@@ -9645,6 +9645,56 @@ func TestUsageEventsTrigger(t *testing.T) {
 		require.Len(t, rows, 3)
 	})
 
+	t.Run("HeartbeatAgentRuntime", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+
+		insert := func(id, eventType, eventData string, createdAt time.Time) {
+			t.Helper()
+			err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+				ID:        id,
+				EventType: eventType,
+				EventData: []byte(eventData),
+				CreatedAt: createdAt,
+			})
+			require.NoError(t, err)
+		}
+		requireDaily := func(wantUsageData ...string) {
+			t.Helper()
+			rows := getDailyRows(ctx, sqlDB)
+			require.Len(t, rows, len(wantUsageData))
+			for i, want := range wantUsageData {
+				require.JSONEq(t, want, string(rows[i].UsageData))
+			}
+		}
+
+		day1 := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+		day2 := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
+
+		// Insert an hourly runtime heartbeat event.
+		insert("hb_agent_runtime_v1:2025-01-01_00:00:00", "hb_agent_runtime_v1", `{"runtime_ms": 1000}`, day1)
+		requireDaily(`{"runtime_ms": 1000}`)
+
+		// Unlike hb_ai_seats_v1, hourly runtime events are summed per day.
+		insert("hb_agent_runtime_v1:2025-01-01_12:00:00", "hb_agent_runtime_v1", `{"runtime_ms": 500}`, day1.Add(12*time.Hour))
+		requireDaily(`{"runtime_ms": 1500}`)
+
+		// Zero-valued events (idle hours) do not change the sum.
+		insert("hb_agent_runtime_v1:2025-01-01_18:00:00", "hb_agent_runtime_v1", `{"runtime_ms": 0}`, day1.Add(18*time.Hour))
+		requireDaily(`{"runtime_ms": 1500}`)
+
+		// Insert on a different day: separate daily row.
+		insert("hb_agent_runtime_v1:2025-01-02_00:00:00", "hb_agent_runtime_v1", `{"runtime_ms": 250}`, day2)
+		requireDaily(`{"runtime_ms": 1500}`, `{"runtime_ms": 250}`)
+
+		// A different event type on the same day gets its own daily row.
+		insert("hb-seats-1", "hb_ai_seats_v1", `{"count": 3}`, day2)
+		rows := getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 3)
+	})
+
 	t.Run("UnknownEventType", func(t *testing.T) {
 		t.Parallel()
 
@@ -9676,6 +9726,119 @@ func TestUsageEventsTrigger(t *testing.T) {
 		rows := getDailyRows(ctx, sqlDB)
 		require.Len(t, rows, 0)
 	})
+}
+
+func TestGetTotalChatMessageRuntimeMsInRange(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+
+	rangeStart := time.Date(2025, 3, 10, 10, 0, 0, 0, time.UTC)
+	rangeEnd := rangeStart.Add(time.Hour)
+
+	// No messages at all: zero.
+	total, err := db.GetTotalChatMessageRuntimeMsInRange(ctx, database.GetTotalChatMessageRuntimeMsInRangeParams{
+		StartTime: rangeStart,
+		EndTime:   rangeEnd,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 0, total)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
+	})
+	mc := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:     "openai",
+		Model:        "test-model",
+		ContextLimit: 8192,
+	})
+	chat1 := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: mc.ID,
+	})
+	chat2 := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: mc.ID,
+	})
+
+	insertMessage := func(chatID uuid.UUID, runtimeMs int64, createdAt time.Time, deleted bool) {
+		t.Helper()
+		msg := dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chatID,
+			CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
+			ModelConfigID: uuid.NullUUID{UUID: mc.ID, Valid: true},
+			Role:          database.ChatMessageRoleAssistant,
+			RuntimeMs:     sql.NullInt64{Int64: runtimeMs, Valid: true},
+		})
+		_, err := sqlDB.ExecContext(ctx, "UPDATE chat_messages SET created_at = $1, deleted = $2 WHERE id = $3", createdAt, deleted, msg.ID)
+		require.NoError(t, err)
+	}
+
+	// Counted: on the inclusive start boundary, in the middle (across two
+	// chats), soft-deleted, and just before the exclusive end boundary.
+	insertMessage(chat1.ID, 1, rangeStart, false)
+	insertMessage(chat2.ID, 2, rangeStart.Add(30*time.Minute), false)
+	insertMessage(chat1.ID, 4, rangeStart.Add(45*time.Minute), true)
+	insertMessage(chat1.ID, 8, rangeEnd.Add(-time.Second), false)
+	// Not counted: before the range, on the exclusive end boundary, and a
+	// NULL runtime (runtime 0 is stored as NULL).
+	insertMessage(chat1.ID, 16, rangeStart.Add(-time.Second), false)
+	insertMessage(chat1.ID, 32, rangeEnd, false)
+	insertMessage(chat1.ID, 0, rangeStart.Add(10*time.Minute), false)
+
+	total, err = db.GetTotalChatMessageRuntimeMsInRange(ctx, database.GetTotalChatMessageRuntimeMsInRangeParams{
+		StartTime: rangeStart,
+		EndTime:   rangeEnd,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 15, total)
+}
+
+func TestListUsageEventCreatedAtsByTypeSince(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+
+	since := time.Date(2025, 3, 10, 0, 0, 0, 0, time.UTC)
+
+	insertEvent := func(id, eventType string, eventData string, createdAt time.Time) {
+		t.Helper()
+		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        id,
+			EventType: eventType,
+			EventData: []byte(eventData),
+			CreatedAt: createdAt,
+		})
+		require.NoError(t, err)
+	}
+
+	// Matching type: one before since (excluded), one exactly at since
+	// (included), one after (included).
+	insertEvent("rt-old", "hb_agent_runtime_v1", `{"runtime_ms": 1}`, since.Add(-time.Hour))
+	insertEvent("rt-at", "hb_agent_runtime_v1", `{"runtime_ms": 2}`, since)
+	insertEvent("rt-new", "hb_agent_runtime_v1", `{"runtime_ms": 3}`, since.Add(time.Hour))
+	// Different type after since: excluded.
+	insertEvent("seats-new", "hb_ai_seats_v1", `{"count": 1}`, since.Add(time.Hour))
+
+	createdAts, err := db.ListUsageEventCreatedAtsByTypeSince(ctx, database.ListUsageEventCreatedAtsByTypeSinceParams{
+		EventType: "hb_agent_runtime_v1",
+		Since:     since,
+	})
+	require.NoError(t, err)
+	require.Len(t, createdAts, 2)
+	normalized := make([]time.Time, len(createdAts))
+	for i, ts := range createdAts {
+		normalized[i] = ts.UTC()
+	}
+	require.ElementsMatch(t, []time.Time{since, since.Add(time.Hour)}, normalized)
 }
 
 func TestListTasks(t *testing.T) {

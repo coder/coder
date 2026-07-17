@@ -184,7 +184,7 @@ func (c *Cron) run(ctx context.Context, job CronJob) {
 			continue
 		}
 
-		if err := c.ins.InsertHeartbeatUsageEvent(ctx, c.db, stableID, event); err != nil {
+		if err := c.ins.InsertHeartbeatUsageEvent(ctx, c.db, stableID, c.clock.Now(), event); err != nil {
 			c.log.Warn(ctx, "cron heartbeat insert failed",
 				slog.F("job", job.Name),
 				slog.Error(err),

@@ -17,6 +17,7 @@ import (
 
 	agplcoderd "github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
@@ -153,14 +154,28 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		usageCron := usage.NewCron(quartz.NewReal(), options.Logger.Named("usage-cron"), options.Database, *options.UsageInserter.Load())
 		// ai-seats heartbeats track the number of users that have used an AI feature.
 		// These users consume a seat for the AI addon to our License.
-		_ = usageCron.Register(usage.CronJob{
-			Name:     "ai-seats",
-			Interval: usage.AISeatsInterval,
-			Jitter:   10 * time.Minute,
-			Fn:       usage.AISeatsHeartbeat(options.Database),
+		err = usageCron.Register(usage.CronJob{
+			Name:      "ai-seats",
+			Interval:  usage.AISeatsInterval,
+			EventType: usagetypes.UsageEventTypeHBAISeatsV1,
+			Jitter:    10 * time.Minute,
+			Fn:        usage.AISeatsHeartbeat(options.Database),
 		})
+		if err != nil {
+			_ = closers.Close()
+			return nil, nil, xerrors.Errorf("register ai-seats usage cron job: %w", err)
+		}
 		usageCron.Start(ctx)
 		closers.Add(usageCron)
+
+		// The usage generator reconciles hourly agent runtime heartbeat
+		// events from data already in the database, backfilling hours missed
+		// while the deployment was down. Events are generated unconditionally
+		// in enterprise builds; the publish_usage_data license flag only
+		// gates publishing to Tallyman.
+		usageGenerator := usage.NewGenerator(quartz.NewReal(), options.Logger.Named("usage-generator"), options.Database, *options.UsageInserter.Load())
+		usageGenerator.Start(ctx)
+		closers.Add(usageGenerator)
 
 		// In-memory AI Bridge Proxy daemon. The bridge daemon itself is
 		// started unconditionally by AGPL cli/server.go (chatd uses its

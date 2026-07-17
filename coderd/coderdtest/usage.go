@@ -3,6 +3,7 @@ package coderdtest
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/usage"
@@ -33,7 +34,7 @@ func (u *UsageInserter) InsertDiscreteUsageEvent(_ context.Context, _ database.S
 	return nil
 }
 
-func (u *UsageInserter) InsertHeartbeatUsageEvent(_ context.Context, _ database.Store, id string, event usagetypes.HeartbeatEvent) error {
+func (u *UsageInserter) InsertHeartbeatUsageEvent(_ context.Context, _ database.Store, id string, _ time.Time, event usagetypes.HeartbeatEvent) error {
 	u.Lock()
 	defer u.Unlock()
 	if _, seen := u.seenHeartbeats[id]; seen {

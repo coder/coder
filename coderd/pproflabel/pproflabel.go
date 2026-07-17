@@ -35,6 +35,9 @@ const (
 	// ServiceTallymanPublisher publishes usage events to coder/tallyman.
 	ServiceTallymanPublisher = "tallyman-publisher"
 	ServiceUsageEventCron    = "usage-event-cron"
+	// ServiceUsageEventGenerator reconciles hourly heartbeat usage events
+	// over a trailing window.
+	ServiceUsageEventGenerator = "usage-event-generator"
 
 	RequestTypeTag = "coder_request_type"
 )

@@ -8699,6 +8699,28 @@ func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time
 	return items, nil
 }
 
+const getTotalChatMessageRuntimeMsInRange = `-- name: GetTotalChatMessageRuntimeMsInRange :one
+SELECT COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
+FROM chat_messages cm
+WHERE cm.created_at >= $1::timestamptz
+  AND cm.created_at < $2::timestamptz
+  AND cm.runtime_ms IS NOT NULL
+`
+
+type GetTotalChatMessageRuntimeMsInRangeParams struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+// Used solely to compute hb_agent_runtime_v1 usage events. Sums agent-loop
+// runtime across ALL chats (including soft-deleted messages) in [start, end).
+func (q *sqlQuerier) GetTotalChatMessageRuntimeMsInRange(ctx context.Context, arg GetTotalChatMessageRuntimeMsInRangeParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getTotalChatMessageRuntimeMsInRange, arg.StartTime, arg.EndTime)
+	var total_runtime_ms int64
+	err := row.Scan(&total_runtime_ms)
+	return total_runtime_ms, err
+}
+
 const getUserChatSpendInPeriod = `-- name: GetUserChatSpendInPeriod :one
 SELECT COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_spend_micros
 FROM chat_messages cm
@@ -26514,6 +26536,43 @@ func (q *sqlQuerier) InsertUsageEvent(ctx context.Context, arg InsertUsageEventP
 		arg.CreatedAt,
 	)
 	return err
+}
+
+const listUsageEventCreatedAtsByTypeSince = `-- name: ListUsageEventCreatedAtsByTypeSince :many
+SELECT created_at
+FROM usage_events
+WHERE event_type = $1
+  AND created_at >= $2::timestamptz
+`
+
+type ListUsageEventCreatedAtsByTypeSinceParams struct {
+	EventType string    `db:"event_type" json:"event_type"`
+	Since     time.Time `db:"since" json:"since"`
+}
+
+// Returns created_at of all events of the given type since @since. Used by
+// the usage generator to find missing heartbeat buckets.
+func (q *sqlQuerier) ListUsageEventCreatedAtsByTypeSince(ctx context.Context, arg ListUsageEventCreatedAtsByTypeSinceParams) ([]time.Time, error) {
+	rows, err := q.db.QueryContext(ctx, listUsageEventCreatedAtsByTypeSince, arg.EventType, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []time.Time
+	for rows.Next() {
+		var created_at time.Time
+		if err := rows.Scan(&created_at); err != nil {
+			return nil, err
+		}
+		items = append(items, created_at)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const selectUsageEventsForPublishing = `-- name: SelectUsageEventsForPublishing :many

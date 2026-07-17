@@ -3,6 +3,7 @@ package usage
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -68,7 +69,7 @@ func (i *dbInserter) InsertDiscreteUsageEvent(ctx context.Context, tx database.S
 }
 
 // InsertHeartbeatUsageEvent implements agplusage.Inserter.
-func (i *dbInserter) InsertHeartbeatUsageEvent(ctx context.Context, tx database.Store, id string, event usagetypes.HeartbeatEvent) error {
+func (*dbInserter) InsertHeartbeatUsageEvent(ctx context.Context, tx database.Store, id string, createdAt time.Time, event usagetypes.HeartbeatEvent) error {
 	if !event.EventType().IsHeartbeat() {
 		return xerrors.Errorf("event type %q is not a heartbeat event", event.EventType())
 	}
@@ -87,6 +88,6 @@ func (i *dbInserter) InsertHeartbeatUsageEvent(ctx context.Context, tx database.
 		ID:        id,
 		EventType: string(event.EventType()),
 		EventData: jsonData,
-		CreatedAt: dbtime.Time(i.clock.Now()),
+		CreatedAt: dbtime.Time(createdAt),
 	})
 }
