@@ -32,6 +32,7 @@ const (
 	// after midnight.
 	defaultArchiveInterval         = time.Hour
 	defaultArchiveBatchSize        = int32(1000)
+	defaultExecutionSweepInterval  = time.Minute
 	defaultStateChannelSize        = 64
 	defaultTaskRetryInitialBackoff = 100 * time.Millisecond
 	defaultTaskRetryMaxBackoff     = 5 * time.Second
@@ -83,6 +84,7 @@ type chatWorkerOptions struct {
 	AcquisitionBatchSize       int32
 	ArchiveInterval            time.Duration
 	ArchiveBatchSize           int32
+	ExecutionSweepInterval     time.Duration
 	RunnerSyncInterval         time.Duration
 	HeartbeatInterval          time.Duration
 	HeartbeatCleanupInterval   time.Duration
@@ -121,6 +123,9 @@ func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
 	}
 	if o.ArchiveBatchSize <= 0 {
 		o.ArchiveBatchSize = defaultArchiveBatchSize
+	}
+	if o.ExecutionSweepInterval <= 0 {
+		o.ExecutionSweepInterval = defaultExecutionSweepInterval
 	}
 	if o.NotificationsEnqueuer == nil {
 		o.NotificationsEnqueuer = notifications.NewNoopEnqueuer()

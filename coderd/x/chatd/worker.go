@@ -59,7 +59,7 @@ func (w *chatWorker) Start(ctx context.Context) error {
 	workerCtx, cancel := context.WithCancel(ctx)
 	manager := newRunnerManager(workerCtx, w.server, w.opts)
 	if manager.opts.TaskStarter == nil {
-		starter, err := newTaskStarter(manager.server, manager.opts, manager.RouteStateHint, manager.requestCleanup)
+		starter, err := newTaskStarter(workerCtx, manager.server, manager.opts, manager.RouteStateHint, manager.requestCleanup)
 		if err != nil {
 			cancel()
 			return err
@@ -96,6 +96,9 @@ func (w *chatWorker) Start(ctx context.Context) error {
 	})
 	w.wg.Go(func() {
 		w.archiveLoop(workerCtx)
+	})
+	w.wg.Go(func() {
+		w.executionSweepLoop(workerCtx)
 	})
 	wake(wakeCh)
 	return nil

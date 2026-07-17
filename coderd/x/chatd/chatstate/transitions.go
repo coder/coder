@@ -1179,7 +1179,7 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("insert interruption partial messages: %w", err)
 	}
-	pendingAll, err := pendingAllToolCallIDs(tx.ctx, tx.store, chat)
+	_, pendingAll, err := pendingAllToolCallIDs(tx.ctx, tx.store, chat)
 	if err != nil {
 		return FinishInterruptionResult{}, err
 	}
