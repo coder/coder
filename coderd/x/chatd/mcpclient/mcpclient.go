@@ -1007,6 +1007,15 @@ func RevokeOAuth2Token(
 		if len(via) >= 10 {
 			return xerrors.New("stopped after 10 redirects")
 		}
+		// net/http follows 301/302/303 with a bodyless GET, so the
+		// token would never reach the final endpoint and a trailing
+		// 200 would be a false revocation success. Only
+		// method-preserving redirects (307/308) can complete one.
+		if req.Method != http.MethodPost {
+			return xerrors.New(
+				"revocation redirect dropped the POST body",
+			)
+		}
 		if !isAllowedRevocationScheme(req.URL) {
 			return xerrors.Errorf(
 				"revocation redirect target %q must use https", req.URL.Redacted(),

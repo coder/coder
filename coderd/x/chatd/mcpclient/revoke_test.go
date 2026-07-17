@@ -245,6 +245,36 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		require.Contains(t, err.Error(), "must use https")
 	})
 
+	t.Run("RejectsBodyDroppingRedirect", func(t *testing.T) {
+		t.Parallel()
+
+		target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// A canonical/login page that happily returns 200 to the
+			// bodyless GET the redirect produced.
+			require.NoError(t, r.ParseForm())
+			require.Empty(t, r.PostForm.Get("token"))
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer target.Close()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, target.URL, http.StatusFound)
+		}))
+		defer srv.Close()
+
+		revoked, err := mcpclient.RevokeOAuth2Token(
+			context.Background(),
+			srv.Client(),
+			database.MCPServerConfig{
+				OAuth2ClientID:      "cid",
+				OAuth2RevocationURL: srv.URL,
+			},
+			database.MCPServerUserToken{AccessToken: "at", RefreshToken: "rt"},
+		)
+		require.Error(t, err)
+		require.False(t, revoked)
+		require.Contains(t, err.Error(), "dropped the POST body")
+	})
+
 	t.Run("FollowsLoopbackRedirect", func(t *testing.T) {
 		t.Parallel()
 
