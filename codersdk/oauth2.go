@@ -185,6 +185,39 @@ func (c *Client) DeleteOAuth2ProviderAppSecret(ctx context.Context, appID uuid.U
 	return nil
 }
 
+// OAuth2ProviderSettings controls deployment-wide OAuth2 provider behavior.
+type OAuth2ProviderSettings struct {
+	DynamicClientRegistrationEnabled bool `json:"dynamic_client_registration_enabled"`
+}
+
+// OAuth2ProviderSettings retrieves the deployment-wide OAuth2 provider settings.
+func (c *Client) OAuth2ProviderSettings(ctx context.Context) (OAuth2ProviderSettings, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/oauth2-provider/settings", nil)
+	if err != nil {
+		return OAuth2ProviderSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OAuth2ProviderSettings{}, ReadBodyAsError(res)
+	}
+	var settings OAuth2ProviderSettings
+	return settings, json.NewDecoder(res.Body).Decode(&settings)
+}
+
+// PutOAuth2ProviderSettings modifies the deployment-wide OAuth2 provider settings.
+func (c *Client) PutOAuth2ProviderSettings(ctx context.Context, settings OAuth2ProviderSettings) (OAuth2ProviderSettings, error) {
+	res, err := c.Request(ctx, http.MethodPut, "/api/v2/oauth2-provider/settings", settings)
+	if err != nil {
+		return OAuth2ProviderSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OAuth2ProviderSettings{}, ReadBodyAsError(res)
+	}
+	var updated OAuth2ProviderSettings
+	return updated, json.NewDecoder(res.Body).Decode(&updated)
+}
+
 type OAuth2ProviderGrantType string
 
 // OAuth2ProviderGrantType values (RFC 6749).

@@ -6298,6 +6298,14 @@ export const OAuth2ProviderResponseTypes: OAuth2ProviderResponseType[] = [
 	"token",
 ];
 
+// From codersdk/oauth2.go
+/**
+ * OAuth2ProviderSettings controls deployment-wide OAuth2 provider behavior.
+ */
+export interface OAuth2ProviderSettings {
+	readonly dynamic_client_registration_enabled: boolean;
+}
+
 // From codersdk/client.go
 /**
  * OAuth2RedirectCookie is the name of the cookie that stores the oauth2 redirect.
@@ -7480,6 +7488,7 @@ export type ResourceType =
 	| "notifications_settings"
 	| "oauth2_provider_app"
 	| "oauth2_provider_app_secret"
+	| "oauth2_provider_settings"
 	| "organization"
 	| "organization_member"
 	| "prebuilds_settings"
@@ -7517,6 +7526,7 @@ export const ResourceTypes: ResourceType[] = [
 	"notifications_settings",
 	"oauth2_provider_app",
 	"oauth2_provider_app_secret",
+	"oauth2_provider_settings",
 	"organization",
 	"organization_member",
 	"prebuilds_settings",

@@ -536,6 +536,11 @@ var (
 					// Minimal read permissions that might be needed for OAuth2 operations
 					rbac.ResourceUser.Type:         {policy.ActionRead},
 					rbac.ResourceOrganization.Type: {policy.ActionRead},
+
+					// Read-only access to check the DCR enabled/disabled
+					// deployment setting from the public discovery and
+					// registration endpoints.
+					rbac.ResourceDeploymentConfig.Type: {policy.ActionRead},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},

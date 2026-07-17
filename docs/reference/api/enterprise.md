@@ -1661,6 +1661,83 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secret
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get OAuth2 provider settings
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/oauth2-provider/settings \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/oauth2-provider/settings`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "dynamic_client_registration_enabled": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                       |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2ProviderSettings](schemas.md#codersdkoauth2providersettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update OAuth2 provider settings
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/settings \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/v2/oauth2-provider/settings`
+
+> Body parameter
+
+```json
+{
+  "dynamic_client_registration_enabled": true
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                         | Required | Description                      |
+|--------|------|------------------------------------------------------------------------------|----------|----------------------------------|
+| `body` | body | [codersdk.OAuth2ProviderSettings](schemas.md#codersdkoauth2providersettings) | true     | OAuth2 provider settings request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "dynamic_client_registration_enabled": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                       |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2ProviderSettings](schemas.md#codersdkoauth2providersettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get groups by organization
 
 ### Code samples

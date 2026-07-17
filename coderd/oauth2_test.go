@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
+	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -1437,6 +1438,85 @@ func TestOAuth2DynamicClientRegistration(t *testing.T) {
 		_, err := client.PostOAuth2ClientRegistration(ctx, req)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid_client_metadata")
+	})
+}
+
+// TestOAuth2DynamicClientRegistrationDisabled verifies the admin DCR
+// enabled/disabled toggle: new registrations are rejected while a client
+// that registered before DCR was disabled keeps working (RFC 7592
+// self-management, authorization, and token exchange are unaffected).
+func TestOAuth2DynamicClientRegistrationDisabled(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Register a client while DCR is still enabled (the default).
+	regResp, err := client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
+		RedirectURIs: []string{oauth2providertest.TestRedirectURI},
+	})
+	require.NoError(t, err)
+
+	_, err = client.PutOAuth2ProviderSettings(ctx, codersdk.OAuth2ProviderSettings{
+		DynamicClientRegistrationEnabled: false,
+	})
+	require.NoError(t, err)
+
+	t.Run("NewRegistrationRejected", func(t *testing.T) {
+		t.Parallel()
+		_, err := client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: []string{oauth2providertest.TestRedirectURI},
+		})
+		require.Error(t, err)
+		var sdkError *codersdk.Error
+		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
+		require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
+	})
+
+	t.Run("DiscoveryOmitsRegistrationEndpoint", func(t *testing.T) {
+		t.Parallel()
+		res, err := client.Request(ctx, http.MethodGet, "/.well-known/oauth-authorization-server", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		var metadata codersdk.OAuth2AuthorizationServerMetadata
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&metadata))
+		require.Empty(t, metadata.RegistrationEndpoint)
+	})
+
+	t.Run("ExistingClientSelfManagementUnaffected", func(t *testing.T) {
+		t.Parallel()
+		config, err := client.GetOAuth2ClientConfiguration(ctx, regResp.ClientID, regResp.RegistrationAccessToken)
+		require.NoError(t, err)
+		require.Equal(t, regResp.ClientID, config.ClientID)
+	})
+
+	t.Run("ExistingClientAuthorizeAndTokenUnaffected", func(t *testing.T) {
+		t.Parallel()
+		codeVerifier, codeChallenge := oauth2providertest.GeneratePKCE(t)
+		state := oauth2providertest.GenerateState(t)
+
+		code := oauth2providertest.AuthorizeOAuth2App(t, client, client.URL.String(), oauth2providertest.AuthorizeParams{
+			ClientID:            regResp.ClientID,
+			ResponseType:        "code",
+			RedirectURI:         oauth2providertest.TestRedirectURI,
+			State:               state,
+			CodeChallenge:       codeChallenge,
+			CodeChallengeMethod: "S256",
+		})
+		require.NotEmpty(t, code)
+
+		token := oauth2providertest.ExchangeCodeForToken(t, client.URL.String(), oauth2providertest.TokenExchangeParams{
+			GrantType:    "authorization_code",
+			Code:         code,
+			ClientID:     regResp.ClientID,
+			ClientSecret: regResp.ClientSecret,
+			CodeVerifier: codeVerifier,
+			RedirectURI:  oauth2providertest.TestRedirectURI,
+		})
+		require.NotEmpty(t, token.AccessToken)
 	})
 }
 

@@ -279,6 +279,10 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"id":                    ActionIgnore,
 		"reconciliation_paused": ActionTrack,
 	},
+	&database.OAuth2ProviderSettings{}: {
+		"id":                                  ActionIgnore,
+		"dynamic_client_registration_enabled": ActionTrack,
+	},
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012
 	&database.License{}: {

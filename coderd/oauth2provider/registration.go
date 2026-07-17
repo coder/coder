@@ -29,6 +29,24 @@ import (
 func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, auditor *audit.Auditor, logger slog.Logger) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+
+		//nolint:gocritic // Public registration endpoint, no authenticated actor to authorize against.
+		dcrEnabled, err := db.GetOAuth2DCREnabled(dbauthz.AsSystemOAuth2(ctx))
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			writeOAuth2RegistrationError(ctx, rw, http.StatusInternalServerError,
+				"server_error", "Failed to check registration availability")
+			return
+		}
+		// Never configured means DCR defaults to enabled.
+		if xerrors.Is(err, sql.ErrNoRows) {
+			dcrEnabled = true
+		}
+		if !dcrEnabled {
+			writeOAuth2RegistrationError(ctx, rw, http.StatusForbidden,
+				"invalid_request", "Dynamic client registration is disabled on this deployment")
+			return
+		}
+
 		aReq, commitAudit := audit.InitRequest[database.OAuth2ProviderApp](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     logger,
