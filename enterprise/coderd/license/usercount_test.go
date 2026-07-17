@@ -22,9 +22,10 @@ import (
 )
 
 // TestCountWorkspaceCapableUsers verifies permission-based license seat
-// counting: only users the RBAC engine authorizes to create workspaces
-// consume seats, so members without workspace-create ("gateway accounts")
-// are excluded.
+// counting: only users the RBAC engine authorizes to use workspaces
+// (create their own, or receive effective shares via use_shared) consume
+// seats, so members with neither capability ("gateway accounts") are
+// excluded.
 //
 // The subtests toggle the global builtin roles via ReloadBuiltinRoles, so
 // they must run serially.
@@ -125,8 +126,9 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		wsUser := activeUser(t, db, database.User{})
 		member(t, db, org.ID, wsUser, rbac.RoleOrgWorkspaceAccess())
 
-		// The creation ban negates workspace-create even when the
-		// workspace-access role is present. Not counted.
+		// The creation ban negates workspace-create, but not use_shared:
+		// the user keeps their existing workspaces and can receive shares,
+		// so they still consume a seat.
 		banned := activeUser(t, db, database.User{})
 		member(t, db, org.ID, banned, rbac.RoleOrgWorkspaceAccess(), rbac.RoleOrgWorkspaceCreationBan())
 
@@ -146,7 +148,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 
 		count, err := license.CountWorkspaceCapableUsers(ctx, db, authorizer)
 		require.NoError(t, err)
-		require.Equal(t, int64(4), count)
+		require.Equal(t, int64(5), count)
 	})
 
 	t.Run("CustomOrgRole", func(t *testing.T) {
@@ -179,6 +181,17 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		sharedRole, err := db.InsertCustomRole(ctx, database.InsertCustomRoleParams{
+			Name:           "share-recipient",
+			DisplayName:    "Share Recipient",
+			OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+			MemberPermissions: []database.CustomRolePermission{{
+				ResourceType: rbac.ResourceWorkspace.Type,
+				Action:       policy.ActionUseShared,
+			}},
+		})
+		require.NoError(t, err)
+
 		// Custom org role with workspace-create. Counted.
 		creator := activeUser(t, db, database.User{})
 		member(t, db, org.ID, creator, creatorRole.Name)
@@ -187,9 +200,15 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		reader := activeUser(t, db, database.User{})
 		member(t, db, org.ID, reader, auditRole.Name)
 
+		// Custom role carrying only member-level use_shared: the user can
+		// receive effective workspace shares, so they consume a seat even
+		// though they cannot create workspaces.
+		recipient := activeUser(t, db, database.User{})
+		member(t, db, org.ID, recipient, sharedRole.Name)
+
 		count, err := license.CountWorkspaceCapableUsers(ctx, db, authorizer)
 		require.NoError(t, err)
-		require.Equal(t, int64(1), count)
+		require.Equal(t, int64(2), count)
 	})
 
 	t.Run("EntitlementsAddonGate", func(t *testing.T) {

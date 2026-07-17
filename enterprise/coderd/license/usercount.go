@@ -16,12 +16,13 @@ import (
 )
 
 // CountWorkspaceCapableUsers returns the number of active users the RBAC
-// engine authorizes to create a workspace, either in one of the
-// organizations they belong to or in any organization via a site-wide
-// role such as owner. Users without workspace-create capability ("gateway
-// accounts") do not consume license seats. System users and service
-// accounts are excluded by the underlying query, matching
-// GetActiveUserCount.
+// engine authorizes to use workspaces: creating one of their own, or
+// receiving effective workspace shares via the use_shared capability,
+// either in one of the organizations they belong to or in any
+// organization via a site-wide role such as owner. Users with neither
+// capability ("gateway accounts") do not consume license seats. System
+// users and service accounts are excluded by the underlying query,
+// matching GetActiveUserCount.
 func CountWorkspaceCapableUsers(ctx context.Context, db database.Store, authorizer rbac.Authorizer) (int64, error) {
 	//nolint:gocritic // Counting licensed seats is a system function.
 	rows, err := db.GetActiveUsersAuthorizationRoles(dbauthz.AsSystemRestricted(ctx))
@@ -44,9 +45,9 @@ func CountWorkspaceCapableUsers(ctx context.Context, db database.Store, authoriz
 		sig := authorizationSignature(row)
 		capable, ok := capableBySignature[sig]
 		if !ok {
-			capable, err = canCreateWorkspace(ctx, db, authorizer, row)
+			capable, err = canUseWorkspaces(ctx, db, authorizer, row)
 			if err != nil {
-				return 0, xerrors.Errorf("evaluate workspace-create for user %s: %w", row.ID, err)
+				return 0, xerrors.Errorf("evaluate workspace capability for user %s: %w", row.ID, err)
 			}
 			capableBySignature[sig] = capable
 		}
@@ -57,11 +58,22 @@ func CountWorkspaceCapableUsers(ctx context.Context, db database.Store, authoriz
 	return count, nil
 }
 
-// canCreateWorkspace reports whether the RBAC engine authorizes the user
-// to create a workspace they own, checked against every organization the
-// user is a member of plus the any-organization form that site-wide roles
-// satisfy regardless of org membership.
-func canCreateWorkspace(ctx context.Context, db database.Store, authorizer rbac.Authorizer, row database.GetActiveUsersAuthorizationRolesRow) (bool, error) {
+// workspaceCapableActions are the actions whose grant makes a user
+// workspace-capable for seat counting. ActionCreate covers owning
+// workspaces. ActionUseShared covers operating workspaces shared via
+// ACL: entries only take effect while the recipient holds the
+// capability, so holders can use workspaces they cannot create. Both
+// are probed on an object owned by the user themselves so that
+// member-level org permissions apply, the same level the ACL
+// use_shared precondition reads.
+var workspaceCapableActions = []policy.Action{policy.ActionCreate, policy.ActionUseShared}
+
+// canUseWorkspaces reports whether the RBAC engine authorizes the user
+// for any workspace-capable action on a workspace they own, checked
+// against every organization the user is a member of plus the
+// any-organization form that site-wide roles satisfy regardless of org
+// membership.
+func canUseWorkspaces(ctx context.Context, db database.Store, authorizer rbac.Authorizer, row database.GetActiveUsersAuthorizationRolesRow) (bool, error) {
 	roleNames, err := row.RoleNames()
 	if err != nil {
 		return false, xerrors.Errorf("expand role names: %w", err)
@@ -84,12 +96,14 @@ func canCreateWorkspace(ctx context.Context, db database.Store, authorizer rbac.
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
-	// Site-wide grants (e.g. the owner role) authorize workspace creation
-	// in any organization, independent of org membership. This also covers
+	// Site-wide grants (e.g. the owner role) authorize workspace use in
+	// any organization, independent of org membership. This also covers
 	// users who belong to zero organizations.
-	if authorizer.Authorize(ctx, subject, policy.ActionCreate,
-		rbac.ResourceWorkspace.AnyOrganization().WithOwner(subject.ID)) == nil {
-		return true, nil
+	for _, action := range workspaceCapableActions {
+		if authorizer.Authorize(ctx, subject, action,
+			rbac.ResourceWorkspace.AnyOrganization().WithOwner(subject.ID)) == nil {
+			return true, nil
+		}
 	}
 
 	seen := make(map[uuid.UUID]struct{})
@@ -102,9 +116,11 @@ func canCreateWorkspace(ctx context.Context, db database.Store, authorizer rbac.
 			continue
 		}
 		seen[orgID] = struct{}{}
-		if authorizer.Authorize(ctx, subject, policy.ActionCreate,
-			rbac.ResourceWorkspace.InOrg(orgID).WithOwner(subject.ID)) == nil {
-			return true, nil
+		for _, action := range workspaceCapableActions {
+			if authorizer.Authorize(ctx, subject, action,
+				rbac.ResourceWorkspace.InOrg(orgID).WithOwner(subject.ID)) == nil {
+				return true, nil
+			}
 		}
 	}
 	return false, nil
@@ -112,7 +128,7 @@ func canCreateWorkspace(ctx context.Context, db database.Store, authorizer rbac.
 
 // authorizationSignature returns a canonical key for the user's role set.
 // Two users with equal signatures are interchangeable for
-// workspace-create evaluation.
+// workspace-capability evaluation.
 func authorizationSignature(row database.GetActiveUsersAuthorizationRolesRow) string {
 	roles := make([]string, len(row.Roles))
 	copy(roles, row.Roles)
