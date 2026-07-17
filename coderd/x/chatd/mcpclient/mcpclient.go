@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"slices"
@@ -987,6 +988,18 @@ func RevokeOAuth2Token(
 	if tok.RefreshToken == "" && tok.AccessToken == "" {
 		return false, nil
 	}
+	parsed, err := url.Parse(cfg.OAuth2RevocationURL)
+	if err != nil {
+		return false, xerrors.Errorf("parse revocation URL: %w", err)
+	}
+	// RFC 7009 requires HTTPS: the request carries token material and,
+	// for confidential clients, the client secret. Loopback hosts are
+	// exempt for local development and tests.
+	if parsed.Scheme != "https" && !isLoopbackHost(parsed.Hostname()) {
+		return false, xerrors.Errorf(
+			"revocation endpoint %q must use https", parsed.Redacted(),
+		)
+	}
 
 	if httpClient == nil {
 		httpClient = mcpHTTPClient()
@@ -1025,6 +1038,14 @@ func RevokeOAuth2Token(
 	)
 }
 
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
 // postTokenRevocation returns the HTTP status and, for non-200 responses,
 // the RFC 6749 error code parsed from the body. Only that code is
 // extracted; the raw body never propagates.
@@ -1037,7 +1058,14 @@ func postTokenRevocation(
 	form := url.Values{}
 	form.Set("token", token)
 	form.Set("token_type_hint", tokenTypeHint)
-	form.Set("client_id", cfg.OAuth2ClientID)
+	// Body client_id and Basic auth are alternative client
+	// authentication styles (RFC 6749 section 2.3.1); mixing both in
+	// one request is malformed for strict providers. Confidential
+	// clients authenticate via Basic below, so only public clients
+	// identify themselves in the body.
+	if cfg.OAuth2ClientSecret == "" {
+		form.Set("client_id", cfg.OAuth2ClientID)
+	}
 
 	revokeCtx, cancel := context.WithTimeout(ctx, connectTimeout)
 	defer cancel()

@@ -97,10 +97,12 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		c := <-got
 		require.Equal(t, []string{"at"}, c.form["token"])
 		require.Equal(t, []string{"access_token"}, c.form["token_type_hint"])
-		// Confidential clients use client_secret_basic, not form fields.
+		// Confidential clients use client_secret_basic only; body
+		// client_id would mix the two RFC 6749 authentication styles.
 		require.True(t, c.basicSet)
 		require.Equal(t, "cid", c.basicUser)
 		require.Equal(t, "secret", c.basicPass)
+		require.NotContains(t, c.form, "client_id")
 		require.NotContains(t, c.form, "client_secret")
 	})
 
@@ -195,6 +197,23 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		require.False(t, revoked)
 		require.Contains(t, err.Error(), "HTTP 400 for the refresh token")
 		require.Contains(t, err.Error(), "HTTP 503 for the access token")
+	})
+
+	t.Run("RejectsNonHTTPSEndpoint", func(t *testing.T) {
+		t.Parallel()
+
+		revoked, err := mcpclient.RevokeOAuth2Token(
+			context.Background(),
+			nil,
+			database.MCPServerConfig{
+				OAuth2ClientID:      "cid",
+				OAuth2RevocationURL: "http://revoke.example.com/revoke",
+			},
+			database.MCPServerUserToken{AccessToken: "at", RefreshToken: "rt"},
+		)
+		require.Error(t, err)
+		require.False(t, revoked)
+		require.Contains(t, err.Error(), "must use https")
 	})
 
 	t.Run("NoTokenMaterial", func(t *testing.T) {
