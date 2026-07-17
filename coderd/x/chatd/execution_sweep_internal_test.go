@@ -87,6 +87,7 @@ func seedCancelRequestedExecution(ctx context.Context, t *testing.T, db database
 		ProcessID:          "proc-sweep",
 		WorkspaceAgentID:   agent.ID,
 		StartedAt:          claimPast,
+		UpdatedAt:          claimPast,
 	})
 	require.NoError(t, err)
 	rows, err := db.MarkChatToolCallExecutionsInterrupted(ctx, database.MarkChatToolCallExecutionsInterruptedParams{
@@ -711,6 +712,7 @@ func TestReconcileCancelRequestedLateBackgroundKills(t *testing.T) {
 		ProcessID:          "proc-bg",
 		WorkspaceAgentID:   agent.ID,
 		StartedAt:          dbtime.Now(),
+		UpdatedAt:          dbtime.Now(),
 	})
 	require.NoError(t, err)
 
@@ -748,6 +750,447 @@ func TestReconcileCancelRequestedLateBackgroundKills(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, database.ChatToolCallExecutionStatusCanceled, row.Status)
 	require.True(t, row.CancelSignalSentAt.Valid)
+}
+
+// seedTokenOnlyCancelRequested creates an execution row whose claim
+// recorded the dispatch target but whose process handle never
+// landed, then interrupts it: a cancel_requested row resolvable
+// only through the agent's token index.
+func seedTokenOnlyCancelRequested(ctx context.Context, t *testing.T, db database.Store, staleAgo time.Duration, background bool) database.ChatToolCallExecution {
+	t.Helper()
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	mc := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "test-model", ContextLimit: 8192})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: mc.ID,
+		Title:             "sweep-token-test",
+	})
+	msg := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID: chat.ID,
+		Role:   database.ChatMessageRoleAssistant,
+	})
+	agent := seedSweepWorkspaceAgent(t, db, user.ID, org.ID)
+
+	past := dbtime.Now().Add(-staleAgo)
+	_, err := db.ClaimChatToolCallExecution(ctx, database.ClaimChatToolCallExecutionParams{
+		ID:                 uuid.New(),
+		ChatID:             chat.ID,
+		AssistantMessageID: msg.ID,
+		ToolCallID:         "token-call",
+		InputSha256:        "hash",
+		Command:            "sleep 600",
+		Background:         background,
+		TimeoutSecs:        600,
+		WorkspaceAgentID:   uuid.NullUUID{UUID: agent.ID, Valid: true},
+		Now:                past,
+		StaleBefore:        time.Time{},
+	})
+	require.NoError(t, err)
+	rows, err := db.MarkChatToolCallExecutionsInterrupted(ctx, database.MarkChatToolCallExecutionsInterruptedParams{
+		ChatID:             chat.ID,
+		AssistantMessageID: msg.ID,
+		ToolCallIds:        []string{"token-call"},
+		UpdatedAt:          past,
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, rows[0].Status)
+	require.False(t, rows[0].ProcessID.Valid)
+	return rows[0]
+}
+
+// TestExecutionSweepTokenOnlyRows asserts that cancel_requested rows
+// without recorded process identity are claimed by the sweep and
+// resolved through the token probe, so a failed post-interrupt dial
+// is retried instead of stranding the row forever.
+func TestExecutionSweepTokenOnlyRows(t *testing.T) {
+	t.Parallel()
+
+	t.Run("DialFailureRetriedThenKilled", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		record := seedTokenOnlyCancelRequested(ctx, t, db, 10*time.Minute, false)
+
+		dialErr := xerrors.New("agent unreachable")
+		r := executionReconciler{
+			store:  db,
+			logger: slogtest.Make(t, nil),
+			agentConn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return nil, nil, dialErr
+			},
+		}
+		r.sweepOnce(ctx, dbtime.Now())
+
+		row, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, row.Status)
+		require.True(t, row.UpdatedAt.After(record.UpdatedAt))
+
+		// A later sweep probes the token, finds the process, and
+		// kills it.
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		conn.EXPECT().ProcessByToken(gomock.Any(), record.ID.String()).
+			Return(workspacesdk.ProcessByTokenResponse{Found: true, ProcessID: "proc-token"}, nil)
+		conn.EXPECT().SignalProcess(gomock.Any(), "proc-token", "kill").Return(nil)
+		exitCode := -1
+		conn.EXPECT().ProcessOutput(gomock.Any(), "proc-token", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode}, nil)
+		r.agentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, record.WorkspaceAgentID.UUID, agentID)
+			return conn, func() {}, nil
+		}
+		r.sweepOnce(ctx, row.UpdatedAt.Add(executionSweepRetryAge+time.Second))
+
+		row, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusCanceled, row.Status)
+		// The probed handle was adopted onto the row.
+		require.Equal(t, "proc-token", row.ProcessID.String)
+	})
+
+	t.Run("FoundProcessAdoptedBeforeKill", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		record := seedTokenOnlyCancelRequested(ctx, t, db, 10*time.Minute, false)
+
+		// The kill fails transiently after the probe found the
+		// process; the row must keep the adopted handle so the
+		// sweep can retry through the durable identity.
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		conn.EXPECT().ProcessByToken(gomock.Any(), record.ID.String()).
+			Return(workspacesdk.ProcessByTokenResponse{Found: true, ProcessID: "proc-adopt"}, nil)
+		conn.EXPECT().SignalProcess(gomock.Any(), "proc-adopt", "kill").
+			Return(xerrors.New("transient signal failure"))
+		r := executionReconciler{
+			store:  db,
+			logger: slogtest.Make(t, nil),
+			agentConn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return conn, func() {}, nil
+			},
+		}
+		r.sweepOnce(ctx, dbtime.Now())
+
+		row, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, row.Status)
+		require.Equal(t, "proc-adopt", row.ProcessID.String)
+		require.True(t, row.WorkspaceAgentID.Valid)
+		// started_at anchors the deadline at the claim time, but
+		// the adoption must not rewind updated_at with it: that
+		// would void the sweep lease and re-claim the row on every
+		// sweep while the agent keeps failing.
+		require.True(t, row.StartedAt.Time.Equal(record.ClaimedAt.Time))
+		require.True(t, row.UpdatedAt.After(record.ClaimedAt.Time))
+	})
+
+	t.Run("AbsentTokenWithinDispatchGraceReprobed", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// A fresh claim: the interrupt landed before the
+		// already-sent StartProcess reached the agent, so the
+		// first probe legitimately sees no reservation. Absence
+		// must not be trusted yet; a re-probe finds the process
+		// that arrived moments later and kills it.
+		record := seedTokenOnlyCancelRequested(ctx, t, db, 0, false)
+
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		exitCode := -1
+		gomock.InOrder(
+			conn.EXPECT().ProcessByToken(gomock.Any(), record.ID.String()).
+				Return(workspacesdk.ProcessByTokenResponse{Found: false, TokenIndexAgeMS: time.Hour.Milliseconds()}, nil),
+			conn.EXPECT().ProcessByToken(gomock.Any(), record.ID.String()).
+				Return(workspacesdk.ProcessByTokenResponse{Found: true, ProcessID: "proc-race"}, nil),
+			conn.EXPECT().SignalProcess(gomock.Any(), "proc-race", "kill").Return(nil),
+			conn.EXPECT().ProcessOutput(gomock.Any(), "proc-race", gomock.Any()).
+				Return(workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode}, nil),
+		)
+		r := executionReconciler{
+			store:  db,
+			logger: slogtest.Make(t, nil),
+			agentConn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return conn, func() {}, nil
+			},
+		}
+		r.reconcileCancelRequestedByToken(ctx, record)
+
+		row, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusCanceled, row.Status)
+		require.Equal(t, "proc-race", row.ProcessID.String)
+	})
+
+	t.Run("AbsentTokenTrustedLeftForLateStart", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// Past the dispatch grace but within the trust window: the
+		// probe's absence answer is trustworthy for "no start has
+		// reached the agent yet", but it cannot fence a delayed
+		// StartProcess that is still in transit.
+		record := seedTokenOnlyCancelRequested(ctx, t, db, 10*time.Minute, false)
+
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		conn.EXPECT().ProcessByToken(gomock.Any(), record.ID.String()).
+			Return(workspacesdk.ProcessByTokenResponse{Found: false, TokenIndexAgeMS: time.Hour.Milliseconds()}, nil)
+		r := executionReconciler{
+			store:  db,
+			logger: slogtest.Make(t, nil),
+			agentConn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return conn, func() {}, nil
+			},
+		}
+		r.reconcile(ctx, record)
+
+		// Absence must not terminalize the row: a terminal write
+		// would reject a late handle and orphan its process.
+		row, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, row.Status)
+		require.False(t, row.ProcessID.Valid)
+
+		// The delayed start lands its handle on the still-open row.
+		_, err = db.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+			ClaimEpoch:         record.ClaimEpoch,
+			ProcessID:          "proc-delayed",
+			WorkspaceAgentID:   record.WorkspaceAgentID.UUID,
+			StartedAt:          dbtime.Now(),
+			UpdatedAt:          dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		exitCode := -1
+		conn.EXPECT().SignalProcess(gomock.Any(), "proc-delayed", "kill").Return(nil)
+		conn.EXPECT().ProcessOutput(gomock.Any(), "proc-delayed", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode}, nil)
+
+		fresh, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		require.NoError(t, err)
+		r.reconcile(ctx, fresh)
+
+		row, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusCanceled, row.Status)
+		require.Equal(t, "proc-delayed", row.ProcessID.String)
+	})
+
+	t.Run("NoProbeLateHandleKilledNotUnknown", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		record := seedTokenOnlyCancelRequested(ctx, t, db, 10*time.Minute, false)
+
+		// The handle lands after the no-probe fallback's last
+		// identity poll: the reconciler still holds the stale
+		// handle-less row. The guarded unknown write must lose to
+		// the recorded identity and run the kill flow instead of
+		// terminalizing a row whose process was never killed.
+		_, err := db.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+			ClaimEpoch:         record.ClaimEpoch,
+			ProcessID:          "proc-late",
+			WorkspaceAgentID:   record.WorkspaceAgentID.UUID,
+			StartedAt:          dbtime.Now(),
+			UpdatedAt:          dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		exitCode := -1
+		conn.EXPECT().SignalProcess(gomock.Any(), "proc-late", "kill").Return(nil)
+		conn.EXPECT().ProcessOutput(gomock.Any(), "proc-late", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode}, nil)
+		r := executionReconciler{
+			store:  db,
+			logger: slogtest.Make(t, nil),
+			agentConn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return conn, func() {}, nil
+			},
+		}
+		r.resolveInterruptedWithoutProbe(ctx, conn, record)
+
+		row, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusCanceled, row.Status)
+		require.Equal(t, "proc-late", row.ProcessID.String)
+	})
+
+	t.Run("ProbeFailureLateHandleKilledSamePass", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		record := seedTokenOnlyCancelRequested(ctx, t, db, 10*time.Minute, false)
+
+		// The handle lands while the token probe is failing
+		// transiently. The write refreshes the sweep lease, so
+		// waiting for the next reclaim would leave the process
+		// running; the reconciler must re-read and kill it in
+		// this pass.
+		_, err := db.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+			ClaimEpoch:         record.ClaimEpoch,
+			ProcessID:          "proc-during-probe",
+			WorkspaceAgentID:   record.WorkspaceAgentID.UUID,
+			StartedAt:          dbtime.Now(),
+			UpdatedAt:          dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		exitCode := -1
+		conn.EXPECT().ProcessByToken(gomock.Any(), record.ID.String()).
+			Return(workspacesdk.ProcessByTokenResponse{}, xerrors.New("transient transport failure"))
+		conn.EXPECT().SignalProcess(gomock.Any(), "proc-during-probe", "kill").Return(nil)
+		conn.EXPECT().ProcessOutput(gomock.Any(), "proc-during-probe", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode}, nil)
+		r := executionReconciler{
+			store:  db,
+			logger: slogtest.Make(t, nil),
+			agentConn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return conn, func() {}, nil
+			},
+		}
+		r.reconcileCancelRequestedByToken(ctx, record)
+
+		row, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusCanceled, row.Status)
+		require.Equal(t, "proc-during-probe", row.ProcessID.String)
+	})
+
+	t.Run("ExitedProcessFoundByTokenCanceled", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		record := seedTokenOnlyCancelRequested(ctx, t, db, 10*time.Minute, false)
+
+		// The token index keeps exited processes until reaping,
+		// and signaling one answers 409. That is a definitive
+		// exit, so the row must resolve canceled instead of
+		// staying cancel_requested for every sweep to re-signal.
+		signalConflict := codersdk.ReadBodyAsError(&http.Response{
+			StatusCode: http.StatusConflict,
+			Request: &http.Request{
+				Method: http.MethodPost,
+				URL:    &url.URL{Path: "/api/v0/processes/proc-exited/signal"},
+			},
+			Body: io.NopCloser(strings.NewReader(`{"message":"Process is not running."}`)),
+		})
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		conn.EXPECT().ProcessByToken(gomock.Any(), record.ID.String()).
+			Return(workspacesdk.ProcessByTokenResponse{Found: true, ProcessID: "proc-exited"}, nil)
+		conn.EXPECT().SignalProcess(gomock.Any(), "proc-exited", "kill").
+			Return(signalConflict)
+		r := executionReconciler{
+			store:  db,
+			logger: slogtest.Make(t, nil),
+			agentConn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return conn, func() {}, nil
+			},
+		}
+		r.sweepOnce(ctx, dbtime.Now())
+
+		row, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusCanceled, row.Status)
+		require.Equal(t, "proc-exited", row.ProcessID.String)
+	})
+
+	t.Run("BackgroundFoundByTokenKilled", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		record := seedTokenOnlyCancelRequested(ctx, t, db, 10*time.Minute, true)
+
+		// The committed synthetic result carries no handle, so a
+		// background process found by token is adopted and killed,
+		// not spared as detached.
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+		conn.EXPECT().ProcessByToken(gomock.Any(), record.ID.String()).
+			Return(workspacesdk.ProcessByTokenResponse{Found: true, ProcessID: "proc-bg"}, nil)
+		conn.EXPECT().SignalProcess(gomock.Any(), "proc-bg", "kill").Return(nil)
+		exitCode := -1
+		conn.EXPECT().ProcessOutput(gomock.Any(), "proc-bg", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{Running: false, ExitCode: &exitCode}, nil)
+		r := executionReconciler{
+			store:  db,
+			logger: slogtest.Make(t, nil),
+			agentConn: func(_ context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				return conn, func() {}, nil
+			},
+		}
+		r.sweepOnce(ctx, dbtime.Now())
+
+		row, err := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             record.ChatID,
+			AssistantMessageID: record.AssistantMessageID,
+			ToolCallID:         record.ToolCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusCanceled, row.Status)
+		require.Equal(t, "proc-bg", row.ProcessID.String)
+	})
 }
 
 // TestReconcileCancelRequestedAlreadyExitedConfirmsCanceled asserts
@@ -793,6 +1236,7 @@ func TestReconcileCancelRequestedAlreadyExitedConfirmsCanceled(t *testing.T) {
 		ProcessID:          "proc-fg",
 		WorkspaceAgentID:   agent.ID,
 		StartedAt:          dbtime.Now(),
+		UpdatedAt:          dbtime.Now(),
 	})
 	require.NoError(t, err)
 	rows, err := db.MarkChatToolCallExecutionsInterrupted(ctx, database.MarkChatToolCallExecutionsInterruptedParams{

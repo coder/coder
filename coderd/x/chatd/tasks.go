@@ -19,8 +19,10 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
 )
 
@@ -813,12 +815,12 @@ func interruptedToolResultPayload(row database.ChatToolCallExecution) (json.RawM
 // fast even when the agent is slow or unreachable.
 const interruptKillDialTimeout = 5 * time.Second
 
-// interruptRecordGrace is how long after a claim an interrupted
-// row without recorded process identity is left unresolved,
-// giving an in-flight StartProcess time to land its handle on the
-// cancel_requested row. Matches the execute tool's claim staleness
-// bound.
-const interruptRecordGrace = time.Minute
+// interruptRecordGrace bounds how long after its claim an
+// interrupted dispatch can still produce a process: StartProcess
+// must return within the claim freshness window and the uncanceled
+// handle write is bounded by recordWriteTimeout. Pending token
+// probes re-check until this deadline.
+const interruptRecordGrace = time.Minute + 15*time.Second
 
 // interruptReconcileTimeout bounds the immediate post-interrupt
 // reconcile pass: the per-row identity wait plus slack for the
@@ -893,12 +895,13 @@ func (r executionReconciler) reconcile(ctx context.Context, record database.Chat
 	}
 	if !record.ProcessID.Valid {
 		// The claim may have dispatched a process whose identity
-		// is not recorded yet: recordProcessStart runs on an
-		// uncanceled context, so an interrupted in-flight
-		// StartProcess can still land its handle on this
-		// cancel_requested row moments after the commit. Wait out
-		// that window instead of resolving early.
-		r.resolveUnknownAfterIdentityWait(ctx, record)
+		// is not recorded yet; the agent's token index is the way
+		// to observe it. The probe loop handles an interrupted
+		// in-flight dispatch: a found process is killed, and a
+		// pending reservation is re-probed until the dispatch
+		// window closes so a process that appears moments after
+		// the commit is still killed.
+		r.reconcileCancelRequestedByToken(ctx, record)
 		return
 	}
 	r.reconcileCancelRequested(ctx, record)
@@ -949,24 +952,6 @@ func (r executionReconciler) resolveExpiredCancel(ctx context.Context, record da
 	return true
 }
 
-// resolveUnknownAfterIdentityWait handles a cancel_requested row
-// without recorded process identity: wait out the late-handle
-// window, kill a handle that lands, and only then resolve unknown.
-func (r executionReconciler) resolveUnknownAfterIdentityWait(ctx context.Context, record database.ChatToolCallExecution) {
-	record = r.awaitInterruptedIdentity(ctx, record)
-	if record.Status != database.ChatToolCallExecutionStatusCancelRequested {
-		return
-	}
-	if record.ProcessID.Valid {
-		// Re-dispatch instead of killing directly: the agent row
-		// may have been deleted since the handle landed (the FK
-		// nulls it), and only reconcile resolves that shape.
-		r.reconcile(ctx, record)
-		return
-	}
-	r.resolveCancelOutcomeWithoutProcess(ctx, record, database.ChatToolCallExecutionStatusUnknown)
-}
-
 // executionReconciler resolves cancel_requested execution rows. It
 // is shared between the immediate post-interrupt pass and the
 // periodic sweep that retries rows whose first pass failed.
@@ -989,14 +974,13 @@ func (s *taskStarter) executionReconciler() executionReconciler {
 }
 
 // awaitInterruptedIdentity polls a cancel_requested row without
-// recorded process identity while the dead dispatch's uncanceled
-// recordProcessStart write can still land (recordWriteTimeout plus
-// slack). The grace runs from the later of the claim and the
-// cancellation commit: a dispatch in flight when the interrupt
-// lands can record its handle after the claim window ends, so
-// anchoring on the claim alone would terminalize unknown before
-// that write and orphan the started process. It returns the
-// freshest row observed.
+// process identity until the identity lands, the row leaves
+// cancel_requested, or the record grace window closes. The window
+// runs from the later of the claim and the cancellation commit: a
+// dispatch in flight when the interrupt lands can record its
+// handle after the claim window ends, so anchoring on the claim
+// alone would terminalize unknown before that write and orphan the
+// started process. It returns the latest row observed.
 func (r executionReconciler) awaitInterruptedIdentity(ctx context.Context, record database.ChatToolCallExecution) database.ChatToolCallExecution {
 	if !record.ClaimedAt.Valid {
 		return record
@@ -1034,17 +1018,252 @@ func (r executionReconciler) awaitInterruptedIdentity(ctx context.Context, recor
 	return record
 }
 
+// resolveUnknownAfterIdentityWait is the fallback when the token
+// index cannot prove whether an interrupted dispatch produced a
+// process: wait out the late-handle window, kill a handle that
+// lands, and only then resolve unknown.
+func (r executionReconciler) resolveUnknownAfterIdentityWait(ctx context.Context, record database.ChatToolCallExecution) {
+	record = r.awaitInterruptedIdentity(ctx, record)
+	if record.Status != database.ChatToolCallExecutionStatusCancelRequested {
+		return
+	}
+	if record.ProcessID.Valid {
+		// Re-dispatch instead of killing directly: the agent row
+		// may have been deleted since the handle landed (the FK
+		// nulls it), and only reconcile resolves that shape.
+		r.reconcile(ctx, record)
+		return
+	}
+	r.resolveCancelOutcomeWithoutProcess(ctx, record, database.ChatToolCallExecutionStatusUnknown)
+}
+
+// reconcileCancelRequestedByToken resolves a cancel_requested row
+// with no recorded process identity. The execution ID doubles as
+// the agent's idempotency token, so the token index can prove
+// whether the dead claim's dispatch produced a process: a found
+// process gets the kill flow, and a token that is provably absent
+// within the trust window means nothing started, confirming the
+// cancellation. The probe dials the dispatch target recorded at
+// claim time, never the chat's current agent: a chat rebound to a
+// different agent after the dispatch would answer for an agent
+// that never saw the token. When the token index cannot help (old
+// agents without the probe route, untrustworthy absence, no
+// dispatch target), the row waits out the record grace window for
+// a late handle write before resolving unknown, so a process whose
+// identity was about to land is killed instead of orphaned.
+func (r executionReconciler) reconcileCancelRequestedByToken(ctx context.Context, record database.ChatToolCallExecution) {
+	if !record.WorkspaceAgentID.Valid {
+		r.resolveUnknownAfterIdentityWait(ctx, record)
+		return
+	}
+	if r.agentConn == nil {
+		// Embeddings without a workspace agent dialer cannot probe
+		// or kill anything. Leave the row cancel_requested; the
+		// give-up bound still terminalizes it eventually.
+		r.logger.Warn(ctx, "no workspace agent dialer configured; leaving interrupted execution unresolved",
+			slog.F("chat_id", record.ChatID),
+			slog.F("tool_call_id", record.ToolCallID),
+		)
+		return
+	}
+	if _, err := r.store.GetWorkspaceAgentByID(ctx, record.WorkspaceAgentID.UUID); errors.Is(err, sql.ErrNoRows) {
+		// The dispatch target's agent row is deleted (or
+		// soft-deleted): its workspace pod is gone, so anything
+		// the dispatch started died with it. Dialing would fail
+		// every sweep until the give-up bound resolved the row
+		// unknown instead of the truthful canceled.
+		r.logger.Info(ctx, "interrupted execution's dispatch target is deleted; resolving canceled",
+			slog.F("chat_id", record.ChatID),
+			slog.F("tool_call_id", record.ToolCallID),
+		)
+		r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusCanceled, record.CancelSignalSentAt)
+		return
+	}
+	dialCtx, cancel := context.WithTimeout(ctx, interruptKillDialTimeout)
+	defer cancel()
+	conn, release, err := r.agentConn(dialCtx, record.WorkspaceAgentID.UUID)
+	if err != nil {
+		// Leave the row cancel_requested; a later reconciler can
+		// probe again.
+		r.logger.Warn(ctx, "failed to dial agent to probe interrupted execution token",
+			slog.F("chat_id", record.ChatID),
+			slog.F("execution_id", record.ID),
+			slog.Error(err),
+		)
+		return
+	}
+	if release != nil {
+		defer release()
+	}
+	var resp workspacesdk.ProcessByTokenResponse
+	for {
+		probeCtx, probeCancel := context.WithTimeout(ctx, interruptKillDialTimeout)
+		resp, err = workspacesdk.ProbeProcessToken(probeCtx, conn, record.ID.String())
+		probeCancel()
+		if err != nil {
+			if isAgentNotFound(err) || errors.Is(err, workspacesdk.ErrProcessTokenProbeUnsupported) {
+				// The agent predates the token probe endpoint or
+				// the connection cannot probe, so the token index
+				// cannot be consulted.
+				r.resolveInterruptedWithoutProbe(ctx, conn, record)
+				return
+			}
+			r.logger.Warn(ctx, "failed to probe interrupted execution token",
+				slog.F("chat_id", record.ChatID),
+				slog.F("execution_id", record.ID),
+				slog.Error(err),
+			)
+			// A late RecordStart can land while the probe fails;
+			// it also refreshes the sweep lease, deferring the
+			// next reclaim. Re-read and kill a now-identified
+			// process in this pass instead of leaving it running
+			// until the lease expires.
+			latest, readErr := r.store.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+				ChatID:             record.ChatID,
+				AssistantMessageID: record.AssistantMessageID,
+				ToolCallID:         record.ToolCallID,
+			})
+			if readErr == nil && latest.Status == database.ChatToolCallExecutionStatusCancelRequested && latest.ProcessID.Valid {
+				r.killAndConfirm(ctx, conn, latest, latest.ProcessID.String)
+			}
+			return
+		}
+		if resp.Found {
+			// Persist the probed handle before acting on it: a
+			// transient kill failure then leaves a row with
+			// durable process identity for the sweep, instead of
+			// a token-only row whose process may keep running.
+			// Background rows get the same kill: their committed
+			// synthetic result carries no handle, so sparing the
+			// process would leave it running unaddressable.
+			record, _ = r.adoptProbedProcess(ctx, record, resp.ProcessID)
+			r.killAndConfirm(ctx, conn, record, resp.ProcessID)
+			return
+		}
+		// Within the dispatch grace window neither a pending
+		// reservation nor an absent token is conclusive: the
+		// interrupt can land after the ledger claim but before
+		// the already-sent StartProcess reaches the agent, so no
+		// agent-side reservation exists yet and a process can
+		// still appear. Re-probe until the window closes so it
+		// is found and killed instead of trusted absent.
+		if !record.ClaimedAt.Valid || !time.Now().Before(record.ClaimedAt.Time.Add(interruptRecordGrace)) {
+			if resp.Pending {
+				// A start still pending past the window stays
+				// cancel_requested; the periodic sweep
+				// re-probes it.
+				return
+			}
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(2 * time.Second):
+		}
+	}
+	if record.ClaimedAt.Valid && chattool.TrustAbsentToken(resp, record.ClaimedAt.Time) {
+		// No start reached the agent yet, but absence cannot fence
+		// one: the agent binds a token only when the request
+		// arrives, so a delayed StartProcess could still spawn
+		// after a terminal write here, and the terminal row would
+		// reject its handle, orphaning the process. Leave the row
+		// cancel_requested: a late handle write stays admissible
+		// and routes to the kill flow, the sweep keeps re-probing,
+		// and once the claim ages past the trust window the
+		// guarded unknown fallback below resolves it.
+		r.logger.Debug(ctx, "interrupted execution token absent within trust window; leaving row for sweep",
+			slog.F("chat_id", record.ChatID),
+			slog.F("execution_id", record.ID),
+		)
+		return
+	}
+	// The token may have been reaped with its exited process, or
+	// the agent restarted with an empty token index, so absence
+	// proves nothing.
+	r.resolveInterruptedWithoutProbe(ctx, conn, record)
+}
+
+// resolveInterruptedWithoutProbe handles a cancel_requested row
+// whose dispatch cannot be proven dead through the token index. A
+// late handle write can still land on the row (recordProcessStart
+// runs on an uncanceled bound after StartProcess returns), so wait
+// through the record grace window before terminalizing: a handle
+// that arrives gets the kill flow instead of being orphaned by an
+// unknown status that blocks the process-identity CAS.
+func (r executionReconciler) resolveInterruptedWithoutProbe(ctx context.Context, conn workspacesdk.AgentConn, record database.ChatToolCallExecution) {
+	record = r.awaitInterruptedIdentity(ctx, record)
+	if record.Status != database.ChatToolCallExecutionStatusCancelRequested {
+		return
+	}
+	if record.ProcessID.Valid {
+		// Background rows are killed too: their committed
+		// synthetic result carries no handle, so sparing the
+		// process would leave it running unaddressable.
+		r.killAndConfirm(ctx, conn, record, record.ProcessID.String)
+		return
+	}
+	// Guarded: a handle landing between the last poll and this
+	// write must win, or the sweep would stop retrying a row
+	// whose recorded process was never killed.
+	r.resolveCancelOutcomeWithoutProcess(ctx, record, database.ChatToolCallExecutionStatusUnknown)
+}
+
+// adoptProbedProcess records a process handle discovered through
+// the token probe onto the cancel_requested row, under the row's
+// existing claim epoch and with the claim time as the started_at
+// lower bound. A failed write leaves the row token-only; the sweep
+// re-probes it.
+func (r executionReconciler) adoptProbedProcess(ctx context.Context, record database.ChatToolCallExecution, processID string) (database.ChatToolCallExecution, bool) {
+	startedAt := dbtime.Now()
+	if record.ClaimedAt.Valid {
+		startedAt = record.ClaimedAt.Time
+	}
+	// updated_at is stamped fresh, independent of the started_at
+	// lower bound: rewinding it to the claim time would void the
+	// sweep lease and make the row immediately re-claimable.
+	updated, err := r.store.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
+		ChatID:             record.ChatID,
+		AssistantMessageID: record.AssistantMessageID,
+		ToolCallID:         record.ToolCallID,
+		ClaimEpoch:         record.ClaimEpoch,
+		ProcessID:          processID,
+		WorkspaceAgentID:   record.WorkspaceAgentID.UUID,
+		StartedAt:          startedAt,
+		UpdatedAt:          dbtime.Now(),
+	})
+	if err != nil {
+		r.logger.Warn(ctx, "failed to record probed process on interrupted execution",
+			slog.F("chat_id", record.ChatID),
+			slog.F("execution_id", record.ID),
+			slog.F("process_id", processID),
+			slog.Error(err),
+		)
+		return record, false
+	}
+	return updated, true
+}
+
+// isAgentNotFound reports a definite HTTP 404 from the agent: the
+// agent was reached and does not know the requested resource (or,
+// for a route-level 404, predates the endpoint).
+func isAgentNotFound(err error) bool {
+	var sdkErr *codersdk.Error
+	return xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound
+}
+
+func isAgentConflict(err error) bool {
+	var sdkErr *codersdk.Error
+	return xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusConflict
+}
+
 // reconcileCancelRequested resolves one cancel_requested row with
 // recorded process identity by killing the process. Background rows
 // only reach cancel_requested when no committed result carries their
 // handle (the handle had not landed at commit time, or a history
 // delete committed no result at all): sparing such a process would
 // leave it running with no addressable handle, so it is killed like
-// foreground work. The kill records how far confirmation got:
-// canceled when the agent definitively has no such process or a
-// post-kill snapshot shows it exited, otherwise cancel_requested
-// stays (with cancel_signal_sent_at set when the signal was
-// delivered) for the periodic sweep to retry.
+// foreground work.
 func (r executionReconciler) reconcileCancelRequested(ctx context.Context, record database.ChatToolCallExecution) {
 	if r.agentConn == nil {
 		// Embeddings without a workspace agent dialer cannot kill
@@ -1084,13 +1303,26 @@ func (r executionReconciler) reconcileCancelRequested(ctx context.Context, recor
 	if release != nil {
 		defer release()
 	}
-	if err := conn.SignalProcess(dialCtx, record.ProcessID.String, "kill"); err != nil {
-		if sdkErr, ok := errors.AsType[*codersdk.Error](err); ok && (sdkErr.StatusCode() == http.StatusNotFound || sdkErr.StatusCode() == http.StatusConflict) {
+	r.killAndConfirm(ctx, conn, record, record.ProcessID.String)
+}
+
+// killAndConfirm delivers a kill signal for one cancel_requested
+// row and records how far confirmation got: canceled when the
+// agent definitively has no such process or a post-kill snapshot
+// shows it exited, otherwise cancel_requested stays (with
+// cancel_signal_sent_at set when the signal was delivered) for the
+// periodic sweep to retry.
+func (r executionReconciler) killAndConfirm(ctx context.Context, conn workspacesdk.AgentConn, record database.ChatToolCallExecution, processID string) {
+	sigCtx, cancel := context.WithTimeout(ctx, interruptKillDialTimeout)
+	defer cancel()
+	if err := conn.SignalProcess(sigCtx, processID, "kill"); err != nil {
+		if isAgentNotFound(err) || isAgentConflict(err) {
 			// The agent was reached and has no such process (404)
-			// or the process already exited on its own (409):
-			// termination is confirmed. Without the 409 case a
-			// process that exits before reconciliation would stay
-			// cancel_requested despite being provably dead.
+			// or the process already exited (409, kept in the
+			// index until reaping): termination is confirmed.
+			// Without the 409 case a fast command that exits
+			// before the probe would stay cancel_requested with
+			// every sweep re-signaling it.
 			r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusCanceled, sql.NullTime{})
 			return
 		}
@@ -1098,7 +1330,7 @@ func (r executionReconciler) reconcileCancelRequested(ctx context.Context, recor
 			slog.F("chat_id", record.ChatID),
 			slog.F("tool_call_id", record.ToolCallID),
 			slog.F("workspace_agent_id", record.WorkspaceAgentID.UUID),
-			slog.F("process_id", record.ProcessID.String),
+			slog.F("process_id", processID),
 			slog.Error(err),
 		)
 		return
@@ -1107,9 +1339,9 @@ func (r executionReconciler) reconcileCancelRequested(ctx context.Context, recor
 	r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusCancelRequested, signalSentAt)
 	snapCtx, cancelSnap := context.WithTimeout(ctx, interruptKillDialTimeout)
 	defer cancelSnap()
-	resp, err := conn.ProcessOutput(snapCtx, record.ProcessID.String, nil)
+	resp, err := conn.ProcessOutput(snapCtx, processID, nil)
 	if err != nil {
-		if sdkErr, ok := errors.AsType[*codersdk.Error](err); ok && sdkErr.StatusCode() == http.StatusNotFound {
+		if isAgentNotFound(err) {
 			r.resolveCancelOutcome(ctx, record, database.ChatToolCallExecutionStatusCanceled, signalSentAt)
 		}
 		return
@@ -1238,10 +1470,8 @@ func (w *chatWorker) executionSweepLoop(ctx context.Context) {
 // row unresolved. The claim query bumps updated_at as a lease, so
 // unresolved rows retry on the next sweep without hammering the
 // same agent from every replica. Rows without recorded process
-// identity (a crash between the interrupt commit and
-// reconciliation) get the same late-handle wait as the immediate
-// pass, then resolve unknown; the sweep retry age exceeds the
-// record grace window, so the wait normally returns immediately.
+// identity go through the token probe, matching the immediate
+// pass's routing.
 func (r executionReconciler) sweepOnce(ctx context.Context, now time.Time) {
 	ctx, cancel := context.WithTimeout(ctx, executionSweepPassTimeout)
 	defer cancel()
