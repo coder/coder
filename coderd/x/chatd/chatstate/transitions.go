@@ -545,8 +545,8 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 	}
 
 	// Must run before the soft-deletes below; see
-	// mapOutstandingExecutionsForHistoryDelete.
-	if err := mapOutstandingExecutionsForHistoryDelete(tx.ctx, tx.store, chat); err != nil {
+	// mapExecutionsForHistoryDelete.
+	if err := mapExecutionsForHistoryDelete(tx.ctx, tx.store, chat, target.ID); err != nil {
 		return EditMessageResult{}, err
 	}
 

@@ -4905,6 +4905,14 @@ func (m queryMetricsStore) MarkChatsContextDirtyByAgent(ctx context.Context, arg
 	return r0, r1
 }
 
+func (m queryMetricsStore) MarkDetachedChatToolCallExecutionsCancelRequested(ctx context.Context, arg database.MarkDetachedChatToolCallExecutionsCancelRequestedParams) ([]database.ChatToolCallExecution, error) {
+	start := time.Now()
+	r0, r1 := m.s.MarkDetachedChatToolCallExecutionsCancelRequested(ctx, arg)
+	m.queryLatencies.WithLabelValues("MarkDetachedChatToolCallExecutionsCancelRequested").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "MarkDetachedChatToolCallExecutionsCancelRequested").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, arg database.MarkMCPServerUserTokenRefreshFailureParams) (database.MCPServerUserToken, error) {
 	start := time.Now()
 	r0, r1 := m.s.MarkMCPServerUserTokenRefreshFailure(ctx, arg)

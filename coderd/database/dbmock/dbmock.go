@@ -9232,6 +9232,21 @@ func (mr *MockStoreMockRecorder) MarkChatsContextDirtyByAgent(ctx, arg any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkChatsContextDirtyByAgent", reflect.TypeOf((*MockStore)(nil).MarkChatsContextDirtyByAgent), ctx, arg)
 }
 
+// MarkDetachedChatToolCallExecutionsCancelRequested mocks base method.
+func (m *MockStore) MarkDetachedChatToolCallExecutionsCancelRequested(ctx context.Context, arg database.MarkDetachedChatToolCallExecutionsCancelRequestedParams) ([]database.ChatToolCallExecution, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkDetachedChatToolCallExecutionsCancelRequested", ctx, arg)
+	ret0, _ := ret[0].([]database.ChatToolCallExecution)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkDetachedChatToolCallExecutionsCancelRequested indicates an expected call of MarkDetachedChatToolCallExecutionsCancelRequested.
+func (mr *MockStoreMockRecorder) MarkDetachedChatToolCallExecutionsCancelRequested(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkDetachedChatToolCallExecutionsCancelRequested", reflect.TypeOf((*MockStore)(nil).MarkDetachedChatToolCallExecutionsCancelRequested), ctx, arg)
+}
+
 // MarkMCPServerUserTokenRefreshFailure mocks base method.
 func (m *MockStore) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, arg database.MarkMCPServerUserTokenRefreshFailureParams) (database.MCPServerUserToken, error) {
 	m.ctrl.T.Helper()

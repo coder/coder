@@ -159,6 +159,25 @@ WHERE chat_id = @chat_id::uuid
   AND status IN ('reserved', 'starting', 'running', 'detached')
 RETURNING *;
 
+-- name: MarkDetachedChatToolCallExecutionsCancelRequested :many
+-- A detached row is spared only while a committed tool result
+-- carries its process handle. History-delete transitions soft-delete
+-- every message from the edited one onward, including the results
+-- that carry the handles of previously detached rows (background
+-- starts, timed-out foregrounds, interrupt-spared backgrounds), so
+-- those processes would stay alive but unaddressable through the
+-- chat. This routes every detached row anchored at or after the
+-- deleted boundary to cancel_requested for the sweep to kill. Rows
+-- anchored before the boundary keep their carriers and are not
+-- touched.
+UPDATE chat_tool_call_executions
+SET status = 'cancel_requested'::chat_tool_call_execution_status,
+    updated_at = @updated_at::timestamptz
+WHERE chat_id = @chat_id::uuid
+  AND assistant_message_id >= @min_assistant_message_id::bigint
+  AND status = 'detached'
+RETURNING *;
+
 -- name: ClaimStaleChatToolCallExecutionCancels :many
 -- Claims a batch of cancel_requested rows whose reconciliation
 -- stalled (the post-interrupt pass lost its agent dial or died).

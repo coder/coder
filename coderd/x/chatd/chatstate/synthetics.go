@@ -225,31 +225,49 @@ func SparedBackgroundResult(row database.ChatToolCallExecution) (json.RawMessage
 	return payload, true, nil
 }
 
-// mapOutstandingExecutionsForHistoryDelete maps the execution ledger
-// rows of every outstanding tool call on the chat's last assistant
-// message. EditMessage calls it before soft-deleting the history
-// suffix: the deleted turn gets no synthetic history results (its
-// tool calls are deleted with it), but the ledger still owns any
-// live process, and after the delete the assistant message is
-// invisible to the pending scan, so mapping afterwards would orphan
-// the process behind an uncommitted row no sweep can claim. Because
-// no result commits, nothing can carry a background handle back to
-// the user, so backgrounds are not spared: every dispatched row
-// becomes cancel_requested and the sweep kills its process.
-func mapOutstandingExecutionsForHistoryDelete(ctx context.Context, store database.Store, chat database.Chat) error {
+// mapExecutionsForHistoryDelete maps the execution ledger rows whose
+// processes an edit would otherwise orphan. EditMessage calls it
+// before soft-deleting the history suffix starting at
+// fromMessageID: after the delete the assistant message is invisible
+// to the pending scan, so mapping afterwards would orphan a live
+// process behind an uncommitted row no sweep can claim.
+//
+// Two kinds of rows lose their process carrier to the delete:
+//
+//   - Outstanding calls on the last assistant message. The deleted
+//     turn gets no synthetic history results, so nothing can carry a
+//     background handle back to the user and backgrounds are not
+//     spared: every dispatched row becomes cancel_requested.
+//   - Already-resolved detached rows anchored in the deleted suffix
+//     (background starts, timed-out foregrounds, interrupt-spared
+//     backgrounds). Their committed results were the only carriers
+//     of their process handles and are deleted with the suffix, so
+//     they are routed to cancel_requested as well.
+//
+// The sweep kills every cancel_requested row's process.
+func mapExecutionsForHistoryDelete(ctx context.Context, store database.Store, chat database.Chat, fromMessageID int64) error {
 	assistantMessageID, pending, err := pendingAllToolCallIDs(ctx, store, chat)
 	if err != nil {
 		return err
 	}
-	if len(pending) == 0 {
-		return nil
+	if len(pending) > 0 {
+		toolCallIDs := make([]string, 0, len(pending))
+		for id := range pending {
+			toolCallIDs = append(toolCallIDs, id)
+		}
+		if _, err := mapCanceledExecutions(ctx, store, chat.ID, assistantMessageID, toolCallIDs, false); err != nil {
+			return err
+		}
 	}
-	toolCallIDs := make([]string, 0, len(pending))
-	for id := range pending {
-		toolCallIDs = append(toolCallIDs, id)
+	_, err = store.MarkDetachedChatToolCallExecutionsCancelRequested(ctx, database.MarkDetachedChatToolCallExecutionsCancelRequestedParams{
+		ChatID:                chat.ID,
+		MinAssistantMessageID: fromMessageID,
+		UpdatedAt:             dbtime.Now(),
+	})
+	if err != nil {
+		return xerrors.Errorf("mark detached executions cancel requested: %w", err)
 	}
-	_, err = mapCanceledExecutions(ctx, store, chat.ID, assistantMessageID, toolCallIDs, false)
-	return err
+	return nil
 }
 
 // pendingDynamicToolCallIDs returns the dynamic tool-call IDs on the

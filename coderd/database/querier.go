@@ -1272,6 +1272,17 @@ type sqlcQuerier interface {
 	// re-pins it. Returns the chats that transitioned so the caller can
 	// emit watch events after the transaction commits.
 	MarkChatsContextDirtyByAgent(ctx context.Context, arg MarkChatsContextDirtyByAgentParams) ([]MarkChatsContextDirtyByAgentRow, error)
+	// A detached row is spared only while a committed tool result
+	// carries its process handle. History-delete transitions soft-delete
+	// every message from the edited one onward, including the results
+	// that carry the handles of previously detached rows (background
+	// starts, timed-out foregrounds, interrupt-spared backgrounds), so
+	// those processes would stay alive but unaddressable through the
+	// chat. This routes every detached row anchored at or after the
+	// deleted boundary to cancel_requested for the sweep to kill. Rows
+	// anchored before the boundary keep their carriers and are not
+	// touched.
+	MarkDetachedChatToolCallExecutionsCancelRequested(ctx context.Context, arg MarkDetachedChatToolCallExecutionsCancelRequestedParams) ([]ChatToolCallExecution, error)
 	// Records a permanent refresh failure (e.g. revoked grant) and clears
 	// the dead token material so it is never attached to a request again.
 	// The updated_at predicate provides optimistic concurrency: if another

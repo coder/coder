@@ -152,6 +152,161 @@ func TestEditMessage_MapsExecutionLedgerBeforeHistoryDelete(t *testing.T) {
 	require.True(t, bgRow.ResultCommittedAt.Valid)
 }
 
+// TestEditMessage_KillsPriorDetachedExecutions asserts that editing
+// a message routes previously detached rows anchored in the deleted
+// suffix to cancel_requested: the interrupt-spared synthetic result
+// was the only carrier of the process handle and the edit deletes
+// it, so the process must be killed, not left alive and
+// unaddressable. A detached row anchored before the edited message
+// keeps its carrier and must survive.
+func TestEditMessage_KillsPriorDetachedExecutions(t *testing.T) {
+	t.Parallel()
+
+	// Builds a chat whose first turn holds a background execute
+	// spared to detached by a new-user-message cancellation, exactly
+	// the CODAGT-757 orphan shape: user1, assistant(bg call),
+	// process recorded, turn finished, user2 sent (maps the row
+	// detached and commits the handle-carrying synthetic result).
+	setup := func(t *testing.T) (f *testFixture, m *chatstate.ChatMachine, chatID uuid.UUID, user1ID, assistantID, user2ID int64, bgCallID string) {
+		f = newTestFixture(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		created := createTestChat(t, f)
+		m = chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+		agent := seedLedgerWorkspaceAgent(t, f)
+
+		bgCallID = "call_bg_" + uuid.NewString()
+		raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: bgCallID,
+			ToolName:   "execute",
+			Args:       json.RawMessage(`{}`),
+		}})
+		require.NoError(t, err)
+		var step chatstate.CommitStepResult
+		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+			var err error
+			step, err = tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{
+				userTextMessage("first user", f.User.ID, f.Model.ID),
+				{
+					Role:           database.ChatMessageRoleAssistant,
+					Content:        raw,
+					Visibility:     database.ChatMessageVisibilityBoth,
+					ContentVersion: chatprompt.CurrentContentVersion,
+					ModelConfigID:  uuid.NullUUID{UUID: f.Model.ID, Valid: true},
+				},
+			}})
+			return err
+		}))
+		require.Len(t, step.InsertedMessages, 2)
+		user1ID = step.InsertedMessages[0].ID
+		assistantID = step.InsertedMessages[1].ID
+
+		row, err := f.DB.ClaimChatToolCallExecution(ctx, database.ClaimChatToolCallExecutionParams{
+			ID:                 uuid.New(),
+			ChatID:             created.Chat.ID,
+			AssistantMessageID: assistantID,
+			ToolCallID:         bgCallID,
+			InputSha256:        "hash-" + bgCallID,
+			Command:            "sleep 600",
+			Background:         true,
+			TimeoutSecs:        600,
+			Now:                dbtime.Now(),
+			StaleBefore:        time.Time{},
+		})
+		require.NoError(t, err)
+		_, err = f.DB.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
+			ChatID:             created.Chat.ID,
+			AssistantMessageID: assistantID,
+			ToolCallID:         bgCallID,
+			ClaimEpoch:         row.ClaimEpoch,
+			ProcessID:          "proc-bg",
+			WorkspaceAgentID:   agent.ID,
+			StartedAt:          dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		landInW(t, f, m)
+
+		var send chatstate.SendMessageResult
+		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+			var err error
+			send, err = tx.SendMessage(chatstate.SendMessageInput{
+				Message:      userTextMessage("second user", f.User.ID, f.Model.ID),
+				BusyBehavior: chatstate.BusyBehaviorQueue,
+			})
+			return err
+		}))
+		require.Len(t, send.InsertedMessages, 2, "synthetic spare + new user")
+		for _, msg := range send.InsertedMessages {
+			if msg.Role == database.ChatMessageRoleUser {
+				user2ID = msg.ID
+			}
+		}
+		require.NotZero(t, user2ID)
+
+		bgRow, err := f.DB.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             created.Chat.ID,
+			AssistantMessageID: assistantID,
+			ToolCallID:         bgCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusDetached, bgRow.Status,
+			"precondition: the background row was spared to detached")
+		return f, m, created.Chat.ID, user1ID, assistantID, user2ID, bgCallID
+	}
+
+	edit := func(t *testing.T, f *testFixture, m *chatstate.ChatMachine, messageID int64) {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+			_, err := tx.EditMessage(chatstate.EditMessageInput{
+				MessageID: messageID,
+				CreatedBy: f.User.ID,
+				Content:   mustMarshalParts(t, []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")}),
+				APIKeyID:  f.apiKeyID(),
+			})
+			return err
+		}))
+	}
+
+	t.Run("DeletedCarrierIsKilled", func(t *testing.T) {
+		t.Parallel()
+		f, m, chatID, user1ID, assistantID, _, bgCallID := setup(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Editing user1 deletes the whole suffix including the
+		// synthetic result that carried the detached row's handle.
+		edit(t, f, m, user1ID)
+
+		bgRow, err := f.DB.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             chatID,
+			AssistantMessageID: assistantID,
+			ToolCallID:         bgCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusCancelRequested, bgRow.Status,
+			"the deleted suffix carried the handle, so the detached row is killed")
+	})
+
+	t.Run("SurvivingCarrierIsSpared", func(t *testing.T) {
+		t.Parallel()
+		f, m, chatID, _, assistantID, user2ID, bgCallID := setup(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Editing user2 keeps the first turn, including the
+		// synthetic result carrying the detached row's handle.
+		edit(t, f, m, user2ID)
+
+		bgRow, err := f.DB.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             chatID,
+			AssistantMessageID: assistantID,
+			ToolCallID:         bgCallID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatToolCallExecutionStatusDetached, bgRow.Status,
+			"the handle carrier survives the edit, so the detached row stays spared")
+	})
+}
+
 // TestSyntheticCancellation_MapsExecutionLedger asserts that a
 // non-interrupt cancellation transition (a new user message during a
 // run) maps the execution ledger exactly like the interrupt commit:

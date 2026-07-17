@@ -6947,6 +6947,17 @@ func (q *querier) MarkChatsContextDirtyByAgent(ctx context.Context, arg database
 	return q.db.MarkChatsContextDirtyByAgent(ctx, arg)
 }
 
+func (q *querier) MarkDetachedChatToolCallExecutionsCancelRequested(ctx context.Context, arg database.MarkDetachedChatToolCallExecutionsCancelRequestedParams) ([]database.ChatToolCallExecution, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return nil, err
+	}
+	return q.db.MarkDetachedChatToolCallExecutionsCancelRequested(ctx, arg)
+}
+
 func (q *querier) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, arg database.MarkMCPServerUserTokenRefreshFailureParams) (database.MCPServerUserToken, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return database.MCPServerUserToken{}, err

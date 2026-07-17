@@ -13122,6 +13122,74 @@ func (q *sqlQuerier) MarkChatToolCallExecutionsResultCommitted(ctx context.Conte
 	return err
 }
 
+const markDetachedChatToolCallExecutionsCancelRequested = `-- name: MarkDetachedChatToolCallExecutionsCancelRequested :many
+UPDATE chat_tool_call_executions
+SET status = 'cancel_requested'::chat_tool_call_execution_status,
+    updated_at = $1::timestamptz
+WHERE chat_id = $2::uuid
+  AND assistant_message_id >= $3::bigint
+  AND status = 'detached'
+RETURNING id, chat_id, assistant_message_id, tool_call_id, status, input_sha256, command, background, timeout_secs, claim_epoch, claimed_at, workspace_agent_id, process_id, cancel_signal_sent_at, result_committed_at, created_at, started_at, updated_at
+`
+
+type MarkDetachedChatToolCallExecutionsCancelRequestedParams struct {
+	UpdatedAt             time.Time `db:"updated_at" json:"updated_at"`
+	ChatID                uuid.UUID `db:"chat_id" json:"chat_id"`
+	MinAssistantMessageID int64     `db:"min_assistant_message_id" json:"min_assistant_message_id"`
+}
+
+// A detached row is spared only while a committed tool result
+// carries its process handle. History-delete transitions soft-delete
+// every message from the edited one onward, including the results
+// that carry the handles of previously detached rows (background
+// starts, timed-out foregrounds, interrupt-spared backgrounds), so
+// those processes would stay alive but unaddressable through the
+// chat. This routes every detached row anchored at or after the
+// deleted boundary to cancel_requested for the sweep to kill. Rows
+// anchored before the boundary keep their carriers and are not
+// touched.
+func (q *sqlQuerier) MarkDetachedChatToolCallExecutionsCancelRequested(ctx context.Context, arg MarkDetachedChatToolCallExecutionsCancelRequestedParams) ([]ChatToolCallExecution, error) {
+	rows, err := q.db.QueryContext(ctx, markDetachedChatToolCallExecutionsCancelRequested, arg.UpdatedAt, arg.ChatID, arg.MinAssistantMessageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatToolCallExecution
+	for rows.Next() {
+		var i ChatToolCallExecution
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.AssistantMessageID,
+			&i.ToolCallID,
+			&i.Status,
+			&i.InputSha256,
+			&i.Command,
+			&i.Background,
+			&i.TimeoutSecs,
+			&i.ClaimEpoch,
+			&i.ClaimedAt,
+			&i.WorkspaceAgentID,
+			&i.ProcessID,
+			&i.CancelSignalSentAt,
+			&i.ResultCommittedAt,
+			&i.CreatedAt,
+			&i.StartedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateChatToolCallExecutionCancelOutcome = `-- name: UpdateChatToolCallExecutionCancelOutcome :one
 UPDATE chat_tool_call_executions
 SET status = $1::chat_tool_call_execution_status,
