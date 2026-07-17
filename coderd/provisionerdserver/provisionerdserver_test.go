@@ -598,6 +598,12 @@ func TestAcquireJob(t *testing.T) {
 
 				<-startPublished
 
+				if wk, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
+					slices.SortFunc(wk.WorkspaceBuild.Metadata.WorkspaceOwnerRbacRoles, func(a, b *sdkproto.Role) int {
+						return strings.Compare(a.Name+a.OrgId, b.Name+b.OrgId)
+					})
+				}
+
 				got, err := json.Marshal(job.Type)
 				require.NoError(t, err)
 
@@ -631,7 +637,7 @@ func TestAcquireJob(t *testing.T) {
 					WorkspaceOwnerSshPrivateKey:   sshKey.PrivateKey,
 					WorkspaceBuildId:              build.ID.String(),
 					WorkspaceOwnerLoginType:       string(user.LoginType),
-					WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: rbac.RoleOrgMember(), OrgId: pd.OrganizationID.String()}, {Name: "member", OrgId: ""}, {Name: rbac.RoleOrgAuditor(), OrgId: pd.OrganizationID.String()}, {Name: rbac.RoleOrgWorkspaceAccess(), OrgId: pd.OrganizationID.String()}},
+					WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: rbac.RoleOrgMember(), OrgId: pd.OrganizationID.String()}, {Name: "member", OrgId: ""}, {Name: rbac.RoleOrgAuditor(), OrgId: pd.OrganizationID.String()}, {Name: rbac.RoleOrgWorkspaceAccess(), OrgId: pd.OrganizationID.String()}, {Name: rbac.RoleOrgAIGatewayAccess(), OrgId: pd.OrganizationID.String()}},
 					TaskId:                        task.ID.String(),
 					TaskPrompt:                    task.Prompt,
 				}
