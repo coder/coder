@@ -413,6 +413,33 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 
+	// Plaintext URLs are rejected on save because RevokeOAuth2Token
+	// would refuse them at disconnect time.
+	plaintextURL := "http://auth.example.com/revoke"
+	_, err = client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+		OAuth2RevocationURL: &plaintextURL,
+	})
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
+	_, err = client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:         "Plaintext Revoke",
+		Slug:                "plaintext-revoke",
+		Transport:           "streamable_http",
+		URL:                 "https://mcp.example.com/plaintext",
+		AuthType:            "oauth2",
+		OAuth2ClientID:      "cid",
+		OAuth2AuthURL:       "https://auth.example.com/authorize",
+		OAuth2TokenURL:      "https://auth.example.com/token",
+		OAuth2RevocationURL: plaintextURL,
+		Availability:        "default_on",
+		Enabled:             true,
+		ToolAllowList:       []string{},
+		ToolDenyList:        []string{},
+	})
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
 	// An explicit empty string clears the stored URL.
 	emptyURL := ""
 	updated, err = client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{

@@ -233,6 +233,16 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if trimmed := strings.TrimSpace(req.OAuth2RevocationURL); trimmed != "" {
+		if err := mcpclient.ValidateRevocationEndpoint(trimmed); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid OAuth2 revocation URL.",
+				Detail:  "oauth2_revocation_url must be an https URL (loopback hosts may use http).",
+			})
+			return
+		}
+	}
+
 	// Validate auth-type-dependent fields.
 	switch req.AuthType {
 	case "oauth2":
@@ -345,10 +355,21 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 
 			// Same fallback for the revocation URL: an explicit
-			// request value wins over discovered metadata.
+			// request value wins over discovered metadata. A discovered
+			// endpoint that fails the HTTPS policy is dropped (treated
+			// as revocation-unsupported) instead of failing creation.
 			oauth2RevocationURL := strings.TrimSpace(req.OAuth2RevocationURL)
 			if oauth2RevocationURL == "" {
 				oauth2RevocationURL = result.revocationURL
+				if oauth2RevocationURL != "" {
+					if err := mcpclient.ValidateRevocationEndpoint(oauth2RevocationURL); err != nil {
+						api.Logger.Warn(ctx, "ignoring discovered MCP oauth2 revocation endpoint",
+							slog.F("url", req.URL),
+							slog.Error(err),
+						)
+						oauth2RevocationURL = ""
+					}
+				}
 			}
 
 			// Update the record with discovered OAuth2 credentials.
@@ -581,6 +602,15 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: "Invalid OAuth2 revocation URL.",
 					Detail:  "oauth2_revocation_url must be a valid URL or an empty string.",
+				})
+				return
+			}
+			// Same policy as RevokeOAuth2Token, so accepted URLs are
+			// never refused later at disconnect time.
+			if err := mcpclient.ValidateRevocationEndpoint(trimmed); err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Invalid OAuth2 revocation URL.",
+					Detail:  "oauth2_revocation_url must be an https URL (loopback hosts may use http).",
 				})
 				return
 			}
