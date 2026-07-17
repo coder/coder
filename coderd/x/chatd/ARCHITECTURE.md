@@ -871,6 +871,47 @@ When the manager cleans up a runner, the runner must cancel all goroutines it ha
 
 The worker periodically archives old, unused chats.
 
+## Execute tool execution ledger
+
+Task retries re-read the committed history and re-execute unresolved tool calls. Without extra state, every retry of an in-flight `execute` tool call would start another OS process in the workspace, leaving orphaned duplicates. The `chat_tool_call_executions` table is a durable execution ledger that prevents this. It owns the external process lifecycle, while the core state machine keeps owning chat semantics.
+
+**Invariant:** one logical local tool call creates at most one external process. Later attempts re-attach, observe, reconcile cancellation, or return a stable unknown-outcome result. They never silently start another process.
+
+### Identity and lineage
+
+Each row's primary key `id` is the execution ID, a UUID generated when the intent is persisted. It is the stable identity of the (at most one) external process for this call. Rows are unique on the lineage key `(chat_id, assistant_message_id, tool_call_id)`. The assistant message ID is part of the key because provider tool call IDs are not unique across history regenerations: an edited history that regenerates an assistant message reusing a tool call ID gets a new ledger row, and the old row keeps its process identity instead of being reset.
+
+`input_sha256` hashes the persisted tool input. A claim asserts it, so an attempt whose input does not match the row's refuses to dispatch against stale lineage.
+
+### Status model
+
+The `status` column tracks the external process lifecycle:
+
+| Status | Meaning |
+|---|---|
+| `reserved` | Intent persisted with the assistant message; nothing dispatched. |
+| `starting` | A runner claimed the row (`claim_epoch` advanced, `claimed_at` set); dispatch may be in flight. |
+| `running` | Process identity recorded (`process_id`, `workspace_agent_id`, `started_at`). |
+| `exited` | The tool observed the process exit (fresh wait or re-attach snapshot). |
+| `detached` | The chat moved on and the process was deliberately left alive: background start, timed-out foreground, or interrupted background. |
+| `cancel_requested` | An interrupt resolved the call in chat, but process termination is unconfirmed. `cancel_signal_sent_at` records a delivered kill signal. |
+| `canceled` | Termination confirmed, or nothing was ever dispatched. |
+| `unknown` | The command may have run; the outcome is unobservable. Terminal for auto-restart. |
+| `no_effect` | Validation failed before any external dispatch. |
+
+Lifecycle status is orthogonal to chat-result commitment. `result_committed_at` is set in the same transaction that commits the call's tool result (real, synthetic-unknown, validation-error, or interrupt-synthetic). Diagnostic states like `cancel_requested` and `unknown` keep their lifecycle truth after the chat has moved on, which is what a later reconciler needs.
+
+### Atomicity points
+
+Ledger writes that must agree with chat state run inside the same `ChatMachine.Update` transaction as the corresponding message commit, via the transaction-scoped store:
+
+- The assistant-step commit inserts one `reserved` intent per `execute` tool call in the step. A replayed commit conflicts on the lineage key and is a no-op.
+- The tool-result commit sets `result_committed_at` for the executed calls.
+
+### Retention
+
+Rows are never deleted at resolution time; they stay diagnostically useful. `dbpurge` deletes rows older than 7 days, but only rows whose tool result was committed: an uncommitted row still guards dedup for a call a future retry may re-execute. `cancel_requested` rows are kept regardless of age: the cancelling transaction stamps `result_committed_at` on them, but they still carry the only stored identity of a process the sweep must kill. Uncommitted rows are reaped on a separate 30-day horizon anchored on `updated_at`: a row idle that long belongs to a turn that will never rerun (a crashed turn, a terminal task failure, an unclaimed `reserved` intent), and without this horizon it would only ever be reaped by chat retention, which many deployments leave unset. Deletion only discards ledger history: a still-running detached process is unaffected and stays addressable through the process handle in its committed tool result.
+
 # Stream loop
 
 The stream loop powers the `GET /api/experimental/chats/{chat}/stream` endpoint. It is scoped to one chat and one client WebSocket. It's responsible for delivering a stream of chat updates to the client, including:

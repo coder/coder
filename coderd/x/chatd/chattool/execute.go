@@ -2,6 +2,8 @@ package chattool
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -12,6 +14,17 @@ import (
 
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
+
+// HashToolInput returns the hex SHA-256 of a tool call's raw
+// persisted input. The intent writer and the claiming tool hash the
+// same persisted bytes, so a mismatch proves stale lineage. Callers
+// must pass the persisted bytes verbatim: any re-encoding (JSON
+// re-marshaling, key reordering, whitespace changes) would fail
+// every replayed claim closed with ErrExecutionInputMismatch.
+func HashToolInput(input string) string {
+	sum := sha256.Sum256([]byte(input))
+	return hex.EncodeToString(sum[:])
+}
 
 const (
 	// defaultTimeout is the default timeout for command

@@ -212,7 +212,7 @@ func (*streamLoop) actionRequiredFromHistory(chat database.Chat, messages []data
 	if err != nil {
 		return nil, xerrors.Errorf("parse dynamic tools for stream: %w", err)
 	}
-	_, pending, err := unresolvedToolCallsFromHistory(messages, dynamicToolNames)
+	_, _, pending, err := unresolvedToolCallsFromHistory(messages, dynamicToolNames)
 	if err != nil {
 		return nil, xerrors.Errorf("derive pending dynamic tool calls: %w", err)
 	}
