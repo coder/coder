@@ -481,6 +481,30 @@ func (api *API) discoverDevcontainerProjects() error {
 	return nil
 }
 
+// matchDevcontainerConfigPath reports whether configPath is a dev
+// container configuration file and, if so, returns the workspace
+// folder it configures along with the precedence of its location.
+// Lower precedence values take priority when multiple configuration
+// files resolve to the same workspace folder, mirroring the lookup
+// order from the dev container spec.
+func matchDevcontainerConfigPath(configPath string) (workspaceFolder string, precedence int, ok bool) {
+	if folder, found := strings.CutSuffix(configPath, "/.devcontainer/devcontainer.json"); found {
+		return folder, 0, true
+	}
+	if folder, found := strings.CutSuffix(configPath, "/.devcontainer.json"); found {
+		return folder, 1, true
+	}
+	// The spec also allows one configuration file per sub-folder of
+	// `.devcontainer`, e.g. `.devcontainer/<folder>/devcontainer.json`,
+	// so that a single project can define multiple configurations.
+	if filepath.Base(configPath) == "devcontainer.json" {
+		if devcontainerDir := filepath.Dir(filepath.Dir(configPath)); filepath.Base(devcontainerDir) == ".devcontainer" {
+			return filepath.Dir(devcontainerDir), 2, true
+		}
+	}
+	return "", 0, false
+}
+
 func (api *API) discoverDevcontainersInProject(projectPath string) error {
 	logger := api.logger.
 		Named("project-discovery").
@@ -498,12 +522,18 @@ func (api *API) discoverDevcontainersInProject(projectPath string) error {
 
 	matcher := gitignore.NewMatcher(append(globalPatterns, patterns...))
 
-	devcontainerConfigPaths := []string{
-		"/.devcontainer/devcontainer.json",
-		"/.devcontainer.json",
+	type discoveredConfig struct {
+		configPath string
+		precedence int
 	}
 
-	return afero.Walk(api.fs, projectPath, func(path string, info fs.FileInfo, err error) error {
+	// `knownDevcontainers` is keyed by workspace folder and can only
+	// hold one configuration per folder, so we collect configuration
+	// files during the walk and keep the lowest precedence value for
+	// each workspace folder before registering it.
+	discoveredConfigs := map[string]discoveredConfig{}
+
+	err = afero.Walk(api.fs, projectPath, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			logger.Error(api.ctx, "encountered error while walking for dev container projects",
 				slog.F("path", path),
@@ -528,53 +558,76 @@ func (api *API) discoverDevcontainersInProject(projectPath string) error {
 			return nil
 		}
 
-		for _, relativeConfigPath := range devcontainerConfigPaths {
-			if !strings.HasSuffix(path, relativeConfigPath) {
-				continue
-			}
-
-			workspaceFolder := strings.TrimSuffix(path, relativeConfigPath)
-
-			logger := logger.With(slog.F("workspace_folder", workspaceFolder))
-			logger.Debug(api.ctx, "discovered dev container project")
-
-			api.mu.Lock()
-			if _, found := api.knownDevcontainers[workspaceFolder]; !found {
-				logger.Debug(api.ctx, "adding dev container project")
-
-				dc := codersdk.WorkspaceAgentDevcontainer{
-					ID:              uuid.New(),
-					Name:            "", // Updated later based on container state.
-					WorkspaceFolder: workspaceFolder,
-					ConfigPath:      path,
-					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
-					Dirty:           false, // Updated later based on config file changes.
-					Container:       nil,
-				}
-
-				if api.discoveryAutostart {
-					config, err := api.dccli.ReadConfig(api.ctx, workspaceFolder, path, []string{})
-					if err != nil {
-						logger.Error(api.ctx, "read project configuration", slog.Error(err))
-					} else if config.Configuration.Customizations.Coder.AutoStart {
-						dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
-					}
-				}
-
-				api.knownDevcontainers[workspaceFolder] = dc
-				api.broadcastUpdatesLocked()
-
-				if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting {
-					api.asyncWg.Go(func() {
-						_ = api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath)
-					})
-				}
-			}
-			api.mu.Unlock()
+		workspaceFolder, precedence, ok := matchDevcontainerConfigPath(path)
+		if !ok {
+			return nil
 		}
+
+		logger := logger.With(slog.F("workspace_folder", workspaceFolder))
+		logger.Debug(api.ctx, "discovered dev container project", slog.F("config_path", path))
+
+		if existing, found := discoveredConfigs[workspaceFolder]; found {
+			// The walk visits files in lexical order, so on equal
+			// precedence we keep the configuration discovered first.
+			ignoredConfigPath := path
+			if precedence < existing.precedence {
+				ignoredConfigPath = existing.configPath
+				discoveredConfigs[workspaceFolder] = discoveredConfig{configPath: path, precedence: precedence}
+			}
+			logger.Warn(api.ctx, "multiple dev container config files for workspace folder",
+				slog.F("config_path", discoveredConfigs[workspaceFolder].configPath),
+				slog.F("ignored_config_path", ignoredConfigPath))
+			return nil
+		}
+		discoveredConfigs[workspaceFolder] = discoveredConfig{configPath: path, precedence: precedence}
 
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	for _, workspaceFolder := range slices.Sorted(maps.Keys(discoveredConfigs)) {
+		configPath := discoveredConfigs[workspaceFolder].configPath
+
+		logger := logger.With(slog.F("workspace_folder", workspaceFolder))
+
+		api.mu.Lock()
+		if _, found := api.knownDevcontainers[workspaceFolder]; !found {
+			logger.Debug(api.ctx, "adding dev container project")
+
+			dc := codersdk.WorkspaceAgentDevcontainer{
+				ID:              uuid.New(),
+				Name:            "", // Updated later based on container state.
+				WorkspaceFolder: workspaceFolder,
+				ConfigPath:      configPath,
+				Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				Dirty:           false, // Updated later based on config file changes.
+				Container:       nil,
+			}
+
+			if api.discoveryAutostart {
+				config, err := api.dccli.ReadConfig(api.ctx, workspaceFolder, configPath, []string{})
+				if err != nil {
+					logger.Error(api.ctx, "read project configuration", slog.Error(err))
+				} else if config.Configuration.Customizations.Coder.AutoStart {
+					dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStarting
+				}
+			}
+
+			api.knownDevcontainers[workspaceFolder] = dc
+			api.broadcastUpdatesLocked()
+
+			if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting {
+				api.asyncWg.Go(func() {
+					_ = api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath)
+				})
+			}
+		}
+		api.mu.Unlock()
+	}
+
+	return nil
 }
 
 func (api *API) watcherLoop() {
