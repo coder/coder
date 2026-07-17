@@ -247,6 +247,14 @@ func SparedBackgroundResult(row database.ChatToolCallExecution) (json.RawMessage
 //     result_committed_at re-stamped so the sweep's give-up clock
 //     starts at the edit.
 //
+// Both arms leave a fresh give-up anchor, through complementary
+// mechanisms: arm 1's MarkChatToolCallExecutionsResultCommitted
+// stamps only NULL result_committed_at, which every outstanding row
+// has, while arm 2 re-stamps unconditionally because its rows
+// committed results earlier. Consolidating the arms or dropping arm
+// 1's stamp would reopen the zero-kill-budget orphan for an
+// outstanding row claimed longer ago than the sweep's give-up bound.
+//
 // The sweep kills every cancel_requested row's process.
 func mapExecutionsForHistoryDelete(ctx context.Context, store database.Store, chat database.Chat, fromMessageID int64) error {
 	assistantMessageID, pending, err := pendingAllToolCallIDs(ctx, store, chat)

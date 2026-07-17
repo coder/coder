@@ -2059,7 +2059,7 @@ COMMENT ON COLUMN chat_tool_call_executions.claim_epoch IS 'Incremented on every
 
 COMMENT ON COLUMN chat_tool_call_executions.cancel_signal_sent_at IS 'Set when an interrupt delivered a kill signal whose effect was not yet confirmed.';
 
-COMMENT ON COLUMN chat_tool_call_executions.result_committed_at IS 'Set in the transaction that commits the tool result message (real or synthetic). Orthogonal to status, which keeps lifecycle truth.';
+COMMENT ON COLUMN chat_tool_call_executions.result_committed_at IS 'Set in the transaction that commits the tool result message (real or synthetic). History-delete transitions also re-stamp it to the edit time to restart the sweep''s give-up bound. Orthogonal to status, which keeps lifecycle truth.';
 
 CREATE TABLE chat_usage_limit_config (
     id bigint NOT NULL,

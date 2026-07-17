@@ -404,6 +404,15 @@ func TestEditMessage_KillsRunningRowWhoseDetachWriteFailed(t *testing.T) {
 		return err
 	}))
 
+	pre, err := f.DB.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+		ChatID:             created.Chat.ID,
+		AssistantMessageID: assistantID,
+		ToolCallID:         bgCallID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, database.ChatToolCallExecutionStatusRunning, pre.Status,
+		"precondition: the detach write failed, so the row is still running")
+
 	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		_, err := tx.EditMessage(chatstate.EditMessageInput{
 			MessageID: user1ID,

@@ -48,7 +48,7 @@ COMMENT ON COLUMN chat_tool_call_executions.command IS 'Recorded at claim time f
 COMMENT ON COLUMN chat_tool_call_executions.timeout_secs IS 'The clamped foreground tool timeout, recorded at claim time. Zero for background executions, which have no completion deadline.';
 COMMENT ON COLUMN chat_tool_call_executions.claim_epoch IS 'Incremented on every claim. Guards process-identity writes so a superseded claimer cannot overwrite the current claim.';
 COMMENT ON COLUMN chat_tool_call_executions.cancel_signal_sent_at IS 'Set when an interrupt delivered a kill signal whose effect was not yet confirmed.';
-COMMENT ON COLUMN chat_tool_call_executions.result_committed_at IS 'Set in the transaction that commits the tool result message (real or synthetic). Orthogonal to status, which keeps lifecycle truth.';
+COMMENT ON COLUMN chat_tool_call_executions.result_committed_at IS 'Set in the transaction that commits the tool result message (real or synthetic). History-delete transitions also re-stamp it to the edit time to restart the sweep''s give-up bound. Orthogonal to status, which keeps lifecycle truth.';
 
 CREATE INDEX idx_chat_tool_call_executions_created_at ON chat_tool_call_executions (created_at);
 

@@ -5310,7 +5310,7 @@ type ChatToolCallExecution struct {
 	ProcessID        sql.NullString `db:"process_id" json:"process_id"`
 	// Set when an interrupt delivered a kill signal whose effect was not yet confirmed.
 	CancelSignalSentAt sql.NullTime `db:"cancel_signal_sent_at" json:"cancel_signal_sent_at"`
-	// Set in the transaction that commits the tool result message (real or synthetic). Orthogonal to status, which keeps lifecycle truth.
+	// Set in the transaction that commits the tool result message (real or synthetic). History-delete transitions also re-stamp it to the edit time to restart the sweep's give-up bound. Orthogonal to status, which keeps lifecycle truth.
 	ResultCommittedAt sql.NullTime `db:"result_committed_at" json:"result_committed_at"`
 	CreatedAt         time.Time    `db:"created_at" json:"created_at"`
 	StartedAt         sql.NullTime `db:"started_at" json:"started_at"`
