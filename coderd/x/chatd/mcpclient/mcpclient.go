@@ -1007,6 +1007,23 @@ func RevokeOAuth2Token(
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
+	// Shallow-copy so the policy does not leak into the shared caller
+	// client. A 307/308 redirect replays the POST body (token material
+	// and Basic credentials), so plaintext redirect targets get the
+	// same HTTPS-or-loopback rule as the configured endpoint.
+	redirectSafe := *httpClient
+	redirectSafe.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 10 {
+			return xerrors.New("stopped after 10 redirects")
+		}
+		if req.URL.Scheme != "https" && !isLoopbackHost(req.URL.Hostname()) {
+			return xerrors.Errorf(
+				"revocation redirect target %q must use https", req.URL.Redacted(),
+			)
+		}
+		return nil
+	}
+	httpClient = &redirectSafe
 
 	token, hint := tok.AccessToken, "access_token"
 	if tok.RefreshToken != "" {

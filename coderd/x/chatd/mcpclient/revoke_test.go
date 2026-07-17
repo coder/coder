@@ -216,6 +216,54 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		require.Contains(t, err.Error(), "must use https")
 	})
 
+	t.Run("RejectsPlaintextRedirect", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "http://revoke.example.com/revoke", http.StatusTemporaryRedirect)
+		}))
+		defer srv.Close()
+
+		revoked, err := mcpclient.RevokeOAuth2Token(
+			context.Background(),
+			srv.Client(),
+			database.MCPServerConfig{
+				OAuth2ClientID:      "cid",
+				OAuth2RevocationURL: srv.URL,
+			},
+			database.MCPServerUserToken{AccessToken: "at", RefreshToken: "rt"},
+		)
+		require.Error(t, err)
+		require.False(t, revoked)
+		require.Contains(t, err.Error(), "must use https")
+	})
+
+	t.Run("FollowsLoopbackRedirect", func(t *testing.T) {
+		t.Parallel()
+
+		got := make(chan revokeRequest, 1)
+		target := httptest.NewServer(captureRevoke(t, got))
+		defer target.Close()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, target.URL, http.StatusTemporaryRedirect)
+		}))
+		defer srv.Close()
+
+		revoked, err := mcpclient.RevokeOAuth2Token(
+			context.Background(),
+			srv.Client(),
+			database.MCPServerConfig{
+				OAuth2ClientID:      "cid",
+				OAuth2RevocationURL: srv.URL,
+			},
+			database.MCPServerUserToken{AccessToken: "at", RefreshToken: "rt"},
+		)
+		require.NoError(t, err)
+		require.True(t, revoked)
+		c := <-got
+		require.Equal(t, []string{"rt"}, c.form["token"])
+	})
+
 	t.Run("NoTokenMaterial", func(t *testing.T) {
 		t.Parallel()
 
