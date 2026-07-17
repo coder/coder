@@ -2498,6 +2498,7 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 				agent:             agent,
 				agentLoaded:       true,
 				conn:              cachedConn,
+				connAgentID:       agent.ID,
 				releaseConn:       func() { releaseCalled = true },
 				cachedWorkspaceID: chat.WorkspaceID,
 			}
@@ -2510,6 +2511,73 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 			require.False(t, releaseCalled, "release called")
 		})
 	}
+}
+
+// TestGetWorkspaceConn_ReturnsConnOwningAgent asserts the cache-hit
+// path attributes the cached connection to the agent that owns it,
+// not the mutable c.agent, which a concurrent dial may have rebound
+// to a different agent.
+func TestGetWorkspaceConn_ReturnsConnOwningAgent(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	clock := quartz.NewMock(t)
+	now := clock.Now()
+
+	workspaceID := uuid.New()
+	ownerID := uuid.New()
+	reboundID := uuid.New()
+	chat := database.Chat{
+		ID:          uuid.New(),
+		WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+		AgentID:     uuid.NullUUID{UUID: reboundID, Valid: true},
+	}
+	ownerAgent := database.WorkspaceAgent{
+		ID:               ownerID,
+		FirstConnectedAt: sql.NullTime{Time: now, Valid: true},
+		LastConnectedAt:  sql.NullTime{Time: now, Valid: true},
+	}
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), ownerID).
+		Return(ownerAgent, nil).
+		Times(1)
+
+	server := &Server{
+		db:                             db,
+		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		clock:                          clock,
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    defaultDialTimeout,
+	}
+	server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		return nil, nil, xerrors.New("should not be called")
+	}
+
+	currentChat := chat
+	cachedConn := agentconnmock.NewMockAgentConn(ctrl)
+	workspaceCtx := turnWorkspaceContext{
+		server:      server,
+		chatStateMu: &sync.Mutex{},
+		currentChat: &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) {
+			return database.Chat{}, nil
+		},
+		// c.agent was rebound to a different agent; the cached
+		// conn still belongs to ownerID.
+		agent:             database.WorkspaceAgent{ID: reboundID},
+		agentLoaded:       true,
+		conn:              cachedConn,
+		connAgentID:       ownerID,
+		releaseConn:       func() {},
+		cachedWorkspaceID: chat.WorkspaceID,
+	}
+	defer workspaceCtx.close()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	gotConn, gotAgentID, err := workspaceCtx.getWorkspaceConnAndAgent(ctx)
+	require.NoError(t, err)
+	require.Same(t, cachedConn, gotConn)
+	require.Equal(t, ownerID, gotAgentID)
 }
 
 func TestGetWorkspaceConn_DialTimeoutDisconnectedRecoveryThreshold(t *testing.T) {
@@ -2845,6 +2913,7 @@ func TestGetWorkspaceConn_CacheHitDisconnectedRetriesDialBeforeEscalating(t *tes
 		agent:             disconnectedAgent,
 		agentLoaded:       true,
 		conn:              oldConn,
+		connAgentID:       disconnectedAgent.ID,
 		releaseConn:       func() { releaseCalled = true },
 		cachedWorkspaceID: chat.WorkspaceID,
 	}

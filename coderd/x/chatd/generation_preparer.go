@@ -361,6 +361,7 @@ func (server *Server) prepareGeneration(
 	setAdvisorPromptSnapshot(prompt)
 
 	storeChatAttachment := server.newStoreChatAttachmentFunc(&workspaceCtx)
+	executionRecorder := server.newExecutionRecorder(chat.ID)
 	tools := []fantasy.AgentTool{
 		chattool.ReadFile(chattool.ReadFileOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.WriteFile(chattool.WriteFileOptions{
@@ -377,7 +378,12 @@ func (server *Server) prepareGeneration(
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 			StoreFile:        storeChatAttachment,
 		}),
-		chattool.Execute(chattool.ExecuteOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
+		chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConnAndAgent,
+			Logger:           server.logger,
+			Recorder:         executionRecorder,
+			DialAgent:        server.dialAgentForReattach,
+		}),
 		chattool.ProcessOutput(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessList(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessSignal(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
@@ -652,8 +658,9 @@ func (server *Server) prepareGeneration(
 			Required:        compactionNeeded,
 			Options:         compactionOptions,
 		},
-		Cleanup: cleanup,
-		Debug:   debug,
+		ExecutionRecorder: executionRecorder,
+		Cleanup:           cleanup,
+		Debug:             debug,
 	}, nil
 }
 

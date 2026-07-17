@@ -13067,6 +13067,117 @@ func setupWorkspaceContextAgentConn(
 		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
 }
 
+// lookupExecutionRow finds the ledger row for a tool call by
+// scanning the chat's assistant messages, since ledger lineage is
+// keyed by assistant message ID.
+func lookupExecutionRow(ctx context.Context, db database.Store, chatID uuid.UUID, toolCallID string) (database.ChatToolCallExecution, bool) {
+	msgs, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chatID, AfterID: 0})
+	if err != nil {
+		return database.ChatToolCallExecution{}, false
+	}
+	for _, msg := range msgs {
+		if msg.Role != database.ChatMessageRoleAssistant {
+			continue
+		}
+		row, getErr := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:             chatID,
+			AssistantMessageID: msg.ID,
+			ToolCallID:         toolCallID,
+		})
+		if getErr == nil {
+			return row, true
+		}
+	}
+	return database.ChatToolCallExecution{}, false
+}
+
+// TestExecuteToolLedgerLifecycle drives one foreground execute end
+// to end and asserts the ledger row's full lifecycle: the intent is
+// created with the assistant message, the claim dispatches exactly
+// one process, the observed exit is recorded, and the result commit
+// stamps result_committed_at without erasing lifecycle state.
+func TestExecuteToolLedgerLifecycle(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var streamCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if streamCount.Add(1) == 1 {
+			chunk := chattest.OpenAIToolCallChunk("execute", `{"command":"echo hello"}`)
+			chunk.Choices[0].ToolCalls[0].ID = "tc-ledger-1"
+			return chattest.OpenAIStreamingResponse(chunk)
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("all done")...)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+	mockConn.EXPECT().
+		StartProcess(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+			require.Equal(t, "echo hello", req.Command)
+			return workspacesdk.StartProcessResponse{ID: "proc-1", Started: true}, nil
+		}).
+		Times(1)
+	exitCode := 0
+	mockConn.EXPECT().
+		ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+		Return(workspacesdk.ProcessOutputResponse{
+			Running:  false,
+			ExitCode: &exitCode,
+			Output:   "hello",
+		}, nil).
+		Times(1)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		APIKeyID:       testAPIKeyID(t, db, user.ID),
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "execute-ledger",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("run echo hello"),
+		},
+	})
+	require.NoError(t, err)
+
+	chatResult := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+	require.NotEqual(t, database.ChatStatusError, chatResult.Status)
+
+	parts := chatToolParts(ctx, t, db, chat.ID)
+	result := requireToolResultPart(t, parts, "execute")
+	require.Equal(t, "tc-ledger-1", result.ToolCallID)
+	require.False(t, result.IsError)
+	require.Contains(t, string(result.Result), "hello")
+
+	row, ok := lookupExecutionRow(ctx, db, chat.ID, "tc-ledger-1")
+	require.True(t, ok, "ledger row must survive the result commit")
+	require.Equal(t, database.ChatToolCallExecutionStatusExited, row.Status)
+	require.Equal(t, "proc-1", row.ProcessID.String)
+	require.Equal(t, dbAgent.ID, row.WorkspaceAgentID.UUID)
+	require.EqualValues(t, 1, row.ClaimEpoch)
+	require.True(t, row.ResultCommittedAt.Valid, "result commit must stamp the ledger row")
+}
+
 // TestChatToolCallExecutionLedgerQueries exercises the ledger's
 // compare-and-set semantics at the query level: claim ownership,
 // lineage isolation across regenerated assistant messages, the

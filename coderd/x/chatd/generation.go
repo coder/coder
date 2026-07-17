@@ -63,6 +63,10 @@ type generationPrepared struct {
 
 	MaxSteps   int
 	Compaction *generationCompaction
+	// ExecutionRecorder is the execute tool's ledger handle. The
+	// generation step binds it to the assistant message whose tool
+	// calls are about to execute.
+	ExecutionRecorder *executionRecorder
 	// Cleanup is always non-nil when prepareGeneration succeeds.
 	Cleanup func()
 
@@ -669,6 +673,9 @@ func (s *taskStarter) executeLocalTools(
 	// subagent traffic through the AI Gateway. prepareGeneration sets it
 	// only on its own context, so re-derive it here for tool execution.
 	toolCtx := withActiveTurnAPIKeyID(ctx, prepared.ModelBuildOptions)
+	if prepared.ExecutionRecorder != nil {
+		prepared.ExecutionRecorder.bindAssistantMessage(decision.assistantMessageID)
+	}
 	outcome, err := chatloop.ExecuteLocalTools(toolCtx, chatloop.ExecuteLocalToolsOptions{
 		Tools:              prepared.Tools,
 		ActiveTools:        prepared.ActiveTools,
@@ -686,7 +693,10 @@ func (s *taskStarter) executeLocalTools(
 		Clock:              s.opts.Clock,
 	})
 	if err != nil {
-		return xerrors.Errorf("execute local tools: %w", err)
+		if _, ok := errors.AsType[*chattool.AbortToolExecutionError](err); !ok {
+			return xerrors.Errorf("execute local tools: %w", err)
+		}
+		return s.abortLocalToolBatch(ctx, machine, input, attempt.number, prepared, decision, outcome, err)
 	}
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:      prepared.ModelConfigID,
@@ -703,6 +713,79 @@ func (s *taskStarter) executeLocalTools(
 		assistantMessageID: decision.assistantMessageID,
 		toolCallIDs:        localToolCallIDs(decision.localToolCalls),
 	})
+}
+
+// abortLocalToolBatch fails the attempt for an abort-class tool
+// error without committing a result for the aborted call. Completed
+// sibling results are persisted first: their side effects already
+// happened, so the retry must see them resolved and re-run only the
+// aborted call. The returned error carries an explicitly retryable
+// classification so the generation retry loop re-claims the
+// aborted call instead of failing the chat outright.
+func (s *taskStarter) abortLocalToolBatch(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	attempt int64,
+	prepared generationPrepared,
+	decision generationDecision,
+	outcome chatloop.ToolExecutionOutcome,
+	abortErr error,
+) error {
+	if len(outcome.Step.Content) > 0 {
+		messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
+			modelConfigID:      prepared.ModelConfigID,
+			modelCallConfig:    prepared.ModelConfig,
+			step:               stepDataFromPersisted(outcome.Step),
+			toolNameToConfigID: prepared.ToolNameToConfigID,
+			logger:             s.opts.Logger,
+			contentVersion:     chatprompt.CurrentContentVersion,
+		})
+		if err != nil {
+			return errors.Join(xerrors.Errorf("build partial tool step: %w", err), abortErr)
+		}
+		if err := s.commitGenerationStep(ctx, machine, input, attempt, generationActionExecuteLocalTools, messages, &stepResultCommit{
+			assistantMessageID: decision.assistantMessageID,
+			toolCallIDs:        committedToolCallIDs(outcome.Step.Content),
+		}); err != nil {
+			return errors.Join(xerrors.Errorf("commit partial tool step: %w", err), abortErr)
+		}
+		// The partial commit's message inserts reset
+		// generation_attempt to 0 through the history trigger
+		// (progress refreshes the retry budget), but the retry
+		// decision treats 0 as not retryable. Record a fresh
+		// attempt so the abort retries the unresolved call
+		// instead of failing the chat right after persisting
+		// sibling progress.
+		if err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+			if _, err := loadChatForTask(ctx, store, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
+				return xerrors.Errorf("load chat for task: %w", err)
+			}
+			_, err := tx.RecordGenerationAttempt(chatstate.RecordGenerationAttemptInput{})
+			return err
+		}); err != nil {
+			return errors.Join(normalizeTaskTransitionError(err, "record generation attempt"), abortErr)
+		}
+	}
+	return chaterror.WithClassification(
+		xerrors.Errorf("execute local tools: %w", abortErr),
+		chaterror.ClassifiedError{
+			Kind:      codersdk.ChatErrorKindGeneric,
+			Retryable: true,
+		},
+	)
+}
+
+// committedToolCallIDs returns the tool call IDs whose results are
+// present in the step content.
+func committedToolCallIDs(content []fantasy.Content) []string {
+	ids := make([]string, 0, len(content))
+	for _, part := range content {
+		if tr, ok := part.(fantasy.ToolResultContent); ok {
+			ids = append(ids, tr.ToolCallID)
+		}
+	}
+	return ids
 }
 
 // localToolCallIDs returns the IDs of locally executed tool calls.

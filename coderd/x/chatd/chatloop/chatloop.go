@@ -549,7 +549,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 	}
 
 	maxResultBytes := toolResultByteBudget(opts.ContextLimit)
-	toolResults := executeTools(
+	toolResults, execErr := executeTools(
 		ctx,
 		opts.Clock,
 		opts.Tools,
@@ -577,10 +577,13 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 	for _, tr := range toolResults {
 		result.content = append(result.content, tr)
 	}
+	// On an abort the outcome still carries the completed sibling
+	// results so the caller can persist them before failing the
+	// attempt.
 	return ToolExecutionOutcome{Step: PersistedStep{
 		Content:             result.content,
 		ToolResultCreatedAt: result.toolResultCreatedAt,
-	}}, nil
+	}}, execErr
 }
 
 // prepareMessagesForRequest applies the prompt preparation pipeline used
@@ -1026,9 +1029,9 @@ func executeTools(
 	maxResultBytes int,
 	toolNameAliases map[string]string,
 	onResult func(fantasy.ToolResultContent, time.Time),
-) []fantasy.ToolResultContent {
+) ([]fantasy.ToolResultContent, error) {
 	if len(toolCalls) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	// Filter out provider-executed tool calls. These were
@@ -1042,7 +1045,7 @@ func executeTools(
 		}
 	}
 	if len(localToolCalls) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	toolMap := make(map[string]fantasy.AgentTool, len(allTools))
@@ -1110,14 +1113,38 @@ func executeTools(
 	}
 	wg.Wait()
 
+	// A tool that failed with an abort-class error (for example an
+	// execution ledger infrastructure failure) must not have its
+	// synthetic error result committed: that would resolve the call
+	// permanently. Completed sibling results are kept, because their
+	// side effects already happened and replaying them on retry
+	// would duplicate the effects. The caller persists the survivors
+	// and fails the attempt, so the retry re-runs only the calls
+	// left without a result.
+	var abortErr error
+	kept := results[:0]
+	keptCompletedAt := completedAt[:0]
+	for i, tr := range results {
+		if resultErr, ok := tr.Result.(fantasy.ToolResultOutputContentError); ok {
+			if abort, ok := errors.AsType[*chattool.AbortToolExecutionError](resultErr.Error); ok {
+				if abortErr == nil {
+					abortErr = xerrors.Errorf("tool %s (call %s) aborted the batch: %w", tr.ToolName, tr.ToolCallID, abort)
+				}
+				continue
+			}
+		}
+		kept = append(kept, tr)
+		keptCompletedAt = append(keptCompletedAt, completedAt[i])
+	}
+
 	// Publish results in the original tool-call order so SSE
 	// subscribers see a deterministic event sequence.
 	if onResult != nil {
-		for i, tr := range results {
-			onResult(tr, completedAt[i])
+		for i, tr := range kept {
+			onResult(tr, keptCompletedAt[i])
 		}
 	}
-	return results
+	return kept, abortErr
 }
 
 // applyExclusiveToolPolicy checks whether toolCalls violate the

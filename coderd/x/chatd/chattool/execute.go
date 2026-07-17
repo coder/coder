@@ -5,26 +5,21 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strings"
 	"time"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
-
-// HashToolInput returns the hex SHA-256 of a tool call's raw
-// persisted input. The intent writer and the claiming tool hash the
-// same persisted bytes, so a mismatch proves stale lineage. Callers
-// must pass the persisted bytes verbatim: any re-encoding (JSON
-// re-marshaling, key reordering, whitespace changes) would fail
-// every replayed claim closed with ErrExecutionInputMismatch.
-func HashToolInput(input string) string {
-	sum := sha256.Sum256([]byte(input))
-	return hex.EncodeToString(sum[:])
-}
 
 const (
 	// defaultTimeout is the default timeout for command
@@ -38,6 +33,34 @@ const (
 	// request is allowed to take when retrieving a process
 	// output snapshot after a blocking wait times out.
 	snapshotTimeout = 30 * time.Second
+
+	// maxExecuteTimeout is the upper bound for the execute
+	// tool's timeout and the process_output tool's
+	// wait_timeout. Longer requests are clamped, not
+	// rejected.
+	maxExecuteTimeout = 4 * time.Hour
+
+	// recordWriteTimeout bounds the uncanceled ledger writes for
+	// process starts and terminal observations.
+	recordWriteTimeout = 15 * time.Second
+
+	// claimStaleAfter is how long a starting claim stays fresh.
+	// A claimer that has not recorded a process handle within
+	// this window is presumed dead and the process state is
+	// declared unknown; it may have dispatched a process whose
+	// handle was lost.
+	claimStaleAfter = 60 * time.Second
+
+	// claimPollInterval is how often a fresh starting claim is
+	// re-read while waiting for its owner to record the process
+	// handle.
+	claimPollInterval = 2 * time.Second
+
+	// processWaitRetryDelay is the pause before re-issuing a
+	// blocking process wait whose server-side bound returned
+	// early, so a short agent-side wait cannot degenerate into a
+	// zero-delay request loop.
+	processWaitRetryDelay = time.Second
 )
 
 // nonInteractiveEnvVars are set on every process to prevent
@@ -100,10 +123,187 @@ type ExecuteResult struct {
 	BackgroundProcessID string                          `json:"background_process_id,omitempty"`
 }
 
+// SparedBackgroundCancellationResult is the tool result committed
+// for a background execute whose process a cancellation transition
+// (interrupt, message edit, new message) deliberately leaves
+// running. The result is committed permanently, so it must carry the
+// process handle: a generic cancellation would strand the live
+// process without an addressable ID.
+func SparedBackgroundCancellationResult(processID string) (json.RawMessage, error) {
+	payload, err := json.Marshal(ExecuteResult{
+		Success:             true,
+		BackgroundProcessID: processID,
+		Note:                "the run was canceled; the background process was left alone. Use process_output with this ID to check on it.",
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal spared background result: %w", err)
+	}
+	return payload, nil
+}
+
+// ExecutionStatus mirrors the chat_tool_call_executions status enum.
+// Lifecycle statuses are orthogonal to chat-result commit: a row
+// keeps its lifecycle truth (for example unknown or detached) after
+// its tool result has been committed.
+type ExecutionStatus string
+
+const (
+	// ExecutionStatusReserved means the intent was persisted with
+	// the assistant message and nothing was dispatched.
+	ExecutionStatusReserved ExecutionStatus = "reserved"
+	// ExecutionStatusStarting means a runner claimed the execution
+	// and dispatch may be in flight.
+	ExecutionStatusStarting ExecutionStatus = "starting"
+	// ExecutionStatusRunning means the process identity was
+	// recorded.
+	ExecutionStatusRunning ExecutionStatus = "running"
+	// ExecutionStatusExited means the tool observed the process
+	// exit.
+	ExecutionStatusExited ExecutionStatus = "exited"
+	// ExecutionStatusDetached means the chat moved on and the
+	// process was deliberately left alive (background start,
+	// timed-out foreground, or interrupted background).
+	ExecutionStatusDetached ExecutionStatus = "detached"
+	// ExecutionStatusCancelRequested means an interrupt resolved
+	// the call in chat but process termination is unconfirmed.
+	ExecutionStatusCancelRequested ExecutionStatus = "cancel_requested"
+	// ExecutionStatusCanceled means termination was confirmed or
+	// nothing was ever dispatched.
+	ExecutionStatusCanceled ExecutionStatus = "canceled"
+	// ExecutionStatusUnknown means the command may have run but
+	// its outcome is unobservable. Terminal for auto-restart.
+	ExecutionStatusUnknown ExecutionStatus = "unknown"
+	// ExecutionStatusNoEffect means validation failed before any
+	// external dispatch.
+	ExecutionStatusNoEffect ExecutionStatus = "no_effect"
+)
+
+// AbortToolExecutionError marks a tool failure that must abort the
+// whole local tool batch instead of committing an error tool
+// result. Used for execution ledger infrastructure failures before
+// any process is dispatched: committing a bogus result would end
+// the call permanently, while aborting lets the task retry re-claim
+// the intent (dispatched siblings re-attach through the ledger).
+type AbortToolExecutionError struct {
+	Err error
+}
+
+func (e *AbortToolExecutionError) Error() string {
+	return e.Err.Error()
+}
+
+func (e *AbortToolExecutionError) Unwrap() error {
+	return e.Err
+}
+
+// ErrExecutionRecordNotFound reports that no ledger row exists for
+// the tool call, distinguishing a call that predates the ledger
+// from an unreadable ledger.
+var ErrExecutionRecordNotFound = xerrors.New("execution record not found")
+
+// ErrExecutionInputMismatch reports that the ledger row targeted by
+// a claim was created for different tool input, meaning the caller
+// is executing against stale lineage.
+var ErrExecutionInputMismatch = xerrors.New("execution ledger input hash mismatch")
+
+// HashToolInput returns the hex SHA-256 of a tool call's raw
+// persisted input. The intent writer and the claiming tool hash the
+// same persisted bytes, so a mismatch proves stale lineage. Callers
+// must pass the persisted bytes verbatim: any re-encoding (JSON
+// re-marshaling, key reordering, whitespace changes) would fail
+// every replayed claim closed with ErrExecutionInputMismatch.
+func HashToolInput(input string) string {
+	sum := sha256.Sum256([]byte(input))
+	return hex.EncodeToString(sum[:])
+}
+
+// ExecutionRecord is one row of the durable execution ledger for
+// execute tool calls. It lets a retried task attempt re-attach to a
+// process started by a previous attempt instead of spawning a
+// duplicate.
+type ExecutionRecord struct {
+	// ID is the stable execution identity, generated at intent
+	// creation.
+	ID     string
+	Status ExecutionStatus
+	// ProcessID is empty until the process start is recorded.
+	ProcessID  string
+	Background bool
+	Timeout    time.Duration
+	// ClaimEpoch guards process-identity writes; it advances on
+	// every claim takeover.
+	ClaimEpoch int64
+	ClaimedAt  time.Time
+	StartedAt  time.Time
+	// WorkspaceAgentID is the agent that owns the recorded
+	// process. A 404 from a different agent proves nothing about
+	// the process, so re-attach only treats it as loss when the
+	// probed agent matches.
+	WorkspaceAgentID uuid.UUID
+}
+
+// ExecutionRecorder is the tool's view of the execution ledger.
+// Rows are keyed by tool call ID within the generation step's
+// assistant message, which is durable in chat history before
+// execution begins.
+type ExecutionRecorder interface {
+	// Claim attempts to take ownership of dispatch for the tool
+	// call, creating the row when the assistant message predates
+	// the ledger. claimed reports whether this caller owns the
+	// fresh dispatch; when false, rec is the current row and the
+	// caller must resume from its status instead of dispatching.
+	// Returns an error wrapping ErrExecutionInputMismatch when the
+	// row was created for different input.
+	Claim(ctx context.Context, toolCallID string, inputSHA256 string, command string, background bool, timeout time.Duration) (rec ExecutionRecord, claimed bool, err error)
+	// Get reads the current row without claiming it. Returns an
+	// error wrapping ErrExecutionRecordNotFound when no row
+	// exists for the tool call.
+	Get(ctx context.Context, toolCallID string) (ExecutionRecord, error)
+	// MarkStaleClaimUnknown resolves a stale starting claim to
+	// unknown. Unlike MarkTerminal it matches only starting rows:
+	// the claim owner can record its process concurrently with
+	// the staleness verdict, and that write must win. applied is
+	// false when the row advanced first; latest is then the fresh
+	// row for the caller to resume from.
+	MarkStaleClaimUnknown(ctx context.Context, toolCallID string) (latest ExecutionRecord, applied bool, err error)
+	// RecordStart stores the process identity on the claim that
+	// dispatched it and moves the row to running. claimEpoch must
+	// be the epoch returned by the Claim that owns the dispatch.
+	RecordStart(ctx context.Context, toolCallID string, claimEpoch int64, processID string, agentID uuid.UUID) error
+	// MarkTerminal applies a lifecycle observation (exited,
+	// detached, unknown, or no_effect). Observations never
+	// overwrite states written by the interrupt reconciler, and
+	// claimEpoch guards ownership: an observation from a
+	// superseded claim is dropped instead of terminalizing the
+	// claim that replaced it.
+	MarkTerminal(ctx context.Context, toolCallID string, status ExecutionStatus, claimEpoch int64) error
+}
+
 // ExecuteOptions configures the execute tool.
 type ExecuteOptions struct {
-	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
+	// GetWorkspaceConn returns the workspace connection together
+	// with the ID of the agent behind it, captured atomically so
+	// ledger writes attribute the process to the agent that
+	// actually served the dispatch.
+	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, uuid.UUID, error)
 	DefaultTimeout   time.Duration
+	// Logger records ledger observability events. The zero Logger
+	// is a valid no-op.
+	Logger slog.Logger
+	// Recorder persists per-tool-call execution records so a
+	// retried attempt re-attaches instead of starting a
+	// duplicate process. A nil Recorder disables idempotent
+	// starts.
+	Recorder ExecutionRecorder
+	// DialAgent dials a specific workspace agent so re-attach can
+	// reach a recorded process whose agent is no longer the one
+	// behind GetWorkspaceConn. When nil, such re-attaches abort
+	// the batch instead of probing the wrong agent.
+	DialAgent AgentConnFunc
+	// connAgentID is the agent behind the conn returned by
+	// GetWorkspaceConn, captured with it and carried to ledger
+	// writes on this options copy.
+	connAgentID uuid.UUID
 }
 
 // ProcessToolOptions configures a process management tool
@@ -117,7 +317,7 @@ type ProcessToolOptions struct {
 type ExecuteArgs struct {
 	Command         string  `json:"command" description:"The shell command to execute. Runs under \"sh -c\" (POSIX)."`
 	ModelIntent     *string `json:"model_intent,omitempty" description:"A short, natural-language, present-participle phrase describing what you are doing. This is shown to the user alongside the command. Use plain English with no underscores or technical jargon. The UI appends \"using <command>\" and \"for <duration>\" automatically, so do not repeat the command or include a duration. Keep it under 100 characters. Good examples: \"Running the unit tests\", \"Checking repository state\", \"Inspecting build output\"."`
-	Timeout         *string `json:"timeout,omitempty" description:"How long to wait for completion (e.g. '30s', '5m'). Default is 10s. The process keeps running if this expires and you get a background_process_id to re-attach. Only applies to foreground commands."`
+	Timeout         *string `json:"timeout,omitempty" description:"How long to wait for completion (e.g. '30s', '5m'). Default is 10s, maximum is 4h (longer values are clamped). The process keeps running if this expires and you get a background_process_id to re-attach. Only applies to foreground commands."`
 	WorkDir         *string `json:"workdir,omitempty" description:"Working directory for the command."`
 	RunInBackground *bool   `json:"run_in_background,omitempty" description:"Run without blocking. Use for persistent processes (dev servers, file watchers) or when you want to continue working while a command runs and check the result later with process_output. For commands whose result you need before continuing, prefer foreground with a longer timeout. Do NOT use shell & to background processes. It will not work correctly. Always use this parameter instead."`
 }
@@ -130,35 +330,47 @@ const ExecuteToolName = "execute"
 func Execute(options ExecuteOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		ExecuteToolName,
-		"Execute a shell command in the workspace. Runs under \"sh -c\" (POSIX). Waits for completion up to the timeout (default 10s, override with the timeout parameter e.g. '30s', '5m'). If the command exceeds the timeout, the response includes a background_process_id; use process_output with that ID to re-attach and wait for the result. Use run_in_background=true for persistent processes (dev servers, file watchers) or when you want to continue other work while the command runs. Never use shell '&' for backgrounding.",
-		func(ctx context.Context, args ExecuteArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+		"Execute a shell command in the workspace. Runs under \"sh -c\" (POSIX). Waits for completion up to the timeout (default 10s, override with the timeout parameter e.g. '30s', '5m'; maximum 4h, longer values are clamped). If the command exceeds the timeout, the response includes a background_process_id; use process_output with that ID to re-attach and wait for the result. Use run_in_background=true for persistent processes (dev servers, file watchers) or when you want to continue other work while the command runs. Never use shell '&' for backgrounding.",
+		func(ctx context.Context, args ExecuteArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
 			}
-			conn, err := options.GetWorkspaceConn(ctx)
+			conn, agentID, err := options.GetWorkspaceConn(ctx)
 			if err != nil {
-				return fantasy.NewTextErrorResponse(err.Error()), nil
+				return resolveConnFailure(ctx, options, call.ID, err)
 			}
-			return executeTool(ctx, conn, args, options.DefaultTimeout), nil
+			// Concurrent execute calls in one step share this
+			// closure; stamp the agent on a per-call copy so one
+			// call cannot overwrite another's attribution.
+			callOptions := options
+			callOptions.connAgentID = agentID
+			return executeTool(ctx, conn, args, callOptions, call)
 		},
 	)
 }
+
+// unknownOutcomeMessage is the stable result for executions whose
+// process state cannot be observed. It is identical across retries
+// so a re-executed call converges instead of flapping.
+const unknownOutcomeMessage = "a previous attempt may have started this command, but its process handle was lost and the process state is unknown. Re-run the command only if it is safe to run twice."
 
 func executeTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	args ExecuteArgs,
-	optTimeout time.Duration,
-) fantasy.ToolResponse {
-	if args.Command == "" {
-		return fantasy.NewTextErrorResponse("command is required")
+	options ExecuteOptions,
+	call fantasy.ToolCall,
+) (fantasy.ToolResponse, error) {
+	toolCallID := call.ID
+	if options.Recorder != nil && toolCallID == "" {
+		// The ledger keys rows by tool call ID; an ID-less call
+		// cannot be tracked and must not share the empty-ID row
+		// with another such call.
+		return fantasy.NewTextErrorResponse("tool call has no ID; refusing to execute untracked command"), nil
 	}
-
-	// Build the environment map for the process request.
-	env := make(map[string]string, len(nonInteractiveEnvVars)+1)
-	env["CODER_CHAT_AGENT"] = "true"
-	for k, v := range nonInteractiveEnvVars {
-		env[k] = v
+	if args.Command == "" {
+		markTerminal(ctx, options, toolCallID, 0, ExecutionStatusNoEffect)
+		return fantasy.NewTextErrorResponse("command is required"), nil
 	}
 
 	background := args.RunInBackground != nil && *args.RunInBackground
@@ -173,15 +385,416 @@ func executeTool(
 		args.Command = strings.TrimSpace(strings.TrimSuffix(trimmed, "&"))
 	}
 
+	timeout := options.DefaultTimeout
+	if timeout <= 0 {
+		timeout = defaultTimeout
+	}
+	// The timeout argument only applies to foreground commands,
+	// so backgrounded calls ignore it entirely instead of failing
+	// validation.
+	if args.Timeout != nil && !background {
+		parsed, err := time.ParseDuration(*args.Timeout)
+		if err != nil {
+			markTerminal(ctx, options, toolCallID, 0, ExecutionStatusNoEffect)
+			return fantasy.NewTextErrorResponse(
+				fmt.Sprintf("invalid timeout %q: %v", *args.Timeout, err),
+			), nil
+		}
+		if parsed <= 0 {
+			markTerminal(ctx, options, toolCallID, 0, ExecutionStatusNoEffect)
+			return fantasy.NewTextErrorResponse(
+				fmt.Sprintf("timeout must be positive, got %q", *args.Timeout),
+			), nil
+		}
+		timeout = parsed
+	}
+	timeout = min(timeout, maxExecuteTimeout)
+
+	// Build the environment map for the process request.
+	env := make(map[string]string, len(nonInteractiveEnvVars)+1)
+	env["CODER_CHAT_AGENT"] = "true"
+	for k, v := range nonInteractiveEnvVars {
+		env[k] = v
+	}
+
 	var workDir string
 	if args.WorkDir != nil {
 		workDir = *args.WorkDir
 	}
 
-	if background {
-		return executeBackground(ctx, conn, args.Command, workDir, env)
+	var rec ExecutionRecord
+	if options.Recorder != nil {
+		// Background executions have no completion deadline, so
+		// their rows record a zero timeout instead of a value
+		// re-attach would never read.
+		claimTimeout := timeout
+		if background {
+			claimTimeout = 0
+		}
+		var claimed bool
+		var err error
+		rec, claimed, err = options.Recorder.Claim(ctx, toolCallID, HashToolInput(call.Input), args.Command, background, claimTimeout)
+		if err != nil {
+			if xerrors.Is(err, ErrExecutionInputMismatch) {
+				options.Logger.Warn(ctx, "execute claim targeted stale lineage",
+					slog.F("tool_call_id", toolCallID),
+					slog.Error(err),
+				)
+				return fantasy.NewTextErrorResponse(
+					"the recorded execution for this tool call was created for different input; refusing to run against stale lineage. Retry the request.",
+				), nil
+			}
+			// An infrastructure failure before dispatch must not
+			// commit a bogus result: abort the batch so the task
+			// retry re-claims the intent.
+			return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("claim execution record: %w", err)}
+		}
+		if !claimed {
+			return resumeExecution(ctx, conn, options, toolCallID, rec)
+		}
 	}
-	return executeForeground(ctx, conn, args, optTimeout, workDir, env)
+
+	if background {
+		return executeBackground(ctx, conn, options, toolCallID, rec, args.Command, workDir, env), nil
+	}
+	return executeForeground(ctx, conn, options, toolCallID, rec, args.Command, timeout, workDir, env), nil
+}
+
+// resumeExecution handles a tool call whose ledger row is owned by
+// another claim or already carries a lifecycle outcome. It never
+// dispatches a fresh process.
+func resumeExecution(
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+	options ExecuteOptions,
+	toolCallID string,
+	rec ExecutionRecord,
+) (fantasy.ToolResponse, error) {
+	switch rec.Status {
+	case ExecutionStatusStarting:
+		// Another claim owns dispatch. Give it until the claim
+		// goes stale to record the process handle, then declare
+		// the process state unknown. Dispatching here could run
+		// the command twice.
+		latest, err := awaitRecordedProcess(ctx, options, toolCallID, rec)
+		if err != nil {
+			// Cancellation is an expected exit for this attempt,
+			// not evidence about the claim owner: marking unknown
+			// here could race ahead of the owner's RecordStart and
+			// orphan a real process. Only a claim that actually
+			// went stale is unobservable.
+			if ctx.Err() != nil {
+				return errorResult(fmt.Sprintf("wait for execution claim owner: %v", ctx.Err())), nil
+			}
+			fresh, applied, markErr := options.Recorder.MarkStaleClaimUnknown(ctx, toolCallID)
+			if markErr != nil {
+				// Committing unknown on an unverified row could end
+				// recovery of a real process; abort and retry.
+				return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("mark stale execution claim unknown: %w", markErr)}
+			}
+			if !applied {
+				// The owner recorded its process after the last
+				// poll; resume from the fresh row instead of
+				// downgrading it.
+				return resumeExecution(ctx, conn, options, toolCallID, fresh)
+			}
+			return fantasy.NewTextErrorResponse(unknownOutcomeMessage), nil
+		}
+		return resumeExecution(ctx, conn, options, toolCallID, latest)
+	case ExecutionStatusRunning, ExecutionStatusExited, ExecutionStatusDetached:
+		return reattachProcess(ctx, conn, options, toolCallID, rec)
+	default:
+		resp, ok := terminalRowResponse(ctx, options, toolCallID, rec)
+		if !ok {
+			// Reserved rows are always claimable, so resume
+			// should never see one.
+			return errorResult(fmt.Sprintf("execution row in unexpected state %s; retry the command", rec.Status)), nil
+		}
+		return resp, nil
+	}
+}
+
+// terminalRowResponse returns the stable response for a ledger row
+// whose status forbids both dispatch and re-attach. ok is false for
+// statuses that need a workspace connection to make progress.
+func terminalRowResponse(ctx context.Context, options ExecuteOptions, toolCallID string, rec ExecutionRecord) (fantasy.ToolResponse, bool) {
+	switch rec.Status {
+	case ExecutionStatusUnknown:
+		return fantasy.NewTextErrorResponse(unknownOutcomeMessage), true
+	case ExecutionStatusCanceled, ExecutionStatusCancelRequested, ExecutionStatusNoEffect:
+		// The ledger resolved this call but history has no result
+		// for it, so the chat is re-executing a call the ledger
+		// considers finished. Never dispatch on top of a resolved
+		// row.
+		options.Logger.Warn(ctx, "execution ledger row already resolved for unresolved tool call",
+			slog.F("tool_call_id", toolCallID),
+			slog.F("status", string(rec.Status)),
+		)
+		return fantasy.NewTextErrorResponse(fmt.Sprintf(
+			"the recorded execution for this command was already resolved (%s) and will not be restarted. Re-run the command only if it is safe to run twice.",
+			rec.Status,
+		)), true
+	default:
+		return fantasy.ToolResponse{}, false
+	}
+}
+
+// resolveConnFailure resolves a tool call when the workspace
+// connection is unavailable. Rows the ledger already resolved and
+// background rows whose handle is the entire result return their
+// stable response. Rows that may carry a dispatched process abort
+// the batch: committing a result would set result_committed_at and
+// permanently end re-attachment. Only rows proving nothing was
+// dispatched surface the dial error as a normal tool result.
+func resolveConnFailure(ctx context.Context, options ExecuteOptions, toolCallID string, dialErr error) (fantasy.ToolResponse, error) {
+	if options.Recorder == nil {
+		return fantasy.NewTextErrorResponse(dialErr.Error()), nil
+	}
+	rec, err := options.Recorder.Get(ctx, toolCallID)
+	if err != nil {
+		if xerrors.Is(err, ErrExecutionRecordNotFound) {
+			// The call predates the ledger; nothing the ledger
+			// dispatched needs this connection.
+			return fantasy.NewTextErrorResponse(dialErr.Error()), nil
+		}
+		return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("read execution record with workspace connection unavailable: %w", err)}
+	}
+	if rec.Background && rec.ProcessID != "" {
+		switch rec.Status {
+		case ExecutionStatusRunning, ExecutionStatusExited, ExecutionStatusDetached:
+			return resolveBackgroundRow(ctx, options, toolCallID, rec), nil
+		}
+	}
+	if resp, ok := terminalRowResponse(ctx, options, toolCallID, rec); ok {
+		return resp, nil
+	}
+	if rec.Status == ExecutionStatusStarting && staleStartingClaim(rec, claimStaleAfter) {
+		// Stale-claim resolution needs no agent access: the
+		// connected path would also resolve this row to unknown.
+		// Aborting instead would wedge the chat for as long as
+		// the agent stays unreachable.
+		fresh, applied, markErr := options.Recorder.MarkStaleClaimUnknown(ctx, toolCallID)
+		if markErr != nil {
+			return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("mark stale execution claim unknown: %w", markErr)}
+		}
+		if applied {
+			return fantasy.NewTextErrorResponse(unknownOutcomeMessage), nil
+		}
+		if fresh.Background && fresh.ProcessID != "" {
+			return resolveBackgroundRow(ctx, options, toolCallID, fresh), nil
+		}
+		if resp, ok := terminalRowResponse(ctx, options, toolCallID, fresh); ok {
+			return resp, nil
+		}
+		// The owner recorded a foreground process concurrently;
+		// resuming it needs the agent connection.
+	}
+	if rec.ProcessID != "" && rec.WorkspaceAgentID != uuid.Nil && options.DialAgent != nil {
+		switch rec.Status {
+		case ExecutionStatusRunning, ExecutionStatusExited, ExecutionStatusDetached:
+			// The recorded process lives on the agent that started
+			// it, which can be reachable even when the turn's
+			// connection is not. Collect the result there instead
+			// of aborting until the turn's agent comes back.
+			ownerConn, release, ownerErr := options.DialAgent(ctx, rec.WorkspaceAgentID)
+			if ownerErr == nil {
+				if release != nil {
+					defer release()
+				}
+				ownerOptions := options
+				ownerOptions.connAgentID = rec.WorkspaceAgentID
+				return reattachProcess(ctx, ownerConn, ownerOptions, toolCallID, rec)
+			}
+			options.Logger.Warn(ctx, "failed to dial the agent that owns a recorded execute process",
+				slog.F("tool_call_id", toolCallID),
+				slog.F("workspace_agent_id", rec.WorkspaceAgentID),
+				slog.Error(ownerErr),
+			)
+		}
+	}
+	switch rec.Status {
+	case ExecutionStatusStarting, ExecutionStatusRunning, ExecutionStatusExited, ExecutionStatusDetached:
+		return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf("workspace connection unavailable while execution needs re-attach (status %s): %w", rec.Status, dialErr)}
+	}
+	// A reserved row proves nothing was dispatched.
+	return fantasy.NewTextErrorResponse(dialErr.Error()), nil
+}
+
+// staleStartingClaim reports whether a starting claim's owner has
+// had at least `after` since the claim to record a process handle.
+func staleStartingClaim(rec ExecutionRecord, after time.Duration) bool {
+	return !rec.ClaimedAt.IsZero() && !time.Now().Before(rec.ClaimedAt.Add(after))
+}
+
+// resolveBackgroundRow returns the durable result for a background
+// execute whose process was already dispatched: the handle itself.
+// Output retrieval stays with process_output, so no agent access is
+// needed.
+func resolveBackgroundRow(ctx context.Context, options ExecuteOptions, toolCallID string, rec ExecutionRecord) fantasy.ToolResponse {
+	if rec.Status != ExecutionStatusDetached {
+		markTerminal(ctx, options, toolCallID, rec.ClaimEpoch, ExecutionStatusDetached)
+	}
+	return marshalResult(ExecuteResult{
+		Success:             true,
+		BackgroundProcessID: rec.ProcessID,
+	})
+}
+
+// awaitRecordedProcess polls a starting claim until its owner
+// records a process handle or otherwise advances the row, the claim
+// goes stale, or the context is canceled. It returns an error when
+// the row was still starting at the staleness deadline.
+func awaitRecordedProcess(
+	ctx context.Context,
+	options ExecuteOptions,
+	toolCallID string,
+	rec ExecutionRecord,
+) (ExecutionRecord, error) {
+	deadline := rec.ClaimedAt.Add(claimStaleAfter)
+	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return ExecutionRecord{}, ctx.Err()
+		case <-time.After(claimPollInterval):
+		}
+		latest, err := options.Recorder.Get(ctx, toolCallID)
+		if err != nil {
+			// A failed poll is not evidence about the claim
+			// owner; keep polling, but leave a trace so a DB
+			// outage here is distinguishable from a claimer
+			// that really never recorded its process.
+			options.Logger.Warn(ctx, "failed to poll execution claim during grace window",
+				slog.F("tool_call_id", toolCallID),
+				slog.Error(err),
+			)
+			continue
+		}
+		if latest.Status != ExecutionStatusStarting {
+			return latest, nil
+		}
+	}
+	return ExecutionRecord{}, xerrors.New("claim went stale without a recorded process")
+}
+
+// reattachProcess resumes an execute tool call whose process was
+// started by a previous attempt, without starting a second
+// process.
+func reattachProcess(
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+	options ExecuteOptions,
+	toolCallID string,
+	rec ExecutionRecord,
+) (fantasy.ToolResponse, error) {
+	if rec.Background {
+		return resolveBackgroundRow(ctx, options, toolCallID, rec), nil
+	}
+
+	// The recorded process only exists on the agent that started
+	// it. When the turn's connection targets a different agent,
+	// dial the owner directly instead of probing an agent that
+	// knows nothing about the process.
+	connTargetsOwner := rec.WorkspaceAgentID == uuid.Nil || rec.WorkspaceAgentID == options.connAgentID
+	if !connTargetsOwner {
+		if options.DialAgent == nil {
+			// Probing the turn's connection could commit a result
+			// observed from an agent that never ran the process.
+			return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf(
+				"process %s belongs to agent %s and no dialer is configured to reach it",
+				rec.ProcessID, rec.WorkspaceAgentID,
+			)}
+		}
+		ownerConn, release, dialErr := options.DialAgent(ctx, rec.WorkspaceAgentID)
+		if dialErr != nil {
+			// Committing a result here would end re-attachment
+			// without ever asking the owning agent.
+			return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf(
+				"dial agent %s that owns process %s: %w",
+				rec.WorkspaceAgentID, rec.ProcessID, dialErr,
+			)}
+		}
+		if release != nil {
+			defer release()
+		}
+		conn = ownerConn
+		connTargetsOwner = true
+	}
+
+	snapCtx, cancel := context.WithTimeout(ctx, snapshotTimeout)
+	resp, err := conn.ProcessOutput(snapCtx, rec.ProcessID, nil)
+	cancel()
+	if err != nil {
+		// Only a definite 404 (the agent was reached and does not
+		// know the process) means the result is gone, and only
+		// when the connection targets the agent that owns the
+		// process. Transport errors, cancellations, and server
+		// errors leave the process potentially retrievable.
+		if sdkErr, ok := errors.AsType[*codersdk.Error](err); ok && sdkErr.StatusCode() == http.StatusNotFound {
+			if connTargetsOwner {
+				options.Logger.Warn(ctx, "recorded execute process is no longer known to its agent; resolving execution unknown",
+					slog.F("tool_call_id", toolCallID),
+					slog.F("process_id", rec.ProcessID),
+				)
+				markTerminal(ctx, options, toolCallID, rec.ClaimEpoch, ExecutionStatusUnknown)
+				return processLostResponse(rec.ProcessID), nil
+			}
+			// A chat rebound to a different agent asked the wrong
+			// agent, which knows nothing about the process. Abort
+			// instead of committing a result that would end
+			// re-attachment without ever asking the owning agent.
+			return fantasy.ToolResponse{}, &AbortToolExecutionError{Err: xerrors.Errorf(
+				"process %s belongs to agent %s but the workspace connection targets agent %s: %w",
+				rec.ProcessID, rec.WorkspaceAgentID, options.connAgentID, err,
+			)}
+		}
+		options.Logger.Warn(ctx, "failed to re-attach to recorded execute process",
+			slog.F("tool_call_id", toolCallID),
+			slog.F("process_id", rec.ProcessID),
+			slog.Error(err),
+		)
+		return errorResultWithProcess(
+			fmt.Sprintf("re-attach to process: %v; use process_output with ID %s to retry", err, rec.ProcessID),
+			rec.ProcessID,
+		), nil
+	}
+
+	if !resp.Running {
+		// The process finished while no attempt was watching.
+		// Return the real result even if the deadline passed.
+		markTerminal(ctx, options, toolCallID, rec.ClaimEpoch, ExecutionStatusExited)
+		result := completedResult(resp)
+		if !rec.StartedAt.IsZero() {
+			result.WallDurationMs = time.Since(rec.StartedAt).Milliseconds()
+		}
+		return marshalResult(result), nil
+	}
+
+	deadline := rec.StartedAt.Add(rec.Timeout)
+	if !time.Now().Before(deadline) {
+		markTerminal(ctx, options, toolCallID, rec.ClaimEpoch, ExecutionStatusDetached)
+		return marshalResult(timedOutRunningResult(resp, rec.Timeout, rec.ProcessID)), nil
+	}
+
+	cmdCtx, cancelWait := context.WithDeadline(ctx, deadline)
+	defer cancelWait()
+	result, lost := waitForProcess(cmdCtx, ctx, conn, rec.ProcessID, rec.Timeout)
+	if lost {
+		markTerminal(ctx, options, toolCallID, rec.ClaimEpoch, ExecutionStatusUnknown)
+		return processLostResponse(rec.ProcessID), nil
+	}
+	result.WallDurationMs = time.Since(rec.StartedAt).Milliseconds()
+	markWaitOutcome(ctx, options, toolCallID, rec.ClaimEpoch, result)
+	return marshalResult(result), nil
+}
+
+// processLostResponse is the stable result for a process the agent
+// was reached about but no longer knows: the command may have run,
+// but its outcome is unobservable.
+func processLostResponse(processID string) fantasy.ToolResponse {
+	return fantasy.NewTextErrorResponse(fmt.Sprintf(
+		"process %s is no longer known to the workspace agent; the command may have run, but its result was lost and the outcome is unknown. Re-run the command only if it is safe to run twice.",
+		processID,
+	))
 }
 
 // executeBackground starts a process in the background and
@@ -189,6 +802,9 @@ func executeTool(
 func executeBackground(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
+	options ExecuteOptions,
+	toolCallID string,
+	rec ExecutionRecord,
 	command string,
 	workDir string,
 	env map[string]string,
@@ -200,18 +816,86 @@ func executeBackground(
 		Background: true,
 	})
 	if err != nil {
+		// The request may or may not have reached the agent, so
+		// the honest lifecycle outcome is unobservable.
+		markTerminal(ctx, options, toolCallID, rec.ClaimEpoch, ExecutionStatusUnknown)
 		return errorResult(enrichStartError(fmt.Sprintf("start background process: %v", err)))
 	}
+	// Mark detached only when the handle write landed: a detached
+	// row with no recorded process would make a retry return
+	// success without a usable handle instead of re-resolving the
+	// dispatch through the still-starting row.
+	if recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ID) {
+		markTerminal(ctx, options, toolCallID, rec.ClaimEpoch, ExecutionStatusDetached)
+	}
 
-	result := ExecuteResult{
+	return marshalResult(ExecuteResult{
 		Success:             true,
 		BackgroundProcessID: resp.ID,
+	})
+}
+
+// recordProcessStart persists a freshly started process identity on
+// an uncanceled, bounded context. The generation context can be
+// canceled by an interrupt right after StartProcess returns, and
+// the interrupt path needs the recorded handle to kill the process.
+// Failures are logged, never fatal: the process is already running
+// and attached, so discarding the wait would throw away real work.
+func recordProcessStart(ctx context.Context, options ExecuteOptions, toolCallID string, claimEpoch int64, processID string) bool {
+	if options.Recorder == nil {
+		return false
 	}
-	data, err := json.Marshal(result)
-	if err != nil {
-		return fantasy.NewTextErrorResponse(err.Error())
+	recordCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), recordWriteTimeout)
+	defer cancel()
+	if err := options.Recorder.RecordStart(recordCtx, toolCallID, claimEpoch, processID, options.connAgentID); err != nil {
+		options.Logger.Warn(ctx, "failed to record execute process start",
+			slog.F("tool_call_id", toolCallID),
+			slog.F("process_id", processID),
+			slog.Error(err),
+		)
+		return false
 	}
-	return fantasy.NewTextResponse(string(data))
+	return true
+}
+
+// markTerminal records a lifecycle observation on an uncanceled,
+// bounded context so observations survive an interrupt canceling
+// the generation context. Best-effort: a failed write only costs
+// diagnostic fidelity, never correctness of the returned result.
+// claimEpoch is the epoch of the claim the observation belongs to
+// (0 for pre-claim validation failures on reserved rows); a stale
+// observation from a superseded claim is dropped by the guard.
+func markTerminal(ctx context.Context, options ExecuteOptions, toolCallID string, claimEpoch int64, status ExecutionStatus) {
+	if options.Recorder == nil {
+		return
+	}
+	recordCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), recordWriteTimeout)
+	defer cancel()
+	if err := options.Recorder.MarkTerminal(recordCtx, toolCallID, status, claimEpoch); err != nil {
+		options.Logger.Warn(ctx, "failed to mark execution lifecycle status",
+			slog.F("tool_call_id", toolCallID),
+			slog.F("status", string(status)),
+			slog.Error(err),
+		)
+	}
+}
+
+// markWaitOutcome records the lifecycle observation matching a
+// finished foreground wait: results that hand the process handle
+// back to the model leave the process alive (detached), everything
+// else observed a real exit. A wait cut short by the generation
+// context being canceled (an interrupt) records nothing: the row's
+// current state is still the truth, and the interrupt commit owns
+// the transition to cancel_requested.
+func markWaitOutcome(ctx context.Context, options ExecuteOptions, toolCallID string, claimEpoch int64, result ExecuteResult) {
+	if ctx.Err() != nil {
+		return
+	}
+	if result.BackgroundProcessID != "" {
+		markTerminal(ctx, options, toolCallID, claimEpoch, ExecutionStatusDetached)
+		return
+	}
+	markTerminal(ctx, options, toolCallID, claimEpoch, ExecutionStatusExited)
 }
 
 // executeForeground starts a process and waits for its
@@ -219,53 +903,83 @@ func executeBackground(
 func executeForeground(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
-	args ExecuteArgs,
-	optTimeout time.Duration,
+	options ExecuteOptions,
+	toolCallID string,
+	rec ExecutionRecord,
+	command string,
+	timeout time.Duration,
 	workDir string,
 	env map[string]string,
 ) fantasy.ToolResponse {
-	timeout := optTimeout
-	if timeout <= 0 {
-		timeout = defaultTimeout
-	}
-	if args.Timeout != nil {
-		parsed, err := time.ParseDuration(*args.Timeout)
-		if err != nil {
-			return fantasy.NewTextErrorResponse(
-				fmt.Sprintf("invalid timeout %q: %v", *args.Timeout, err),
-			)
-		}
-		timeout = parsed
-	}
-
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	start := time.Now()
 
 	resp, err := conn.StartProcess(cmdCtx, workspacesdk.StartProcessRequest{
-		Command:    args.Command,
+		Command:    command,
 		WorkDir:    workDir,
 		Env:        env,
 		Background: false,
 	})
 	if err != nil {
+		// The request may or may not have reached the agent, so
+		// the honest lifecycle outcome is unobservable.
+		markTerminal(ctx, options, toolCallID, rec.ClaimEpoch, ExecutionStatusUnknown)
 		return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err)))
 	}
+	recorded := recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ID)
 
-	result := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)
+	result, lost := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)
+	if lost {
+		markTerminal(ctx, options, toolCallID, rec.ClaimEpoch, ExecutionStatusUnknown)
+		return processLostResponse(resp.ID)
+	}
 	result.WallDurationMs = time.Since(start).Milliseconds()
+	// Record the wait outcome only when the handle write landed:
+	// an exited or detached row without a recorded process would
+	// strand a retry with nothing to re-attach to, while a
+	// still-starting row resolves through claim recovery.
+	if recorded {
+		markWaitOutcome(ctx, options, toolCallID, rec.ClaimEpoch, result)
+	}
 
 	// Add an advisory note for file-dump commands.
-	if note := detectFileDump(args.Command); note != "" {
+	if note := detectFileDump(command); note != "" {
 		result.Note = note
 	}
 
-	data, err := json.Marshal(result)
-	if err != nil {
-		return fantasy.NewTextErrorResponse(err.Error())
+	return marshalResult(result)
+}
+
+// timedOutRunningResult builds the ExecuteResult for a process that
+// is still running when the caller's timeout expires: partial output
+// plus the process handle so the model can re-attach or poll.
+func timedOutRunningResult(resp workspacesdk.ProcessOutputResponse, timeout time.Duration, processID string) ExecuteResult {
+	return ExecuteResult{
+		Success:             false,
+		Output:              truncateOutput(resp.Output),
+		ExitCode:            -1,
+		Error:               fmt.Sprintf("command timed out after %s", timeout),
+		Truncated:           resp.Truncated,
+		BackgroundProcessID: processID,
 	}
-	return fantasy.NewTextResponse(string(data))
+}
+
+// completedResult builds the ExecuteResult for a process output
+// snapshot, treating a missing exit code as success. Callers
+// override the running-process fields when resp.Running is true.
+func completedResult(resp workspacesdk.ProcessOutputResponse) ExecuteResult {
+	exitCode := 0
+	if resp.ExitCode != nil {
+		exitCode = *resp.ExitCode
+	}
+	return ExecuteResult{
+		Success:   exitCode == 0,
+		Output:    truncateOutput(resp.Output),
+		ExitCode:  exitCode,
+		Truncated: resp.Truncated,
+	}
 }
 
 // truncateOutput safely truncates output to maxOutputToModel,
@@ -278,24 +992,80 @@ func truncateOutput(output string) string {
 	return output
 }
 
-// waitForProcess waits for process completion using the
-// blocking process output API instead of polling.
 // waitForProcess blocks until the process exits or the context
 // expires. On any error (timeout or transport), it tries a
 // non-blocking snapshot to recover. Total wall time may exceed
-// timeout by up to snapshotTimeout if recovery is needed.
+// timeout by up to snapshotTimeout if recovery is needed. lost
+// reports that the agent was reached and definitively does not
+// know the process, so the result is gone and the returned
+// ExecuteResult carries no re-attachable handle.
 func waitForProcess(
 	ctx context.Context,
 	parentCtx context.Context,
 	conn workspacesdk.AgentConn,
 	processID string,
 	timeout time.Duration,
-) ExecuteResult {
-	// Block until the process exits or the context is
-	// canceled.
-	resp, err := conn.ProcessOutput(ctx, processID, &workspacesdk.ProcessOutputOptions{
-		Wait: true,
-	})
+) (result ExecuteResult, lost bool) {
+	for {
+		// Block until the process exits or the context is
+		// canceled.
+		resp, err := conn.ProcessOutput(ctx, processID, &workspacesdk.ProcessOutputOptions{
+			Wait: true,
+		})
+		if err == nil && resp.Running && ctx.Err() == nil {
+			// The server-side wait can return before the process
+			// exits when its maximum wait is shorter than the
+			// caller's timeout. Pause briefly, then re-issue the
+			// wait with the remaining budget.
+			select {
+			case <-ctx.Done():
+			case <-time.After(processWaitRetryDelay):
+			}
+			if ctx.Err() == nil {
+				continue
+			}
+		}
+		if err == nil && resp.Running && ctx.Err() != nil {
+			// The deadline expired after a successful early
+			// return, so resp predates the retry delay. Refresh
+			// it so an exit or output during that window is
+			// reported instead of the stale snapshot.
+			resp = refreshRunningSnapshot(parentCtx, conn, processID, resp)
+		}
+		return resolveProcessWait(ctx, parentCtx, conn, processID, timeout, resp, err)
+	}
+}
+
+// refreshRunningSnapshot re-reads a running process with a fresh
+// non-blocking snapshot on the parent context. It returns the
+// original response when the snapshot fails; the caller resolves
+// from the best snapshot available.
+func refreshRunningSnapshot(
+	parentCtx context.Context,
+	conn workspacesdk.AgentConn,
+	processID string,
+	resp workspacesdk.ProcessOutputResponse,
+) workspacesdk.ProcessOutputResponse {
+	bgCtx, bgCancel := context.WithTimeout(parentCtx, snapshotTimeout)
+	defer bgCancel()
+	fresh, err := conn.ProcessOutput(bgCtx, processID, nil)
+	if err != nil {
+		return resp
+	}
+	return fresh
+}
+
+// resolveProcessWait turns the final blocking-wait response (or
+// error) into the ExecuteResult returned to the model.
+func resolveProcessWait(
+	ctx context.Context,
+	parentCtx context.Context,
+	conn workspacesdk.AgentConn,
+	processID string,
+	timeout time.Duration,
+	resp workspacesdk.ProcessOutputResponse,
+	err error,
+) (result ExecuteResult, lost bool) {
 	if err != nil {
 		origErr := err
 		timedOut := ctx.Err() != nil
@@ -312,6 +1082,9 @@ func waitForProcess(
 		defer bgCancel()
 		resp, err = conn.ProcessOutput(bgCtx, processID, nil)
 		if err != nil {
+			if sdkErr, ok := errors.AsType[*codersdk.Error](err); ok && sdkErr.StatusCode() == http.StatusNotFound {
+				return ExecuteResult{Success: false, ExitCode: -1}, true
+			}
 			errMsg := fmt.Sprintf("get process output: %v; use process_output with ID %s to retry", origErr, processID)
 			if timedOut {
 				errMsg = fmt.Sprintf("command timed out after %s; failed to get output: %v", timeout, err)
@@ -321,72 +1094,37 @@ func waitForProcess(
 				ExitCode:            -1,
 				Error:               errMsg,
 				BackgroundProcessID: processID,
-			}
+			}, false
 		}
 
 		// Snapshot succeeded. If the process finished, return
 		// its real result (transparent recovery).
 		if !resp.Running {
-			exitCode := 0
-			if resp.ExitCode != nil {
-				exitCode = *resp.ExitCode
-			}
-			output := truncateOutput(resp.Output)
-			return ExecuteResult{
-				Success:   exitCode == 0,
-				Output:    output,
-				ExitCode:  exitCode,
-				Truncated: resp.Truncated,
-			}
+			return completedResult(resp), false
 		}
 
 		// Process still running, return partial output.
-		output := truncateOutput(resp.Output)
-		errMsg := fmt.Sprintf("command timed out after %s", timeout)
-		if !timedOut {
-			errMsg = fmt.Sprintf("get process output: %v (process still running, use process_output to check later)", origErr)
+		if timedOut {
+			return timedOutRunningResult(resp, timeout, processID), false
 		}
 		return ExecuteResult{
 			Success:             false,
-			Output:              output,
+			Output:              truncateOutput(resp.Output),
 			ExitCode:            -1,
-			Error:               errMsg,
+			Error:               fmt.Sprintf("get process output: %v (process still running, use process_output to check later)", origErr),
 			Truncated:           resp.Truncated,
 			BackgroundProcessID: processID,
-		}
+		}, false
 	}
 
-	// The server-side wait may return before the
-	// process exits if maxWaitDuration is shorter than
-	// the client's timeout. Retry if our context still
-	// has time left.
 	if resp.Running {
-		if ctx.Err() == nil {
-			// Still within the caller's timeout, retry.
-			return waitForProcess(ctx, parentCtx, conn, processID, timeout)
-		}
-		output := truncateOutput(resp.Output)
-		return ExecuteResult{
-			Success:             false,
-			Output:              output,
-			ExitCode:            -1,
-			Error:               fmt.Sprintf("command timed out after %s", timeout),
-			Truncated:           resp.Truncated,
-			BackgroundProcessID: processID,
-		}
+		// Only reachable once the caller's timeout expired while
+		// the process was still running; waitForProcess retries
+		// early server-side wait returns itself.
+		return timedOutRunningResult(resp, timeout, processID), false
 	}
 
-	exitCode := 0
-	if resp.ExitCode != nil {
-		exitCode = *resp.ExitCode
-	}
-	output := truncateOutput(resp.Output)
-	return ExecuteResult{
-		Success:   exitCode == 0,
-		Output:    output,
-		ExitCode:  exitCode,
-		Truncated: resp.Truncated,
-	}
+	return completedResult(resp), false
 }
 
 // errorResult builds a ToolResponse from an ExecuteResult with
@@ -398,6 +1136,28 @@ func errorResult(msg string) fantasy.ToolResponse {
 	})
 	if err != nil {
 		return fantasy.NewTextErrorResponse(msg)
+	}
+	return fantasy.NewTextResponse(string(data))
+}
+
+// errorResultWithProcess is errorResult with a process handle the
+// model can use to re-attach via process_output.
+func errorResultWithProcess(msg string, processID string) fantasy.ToolResponse {
+	data, err := json.Marshal(ExecuteResult{
+		Success:             false,
+		Error:               msg,
+		BackgroundProcessID: processID,
+	})
+	if err != nil {
+		return fantasy.NewTextErrorResponse(msg)
+	}
+	return fantasy.NewTextResponse(string(data))
+}
+
+func marshalResult(result ExecuteResult) fantasy.ToolResponse {
+	data, err := json.Marshal(result)
+	if err != nil {
+		return fantasy.NewTextErrorResponse(err.Error())
 	}
 	return fantasy.NewTextResponse(string(data))
 }
@@ -427,7 +1187,7 @@ const (
 // process_output tool.
 type ProcessOutputArgs struct {
 	ProcessID   string  `json:"process_id"`
-	WaitTimeout *string `json:"wait_timeout,omitempty" description:"Override the default 10s block duration. The call blocks until the process exits or this timeout is reached. Set to '0s' for an immediate snapshot without waiting."`
+	WaitTimeout *string `json:"wait_timeout,omitempty" description:"Override the default 10s block duration, up to 4h (longer values are clamped). The call blocks until the process exits or this timeout is reached. Set to '0s' for an immediate snapshot without waiting."`
 }
 
 // ProcessOutput returns an AgentTool that retrieves the output
@@ -444,7 +1204,8 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 			"the timeout, returns the output so far. Use "+
 			"wait_timeout to override the default 10s wait "+
 			"(e.g. '30s', or '0s' for an immediate snapshot "+
-			"without waiting).",
+			"without waiting; maximum 4h, longer values are "+
+			"clamped).",
 		func(ctx context.Context, args ProcessOutputArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
@@ -465,8 +1226,14 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 						fmt.Sprintf("invalid wait_timeout %q: %v", *args.WaitTimeout, err),
 					), nil
 				}
+				if parsed < 0 {
+					return fantasy.NewTextErrorResponse(
+						fmt.Sprintf("wait_timeout must not be negative, got %q; use '0s' for an immediate snapshot", *args.WaitTimeout),
+					), nil
+				}
 				timeout = parsed
 			}
+			timeout = min(timeout, maxExecuteTimeout)
 			var opts *workspacesdk.ProcessOutputOptions
 			// Save parent context before applying timeout.
 			parentCtx := ctx
@@ -479,6 +1246,29 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 				defer cancel()
 			}
 			resp, err := conn.ProcessOutput(ctx, args.ProcessID, opts)
+			for err == nil && opts != nil && resp.Running && ctx.Err() == nil {
+				// The agent bounds each blocking wait below the
+				// requested timeout, so an early running response
+				// is not the wait's end. Re-issue the wait with
+				// the remaining budget, like the foreground
+				// execute loop.
+				select {
+				case <-ctx.Done():
+				case <-time.After(processWaitRetryDelay):
+				}
+				if ctx.Err() != nil {
+					break
+				}
+				resp, err = conn.ProcessOutput(ctx, args.ProcessID, opts)
+			}
+			if err == nil && opts != nil && resp.Running && ctx.Err() != nil && parentCtx.Err() == nil {
+				// The wait expired after a successful early
+				// return, so resp predates the retry delay.
+				// Refresh it so an exit or output during that
+				// window is reported instead of the stale
+				// snapshot.
+				resp = refreshRunningSnapshot(parentCtx, conn, args.ProcessID, resp)
+			}
 			if err != nil {
 				// The blocking request may have failed due to a
 				// context timeout or a transport error (e.g.
@@ -495,17 +1285,7 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 				}
 				// Fall through to normal response handling below.
 			}
-			output := truncateOutput(resp.Output)
-			exitCode := 0
-			if resp.ExitCode != nil {
-				exitCode = *resp.ExitCode
-			}
-			result := ExecuteResult{
-				Success:   !resp.Running && exitCode == 0,
-				Output:    output,
-				ExitCode:  exitCode,
-				Truncated: resp.Truncated,
-			}
+			result := completedResult(resp)
 			if resp.Running {
 				// Process is still running, success is not
 				// yet determined.
