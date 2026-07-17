@@ -575,9 +575,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		}
 		const name = mcpDisconnectTarget.display_name;
 		mcpDisconnectMutation.mutate(mcpDisconnectTarget.id, {
-			onSuccess: () => {
+			onSuccess: (response) => {
 				setMcpDisconnectTarget(null);
-				toast.success(`Disconnected ${name}.`);
+				if (response.token_revocation_error) {
+					toast.warning(`Disconnected ${name}.`, {
+						description: response.token_revocation_error,
+					});
+				} else {
+					toast.success(`Disconnected ${name}.`);
+				}
 			},
 			onError: (error) => {
 				toast.error(getErrorMessage(error, `Failed to disconnect ${name}.`));
