@@ -242,7 +242,7 @@ func (api *API) oauth2ProviderSettings(rw http.ResponseWriter, r *http.Request) 
 }
 
 // @Summary Update OAuth2 provider settings.
-// @ID put-oauth2-provider-settings
+// @ID update-oauth2-provider-settings
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json

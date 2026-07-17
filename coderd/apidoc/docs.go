@@ -4529,7 +4529,7 @@ const docTemplate = `{
                     "Enterprise"
                 ],
                 "summary": "Update OAuth2 provider settings.",
-                "operationId": "put-oauth2-provider-settings",
+                "operationId": "update-oauth2-provider-settings",
                 "parameters": [
                     {
                         "description": "OAuth2 provider settings request",
