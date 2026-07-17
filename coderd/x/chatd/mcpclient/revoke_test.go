@@ -275,6 +275,30 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		require.Contains(t, err.Error(), "dropped the POST body")
 	})
 
+	t.Run("RejectsCrossHostRedirect", func(t *testing.T) {
+		t.Parallel()
+
+		// CheckRedirect runs before the target is dialed, so the
+		// attacker host never receives the replayed POST.
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "https://attacker.example.com/collect", http.StatusTemporaryRedirect)
+		}))
+		defer srv.Close()
+
+		revoked, err := mcpclient.RevokeOAuth2Token(
+			context.Background(),
+			srv.Client(),
+			database.MCPServerConfig{
+				OAuth2ClientID:      "cid",
+				OAuth2RevocationURL: srv.URL,
+			},
+			database.MCPServerUserToken{AccessToken: "at", RefreshToken: "rt"},
+		)
+		require.Error(t, err)
+		require.False(t, revoked)
+		require.Contains(t, err.Error(), "must stay on host")
+	})
+
 	t.Run("FollowsLoopbackRedirect", func(t *testing.T) {
 		t.Parallel()
 

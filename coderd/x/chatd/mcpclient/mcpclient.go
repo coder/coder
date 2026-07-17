@@ -1021,6 +1021,17 @@ func RevokeOAuth2Token(
 				"revocation redirect target %q must use https", req.URL.Redacted(),
 			)
 		}
+		// The replayed POST carries token material, so the redirect
+		// must stay on the configured provider's host. Loopback to
+		// loopback is exempt for local development.
+		origin := via[0].URL
+		if !strings.EqualFold(req.URL.Hostname(), origin.Hostname()) &&
+			!(isLoopbackHost(req.URL.Hostname()) && isLoopbackHost(origin.Hostname())) {
+			return xerrors.Errorf(
+				"revocation redirect target %q must stay on host %q",
+				req.URL.Redacted(), origin.Hostname(),
+			)
+		}
 		return nil
 	}
 	httpClient = &redirectSafe
