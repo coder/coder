@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
 	Command,
 	CommandEmpty,
@@ -143,6 +144,14 @@ export const SkillsTriggerMenu = ({
 			: undefined,
 	].filter((item) => item !== undefined);
 	const shouldRender = open && anchorRect;
+	// Radix keeps closing content mounted through its exit animation.
+	// Unmounting the anchor then would reposition the closing menu to
+	// the viewport origin, so keep it at the last known caret rect.
+	const [lastAnchorRect, setLastAnchorRect] = useState(anchorRect);
+	if (anchorRect && anchorRect !== lastAnchorRect) {
+		setLastAnchorRect(anchorRect);
+	}
+	const renderedAnchorRect = anchorRect ?? lastAnchorRect;
 	const shouldShowEmpty = allSkills.length === 0 && statusItems.length === 0;
 	const selectedValue = selectedIndex >= 0 ? String(selectedIndex) : "";
 
@@ -176,16 +185,16 @@ export const SkillsTriggerMenu = ({
 				}
 			}}
 		>
-			{shouldRender && (
+			{renderedAnchorRect && (
 				<PopoverAnchor asChild>
 					<span
 						aria-hidden="true"
 						style={{
 							position: "fixed",
-							top: anchorRect.top,
-							left: anchorRect.left,
+							top: renderedAnchorRect.top,
+							left: renderedAnchorRect.left,
 							width: 1,
-							height: Math.max(anchorRect.height, MIN_ANCHOR_HEIGHT_PX),
+							height: Math.max(renderedAnchorRect.height, MIN_ANCHOR_HEIGHT_PX),
 							pointerEvents: "none",
 						}}
 					/>

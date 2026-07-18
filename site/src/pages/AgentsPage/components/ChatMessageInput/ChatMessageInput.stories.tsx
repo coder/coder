@@ -335,6 +335,33 @@ export const OutsideClickDismissesTriggerOnRefocus: Story = {
 	},
 };
 
+export const BackspaceClosesMenuWithoutRepositioning: Story = {
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+		await findVisibleText("/reviewer");
+		const popperWrapper = () =>
+			document.querySelector<HTMLElement>(
+				"[data-radix-popper-content-wrapper]",
+			);
+		const openRect = popperWrapper()?.getBoundingClientRect();
+		expect(openRect?.left).toBeGreaterThan(0);
+		await userEvent.keyboard("{Backspace}");
+		// The closing menu must hold its position through the exit
+		// animation instead of flashing at the viewport origin.
+		let wrapper = popperWrapper();
+		for (let frame = 0; wrapper && frame < 300; frame++) {
+			const rect = wrapper.getBoundingClientRect();
+			expect({ top: rect.top, left: rect.left }).toEqual({
+				top: openRect?.top,
+				left: openRect?.left,
+			});
+			await new Promise((resolve) => requestAnimationFrame(resolve));
+			wrapper = popperWrapper();
+		}
+		expect(wrapper).toBeNull();
+	},
+};
+
 // Stories below verify that on mobile viewports, the skills popup
 // sits directly above the chat input rather than being clipped
 // above the visible viewport.
