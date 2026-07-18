@@ -228,6 +228,19 @@ export const PersonalTriggersQualifiedWhileWorkspaceSkillsUnknown: Story = {
 	},
 };
 
+export const EmptyPersonalKeepsMenuOpenWhileWorkspaceSkillsUnknown: Story = {
+	args: {
+		personalSkillsOverride: [],
+		// No workspaceSkills: closing the menu here would record the slash
+		// as dismissed, so skills arriving later could never reopen it.
+		hasWorkspace: true,
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+		expect(await findVisibleText("Loading workspace skills...")).toBeDefined();
+	},
+};
+
 export const QualifiedPersonalQueryMatchesBareTrigger: Story = {
 	args: {
 		hasWorkspace: true,

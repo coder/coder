@@ -60,6 +60,7 @@ type SkillsTriggerMenuProps = {
 	workspaceSkillsEnabled?: boolean;
 	isPersonalLoading?: boolean;
 	isPersonalError?: boolean;
+	isWorkspaceLoading?: boolean;
 	selectedIndex: number;
 	onSelectedIndexChange: (index: number) => void;
 	onSelect: (skill: SkillMenuItem) => void;
@@ -123,6 +124,7 @@ export const SkillsTriggerMenu = ({
 	workspaceSkillsEnabled,
 	isPersonalLoading,
 	isPersonalError,
+	isWorkspaceLoading,
 	selectedIndex,
 	onSelectedIndexChange,
 	onSelect,
@@ -135,6 +137,9 @@ export const SkillsTriggerMenu = ({
 			: undefined,
 		isPersonalError && personalSkills.length === 0
 			? "Could not load personal skills. Close and type / again to retry."
+			: undefined,
+		isWorkspaceLoading && workspaceSkills.length === 0
+			? "Loading workspace skills..."
 			: undefined,
 	].filter((item) => item !== undefined);
 	const shouldRender = open && anchorRect;

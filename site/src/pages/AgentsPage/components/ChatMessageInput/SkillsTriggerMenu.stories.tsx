@@ -94,6 +94,18 @@ export const Loading: Story = {
 	},
 };
 
+export const WorkspaceLoading: Story = {
+	args: {
+		personalSkills: [],
+		workspaceSkills: [],
+		workspaceSkillsEnabled: true,
+		isWorkspaceLoading: true,
+	},
+	play: async () => {
+		expect(await findVisibleText("Loading workspace skills...")).toBeDefined();
+	},
+};
+
 export const EmptyWithWorkspace: Story = {
 	args: {
 		personalSkills: [],

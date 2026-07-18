@@ -627,22 +627,28 @@ const ChatMessageInput = ({
 	});
 	const personalSkills = personalSkillsOverride ?? skillsQuery.data ?? [];
 	const loadedWorkspaceSkills = workspaceSkills ?? [];
+	// Until the chat's pinned context resolves, workspace skills are
+	// unknown: keep personal triggers qualified (a qualified alias always
+	// resolves) and treat the workspace list as still loading.
+	const workspaceSkillsKnown = !hasWorkspace || workspaceSkills !== undefined;
 	// A stale empty cache with a refetch in flight must not dismiss the menu.
 	const isResolvedEmptyPersonalSkills = hasPersonalSkillsOverride
 		? personalSkills.length === 0
 		: skillsQuery.isSuccess &&
 			!skillsQuery.isFetching &&
 			personalSkills.length === 0;
-	// When both loaded skills lists are empty, "/" is plain text. When
-	// only the filtered result is empty, keep the menu open for the
-	// no-match message.
+	// Unknown workspace skills must not close the menu: the trigger plugin
+	// records a closed trigger as dismissed, so skills arriving later could
+	// never reopen it.
+	const isResolvedEmptyWorkspaceSkills =
+		workspaceSkillsKnown && loadedWorkspaceSkills.length === 0;
+	// When both skills lists resolve empty, "/" is plain text. When only
+	// the filtered result is empty, keep the menu open for the no-match
+	// message.
 	const skillsMenuOpen =
 		hasSkillsTrigger &&
-		!(isResolvedEmptyPersonalSkills && loadedWorkspaceSkills.length === 0);
+		!(isResolvedEmptyPersonalSkills && isResolvedEmptyWorkspaceSkills);
 	const skillsSearchQuery = skillsTrigger?.query ?? "";
-	// Until the chat's pinned context resolves, collisions are unknown, so
-	// keep personal triggers qualified; a qualified alias always resolves.
-	const workspaceSkillsKnown = !hasWorkspace || workspaceSkills !== undefined;
 	const workspaceSkillNames = new Set(
 		loadedWorkspaceSkills.map((skill) => skill.name),
 	);
@@ -964,6 +970,7 @@ const ChatMessageInput = ({
 						skillsQuery.isError &&
 						skillsQuery.data === undefined
 					}
+					isWorkspaceLoading={!workspaceSkillsKnown}
 					selectedIndex={selectedSkillIndex}
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					onSelect={replaceActiveSkillsTrigger}
