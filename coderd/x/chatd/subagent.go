@@ -1056,11 +1056,6 @@ func (p *Server) createChildSubagentChatWithOptions(
 	if modelConfigID == uuid.Nil {
 		return database.Chat{}, xerrors.New("model config is required")
 	}
-	childAPIKeyID, err := p.ensureSyntheticAPIKeyID(ctx, parent.OwnerID)
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("ensure synthetic API key: %w", err)
-	}
-
 	childPlanMode := parent.PlanMode
 	if opts.planModeOverride != nil {
 		childPlanMode = *opts.planModeOverride
@@ -1131,7 +1126,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 	// workspace context the same way a top-level chat does: pinned from the
 	// agent's latest snapshot (see hydrateChatContextOnCreate below). The
 	// parent's context is not copied into child history.
-	initialMessages = append(initialMessages, userMessageWithAPIKeyID(userContent, modelConfigID, parent.OwnerID, childAPIKeyID, opts.reasoningEffortOverride))
+	initialMessages = append(initialMessages, userMessage(userContent, modelConfigID, parent.OwnerID, opts.reasoningEffortOverride))
 
 	publisher := p.pubsub
 	if publisher == nil {
