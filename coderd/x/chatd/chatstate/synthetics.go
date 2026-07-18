@@ -225,6 +225,75 @@ func SparedBackgroundResult(row database.ChatToolCallExecution) (json.RawMessage
 	return payload, true, nil
 }
 
+// mapExecutionsForHistoryDelete maps the execution ledger rows whose
+// processes an edit would otherwise orphan. EditMessage calls it
+// before soft-deleting the history suffix starting at
+// fromMessageID: after the delete the assistant message is invisible
+// to the pending scan, so mapping afterwards would orphan a live
+// process behind an uncommitted row no sweep can claim.
+//
+// Two kinds of rows lose their process carrier to the delete:
+//
+//   - Outstanding calls on the last assistant message. The deleted
+//     turn gets no synthetic history results, so nothing can carry a
+//     background handle back to the user and backgrounds are not
+//     spared: every dispatched row becomes cancel_requested.
+//   - Rows anchored in the deleted suffix that may carry a live
+//     process: running and detached rows (background starts,
+//     timed-out foregrounds, interrupt-spared backgrounds, and rows
+//     whose best-effort detach write failed) plus starting claims
+//     whose dispatch may have published a process that never got
+//     recorded. Their committed results were the only carriers of
+//     their process handles and are deleted with the suffix, so
+//     they are routed to cancel_requested as well, with
+//     result_committed_at re-stamped so the sweep's give-up clock
+//     starts at the edit.
+//
+// Both arms leave a fresh give-up anchor, through complementary
+// mechanisms: arm 1's MarkChatToolCallExecutionsResultCommitted
+// stamps only NULL result_committed_at, which every outstanding row
+// has, while arm 2 re-stamps unconditionally because its rows
+// committed results earlier. Consolidating the arms or dropping arm
+// 1's stamp would reopen the zero-kill-budget orphan for an
+// outstanding row claimed longer ago than the sweep's give-up bound.
+//
+// The sweep kills every cancel_requested row's process.
+func mapExecutionsForHistoryDelete(ctx context.Context, store database.Store, chat database.Chat, fromMessageID int64) error {
+	assistantMessageID, pending, err := pendingAllToolCallIDs(ctx, store, chat)
+	if err != nil {
+		// Arm 1 needs to parse the last assistant message, but a
+		// malformed assistant message must not make the deleting
+		// edit fail forever: the edit is the only way to discard
+		// the bad suffix. Skip arm 1 (its reserved rows are
+		// reaped as abandoned) and keep arm 2, which maps every
+		// dispatched row by status without parsing content.
+		pending = nil
+	}
+	// Arm 1 owns only assistants inside the deleted suffix. A
+	// surviving last assistant keeps its outstanding calls for the
+	// post-delete synthetic cancellation, which commits results and
+	// spares recorded background handles; mapping it here with no
+	// sparing would strip that recovery.
+	if len(pending) > 0 && assistantMessageID >= fromMessageID {
+		toolCallIDs := make([]string, 0, len(pending))
+		for id := range pending {
+			toolCallIDs = append(toolCallIDs, id)
+		}
+		if _, err := mapCanceledExecutions(ctx, store, chat.ID, assistantMessageID, toolCallIDs, false); err != nil {
+			return err
+		}
+	}
+	_, err = store.MarkChatToolCallExecutionsCancelRequestedForHistoryDelete(ctx, database.MarkChatToolCallExecutionsCancelRequestedForHistoryDeleteParams{
+		ChatID:        chat.ID,
+		FromMessageID: fromMessageID,
+		UpdatedAt:     dbtime.Now(),
+	})
+	if err != nil {
+		return xerrors.Errorf("mark executions cancel requested for history delete: %w", err)
+	}
+	return nil
+}
+
 // pendingDynamicToolCallIDs returns the dynamic tool-call IDs on the
 // chat's last assistant message that do not yet have a matching
 // tool-result message in active history. The returned map is keyed by

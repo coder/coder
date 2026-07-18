@@ -544,6 +544,12 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 		}
 	}
 
+	// Must run before the soft-deletes below; see
+	// mapExecutionsForHistoryDelete.
+	if err := mapExecutionsForHistoryDelete(tx.ctx, tx.store, chat, target.ID); err != nil {
+		return EditMessageResult{}, err
+	}
+
 	if err := tx.store.SoftDeleteChatMessageByID(tx.ctx, target.ID); err != nil {
 		return EditMessageResult{}, xerrors.Errorf("soft-delete target: %w", err)
 	}
