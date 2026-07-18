@@ -113,8 +113,8 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //     thinking, which those models reject with an HTTP 400, and send
 //     an explicit thinking disable for effort none on Claude 5+ models
 //     that otherwise run adaptive thinking by default.
-// See: https://github.com/coder/fantasy/commits/fdf4de16c5be
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260718174521-fdf4de16c5be
+// See: https://github.com/coder/fantasy/commits/a63de4b40315
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260718195754-a63de4b40315
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
