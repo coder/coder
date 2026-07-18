@@ -1,15 +1,20 @@
 package chatd
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -99,14 +104,29 @@ func TestEnsureChatContextPinnedOnFirstTurn(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		server := &Server{db: db, logger: slogtest.Make(t, nil)}
+		ps := dbpubsub.NewInMemory()
+		server := &Server{db: db, logger: slogtest.Make(t, nil), pubsub: ps}
 
+		ownerID := uuid.New()
 		agentID := uuid.New()
-		chat := database.Chat{ID: uuid.New(), AgentID: uuid.NullUUID{UUID: agentID, Valid: true}}
+		chat := database.Chat{ID: uuid.New(), OwnerID: ownerID, AgentID: uuid.NullUUID{UUID: agentID, Valid: true}}
 		snapshot := database.WorkspaceAgentContextSnapshot{
 			WorkspaceAgentID: agentID,
 			AggregateHash:    []byte{0x0a, 0x0b},
 		}
+		pinnedChat := chat
+		pinnedChat.ContextAggregateHash = snapshot.AggregateHash
+
+		events := make(chan codersdk.ChatWatchEvent, 1)
+		cancelSub, err := ps.SubscribeWithErr(
+			coderdpubsub.ChatWatchEventChannel(ownerID),
+			coderdpubsub.HandleChatWatchEvent(func(_ context.Context, payload codersdk.ChatWatchEvent, err error) {
+				require.NoError(t, err)
+				events <- payload
+			}),
+		)
+		require.NoError(t, err)
+		defer cancelSub()
 
 		db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
 			func(f func(database.Store) error, _ *database.TxOptions) error { return f(db) })
@@ -119,8 +139,37 @@ func TestEnsureChatContextPinnedOnFirstTurn(t *testing.T) {
 			AggregateHash: snapshot.AggregateHash,
 			ContextError:  snapshot.SnapshotError,
 		}).Return(nil)
+		db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(pinnedChat, nil)
 
 		server.ensureChatContextPinnedOnFirstTurn(ctx, chat)
+
+		// Watching clients cached the detail without pinned resources, so
+		// the pin must broadcast a context event to trigger their refetch.
+		event := testutil.RequireReceive(ctx, t, events)
+		require.Equal(t, codersdk.ChatWatchEventKindContextDirty, event.Kind)
+		require.Equal(t, chat.ID, event.Chat.ID)
+	})
+
+	t.Run("SkipsPublishWhenNoSnapshot", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db, logger: slogtest.Make(t, nil)}
+
+		agentID := uuid.New()
+		// ErrNoRows means the agent has not pushed yet: nothing is stamped
+		// and no event is published (GetChatByID has no EXPECT, so a
+		// post-hydration read would fail the test).
+		db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(f func(database.Store) error, _ *database.TxOptions) error { return f(db) })
+		db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+			Return(database.WorkspaceAgentContextSnapshot{}, sql.ErrNoRows)
+
+		server.ensureChatContextPinnedOnFirstTurn(ctx, database.Chat{
+			ID:      uuid.New(),
+			AgentID: uuid.NullUUID{UUID: agentID, Valid: true},
+		})
 	})
 
 	t.Run("SkipsWhenAlreadyPinned", func(t *testing.T) {

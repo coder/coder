@@ -1866,8 +1866,9 @@ const (
 	ChatWatchEventKindDiffStatusChange ChatWatchEventKind = "diff_status_change"
 	ChatWatchEventKindActionRequired   ChatWatchEventKind = "action_required"
 	// ChatWatchEventKindContextDirty signals that the chat's pinned
-	// workspace context drifted from the agent's latest pushed snapshot.
-	// The chat stays usable; a refresh re-pins it to the latest snapshot.
+	// workspace context changed: it drifted from the agent's latest
+	// pushed snapshot, or a first-turn pin populated it. The chat stays
+	// usable; a refresh re-pins a drifted chat to the latest snapshot.
 	ChatWatchEventKindContextDirty ChatWatchEventKind = "context_dirty"
 )
 
