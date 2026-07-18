@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -50,35 +51,46 @@ func TestOAuth2ProviderSettings(t *testing.T) {
 		require.True(t, updated.DynamicClientRegistrationEnabled)
 	})
 
-	t.Run("GetPermissionDenied", func(t *testing.T) {
+	t.Run("PermissionDenied", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
-		firstUser := coderdtest.CreateFirstUser(t, client)
-		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
-		ctx := testutil.Context(t, testutil.WaitShort)
+		tests := []struct {
+			name string
+			do   func(ctx context.Context, client *codersdk.Client) error
+		}{
+			{
+				name: "Get",
+				do: func(ctx context.Context, client *codersdk.Client) error {
+					_, err := client.OAuth2ProviderSettings(ctx)
+					return err
+				},
+			},
+			{
+				name: "Put",
+				do: func(ctx context.Context, client *codersdk.Client) error {
+					_, err := client.PutOAuth2ProviderSettings(ctx, codersdk.OAuth2ProviderSettings{
+						DynamicClientRegistrationEnabled: false,
+					})
+					return err
+				},
+			},
+		}
 
-		_, err := anotherClient.OAuth2ProviderSettings(ctx)
-		var sdkError *codersdk.Error
-		require.Error(t, err)
-		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
-		require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
-	})
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 
-	t.Run("PutPermissionDenied", func(t *testing.T) {
-		t.Parallel()
+				client := coderdtest.New(t, nil)
+				firstUser := coderdtest.CreateFirstUser(t, client)
+				anotherClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+				ctx := testutil.Context(t, testutil.WaitShort)
 
-		client := coderdtest.New(t, nil)
-		firstUser := coderdtest.CreateFirstUser(t, client)
-		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		_, err := anotherClient.PutOAuth2ProviderSettings(ctx, codersdk.OAuth2ProviderSettings{
-			DynamicClientRegistrationEnabled: false,
-		})
-		var sdkError *codersdk.Error
-		require.Error(t, err)
-		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
-		require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
+				err := tt.do(ctx, anotherClient)
+				var sdkError *codersdk.Error
+				require.Error(t, err)
+				require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
+				require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
+			})
+		}
 	})
 }
