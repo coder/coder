@@ -354,10 +354,8 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				oauth2Scopes = result.scopes
 			}
 
-			// Same fallback for the revocation URL: an explicit
-			// request value wins over discovered metadata. A discovered
-			// endpoint that fails the HTTPS policy is dropped (treated
-			// as revocation-unsupported) instead of failing creation.
+			// A discovered endpoint that fails the HTTPS policy is
+			// dropped instead of failing creation.
 			oauth2RevocationURL := strings.TrimSpace(req.OAuth2RevocationURL)
 			if oauth2RevocationURL == "" {
 				oauth2RevocationURL = result.revocationURL
@@ -605,8 +603,8 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				})
 				return
 			}
-			// Same policy as RevokeOAuth2Token, so accepted URLs are
-			// never refused later at disconnect time.
+			// Same policy as RevokeOAuth2Token, so stored URLs are
+			// not refused later at disconnect time.
 			if err := mcpclient.ValidateRevocationEndpoint(trimmed); err != nil {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: "Invalid OAuth2 revocation URL.",
@@ -1227,9 +1225,8 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 		if err != nil {
 			return err
 		}
-		// The config is loaded only after the caller's token is found so
-		// that the response does not reveal whether hidden config IDs
-		// exist to users without a stored token.
+		// Load the config only after the token is found so callers
+		// without a token cannot probe which config IDs exist.
 		dbConfig, err := tx.GetMCPServerConfigByID(systemCtx, mcpServerID)
 		if err != nil {
 			return err
@@ -1246,8 +1243,8 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 	}, &database.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			// Nonexistent config IDs take this same path, so a caller
-			// without a token cannot probe which configs exist.
+			// Nonexistent config IDs take the same path, so they
+			// cannot be probed either.
 			httpapi.Write(ctx, rw, http.StatusOK, codersdk.MCPServerOAuth2DisconnectResponse{})
 			return
 		}
@@ -1261,8 +1258,7 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 	resp := codersdk.MCPServerOAuth2DisconnectResponse{}
 	if config.AuthType == "oauth2" {
 		// The local token is already deleted, so a client abort must
-		// not cancel the provider revocation; RevokeOAuth2Token caps
-		// the call with its own timeout.
+		// not cancel the provider revocation; it has its own timeout.
 		revoked, err := mcpclient.RevokeOAuth2Token(context.WithoutCancel(ctx), api.HTTPClient, config, token)
 		resp.TokenRevoked = revoked
 		if err != nil {
@@ -1270,9 +1266,8 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 				slog.F("server_slug", config.Slug),
 				slog.Error(err),
 			)
-			// Provider error bodies may echo request parameters,
-			// including the OAuth client secret, so only a generic
-			// message is exposed to callers.
+			// Provider error bodies may echo the client secret, so
+			// callers only get a generic message.
 			resp.TokenRevocationError = "The OAuth provider rejected the revocation request."
 		}
 	}

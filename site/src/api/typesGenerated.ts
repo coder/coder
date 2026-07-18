@@ -3761,9 +3761,8 @@ export interface CreateMCPServerConfigRequest {
 	readonly oauth2_auth_url?: string;
 	readonly oauth2_token_url?: string;
 	/**
-	 * OAuth2RevocationURL is the provider's RFC 7009 token revocation
-	 * endpoint. Optional; when set, disconnect revokes the grant at the
-	 * provider. Auto-populated by OAuth2 discovery when available.
+	 * OAuth2RevocationURL is the provider's RFC 7009 revocation
+	 * endpoint; auto-populated by OAuth2 discovery when omitted.
 	 */
 	readonly oauth2_revocation_url?: string;
 	readonly oauth2_scopes?: string;
@@ -5641,9 +5640,8 @@ export interface MCPServerConfig {
 
 // From codersdk/mcp.go
 /**
- * MCPServerOAuth2DisconnectResponse reports the result of removing a
- * user's OAuth2 token for an MCP server. TokenRevoked is true when the
- * token was also revoked at the OAuth provider.
+ * MCPServerOAuth2DisconnectResponse reports whether the removed token
+ * was also revoked at the OAuth provider.
  */
 export interface MCPServerOAuth2DisconnectResponse {
 	readonly token_revoked: boolean;
@@ -9300,9 +9298,8 @@ export interface UpdateMCPServerConfigRequest {
 	readonly oauth2_auth_url?: string;
 	readonly oauth2_token_url?: string;
 	/**
-	 * OAuth2RevocationURL must be a valid URL or an empty string,
-	 * which clears the stored value. Validated in the handler
-	 * because a validate tag would reject the pointer to "".
+	 * OAuth2RevocationURL is validated in the handler because a
+	 * validate tag would reject the pointer to "" that clears it.
 	 */
 	readonly oauth2_revocation_url?: string;
 	readonly oauth2_scopes?: string;

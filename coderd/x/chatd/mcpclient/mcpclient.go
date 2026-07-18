@@ -965,17 +965,13 @@ func RefreshOAuth2Token(
 	}, nil
 }
 
-// RevokeOAuth2Token revokes the user's token at the provider's RFC 7009 endpoint.
-// It prefers the refresh token to request invalidation of associated access
-// tokens. When the provider answers with the RFC 7009 unsupported_token_type
-// error code, it retries with the access token: revoking the access token is
-// then the most complete revocation the endpoint offers. Other refresh-token
-// failures do not fall back, because reporting an access-token success would
-// hide that the refresh token may still be live. It returns false with no
-// error when the config has no revocation endpoint or the row holds no token
-// material (e.g. cleared after a permanent refresh failure). Errors carry
-// only the HTTP status: provider bodies may echo request parameters such as
-// the client secret and must stay out of logs.
+// RevokeOAuth2Token revokes the user's token at the provider's RFC 7009
+// endpoint. It prefers the refresh token, retrying with the access token
+// only on unsupported_token_type; other failures do not fall back, since
+// an access-token success would hide a possibly live refresh token.
+// Returns false without error when there is no revocation endpoint or no
+// stored token. Errors carry only the HTTP status because provider
+// bodies may echo secrets.
 func RevokeOAuth2Token(
 	ctx context.Context,
 	httpClient *http.Client,
@@ -998,8 +994,7 @@ func RevokeOAuth2Token(
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
-	// Shallow-copy so the policy does not leak into the shared caller
-	// client.
+	// Copy so CheckRedirect does not leak into the shared client.
 	redirectSafe := *httpClient
 	redirectSafe.CheckRedirect = checkRevocationRedirect
 	httpClient = &redirectSafe
@@ -1042,18 +1037,16 @@ func isLoopbackHost(host string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-// ValidateRevocationEndpoint enforces the RFC 7009 HTTPS requirement:
-// the revocation request carries token material and, for confidential
-// clients, the client secret. Plain HTTP is allowed only for loopback
-// hosts (local development and tests). Config save paths apply the
-// same rule so stored URLs are never refused later at disconnect time.
+// ValidateRevocationEndpoint enforces the RFC 7009 HTTPS requirement;
+// the request carries token material and the client secret. Plain HTTP
+// is allowed only for loopback hosts.
 func ValidateRevocationEndpoint(rawURL string) error {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
 		return xerrors.Errorf("parse revocation URL: %w", err)
 	}
-	// url.Parse accepts hostless forms like "https:/revoke", which
-	// http.Client can never POST to.
+	// url.Parse accepts hostless forms like "https:/revoke" that can
+	// never be POSTed to.
 	if parsed.Hostname() == "" {
 		return xerrors.Errorf(
 			"revocation endpoint %q has no host", parsed.Redacted(),
@@ -1074,20 +1067,15 @@ func isAllowedRevocationScheme(u *url.URL) bool {
 	return u.Scheme == "http" && isLoopbackHost(u.Hostname())
 }
 
-// checkRevocationRedirect guards redirects of the RFC 7009 POST, which
-// carries token material and, for confidential clients, Basic
-// credentials. A 307/308 redirect replays that body, so targets must
-// keep the POST method, an allowed scheme, and the configured
-// provider's origin (scheme, host, and port). Loopback to loopback is
-// exempt from the origin check for local development.
+// checkRevocationRedirect stops the revocation POST, which carries
+// token material and client credentials, from following redirects off
+// the provider's origin. Loopback to loopback is exempt.
 func checkRevocationRedirect(req *http.Request, via []*http.Request) error {
 	if len(via) >= 10 {
 		return xerrors.New("stopped after 10 redirects")
 	}
-	// net/http follows 301/302/303 with a bodyless GET, so the token
-	// would never reach the final endpoint and a trailing 200 would be
-	// a false revocation success. Only method-preserving redirects
-	// (307/308) can complete one.
+	// net/http follows 301/302/303 with a bodyless GET; the token never
+	// reaches the endpoint and a trailing 200 would be a false success.
 	if req.Method != http.MethodPost {
 		return xerrors.New(
 			"revocation redirect dropped the POST body",
@@ -1129,9 +1117,8 @@ func isRevocationSuccessStatus(status int) bool {
 	return status == http.StatusOK || status == http.StatusNoContent
 }
 
-// postTokenRevocation returns the HTTP status and, for unsuccessful responses,
-// the RFC 6749 error code parsed from the body. Only that code is
-// extracted; the raw body never propagates.
+// postTokenRevocation returns the HTTP status and the RFC 6749 error
+// code from the body; the raw body never propagates.
 func postTokenRevocation(
 	ctx context.Context,
 	httpClient *http.Client,
@@ -1141,11 +1128,8 @@ func postTokenRevocation(
 	form := url.Values{}
 	form.Set("token", token)
 	form.Set("token_type_hint", tokenTypeHint)
-	// Body client_id and Basic auth are alternative client
-	// authentication styles (RFC 6749 section 2.3.1); mixing both in
-	// one request is malformed for strict providers. Confidential
-	// clients authenticate via Basic below, so only public clients
-	// identify themselves in the body.
+	// Only public clients send client_id in the body; mixing it with
+	// Basic auth is malformed per RFC 6749 section 2.3.1.
 	if cfg.OAuth2ClientSecret == "" {
 		form.Set("client_id", cfg.OAuth2ClientID)
 	}
@@ -1161,9 +1145,8 @@ func postTokenRevocation(
 		return 0, "", xerrors.Errorf("create revocation request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	// Confidential clients authenticate with client_secret_basic, the
-	// only scheme RFC 6749 section 2.3.1 requires servers to support.
-	// Credentials are form-encoded per that section (mirrors x/oauth2).
+	// Credentials are form-encoded per RFC 6749 section 2.3.1
+	// (mirrors x/oauth2).
 	if cfg.OAuth2ClientSecret != "" {
 		req.SetBasicAuth(url.QueryEscape(cfg.OAuth2ClientID), url.QueryEscape(cfg.OAuth2ClientSecret))
 	}

@@ -414,8 +414,7 @@ func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 
-	// Plaintext URLs are rejected on save because RevokeOAuth2Token
-	// would refuse them at disconnect time.
+	// Plaintext URLs are rejected on save, not later at disconnect.
 	plaintextURL := "http://auth.example.com/revoke"
 	_, err = client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
 		OAuth2RevocationURL: &plaintextURL,
@@ -844,8 +843,7 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		memberClient, memberID, db, configID := newDisconnectFixture(t, "disc-err", revokeSrv.URL)
 		seedToken(t, db, configID, memberID)
 
-		// Provider bodies may echo the OAuth client secret, so members
-		// only receive a generic revocation error.
+		// Members get a generic error; provider bodies may echo the secret.
 		resp, err := memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, configID)
 		require.NoError(t, err)
 		require.False(t, resp.TokenRevoked)

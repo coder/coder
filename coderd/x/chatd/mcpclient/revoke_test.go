@@ -14,8 +14,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 )
 
-// revokeRequest carries a captured revocation request from the
-// httptest handler goroutine to the test goroutine.
 type revokeRequest struct {
 	form      map[string][]string
 	basicUser string
@@ -139,8 +137,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		c := <-got
 		require.Equal(t, []string{"at"}, c.form["token"])
 		require.Equal(t, []string{"access_token"}, c.form["token_type_hint"])
-		// Confidential clients use client_secret_basic only; body
-		// client_id would mix the two RFC 6749 authentication styles.
+		// Basic auth must not be mixed with body client_id (RFC 6749 2.3.1).
 		require.True(t, c.basicSet)
 		require.Equal(t, "cid", c.basicUser)
 		require.Equal(t, "secret", c.basicPass)
@@ -206,9 +203,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		require.Error(t, err)
 		require.False(t, revoked)
 		require.Contains(t, err.Error(), "HTTP 401")
-		// A rejection without unsupported_token_type must not retry:
-		// claiming success on the access token would hide that the
-		// refresh token may still be live at the provider.
+		// No access-token fallback: it could mask a live refresh token.
 		require.EqualValues(t, 1, calls.Load())
 	})
 
@@ -244,9 +239,8 @@ func TestRevokeOAuth2Token(t *testing.T) {
 	t.Run("RejectsNonHTTPSEndpoint", func(t *testing.T) {
 		t.Parallel()
 
-		// Loopback is exempt from the HTTPS requirement only for
-		// plain http, not arbitrary schemes. Hostless forms parse
-		// but can never be POSTed to.
+		// Loopback is exempt only for plain http; hostless forms
+		// parse but can never be POSTed to.
 		for u, wantErr := range map[string]string{
 			"http://revoke.example.com/revoke": "must use https",
 			"ftp://localhost/revoke":           "must use https",
@@ -294,8 +288,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		t.Parallel()
 
 		target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// A canonical/login page that happily returns 200 to the
-			// bodyless GET the redirect produced.
+			// Returns 200 to the bodyless GET produced by the redirect.
 			require.NoError(t, r.ParseForm())
 			require.Empty(t, r.PostForm.Get("token"))
 			w.WriteHeader(http.StatusOK)
@@ -323,8 +316,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 	t.Run("RejectsCrossHostRedirect", func(t *testing.T) {
 		t.Parallel()
 
-		// CheckRedirect runs before the target is dialed, so the
-		// attacker host never receives the replayed POST.
+		// CheckRedirect rejects before the attacker host is dialed.
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "https://attacker.example.com/collect?token=reflected-token", http.StatusTemporaryRedirect)
 		}))
@@ -415,8 +407,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		require.Error(t, err)
 		require.False(t, revoked)
 		require.Contains(t, err.Error(), "HTTP 500")
-		// The provider body may echo request secrets and must not
-		// surface in the error.
+		// The secret-echoing body must not surface in the error.
 		require.NotContains(t, err.Error(), "SECRET-ECHO")
 	})
 }
