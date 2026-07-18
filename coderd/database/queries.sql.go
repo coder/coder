@@ -9444,41 +9444,44 @@ func (q *sqlQuerier) GetUserGroupSpendLimit(ctx context.Context, arg GetUserGrou
 	return limit_micros, err
 }
 
-const hydrateAgentChatsContext = `-- name: HydrateAgentChatsContext :exec
+const hydrateAgentChatsContext = `-- name: HydrateAgentChatsContext :many
 WITH hydrated AS (
     UPDATE chats
     SET
-        context_aggregate_hash = $2,
-        context_error = $3
-    WHERE agent_id = $1::uuid
+        context_aggregate_hash = $1,
+        context_error = $2
+    WHERE agent_id = $3::uuid
         AND archived = false
         AND context_aggregate_hash IS NULL
     RETURNING id
+),
+copied AS (
+    INSERT INTO chat_context_resources (
+        chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    )
+    SELECT
+        hydrated.id, r.source, r.body_kind, r.body, r.content_hash,
+        r.size_bytes, r.status, r.error, r.source_path
+    FROM hydrated
+    CROSS JOIN workspace_agent_context_resources r
+    WHERE r.workspace_agent_id = $3::uuid
+    ON CONFLICT (chat_id, source) DO UPDATE SET
+        body_kind = EXCLUDED.body_kind,
+        body = EXCLUDED.body,
+        content_hash = EXCLUDED.content_hash,
+        size_bytes = EXCLUDED.size_bytes,
+        status = EXCLUDED.status,
+        error = EXCLUDED.error,
+        source_path = EXCLUDED.source_path,
+        updated_at = now()
 )
-INSERT INTO chat_context_resources (
-    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
-)
-SELECT
-    hydrated.id, r.source, r.body_kind, r.body, r.content_hash,
-    r.size_bytes, r.status, r.error, r.source_path
-FROM hydrated
-CROSS JOIN workspace_agent_context_resources r
-WHERE r.workspace_agent_id = $1::uuid
-ON CONFLICT (chat_id, source) DO UPDATE SET
-    body_kind = EXCLUDED.body_kind,
-    body = EXCLUDED.body,
-    content_hash = EXCLUDED.content_hash,
-    size_bytes = EXCLUDED.size_bytes,
-    status = EXCLUDED.status,
-    error = EXCLUDED.error,
-    source_path = EXCLUDED.source_path,
-    updated_at = now()
+SELECT id FROM hydrated
 `
 
 type HydrateAgentChatsContextParams struct {
-	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
 	AggregateHash []byte    `db:"aggregate_hash" json:"aggregate_hash"`
 	ContextError  string    `db:"context_error" json:"context_error"`
+	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
 }
 
 // Stamps the pinned hash and error on every not-yet-hydrated chat for
@@ -9491,9 +9494,29 @@ type HydrateAgentChatsContextParams struct {
 // not-yet-hydrated chat has no pinned rows, so it normally inserts.
 // Does not bump chats.updated_at; the resource upsert's ON CONFLICT branch
 // sets chat_context_resources.updated_at on the rows it rewrites.
-func (q *sqlQuerier) HydrateAgentChatsContext(ctx context.Context, arg HydrateAgentChatsContextParams) error {
-	_, err := q.db.ExecContext(ctx, hydrateAgentChatsContext, arg.AgentID, arg.AggregateHash, arg.ContextError)
-	return err
+// Returns the hydrated chat IDs so callers can notify watchers of every
+// chat the statement pinned.
+func (q *sqlQuerier) HydrateAgentChatsContext(ctx context.Context, arg HydrateAgentChatsContextParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, hydrateAgentChatsContext, arg.AggregateHash, arg.ContextError, arg.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const incrementChatGenerationAttempt = `-- name: IncrementChatGenerationAttempt :one

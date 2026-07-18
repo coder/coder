@@ -548,8 +548,9 @@ func (s *MethodTestSuite) TestConnectionLogs() {
 func (s *MethodTestSuite) TestChats() {
 	s.Run("HydrateAgentChatsContext", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.HydrateAgentChatsContextParams{AgentID: uuid.New()}
-		dbm.EXPECT().HydrateAgentChatsContext(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate)
+		hydrated := []uuid.UUID{uuid.New()}
+		dbm.EXPECT().HydrateAgentChatsContext(gomock.Any(), arg).Return(hydrated, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(hydrated)
 	}))
 	s.Run("MarkChatsContextDirtyByAgent", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.MarkChatsContextDirtyByAgentParams{AgentID: uuid.New()}

@@ -46,7 +46,7 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 	// Chats created before the agent's first push land with a NULL pinned
 	// hash. Stamp them now so they start clean; this is their first
 	// hydration, so no dirty event is emitted.
-	if err := tx.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
+	if _, err := tx.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
 		AgentID:       agentID,
 		AggregateHash: aggregateHash,
 		ContextError:  snapshotError,
@@ -94,26 +94,29 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 // HydrateAgentChatsContext only touches NULL-hash chats (a concurrent push that
 // already hydrated the chat is not clobbered), and snapshot-gated so it does
 // nothing when the agent has not pushed yet, never stamping empty state that
-// would keep a later push from hydrating. hydrated reports whether a snapshot
-// existed, meaning any NULL-hash chats bound to the agent are now pinned.
-func (p *Server) hydrateAgentChatsFromSnapshot(ctx context.Context, agentID uuid.UUID) (hydrated bool, err error) {
-	err = database.ReadModifyUpdate(p.db, func(tx database.Store) error {
+// would keep a later push from hydrating. It returns the IDs of the chats it
+// pinned; empty when the agent has no snapshot or every chat was already
+// pinned.
+func (p *Server) hydrateAgentChatsFromSnapshot(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
+	var hydrated []uuid.UUID
+	err := database.ReadModifyUpdate(p.db, func(tx database.Store) error {
 		aggregateHash, snapshotError, ok, err := latestAgentSnapshot(ctx, tx, agentID)
 		if err != nil {
 			return err
 		}
-		hydrated = ok
 		if !ok {
+			hydrated = nil
 			return nil
 		}
-		return tx.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
+		hydrated, err = tx.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
 			AgentID:       agentID,
 			AggregateHash: aggregateHash,
 			ContextError:  snapshotError,
 		})
+		return err
 	})
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	return hydrated, nil
 }
@@ -146,10 +149,12 @@ func (p *Server) hydrateChatContextOnCreate(ctx context.Context, chat database.C
 // exist. It reuses the create-path hydration, which is idempotent and
 // snapshot-gated, so it never clobbers an already-pinned chat and never stamps
 // empty state. The NULL-hash gate also leaves dirtied chats alone: their stale
-// pinned hash is non-NULL until the refresh endpoint re-pins. After a
-// successful pin it publishes a context watch event so watching clients
-// refetch the chat's now-populated pinned resources. Best-effort: failures
-// are logged and swallowed so they never fail the turn.
+// pinned hash is non-NULL until the refresh endpoint re-pins. Hydration
+// pins every unpinned chat bound to the agent in one statement, so a
+// context watch event is published for each pinned chat: watching clients
+// cached those chats' details without pinned resources and need to
+// refetch. Best-effort: failures are logged and swallowed so they never
+// fail the turn.
 func (p *Server) ensureChatContextPinnedOnFirstTurn(ctx context.Context, chat database.Chat) {
 	if !chat.AgentID.Valid || chat.ContextAggregateHash != nil {
 		return
@@ -164,21 +169,20 @@ func (p *Server) ensureChatContextPinnedOnFirstTurn(ctx context.Context, chat da
 			slog.Error(err))
 		return
 	}
-	if !hydrated {
-		return
+	pinnedChats := make([]database.Chat, 0, len(hydrated))
+	for _, chatID := range hydrated {
+		// Re-read each chat so the event payload carries the pinned
+		// state, not the pre-hydration row.
+		pinned, err := p.db.GetChatByID(ctx, chatID)
+		if err != nil {
+			p.logger.Warn(ctx, "read chat after first-turn context pin",
+				slog.F("chat_id", chatID),
+				slog.Error(err))
+			continue
+		}
+		pinnedChats = append(pinnedChats, pinned)
 	}
-	// The chat was unpinned when this turn started, so watching clients
-	// cached its detail without pinned resources. Publish a context event
-	// now that hydration pinned it so they refetch. Re-read the chat so
-	// the event payload carries the pinned state, not the stale row.
-	pinned, err := p.db.GetChatByID(ctx, chat.ID)
-	if err != nil {
-		p.logger.Warn(ctx, "read chat after first-turn context pin",
-			slog.F("chat_id", chat.ID),
-			slog.Error(err))
-		return
-	}
-	p.publishChatPubsubEvents([]database.Chat{pinned}, codersdk.ChatWatchEventKindContextDirty)
+	p.publishChatPubsubEvents(pinnedChats, codersdk.ChatWatchEventKindContextDirty)
 }
 
 // repinChatContext re-pins a single chat to its agent's latest context

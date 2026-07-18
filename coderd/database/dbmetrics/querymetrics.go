@@ -3921,12 +3921,12 @@ func (m queryMetricsStore) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx con
 	return r0, r1
 }
 
-func (m queryMetricsStore) HydrateAgentChatsContext(ctx context.Context, arg database.HydrateAgentChatsContextParams) error {
+func (m queryMetricsStore) HydrateAgentChatsContext(ctx context.Context, arg database.HydrateAgentChatsContextParams) ([]uuid.UUID, error) {
 	start := time.Now()
-	r0 := m.s.HydrateAgentChatsContext(ctx, arg)
+	r0, r1 := m.s.HydrateAgentChatsContext(ctx, arg)
 	m.queryLatencies.WithLabelValues("HydrateAgentChatsContext").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "HydrateAgentChatsContext").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) IncrementChatGenerationAttempt(ctx context.Context, id uuid.UUID) (int64, error) {

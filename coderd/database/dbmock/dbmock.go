@@ -7334,11 +7334,12 @@ func (mr *MockStoreMockRecorder) HasTemplateVersionsUsingCachedModuleFileInOrg(c
 }
 
 // HydrateAgentChatsContext mocks base method.
-func (m *MockStore) HydrateAgentChatsContext(ctx context.Context, arg database.HydrateAgentChatsContextParams) error {
+func (m *MockStore) HydrateAgentChatsContext(ctx context.Context, arg database.HydrateAgentChatsContextParams) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HydrateAgentChatsContext", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // HydrateAgentChatsContext indicates an expected call of HydrateAgentChatsContext.

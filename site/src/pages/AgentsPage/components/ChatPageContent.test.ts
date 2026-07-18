@@ -54,6 +54,24 @@ describe("workspaceSkillsFromChat", () => {
 		]);
 	});
 
+	it("keeps the first resource for duplicate skill names, matching read_skill", () => {
+		const chat = chatWithContext({
+			dirty: false,
+			resources: [
+				skillResource("reviewer", {
+					source: "/workspace/.agents/skills/reviewer",
+				}),
+				skillResource("reviewer", {
+					source: "/workspace/other/skills/reviewer",
+					skill_description: "shadowed duplicate",
+				}),
+			],
+		});
+		expect(workspaceSkillsFromChat(chat)).toEqual([
+			{ name: "reviewer", description: "reviewer description" },
+		]);
+	});
+
 	it("omits non-ok skill resources", () => {
 		const chat = chatWithContext({
 			dirty: true,

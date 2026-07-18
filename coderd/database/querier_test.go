@@ -1296,11 +1296,14 @@ func TestChatContextHydration(t *testing.T) {
 	_, err := db.ArchiveChatByID(ctx, chatArchived.ID)
 	require.NoError(t, err)
 
-	// Hydrate stamps only the NULL-hash chat for this agent.
-	require.NoError(t, db.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
+	// Hydrate stamps only the NULL-hash chat for this agent and returns
+	// exactly the chats it pinned.
+	hydrated, err := db.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
 		AgentID:       agent.ID,
 		AggregateHash: hashH,
-	}))
+	})
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{chatNull.ID}, hydrated)
 	gotNull, err := db.GetChatByID(ctx, chatNull.ID)
 	require.NoError(t, err)
 	require.Equal(t, hashH, gotNull.ContextAggregateHash, "NULL-hash chat is hydrated")

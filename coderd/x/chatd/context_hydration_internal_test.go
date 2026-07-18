@@ -51,7 +51,7 @@ func TestHydrateChatContextOnCreate(t *testing.T) {
 			AgentID:       agentID,
 			AggregateHash: snapshot.AggregateHash,
 			ContextError:  snapshot.SnapshotError,
-		}).Return(nil)
+		}).Return([]uuid.UUID{chat.ID}, nil)
 
 		server.hydrateChatContextOnCreate(ctx, chat)
 	})
@@ -110,14 +110,19 @@ func TestEnsureChatContextPinnedOnFirstTurn(t *testing.T) {
 		ownerID := uuid.New()
 		agentID := uuid.New()
 		chat := database.Chat{ID: uuid.New(), OwnerID: ownerID, AgentID: uuid.NullUUID{UUID: agentID, Valid: true}}
+		// A second unpinned chat bound to the same agent is hydrated by the
+		// same statement and must get its own watch event.
+		siblingChat := database.Chat{ID: uuid.New(), OwnerID: ownerID, AgentID: chat.AgentID}
 		snapshot := database.WorkspaceAgentContextSnapshot{
 			WorkspaceAgentID: agentID,
 			AggregateHash:    []byte{0x0a, 0x0b},
 		}
 		pinnedChat := chat
 		pinnedChat.ContextAggregateHash = snapshot.AggregateHash
+		pinnedSibling := siblingChat
+		pinnedSibling.ContextAggregateHash = snapshot.AggregateHash
 
-		events := make(chan codersdk.ChatWatchEvent, 1)
+		events := make(chan codersdk.ChatWatchEvent, 2)
 		cancelSub, err := ps.SubscribeWithErr(
 			coderdpubsub.ChatWatchEventChannel(ownerID),
 			coderdpubsub.HandleChatWatchEvent(func(_ context.Context, payload codersdk.ChatWatchEvent, err error) {
@@ -138,16 +143,21 @@ func TestEnsureChatContextPinnedOnFirstTurn(t *testing.T) {
 			AgentID:       agentID,
 			AggregateHash: snapshot.AggregateHash,
 			ContextError:  snapshot.SnapshotError,
-		}).Return(nil)
+		}).Return([]uuid.UUID{chat.ID, siblingChat.ID}, nil)
 		db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(pinnedChat, nil)
+		db.EXPECT().GetChatByID(gomock.Any(), siblingChat.ID).Return(pinnedSibling, nil)
 
 		server.ensureChatContextPinnedOnFirstTurn(ctx, chat)
 
-		// Watching clients cached the detail without pinned resources, so
-		// the pin must broadcast a context event to trigger their refetch.
-		event := testutil.RequireReceive(ctx, t, events)
-		require.Equal(t, codersdk.ChatWatchEventKindContextDirty, event.Kind)
-		require.Equal(t, chat.ID, event.Chat.ID)
+		// Watching clients cached both details without pinned resources, so
+		// every hydrated chat must broadcast a context event.
+		gotChatIDs := make([]uuid.UUID, 0, 2)
+		for range 2 {
+			event := testutil.RequireReceive(ctx, t, events)
+			require.Equal(t, codersdk.ChatWatchEventKindContextDirty, event.Kind)
+			gotChatIDs = append(gotChatIDs, event.Chat.ID)
+		}
+		require.ElementsMatch(t, []uuid.UUID{chat.ID, siblingChat.ID}, gotChatIDs)
 	})
 
 	t.Run("SkipsPublishWhenNoSnapshot", func(t *testing.T) {

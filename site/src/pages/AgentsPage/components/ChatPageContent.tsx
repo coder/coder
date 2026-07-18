@@ -49,19 +49,30 @@ const isChatMessage = (
 
 // A resolved chat with no context (unpinned) or no resources authoritatively
 // has no workspace skills; only an unresolved chat leaves them unknown.
+// Duplicate names keep the first resource to match read_skill resolution,
+// which also collapses duplicates first-wins in resource order.
 export const workspaceSkillsFromChat = (
 	chat: TypesGen.Chat | undefined,
-): SkillMetadata[] | undefined =>
-	chat
-		? (chat.context?.resources ?? [])
-				.filter(
-					(resource) => resource.kind === "skill" && resource.status === "ok",
-				)
-				.map((resource) => ({
-					name: resource.skill_name ?? "",
-					description: resource.skill_description ?? "",
-				}))
-		: undefined;
+): SkillMetadata[] | undefined => {
+	if (!chat) {
+		return undefined;
+	}
+	const skills = new Map<string, SkillMetadata>();
+	for (const resource of chat.context?.resources ?? []) {
+		if (
+			resource.kind !== "skill" ||
+			resource.status !== "ok" ||
+			skills.has(resource.skill_name ?? "")
+		) {
+			continue;
+		}
+		skills.set(resource.skill_name ?? "", {
+			name: resource.skill_name ?? "",
+			description: resource.skill_description ?? "",
+		});
+	}
+	return [...skills.values()];
+};
 
 interface ChatPageTimelineProps {
 	store: ChatStoreHandle;
