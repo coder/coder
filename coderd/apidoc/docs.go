@@ -1272,47 +1272,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/workspaces/{workspace}/skills": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Workspaces"
-                ],
-                "summary": "List workspace skills",
-                "operationId": "list-workspace-skills",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workspace ID",
-                        "name": "workspace",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.WorkspaceSkillMetadata"
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
         "/api/v2/": {
             "get": {
                 "produces": [
@@ -17362,7 +17321,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "context_file_agent_id": {
-                    "description": "ContextFileAgentID is the workspace agent that provided\nthis context part. Used to detect when the agent changes\n(e.g. workspace rebuilt) so instruction files can be\nre-persisted with fresh content.",
+                    "description": "ContextFileAgentID is the workspace agent that provided\nthis context file. Used to detect when the agent changes\n(e.g. workspace rebuilt) so instruction files can be\nre-persisted with fresh content.",
                     "format": "uuid",
                     "allOf": [
                         {
@@ -27677,17 +27636,6 @@ const docTemplate = `{
                 "sharing_globally_disabled": {
                     "description": "SharingGloballyDisabled is true if sharing has been disabled for this\norganization because of a deployment-wide setting.",
                     "type": "boolean"
-                }
-            }
-        },
-        "codersdk.WorkspaceSkillMetadata": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
                 }
             }
         },

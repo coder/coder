@@ -1,15 +1,18 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent } from "storybook/test";
-import type * as TypesGen from "#/api/typesGenerated";
 import { filterSkillsByQuery } from "../../utils/personalSkills";
-import { createSkillMenuItem, SkillsTriggerMenu } from "./SkillsTriggerMenu";
+import {
+	createSkillMenuItem,
+	type SkillMetadata,
+	SkillsTriggerMenu,
+} from "./SkillsTriggerMenu";
 import {
 	expectNoVisibleText,
 	findVisibleText,
 	MockSkills,
 } from "./storyHelpers";
 
-const mockWorkspaceSkills: TypesGen.WorkspaceSkillMetadata[] = [
+const mockWorkspaceSkills: SkillMetadata[] = [
 	{
 		name: "test-runner",
 		description: "Run the workspace test command.",
@@ -91,18 +94,15 @@ export const Loading: Story = {
 	},
 };
 
-export const WorkspaceError: Story = {
+export const EmptyWithWorkspace: Story = {
 	args: {
 		personalSkills: [],
 		workspaceSkills: [],
 		workspaceSkillsEnabled: true,
-		isWorkspaceError: true,
 	},
 	play: async () => {
 		expect(
-			await findVisibleText(
-				"Could not load workspace skills. Close and type / again to retry.",
-			),
+			await findVisibleText("No personal or workspace skills found."),
 		).toBeDefined();
 	},
 };

@@ -3,6 +3,7 @@ import { type PropsWithChildren, useEffect } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatMessageInput } from "./ChatMessageInput";
+import type { SkillMetadata } from "./SkillsTriggerMenu";
 import {
 	expectNoVisibleText,
 	findVisibleText,
@@ -11,7 +12,7 @@ import {
 } from "./storyHelpers";
 
 // Override props keep skill menu stories deterministic without network calls.
-const mockWorkspaceSkills: TypesGen.WorkspaceSkillMetadata[] = [
+const mockWorkspaceSkills: SkillMetadata[] = [
 	{
 		name: "test-runner",
 		description: "Run the workspace test command.",
@@ -170,8 +171,8 @@ export const ClickSelectsSkill: Story = {
 
 export const OpensWithPersonalAndWorkspaceSkills: Story = {
 	args: {
-		workspaceId: "workspace-1",
-		workspaceSkillsOverride: mockWorkspaceSkills,
+		hasWorkspace: true,
+		workspaceSkills: mockWorkspaceSkills,
 	},
 	play: async ({ canvasElement }) => {
 		await typeInEditor(canvasElement, "/");
@@ -184,8 +185,8 @@ export const OpensWithPersonalAndWorkspaceSkills: Story = {
 
 export const ArrowDownSelectsWorkspaceSkill: Story = {
 	args: {
-		workspaceId: "workspace-1",
-		workspaceSkillsOverride: mockWorkspaceSkills,
+		hasWorkspace: true,
+		workspaceSkills: mockWorkspaceSkills,
 	},
 	play: async ({ canvasElement }) => {
 		const editor = await typeInEditor(canvasElement, "/");
@@ -199,8 +200,8 @@ export const ArrowDownSelectsWorkspaceSkill: Story = {
 
 export const CollidingPersonalSkillInsertsQualifiedTrigger: Story = {
 	args: {
-		workspaceId: "workspace-1",
-		workspaceSkillsOverride: [
+		hasWorkspace: true,
+		workspaceSkills: [
 			{ name: "reviewer", description: "Workspace review process." },
 		],
 	},
@@ -217,9 +218,9 @@ export const CollidingPersonalSkillInsertsQualifiedTrigger: Story = {
 
 export const PersonalTriggersQualifiedWhileWorkspaceSkillsUnknown: Story = {
 	args: {
-		// No workspaceSkillsOverride: the workspace skills query stays
-		// unresolved in the story environment, so collisions are unknown.
-		workspaceId: "workspace-unknown",
+		// No workspaceSkills: the chat's pinned context has not resolved,
+		// so collisions are unknown.
+		hasWorkspace: true,
 	},
 	play: async ({ canvasElement }) => {
 		await typeInEditor(canvasElement, "/rev");
@@ -229,10 +230,10 @@ export const PersonalTriggersQualifiedWhileWorkspaceSkillsUnknown: Story = {
 
 export const QualifiedPersonalQueryMatchesBareTrigger: Story = {
 	args: {
-		workspaceId: "workspace-1",
+		hasWorkspace: true,
 		// Workspace skills resolve without collisions, so personal items
 		// display bare triggers while the typed query stays qualified.
-		workspaceSkillsOverride: mockWorkspaceSkills,
+		workspaceSkills: mockWorkspaceSkills,
 	},
 	play: async ({ canvasElement }) => {
 		const editor = await typeInEditor(canvasElement, "/personal/rev");
@@ -246,8 +247,8 @@ export const QualifiedPersonalQueryMatchesBareTrigger: Story = {
 
 export const UniqueWorkspaceQualifiedPrefixStaysSearchable: Story = {
 	args: {
-		workspaceId: "workspace-1",
-		workspaceSkillsOverride: mockWorkspaceSkills,
+		hasWorkspace: true,
+		workspaceSkills: mockWorkspaceSkills,
 	},
 	play: async ({ canvasElement }) => {
 		const editor = await typeInEditor(canvasElement, "/workspace/t");

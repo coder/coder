@@ -1305,13 +1305,6 @@ func New(options *Options) *API {
 				r.Delete("/", api.deleteUserAIProviderKey)
 			})
 		})
-		r.Route("/workspaces/{workspace}/skills", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-				httpmw.ExtractWorkspaceParam(options.Database),
-			)
-			r.Get("/", api.getWorkspaceSkills)
-		})
 		r.Route("/chats", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,

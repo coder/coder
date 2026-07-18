@@ -83,6 +83,7 @@ import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
 } from "./ChatMessageInput/ChatMessageInput";
+import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
@@ -190,7 +191,7 @@ interface AgentChatInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
-	workspaceSkillsOverride?: readonly TypesGen.WorkspaceSkillMetadata[];
+	workspaceSkills?: readonly SkillMetadata[];
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	chatId?: string;
@@ -399,7 +400,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
-	workspaceSkillsOverride,
+	workspaceSkills,
 	workspace,
 	workspaceAgent,
 	chatId,
@@ -584,9 +585,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		});
 	};
 
-	const attachedWorkspaceId = attachedWorkspace?.id ?? workspace?.id;
-	const skillsWorkspaceId =
-		attachedWorkspaceId ?? selectedWorkspaceId ?? undefined;
+	const hasSkillsWorkspace = Boolean(
+		attachedWorkspace?.id ?? workspace?.id ?? selectedWorkspaceId,
+	);
 
 	const selectedWorkspace = workspaceOptions?.find(
 		(ws) => ws.id === selectedWorkspaceId,
@@ -1216,8 +1217,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					onEnter={handleSubmit}
 					sendShortcut={sendShortcut}
 					disabled={isDisabled || isLoading}
-					workspaceId={skillsWorkspaceId}
-					workspaceSkillsOverride={workspaceSkillsOverride}
+					hasWorkspace={hasSkillsWorkspace}
+					workspaceSkills={workspaceSkills}
 					autoFocus
 				/>
 				{/* Warn about invisible Unicode in the message text.

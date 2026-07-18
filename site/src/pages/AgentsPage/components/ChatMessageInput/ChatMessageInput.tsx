@@ -34,7 +34,6 @@ import {
 } from "react";
 import { useQuery } from "react-query";
 import { userSkills } from "#/api/queries/userSkills";
-import { workspaceSkills } from "#/api/queries/workspaceSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { isMobileViewport } from "#/utils/mobile";
@@ -62,6 +61,7 @@ import {
 import {
 	createSkillMenuItem,
 	type SkillMenuItem,
+	type SkillMetadata,
 	SkillsTriggerMenu,
 } from "./SkillsTriggerMenu";
 import {
@@ -505,17 +505,21 @@ interface ChatMessageInputProps
 	allowTextAttachmentPaste?: boolean;
 	disabled?: boolean;
 	autoFocus?: boolean;
-	workspaceId?: string;
+	/**
+	 * True when a workspace is attached or selected, so workspace skills
+	 * may exist even while workspaceSkills is still undefined.
+	 */
+	hasWorkspace?: boolean;
 	/**
 	 * Story and test seam for deterministic personal skill menu data.
 	 */
 	personalSkillsOverride?: readonly TypesGen.UserSkillMetadata[];
 	/**
-	 * Authoritative workspace skill menu data. Existing chats pass the
-	 * chat's pinned context skills so the menu matches read_skill
-	 * resolution.
+	 * Workspace skill menu data from the chat's pinned context, so the
+	 * menu matches read_skill resolution. Undefined until the chat's
+	 * context resolves (or when no chat exists yet).
 	 */
-	workspaceSkillsOverride?: readonly TypesGen.WorkspaceSkillMetadata[];
+	workspaceSkills?: readonly SkillMetadata[];
 	"aria-label"?: string;
 }
 
@@ -581,9 +585,9 @@ const ChatMessageInput = ({
 	allowTextAttachmentPaste,
 	disabled,
 	autoFocus,
-	workspaceId,
+	hasWorkspace,
 	personalSkillsOverride,
-	workspaceSkillsOverride,
+	workspaceSkills,
 	"aria-label": ariaLabel,
 	ref,
 	...props
@@ -613,49 +617,32 @@ const ChatMessageInput = ({
 	const [skillsMenuSelectedIndex, setSkillsMenuSelectedIndex] = useState(0);
 	const hasSkillsTrigger = Boolean(skillsTrigger);
 	const hasPersonalSkillsOverride = personalSkillsOverride !== undefined;
-	const hasWorkspaceSkillsOverride = workspaceSkillsOverride !== undefined;
 	const personalSkillsQueryEnabled =
 		hasSkillsTrigger && !hasPersonalSkillsOverride;
-	const workspaceSkillsQueryEnabled =
-		hasSkillsTrigger && Boolean(workspaceId) && !hasWorkspaceSkillsOverride;
 	const skillsQuery = useQuery({
 		...userSkills(),
 		enabled: personalSkillsQueryEnabled,
 		// Avoid refetching on each trigger toggle from caret movement.
 		staleTime: 60_000,
 	});
-	// No staleTime: the list tracks the workspace's build and agent context
-	// snapshot, so each menu open refetches (a cheap DB-backed read) while
-	// the cached list keeps rendering during the refetch.
-	const workspaceSkillsQuery = useQuery({
-		...workspaceSkills(workspaceId ?? ""),
-		enabled: workspaceSkillsQueryEnabled,
-	});
 	const personalSkills = personalSkillsOverride ?? skillsQuery.data ?? [];
-	const loadedWorkspaceSkills =
-		workspaceSkillsOverride ?? workspaceSkillsQuery.data ?? [];
+	const loadedWorkspaceSkills = workspaceSkills ?? [];
 	// A stale empty cache with a refetch in flight must not dismiss the menu.
 	const isResolvedEmptyPersonalSkills = hasPersonalSkillsOverride
 		? personalSkills.length === 0
 		: skillsQuery.isSuccess &&
 			!skillsQuery.isFetching &&
 			personalSkills.length === 0;
-	const isResolvedEmptyWorkspaceSkills = workspaceSkillsQueryEnabled
-		? workspaceSkillsQuery.isSuccess &&
-			!workspaceSkillsQuery.isFetching &&
-			loadedWorkspaceSkills.length === 0
-		: loadedWorkspaceSkills.length === 0;
 	// When both loaded skills lists are empty, "/" is plain text. When
 	// only the filtered result is empty, keep the menu open for the
 	// no-match message.
 	const skillsMenuOpen =
 		hasSkillsTrigger &&
-		!(isResolvedEmptyPersonalSkills && isResolvedEmptyWorkspaceSkills);
+		!(isResolvedEmptyPersonalSkills && loadedWorkspaceSkills.length === 0);
 	const skillsSearchQuery = skillsTrigger?.query ?? "";
-	// Until workspace skills resolve, collisions are unknown, so keep
-	// personal triggers qualified; a qualified alias always resolves.
-	const workspaceSkillsKnown =
-		!workspaceSkillsQueryEnabled || workspaceSkillsQuery.data !== undefined;
+	// Until the chat's pinned context resolves, collisions are unknown, so
+	// keep personal triggers qualified; a qualified alias always resolves.
+	const workspaceSkillsKnown = !hasWorkspace || workspaceSkills !== undefined;
 	const workspaceSkillNames = new Set(
 		loadedWorkspaceSkills.map((skill) => skill.name),
 	);
@@ -966,7 +953,7 @@ const ChatMessageInput = ({
 					query={skillsSearchQuery}
 					personalSkills={personalSkillItems}
 					workspaceSkills={workspaceSkillItems}
-					workspaceSkillsEnabled={Boolean(workspaceId)}
+					workspaceSkillsEnabled={Boolean(hasWorkspace)}
 					isPersonalLoading={
 						personalSkillsQueryEnabled &&
 						skillsQuery.isFetching &&
@@ -976,16 +963,6 @@ const ChatMessageInput = ({
 						personalSkillsQueryEnabled &&
 						skillsQuery.isError &&
 						skillsQuery.data === undefined
-					}
-					isWorkspaceLoading={
-						workspaceSkillsQueryEnabled &&
-						workspaceSkillsQuery.isFetching &&
-						workspaceSkillsQuery.data === undefined
-					}
-					isWorkspaceError={
-						workspaceSkillsQueryEnabled &&
-						workspaceSkillsQuery.isError &&
-						workspaceSkillsQuery.data === undefined
 					}
 					selectedIndex={selectedSkillIndex}
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}

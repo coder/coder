@@ -39,6 +39,7 @@ import {
 } from "./ChatConversation/messageParsing";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { ModelSelectorOption } from "./ChatElements";
+import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -48,7 +49,7 @@ const isChatMessage = (
 
 export const workspaceSkillsFromChatContext = (
 	context: TypesGen.ChatContext | undefined,
-): TypesGen.WorkspaceSkillMetadata[] | undefined =>
+): SkillMetadata[] | undefined =>
 	context?.resources
 		? context.resources
 				.filter(
@@ -343,7 +344,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 					onError: () => toast.error("Failed to refresh context."),
 				})
 		: undefined;
-	const workspaceSkillsOverride = workspaceSkillsFromChatContext(chatContext);
+	const workspaceSkills = workspaceSkillsFromChatContext(chatContext);
 	const composeAttachments = useChatDraftAttachments(organizationId, chatId, {
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
@@ -536,7 +537,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			selectedMCPServerIds={selectedMCPServerIds}
 			onMCPSelectionChange={onMCPSelectionChange}
 			onMCPAuthComplete={onMCPAuthComplete}
-			workspaceSkillsOverride={workspaceSkillsOverride}
+			workspaceSkills={workspaceSkills}
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}
 			chatId={chatId}

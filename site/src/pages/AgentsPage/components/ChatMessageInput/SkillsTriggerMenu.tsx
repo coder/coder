@@ -23,7 +23,7 @@ export type CaretAnchorRect = {
 
 type SkillSource = "personal" | "workspace";
 
-type SkillMetadata = {
+export type SkillMetadata = {
 	name: string;
 	description: string;
 };
@@ -60,8 +60,6 @@ type SkillsTriggerMenuProps = {
 	workspaceSkillsEnabled?: boolean;
 	isPersonalLoading?: boolean;
 	isPersonalError?: boolean;
-	isWorkspaceLoading?: boolean;
-	isWorkspaceError?: boolean;
 	selectedIndex: number;
 	onSelectedIndexChange: (index: number) => void;
 	onSelect: (skill: SkillMenuItem) => void;
@@ -125,8 +123,6 @@ export const SkillsTriggerMenu = ({
 	workspaceSkillsEnabled,
 	isPersonalLoading,
 	isPersonalError,
-	isWorkspaceLoading,
-	isWorkspaceError,
 	selectedIndex,
 	onSelectedIndexChange,
 	onSelect,
@@ -139,12 +135,6 @@ export const SkillsTriggerMenu = ({
 			: undefined,
 		isPersonalError && personalSkills.length === 0
 			? "Could not load personal skills. Close and type / again to retry."
-			: undefined,
-		isWorkspaceLoading && workspaceSkills.length === 0
-			? "Loading workspace skills..."
-			: undefined,
-		isWorkspaceError && workspaceSkills.length === 0
-			? "Could not load workspace skills. Close and type / again to retry."
 			: undefined,
 	].filter((item) => item !== undefined);
 	const shouldRender = open && anchorRect;
