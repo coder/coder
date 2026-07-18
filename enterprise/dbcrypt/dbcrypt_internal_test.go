@@ -1525,6 +1525,46 @@ func TestMCPServerUserTokens(t *testing.T) {
 		requireEncryptedEquals(t, ciphers[0], rawTok.RefreshToken, refreshToken)
 	})
 
+	t.Run("UpdateMCPServerUserTokenFromRefresh", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		cfg, tok := insertConfigAndToken(t, crypt, ciphers)
+
+		const (
+			refreshedAccessToken  = "refreshed-access-token"
+			refreshedRefreshToken = "refreshed-refresh-token"
+		)
+		updated, err := crypt.UpdateMCPServerUserTokenFromRefresh(ctx, database.UpdateMCPServerUserTokenFromRefreshParams{
+			ID:           tok.ID,
+			UpdatedAt:    tok.UpdatedAt,
+			AccessToken:  refreshedAccessToken,
+			RefreshToken: refreshedRefreshToken,
+			TokenType:    "Bearer",
+		})
+		require.NoError(t, err)
+		require.Equal(t, refreshedAccessToken, updated.AccessToken)
+		require.Equal(t, refreshedRefreshToken, updated.RefreshToken)
+		require.Equal(t, ciphers[0].HexDigest(), updated.AccessTokenKeyID.String)
+		require.Equal(t, ciphers[0].HexDigest(), updated.RefreshTokenKeyID.String)
+
+		rawTok, err := db.GetMCPServerUserToken(ctx, database.GetMCPServerUserTokenParams{
+			MCPServerConfigID: cfg.ID,
+			UserID:            tok.UserID,
+		})
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], rawTok.AccessToken, refreshedAccessToken)
+		requireEncryptedEquals(t, ciphers[0], rawTok.RefreshToken, refreshedRefreshToken)
+
+		_, err = crypt.UpdateMCPServerUserTokenFromRefresh(ctx, database.UpdateMCPServerUserTokenFromRefreshParams{
+			ID:           tok.ID,
+			UpdatedAt:    tok.UpdatedAt,
+			AccessToken:  "stale-access-token",
+			RefreshToken: "stale-refresh-token",
+			TokenType:    "Bearer",
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
 	t.Run("GetMCPServerUserToken", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)

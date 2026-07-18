@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -727,6 +728,93 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 		require.Equal(t, "cid", form.Get("client_id"))
 
 		requireTokenDeleted(t, db, configID, memberID)
+	})
+
+	t.Run("RefreshCannotRestoreDisconnectedToken", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		refreshStarted := make(chan struct{})
+		releaseRefresh := make(chan struct{})
+		var releaseOnce sync.Once
+		tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			close(refreshStarted)
+			select {
+			case <-releaseRefresh:
+			case <-r.Context().Done():
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"fresh-access","refresh_token":"fresh-refresh","token_type":"Bearer","expires_in":3600}`))
+		}))
+		t.Cleanup(tokenSrv.Close)
+		t.Cleanup(func() { releaseOnce.Do(func() { close(releaseRefresh) }) })
+
+		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+		adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues:    mcpDeploymentValues(t),
+			ChatProviderAPIKeys: &providerKeys,
+		})
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:    "OAuth Disconnect Refresh Race",
+			Slug:           "disc-refresh-race",
+			Transport:      "streamable_http",
+			URL:            "https://mcp.example.com/disc-refresh-race",
+			AuthType:       "oauth2",
+			OAuth2ClientID: "cid",
+			OAuth2AuthURL:  "https://auth.example.com/authorize",
+			OAuth2TokenURL: tokenSrv.URL,
+			Availability:   "default_on",
+			Enabled:        true,
+			ToolAllowList:  []string{},
+			ToolDenyList:   []string{},
+		})
+		require.NoError(t, err)
+
+		//nolint:gocritic // Seeding test state requires system access.
+		_, err = db.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
+			MCPServerConfigID: created.ID,
+			UserID:            member.ID,
+			AccessToken:       "expired-access",
+			RefreshToken:      "old-refresh",
+			TokenType:         "Bearer",
+			Expiry:            sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+		})
+		require.NoError(t, err)
+
+		type configResult struct {
+			configs []codersdk.MCPServerConfig
+			err     error
+		}
+		result := make(chan configResult, 1)
+		go func() {
+			configs, listErr := memberClient.MCPServerConfigs(ctx)
+			result <- configResult{configs: configs, err: listErr}
+		}()
+
+		select {
+		case <-refreshStarted:
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for token refresh")
+		}
+
+		_, err = memberClient.MCPServerOAuth2DisconnectWithResponse(ctx, created.ID)
+		require.NoError(t, err)
+		releaseOnce.Do(func() { close(releaseRefresh) })
+
+		var listed configResult
+		select {
+		case listed = <-result:
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for refreshed config response")
+		}
+		require.NoError(t, listed.err)
+		require.Len(t, listed.configs, 1)
+		require.False(t, listed.configs[0].AuthConnected)
+		requireTokenDeleted(t, db, created.ID, member.ID)
 	})
 
 	t.Run("NoRevocationURL", func(t *testing.T) {

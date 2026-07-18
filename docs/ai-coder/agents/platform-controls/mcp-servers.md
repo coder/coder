@@ -81,6 +81,9 @@ Optional fields:
 | `oauth2_scopes`         | Space-separated list of scopes.           |
 | `oauth2_revocation_url` | Token revocation endpoint URL (RFC 7009). |
 
+The revocation endpoint must use HTTPS.
+Loopback URLs may use HTTP for local development and tests.
+
 **Auto-discovery** — leave `oauth2_client_id`, `oauth2_auth_url`, and
 `oauth2_token_url` empty. The server attempts discovery in this order:
 

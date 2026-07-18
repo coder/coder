@@ -20,10 +20,11 @@ func TestCheckRevocationRedirect(t *testing.T) {
 	origin := "https://provider.example/revoke"
 
 	cases := []struct {
-		name    string
-		req     *http.Request
-		origin  string
-		wantErr string
+		name       string
+		req        *http.Request
+		origin     string
+		wantErr    string
+		wantAbsent string
 	}{
 		{
 			name: "SamePathOnOrigin",
@@ -39,9 +40,10 @@ func TestCheckRevocationRedirect(t *testing.T) {
 			wantErr: "must stay on origin",
 		},
 		{
-			name:    "DifferentHost",
-			req:     req(http.MethodPost, "https://attacker.example/collect"),
-			wantErr: "must stay on origin",
+			name:       "DifferentHost",
+			req:        req(http.MethodPost, "https://attacker.example/collect?token=reflected-token#fragment"),
+			wantErr:    "must stay on origin",
+			wantAbsent: "reflected-token",
 		},
 		{
 			name:    "BodyDroppingGet",
@@ -79,6 +81,9 @@ func TestCheckRevocationRedirect(t *testing.T) {
 				return
 			}
 			require.ErrorContains(t, err, tc.wantErr)
+			if tc.wantAbsent != "" {
+				require.NotContains(t, err.Error(), tc.wantAbsent)
+			}
 		})
 	}
 }

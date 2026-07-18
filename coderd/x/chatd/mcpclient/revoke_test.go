@@ -75,6 +75,48 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		require.NotContains(t, c.form, "client_secret")
 	})
 
+	t.Run("NoContentIsSuccess", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		}))
+		defer srv.Close()
+
+		revoked, err := mcpclient.RevokeOAuth2Token(
+			context.Background(),
+			srv.Client(),
+			database.MCPServerConfig{
+				OAuth2ClientID:      "cid",
+				OAuth2RevocationURL: srv.URL,
+			},
+			database.MCPServerUserToken{AccessToken: "at"},
+		)
+		require.NoError(t, err)
+		require.True(t, revoked)
+	})
+
+	t.Run("AcceptedIsNotSuccess", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusAccepted)
+		}))
+		defer srv.Close()
+
+		revoked, err := mcpclient.RevokeOAuth2Token(
+			context.Background(),
+			srv.Client(),
+			database.MCPServerConfig{
+				OAuth2ClientID:      "cid",
+				OAuth2RevocationURL: srv.URL,
+			},
+			database.MCPServerUserToken{AccessToken: "at"},
+		)
+		require.ErrorContains(t, err, "HTTP 202")
+		require.False(t, revoked)
+	})
+
 	t.Run("AccessTokenFallbackWithBasicAuth", func(t *testing.T) {
 		t.Parallel()
 
@@ -284,7 +326,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		// CheckRedirect runs before the target is dialed, so the
 		// attacker host never receives the replayed POST.
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			http.Redirect(w, r, "https://attacker.example.com/collect", http.StatusTemporaryRedirect)
+			http.Redirect(w, r, "https://attacker.example.com/collect?token=reflected-token", http.StatusTemporaryRedirect)
 		}))
 		defer srv.Close()
 
@@ -300,6 +342,8 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		require.Error(t, err)
 		require.False(t, revoked)
 		require.Contains(t, err.Error(), "must stay on origin")
+		require.NotContains(t, err.Error(), "/collect")
+		require.NotContains(t, err.Error(), "reflected-token")
 	})
 
 	t.Run("FollowsLoopbackRedirect", func(t *testing.T) {

@@ -4787,11 +4787,11 @@ func (p *Server) refreshMCPTokenIfNeeded(
 
 	//nolint:gocritic // Chatd needs system-level write access to
 	// persist the refreshed OAuth2 token for the user.
-	updated, err := p.db.UpsertMCPServerUserToken(
+	updated, err := p.db.UpdateMCPServerUserTokenFromRefresh(
 		dbauthz.AsSystemRestricted(ctx),
-		database.UpsertMCPServerUserTokenParams{
-			MCPServerConfigID: tok.MCPServerConfigID,
-			UserID:            tok.UserID,
+		database.UpdateMCPServerUserTokenFromRefreshParams{
+			ID:                tok.ID,
+			UpdatedAt:         tok.UpdatedAt,
 			AccessToken:       result.AccessToken,
 			AccessTokenKeyID:  sql.NullString{},
 			RefreshToken:      result.RefreshToken,
@@ -4801,6 +4801,31 @@ func (p *Server) refreshMCPTokenIfNeeded(
 		},
 	)
 	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			// A disconnect or re-authentication can win the optimistic update.
+			//nolint:gocritic // Reading the winning token requires system access.
+			current, readErr := p.db.GetMCPServerUserToken(
+				dbauthz.AsSystemRestricted(ctx),
+				database.GetMCPServerUserTokenParams{
+					MCPServerConfigID: tok.MCPServerConfigID,
+					UserID:            tok.UserID,
+				},
+			)
+			if readErr == nil {
+				return current, nil
+			}
+			if !xerrors.Is(readErr, sql.ErrNoRows) {
+				logger.Warn(ctx, "failed to load MCP oauth2 token after refresh conflict",
+					slog.F("server_slug", cfg.Slug),
+					slog.Error(readErr),
+				)
+			}
+			tok.AccessToken = ""
+			tok.RefreshToken = ""
+			tok.Expiry = sql.NullTime{}
+			return tok, nil
+		}
+
 		// The provider may have rotated the refresh token,
 		// invalidating the old one. Use the new token
 		// in-memory so at least this connection succeeds.

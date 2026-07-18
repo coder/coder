@@ -210,6 +210,25 @@ ON CONFLICT (mcp_server_config_id, user_id) DO UPDATE SET
 RETURNING
     *;
 
+-- name: UpdateMCPServerUserTokenFromRefresh :one
+-- Refresh persistence must not recreate a token deleted by disconnect.
+-- The optimistic lock also prevents stale refreshes from replacing newer tokens.
+UPDATE mcp_server_user_tokens
+SET
+    access_token = @access_token::text,
+    access_token_key_id = sqlc.narg('access_token_key_id')::text,
+    refresh_token = @refresh_token::text,
+    refresh_token_key_id = sqlc.narg('refresh_token_key_id')::text,
+    token_type = @token_type::text,
+    expiry = sqlc.narg('expiry')::timestamptz,
+    oauth_refresh_failure_reason = '',
+    updated_at = NOW()
+WHERE
+    id = @id::uuid
+    AND updated_at = @updated_at::timestamptz
+RETURNING
+    *;
+
 -- name: MarkMCPServerUserTokenRefreshFailure :one
 -- Records a permanent refresh failure (e.g. revoked grant) and clears
 -- the dead token material so it is never attached to a request again.

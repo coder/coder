@@ -17478,6 +17478,66 @@ func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPSer
 	return i, err
 }
 
+const updateMCPServerUserTokenFromRefresh = `-- name: UpdateMCPServerUserTokenFromRefresh :one
+UPDATE mcp_server_user_tokens
+SET
+    access_token = $1::text,
+    access_token_key_id = $2::text,
+    refresh_token = $3::text,
+    refresh_token_key_id = $4::text,
+    token_type = $5::text,
+    expiry = $6::timestamptz,
+    oauth_refresh_failure_reason = '',
+    updated_at = NOW()
+WHERE
+    id = $7::uuid
+    AND updated_at = $8::timestamptz
+RETURNING
+    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason
+`
+
+type UpdateMCPServerUserTokenFromRefreshParams struct {
+	AccessToken       string         `db:"access_token" json:"access_token"`
+	AccessTokenKeyID  sql.NullString `db:"access_token_key_id" json:"access_token_key_id"`
+	RefreshToken      string         `db:"refresh_token" json:"refresh_token"`
+	RefreshTokenKeyID sql.NullString `db:"refresh_token_key_id" json:"refresh_token_key_id"`
+	TokenType         string         `db:"token_type" json:"token_type"`
+	Expiry            sql.NullTime   `db:"expiry" json:"expiry"`
+	ID                uuid.UUID      `db:"id" json:"id"`
+	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
+}
+
+// Refresh persistence must not recreate a token deleted by disconnect.
+// The optimistic lock also prevents stale refreshes from replacing newer tokens.
+func (q *sqlQuerier) UpdateMCPServerUserTokenFromRefresh(ctx context.Context, arg UpdateMCPServerUserTokenFromRefreshParams) (MCPServerUserToken, error) {
+	row := q.db.QueryRowContext(ctx, updateMCPServerUserTokenFromRefresh,
+		arg.AccessToken,
+		arg.AccessTokenKeyID,
+		arg.RefreshToken,
+		arg.RefreshTokenKeyID,
+		arg.TokenType,
+		arg.Expiry,
+		arg.ID,
+		arg.UpdatedAt,
+	)
+	var i MCPServerUserToken
+	err := row.Scan(
+		&i.ID,
+		&i.MCPServerConfigID,
+		&i.UserID,
+		&i.AccessToken,
+		&i.AccessTokenKeyID,
+		&i.RefreshToken,
+		&i.RefreshTokenKeyID,
+		&i.TokenType,
+		&i.Expiry,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OauthRefreshFailureReason,
+	)
+	return i, err
+}
+
 const upsertMCPServerUserToken = `-- name: UpsertMCPServerUserToken :one
 INSERT INTO mcp_server_user_tokens (
     mcp_server_config_id,

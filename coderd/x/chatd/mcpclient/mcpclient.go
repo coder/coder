@@ -1012,7 +1012,7 @@ func RevokeOAuth2Token(
 	if err != nil {
 		return false, err
 	}
-	if status == http.StatusOK {
+	if isRevocationSuccessStatus(status) {
 		return true, nil
 	}
 
@@ -1021,7 +1021,7 @@ func RevokeOAuth2Token(
 		if fbErr != nil {
 			return false, fbErr
 		}
-		if fbStatus == http.StatusOK {
+		if isRevocationSuccessStatus(fbStatus) {
 			return true, nil
 		}
 		return false, xerrors.Errorf(
@@ -1094,9 +1094,7 @@ func checkRevocationRedirect(req *http.Request, via []*http.Request) error {
 		)
 	}
 	if !isAllowedRevocationScheme(req.URL) {
-		return xerrors.Errorf(
-			"revocation redirect target %q must use https", req.URL.Redacted(),
-		)
+		return xerrors.New("revocation redirect target must use https")
 	}
 	origin := via[0].URL
 	if isLoopbackHost(req.URL.Hostname()) && isLoopbackHost(origin.Hostname()) {
@@ -1106,8 +1104,8 @@ func checkRevocationRedirect(req *http.Request, via []*http.Request) error {
 		!strings.EqualFold(req.URL.Hostname(), origin.Hostname()) ||
 		normalizedPort(req.URL) != normalizedPort(origin) {
 		return xerrors.Errorf(
-			"revocation redirect target %q must stay on origin %q",
-			req.URL.Redacted(), origin.Scheme+"://"+origin.Host,
+			"revocation redirect must stay on origin %q",
+			origin.Scheme+"://"+origin.Host,
 		)
 	}
 	return nil
@@ -1127,7 +1125,11 @@ func normalizedPort(u *url.URL) string {
 	}
 }
 
-// postTokenRevocation returns the HTTP status and, for non-200 responses,
+func isRevocationSuccessStatus(status int) bool {
+	return status == http.StatusOK || status == http.StatusNoContent
+}
+
+// postTokenRevocation returns the HTTP status and, for unsuccessful responses,
 // the RFC 6749 error code parsed from the body. Only that code is
 // extracted; the raw body never propagates.
 func postTokenRevocation(
@@ -1168,11 +1170,15 @@ func postTokenRevocation(
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) {
+			err = urlErr.Err
+		}
 		return 0, "", xerrors.Errorf("revoke oauth2 token: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusOK {
+	if isRevocationSuccessStatus(resp.StatusCode) {
 		_, _ = io.Copy(io.Discard, resp.Body)
 		return resp.StatusCode, "", nil
 	}

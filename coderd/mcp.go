@@ -195,7 +195,7 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 		if !ok {
 			continue
 		}
-		tokenMap[tok.MCPServerConfigID] = api.refreshMCPUserToken(ctx, cfg, tok, apiKey.UserID)
+		tokenMap[tok.MCPServerConfigID] = api.refreshMCPUserToken(ctx, cfg, tok)
 	}
 
 	resp := make([]codersdk.MCPServerConfig, 0, len(configs))
@@ -562,7 +562,7 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 		for _, tok := range userTokens {
 			if tok.MCPServerConfigID == config.ID {
-				sdkConfig.AuthConnected = api.refreshMCPUserToken(ctx, config, tok, apiKey.UserID)
+				sdkConfig.AuthConnected = api.refreshMCPUserToken(ctx, config, tok)
 				break
 			}
 		}
@@ -1290,7 +1290,6 @@ func (api *API) refreshMCPUserToken(
 	ctx context.Context,
 	cfg database.MCPServerConfig,
 	tok database.MCPServerUserToken,
-	userID uuid.UUID,
 ) bool {
 	if cfg.AuthType != "oauth2" {
 		return true
@@ -1326,11 +1325,11 @@ func (api *API) refreshMCPUserToken(
 
 		//nolint:gocritic // Need system-level write access to
 		// persist the refreshed OAuth2 token.
-		_, err = api.Database.UpsertMCPServerUserToken(
+		_, err = api.Database.UpdateMCPServerUserTokenFromRefresh(
 			dbauthz.AsSystemRestricted(ctx),
-			database.UpsertMCPServerUserTokenParams{
-				MCPServerConfigID: tok.MCPServerConfigID,
-				UserID:            userID,
+			database.UpdateMCPServerUserTokenFromRefreshParams{
+				ID:                tok.ID,
+				UpdatedAt:         tok.UpdatedAt,
 				AccessToken:       result.AccessToken,
 				AccessTokenKeyID:  sql.NullString{},
 				RefreshToken:      result.RefreshToken,
@@ -1340,6 +1339,13 @@ func (api *API) refreshMCPUserToken(
 			},
 		)
 		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				connected, readErr := api.currentMCPUserTokenConnected(ctx, tok)
+				if readErr == nil {
+					return connected
+				}
+				err = readErr
+			}
 			api.Logger.Warn(ctx, "failed to persist refreshed MCP oauth2 token",
 				slog.F("server_slug", cfg.Slug),
 				slog.Error(err),
@@ -1348,6 +1354,29 @@ func (api *API) refreshMCPUserToken(
 	}
 
 	return true
+}
+
+func (api *API) currentMCPUserTokenConnected(
+	ctx context.Context,
+	tok database.MCPServerUserToken,
+) (bool, error) {
+	//nolint:gocritic // Reading the current token requires system access.
+	current, err := api.Database.GetMCPServerUserToken(
+		dbauthz.AsSystemRestricted(ctx),
+		database.GetMCPServerUserTokenParams{
+			MCPServerConfigID: tok.MCPServerConfigID,
+			UserID:            tok.UserID,
+		},
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return current.OauthRefreshFailureReason == "" &&
+		current.AccessToken != "" &&
+		(!current.Expiry.Valid || current.Expiry.Time.After(time.Now())), nil
 }
 
 // markMCPTokenRefreshFailure persists a permanent refresh failure so
@@ -1375,21 +1404,9 @@ func (api *API) markMCPTokenRefreshFailure(
 	}
 
 	if xerrors.Is(err, sql.ErrNoRows) {
-		// A concurrent request updated the token after we read it;
-		// report its state instead of poisoning the fresh token.
-		//nolint:gocritic // Need system-level read access to load
-		// the concurrently updated token.
-		current, readErr := api.Database.GetMCPServerUserToken(
-			dbauthz.AsSystemRestricted(ctx),
-			database.GetMCPServerUserTokenParams{
-				MCPServerConfigID: tok.MCPServerConfigID,
-				UserID:            tok.UserID,
-			},
-		)
+		connected, readErr := api.currentMCPUserTokenConnected(ctx, tok)
 		if readErr == nil {
-			return current.OauthRefreshFailureReason == "" &&
-				current.AccessToken != "" &&
-				(!current.Expiry.Valid || current.Expiry.Time.After(time.Now()))
+			return connected
 		}
 		err = readErr
 	}

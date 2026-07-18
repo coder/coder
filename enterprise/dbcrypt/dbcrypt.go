@@ -890,6 +890,28 @@ func (db *dbCrypt) UpsertMCPServerUserToken(ctx context.Context, params database
 	return tok, nil
 }
 
+func (db *dbCrypt) UpdateMCPServerUserTokenFromRefresh(ctx context.Context, params database.UpdateMCPServerUserTokenFromRefreshParams) (database.MCPServerUserToken, error) {
+	if strings.TrimSpace(params.AccessToken) == "" {
+		params.AccessTokenKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.AccessToken, &params.AccessTokenKeyID); err != nil {
+		return database.MCPServerUserToken{}, err
+	}
+	if strings.TrimSpace(params.RefreshToken) == "" {
+		params.RefreshTokenKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.RefreshToken, &params.RefreshTokenKeyID); err != nil {
+		return database.MCPServerUserToken{}, err
+	}
+
+	tok, err := db.Store.UpdateMCPServerUserTokenFromRefresh(ctx, params)
+	if err != nil {
+		return database.MCPServerUserToken{}, err
+	}
+	if err := db.decryptMCPServerUserToken(&tok); err != nil {
+		return database.MCPServerUserToken{}, err
+	}
+	return tok, nil
+}
+
 func (db *dbCrypt) CreateUserSecret(ctx context.Context, params database.CreateUserSecretParams) (database.UserSecret, error) {
 	if err := db.encryptField(&params.Value, &params.ValueKeyID); err != nil {
 		return database.UserSecret{}, err
