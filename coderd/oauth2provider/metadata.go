@@ -18,6 +18,10 @@ func GetAuthorizationServerMetadata(db database.Store, accessURL *url.URL) http.
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
+		// This is queried on every request rather than cached, for the
+		// same reason as the registration endpoint: discovery is not
+		// expected to be a hot path, and a flood of requests should be
+		// mitigated with rate limiting or firewalling, not a cache.
 		//nolint:gocritic // Public discovery endpoint, no authenticated actor to authorize against.
 		dcrEnabled, err := db.GetOAuth2DCREnabled(dbauthz.AsSystemOAuth2(ctx))
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {

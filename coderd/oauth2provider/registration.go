@@ -30,6 +30,11 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
+		// This is queried on every request rather than cached, since
+		// registration is expected to happen rarely, not on a hot path. A
+		// misconfigured or misbehaving client flooding this endpoint is a
+		// rate-limiting or firewalling problem to solve at the deployment
+		// level, not a reason to cache this flag.
 		//nolint:gocritic // Public registration endpoint, no authenticated actor to authorize against.
 		dcrEnabled, err := db.GetOAuth2DCREnabled(dbauthz.AsSystemOAuth2(ctx))
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
