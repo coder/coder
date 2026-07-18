@@ -332,7 +332,7 @@ export const WorkspaceTerminal = ({
 		});
 
 		// Desktop copy-on-select approximates X11 primary selection. Coarse-primary
-		// devices skip it because clipboard writes outside a tap gesture fail.
+		// devices skip it because mobile browsers can reject writes outside a tap.
 		nextTerminal.onSelectionChange(() => {
 			if (isCoarsePointerPrimary()) {
 				return;
