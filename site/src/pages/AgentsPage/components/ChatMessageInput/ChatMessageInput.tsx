@@ -506,8 +506,8 @@ interface ChatMessageInputProps
 	disabled?: boolean;
 	autoFocus?: boolean;
 	/**
-	 * True when a workspace is attached or selected, so workspace skills
-	 * may exist even while workspaceSkills is still undefined.
+	 * True when the chat has a bound workspace, so workspace skills may
+	 * exist even while workspaceSkills is still undefined.
 	 */
 	hasWorkspace?: boolean;
 	/**
@@ -516,8 +516,8 @@ interface ChatMessageInputProps
 	personalSkillsOverride?: readonly TypesGen.UserSkillMetadata[];
 	/**
 	 * Workspace skill menu data from the chat's pinned context, so the
-	 * menu matches read_skill resolution. Undefined until the chat's
-	 * context resolves (or when no chat exists yet).
+	 * menu matches read_skill resolution. Undefined while the chat
+	 * detail is still loading (or when no chat exists yet).
 	 */
 	workspaceSkills?: readonly SkillMetadata[];
 	"aria-label"?: string;
@@ -627,9 +627,9 @@ const ChatMessageInput = ({
 	});
 	const personalSkills = personalSkillsOverride ?? skillsQuery.data ?? [];
 	const loadedWorkspaceSkills = workspaceSkills ?? [];
-	// Until the chat's pinned context resolves, workspace skills are
-	// unknown: keep personal triggers qualified (a qualified alias always
-	// resolves) and treat the workspace list as still loading.
+	// Until the chat detail resolves, workspace skills are unknown: keep
+	// personal triggers qualified (a qualified alias always resolves) and
+	// treat the workspace list as still loading.
 	const workspaceSkillsKnown = !hasWorkspace || workspaceSkills !== undefined;
 	// A stale empty cache with a refetch in flight must not dismiss the menu.
 	const isResolvedEmptyPersonalSkills = hasPersonalSkillsOverride

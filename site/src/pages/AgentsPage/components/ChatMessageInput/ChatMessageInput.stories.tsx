@@ -218,8 +218,8 @@ export const CollidingPersonalSkillInsertsQualifiedTrigger: Story = {
 
 export const PersonalTriggersQualifiedWhileWorkspaceSkillsUnknown: Story = {
 	args: {
-		// No workspaceSkills: the chat's pinned context has not resolved,
-		// so collisions are unknown.
+		// No workspaceSkills: the chat detail has not resolved, so
+		// collisions are unknown.
 		hasWorkspace: true,
 	},
 	play: async ({ canvasElement }) => {
