@@ -13,11 +13,19 @@ export const getVisibleTerminalText = (terminal: Terminal): string => {
 	const lines: string[] = [];
 	const firstLine = terminal.buffer.active.viewportY;
 	const lastLine = firstLine + terminal.rows;
+	let currentLine = "";
 
 	for (let index = firstLine; index < lastLine; index++) {
-		lines.push(
-			terminal.buffer.active.getLine(index)?.translateToString(true) ?? "",
-		);
+		const wrapsToNextLine =
+			terminal.buffer.active.getLine(index + 1)?.isWrapped ?? false;
+		currentLine +=
+			terminal.buffer.active
+				.getLine(index)
+				?.translateToString(!wrapsToNextLine) ?? "";
+		if (!wrapsToNextLine || index === lastLine - 1) {
+			lines.push(currentLine);
+			currentLine = "";
+		}
 	}
 
 	while (lines.at(-1) === "") {

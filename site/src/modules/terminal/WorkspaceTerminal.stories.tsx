@@ -4,7 +4,8 @@ import { withWebSocket } from "#/testHelpers/storybook";
 import { touchCapableMediaQuery } from "#/utils/mobile";
 import { WorkspaceTerminal } from "./WorkspaceTerminal";
 
-const visibleOutput = "Visible terminal output\r\nSecond line";
+const wrappedOutput = "Visible-terminal-output-".repeat(8);
+const visibleOutput = `${wrappedOutput}\r\nSecond line`;
 
 const setTouchCapability = (touchCapable: boolean) => {
 	const originalMatchMedia = window.matchMedia;
@@ -104,11 +105,11 @@ export const CopyVisibleOutput: Story = {
 		const output = await body.findByRole("textbox", {
 			name: "Visible terminal output",
 		});
-		expect(output).toHaveValue("Visible terminal output\nSecond line");
+		expect(output).toHaveValue(`${wrappedOutput}\nSecond line`);
 
 		await userEvent.click(body.getByRole("button", { name: "Copy" }));
 		expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-			"Visible terminal output\nSecond line",
+			`${wrappedOutput}\nSecond line`,
 		);
 	},
 };

@@ -331,14 +331,8 @@ export const WorkspaceTerminal = ({
 			return true;
 		});
 
-		// Browsers don't support automatic copy to the X11 primary
-		// selection (highlighted text that can be pasted with
-		// middle-click). Instead, copy-on-select writes to the
-		// system clipboard. This means users can't middle-click
-		// paste in the terminal after selecting, but this tradeoff
-		// is necessary because web browsers don't expose primary
-		// selection APIs. Most web terminal users expect Ctrl+V or
-		// right-click paste anyway.
+		// Desktop copy-on-select approximates X11 primary selection. Coarse-primary
+		// devices skip it because clipboard writes outside a tap gesture fail.
 		nextTerminal.onSelectionChange(() => {
 			if (isCoarsePointerPrimary()) {
 				return;
