@@ -37,7 +37,7 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 				"server_error", "Failed to check registration availability")
 			return
 		}
-		// Never configured means DCR defaults to disabled.
+		// If the setting was never configured, treat DCR as disabled.
 		if xerrors.Is(err, sql.ErrNoRows) {
 			dcrEnabled = false
 		}

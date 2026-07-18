@@ -232,7 +232,7 @@ func (api *API) oauth2ProviderSettings(rw http.ResponseWriter, r *http.Request) 
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	// Never configured means DCR defaults to disabled.
+	// If the setting was never configured, treat DCR as disabled.
 	if errors.Is(err, sql.ErrNoRows) {
 		enabled = false
 	}

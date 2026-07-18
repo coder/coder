@@ -24,7 +24,7 @@ func GetAuthorizationServerMetadata(db database.Store, accessURL *url.URL) http.
 			httpapi.InternalServerError(rw, err)
 			return
 		}
-		// Never configured means DCR defaults to disabled.
+		// If the setting was never configured, treat DCR as disabled.
 		if errors.Is(err, sql.ErrNoRows) {
 			dcrEnabled = false
 		}
