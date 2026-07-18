@@ -9540,7 +9540,7 @@ func TestProposeChatTitle(t *testing.T) {
 	})
 }
 
-func TestManualTitleEndpointsPassCallerAPIKeyToAIGateway(t *testing.T) {
+func TestManualTitleEndpointsPassOwnerSyntheticAPIKeyToAIGateway(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
@@ -9574,7 +9574,6 @@ func TestManualTitleEndpointsPassCallerAPIKeyToAIGateway(t *testing.T) {
 			})
 			firstUser := coderdtest.CreateFirstUser(t, client.Client)
 			modelConfig := createAdditionalChatModelConfig(t, client, "openai", "gpt-4.1")
-			wantAPIKeyID := strings.Split(client.SessionToken(), "-")[0]
 			wantTitle := "Fallback title"
 			seenAPIKeyID := make(chan string, 1)
 			stub := &stubTransportFactory{
@@ -9607,7 +9606,6 @@ func TestManualTitleEndpointsPassCallerAPIKeyToAIGateway(t *testing.T) {
 			_ = dbgen.ChatMessage(t, db, database.ChatMessage{
 				ChatID:        chat.ID,
 				CreatedBy:     uuid.NullUUID{UUID: firstUser.UserID, Valid: true},
-				APIKeyID:      sql.NullString{String: wantAPIKeyID, Valid: true},
 				ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 				Role:          database.ChatMessageRoleUser,
 				Visibility:    database.ChatMessageVisibilityBoth,
@@ -9615,7 +9613,12 @@ func TestManualTitleEndpointsPassCallerAPIKeyToAIGateway(t *testing.T) {
 			})
 
 			require.NoError(t, tt.call(ctx, client, chat.ID))
-			require.Equal(t, wantAPIKeyID, testutil.RequireReceive(ctx, t, seenAPIKeyID))
+			gatewayKey, err := db.GetChatGatewayAPIKey(dbauthz.AsSystemRestricted(ctx), database.GetChatGatewayAPIKeyParams{
+				UserID:    firstUser.UserID,
+				TokenName: chatd.GatewayTokenName(firstUser.UserID),
+			})
+			require.NoError(t, err)
+			require.Equal(t, gatewayKey.ID, testutil.RequireReceive(ctx, t, seenAPIKeyID))
 		})
 	}
 }

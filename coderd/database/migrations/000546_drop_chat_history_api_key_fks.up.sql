@@ -1,0 +1,5 @@
+ALTER TABLE chat_messages
+DROP CONSTRAINT chat_messages_api_key_id_fkey;
+
+ALTER TABLE chat_queued_messages
+DROP CONSTRAINT chat_queued_messages_api_key_id_fkey;

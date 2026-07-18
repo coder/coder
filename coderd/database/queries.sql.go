@@ -3163,6 +3163,51 @@ func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.
 	return items, nil
 }
 
+const getChatGatewayAPIKey = `-- name: GetChatGatewayAPIKey :one
+SELECT
+	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list
+FROM
+	api_keys
+WHERE
+	user_id = $1 AND
+	token_name = $2 AND
+	-- Token names are unvalidated user input, so a user could create a token
+	-- with the chat gateway name. Excluding login_type 'token' ensures chatd
+	-- never picks up (and extends) a real bearer token. Synthetic gateway
+	-- keys are minted with the owner's login type, which is never 'token'.
+	login_type != 'token'
+ORDER BY
+	created_at ASC, id ASC
+LIMIT
+	1
+`
+
+type GetChatGatewayAPIKeyParams struct {
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	TokenName string    `db:"token_name" json:"token_name"`
+}
+
+func (q *sqlQuerier) GetChatGatewayAPIKey(ctx context.Context, arg GetChatGatewayAPIKeyParams) (APIKey, error) {
+	row := q.db.QueryRowContext(ctx, getChatGatewayAPIKey, arg.UserID, arg.TokenName)
+	var i APIKey
+	err := row.Scan(
+		&i.ID,
+		&i.HashedSecret,
+		&i.UserID,
+		&i.LastUsed,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LoginType,
+		&i.LifetimeSeconds,
+		&i.IPAddress,
+		&i.TokenName,
+		&i.Scopes,
+		&i.AllowList,
+	)
+	return i, err
+}
+
 const insertAPIKey = `-- name: InsertAPIKey :one
 INSERT INTO
 	api_keys (
@@ -29855,6 +29900,40 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context, includeSystem bool) (int6
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const getUserForChatSyntheticAPIKeyByID = `-- name: GetUserForChatSyntheticAPIKeyByID :one
+SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
+FROM users
+WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) GetUserForChatSyntheticAPIKeyByID(ctx context.Context, id uuid.UUID) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserForChatSyntheticAPIKeyByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.RBACRoles,
+		&i.LoginType,
+		&i.AvatarURL,
+		&i.Deleted,
+		&i.LastSeenAt,
+		&i.QuietHoursSchedule,
+		&i.Name,
+		&i.GithubComUserID,
+		&i.HashedOneTimePasscode,
+		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
+		&i.IsServiceAccount,
+		&i.ChatSpendLimitMicros,
+	)
+	return i, err
 }
 
 const getUserShellToolDisplayMode = `-- name: GetUserShellToolDisplayMode :one
