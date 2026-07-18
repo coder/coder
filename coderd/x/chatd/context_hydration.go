@@ -31,11 +31,13 @@ func latestAgentSnapshot(ctx context.Context, db database.Store, agentID uuid.UU
 
 // HydrateAndMarkChatsDirty implements agentapi.ContextDirtyMarker. It runs
 // inside the PushContextState transaction: it stamps the pushed snapshot hash
-// on chats for the agent that have not been hydrated yet (no dirty event),
-// then flips already-pinned chats whose hash differs to dirty. It returns a
-// callback that publishes the dirty watch events; the caller invokes it only
-// after the transaction commits, and the callback is a no-op when nothing
-// transitioned to dirty.
+// on chats for the agent that have not been hydrated yet, then flips
+// already-pinned chats whose hash differs to dirty. It returns a callback
+// that publishes a context watch event for every chat it touched; the caller
+// invokes it only after the transaction commits, and the callback is a no-op
+// when no chat was hydrated or dirtied. Hydrated chats start clean (no dirty
+// marker), but still need the event: watching clients cached their details
+// without pinned resources and refetch only on context events.
 //
 // The pinned hash on dirtied chats is intentionally left unchanged; the
 // refresh endpoint re-pins it.
@@ -44,13 +46,13 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 	ctx = dbauthz.AsChatd(ctx)
 
 	// Chats created before the agent's first push land with a NULL pinned
-	// hash. Stamp them now so they start clean; this is their first
-	// hydration, so no dirty event is emitted.
-	if _, err := tx.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
+	// hash. Stamp them now so they start clean.
+	hydrated, err := tx.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
 		AgentID:       agentID,
 		AggregateHash: aggregateHash,
 		ContextError:  snapshotError,
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, xerrors.Errorf("hydrate agent chats context: %w", err)
 	}
 
@@ -62,26 +64,33 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 	if err != nil {
 		return nil, xerrors.Errorf("mark chats context dirty: %w", err)
 	}
-	if len(dirtied) == 0 {
+	// Hydrated chats had a NULL hash and dirtied chats a non-NULL one, so
+	// the two sets never overlap.
+	touched := make([]uuid.UUID, 0, len(hydrated)+len(dirtied))
+	touched = append(touched, hydrated...)
+	for _, d := range dirtied {
+		touched = append(touched, d.ID)
+	}
+	if len(touched) == 0 {
 		return func() {}, nil
 	}
 
-	// Read the dirtied chats inside the transaction and capture their rows so
+	// Read the touched chats inside the transaction and capture their rows so
 	// the post-commit callback needs no database access: the published payload
-	// reflects the just-committed dirty state (no re-read a concurrent refresh
+	// reflects the just-committed state (no re-read a concurrent refresh
 	// could race), and the callback does not depend on the request-scoped
 	// context surviving past commit. Only the transitioned chats are read.
-	dirtyChats := make([]database.Chat, 0, len(dirtied))
-	for _, d := range dirtied {
-		chat, err := tx.GetChatByID(ctx, d.ID)
+	touchedChats := make([]database.Chat, 0, len(touched))
+	for _, id := range touched {
+		chat, err := tx.GetChatByID(ctx, id)
 		if err != nil {
-			return nil, xerrors.Errorf("get dirtied chat %s: %w", d.ID, err)
+			return nil, xerrors.Errorf("get touched chat %s: %w", id, err)
 		}
-		dirtyChats = append(dirtyChats, chat)
+		touchedChats = append(touchedChats, chat)
 	}
 
 	return func() {
-		p.publishChatPubsubEvents(dirtyChats, codersdk.ChatWatchEventKindContextDirty)
+		p.publishChatPubsubEvents(touchedChats, codersdk.ChatWatchEventKindContextDirty)
 	}, nil
 }
 

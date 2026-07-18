@@ -1513,7 +1513,7 @@ WHERE id = @id::uuid;
 -- a chat's pinned hash and pinned bodies are always written together.
 -- Runs as a side effect of an agent push and of chat-create hydration,
 -- so chats created before the agent was ready pick up the snapshot
--- without a dirty event. The ON CONFLICT upsert is defensive: a
+-- without a dirty marker. The ON CONFLICT upsert is defensive: a
 -- not-yet-hydrated chat has no pinned rows, so it normally inserts.
 -- Does not bump chats.updated_at; the resource upsert's ON CONFLICT branch
 -- sets chat_context_resources.updated_at on the rows it rewrites.
