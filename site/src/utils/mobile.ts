@@ -8,6 +8,20 @@ export const isMobileViewport = (): boolean => {
 	return window.matchMedia("(max-width: 639px)").matches;
 };
 
+export const touchCapableMediaQuery = "(any-pointer: coarse)";
+const coarsePointerPrimaryMediaQuery = "(pointer: coarse)";
+
+export const isTouchCapable = (): boolean => {
+	return (
+		window.matchMedia(touchCapableMediaQuery).matches ||
+		navigator.maxTouchPoints > 0
+	);
+};
+
+export const isCoarsePointerPrimary = (): boolean => {
+	return window.matchMedia(coarsePointerPrimaryMediaQuery).matches;
+};
+
 export const belowMdViewportMediaQuery = "(max-width: 767px)";
 
 /**

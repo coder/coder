@@ -5,6 +5,7 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
+import { ClipboardPasteIcon, CopyIcon } from "lucide-react";
 import {
 	type Ref,
 	useCallback,
@@ -22,6 +23,7 @@ import {
 	WebsocketBuilder,
 	WebsocketEvent,
 } from "websocket-ts";
+import { Button } from "#/components/Button/Button";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -29,9 +31,15 @@ import {
 	ContextMenuTrigger,
 } from "#/components/ContextMenu/ContextMenu";
 import { useClipboard } from "#/hooks/useClipboard";
+import { useIsTouchCapable } from "#/hooks/useIsTouchCapable";
 import { cn } from "#/utils/cn";
+import { isCoarsePointerPrimary } from "#/utils/mobile";
 import { isMac } from "#/utils/platform";
 import { terminalWebsocketUrl } from "#/utils/terminal";
+import {
+	getVisibleTerminalText,
+	TerminalCopyDialog,
+} from "./TerminalCopyDialog";
 import type { ConnectionStatus } from "./types";
 
 export type WorkspaceTerminalHandle = {
@@ -107,6 +115,8 @@ export const WorkspaceTerminal = ({
 	});
 	const [terminal, setTerminal] = useState<Terminal>();
 	const { copyToClipboard, readFromClipboard } = useClipboard();
+	const isTouchCapable = useIsTouchCapable();
+	const [copyDialogText, setCopyDialogText] = useState<string>();
 
 	const [hasSelection, setHasSelection] = useState(false);
 	const handleContextMenuOpenChange = (open: boolean) => {
@@ -134,6 +144,24 @@ export const WorkspaceTerminal = ({
 			console.error(error);
 		} finally {
 			terminal.focus();
+		}
+	};
+
+	const copyFromToolbar = () => {
+		if (!terminal) {
+			return;
+		}
+		if (terminal.hasSelection()) {
+			void copyToClipboard(terminal.getSelection());
+			terminal.focus();
+			return;
+		}
+
+		setCopyDialogText(getVisibleTerminalText(terminal));
+	};
+	const copyVisibleTerminalText = () => {
+		if (copyDialogText !== undefined) {
+			void copyToClipboard(copyDialogText);
 		}
 	};
 
@@ -312,6 +340,9 @@ export const WorkspaceTerminal = ({
 		// selection APIs. Most web terminal users expect Ctrl+V or
 		// right-click paste anyway.
 		nextTerminal.onSelectionChange(() => {
+			if (isCoarsePointerPrimary()) {
+				return;
+			}
 			copySelection();
 		});
 
@@ -610,35 +641,70 @@ export const WorkspaceTerminal = ({
 					background-color: hsl(var(--surface-quaternary));
 				}
 			`}</style>
-			<ContextMenu onOpenChange={handleContextMenuOpenChange}>
-				<ContextMenuTrigger asChild disabled={isMac()}>
-					<div
-						className={cn(
-							"workspace-terminal h-full w-full flex-1 min-h-0 overflow-hidden bg-surface-tertiary",
-							className,
-						)}
-						ref={terminalWrapperRef}
-						data-terminal-scope={scopeId}
-						data-testid={testId}
-					/>
-				</ContextMenuTrigger>
-				<ContextMenuContent
-					onCloseAutoFocus={(event) => {
-						event.preventDefault();
-						terminal?.focus();
-					}}
-				>
-					<ContextMenuItem
-						disabled={!hasSelection}
-						onSelect={copyTerminalSelection}
+			<div
+				className={cn(
+					"relative h-full w-full flex-1 min-h-0 overflow-hidden bg-surface-tertiary",
+					className,
+				)}
+			>
+				<ContextMenu onOpenChange={handleContextMenuOpenChange}>
+					<ContextMenuTrigger asChild disabled={isMac()}>
+						<div
+							className="workspace-terminal h-full w-full"
+							ref={terminalWrapperRef}
+							data-terminal-scope={scopeId}
+							data-testid={testId}
+						/>
+					</ContextMenuTrigger>
+					<ContextMenuContent
+						onCloseAutoFocus={(event) => {
+							event.preventDefault();
+							terminal?.focus();
+						}}
 					>
-						Copy
-					</ContextMenuItem>
-					<ContextMenuItem onSelect={() => void pasteIntoTerminal()}>
-						Paste
-					</ContextMenuItem>
-				</ContextMenuContent>
-			</ContextMenu>
+						<ContextMenuItem
+							disabled={!hasSelection}
+							onSelect={copyTerminalSelection}
+						>
+							Copy
+						</ContextMenuItem>
+						<ContextMenuItem onSelect={() => void pasteIntoTerminal()}>
+							Paste
+						</ContextMenuItem>
+					</ContextMenuContent>
+				</ContextMenu>
+				{isTouchCapable && (
+					<div
+						aria-label="Terminal clipboard"
+						className="absolute right-2 top-2 z-10 flex gap-1 rounded-md bg-surface-primary/80 p-1 shadow-sm backdrop-blur-sm"
+						role="toolbar"
+					>
+						<Button variant="subtle" size="xs" onClick={copyFromToolbar}>
+							<CopyIcon />
+							Copy
+						</Button>
+						<Button
+							variant="subtle"
+							size="xs"
+							onClick={() => void pasteIntoTerminal()}
+						>
+							<ClipboardPasteIcon />
+							Paste
+						</Button>
+					</div>
+				)}
+			</div>
+			<TerminalCopyDialog
+				open={copyDialogText !== undefined}
+				text={copyDialogText ?? ""}
+				onOpenChange={(open) => {
+					if (!open) {
+						setCopyDialogText(undefined);
+					}
+				}}
+				onCopy={copyVisibleTerminalText}
+				onClose={() => terminal?.focus()}
+			/>
 		</>
 	);
 };
