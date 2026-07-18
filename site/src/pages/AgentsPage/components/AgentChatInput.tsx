@@ -585,9 +585,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		});
 	};
 
-	const hasSkillsWorkspace = Boolean(
-		attachedWorkspace?.id ?? workspace?.id ?? selectedWorkspaceId,
-	);
+	// Only a chat-bound workspace counts: an unbound selection (new chat
+	// form, or a picked workspace before the first send) has no pinned
+	// context to resolve, so treating it as a workspace would leave the
+	// menu in the loading state forever.
+	const hasSkillsWorkspace = Boolean(attachedWorkspace?.id ?? workspace?.id);
 
 	const selectedWorkspace = workspaceOptions?.find(
 		(ws) => ws.id === selectedWorkspaceId,

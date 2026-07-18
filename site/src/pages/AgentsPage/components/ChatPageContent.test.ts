@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
-import { workspaceSkillsFromChatContext } from "./ChatPageContent";
+import { MockChat } from "#/testHelpers/chatEntities";
+import { workspaceSkillsFromChat } from "./ChatPageContent";
 
 const skillResource = (
 	name: string,
@@ -22,45 +23,55 @@ const instructionResource = (): TypesGen.ChatContextResource => ({
 	status: "ok",
 });
 
-describe("workspaceSkillsFromChatContext", () => {
-	it("returns undefined without pinned resources", () => {
-		expect(workspaceSkillsFromChatContext(undefined)).toBeUndefined();
-		expect(workspaceSkillsFromChatContext({ dirty: false })).toBeUndefined();
+const chatWithContext = (
+	context: TypesGen.ChatContext | undefined,
+): TypesGen.Chat => ({ ...MockChat, context });
+
+describe("workspaceSkillsFromChat", () => {
+	it("returns undefined while the chat detail is unresolved", () => {
+		expect(workspaceSkillsFromChat(undefined)).toBeUndefined();
+	});
+
+	it("returns an empty authoritative list for a resolved unpinned chat", () => {
+		expect(workspaceSkillsFromChat(chatWithContext(undefined))).toEqual([]);
+		expect(workspaceSkillsFromChat(chatWithContext({ dirty: false }))).toEqual(
+			[],
+		);
 	});
 
 	it("maps healthy skill resources to workspace skills", () => {
-		const context: TypesGen.ChatContext = {
+		const chat = chatWithContext({
 			dirty: false,
 			resources: [
 				instructionResource(),
 				skillResource("reviewer"),
 				skillResource("docs"),
 			],
-		};
-		expect(workspaceSkillsFromChatContext(context)).toEqual([
+		});
+		expect(workspaceSkillsFromChat(chat)).toEqual([
 			{ name: "reviewer", description: "reviewer description" },
 			{ name: "docs", description: "docs description" },
 		]);
 	});
 
 	it("omits non-ok skill resources", () => {
-		const context: TypesGen.ChatContext = {
+		const chat = chatWithContext({
 			dirty: true,
 			resources: [
 				skillResource("reviewer"),
 				skillResource("broken", { status: "unreadable", skill_name: "" }),
 			],
-		};
-		expect(workspaceSkillsFromChatContext(context)).toEqual([
+		});
+		expect(workspaceSkillsFromChat(chat)).toEqual([
 			{ name: "reviewer", description: "reviewer description" },
 		]);
 	});
 
 	it("returns an empty authoritative list when pinned context has no skills", () => {
-		const context: TypesGen.ChatContext = {
+		const chat = chatWithContext({
 			dirty: false,
 			resources: [instructionResource()],
-		};
-		expect(workspaceSkillsFromChatContext(context)).toEqual([]);
+		});
+		expect(workspaceSkillsFromChat(chat)).toEqual([]);
 	});
 });

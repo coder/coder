@@ -47,11 +47,13 @@ const isChatMessage = (
 	message: TypesGen.ChatMessage | undefined,
 ): message is TypesGen.ChatMessage => Boolean(message);
 
-export const workspaceSkillsFromChatContext = (
-	context: TypesGen.ChatContext | undefined,
+// A resolved chat with no context (unpinned) or no resources authoritatively
+// has no workspace skills; only an unresolved chat leaves them unknown.
+export const workspaceSkillsFromChat = (
+	chat: TypesGen.Chat | undefined,
 ): SkillMetadata[] | undefined =>
-	context?.resources
-		? context.resources
+	chat
+		? (chat.context?.resources ?? [])
 				.filter(
 					(resource) => resource.kind === "skill" && resource.status === "ok",
 				)
@@ -230,6 +232,9 @@ interface ChatPageInputProps {
 	// Pinned workspace-context state for the chat, surfaced by the
 	// context indicator (dirty marker and pinned resources).
 	chatContext?: TypesGen.ChatContext;
+	// Workspace skill menu data derived from the resolved chat detail;
+	// undefined while the chat is still loading.
+	workspaceSkills?: readonly SkillMetadata[];
 	workspaceOptions: readonly TypesGen.Workspace[];
 	chatOrganizationId?: string;
 	selectedWorkspaceId: string | null;
@@ -288,6 +293,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onMCPSelectionChange,
 	onMCPAuthComplete,
 	chatContext,
+	workspaceSkills,
 	workspaceOptions,
 	chatOrganizationId,
 	selectedWorkspaceId,
@@ -344,7 +350,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 					onError: () => toast.error("Failed to refresh context."),
 				})
 		: undefined;
-	const workspaceSkills = workspaceSkillsFromChatContext(chatContext);
 	const composeAttachments = useChatDraftAttachments(organizationId, chatId, {
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
