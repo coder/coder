@@ -172,16 +172,21 @@ assert_checkbox_parses_to '## Docs preview' ""
 # checked state.
 STATE_PREFIX='docs-preview-state:'
 
-# Recovers the {path: sha} state map from the hidden marker, replicating
-# the grep|sed|base64 pipeline in docs-preview.yaml.
+# Recovers the {path: sha} state map from the hidden marker, a faithful
+# copy of the guarded block in docs-preview.yaml (the CRF-21 fix): decode
+# under `2>/dev/null || true` and adopt the result only if it parses as a
+# JSON object, else degrade to {} so a corrupt marker can't kill the run.
 recover_old_state() {
-	local body="$1" b64
+	local body="$1" b64 decoded
 	b64=$(printf '%s\n' "$body" | grep -oE "${STATE_PREFIX}[A-Za-z0-9+/=]+" | sed "s/^${STATE_PREFIX}//") || true
 	if [ -n "$b64" ]; then
-		printf '%s' "$b64" | base64 -d
-	else
-		printf '{}'
+		decoded=$(printf '%s' "$b64" | base64 -d 2>/dev/null || true)
+		if printf '%s' "$decoded" | jq -e 'type == "object"' >/dev/null 2>&1; then
+			printf '%s' "$decoded"
+			return
+		fi
 	fi
+	printf '{}'
 }
 
 # Recovers the {path: checked} map from the rendered checklist,
@@ -252,6 +257,28 @@ assert_round_trip_state() {
 }
 
 assert_round_trip_state
+
+# CRF-43: the malformed-marker path the CRF-21 guard added must recover to
+# {} with the run surviving. Feed markers that clear the charset grep but
+# fail the decode or the object-type gate.
+assert_marker_recovers() {
+	local marker="$1" expected="$2" desc="$3" body actual
+	body=$(printf '## Docs preview\n<!-- docs-preview -->\n<!-- %s%s -->' "$STATE_PREFIX" "$marker")
+	actual=$(recover_old_state "$body")
+	if [ "$actual" = "$expected" ]; then
+		echo "PASS: recover_old_state ($desc) -> $expected"
+	else
+		echo "FAIL: recover_old_state ($desc) -> $actual (expected $expected)"
+		failures=$((failures + 1))
+	fi
+}
+
+# A valid object marker recovers to the object verbatim.
+assert_marker_recovers "$(printf '{"docs/a.md":"sha1"}' | base64 -w0)" '{"docs/a.md":"sha1"}' "valid object"
+# Charset-valid but undecodable base64 (odd length) degrades to {}.
+assert_marker_recovers "A" "{}" "undecodable base64"
+# Valid base64 of a non-object (a JSON string) fails the type gate -> {}.
+assert_marker_recovers "$(printf '"hello"' | base64 -w0)" "{}" "valid base64 non-object"
 
 # extract_manifest_paths runs the real jq + sed pipeline from
 # docs-preview.yaml against manifest JSON on stdin, emitting one
@@ -445,6 +472,18 @@ if [ "$keep" -eq 5 ] && ! printf '%s' "$small_body" | grep -q "more changed page
 	echo "PASS: small PR keeps all 5 pages with no summary line"
 else
 	echo "FAIL: small PR keep=$keep (expected 5) or unexpected summary line"
+	failures=$((failures + 1))
+fi
+
+# CRF-43: round-trip build_comment_body's *own emitted* marker back through
+# recover_old_state, proving the producer and consumer marker formats agree
+# (a drift would silently reset every checkbox on every push).
+emitted_state=$(recover_old_state "$small_body")
+expected_state=$(printf '%s' "$final_rows" | jq -c 'map({(.filename): .sha}) | add // {}')
+if [ "$emitted_state" = "$expected_state" ]; then
+	echo "PASS: emitted marker round-trips through recovery"
+else
+	echo "FAIL: emitted marker round-trip -> $emitted_state (expected $expected_state)"
 	failures=$((failures + 1))
 fi
 

@@ -11,6 +11,12 @@
 # current revision," not "I reviewed some earlier revision of this
 # page."
 #
+# The checkbox contract (reset-on-change) matches GitHub's native
+# per-file "Viewed" control, but Viewed tracks the raw diff and can't
+# deep-link to the rendered coder.com preview. This checklist tracks
+# review of the preview page itself, which the platform doesn't
+# provide, so the state is reimplemented here rather than reused.
+#
 # Only pages that resolve to a route in docs/manifest.json get a
 # link. Anything else (docs/.style/** contributor tooling, or a page
 # that hasn't been wired into navigation yet) is dropped from the list
@@ -153,7 +159,7 @@ jobs:
           # list failure (network, auth, rate-limit) must propagate under
           # set -e; otherwise the upsert treats it as "no comment" and
           # posts a duplicate. The `|| true` only absorbs head's SIGPIPE
-          # on the still-paginating gh api.
+          # on the printf feeding head.
           all_comment_ids=$(list_docs_preview_comments)
           existing_id=$(printf '%s\n' "$all_comment_ids" | head -n 1) || true
 
@@ -166,6 +172,10 @@ jobs:
           # This is intentionally not piped into grep so that a gh-api
           # failure (network, auth, rate-limit) propagates immediately
           # instead of being swallowed by `|| true`.
+          #
+          # `pulls/files` truncates at GitHub's 3000-file ceiling, which
+          # --paginate does not lift. A PR that changes 3000+ files would
+          # list only the first 3000; docs PRs never approach that.
           changed_tsv=$(gh api --paginate \
             "repos/${REPO}/pulls/${PR_NUMBER}/files" \
             --jq '.[] | select(.status != "removed") | select(.filename | test("^docs/.*\\.md$")) | select((.filename | test("^docs/\\.style/")) | not) | [.filename, .sha] | @tsv')
@@ -211,6 +221,7 @@ jobs:
 
           if [ -z "$eligible_tsv" ]; then
             echo "No changed Markdown files resolve to a docs/manifest.json route."
+            echo "(If pages you expect are missing, check docs/manifest.json's schema: an empty allowlist looks identical to no eligible pages.)"
             cleanup_stale_and_exit
           fi
 
@@ -229,6 +240,14 @@ jobs:
           existing_body=""
           if [ -n "$existing_id" ]; then
             existing_body=$(gh api "repos/${REPO}/issues/comments/${existing_id}" --jq '.body' || true)
+            if [ -z "$existing_body" ]; then
+              # A docs-preview comment always contains its body, so an
+              # empty read against a known id is a transient fetch
+              # failure, not a legitimately empty comment. State recovery
+              # will reset every checkbox this push; log a breadcrumb so
+              # the reset isn't silent (it self-heals on the next push).
+              echo "Could not read existing comment ${existing_id}; checkbox state resets this push (transient, self-heals)." >&2
+            fi
           fi
 
           # Recover state from the existing comment, if any:
@@ -355,6 +374,15 @@ jobs:
             done
           fi
 
+          # Always list at least one page. The binary search can floor at
+          # 0 only if a single line exceeds the budget (impossible at real
+          # path lengths), and an empty list under an "and N more" summary
+          # would be self-contradicting; a floor of 1 makes that
+          # unreachable state impossible.
+          if [ "$keep_pages" -lt 1 ]; then
+            keep_pages=1
+          fi
+
           omitted_pages=$((total_pages - keep_pages))
           echo "Listing ${keep_pages} of ${total_pages} changed page(s); ${omitted_pages} omitted for comment size."
           comment_body=$(build_comment_body "$keep_pages")
@@ -372,7 +400,7 @@ jobs:
           if [ -n "$existing_id" ]; then
             if gh api --method PATCH \
               "repos/${REPO}/issues/comments/${existing_id}" \
-              --field body="$comment_body"; then
+              --raw-field body="$comment_body"; then
               echo "Updated existing docs preview comment (id=${existing_id})."
             else
               echo "Failed to update docs preview comment ${existing_id}; leaving it in place to avoid a duplicate. This is usually a transient API error, and the next push will retry." >&2
