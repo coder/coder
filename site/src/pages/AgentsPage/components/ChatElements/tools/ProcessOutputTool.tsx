@@ -10,6 +10,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import { LinkifiedText } from "../LinkifiedText";
 import {
 	type AgentDisplayState,
 	isAgentDisplayFullyExpanded,
@@ -144,7 +145,7 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 							isError ? "text-content-destructive" : "text-content-secondary",
 						)}
 					>
-						{output}
+						<LinkifiedText text={output} />
 					</pre>
 				</ScrollArea>
 				{overflows && (

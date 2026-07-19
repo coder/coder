@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, waitFor, within } from "storybook/test";
+import { rewriteLocalhostURL } from "#/utils/portForward";
+import { ChatUrlTransformContext } from "../../context/ChatUrlTransformContext";
 import { Response } from "./Response";
 
 const sampleMarkdown = `
@@ -188,6 +190,52 @@ export const JsxInProse: Story = {
 		expect(marker).toBeInTheDocument();
 		const marker2 = await canvas.findByText(/commentBox=\{commentBox\}/);
 		expect(marker2).toBeInTheDocument();
+	},
+};
+
+const chatUrlTransform = (url: string) =>
+	rewriteLocalhostURL(url, "*.proxy.example.com", "main", "my-ws", "alice");
+
+export const LocalhostLinkFromChatContext: Story = {
+	decorators: [
+		(Story) => (
+			<ChatUrlTransformContext value={chatUrlTransform}>
+				<Story />
+			</ChatUrlTransformContext>
+		),
+	],
+	args: {
+		children:
+			"Open [the preview](http://localhost:3000/apps?tab=1) or [the docs](https://coder.com/docs).",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const preview = await canvas.findByRole("link", { name: "the preview" });
+		expect(preview).toHaveAttribute(
+			"href",
+			"http://3000--main--my-ws--alice.proxy.example.com/apps?tab=1",
+		);
+		const docs = canvas.getByRole("link", { name: "the docs" });
+		expect(docs).toHaveAttribute("href", "https://coder.com/docs");
+	},
+};
+
+export const ExplicitUrlTransformWinsOverContext: Story = {
+	decorators: [
+		(Story) => (
+			<ChatUrlTransformContext value={chatUrlTransform}>
+				<Story />
+			</ChatUrlTransformContext>
+		),
+	],
+	args: {
+		children: "Open [the preview](http://localhost:3000/).",
+		urlTransform: () => "https://prop-wins.example.com/",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const preview = await canvas.findByRole("link", { name: "the preview" });
+		expect(preview).toHaveAttribute("href", "https://prop-wins.example.com/");
 	},
 };
 

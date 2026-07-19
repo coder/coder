@@ -9,6 +9,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import { LinkifiedText } from "../LinkifiedText";
 import {
 	type AgentDisplayState,
 	resolveAgentDisplayState,
@@ -207,7 +208,7 @@ const ShellTranscriptBody: React.FC<{
 								: "text-content-secondary",
 						)}
 					>
-						{block.text}
+						<LinkifiedText text={block.text} />
 					</pre>
 				))}
 			</div>

@@ -9,7 +9,6 @@ import {
 	useState,
 } from "react";
 import { useQueryClient } from "react-query";
-import type { UrlTransform } from "streamdown";
 import { v4 as uuidv4 } from "uuid";
 import { chatDiffContentsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -54,6 +53,10 @@ import { RightPanel } from "./components/RightPanel/RightPanel";
 import { RightPanelAddTabControl } from "./components/RightPanel/RightPanelAddTabControl";
 import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
+import {
+	type ChatUrlTransform,
+	ChatUrlTransformContext,
+} from "./context/ChatUrlTransformContext";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
 import {
@@ -212,7 +215,7 @@ interface AgentChatPageViewProps {
 	onFetchMoreMessages: () => void;
 	messageCount: number;
 
-	urlTransform?: UrlTransform;
+	urlTransform?: ChatUrlTransform;
 
 	// MCP server state.
 	mcpServers: readonly TypesGen.MCPServerConfig[];
@@ -820,215 +823,220 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		<ChatWorkspaceContext
 			value={{ workspaceId: workspace?.id, buildId: chatBuildId }}
 		>
-			<DesktopPanelContext value={desktopPanelCtx}>
-				<div
-					className={cn(
-						"relative flex min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
-						shouldShowSidebar && !visualExpanded && "flex-row",
-					)}
-				>
-					{titleElement}
+			<ChatUrlTransformContext value={urlTransform}>
+				<DesktopPanelContext value={desktopPanelCtx}>
 					<div
-						data-testid="agents-chat-panel"
 						className={cn(
-							"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden sm:min-w-[var(--agents-chat-panel-min-width,0px)]",
-							visualExpanded && "hidden",
-							shouldShowSidebar && "max-lg:hidden",
+							"relative flex min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
+							shouldShowSidebar && !visualExpanded && "flex-row",
 						)}
 					>
-						<div className="relative z-10 shrink-0 overflow-visible">
-							{" "}
-							<ChatTopBar
-								chatTitle={chatTitle}
-								parentChat={parentChat}
-								panel={{
-									showSidebarPanel,
-									onToggleSidebar: () => onSetShowSidebarPanel((prev) => !prev),
-								}}
-								onArchiveAgent={handleArchiveAgentAction}
-								onUnarchiveAgent={handleUnarchiveAgentAction}
-								onArchiveAndDeleteWorkspace={
-									handleArchiveAndDeleteWorkspaceAction
-								}
-								onPinAgent={handlePinAgentAction}
-								onUnpinAgent={handleUnpinAgentAction}
-								onOpenRenameDialog={handleOpenRenameDialogAction}
-								isPinned={isPinned}
-								isChildChat={isChildChat}
-								isArchiving={isArchivingThisChat}
-								hasWorkspace={Boolean(workspace)}
-								isArchived={isArchived}
-								diffStatusData={diffStatusData}
-								isSharedChat={isSharedChat}
-								isSidebarCollapsed={isSidebarCollapsed}
-								onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-								renderChatSharingContent={
-									canOpenChatSharing
-										? (open) => (
-												<ChatSharingPopoverContent
-													chatId={agentId}
-													organizationId={organizationId}
-													open={open}
-												/>
-											)
-										: undefined
-								}
-							/>
-							{chatOwnerWarning && (
-								<div
-									role="status"
-									aria-live="polite"
-									className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
-								>
-									<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
-									{chatOwnerWarning}
-								</div>
+						{titleElement}
+						<div
+							data-testid="agents-chat-panel"
+							className={cn(
+								"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden sm:min-w-[var(--agents-chat-panel-min-width,0px)]",
+								visualExpanded && "hidden",
+								shouldShowSidebar && "max-lg:hidden",
 							)}
-							{isArchived && (
-								<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
-									<ArchiveIcon className="size-4 shrink-0" />
-									This agent has been archived and is read-only.
-								</div>
-							)}
-							<div
-								aria-hidden
-								className="pointer-events-none absolute inset-x-0 top-full z-10 h-3 sm:h-6 bg-surface-primary"
-								style={{
-									maskImage:
-										"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
-									WebkitMaskImage:
-										"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
-								}}
-							/>
-						</div>
-						<ChatScrollContainer
-							key={agentId}
-							scrollContainerRef={scrollContainerRef}
-							scrollToBottomRef={effectiveScrollToBottomRef}
-							isFetchingMoreMessages={isFetchingMoreMessages}
-							hasMoreMessages={hasMoreMessages}
-							onFetchMoreMessages={onFetchMoreMessages}
-							messageCount={messageCount}
 						>
-							<div className="px-4" data-chat-scroll-content>
-								<ChatPageTimeline
-									store={store}
-									persistedError={persistedError}
-									onEditUserMessage={
-										isOtherUserReadOnly
-											? undefined
-											: editing.handleEditUserMessage
+							<div className="relative z-10 shrink-0 overflow-visible">
+								{" "}
+								<ChatTopBar
+									chatTitle={chatTitle}
+									parentChat={parentChat}
+									panel={{
+										showSidebarPanel,
+										onToggleSidebar: () =>
+											onSetShowSidebarPanel((prev) => !prev),
+									}}
+									onArchiveAgent={handleArchiveAgentAction}
+									onUnarchiveAgent={handleUnarchiveAgentAction}
+									onArchiveAndDeleteWorkspace={
+										handleArchiveAndDeleteWorkspaceAction
 									}
-									editingMessageId={editing.editingMessageId}
-									urlTransform={urlTransform}
-									mcpServers={mcpServers}
-									onImplementPlan={
-										isOtherUserReadOnly ? undefined : onImplementPlan
+									onPinAgent={handlePinAgentAction}
+									onUnpinAgent={handleUnpinAgentAction}
+									onOpenRenameDialog={handleOpenRenameDialogAction}
+									isPinned={isPinned}
+									isChildChat={isChildChat}
+									isArchiving={isArchivingThisChat}
+									hasWorkspace={Boolean(workspace)}
+									isArchived={isArchived}
+									diffStatusData={diffStatusData}
+									isSharedChat={isSharedChat}
+									isSidebarCollapsed={isSidebarCollapsed}
+									onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+									renderChatSharingContent={
+										canOpenChatSharing
+											? (open) => (
+													<ChatSharingPopoverContent
+														chatId={agentId}
+														organizationId={organizationId}
+														open={open}
+													/>
+												)
+											: undefined
 									}
-									onSendAskUserQuestionResponse={
-										isOtherUserReadOnly
-											? undefined
-											: canSendAskUserQuestionResponse
-									}
+								/>
+								{chatOwnerWarning && (
+									<div
+										role="status"
+										aria-live="polite"
+										className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
+									>
+										<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
+										{chatOwnerWarning}
+									</div>
+								)}
+								{isArchived && (
+									<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
+										<ArchiveIcon className="size-4 shrink-0" />
+										This agent has been archived and is read-only.
+									</div>
+								)}
+								<div
+									aria-hidden
+									className="pointer-events-none absolute inset-x-0 top-full z-10 h-3 sm:h-6 bg-surface-primary"
+									style={{
+										maskImage:
+											"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+										WebkitMaskImage:
+											"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+									}}
 								/>
 							</div>
-						</ChatScrollContainer>
-						<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
-							<ChatPageInput
-								organizationId={organizationId}
-								sendShortcut={sendShortcut}
-								store={store}
-								compressionThreshold={compressionThreshold}
-								onSend={editing.handleSendFromInput}
-								onDeleteQueuedMessage={handleDeleteQueuedMessage}
-								onPromoteQueuedMessage={handlePromoteQueuedMessage}
-								onInterrupt={handleInterrupt}
-								isInputDisabled={isInputDisabled}
-								isSendPending={isSubmissionPending}
-								isInterruptPending={isInterruptPending}
-								hasModelOptions={hasModelOptions}
-								canConfigureAgentSetup={canConfigureAgentSetup}
-								providerCount={providerCount}
-								modelCount={modelCount}
-								unsupportedProviderNames={unsupportedProviderNames}
-								aiGatewayDisabled={aiGatewayDisabled}
-								selectedModel={effectiveSelectedModel}
-								onModelChange={setSelectedModel}
-								modelOptions={modelOptions}
-								modelSelectorPlaceholder={modelSelectorPlaceholder}
-								modelSelectorHelp={modelSelectorHelp}
-								reasoningEffort={reasoningEffort}
-								onReasoningEffortChange={onReasoningEffortChange}
-								planModeEnabled={planModeEnabled}
-								onPlanModeToggle={onPlanModeToggle}
-								isModelCatalogLoading={isModelCatalogLoading}
-								workspaceOptions={workspaceOptions}
-								chatOrganizationId={organizationId}
-								selectedWorkspaceId={selectedWorkspaceId}
-								onWorkspaceChange={onWorkspaceChange}
-								isWorkspaceLoading={isWorkspaceLoading}
-								inputRef={editing.chatInputRef}
-								initialValue={editing.editorInitialValue}
-								initialEditorState={editing.initialEditorState}
-								remountKey={editing.remountKey}
-								onContentChange={editing.handleContentChange}
-								isEditing={isEditing}
-								editingQueuedMessageID={editing.editingQueuedMessageID}
-								onStartQueueEdit={editing.handleStartQueueEdit}
-								onCancelQueueEdit={editing.handleCancelQueueEdit}
-								isEditingHistoryMessage={editing.editingMessageId !== null}
-								onCancelHistoryEdit={editing.handleCancelHistoryEdit}
-								editingFileBlocks={editing.editingFileBlocks}
-								mcpServers={mcpServers}
-								selectedMCPServerIds={selectedMCPServerIds}
-								onMCPSelectionChange={onMCPSelectionChange}
-								onMCPAuthComplete={onMCPAuthComplete}
-								chatContext={chatContext}
-								workspaceSkills={workspaceSkills}
-								workspace={workspace}
-								workspaceAgent={workspaceAgent}
-								chatId={agentId}
-								sshCommand={sshCommand}
-								attachedWorkspace={attachedWorkspace}
-								folder={preferredFolder}
-							/>
-						</div>
-					</div>
-					<RightPanel
-						isOpen={shouldShowSidebar}
-						isExpanded={isRightPanelExpanded}
-						onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
-						onClose={() => onSetShowSidebarPanel(false)}
-						onVisualExpandedChange={setDragVisualExpanded}
-						isSidebarCollapsed={isSidebarCollapsed}
-						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-					>
-						<SidebarTabView
-							effectiveTabId={effectiveSidebarTabId}
-							onActiveTabChange={handleActiveTabChange}
-							tabs={sidebarTabs}
-							addTabControl={
-								<RightPanelAddTabControl
+							<ChatScrollContainer
+								key={agentId}
+								scrollContainerRef={scrollContainerRef}
+								scrollToBottomRef={effectiveScrollToBottomRef}
+								isFetchingMoreMessages={isFetchingMoreMessages}
+								hasMoreMessages={hasMoreMessages}
+								onFetchMoreMessages={onFetchMoreMessages}
+								messageCount={messageCount}
+							>
+								<div className="px-4" data-chat-scroll-content>
+									<ChatPageTimeline
+										store={store}
+										persistedError={persistedError}
+										onEditUserMessage={
+											isOtherUserReadOnly
+												? undefined
+												: editing.handleEditUserMessage
+										}
+										editingMessageId={editing.editingMessageId}
+										urlTransform={urlTransform}
+										mcpServers={mcpServers}
+										onImplementPlan={
+											isOtherUserReadOnly ? undefined : onImplementPlan
+										}
+										onSendAskUserQuestionResponse={
+											isOtherUserReadOnly
+												? undefined
+												: canSendAskUserQuestionResponse
+										}
+									/>
+								</div>
+							</ChatScrollContainer>
+							<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+								<ChatPageInput
+									organizationId={organizationId}
+									sendShortcut={sendShortcut}
+									store={store}
+									compressionThreshold={compressionThreshold}
+									onSend={editing.handleSendFromInput}
+									onDeleteQueuedMessage={handleDeleteQueuedMessage}
+									onPromoteQueuedMessage={handlePromoteQueuedMessage}
+									onInterrupt={handleInterrupt}
+									isInputDisabled={isInputDisabled}
+									isSendPending={isSubmissionPending}
+									isInterruptPending={isInterruptPending}
+									hasModelOptions={hasModelOptions}
+									canConfigureAgentSetup={canConfigureAgentSetup}
+									providerCount={providerCount}
+									modelCount={modelCount}
+									unsupportedProviderNames={unsupportedProviderNames}
+									aiGatewayDisabled={aiGatewayDisabled}
+									selectedModel={effectiveSelectedModel}
+									onModelChange={setSelectedModel}
+									modelOptions={modelOptions}
+									modelSelectorPlaceholder={modelSelectorPlaceholder}
+									modelSelectorHelp={modelSelectorHelp}
+									reasoningEffort={reasoningEffort}
+									onReasoningEffortChange={onReasoningEffortChange}
+									planModeEnabled={planModeEnabled}
+									onPlanModeToggle={onPlanModeToggle}
+									isModelCatalogLoading={isModelCatalogLoading}
+									workspaceOptions={workspaceOptions}
+									chatOrganizationId={organizationId}
+									selectedWorkspaceId={selectedWorkspaceId}
+									onWorkspaceChange={onWorkspaceChange}
+									isWorkspaceLoading={isWorkspaceLoading}
+									inputRef={editing.chatInputRef}
+									initialValue={editing.editorInitialValue}
+									initialEditorState={editing.initialEditorState}
+									remountKey={editing.remountKey}
+									onContentChange={editing.handleContentChange}
+									isEditing={isEditing}
+									editingQueuedMessageID={editing.editingQueuedMessageID}
+									onStartQueueEdit={editing.handleStartQueueEdit}
+									onCancelQueueEdit={editing.handleCancelQueueEdit}
+									isEditingHistoryMessage={editing.editingMessageId !== null}
+									onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+									editingFileBlocks={editing.editingFileBlocks}
+									mcpServers={mcpServers}
+									selectedMCPServerIds={selectedMCPServerIds}
+									onMCPSelectionChange={onMCPSelectionChange}
+									onMCPAuthComplete={onMCPAuthComplete}
+									chatContext={chatContext}
+									workspaceSkills={workspaceSkills}
 									workspace={workspace}
-									agent={workspaceAgent}
-									host={wildcardHostname}
-									isRunning={workspace?.latest_build.status === "running"}
-									onNewTerminal={handleAddTerminalTab}
-									onOpenWorkspaceApp={handleOpenWorkspaceAppTab}
-									onOpenCommandApp={handleOpenCommandAppTab}
-									onOpenPort={handleOpenPortTab}
+									workspaceAgent={workspaceAgent}
+									chatId={agentId}
+									sshCommand={sshCommand}
+									attachedWorkspace={attachedWorkspace}
+									folder={preferredFolder}
 								/>
-							}
-							onClose={() => onSetShowSidebarPanel(false)}
-							isExpanded={visualExpanded}
+							</div>
+						</div>
+						<RightPanel
+							isOpen={shouldShowSidebar}
+							isExpanded={isRightPanelExpanded}
 							onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
+							onClose={() => onSetShowSidebarPanel(false)}
+							onVisualExpandedChange={setDragVisualExpanded}
 							isSidebarCollapsed={isSidebarCollapsed}
 							onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-							chatTitle={chatTitle}
-						/>
-					</RightPanel>
-				</div>
-			</DesktopPanelContext>
+						>
+							<SidebarTabView
+								effectiveTabId={effectiveSidebarTabId}
+								onActiveTabChange={handleActiveTabChange}
+								tabs={sidebarTabs}
+								addTabControl={
+									<RightPanelAddTabControl
+										workspace={workspace}
+										agent={workspaceAgent}
+										host={wildcardHostname}
+										isRunning={workspace?.latest_build.status === "running"}
+										onNewTerminal={handleAddTerminalTab}
+										onOpenWorkspaceApp={handleOpenWorkspaceAppTab}
+										onOpenCommandApp={handleOpenCommandAppTab}
+										onOpenPort={handleOpenPortTab}
+									/>
+								}
+								onClose={() => onSetShowSidebarPanel(false)}
+								isExpanded={visualExpanded}
+								onToggleExpanded={() =>
+									setIsRightPanelExpanded((prev) => !prev)
+								}
+								isSidebarCollapsed={isSidebarCollapsed}
+								onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+								chatTitle={chatTitle}
+							/>
+						</RightPanel>
+					</div>
+				</DesktopPanelContext>
+			</ChatUrlTransformContext>
 		</ChatWorkspaceContext>
 	);
 };

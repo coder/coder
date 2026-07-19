@@ -12,6 +12,7 @@ import {
 } from "streamdown";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { cn } from "#/utils/cn";
+import { useChatUrlTransform } from "../../context/ChatUrlTransformContext";
 
 interface ResponseProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	children: string;
@@ -269,6 +270,7 @@ export const Response = ({
 	const fileViewerThemeType: FileViewerThemeType =
 		theme.palette.mode === "dark" ? "dark" : "light";
 	const components = componentsByTheme[fileViewerThemeType];
+	const chatUrlTransform = useChatUrlTransform();
 
 	return (
 		<div
@@ -282,7 +284,7 @@ export const Response = ({
 			<Streamdown
 				controls={false}
 				components={components}
-				urlTransform={urlTransform}
+				urlTransform={urlTransform ?? chatUrlTransform}
 				rehypePlugins={chatRehypePlugins}
 				mode={streaming ? "streaming" : "static"}
 				parseIncompleteMarkdown={streaming}
