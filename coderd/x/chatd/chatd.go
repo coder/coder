@@ -1286,6 +1286,12 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		return database.Chat{}, limitErr
 	}
 
+	if opts.ModelConfigID != uuid.Nil {
+		if err := requireEnabledChatModelConfig(ctx, p.db, opts.ModelConfigID); err != nil {
+			return database.Chat{}, err
+		}
+	}
+
 	labelsJSON, err := json.Marshal(opts.Labels)
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal labels: %w", err)
@@ -1328,12 +1334,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	}
 	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, opts.ModelConfigID))
 	initialMessages = append(initialMessages, userMessage(userContent, opts.ModelConfigID, opts.OwnerID, opts.ReasoningEffort))
-
-	if opts.ModelConfigID != uuid.Nil {
-		if err := requireEnabledChatModelConfig(ctx, p.db, opts.ModelConfigID); err != nil {
-			return database.Chat{}, err
-		}
-	}
 
 	result, err := chatstate.CreateChat(ctx, p.db, p.pubsub, chatstate.CreateChatInput{
 		OrganizationID:    opts.OrganizationID,
