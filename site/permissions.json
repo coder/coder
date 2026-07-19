@@ -15,7 +15,7 @@
 		"object": { "resource_type": "template", "any_org": true },
 		"action": "create"
 	},
-	"createWorkspaceInAnyOrganization": {
+	"createWorkspace": {
 		"object": {
 			"resource_type": "workspace",
 			"any_org": true,

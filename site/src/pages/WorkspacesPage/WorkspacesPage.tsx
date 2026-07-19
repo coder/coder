@@ -169,7 +169,7 @@ const WorkspacesPage: FC = () => {
 
 			<WorkspacesPageView
 				canCreateTemplate={permissions.createTemplates}
-				canCreateWorkspace={permissions.createWorkspaceInAnyOrganization}
+				canCreateWorkspace={permissions.createWorkspace}
 				canChangeVersions={permissions.updateTemplates}
 				checkedWorkspaces={checkedWorkspaces}
 				chatsByWorkspace={chatsByWorkspaceQuery.data}

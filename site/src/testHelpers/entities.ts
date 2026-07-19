@@ -3297,7 +3297,7 @@ export const MockTemplateExample2: TypesGen.TemplateExample = {
 export const MockPermissions: Permissions = {
 	createTemplates: true,
 	createUser: true,
-	createWorkspaceInAnyOrganization: true,
+	createWorkspace: true,
 	deleteTemplates: true,
 	updateTemplates: true,
 	viewAllUsers: true,
@@ -3334,7 +3334,7 @@ export const MockPermissions: Permissions = {
 export const MockNoPermissions: Permissions = {
 	createTemplates: false,
 	createUser: false,
-	createWorkspaceInAnyOrganization: false,
+	createWorkspace: false,
 	deleteTemplates: false,
 	updateTemplates: false,
 	viewAllUsers: false,
