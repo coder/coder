@@ -817,6 +817,100 @@ func TestAuthorizeUserACLOrgMembership(t *testing.T) {
 	})
 }
 
+// TestAuthorizeACLCapabilityPrecondition runs the acl_use_precondition
+// through the testAuthorize harness, which exercises the direct, partial,
+// and SQL-compile evaluation paths. An ACL entry action on a gated type
+// only applies while the subject holds that same action at the member
+// level in the object's organization, so entries have per-action partial
+// effect.
+func TestAuthorizeACLCapabilityPrecondition(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.New()
+	shared := ResourceWorkspace.WithID(uuid.New()).InOrg(orgID).WithOwner(uuid.NewString())
+
+	// Org member with no member-level permissions at all: no ACL entry
+	// action can match a held action.
+	floorMember := Subject{
+		ID:    "floor-member",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			{
+				Identifier: RoleIdentifier{Name: "org-floor", OrganizationID: orgID},
+				ByOrgID: map[string]OrgPermissions{
+					orgID.String(): {},
+				},
+			},
+		},
+	}
+	testAuthorize(t, "ACLNoCapability", floorMember, []authTestCase{
+		{
+			resource: shared.WithACLUserList(map[string][]policy.Action{
+				floorMember.ID: {policy.ActionSSH},
+			}),
+			actions: []policy.Action{policy.ActionSSH},
+			allow:   false,
+		},
+		{
+			// A wildcard ACL entry does not bypass the precondition.
+			resource: shared.WithACLUserList(map[string][]policy.Action{
+				floorMember.ID: {policy.WildcardSymbol},
+			}),
+			actions: []policy.Action{policy.ActionSSH},
+			allow:   false,
+		},
+	})
+
+	// Member whose roles carry only read: an entry granting read and ssh
+	// has partial effect. The read grant applies; the ssh grant does not.
+	readOnlyMember := Subject{
+		ID:    "read-only-member",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			{
+				Identifier: RoleIdentifier{Name: "org-read-only", OrganizationID: orgID},
+				ByOrgID: map[string]OrgPermissions{
+					orgID.String(): {
+						Member: []Permission{{
+							ResourceType: ResourceWorkspace.Type,
+							Action:       policy.ActionRead,
+						}},
+					},
+				},
+			},
+		},
+	}
+	readSSHEntry := shared.WithACLUserList(map[string][]policy.Action{
+		readOnlyMember.ID: {policy.ActionRead, policy.ActionSSH},
+	})
+	testAuthorize(t, "ACLPartialCapability", readOnlyMember, []authTestCase{
+		{resource: readSSHEntry, actions: []policy.Action{policy.ActionRead}, allow: true},
+		{resource: readSSHEntry, actions: []policy.Action{policy.ActionSSH}, allow: false},
+	})
+
+	// The workspace-access role carries every workspace action at the
+	// member level, so the full entry applies.
+	elevatedMember := Subject{
+		ID:    "elevated-member",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(orgID))),
+		},
+	}
+	testAuthorize(t, "ACLFullCapability", elevatedMember, []authTestCase{
+		{
+			resource: shared.WithACLUserList(map[string][]policy.Action{
+				elevatedMember.ID: {policy.ActionRead, policy.ActionSSH},
+			}),
+			actions: []policy.Action{policy.ActionRead, policy.ActionSSH},
+			allow:   true,
+		},
+	})
+}
+
 // TestAuthorizeLevels ensures level overrides are acting appropriately
 func TestAuthorizeLevels(t *testing.T) {
 	t.Parallel()
@@ -918,7 +1012,7 @@ func TestAuthorizeLevels(t *testing.T) {
 
 	testAuthorize(t, "OrgAllowAll", user,
 		cases(func(c authTestCase) authTestCase {
-			// SSH and app connect are not implied here.
+			// SSH, app connect, and shared use are not implied here.
 			c.actions = slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH)
 			return c
 		}, []authTestCase{

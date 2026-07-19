@@ -167,6 +167,64 @@ func TestChatSharingPermissions(t *testing.T) {
 	})
 }
 
+// TestACLActionNegation verifies that acl_action_orgs follows vote
+// semantics: a negated member-level permission for an action removes the
+// org from the set for that action even when a positive grant exists, so
+// ACL-granted access to that action is denied while other granted
+// actions keep working.
+func TestACLActionNegation(t *testing.T) {
+	t.Parallel()
+
+	auth := rbac.NewStrictAuthorizer(prometheus.NewRegistry())
+	orgID := uuid.New()
+	userID := uuid.New()
+
+	workspaceAccess, err := rbac.RoleByName(rbac.ScopedRoleOrgWorkspaceAccess(orgID))
+	require.NoError(t, err)
+
+	negation := rbac.Role{
+		Identifier: rbac.RoleIdentifier{Name: "ssh-ban", OrganizationID: orgID},
+		ByOrgID: map[string]rbac.OrgPermissions{
+			orgID.String(): {
+				Member: []rbac.Permission{{
+					Negate:       true,
+					ResourceType: rbac.ResourceWorkspace.Type,
+					Action:       policy.ActionSSH,
+				}},
+			},
+		},
+	}
+
+	shared := rbac.ResourceWorkspace.WithID(uuid.New()).InOrg(orgID).
+		WithOwner(uuid.NewString()).
+		WithACLUserList(map[string][]policy.Action{
+			userID.String(): {policy.ActionSSH, policy.ActionRead},
+		})
+
+	// With matching member-level actions, the ACL grant applies.
+	err = auth.Authorize(context.Background(), rbac.Subject{
+		ID:    userID.String(),
+		Roles: rbac.Roles{workspaceAccess},
+		Scope: rbac.ScopeAll,
+	}, policy.ActionSSH, shared)
+	require.NoError(t, err)
+
+	bannedSubject := rbac.Subject{
+		ID:    userID.String(),
+		Roles: rbac.Roles{workspaceAccess, negation},
+		Scope: rbac.ScopeAll,
+	}
+
+	// A negated member-level ssh permission vetoes the org for ssh, so
+	// the ACL ssh grant no longer applies.
+	err = auth.Authorize(context.Background(), bannedSubject, policy.ActionSSH, shared)
+	require.ErrorAs(t, err, &rbac.UnauthorizedError{})
+
+	// Other granted actions are unaffected by the ssh ban.
+	err = auth.Authorize(context.Background(), bannedSubject, policy.ActionRead, shared)
+	require.NoError(t, err)
+}
+
 //nolint:tparallel,paralleltest
 func TestOwnerExec(t *testing.T) {
 	owner := rbac.Subject{
@@ -463,6 +521,25 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgWorkspaceAccessUser},
 				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin},
+			},
+		},
+		{
+			// A workspace owned by another org member, shared with
+			// currentUser through the ACL. Each granted action only takes
+			// effect for subjects holding that action at the member level
+			// in the org (acl_use_precondition), so revoking workspace
+			// access roles also revokes shared access.
+			Name:    "SharedWorkspaceACLUse",
+			Actions: []policy.Action{policy.ActionSSH, policy.ActionApplicationConnect},
+			Resource: rbac.ResourceWorkspace.WithID(workspaceID).InOrg(orgID).WithOwner(uuid.NewString()).WithACLUserList(map[string][]policy.Action{
+				currentUser.String(): {policy.ActionSSH, policy.ActionApplicationConnect},
+			}),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, orgWorkspaceAccessUser},
+				false: {
+					setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser,
+					templateAdmin, userAdmin,
+				},
 			},
 		},
 		{

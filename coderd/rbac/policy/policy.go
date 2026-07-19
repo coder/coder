@@ -39,6 +39,12 @@ type PermissionDefinition struct {
 	// should represent. The key in the actions map is the verb to use
 	// in the rbac policy.
 	Actions map[Action]ActionDefinition
+	// GatedACL marks the resource type's ACL grants as capability-gated:
+	// an ACL entry granting action X only takes effect while the subject
+	// holds X (or the wildcard) at the member level in the object's
+	// organization. Ungated types rely on ACL-only grants (e.g. the
+	// template Everyone-group baseline).
+	GatedACL bool
 	// Comment is additional text to include in the generated object comment.
 	Comment string
 }
@@ -106,7 +112,8 @@ var RBACPermissions = map[string]PermissionDefinition{
 		},
 	},
 	"workspace": {
-		Actions: workspaceActions,
+		Actions:  workspaceActions,
+		GatedACL: true,
 	},
 	"task": {
 		Actions: taskActions,
@@ -116,7 +123,8 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	// Dormant workspaces have the same perms as workspaces.
 	"workspace_dormant": {
-		Actions: workspaceActions,
+		Actions:  workspaceActions,
+		GatedACL: true,
 	},
 	"prebuilt_workspace": {
 		// Prebuilt_workspace actions currently apply only to delete operations.

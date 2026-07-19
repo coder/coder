@@ -87,6 +87,41 @@ For example, you may have a scope like...
 
 The final policy decision is determined by evaluating each of these checks in their proper precedence order from the `allow` rule.
 
+## ACL capability precondition
+
+Conceptually, the precondition is a subject-side mask over incoming ACL
+grants: ACL entries describe what other subjects have granted *to* you,
+and the mask decides which of them apply. It is per-action and
+deliberately member-scoped, because it is a statement about the subject
+in that org, not about any particular object. Role-derived access
+(site/org/member keys) is never masked; only the ACL path is.
+
+ACL grants on gated resource types only take effect per action: the
+subject must hold the granted action (or the wildcard) at the member
+level in the object's organization (`acl_use_precondition` /
+`acl_action_orgs`). A resource type is gated if and only if its policy
+permission definition sets `GatedACL`
+(`coderd/rbac/policy/policy.go`); the flag reaches the policy as the
+derived input field `input.object.acl_use_gated`, computed from the
+object type in Go (`rbac.ACLUseGated`), so it is known even in partial
+evaluations and no per-type rego edits are needed.
+
+Currently gated: `workspace` and `workspace_dormant`, whose member-level
+actions travel with the `organization-workspace-access` role (and, while
+`MinimumImplicitMember` is off, with the elevation bundled into
+`organization-member`). Revoking a subject's workspace access roles
+therefore also revokes any access they were granted through sharing,
+evaluated live on every authorization. A subject whose roles carry only
+some of an entry's actions receives partial effect. Org inclusion in
+`acl_action_orgs` follows standard vote semantics: a negated matching
+permission removes the org even when a positive grant exists.
+
+Types that are not gated (templates, chats) keep ACL-only grants:
+templates in particular rely on the Everyone-group ACL for baseline
+access. Opting a type in later is a one-line `GatedACL: true` on its
+permission definition, plus roles granting the member-level actions its
+recipients should be able to receive.
+
 ## Unknown values
 
 This policy is specifically constructed to compress to a set of queries if 'input.object.owner' and 'input.object.org_owner' are unknown. There is no specific set of rules that will guarantee that this policy has this property, however, there are some tricks. We have tests that enforce this property, so any changes that pass the tests will be okay.

@@ -1,6 +1,7 @@
 package rbac
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync/atomic"
@@ -15,6 +16,31 @@ import (
 // ResourceUserObject is a helper function to create a user object for authz checks.
 func ResourceUserObject(userID uuid.UUID) Object {
 	return ResourceUser.WithID(userID).WithOwner(userID.String())
+}
+
+// aclUseGatedTypes is the set of resource types whose ACL grants are
+// capability-gated: an ACL entry granting action X only takes effect
+// while the subject holds X (or the wildcard) at the member level in the
+// object's organization. A resource type opts in via GatedACL in its
+// policy permission definition; no policy.rego changes are required. The
+// flag is delivered to the rego policy as the derived input field
+// `input.object.acl_use_gated` (see astvalue.go).
+var aclUseGatedTypes = func() map[string]struct{} {
+	gated := make(map[string]struct{})
+	for typeName, def := range policy.RBACPermissions {
+		if def.GatedACL {
+			gated[typeName] = struct{}{}
+		}
+	}
+	return gated
+}()
+
+// ACLUseGated returns true if ACL grants on objects of the given type
+// require the subject to hold the granted actions at the member level in
+// the object's organization.
+func ACLUseGated(objectType string) bool {
+	_, ok := aclUseGatedTypes[objectType]
+	return ok
 }
 
 // Object is used to create objects for authz checks when you have none in
@@ -40,6 +66,21 @@ type Object struct {
 
 	ACLUserList  map[string][]policy.Action ` json:"acl_user_list"`
 	ACLGroupList map[string][]policy.Action ` json:"acl_group_list"`
+}
+
+// MarshalJSON includes the derived acl_use_gated field so that generic
+// JSON-based rego inputs stay consistent with the AST fast path in
+// astvalue.go. The field is computed from the object type and never
+// stored.
+func (z Object) MarshalJSON() ([]byte, error) {
+	type alias Object
+	return json.Marshal(struct {
+		alias
+		ACLUseGated bool `json:"acl_use_gated"`
+	}{
+		alias:       alias(z),
+		ACLUseGated: ACLUseGated(z.Type),
+	})
 }
 
 // String is not perfect, but decent enough for human display

@@ -328,11 +328,55 @@ object_is_included_in_scope_allow_list if {
 # ACL rules                                                                    #
 #==============================================================================#
 
+# acl_action_orgs is the set of organizations in which the subject holds
+# the requested action on the object's type at the member level. ACL
+# grants on gated resource types (input.object.acl_use_gated) only take
+# effect in these orgs: the subject may receive an action on others'
+# objects only where their roles grant that same action on their own.
+# Revoking the roles that carry an action therefore also revokes it on
+# everything shared with the subject. The member key is read directly
+# rather than through the org_member vote, so object ownership is
+# irrelevant. Each org's inclusion follows the same vote semantics as
+# the other levels: a matching negated permission removes the org even
+# when a positive grant exists. The set derives from subject roles, the
+# object type, and the action, all known at prepare time, keeping
+# unknown object attributes out of the comprehensions for partial
+# evaluation.
+acl_action_orgs := {org_id |
+	org_id := org_memberships[_]
+	allow := {is_allowed |
+		perm := input.subject.roles[_].by_org_id[org_id].member[_]
+		perm.resource_type in [input.object.type, "*"]
+		perm.action in [input.action, "*"]
+		is_allowed := bool_flip(perm.negate)
+	}
+	to_vote(allow) == 1
+}
+
+# acl_use_precondition gates ACL grants on resource types marked GatedACL
+# in their policy permission definition. The flag is derived from the
+# object type in Go (rbac.ACLUseGated) and passed as a known input
+# field; every input construction path must supply it. Types that are
+# not gated rely on ACL-only grants by design and are unaffected.
+# The comparison is an explicit == false rather than a truthiness check:
+# when the field is absent this rule is undefined instead of true, and
+# only the acl_action_orgs rule below can satisfy the precondition. A
+# missing field therefore treats every type as gated (denying ACL
+# actions the subject's roles do not carry); it never widens access.
+acl_use_precondition if {
+	input.object.acl_use_gated == false
+}
+
+acl_use_precondition if {
+	input.object.org_owner in acl_action_orgs
+}
+
 # ACL for users
 acl_allow if {
 	# The subject must be a member of the object's organization for a
 	# user ACL grant to apply.
 	is_org_member
+	acl_use_precondition
 	perms := input.object.acl_user_list[input.subject.id]
 
 	# Check if either the action or * is allowed
@@ -345,6 +389,7 @@ acl_allow if {
 	# If there is no organization owner, the object cannot be owned by an
 	# org-scoped group.
 	is_org_member
+	acl_use_precondition
 	some group in input.subject.groups
 	perms := input.object.acl_group_list[group]
 
@@ -358,6 +403,7 @@ acl_allow if {
 	# If there is no organization owner, the object cannot be owned by an
 	# org-scoped group.
 	is_org_member
+	acl_use_precondition
 	perms := input.object.acl_group_list[input.object.org_owner]
 
 	# Check if either the action or * is allowed
