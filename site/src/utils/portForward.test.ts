@@ -181,6 +181,19 @@ describe("rewriteLocalhostURL", () => {
 		);
 	});
 
+	it("preserves hash fragments", () => {
+		const result = rewriteLocalhostURL(
+			"http://localhost:3000/#/settings",
+			proxyHost,
+			agent,
+			workspace,
+			username,
+		);
+		expect(result).toEqual(
+			"http://3000--my-agent--my-workspace--my-username.proxy-host.tld/#/settings",
+		);
+	});
+
 	it("returns non-localhost URLs unchanged", () => {
 		const url = "https://example.com/page";
 		expect(
