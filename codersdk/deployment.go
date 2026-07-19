@@ -5324,9 +5324,6 @@ var ExperimentsKnown = Experiments{
 // not be included here and will be essentially hidden.
 var ExperimentsSafe = Experiments{
 	ExperimentMinimumImplicitMember,
-	// ExperimentPermissionBasedLicensing is deliberately excluded: it
-	// changes how license seats are counted, so enabling it must be an
-	// explicit opt-in rather than a side effect of --experiments='*'.
 }
 
 // Experiments is a list of experiments.
