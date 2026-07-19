@@ -127,7 +127,7 @@ assert_normalizes_to "./README.md" "docs/README.md"
 # workflow's intermediate TSV format.
 parse_checkbox_line() {
 	# shellcheck disable=SC2016 # backticks are literal Markdown code-span delimiters, not command substitution.
-	printf '%s\n' "$1" | grep -oE '^- \[[ xX]\] \[`[^`]+`\]' | sed -E 's/^- \[([ xX])\] \[`([^`]+)`\]/\1\t\2/' || true
+	printf '%s\n' "$1" | grep -oE '^[[:space:]]*- \[[ xX]\] \[`[^`]+`\]' | sed -E 's/^[[:space:]]*- \[([ xX])\] \[`([^`]+)`\]/\1\t\2/' || true
 }
 
 assert_checkbox_parses_to() {
@@ -189,8 +189,8 @@ recover_old_state() {
 recover_old_checked() {
 	# shellcheck disable=SC2016 # backticks are literal Markdown code-span delimiters, not command substitution.
 	printf '%s\n' "$1" |
-		grep -oE '^- \[[ xX]\] \[`[^`]+`\]' |
-		sed -E 's/^- \[([ xX])\] \[`([^`]+)`\]/\1\t\2/' |
+		grep -oE '^[[:space:]]*- \[[ xX]\] \[`[^`]+`\]' |
+		sed -E 's/^[[:space:]]*- \[([ xX])\] \[`([^`]+)`\]/\1\t\2/' |
 		jq -R -s '[splits("\n") | select(length > 0) | split("\t") | {(.[1]): (.[0] | test("x"; "i"))}] | add // {}'
 }
 
@@ -273,7 +273,7 @@ manifest_fixture='{"versions":["main"],"routes":[
   ]},
   {"title":"IconOnly","icon_path":"./images/x.svg"}
 ]}'
-actual_paths=$(printf '%s' "$manifest_fixture" | extract_manifest_paths | sort | tr '\n' ' ')
+actual_paths=$(printf '%s' "$manifest_fixture" | extract_manifest_paths | LC_ALL=C sort | tr '\n' ' ')
 expected_paths="docs/README.md docs/install/index.md docs/reference/cli/whoami.md "
 if [ "$actual_paths" = "$expected_paths" ]; then
 	echo "PASS: extract_manifest_paths (icon_path-only object excluded)"
@@ -298,7 +298,7 @@ files_fixture='[
   {"filename":"site/README.md","sha":"fff","status":"modified"},
   {"filename":"docs/.style/rules.md","sha":"ggg","status":"modified"}
 ]'
-actual_changed=$(printf '%s' "$files_fixture" | filter_changed_files | sort | tr '\n' '|')
+actual_changed=$(printf '%s' "$files_fixture" | filter_changed_files | LC_ALL=C sort | tr '\n' '|')
 expected_changed="$(printf 'docs/admin/index.md\taaa\ndocs/ai-coder/tasks.md\tbbb\n' | tr '\n' '|')"
 if [ "$actual_changed" = "$expected_changed" ]; then
 	echo "PASS: filter_changed_files (removed/.style/non-md/non-docs excluded)"
@@ -323,7 +323,7 @@ intersect_eligible() {
 
 changed_tsv_fixture="$(printf 'docs/admin/index.md\taaa\ndocs/ai-coder/tasks.md\tbbb\ndocs/not-in-manifest.md\tccc')"
 allowed_fixture="$(printf 'docs/admin/index.md\ndocs/ai-coder/tasks.md\ndocs/install/index.md')"
-actual_eligible=$(intersect_eligible "$changed_tsv_fixture" "$allowed_fixture" | sort | tr '\n' '|')
+actual_eligible=$(intersect_eligible "$changed_tsv_fixture" "$allowed_fixture" | LC_ALL=C sort | tr '\n' '|')
 expected_eligible="$(printf 'docs/admin/index.md\taaa\ndocs/ai-coder/tasks.md\tbbb\n' | tr '\n' '|')"
 if [ "$actual_eligible" = "$expected_eligible" ]; then
 	echo "PASS: intersect_eligible (drops paths not in the manifest)"
@@ -341,6 +341,10 @@ fi
 # docs-preview.yaml.
 DOCS_PREVIEW_MARKER='<!-- docs-preview -->'
 STATE_PREFIX='docs-preview-state:'
+# Representative values for the Files-tab link in the omitted-pages
+# summary; the workflow supplies these from the GitHub Actions env.
+REPO='owner/repo'
+PR_NUMBER='123'
 build_comment_body() {
 	local n="$1" rows state_json state_b64 checklist="" intro
 	local filename checked page_path url box omitted
@@ -365,10 +369,10 @@ build_comment_body() {
 
 	omitted=$((total_pages - n))
 	if [ "$omitted" -gt 0 ]; then
-		checklist="${checklist}"$'\n'"_and ${omitted} more changed page(s) not listed to stay under GitHub's comment size limit._"$'\n'
+		checklist="${checklist}"$'\n'"_and ${omitted} more changed page(s) not listed to stay under GitHub's comment size limit. See the [Files tab](https://github.com/${REPO}/pull/${PR_NUMBER}/files) for the full list._"$'\n'
 	fi
 
-	intro="Check off a page once you've reviewed it. If a page changes in a later push, its checkbox clears automatically so it gets a fresh look. Pages not yet wired into the docs navigation aren't listed here."
+	intro="Check off each page once it's been reviewed. If a page changes in a later push, its checkbox clears automatically so it gets a fresh look. Pages not yet wired into the docs navigation aren't listed here."
 
 	printf '## Docs preview\n\n%s\n\n%s\n%s\n<!-- %s%s -->' \
 		"$intro" "$checklist" "$DOCS_PREVIEW_MARKER" "$STATE_PREFIX" "$state_b64"

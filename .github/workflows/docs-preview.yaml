@@ -185,6 +185,15 @@ jobs:
           # Request the raw blob rather than the JSON envelope so the
           # read has no 1MB inline-body ceiling, which would otherwise
           # return an empty body and silently drop every page.
+          #
+          # This makes the manifest an implicit hard dependency of comment
+          # persistence: if the manifest schema ever drops or renames the
+          # "path" key, the fetch still succeeds but allowed_paths comes
+          # back empty, no page is eligible, and the run takes
+          # cleanup_stale_and_exit, deleting the comment and its checkbox
+          # state. "Parsed fine, zero matches" is indistinguishable from
+          # "format changed," so a future manifest refactor must keep this
+          # extraction in step.
           manifest_content=$(gh api -H "Accept: application/vnd.github.raw" "repos/${REPO}/contents/docs/manifest.json?ref=${HEAD_SHA}")
           allowed_paths=$(printf '%s' "$manifest_content" \
             | jq -r '[.. | objects | select(has("path")) | .path] | .[]' \
@@ -246,8 +255,8 @@ jobs:
 
             # shellcheck disable=SC2016 # backticks below are literal Markdown code-span delimiters, not command substitution.
             old_checked_json=$(printf '%s\n' "$existing_body" \
-              | grep -oE '^- \[[ xX]\] \[`[^`]+`\]' \
-              | sed -E 's/^- \[([ xX])\] \[`([^`]+)`\]/\1\t\2/' \
+              | grep -oE '^[[:space:]]*- \[[ xX]\] \[`[^`]+`\]' \
+              | sed -E 's/^[[:space:]]*- \[([ xX])\] \[`([^`]+)`\]/\1\t\2/' \
               | jq -R -s '[splits("\n") | select(length > 0) | split("\t") | {(.[1]): (.[0] | test("x"; "i"))}] | add // {}') || true
           fi
 
@@ -309,10 +318,10 @@ jobs:
 
             omitted=$((total_pages - n))
             if [ "$omitted" -gt 0 ]; then
-              checklist="${checklist}"$'\n'"_and ${omitted} more changed page(s) not listed to stay under GitHub's comment size limit._"$'\n'
+              checklist="${checklist}"$'\n'"_and ${omitted} more changed page(s) not listed to stay under GitHub's comment size limit. See the [Files tab](https://github.com/${REPO}/pull/${PR_NUMBER}/files) for the full list._"$'\n'
             fi
 
-            intro="Check off a page once you've reviewed it. If a page changes in a later push, its checkbox clears automatically so it gets a fresh look. Pages not yet wired into the docs navigation aren't listed here."
+            intro="Check off each page once it's been reviewed. If a page changes in a later push, its checkbox clears automatically so it gets a fresh look. Pages not yet wired into the docs navigation aren't listed here."
 
             printf '## Docs preview\n\n%s\n\n%s\n%s\n<!-- %s%s -->' \
               "$intro" "$checklist" "$DOCS_PREVIEW_MARKER" "$STATE_PREFIX" "$state_b64"
@@ -366,7 +375,7 @@ jobs:
               --field body="$comment_body"; then
               echo "Updated existing docs preview comment (id=${existing_id})."
             else
-              echo "Failed to update docs preview comment ${existing_id}; not creating a duplicate." >&2
+              echo "Failed to update docs preview comment ${existing_id}; leaving it in place to avoid a duplicate. This is usually a transient API error, and the next push will retry." >&2
               exit 1
             fi
           else
