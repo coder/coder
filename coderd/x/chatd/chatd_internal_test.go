@@ -3591,16 +3591,16 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		db, ps := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
+		owner := dbgen.User(t, db, database.User{})
 		disabledProvider := newProvider(t, db, false)
 		model := newModelConfig(t, db, disabledProvider.ID, false)
 		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 		_, err := server.CreateChat(ctx, CreateOptions{
 			OrganizationID: uuid.New(),
-			OwnerID:        uuid.New(),
+			OwnerID:        owner.ID,
 			Title:          "provider disabled create",
 			ModelConfigID:  model.ID,
-			APIKeyID:       "test-api-key-id",
 			InitialUserContent: []codersdk.ChatMessagePart{
 				codersdk.ChatMessageText("hello"),
 			},
