@@ -23,8 +23,9 @@ import (
 )
 
 // TestCountWorkspaceCapableUsers verifies permission-based license seat
-// counting: only users the RBAC engine authorizes to create workspaces
-// consume seats, so members without workspace-create ("gateway accounts")
+// counting: only users the RBAC engine authorizes to use workspaces
+// (create their own, or hold member-level workspace actions that make
+// ACL shares effective) consume seats; members with neither capability
 // are excluded.
 //
 // The subtests toggle the global builtin roles via ReloadBuiltinRoles, so
@@ -126,8 +127,9 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		wsUser := activeUser(t, db, database.User{})
 		member(t, db, org.ID, wsUser, rbac.RoleOrgWorkspaceAccess())
 
-		// The creation ban negates workspace-create even when the
-		// workspace-access role is present. Not counted.
+		// The creation ban negates workspace-create, but not the other
+		// workspace actions: the user keeps their existing workspaces and
+		// can receive shares, so they still consume a seat.
 		banned := activeUser(t, db, database.User{})
 		member(t, db, org.ID, banned, rbac.RoleOrgWorkspaceAccess(), rbac.RoleOrgWorkspaceCreationBan())
 
@@ -147,7 +149,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 
 		count, err := license.CountWorkspaceCapableUsers(ctx, testutil.Logger(t), db, authorizer)
 		require.NoError(t, err)
-		require.Equal(t, int64(4), count)
+		require.Equal(t, int64(5), count)
 	})
 
 	t.Run("MultiOrgSplitCapability", func(t *testing.T) {
@@ -213,6 +215,21 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		// Member-key permissions are only storable on system roles
+		// (dbauthz customRoleCheck); this raw insert mirrors how such
+		// roles are provisioned.
+		sharedRole, err := db.InsertCustomRole(ctx, database.InsertCustomRoleParams{
+			Name:           "share-recipient",
+			DisplayName:    "Share Recipient",
+			OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+			IsSystem:       true,
+			MemberPermissions: []database.CustomRolePermission{{
+				ResourceType: rbac.ResourceWorkspace.Type,
+				Action:       policy.ActionSSH,
+			}},
+		})
+		require.NoError(t, err)
+
 		// Custom org role with workspace-create. Counted.
 		creator := activeUser(t, db, database.User{})
 		member(t, db, org.ID, creator, creatorRole.Name)
@@ -221,9 +238,15 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		reader := activeUser(t, db, database.User{})
 		member(t, db, org.ID, reader, auditRole.Name)
 
+		// Role carrying only member-level ssh: ACL shares granting ssh
+		// are effective for the user, so they consume a seat even though
+		// they cannot create workspaces.
+		recipient := activeUser(t, db, database.User{})
+		member(t, db, org.ID, recipient, sharedRole.Name)
+
 		count, err := license.CountWorkspaceCapableUsers(ctx, testutil.Logger(t), db, authorizer)
 		require.NoError(t, err)
-		require.Equal(t, int64(1), count)
+		require.Equal(t, int64(2), count)
 	})
 
 	t.Run("MalformedRoleNotCounted", func(t *testing.T) {
