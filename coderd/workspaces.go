@@ -2542,6 +2542,80 @@ func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	validErrs := acl.Validate(ctx, api.Database, WorkspaceACLUpdateValidator(req))
+
+	// ACL grants on workspaces are capability-gated: each granted action
+	// only takes effect while the recipient's roles carry that action at
+	// the member level in this organization (acl_use_precondition in the
+	// RBAC policy). Simulate the grant against the workspace's RBAC
+	// object with the proposed ACL entry attached and reject recipients
+	// for whom no granted action would authorize, so shares don't
+	// silently grant nothing. A recipient whose roles carry only some of
+	// the granted actions is accepted with partial effect, matching the
+	// per-action access-time enforcement.
+	//
+	// Group entries are intentionally not validated here: group membership
+	// changes after the share, so eligibility is enforced per-member at
+	// access time only. A share to a group whose members all lack the
+	// granted actions is accepted and grants nothing until a member gains
+	// them.
+	for idStr, role := range req.UserRoles {
+		if role == codersdk.WorkspaceRoleDeleted {
+			continue
+		}
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			// acl.Validate reports malformed IDs.
+			continue
+		}
+		// UserRBACSubject resolves roles for soft-deleted users too, so
+		// check existence the same way acl.Validate does; it already
+		// reported nonexistent users and a capability error for them
+		// would be misleading noise.
+		//nolint:gocritic // Existence and role resolution for the
+		// recipient require system access; the requester's own
+		// authorization was already enforced on the workspace above.
+		existence, err := api.Database.ValidateUserIDs(dbauthz.AsSystemRestricted(ctx), []uuid.UUID{id})
+		if err == nil && !existence.Ok {
+			continue
+		}
+		if err != nil {
+			validErrs = append(validErrs, codersdk.ValidationError{
+				Field:  "user_roles",
+				Detail: fmt.Sprintf("could not verify workspace access for user %q", idStr),
+			})
+			continue
+		}
+		//nolint:gocritic // See above.
+		subject, _, err := httpmw.UserRBACSubject(dbauthz.AsSystemRestricted(ctx), api.Database, id, rbac.ScopeAll)
+		if err != nil {
+			// The user exists but their roles could not be resolved.
+			// Fail closed: an unverifiable recipient must not produce a
+			// silently inert share.
+			validErrs = append(validErrs, codersdk.ValidationError{
+				Field:  "user_roles",
+				Detail: fmt.Sprintf("could not verify workspace access for user %q", idStr),
+			})
+			continue
+		}
+		actions := db2sdk.WorkspaceRoleActions(role)
+		simulated := workspace.RBACObject().WithACLUserList(map[string][]policy.Action{
+			idStr: actions,
+		})
+		effective := false
+		for _, action := range actions {
+			if api.Authorizer.Authorize(ctx, subject, action, simulated) == nil {
+				effective = true
+				break
+			}
+		}
+		if !effective {
+			validErrs = append(validErrs, codersdk.ValidationError{
+				Field:  "user_roles",
+				Detail: fmt.Sprintf("user %q does not have workspace access in this organization, so the workspace cannot be shared with them", idStr),
+			})
+		}
+	}
+
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid request to update workspace ACL",
