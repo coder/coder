@@ -1,6 +1,6 @@
 coder:
   image:
-    tag: v2.30.0
+    tag: v2.36.0
     pullPolicy: Always
     pullSecrets:
       - name: registry

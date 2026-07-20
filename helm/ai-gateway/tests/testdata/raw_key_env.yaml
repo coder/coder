@@ -1,6 +1,6 @@
 coder:
   image:
-    tag: v2.30.0
+    tag: v2.36.0
   env:
     - name: CODER_AI_GATEWAY_KEY
       value: raw-key

@@ -1,7 +1,7 @@
 coder:
   replicaCount: 3
   image:
-    tag: v2.30.0
+    tag: v2.36.0
 aigateway:
   coderURL: https://coder.example.com
   keySecret:

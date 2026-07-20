@@ -97,7 +97,7 @@ spec:
           value: "true"
         - name: CODER_PROMETHEUS_ADDRESS
           value: 0.0.0.0:2112
-        image: ghcr.io/coder/coder:v2.30.0
+        image: ghcr.io/coder/coder:v2.36.0
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: coder

@@ -99,7 +99,7 @@ spec:
           value: /etc/coder/ai-gateway-listener/tls.crt
         - name: CODER_AI_GATEWAY_TLS_KEY_FILE
           value: /etc/coder/ai-gateway-listener/tls.key
-        image: ghcr.io/coder/coder:v2.30.0
+        image: ghcr.io/coder/coder:v2.36.0
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: coder

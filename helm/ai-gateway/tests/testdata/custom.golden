@@ -113,7 +113,7 @@ spec:
         envFrom:
         - configMapRef:
             name: gateway-config
-        image: ghcr.io/coder/coder:v2.30.0
+        image: ghcr.io/coder/coder:v2.36.0
         imagePullPolicy: Always
         lifecycle: {}
         livenessProbe:

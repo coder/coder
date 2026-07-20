@@ -105,7 +105,7 @@ spec:
           value: /etc/coder/coder-client-tls/tls.crt
         - name: CODER_CLIENT_TLS_KEY_FILE
           value: /etc/coder/coder-client-tls/tls.key
-        image: ghcr.io/coder/coder:v2.30.0
+        image: ghcr.io/coder/coder:v2.36.0
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: coder

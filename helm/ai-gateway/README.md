@@ -62,6 +62,9 @@ When installing a released chart package, the chart automatically uses the
 matching Coder image version. Set `coder.image.tag` only when installing
 directly from Git or overriding the image version.
 
+The official Coder image must be v2.36.0 or newer. Earlier versions do not include
+`coder ai-gateway start` command. Custom images must provide that command.
+
 The chart rejects chart-owned variable names in `coder.env`. Helm cannot inspect
 keys supplied by `coder.envFrom`, do not include chart-owned variables there.
 In particular, `CODER_AI_GATEWAY_KEY` conflicts with the chart-managed
