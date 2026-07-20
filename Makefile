@@ -1688,6 +1688,7 @@ test-timings:
 	trap 'rm -f "$$tmp_json"' EXIT; \
 	set +e; \
 	GOTESTSUM_JSONFILE="$$tmp_json" $(GIT_FLAGS) gotestsum --format standard-quiet \
+		$(GOTESTSUM_RETRY_FLAGS) \
 		--packages="$(TEST_PACKAGES)" \
 		-- \
 		$(GOTEST_FLAGS); \
@@ -1700,11 +1701,12 @@ test-timings:
 					(.Test // "") != "" and
 					(.Action == "pass" or .Action == "fail" or .Action == "skip")
 				))
+				| sort_by([.Package, .Test])
 				| group_by([.Package, .Test])
 				| map(last)
-				| sort_by([(-.Elapsed), .Package, .Test])
+				| sort_by([(-(.Elapsed // 0)), .Package, .Test])
 				| .[]
-				| [.Package, .Test, .Action, (.Elapsed * 1000)]
+				| [.Package, .Test, .Action, ((.Elapsed // 0) * 1000)]
 			)
 		]
 		| .[]
