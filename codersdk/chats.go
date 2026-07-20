@@ -24,8 +24,8 @@ import (
 	"github.com/coder/websocket/wsjson"
 )
 
-// ChatCompactionThresholdKeyPrefix scopes per-model chat compaction
-// threshold settings.
+// ChatCompactionThresholdKeyPrefix identifies organization-scoped per-model
+// chat compaction threshold settings.
 const ChatCompactionThresholdKeyPrefix = "chat_compaction_threshold_pct:"
 
 // MaxChatFileIDs is the maximum number of file IDs that can be
@@ -75,12 +75,6 @@ var AllChatAttachmentMediaTypes = []ChatAttachmentMediaType{
 	ChatAttachmentMediaTypeTextCSV,
 	ChatAttachmentMediaTypeTextMarkdown,
 	ChatAttachmentMediaTypeTextPlain,
-}
-
-// CompactionThresholdKey returns the user-config key for a specific
-// model configuration's compaction threshold.
-func CompactionThresholdKey(modelConfigID uuid.UUID) string {
-	return ChatCompactionThresholdKeyPrefix + modelConfigID.String()
 }
 
 // ChatStatus represents the status of a chat.
@@ -2290,8 +2284,8 @@ func (c *ExperimentalClient) ListChats(ctx context.Context, opts *ListChatsOptio
 }
 
 // ListChatModels returns the available chat model catalog.
-func (c *ExperimentalClient) ListChatModels(ctx context.Context) (ChatModelsResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/models", nil)
+func (c *ExperimentalClient) ListChatModels(ctx context.Context, organizationID uuid.UUID) (ChatModelsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/chats/models", organizationID), nil)
 	if err != nil {
 		return ChatModelsResponse{}, err
 	}
@@ -2449,8 +2443,8 @@ func (c *ExperimentalClient) DeleteUserChatProviderKey(ctx context.Context, prov
 }
 
 // ListChatModelConfigs returns admin-managed chat model configs.
-func (c *ExperimentalClient) ListChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/model-configs", nil)
+func (c *ExperimentalClient) ListChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]ChatModelConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/chat-model-configs", organizationID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2464,8 +2458,8 @@ func (c *ExperimentalClient) ListChatModelConfigs(ctx context.Context) ([]ChatMo
 }
 
 // CreateChatModelConfig creates an admin-managed chat model config.
-func (c *ExperimentalClient) CreateChatModelConfig(ctx context.Context, req CreateChatModelConfigRequest) (ChatModelConfig, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/chats/model-configs", req)
+func (c *ExperimentalClient) CreateChatModelConfig(ctx context.Context, organizationID uuid.UUID, req CreateChatModelConfigRequest) (ChatModelConfig, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/organizations/%s/chat-model-configs", organizationID), req)
 	if err != nil {
 		return ChatModelConfig{}, err
 	}
@@ -2480,7 +2474,7 @@ func (c *ExperimentalClient) CreateChatModelConfig(ctx context.Context, req Crea
 
 // UpdateChatModelConfig updates an admin-managed chat model config.
 func (c *ExperimentalClient) UpdateChatModelConfig(ctx context.Context, modelConfigID uuid.UUID, req UpdateChatModelConfigRequest) (ChatModelConfig, error) {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/model-configs/%s", modelConfigID), req)
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chat-model-configs/%s", modelConfigID), req)
 	if err != nil {
 		return ChatModelConfig{}, err
 	}
@@ -2495,7 +2489,7 @@ func (c *ExperimentalClient) UpdateChatModelConfig(ctx context.Context, modelCon
 
 // DeleteChatModelConfig deletes an admin-managed chat model config.
 func (c *ExperimentalClient) DeleteChatModelConfig(ctx context.Context, modelConfigID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/model-configs/%s", modelConfigID), nil)
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chat-model-configs/%s", modelConfigID), nil)
 	if err != nil {
 		return err
 	}
@@ -2627,9 +2621,10 @@ func (c *ExperimentalClient) UpdateChatPlanModeInstructions(ctx context.Context,
 
 // GetChatModelOverride returns the deployment-wide chat model override for
 // the requested context.
-func (c *ExperimentalClient) GetChatModelOverride(ctx context.Context, override ChatModelOverrideContext) (ChatModelOverrideResponse, error) {
+func (c *ExperimentalClient) GetChatModelOverride(ctx context.Context, organizationID uuid.UUID, override ChatModelOverrideContext) (ChatModelOverrideResponse, error) {
 	path := fmt.Sprintf(
-		"/api/experimental/chats/config/model-override/%s",
+		"/api/experimental/organizations/%s/chats/config/model-override/%s",
+		organizationID,
 		url.PathEscape(string(override)),
 	)
 	res, err := c.Request(ctx, http.MethodGet, path, nil)
@@ -2646,12 +2641,13 @@ func (c *ExperimentalClient) GetChatModelOverride(ctx context.Context, override 
 
 // UpdateChatModelOverride updates the deployment-wide chat model override for
 // the requested context.
-func (c *ExperimentalClient) UpdateChatModelOverride(ctx context.Context, override ChatModelOverrideContext, req UpdateChatModelOverrideRequest) error {
+func (c *ExperimentalClient) UpdateChatModelOverride(ctx context.Context, organizationID uuid.UUID, override ChatModelOverrideContext, req UpdateChatModelOverrideRequest) error {
 	path := fmt.Sprintf(
-		"/api/experimental/chats/config/model-override/%s",
+		"/api/experimental/organizations/%s/chats/config/model-override/%s",
+		organizationID,
 		url.PathEscape(string(override)),
 	)
-	res, err := c.Request(ctx, http.MethodPut, path, req)
+	res, err := c.Request(ctx, http.MethodPatch, path, req)
 	if err != nil {
 		return err
 	}
@@ -2693,8 +2689,8 @@ func (c *ExperimentalClient) UpdateChatPersonalModelOverridesAdminSettings(ctx c
 
 // GetUserChatPersonalModelOverrides fetches the user's personal model
 // override settings.
-func (c *ExperimentalClient) GetUserChatPersonalModelOverrides(ctx context.Context) (UserChatPersonalModelOverridesResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-personal-model-overrides", nil)
+func (c *ExperimentalClient) GetUserChatPersonalModelOverrides(ctx context.Context, organizationID uuid.UUID) (UserChatPersonalModelOverridesResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/chats/config/user-personal-model-overrides", organizationID), nil)
 	if err != nil {
 		return UserChatPersonalModelOverridesResponse{}, err
 	}
@@ -2708,12 +2704,13 @@ func (c *ExperimentalClient) GetUserChatPersonalModelOverrides(ctx context.Conte
 
 // UpdateUserChatPersonalModelOverride updates the user's personal model
 // override for the requested context.
-func (c *ExperimentalClient) UpdateUserChatPersonalModelOverride(ctx context.Context, override ChatPersonalModelOverrideContext, req UpdateUserChatPersonalModelOverrideRequest) error {
+func (c *ExperimentalClient) UpdateUserChatPersonalModelOverride(ctx context.Context, organizationID uuid.UUID, override ChatPersonalModelOverrideContext, req UpdateUserChatPersonalModelOverrideRequest) error {
 	path := fmt.Sprintf(
-		"/api/experimental/chats/config/user-personal-model-overrides/%s",
+		"/api/experimental/organizations/%s/chats/config/user-personal-model-overrides/%s",
+		organizationID,
 		url.PathEscape(string(override)),
 	)
-	res, err := c.Request(ctx, http.MethodPut, path, req)
+	res, err := c.Request(ctx, http.MethodPatch, path, req)
 	if err != nil {
 		return err
 	}
@@ -2738,9 +2735,9 @@ func (c *ExperimentalClient) GetUserChatCustomPrompt(ctx context.Context) (UserC
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// GetChatAdvisorConfig returns the deployment-wide advisor configuration.
-func (c *ExperimentalClient) GetChatAdvisorConfig(ctx context.Context) (AdvisorConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/advisor", nil)
+// GetChatAdvisorConfig returns the advisor configuration for an organization.
+func (c *ExperimentalClient) GetChatAdvisorConfig(ctx context.Context, organizationID uuid.UUID) (AdvisorConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/chats/config/advisor", organizationID), nil)
 	if err != nil {
 		return AdvisorConfig{}, err
 	}
@@ -2752,9 +2749,9 @@ func (c *ExperimentalClient) GetChatAdvisorConfig(ctx context.Context) (AdvisorC
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// UpdateChatAdvisorConfig updates the deployment-wide advisor configuration.
-func (c *ExperimentalClient) UpdateChatAdvisorConfig(ctx context.Context, req UpdateAdvisorConfigRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/advisor", req)
+// UpdateChatAdvisorConfig updates the advisor configuration for an organization.
+func (c *ExperimentalClient) UpdateChatAdvisorConfig(ctx context.Context, organizationID uuid.UUID, req UpdateAdvisorConfigRequest) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/organizations/%s/chats/config/advisor", organizationID), req)
 	if err != nil {
 		return err
 	}
@@ -2945,8 +2942,8 @@ func (c *ExperimentalClient) UpdateUserChatCustomPrompt(ctx context.Context, req
 
 // GetUserChatCompactionThresholds fetches the user's per-model chat
 // compaction thresholds.
-func (c *ExperimentalClient) GetUserChatCompactionThresholds(ctx context.Context) (UserChatCompactionThresholds, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-compaction-thresholds", nil)
+func (c *ExperimentalClient) GetUserChatCompactionThresholds(ctx context.Context, organizationID uuid.UUID) (UserChatCompactionThresholds, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/chats/config/user-compaction-thresholds", organizationID), nil)
 	if err != nil {
 		return UserChatCompactionThresholds{}, err
 	}
@@ -2960,8 +2957,8 @@ func (c *ExperimentalClient) GetUserChatCompactionThresholds(ctx context.Context
 
 // UpdateUserChatCompactionThreshold updates the user's per-model chat
 // compaction threshold.
-func (c *ExperimentalClient) UpdateUserChatCompactionThreshold(ctx context.Context, modelConfigID uuid.UUID, req UpdateUserChatCompactionThresholdRequest) (UserChatCompactionThreshold, error) {
-	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/chats/config/user-compaction-thresholds/%s", modelConfigID), req)
+func (c *ExperimentalClient) UpdateUserChatCompactionThreshold(ctx context.Context, organizationID, modelConfigID uuid.UUID, req UpdateUserChatCompactionThresholdRequest) (UserChatCompactionThreshold, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/organizations/%s/chats/config/user-compaction-thresholds/%s", organizationID, modelConfigID), req)
 	if err != nil {
 		return UserChatCompactionThreshold{}, err
 	}
@@ -2975,8 +2972,8 @@ func (c *ExperimentalClient) UpdateUserChatCompactionThreshold(ctx context.Conte
 
 // DeleteUserChatCompactionThreshold deletes the user's per-model chat
 // compaction threshold override.
-func (c *ExperimentalClient) DeleteUserChatCompactionThreshold(ctx context.Context, modelConfigID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/config/user-compaction-thresholds/%s", modelConfigID), nil)
+func (c *ExperimentalClient) DeleteUserChatCompactionThreshold(ctx context.Context, organizationID, modelConfigID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/organizations/%s/chats/config/user-compaction-thresholds/%s", organizationID, modelConfigID), nil)
 	if err != nil {
 		return err
 	}
@@ -3691,4 +3688,63 @@ func (c *ExperimentalClient) GetChatsByWorkspace(ctx context.Context, workspaceI
 	}
 	var result map[uuid.UUID]uuid.UUID
 	return result, json.NewDecoder(res.Body).Decode(&result)
+}
+
+// ChatModelConfigRole is the only role that may be granted on a chat model configuration.
+type ChatModelConfigRole string
+
+const (
+	ChatModelConfigRoleRead    ChatModelConfigRole = "read"
+	ChatModelConfigRoleDeleted ChatModelConfigRole = ""
+)
+
+// ChatModelConfigUser is a user granted access to a chat model configuration.
+type ChatModelConfigUser struct {
+	MinimalUser
+	Role ChatModelConfigRole `json:"role"`
+}
+
+// ChatModelConfigGroup is a group granted access to a chat model configuration.
+type ChatModelConfigGroup struct {
+	Group
+	Role ChatModelConfigRole `json:"role"`
+}
+
+// ChatModelConfigACL describes the users and groups granted access to a chat model configuration.
+type ChatModelConfigACL struct {
+	Users  []ChatModelConfigUser  `json:"users"`
+	Groups []ChatModelConfigGroup `json:"groups"`
+}
+
+// UpdateChatModelConfigACL replaces or removes individual chat model configuration ACL entries.
+type UpdateChatModelConfigACL struct {
+	UserRoles  map[string]ChatModelConfigRole `json:"user_roles,omitempty"`
+	GroupRoles map[string]ChatModelConfigRole `json:"group_roles,omitempty"`
+}
+
+// GetChatModelConfigACL returns the access control list for a chat model configuration.
+func (c *ExperimentalClient) GetChatModelConfigACL(ctx context.Context, modelConfigID uuid.UUID) (ChatModelConfigACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chat-model-configs/%s/acl", modelConfigID), nil)
+	if err != nil {
+		return ChatModelConfigACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatModelConfigACL{}, ReadBodyAsError(res)
+	}
+	var acl ChatModelConfigACL
+	return acl, json.NewDecoder(res.Body).Decode(&acl)
+}
+
+// UpdateChatModelConfigACL updates the access control list for a chat model configuration.
+func (c *ExperimentalClient) UpdateChatModelConfigACL(ctx context.Context, modelConfigID uuid.UUID, req UpdateChatModelConfigACL) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chat-model-configs/%s/acl", modelConfigID), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }

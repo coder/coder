@@ -295,32 +295,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/api/experimental/chats/models": {
-            "get": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "List chat models",
-                "operationId": "list-chat-models",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatModelsResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
         "/api/experimental/chats/watch": {
             "get": {
                 "description": "Experimental: this endpoint is subject to change.",
@@ -1055,6 +1029,32 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/models": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat models",
+                "operationId": "list-chat-models",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatModelsResponse"
                         }
                     }
                 },
@@ -15832,6 +15832,12 @@ const docTemplate = `{
                 "chat:read",
                 "chat:share",
                 "chat:update",
+                "chat_model_config:*",
+                "chat_model_config:create",
+                "chat_model_config:delete",
+                "chat_model_config:read",
+                "chat_model_config:share",
+                "chat_model_config:update",
                 "coder:all",
                 "coder:apikeys.manage_self",
                 "coder:application_connect",
@@ -16072,6 +16078,12 @@ const docTemplate = `{
                 "APIKeyScopeChatRead",
                 "APIKeyScopeChatShare",
                 "APIKeyScopeChatUpdate",
+                "APIKeyScopeChatModelConfigAll",
+                "APIKeyScopeChatModelConfigCreate",
+                "APIKeyScopeChatModelConfigDelete",
+                "APIKeyScopeChatModelConfigRead",
+                "APIKeyScopeChatModelConfigShare",
+                "APIKeyScopeChatModelConfigUpdate",
                 "APIKeyScopeCoderAll",
                 "APIKeyScopeCoderApikeysManageSelf",
                 "APIKeyScopeCoderApplicationConnect",
@@ -23144,6 +23156,7 @@ const docTemplate = `{
                 "boundary_log",
                 "boundary_usage",
                 "chat",
+                "chat_model_config",
                 "connection_log",
                 "crypto_key",
                 "debug_info",
@@ -23197,6 +23210,7 @@ const docTemplate = `{
                 "ResourceBoundaryLog",
                 "ResourceBoundaryUsage",
                 "ResourceChat",
+                "ResourceChatModelConfig",
                 "ResourceConnectionLog",
                 "ResourceCryptoKey",
                 "ResourceDebugInfo",

@@ -766,3 +766,126 @@ func TestParseChatWorkspaceTTL(t *testing.T) {
 		})
 	}
 }
+
+func TestExperimentalChatModelOrganizationPaths(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.New()
+	modelConfigID := uuid.New()
+	tests := []struct {
+		name       string
+		call       func(*codersdk.ExperimentalClient) error
+		wantMethod string
+		wantPath   string
+		wantStatus int
+		response   any
+	}{
+		{
+			name: "list models",
+			call: func(client *codersdk.ExperimentalClient) error {
+				_, err := client.ListChatModels(context.Background(), organizationID)
+				return err
+			},
+			wantMethod: http.MethodGet,
+			wantPath:   "/api/experimental/organizations/" + organizationID.String() + "/chats/models",
+			wantStatus: http.StatusOK,
+			response:   codersdk.ChatModelsResponse{},
+		},
+		{
+			name: "list model configs",
+			call: func(client *codersdk.ExperimentalClient) error {
+				_, err := client.ListChatModelConfigs(context.Background(), organizationID)
+				return err
+			},
+			wantMethod: http.MethodGet,
+			wantPath:   "/api/experimental/organizations/" + organizationID.String() + "/chat-model-configs",
+			wantStatus: http.StatusOK,
+			response:   []codersdk.ChatModelConfig{},
+		},
+		{
+			name: "create model config",
+			call: func(client *codersdk.ExperimentalClient) error {
+				_, err := client.CreateChatModelConfig(context.Background(), organizationID, codersdk.CreateChatModelConfigRequest{})
+				return err
+			},
+			wantMethod: http.MethodPost,
+			wantPath:   "/api/experimental/organizations/" + organizationID.String() + "/chat-model-configs",
+			wantStatus: http.StatusCreated,
+			response:   codersdk.ChatModelConfig{},
+		},
+		{
+			name: "update model config",
+			call: func(client *codersdk.ExperimentalClient) error {
+				_, err := client.UpdateChatModelConfig(context.Background(), modelConfigID, codersdk.UpdateChatModelConfigRequest{})
+				return err
+			},
+			wantMethod: http.MethodPatch,
+			wantPath:   "/api/experimental/chat-model-configs/" + modelConfigID.String(),
+			wantStatus: http.StatusOK,
+			response:   codersdk.ChatModelConfig{},
+		},
+		{
+			name: "get model override",
+			call: func(client *codersdk.ExperimentalClient) error {
+				_, err := client.GetChatModelOverride(context.Background(), organizationID, codersdk.ChatModelOverrideContextGeneral)
+				return err
+			},
+			wantMethod: http.MethodGet,
+			wantPath:   "/api/experimental/organizations/" + organizationID.String() + "/chats/config/model-override/general",
+			wantStatus: http.StatusOK,
+			response:   codersdk.ChatModelOverrideResponse{},
+		},
+		{
+			name: "update model override",
+			call: func(client *codersdk.ExperimentalClient) error {
+				return client.UpdateChatModelOverride(context.Background(), organizationID, codersdk.ChatModelOverrideContextGeneral, codersdk.UpdateChatModelOverrideRequest{})
+			},
+			wantMethod: http.MethodPatch,
+			wantPath:   "/api/experimental/organizations/" + organizationID.String() + "/chats/config/model-override/general",
+			wantStatus: http.StatusNoContent,
+		},
+		{
+			name: "get advisor",
+			call: func(client *codersdk.ExperimentalClient) error {
+				_, err := client.GetChatAdvisorConfig(context.Background(), organizationID)
+				return err
+			},
+			wantMethod: http.MethodGet,
+			wantPath:   "/api/experimental/organizations/" + organizationID.String() + "/chats/config/advisor",
+			wantStatus: http.StatusOK,
+			response:   codersdk.AdvisorConfig{},
+		},
+		{
+			name: "update compaction threshold",
+			call: func(client *codersdk.ExperimentalClient) error {
+				_, err := client.UpdateUserChatCompactionThreshold(context.Background(), organizationID, modelConfigID, codersdk.UpdateUserChatCompactionThresholdRequest{})
+				return err
+			},
+			wantMethod: http.MethodPatch,
+			wantPath:   "/api/experimental/organizations/" + organizationID.String() + "/chats/config/user-compaction-thresholds/" + modelConfigID.String(),
+			wantStatus: http.StatusOK,
+			response:   codersdk.UserChatCompactionThreshold{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				require.Equal(t, tt.wantMethod, r.Method)
+				require.Equal(t, tt.wantPath, r.URL.Path)
+				if tt.response != nil {
+					rw.Header().Set("Content-Type", "application/json")
+				}
+				rw.WriteHeader(tt.wantStatus)
+				if tt.response != nil {
+					require.NoError(t, json.NewEncoder(rw).Encode(tt.response))
+				}
+			}))
+			defer srv.Close()
+			serverURL, err := url.Parse(srv.URL)
+			require.NoError(t, err)
+			require.NoError(t, tt.call(codersdk.NewExperimentalClient(codersdk.New(serverURL))))
+		})
+	}
+}
