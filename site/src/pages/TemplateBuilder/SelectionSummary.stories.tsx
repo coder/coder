@@ -1,10 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { SelectionSummary } from "./SelectionSummary";
 
 const meta: Meta<typeof SelectionSummary> = {
 	title: "pages/TemplateBuilder/SelectionSummary",
 	component: SelectionSummary,
+	args: {
+		onNavigateModule: fn(),
+	},
 };
 
 export default meta;
@@ -112,11 +115,36 @@ export const WithLongNameModule: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const deselectModuleButton = await canvas.findByRole("button", {
-			name: "Deselect module",
+		// Long module names must not be truncated and must stay visible. The
+		// row is a single navigation button.
+		const moduleButton = await canvas.findByRole("button", {
+			name: /^Configure A module with a name/i,
 		});
-		deselectModuleButton.focus();
-		await expect(deselectModuleButton).toBeVisible();
+		moduleButton.focus();
+		await expect(moduleButton).toBeVisible();
+	},
+};
+
+export const NavigateModuleClick: Story = {
+	args: {
+		currentStep: 2,
+		selectedTemplate: {
+			name: "Docker Containers",
+			iconUrl: "/icon/docker.svg",
+		},
+		selectedModules: [
+			{ id: "claude-code", name: "Claude Code", iconUrl: "/icon/claude.svg" },
+			{ id: "cursor", name: "Cursor IDE", iconUrl: "/icon/cursor.svg" },
+		],
+		onNavigateModule: fn(),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const moduleButton = await canvas.findByRole("button", {
+			name: "Configure Claude Code",
+		});
+		await userEvent.click(moduleButton);
+		await expect(args.onNavigateModule).toHaveBeenCalledWith("claude-code");
 	},
 };
 
