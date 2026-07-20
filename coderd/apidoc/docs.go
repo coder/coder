@@ -17188,7 +17188,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
-                    "description": "Name is the tool name with the \"\u003cserver\u003e__\" prefix the agent adds\nstripped, so it reads as the server exposes it.",
+                    "description": "Name is the tool name with the ` + "`" + `\u003cserver\u003e__` + "`" + ` prefix the agent adds\nstripped, so it reads as the server exposes it.",
                     "type": "string"
                 }
             }
