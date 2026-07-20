@@ -545,8 +545,6 @@ func (p *Server) resolveModelConfigAndNormalizedProvider(
 	return database.ChatModelConfig{}, "", sql.ErrNoRows
 }
 
-// Explicit selections take precedence over configured overrides but still
-// require an enabled model, enabled provider, and the owner's credentials.
 func (p *Server) resolveExplicitSpawnOverrides(
 	ctx context.Context,
 	ownerID uuid.UUID,

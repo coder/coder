@@ -1452,8 +1452,6 @@ func TestSpawnAgent_ExplicitModelSkipsConfiguredOverrides(t *testing.T) {
 
 			ctx := chatdTestContext(t)
 			user, org, parentModel := seedInternalChatDeps(t, db)
-			// Arm the sentinel: with the admin gate on, any configured
-			// override resolution would hit the erroring personal lookup.
 			enableInternalChatPersonalModelOverrides(t, db)
 			selectedModel := insertInternalChatModelConfig(
 				t, db, "selected-skip-overrides-"+uuid.NewString(), true,
@@ -1506,7 +1504,6 @@ func TestSpawnAgent_ExplicitModelBeatsConfiguredOverrides(t *testing.T) {
 		ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-explicit-beats-overrides",
 	)
 
-	// Verify the personal override is active before testing explicit precedence.
 	baselineResp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
 		Type:   subagentTypeGeneral,
 		Prompt: "delegate baseline work",
