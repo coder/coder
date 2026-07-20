@@ -724,6 +724,12 @@ func ConfigChats() regosql.ConvertConfig {
 	}
 }
 
+func ConfigChatModelConfigs() regosql.ConvertConfig {
+	return regosql.ConvertConfig{
+		VariableConverter: regosql.ChatModelConfigConverter(),
+	}
+}
+
 func ConfigWorkspaces() regosql.ConvertConfig {
 	return regosql.ConvertConfig{
 		VariableConverter: regosql.WorkspaceConverter(),
