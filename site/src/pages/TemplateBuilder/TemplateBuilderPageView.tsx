@@ -184,7 +184,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 
 	const scrollModuleIntoView = (moduleId: string) => {
 		const el = document.getElementById(`module-config-${moduleId}`);
-		el?.scrollIntoView({ behavior: "smooth", block: "start" });
+		el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
 	};
 
 	// Sidebar module rows call this to jump to a module's configuration.
