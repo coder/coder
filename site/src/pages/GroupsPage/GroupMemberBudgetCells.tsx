@@ -1,14 +1,13 @@
 import type { FC, ReactNode } from "react";
 import { useQuery } from "react-query";
-import type { GroupMemberAICostControl } from "#/api/api";
 import { groupById } from "#/api/queries/groups";
-import type { Group } from "#/api/typesGenerated";
+import type { Group, GroupMemberAISpend } from "#/api/typesGenerated";
 import { AIBudgetAmount } from "#/components/AIBudgetAmount/AIBudgetAmount";
 import { Badge } from "#/components/Badge/Badge";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { TableCell } from "#/components/Table/Table";
 import { formatBudgetUSD } from "#/utils/currency";
-import { InfoIconTooltip } from "./InfoIconTooltip";
+import { StatusIconTooltip } from "./StatusIconTooltip";
 
 const EM_DASH = "\u2014";
 
@@ -19,13 +18,13 @@ const EM_DASH = "\u2014";
 export const GroupMemberBudgetCells: FC<{
 	group: Group;
 	userID: string;
-	costControl: GroupMemberAICostControl | undefined;
-}> = ({ group, userID, costControl }) => {
-	const effective = effectiveBudgetGroup(costControl, group);
+	spend: GroupMemberAISpend | undefined;
+}> = ({ group, userID, spend }) => {
+	const effective = effectiveBudgetGroup(spend, group);
 	const fromOtherGroup = effective.kind === "other";
 
 	const { data: effectiveGroup, isLoading: isResolvingGroupName } = useQuery({
-		...groupById(fromOtherGroup ? effective.groupId : "", {
+		...groupById(spend?.effective_group_id ?? "", {
 			exclude_members: true,
 		}),
 		enabled: fromOtherGroup,
@@ -35,7 +34,7 @@ export const GroupMemberBudgetCells: FC<{
 	const groupName = group.display_name || group.name;
 	// A user override shows as "(individual)" on the governing group's badge.
 	const badgeName = (name: string) =>
-		costControl?.limit_source === "user_override"
+		spend?.group_budget?.limit_source === "user_override"
 			? `${name} (individual)`
 			: name;
 
@@ -66,7 +65,7 @@ export const GroupMemberBudgetCells: FC<{
 	}
 
 	let budget: ReactNode = EM_DASH;
-	if (costControl && fromOtherGroup) {
+	if (spend && fromOtherGroup) {
 		if (isResolvingGroupName) {
 			budget = <Spinner loading size="sm" />;
 		} else if (!effectiveGroupName) {
@@ -83,11 +82,11 @@ export const GroupMemberBudgetCells: FC<{
 					<span className="flex items-center gap-1">
 						<span>
 							<span className="text-content-secondary">
-								{formatBudgetUSD(costControl.current_spend_micros)}
+								{formatBudgetUSD(spend.group_spend_micros)}
 							</span>{" "}
 							<span className="text-content-disabled">USD</span>
 						</span>
-						<InfoIconTooltip
+						<StatusIconTooltip
 							message={
 								<>
 									None of this user's spend counts against the{" "}
@@ -109,10 +108,10 @@ export const GroupMemberBudgetCells: FC<{
 				</div>
 			);
 		}
-	} else if (costControl) {
-		const limit = costControl.spend_limit_micros;
+	} else if (spend) {
+		const limit = spend.group_budget?.spend_limit_micros ?? null;
 		if (limit === null) {
-			// Also covers a missing governing group: no budget applies.
+			// The effective group has no budget, so no limit applies.
 			budget = (
 				<LabelWithInfo
 					label="Unlimited"
@@ -129,14 +128,13 @@ export const GroupMemberBudgetCells: FC<{
 			);
 		} else {
 			const limitLabel =
-				costControl.limit_source === "user_override" ? "Custom" : "Group";
+				spend.group_budget?.limit_source === "user_override"
+					? "Custom"
+					: "Group";
 			budget = (
 				<div className="flex flex-col gap-0.5">
 					<span>
-						<AIBudgetAmount
-							spend={costControl.current_spend_micros}
-							limit={limit}
-						/>{" "}
+						<AIBudgetAmount spend={spend.group_spend_micros} limit={limit} />{" "}
 						<span className="text-content-disabled">USD</span>
 					</span>
 					<span className="text-xs text-content-secondary">
@@ -165,22 +163,21 @@ type EffectiveBudgetGroup =
 	| { kind: "none" }
 	| { kind: "everyone" }
 	| { kind: "this" }
-	| { kind: "other"; groupId: string };
+	| { kind: "other" };
 
 /**
  * Resolves which group governs a member's AI budget. "none" means no budget
- * applies; "everyone" is the org-wide fallback when no named group sets a
- * budget.
- *
- * TODO(AIGOV-509): null will instead mean a group in another org.
+ * data loaded; "everyone" is the org-wide fallback when no named group sets a
+ * budget. A null effective group means the budget resolves to a group in
+ * another organization, so it can't be shown here.
  */
 export function effectiveBudgetGroup(
-	costControl: GroupMemberAICostControl | undefined,
+	spend: GroupMemberAISpend | undefined,
 	group: Pick<Group, "id" | "organization_id">,
 ): EffectiveBudgetGroup {
-	const groupId = costControl?.effective_group_id ?? null;
+	const groupId = spend?.effective_group_id ?? null;
 	if (groupId === null) {
-		return { kind: "none" };
+		return spend === undefined ? { kind: "none" } : { kind: "other" };
 	}
 	// Everyone shares the org's id; checked first so it wins when the viewed
 	// group is Everyone itself.
@@ -190,7 +187,7 @@ export function effectiveBudgetGroup(
 	if (groupId === group.id) {
 		return { kind: "this" };
 	}
-	return { kind: "other", groupId };
+	return { kind: "other" };
 }
 
 const LabelWithInfo: FC<{ label: ReactNode; message: ReactNode }> = ({
@@ -199,6 +196,6 @@ const LabelWithInfo: FC<{ label: ReactNode; message: ReactNode }> = ({
 }) => (
 	<span className="inline-flex items-center gap-1">
 		{label}
-		<InfoIconTooltip message={message} />
+		<StatusIconTooltip message={message} />
 	</span>
 );

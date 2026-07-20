@@ -200,29 +200,6 @@ type WatchInboxNotificationsParams = Readonly<{
 	read_status?: "read" | "unread" | "all";
 }>;
 
-// TODO(AIGOV-290): drop once `ai_cost_control` is generated onto Group.
-export type GroupAICostControl = Readonly<{
-	current_spend_micros: number;
-	spend_limit_micros: number | null;
-}>;
-export type GroupWithAICostControl = TypesGen.Group &
-	Readonly<{ ai_cost_control?: GroupAICostControl }>;
-
-// TODO(AIGOV-291): drop once `ai_cost_control` is generated onto ReducedUser.
-export type GroupMemberAICostControl = Readonly<{
-	current_spend_micros: number;
-	spend_limit_micros: number | null;
-	effective_group_id: string | null;
-	limit_source: TypesGen.AIBudgetLimitSource | null;
-}>;
-export type GroupMemberWithAICostControl = TypesGen.ReducedUser &
-	Readonly<{ ai_cost_control?: GroupMemberAICostControl }>;
-export type GroupMembersResponseWithAICostControl = Omit<
-	TypesGen.GroupMembersResponse,
-	"users"
-> &
-	Readonly<{ users: readonly GroupMemberWithAICostControl[] }>;
-
 export function watchInboxNotifications(
 	params?: WatchInboxNotificationsParams,
 ): OneWayWebSocket<TypesGen.GetInboxNotificationResponse> {
@@ -2232,10 +2209,45 @@ class ApiMethods {
 	 */
 	getGroupsByOrganization = async (
 		organization: string,
-	): Promise<GroupWithAICostControl[]> => {
-		const response = await this.axios.get(
+	): Promise<TypesGen.Group[]> => {
+		const response = await this.axios.get<TypesGen.Group[]>(
 			`/api/v2/organizations/${organization}/groups`,
 		);
+		return response.data;
+	};
+
+	/**
+	 * AI spend for the given groups in the active budget period. The backend
+	 * caps groupIds at 100 per call.
+	 * @param organization Can be the organization's ID or name
+	 */
+	getOrganizationGroupsAISpend = async (
+		organization: string,
+		groupIds: readonly string[],
+	): Promise<TypesGen.OrganizationGroupsAISpend> => {
+		const url = getURLWithSearchParams(
+			`/api/v2/organizations/${organization}/groups/ai/spend`,
+			{ group_ids: groupIds.join(",") },
+		);
+		const response =
+			await this.axios.get<TypesGen.OrganizationGroupsAISpend>(url);
+		return response.data;
+	};
+
+	/**
+	 * Per-member AI spend attributed to a group in the active budget period.
+	 * Members without read access or not in the group are omitted. The backend
+	 * caps userIds at 100 per call.
+	 */
+	getGroupMembersAISpend = async (
+		groupId: string,
+		userIds: readonly string[],
+	): Promise<TypesGen.GroupMembersAISpend> => {
+		const url = getURLWithSearchParams(
+			`/api/v2/groups/${groupId}/members/ai/spend`,
+			{ user_ids: userIds.join(",") },
+		);
+		const response = await this.axios.get<TypesGen.GroupMembersAISpend>(url);
 		return response.data;
 	};
 
@@ -2285,12 +2297,15 @@ class ApiMethods {
 		groupName: string,
 		filter?: UsersRequest,
 		signal?: AbortSignal,
-	): Promise<GroupMembersResponseWithAICostControl> => {
+	): Promise<TypesGen.GroupMembersResponse> => {
 		const url = getURLWithSearchParams(
 			`/api/v2/organizations/${organization}/groups/${groupName}/members`,
 			filter,
 		);
-		const response = await this.axios.get(url.toString(), { signal });
+		const response = await this.axios.get<TypesGen.GroupMembersResponse>(
+			url.toString(),
+			{ signal },
+		);
 		return response.data;
 	};
 

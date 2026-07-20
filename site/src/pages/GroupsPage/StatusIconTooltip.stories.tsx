@@ -1,17 +1,17 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
-import { InfoIconTooltip } from "./InfoIconTooltip";
+import { StatusIconTooltip } from "./StatusIconTooltip";
 
-const meta: Meta<typeof InfoIconTooltip> = {
-	title: "pages/OrganizationGroupsPage/InfoIconTooltip",
-	component: InfoIconTooltip,
+const meta: Meta<typeof StatusIconTooltip> = {
+	title: "pages/OrganizationGroupsPage/StatusIconTooltip",
+	component: StatusIconTooltip,
 	args: { message: "Spend compared to the budget for the active period." },
 };
 
 export default meta;
-type Story = StoryObj<typeof InfoIconTooltip>;
+type Story = StoryObj<typeof StatusIconTooltip>;
 
-export const Default: Story = {
+export const Info: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: "More info" }));
@@ -23,7 +23,6 @@ export const Default: Story = {
 	},
 };
 
-// Muted icon, used where it sits next to greyed content.
-export const Muted: Story = {
-	args: { className: "text-content-disabled" },
+export const Warning: Story = {
+	args: { kind: "warning" },
 };
