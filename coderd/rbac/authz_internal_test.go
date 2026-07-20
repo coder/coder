@@ -1121,7 +1121,7 @@ func TestAuthorizeLevels(t *testing.T) {
 
 	testAuthorize(t, "OrgAllowAll", user,
 		cases(func(c authTestCase) authTestCase {
-			// SSH, app connect, and shared use are not implied here.
+			// SSH, app connect, and ACL-granted access are not implied here.
 			c.actions = slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH)
 			return c
 		}, []authTestCase{

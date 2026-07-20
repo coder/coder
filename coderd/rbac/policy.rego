@@ -331,17 +331,13 @@ object_is_included_in_scope_allow_list if {
 # acl_action_orgs is the set of organizations in which the subject holds
 # the requested action on the object's type at the member level. ACL
 # grants on gated resource types (input.object.acl_use_gated) only take
-# effect in these orgs: the subject may receive an action on others'
-# objects only where their roles grant that same action on their own.
-# Revoking the roles that carry an action therefore also revokes it on
-# everything shared with the subject. The member key is read directly
-# rather than through the org_member vote, so object ownership is
-# irrelevant. Each org's inclusion follows the same vote semantics as
-# the other levels: a matching negated permission removes the org even
-# when a positive grant exists. The set derives from subject roles, the
-# object type, and the action, all known at prepare time, keeping
-# unknown object attributes out of the comprehensions for partial
-# evaluation.
+# effect in these orgs. The member key is read directly rather than
+# through the org_member vote, so object ownership is irrelevant. Org
+# inclusion follows the same vote semantics as the other levels: a
+# matching negated permission removes the org even when a positive grant
+# exists. The set derives from subject roles, the object type, and the
+# action, all known at prepare time, keeping unknown object attributes
+# out of the comprehensions for partial evaluation.
 acl_action_orgs := {org_id |
 	org_id := org_memberships[_]
 	allow := {is_allowed |

@@ -523,17 +523,15 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 // views agree.
 //
 // The test is skipped because DormantRBAC()
-// (coderd/database/modelmethods.go) currently attaches no ACLs, so ACL
+// (coderd/database/modelmethods.go) currently attaches no ACLs: ACL
 // recipients get 404 on direct access and on wake attempts while the
-// dormant workspace still appears in their list (the list filter is
-// prepared against the non-dormant workspace type and matches the
-// row's intact ACL columns). See
-// finding-dormant-workspace-acl-dropped.md in coder/scott-misc
-// rfcs/gateway-accounts. Remove the skip when DormantRBAC() carries
-// the workspace ACLs.
+// dormant workspace still appears in their list, which is filtered
+// against the non-dormant workspace type and the row's intact ACL
+// columns. Remove the skip when DormantRBAC() carries the workspace
+// ACLs.
 func TestWorkspaceSharingDormancySurvivesACL(t *testing.T) {
 	t.Parallel()
-	t.Skip("known bug: DormantRBAC() drops ACLs; see finding-dormant-workspace-acl-dropped.md (scott-misc rfcs/gateway-accounts)")
+	t.Skip("known bug: DormantRBAC() attaches no ACLs, so shared access does not survive dormancy")
 
 	client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 		LicenseOptions: &coderdenttest.LicenseOptions{
@@ -686,11 +684,12 @@ func TestWorkspaceSharingPartialCapability(t *testing.T) {
 // matching actions are rejected at share time, and losing the actions
 // later revokes the shared access even though the ACL entry remains.
 //
-// The recipient without capability is a member of a different org: the
-// same-org gateway-account scenario depends on the MinimumImplicitMember
-// experiment, whose rbac global is reset by any concurrently constructed
-// coderd test server, so it is covered deterministically by the rbac
-// package (TestAuthorizeACLCapabilityPrecondition) instead.
+// The recipient without capability is a member of a different org: a
+// same-org member without workspace actions requires the
+// MinimumImplicitMember experiment, whose rbac global is reset by any
+// concurrently constructed coderd test server, so that scenario is
+// covered by the rbac package (TestAuthorizeACLCapabilityPrecondition)
+// instead.
 func TestWorkspaceSharingCapabilityPrecondition(t *testing.T) {
 	t.Parallel()
 

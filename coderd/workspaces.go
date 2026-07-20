@@ -2547,21 +2547,17 @@ func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 
 	validErrs := acl.Validate(ctx, api.Database, WorkspaceACLUpdateValidator(req))
 
-	// ACL grants on workspaces are capability-gated: each granted action
-	// only takes effect while the recipient's roles carry that action at
-	// the member level in this organization (acl_use_precondition in the
-	// RBAC policy). Simulate the grant against the workspace's RBAC
-	// object with the proposed ACL entry attached and reject recipients
-	// for whom no granted action would authorize, so shares don't
-	// silently grant nothing. A recipient whose roles carry only some of
-	// the granted actions is accepted with partial effect, matching the
-	// per-action access-time enforcement.
+	// ACL grants on workspaces only take effect per action while the
+	// recipient's member-level permissions in this organization carry
+	// that action (acl_use_precondition in the RBAC policy). Simulate
+	// the grant against the workspace's RBAC object with the proposed
+	// entry attached and reject recipients for whom no granted action
+	// would authorize, so shares don't silently grant nothing. Partial
+	// capability is accepted with partial effect.
 	//
-	// Group entries are intentionally not validated here: group membership
-	// changes after the share, so eligibility is enforced per-member at
-	// access time only. A share to a group whose members all lack the
-	// granted actions is accepted and grants nothing until a member gains
-	// them.
+	// Group entries are not validated here: group membership changes
+	// after the share, so eligibility is enforced per-member at access
+	// time only.
 	for idStr, role := range req.UserRoles {
 		if role == codersdk.WorkspaceRoleDeleted {
 			continue

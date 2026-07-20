@@ -18,13 +18,10 @@ func ResourceUserObject(userID uuid.UUID) Object {
 	return ResourceUser.WithID(userID).WithOwner(userID.String())
 }
 
-// aclUseGatedTypes is the set of resource types whose ACL grants are
-// capability-gated: an ACL entry granting action X only takes effect
-// while the subject holds X (or the wildcard) at the member level in the
-// object's organization. A resource type opts in via GatedACL in its
-// policy permission definition; no policy.rego changes are required. The
-// flag is delivered to the rego policy as the derived input field
-// `input.object.acl_use_gated` (see astvalue.go).
+// aclUseGatedTypes is the set of resource types marked GatedACL in their
+// policy permission definition. The flag is delivered to the rego policy
+// as the derived input field `input.object.acl_use_gated` (see
+// astvalue.go); no per-type rego edits are required.
 var aclUseGatedTypes = func() map[string]struct{} {
 	gated := make(map[string]struct{})
 	for typeName, def := range policy.RBACPermissions {
