@@ -156,15 +156,27 @@ func newProposalsTest(t *testing.T, req chattool.MCPServerProposalRequest) *prop
 // credentials, so accepting does not need discovery.
 func oauthManualRequest() chattool.MCPServerProposalRequest {
 	return chattool.MCPServerProposalRequest{
-		DisplayName:    "Linear",
-		Slug:           "linear",
-		URL:            "https://mcp.linear.app/mcp",
-		Transport:      "streamable_http",
-		AuthType:       "oauth2",
-		OAuth2ClientID: "client-id",
-		OAuth2AuthURL:  "https://auth.example.com/authorize",
-		OAuth2TokenURL: "https://auth.example.com/token",
+		DisplayName:      "Linear",
+		Slug:             "linear",
+		URL:              "https://mcp.linear.app/mcp",
+		Transport:        "streamable_http",
+		AuthType:         "oauth2",
+		OAuth2ClientID:   proposalValue("client-id"),
+		OAuth2AuthURL:    proposalValue("https://auth.example.com/authorize"),
+		OAuth2TokenURL:   proposalValue("https://auth.example.com/token"),
+		ReservedConfigID: uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
 	}
+}
+
+func proposalValue(value string) chattool.MCPServerProposalField {
+	return chattool.MCPServerProposalField{Value: value}
+}
+
+func proposalInput(placeholder string, sensitive bool) chattool.MCPServerProposalField {
+	return chattool.MCPServerProposalField{UserInput: &chattool.MCPServerProposalUserInput{
+		Placeholder: placeholder,
+		Sensitive:   sensitive,
+	}}
 }
 
 func noAuthRequest() chattool.MCPServerProposalRequest {
@@ -208,9 +220,9 @@ func TestMCPProposalGet(t *testing.T) {
 	t.Run("PendingHidesSecrets", func(t *testing.T) {
 		t.Parallel()
 		req := oauthManualRequest()
-		req.OAuth2ClientSecret = "super-secret"
-		req.APIKeyValue = "also-secret"
-		req.CustomHeaders = map[string]string{"X-Secret": "header-secret"}
+		req.OAuth2ClientSecret = proposalValue("super-secret")
+		req.APIKeyValue = proposalValue("also-secret")
+		req.CustomHeaders = map[string]chattool.MCPServerProposalField{"X-Secret": proposalValue("header-secret")}
 		deps := newProposalsTest(t, req)
 
 		rec := doProposal(t, deps.api.getProposal, http.MethodGet, deps.proposalID, deps.ownerID)
@@ -230,14 +242,20 @@ func TestMCPProposalGet(t *testing.T) {
 		require.True(t, proposal.HasAPIKey)
 		require.True(t, proposal.HasCustomHeaders)
 		require.Equal(t, uuid.Nil, proposal.MCPServerConfigID)
+		require.Equal(t,
+			"https://coder.example.com/api/experimental/mcp/servers/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/oauth2/callback",
+			proposal.OAuth2RedirectURI)
 	})
 
-	t.Run("PendingReturnsOnlySecretPlaceholders", func(t *testing.T) {
+	t.Run("PendingReturnsOnlyRequiredInputs", func(t *testing.T) {
 		t.Parallel()
 		req := oauthManualRequest()
-		req.OAuth2ClientSecretPlaceholder = "Paste the OAuth2 client secret"
-		req.APIKeyValuePlaceholder = "Paste the API key"
-		req.CustomHeaderPlaceholders = map[string]string{"X-Secret": "Paste the header value"}
+		req.OAuth2ClientID = proposalInput("Paste the OAuth2 client ID", false)
+		req.OAuth2ClientSecret = proposalInput("Paste the OAuth2 client secret", true)
+		req.APIKeyValue = proposalInput("Paste the API key", true)
+		req.CustomHeaders = map[string]chattool.MCPServerProposalField{
+			"X-Secret": proposalInput("Paste the header value", true),
+		}
 		req.Instructions = "Create the credentials in the service settings, then paste them below."
 		deps := newProposalsTest(t, req)
 
@@ -245,10 +263,16 @@ func TestMCPProposalGet(t *testing.T) {
 		require.Equal(t, http.StatusOK, rec.Code)
 		var proposal codersdk.MCPServerProposal
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &proposal))
-		require.Equal(t, "Paste the OAuth2 client secret", proposal.SecretPlaceholders.OAuth2ClientSecret)
-		require.Equal(t, "Paste the API key", proposal.SecretPlaceholders.APIKeyValue)
-		require.Equal(t, map[string]string{"X-Secret": "Paste the header value"}, proposal.SecretPlaceholders.CustomHeaders)
+		require.Equal(t, []codersdk.MCPServerProposalInput{
+			{Field: "oauth2_client_id", Label: "OAuth2 client ID", Placeholder: "Paste the OAuth2 client ID", Sensitive: false},
+			{Field: "oauth2_client_secret", Label: "OAuth2 client secret", Placeholder: "Paste the OAuth2 client secret", Sensitive: true},
+			{Field: "api_key_value", Label: "API key", Placeholder: "Paste the API key", Sensitive: true},
+			{Field: "custom_headers.X-Secret", Label: "X-Secret", Placeholder: "Paste the header value", Sensitive: true},
+		}, proposal.RequiredInputs)
 		require.Equal(t, req.Instructions, proposal.Instructions)
+		require.Equal(t,
+			"https://coder.example.com/api/experimental/mcp/servers/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/oauth2/callback",
+			proposal.OAuth2RedirectURI)
 		require.NotContains(t, rec.Body.String(), "super-secret")
 	})
 
@@ -335,7 +359,7 @@ func TestMCPProposalAccept(t *testing.T) {
 		require.Equal(t, http.StatusOK, rec.Code)
 		var resp codersdk.AcceptMCPServerProposalResponse
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-		require.NotEqual(t, uuid.Nil, resp.MCPServerConfigID)
+		require.Equal(t, uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"), resp.MCPServerConfigID)
 		require.False(t, resp.Authenticated)
 		require.Equal(t,
 			"https://coder.example.com/api/experimental/mcp/servers/"+resp.MCPServerConfigID.String()+"/oauth2/connect",
@@ -381,18 +405,16 @@ func TestMCPProposalAccept(t *testing.T) {
 			URL:         "https://headers.example.com/mcp",
 			Transport:   "streamable_http",
 			AuthType:    "custom_headers",
-			CustomHeaders: map[string]string{
-				"X-Static": "agent-secret",
-			},
-			CustomHeaderPlaceholders: map[string]string{
-				"X-API-Key": "Paste your API key",
-				"X-Account": "Paste your account token",
+			CustomHeaders: map[string]chattool.MCPServerProposalField{
+				"X-Static":  proposalValue("agent-secret"),
+				"X-API-Key": proposalInput("Paste your API key", true),
+				"X-Account": proposalInput("Paste your account token", true),
 			},
 		}
 		deps := newProposalsTest(t, req)
-		values := codersdk.AcceptMCPServerProposalRequest{CustomHeaders: map[string]string{
-			"X-API-Key": "user-api-key",
-			"X-Account": "user-account-token",
+		values := codersdk.AcceptMCPServerProposalRequest{Values: map[string]string{
+			"custom_headers.X-API-Key": "user-api-key",
+			"custom_headers.X-Account": "user-account-token",
 		}}
 
 		rec := doProposalBody(t, deps.api.acceptProposal, http.MethodPost, deps.proposalID, deps.ownerID, values)
@@ -417,37 +439,40 @@ func TestMCPProposalAccept(t *testing.T) {
 		require.NotContains(t, string(proposal.Request), "user-account-token")
 	})
 
-	t.Run("PlaceholderValidationKeepsProposalPending", func(t *testing.T) {
+	t.Run("InputValidationKeepsProposalPending", func(t *testing.T) {
 		t.Parallel()
 		tests := []struct {
 			name   string
 			values codersdk.AcceptMCPServerProposalRequest
 		}{
 			{name: "Missing"},
-			{name: "Undeclared", values: codersdk.AcceptMCPServerProposalRequest{OAuth2ClientSecret: "unexpected"}},
-			{name: "Blank", values: codersdk.AcceptMCPServerProposalRequest{APIKeyValue: "   "}},
-			{name: "UnexpectedCustomHeader", values: codersdk.AcceptMCPServerProposalRequest{
-				APIKeyValue: "secret",
-				CustomHeaders: map[string]string{
-					"X-Extra": "unexpected",
-				},
-			}},
+			{name: "Undeclared", values: codersdk.AcceptMCPServerProposalRequest{Values: map[string]string{
+				"oauth2_client_secret": "unexpected",
+			}}},
+			{name: "Blank", values: codersdk.AcceptMCPServerProposalRequest{Values: map[string]string{
+				"api_key_value": "   ",
+			}}},
+			{name: "UnexpectedCustomHeader", values: codersdk.AcceptMCPServerProposalRequest{Values: map[string]string{
+				"api_key_value":          "secret",
+				"custom_headers.X-Extra": "unexpected",
+			}}},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 				req := chattool.MCPServerProposalRequest{
-					DisplayName:            "API key",
-					Slug:                   "api-key-" + uuid.NewString(),
-					URL:                    "https://api-key.example.com/mcp",
-					Transport:              "streamable_http",
-					AuthType:               "api_key",
-					APIKeyHeader:           "Authorization",
-					APIKeyValuePlaceholder: "Paste your API key",
+					DisplayName:  "API key",
+					Slug:         "api-key-" + uuid.NewString(),
+					URL:          "https://api-key.example.com/mcp",
+					Transport:    "streamable_http",
+					AuthType:     "api_key",
+					APIKeyHeader: proposalValue("Authorization"),
+					APIKeyValue:  proposalInput("Paste your API key", true),
 				}
 				deps := newProposalsTest(t, req)
 				rec := doProposalBody(t, deps.api.acceptProposal, http.MethodPost, deps.proposalID, deps.ownerID, tt.values)
 				require.Equal(t, http.StatusBadRequest, rec.Code)
+				require.Contains(t, rec.Body.String(), "Invalid MCP server proposal values.")
 
 				ctx := testutil.Context(t, testutil.WaitLong)
 				proposal, err := deps.db.GetMCPServerProposalByID(ctx, deps.proposalID)
@@ -457,15 +482,19 @@ func TestMCPProposalAccept(t *testing.T) {
 		}
 	})
 
-	t.Run("UserSuppliedOAuth2ClientSecret", func(t *testing.T) {
+	t.Run("UserSuppliedOAuth2ClientCredentials", func(t *testing.T) {
 		t.Parallel()
 		req := oauthManualRequest()
-		req.Slug = "oauth-secret-" + uuid.NewString()
-		req.OAuth2ClientSecretPlaceholder = "Paste the OAuth2 client secret"
+		req.Slug = "oauth-credentials-" + uuid.NewString()
+		req.OAuth2ClientID = proposalInput("Paste the OAuth2 client ID", false)
+		req.OAuth2ClientSecret = proposalInput("Paste the OAuth2 client secret", true)
 		deps := newProposalsTest(t, req)
 
 		rec := doProposalBody(t, deps.api.acceptProposal, http.MethodPost, deps.proposalID, deps.ownerID,
-			codersdk.AcceptMCPServerProposalRequest{OAuth2ClientSecret: "user-client-secret"})
+			codersdk.AcceptMCPServerProposalRequest{Values: map[string]string{
+				"oauth2_client_id":     " user-client-id ",
+				"oauth2_client_secret": "user-client-secret",
+			}})
 		require.Equal(t, http.StatusOK, rec.Code)
 		var resp codersdk.AcceptMCPServerProposalResponse
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
@@ -473,31 +502,33 @@ func TestMCPProposalAccept(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		config, err := deps.db.GetMCPServerConfigByID(ctx, resp.MCPServerConfigID)
 		require.NoError(t, err)
+		require.Equal(t, "user-client-id", config.OAuth2ClientID)
 		require.Equal(t, "user-client-secret", config.OAuth2ClientSecret)
 
 		proposal, err := deps.db.GetMCPServerProposalByID(ctx, deps.proposalID)
 		require.NoError(t, err)
+		require.NotContains(t, string(proposal.Request), "user-client-id")
 		require.NotContains(t, string(proposal.Request), "user-client-secret")
 	})
 
 	t.Run("RepeatedAcceptIgnoresLaterSecret", func(t *testing.T) {
 		t.Parallel()
 		req := chattool.MCPServerProposalRequest{
-			DisplayName:            "API key",
-			Slug:                   "repeat-secret-" + uuid.NewString(),
-			URL:                    "https://api-key.example.com/mcp",
-			Transport:              "streamable_http",
-			AuthType:               "api_key",
-			APIKeyHeader:           "Authorization",
-			APIKeyValuePlaceholder: "Paste your API key",
+			DisplayName:  "API key",
+			Slug:         "repeat-secret-" + uuid.NewString(),
+			URL:          "https://api-key.example.com/mcp",
+			Transport:    "streamable_http",
+			AuthType:     "api_key",
+			APIKeyHeader: proposalValue("Authorization"),
+			APIKeyValue:  proposalInput("Paste your API key", true),
 		}
 		deps := newProposalsTest(t, req)
 
 		first := doProposalBody(t, deps.api.acceptProposal, http.MethodPost, deps.proposalID, deps.ownerID,
-			codersdk.AcceptMCPServerProposalRequest{APIKeyValue: " first-secret "})
+			codersdk.AcceptMCPServerProposalRequest{Values: map[string]string{"api_key_value": " first-secret "}})
 		require.Equal(t, http.StatusOK, first.Code)
 		second := doProposalBody(t, deps.api.acceptProposal, http.MethodPost, deps.proposalID, deps.ownerID,
-			codersdk.AcceptMCPServerProposalRequest{APIKeyValue: "second-secret"})
+			codersdk.AcceptMCPServerProposalRequest{Values: map[string]string{"api_key_value": "second-secret"}})
 		require.Equal(t, http.StatusOK, second.Code)
 
 		var resp codersdk.AcceptMCPServerProposalResponse
@@ -570,13 +601,13 @@ func TestMCPProposalAccept(t *testing.T) {
 	t.Run("ConcurrentDoublePost", func(t *testing.T) {
 		t.Parallel()
 		req := chattool.MCPServerProposalRequest{
-			DisplayName:            "Concurrent API key",
-			Slug:                   "concurrent-api-key-" + uuid.NewString(),
-			URL:                    "https://api-key.example.com/mcp",
-			Transport:              "streamable_http",
-			AuthType:               "api_key",
-			APIKeyHeader:           "Authorization",
-			APIKeyValuePlaceholder: "Paste your API key",
+			DisplayName:  "Concurrent API key",
+			Slug:         "concurrent-api-key-" + uuid.NewString(),
+			URL:          "https://api-key.example.com/mcp",
+			Transport:    "streamable_http",
+			AuthType:     "api_key",
+			APIKeyHeader: proposalValue("Authorization"),
+			APIKeyValue:  proposalInput("Paste your API key", true),
 		}
 		deps := newProposalsTest(t, req)
 
@@ -587,7 +618,9 @@ func TestMCPProposalAccept(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				results[i] = doProposalBody(t, deps.api.acceptProposal, http.MethodPost, deps.proposalID, deps.ownerID,
-					codersdk.AcceptMCPServerProposalRequest{APIKeyValue: fmt.Sprintf("secret-%d", i)})
+					codersdk.AcceptMCPServerProposalRequest{Values: map[string]string{
+						"api_key_value": fmt.Sprintf("secret-%d", i),
+					}})
 			}()
 		}
 		wg.Wait()

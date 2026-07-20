@@ -504,8 +504,9 @@ func TestProposeMCPServer(t *testing.T) {
 				name: "ManualOAuth2",
 				args: map[string]any{
 					"display_name": "Manual", "slug": "manual", "url": "https://example.com/mcp",
-					"auth_type": "oauth2", "oauth2_client_id": "client-id",
-					"oauth2_auth_url": "https://example.com/authorize", "oauth2_token_url": "https://example.com/token",
+					"auth_type": "oauth2", "oauth2_client_id": map[string]any{"user_input": map[string]any{"placeholder": "Paste the client ID", "sensitive": false}},
+					"oauth2_auth_url": map[string]any{"value": "https://example.com/authorize"}, "oauth2_token_url": map[string]any{"value": "https://example.com/token"},
+					"instructions": "Register an OAuth2 application and paste its client ID.",
 				},
 			},
 			{
@@ -533,7 +534,7 @@ func TestProposeMCPServer(t *testing.T) {
 		}
 	})
 
-	t.Run("SecretValuesAndPlaceholders", func(t *testing.T) {
+	t.Run("AuthValuesAndInputs", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -548,52 +549,95 @@ func TestProposeMCPServer(t *testing.T) {
 				name: "APIKeyValue",
 				args: map[string]any{
 					"display_name": "API key value", "slug": "api-key-value", "url": "https://example.com/mcp",
-					"auth_type": "api_key", "api_key_header": "Authorization",
+					"auth_type": "api_key", "api_key_header": map[string]any{"value": "Authorization"},
 					"api_key_value": map[string]any{"value": "agent-api-key"},
 				},
 				check: func(req chattool.MCPServerProposalRequest) {
-					require.Equal(t, "agent-api-key", req.APIKeyValue)
-					require.Empty(t, req.APIKeyValuePlaceholder)
+					require.Equal(t, "agent-api-key", req.APIKeyValue.Value)
+					require.Nil(t, req.APIKeyValue.UserInput)
 				},
 			},
 			{
-				name: "APIKeyPlaceholder",
+				name: "APIKeyInput",
 				args: map[string]any{
 					"display_name": "API key", "slug": "api-key", "url": "https://example.com/mcp",
-					"auth_type": "api_key", "api_key_header": "Authorization",
-					"api_key_value": map[string]any{"placeholder": "Paste your API key"},
+					"auth_type": "api_key", "api_key_header": map[string]any{"value": "Authorization"},
+					"api_key_value": map[string]any{"user_input": map[string]any{"placeholder": "Paste your API key", "sensitive": true}},
 					"instructions":  "Create an API key in the service settings.",
 				},
 				check: func(req chattool.MCPServerProposalRequest) {
-					require.Empty(t, req.APIKeyValue)
-					require.Equal(t, "Paste your API key", req.APIKeyValuePlaceholder)
+					require.Empty(t, req.APIKeyValue.Value)
+					require.Equal(t, "Paste your API key", req.APIKeyValue.UserInput.Placeholder)
+					require.True(t, req.APIKeyValue.UserInput.Sensitive)
 				},
 			},
 			{
 				name: "OAuth2SecretValue",
 				args: map[string]any{
 					"display_name": "OAuth2 value", "slug": "oauth2-value", "url": "https://example.com/mcp",
-					"auth_type": "oauth2", "oauth2_client_id": "client-id",
-					"oauth2_auth_url": "https://example.com/authorize", "oauth2_token_url": "https://example.com/token",
+					"auth_type": "oauth2", "oauth2_client_id": map[string]any{"value": "client-id"},
+					"oauth2_auth_url": map[string]any{"value": "https://example.com/authorize"}, "oauth2_token_url": map[string]any{"value": "https://example.com/token"},
 					"oauth2_client_secret": map[string]any{"value": "agent-client-secret"},
 				},
 				check: func(req chattool.MCPServerProposalRequest) {
-					require.Equal(t, "agent-client-secret", req.OAuth2ClientSecret)
-					require.Empty(t, req.OAuth2ClientSecretPlaceholder)
+					require.Equal(t, "agent-client-secret", req.OAuth2ClientSecret.Value)
+					require.Nil(t, req.OAuth2ClientSecret.UserInput)
+					require.NotEqual(t, uuid.Nil, req.ReservedConfigID)
 				},
 			},
 			{
-				name: "OAuth2SecretPlaceholder",
+				name: "OAuth2SecretInput",
 				args: map[string]any{
 					"display_name": "OAuth2", "slug": "oauth2", "url": "https://example.com/mcp",
-					"auth_type": "oauth2", "oauth2_client_id": "client-id",
-					"oauth2_auth_url": "https://example.com/authorize", "oauth2_token_url": "https://example.com/token",
-					"oauth2_client_secret": map[string]any{"placeholder": "Paste the client secret"},
+					"auth_type": "oauth2", "oauth2_client_id": map[string]any{"value": "client-id"},
+					"oauth2_auth_url": map[string]any{"value": "https://example.com/authorize"}, "oauth2_token_url": map[string]any{"value": "https://example.com/token"},
+					"oauth2_client_secret": map[string]any{"user_input": map[string]any{"placeholder": "Paste the client secret", "sensitive": true}},
 					"instructions":         "Register an OAuth2 client and copy its secret.",
 				},
 				check: func(req chattool.MCPServerProposalRequest) {
-					require.Empty(t, req.OAuth2ClientSecret)
-					require.Equal(t, "Paste the client secret", req.OAuth2ClientSecretPlaceholder)
+					require.Empty(t, req.OAuth2ClientSecret.Value)
+					require.Equal(t, "Paste the client secret", req.OAuth2ClientSecret.UserInput.Placeholder)
+					require.True(t, req.OAuth2ClientSecret.UserInput.Sensitive)
+					require.NotEqual(t, uuid.Nil, req.ReservedConfigID)
+				},
+			},
+			{
+				name: "AllOAuth2Inputs",
+				args: map[string]any{
+					"display_name": "OAuth2 inputs", "slug": "oauth2-inputs", "url": "https://example.com/mcp",
+					"auth_type":            "oauth2",
+					"oauth2_client_id":     map[string]any{"user_input": map[string]any{"placeholder": "Paste the client ID", "sensitive": false}},
+					"oauth2_client_secret": map[string]any{"user_input": map[string]any{"placeholder": "Paste the client secret", "sensitive": true}},
+					"oauth2_auth_url":      map[string]any{"user_input": map[string]any{"placeholder": "https://example.com/authorize", "sensitive": false}},
+					"oauth2_token_url":     map[string]any{"user_input": map[string]any{"placeholder": "https://example.com/token", "sensitive": false}},
+					"oauth2_scopes":        map[string]any{"user_input": map[string]any{"placeholder": "read write", "sensitive": false}},
+					"instructions":         "Register an OAuth2 application and paste its metadata.",
+				},
+				check: func(req chattool.MCPServerProposalRequest) {
+					require.Equal(t, []chattool.MCPServerProposalRequiredInput{
+						{Field: "oauth2_client_id", Label: "OAuth2 client ID", Placeholder: "Paste the client ID", Sensitive: false},
+						{Field: "oauth2_client_secret", Label: "OAuth2 client secret", Placeholder: "Paste the client secret", Sensitive: true},
+						{Field: "oauth2_auth_url", Label: "OAuth2 authorization URL", Placeholder: "https://example.com/authorize", Sensitive: false},
+						{Field: "oauth2_token_url", Label: "OAuth2 token URL", Placeholder: "https://example.com/token", Sensitive: false},
+						{Field: "oauth2_scopes", Label: "OAuth2 scopes", Placeholder: "read write", Sensitive: false},
+					}, chattool.RequiredMCPServerProposalInputs(req))
+					require.NotEqual(t, uuid.Nil, req.ReservedConfigID)
+				},
+			},
+			{
+				name: "APIKeyInputs",
+				args: map[string]any{
+					"display_name": "API key inputs", "slug": "api-key-inputs", "url": "https://example.com/mcp",
+					"auth_type":      "api_key",
+					"api_key_header": map[string]any{"user_input": map[string]any{"placeholder": "Authorization", "sensitive": false}},
+					"api_key_value":  map[string]any{"user_input": map[string]any{"placeholder": "Bearer token", "sensitive": true}},
+					"instructions":   "Create an API key and paste its header and value.",
+				},
+				check: func(req chattool.MCPServerProposalRequest) {
+					require.Equal(t, []chattool.MCPServerProposalRequiredInput{
+						{Field: "api_key_header", Label: "API key header", Placeholder: "Authorization", Sensitive: false},
+						{Field: "api_key_value", Label: "API key", Placeholder: "Bearer token", Sensitive: true},
+					}, chattool.RequiredMCPServerProposalInputs(req))
 				},
 			},
 			{
@@ -603,13 +647,13 @@ func TestProposeMCPServer(t *testing.T) {
 					"auth_type": "custom_headers",
 					"custom_headers": map[string]any{
 						"X-Static":  map[string]any{"value": "agent-secret"},
-						"X-API-Key": map[string]any{"placeholder": "Paste your API key"},
+						"X-API-Key": map[string]any{"user_input": map[string]any{"placeholder": "Paste your API key", "sensitive": true}},
 					},
 					"instructions": "Create an API key in the service settings.",
 				},
 				check: func(req chattool.MCPServerProposalRequest) {
-					require.Equal(t, map[string]string{"X-Static": "agent-secret"}, req.CustomHeaders)
-					require.Equal(t, map[string]string{"X-API-Key": "Paste your API key"}, req.CustomHeaderPlaceholders)
+					require.Equal(t, "agent-secret", req.CustomHeaders["X-Static"].Value)
+					require.Equal(t, "Paste your API key", req.CustomHeaders["X-API-Key"].UserInput.Placeholder)
 				},
 			},
 		}
@@ -642,12 +686,16 @@ func TestProposeMCPServer(t *testing.T) {
 			{"BadAuthType", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "user_oidc"}, "invalid auth_type"},
 			{"APIKeyMissingValue", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "api_key"}, "api_key_header and api_key_value"},
 			{"CustomHeadersEmpty", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "custom_headers"}, "at least one custom header"},
-			{"PartialOAuth2", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "oauth2", "oauth2_client_id": "id"}, "all of oauth2_client_id"},
-			{"APIKeyBoth", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "api_key", "api_key_header": "Authorization", "api_key_value": map[string]any{"value": "secret", "placeholder": "Paste secret"}}, "exactly one of value or placeholder"},
-			{"CustomHeaderNeither", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "custom_headers", "custom_headers": map[string]any{"X-Key": map[string]any{}}}, "exactly one of value or placeholder"},
-			{"CustomHeaderBoth", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "custom_headers", "custom_headers": map[string]any{"X-Key": map[string]any{"value": "secret", "placeholder": "Paste secret"}}}, "exactly one of value or placeholder"},
-			{"OAuthSecretWithDiscovery", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "oauth2", "oauth2_client_secret": map[string]any{"placeholder": "Paste secret"}}, "only valid with complete manual OAuth2 metadata"},
-			{"PlaceholderMissingInstructions", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "api_key", "api_key_header": "Authorization", "api_key_value": map[string]any{"placeholder": "Paste secret"}}, "instructions is required when the user must provide credentials"},
+			{"PartialOAuth2", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "oauth2", "oauth2_client_id": map[string]any{"value": "id"}}, "all of oauth2_client_id"},
+			{"APIKeyBoth", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "api_key", "api_key_header": map[string]any{"value": "Authorization"}, "api_key_value": map[string]any{"value": "secret", "user_input": map[string]any{"placeholder": "Paste secret", "sensitive": true}}}, "exactly one of value or user_input"},
+			{"FixedFieldNeither", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "oauth2_scopes": map[string]any{}}, "exactly one of value or user_input"},
+			{"BlankValue", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "oauth2_scopes": map[string]any{"value": " "}}, "value is required"},
+			{"CustomHeaderNeither", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "custom_headers", "custom_headers": map[string]any{"X-Key": map[string]any{}}}, "exactly one of value or user_input"},
+			{"CustomHeaderBoth", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "custom_headers", "custom_headers": map[string]any{"X-Key": map[string]any{"value": "secret", "user_input": map[string]any{"placeholder": "Paste secret", "sensitive": true}}}}, "exactly one of value or user_input"},
+			{"EmptyPlaceholder", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "custom_headers", "custom_headers": map[string]any{"X-Key": map[string]any{"user_input": map[string]any{"placeholder": " ", "sensitive": true}}}}, "user_input.placeholder is required"},
+			{"MissingSensitivity", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "custom_headers", "custom_headers": map[string]any{"X-Key": map[string]any{"user_input": map[string]any{"placeholder": "Paste secret"}}}}, "user_input.sensitive is required"},
+			{"OAuthSecretWithDiscovery", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "oauth2", "oauth2_client_secret": map[string]any{"user_input": map[string]any{"placeholder": "Paste secret", "sensitive": true}}}, "only valid with complete manual OAuth2 metadata"},
+			{"InputMissingInstructions", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "api_key", "api_key_header": map[string]any{"value": "Authorization"}, "api_key_value": map[string]any{"user_input": map[string]any{"placeholder": "Paste secret", "sensitive": true}}}, "instructions is required when the user must provide values"},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {

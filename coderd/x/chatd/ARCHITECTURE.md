@@ -50,21 +50,21 @@ A chat's execution state lets the chat worker and the HTTP endpoints decide what
 
 The shorthands in the table below use the convention that the first 1 or 2 letters indicate the status, and then `1` or `0` indicate the presence or absence of queued messages.
 
-| Shorthand | Status | Queue | Archived | Meaning |
-| --- | --- | --- | --- | --- |
-| `N` | - | - | - | Chat does not exist |
-| `W` | `waiting` | empty | `false` | There's no work to be done by the chat worker |
-| `E0` | `error` | empty | `false` | The worker encountered an unrecoverable error while processing the chat. There's no more work to be done by the chat worker |
-| `E1` | `error` | non-empty | `false` | The worker encountered an unrecoverable error while processing the chat, and there's currently no work to be done by the chat worker. There's a queued message that should be processed once the error is cleared |
-| `R0` | `running` | empty | `false` | Running state with no queued messages: a chat worker should be processing the chat |
-| `R1` | `running` | non-empty | `false` | Running state with queued messages: a chat worker should be processing the chat, and there's a queued message that should be processed next |
-| `I0` | `interrupting` | empty | `false` | The chat was interrupted by the user, and the chat worker should commit any partial message that had been generated before the interruption |
-| `I1` | `interrupting` | non-empty | `false` | The chat was interrupted by the user, and the chat worker should commit any partial message that had been generated before the interruption, and there's a queued message that should be processed next |
-| `A0` | `requires_action` | empty | `false` | The chat worker is waiting until the user submits tool results; this state is used only by the “dynamic tools” feature |
-| `A1` | `requires_action` | non-empty | `false` | The chat worker is waiting until the user submits tool results, and there's a queued message that should be processed next; this state is used only by the “dynamic tools” feature |
-| `XW` | `waiting` | empty | `true` | The chat was archived while it was in the `waiting` state, it will go back to `waiting` once unarchived |
-| `XE0` | `error` | empty | `true` | The chat was archived while it was in the `error` state, it will go back to `error` once unarchived |
-| `XE1` | `error` | non-empty | `true` | The chat was archived while it was in the `error` state, it will go back to `error` once unarchived, and there's a queued message that should be processed once the error is cleared |
+| Shorthand | Status            | Queue     | Archived | Meaning                                                                                                                                                                                                           |
+|-----------|-------------------|-----------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `N`       | -                 | -         | -        | Chat does not exist                                                                                                                                                                                               |
+| `W`       | `waiting`         | empty     | `false`  | There's no work to be done by the chat worker                                                                                                                                                                     |
+| `E0`      | `error`           | empty     | `false`  | The worker encountered an unrecoverable error while processing the chat. There's no more work to be done by the chat worker                                                                                       |
+| `E1`      | `error`           | non-empty | `false`  | The worker encountered an unrecoverable error while processing the chat, and there's currently no work to be done by the chat worker. There's a queued message that should be processed once the error is cleared |
+| `R0`      | `running`         | empty     | `false`  | Running state with no queued messages: a chat worker should be processing the chat                                                                                                                                |
+| `R1`      | `running`         | non-empty | `false`  | Running state with queued messages: a chat worker should be processing the chat, and there's a queued message that should be processed next                                                                       |
+| `I0`      | `interrupting`    | empty     | `false`  | The chat was interrupted by the user, and the chat worker should commit any partial message that had been generated before the interruption                                                                       |
+| `I1`      | `interrupting`    | non-empty | `false`  | The chat was interrupted by the user, and the chat worker should commit any partial message that had been generated before the interruption, and there's a queued message that should be processed next           |
+| `A0`      | `requires_action` | empty     | `false`  | The chat worker is waiting until the user submits tool results; this state is used only by the “dynamic tools” feature                                                                                            |
+| `A1`      | `requires_action` | non-empty | `false`  | The chat worker is waiting until the user submits tool results, and there's a queued message that should be processed next; this state is used only by the “dynamic tools” feature                                |
+| `XW`      | `waiting`         | empty     | `true`   | The chat was archived while it was in the `waiting` state, it will go back to `waiting` once unarchived                                                                                                           |
+| `XE0`     | `error`           | empty     | `true`   | The chat was archived while it was in the `error` state, it will go back to `error` once unarchived                                                                                                               |
+| `XE1`     | `error`           | non-empty | `true`   | The chat was archived while it was in the `error` state, it will go back to `error` once unarchived, and there's a queued message that should be processed once the error is cleared                              |
 
 If these states seem arbitrary and abstract at this point, that's expected. Each one of these states is needed by some runtime component of chatd for some specific use case, and their purpose will emerge as we discuss the implementation of the HTTP endpoints and the chat worker.
 
@@ -74,10 +74,10 @@ At a high-level, these states let us reason about what should be possible to hap
 
 A chat's ownership state lets the chat worker decide whether a chat can be acquired or not. It's decided by the `worker_id` field on the `chats` table. In total there are 2 ownership states.
 
-| Shorthand | Worker ID | Meaning |
-| --- | --- | --- |
-| `U` | null | Unowned chat |
-| `O` | not null | Owned chat |
+| Shorthand | Worker ID | Meaning      |
+|-----------|-----------|--------------|
+| `U`       | null      | Unowned chat |
+| `O`       | not null  | Owned chat   |
 
 ## Transitions
 
@@ -934,10 +934,10 @@ Initial null state:
 
 The loop has two operations:
 
-| Operation | Description |
-| --- | --- |
-| `Sync(hints)` | Maybe fetch database state. If newer state is observed, emit required client events, update local cursors, and configure the relay target. Triggered by pubsub notifications and the sync poller. |
-| `Part(history_version, generation_attempt, seq, content)` | Emit one live preview part. The operation succeeds only if the part matches local watermarks (history version, generation attempt, and seq). Triggered by the relay forwarder. |
+| Operation                                                 | Description                                                                                                                                                                                       |
+|-----------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `Sync(hints)`                                             | Maybe fetch database state. If newer state is observed, emit required client events, update local cursors, and configure the relay target. Triggered by pubsub notifications and the sync poller. |
+| `Part(history_version, generation_attempt, seq, content)` | Emit one live preview part. The operation succeeds only if the part matches local watermarks (history version, generation attempt, and seq). Triggered by the relay forwarder.                    |
 
 The loop processes one operation at a time. It must not process another input halfway through a `Sync` or `Part`.
 
@@ -1264,8 +1264,8 @@ The requesting user is recorded on the proposal as a Coder user id (`requester_i
 
 Proposals live in the `mcp_server_proposals` table (`pending`/`accepted`/`rejected`, 24h TTL, lazily pruned) because accept/reject POSTs can hit any coderd replica. The endpoints are implemented by `slackd.ProposalsAPI` (`coderd/x/slackd/mcpproposals.go`), which coderd always constructs and mounts, even when the Slack integration is disabled (lookups then simply 404):
 
-- `GET /api/v2/mcp-server-proposals/{id}` returns the proposed config, setup instructions, and display hints for any secret placeholders required by the review page. Concrete secrets from the stored request are never returned.
-- `POST /api/v2/mcp-server-proposals/{id}/accept` accepts idempotently: a `SELECT ... FOR UPDATE` row lock serializes concurrent accepts, so at most one MCP server config is created per proposal, and repeated POSTs return the recorded config. On the accepting transition, user-supplied OAuth2 client secrets, API key values, and custom-header values are validated against the proposal's placeholders and merged in memory. They are written only to the resulting MCP config, not the proposal row. The personal config is created inside the transaction, including OAuth2 discovery and Dynamic Client Registration for oauth2 requests without explicit credentials; the discovery flow is duplicated from `coderd/mcp.go`. After commit the server is enabled for the proposing chat, the Slack card is updated, and the chat is notified with a `[system]` message (busy behavior: interrupt). Unauthenticated oauth2 configs start an auth poll (3s cadence, 5min timeout) that reports success or a reminder once.
+- `GET /api/v2/mcp-server-proposals/{id}` returns the proposed config, setup instructions, and generic descriptors for auth values required by the review page. Each descriptor includes a stable field ID, label, placeholder, and agent-declared sensitivity. Concrete auth values from the stored request are never returned. For manual OAuth2 proposals (static client metadata, not dynamic client registration), the response also includes `oauth2_redirect_uri`, built from a config id reserved at proposal time so the review page can show the URI before accept.
+- `POST /api/v2/mcp-server-proposals/{id}/accept` accepts idempotently: a `SELECT ... FOR UPDATE` row lock serializes concurrent accepts, so at most one MCP server config is created per proposal, and repeated POSTs return the recorded config. On the accepting transition, user-supplied values are validated against the proposal's required input descriptors and merged in memory. They are written only to the resulting MCP config, not the proposal row. The personal config is created inside the transaction, including OAuth2 discovery and Dynamic Client Registration for oauth2 requests without explicit credentials; the discovery flow is duplicated from `coderd/mcp.go`. Manual OAuth2 proposals reuse the reserved config id so the redirect URI shown on the review page matches the created server. After commit the server is enabled for the proposing chat, the Slack card is updated, and the chat is notified with a `[system]` message (busy behavior: interrupt). Unauthenticated oauth2 configs start an auth poll (3s cadence, 5min timeout) that reports success or a reminder once.
 - `POST /api/v2/mcp-server-proposals/{id}/reject` marks a pending proposal rejected under the same row lock, updates the card, and notifies the chat.
 
 All three endpoints authorize against the proposal's requester; other users get a 403 that does not identify the required user.

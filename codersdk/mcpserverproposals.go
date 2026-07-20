@@ -26,8 +26,8 @@ const (
 )
 
 // MCPServerProposal is a chat-initiated proposal to create a personal
-// MCP server. Secrets from the proposed config are never returned;
-// has_* booleans report which auth material was provided.
+// MCP server. Concrete auth values from the proposed config are never
+// returned; has_* booleans report which auth material was provided.
 type MCPServerProposal struct {
 	ID        uuid.UUID               `json:"id" format:"uuid"`
 	ChatID    uuid.UUID               `json:"chat_id" format:"uuid"`
@@ -52,9 +52,14 @@ type MCPServerProposal struct {
 	HasAPIKey                  bool `json:"has_api_key"`
 	HasCustomHeaders           bool `json:"has_custom_headers"`
 
-	// SecretPlaceholders contains display hints for credentials the
-	// requester must provide before accepting the proposal.
-	SecretPlaceholders MCPServerProposalSecretPlaceholders `json:"secret_placeholders"`
+	// RequiredInputs describes values the requester must provide before
+	// accepting the proposal. Concrete auth values are never returned.
+	RequiredInputs []MCPServerProposalInput `json:"required_inputs"`
+
+	// OAuth2RedirectURI is the redirect URI to register with the OAuth2
+	// provider when the proposal uses manual OAuth2 (not dynamic client
+	// registration). Empty for discovery-based OAuth2 and non-OAuth2 auth.
+	OAuth2RedirectURI string `json:"oauth2_redirect_uri,omitempty"`
 
 	// CreateDisabled reports that the server would be created in a
 	// disabled state.
@@ -66,21 +71,19 @@ type MCPServerProposal struct {
 	ConnectURL        string    `json:"connect_url,omitempty"`
 }
 
-// MCPServerProposalSecretPlaceholders describes the secret fields that the
-// requester must fill on the proposal review page. The strings are display
-// hints, not secret values.
-type MCPServerProposalSecretPlaceholders struct {
-	OAuth2ClientSecret string            `json:"oauth2_client_secret,omitempty"`
-	APIKeyValue        string            `json:"api_key_value,omitempty"`
-	CustomHeaders      map[string]string `json:"custom_headers,omitempty"`
+// MCPServerProposalInput describes a value the requester must fill on the
+// proposal review page.
+type MCPServerProposalInput struct {
+	Field       string `json:"field"`
+	Label       string `json:"label"`
+	Placeholder string `json:"placeholder"`
+	Sensitive   bool   `json:"sensitive"`
 }
 
-// AcceptMCPServerProposalRequest supplies values for the secret placeholders
+// AcceptMCPServerProposalRequest supplies values for the required inputs
 // declared by an MCP server proposal.
 type AcceptMCPServerProposalRequest struct {
-	OAuth2ClientSecret string            `json:"oauth2_client_secret,omitempty"`
-	APIKeyValue        string            `json:"api_key_value,omitempty"`
-	CustomHeaders      map[string]string `json:"custom_headers,omitempty"`
+	Values map[string]string `json:"values,omitempty"`
 }
 
 // AcceptMCPServerProposalResponse is returned by the proposal accept

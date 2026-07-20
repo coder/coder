@@ -1,5 +1,6 @@
 import {
 	ChevronDownIcon,
+	CopyIcon,
 	GlobeIcon,
 	InfoIcon,
 	KeyRoundIcon,
@@ -33,6 +34,7 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
+import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Input } from "#/components/Input/Input";
 import { Loader } from "#/components/Loader/Loader";
@@ -62,8 +64,8 @@ const MCPProposalPage: FC<MCPProposalPageProps> = ({
 	const { proposal: proposalId } = useParams() as { proposal: string };
 	const queryClient = useQueryClient();
 	const [redirecting, setRedirecting] = useState(false);
-	const [secretValues, setSecretValues] =
-		useState<TypesGen.AcceptMCPServerProposalRequest>({});
+	const [inputValues, setInputValues] =
+		useState<TypesGen.AcceptMCPServerProposalRequest>({ values: {} });
 
 	const proposalQuery = useQuery({
 		...mcpServerProposal(proposalId),
@@ -77,7 +79,7 @@ const MCPProposalPage: FC<MCPProposalPageProps> = ({
 	const rejectMutation = useMutation(rejectMCPServerProposal(proposalId));
 
 	const handleAccept = () => {
-		acceptMutation.mutate(secretValues, {
+		acceptMutation.mutate(inputValues, {
 			onSuccess: (res) => {
 				if (res.connect_url && !res.authenticated) {
 					setRedirecting(true);
@@ -123,8 +125,8 @@ const MCPProposalPage: FC<MCPProposalPageProps> = ({
 				acceptMutation={acceptMutation}
 				rejectMutation={rejectMutation}
 				redirecting={redirecting}
-				secretValues={secretValues}
-				onSecretValuesChange={setSecretValues}
+				inputValues={inputValues}
+				onInputValuesChange={setInputValues}
 				onAccept={handleAccept}
 				onReject={() => rejectMutation.mutate()}
 			/>
@@ -143,8 +145,8 @@ interface MCPProposalPageContentProps {
 	>;
 	rejectMutation: ReturnType<typeof useMutation<void, unknown, void>>;
 	redirecting: boolean;
-	secretValues: TypesGen.AcceptMCPServerProposalRequest;
-	onSecretValuesChange: (
+	inputValues: TypesGen.AcceptMCPServerProposalRequest;
+	onInputValuesChange: (
 		values: TypesGen.AcceptMCPServerProposalRequest,
 	) => void;
 	onAccept: () => void;
@@ -156,8 +158,8 @@ const MCPProposalPageContent: FC<MCPProposalPageContentProps> = ({
 	acceptMutation,
 	rejectMutation,
 	redirecting,
-	secretValues,
-	onSecretValuesChange,
+	inputValues,
+	onInputValuesChange,
 	onAccept,
 	onReject,
 }) => {
@@ -216,10 +218,7 @@ const MCPProposalPageContent: FC<MCPProposalPageContentProps> = ({
 		);
 	}
 
-	const canAccept = secretPlaceholdersFilled(
-		proposal.secret_placeholders,
-		secretValues,
-	);
+	const canAccept = requiredInputsFilled(proposal.required_inputs, inputValues);
 
 	return (
 		<div className="overflow-hidden rounded-xl border border-solid border-border-default bg-surface-primary">
@@ -257,11 +256,15 @@ const MCPProposalPageContent: FC<MCPProposalPageContentProps> = ({
 
 					<ProposalDetails proposal={proposal} />
 
-					<ProposalSecretFields
+					{proposal.oauth2_redirect_uri && (
+						<OAuth2RedirectURI uri={proposal.oauth2_redirect_uri} />
+					)}
+
+					<ProposalInputFields
 						instructions={proposal.instructions}
-						placeholders={proposal.secret_placeholders}
-						values={secretValues}
-						onChange={onSecretValuesChange}
+						inputs={proposal.required_inputs}
+						values={inputValues}
+						onChange={onInputValuesChange}
 						disabled={acceptMutation.isPending || rejectMutation.isPending}
 					/>
 
@@ -303,7 +306,7 @@ const MCPProposalPageContent: FC<MCPProposalPageContentProps> = ({
 						</Button>
 						{!canAccept && (
 							<p className="m-0 mt-2.5 text-center text-[11px] font-medium leading-[1.4] text-content-secondary">
-								Enter the credentials to enable approval.
+								Enter all required values to enable approval.
 							</p>
 						)}
 					</div>
@@ -313,67 +316,48 @@ const MCPProposalPageContent: FC<MCPProposalPageContentProps> = ({
 	);
 };
 
-const secretPlaceholdersFilled = (
-	placeholders: TypesGen.MCPServerProposalSecretPlaceholders,
+const requiredInputsFilled = (
+	inputs: readonly TypesGen.MCPServerProposalInput[],
 	values: TypesGen.AcceptMCPServerProposalRequest,
 ): boolean => {
-	if (
-		placeholders.oauth2_client_secret &&
-		!values.oauth2_client_secret?.trim()
-	) {
-		return false;
-	}
-	if (placeholders.api_key_value && !values.api_key_value?.trim()) {
-		return false;
-	}
-	for (const header of Object.keys(placeholders.custom_headers ?? {})) {
-		if (!values.custom_headers?.[header]?.trim()) {
-			return false;
-		}
-	}
-	return true;
+	return inputs.every((input) => values.values?.[input.field]?.trim());
 };
 
-interface ProposalSecretFieldsProps {
+interface ProposalInputFieldsProps {
 	instructions?: string;
-	placeholders: TypesGen.MCPServerProposalSecretPlaceholders;
+	inputs: readonly TypesGen.MCPServerProposalInput[];
 	values: TypesGen.AcceptMCPServerProposalRequest;
 	onChange: (values: TypesGen.AcceptMCPServerProposalRequest) => void;
 	disabled: boolean;
 }
 
-const ProposalSecretFields: FC<ProposalSecretFieldsProps> = ({
+const ProposalInputFields: FC<ProposalInputFieldsProps> = ({
 	instructions,
-	placeholders,
+	inputs,
 	values,
 	onChange,
 	disabled,
 }) => {
 	const formId = useId();
-	const customHeaders = Object.entries(placeholders.custom_headers ?? {});
-	const hasSecretFields = Boolean(
-		placeholders.oauth2_client_secret ||
-			placeholders.api_key_value ||
-			customHeaders.length > 0,
-	);
+	const hasInputFields = inputs.length > 0;
 
-	if (!hasSecretFields && !instructions) {
+	if (!hasInputFields && !instructions) {
 		return null;
 	}
 
-	if (!hasSecretFields && instructions) {
+	if (!hasInputFields && instructions) {
 		return <ProposalInstructions instructions={instructions} standalone />;
 	}
 
 	return (
 		<section
-			aria-label="Required credentials"
+			aria-label="Required configuration"
 			className="flex flex-col gap-[18px] border-0 border-t border-solid border-border-default pt-[22px]"
 		>
 			<div>
 				<h2 className="m-0 flex items-center gap-2 text-sm font-semibold text-content-primary">
 					<LockKeyholeIcon className="size-[15px] text-content-warning" />
-					Credentials required
+					Configuration required
 				</h2>
 				<p className="m-0 mt-1 text-[13px] font-normal leading-[1.5] text-content-secondary">
 					Sent directly to Coder to create the server. Never shared with the
@@ -384,41 +368,20 @@ const ProposalSecretFields: FC<ProposalSecretFieldsProps> = ({
 			{instructions && <ProposalInstructions instructions={instructions} />}
 
 			<div className="grid items-start gap-[14px]">
-				{placeholders.oauth2_client_secret && (
-					<SecretField
-						id={`${formId}-oauth2-client-secret`}
-						label="OAuth2 client secret"
-						placeholder={placeholders.oauth2_client_secret}
-						value={values.oauth2_client_secret ?? ""}
-						onChange={(value) =>
-							onChange({ ...values, oauth2_client_secret: value })
-						}
-						disabled={disabled}
-					/>
-				)}
-				{placeholders.api_key_value && (
-					<SecretField
-						id={`${formId}-api-key`}
-						label="API key"
-						placeholder={placeholders.api_key_value}
-						value={values.api_key_value ?? ""}
-						onChange={(value) => onChange({ ...values, api_key_value: value })}
-						disabled={disabled}
-					/>
-				)}
-				{customHeaders.map(([header, placeholder], index) => (
-					<SecretField
-						key={header}
-						id={`${formId}-custom-header-${index}`}
-						label={header}
-						placeholder={placeholder}
-						value={values.custom_headers?.[header] ?? ""}
+				{inputs.map((input, index) => (
+					<ProposalInputField
+						key={input.field}
+						id={`${formId}-input-${index}`}
+						label={input.label}
+						placeholder={input.placeholder}
+						sensitive={input.sensitive}
+						value={values.values?.[input.field] ?? ""}
 						onChange={(value) =>
 							onChange({
 								...values,
-								custom_headers: {
-									...values.custom_headers,
-									[header]: value,
+								values: {
+									...values.values,
+									[input.field]: value,
 								},
 							})
 						}
@@ -426,6 +389,29 @@ const ProposalSecretFields: FC<ProposalSecretFieldsProps> = ({
 					/>
 				))}
 			</div>
+		</section>
+	);
+};
+
+const OAuth2RedirectURI: FC<{ uri: string }> = ({ uri }) => {
+	return (
+		<section
+			aria-label="OAuth2 redirect URI"
+			className="flex flex-col gap-2 border-0 border-t border-solid border-border-default pt-[22px]"
+		>
+			<h2 className="m-0 text-sm font-semibold text-content-primary">
+				OAuth2 redirect URI
+			</h2>
+			<p className="m-0 text-[13px] font-normal leading-[1.5] text-content-secondary">
+				Register this URI with the OAuth2 provider when creating the
+				application.
+			</p>
+			<CopyableValue
+				value={uri}
+				className="break-all rounded-[10px] border border-solid border-border-default bg-surface-primary px-3.5 py-3 font-mono text-[13px] leading-[1.4] text-content-primary"
+			>
+				{uri} <CopyIcon className="inline size-icon-xs align-text-bottom" />
+			</CopyableValue>
 		</section>
 	);
 };
@@ -529,14 +515,15 @@ const ProposalAuthorNotice: FC = () => (
 	</div>
 );
 
-const SecretField: FC<{
+const ProposalInputField: FC<{
 	id: string;
 	label: string;
 	placeholder: string;
+	sensitive: boolean;
 	value: string;
 	onChange: (value: string) => void;
 	disabled: boolean;
-}> = ({ id, label, placeholder, value, onChange, disabled }) => (
+}> = ({ id, label, placeholder, sensitive, value, onChange, disabled }) => (
 	<Field
 		label={label}
 		htmlFor={id}
@@ -545,7 +532,7 @@ const SecretField: FC<{
 	>
 		<Input
 			id={id}
-			type="password"
+			type={sensitive ? "password" : "text"}
 			autoComplete="off"
 			data-1p-ignore
 			data-lpignore="true"

@@ -1009,13 +1009,11 @@ export interface APIKeyWithOwner extends APIKey {
 
 // From codersdk/mcpserverproposals.go
 /**
- * AcceptMCPServerProposalRequest supplies values for the secret placeholders
+ * AcceptMCPServerProposalRequest supplies values for the required inputs
  * declared by an MCP server proposal.
  */
 export interface AcceptMCPServerProposalRequest {
-	readonly oauth2_client_secret?: string;
-	readonly api_key_value?: string;
-	readonly custom_headers?: Record<string, string>;
+	readonly values?: Record<string, string>;
 }
 
 // From codersdk/mcpserverproposals.go
@@ -5671,8 +5669,8 @@ export interface MCPServerConfigsOptions {
 // From codersdk/mcpserverproposals.go
 /**
  * MCPServerProposal is a chat-initiated proposal to create a personal
- * MCP server. Secrets from the proposed config are never returned;
- * has_* booleans report which auth material was provided.
+ * MCP server. Concrete auth values from the proposed config are never
+ * returned; has_* booleans report which auth material was provided.
  */
 export interface MCPServerProposal {
 	readonly id: string;
@@ -5697,10 +5695,16 @@ export interface MCPServerProposal {
 	readonly has_api_key: boolean;
 	readonly has_custom_headers: boolean;
 	/**
-	 * SecretPlaceholders contains display hints for credentials the
-	 * requester must provide before accepting the proposal.
+	 * RequiredInputs describes values the requester must provide before
+	 * accepting the proposal. Concrete auth values are never returned.
 	 */
-	readonly secret_placeholders: MCPServerProposalSecretPlaceholders;
+	readonly required_inputs: readonly MCPServerProposalInput[];
+	/**
+	 * OAuth2RedirectURI is the redirect URI to register with the OAuth2
+	 * provider when the proposal uses manual OAuth2 (not dynamic client
+	 * registration). Empty for discovery-based OAuth2 and non-OAuth2 auth.
+	 */
+	readonly oauth2_redirect_uri?: string;
 	/**
 	 * CreateDisabled reports that the server would be created in a
 	 * disabled state.
@@ -5716,14 +5720,14 @@ export interface MCPServerProposal {
 
 // From codersdk/mcpserverproposals.go
 /**
- * MCPServerProposalSecretPlaceholders describes the secret fields that the
- * requester must fill on the proposal review page. The strings are display
- * hints, not secret values.
+ * MCPServerProposalInput describes a value the requester must fill on the
+ * proposal review page.
  */
-export interface MCPServerProposalSecretPlaceholders {
-	readonly oauth2_client_secret?: string;
-	readonly api_key_value?: string;
-	readonly custom_headers?: Record<string, string>;
+export interface MCPServerProposalInput {
+	readonly field: string;
+	readonly label: string;
+	readonly placeholder: string;
+	readonly sensitive: boolean;
 }
 
 // From codersdk/mcpserverproposals.go

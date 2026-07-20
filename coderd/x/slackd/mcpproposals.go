@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
 
@@ -61,7 +60,7 @@ const (
 // longer pending (or has expired).
 var errProposalHandled = xerrors.New("proposal expired or already handled")
 
-var errInvalidProposalSecrets = xerrors.New("invalid proposal secret values")
+var errInvalidProposalInputValues = xerrors.New("invalid proposal input values")
 
 // ProposalChat is the subset of *chatd.Server used by the MCP proposal
 // handlers.
@@ -263,7 +262,7 @@ func (p *ProposalsAPI) getProposal(rw http.ResponseWriter, r *http.Request, user
 		return
 	}
 
-	resp := convertMCPServerProposal(proposal, req)
+	resp := convertMCPServerProposal(proposal, req, p.accessURLString())
 	if proposal.Status == proposalStatusAccepted && proposal.MCPServerConfigID.Valid {
 		//nolint:gocritic // The requester check already authorized access.
 		sysCtx := dbauthz.AsSystemRestricted(ctx)
@@ -295,7 +294,7 @@ func (p *ProposalsAPI) AcceptProposal(rw http.ResponseWriter, r *http.Request) {
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (p *ProposalsAPI) acceptProposal(rw http.ResponseWriter, r *http.Request, userID uuid.UUID) {
 	ctx := r.Context()
-	secretValues, ok := readProposalSecretValues(rw, r)
+	inputValues, ok := readProposalInputValues(rw, r)
 	if !ok {
 		return
 	}
@@ -336,7 +335,7 @@ func (p *ProposalsAPI) acceptProposal(rw http.ResponseWriter, r *http.Request, u
 		if err != nil {
 			return xerrors.Errorf("decode proposal request: %w", err)
 		}
-		req, err = resolveProposalSecrets(req, secretValues)
+		req, err = resolveProposalInputs(req, inputValues)
 		if err != nil {
 			return err
 		}
@@ -365,9 +364,9 @@ func (p *ProposalsAPI) acceptProposal(rw http.ResponseWriter, r *http.Request, u
 			Detail:  err.Error(),
 		})
 		return
-	case errors.Is(err, errInvalidProposalSecrets):
+	case errors.Is(err, errInvalidProposalInputValues):
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid MCP server proposal credentials.",
+			Message: "Invalid MCP server proposal values.",
 			Detail:  err.Error(),
 		})
 		return
@@ -397,9 +396,9 @@ func (p *ProposalsAPI) acceptProposal(rw http.ResponseWriter, r *http.Request, u
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-// readProposalSecretValues accepts an empty body for compatibility with
-// proposals that do not require user-supplied secrets.
-func readProposalSecretValues(rw http.ResponseWriter, r *http.Request) (codersdk.AcceptMCPServerProposalRequest, bool) {
+// readProposalInputValues accepts an empty body for proposals that do not
+// require user-supplied values.
+func readProposalInputValues(rw http.ResponseWriter, r *http.Request) (codersdk.AcceptMCPServerProposalRequest, bool) {
 	var values codersdk.AcceptMCPServerProposalRequest
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
@@ -422,56 +421,15 @@ func readProposalSecretValues(rw http.ResponseWriter, r *http.Request) (codersdk
 	return values, true
 }
 
-func resolveProposalSecrets(
+func resolveProposalInputs(
 	req chattool.MCPServerProposalRequest,
 	values codersdk.AcceptMCPServerProposalRequest,
 ) (chattool.MCPServerProposalRequest, error) {
-	resolve := func(field, placeholder, value string) (string, error) {
-		nonBlank := strings.TrimSpace(value) != ""
-		switch {
-		case placeholder != "" && !nonBlank:
-			return "", xerrors.Errorf("%w: %s is required", errInvalidProposalSecrets, field)
-		case placeholder == "" && nonBlank:
-			return "", xerrors.Errorf("%w: %s was not requested", errInvalidProposalSecrets, field)
-		default:
-			return value, nil
-		}
-	}
-
-	oauth2ClientSecret, err := resolve("oauth2_client_secret", req.OAuth2ClientSecretPlaceholder, values.OAuth2ClientSecret)
+	resolved, err := chattool.ResolveMCPServerProposalInputs(req, values.Values)
 	if err != nil {
-		return req, err
+		return req, xerrors.Errorf("%w: %v", errInvalidProposalInputValues, err)
 	}
-	if req.OAuth2ClientSecretPlaceholder != "" {
-		req.OAuth2ClientSecret = oauth2ClientSecret
-	}
-	apiKeyValue, err := resolve("api_key_value", req.APIKeyValuePlaceholder, values.APIKeyValue)
-	if err != nil {
-		return req, err
-	}
-	if req.APIKeyValuePlaceholder != "" {
-		req.APIKeyValue = apiKeyValue
-	}
-
-	for header := range values.CustomHeaders {
-		if _, ok := req.CustomHeaderPlaceholders[header]; !ok {
-			return req, xerrors.Errorf("%w: custom header %q was not requested", errInvalidProposalSecrets, header)
-		}
-	}
-	if len(req.CustomHeaderPlaceholders) > 0 && req.CustomHeaders == nil {
-		req.CustomHeaders = make(map[string]string, len(req.CustomHeaderPlaceholders))
-	}
-	for header, placeholder := range req.CustomHeaderPlaceholders {
-		value, ok := values.CustomHeaders[header]
-		if !ok || strings.TrimSpace(value) == "" {
-			return req, xerrors.Errorf("%w: custom header %q is required", errInvalidProposalSecrets, header)
-		}
-		if placeholder == "" {
-			return req, xerrors.Errorf("%w: custom header %q has an empty placeholder", errInvalidProposalSecrets, header)
-		}
-		req.CustomHeaders[header] = value
-	}
-	return req, nil
+	return resolved, nil
 }
 
 // RejectProposal handles POST
@@ -726,7 +684,11 @@ func (p *ProposalsAPI) createProposedMCPServerConfig(
 ) (database.MCPServerConfig, error) {
 	customHeadersJSON := "{}"
 	if len(req.CustomHeaders) > 0 {
-		encoded, err := json.Marshal(req.CustomHeaders)
+		customHeaders := make(map[string]string, len(req.CustomHeaders))
+		for header, field := range req.CustomHeaders {
+			customHeaders[header] = field.Value
+		}
+		encoded, err := json.Marshal(customHeaders)
 		if err != nil {
 			return database.MCPServerConfig{}, xerrors.Errorf("encode custom headers: %w", err)
 		}
@@ -747,8 +709,8 @@ func (p *ProposalsAPI) createProposedMCPServerConfig(
 		OAuth2AuthURL:           "",
 		OAuth2TokenURL:          "",
 		OAuth2Scopes:            "",
-		APIKeyHeader:            req.APIKeyHeader,
-		APIKeyValue:             req.APIKeyValue,
+		APIKeyHeader:            req.APIKeyHeader.Value,
+		APIKeyValue:             req.APIKeyValue.Value,
 		APIKeyValueKeyID:        sql.NullString{},
 		CustomHeaders:           customHeadersJSON,
 		CustomHeadersKeyID:      sql.NullString{},
@@ -763,18 +725,21 @@ func (p *ProposalsAPI) createProposedMCPServerConfig(
 		UpdatedBy:               ownerID,
 		OwnerID:                 uuid.NullUUID{UUID: ownerID, Valid: true},
 	}
+	if req.ReservedConfigID != uuid.Nil {
+		params.ID = uuid.NullUUID{UUID: req.ReservedConfigID, Valid: true}
+	}
 	if params.APIKeyHeader == "" {
 		params.APIKeyHeader = "Authorization"
 	}
 
 	discover := req.AuthType == "oauth2" &&
-		req.OAuth2ClientID == "" && req.OAuth2AuthURL == "" && req.OAuth2TokenURL == ""
+		req.OAuth2ClientID.Value == "" && req.OAuth2AuthURL.Value == "" && req.OAuth2TokenURL.Value == ""
 	if !discover {
-		params.OAuth2ClientID = req.OAuth2ClientID
-		params.OAuth2ClientSecret = req.OAuth2ClientSecret
-		params.OAuth2AuthURL = req.OAuth2AuthURL
-		params.OAuth2TokenURL = req.OAuth2TokenURL
-		params.OAuth2Scopes = req.OAuth2Scopes
+		params.OAuth2ClientID = req.OAuth2ClientID.Value
+		params.OAuth2ClientSecret = req.OAuth2ClientSecret.Value
+		params.OAuth2AuthURL = req.OAuth2AuthURL.Value
+		params.OAuth2TokenURL = req.OAuth2TokenURL.Value
+		params.OAuth2Scopes = req.OAuth2Scopes.Value
 		return tx.InsertMCPServerConfig(ctx, params)
 	}
 
@@ -786,13 +751,12 @@ func (p *ProposalsAPI) createProposedMCPServerConfig(
 	if err != nil {
 		return database.MCPServerConfig{}, err
 	}
-	callbackURL := fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/callback",
-		p.accessURLString(), inserted.ID)
+	callbackURL := codersdk.MCPServerOAuth2CallbackURL(p.accessURLString(), inserted.ID)
 	result, err := discoverAndRegisterMCPOAuth2(ctx, p.httpClient, req.URL, callbackURL)
 	if err != nil {
 		return database.MCPServerConfig{}, xerrors.Errorf("oauth2 auto-discovery: %w", err)
 	}
-	oauth2Scopes := req.OAuth2Scopes
+	oauth2Scopes := req.OAuth2Scopes.Value
 	if oauth2Scopes == "" {
 		oauth2Scopes = result.scopes
 	}
@@ -937,9 +901,11 @@ func proposalDisplayName(proposal database.MCPServerProposal) string {
 }
 
 // convertMCPServerProposal converts the proposal row to the SDK view.
-// Secrets are never returned; only which auth material was provided.
-func convertMCPServerProposal(proposal database.MCPServerProposal, req chattool.MCPServerProposalRequest) codersdk.MCPServerProposal {
-	return codersdk.MCPServerProposal{
+// Concrete auth values are never returned; only which auth material was
+// provided. For manual OAuth2 proposals, OAuth2RedirectURI is populated
+// from the reserved config id so the review page can show it before accept.
+func convertMCPServerProposal(proposal database.MCPServerProposal, req chattool.MCPServerProposalRequest, accessURL string) codersdk.MCPServerProposal {
+	resp := codersdk.MCPServerProposal{
 		ID:        proposal.ID,
 		ChatID:    proposal.ChatID,
 		Status:    codersdk.MCPServerProposalStatus(proposal.Status),
@@ -957,17 +923,37 @@ func convertMCPServerProposal(proposal database.MCPServerProposal, req chattool.
 		ToolAllowList: req.ToolAllowList,
 		ToolDenyList:  req.ToolDenyList,
 
-		HasOAuth2ClientCredentials: req.OAuth2ClientID != "",
-		HasAPIKey:                  req.APIKeyValue != "",
+		HasOAuth2ClientCredentials: req.OAuth2ClientID.Value != "",
+		HasAPIKey:                  req.APIKeyValue.Value != "",
 		HasCustomHeaders:           len(req.CustomHeaders) > 0,
-		SecretPlaceholders: codersdk.MCPServerProposalSecretPlaceholders{
-			OAuth2ClientSecret: req.OAuth2ClientSecretPlaceholder,
-			APIKeyValue:        req.APIKeyValuePlaceholder,
-			CustomHeaders:      req.CustomHeaderPlaceholders,
-		},
+		RequiredInputs:             convertMCPServerProposalInputs(req),
 
 		CreateDisabled: req.Disabled,
 	}
+	configID := req.ReservedConfigID
+	if proposal.MCPServerConfigID.Valid {
+		configID = proposal.MCPServerConfigID.UUID
+	}
+	// ReservedConfigID is set only for manual OAuth2 proposals, so its
+	// presence is enough to expose the redirect URI on the review page.
+	if req.ReservedConfigID != uuid.Nil && configID != uuid.Nil && accessURL != "" {
+		resp.OAuth2RedirectURI = codersdk.MCPServerOAuth2CallbackURL(accessURL, configID)
+	}
+	return resp
+}
+
+func convertMCPServerProposalInputs(req chattool.MCPServerProposalRequest) []codersdk.MCPServerProposalInput {
+	inputs := chattool.RequiredMCPServerProposalInputs(req)
+	converted := make([]codersdk.MCPServerProposalInput, 0, len(inputs))
+	for _, input := range inputs {
+		converted = append(converted, codersdk.MCPServerProposalInput{
+			Field:       input.Field,
+			Label:       input.Label,
+			Placeholder: input.Placeholder,
+			Sensitive:   input.Sensitive,
+		})
+	}
+	return converted
 }
 
 // coalesceStringSlice returns ss if non-nil, otherwise an empty

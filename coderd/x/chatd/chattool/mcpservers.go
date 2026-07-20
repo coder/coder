@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -41,32 +43,106 @@ type MCPServerProposalRequest struct {
 	Transport    string `json:"transport"`
 	AuthType     string `json:"auth_type"`
 
-	OAuth2ClientID     string `json:"oauth2_client_id,omitempty"`
-	OAuth2ClientSecret string `json:"oauth2_client_secret,omitempty"`
-	// OAuth2ClientSecretPlaceholder is a short form-field placeholder for a
-	// secret the requester must supply on the proposal review page.
-	OAuth2ClientSecretPlaceholder string `json:"oauth2_client_secret_placeholder,omitempty"`
-	OAuth2AuthURL                 string `json:"oauth2_auth_url,omitempty"`
-	OAuth2TokenURL                string `json:"oauth2_token_url,omitempty"`
-	OAuth2Scopes                  string `json:"oauth2_scopes,omitempty"`
+	OAuth2ClientID     MCPServerProposalField `json:"oauth2_client_id,omitzero"`
+	OAuth2ClientSecret MCPServerProposalField `json:"oauth2_client_secret,omitzero"`
+	OAuth2AuthURL      MCPServerProposalField `json:"oauth2_auth_url,omitzero"`
+	OAuth2TokenURL     MCPServerProposalField `json:"oauth2_token_url,omitzero"`
+	OAuth2Scopes       MCPServerProposalField `json:"oauth2_scopes,omitzero"`
 
-	APIKeyHeader             string            `json:"api_key_header,omitempty"`
-	APIKeyValue              string            `json:"api_key_value,omitempty"`
-	APIKeyValuePlaceholder   string            `json:"api_key_value_placeholder,omitempty"`
-	CustomHeaders            map[string]string `json:"custom_headers,omitempty"`
-	CustomHeaderPlaceholders map[string]string `json:"custom_header_placeholders,omitempty"`
+	APIKeyHeader  MCPServerProposalField            `json:"api_key_header,omitzero"`
+	APIKeyValue   MCPServerProposalField            `json:"api_key_value,omitzero"`
+	CustomHeaders map[string]MCPServerProposalField `json:"custom_headers,omitempty"`
 
 	ToolAllowList []string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  []string `json:"tool_deny_list,omitempty"`
 
 	Disabled bool `json:"disabled,omitempty"`
+
+	// ReservedConfigID is the MCP server config id that will be used when
+	// this proposal is accepted. Set server-side for manual OAuth2 proposals
+	// so the review page can show a stable OAuth2 redirect URI before accept.
+	// Agents must not supply this field.
+	ReservedConfigID uuid.UUID `json:"reserved_config_id,omitzero"`
 }
 
-// MCPServerProposalSecret is a secret-valued propose_mcp_server argument.
-// Exactly one of Value or Placeholder must be set when the argument is used.
-type MCPServerProposalSecret struct {
-	Value       string `json:"value,omitempty" description:"Concrete secret value, only when it is already available to the agent"`
-	Placeholder string `json:"placeholder,omitempty" description:"Short form-field placeholder showing the expected credential format. Shown inside the review-page input, so keep it brief (e.g. \"Bearer gh_xxx\"). Do not put setup instructions here; put those in instructions."`
+// MCPServerProposalField is an auth-valued propose_mcp_server argument.
+// Exactly one of Value or UserInput must be set when the argument is used.
+type MCPServerProposalField struct {
+	Value     string                      `json:"value,omitempty" description:"Concrete value, only when it is already available to the agent"`
+	UserInput *MCPServerProposalUserInput `json:"user_input,omitempty" description:"Request this value from the user on the proposal review page"`
+
+	present      bool
+	valueSet     bool
+	userInputSet bool
+}
+
+// UnmarshalJSON records which wrapper properties were explicitly supplied so
+// validation can distinguish an omitted field from an empty wrapper.
+func (f *MCPServerProposalField) UnmarshalJSON(data []byte) error {
+	type fieldJSON struct {
+		Value     string                      `json:"value"`
+		UserInput *MCPServerProposalUserInput `json:"user_input"`
+	}
+	var decoded fieldJSON
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	var properties map[string]json.RawMessage
+	if err := json.Unmarshal(data, &properties); err != nil {
+		return err
+	}
+	*f = MCPServerProposalField{
+		Value:        decoded.Value,
+		UserInput:    decoded.UserInput,
+		present:      true,
+		valueSet:     properties["value"] != nil,
+		userInputSet: properties["user_input"] != nil,
+	}
+	return nil
+}
+
+// IsZero reports whether the field has neither a concrete value nor a user
+// input declaration.
+func (f MCPServerProposalField) IsZero() bool {
+	return f.Value == "" && f.UserInput == nil
+}
+
+// MCPServerProposalUserInput describes a value the requester must enter on
+// the proposal review page.
+type MCPServerProposalUserInput struct {
+	Placeholder string `json:"placeholder" description:"Short form-field placeholder showing the expected format. Keep it brief and put setup instructions in instructions."`
+	Sensitive   bool   `json:"sensitive" description:"Whether the review page must mask this value. Set true for secrets and false for public values."`
+
+	sensitiveSet bool
+}
+
+// UnmarshalJSON records whether sensitivity was explicitly declared. False is
+// a meaningful declaration and cannot be inferred from the zero value.
+func (i *MCPServerProposalUserInput) UnmarshalJSON(data []byte) error {
+	type userInputJSON struct {
+		Placeholder string `json:"placeholder"`
+		Sensitive   *bool  `json:"sensitive"`
+	}
+	var decoded userInputJSON
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*i = MCPServerProposalUserInput{Placeholder: decoded.Placeholder}
+	if decoded.Sensitive != nil {
+		i.Sensitive = *decoded.Sensitive
+		i.sensitiveSet = true
+	}
+	return nil
+}
+
+// MCPServerProposalRequiredInput is a user input declared by a proposal.
+// Field is an opaque identifier that must be returned with the value when the
+// proposal is accepted.
+type MCPServerProposalRequiredInput struct {
+	Field       string
+	Label       string
+	Placeholder string
+	Sensitive   bool
 }
 
 // MCPServerToolsOptions configures the MCP server management tools for
@@ -337,20 +413,20 @@ type proposeMCPServerArgs struct {
 	Slug         string `json:"slug" description:"URL-safe identifier, e.g. linear or github"`
 	URL          string `json:"url" description:"The MCP server endpoint URL"`
 	Description  string `json:"description,omitempty" description:"Optional short description"`
-	Instructions string `json:"instructions,omitempty" description:"Concise step-by-step Markdown guide shown on the proposal review page; required when any credential uses a placeholder. Be exhaustive about what to do, but brief: no filler. Prefer direct clickable links over steps for navigating a web UI."`
+	Instructions string `json:"instructions,omitempty" description:"Concise step-by-step Markdown guide shown on the proposal review page; required when any auth field uses user_input. Be exhaustive about what to do, but brief: no filler. Prefer direct clickable links over steps for navigating a web UI. Do not assume the user knows how the external service works or is configured: never give vague directives like \"ensure the Foo API is enabled\"; instead name the exact page and action, e.g. \"Ensure the Foo API is enabled: visit [this page](https://...) and confirm Foo is turned on.\" For manual OAuth2 (not dynamic client registration), the review page shows the OAuth2 redirect URI; tell the user to copy it from there when registering the OAuth application."`
 	IconURL      string `json:"icon_url,omitempty" description:"Optional icon URL"`
 	Transport    string `json:"transport,omitempty" description:"streamable_http (default) or sse"`
 	AuthType     string `json:"auth_type,omitempty" description:"none (default), oauth2, api_key, or custom_headers"`
 
-	OAuth2ClientID     string                  `json:"oauth2_client_id,omitempty" description:"Optional; omit for automatic discovery + Dynamic Client Registration"`
-	OAuth2ClientSecret MCPServerProposalSecret `json:"oauth2_client_secret,omitempty" description:"Optional secret object containing exactly one of value or placeholder; only valid with complete manual OAuth2 metadata"`
-	OAuth2AuthURL      string                  `json:"oauth2_auth_url,omitempty" description:"Optional; omit for automatic discovery"`
-	OAuth2TokenURL     string                  `json:"oauth2_token_url,omitempty" description:"Optional; omit for automatic discovery"`
-	OAuth2Scopes       string                  `json:"oauth2_scopes,omitempty" description:"Optional space-separated OAuth2 scopes"`
+	OAuth2ClientID     MCPServerProposalField `json:"oauth2_client_id,omitempty" description:"Optional value or user_input wrapper; omit for automatic discovery + Dynamic Client Registration"`
+	OAuth2ClientSecret MCPServerProposalField `json:"oauth2_client_secret,omitempty" description:"Optional value or user_input wrapper; only valid with complete manual OAuth2 metadata"`
+	OAuth2AuthURL      MCPServerProposalField `json:"oauth2_auth_url,omitempty" description:"Optional value or user_input wrapper; omit for automatic discovery"`
+	OAuth2TokenURL     MCPServerProposalField `json:"oauth2_token_url,omitempty" description:"Optional value or user_input wrapper; omit for automatic discovery"`
+	OAuth2Scopes       MCPServerProposalField `json:"oauth2_scopes,omitempty" description:"Optional value or user_input wrapper containing space-separated OAuth2 scopes"`
 
-	APIKeyHeader  string                             `json:"api_key_header,omitempty" description:"Header name for api_key auth, e.g. Authorization"`
-	APIKeyValue   MCPServerProposalSecret            `json:"api_key_value,omitempty" description:"Secret object containing exactly one of value or placeholder"`
-	CustomHeaders map[string]MCPServerProposalSecret `json:"custom_headers,omitempty" description:"Header names mapped to secret objects containing exactly one of value or placeholder"`
+	APIKeyHeader  MCPServerProposalField            `json:"api_key_header,omitempty" description:"Value or user_input wrapper for the API key header name, e.g. Authorization"`
+	APIKeyValue   MCPServerProposalField            `json:"api_key_value,omitempty" description:"Value or user_input wrapper for the API key value"`
+	CustomHeaders map[string]MCPServerProposalField `json:"custom_headers,omitempty" description:"Header names mapped to value or user_input wrappers"`
 
 	ToolAllowList []string `json:"tool_allow_list,omitempty" description:"Optional allow list of tool names"`
 	ToolDenyList  []string `json:"tool_deny_list,omitempty" description:"Optional deny list of tool names"`
@@ -363,13 +439,15 @@ func proposeMCPServer(opts MCPServerToolsOptions) fantasy.AgentTool {
 		"propose_mcp_server",
 		`Propose a new MCP server for the user requesting it. This tool posts a confirmation card to the Slack thread and returns immediately; NOTHING is created until the requesting user reviews and accepts the proposal on a Coder page. Include a concise description for the Slack card and review page. Include any setup instructions in this tool call so they appear on the review page. The Slack card does NOT show setup instructions; instructions are shown only on the review page.
 
+Be proactive: if the user expressed interest in an external service and you do not already have an MCP server for it, call this tool immediately. Do not ask whether they would like you to propose a server, whether they want help setting it up, or for permission to proceed. Just propose it; they can reject the card if they do not want it.
+
 Accepting creates the server, enables it for this chat, and takes the user straight into authentication when needed. A follow-up [system] message reports the outcome, so end your turn and wait for it instead of assuming the result.
 
 The server is created PERSONAL-SCOPED: it will only be available to the requesting user, not the whole deployment.
 
-For oauth2 servers a server URL alone is usually enough (automatic discovery + Dynamic Client Registration). This tool validates automatic discovery before posting the proposal. If validation fails, use complete manual OAuth2 metadata. When manual OAuth2 metadata is required, use a placeholder for the client secret. For api_key and custom_headers authentication, use placeholders whenever the user must provide credentials. Never ask the user to paste credentials into Slack.
+For oauth2 servers a server URL alone is usually enough (automatic discovery + Dynamic Client Registration). This tool validates automatic discovery before posting the proposal. If validation fails, use complete manual OAuth2 metadata. Every auth field uses exactly one of {"value":"known value"} or {"user_input":{"placeholder":"Expected format","sensitive":true|false}}. Use user_input whenever the user must provide a value. Set sensitive true for secrets and false for public values such as client IDs. Never ask the user to paste credentials into Slack.
 
-Credential placeholders are shown inside the review-page input fields, so keep them short and format-focused (good: "Bearer gh_xxx"; bad: "Enter your api key that you generated in GitHub settings. The required format is 'gh_xxx'."). Whenever a credential uses a placeholder, instructions must contain a concise step-by-step Markdown guide that is still exhaustive about how to obtain it. Prefer a direct clickable link when one exists; do not narrate how to click through a web UI. Never send those instructions as a separate Slack message; keep the proposal as the single source of truth.`,
+User-input placeholders are shown inside the review-page input fields, so keep them short and format-focused (good: "Bearer gh_xxx"; bad: "Enter your api key that you generated in GitHub settings. The required format is 'gh_xxx'."). Whenever a field uses user_input, instructions must contain a concise step-by-step Markdown guide that is still exhaustive about how to obtain each value and how to configure credentials. Do not assume the user is familiar with how the external service works or is configured: never write vague directives like "ensure the Foo API is enabled"; instead name the exact page and action, e.g. "Ensure the Foo API is enabled: visit [this page](https://...) and confirm Foo is turned on." For manual OAuth2 (when not using dynamic client registration), the review page shows the OAuth2 redirect URI; tell the user to copy it from the review page when registering the OAuth application. Prefer a direct clickable link when one exists; do not narrate how to click through a web UI. Never send those instructions as a separate Slack message; keep the proposal as the single source of truth.`,
 		func(ctx context.Context, args proposeMCPServerArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if opts.SharedMode {
 				msg := "this chat is in shared mode because the Slack user is not linked to a Coder account. Ask them to connect their Coder account to Slack, then ping you again so you can propose the MCP server on their behalf."
@@ -384,7 +462,13 @@ Credential placeholders are shown inside the review-page input fields, so keep t
 			if errMsg != "" {
 				return toolResponse(map[string]any{"error": errMsg}), nil
 			}
-			if req.AuthType == "oauth2" && req.OAuth2ClientID == "" {
+			// Manual OAuth2 needs a stable config id before accept so the
+			// review page can show the redirect URI users register with the
+			// provider.
+			if req.AuthType == "oauth2" && req.OAuth2ClientID.configured() {
+				req.ReservedConfigID = uuid.New()
+			}
+			if req.AuthType == "oauth2" && !req.OAuth2ClientID.configured() {
 				const manualOAuth2Guidance = " Call propose_mcp_server again with oauth2_client_id, oauth2_auth_url, and oauth2_token_url for a manual OAuth2 configuration."
 				if opts.ValidateOAuth2Discovery == nil {
 					return toolResponse(map[string]any{
@@ -459,34 +543,6 @@ Credential placeholders are shown inside the review-page input fields, so keep t
 // into the persisted request. It returns a non-empty error message on
 // invalid input.
 func buildMCPProposalRequest(args proposeMCPServerArgs) (MCPServerProposalRequest, string) {
-	oauth2ClientSecret, oauth2ClientSecretPlaceholder, errMsg := normalizeMCPProposalSecret("oauth2_client_secret", args.OAuth2ClientSecret, true)
-	if errMsg != "" {
-		return MCPServerProposalRequest{}, errMsg
-	}
-	apiKeyValue, apiKeyValuePlaceholder, errMsg := normalizeMCPProposalSecret("api_key_value", args.APIKeyValue, true)
-	if errMsg != "" {
-		return MCPServerProposalRequest{}, errMsg
-	}
-	customHeaders := make(map[string]string)
-	customHeaderPlaceholders := make(map[string]string)
-	for header, secret := range args.CustomHeaders {
-		value, placeholder, secretErr := normalizeMCPProposalSecret("custom_headers."+header, secret, false)
-		if secretErr != "" {
-			return MCPServerProposalRequest{}, secretErr
-		}
-		if value != "" {
-			customHeaders[header] = value
-		} else {
-			customHeaderPlaceholders[header] = placeholder
-		}
-	}
-	if len(customHeaders) == 0 {
-		customHeaders = nil
-	}
-	if len(customHeaderPlaceholders) == 0 {
-		customHeaderPlaceholders = nil
-	}
-
 	req := MCPServerProposalRequest{
 		DisplayName:  strings.TrimSpace(args.DisplayName),
 		Slug:         strings.TrimSpace(args.Slug),
@@ -497,90 +553,230 @@ func buildMCPProposalRequest(args proposeMCPServerArgs) (MCPServerProposalReques
 		Transport:    strings.TrimSpace(args.Transport),
 		AuthType:     strings.TrimSpace(args.AuthType),
 
-		OAuth2ClientID:                strings.TrimSpace(args.OAuth2ClientID),
-		OAuth2ClientSecret:            oauth2ClientSecret,
-		OAuth2ClientSecretPlaceholder: oauth2ClientSecretPlaceholder,
-		OAuth2AuthURL:                 strings.TrimSpace(args.OAuth2AuthURL),
-		OAuth2TokenURL:                strings.TrimSpace(args.OAuth2TokenURL),
-		OAuth2Scopes:                  strings.TrimSpace(args.OAuth2Scopes),
+		OAuth2ClientID:     args.OAuth2ClientID,
+		OAuth2ClientSecret: args.OAuth2ClientSecret,
+		OAuth2AuthURL:      args.OAuth2AuthURL,
+		OAuth2TokenURL:     args.OAuth2TokenURL,
+		OAuth2Scopes:       args.OAuth2Scopes,
 
-		APIKeyHeader:             strings.TrimSpace(args.APIKeyHeader),
-		APIKeyValue:              apiKeyValue,
-		APIKeyValuePlaceholder:   apiKeyValuePlaceholder,
-		CustomHeaders:            customHeaders,
-		CustomHeaderPlaceholders: customHeaderPlaceholders,
+		APIKeyHeader:  args.APIKeyHeader,
+		APIKeyValue:   args.APIKeyValue,
+		CustomHeaders: args.CustomHeaders,
 
 		ToolAllowList: trimStringSlice(args.ToolAllowList),
 		ToolDenyList:  trimStringSlice(args.ToolDenyList),
 
 		Disabled: args.Disabled,
 	}
-	if req.DisplayName == "" {
-		return req, "display_name is required"
-	}
-	if req.Slug == "" {
-		return req, "slug is required"
-	}
-	if req.URL == "" {
-		return req, "url is required"
-	}
 	if req.Transport == "" {
 		req.Transport = "streamable_http"
-	}
-	switch req.Transport {
-	case "streamable_http", "sse":
-	default:
-		return req, fmt.Sprintf("invalid transport %q: must be streamable_http or sse", req.Transport)
 	}
 	if req.AuthType == "" {
 		req.AuthType = "none"
 	}
-	switch req.AuthType {
-	case "none", "oauth2":
-	case "api_key":
-		if req.APIKeyHeader == "" || (req.APIKeyValue == "" && req.APIKeyValuePlaceholder == "") {
-			return req, "api_key auth requires api_key_header and api_key_value with either value or placeholder"
+	for _, field := range mcpProposalAuthFields(&req) {
+		if !field.value.present && !field.isCustomHeader {
+			continue
 		}
-	case "custom_headers":
-		if len(req.CustomHeaders)+len(req.CustomHeaderPlaceholders) == 0 {
-			return req, "custom_headers auth requires at least one custom header"
+		normalized, errMsg := normalizeMCPProposalField(
+			field.fieldID,
+			*field.value,
+			field.normalizeValue,
+		)
+		if errMsg != "" {
+			return MCPServerProposalRequest{}, errMsg
 		}
-	default:
-		return req, fmt.Sprintf("invalid auth_type %q: must be none, oauth2, api_key, or custom_headers", req.AuthType)
+		field.set(&req, normalized)
 	}
-	if req.AuthType == "oauth2" {
-		provided := req.OAuth2ClientID != "" || req.OAuth2AuthURL != "" || req.OAuth2TokenURL != ""
-		complete := req.OAuth2ClientID != "" && req.OAuth2AuthURL != "" && req.OAuth2TokenURL != ""
-		if provided && !complete {
-			return req, "oauth2 requires either all of oauth2_client_id, oauth2_auth_url, and oauth2_token_url, or none of them (automatic discovery)"
-		}
-		if !provided && (req.OAuth2ClientSecret != "" || req.OAuth2ClientSecretPlaceholder != "") {
-			return req, "oauth2_client_secret is only valid with complete manual OAuth2 metadata"
-		}
+	if len(req.CustomHeaders) == 0 {
+		req.CustomHeaders = nil
 	}
-	credentialsRequired := req.OAuth2ClientSecretPlaceholder != "" ||
-		req.APIKeyValuePlaceholder != "" || len(req.CustomHeaderPlaceholders) > 0
-	if credentialsRequired && req.Instructions == "" {
-		return req, "instructions is required when the user must provide credentials"
+	if errMsg := validateMCPProposalRequest(req); errMsg != "" {
+		return req, errMsg
 	}
 	return req, ""
 }
 
-func normalizeMCPProposalSecret(name string, secret MCPServerProposalSecret, optional bool) (normalizedValue, normalizedPlaceholder, errMsg string) {
-	value := strings.TrimSpace(secret.Value)
-	placeholder := strings.TrimSpace(secret.Placeholder)
-	switch {
-	case value != "" && placeholder != "":
-		return "", "", name + " must contain exactly one of value or placeholder"
-	case value != "":
-		return secret.Value, "", ""
-	case placeholder != "":
-		return "", placeholder, ""
-	case optional:
-		return "", "", ""
-	default:
-		return "", "", name + " must contain exactly one of value or placeholder"
+func validateMCPProposalRequest(req MCPServerProposalRequest) string {
+	if req.DisplayName == "" {
+		return "display_name is required"
 	}
+	if req.Slug == "" {
+		return "slug is required"
+	}
+	if req.URL == "" {
+		return "url is required"
+	}
+	switch req.Transport {
+	case "streamable_http", "sse":
+	default:
+		return fmt.Sprintf("invalid transport %q: must be streamable_http or sse", req.Transport)
+	}
+	switch req.AuthType {
+	case "none", "oauth2":
+	case "api_key":
+		if !req.APIKeyHeader.configured() || !req.APIKeyValue.configured() {
+			return "api_key auth requires api_key_header and api_key_value with either value or user_input"
+		}
+	case "custom_headers":
+		if len(req.CustomHeaders) == 0 {
+			return "custom_headers auth requires at least one custom header"
+		}
+	default:
+		return fmt.Sprintf("invalid auth_type %q: must be none, oauth2, api_key, or custom_headers", req.AuthType)
+	}
+	if req.AuthType == "oauth2" {
+		provided := req.OAuth2ClientID.configured() || req.OAuth2AuthURL.configured() || req.OAuth2TokenURL.configured()
+		complete := req.OAuth2ClientID.configured() && req.OAuth2AuthURL.configured() && req.OAuth2TokenURL.configured()
+		if provided && !complete {
+			return "oauth2 requires either all of oauth2_client_id, oauth2_auth_url, and oauth2_token_url, or none of them (automatic discovery)"
+		}
+		if !provided && req.OAuth2ClientSecret.configured() {
+			return "oauth2_client_secret is only valid with complete manual OAuth2 metadata"
+		}
+	}
+	if len(RequiredMCPServerProposalInputs(req)) > 0 && req.Instructions == "" {
+		return "instructions is required when the user must provide values"
+	}
+	return ""
+}
+
+func (f MCPServerProposalField) configured() bool {
+	return strings.TrimSpace(f.Value) != "" || f.UserInput != nil
+}
+
+func normalizeMCPProposalField(name string, field MCPServerProposalField, normalizeValue func(string) string) (MCPServerProposalField, string) {
+	if !field.present {
+		return MCPServerProposalField{}, name + " must contain exactly one of value or user_input"
+	}
+	if field.valueSet == field.userInputSet {
+		return MCPServerProposalField{}, name + " must contain exactly one of value or user_input"
+	}
+
+	value := strings.TrimSpace(field.Value)
+	if field.valueSet {
+		if value == "" {
+			return MCPServerProposalField{}, name + ".value is required"
+		}
+		if normalizeValue != nil {
+			field.Value = normalizeValue(field.Value)
+		}
+		field.UserInput = nil
+		field.present = true
+		field.valueSet = true
+		field.userInputSet = false
+		return field, ""
+	}
+	if field.UserInput == nil {
+		return MCPServerProposalField{}, name + ".user_input is required"
+	}
+	placeholder := strings.TrimSpace(field.UserInput.Placeholder)
+	if placeholder == "" {
+		return MCPServerProposalField{}, name + ".user_input.placeholder is required"
+	}
+	if !field.UserInput.sensitiveSet {
+		return MCPServerProposalField{}, name + ".user_input.sensitive is required"
+	}
+	return MCPServerProposalField{
+		UserInput: &MCPServerProposalUserInput{
+			Placeholder:  placeholder,
+			Sensitive:    field.UserInput.Sensitive,
+			sensitiveSet: true,
+		},
+		present:      true,
+		userInputSet: true,
+	}, ""
+}
+
+type mcpProposalAuthField struct {
+	fieldID        string
+	label          string
+	value          *MCPServerProposalField
+	normalizeValue func(string) string
+	customHeader   string
+	isCustomHeader bool
+}
+
+func (f mcpProposalAuthField) set(req *MCPServerProposalRequest, value MCPServerProposalField) {
+	if f.isCustomHeader {
+		req.CustomHeaders[f.customHeader] = value
+		return
+	}
+	*f.value = value
+}
+
+func mcpProposalAuthFields(req *MCPServerProposalRequest) []mcpProposalAuthField {
+	fields := []mcpProposalAuthField{
+		{fieldID: "oauth2_client_id", label: "OAuth2 client ID", value: &req.OAuth2ClientID, normalizeValue: strings.TrimSpace},
+		{fieldID: "oauth2_client_secret", label: "OAuth2 client secret", value: &req.OAuth2ClientSecret},
+		{fieldID: "oauth2_auth_url", label: "OAuth2 authorization URL", value: &req.OAuth2AuthURL, normalizeValue: strings.TrimSpace},
+		{fieldID: "oauth2_token_url", label: "OAuth2 token URL", value: &req.OAuth2TokenURL, normalizeValue: strings.TrimSpace},
+		{fieldID: "oauth2_scopes", label: "OAuth2 scopes", value: &req.OAuth2Scopes, normalizeValue: strings.TrimSpace},
+		{fieldID: "api_key_header", label: "API key header", value: &req.APIKeyHeader, normalizeValue: strings.TrimSpace},
+		{fieldID: "api_key_value", label: "API key", value: &req.APIKeyValue},
+	}
+	for _, header := range slices.Sorted(maps.Keys(req.CustomHeaders)) {
+		value := req.CustomHeaders[header]
+		fields = append(fields, mcpProposalAuthField{
+			fieldID:        "custom_headers." + header,
+			label:          header,
+			value:          &value,
+			customHeader:   header,
+			isCustomHeader: true,
+		})
+	}
+	return fields
+}
+
+// RequiredMCPServerProposalInputs returns the user inputs declared by req in a
+// deterministic order.
+func RequiredMCPServerProposalInputs(req MCPServerProposalRequest) []MCPServerProposalRequiredInput {
+	var inputs []MCPServerProposalRequiredInput
+	for _, field := range mcpProposalAuthFields(&req) {
+		if field.value.UserInput == nil {
+			continue
+		}
+		inputs = append(inputs, MCPServerProposalRequiredInput{
+			Field:       field.fieldID,
+			Label:       field.label,
+			Placeholder: field.value.UserInput.Placeholder,
+			Sensitive:   field.value.UserInput.Sensitive,
+		})
+	}
+	return inputs
+}
+
+// ResolveMCPServerProposalInputs applies the values supplied during proposal
+// acceptance. Values are resolved in memory and are never written back to the
+// proposal row.
+func ResolveMCPServerProposalInputs(req MCPServerProposalRequest, values map[string]string) (MCPServerProposalRequest, error) {
+	fields := mcpProposalAuthFields(&req)
+	requested := make(map[string]mcpProposalAuthField)
+	for _, field := range fields {
+		if field.value.UserInput != nil {
+			requested[field.fieldID] = field
+		}
+	}
+	for fieldID := range values {
+		if _, ok := requested[fieldID]; !ok {
+			return req, xerrors.Errorf("%s was not requested", fieldID)
+		}
+	}
+	for _, field := range fields {
+		if field.value.UserInput == nil {
+			continue
+		}
+		value, ok := values[field.fieldID]
+		if !ok || strings.TrimSpace(value) == "" {
+			return req, xerrors.Errorf("%s is required", field.fieldID)
+		}
+		if field.normalizeValue != nil {
+			value = field.normalizeValue(value)
+		}
+		resolved := MCPServerProposalField{Value: value}
+		field.set(&req, resolved)
+	}
+	return req, nil
 }
 
 // postMCPProposalCard posts the pending confirmation card to the Slack

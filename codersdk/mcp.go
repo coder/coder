@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,6 +16,13 @@ import (
 // in a new window/popup.
 func (c *Client) MCPServerOAuth2ConnectURL(id uuid.UUID) string {
 	return fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/connect", c.URL.String(), id)
+}
+
+// MCPServerOAuth2CallbackURL returns the OAuth2 redirect URI Coder uses
+// for an MCP server config. Callers register this URI with the external
+// OAuth2 provider when configuring a static (non-DCR) client.
+func MCPServerOAuth2CallbackURL(accessURL string, configID uuid.UUID) string {
+	return strings.TrimRight(accessURL, "/") + "/api/experimental/mcp/servers/" + configID.String() + "/oauth2/callback"
 }
 
 // MCPServerOAuth2Disconnect removes the user's OAuth2 token for an

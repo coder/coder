@@ -28,7 +28,9 @@ const MockProposal: MCPServerProposal = {
 	has_oauth2_client_credentials: true,
 	has_api_key: false,
 	has_custom_headers: false,
-	secret_placeholders: {},
+	required_inputs: [],
+	oauth2_redirect_uri:
+		"https://dev.coder.com/api/experimental/mcp/servers/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/oauth2/callback",
 	authenticated: false,
 };
 
@@ -81,6 +83,14 @@ export const Pending: Story = {
 		await expect(canvas.getByText("delete_issue")).toBeVisible();
 		await expect(canvas.getByText("OAuth2 client credentials")).toBeVisible();
 		await expect(
+			canvas.getByRole("region", { name: "OAuth2 redirect URI" }),
+		).toBeVisible();
+		await expect(
+			canvas.getByText(
+				"https://dev.coder.com/api/experimental/mcp/servers/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/oauth2/callback",
+			),
+		).toBeVisible();
+		await expect(
 			canvas.getByRole("link", { name: "Linear API settings" }),
 		).toHaveAttribute("href", "https://linear.app/settings/api");
 		await expect(
@@ -108,9 +118,15 @@ export const GitHubAPIKeyReview: Story = {
 			tool_deny_list: undefined,
 			has_oauth2_client_credentials: false,
 			has_api_key: false,
-			secret_placeholders: {
-				api_key_value: "Bearer <your-github-personal-access-token>",
-			},
+			oauth2_redirect_uri: undefined,
+			required_inputs: [
+				{
+					field: "api_key_value",
+					label: "API key",
+					placeholder: "Bearer <your-github-personal-access-token>",
+					sensitive: true,
+				},
+			],
 		});
 	},
 };
@@ -129,7 +145,7 @@ export const AcceptRedirectsToConnectUrl: Story = {
 		await waitFor(() => {
 			expect(API.acceptMCPServerProposal).toHaveBeenCalledWith(
 				MockProposal.id,
-				{},
+				{ values: {} },
 			);
 		});
 		await waitFor(() => {
@@ -145,9 +161,15 @@ export const APIKeyPlaceholder: Story = {
 			...MockProposal,
 			auth_type: "api_key",
 			has_oauth2_client_credentials: false,
-			secret_placeholders: {
-				api_key_value: "Paste your Linear API key",
-			},
+			oauth2_redirect_uri: undefined,
+			required_inputs: [
+				{
+					field: "api_key_value",
+					label: "API key",
+					placeholder: "Paste your Linear API key",
+					sensitive: true,
+				},
+			],
 		});
 		spyOn(API, "acceptMCPServerProposal").mockResolvedValue({
 			mcp_server_config_id: MockAcceptResponse.mcp_server_config_id,
@@ -160,9 +182,12 @@ export const APIKeyPlaceholder: Story = {
 			name: "Accept & create server",
 		});
 		await expect(acceptButton).toBeDisabled();
+		await expect(
+			canvas.queryByRole("region", { name: "OAuth2 redirect URI" }),
+		).not.toBeInTheDocument();
 		const apiKey = canvas.getByPlaceholderText("Paste your Linear API key");
-		const credentials = canvas.getByRole("region", {
-			name: "Required credentials",
+		const configuration = canvas.getByRole("region", {
+			name: "Required configuration",
 		});
 		await expect(
 			canvas.queryByRole("region", { name: "Instructions" }),
@@ -179,7 +204,7 @@ export const APIKeyPlaceholder: Story = {
 		await expect(
 			canvas.getByRole("button", { name: "Setup instructions" }),
 		).toHaveAttribute("data-state", "open");
-		await expect(credentials).toContainElement(instructions);
+		await expect(configuration).toContainElement(instructions);
 		await expect(
 			within(instructions).getByRole("link", { name: "Linear API settings" }),
 		).toBeVisible();
@@ -193,7 +218,7 @@ export const APIKeyPlaceholder: Story = {
 		await waitFor(() => {
 			expect(API.acceptMCPServerProposal).toHaveBeenCalledWith(
 				MockProposal.id,
-				{ api_key_value: "linear-secret" },
+				{ values: { api_key_value: "linear-secret" } },
 			);
 		});
 	},
@@ -215,18 +240,24 @@ export const WithoutInstructions: Story = {
 	},
 };
 
-export const CredentialErrorRetainsInput: Story = {
+export const InputErrorRetainsValue: Story = {
 	beforeEach: () => {
 		spyOn(API, "getMCPServerProposal").mockResolvedValue({
 			...MockProposal,
 			auth_type: "api_key",
 			has_oauth2_client_credentials: false,
-			secret_placeholders: {
-				api_key_value: "Paste your Linear API key",
-			},
+			oauth2_redirect_uri: undefined,
+			required_inputs: [
+				{
+					field: "api_key_value",
+					label: "API key",
+					placeholder: "Paste your Linear API key",
+					sensitive: true,
+				},
+			],
 		});
 		spyOn(API, "acceptMCPServerProposal").mockRejectedValue(
-			mockApiError({ message: "Invalid MCP server proposal credentials." }),
+			mockApiError({ message: "Invalid MCP server proposal values." }),
 		);
 	},
 	play: async ({ canvasElement }) => {
@@ -238,26 +269,46 @@ export const CredentialErrorRetainsInput: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Accept & create server" }),
 		);
-		await canvas.findByText("Invalid MCP server proposal credentials.");
+		await canvas.findByText("Invalid MCP server proposal values.");
 		await expect(apiKey).toHaveValue("keep-this-secret");
 	},
 };
 
-export const OAuth2ClientSecretPlaceholder: Story = {
+export const OAuth2ClientInputs: Story = {
 	beforeEach: () => {
 		spyOn(API, "getMCPServerProposal").mockResolvedValue({
 			...MockProposal,
-			secret_placeholders: {
-				oauth2_client_secret: "Paste the registered client secret",
-			},
+			required_inputs: [
+				{
+					field: "oauth2_client_id",
+					label: "OAuth2 client ID",
+					placeholder: "Paste the registered client ID",
+					sensitive: false,
+				},
+				{
+					field: "oauth2_client_secret",
+					label: "OAuth2 client secret",
+					placeholder: "Paste the registered client secret",
+					sensitive: true,
+				},
+			],
 		});
 		spyOn(API, "acceptMCPServerProposal").mockResolvedValue(MockAcceptResponse);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		await expect(
+			await canvas.findByRole("region", { name: "OAuth2 redirect URI" }),
+		).toBeVisible();
+		const clientId = await canvas.findByPlaceholderText(
+			"Paste the registered client ID",
+		);
 		const clientSecret = await canvas.findByPlaceholderText(
 			"Paste the registered client secret",
 		);
+		await expect(clientId).toHaveAttribute("type", "text");
+		await expect(clientSecret).toHaveAttribute("type", "password");
+		await userEvent.type(clientId, "oauth-client");
 		await userEvent.type(clientSecret, "oauth-secret");
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Accept & create server" }),
@@ -265,24 +316,38 @@ export const OAuth2ClientSecretPlaceholder: Story = {
 		await waitFor(() => {
 			expect(API.acceptMCPServerProposal).toHaveBeenCalledWith(
 				MockProposal.id,
-				{ oauth2_client_secret: "oauth-secret" },
+				{
+					values: {
+						oauth2_client_id: "oauth-client",
+						oauth2_client_secret: "oauth-secret",
+					},
+				},
 			);
 		});
 	},
 };
 
-export const CustomHeaderPlaceholders: Story = {
+export const CustomHeaderInputs: Story = {
 	beforeEach: () => {
 		spyOn(API, "getMCPServerProposal").mockResolvedValue({
 			...MockProposal,
 			auth_type: "custom_headers",
 			has_oauth2_client_credentials: false,
-			secret_placeholders: {
-				custom_headers: {
-					"X-API-Key": "Paste your API key",
-					"X-Account-Token": "Paste your account token",
+			oauth2_redirect_uri: undefined,
+			required_inputs: [
+				{
+					field: "custom_headers.X-API-Key",
+					label: "X-API-Key",
+					placeholder: "Paste your API key",
+					sensitive: true,
 				},
-			},
+				{
+					field: "custom_headers.X-Account-Token",
+					label: "X-Account-Token",
+					placeholder: "Paste your account token",
+					sensitive: true,
+				},
+			],
 		});
 		spyOn(API, "acceptMCPServerProposal").mockResolvedValue({
 			mcp_server_config_id: MockAcceptResponse.mcp_server_config_id,
@@ -309,9 +374,9 @@ export const CustomHeaderPlaceholders: Story = {
 			expect(API.acceptMCPServerProposal).toHaveBeenCalledWith(
 				MockProposal.id,
 				{
-					custom_headers: {
-						"X-API-Key": "api-secret",
-						"X-Account-Token": "account-secret",
+					values: {
+						"custom_headers.X-API-Key": "api-secret",
+						"custom_headers.X-Account-Token": "account-secret",
 					},
 				},
 			);

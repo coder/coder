@@ -63,6 +63,7 @@ ORDER BY
 
 -- name: InsertMCPServerConfig :one
 INSERT INTO mcp_server_configs (
+    id,
     display_name,
     slug,
     description,
@@ -92,6 +93,7 @@ INSERT INTO mcp_server_configs (
     updated_by,
     owner_id
 ) VALUES (
+    COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     @display_name::text,
     @slug::text,
     @description::text,
