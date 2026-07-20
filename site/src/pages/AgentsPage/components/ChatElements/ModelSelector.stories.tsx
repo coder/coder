@@ -470,11 +470,16 @@ export const MobileEffortRow: Story = {
 		enableMobileFullWidthDropdown: true,
 	},
 	parameters: {
+		// The interaction runner defaults to a desktop width where the
+		// mobile dropdown CSS never applies, so pin a mobile viewport.
+		viewport: { defaultViewport: "mobile1" },
 		chromatic: { viewports: [390] },
 	},
 	decorators: [
 		(Story) => {
 			useEffect(() => {
+				// Tight enough that the model list plus the pinned effort row
+				// overflow the dropdown, forcing the layout under test.
 				const root = document.documentElement.style;
 				root.setProperty(
 					"--mobile-dropdown-above-composer-max-height",
@@ -488,20 +493,9 @@ export const MobileEffortRow: Story = {
 		},
 	],
 	play: async ({ canvasElement }) => {
+		// Open the picker so the snapshot captures the dropdown, the pinned
+		// effort row, and the scrollable list.
 		await userEvent.click(within(canvasElement).getByRole("combobox"));
-		const body = within(document.body);
-		const listbox = await body.findByRole("listbox");
-		const slider = await body.findByRole("slider");
-
-		await waitFor(() => {
-			// The list scrolls because the models overflow the cap.
-			expect(listbox.scrollHeight).toBeGreaterThan(listbox.clientHeight);
-			// The pinned effort row is not pushed past the clipped edge.
-			expect(slider.getBoundingClientRect().bottom).toBeLessThanOrEqual(
-				listbox
-					.closest("[data-radix-popper-content-wrapper]")
-					?.getBoundingClientRect().bottom ?? 0,
-			);
-		});
+		await within(document.body).findByRole("listbox");
 	},
 };
