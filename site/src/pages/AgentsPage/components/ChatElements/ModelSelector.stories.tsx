@@ -450,3 +450,19 @@ export const EffortRowClampedToMax: Story = {
 		});
 	},
 };
+
+// Mobile dropdown with a reasoning-effort-capable model selected. The
+// pinned effort row must stay visible inside the capped dropdown height
+// above the composer. Visual regression coverage only.
+export const MobileEffortRow: Story = {
+	args: {
+		options: [...openAIModels, effortModel],
+		value: "openai/gpt-5",
+		reasoningEffort: "medium",
+		onReasoningEffortChange: fn(),
+		enableMobileFullWidthDropdown: true,
+	},
+	parameters: {
+		chromatic: { viewports: [320] },
+	},
+};
