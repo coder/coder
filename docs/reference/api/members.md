@@ -106,7 +106,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/members \
   -H 'Content-Type: application/json' \
