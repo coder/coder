@@ -23,7 +23,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// @Summary Add organization member (deprecated)
+// @Summary Add organization member
 // @ID add-organization-member
 // @Security CoderSessionToken
 // @Produce json
@@ -335,7 +335,6 @@ func (api *API) organizationMember(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp[0])
 }
 
-// @Deprecated use /organizations/{organization}/paginated-members [get]
 // @Summary List organization members
 // @ID list-organization-members
 // @Security CoderSessionToken
@@ -344,6 +343,8 @@ func (api *API) organizationMember(rw http.ResponseWriter, r *http.Request) {
 // @Param organization path string true "Organization ID"
 // @Success 200 {object} []codersdk.OrganizationMemberWithUserData
 // @Router /api/v2/organizations/{organization}/members [get]
+// @Deprecated
+// @Description Deprecated: use GET /api/v2/organizations/{organization}/paginated-members instead.
 func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx          = r.Context()

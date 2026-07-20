@@ -4863,6 +4863,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/members": {
             "get": {
+                "description": "Deprecated: use GET /api/v2/organizations/{organization}/paginated-members instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -5173,7 +5174,7 @@ const docTemplate = `{
                 "tags": [
                     "Members"
                 ],
-                "summary": "Add organization member (deprecated)",
+                "summary": "Add organization member",
                 "operationId": "add-organization-member",
                 "deprecated": true,
                 "parameters": [

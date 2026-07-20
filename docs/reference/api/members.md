@@ -13,6 +13,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 `GET /api/v2/organizations/{organization}/members`
 
+Deprecated: use GET /api/v2/organizations/{organization}/paginated-members instead.
+
 ### Parameters
 
 | Name           | In   | Type   | Required | Description     |
@@ -704,7 +706,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Add organization member (deprecated)
+## Add organization member
 
 ### Code samples
 

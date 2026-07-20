@@ -4296,6 +4296,7 @@
 		},
 		"/api/v2/organizations/{organization}/members": {
 			"get": {
+				"description": "Deprecated: use GET /api/v2/organizations/{organization}/paginated-members instead.",
 				"produces": ["application/json"],
 				"tags": ["Members"],
 				"summary": "List organization members",
@@ -4568,7 +4569,7 @@
 				"description": "Deprecated: use POST /api/v2/organizations/{organization}/members instead.",
 				"produces": ["application/json"],
 				"tags": ["Members"],
-				"summary": "Add organization member (deprecated)",
+				"summary": "Add organization member",
 				"operationId": "add-organization-member",
 				"deprecated": true,
 				"parameters": [

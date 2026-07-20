@@ -1697,14 +1697,15 @@ func scopedOrgRoleIdentifiers(names []string, orgID uuid.UUID) []rbac.RoleIdenti
 	return out
 }
 
-// authorizeOrganizationMemberInsert authorizes granting the given roles when
-// adding a member to an organization. The org's default_org_member_roles are
-// implied at request time by GetAuthorizationUserRoles, so canAssignRoles must
-// cover the full effective set (the explicit roles, organization-member, plus
-// the defaults). Both the single-member and batch insert wrappers share this
-// preamble so the role-assignment check cannot drift between them; they diverge
-// only in the object the ActionCreate is authorized against.
-func (q *querier) authorizeOrganizationMemberInsert(ctx context.Context, organizationID uuid.UUID, roles []string) error {
+// authorizeOrganizationMemberRoleAssignment authorizes granting the given roles
+// when adding a member to an organization. It does not authorize the member
+// insert itself; callers must separately authorize ActionCreate on the
+// organization_member object. The org's default_org_member_roles are implied at
+// request time by GetAuthorizationUserRoles, so canAssignRoles must cover the
+// full effective set (the explicit roles, organization-member, plus the
+// defaults). Both the single-member and batch insert wrappers share this
+// preamble so the role-assignment check cannot drift between them.
+func (q *querier) authorizeOrganizationMemberRoleAssignment(ctx context.Context, organizationID uuid.UUID, roles []string) error {
 	orgRoles, err := q.convertToOrganizationRoles(organizationID, roles)
 	if err != nil {
 		return xerrors.Errorf("converting to organization roles: %w", err)
@@ -6232,7 +6233,7 @@ func (q *querier) InsertOrganization(ctx context.Context, arg database.InsertOrg
 }
 
 func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.InsertOrganizationMemberParams) (database.OrganizationMember, error) {
-	if err := q.authorizeOrganizationMemberInsert(ctx, arg.OrganizationID, arg.Roles); err != nil {
+	if err := q.authorizeOrganizationMemberRoleAssignment(ctx, arg.OrganizationID, arg.Roles); err != nil {
 		return database.OrganizationMember{}, err
 	}
 
@@ -6242,7 +6243,7 @@ func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.Ins
 }
 
 func (q *querier) InsertOrganizationMembersBatch(ctx context.Context, arg database.InsertOrganizationMembersBatchParams) ([]database.OrganizationMember, error) {
-	if err := q.authorizeOrganizationMemberInsert(ctx, arg.OrganizationID, arg.Roles); err != nil {
+	if err := q.authorizeOrganizationMemberRoleAssignment(ctx, arg.OrganizationID, arg.Roles); err != nil {
 		return nil, err
 	}
 
