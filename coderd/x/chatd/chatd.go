@@ -2159,13 +2159,8 @@ func (p *Server) CompactChat(
 		if lockedChat.Archived {
 			return ErrChatArchived
 		}
-		// Compaction triggers LLM inference billed to the owner, so
-		// enforce usage limits like message sends do.
-		if limitErr := p.checkUsageLimit(ctx, store, lockedChat.OwnerID, uuid.NullUUID{UUID: lockedChat.OrganizationID, Valid: true}); limitErr != nil {
-			return limitErr
-		}
-		// Run the transition first so busy chats surface the state
-		// conflict rather than a misleading nothing-to-compact.
+		// Run the transition before content and usage validation so busy
+		// chats surface the state conflict first.
 		result, err := tx.RequestCompaction(chatstate.RequestCompactionInput{})
 		if err != nil {
 			return err
@@ -2184,6 +2179,11 @@ func (p *Server) CompactChat(
 		boundary := latestCompactionBoundaryIndex(messages)
 		if _, ok := firstUncompressedAssistantAfter(messages, boundary); !ok {
 			return ErrNothingToCompact
+		}
+		// Usage validation runs last so rejected requests report the more
+		// specific state or content conflict. Its failure rolls back the marker.
+		if limitErr := p.checkUsageLimit(ctx, store, lockedChat.OwnerID, uuid.NullUUID{UUID: lockedChat.OrganizationID, Valid: true}); limitErr != nil {
+			return limitErr
 		}
 		refreshed = result.Chat
 		return nil

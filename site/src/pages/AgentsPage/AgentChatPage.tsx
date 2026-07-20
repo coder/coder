@@ -110,6 +110,7 @@ import { pickReasoningEffort } from "./utils/reasoningEffort";
 import {
 	COMPACT_SLASH_COMMAND,
 	chatSlashCommandTriggerText,
+	resolveChatSlashCommandAvailability,
 } from "./utils/slashCommands";
 import {
 	type ChatDetailError,
@@ -121,6 +122,8 @@ import {
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
+class CompactCommandPendingError extends Error {}
+
 /** @internal Exported for testing. */
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
 
@@ -548,6 +551,9 @@ export function useConversationEditingState(deps: {
 		try {
 			await sendPromise;
 		} catch (error) {
+			if (error instanceof CompactCommandPendingError) {
+				return;
+			}
 			rollback?.();
 			throw error;
 		}
@@ -1024,24 +1030,18 @@ const AgentChatPage: FC = () => {
 	const { isPending: isCompactPending, mutateAsync: compact } = useMutation(
 		compactChat(queryClient, agentId ?? ""),
 	);
-	// A personal or workspace skill named "compact" must keep working
-	// as a skill trigger (read_skill resolves a bare /compact to it),
-	// so the built-in /compact command yields to both. Shares the
-	// composer trigger menu's query cache. Until the personal skills
-	// query succeeds and the chat detail resolves workspace skills, a
-	// conflict cannot be ruled out, so "/compact" is sent as a regular
-	// message instead of being intercepted.
+	// A skill named "compact" takes precedence over built-in /compact. Until
+	// both skill sources resolve, exact submissions wait to avoid shadowing it.
 	const personalSkillsQuery = useQuery({
 		...userSkills(),
 		staleTime: 60_000,
 	});
 	const chatWorkspaceSkills = workspaceSkillsFromChat(chatQuery.data);
-	const compactCommandAvailable =
-		personalSkillsQuery.isSuccess &&
-		chatWorkspaceSkills !== undefined &&
-		![...personalSkillsQuery.data, ...chatWorkspaceSkills].some(
-			(skill) => skill.name === COMPACT_SLASH_COMMAND.name,
-		);
+	const compactCommandResolution = resolveChatSlashCommandAvailability(
+		COMPACT_SLASH_COMMAND,
+		personalSkillsQuery.isSuccess ? personalSkillsQuery.data : undefined,
+		chatWorkspaceSkills,
+	);
 	const { mutateAsync: deleteQueuedMessage } = useMutation(
 		deleteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
@@ -1501,14 +1501,19 @@ const AgentChatPage: FC = () => {
 		// message. Only new sends are intercepted; edits keep their
 		// original meaning, and a personal or workspace skill named
 		// "compact" takes precedence so the command cannot shadow it.
-		const isCompactCommand =
+		const isExactCompactSubmission =
 			editedMessageID === undefined &&
-			compactCommandAvailable &&
 			content.length === 1 &&
 			content[0].type === "text" &&
 			content[0].text?.trim() ===
 				chatSlashCommandTriggerText(COMPACT_SLASH_COMMAND);
-		if (isCompactCommand) {
+		if (isExactCompactSubmission && compactCommandResolution === "pending") {
+			toast.info(
+				"Checking whether /compact is available. Try again in a moment.",
+			);
+			throw new CompactCommandPendingError();
+		}
+		if (isExactCompactSubmission && compactCommandResolution === "available") {
 			// Optimistically show the running state before awaiting so
 			// a fast compaction cannot race this write: the worker's
 			// authoritative waiting status may arrive over the stream

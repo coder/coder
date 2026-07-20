@@ -23,6 +23,23 @@ export const CHAT_SLASH_COMMANDS: readonly ChatSlashCommand[] = [
 	COMPACT_SLASH_COMMAND,
 ];
 
+type ChatSlashCommandResolution = "pending" | "available" | "unavailable";
+
+export const resolveChatSlashCommandAvailability = (
+	command: ChatSlashCommand,
+	personalSkills: readonly { name: string }[] | undefined,
+	workspaceSkills: readonly { name: string }[] | undefined,
+): ChatSlashCommandResolution => {
+	if (personalSkills === undefined || workspaceSkills === undefined) {
+		return "pending";
+	}
+	return [...personalSkills, ...workspaceSkills].some(
+		(skill) => skill.name === command.name,
+	)
+		? "unavailable"
+		: "available";
+};
+
 export const chatSlashCommandTriggerText = (
 	command: ChatSlashCommand,
 ): string => `/${command.name}`;
