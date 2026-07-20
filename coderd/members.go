@@ -33,7 +33,7 @@ import (
 // @Success 200 {object} codersdk.OrganizationMember
 // @Router /api/v2/organizations/{organization}/members/{user} [post]
 // @Deprecated
-// @Description Deprecated: use POST /organizations/{organization}/members instead.
+// @Description Deprecated: use POST /api/v2/organizations/{organization}/members instead.
 func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -116,9 +116,8 @@ func (api *API) postOrganizationMembers(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Resolve all users in a single query. The request context
-	// (not AsSystemRestricted) is used so dbauthz enforces read
-	// permission on each target user.
+	// The request context (not AsSystemRestricted) is used so dbauthz enforces
+	// read permission on each target user.
 	users, err := api.Database.GetUsersByIDs(ctx, req.UserIDs)
 	if httpapi.IsUnauthorizedError(err) {
 		httpapi.Forbidden(rw)
@@ -134,9 +133,8 @@ func (api *API) postOrganizationMembers(rw http.ResponseWriter, r *http.Request)
 		usersByID[u.ID] = u
 	}
 
-	// Check that every requested user was found and none are
-	// deleted. GetUsersByIDs intentionally includes deleted users
-	// (see query comment), so we reject them explicitly.
+	// GetUsersByIDs intentionally includes soft-deleted users, so reject them
+	// explicitly along with any IDs that resolved to no user.
 	var missing []uuid.UUID
 	var deleted []uuid.UUID
 	for _, uid := range req.UserIDs {
@@ -179,7 +177,7 @@ func (api *API) postOrganizationMembers(rw http.ResponseWriter, r *http.Request)
 	// skips users who are already members, eliminating the race
 	// between the check and the insert.
 	now := dbtime.Now()
-	allMembers, err := api.Database.InsertOrganizationMembersBatch(ctx, database.InsertOrganizationMembersBatchParams{
+	insertedMembers, err := api.Database.InsertOrganizationMembersBatch(ctx, database.InsertOrganizationMembersBatchParams{
 		OrganizationID: organization.ID,
 		UserIds:        req.UserIDs,
 		CreatedAt:      now,
@@ -195,11 +193,11 @@ func (api *API) postOrganizationMembers(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Emit audit events inline once the insert succeeds. The response status is
-	// fixed at 201 from this point, so we record it directly instead of routing
-	// through a deferred closure that would otherwise have to observe the final
-	// HTTP status.
-	for _, member := range allMembers {
+	// Emit an audit event for each newly-inserted member. The rows are already
+	// committed, so the audit records StatusCreated to reflect the resource
+	// state; a later conversion failure returns 500 to the caller without
+	// changing that.
+	for _, member := range insertedMembers {
 		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.AuditableOrganizationMember]{
 			Audit:          *auditor,
 			Log:            api.Logger,
@@ -214,7 +212,7 @@ func (api *API) postOrganizationMembers(rw http.ResponseWriter, r *http.Request)
 		})
 	}
 
-	resp, err := convertOrganizationMembers(ctx, api.Database, allMembers)
+	resp, err := convertOrganizationMembers(ctx, api.Database, insertedMembers)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return

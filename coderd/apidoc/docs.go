@@ -5166,7 +5166,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
-                "description": "Deprecated: use POST /organizations/{organization}/members instead.",
+                "description": "Deprecated: use POST /api/v2/organizations/{organization}/members instead.",
                 "produces": [
                     "application/json"
                 ],

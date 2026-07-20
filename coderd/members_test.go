@@ -204,6 +204,47 @@ func TestAddMembers(t *testing.T) {
 		require.Equal(t, user.ID, members[0].UserID)
 	})
 
+	t.Run("RejectsEmptyRequest", func(t *testing.T) {
+		t.Parallel()
+		owner := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, owner)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// An empty user_ids slice violates the min=1 validation bound.
+		// nolint:gocritic // must be an owner to add members
+		_, err := owner.PostOrganizationMembers(ctx, first.OrganizationID, codersdk.AddOrganizationMembersRequest{
+			UserIDs: []uuid.UUID{},
+		})
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	})
+
+	t.Run("RejectsTooManyUsers", func(t *testing.T) {
+		t.Parallel()
+		owner := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, owner)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// 101 IDs exceeds the max=100 validation bound; the request is
+		// rejected before any user lookup, so the IDs need not exist.
+		userIDs := make([]uuid.UUID, 101)
+		for i := range userIDs {
+			userIDs[i] = uuid.New()
+		}
+		// nolint:gocritic // must be an owner to add members
+		_, err := owner.PostOrganizationMembers(ctx, first.OrganizationID, codersdk.AddOrganizationMembersRequest{
+			UserIDs: userIDs,
+		})
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	})
+
 	t.Run("DeletedUser", func(t *testing.T) {
 		t.Parallel()
 		owner, db := coderdtest.NewWithDatabase(t, nil)

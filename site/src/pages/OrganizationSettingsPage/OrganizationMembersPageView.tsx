@@ -77,8 +77,11 @@ export const OrganizationMembersPageView: React.FC<
 	);
 };
 
-// The server caps a single add-members request at 100 user IDs, so keep the
-// selection within the same bound to avoid a blind 400 on submit.
+// Mirrors the server-side `max=100` validate constraint on
+// AddOrganizationMembersRequest.UserIDs in codersdk/organizations.go. There is
+// no codegen path linking that constraint to this constant, so the two values
+// must be changed together. Keeping the selection within the same bound avoids
+// a blind 400 on submit.
 const MAX_MEMBERS_PER_ADD = 100;
 
 interface AddUsersDialogProps {

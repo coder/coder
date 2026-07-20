@@ -717,7 +717,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 `POST /api/v2/organizations/{organization}/members/{user}`
 
-Deprecated: use POST /organizations/{organization}/members instead.
+Deprecated: use POST /api/v2/organizations/{organization}/members instead.
 
 ### Parameters
 
