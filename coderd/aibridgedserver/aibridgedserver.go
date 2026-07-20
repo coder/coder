@@ -768,9 +768,7 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}
 
 	// The initiator must hold permission to create AI Bridge
-	// interceptions. Recording runs under the aibridged system subject,
-	// so this is the only place the initiator's own permissions are
-	// evaluated.
+	// interceptions.
 	subject, _, err := httpmw.UserRBACSubject(ctx, s.store, key.UserID, key.ScopeSet())
 	if err != nil {
 		s.logger.Error(ctx, "failed to build authorization subject", slog.F("user_id", key.UserID), slog.Error(err))
