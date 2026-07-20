@@ -7656,12 +7656,6 @@ export const RoleMember = "member";
 /**
  * Ideally these roles would be generated from the rbac/roles.go package.
  */
-export const RoleOrganizationAIGatewayAccess = "organization-ai-gateway-access";
-
-// From codersdk/rbacroles.go
-/**
- * Ideally these roles would be generated from the rbac/roles.go package.
- */
 export const RoleOrganizationAdmin = "organization-admin";
 
 // From codersdk/rbacroles.go

@@ -60,8 +60,7 @@ var (
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
 
 	// ErrNoAIGatewayAccess is returned when the initiator lacks permission
-	// to create AI Bridge interceptions, which is granted by the
-	// organization-ai-gateway-access role.
+	// to create AI Bridge interceptions.
 	ErrNoAIGatewayAccess = xerrors.New("no AI Gateway access")
 
 	// ErrAuthorizationInternal is returned when authorization cannot be
@@ -771,9 +770,8 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}
 
 	// Under permission-based licensing, the initiator must hold
-	// permission to create AI Bridge interceptions, granted by the
-	// organization-ai-gateway-access role. Recording runs under the
-	// aibridged system subject, so this is the only place the
+	// permission to create AI Bridge interceptions. Recording runs under
+	// the aibridged system subject, so this is the only place the
 	// initiator's own permissions are evaluated.
 	if s.experiments.Enabled(codersdk.ExperimentPermissionBasedLicensing) {
 		//nolint:gocritic // Expanding the initiator's roles requires system access.
@@ -803,7 +801,7 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 			Scope:        key.ScopeSet(),
 		}.WithCachedASTValue()
 		if err := s.authorizer.Authorize(ctx, subject, policy.ActionCreate,
-			rbac.ResourceAibridgeInterception.AnyOrganization().WithOwner(subject.ID)); err != nil {
+			rbac.ResourceAibridgeInterception.WithOwner(subject.ID)); err != nil {
 			s.logger.Warn(ctx, "user lacks AI Gateway access", slog.F("user_id", key.UserID), slog.Error(err))
 			return nil, ErrNoAIGatewayAccess
 		}

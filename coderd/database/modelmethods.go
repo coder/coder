@@ -936,10 +936,7 @@ func (s UserSecret) RBACObject() rbac.Object {
 }
 
 func (s AIBridgeInterception) RBACObject() rbac.Object {
-	// Interceptions have no organization column, so the object is scoped
-	// to any organization: member-scoped grants match in any org the
-	// subject belongs to, constrained to objects the subject owns.
-	return rbac.ResourceAibridgeInterception.AnyOrganization().WithOwner(s.InitiatorID.String())
+	return rbac.ResourceAibridgeInterception.WithOwner(s.InitiatorID.String())
 }
 
 // WorkspaceIdentity contains the minimal workspace fields needed for agent API metadata/stats reporting

@@ -60,29 +60,26 @@ var requiredExperiments = []codersdk.Experiment{
 	codersdk.ExperimentMCPServerHTTP, codersdk.ExperimentOAuth2,
 }
 
-// testOrgID scopes the org roles returned by expectAIGatewayAccessRoles.
+// testOrgID scopes the org-member role used by the role expansion
+// failure case.
 var testOrgID = uuid.New()
 
 // permissionLicensingExperiments enables the role-gated AI Gateway auth
 // path in IsAuthorized on top of the baseline required experiments.
 var permissionLicensingExperiments = append([]codersdk.Experiment{codersdk.ExperimentPermissionBasedLicensing}, requiredExperiments...)
 
-// expectAIGatewayAccessRoles mocks the authorization role lookup with the
-// site member role plus organization-ai-gateway-access, which grants the
-// interception create permission required to pass IsAuthorized. The
-// DB-backed organization-member role is omitted so the lookup stays within
-// built-in roles and needs no CustomRoles mock.
-func expectAIGatewayAccessRoles(db *dbmock.MockStore, user database.User) {
+// expectMemberRoles mocks the authorization role lookup with the site
+// member role, which grants the interception create permission required
+// to pass IsAuthorized. The DB-backed organization-member role is omitted
+// so the lookup stays within built-in roles and needs no CustomRoles mock.
+func expectMemberRoles(db *dbmock.MockStore, user database.User) {
 	db.EXPECT().GetAuthorizationUserRoles(gomock.Any(), user.ID).Times(1).Return(database.GetAuthorizationUserRolesRow{
 		ID:       user.ID,
 		Username: user.Username,
 		Email:    user.Email,
 		Status:   user.Status,
-		Roles: []string{
-			"member",
-			fmt.Sprintf("organization-ai-gateway-access:%s", testOrgID),
-		},
-		Groups: []string{},
+		Roles:    []string{"member"},
+		Groups:   []string{},
 	}, nil)
 }
 
@@ -185,14 +182,14 @@ func TestAuthorization(t *testing.T) {
 			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
 				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
-				// Site member role only, without
-				// organization-ai-gateway-access.
+				// No roles at all, so the member grant that carries the
+				// interception create permission is absent.
 				db.EXPECT().GetAuthorizationUserRoles(gomock.Any(), user.ID).Times(1).Return(database.GetAuthorizationUserRolesRow{
 					ID:       user.ID,
 					Username: user.Username,
 					Email:    user.Email,
 					Status:   user.Status,
-					Roles:    []string{"member"},
+					Roles:    []string{},
 					Groups:   []string{},
 				}, nil)
 			},
@@ -235,7 +232,7 @@ func TestAuthorization(t *testing.T) {
 			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
 				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
-				expectAIGatewayAccessRoles(db, user)
+				expectMemberRoles(db, user)
 			},
 		},
 		{
@@ -258,7 +255,7 @@ func TestAuthorization(t *testing.T) {
 				apiKey.Scopes = []database.APIKeyScope{database.ApiKeyScopeCoderApplicationConnect}
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
 				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
-				expectAIGatewayAccessRoles(db, user)
+				expectMemberRoles(db, user)
 			},
 		},
 		{
@@ -271,7 +268,7 @@ func TestAuthorization(t *testing.T) {
 				apiKey.AllowList = database.AllowList{{Type: rbac.ResourceWorkspace.Type, ID: uuid.NewString()}}
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
 				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
-				expectAIGatewayAccessRoles(db, user)
+				expectMemberRoles(db, user)
 			},
 		},
 	}
@@ -378,7 +375,7 @@ func TestAuthorization_Delegated(t *testing.T) {
 			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
 				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
-				expectAIGatewayAccessRoles(db, user)
+				expectMemberRoles(db, user)
 			},
 		},
 		{
@@ -413,7 +410,7 @@ func TestAuthorization_Delegated(t *testing.T) {
 				apiKey.HashedSecret = []byte("not-the-real-hash")
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
 				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
-				expectAIGatewayAccessRoles(db, user)
+				expectMemberRoles(db, user)
 			},
 		},
 		{

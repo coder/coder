@@ -67,10 +67,7 @@ export const OverflowDropdown: Story = {
 				created_at: "",
 				updated_at: "",
 				is_default: false,
-				default_org_member_roles: [
-					"organization-workspace-access",
-					"organization-ai-gateway-access",
-				],
+				default_org_member_roles: ["organization-workspace-access"],
 			},
 			{
 				id: "my-organization-4-id",
@@ -81,10 +78,7 @@ export const OverflowDropdown: Story = {
 				created_at: "",
 				updated_at: "",
 				is_default: false,
-				default_org_member_roles: [
-					"organization-workspace-access",
-					"organization-ai-gateway-access",
-				],
+				default_org_member_roles: ["organization-workspace-access"],
 			},
 			{
 				id: "my-organization-5-id",
@@ -95,10 +89,7 @@ export const OverflowDropdown: Story = {
 				created_at: "",
 				updated_at: "",
 				is_default: false,
-				default_org_member_roles: [
-					"organization-workspace-access",
-					"organization-ai-gateway-access",
-				],
+				default_org_member_roles: ["organization-workspace-access"],
 			},
 			{
 				id: "my-organization-6-id",
@@ -109,10 +100,7 @@ export const OverflowDropdown: Story = {
 				created_at: "",
 				updated_at: "",
 				is_default: false,
-				default_org_member_roles: [
-					"organization-workspace-access",
-					"organization-ai-gateway-access",
-				],
+				default_org_member_roles: ["organization-workspace-access"],
 			},
 			{
 				id: "my-organization-7-id",
@@ -123,10 +111,7 @@ export const OverflowDropdown: Story = {
 				created_at: "",
 				updated_at: "",
 				is_default: false,
-				default_org_member_roles: [
-					"organization-workspace-access",
-					"organization-ai-gateway-access",
-				],
+				default_org_member_roles: ["organization-workspace-access"],
 			},
 		],
 	},

@@ -38,7 +38,6 @@ const (
 	orgTemplateAdmin        string = "organization-template-admin"
 	orgWorkspaceCreationBan string = "organization-workspace-creation-ban"
 	orgWorkspaceAccess      string = "organization-workspace-access"
-	orgAIGatewayAccess      string = "organization-ai-gateway-access"
 )
 
 func init() {
@@ -179,10 +178,6 @@ func RoleOrgWorkspaceAccess() string {
 	return orgWorkspaceAccess
 }
 
-func RoleOrgAIGatewayAccess() string {
-	return orgAIGatewayAccess
-}
-
 // ScopedRoleOrgAdmin is the org role with the organization ID
 func ScopedRoleOrgAdmin(organizationID uuid.UUID) RoleIdentifier {
 	return RoleIdentifier{Name: RoleOrgAdmin(), OrganizationID: organizationID}
@@ -217,10 +212,6 @@ func ScopedRoleOrgWorkspaceAccess(organizationID uuid.UUID) RoleIdentifier {
 	return RoleIdentifier{Name: RoleOrgWorkspaceAccess(), OrganizationID: organizationID}
 }
 
-func ScopedRoleOrgAIGatewayAccess(organizationID uuid.UUID) RoleIdentifier {
-	return RoleIdentifier{Name: RoleOrgAIGatewayAccess(), OrganizationID: organizationID}
-}
-
 // DefaultOrgMemberRoles is the deployment-wide default for the
 // organizations.default_org_member_roles column, applied to every new
 // organization at creation time. The column has no SQL DEFAULT, so this
@@ -229,7 +220,7 @@ func ScopedRoleOrgAIGatewayAccess(organizationID uuid.UUID) RoleIdentifier {
 // Returned as a fresh slice each call to prevent accidental mutation of
 // the shared default through append or index assignment.
 func DefaultOrgMemberRoles() []string {
-	return []string{orgWorkspaceAccess, orgAIGatewayAccess}
+	return []string{orgWorkspaceAccess}
 }
 
 // OrgWorkspaceAccessMemberPerms returns the elevation perms granted by the
@@ -286,22 +277,6 @@ func OrgWorkspaceAccessMemberPerms() []Permission {
 		//   - ResourceProvisionerDaemon update/delete: only create and
 		//     read fire at Member scope via the user-scoped Upsert
 		//     path; other actions go through the bare InOrg path.
-	})
-}
-
-// OrgAIGatewayAccessMemberPerms returns the perms granted by the
-// organization-ai-gateway-access role: create and update on AI Bridge
-// interceptions the holder owns, with no read access.
-//
-// Although assigned per organization, the role is effectively a
-// deployment-level entitlement: interceptions carry no organization, so
-// authorization matches the role held in any organization the user
-// belongs to. Holding it in one organization grants AI Gateway access
-// everywhere, and revoking access requires removing the role in every
-// organization that grants it (including via default_org_member_roles).
-func OrgAIGatewayAccessMemberPerms() []Permission {
-	return Permissions(map[string][]policy.Action{
-		ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionUpdate},
 	})
 }
 
@@ -477,8 +452,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				ResourceUser.Type: {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
 				// Users can create provisioner daemons scoped to themselves.
 				ResourceProvisionerDaemon.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
-				// AI Bridge interception perms are granted by the
-				// organization-ai-gateway-access org role, not here.
+				// Members can create and update AI Bridge interceptions they
+				// own but cannot read them back.
+				ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionUpdate},
 				// Workspace agents create boundary logs under their owner's
 				// identity. Create is user-scoped so agents can only write
 				// logs owned by their workspace owner.
@@ -609,12 +585,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 					// Org admins should not have workspace exec perms.
 					organizationID.String(): {
 						Org: append(
-							// ResourceAibridgeInterception is excluded because
-							// interceptions are deployment-scoped (their RBAC
-							// object is any-organization, not org-owned), so an
-							// org-level grant would reach every interception in
-							// the deployment.
-							allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole, ResourceUserSecret, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceWorkspaceBuildOrchestration, ResourceAibridgeInterception),
+							allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole, ResourceUserSecret, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceWorkspaceBuildOrchestration),
 							Permissions(map[string][]policy.Action{
 								ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
 								ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
@@ -762,20 +733,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				},
 			}
 		},
-		orgAIGatewayAccess: func(organizationID uuid.UUID) Role {
-			return Role{
-				Identifier:  RoleIdentifier{Name: orgAIGatewayAccess, OrganizationID: organizationID},
-				DisplayName: "Organization AI Gateway Access",
-				Site:        []Permission{},
-				User:        []Permission{},
-				ByOrgID: map[string]OrgPermissions{
-					organizationID.String(): {
-						Org:    []Permission{},
-						Member: OrgAIGatewayAccessMemberPerms(),
-					},
-				},
-			}
-		},
 		// ActionDelete is intentionally excluded because hard-deletion goes through
 		// ResourceSystem in dbpurge.
 		agentsAccess: func(organizationID uuid.UUID) Role {
@@ -821,7 +778,6 @@ var assignRoles = map[string]map[string]bool{
 		orgTemplateAdmin:        true,
 		orgWorkspaceCreationBan: true,
 		orgWorkspaceAccess:      true,
-		orgAIGatewayAccess:      true,
 		templateAdmin:           true,
 		userAdmin:               true,
 		customSiteRole:          true,
@@ -839,7 +795,6 @@ var assignRoles = map[string]map[string]bool{
 		orgTemplateAdmin:        true,
 		orgWorkspaceCreationBan: true,
 		orgWorkspaceAccess:      true,
-		orgAIGatewayAccess:      true,
 		templateAdmin:           true,
 		userAdmin:               true,
 		customSiteRole:          true,
@@ -850,7 +805,6 @@ var assignRoles = map[string]map[string]bool{
 		member:             true,
 		orgMember:          true,
 		orgWorkspaceAccess: true,
-		orgAIGatewayAccess: true,
 		agentsAccess:       true,
 	},
 	orgAdmin: {
@@ -861,14 +815,12 @@ var assignRoles = map[string]map[string]bool{
 		orgTemplateAdmin:        true,
 		orgWorkspaceCreationBan: true,
 		orgWorkspaceAccess:      true,
-		orgAIGatewayAccess:      true,
 		customOrganizationRole:  true,
 		agentsAccess:            true,
 	},
 	orgUserAdmin: {
 		orgMember:          true,
 		orgWorkspaceAccess: true,
-		orgAIGatewayAccess: true,
 		agentsAccess:       true,
 	},
 }
@@ -1240,9 +1192,8 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		// sets WithOwner to the user's own ID.
 		ResourceGroupMember.Type: {policy.ActionRead},
 
-		// AI Bridge interception perms are granted by the
-		// organization-ai-gateway-access role, not the floor.
-
+		// AI Bridge interception perms are granted by the site member
+		// role, not the floor.
 		// Own session tokens and workspace agent auth keys.
 		ResourceApiKey.Type: ResourceApiKey.AvailableActions(),
 
@@ -1319,10 +1270,9 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		// sets WithOwner to the user's own ID.
 		ResourceGroupMember.Type: {policy.ActionRead},
 
-		// AI Bridge interception perms are granted by the
-		// organization-ai-gateway-access role, not the floor. Chat access
-		// requires the agents-access role and is intentionally not granted
-		// here either.
+		// AI Bridge interception perms are granted by the site member
+		// role, not the floor. Chat access requires the agents-access role
+		// and is intentionally not granted here either.
 
 		// Own session tokens and workspace agent auth keys.
 		ResourceApiKey.Type: ResourceApiKey.AvailableActions(),

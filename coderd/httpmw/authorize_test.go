@@ -68,7 +68,7 @@ func TestExtractUserRoles(t *testing.T) {
 					Roles:          orgRoles,
 				})
 				require.NoError(t, err)
-				return user, []rbac.RoleIdentifier{rbac.RoleMember(), rbac.ScopedRoleOrgMember(org.ID), rbac.ScopedRoleOrgWorkspaceAccess(org.ID), rbac.ScopedRoleOrgAIGatewayAccess(org.ID)}, token
+				return user, []rbac.RoleIdentifier{rbac.RoleMember(), rbac.ScopedRoleOrgMember(org.ID), rbac.ScopedRoleOrgWorkspaceAccess(org.ID)}, token
 			},
 		},
 		{
@@ -103,7 +103,6 @@ func TestExtractUserRoles(t *testing.T) {
 					require.NoError(t, err)
 					expected = append(expected, rbac.ScopedRoleOrgMember(organization.ID))
 					expected = append(expected, rbac.ScopedRoleOrgWorkspaceAccess(organization.ID))
-					expected = append(expected, rbac.ScopedRoleOrgAIGatewayAccess(organization.ID))
 				}
 				return user, expected, token
 			},

@@ -21,10 +21,7 @@ export const MockOrganization: TypesGen.Organization = {
 	created_at: "",
 	updated_at: "",
 	is_default: false,
-	default_org_member_roles: [
-		"organization-workspace-access",
-		"organization-ai-gateway-access",
-	],
+	default_org_member_roles: ["organization-workspace-access"],
 };
 
 export const MockDefaultOrganization: TypesGen.Organization = {
@@ -41,10 +38,7 @@ export const MockOrganization2: TypesGen.Organization = {
 	created_at: "",
 	updated_at: "",
 	is_default: false,
-	default_org_member_roles: [
-		"organization-workspace-access",
-		"organization-ai-gateway-access",
-	],
+	default_org_member_roles: ["organization-workspace-access"],
 };
 
 export const MockOrganization3: TypesGen.Organization = {
@@ -57,10 +51,7 @@ export const MockOrganization3: TypesGen.Organization = {
 	created_at: "",
 	updated_at: "",
 	is_default: false,
-	default_org_member_roles: [
-		"organization-workspace-access",
-		"organization-ai-gateway-access",
-	],
+	default_org_member_roles: ["organization-workspace-access"],
 };
 
 export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {

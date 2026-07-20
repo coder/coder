@@ -22,17 +22,6 @@ const mockOrgRoles: AssignableRoles[] = [
 		built_in: true,
 	},
 	{
-		name: "organization-ai-gateway-access",
-		display_name: "Organization AI Gateway Access",
-		organization_id: MockOrganization.id,
-		site_permissions: [],
-		organization_permissions: [],
-		organization_member_permissions: [],
-		user_permissions: [],
-		assignable: true,
-		built_in: true,
-	},
-	{
 		name: "organization-admin",
 		display_name: "Organization Admin",
 		organization_id: MockOrganization.id,
