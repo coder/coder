@@ -23,13 +23,14 @@ import { ProviderForm } from "../components/ProviderForm";
 import { getProviderIcon } from "../components/ProviderIcon";
 import {
 	aiProviderToFormValues,
+	bedrockExternalId,
 	getProviderDisplayType,
 	hasBedrockStoredCredentials,
 	isBedrockProvider,
 	providerFormValuesToUpdate,
 } from "../components/providerFormApiMap";
 
-const BACK_HREF = "/ai/settings";
+const BACK_HREF = "/ai/settings/providers";
 
 const UpdateProviderPageView: React.FC = () => {
 	const { providerId } = useParams<{ providerId: string }>();
@@ -145,7 +146,9 @@ const UpdateProviderPageView: React.FC = () => {
 					<Avatar
 						variant="icon"
 						size="lg"
-						src={getProviderIcon(getProviderDisplayType(provider))}
+						src={
+							provider.icon || getProviderIcon(getProviderDisplayType(provider))
+						}
 					/>
 					<SettingsHeaderTitle>
 						<span className="block min-w-0 truncate">
@@ -158,7 +161,7 @@ const UpdateProviderPageView: React.FC = () => {
 					<p className="text-sm text-content-secondary m-0">
 						Add or update models for this provider.{" "}
 						<a
-							href="/agents/settings/models"
+							href="/ai/settings/models"
 							className="text-content-link no-underline hover:underline"
 						>
 							Model settings
@@ -196,6 +199,7 @@ const UpdateProviderPageView: React.FC = () => {
 						bedrockSavedAccessCredentials={hasBedrockStoredCredentials(
 							provider,
 						)}
+						bedrockExternalId={bedrockExternalId(provider)}
 						openAiAnthropicSavedApiKey={openAiAnthropicSavedApiKey}
 						openAiAnthropicMaskedApiKey={openAiAnthropicMaskedApiKey}
 						initialValues={aiProviderToFormValues(provider)}

@@ -430,8 +430,9 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 			return xerrors.Errorf("update user hashed password: %w", err)
 		}
 
-		//nolint:gocritic // We need the system auth context to be able to delete all API keys for the user.
-		err = tx.DeleteAPIKeysByUserID(dbauthz.AsSystemRestricted(ctx), user.ID)
+		//nolint:gocritic // Password resets must revoke all keys owned by the
+		// target user, not just keys addressable by the caller's actor.
+		err = tx.DeleteAPIKeysByUserID(dbauthz.AsAPIKeyRevoker(ctx, user.ID), user.ID)
 		if err != nil {
 			logger.Error(ctx, "unable to delete user's api keys", slog.Error(err))
 			return xerrors.Errorf("delete api keys for user: %w", err)
@@ -1037,7 +1038,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	user, link, err := findLinkedUser(ctx, api.Database, githubLinkedID(ghUser), database.LoginTypeGithub, verifiedEmail.GetEmail())
+	user, link, err := findLinkedUser(ctx, api.Database, githubLinkedID(ghUser), database.LoginTypeGithub, false, verifiedEmail.GetEmail())
 	if errors.Is(err, errLinkedIDAlreadyBound) {
 		logger.Warn(ctx, "oauth2: blocked login, account already linked to different identity",
 			slog.F("email", verifiedEmail.GetEmail()),
@@ -1187,6 +1188,25 @@ type OIDCConfig struct {
 	// SignupsDisabledText is the text do display on the static error page.
 	SignupsDisabledText string
 	PKCEMethods         []promoauth.Oauth2PKCEChallengeMethod
+	// EmailFallback, when true, allows OIDC logins to fall back to
+	// email-based user matching when the linked_id (issuer+subject) does
+	// not match an existing user link. INSECURE: weakens the linked_id
+	// check. Used for IdP brokers that do not issue a stable `sub` for the
+	// same user across connections.
+	EmailFallback bool
+	// RedirectAllowedHosts, when non-empty, enables dynamic redirect_uri
+	// construction from the request Host header. The request Host must match
+	// (case-insensitive, ignoring port) one of the hostnames in this list,
+	// otherwise the OIDC flow is rejected.
+	RedirectAllowedHosts []string
+	// RedirectDefaultScheme is the scheme to use in the dynamically built
+	// redirect_uri. It is populated from the configured AccessURL (or
+	// OIDC.RedirectURL if explicitly overridden) so that the dynamic path
+	// uses the same scheme as the static path. It takes precedence over
+	// X-Forwarded-Proto because some reverse proxies report the inner-hop
+	// scheme (e.g. "http") rather than the original client-facing scheme,
+	// which would produce a redirect_uri the IdP rejects.
+	RedirectDefaultScheme string
 }
 
 // PKCESupported is to prevent nil pointer dereference.
@@ -1458,7 +1478,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	}
 	ctx = slog.With(ctx, slog.F("email", email), slog.F("username", username), slog.F("name", name))
 
-	user, link, err := findLinkedUser(ctx, api.Database, oidcLinkedID(idToken), database.LoginTypeOIDC, email)
+	user, link, err := findLinkedUser(ctx, api.Database, oidcLinkedID(idToken), database.LoginTypeOIDC, api.OIDCConfig.EmailFallback, email)
 	if errors.Is(err, errLinkedIDAlreadyBound) {
 		logger.Warn(ctx, "oauth2: blocked login, account already linked to different identity",
 			slog.F("email", email),
@@ -1526,6 +1546,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			UserInfoClaims: supplementaryClaims,
 			MergedClaims:   mergedClaims,
 		},
+		AllowInsecureLinkedIDMismatch: api.OIDCConfig.EmailFallback,
 	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
 		return audit.InitRequest[database.User](rw, params)
 	})
@@ -1678,6 +1699,13 @@ type oauthLoginParams struct {
 	// UserClaims should only be populated for OIDC logins.
 	// It is used to save the user's claims on login.
 	UserClaims database.UserLinkClaims
+
+	// AllowInsecureLinkedIDMismatch, when true, allows the login to proceed
+	// when the existing user_link's linked_id differs from LinkedID. The
+	// existing linked_id is preserved (no overwrite). INSECURE: opt-in
+	// escape hatch for IdP brokers that emit different subjects for the
+	// same user across connections.
+	AllowInsecureLinkedIDMismatch bool
 
 	commitLock       sync.Mutex
 	initAuditRequest func(params *audit.RequestParams) *audit.Request[database.User]
@@ -1929,7 +1957,10 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			// Defense-in-depth: if a concurrent transaction backfilled
 			// linked_id between findLinkedUser and this point, reject the
 			// login with a 403 instead of letting it bubble up as a 500.
-			if link.LinkedID != "" && link.LinkedID != params.LinkedID {
+			// The INSECURE AllowInsecureLinkedIDMismatch escape hatch
+			// preserves the existing linked_id and lets the login proceed;
+			// the warning was already emitted by the caller.
+			if link.LinkedID != "" && link.LinkedID != params.LinkedID && !params.AllowInsecureLinkedIDMismatch {
 				return &idpsync.HTTPError{
 					Code:             http.StatusForbidden,
 					Msg:              "Account already linked",
@@ -2180,7 +2211,16 @@ var errLinkedIDAlreadyBound = xerrors.New("user account is already linked to a d
 // legacy links (empty linked_id) only. If the user found by email
 // already has a link with a different linked_id, errLinkedIDAlreadyBound
 // is returned to prevent account takeover via IdP email reuse.
-func findLinkedUser(ctx context.Context, db database.Store, linkedID string, loginType database.LoginType, emails ...string) (database.User, database.UserLink, error) {
+//
+// When allowInsecureLinkedIDMismatch is true, the linked_id mismatch
+// check is skipped and the email fallback resolves the login even when
+// the existing link's linked_id differs from the current login's. The
+// existing linked_id is left intact (no overwrite). This is an INSECURE
+// opt-in for IdP brokers that do not issue a stable `sub` for the same
+// user across connections.
+//
+//nolint:revive // allowInsecureLinkedIDMismatch is intentionally a control flag; it gates an INSECURE opt-in.
+func findLinkedUser(ctx context.Context, db database.Store, linkedID string, loginType database.LoginType, allowInsecureLinkedIDMismatch bool, emails ...string) (database.User, database.UserLink, error) {
 	var (
 		user database.User
 		link database.UserLink
@@ -2233,8 +2273,10 @@ func findLinkedUser(ctx context.Context, db database.Store, linkedID string, log
 
 	// Block email fallback when an existing link has a different linked_id.
 	// Prevents account takeover via IdP email reuse; first-time and legacy
-	// (empty linked_id) links pass through.
-	if err == nil && link.LinkedID != "" && link.LinkedID != linkedID {
+	// (empty linked_id) links pass through. The INSECURE
+	// allowInsecureLinkedIDMismatch escape hatch keeps the existing link
+	// (and its original linked_id) and lets the login proceed.
+	if err == nil && link.LinkedID != "" && link.LinkedID != linkedID && !allowInsecureLinkedIDMismatch {
 		return database.User{}, database.UserLink{}, errLinkedIDAlreadyBound
 	}
 

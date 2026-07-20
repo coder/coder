@@ -21,7 +21,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	aibconfig "github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
@@ -41,7 +40,7 @@ func NewStreamingInterceptor(
 	reqPayload RequestPayload,
 	cfg intercept.Config,
 	cred intercept.Credential,
-	bedrockCfg *aibconfig.AWSBedrock,
+	bedrock *BedrockRuntime,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *StreamingInterception {
@@ -50,7 +49,7 @@ func NewStreamingInterceptor(
 		reqPayload:    reqPayload,
 		cfg:           cfg,
 		cred:          cred,
-		bedrockCfg:    bedrockCfg,
+		bedrock:       bedrock,
 		clientHeaders: clientHeaders,
 		tracer:        tracer,
 	}}
@@ -184,7 +183,10 @@ newStream:
 				// client: as an SSE event if events have already been sent,
 				// or by direct write otherwise.
 				respErr := ResponseErrorFromKeyPool(keyPoolErr)
-				interceptionErr = respErr
+				// Record the underlying key-pool error (not the masked 502
+				// envelope) so the recorder can categorize by its kind. The
+				// client still receives respErr below.
+				interceptionErr = xerrors.Errorf("key pool exhausted: %w", keyPoolErr)
 				if events.IsStreaming() {
 					payload, mErr := i.marshal(respErr)
 					if mErr != nil {
@@ -619,7 +621,7 @@ func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Lo
 			// We can't reflect an error back if there's a connection error or the request context was canceled.
 			return nil
 		}
-		if antErr := responseErrorFromAPIError(streamErr); antErr != nil {
+		if antErr := ResponseErrorFromAPIError(streamErr); antErr != nil {
 			logger.Warn(ctx, "anthropic stream error", slog.Error(streamErr))
 			return antErr
 		}

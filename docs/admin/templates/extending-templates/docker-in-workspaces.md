@@ -160,7 +160,7 @@ this secret.
 The following shows a minimal example using a the JSON API key from a GCP
 service account to pull a private image:
 
-```bash
+```sh
 # Create the secret
 $ kubectl create secret docker-registry <name> \
   --docker-server=us.gcr.io \
@@ -197,7 +197,7 @@ Before using Podman, please review the following documentation:
    [smart-device-manager](https://github.com/smarter-project/smarter-device-manager#enabling-access)
    to securely expose a FUSE devices to pods.
 
-   ```shell
+   ```sh
    cat <<EOF | kubectl create -f -
    apiVersion: apps/v1
    kind: DaemonSet
@@ -235,7 +235,7 @@ Before using Podman, please review the following documentation:
 
 2. Be sure to label your nodes to enable smarter-device-manager:
 
-   ```shell
+   ```sh
    kubectl get nodes
    kubectl label nodes --all smarter-device-manager=enabled
    ```
@@ -251,7 +251,7 @@ Before using Podman, please review the following documentation:
    [kubernetes-with-podman](https://github.com/coder/community-templates/tree/main/kubernetes-podman)
    example template, or make your own.
 
-   ```shell
+   ```sh
    echo "kubernetes-with-podman" | coder templates init
    cd ./kubernetes-with-podman
    coder templates create
@@ -265,7 +265,7 @@ Before using Podman, please review the following documentation:
 Rootless containers rely on Linux user-namespaces.
 [Bottlerocket](https://github.com/bottlerocket-os/bottlerocket) disables them by default (`user.max_user_namespaces = 0`), so Podman commands will return an error until you raise the limit:
 
-```output
+```txt
 cannot clone: Invalid argument
 user namespaces are not enabled in /proc/sys/user/max_user_namespaces
 ```
@@ -280,7 +280,7 @@ user namespaces are not enabled in /proc/sys/user/max_user_namespaces
 1. Reboot the node.
 1. Verify that the value is more than `0`:
 
-  ```shell
+  ```sh
   sysctl -n user.max_user_namespaces
   ```
 

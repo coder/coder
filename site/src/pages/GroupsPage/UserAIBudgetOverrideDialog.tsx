@@ -55,8 +55,8 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import {
 	dollarsToMicros,
+	formatBudgetUSD,
 	microsToDollars,
-	usdBudgetFormatter,
 } from "#/utils/currency";
 
 interface UserAIBudgetOverrideDialogProps {
@@ -64,11 +64,12 @@ interface UserAIBudgetOverrideDialogProps {
 	onOpenChange: (open: boolean) => void;
 	user: ReducedUser;
 	currentGroup: Group;
+	effectiveGroupId?: string | null;
 }
 
 export const UserAIBudgetOverrideDialog: FC<
 	UserAIBudgetOverrideDialogProps
-> = ({ open, onOpenChange, user, currentGroup }) => {
+> = ({ open, onOpenChange, user, currentGroup, effectiveGroupId }) => {
 	const queryClient = useQueryClient();
 	const budgetOverrideQuery = useQuery({
 		...userAIBudgetOverride(user.id),
@@ -103,7 +104,6 @@ export const UserAIBudgetOverrideDialog: FC<
 		<Dialog
 			open={open}
 			onOpenChange={(nextOpen) => {
-				// Don't close while a mutation is in flight.
 				if (!isSubmitting) {
 					onOpenChange(nextOpen);
 				}
@@ -138,6 +138,11 @@ export const UserAIBudgetOverrideDialog: FC<
 					<OverrideForm
 						user={user}
 						currentGroup={currentGroup}
+						defaultGroupId={
+							effectiveGroupId === undefined
+								? currentGroup.id
+								: effectiveGroupId
+						}
 						override={budgetOverrideQuery.data ?? null}
 						groupBudget={groupBudgetQuery.data ?? null}
 						userGroups={userGroupsQuery.data ?? []}
@@ -155,6 +160,8 @@ export const UserAIBudgetOverrideDialog: FC<
 interface OverrideFormProps {
 	user: ReducedUser;
 	currentGroup: Group;
+	// Group marked "(default)" in the picker; null marks none.
+	defaultGroupId: string | null;
 	override: UserAIBudgetOverride | null;
 	groupBudget: GroupAIBudget | null;
 	userGroups: readonly Group[];
@@ -168,6 +175,7 @@ interface OverrideFormProps {
 const OverrideForm: FC<OverrideFormProps> = ({
 	user,
 	currentGroup,
+	defaultGroupId,
 	override,
 	groupBudget,
 	userGroups,
@@ -181,12 +189,12 @@ const OverrideForm: FC<OverrideFormProps> = ({
 	const overrideId = useId();
 
 	const [overrideEnabled, setOverrideEnabled] = useState(override !== null);
-	// Seed from the override, else the group budget. Neither (uncapped) seeds
-	// empty, so enabling the override prompts for a value.
+	// Uncapped (no override or group budget) seeds empty, prompting for a value.
 	const [budgetDollars, setBudgetDollars] = useState(() => {
 		const seedMicros = (override ?? groupBudget)?.spend_limit_micros;
 		return seedMicros === undefined ? "" : String(microsToDollars(seedMicros));
 	});
+	const [budgetTouched, setBudgetTouched] = useState(false);
 	const [selectedGroupId, setSelectedGroupId] = useState(
 		override?.group_id ?? currentGroup.id,
 	);
@@ -208,16 +216,15 @@ const OverrideForm: FC<OverrideFormProps> = ({
 	// A "0" budget is valid and disables AI; empty or negative is not.
 	const budgetAmount = Number(budgetDollars);
 	const budgetValid = budgetDollars.trim() !== "" && budgetAmount >= 0;
-	const budgetInvalid = overrideEnabled && !budgetValid;
+	// Hold the error until the field is touched, so it doesn't flag immediately.
+	const budgetInvalid = overrideEnabled && budgetTouched && !budgetValid;
 	const budgetDisablesAI = budgetValid && budgetAmount === 0;
-	// Footer shows only when there's something to save or remove.
 	const showFooter = overrideEnabled || override !== null;
-	// Submittable with a valid amount to write, or an existing override to remove.
 	const canSubmit =
 		!isSubmitting && (overrideEnabled ? budgetValid : override !== null);
 
 	const groupLabel = (group: Group) =>
-		group.id === currentGroup.id
+		group.id === defaultGroupId
 			? `${groupDisplayName(group)} (default)`
 			: groupDisplayName(group);
 
@@ -309,6 +316,7 @@ const OverrideForm: FC<OverrideFormProps> = ({
 								id={budgetId}
 								value={budgetDollars}
 								onChange={(event) => setBudgetDollars(event.target.value)}
+								onBlur={() => setBudgetTouched(true)}
 								type="number"
 								min="0"
 								step="1"
@@ -415,5 +423,4 @@ const Bold: FC<{ children: ReactNode }> = ({ children }) => (
 const groupDisplayName = (group: Group): string =>
 	group.display_name || group.name;
 
-const formatUSD = (micros: number): string =>
-	`${usdBudgetFormatter.format(microsToDollars(micros))} USD`;
+const formatUSD = (micros: number): string => `${formatBudgetUSD(micros)} USD`;

@@ -36,7 +36,7 @@ Set **API type** to `responses`.
         {
             "id": "gpt-5.5",
             "name": "GPT 5.5",
-            "url": "https://coder.example.com/api/v2/aibridge/openai",
+            "url": "https://coder.example.com/api/v2/ai-gateway/openai",
             "toolCalling": true,
             "vision": true,
             "thinking": true,
@@ -62,7 +62,7 @@ Set **API type** to `messages`.
         {
             "id": "claude-sonnet-4.6",
             "name": "Claude Sonnet 4.6",
-            "url": "https://coder.example.com/api/v2/aibridge/anthropic",
+            "url": "https://coder.example.com/api/v2/ai-gateway/anthropic",
             "toolCalling": true,
             "vision": true,
             "thinking": true,

@@ -37,7 +37,7 @@ const meta = {
 	},
 	parameters: {
 		layout: "centered",
-		chromatic: { disableSnapshot: true },
+		pixel: { exclude: true },
 		queries: terminalQueries,
 	},
 	decorators: [

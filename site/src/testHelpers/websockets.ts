@@ -18,7 +18,7 @@ type CallbackStore = {
 	[K in keyof WebSocketEventMap]: Set<(event: WebSocketEventMap[K]) => void>;
 };
 
-type MockWebSocket = Omit<WebSocket, "send"> & {
+export type MockWebSocket = Omit<WebSocket, "send"> & {
 	/**
 	 * A version of the WebSocket `send` method that has been pre-wrapped inside
 	 * a vitest mock.

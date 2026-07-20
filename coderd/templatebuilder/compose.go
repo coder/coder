@@ -3,21 +3,14 @@ package templatebuilder
 import (
 	"archive/tar"
 	"bytes"
-	"encoding/json"
 	"maps"
-	"regexp"
-	"strings"
+	"path"
+	"slices"
 	"time"
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"golang.org/x/xerrors"
 )
-
-// maxStringValueLen is the maximum byte length for a string variable value.
-const maxStringValueLen = 4096
-
-// numberPattern matches valid HCL number literals (integers and decimals).
-var numberPattern = regexp.MustCompile(`^-?[0-9]+(\.[0-9]+)?$`)
 
 // ComposeRequest describes which base template and modules to render.
 type ComposeRequest struct {
@@ -47,6 +40,13 @@ type ComposeResult struct {
 	// ModulesTF is the concatenated rendered module blocks. Empty when
 	// no modules are selected.
 	ModulesTF []byte
+	// Readme is the full README.md content from the base template.
+	// Empty when the base has no README.
+	Readme []byte
+	// ExtraFiles holds non-template files from the base directory
+	// (e.g. cloud-init .tftpl files). Keys are paths relative to the
+	// base directory.
+	ExtraFiles map[string][]byte
 }
 
 // Compose renders a base template and selected modules into Terraform
@@ -58,8 +58,14 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 		return nil, err
 	}
 
+	extraFiles := BaseExtraFiles(req.BaseTemplateID)
+
 	if len(req.Modules) == 0 {
-		return &ComposeResult{MainTF: formatHCL(mainTF)}, nil
+		return &ComposeResult{
+			MainTF:     formatHCL(mainTF),
+			Readme:     []byte(BaseReadme(req.BaseTemplateID)),
+			ExtraFiles: extraFiles,
+		}, nil
 	}
 
 	agentName, err := ExtractAgentResourceName(mainTF)
@@ -82,10 +88,13 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 		return nil, err
 	}
 
-	return &ComposeResult{
-		MainTF:    formatHCL(mainTF),
-		ModulesTF: formatHCL(modulesTF),
-	}, nil
+	result := &ComposeResult{
+		MainTF:     formatHCL(mainTF),
+		ModulesTF:  formatHCL(modulesTF),
+		Readme:     []byte(BaseReadme(req.BaseTemplateID)),
+		ExtraFiles: extraFiles,
+	}
+	return result, nil
 }
 
 // formatHCL applies canonical HCL formatting to src. If src is not valid
@@ -104,12 +113,75 @@ func renderBase(baseTemplateID string, baseVars map[string]string) ([]byte, erro
 	if renderCtx.Variables == nil {
 		renderCtx.Variables = make(map[string]string)
 	}
-	maps.Copy(renderCtx.Variables, baseVars)
+
+	vars, err := mergeBaseVariables(baseTemplateID, baseVars)
+	if err != nil {
+		return nil, xerrors.Errorf("base %q: %w", baseTemplateID, err)
+	}
+	maps.Copy(renderCtx.Variables, vars)
+
 	mainTF, err := RenderBaseTemplate(baseTemplateID, "main.tf.tmpl", renderCtx)
 	if err != nil {
 		return nil, xerrors.Errorf("render base template: %w", err)
 	}
 	return mainTF, nil
+}
+
+// mergeBaseVariables builds the final Variables map for a base template.
+// It starts with manifest defaults, overlays caller-supplied values,
+// validates types, and converts to HCL literals.
+func mergeBaseVariables(baseTemplateID string, callerVars map[string]string) (map[string]string, error) {
+	allVars := BaseVariables(baseTemplateID)
+	if len(allVars) == 0 && len(callerVars) == 0 {
+		return make(map[string]string), nil
+	}
+
+	allowedVars := make(map[string]ModuleVariable, len(allVars))
+	for _, v := range allVars {
+		if v.Computed || v.Sensitive {
+			continue
+		}
+		allowedVars[v.Name] = v
+	}
+
+	// Validate caller-supplied keys and values.
+	for k, val := range callerVars {
+		v, ok := allowedVars[k]
+		if !ok {
+			return nil, xerrors.Errorf("unknown variable %q", k)
+		}
+		if err := validateVariableValue(v, val); err != nil {
+			return nil, xerrors.Errorf("variable %q: %w", k, err)
+		}
+	}
+
+	// Build merged map from manifest defaults.
+	merged := make(map[string]string, len(allVars))
+	for _, v := range allVars {
+		if v.Computed || v.Sensitive {
+			continue
+		}
+		if len(v.Default) > 0 && isSimpleJSONValue(v.Default) {
+			merged[v.Name] = string(v.Default)
+		}
+	}
+
+	// Overlay validated caller values, converting to HCL literals.
+	for k, val := range callerVars {
+		merged[k] = toHCLLiteral(allowedVars[k], val)
+	}
+
+	// Ensure all required variables without defaults have a value.
+	for _, v := range allVars {
+		if v.Computed || v.Sensitive {
+			continue
+		}
+		if v.Required && merged[v.Name] == "" {
+			return nil, xerrors.Errorf("variable %q is required", v.Name)
+		}
+	}
+
+	return merged, nil
 }
 
 // loadCatalogMap loads the module catalog and returns it as a map keyed
@@ -244,102 +316,22 @@ func mergeModuleVariables(manifest ModuleManifest, callerVars map[string]string)
 		// missingkey=error surfaces the omission at render time.
 	}
 
-	// Overlay validated caller values.
+	// Overlay validated caller values, converting to HCL literals.
 	for k, val := range callerVars {
-		merged[k] = val
-	}
-	return merged, nil
-}
-
-// validateVariableValue checks that value is a valid HCL literal for the
-// variable's declared type. The literal "null" is accepted for any type.
-func validateVariableValue(v ModuleVariable, value string) error {
-	if value == "null" {
-		return nil
-	}
-	switch v.Type {
-	case "string":
-		return validateStringValue(value)
-	case "number":
-		return validateNumberValue(value)
-	case "bool":
-		return validateBoolValue(value)
-	default:
-		return xerrors.Errorf("unsupported variable type %q", v.Type)
-	}
-}
-
-// validateStringValue checks that value is a valid quoted HCL string literal.
-// It must start and end with '"', contain no unescaped newlines or quotes,
-// and must not contain HCL interpolation/directive markers.
-func validateStringValue(value string) error {
-	if len(value) > maxStringValueLen {
-		return xerrors.Errorf("value exceeds maximum length of %d bytes", maxStringValueLen)
-	}
-	if len(value) < 2 || value[0] != '"' || value[len(value)-1] != '"' {
-		return xerrors.New("must be a quoted string (e.g. \"value\")")
+		merged[k] = toHCLLiteral(allowedVars[k], val)
 	}
 
-	inner := value[1 : len(value)-1]
-
-	if strings.Contains(inner, "${") || strings.Contains(inner, "%{") {
-		return xerrors.New("must not contain HCL interpolation or directive sequences")
-	}
-
-	// Walk the inner content to reject unescaped newlines and quotes.
-	for i := 0; i < len(inner); i++ {
-		ch := inner[i]
-		if ch == '\\' {
-			i++
-			if i >= len(inner) {
-				// Trailing backslash with no character to escape.
-				// In HCL this would escape the closing quote delimiter,
-				// producing an unterminated string.
-				return xerrors.New("must not end with a trailing backslash")
-			}
+	// Ensure all required variables without defaults have a value.
+	for _, v := range manifest.Variables {
+		if v.Computed || v.Sensitive {
 			continue
 		}
-		if ch == '"' {
-			return xerrors.New("must not contain unescaped quotes")
-		}
-		if ch == '\n' || ch == '\r' {
-			return xerrors.New("must not contain unescaped newlines")
+		if v.Required && merged[v.Name] == "" {
+			return nil, xerrors.Errorf("variable %q is required", v.Name)
 		}
 	}
 
-	return nil
-}
-
-// validateNumberValue checks that value is a valid HCL number literal.
-func validateNumberValue(value string) error {
-	if !numberPattern.MatchString(value) {
-		return xerrors.Errorf("invalid number value %q, must be a numeric literal (e.g. 42, 3.14)", value)
-	}
-	return nil
-}
-
-// validateBoolValue checks that value is exactly "true" or "false".
-func validateBoolValue(value string) error {
-	if value != "true" && value != "false" {
-		return xerrors.Errorf("invalid bool value %q, must be true or false", value)
-	}
-	return nil
-}
-
-// isSimpleJSONValue returns true if raw is a valid JSON string, number,
-// bool, or null. Arrays and objects are rejected; the template builder
-// only supports simple variable types.
-func isSimpleJSONValue(raw json.RawMessage) bool {
-	var v interface{}
-	if err := json.Unmarshal(raw, &v); err != nil {
-		return false
-	}
-	switch v.(type) {
-	case string, float64, bool, nil:
-		return true
-	default:
-		return false
-	}
+	return merged, nil
 }
 
 // BundleTar packages the compose result into a tar archive suitable for
@@ -362,11 +354,61 @@ func BundleTar(result *ComposeResult) ([]byte, error) {
 		}
 	}
 
+	if len(result.Readme) > 0 {
+		if err := writeTarFile(tw, "README.md", result.Readme); err != nil {
+			return nil, xerrors.Errorf("write README.md to tar: %w", err)
+		}
+	}
+
+	// Write extra files in sorted order for reproducible archives.
+	names := make([]string, 0, len(result.ExtraFiles))
+	for name := range result.ExtraFiles {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+
+	// Emit directory entries for any subdirectories so that
+	// extractors that do not implicitly create parents can
+	// unpack the archive.
+	dirs := make(map[string]bool)
+	for _, name := range names {
+		for dir := path.Dir(name); dir != "." && !dirs[dir]; dir = path.Dir(dir) {
+			dirs[dir] = true
+		}
+	}
+	sortedDirs := make([]string, 0, len(dirs))
+	for d := range dirs {
+		sortedDirs = append(sortedDirs, d)
+	}
+	slices.Sort(sortedDirs)
+	for _, d := range sortedDirs {
+		if err := writeTarDir(tw, d); err != nil {
+			return nil, xerrors.Errorf("write dir %s to tar: %w", d, err)
+		}
+	}
+
+	for _, name := range names {
+		if err := writeTarFile(tw, name, result.ExtraFiles[name]); err != nil {
+			return nil, xerrors.Errorf("write %s to tar: %w", name, err)
+		}
+	}
+
 	if err := tw.Close(); err != nil {
 		return nil, xerrors.Errorf("close tar writer: %w", err)
 	}
 
 	return buf.Bytes(), nil
+}
+
+// writeTarDir adds a directory entry to a tar writer.
+func writeTarDir(tw *tar.Writer, name string) error {
+	hdr := &tar.Header{
+		Typeflag: tar.TypeDir,
+		Name:     name + "/",
+		Mode:     0o755,
+		ModTime:  time.Unix(0, 0),
+	}
+	return tw.WriteHeader(hdr)
 }
 
 // writeTarFile adds a single file entry to a tar writer. It uses a zero

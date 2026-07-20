@@ -36,6 +36,7 @@ type Options struct {
 	RelayAddress    string
 	RegionID        int32
 	TLSConfig       *tls.Config
+	ClusterHost     string
 }
 
 // New registers the replica with the database and periodically updates to
@@ -77,6 +78,8 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.P
 		// #nosec G115 - Safe conversion for microseconds latency which is expected to be within int32 range
 		DatabaseLatency: int32(databaseLatency.Microseconds()),
 		Primary:         true,
+		ClusterHost:     options.ClusterHost,
+		NATSPort:        0, // set later via SetSelfNATSPort
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert replica: %w", err)
@@ -257,12 +260,11 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		if replica.ID == m.id {
 			continue
 		}
-		// Don't peer with nodes that have an empty relay address.
 		if replica.RelayAddress == "" {
-			m.logger.Debug(ctx, "peer doesn't have an address, skipping",
+			// legit if they have DERP disabled in that region, so just log for debugging.
+			m.logger.Debug(ctx, "peer doesn't have an address",
 				slog.F("replica_hostname", replica.Hostname),
 			)
-			continue
 		}
 		m.peers = append(m.peers, replica)
 	}
@@ -276,11 +278,11 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	}
 	defer client.CloseIdleConnections()
 
-	peers := m.Regional()
+	peers := m.DERPReplicasThisRegion()
 	errs := make(chan error, len(peers))
 	for _, peer := range peers {
 		go func(peer database.Replica) {
-			err := PingPeerReplica(ctx, client, peer.RelayAddress)
+			err := DERPPingPeerReplica(ctx, client, peer.RelayAddress)
 			if err != nil {
 				errs <- xerrors.Errorf("ping sibling replica %s (%s): %w", peer.Hostname, peer.RelayAddress, err)
 				m.logger.Warn(ctx, "failed to ping sibling replica, this could happen if the replica has shutdown",
@@ -327,6 +329,8 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		// #nosec G115 - Safe conversion for microseconds latency which is expected to be within int32 range
 		DatabaseLatency: int32(databaseLatency.Microseconds()),
 		Primary:         m.self.Primary,
+		ClusterHost:     m.self.ClusterHost,
+		NATSPort:        m.self.NATSPort,
 	})
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
@@ -346,6 +350,8 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 			// #nosec G115 - Safe conversion for microseconds latency which is expected to be within int32 range
 			DatabaseLatency: int32(databaseLatency.Microseconds()),
 			Primary:         m.self.Primary,
+			ClusterHost:     m.self.ClusterHost,
+			NATSPort:        m.self.NATSPort,
 		})
 		if err != nil {
 			return xerrors.Errorf("update replica: %w", err)
@@ -365,9 +371,9 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	return nil
 }
 
-// PingPeerReplica pings a peer replica over it's internal relay address to
+// DERPPingPeerReplica pings a peer replica over it's internal relay address to
 // ensure it's reachable and alive for health purposes.
-func PingPeerReplica(ctx context.Context, client http.Client, relayAddress string) error {
+func DERPPingPeerReplica(ctx context.Context, client http.Client, relayAddress string) error {
 	ra, err := url.Parse(relayAddress)
 	if err != nil {
 		return xerrors.Errorf("parse relay address %q: %w", relayAddress, err)
@@ -414,16 +420,29 @@ func (m *Manager) AllPrimary() []database.Replica {
 	return replicas
 }
 
-func (m *Manager) PrimaryPeerAddresses() []string {
+func (m *Manager) FetchNATSPeers() []string {
 	addresses := make([]string, 0, len(m.AllPrimary()))
 	for _, replica := range m.AllPrimary() {
-		addresses = append(addresses, replica.RelayAddress)
+		if replica.ClusterHost == "" || replica.NATSPort == 0 {
+			continue
+		}
+		natsAddr := fmt.Sprintf("nats://%s:%d", replica.ClusterHost, replica.NATSPort)
+		addresses = append(addresses, natsAddr)
 	}
 	return addresses
 }
 
-// InRegion returns every replica in the given DERP region excluding itself.
-func (m *Manager) InRegion(regionID int32) []database.Replica {
+func (m *Manager) SetSelfNATSPort(port int32) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.self.NATSPort = port
+	m.logger.Debug(context.Background(), "nats port updated", slog.F("port", port))
+	// We're not really in a rush here, since it will take some time for our peers to dial and establish connections
+	// to us. So, we're not going to trigger a synchronous update. We'll just wait for the periodic update ticker.
+}
+
+// DERPReplicasInRegion returns every replica in the given DERP region excluding itself.
+func (m *Manager) DERPReplicasInRegion(regionID int32) []database.Replica {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	replicas := make([]database.Replica, 0)
@@ -431,14 +450,18 @@ func (m *Manager) InRegion(regionID int32) []database.Replica {
 		if replica.RegionID != regionID {
 			continue
 		}
+		// Replicas without a relay address cannot be used for DERP.
+		if replica.RelayAddress == "" {
+			continue
+		}
 		replicas = append(replicas, replica)
 	}
 	return replicas
 }
 
-// Regional returns all replicas in the same region excluding itself.
-func (m *Manager) Regional() []database.Replica {
-	return m.InRegion(m.regionID())
+// DERPReplicasThisRegion returns all replicas in the same region excluding itself.
+func (m *Manager) DERPReplicasThisRegion() []database.Replica {
+	return m.DERPReplicasInRegion(m.regionID())
 }
 
 func (m *Manager) regionID() int32 {
@@ -497,6 +520,8 @@ func (m *Manager) Close() error {
 		Error:           m.self.Error,
 		DatabaseLatency: 0,     // A stopped replica has no latency.
 		Primary:         false, // A stopped replica cannot be primary.
+		ClusterHost:     m.self.ClusterHost,
+		NATSPort:        0, // A stopped replica cannot cluster with NATS
 	})
 	if err != nil {
 		return xerrors.Errorf("update replica: %w", err)

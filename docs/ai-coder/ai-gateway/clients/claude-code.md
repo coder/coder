@@ -9,9 +9,9 @@ Claude Code can be configured using environment variables. All modes require a *
 
 ## Centralized API Key
 
-```bash
+```sh
 # AI Gateway base URL.
-export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/aibridge/anthropic"
+export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/ai-gateway/anthropic"
 
 # Your Coder API token, used for authentication with AI Gateway.
 export ANTHROPIC_AUTH_TOKEN="<your-coder-api-token>"
@@ -19,9 +19,9 @@ export ANTHROPIC_AUTH_TOKEN="<your-coder-api-token>"
 
 ## BYOK (Personal API Key)
 
-```bash
+```sh
 # AI Gateway base URL.
-export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/aibridge/anthropic"
+export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/ai-gateway/anthropic"
 
 # Your personal Anthropic API key, forwarded to Anthropic.
 export ANTHROPIC_API_KEY="<your-anthropic-api-key>"
@@ -35,9 +35,9 @@ unset ANTHROPIC_AUTH_TOKEN
 
 ## BYOK (Claude Subscription)
 
-```bash
+```sh
 # AI Gateway base URL.
-export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/aibridge/anthropic"
+export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/ai-gateway/anthropic"
 
 # Your Coder API token, used for authentication with AI Gateway.
 export ANTHROPIC_CUSTOM_HEADERS="X-Coder-AI-Governance-Token: <your-coder-api-token>"
@@ -53,7 +53,7 @@ account.
 
 Template admins can pre-configure Claude Code for a seamless experience. Admins can automatically inject the user's Coder session token and the AI Gateway base URL into the workspace environment.
 
-```hcl
+```tf
 module "claude-code" {
   source            = "registry.coder.com/coder/claude-code/coder"
   version           = "4.7.3"
@@ -67,7 +67,7 @@ module "claude-code" {
 
 [Coder Tasks](../../tasks.md) provides a framework for agents to complete background development operations autonomously. Claude Code can be configured in your Tasks automatically:
 
-```hcl
+```tf
 resource "coder_ai_task" "task" {
   count  = data.coder_workspace.me.start_count
   app_id = module.claude-code.task_app_id

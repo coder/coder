@@ -1,4 +1,5 @@
 import { ArrowLeftIcon } from "lucide-react";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
@@ -25,10 +26,12 @@ const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const createMutation = useMutation(createAIProviderMutation(queryClient));
+	const defaultIcon = getProviderIcon(provider.value) ?? "";
+	const [icon, setIcon] = useState(defaultIcon);
 
 	return (
 		<>
-			<Link to="/ai/settings" className="-ml-3">
+			<Link to="/ai/settings/providers" className="-ml-3">
 				<Button variant="subtle">
 					<ArrowLeftIcon />
 					<span>Back to providers</span>
@@ -36,11 +39,7 @@ const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({
 			</Link>
 			<div className="flex flex-col gap-6 pt-6">
 				<div className="flex items-center gap-4 min-w-0">
-					<Avatar
-						variant="icon"
-						size="lg"
-						src={getProviderIcon(provider.value)}
-					/>
+					<Avatar variant="icon" size="lg" src={icon || defaultIcon} />
 					<SettingsHeaderTitle>{`Add ${indefiniteArticle(
 						provider.label,
 					)} ${provider.label} provider`}</SettingsHeaderTitle>
@@ -51,7 +50,8 @@ const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({
 				<div className="border border-solid p-6 rounded-lg">
 					<ProviderForm
 						editing={false}
-						initialValues={{ type: provider.value }}
+						initialValues={{ type: provider.value, icon: defaultIcon }}
+						onIconChange={setIcon}
 						isLoading={createMutation.isPending}
 						submitError={createMutation.error}
 						onSubmit={async (values) => {
@@ -63,7 +63,7 @@ const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({
 								);
 								// Awaited so the form's submitting state stays true through
 								// navigation, keeping the unsaved-changes prompt suppressed.
-								await navigate(`/ai/settings/${res.name}`);
+								await navigate(`/ai/settings/providers/${res.name}`);
 							} catch (error) {
 								const name = values.name.trim();
 								toast.error(

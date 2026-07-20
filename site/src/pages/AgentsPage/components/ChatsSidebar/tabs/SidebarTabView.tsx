@@ -312,7 +312,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 										}}
 										aria-label={`Close ${tab.label} tab`}
 										className={cn(
-											"h-6 w-6 rounded-l-none rounded-r-md bg-surface-primary p-0 text-content-secondary hover:text-content-primary [&>svg]:size-3",
+											"size-6 rounded-l-none rounded-r-md bg-surface-primary p-0 text-content-secondary hover:text-content-primary [&>svg]:size-3",
 											isActive &&
 												"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
 										)}

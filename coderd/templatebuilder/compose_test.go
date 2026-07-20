@@ -25,6 +25,7 @@ func TestCompose(t *testing.T) {
 		require.NotEmpty(t, result.MainTF)
 		require.Contains(t, string(result.MainTF), `resource "coder_agent" "main"`)
 		require.Empty(t, result.ModulesTF)
+		require.NotEmpty(t, result.Readme, "compose should include base README")
 	})
 
 	t.Run("BaseWithModuleAndVariableOverride", func(t *testing.T) {
@@ -62,7 +63,69 @@ func TestCompose(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.Contains(t, string(result.ModulesTF), `coder_agent.dev.id`)
+		require.Contains(t, string(result.ModulesTF), `coder_agent.dev[0].id`)
+	})
+
+	t.Run("AWSLinuxExtraFiles", func(t *testing.T) {
+		t.Parallel()
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "aws-linux",
+			RegistryURL:    "https://registry.coder.com",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, result.ExtraFiles, "aws-linux should have extra files")
+		require.Contains(t, result.ExtraFiles, "cloud-init/cloud-config.yaml.tftpl")
+		require.Contains(t, result.ExtraFiles, "cloud-init/userdata.sh.tftpl")
+	})
+
+	t.Run("GCPLinuxBaseWithProjectID", func(t *testing.T) {
+		t.Parallel()
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID:     "gcp-linux",
+			BaseVariableValues: map[string]string{"project_id": "my-gcp-project"},
+			RegistryURL:        "https://registry.coder.com",
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, result.MainTF)
+		mainTF := string(result.MainTF)
+		require.Contains(t, mainTF, `resource "coder_agent" "main"`)
+		require.Contains(t, mainTF, `default     = "my-gcp-project"`)
+		require.Contains(t, mainTF, `project = var.project_id`)
+	})
+
+	t.Run("GCPWindowsBase", func(t *testing.T) {
+		t.Parallel()
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID:     "gcp-windows",
+			BaseVariableValues: map[string]string{"project_id": "my-gcp-project"},
+			RegistryURL:        "https://registry.coder.com",
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, result.MainTF)
+		mainTF := string(result.MainTF)
+		require.Contains(t, mainTF, `resource "coder_agent" "main"`)
+		require.Contains(t, mainTF, `default     = "my-gcp-project"`)
+		require.Contains(t, mainTF, `project = var.project_id`)
+	})
+
+	t.Run("GCPMissingRequiredBaseVariable", func(t *testing.T) {
+		t.Parallel()
+		_, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "gcp-linux",
+			RegistryURL:    "https://registry.coder.com",
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), `variable "project_id" is required`)
+	})
+
+	t.Run("AzureLinuxExtraFiles", func(t *testing.T) {
+		t.Parallel()
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "azure-linux",
+			RegistryURL:    "https://registry.coder.com",
+		})
+		require.NoError(t, err)
+		require.Contains(t, result.ExtraFiles, "cloud-init/cloud-config.yaml.tftpl")
 	})
 
 	t.Run("SensitiveVariable", func(t *testing.T) {
@@ -93,7 +156,7 @@ func TestCompose(t *testing.T) {
 				{
 					ID: "git-clone",
 					Variables: map[string]string{
-						"url": `"https://github.com/coder/coder"`,
+						"url": "https://github.com/coder/coder",
 					},
 				},
 			},
@@ -146,6 +209,16 @@ func TestCompose(t *testing.T) {
 		require.Contains(t, err.Error(), "conflicts with")
 	})
 
+	t.Run("DockerNoExtraFiles", func(t *testing.T) {
+		t.Parallel()
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "docker",
+			RegistryURL:    "https://registry.coder.com",
+		})
+		require.NoError(t, err)
+		require.Empty(t, result.ExtraFiles, "docker should have no extra files")
+	})
+
 	t.Run("UnknownBase", func(t *testing.T) {
 		t.Parallel()
 		_, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
@@ -178,7 +251,7 @@ func TestCompose(t *testing.T) {
 				{
 					ID: "code-server",
 					Variables: map[string]string{
-						"nonexistent_var": `"value"`,
+						"nonexistent_var": "value",
 					},
 				},
 			},
@@ -216,13 +289,67 @@ func TestCompose(t *testing.T) {
 				{
 					ID: "code-server",
 					Variables: map[string]string{
-						"folder": `"${var.evil}"`,
+						"folder": "${var.evil}",
 					},
 				},
 			},
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "interpolation")
+	})
+
+	t.Run("DockerDefaultContainerImage", func(t *testing.T) {
+		t.Parallel()
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "docker",
+			RegistryURL:    "https://registry.coder.com",
+		})
+		require.NoError(t, err)
+		require.Contains(t, string(result.MainTF), `"codercom/example-base:ubuntu"`)
+	})
+
+	t.Run("DockerCustomContainerImage", func(t *testing.T) {
+		t.Parallel()
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "docker",
+			RegistryURL:    "https://registry.coder.com",
+			BaseVariableValues: map[string]string{
+				"container_image": "myregistry/myimage:v2",
+			},
+		})
+		require.NoError(t, err)
+		mainTF := string(result.MainTF)
+		require.Contains(t, mainTF, `"myregistry/myimage:v2"`)
+		require.NotContains(t, mainTF, `codercom/example-base:ubuntu`)
+	})
+
+	t.Run("KubernetesDefaultContainerImage", func(t *testing.T) {
+		t.Parallel()
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "kubernetes",
+			RegistryURL:    "https://registry.coder.com",
+			BaseVariableValues: map[string]string{
+				"namespace": "default",
+			},
+		})
+		require.NoError(t, err)
+		require.Contains(t, string(result.MainTF), `"codercom/example-base:ubuntu"`)
+	})
+
+	t.Run("KubernetesCustomContainerImage", func(t *testing.T) {
+		t.Parallel()
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "kubernetes",
+			RegistryURL:    "https://registry.coder.com",
+			BaseVariableValues: map[string]string{
+				"namespace":       "default",
+				"container_image": "custom/workspace:latest",
+			},
+		})
+		require.NoError(t, err)
+		mainTF := string(result.MainTF)
+		require.Contains(t, mainTF, `"custom/workspace:latest"`)
+		require.NotContains(t, mainTF, `codercom/example-base:ubuntu`)
 	})
 
 	t.Run("MissingRequiredVariable", func(t *testing.T) {
@@ -237,7 +364,8 @@ func TestCompose(t *testing.T) {
 			},
 		})
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "render module")
+		require.Contains(t, err.Error(), `variable "url"`)
+		require.Contains(t, err.Error(), "is required")
 	})
 }
 
@@ -262,6 +390,7 @@ func TestBundleTar(t *testing.T) {
 		files := extractTar(t, data)
 		require.Contains(t, files, "main.tf")
 		require.NotContains(t, files, "modules.tf")
+		require.NotContains(t, files, "README.md")
 		require.Equal(t, "resource {}", files["main.tf"])
 	})
 
@@ -277,8 +406,24 @@ func TestBundleTar(t *testing.T) {
 		files := extractTar(t, data)
 		require.Contains(t, files, "main.tf")
 		require.Contains(t, files, "modules.tf")
+		require.NotContains(t, files, "README.md")
 		require.Equal(t, "resource {}", files["main.tf"])
 		require.Equal(t, "module {}", files["modules.tf"])
+	})
+
+	t.Run("IncludesReadme", func(t *testing.T) {
+		t.Parallel()
+		result := &templatebuilder.ComposeResult{
+			MainTF: []byte("resource {}"),
+			Readme: []byte("# My Template\n"),
+		}
+		data, err := templatebuilder.BundleTar(result)
+		require.NoError(t, err)
+
+		files := extractTar(t, data)
+		require.Contains(t, files, "main.tf")
+		require.Contains(t, files, "README.md")
+		require.Equal(t, "# My Template\n", files["README.md"])
 	})
 
 	t.Run("RoundTrip", func(t *testing.T) {
@@ -298,6 +443,67 @@ func TestBundleTar(t *testing.T) {
 		files := extractTar(t, data)
 		require.Equal(t, string(result.MainTF), files["main.tf"])
 		require.Equal(t, string(result.ModulesTF), files["modules.tf"])
+		require.Equal(t, string(result.Readme), files["README.md"])
+	})
+
+	t.Run("ExtraFilesInTar", func(t *testing.T) {
+		t.Parallel()
+		result := &templatebuilder.ComposeResult{
+			MainTF: []byte("resource {}"),
+			ExtraFiles: map[string][]byte{
+				"cloud-init/config.yaml.tftpl": []byte("cloud config"),
+				"cloud-init/userdata.sh.tftpl": []byte("userdata"),
+			},
+		}
+		data, err := templatebuilder.BundleTar(result)
+		require.NoError(t, err)
+
+		files := extractTar(t, data)
+		require.Contains(t, files, "cloud-init/", "directory entry should be present for subdirectories")
+		require.Contains(t, files, "main.tf")
+		require.Contains(t, files, "cloud-init/config.yaml.tftpl")
+		require.Contains(t, files, "cloud-init/userdata.sh.tftpl")
+		require.Equal(t, "cloud config", files["cloud-init/config.yaml.tftpl"])
+		require.Equal(t, "userdata", files["cloud-init/userdata.sh.tftpl"])
+	})
+
+	t.Run("NestedStaticFileDirEntries", func(t *testing.T) {
+		t.Parallel()
+		result := &templatebuilder.ComposeResult{
+			MainTF: []byte("resource {}"),
+			ExtraFiles: map[string][]byte{
+				"a/b/c/deep.txt": []byte("deep"),
+				"top.txt":        []byte("top"),
+			},
+		}
+		data, err := templatebuilder.BundleTar(result)
+		require.NoError(t, err)
+
+		files := extractTar(t, data)
+		require.Contains(t, files, "a/", "top-level parent dir entry")
+		require.Contains(t, files, "a/b/", "intermediate parent dir entry")
+		require.Contains(t, files, "a/b/c/", "leaf parent dir entry")
+		require.Contains(t, files, "a/b/c/deep.txt")
+		require.Contains(t, files, "top.txt")
+		// top.txt is at root, so no extra directory entry needed.
+	})
+
+	t.Run("AWSLinuxRoundTrip", func(t *testing.T) {
+		t.Parallel()
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "aws-linux",
+			RegistryURL:    "https://registry.coder.com",
+		})
+		require.NoError(t, err)
+
+		data, err := templatebuilder.BundleTar(result)
+		require.NoError(t, err)
+
+		files := extractTar(t, data)
+		require.Contains(t, files, "main.tf")
+		require.Contains(t, files, "README.md")
+		require.Contains(t, files, "cloud-init/cloud-config.yaml.tftpl")
+		require.Contains(t, files, "cloud-init/userdata.sh.tftpl")
 	})
 
 	t.Run("ReproducibleArchive", func(t *testing.T) {

@@ -116,10 +116,10 @@ export const ProvisionerRow: FC<ProvisionerRowProps> = ({
 							])}
 						>
 							<dt>Last seen:</dt>
-							<dd data-chromatic="ignore">{provisioner.last_seen_at}</dd>
+							<dd data-pixel="ignore">{provisioner.last_seen_at}</dd>
 
 							<dt>Creation time:</dt>
-							<dd data-chromatic="ignore">{provisioner.created_at}</dd>
+							<dd data-pixel="ignore">{provisioner.created_at}</dd>
 
 							<dt>Version:</dt>
 							<dd>

@@ -165,6 +165,10 @@ spec:
               fieldPath: status.podIP
         - name: CODER_DERP_SERVER_RELAY_URL
           value: http://$(KUBE_POD_IP):8080
+        - name: CODER_CLUSTER_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
         - name: CODER_PRIMARY_ACCESS_URL
           value: https://dev.coder.com
         - name: CODER_PROXY_SESSION_TOKEN

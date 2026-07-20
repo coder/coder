@@ -73,14 +73,14 @@ for complete setup instructions.
 
 Air-gapped users can clone the [coder/registry](https://github.com/coder/registry/)
 repo and publish a
-[local terraform module repository](https://jfrog.com/help/r/jfrog-artifactory-documentation/set-up-a-terraform-module/provider-registry)
+[local terraform module repository](https://jfrog.com/help/r/jfrog-artifactory-documentation/terraform-opentofu-and-terraform-backend-repositories)
 to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
 
 1. Create a local-terraform-repository with name `coder-modules-local`
 1. Create a virtual repository with name `tf`
 1. Follow the below instructions to publish coder modules to Artifactory
 
-   ```shell
+   ```sh
    git clone https://github.com/coder/registry
    cd registry/registry/coder/modules
    jf tfc
@@ -140,13 +140,13 @@ with read only access to the necessary repos.
 If you are running Coder on a VM, make sure that you have `git` installed and
 the `coder` user has access to the following files:
 
-```shell
+```sh
 # /home/coder/.gitconfig
 [credential]
   helper = store
 ```
 
-```shell
+```sh
 # /home/coder/.git-credentials
 
 # GitHub example:
@@ -166,7 +166,7 @@ your own git credentials.
 Next, create the secret in Kubernetes. Be sure to do this in the same namespace
 that Coder is installed in.
 
-```shell
+```sh
 export NAMESPACE=coder
 kubectl apply -f - <<EOF
 apiVersion: v1
@@ -203,6 +203,6 @@ coder:
 ### Next steps
 
 - JFrog's
-  [Terraform Registry support](https://jfrog.com/help/r/jfrog-artifactory-documentation/terraform-registry)
+  [Terraform Registry support](https://jfrog.com/help/r/jfrog-artifactory-documentation/terraform-opentofu-and-terraform-backend-repositories)
 - [Configuring the JFrog toolchain inside a workspace](../../integrations/jfrog-artifactory.md)
 - [Coder Module Registry](https://registry.coder.com/modules)

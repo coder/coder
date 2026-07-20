@@ -1,14 +1,16 @@
+import dayjs from "dayjs";
 import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
-import { useMutation, useQueryClient } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useOutletContext } from "react-router";
 import { toast } from "sonner";
+import type { GroupMemberWithAICostControl } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import { addMembers, removeMember } from "#/api/queries/groups";
+import { addMembers, groupAIBudget, removeMember } from "#/api/queries/groups";
+import { meAISpend } from "#/api/queries/users";
 import type {
 	Group,
 	OrganizationMemberWithUserData,
-	ReducedUser,
 } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
@@ -43,7 +45,13 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { isEveryoneGroup } from "#/modules/groups";
 import { cn } from "#/utils/cn";
+import { formatBudgetUSD } from "#/utils/currency";
+import {
+	effectiveBudgetGroup,
+	GroupMemberBudgetCells,
+} from "./GroupMemberBudgetCells";
 import type { GroupPageOutletContext } from "./GroupPage";
+import { InfoIconTooltip } from "./InfoIconTooltip";
 import { UserAIBudgetOverrideDialog } from "./UserAIBudgetOverrideDialog";
 
 const GroupMembersPage: FC = () => {
@@ -61,14 +69,33 @@ const GroupMembersPage: FC = () => {
 		removeMember(queryClient, organization),
 	);
 	const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
-	const [budgetUser, setBudgetUser] = useState<ReducedUser | null>(null);
+	const [budgetUser, setBudgetUser] =
+		useState<GroupMemberWithAICostControl | null>(null);
 
 	const { experiments } = useDashboard();
-	// TODO(AIGOV-443): remove the ai-gateway-cost-control experiment gate once
-	// the cost-control feature is stable.
+	// TODO(AIGOV-443): drop the experiment gate once cost control is stable.
 	const aibridgeVisible =
 		Boolean(useFeatureVisibility().aibridge) &&
 		experiments.includes("ai-gateway-cost-control");
+	const { data: aiSpend } = useQuery({
+		...meAISpend(),
+		enabled: aibridgeVisible,
+	});
+	const { data: groupBudget } = useQuery({
+		...groupAIBudget(groupData.id),
+		enabled: aibridgeVisible,
+	});
+	const aiBudgetNote = [
+		"Monthly AI spend for this user.",
+		// Spend resets at period_end, rendered in the viewer's local time.
+		aiSpend &&
+			`Resets ${dayjs(aiSpend.period_end).format("MMM D, YYYY h:mm A")}.`,
+		// A $0 default still shows: it means no spending allowance.
+		groupBudget &&
+			`The group's default limit is ${formatBudgetUSD(groupBudget.spend_limit_micros)} per member.`,
+	]
+		.filter(Boolean)
+		.join(" ");
 
 	return (
 		<div className="flex flex-col w-full gap-1 pb-8">
@@ -92,8 +119,28 @@ const GroupMembersPage: FC = () => {
 				<Table aria-label="Group members">
 					<TableHeader>
 						<TableRow>
-							<TableHead className="w-2/5">User</TableHead>
-							<TableHead className="w-3/5">Status</TableHead>
+							<TableHead className={aibridgeVisible ? undefined : "w-2/5"}>
+								User
+							</TableHead>
+							<TableHead className={aibridgeVisible ? undefined : "w-3/5"}>
+								Status
+							</TableHead>
+							{aibridgeVisible && (
+								<>
+									<TableHead>
+										<div className="flex items-center gap-1">
+											AI budget
+											<InfoIconTooltip message={aiBudgetNote} />
+										</div>
+									</TableHead>
+									<TableHead>
+										<div className="flex items-center gap-1">
+											Budget group
+											<InfoIconTooltip message="The group or individual budget currently responsible for this user's AI spend. Admins can reassign this at any time, so spend history may span multiple sources." />
+										</div>
+									</TableHead>
+								</>
+							)}
 							<TableHead className="w-auto" />
 						</TableRow>
 					</TableHeader>
@@ -112,7 +159,7 @@ const GroupMembersPage: FC = () => {
 									group={groupData}
 									key={member.id}
 									canUpdate={canUpdateGroup}
-									aiBudgetVisible={aibridgeVisible}
+									showAIBudget={aibridgeVisible}
 									onManageAIBudget={() => setBudgetUser(member)}
 									onRemove={async () => {
 										const mutation = removeMemberMutation.mutateAsync({
@@ -144,9 +191,8 @@ const GroupMembersPage: FC = () => {
 						}
 					}}
 					user={budgetUser}
-					// TODO(#26401): pass the member's effective group, not the page's
-					// group, once the effective-group API exists.
 					currentGroup={groupData}
+					effectiveGroupId={budgetUser.ai_cost_control?.effective_group_id}
 				/>
 			)}
 		</div>
@@ -246,10 +292,10 @@ const AddUsersDialog: FC<AddUsersDialogProps> = ({
 };
 
 interface GroupMemberRowProps {
-	member: ReducedUser;
+	member: GroupMemberWithAICostControl;
 	group: Group;
 	canUpdate: boolean;
-	aiBudgetVisible: boolean;
+	showAIBudget: boolean;
 	onManageAIBudget: () => void;
 	onRemove: () => void;
 }
@@ -258,13 +304,17 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 	member,
 	group,
 	canUpdate,
-	aiBudgetVisible,
+	showAIBudget,
 	onManageAIBudget,
 	onRemove,
 }) => {
+	const costControl = member.ai_cost_control;
+	const budgetFromOtherGroup =
+		effectiveBudgetGroup(costControl, group).kind === "other";
+
 	return (
 		<TableRow key={member.id}>
-			<TableCell width="59%">
+			<TableCell width={showAIBudget ? undefined : "59%"}>
 				<AvatarData
 					avatar={
 						<Avatar
@@ -280,7 +330,7 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 				/>
 			</TableCell>
 			<TableCell
-				width="40%"
+				width={showAIBudget ? undefined : "40%"}
 				className={cn(
 					"capitalize",
 					member.status === "suspended" ? "text-content-secondary" : "",
@@ -289,7 +339,14 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 				<div>{member.status}</div>
 				<LastSeen at={member.last_seen_at} className="text-xs" />
 			</TableCell>
-			<TableCell width="1%">
+			{showAIBudget && (
+				<GroupMemberBudgetCells
+					group={group}
+					userID={member.id}
+					costControl={costControl}
+				/>
+			)}
+			<TableCell className="w-1 whitespace-nowrap">
 				{canUpdate && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
@@ -299,9 +356,12 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
-							{aiBudgetVisible && (
-								<DropdownMenuItem onClick={onManageAIBudget}>
-									AI Budget
+							{showAIBudget && (
+								<DropdownMenuItem
+									onClick={onManageAIBudget}
+									disabled={budgetFromOtherGroup}
+								>
+									Manage AI budget
 								</DropdownMenuItem>
 							)}
 							<DropdownMenuItem

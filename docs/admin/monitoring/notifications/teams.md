@@ -136,7 +136,7 @@ The process of setting up a Teams workflow consists of three key steps:
 To enable webhook integration in Coder, define the POST webhook endpoint created
 by your Teams workflow:
 
-```bash
+```sh
 export CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT=https://prod-16.eastus.logic.azure.com:443/workflows/f8fbe3e8211e4b638...`
 ```
 

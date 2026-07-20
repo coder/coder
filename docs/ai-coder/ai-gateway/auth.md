@@ -50,7 +50,7 @@ by using [`coder login token`](../../reference/cli/login_token.md):
 
 ```sh
 export ANTHROPIC_API_KEY=$(coder login token)
-export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/aibridge/anthropic"
+export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/ai-gateway/anthropic"
 ```
 
 Alternatively, you can [generate a long-lived API token](../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)

@@ -74,12 +74,13 @@ func (api *API) templateBuilderBases(rw http.ResponseWriter, r *http.Request) {
 		}
 		vars := baseVariablesToSDK(templatebuilder.BaseVariables(id))
 		bases = append(bases, codersdk.TemplateBuilderBase{
-			ID:          ex.ID,
-			Name:        ex.Name,
-			Description: ex.Description,
-			Icon:        ex.Icon,
-			OS:          string(templatebuilder.BaseTemplateOS(id)),
-			Variables:   vars,
+			ID:            ex.ID,
+			Name:          ex.Name,
+			Description:   ex.Description,
+			Icon:          ex.Icon,
+			OS:            string(templatebuilder.BaseTemplateOS(id)),
+			Variables:     vars,
+			Prerequisites: templatebuilder.BasePrerequisites(id),
 		})
 	}
 
@@ -422,7 +423,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 			UpdatedAt:       dbtime.Now(),
 			Name:            versionName,
 			Message:         "",
-			Readme:          "",
+			Readme:          string(result.Readme),
 			JobID:           provisionerJob.ID,
 			CreatedBy:       apiKey.UserID,
 			SourceExampleID: sql.NullString{},
@@ -458,7 +459,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 	jobCtx, jobCancel := context.WithTimeout(ctx, templateBuilderCreateTemplateTimeout)
 	defer jobCancel()
 
-	completedJob, err := api.waitForProvisionerJob(jobCtx, provisionerJob.ID, nil)
+	completedJob, err := api.waitForProvisionerJob(jobCtx, provisionerJob.ID)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			httpapi.Write(ctx, rw, http.StatusGatewayTimeout, codersdk.Response{
@@ -615,11 +616,9 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 }
 
 // waitForProvisionerJob polls until the job completes or the context expires.
-// If onUpdate is non-nil, it is called after each poll with the latest job state.
 func (api *API) waitForProvisionerJob(
 	ctx context.Context,
 	jobID uuid.UUID,
-	onUpdate func(database.ProvisionerJob),
 ) (database.ProvisionerJob, error) {
 	initialIntervals := []time.Duration{
 		100 * time.Millisecond,
@@ -645,10 +644,6 @@ func (api *API) waitForProvisionerJob(
 		job, err := api.Database.GetProvisionerJobByID(ctx, jobID)
 		if err != nil {
 			return database.ProvisionerJob{}, xerrors.Errorf("get provisioner job: %w", err)
-		}
-
-		if onUpdate != nil {
-			onUpdate(job)
 		}
 
 		if job.CompletedAt.Valid {

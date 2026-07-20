@@ -4,7 +4,7 @@
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templatebuilder/bases \
   -H 'Accept: application/json' \
@@ -26,6 +26,7 @@ curl -X GET http://coder-server:8080/api/v2/templatebuilder/bases \
       "id": "string",
       "name": "string",
       "os": "string",
+      "prerequisites": "string",
       "variables": [
         {
           "default": [
@@ -55,7 +56,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose \
   -H 'Content-Type: application/json' \
@@ -103,7 +104,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose/template \
   -H 'Content-Type: application/json' \
@@ -205,6 +206,7 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose/template \
     "organization_name": "string",
     "provisioner": "terraform",
     "require_active_version": true,
+    "time_til_autostop_notify_ms": 0,
     "time_til_dormant_autodelete_ms": 0,
     "time_til_dormant_ms": 0,
     "updated_at": "2019-08-24T14:15:22Z",
@@ -229,7 +231,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templatebuilder/modules \
   -H 'Accept: application/json' \

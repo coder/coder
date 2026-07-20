@@ -21,7 +21,7 @@ to reverse proxy your deployment for simple setup.
 
 You can change which port(s) Coder listens on.
 
-```shell
+```sh
 # Listen on port 80
 export CODER_HTTP_ADDRESS=0.0.0.0:80
 
@@ -83,7 +83,7 @@ working directory prior to step 1.
 
 1. Create the TLS secret in your Kubernetes cluster
 
-   ```shell
+   ```sh
    kubectl create secret tls coder-tls -n <coder-namespace> --key="tls.key" --cert="tls.crt"
    ```
 

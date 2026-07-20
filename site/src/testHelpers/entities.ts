@@ -620,6 +620,7 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 ];
 
 export const MockTasksTabVisible: boolean = false;
+export const MockAIGatewayEnabled: boolean = true;
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 	organization_id: MockOrganization.id,
@@ -899,6 +900,7 @@ export const MockTemplate: TypesGen.Template = {
 	description: "This is a test description.",
 	default_ttl_ms: 24 * 60 * 60 * 1000,
 	activity_bump_ms: 1 * 60 * 60 * 1000,
+	time_til_autostop_notify_ms: 0,
 	autostop_requirement: {
 		days_of_week: ["sunday"],
 		weeks: 1,
@@ -1777,12 +1779,22 @@ export const MockDormantOutdatedWorkspace: TypesGen.Workspace = {
 	dormant_at: new Date().toISOString(),
 };
 
-const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace = {
-	...MockWorkspace,
-	id: "test-outdated-workspace-require-active-version",
-	outdated: true,
-	template_require_active_version: true,
-};
+export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace =
+	{
+		...MockWorkspace,
+		id: "test-outdated-workspace-require-active-version",
+		outdated: true,
+		template_require_active_version: true,
+	};
+
+export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspace =
+	{
+		...MockOutdatedRunningWorkspaceRequireActiveVersion,
+		latest_build: {
+			...MockWorkspaceBuild,
+			status: "stopped",
+		},
+	};
 
 const MockOutdatedRunningWorkspaceAlwaysUpdate: TypesGen.Workspace = {
 	...MockWorkspace,
@@ -1794,15 +1806,6 @@ const MockOutdatedRunningWorkspaceAlwaysUpdate: TypesGen.Workspace = {
 		status: "running",
 	},
 };
-
-export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspace =
-	{
-		...MockOutdatedRunningWorkspaceRequireActiveVersion,
-		latest_build: {
-			...MockWorkspaceBuild,
-			status: "stopped",
-		},
-	};
 
 export const MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
 	...MockOutdatedRunningWorkspaceAlwaysUpdate,
@@ -1900,20 +1903,19 @@ export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
 		ephemeral: false,
 	};
 
-export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
-	{
-		name: "fourth_parameter",
-		type: "string",
-		form_type: "input",
-		description: "This is fourth parameter",
-		description_plaintext: "Markdown: This is fourth parameter",
-		default_value: "def",
-		mutable: false,
-		icon: "/icon/database.svg",
-		options: [],
-		required: true,
-		ephemeral: false,
-	};
+const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter = {
+	name: "fourth_parameter",
+	type: "string",
+	form_type: "input",
+	description: "This is fourth parameter",
+	description_plaintext: "Markdown: This is fourth parameter",
+	default_value: "def",
+	mutable: false,
+	icon: "/icon/database.svg",
+	options: [],
+	required: true,
+	ephemeral: false,
+};
 
 const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter = {
 	name: "fifth_parameter",
@@ -1948,23 +1950,22 @@ export const MockTemplateVersionParameter6: TypesGen.TemplateVersionParameter =
 	};
 
 // Not required and the default is a blank string.
-export const MockTemplateVersionParameter7: TypesGen.TemplateVersionParameter =
-	{
-		name: "seventh_parameter",
-		type: "string",
-		form_type: "input",
-		description: "This is seventh parameter",
-		description_plaintext: "Markdown: This is seventh parameter",
-		default_value: "",
-		mutable: true,
-		icon: "/icon/folder.svg",
-		options: [],
-		validation_min: 1,
-		validation_max: 10,
-		validation_monotonic: "decreasing",
-		required: false,
-		ephemeral: false,
-	};
+const MockTemplateVersionParameter7: TypesGen.TemplateVersionParameter = {
+	name: "seventh_parameter",
+	type: "string",
+	form_type: "input",
+	description: "This is seventh parameter",
+	description_plaintext: "Markdown: This is seventh parameter",
+	default_value: "",
+	mutable: true,
+	icon: "/icon/folder.svg",
+	options: [],
+	validation_min: 1,
+	validation_max: 10,
+	validation_monotonic: "decreasing",
+	required: false,
+	ephemeral: false,
+};
 
 export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {
 	name: "first_variable",
@@ -3559,7 +3560,7 @@ export const MockDropdownParameter: TypesGen.PreviewParameter = {
 	order: 1,
 };
 
-const MockTagSelectParameter: TypesGen.PreviewParameter = {
+export const MockTagSelectParameter: TypesGen.PreviewParameter = {
 	...MockPreviewParameter,
 	name: "tags",
 	display_name: "Tags",
@@ -3577,7 +3578,7 @@ const MockTagSelectParameter: TypesGen.PreviewParameter = {
 	order: 4,
 };
 
-const MockSwitchParameter: TypesGen.PreviewParameter = {
+export const MockSwitchParameter: TypesGen.PreviewParameter = {
 	...MockPreviewParameter,
 	name: "enable_monitoring",
 	display_name: "Enable Monitoring",
@@ -3612,7 +3613,7 @@ export const MockSliderParameter: TypesGen.PreviewParameter = {
 	order: 2,
 };
 
-const MockMultiSelectParameter: TypesGen.PreviewParameter = {
+export const MockMultiSelectParameter: TypesGen.PreviewParameter = {
 	...MockPreviewParameter,
 	name: "ides",
 	display_name: "IDEs",
@@ -3671,19 +3672,6 @@ export const MockValidationParameter: TypesGen.PreviewParameter = {
 	],
 	order: 1,
 };
-
-export const MockDynamicParametersResponse: TypesGen.DynamicParametersResponse =
-	{
-		id: 1,
-		parameters: [
-			MockDropdownParameter,
-			MockSliderParameter,
-			MockSwitchParameter,
-			MockTagSelectParameter,
-			MockMultiSelectParameter,
-		],
-		diagnostics: [],
-	};
 
 export const MockDynamicParametersResponseWithError: TypesGen.DynamicParametersResponse =
 	{
@@ -5544,6 +5532,7 @@ export const MockAIProviderOpenAI: TypesGen.AIProvider = {
 	type: "openai",
 	name: "openai",
 	display_name: "OpenAI",
+	icon: "",
 	base_url: "https://api.openai.com",
 	enabled: false,
 	api_keys: [
@@ -5563,6 +5552,7 @@ export const MockAIProviderAnthropic: TypesGen.AIProvider = {
 	type: "anthropic",
 	name: "anthropic",
 	display_name: "Anthropic",
+	icon: "",
 	base_url: "https://api.anthropic.com",
 	enabled: false,
 	api_keys: [],
@@ -5572,15 +5562,17 @@ export const MockAIProviderAnthropic: TypesGen.AIProvider = {
 };
 
 /**
- * Bedrock providers come over the wire with `type: "anthropic"` and a
- * `settings._type: "bedrock"` discriminator. `isBedrockProvider` and the
- * backend (see `coderd/ai_providers.go`) enforce this convention.
+ * Bedrock providers come over the wire with `type: "bedrock"` and a
+ * `settings._type: "bedrock"` discriminator. `isBedrockProvider` checks
+ * both the type and the settings discriminator, and also accepts legacy
+ * providers stored as `type: "anthropic"` with Bedrock settings.
  */
 export const MockAIProviderBedrock: TypesGen.AIProvider = {
 	id: "9c2e3b41-2e9f-4c97-9a4f-2e1a3d8f9f21",
-	type: "anthropic",
+	type: "bedrock",
 	name: "bedrock",
 	display_name: "Bedrock",
+	icon: "",
 	base_url: "https://bedrock-runtime.us-east-2.amazonaws.com",
 	enabled: true,
 	api_keys: [],
@@ -5600,6 +5592,7 @@ export const MockAIProviderCopilot: TypesGen.AIProvider = {
 	type: "copilot",
 	name: "copilot",
 	display_name: "GitHub Copilot",
+	icon: "",
 	base_url: "https://api.business.githubcopilot.com",
 	enabled: true,
 	api_keys: [],
@@ -5621,7 +5614,7 @@ export const MockAIGatewayKeys: TypesGen.AIGatewayKey[] = [
 		name: "primary-gateway",
 		key_prefix: "a1B2c3D4e5F",
 		created_at: "2024-05-01T14:00:00Z",
-		last_used_at: "2024-05-20T09:30:00Z",
+		last_heartbeat_at: "2024-05-20T09:30:00Z",
 	},
 	{
 		id: "2d3f7a5b-9c4e-4a2b-8d6f-3b6c9e7f1a22",

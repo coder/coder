@@ -631,7 +631,7 @@ func TestMultiReplica_NATSPubsubPeers(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	db, pgPubsub := dbtestutil.NewDB(t)
 	clusterToken := "shared-token"
 
@@ -672,12 +672,15 @@ func TestMultiReplica_NATSPubsubPeers(t *testing.T) {
 
 	mgr, err := replicasync.New(ctx, logger.Named("replica-b"), db, pgPubsub, &replicasync.Options{
 		ID:             uuid.New(),
-		RelayAddress:   fmt.Sprintf("nats://127.0.0.1:%d", natsB.Server.ClusterAddr().Port),
+		ClusterHost:    "127.0.0.1",
 		RegionID:       12345,
 		UpdateInterval: testutil.IntervalFast,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = mgr.Close() })
+	require.NotNil(t, natsB.Server.ClusterAddr())
+	// nolint: gosec // nats listens on TCP ports
+	mgr.SetSelfNATSPort(int32(natsB.Server.ClusterAddr().Port))
 
 	subject := "nats.replica"
 	messages := make(chan []byte, 1)

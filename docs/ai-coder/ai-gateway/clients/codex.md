@@ -16,14 +16,14 @@ model_provider = "ai_gateway"
 
 [model_providers.ai_gateway]
 name = "AI Gateway"
-base_url = "<your-deployment-url>/api/v2/aibridge/openai/v1"
+base_url = "<your-deployment-url>/api/v2/ai-gateway/openai/v1"
 env_key = "OPENAI_API_KEY"
 wire_api = "responses"
 ```
 
 To authenticate with AI Gateway, get your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** and set it in your environment:
 
-```bash
+```sh
 export OPENAI_API_KEY="<your-coder-api-token>"
 ```
 
@@ -38,7 +38,7 @@ model_provider = "ai_gateway"
 
 [model_providers.ai_gateway]
 name = "AI Gateway"
-base_url = "<your-deployment-url>/api/v2/aibridge/openai/v1"
+base_url = "<your-deployment-url>/api/v2/ai-gateway/openai/v1"
 wire_api = "responses"
 requires_openai_auth = true
 env_http_headers = { "X-Coder-AI-Governance-Token" = "CODER_API_TOKEN" }
@@ -46,7 +46,7 @@ env_http_headers = { "X-Coder-AI-Governance-Token" = "CODER_API_TOKEN" }
 
 Set both environment variables:
 
-```bash
+```sh
 # Your personal OpenAI API key, forwarded to OpenAI.
 export OPENAI_API_KEY="<your-openai-api-key>"
 
@@ -68,18 +68,18 @@ model_provider = "ai_gateway"
 
 [model_providers.ai_gateway]
 name = "AI Gateway"
-base_url = "<your-deployment-url>/api/v2/aibridge/chatgpt/v1"
+base_url = "<your-deployment-url>/api/v2/ai-gateway/chatgpt/v1"
 wire_api = "responses"
 requires_openai_auth = true
 env_http_headers = { "X-Coder-AI-Governance-Token" = "CODER_API_TOKEN" }
 ```
 
 > [!NOTE]
-> The `base_url` uses `/aibridge/chatgpt/v1` instead of `/aibridge/openai/v1` to route requests through the ChatGPT provider.
+> The `base_url` uses `/ai-gateway/chatgpt/v1` instead of `/ai-gateway/openai/v1` to route requests through the ChatGPT provider.
 
 Set your Coder API token and ensure `OPENAI_API_KEY` is not set:
 
-```bash
+```sh
 # Your Coder API token, used for authentication with AI Gateway.
 export CODER_API_TOKEN="<your-coder-api-token>"
 
@@ -129,7 +129,7 @@ module "codex" {
 
     [model_providers.ai_gateway]
     name = "AI Gateway"
-    base_url = "${data.coder_workspace.me.access_url}/api/v2/aibridge/chatgpt/v1"
+    base_url = "${data.coder_workspace.me.access_url}/api/v2/ai-gateway/chatgpt/v1"
     wire_api = "responses"
     requires_openai_auth = true
     env_http_headers = { "X-Coder-AI-Governance-Token" = "CODER_API_TOKEN" }
@@ -150,7 +150,7 @@ Responses API. AI Gateway does not support WebSocket transport, so each
 request attempts a WebSocket connection and retries up to 5 times before
 falling back to HTTPS. When this happens you will see:
 
-```text
+```txt
 Falling back from WebSockets to HTTPS transport.
 ```
 
@@ -165,7 +165,7 @@ model_provider = "ai_gateway"
 
 [model_providers.ai_gateway]
 name = "AI Gateway"
-base_url = "<your-deployment-url>/api/v2/aibridge/openai/v1"
+base_url = "<your-deployment-url>/api/v2/ai-gateway/openai/v1"
 wire_api = "responses"
 supports_websockets = false
 ```

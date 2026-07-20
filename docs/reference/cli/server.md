@@ -414,7 +414,7 @@ Organizations the user must be a member of to Login with GitHub.
 | Environment | <code>$CODER_OAUTH2_GITHUB_ALLOWED_TEAMS</code> |
 | YAML        | <code>oauth2.github.allowedTeams</code>         |
 
-Teams inside organizations the user must be a member of to Login with GitHub. Structured as: <organization-name>/<team-slug>.
+Teams inside organizations the user must be a member of to Login with GitHub. Structured as: `<organization-name>/<team-slug>`.
 
 ### --oauth2-github-allow-signups
 
@@ -1121,6 +1121,16 @@ The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ec
 | YAML        | <code>networking.browserOnly</code> |
 
 Whether Coder only allows connections to workspaces via the browser.
+
+### --cluster-host
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>string</code>                         |
+| Environment | <code>$CODER_CLUSTER_HOST</code>            |
+| YAML        | <code>networking.cluster.clusterHost</code> |
+
+Hostname or (more commonly) IP to reach this replica for clustering.
 
 ### --scim-auth-header
 
@@ -1909,7 +1919,7 @@ Once enabled, extra headers will be added to upstream requests to identify the u
 | Environment | <code>$CODER_AI_GATEWAY_DUMP_DIR</code> |
 | YAML        | <code>ai_gateway.api_dump_dir</code>    |
 
-Base directory for dumping AI Bridge request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.
+Base directory for dumping AI Gateway request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.
 
 ### --ai-gateway-allow-byok
 
@@ -1976,6 +1986,16 @@ Enable the AI Gateway MITM Proxy for intercepting and decrypting AI provider req
 | Default     | <code>:8888</code>                               |
 
 The address the AI Gateway Proxy will listen on.
+
+### --ai-gateway-proxy-target
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>string</code>                         |
+| Environment | <code>$CODER_AI_GATEWAY_PROXY_TARGET</code> |
+| YAML        | <code>ai_gateway_proxy.target</code>        |
+
+Base URL of the AI Gateway to forward intercepted requests to. Defaults to the embedded AI Gateway address at the Coder access URL plus /api/v2/ai-gateway.
 
 ### --ai-gateway-proxy-tls-cert-file
 
@@ -2129,6 +2149,6 @@ Disable the template builder feature for guided template creation. When disabled
 | Type        | <code>string</code>                               |
 | Environment | <code>$CODER_TEMPLATE_BUILDER_REGISTRY_URL</code> |
 | YAML        | <code>templateBuilder.registryURL</code>          |
-| Default     | <code>https://registry.coder.com</code>           |
+| Default     | <code>registry.coder.com</code>                   |
 
 The base URL of the module registry used by the template builder for module source paths.

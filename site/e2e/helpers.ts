@@ -1,5 +1,6 @@
 import { type ChildProcess, exec, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import type { Server } from "node:http";
 import net from "node:net";
 import path from "node:path";
 import { Duplex } from "node:stream";
@@ -75,11 +76,19 @@ export async function login(page: Page, options: LoginOptions = users.owner) {
 	// biome-ignore lint/suspicious/noExplicitAny: reset the current user
 	(ctx as any)[Symbol.for("currentUser")] = undefined;
 	await ctx.clearCookies();
-	await page.goto("/login");
+	await page.goto("/login", { waitUntil: "domcontentloaded" });
 	await page.getByLabel("Email").fill(options.email);
 	await page.getByLabel("Password").fill(options.password);
 	await page.getByRole("button", { name: "Sign In" }).click();
-	await expectUrl(page).toHavePathName("/workspaces");
+	// Sign-in triggers a hard navigation to "/", then React Router
+	// client-side redirects to "/workspaces" without firing a load event.
+	// waitForURL alone resolves on the URL change, before WorkspacesPage
+	// has mounted. The title check is the actual synchronization point:
+	// it retries until the page component renders. Removing either wait
+	// reintroduces a navigation race in tests that goto() right after
+	// login. See https://github.com/coder/coder/pull/27107.
+	await page.waitForURL((url) => url.pathname === "/workspaces");
+	await expect(page).toHaveTitle("Workspaces - Coder");
 	// biome-ignore lint/suspicious/noExplicitAny: update once logged in
 	(ctx as any)[Symbol.for("currentUser")] = options;
 }
@@ -865,17 +874,32 @@ export class Awaiter {
 	}
 }
 
-export const createServer = async (
-	port: number,
-): Promise<ReturnType<typeof express>> => {
+type MockServer = {
+	app: ReturnType<typeof express>;
+	/** Stops the server and drops keep-alive connections. */
+	close: () => Promise<void>;
+};
+
+export const createServer = async (port: number): Promise<MockServer> => {
 	await waitForPort(port); // Wait until the port is available
 
-	const e = express();
+	const app = express();
 	// We need to specify the local IP address as the web server
 	// tends to fail with IPv6 related error:
 	// listen EADDRINUSE: address already in use :::50516
-	await new Promise<void>((r) => e.listen(port, "0.0.0.0", r));
-	return e;
+	const server = await new Promise<Server>((resolve) => {
+		const s = app.listen(port, "0.0.0.0", () => resolve(s));
+	});
+
+	return {
+		app,
+		close: () =>
+			new Promise<void>((resolve, reject) => {
+				// Order matters: stop accepting, then drop keep-alives.
+				server.close((err) => (err ? reject(err) : resolve()));
+				server.closeAllConnections?.();
+			}),
+	};
 };
 
 async function waitForPort(

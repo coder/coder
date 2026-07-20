@@ -66,7 +66,7 @@ The following code snippet can be dropped into any existing template in Coder v2
 > [!NOTE]
 > This requires at least version 2.13.0 of the `coder/coder` Terraform provider.
 
-```hcl
+```tf
 data "coder_parameter" "setup_script" {
   name         = "setup_script"
   display_name = "Setup Script"

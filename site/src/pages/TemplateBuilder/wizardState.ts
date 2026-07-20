@@ -1,6 +1,8 @@
 import type {
+	TemplateBuilderBase,
 	TemplateBuilderComposeModule,
 	TemplateBuilderComposeRequest,
+	TemplateBuilderCreateTemplateRequest,
 	TemplateBuilderModule,
 } from "#/api/typesGenerated";
 
@@ -14,7 +16,25 @@ export type SelectedBaseMeta = {
 	iconUrl?: string;
 	os?: string;
 	hasParameters: boolean;
+	hasPrerequisites: boolean;
 };
+
+/**
+ * Maps an API TemplateBuilderBase to the UI-only SelectedBaseMeta.
+ */
+export function toSelectedBaseMeta(
+	base: TemplateBuilderBase,
+): SelectedBaseMeta {
+	return {
+		id: base.id,
+		name: base.name,
+		iconUrl: base.icon,
+		os: base.os,
+		hasParameters:
+			base.variables?.length > 0 && base.variables?.some((v) => !v.sensitive),
+		hasPrerequisites: Boolean(base.prerequisites?.length),
+	};
+}
 
 /**
  * UI-only metadata for a selected module.
@@ -32,8 +52,11 @@ export type TemplateBuilderWizardState = {
 	baseVariableValues: Record<string, string>;
 	modules: TemplateBuilderComposeModule[];
 	organizationId?: string;
+	hasProvisioners: boolean | undefined;
+	name: string;
 	displayName: string;
 	description: string;
+	icon: string;
 	selectedBase: SelectedBaseMeta | null;
 	selectedModules: SelectedModuleMeta[];
 };
@@ -42,11 +65,31 @@ export const initialWizardState: TemplateBuilderWizardState = {
 	baseTemplateId: null,
 	baseVariableValues: {},
 	modules: [],
+	hasProvisioners: undefined,
+	name: "",
 	displayName: "",
 	description: "",
+	icon: "",
 	selectedBase: null,
 	selectedModules: [],
 };
+
+/**
+ * Builds the initial wizard state, optionally preselecting a base
+ * template.
+ */
+export function initWizardState(
+	preselectedBase?: SelectedBaseMeta,
+): TemplateBuilderWizardState {
+	if (!preselectedBase) {
+		return initialWizardState;
+	}
+	return {
+		...initialWizardState,
+		baseTemplateId: preselectedBase.id,
+		selectedBase: preselectedBase,
+	};
+}
 
 export type WizardAction =
 	| { type: "SET_BASE"; base: SelectedBaseMeta }
@@ -63,9 +106,11 @@ export type WizardAction =
 	  }
 	| {
 			type: "SET_CUSTOMIZATION";
-			field: "organizationId" | "displayName" | "description";
+			field: "organizationId" | "name" | "displayName" | "description" | "icon";
 			value: string;
 	  }
+	| { type: "SET_HAS_PROVISIONERS"; value: boolean | undefined }
+	| { type: "RESET_CUSTOMIZATIONS" }
 	| { type: "RESET" };
 
 export function wizardReducer(
@@ -117,6 +162,21 @@ export function wizardReducer(
 				...state,
 				[action.field]: action.value,
 			};
+		case "SET_HAS_PROVISIONERS":
+			return {
+				...state,
+				hasProvisioners: action.value,
+			};
+		case "RESET_CUSTOMIZATIONS":
+			return {
+				...state,
+				organizationId: undefined,
+				hasProvisioners: undefined,
+				name: "",
+				displayName: "",
+				description: "",
+				icon: "",
+			};
 		case "RESET":
 			return initialWizardState;
 		default:
@@ -147,5 +207,22 @@ export const toComposeRequest = (
 				? state.baseVariableValues
 				: undefined,
 		modules: state.modules,
+	};
+};
+
+/**
+ * Project wizard state into the API request shape for the
+ * create-template endpoint.
+ */
+export const toCreateTemplateRequest = (
+	state: TemplateBuilderWizardState,
+): TemplateBuilderCreateTemplateRequest => {
+	return {
+		...toComposeRequest(state),
+		organization_id: state.organizationId ?? "",
+		name: state.name,
+		display_name: state.displayName || undefined,
+		description: state.description || undefined,
+		icon: state.icon || undefined,
 	};
 };

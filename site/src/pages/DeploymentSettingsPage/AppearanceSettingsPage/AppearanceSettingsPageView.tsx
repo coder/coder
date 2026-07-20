@@ -134,7 +134,7 @@ export const AppearanceSettingsPageView: FC<
 						<img
 							alt=""
 							src={logoForm.values.logo_url}
-							className="h-6 w-6 max-w-full object-contain"
+							className="size-6 max-w-full object-contain"
 							// Hide broken image icon while users type incomplete URLs.
 							onError={(e) => {
 								e.currentTarget.style.display = "none";

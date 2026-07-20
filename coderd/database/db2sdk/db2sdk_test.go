@@ -696,37 +696,31 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	require.NoError(t, err)
 
 	input := database.Chat{
-		ID:                uuid.New(),
-		OwnerID:           uuid.New(),
-		OwnerUsername:     "owner-username",
-		OwnerName:         "Owner Name",
-		OrganizationID:    uuid.New(),
-		WorkspaceID:       uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		BuildID:           uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		AgentID:           uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		ParentChatID:      uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		RootChatID:        uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		LastModelConfigID: uuid.New(),
-		Title:             "all-fields-test",
-		Status:            database.ChatStatusRunning,
-		ClientType:        database.ChatClientTypeUi,
-		LastError:         pqtype.NullRawMessage{RawMessage: lastErrorRaw, Valid: true},
-		LastTurnSummary:   sql.NullString{String: "turn completed", Valid: true},
-		CreatedAt:         now,
-		UpdatedAt:         now,
-		Archived:          true,
-		UserACL:           database.ChatACL{uuid.NewString(): database.ChatACLEntry{}},
-		PinOrder:          1,
-		PlanMode:          database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
-		MCPServerIDs:      []uuid.UUID{uuid.New()},
-		Labels:            database.StringMap{"env": "prod"},
-		LastInjectedContext: pqtype.NullRawMessage{
-			// Use a context-file part to verify internal
-			// fields are not present (they are stripped at
-			// write time by chatd, not at read time).
-			RawMessage: json.RawMessage(`[{"type":"context-file","context_file_path":"/AGENTS.md"}]`),
-			Valid:      true,
-		},
+		ID:                  uuid.New(),
+		OwnerID:             uuid.New(),
+		OwnerUsername:       "owner-username",
+		OwnerName:           "Owner Name",
+		OrganizationID:      uuid.New(),
+		WorkspaceID:         uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		BuildID:             uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		AgentID:             uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		ParentChatID:        uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		RootChatID:          uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		LastModelConfigID:   uuid.New(),
+		LastReasoningEffort: database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true},
+		Title:               "all-fields-test",
+		Status:              database.ChatStatusRunning,
+		ClientType:          database.ChatClientTypeUi,
+		LastError:           pqtype.NullRawMessage{RawMessage: lastErrorRaw, Valid: true},
+		LastTurnSummary:     sql.NullString{String: "turn completed", Valid: true},
+		CreatedAt:           now,
+		UpdatedAt:           now,
+		Archived:            true,
+		UserACL:             database.ChatACL{uuid.NewString(): database.ChatACLEntry{}},
+		PinOrder:            1,
+		PlanMode:            database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
+		MCPServerIDs:        []uuid.UUID{uuid.New()},
+		Labels:              database.StringMap{"env": "prod"},
 		DynamicTools: pqtype.NullRawMessage{
 			RawMessage: json.RawMessage(`[{"name":"tool1","description":"test tool","inputSchema":{"type":"object"}}]`),
 			Valid:      true,
@@ -958,7 +952,6 @@ func TestChat_LastErrorFallback(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

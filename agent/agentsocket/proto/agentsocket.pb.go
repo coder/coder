@@ -1206,7 +1206,8 @@ func (*RemoveContextSourceResponse) Descriptor() ([]byte, []int) {
 // ContextResource is the on-wire form of a resolved context resource.
 // Payload bytes are never sent over the socket; they ship to coderd via
 // the drpc PushContextState path. Mirrors agentcontext.Resource minus
-// the payload and the tool list, which reach consumers via ListMCPTools.
+// the payload and the per-server MCP tool list, which ship to coderd via
+// the same PushContextState path.
 type ContextResource struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

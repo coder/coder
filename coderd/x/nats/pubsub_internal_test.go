@@ -4,13 +4,16 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"runtime"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	natsgo "github.com/nats-io/nats.go"
+	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -204,6 +207,148 @@ func Test_Pubsub_buildConnHandlers(t *testing.T) {
 		default:
 		}
 	})
+
+	// Regression test for a deadlock: handleAsyncError used to call the
+	// blocking subGetter.get while holding p.mu, and subscribeGroup's
+	// error path acquired p.mu before closing subscribeDone. A
+	// slow-consumer error arriving while an initial subscribe was in
+	// flight, combined with that subscribe failing, wedged both
+	// goroutines permanently.
+	t.Run("SlowConsumerDuringInFlightSubscribeDoesNotDeadlock", func(t *testing.T) {
+		t.Parallel()
+
+		logger := slogtest.Make(t, &slogtest.Options{
+			IgnoredErrorIs: []error{assert.AnError},
+		})
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ps := newPubsub(ctx, logger, defaultTestOptions())
+		bc := &blockingConn{started: make(chan struct{}), unblock: make(chan struct{})}
+		ps.subscribePool = []conn{bc}
+		handlers := ps.buildConnHandlers()
+
+		// Subscribe so the initial NATS subscribe is in flight, blocked
+		// in bc.Subscribe.
+		subErr := make(chan error, 1)
+		go func() {
+			_, err := ps.SubscribeWithErr("foo", func(context.Context, []byte, error) {})
+			subErr <- err
+		}()
+		testutil.TryReceive(ctx, t, bc.started)
+
+		// Deliver a slow-consumer async error, as the connection's async
+		// callback dispatcher would. It cannot match the subscription
+		// until the in-flight subscribe resolves.
+		asyncDone := make(chan struct{})
+		go func() {
+			defer close(asyncDone)
+			handlers.errH(nil, &natsgo.Subscription{}, natsgo.ErrSlowConsumer)
+		}()
+
+		// Wait until handleAsyncError is blocked waiting on the
+		// in-flight subscribe.
+		require.Eventually(t, func() bool {
+			return goroutineBlockedInChanReceive("handleAsyncError")
+		}, testutil.WaitShort, testutil.IntervalFast)
+
+		// Fail the in-flight subscribe. Its cleanup must complete and
+		// unblock handleAsyncError rather than deadlock on p.mu.
+		close(bc.unblock)
+
+		err := testutil.TryReceive(ctx, t, subErr)
+		require.ErrorIs(t, err, assert.AnError)
+		testutil.TryReceive(ctx, t, asyncDone)
+
+		// The failed group must be removed so the event can be
+		// subscribed again. Removal happens after subscribeDone closes,
+		// so poll.
+		require.Eventually(t, func() bool {
+			ps.mu.Lock()
+			defer ps.mu.Unlock()
+			return len(ps.subscriptions) == 0
+		}, testutil.WaitShort, testutil.IntervalFast)
+	})
+}
+
+func Test_Pubsub_connectedMetric(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ps := newPubsub(ctx, logger, defaultTestOptions())
+	handlers := ps.buildConnHandlers()
+
+	// Two owned connections, all up.
+	ps.metrics.markConnected(2)
+	require.Equal(t, 1.0, promtestutil.ToFloat64(ps.metrics.connected))
+	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.disconnectionsTotal))
+
+	// First disconnect drops the gauge to 0 and counts a disconnection.
+	handlers.disconnectErr(nil, xerrors.New("boom"))
+	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.connected))
+	require.Equal(t, 1.0, promtestutil.ToFloat64(ps.metrics.disconnectionsTotal))
+
+	// Second disconnect: still down, counts again.
+	handlers.disconnectErr(nil, xerrors.New("boom"))
+	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.connected))
+	require.Equal(t, 2.0, promtestutil.ToFloat64(ps.metrics.disconnectionsTotal))
+
+	// One reconnect with the other still down keeps the gauge at 0.
+	handlers.reconnect(nil)
+	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.connected))
+
+	// Once every owned connection is back the gauge returns to 1.
+	handlers.reconnect(nil)
+	require.Equal(t, 1.0, promtestutil.ToFloat64(ps.metrics.connected))
+}
+
+func Test_Pubsub_failureMetrics(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ps := newPubsub(ctx, logger, defaultTestOptions())
+	// Closing makes Publish and Subscribe fail fast so we can exercise the
+	// success="false" label without needing the embedded server to error.
+	require.NoError(t, ps.Close())
+
+	require.Error(t, ps.Publish("evt", []byte("payload")))
+	_, err := ps.Subscribe("evt", func(context.Context, []byte) {})
+	require.Error(t, err)
+
+	require.Equal(t, 1.0, promtestutil.ToFloat64(ps.metrics.publishesTotal.WithLabelValues("false")))
+	require.Equal(t, 1.0, promtestutil.ToFloat64(ps.metrics.subscribesTotal.WithLabelValues("false")))
+}
+
+func Test_Pubsub_gracefulCloseDoesNotCountDisconnect(t *testing.T) {
+	t.Parallel()
+
+	ps := newTestPubsub(t, defaultTestOptions())
+	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.disconnectionsTotal))
+	require.Equal(t, 1.0, promtestutil.ToFloat64(ps.metrics.connected))
+
+	handlers := ps.buildConnHandlers()
+	require.NoError(t, ps.Close())
+
+	// Close reports disconnected even though the disconnect handler is
+	// suppressed for our own connection closes.
+	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.connected))
+
+	// Late reconnect callbacks during the shutdown window must not flip
+	// the gauge back to 1: markClosed zeroes totalConns so the connected
+	// guard stays false even if every owned connection reports a
+	// reconnect. Fire one per owned connection to exercise that.
+	for range len(ps.publishPool) + len(ps.subscribePool) {
+		handlers.reconnect(nil)
+	}
+	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.connected))
+
+	// Closing our own connections must not invoke the disconnect handler,
+	// so disconnections_total stays 0. The async callback would fire
+	// within milliseconds if it were going to, so a short window catches a
+	// regression without making the test slow.
+	require.Never(t, func() bool {
+		return promtestutil.ToFloat64(ps.metrics.disconnectionsTotal) > 0
+	}, 2*time.Second, testutil.IntervalFast)
 }
 
 func Test_localSub(t *testing.T) {
@@ -444,24 +589,47 @@ func TestSubscribeError(t *testing.T) {
 			})
 			require.ErrorIs(t, err, assert.AnError)
 			require.Nil(t, cancel)
-			ps.mu.Lock()
-			defer ps.mu.Unlock()
-			require.Empty(t, ps.subscriptions)
+			// subscribeDone closes before failed-group cleanup to avoid a
+			// lock-order deadlock, so SubscribeWithErr may return first.
+			require.Eventually(t, func() bool {
+				ps.mu.Lock()
+				defer ps.mu.Unlock()
+				return len(ps.subscriptions) == 0
+			}, testutil.WaitShort, testutil.IntervalFast)
 		})
 	}
+}
+
+// goroutineBlockedInChanReceive reports whether any goroutine is blocked
+// in a channel receive with the given function name on its stack.
+func goroutineBlockedInChanReceive(funcName string) bool {
+	buf := make([]byte, 4<<20)
+	n := runtime.Stack(buf, true)
+	for _, g := range strings.Split(string(buf[:n]), "\n\n") {
+		if strings.Contains(g, "[chan receive]") && strings.Contains(g, funcName) {
+			return true
+		}
+	}
+	return false
 }
 
 func defaultTestOptions() Options {
 	return Options{disableCluster: true}
 }
 
+// testClusterTLSTimeout relaxes the cluster route TLS handshake timeout in
+// tests. NATS defaults to a tight 2s, which is flaky under load and in CI;
+// production keeps the default until it is shown to need changing.
+const testClusterTLSTimeout = 10 * time.Second
+
 func clusterTestOptions(t *testing.T) Options {
 	t.Helper()
 	return Options{
-		ClusterHost:      "127.0.0.1",
-		ClusterPort:      natsserver.RANDOM_PORT,
-		disableCluster:   false,
-		ClusterAuthToken: fmt.Sprintf("shared-token-%d", time.Now().UnixNano()),
+		ClusterHost:       "127.0.0.1",
+		ClusterPort:       natsserver.RANDOM_PORT,
+		disableCluster:    false,
+		ClusterAuthToken:  fmt.Sprintf("shared-token-%d", time.Now().UnixNano()),
+		clusterTLSTimeout: testClusterTLSTimeout,
 	}
 }
 
@@ -567,4 +735,25 @@ func (f *fakeConn) Flush() error {
 
 func (f *fakeConn) Subscribe(string, natsgo.MsgHandler) (*natsgo.Subscription, error) {
 	return &natsgo.Subscription{}, f.subError
+}
+
+// blockingConn holds Subscribe in flight until unblock is closed, then
+// fails the subscribe.
+type blockingConn struct {
+	// started is closed when Subscribe is entered.
+	started chan struct{}
+	// unblock releases Subscribe, which then returns an error.
+	unblock chan struct{}
+}
+
+func (*blockingConn) Publish(string, []byte) error { return nil }
+
+func (*blockingConn) Close() {}
+
+func (*blockingConn) Flush() error { return nil }
+
+func (b *blockingConn) Subscribe(string, natsgo.MsgHandler) (*natsgo.Subscription, error) {
+	close(b.started)
+	<-b.unblock
+	return nil, assert.AnError
 }

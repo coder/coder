@@ -221,7 +221,6 @@ func TestGenerateCompactionSummary_PanicFinalizesAsError(t *testing.T) {
 				DebugSvc:      svc,
 				ChatID:        chatID,
 				SummaryPrompt: "summarize",
-				Timeout:       time.Second,
 			})
 	})
 
@@ -232,4 +231,35 @@ func TestGenerateCompactionSummary_PanicFinalizesAsError(t *testing.T) {
 	case <-time.After(testutil.WaitShort):
 		t.Fatal("FinalizeRun never reached UpdateChatDebugRun on panic")
 	}
+}
+
+func TestGenerateCompactionSummary_UsesCallerContext(t *testing.T) {
+	t.Parallel()
+
+	type contextKey string
+	testCtx := context.WithValue(context.Background(), contextKey("key"), "value")
+	var ctxSeen context.Context
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		GenerateFn: func(ctx context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			ctxSeen = ctx
+			return &fantasy.Response{
+				Content: []fantasy.Content{
+					fantasy.TextContent{Text: "summary"},
+				},
+			}, nil
+		},
+	}
+
+	summary, err := generateCompactionSummary(testCtx, model,
+		[]fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+		CompactionOptions{SummaryPrompt: "summarize"},
+	)
+	require.NoError(t, err)
+	require.Equal(t, "summary", summary)
+	require.Same(t, testCtx, ctxSeen)
+	require.NoError(t, ctxSeen.Err())
+	_, ok := ctxSeen.Deadline()
+	require.False(t, ok)
+	require.Equal(t, "value", ctxSeen.Value(contextKey("key")))
 }

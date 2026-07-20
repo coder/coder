@@ -3,13 +3,63 @@
 package cli
 
 import (
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/database"
 )
+
+func TestResolveAIGatewayProxyTarget(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		accessURL   *url.URL
+		target      string
+		want        string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:      "ExplicitTarget",
+			accessURL: &url.URL{Scheme: "https", Host: "coder.example.com", Path: "/coder"},
+			target:    "https://gateway.example.com/custom/path",
+			want:      "https://gateway.example.com/custom/path",
+		},
+		{
+			name:      "EmbeddedFallback",
+			accessURL: &url.URL{Scheme: "https", Host: "coder.example.com", Path: "/coder"},
+			want:      "https://coder.example.com/coder" + agplaibridge.AIGatewayRootPath,
+		},
+		{
+			name:        "InvalidAccessURL",
+			accessURL:   &url.URL{Scheme: "https", Host: "[::1"},
+			wantErr:     true,
+			errContains: "build embedded AI Gateway proxy target",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := resolveAIGatewayProxyTarget(tt.accessURL, tt.target)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tt.errContains)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
 
 // TestClassifyProviderRow covers every branch of the classifier so the
 // disabled, error, and enabled paths are exercised through the

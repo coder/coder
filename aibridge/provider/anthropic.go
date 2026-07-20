@@ -1,6 +1,8 @@
 package provider
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/messages"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/coder/v2/aibridge/utils"
 )
@@ -25,8 +28,9 @@ var _ Provider = &Anthropic{}
 
 // Anthropic allows for interactions with the Anthropic API.
 type Anthropic struct {
-	cfg        config.Anthropic
-	bedrockCfg *config.AWSBedrock
+	cfg config.Anthropic
+	// bedrock is nil for non-Bedrock providers.
+	bedrock *messages.BedrockRuntime
 }
 
 const routeMessages = "/v1/messages" // https://docs.anthropic.com/en/api/messages
@@ -35,15 +39,19 @@ var anthropicOpenErrorResponse = func() []byte {
 	return []byte(`{"type":"error","error":{"type":"overloaded_error","message":"circuit breaker is open"}}`)
 }
 
+// statusOverloaded is the non-standard HTTP status Anthropic returns when its
+// API is overloaded. The net/http package does not define a constant for it.
+// https://platform.claude.com/docs/en/api/errors
+const statusOverloaded = 529
+
 var anthropicIsFailure = func(statusCode int) bool {
-	// https://platform.claude.com/docs/en/api/errors
-	if statusCode == 529 {
+	if statusCode == statusOverloaded {
 		return true
 	}
 	return circuitbreaker.DefaultIsFailure(statusCode)
 }
 
-func NewAnthropic(cfg config.Anthropic, bedrockCfg *config.AWSBedrock) *Anthropic {
+func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.AWSBedrock) (*Anthropic, error) {
 	if cfg.Name == "" {
 		cfg.Name = config.ProviderAnthropic
 	}
@@ -55,10 +63,32 @@ func NewAnthropic(cfg config.Anthropic, bedrockCfg *config.AWSBedrock) *Anthropi
 		cfg.CircuitBreaker.OpenErrorResponse = anthropicOpenErrorResponse
 	}
 
-	return &Anthropic{
-		cfg:        cfg,
-		bedrockCfg: bedrockCfg,
+	// Resolve the AWS credentials provider once and bundle it with the config.
+	// This performs no network call (the base identity and any AssumeRole
+	// resolve lazily on first retrieval); it only wires up the provider chain,
+	// so it is cheap to run at construction.
+	var bedrock *messages.BedrockRuntime
+	if bedrockCfg != nil {
+		creds, resolvedRegion, err := buildBedrockCredentials(ctx, *bedrockCfg)
+		if err != nil {
+			return nil, xerrors.Errorf("build bedrock credentials: %w", err)
+		}
+		runtimeCfg := *bedrockCfg
+		// resolvedRegion is bedrockCfg.Region if provided;
+		// otherwise, it is resolved from the environment via awsconfig.LoadDefaultConfig
+		if runtimeCfg.Region == "" {
+			runtimeCfg.Region = resolvedRegion
+		}
+		if err := runtimeCfg.Validate(); err != nil {
+			return nil, xerrors.Errorf("bedrock config: %w", err)
+		}
+		bedrock = &messages.BedrockRuntime{Cfg: runtimeCfg, Creds: creds}
 	}
+
+	return &Anthropic{
+		cfg:     cfg,
+		bedrock: bedrock,
+	}, nil
 }
 
 func (*Anthropic) Type() string {
@@ -123,9 +153,9 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 
 	var interceptor intercept.Interceptor
 	if reqPayload.Stream() {
-		interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, p.bedrockCfg, r.Header, tracer)
+		interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, p.bedrock, r.Header, tracer)
 	} else {
-		interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, p.bedrockCfg, r.Header, tracer)
+		interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, p.bedrock, r.Header, tracer)
 	}
 	span.SetAttributes(interceptor.TraceAttributes(r)...)
 	return interceptor, nil
@@ -153,8 +183,8 @@ func (p *Anthropic) resolveCredential(r *http.Request) (intercept.Credential, er
 	if p.cfg.KeyPool != nil {
 		return &intercept.CentralizedPool{Pool: p.cfg.KeyPool, Header: p.AuthHeader()}, nil
 	}
-	if p.bedrockCfg != nil {
-		return intercept.Bedrock{AccessKey: p.bedrockCfg.AccessKey}, nil
+	if p.bedrock != nil {
+		return intercept.Bedrock{AccessKey: p.bedrock.Cfg.AccessKey}, nil
 	}
 	return nil, ErrNoCredential
 }
@@ -193,4 +223,30 @@ func (p *Anthropic) CircuitBreakerConfig() *config.CircuitBreaker {
 
 func (p *Anthropic) APIDumpDir() string {
 	return p.cfg.APIDumpDir
+}
+
+func (*Anthropic) CategorizeError(err error) *recorder.ErrorType {
+	return categorizeAnthropicError(err)
+}
+
+// categorizeAnthropicError categorizes a terminal error from an Anthropic
+// (messages) provider. It returns nil when err is not an Anthropic-shaped error.
+func categorizeAnthropicError(err error) *recorder.ErrorType {
+	var status int
+	var envErr *messages.ResponseError
+	switch {
+	case errors.As(err, &envErr):
+		status = envErr.StatusCode
+	default:
+		apiErr := messages.ResponseErrorFromAPIError(err)
+		if apiErr == nil {
+			return nil
+		}
+		status = apiErr.StatusCode
+	}
+	t := recorder.ErrorTypeFromStatus(status)
+	if status == statusOverloaded {
+		t = recorder.ErrorTypeOverloaded
+	}
+	return &t
 }

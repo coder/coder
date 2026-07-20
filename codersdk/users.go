@@ -224,6 +224,10 @@ func (r *CreateUserRequestWithOrgs) UnmarshalJSON(data []byte) error {
 type UpdateUserProfileRequest struct {
 	Username string `json:"username" validate:"required,username"`
 	Name     string `json:"name" validate:"user_real_name"`
+	// AvatarURL is only applied for users whose login type is password or
+	// none. For other login types the avatar is synced from the identity
+	// provider on login, so a submitted value is ignored.
+	AvatarURL string `json:"avatar_url" format:"uri"`
 }
 
 type ValidateUserPasswordRequest struct {

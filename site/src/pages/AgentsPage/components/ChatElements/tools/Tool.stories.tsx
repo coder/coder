@@ -224,7 +224,7 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		result: { chat_id: "bot-child", status: "completed" },
 	},
 	{
-		name: "close_agent",
+		name: "interrupt_agent",
 		args: { chat_id: "bot-child" },
 		result: { chat_id: "bot-child", status: "completed" },
 	},
@@ -1015,9 +1015,9 @@ export const MessageAgentExploreStreamingFromResult: Story = {
 	},
 };
 
-export const CloseAgentRunningWithoutChatId: Story = {
+export const InterruptAgentRunningWithoutChatId: Story = {
 	args: {
-		name: "close_agent",
+		name: "interrupt_agent",
 		status: "running",
 		args: {},
 		result: { status: "running" },
@@ -1033,22 +1033,124 @@ export const CloseAgentRunningWithoutChatId: Story = {
 	},
 };
 
-export const CloseAgentExploreCompleted: Story = {
+// interrupt_agent is the post-rename name for close_agent. The response
+// carries `interrupted: true`.
+export const InterruptAgentExploreCompleted: Story = {
 	args: {
-		name: "close_agent",
+		name: "interrupt_agent",
 		status: "completed",
-		args: { chat_id: "close-child" },
+		args: { chat_id: "interrupt-child" },
 		result: {
-			chat_id: "close-child",
+			chat_id: "interrupt-child",
 			type: "explore",
 			status: "completed",
+			interrupted: true,
 		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.getByRole("button", { name: /Terminated Explore agent/ }),
+			canvas.getByRole("button", { name: /Interrupted Explore agent/ }),
 		).toBeInTheDocument();
+	},
+};
+
+// list_agents renders through ListAgentsTool, showing a count in the
+// header and an expandable list of agents with links.
+export const ListAgentsCompleted: Story = {
+	args: {
+		name: "list_agents",
+		status: "completed",
+		args: {},
+		result: {
+			agents: [
+				{
+					chat_id: "agent-1",
+					title: "Repository review",
+					type: "general",
+					status: "completed",
+					created_at: "2026-04-21T00:00:00.000Z",
+					updated_at: "2026-04-21T00:05:00.000Z",
+				},
+				{
+					chat_id: "agent-2",
+					title: "Inspect repository",
+					type: "explore",
+					status: "running",
+					created_at: "2026-04-21T00:01:00.000Z",
+					updated_at: "2026-04-21T00:06:00.000Z",
+				},
+				{
+					chat_id: "agent-3",
+					title: "Drive the desktop",
+					type: "computer_use",
+					status: "pending",
+					created_at: "2026-04-21T00:02:00.000Z",
+					updated_at: "2026-04-21T00:07:00.000Z",
+				},
+			],
+			total: 3,
+			returned: 3,
+			offset: 0,
+			has_more: false,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const header = canvas.getByRole("button", { name: /Listed 3 of 3 agents/ });
+		expect(header).toBeInTheDocument();
+		// Expand to verify agent rows and links render.
+		await userEvent.click(header);
+		expect(
+			canvas.getByText("Repository review (general, completed)"),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByText("Inspect repository (explore, running)"),
+		).toBeInTheDocument();
+	},
+};
+
+export const ListAgentsRunning: Story = {
+	args: {
+		name: "list_agents",
+		status: "running",
+		args: {},
+		result: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Listing agents")).toBeInTheDocument();
+	},
+};
+
+export const ListAgentsEmpty: Story = {
+	args: {
+		name: "list_agents",
+		status: "completed",
+		args: {},
+		result: {
+			agents: [],
+			total: 0,
+			has_more: false,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Listed 0 agents")).toBeInTheDocument();
+	},
+};
+
+export const ListAgentsError: Story = {
+	args: {
+		name: "list_agents",
+		status: "error",
+		isError: true,
+		args: {},
+		result: "list_agents is only available on root chats",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Listed 0 agents")).toBeInTheDocument();
 	},
 };
 
@@ -1161,17 +1263,17 @@ export const ChatSummarized: Story = {
 };
 
 // ---------------------------------------------------------------------------
-// SubagentTerminate stories
+// SubagentInterrupt stories
 // ---------------------------------------------------------------------------
 
-export const SubagentTerminate: Story = {
+export const SubagentInterrupt: Story = {
 	args: {
-		name: "close_agent",
+		name: "interrupt_agent",
 		args: undefined,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Terminated/)).toBeInTheDocument();
+		expect(canvas.getByText(/Interrupted/)).toBeInTheDocument();
 		expect(canvas.getByText("Sub-agent")).toBeInTheDocument();
 	},
 };
@@ -2166,6 +2268,31 @@ export const SubagentWaitTimedOutTitleFromMap: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Refactor auth module")).toBeInTheDocument();
 		expect(canvas.getByText(/Timed out waiting for/)).toBeInTheDocument();
+	},
+};
+
+export const SubagentWaitTimedOutStructured: Story = {
+	args: {
+		name: "wait_agent",
+		status: "completed",
+		isError: false,
+		args: { chat_id: "timed-out-child" },
+		result: {
+			chat_id: "timed-out-child",
+			title: "Fix login bug",
+			status: "running",
+			timed_out: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Should show clock icon for timeout.
+		expect(canvasElement.querySelector(".lucide-clock")).not.toBeNull();
+		// Should NOT show red alert icon.
+		expect(canvasElement.querySelector(".lucide-circle-alert")).toBeNull();
+		// Should show timeout verb.
+		expect(canvas.getByText(/Timed out waiting for/)).toBeInTheDocument();
+		expect(canvas.getByText("Fix login bug")).toBeInTheDocument();
 	},
 };
 

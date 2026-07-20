@@ -67,6 +67,14 @@ Edit the template default time before shutdown - workspaces created from this te
 
 Edit the template activity bump - workspaces created from this template will have their shutdown time bumped by this value when activity is detected. Maps to "Activity bump" in the UI.
 
+### --autostop-reminder
+
+|      |                       |
+|------|-----------------------|
+| Type | <code>duration</code> |
+
+Edit how long before the autostop deadline a reminder notification is sent for workspaces created from this template, in Go duration format (e.g. 1h, 30m). Set to 0 to disable.
+
 ### --autostart-requirement-weekdays
 
 |      |                                                                                    |

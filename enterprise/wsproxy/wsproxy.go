@@ -600,7 +600,7 @@ func pingReplica(ctx context.Context, client http.Client, replica codersdk.Repli
 	const attempts = 2
 	var err error
 	for i := 0; i < attempts; i++ {
-		err = replicasync.PingPeerReplica(ctx, client, replica.RelayAddress)
+		err = replicasync.DERPPingPeerReplica(ctx, client, replica.RelayAddress)
 		if err == nil {
 			return nil
 		}

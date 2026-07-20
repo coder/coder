@@ -93,7 +93,7 @@ above (or add "clone" to the list of allowed syscalls).
 
 Once updated, you can run the container with the custom seccomp profile:
 
-```bash
+```sh
 docker run -it \
   --cap-add=NET_ADMIN \
   --security-opt seccomp=seccomp-v25.0.13.json \

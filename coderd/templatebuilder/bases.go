@@ -17,12 +17,14 @@ import (
 type BaseOS string
 
 const (
-	BaseOSLinux BaseOS = "linux"
+	BaseOSLinux   BaseOS = "linux"
+	BaseOSWindows BaseOS = "windows"
 )
 
 // validBaseOS maps base.json os strings to their typed equivalents.
 var validBaseOS = map[string]BaseOS{
-	"linux": BaseOSLinux,
+	"linux":   BaseOSLinux,
+	"windows": BaseOSWindows,
 }
 
 //go:embed bases
@@ -52,9 +54,12 @@ type BaseDefaultContext struct {
 // parsedBase holds the result of loading and pre-parsing a single base
 // template directory.
 type parsedBase struct {
-	Manifest  BaseManifest
-	Templates map[string]*template.Template
-	FS        fs.FS
+	Manifest      BaseManifest
+	Templates     map[string]*template.Template
+	FS            fs.FS
+	Readme        string            // full README.md content (including frontmatter)
+	Prerequisites string            // content between prerequisite comment markers
+	ExtraFiles    map[string][]byte // non-template, non-manifest files (e.g. .tftpl)
 }
 
 var loadBases = sync.OnceValues(func() (map[string]*parsedBase, error) {
@@ -81,47 +86,83 @@ func parseBasesFromFS(fsys fs.FS) (map[string]*parsedBase, error) {
 			continue
 		}
 
-		manifestPath := path.Join(dir.Name(), "base.json")
-		data, err := fs.ReadFile(sub, manifestPath)
+		base, err := parseBaseDir(sub, dir.Name())
 		if err != nil {
-			return nil, xerrors.Errorf("read %s: %w", manifestPath, err)
+			return nil, err
 		}
-
-		var manifest BaseManifest
-		dec := json.NewDecoder(bytes.NewReader(data))
-		dec.DisallowUnknownFields()
-		if err := dec.Decode(&manifest); err != nil {
-			return nil, xerrors.Errorf("decode %s: %w", manifestPath, err)
+		if bases[base.Manifest.ID] != nil {
+			return nil, xerrors.Errorf("duplicate base id %q", base.Manifest.ID)
 		}
-
-		if manifest.ID == "" {
-			return nil, xerrors.Errorf("base in %s has empty id", dir.Name())
-		}
-		if _, ok := validBaseOS[manifest.OS]; !ok && manifest.OS != "" {
-			return nil, xerrors.Errorf("base %q has unknown os %q", manifest.ID, manifest.OS)
-		}
-		if bases[manifest.ID] != nil {
-			return nil, xerrors.Errorf("duplicate base id %q", manifest.ID)
-		}
-
-		baseFS, err := fs.Sub(sub, dir.Name())
-		if err != nil {
-			return nil, xerrors.Errorf("sub fs for %s: %w", dir.Name(), err)
-		}
-
-		templates, err := parseTemplatesFromFS(baseFS)
-		if err != nil {
-			return nil, xerrors.Errorf("parse templates for base %q: %w", manifest.ID, err)
-		}
-
-		bases[manifest.ID] = &parsedBase{
-			Manifest:  manifest,
-			Templates: templates,
-			FS:        baseFS,
-		}
+		bases[base.Manifest.ID] = base
 	}
 
 	return bases, nil
+}
+
+// parseBaseDir loads a single base template directory: reads the
+// manifest, pre-parses Go templates, reads the README, and collects
+// extra files.
+func parseBaseDir(parent fs.FS, dirName string) (*parsedBase, error) {
+	manifest, err := parseManifest(parent, dirName)
+	if err != nil {
+		return nil, err
+	}
+
+	baseFS, err := fs.Sub(parent, dirName)
+	if err != nil {
+		return nil, xerrors.Errorf("sub fs for %s: %w", dirName, err)
+	}
+
+	templates, err := parseTemplatesFromFS(baseFS)
+	if err != nil {
+		return nil, xerrors.Errorf("parse templates for base %q: %w", manifest.ID, err)
+	}
+
+	readmeData, err := fs.ReadFile(baseFS, "README.md")
+	if err != nil {
+		return nil, xerrors.Errorf("read README.md for base %q: %w", manifest.ID, err)
+	}
+	readme := string(readmeData)
+
+	extraFiles, err := collectExtraFilesFromFS(baseFS)
+	if err != nil {
+		return nil, xerrors.Errorf("collect extra files for base %q: %w", manifest.ID, err)
+	}
+
+	return &parsedBase{
+		Manifest:      manifest,
+		Templates:     templates,
+		FS:            baseFS,
+		Readme:        readme,
+		Prerequisites: ExtractPrerequisites(readme),
+		ExtraFiles:    extraFiles,
+	}, nil
+}
+
+// parseManifest reads and validates a base.json file from the given
+// directory within parent.
+func parseManifest(parent fs.FS, dirName string) (BaseManifest, error) {
+	manifestPath := path.Join(dirName, "base.json")
+	data, err := fs.ReadFile(parent, manifestPath)
+	if err != nil {
+		return BaseManifest{}, xerrors.Errorf("read %s: %w", manifestPath, err)
+	}
+
+	var manifest BaseManifest
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&manifest); err != nil {
+		return BaseManifest{}, xerrors.Errorf("decode %s: %w", manifestPath, err)
+	}
+
+	if manifest.ID == "" {
+		return BaseManifest{}, xerrors.Errorf("base in %s has empty id", dirName)
+	}
+	if _, ok := validBaseOS[manifest.OS]; !ok && manifest.OS != "" {
+		return BaseManifest{}, xerrors.Errorf("base %q has unknown os %q", manifest.ID, manifest.OS)
+	}
+
+	return manifest, nil
 }
 
 // parseTemplatesFromFS walks the filesystem and pre-parses all .tf.tmpl files
@@ -174,9 +215,24 @@ func DefaultBaseRenderContext(exampleID string) BaseRenderContext {
 	if err != nil || bases[exampleID] == nil {
 		return BaseRenderContext{}
 	}
-	dc := bases[exampleID].Manifest.DefaultContext
+	base := bases[exampleID]
+	dc := base.Manifest.DefaultContext
+
+	// Populate Variables from manifest defaults so that Go template
+	// rendering succeeds even without caller-supplied values.
+	vars := make(map[string]string, len(base.Manifest.Variables))
+	for _, v := range base.Manifest.Variables {
+		if v.Computed || v.Sensitive {
+			continue
+		}
+		if len(v.Default) > 0 && isSimpleJSONValue(v.Default) {
+			vars[v.Name] = string(v.Default)
+		}
+	}
+
 	return BaseRenderContext{
 		ContainerImage: dc.ContainerImage,
+		Variables:      vars,
 	}
 }
 
@@ -217,4 +273,65 @@ func BaseTemplateFS(exampleID string) (fs.FS, error) {
 		return nil, xerrors.Errorf("unknown base template %q", exampleID)
 	}
 	return base.FS, nil
+}
+
+// BaseReadme returns the full README.md content for a base template.
+// Returns an empty string if the base is unknown or has no README.
+func BaseReadme(exampleID string) string {
+	bases, err := loadBases()
+	if err != nil || bases[exampleID] == nil {
+		return ""
+	}
+	return bases[exampleID].Readme
+}
+
+// BasePrerequisites returns the prerequisites section extracted from
+// the base template README. Returns an empty string if the base is
+// unknown or has no prerequisites markers.
+func BasePrerequisites(exampleID string) string {
+	bases, err := loadBases()
+	if err != nil || bases[exampleID] == nil {
+		return ""
+	}
+	return bases[exampleID].Prerequisites
+}
+
+// BaseExtraFiles returns the non-template, non-manifest files embedded
+// in the base template directory (e.g. cloud-init .tftpl files). Returns
+// nil if the base is unknown or has no extra files.
+func BaseExtraFiles(exampleID string) map[string][]byte {
+	bases, err := loadBases()
+	if err != nil || bases[exampleID] == nil {
+		return nil
+	}
+	return bases[exampleID].ExtraFiles
+}
+
+// collectExtraFilesFromFS walks a base template filesystem and returns
+// all files that are not Go templates (.tf.tmpl), the manifest
+// (base.json), or the README. These are raw files that must be included
+// in the output archive (e.g. Terraform templatefile() inputs).
+func collectExtraFilesFromFS(baseFS fs.FS) (map[string][]byte, error) {
+	files := make(map[string][]byte)
+	err := fs.WalkDir(baseFS, ".", func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if p == "base.json" || p == "README.md" || strings.HasSuffix(p, ".tf.tmpl") {
+			return nil
+		}
+		data, err := fs.ReadFile(baseFS, p)
+		if err != nil {
+			return xerrors.Errorf("read %s: %w", p, err)
+		}
+		files[p] = data
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return files, nil
 }

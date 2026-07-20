@@ -914,6 +914,8 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			[]string{"screenshot"},
 			map[string]struct{}{},
 			nil,
+			defaultToolResultBytes,
+			nil,
 		)
 
 		media, ok := result.Result.(fantasy.ToolResultOutputContentMedia)
@@ -961,6 +963,8 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			[]string{"screenshot"},
 			map[string]struct{}{},
 			nil,
+			defaultToolResultBytes,
+			nil,
 		)
 
 		media, ok := result.Result.(fantasy.ToolResultOutputContentMedia)
@@ -1003,6 +1007,8 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			[]string{"echo"},
 			map[string]struct{}{},
 			nil,
+			defaultToolResultBytes,
+			nil,
 		)
 
 		textOutput, ok := result.Result.(fantasy.ToolResultOutputContentText)
@@ -1011,4 +1017,89 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 		require.Contains(t, textOutput.Text, "hello")
 		require.Contains(t, textOutput.Text, "world")
 	})
+}
+
+func TestExecuteSingleTool_ResolvesToolNameAlias(t *testing.T) {
+	t.Parallel()
+
+	metrics := NewMetrics(prometheus.NewRegistry())
+	logger := slog.Make()
+
+	var gotName string
+	tool := fantasy.NewAgentTool(
+		"interrupt_agent",
+		"interrupts an agent",
+		func(_ context.Context, _ struct{}, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			gotName = call.Name
+			return fantasy.ToolResponse{Content: `{"interrupted":true}`}, nil
+		},
+	)
+	toolMap := map[string]fantasy.AgentTool{"interrupt_agent": tool}
+
+	// The model emits the deprecated name from old history; only the
+	// canonical name is advertised/active.
+	tc := fantasy.ToolCallContent{
+		ToolCallID: "call-alias",
+		ToolName:   "close_agent",
+		Input:      "{}",
+	}
+
+	result := executeSingleTool(
+		context.Background(),
+		toolMap,
+		tc,
+		metrics,
+		logger,
+		"fake", "fake-model",
+		map[string]bool{},
+		[]string{"interrupt_agent"},
+		map[string]struct{}{},
+		nil,
+		defaultToolResultBytes,
+		map[string]string{"close_agent": "interrupt_agent"},
+	)
+
+	textOutput, ok := result.Result.(fantasy.ToolResultOutputContentText)
+	require.True(t, ok, "expected text output, got %T", result.Result)
+	require.Contains(t, textOutput.Text, "interrupted")
+	// The handler receives the resolved canonical name.
+	require.Equal(t, "interrupt_agent", gotName)
+	// The persisted result keeps the original alias so existing history
+	// renders consistently.
+	require.Equal(t, "close_agent", result.ToolName)
+}
+
+func TestExecuteSingleTool_UnknownAliasFallsThrough(t *testing.T) {
+	t.Parallel()
+
+	metrics := NewMetrics(prometheus.NewRegistry())
+	logger := slog.Make()
+
+	tc := fantasy.ToolCallContent{
+		ToolCallID: "call-missing",
+		ToolName:   "close_agent",
+		Input:      "{}",
+	}
+
+	// No alias provided: the deprecated name is neither active nor in the
+	// tool map, so it surfaces a clear not-active error and the model can
+	// self-correct to the advertised name.
+	result := executeSingleTool(
+		context.Background(),
+		map[string]fantasy.AgentTool{},
+		tc,
+		metrics,
+		logger,
+		"fake", "fake-model",
+		map[string]bool{},
+		[]string{"interrupt_agent"},
+		map[string]struct{}{},
+		nil,
+		defaultToolResultBytes,
+		nil,
+	)
+
+	errOutput, ok := result.Result.(fantasy.ToolResultOutputContentError)
+	require.True(t, ok, "expected error output, got %T", result.Result)
+	require.Contains(t, errOutput.Error.Error(), "close_agent")
 }

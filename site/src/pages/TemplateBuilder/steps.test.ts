@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	findNextVisibleIndex,
 	findPrevVisibleIndex,
+	furthestAllowedIndex,
 	nearestVisible,
 	stepModuleSettingsRequired,
 	WIZARD_STEPS,
@@ -35,6 +36,7 @@ describe("shouldSkip", () => {
 				id: "docker",
 				name: "Docker",
 				hasParameters: false,
+				hasPrerequisites: false,
 			},
 		});
 		expect(stepById("base-parameters").shouldSkip(noParams)).toBe(true);
@@ -46,6 +48,7 @@ describe("shouldSkip", () => {
 				id: "aws-linux",
 				name: "AWS Linux",
 				hasParameters: true,
+				hasPrerequisites: false,
 			},
 		});
 		expect(stepById("base-parameters").shouldSkip(withParams)).toBe(false);
@@ -137,6 +140,7 @@ describe("findNextVisibleIndex", () => {
 				id: "docker",
 				name: "Docker",
 				hasParameters: false,
+				hasPrerequisites: false,
 			},
 		});
 		// From base-infra (index 0), next visible should be module-select (index 2).
@@ -160,6 +164,7 @@ describe("findNextVisibleIndex", () => {
 				id: "aws-linux",
 				name: "AWS Linux",
 				hasParameters: true,
+				hasPrerequisites: false,
 			},
 			selectedModules: [
 				{
@@ -186,6 +191,7 @@ describe("findPrevVisibleIndex", () => {
 				id: "docker",
 				name: "Docker",
 				hasParameters: false,
+				hasPrerequisites: false,
 			},
 		});
 		// From module-select (index 2), prev visible should be base-infra (index 0).
@@ -220,9 +226,28 @@ describe("nearestVisible", () => {
 				id: "docker",
 				name: "Docker",
 				hasParameters: false,
+				hasPrerequisites: false,
 			},
 		};
 		// Index 1 (base-parameters) is skipped, nearest backward is 0 (base-infra).
 		expect(nearestVisible(1, allSkippable)).toBe(0);
+	});
+});
+
+describe("furthestAllowedIndex", () => {
+	it("returns 0 when no base is selected", () => {
+		expect(furthestAllowedIndex(initialWizardState)).toBe(0);
+	});
+
+	it("returns the last step index when a base is selected", () => {
+		const withBase = stateWith({
+			selectedBase: {
+				id: "docker",
+				name: "Docker",
+				hasParameters: false,
+				hasPrerequisites: false,
+			},
+		});
+		expect(furthestAllowedIndex(withBase)).toBe(WIZARD_STEPS.length - 1);
 	});
 });

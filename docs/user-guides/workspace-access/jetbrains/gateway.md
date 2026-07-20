@@ -89,38 +89,38 @@ trust store present on your local machine as well as to the Coder plugin setting
 
    #### Linux
 
-   ```none
+   ```txt
    <Gateway installation directory>/jbr/lib/security/cacerts
    ```
 
    Use the `keytool` utility that ships with Java:
 
-   ```shell
+   ```sh
    keytool -import -alias coder -file <certificate> -keystore /path/to/trust/store
    ```
 
    #### macOS
 
-   ```none
+   ```txt
    <Gateway installation directory>/jbr/lib/security/cacerts
    /Library/Application Support/JetBrains/Toolbox/apps/JetBrainsGateway/ch-0/<app-id>/JetBrains Gateway.app/Contents/jbr/Contents/Home/lib/security/cacerts # Path for Toolbox installation
    ```
 
    Use the `keytool` included in the JetBrains Gateway installation:
 
-   ```shell
+   ```sh
    keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\ Gateway.app/Contents/jbr/Contents/Home/lib/security/cacerts
    ```
 
    #### Windows
 
-   ```none
+   ```txt
    C:\Program Files (x86)\<Gateway installation directory>\jre\lib\security\cacerts\%USERPROFILE%\AppData\Local\JetBrains\Toolbox\bin\jre\lib\security\cacerts # Path for Toolbox installation
    ```
 
    Use the `keytool` included in the JetBrains Gateway installation:
 
-   ```powershell
+   ```ps1
    & 'C:\Program Files\JetBrains\JetBrains Gateway <version>/jbr/bin/keytool.exe' 'C:\Program Files\JetBrains\JetBrains Gateway <version>/jre/lib/security/cacerts' -import -alias coder -file <cert>
 
    # command for Toolbox installation
@@ -165,6 +165,12 @@ This is in lieu of using Coder's Gateway plugin which automatically performs the
    agent**.
 
 1. Make sure the checkbox for **Parse config file ~/.ssh/config** is checked.
+
+   > [!TIP]
+   > Gateway discovers hosts by parsing `~/.ssh/config`. If your workspaces
+   > do not appear in Gateway's host list, re-run `coder config-ssh
+   > --no-wildcard` to generate an individual `Host` entry per workspace
+   > instead of a wildcard block.
 
 1. Click **Test Connection** to validate these settings.
 
