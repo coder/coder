@@ -191,6 +191,14 @@ data "coder_parameter" "devcontainer_autostart" {
   mutable     = true
 }
 
+data "coder_parameter" "enable_kvm" {
+  type        = "bool"
+  name        = "Expose /dev/kvm to the workspace"
+  default     = false
+  description = "If enabled, the host's /dev/kvm device is mapped into the workspace container to allow hardware-accelerated VMs. Only works when the underlying host exposes /dev/kvm; leave disabled otherwise."
+  mutable     = true
+}
+
 # dogfood/main.tf injects this value from a GH Actions secret;
 # `coderd_template.dogfood` passes the value injected by .github/workflows/dogfood.yaml in `TF_VAR_CODER_DOGFOOD_ANTHROPIC_API_KEY` and `TF_VAR_CODER_DOGFOOD_OPENAI_API_KEY`.
 # Currently unused since AI Gateway is always enabled, but kept for emergency fallback.
@@ -879,6 +887,15 @@ resource "docker_container" "workspace" {
   }
   capabilities {
     add = ["CAP_NET_ADMIN", "CAP_SYS_NICE"]
+  }
+  # Gated behind a parameter because mapping /dev/kvm fails container creation
+  # on hosts that do not expose it.
+  dynamic "devices" {
+    for_each = data.coder_parameter.enable_kvm.value ? [1] : []
+    content {
+      host_path      = "/dev/kvm"
+      container_path = "/dev/kvm"
+    }
   }
   # Add labels in Docker to keep track of orphan resources.
   labels {
