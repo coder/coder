@@ -1,0 +1,14 @@
+{
+  "projectId": "019eb90c-3c26-70ee-8e97-230f1b0388b9",
+  "platformAccessUrl": "https://pixel.coder.com",
+  "storybook": {
+    "buildCommand": "pnpm exec storybook build --test --disable-telemetry --stats-json storybook-static/",
+    "outputDirectory": "storybook-static/"
+	},
+  "shotConcurrency": 64,
+  "matrix": {
+    "browsers": ["chrome"],
+    "viewports": ["mobile", "tablet", "desktop"],
+    "themes": ["light", "dark"]
+  }
+}
