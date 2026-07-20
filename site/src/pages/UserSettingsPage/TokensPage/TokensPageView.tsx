@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { TrashIcon } from "lucide-react";
@@ -85,8 +84,6 @@ const TokensTableBody: FC<TokensTableBodyProps> = ({
 	hasLoaded,
 	onDelete,
 }) => {
-	const theme = useTheme();
-
 	if (isLoading) {
 		return <TableLoader />;
 	}
@@ -98,36 +95,29 @@ const TokensTableBody: FC<TokensTableBodyProps> = ({
 			{tokens?.map((token) => (
 				<TableRow key={token.id} data-testid={`token-${token.id}`} tabIndex={0}>
 					<TableCell>
-						<span style={{ color: theme.palette.text.secondary }}>
-							{token.id}
-						</span>
+						<span className="text-content-secondary">{token.id}</span>
 					</TableCell>
 
 					<TableCell>
-						<span style={{ color: theme.palette.text.secondary }}>
-							{token.token_name}
-						</span>
+						<span className="text-content-secondary">{token.token_name}</span>
 					</TableCell>
 
 					<TableCell>{lastUsedOrNever(token.last_used)}</TableCell>
 
 					<TableCell>
-						<span
-							style={{ color: theme.palette.text.secondary }}
-							data-pixel="ignore"
-						>
+						<span className="text-content-secondary" data-pixel="ignore">
 							{dayjs(token.expires_at).fromNow()}
 						</span>
 					</TableCell>
 
 					<TableCell>
-						<span style={{ color: theme.palette.text.secondary }}>
+						<span className="text-content-secondary">
 							{dayjs(token.created_at).fromNow()}
 						</span>
 					</TableCell>
 
 					<TableCell>
-						<span style={{ color: theme.palette.text.secondary }}>
+						<span className="text-content-secondary">
 							<Button
 								onClick={() => {
 									onDelete(token);

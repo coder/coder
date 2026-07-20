@@ -222,11 +222,16 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 	titleCtx, stopTitleCtx := p.inflightContext(ctx)
 	if err := p.goInflight(func() {
 		defer stopTitleCtx()
-		modelOpts := modelBuildOptionsFromMessages(messages)
-		turnCtx := withActiveTurnAPIKeyID(titleCtx, modelOpts)
+		apiKeyID, err := p.ensureSyntheticAPIKeyID(titleCtx, chat.OwnerID)
+		if err != nil {
+			logger.Debug(titleCtx, "failed to ensure synthetic API key for automatic title generation", slog.Error(err))
+			return
+		}
+		modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
+		turnCtx := titleCtx
 		model, modelConfig, route, _, _, _, err := p.resolveChatModel(turnCtx, chat, modelOpts)
 		if err != nil {
-			logger.Debug(turnCtx, "failed to resolve model for automatic title generation",
+			logger.Debug(titleCtx, "failed to resolve model for automatic title generation",
 				slog.Error(err),
 			)
 			return
@@ -1293,8 +1298,6 @@ func turnStatusLabelStateContext(status database.ChatStatus) string {
 	switch status {
 	case database.ChatStatusWaiting:
 		return "The turn finished and the chat is idle."
-	case database.ChatStatusPending:
-		return "Another user message is queued and the chat will continue."
 	case database.ChatStatusRequiresAction:
 		return "The chat is waiting for user input or action."
 	case database.ChatStatusError:
@@ -1308,8 +1311,6 @@ func fallbackTurnStatusLabel(status database.ChatStatus) string {
 	switch status {
 	case database.ChatStatusWaiting:
 		return "Finished latest turn"
-	case database.ChatStatusPending:
-		return "Still working on request"
 	case database.ChatStatusRequiresAction:
 		return "Waiting for user input"
 	case database.ChatStatusError:

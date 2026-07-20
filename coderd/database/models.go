@@ -1725,10 +1725,7 @@ type ChatStatus string
 
 const (
 	ChatStatusWaiting        ChatStatus = "waiting"
-	ChatStatusPending        ChatStatus = "pending"
 	ChatStatusRunning        ChatStatus = "running"
-	ChatStatusPaused         ChatStatus = "paused"
-	ChatStatusCompleted      ChatStatus = "completed"
 	ChatStatusError          ChatStatus = "error"
 	ChatStatusRequiresAction ChatStatus = "requires_action"
 	ChatStatusInterrupting   ChatStatus = "interrupting"
@@ -1772,10 +1769,7 @@ func (ns NullChatStatus) Value() (driver.Value, error) {
 func (e ChatStatus) Valid() bool {
 	switch e {
 	case ChatStatusWaiting,
-		ChatStatusPending,
 		ChatStatusRunning,
-		ChatStatusPaused,
-		ChatStatusCompleted,
 		ChatStatusError,
 		ChatStatusRequiresAction,
 		ChatStatusInterrupting:
@@ -1787,10 +1781,7 @@ func (e ChatStatus) Valid() bool {
 func AllChatStatusValues() []ChatStatus {
 	return []ChatStatus{
 		ChatStatusWaiting,
-		ChatStatusPending,
 		ChatStatusRunning,
-		ChatStatusPaused,
-		ChatStatusCompleted,
 		ChatStatusError,
 		ChatStatusRequiresAction,
 		ChatStatusInterrupting,
@@ -5134,6 +5125,8 @@ type ChatMessage struct {
 	Revision            int64                 `db:"revision" json:"revision"`
 	// Stores the selected effort for the turn triggered by this message.
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
+	// Used for full text search. NULL initially, populated async via background job.
+	SearchTsv interface{} `db:"search_tsv" json:"search_tsv"`
 }
 
 type ChatModelConfig struct {
@@ -5448,20 +5441,22 @@ type MCPServerConfig struct {
 	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
 	AllowInPlanMode         bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
 	ForwardCoderHeaders     bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
+	OAuth2RevocationURL     string         `db:"oauth2_revocation_url" json:"oauth2_revocation_url"`
 }
 
 type MCPServerUserToken struct {
-	ID                uuid.UUID      `db:"id" json:"id"`
-	MCPServerConfigID uuid.UUID      `db:"mcp_server_config_id" json:"mcp_server_config_id"`
-	UserID            uuid.UUID      `db:"user_id" json:"user_id"`
-	AccessToken       string         `db:"access_token" json:"access_token"`
-	AccessTokenKeyID  sql.NullString `db:"access_token_key_id" json:"access_token_key_id"`
-	RefreshToken      string         `db:"refresh_token" json:"refresh_token"`
-	RefreshTokenKeyID sql.NullString `db:"refresh_token_key_id" json:"refresh_token_key_id"`
-	TokenType         string         `db:"token_type" json:"token_type"`
-	Expiry            sql.NullTime   `db:"expiry" json:"expiry"`
-	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
+	ID                        uuid.UUID      `db:"id" json:"id"`
+	MCPServerConfigID         uuid.UUID      `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	UserID                    uuid.UUID      `db:"user_id" json:"user_id"`
+	AccessToken               string         `db:"access_token" json:"access_token"`
+	AccessTokenKeyID          sql.NullString `db:"access_token_key_id" json:"access_token_key_id"`
+	RefreshToken              string         `db:"refresh_token" json:"refresh_token"`
+	RefreshTokenKeyID         sql.NullString `db:"refresh_token_key_id" json:"refresh_token_key_id"`
+	TokenType                 string         `db:"token_type" json:"token_type"`
+	Expiry                    sql.NullTime   `db:"expiry" json:"expiry"`
+	CreatedAt                 time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt                 time.Time      `db:"updated_at" json:"updated_at"`
+	OauthRefreshFailureReason string         `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
 }
 
 type NotificationMessage struct {

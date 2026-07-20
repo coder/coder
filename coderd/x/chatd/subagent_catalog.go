@@ -304,8 +304,8 @@ func buildSpawnAgentDescription(
 		"After spawning, use wait_agent to retrieve the result. Agents persist " +
 		"after completion; reuse an agent via message_agent for follow-up work " +
 		"when it already has relevant context. Spawned agents are your " +
-		"responsibility: do not abandon one in a working state (pending or " +
-		"running); retrieve its result, redirect it with message_agent, or stop " +
+		"responsibility: do not abandon one in a working state (running); " +
+		"retrieve its result, redirect it with message_agent, or stop " +
 		"it with interrupt_agent."
 	if currentChat.PlanMode.Valid && currentChat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
 		description += " During plan mode, type=\"" + subagentTypeGeneral +

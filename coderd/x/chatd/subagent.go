@@ -17,7 +17,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
@@ -184,6 +183,7 @@ func modelOverrideErrorLabel(overrideContext string) string {
 // resolveConfiguredModelOverride returns ok when a usable override is
 // resolved. In hard failure mode, ok is also true for configured but unusable
 // overrides so callers can distinguish them from unset or malformed values.
+// The normalized provider name is only meaningful for a usable override.
 func (p *Server) resolveConfiguredModelOverride(
 	ctx context.Context,
 	overrideContext string,
@@ -192,7 +192,7 @@ func (p *Server) resolveConfiguredModelOverride(
 	resolveModelConfig modelOverrideConfigResolver,
 	resolveProviderKeys modelOverrideProviderKeysResolver,
 	failureMode modelOverrideFailureMode,
-) (database.ChatModelConfig, *string, bool, error) {
+) (database.ChatModelConfig, string, *string, bool, error) {
 	parsed, ok := parseModelOverride(raw)
 	if !ok {
 		p.logger.Info(ctx,
@@ -200,10 +200,10 @@ func (p *Server) resolveConfiguredModelOverride(
 			slog.F("override_context", overrideContext),
 			slog.F("raw_model_config_id", strings.TrimSpace(raw)),
 		)
-		return database.ChatModelConfig{}, nil, false, nil
+		return database.ChatModelConfig{}, "", nil, false, nil
 	}
 	if parsed.modelConfigID == uuid.Nil {
-		return database.ChatModelConfig{}, nil, false, nil
+		return database.ChatModelConfig{}, "", nil, false, nil
 	}
 
 	modelConfig, providerName, err := resolveModelConfig(
@@ -215,20 +215,20 @@ func (p *Server) resolveConfiguredModelOverride(
 			label := modelOverrideErrorLabel(overrideContext)
 			switch {
 			case errors.Is(err, sql.ErrNoRows):
-				return database.ChatModelConfig{}, parsed.reasoningEffort, true, xerrors.Errorf(
+				return database.ChatModelConfig{}, "", parsed.reasoningEffort, true, xerrors.Errorf(
 					"%s model override is unavailable: %s",
 					label,
 					parsed.modelConfigID,
 				)
 			case errors.Is(err, errInvalidModelOverrideMetadata):
-				return database.ChatModelConfig{}, parsed.reasoningEffort, true, xerrors.Errorf(
+				return database.ChatModelConfig{}, "", parsed.reasoningEffort, true, xerrors.Errorf(
 					"%s model override metadata is invalid for %s: %w",
 					label,
 					parsed.modelConfigID,
 					err,
 				)
 			default:
-				return database.ChatModelConfig{}, parsed.reasoningEffort, true, xerrors.Errorf(
+				return database.ChatModelConfig{}, "", parsed.reasoningEffort, true, xerrors.Errorf(
 					"resolve %s model override %s: %w",
 					label,
 					parsed.modelConfigID,
@@ -259,19 +259,19 @@ func (p *Server) resolveConfiguredModelOverride(
 				slog.Error(err),
 			)
 		}
-		return database.ChatModelConfig{}, nil, false, nil
+		return database.ChatModelConfig{}, "", nil, false, nil
 	}
 
 	providerKeys, err := resolveProviderKeys(ctx, ownerID, modelConfigAIProviderID(modelConfig))
 	if err != nil {
-		return database.ChatModelConfig{}, nil, false, xerrors.Errorf(
+		return database.ChatModelConfig{}, "", nil, false, xerrors.Errorf(
 			"resolve provider API keys: %w",
 			err,
 		)
 	}
 	if !userCanUseProviderKeys(providerKeys, providerName) {
 		if failureMode == modelOverrideFailureModeHard {
-			return database.ChatModelConfig{}, parsed.reasoningEffort, true, xerrors.Errorf(
+			return database.ChatModelConfig{}, "", parsed.reasoningEffort, true, xerrors.Errorf(
 				"%s model override credentials are unavailable for provider %q",
 				modelOverrideErrorLabel(overrideContext),
 				providerName,
@@ -284,9 +284,9 @@ func (p *Server) resolveConfiguredModelOverride(
 			slog.F("model_config_id", parsed.modelConfigID),
 			slog.F("provider", providerName),
 		)
-		return database.ChatModelConfig{}, nil, false, nil
+		return database.ChatModelConfig{}, "", nil, false, nil
 	}
-	return modelConfig, parsed.reasoningEffort, true, nil
+	return modelConfig, providerName, parsed.reasoningEffort, true, nil
 }
 
 func (p *Server) resolvePersonalSubagentModelConfigID(
@@ -483,7 +483,7 @@ func (p *Server) resolveSubagentModelConfigID(
 			err,
 		)
 	}
-	modelConfig, reasoningEffort, ok, err := p.resolveConfiguredModelOverride(
+	modelConfig, _, reasoningEffort, ok, err := p.resolveConfiguredModelOverride(
 		chatdCtx,
 		string(overrideContext),
 		raw,
@@ -800,8 +800,7 @@ func (p *Server) subagentTools(
 
 				interrupted := false
 				if args.Interrupt && targetChatInfo != nil {
-					interrupted = targetChatInfo.Status == database.ChatStatusRunning ||
-						targetChatInfo.Status == database.ChatStatusPending
+					interrupted = targetChatInfo.Status == database.ChatStatusRunning
 				}
 				return toolJSONResponse(withSubagentType(map[string]any{
 					"chat_id":     targetChat.ID.String(),
@@ -862,8 +861,8 @@ func (p *Server) subagentTools(
 				"sort order is best-effort: an agent's position may shift "+
 				"if its updated_at changes between calls. Each "+
 				"agent has chat_id, title, type, status, created_at, "+
-				"updated_at. Status: pending/running = working, "+
-				"interrupting = transient, waiting/completed = idle, "+
+				"updated_at. Status: running = working, "+
+				"interrupting = transient, waiting = idle, "+
 				"error = stopped on error.",
 			func(ctx context.Context, args listAgentsArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
@@ -1024,23 +1023,6 @@ func (p *Server) resolveExploreToolSnapshot(
 	return inheritedMCPServerIDs, nil
 }
 
-func (*Server) delegatedAPIKeyIDForSubagent(ctx context.Context) (string, error) {
-	apiKeyID, ok := aibridge.DelegatedAPIKeyIDFromContext(ctx)
-	if !ok || apiKeyID == "" {
-		return "", xerrors.New("active turn API key ID is required for subagent messages")
-	}
-	return apiKeyID, nil
-}
-
-func (p *Server) createChildSubagentChat(
-	ctx context.Context,
-	parent database.Chat,
-	prompt string,
-	title string,
-) (database.Chat, error) {
-	return p.createChildSubagentChatWithOptions(ctx, parent, prompt, title, childSubagentChatOptions{})
-}
-
 func (p *Server) createChildSubagentChatWithOptions(
 	ctx context.Context,
 	parent database.Chat,
@@ -1074,9 +1056,9 @@ func (p *Server) createChildSubagentChatWithOptions(
 	if modelConfigID == uuid.Nil {
 		return database.Chat{}, xerrors.New("model config is required")
 	}
-	childAPIKeyID, err := p.delegatedAPIKeyIDForSubagent(ctx)
+	childAPIKeyID, err := p.ensureSyntheticAPIKeyID(ctx, parent.OwnerID)
 	if err != nil {
-		return database.Chat{}, err
+		return database.Chat{}, xerrors.Errorf("ensure synthetic API key: %w", err)
 	}
 
 	childPlanMode := parent.PlanMode
@@ -1218,16 +1200,10 @@ func (p *Server) sendSubagentMessage(
 		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)
 	}
 
-	apiKeyID, err := p.delegatedAPIKeyIDForSubagent(ctx)
-	if err != nil {
-		return database.Chat{}, err
-	}
-
 	sendResult, err := p.SendMessage(ctx, SendMessageOptions{
 		ChatID:       targetChatID,
 		CreatedBy:    targetChat.OwnerID,
 		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(message)},
-		APIKeyID:     apiKeyID,
 		BusyBehavior: busyBehavior,
 	})
 	if err != nil {
@@ -1434,8 +1410,7 @@ func (p *Server) checkSubagentCompletion(
 	// waiting (no queued messages) or running (queued messages).
 	// Treat it as not-done so the agent settles before
 	// classification, avoiding stale partial output.
-	if chat.Status == database.ChatStatusPending ||
-		chat.Status == database.ChatStatusRunning ||
+	if chat.Status == database.ChatStatusRunning ||
 		chat.Status == database.ChatStatusInterrupting {
 		return chat, "", false, nil
 	}

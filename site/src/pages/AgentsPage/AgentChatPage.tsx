@@ -1,4 +1,11 @@
-import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+	type FC,
+	useEffect,
+	useEffectEvent,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 
 import {
 	useInfiniteQuery,
@@ -78,6 +85,7 @@ import {
 } from "./components/ChatConversation/chatStore";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import type { PendingAttachment } from "./components/ChatPageContent";
+import { workspaceSkillsFromChat } from "./components/ChatPageContent";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -200,7 +208,7 @@ export const runPromoteQueuedMessage = async (params: {
 		);
 		store.clearStreamState();
 		store.clearStreamError();
-		store.setChatStatus("pending");
+		store.setChatStatus("running");
 	});
 	if (agentId) {
 		clearChatErrorReason(agentId);
@@ -763,6 +771,7 @@ const AgentChatPage: FC = () => {
 		enabled: Boolean(parentChatID),
 	});
 	const workspaceId = chatQuery.data?.workspace_id;
+	const chatAgentId = chatQuery.data?.agent_id;
 	const workspaceQuery = useQuery({
 		...workspaceById(workspaceId ?? ""),
 		enabled: Boolean(workspaceId),
@@ -835,6 +844,36 @@ const AgentChatPage: FC = () => {
 
 	// Subscribe to live workspace updates so that agent status changes
 	// (e.g. connected/disconnected) are reflected without a page refresh.
+	const applyWatchedWorkspaceUpdate = useEffectEvent(
+		(watchedWorkspaceId: string, next: TypesGen.Workspace) => {
+			queryClient.setQueryData<TypesGen.Workspace | undefined>(
+				workspaceByIdKey(watchedWorkspaceId),
+				(prev) => {
+					// Return the same reference when nothing the UI
+					// reads has changed. This prevents react-query
+					// from notifying subscribers and avoids a full
+					// AgentChatPage re-render on every heartbeat.
+					const prevAgent = getWorkspaceAgent(prev, chatAgentId);
+					const nextAgent = getWorkspaceAgent(next, chatAgentId);
+					if (
+						prev &&
+						prev.latest_build.status === next.latest_build.status &&
+						prev.health.healthy === next.health.healthy &&
+						prev.name === next.name &&
+						prev.owner_name === next.owner_name &&
+						prevAgent?.id === nextAgent?.id &&
+						prevAgent?.status === nextAgent?.status &&
+						prevAgent?.name === nextAgent?.name &&
+						prevAgent?.expanded_directory === nextAgent?.expanded_directory &&
+						prevAgent?.lifecycle_state === nextAgent?.lifecycle_state
+					) {
+						return prev;
+					}
+					return next;
+				},
+			);
+		},
+	);
 	useEffect(() => {
 		if (!workspaceId) {
 			return;
@@ -847,33 +886,9 @@ const AgentChatPage: FC = () => {
 						return;
 					}
 					if (event.parsedMessage.type === "data") {
-						const next = event.parsedMessage.data as TypesGen.Workspace;
-						queryClient.setQueryData<TypesGen.Workspace | undefined>(
-							workspaceByIdKey(workspaceId),
-							(prev) => {
-								// Return the same reference when nothing the UI
-								// reads has changed. This prevents react-query
-								// from notifying subscribers and avoids a full
-								// AgentChatPage re-render on every heartbeat.
-								const prevAgent = getWorkspaceAgent(prev, undefined);
-								const nextAgent = getWorkspaceAgent(next, undefined);
-								if (
-									prev &&
-									prev.latest_build.status === next.latest_build.status &&
-									prev.health.healthy === next.health.healthy &&
-									prev.name === next.name &&
-									prev.owner_name === next.owner_name &&
-									prevAgent?.id === nextAgent?.id &&
-									prevAgent?.status === nextAgent?.status &&
-									prevAgent?.name === nextAgent?.name &&
-									prevAgent?.expanded_directory ===
-										nextAgent?.expanded_directory &&
-									prevAgent?.lifecycle_state === nextAgent?.lifecycle_state
-								) {
-									return prev;
-								}
-								return next;
-							},
+						applyWatchedWorkspaceUpdate(
+							workspaceId,
+							event.parsedMessage.data as TypesGen.Workspace,
 						);
 					}
 				});
@@ -891,7 +906,7 @@ const AgentChatPage: FC = () => {
 		});
 	}, [workspaceId, queryClient]);
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
-	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
+	const workspaceAgent = getWorkspaceAgent(workspace, chatAgentId);
 	const { proxy } = useProxy();
 
 	const chatRecord = chatQuery.data;
@@ -1742,6 +1757,7 @@ const AgentChatPage: FC = () => {
 			onMCPSelectionChange={handleMCPSelectionChange}
 			onMCPAuthComplete={handleMCPAuthComplete}
 			chatContext={chatQuery.data?.context}
+			workspaceSkills={workspaceSkillsFromChat(chatQuery.data)}
 		/>
 	);
 };

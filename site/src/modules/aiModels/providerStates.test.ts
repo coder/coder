@@ -225,6 +225,15 @@ describe("canManageProviderModels", () => {
 		).toBe(false);
 	});
 
+	it("returns false when the provider is disabled", () => {
+		expect(
+			canManageProviderModels({
+				...baseState,
+				providerConfig: { ...MockChatProviderConfig, enabled: false },
+			}),
+		).toBe(false);
+	});
+
 	it("returns false for undefined provider state", () => {
 		expect(canManageProviderModels(undefined)).toBe(false);
 	});

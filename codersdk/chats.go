@@ -88,10 +88,7 @@ type ChatStatus string
 
 const (
 	ChatStatusWaiting        ChatStatus = "waiting"
-	ChatStatusPending        ChatStatus = "pending"
 	ChatStatusRunning        ChatStatus = "running"
-	ChatStatusPaused         ChatStatus = "paused"
-	ChatStatusCompleted      ChatStatus = "completed"
 	ChatStatusError          ChatStatus = "error"
 	ChatStatusRequiresAction ChatStatus = "requires_action"
 	ChatStatusInterrupting   ChatStatus = "interrupting"
@@ -757,6 +754,7 @@ const (
 	ChatModelOverrideContextGeneral         ChatModelOverrideContext = "general"
 	ChatModelOverrideContextExplore         ChatModelOverrideContext = "explore"
 	ChatModelOverrideContextTitleGeneration ChatModelOverrideContext = "title_generation"
+	ChatModelOverrideContextCompaction      ChatModelOverrideContext = "compaction"
 )
 
 // Valid reports whether the override context is one of the supported values.
@@ -764,7 +762,8 @@ func (c ChatModelOverrideContext) Valid() bool {
 	switch c {
 	case ChatModelOverrideContextGeneral,
 		ChatModelOverrideContextExplore,
-		ChatModelOverrideContextTitleGeneration:
+		ChatModelOverrideContextTitleGeneration,
+		ChatModelOverrideContextCompaction:
 		return true
 	default:
 		return false
@@ -777,6 +776,7 @@ func AllChatModelOverrideContexts() []ChatModelOverrideContext {
 		ChatModelOverrideContextGeneral,
 		ChatModelOverrideContextExplore,
 		ChatModelOverrideContextTitleGeneration,
+		ChatModelOverrideContextCompaction,
 	}
 }
 
@@ -909,6 +909,9 @@ type AdvisorConfig struct {
 	// resolved (e.g. the referenced model config was soft-deleted or
 	// its provider was disabled after the admin saved this config).
 	ModelConfigID uuid.UUID `json:"model_config_id" format:"uuid"`
+	// ReasoningEffort overrides the selected advisor model's configured default.
+	// It requires a non-zero ModelConfigID.
+	ReasoningEffort *string `json:"reasoning_effort,omitempty"`
 }
 
 // UpdateAdvisorConfigRequest is the request body for updating advisor
@@ -1272,6 +1275,7 @@ type UserChatProviderConfig struct {
 	Provider                 string    `json:"provider"`
 	DisplayName              string    `json:"display_name"`
 	Icon                     string    `json:"icon"`
+	Enabled                  bool      `json:"enabled"`
 	HasUserAPIKey            bool      `json:"has_user_api_key"`
 	HasCentralAPIKeyFallback bool      `json:"has_central_api_key_fallback"`
 	BYOKEnabled              bool      `json:"byok_enabled"`
@@ -1354,6 +1358,7 @@ type ChatModelAnthropicProviderOptions struct {
 	WebSearchEnabled       *bool                              `json:"web_search_enabled,omitempty" description:"Enable Anthropic web search tool for grounding responses with real-time information"`
 	AllowedDomains         []string                           `json:"allowed_domains,omitempty" label:"Web Search: Allowed Domains" description:"Restrict web search to these domains (cannot be used with blocked_domains)" visible_when:"web_search_enabled" conflicts_with:"blocked_domains"`
 	BlockedDomains         []string                           `json:"blocked_domains,omitempty" label:"Web Search: Blocked Domains" description:"Block web search on these domains (cannot be used with allowed_domains)" visible_when:"web_search_enabled" conflicts_with:"allowed_domains"`
+	Context1MEnabled       *bool                              `json:"context_1m_enabled,omitempty" label:"1M Context Window" description:"Send the anthropic-beta context-1m-2025-08-07 header to unlock the 1M token context window on supported Claude models. Pair with a matching Context Limit. Long-context pricing and higher latency may apply above 200K tokens."`
 }
 
 // ChatModelGoogleThinkingConfig configures Google thinking behavior.
@@ -1490,6 +1495,29 @@ type ChatModelCallConfig struct {
 // UnmarshalJSON accepts both the current nested cost object and the previous
 // top-level pricing keys so legacy stored model_config JSON continues to load.
 func (c *ChatModelCallConfig) UnmarshalJSON(data []byte) error {
+	return c.unmarshal(data, json.Unmarshal)
+}
+
+// UnmarshalStrict is UnmarshalJSON except unknown fields are an error instead
+// of being silently dropped. Clients that accept free-form model config JSON
+// (e.g. the Terraform provider) use it to reject settings this SDK version
+// does not recognize before they are lost.
+func (c *ChatModelCallConfig) UnmarshalStrict(data []byte) error {
+	return c.unmarshal(data, func(data []byte, v any) error {
+		dec := json.NewDecoder(bytes.NewReader(data))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(v); err != nil {
+			return err
+		}
+		// Match json.Unmarshal: reject any trailing data after the value.
+		if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+			return xerrors.New("unexpected trailing data after JSON value")
+		}
+		return nil
+	})
+}
+
+func (c *ChatModelCallConfig) unmarshal(data []byte, decode func(data []byte, v any) error) error {
 	type chatModelCallConfigAlias ChatModelCallConfig
 	aux := struct {
 		*chatModelCallConfigAlias
@@ -1500,7 +1528,7 @@ func (c *ChatModelCallConfig) UnmarshalJSON(data []byte) error {
 	}{
 		chatModelCallConfigAlias: (*chatModelCallConfigAlias)(c),
 	}
-	if err := json.Unmarshal(data, &aux); err != nil {
+	if err := decode(data, &aux); err != nil {
 		return err
 	}
 
@@ -1609,7 +1637,7 @@ type ChatDiffContents struct {
 const (
 	ChatGitWatchNoWorkspaceMessage       = "Chat has no workspace to watch."
 	ChatGitWatchWorkspaceNotFoundMessage = "Chat workspace not found."
-	ChatGitWatchWorkspaceNoAgentsMessage = "Chat workspace has no agents."
+	ChatGitWatchNoEligibleAgentMessage   = "No eligible agent found for chat workspace."
 	// ChatGitWatchAgentStatePrefix is the common prefix of the
 	// message produced by ChatGitWatchAgentStateMessage. The CLI
 	// uses it as a mechanical fingerprint for the "agent not yet
@@ -1634,7 +1662,7 @@ func IsChatGitWatchFallbackMessage(msg string) bool {
 	switch trimmed {
 	case ChatGitWatchNoWorkspaceMessage,
 		ChatGitWatchWorkspaceNotFoundMessage,
-		ChatGitWatchWorkspaceNoAgentsMessage:
+		ChatGitWatchNoEligibleAgentMessage:
 		return true
 	}
 	return strings.HasPrefix(trimmed, ChatGitWatchAgentStatePrefix)
@@ -1692,6 +1720,7 @@ const (
 	ChatErrorKindUsageLimit           ChatErrorKind = "usage_limit"
 	ChatErrorKindMissingKey           ChatErrorKind = "missing_key"
 	ChatErrorKindProviderDisabled     ChatErrorKind = "provider_disabled"
+	ChatErrorKindContentFilter        ChatErrorKind = "content_filter"
 )
 
 // AllChatErrorKinds contains every ChatErrorKind value.
@@ -1707,6 +1736,7 @@ var AllChatErrorKinds = []ChatErrorKind{
 	ChatErrorKindUsageLimit,
 	ChatErrorKindMissingKey,
 	ChatErrorKindProviderDisabled,
+	ChatErrorKindContentFilter,
 }
 
 // ChatError represents a terminal chat error in persisted chat state or the
@@ -1845,8 +1875,11 @@ const (
 	ChatWatchEventKindDiffStatusChange  ChatWatchEventKind = "diff_status_change"
 	ChatWatchEventKindActionRequired    ChatWatchEventKind = "action_required"
 	// ChatWatchEventKindContextDirty signals that the chat's pinned
-	// workspace context drifted from the agent's latest pushed snapshot.
-	// The chat stays usable; a refresh re-pins it to the latest snapshot.
+	// workspace context changed: it drifted from the agent's latest
+	// pushed snapshot, or hydration first populated it (a first-turn
+	// pin or an agent push reaching a not-yet-pinned chat). The chat
+	// stays usable; a refresh re-pins a drifted chat to the latest
+	// snapshot.
 	ChatWatchEventKindContextDirty ChatWatchEventKind = "context_dirty"
 )
 

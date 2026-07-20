@@ -4,7 +4,7 @@
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/members/{user}/workspaces \
   -H 'Content-Type: application/json' \
@@ -338,7 +338,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members/{user}/workspaces/available-users \
   -H 'Accept: application/json' \
@@ -396,7 +396,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacename} \
   -H 'Accept: application/json' \
@@ -704,7 +704,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/users/{user}/workspaces \
   -H 'Content-Type: application/json' \
@@ -1037,7 +1037,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaces \
   -H 'Accept: application/json' \
@@ -1333,7 +1333,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
   -H 'Accept: application/json' \
@@ -1640,7 +1640,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace} \
   -H 'Content-Type: application/json' \
@@ -1676,7 +1676,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
   -H 'Accept: application/json' \
@@ -1752,7 +1752,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
   -H 'Coder-Session-Token: API_KEY'
@@ -1778,7 +1778,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
   -H 'Content-Type: application/json' \
@@ -1821,7 +1821,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/agent-connection-watch \
   -H 'Accept: application/json' \
@@ -1871,7 +1871,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autostart \
   -H 'Content-Type: application/json' \
@@ -1907,7 +1907,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autoupdates \
   -H 'Content-Type: application/json' \
@@ -1943,7 +1943,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
   -H 'Content-Type: application/json' \
@@ -2259,7 +2259,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
   -H 'Content-Type: application/json' \
@@ -2313,7 +2313,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/favorite \
   -H 'Coder-Session-Token: API_KEY'
@@ -2339,7 +2339,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/favorite \
   -H 'Coder-Session-Token: API_KEY'
@@ -2365,7 +2365,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/resolve-autostart \
   -H 'Accept: application/json' \
@@ -2402,7 +2402,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/timings \
   -H 'Accept: application/json' \
@@ -2470,7 +2470,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/ttl \
   -H 'Content-Type: application/json' \
@@ -2506,7 +2506,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/usage \
   -H 'Content-Type: application/json' \
@@ -2543,7 +2543,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch \
   -H 'Accept: text/event-stream' \
@@ -2574,7 +2574,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch-ws \
   -H 'Accept: application/json' \

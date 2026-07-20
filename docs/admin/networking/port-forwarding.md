@@ -171,7 +171,7 @@ protocol configuration for each shared port individually.
 You can access any port on the workspace and can configure the port protocol
 manually by appending a `s` to the port in the URL.
 
-```text
+```txt
 # Uses HTTP
 https://33295--agent--workspace--user--apps.example.com/
 # Uses HTTPS
@@ -194,7 +194,7 @@ must include credentials (set `credentials: "include"` if using `fetch`) or the
 requests cannot be authenticated and you will see an error resembling the
 following:
 
-```text
+```txt
 Access to fetch at
 '<https://coder.example.com/api/v2/applications/auth-redirect>' from origin
 '<https://8000--dev--user--apps.coder.example.com>' has been blocked by CORS
@@ -207,7 +207,7 @@ resource. If an opaque response serves your needs, set the request's mode to
 
 Below is a list of the cross-origin headers Coder sets with example values:
 
-```text
+```txt
 access-control-allow-credentials: true
 access-control-allow-methods: PUT
 access-control-allow-headers: X-Custom-Header

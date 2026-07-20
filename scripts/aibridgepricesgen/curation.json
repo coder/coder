@@ -1,0 +1,81 @@
+{
+	"openai": [
+		{
+			"modelIdentifier": "gpt-5.6-sol",
+			"aliases": ["gpt-5.6"],
+			"reasoningEffort": "medium"
+		},
+		{
+			"modelIdentifier": "gpt-5.6-terra",
+			"reasoningEffort": "medium"
+		},
+		{
+			"modelIdentifier": "gpt-5.6-luna",
+			"reasoningEffort": "medium"
+		},
+		{
+			"modelIdentifier": "gpt-5.5",
+			"reasoningEffort": "medium"
+		},
+		{
+			"modelIdentifier": "gpt-5.5-pro",
+			"reasoningEffort": "high"
+		},
+		{
+			"modelIdentifier": "gpt-5.4"
+		},
+		{
+			"modelIdentifier": "gpt-5.4-mini",
+			"reasoningEffort": "medium"
+		},
+		{
+			"modelIdentifier": "gpt-5.4-nano"
+		},
+		{
+			"modelIdentifier": "gpt-5.3-codex",
+			"reasoningEffort": "medium"
+		}
+	],
+	"anthropic": [
+		{
+			"modelIdentifier": "claude-fable-5",
+			"reasoningEffort": "high"
+		},
+		{
+			"modelIdentifier": "claude-mythos-5",
+			"reasoningEffort": "high"
+		},
+		{
+			"modelIdentifier": "claude-opus-4-8",
+			"reasoningEffort": "high"
+		},
+		{
+			"modelIdentifier": "claude-opus-4-7",
+			"reasoningEffort": "high"
+		},
+		{
+			"modelIdentifier": "claude-opus-4-6",
+			"reasoningEffort": "high"
+		},
+		{
+			"modelIdentifier": "claude-sonnet-5",
+			"reasoningEffort": "high"
+		},
+		{
+			"modelIdentifier": "claude-sonnet-4-6",
+			"reasoningEffort": "medium"
+		},
+		{
+			"modelIdentifier": "claude-haiku-4-5",
+			"aliases": ["claude-haiku-4-5-20251001"],
+			"displayName": "Claude Haiku 4.5",
+			"thinkingBudgetTokens": 8192
+		},
+		{
+			"modelIdentifier": "claude-sonnet-4-5",
+			"aliases": ["claude-sonnet-4-5-20250929"],
+			"displayName": "Claude Sonnet 4.5",
+			"thinkingBudgetTokens": 8192
+		}
+	]
+}

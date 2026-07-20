@@ -42,7 +42,7 @@ Visit <https://coder.com/trial> or contact
 1. Open a terminal.
 1. Log in to your Coder deployment:
 
-   ```shell
+   ```sh
    coder login <access url>
    ```
 
@@ -50,7 +50,7 @@ Visit <https://coder.com/trial> or contact
 
    - For a `.jwt` license file:
 
-     ```shell
+     ```sh
      coder licenses add -f <path to your license key>
      ```
 
@@ -241,7 +241,7 @@ can start Caddy as a `systemd` service.
 The Caddyfile configuration will appear like this where `127.0.0.1:3000` is your
 `CODER_ACCESS_URL`:
 
-```text
+```txt
 coder.example.com {
 
   reverse_proxy 127.0.0.1:3000
@@ -269,7 +269,7 @@ the existing Caddy binary in `usr/bin` and restart the Caddy service.
 
 The updated Caddyfile configuration will look like this:
 
-```text
+```txt
 *.coder.example.com, coder.example.com {
 
   reverse_proxy 127.0.0.1:3000

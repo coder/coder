@@ -8,7 +8,10 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { AdvisorSettings } from "#/pages/AgentsPage/components/AdvisorSettings";
 import { VirtualDesktopSettings } from "#/pages/AgentsPage/components/VirtualDesktopSettings";
-import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
+import {
+	filterConfigsWithEnabledProvider,
+	type ProviderInfo,
+} from "#/pages/AgentsPage/utils/modelOptions";
 import {
 	AdminPersonalModelOverridesSettings,
 	type SavePersonalModelOverridesAdminSetting,
@@ -33,6 +36,7 @@ export interface CoderAgentsPageViewProps {
 	isSaveAdminOverridesError: boolean;
 	generalModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	titleGenerationModelOverrideData?: TypesGen.ChatModelOverrideResponse;
+	compactionModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	exploreModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	modelConfigsData: TypesGen.ChatModelConfig[] | undefined;
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
@@ -45,6 +49,9 @@ export interface CoderAgentsPageViewProps {
 	onSaveTitleGenerationModel: SaveModelOverride;
 	isSavingTitleGenerationModel: boolean;
 	isSaveTitleGenerationModelError: boolean;
+	onSaveCompactionModel: SaveModelOverride;
+	isSavingCompactionModel: boolean;
+	isSaveCompactionModelError: boolean;
 	onSaveExploreModelOverride: SaveModelOverride;
 	isSavingExploreModelOverride: boolean;
 	isSaveExploreModelOverrideError: boolean;
@@ -83,6 +90,7 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	isSaveAdminOverridesError,
 	generalModelOverrideData,
 	titleGenerationModelOverrideData,
+	compactionModelOverrideData,
 	exploreModelOverrideData,
 	modelConfigsData,
 	providerInfoByID,
@@ -95,6 +103,9 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	onSaveTitleGenerationModel,
 	isSavingTitleGenerationModel,
 	isSaveTitleGenerationModelError,
+	onSaveCompactionModel,
+	isSavingCompactionModel,
+	isSaveCompactionModelError,
 	onSaveExploreModelOverride,
 	isSavingExploreModelOverride,
 	isSaveExploreModelOverrideError,
@@ -114,8 +125,9 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	isSavingComputerUseProvider,
 	computerUseProviderSaveError,
 }) => {
-	const enabledModelConfigs = (modelConfigsData ?? []).filter(
-		(modelConfig) => modelConfig.enabled,
+	const enabledModelConfigs = filterConfigsWithEnabledProvider(
+		(modelConfigsData ?? []).filter((modelConfig) => modelConfig.enabled),
+		providerInfoByID,
 	);
 	const showGeneralModelSection =
 		onSaveGeneralModelOverride !== undefined ||
@@ -173,6 +185,20 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 					unavailableModelWarning="The selected model is currently unavailable. Title generation will be skipped until you choose another model or clear this setting."
 				/>
 				<SubagentModelOverrideSettings
+					title="Compaction model"
+					description="Used to summarize long conversations when they approach the model's context limit. Leave unset to summarize with the chat model."
+					modelOverrideData={compactionModelOverrideData}
+					enabledModelConfigs={enabledModelConfigs}
+					providerInfoByID={providerInfoByID}
+					modelConfigsError={modelConfigsError}
+					isLoading={isLoadingModelConfigs}
+					onSaveModelOverride={onSaveCompactionModel}
+					isSaving={isSavingCompactionModel}
+					isSaveError={isSaveCompactionModelError}
+					saveErrorMessage="Failed to save compaction model."
+					unsetPlaceholder="Use chat model"
+				/>
+				<SubagentModelOverrideSettings
 					title="Explore subagent model"
 					description="Used for read-only codebase exploration before work returns to the main agent."
 					modelOverrideData={exploreModelOverrideData}
@@ -200,7 +226,8 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 						isAdvisorConfigLoading={isAdvisorConfigLoading}
 						isAdvisorConfigFetching={isAdvisorConfigFetching}
 						isAdvisorConfigLoadError={isAdvisorConfigLoadError}
-						modelConfigs={modelConfigsData ?? []}
+						enabledModelConfigs={enabledModelConfigs}
+						providerInfoByID={providerInfoByID}
 						modelConfigsError={modelConfigsError}
 						isLoadingModelConfigs={isLoadingModelConfigs}
 						isFetchingModelConfigs={isFetchingModelConfigs}

@@ -857,7 +857,7 @@ export const WithMessageHistory: Story = {
 				id: CHAT_ID,
 				...baseChatFields,
 				title: "Markdown rendering showcase",
-				status: "completed",
+				status: "waiting",
 			},
 			{
 				messages: [
@@ -1274,7 +1274,7 @@ export const RootChatShareActionAvailable: Story = {
 				id: CHAT_ID,
 				...baseChatFields,
 				title: "Shareable root chat",
-				status: "completed",
+				status: "waiting",
 			},
 			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
@@ -1333,7 +1333,7 @@ export const OtherUserChatReadOnly: Story = {
 				owner_username: "OtherUser",
 				owner_name: "Other User",
 				title: "Other user's chat",
-				status: "completed",
+				status: "waiting",
 			},
 			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
@@ -1363,7 +1363,7 @@ export const OtherUserChatWithMessages: Story = {
 				owner_username: "OtherUser",
 				owner_name: "Other User",
 				title: "Other user's chat with messages",
-				status: "completed",
+				status: "waiting",
 			},
 			{
 				messages: [
@@ -1437,7 +1437,7 @@ export const ArchivedOtherUserChat: Story = {
 				owner_username: "OtherUser",
 				owner_name: "Other User",
 				title: "Archived other user's chat",
-				status: "completed",
+				status: "waiting",
 			},
 			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
@@ -1497,7 +1497,7 @@ export const PlanModeFromChatState: Story = {
 				id: CHAT_ID,
 				...baseChatFields,
 				title: "Plan mode persists",
-				status: "completed",
+				status: "waiting",
 				plan_mode: "plan",
 			},
 			{ messages: [], queued_messages: [], has_more: false },
@@ -1541,7 +1541,7 @@ export const CompletedWithDiffPanel: Story = {
 				id: CHAT_ID,
 				...baseChatFields,
 				title: "Build a feature",
-				status: "completed",
+				status: "waiting",
 			},
 			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: "https://github.com/coder/coder/pull/123" },
@@ -1601,7 +1601,7 @@ export const WithSubagentCards: Story = {
 								result: {
 									chat_id: "child-chat-1",
 									title: "Child agent",
-									status: "pending",
+									status: "running",
 								},
 							},
 						],
@@ -1712,7 +1712,7 @@ export const WithMixedSubagentTranscript: Story = {
 				id: CHAT_ID,
 				...baseChatFields,
 				title: "Mixed subagent transcript",
-				status: "completed",
+				status: "waiting",
 			},
 			{
 				messages: [
@@ -1838,7 +1838,7 @@ export const WithReasoningInline: Story = {
 				id: CHAT_ID,
 				...baseChatFields,
 				title: "Reasoning title",
-				status: "completed",
+				status: "waiting",
 			},
 			{
 				messages: [
@@ -1942,7 +1942,7 @@ export const SidebarWithPRAndRepos: Story = {
 				id: CHAT_ID,
 				...baseChatFields,
 				title: "Full sidebar demo",
-				status: "completed",
+				status: "waiting",
 			},
 			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: "https://github.com/coder/coder/pull/456" },
@@ -2123,7 +2123,7 @@ export const SidebarWithSingleRepo: Story = {
 				id: CHAT_ID,
 				...baseChatFields,
 				title: "Single repo sidebar",
-				status: "completed",
+				status: "waiting",
 			},
 			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },

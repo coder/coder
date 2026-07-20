@@ -42,19 +42,19 @@ export interface AIBridgeBedrockConfig {
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
 	/**
-	 * @deprecated Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	 * @deprecated Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
 	 */
 	readonly openai: AIBridgeOpenAIConfig;
 	/**
-	 * @deprecated Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	 * @deprecated Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
 	 */
 	readonly anthropic: AIBridgeAnthropicConfig;
 	/**
-	 * @deprecated Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	 * @deprecated Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
 	 */
 	readonly bedrock: AIBridgeBedrockConfig;
 	/**
-	 * Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>
+	 * Providers holds provider instances populated from `CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>`
 	 * env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
 	 */
 	readonly providers?: readonly AIProviderConfig[];
@@ -115,6 +115,7 @@ export interface AIBridgeOpenAIConfig {
 export interface AIBridgeProxyConfig {
 	readonly enabled: boolean;
 	readonly listen_addr: string;
+	readonly target: string;
 	readonly tls_cert_file: string;
 	readonly tls_key_file: string;
 	readonly cert_file: string;
@@ -314,6 +315,14 @@ export interface AIProvider {
 }
 
 // From codersdk/aiproviders_bedrock.go
+export type AIProviderBedrockProtocol = "invoke-model" | "mantle";
+
+export const AIProviderBedrockProtocols: AIProviderBedrockProtocol[] = [
+	"invoke-model",
+	"mantle",
+];
+
+// From codersdk/aiproviders_bedrock.go
 /**
  * AIProviderBedrockSettings configures providers that authenticate
  * against AWS Bedrock. AccessKey and AccessKeySecret are write-only:
@@ -362,6 +371,12 @@ export interface AIProviderBedrockSettings {
 	 * update may echo the stored value back).
 	 */
 	readonly external_id?: string;
+	/**
+	 * Protocol selects the Bedrock wire protocol. An empty value resolves to
+	 * AIProviderBedrockProtocolInvokeModel, so existing rows keep the legacy
+	 * behavior.
+	 */
+	readonly protocol?: AIProviderBedrockProtocol;
 }
 
 // From codersdk/aiproviders_bedrock.go
@@ -1063,6 +1078,11 @@ export interface AdvisorConfig {
 	 * its provider was disabled after the admin saved this config).
 	 */
 	readonly model_config_id: string;
+	/**
+	 * ReasoningEffort overrides the selected advisor model's configured default.
+	 * It requires a non-zero ModelConfigID.
+	 */
+	readonly reasoning_effort?: string;
 }
 
 // From codersdk/users.go
@@ -2189,6 +2209,7 @@ export interface ChatError {
 export type ChatErrorKind =
 	| "auth"
 	| "config"
+	| "content_filter"
 	| "generic"
 	| "missing_key"
 	| "overloaded"
@@ -2201,6 +2222,7 @@ export type ChatErrorKind =
 export const ChatErrorKinds: ChatErrorKind[] = [
 	"auth",
 	"config",
+	"content_filter",
 	"generic",
 	"missing_key",
 	"overloaded",
@@ -2286,7 +2308,8 @@ export const ChatGitWatchAgentStatePrefix = "Agent state is ";
  * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
  * Keep these in sync with coderd/exp_chats.go.
  */
-export const ChatGitWatchNoWorkspaceMessage = "Chat has no workspace to watch.";
+export const ChatGitWatchNoEligibleAgentMessage =
+	"No eligible agent found for chat workspace.";
 
 // From codersdk/chats.go
 /**
@@ -2298,8 +2321,7 @@ export const ChatGitWatchNoWorkspaceMessage = "Chat has no workspace to watch.";
  * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
  * Keep these in sync with coderd/exp_chats.go.
  */
-export const ChatGitWatchWorkspaceNoAgentsMessage =
-	"Chat workspace has no agents.";
+export const ChatGitWatchNoWorkspaceMessage = "Chat has no workspace to watch.";
 
 // From codersdk/chats.go
 /**
@@ -2509,6 +2531,7 @@ export interface ChatModelAnthropicProviderOptions {
 	readonly web_search_enabled?: boolean;
 	readonly allowed_domains?: readonly string[];
 	readonly blocked_domains?: readonly string[];
+	readonly context_1m_enabled?: boolean;
 }
 
 // From codersdk/chats.go
@@ -2660,11 +2683,13 @@ export interface ChatModelOpenRouterProviderOptions {
 
 // From codersdk/chats.go
 export type ChatModelOverrideContext =
+	| "compaction"
 	| "explore"
 	| "general"
 	| "title_generation";
 
 export const ChatModelOverrideContexts: ChatModelOverrideContext[] = [
+	"compaction",
 	"explore",
 	"general",
 	"title_generation",
@@ -3023,21 +3048,15 @@ export interface ChatSourcePart {
 
 // From codersdk/chats.go
 export type ChatStatus =
-	| "completed"
 	| "error"
 	| "interrupting"
-	| "paused"
-	| "pending"
 	| "requires_action"
 	| "running"
 	| "waiting";
 
 export const ChatStatuses: ChatStatus[] = [
-	"completed",
 	"error",
 	"interrupting",
-	"paused",
-	"pending",
 	"requires_action",
 	"running",
 	"waiting",
@@ -3748,6 +3767,11 @@ export interface CreateMCPServerConfigRequest {
 	readonly oauth2_client_secret?: string;
 	readonly oauth2_auth_url?: string;
 	readonly oauth2_token_url?: string;
+	/**
+	 * OAuth2RevocationURL is the provider's RFC 7009 revocation
+	 * endpoint; auto-populated by OAuth2 discovery when omitted.
+	 */
+	readonly oauth2_revocation_url?: string;
 	readonly oauth2_scopes?: string;
 	readonly api_key_header?: string;
 	readonly api_key_value?: string;
@@ -4194,12 +4218,14 @@ export interface CryptoKey {
 
 // From codersdk/deployment.go
 export type CryptoKeyFeature =
+	| "nats_ca"
 	| "oidc_convert"
 	| "tailnet_resume"
 	| "workspace_apps_api_key"
 	| "workspace_apps_token";
 
 export const CryptoKeyFeatures: CryptoKeyFeature[] = [
+	"nats_ca",
 	"oidc_convert",
 	"tailnet_resume",
 	"workspace_apps_api_key",
@@ -5583,6 +5609,7 @@ export interface MCPServerConfig {
 	readonly has_oauth2_secret: boolean;
 	readonly oauth2_auth_url?: string;
 	readonly oauth2_token_url?: string;
+	readonly oauth2_revocation_url?: string;
 	readonly oauth2_scopes?: string;
 	/**
 	 * API key fields (only populated for admins).
@@ -5616,6 +5643,16 @@ export interface MCPServerConfig {
 	 * Per-user state (populated for non-admin requests).
 	 */
 	readonly auth_connected: boolean;
+}
+
+// From codersdk/mcp.go
+/**
+ * MCPServerOAuth2DisconnectResponse reports whether the removed token
+ * was also revoked at the OAuth provider.
+ */
+export interface MCPServerOAuth2DisconnectResponse {
+	readonly token_revoked: boolean;
+	readonly token_revocation_error?: string;
 }
 
 // From codersdk/provisionerdaemons.go
@@ -9022,6 +9059,11 @@ export interface UpdateAdvisorConfigRequest {
 	 * its provider was disabled after the admin saved this config).
 	 */
 	readonly model_config_id: string;
+	/**
+	 * ReasoningEffort overrides the selected advisor model's configured default.
+	 * It requires a non-zero ModelConfigID.
+	 */
+	readonly reasoning_effort?: string;
 }
 
 // From codersdk/deployment.go
@@ -9262,6 +9304,11 @@ export interface UpdateMCPServerConfigRequest {
 	readonly oauth2_client_secret?: string;
 	readonly oauth2_auth_url?: string;
 	readonly oauth2_token_url?: string;
+	/**
+	 * OAuth2RevocationURL is validated in the handler because a
+	 * validate tag would reject the pointer to "" that clears it.
+	 */
+	readonly oauth2_revocation_url?: string;
 	readonly oauth2_scopes?: string;
 	readonly api_key_header?: string;
 	readonly api_key_value?: string;
@@ -9928,6 +9975,7 @@ export interface UserChatProviderConfig {
 	readonly provider: string;
 	readonly display_name: string;
 	readonly icon: string;
+	readonly enabled: boolean;
 	readonly has_user_api_key: boolean;
 	readonly has_central_api_key_fallback: boolean;
 	readonly byok_enabled: boolean;

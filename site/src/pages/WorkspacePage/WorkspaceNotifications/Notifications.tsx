@@ -17,9 +17,11 @@ export type NotificationItem = {
 	actions?: ReactNode;
 };
 
+type NotificationSeverity = "warning" | "info";
+
 type NotificationsProps = {
 	items: NotificationItem[];
-	severity: ThemeRole;
+	severity: NotificationSeverity;
 	icon: ReactNode;
 };
 

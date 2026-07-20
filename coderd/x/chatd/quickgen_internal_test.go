@@ -863,7 +863,6 @@ func TestFallbackTurnStatusLabel(t *testing.T) {
 		want   string
 	}{
 		{status: database.ChatStatusWaiting, want: "Finished latest turn"},
-		{status: database.ChatStatusPending, want: "Still working on request"},
 		{status: database.ChatStatusRequiresAction, want: "Waiting for user input"},
 		{status: database.ChatStatusError, want: "Hit an error"},
 		{status: database.ChatStatus("unknown"), want: "Updated chat status"},

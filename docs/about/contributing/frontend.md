@@ -153,7 +153,7 @@ Typically, each API endpoint corresponds to its own `Request` and `Response`
 types. However, some endpoints require additional parameters for successful
 execution. Here's an illustrative example:"
 
-```ts
+```tsx
 export const getAgentListeningPorts = async (
     agentID: string,
 ): Promise<TypesGen.ListeningPortsResponse> => {
@@ -167,7 +167,7 @@ export const getAgentListeningPorts = async (
 Sometimes, a frontend operation can have multiple API calls which can be wrapped
 as a single function.
 
-```ts
+```tsx
 export const updateWorkspaceVersion = async (
     workspace: TypesGen.Workspace,
 ): Promise<TypesGen.WorkspaceBuild> => {
@@ -274,7 +274,7 @@ You can either run `scripts/remote_playwright.sh` from `coder/coder` on your
 local machine, or execute the following command if you don't have the repo
 available:
 
-```bash
+```sh
 bash <(curl -sSL https://raw.githubusercontent.com/coder/coder/main/scripts/remote_playwright.sh) [workspace]
 ```
 

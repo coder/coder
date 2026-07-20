@@ -6,7 +6,7 @@ Programmatic API for Coder Agents (the user-facing "Coder Agents" / "Chats" prod
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/experimental/chats \
   -H 'Accept: application/json' \
@@ -19,10 +19,10 @@ Experimental: this endpoint is subject to change.
 
 ### Parameters
 
-| Name    | In    | Type   | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-|---------|-------|--------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `q`     | query | string | false    | Search query. Supports title:<substring> (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:<draft\|open\|merged\|closed> as repeated or comma-separated values, source:<created_by_me\|shared_with_me>, diff_url:<url> (quote values containing colons), pr:<number> (exact PR number match), repo:<owner/repo> (case-insensitive substring match against git remote origin or URL), pr_title:<text> (case-insensitive PR title substring). Bare terms are not supported; use title:<value> for title filtering. |
-| `label` | query | string | false    | Filter by label as key:value. Repeat for multiple (AND logic).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Name    | In    | Type   | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+|---------|-------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`     | query | string | false    | Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `pr_status:<draft\|open\|merged\|closed>` as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; quote multi-word values; cannot be combined with title, pr_title, or pr). Bare terms are not supported; use `title:<value>` or `search:<value>`. |
+| `label` | query | string | false    | Filter by label as key:value. Repeat for multiple (AND logic).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 ### Example responses
 
@@ -227,12 +227,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property      | Value(s)                                                                                                                                                                                                 |
-|---------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type` | `api`, `ui`                                                                                                                                                                                              |
-| `kind`        | `auth`, `config`, `generic`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
-| `status`      | `completed`, `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `paused`, `pending`, `requires_action`, `running`, `unreadable`, `waiting`                                                |
-| `plan_mode`   | `plan`                                                                                                                                                                                                   |
+| Property      | Value(s)                                                                                                                                                                                                                   |
+|---------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type` | `api`, `ui`                                                                                                                                                                                                                |
+| `kind`        | `auth`, `config`, `content_filter`, `generic`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
+| `status`      | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                    |
+| `plan_mode`   | `plan`                                                                                                                                                                                                                     |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -240,7 +240,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/experimental/chats \
   -H 'Content-Type: application/json' \
@@ -515,7 +515,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/experimental/chats/files?organization=497f6eca-6276-4993-bfeb-53cbbbba6f08 \
   -H 'Accept: application/json' \
@@ -554,7 +554,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/experimental/chats/files/{file} \
   -H 'Coder-Session-Token: API_KEY'
@@ -582,7 +582,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/experimental/chats/models \
   -H 'Accept: application/json' \
@@ -635,7 +635,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/experimental/chats/watch \
   -H 'Accept: application/json' \
@@ -775,7 +775,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/experimental/chats/{chat} \
   -H 'Accept: application/json' \
@@ -1008,7 +1008,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/experimental/chats/{chat} \
   -H 'Content-Type: application/json' \
@@ -1054,7 +1054,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/experimental/chats/{chat}/context \
   -H 'Accept: application/json' \
@@ -1287,7 +1287,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/diff \
   -H 'Accept: application/json' \
@@ -1331,7 +1331,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/experimental/chats/{chat}/interrupt \
   -H 'Accept: application/json' \
@@ -1564,7 +1564,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/messages \
   -H 'Accept: application/json' \
@@ -1761,7 +1761,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/experimental/chats/{chat}/messages \
   -H 'Content-Type: application/json' \
@@ -1981,7 +1981,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/experimental/chats/{chat}/messages/{message} \
   -H 'Content-Type: application/json' \
@@ -2126,7 +2126,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/prompts \
   -H 'Accept: application/json' \
@@ -2177,7 +2177,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/experimental/chats/{chat}/reconcile-invalid \
   -H 'Accept: application/json' \
@@ -2410,7 +2410,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/stream \
   -H 'Accept: application/json' \
@@ -2700,7 +2700,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/stream/desktop \
   -H 'Coder-Session-Token: API_KEY'
@@ -2729,7 +2729,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/stream/git \
   -H 'Accept: application/json' \
@@ -2779,7 +2779,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/experimental/chats/{chat}/title/regenerate \
   -H 'Accept: application/json' \

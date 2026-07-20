@@ -890,7 +890,8 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 	user := httpmw.UserParam(r)
 	logger := api.Logger.With(slog.F("user_id", user.ID))
 
-	periodWindow, err := budget.CurrentPeriod(api.Clock.Now(), codersdk.AIBudgetPeriodMonth)
+	period := codersdk.NewAIBudgetPeriodFromString(api.DeploymentValues.AI.BridgeConfig.BudgetPeriod)
+	periodWindow, err := budget.CurrentPeriod(api.Clock.Now(), period)
 	if err != nil {
 		logger.Error(ctx, "failed to compute AI budget period", slog.Error(err))
 		httpapi.InternalServerError(rw, err)

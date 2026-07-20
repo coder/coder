@@ -85,7 +85,7 @@ module "mux" {
 
 If you prefer a file-based config, edit `~/.mux/providers.jsonc`:
 
-```jsonc
+```json
 {
   "openai": {
     "apiKey": "<your-coder-api-token>",

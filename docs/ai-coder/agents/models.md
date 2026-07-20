@@ -188,10 +188,11 @@ fields appear dynamically in the admin UI when you select a provider.
 
 #### Anthropic
 
-| Option                 | Description                                                      |
-|------------------------|------------------------------------------------------------------|
-| Thinking Budget Tokens | Maximum tokens allocated for extended thinking.                  |
-| Effort                 | Thinking effort level (`low`, `medium`, `high`, `xhigh`, `max`). |
+| Option                 | Description                                                                                                                                                                                                                      |
+|------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Thinking Budget Tokens | Maximum tokens allocated for extended thinking.                                                                                                                                                                                  |
+| Effort                 | Thinking effort level (`low`, `medium`, `high`, `xhigh`, `max`).                                                                                                                                                                 |
+| 1M Context Window      | Sends the `anthropic-beta: context-1m-2025-08-07` header to unlock the 1M token context window on supported Claude models. Pair it with a raised Context Limit, which still controls compaction. Long-context pricing may apply. |
 
 #### OpenAI
 

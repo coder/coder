@@ -12,7 +12,7 @@ in the Terraform provider.
 First, create a kubeconfig file with
 [multiple contexts](https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/).
 
-```shell
+```sh
 kubectl config get-contexts
 
 CURRENT   NAME                        CLUSTER
@@ -27,7 +27,7 @@ If you deployed Coder on Kubernetes, you can attach a kubeconfig as a secret.
 This assumes Coder is deployed on the `coder` namespace and your kubeconfig file
 is in ~/.kube/config.
 
-```shell
+```sh
 kubectl create secret generic kubeconfig-secret -n coder --from-file=~/.kube/config
 ```
 
@@ -104,7 +104,7 @@ cluster. Change the namespace accordingly.
 Run this command against your remote cluster to create a ServiceAccount, Role,
 RoleBinding, and token:
 
-```shell
+```sh
 kubectl apply -n coder-workspaces -f - <<EOF
 apiVersion: v1
 kind: ServiceAccount
@@ -147,7 +147,7 @@ EOF
 
 The output should be similar to:
 
-```text
+```txt
 serviceaccount/coder-v2 created
 secret/coder-v2 created
 role.rbac.authorization.k8s.io/coder-v2 created
@@ -193,7 +193,7 @@ macOS and Linux.
 
 To get the cluster address:
 
-```shell
+```sh
 kubectl cluster-info
 Kubernetes control plane is running at https://example.domain:6443
 
@@ -202,7 +202,7 @@ export CLUSTER_ADDRESS=https://example.domain:6443
 
 To fetch the CA certificate and token:
 
-```shell
+```sh
 export CLUSTER_CA_CERTIFICATE=$(kubectl get secrets coder-v2 -n coder-workspaces -o jsonpath="{.data.ca\.crt}")
 
 export CLUSTER_SERVICEACCOUNT_TOKEN=$(kubectl get secrets coder-v2 -n coder-workspaces -o jsonpath="{.data.token}")
@@ -210,7 +210,7 @@ export CLUSTER_SERVICEACCOUNT_TOKEN=$(kubectl get secrets coder-v2 -n coder-work
 
 Create the template with these values:
 
-```shell
+```sh
 coder templates push \
     --variable host=$CLUSTER_ADDRESS \
     --variable cluster_ca_certificate=$CLUSTER_CA_CERTIFICATE \
@@ -221,7 +221,7 @@ coder templates push \
 If you're on a Windows machine (or if one of the commands fail), try grabbing
 the values manually:
 
-```shell
+```sh
 # Get cluster API address
 kubectl cluster-info
 
