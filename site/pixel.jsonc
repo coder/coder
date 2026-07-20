@@ -10,6 +10,6 @@
 		"browsers": ["chrome"],
 		// TODO: Add "phone" and "tablet" when upgrading to pixel-storybook 0.3.
 		"viewports": ["desktop"],
-		"themes": ["light", "dark"]
+		"themes": ["dark"]
 	}
 }
