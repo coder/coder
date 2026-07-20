@@ -19625,7 +19625,7 @@ SELECT
 	$4 :: text[]
 FROM
 	UNNEST($5 :: uuid[]) AS user_id
-ON CONFLICT DO NOTHING
+ON CONFLICT (organization_id, user_id) DO NOTHING
 RETURNING user_id, organization_id, created_at, updated_at, roles
 `
 
@@ -19639,7 +19639,8 @@ type InsertOrganizationMembersBatchParams struct {
 
 // Batch-inserts new organization members. Users that are already members
 // are silently skipped via ON CONFLICT DO NOTHING, so the caller does not
-// need to pre-filter. Only newly inserted rows are returned.
+// need to pre-filter. Only newly inserted rows are returned. The result
+// order is unspecified, so callers must not rely on input ordering.
 func (q *sqlQuerier) InsertOrganizationMembersBatch(ctx context.Context, arg InsertOrganizationMembersBatchParams) ([]OrganizationMember, error) {
 	rows, err := q.db.QueryContext(ctx, insertOrganizationMembersBatch,
 		arg.OrganizationID,

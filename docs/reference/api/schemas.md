@@ -1258,9 +1258,9 @@ None
 
 ### Properties
 
-| Name       | Type            | Required | Restrictions | Description                                                                                                    |
-|------------|-----------------|----------|--------------|----------------------------------------------------------------------------------------------------------------|
-| `user_ids` | array of string | true     |              | User ids is the list of user IDs to add as organization members. The slice must contain between 1 and 100 IDs. |
+| Name       | Type            | Required | Restrictions | Description                                                                                                                                                                                                                                    |
+|------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `user_ids` | array of string | true     |              | User ids is the list of user IDs to add as organization members. The slice must contain between 1 and 100 IDs. The upper bound keeps a single batch insert and its audit fan-out bounded; callers adding more members should page the request. |
 
 ## codersdk.AgentChatSendShortcut
 

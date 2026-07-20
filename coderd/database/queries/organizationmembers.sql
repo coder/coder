@@ -53,7 +53,8 @@ VALUES
 -- name: InsertOrganizationMembersBatch :many
 -- Batch-inserts new organization members. Users that are already members
 -- are silently skipped via ON CONFLICT DO NOTHING, so the caller does not
--- need to pre-filter. Only newly inserted rows are returned.
+-- need to pre-filter. Only newly inserted rows are returned. The result
+-- order is unspecified, so callers must not rely on input ordering.
 INSERT INTO organization_members (
 	organization_id,
 	user_id,
@@ -69,7 +70,7 @@ SELECT
 	@roles :: text[]
 FROM
 	UNNEST(@user_ids :: uuid[]) AS user_id
-ON CONFLICT DO NOTHING
+ON CONFLICT (organization_id, user_id) DO NOTHING
 RETURNING *;
 
 -- name: DeleteOrganizationMember :exec

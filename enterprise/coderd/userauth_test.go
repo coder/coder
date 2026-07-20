@@ -194,6 +194,12 @@ func TestUserOIDC(t *testing.T) {
 			_, err = runner.AdminClient.PostOrganizationMember(ctx, orgThree.ID, "alice")
 			require.ErrorContains(t, err, "Organization sync is enabled")
 
+			// The batch endpoint must reject OIDC-synced users the same way.
+			_, err = runner.AdminClient.PostOrganizationMembers(ctx, orgThree.ID, codersdk.AddOrganizationMembersRequest{
+				UserIDs: []uuid.UUID{user.ID},
+			})
+			require.ErrorContains(t, err, "Organization sync is enabled")
+
 			runner.AssertOrganizations(t, "alice", true, []uuid.UUID{orgOne.ID, orgTwo.ID})
 			// Go around the block to add the user to see if they are removed.
 			dbgen.OrganizationMember(t, runner.API.Database, database.OrganizationMember{

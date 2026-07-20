@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -23,7 +24,7 @@ import (
 )
 
 // @Summary Add organization member (deprecated)
-// @ID add-organization-member-deprecated
+// @ID add-organization-member
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Members
@@ -31,7 +32,8 @@ import (
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {object} codersdk.OrganizationMember
 // @Router /api/v2/organizations/{organization}/members/{user} [post]
-// @Deprecated use POST /organizations/{organization}/members instead
+// @Deprecated
+// @Description Deprecated: use POST /organizations/{organization}/members instead.
 func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -147,20 +149,19 @@ func (api *API) postOrganizationMembers(rw http.ResponseWriter, r *http.Request)
 	}
 	if len(missing) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Users not found: %v", missing),
+			Message: fmt.Sprintf("Users not found: %s", joinUUIDs(missing)),
 		})
 		return
 	}
 	if len(deleted) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Deleted users cannot be added to an organization: %v", deleted),
+			Message: fmt.Sprintf("Deleted users cannot be added to an organization: %s", joinUUIDs(deleted)),
 		})
 		return
 	}
 
-	// Validate OIDC org-sync constraints for all users. Resolve the feature flag
-	// once outside the loop, and report every offending user together so the
-	// caller can fix the request in a single round-trip.
+	// Report all blocked OIDC users together so the caller can fix the request
+	// in a single round-trip.
 	if api.IDPSync.OrganizationSyncEnabled(ctx, api.Database) {
 		var oidcUsernames []string
 		for _, user := range users {
@@ -194,10 +195,10 @@ func (api *API) postOrganizationMembers(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Emit audit events synchronously once the insert succeeds. The response
-	// status is fixed at 201 from this point, so we record it directly instead
-	// of routing through a deferred closure that would otherwise have to
-	// observe the final HTTP status.
+	// Emit audit events inline once the insert succeeds. The response status is
+	// fixed at 201 from this point, so we record it directly instead of routing
+	// through a deferred closure that would otherwise have to observe the final
+	// HTTP status.
 	for _, member := range allMembers {
 		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.AuditableOrganizationMember]{
 			Audit:          *auditor,
@@ -754,10 +755,20 @@ func manualMembershipBlockedResponse(usernames []string) codersdk.Response {
 	subject := fmt.Sprintf("User %s is an OIDC user", usernames[0])
 	if len(usernames) > 1 {
 		target, who = "these users", "the users"
-		subject = fmt.Sprintf("Users %v are OIDC users", usernames)
+		subject = fmt.Sprintf("Users %s are OIDC users", strings.Join(usernames, ", "))
 	}
 	return codersdk.Response{
 		Message: fmt.Sprintf("Organization sync is enabled for OIDC users, meaning manual organization assignment is not allowed for %s. Have %s re-login to refresh their organizations.", target, who),
 		Detail:  fmt.Sprintf("%s and organization sync is enabled. Ask an administrator to resolve the membership in your external IDP.", subject),
 	}
+}
+
+// joinUUIDs renders a slice of UUIDs as a comma-separated string so error
+// messages surface plain IDs instead of Go's bracketed slice format.
+func joinUUIDs(ids []uuid.UUID) string {
+	strs := make([]string, len(ids))
+	for i, id := range ids {
+		strs[i] = id.String()
+	}
+	return strings.Join(strs, ", ")
 }

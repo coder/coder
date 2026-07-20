@@ -5166,6 +5166,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
+                "description": "Deprecated: use POST /organizations/{organization}/members instead.",
                 "produces": [
                     "application/json"
                 ],
@@ -5173,7 +5174,7 @@ const docTemplate = `{
                     "Members"
                 ],
                 "summary": "Add organization member (deprecated)",
-                "operationId": "add-organization-member-deprecated",
+                "operationId": "add-organization-member",
                 "deprecated": true,
                 "parameters": [
                     {
@@ -16118,7 +16119,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "user_ids": {
-                    "description": "UserIDs is the list of user IDs to add as organization members. The\nslice must contain between 1 and 100 IDs.",
+                    "description": "UserIDs is the list of user IDs to add as organization members. The\nslice must contain between 1 and 100 IDs. The upper bound keeps a single\nbatch insert and its audit fan-out bounded; callers adding more members\nshould page the request.",
                     "type": "array",
                     "maxItems": 100,
                     "minItems": 1,

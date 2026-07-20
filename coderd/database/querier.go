@@ -1094,7 +1094,8 @@ type sqlcQuerier interface {
 	InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error)
 	// Batch-inserts new organization members. Users that are already members
 	// are silently skipped via ON CONFLICT DO NOTHING, so the caller does not
-	// need to pre-filter. Only newly inserted rows are returned.
+	// need to pre-filter. Only newly inserted rows are returned. The result
+	// order is unspecified, so callers must not rely on input ordering.
 	InsertOrganizationMembersBatch(ctx context.Context, arg InsertOrganizationMembersBatchParams) ([]OrganizationMember, error)
 	InsertPreset(ctx context.Context, arg InsertPresetParams) (TemplateVersionPreset, error)
 	InsertPresetParameters(ctx context.Context, arg InsertPresetParametersParams) ([]TemplateVersionPresetParameter, error)

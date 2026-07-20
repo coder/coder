@@ -192,9 +192,9 @@ func TestAddMembers(t *testing.T) {
 
 		_, user := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
 
-		// The same user ID appears twice in the request. GetUsersByIDs
-		// dedupes on lookup and the batch insert uses ON CONFLICT DO
-		// NOTHING, so the user is added exactly once with no error.
+		// The same user ID appears twice in the request. The batch insert uses
+		// ON CONFLICT DO NOTHING, which absorbs the intra-statement duplicate,
+		// so the user is added exactly once with no error.
 		// nolint:gocritic // must be an owner to add members
 		members, err := owner.PostOrganizationMembers(ctx, secondOrg.ID, codersdk.AddOrganizationMembersRequest{
 			UserIDs: []uuid.UUID{user.ID, user.ID},

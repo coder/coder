@@ -77,6 +77,10 @@ export const OrganizationMembersPageView: React.FC<
 	);
 };
 
+// The server caps a single add-members request at 100 user IDs, so keep the
+// selection within the same bound to avoid a blind 400 on submit.
+const MAX_MEMBERS_PER_ADD = 100;
+
 interface AddUsersDialogProps {
 	onSubmit: (users: User[]) => Promise<void>;
 }
@@ -118,6 +122,9 @@ const AddUsersDialog: React.FC<AddUsersDialogProps> = ({ onSubmit }) => {
 						setFilter={setFilter}
 						onChange={(user, checked) => {
 							if (checked) {
+								if (selected.length >= MAX_MEMBERS_PER_ADD) {
+									return;
+								}
 								setSelected([...selected, user]);
 							} else {
 								setSelected(selected.filter((s) => s.id !== user.id));
@@ -125,6 +132,17 @@ const AddUsersDialog: React.FC<AddUsersDialogProps> = ({ onSubmit }) => {
 						}}
 						selected={selected}
 					/>
+					<div className="flex items-center justify-between gap-2 text-content-secondary text-xs">
+						<span>
+							{selected.length} of {MAX_MEMBERS_PER_ADD} selected
+						</span>
+						{selected.length >= MAX_MEMBERS_PER_ADD && (
+							<span className="flex items-center gap-1 text-content-warning">
+								<TriangleAlertIcon className="size-icon-xs" />
+								You can add up to {MAX_MEMBERS_PER_ADD} users at a time.
+							</span>
+						)}
+					</div>
 					<DialogFooter className="mt-4 flex-row justify-end gap-3">
 						<Button
 							variant="outline"
@@ -134,7 +152,11 @@ const AddUsersDialog: React.FC<AddUsersDialogProps> = ({ onSubmit }) => {
 							Cancel
 						</Button>
 						<Button
-							disabled={submitting || selected.length === 0}
+							disabled={
+								submitting ||
+								selected.length === 0 ||
+								selected.length > MAX_MEMBERS_PER_ADD
+							}
 							onClick={async () => {
 								try {
 									setSubmitting(true);

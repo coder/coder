@@ -1049,7 +1049,9 @@ export interface AddLicenseRequest {
 export interface AddOrganizationMembersRequest {
 	/**
 	 * UserIDs is the list of user IDs to add as organization members. The
-	 * slice must contain between 1 and 100 IDs.
+	 * slice must contain between 1 and 100 IDs. The upper bound keeps a single
+	 * batch insert and its audit fan-out bounded; callers adding more members
+	 * should page the request.
 	 */
 	readonly user_ids: readonly string[];
 }

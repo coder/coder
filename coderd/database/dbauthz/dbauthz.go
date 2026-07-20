@@ -1697,6 +1697,37 @@ func scopedOrgRoleIdentifiers(names []string, orgID uuid.UUID) []rbac.RoleIdenti
 	return out
 }
 
+// authorizeOrganizationMemberInsert authorizes granting the given roles when
+// adding a member to an organization. The org's default_org_member_roles are
+// implied at request time by GetAuthorizationUserRoles, so canAssignRoles must
+// cover the full effective set (the explicit roles, organization-member, plus
+// the defaults). Both the single-member and batch insert wrappers share this
+// preamble so the role-assignment check cannot drift between them; they diverge
+// only in the object the ActionCreate is authorized against.
+func (q *querier) authorizeOrganizationMemberInsert(ctx context.Context, organizationID uuid.UUID, roles []string) error {
+	orgRoles, err := q.convertToOrganizationRoles(organizationID, roles)
+	if err != nil {
+		return xerrors.Errorf("converting to organization roles: %w", err)
+	}
+
+	org, err := q.db.GetOrganizationByID(ctx, organizationID)
+	if err != nil {
+		return xerrors.Errorf("get organization: %w", err)
+	}
+	defaultRoles, err := q.convertToOrganizationRoles(organizationID, org.DefaultOrgMemberRoles)
+	if err != nil {
+		return xerrors.Errorf("convert default member roles: %w", err)
+	}
+
+	// All roles are added roles. Org member is always implied.
+	addedRoles := slices.Concat(
+		orgRoles,
+		[]rbac.RoleIdentifier{rbac.ScopedRoleOrgMember(organizationID)},
+		defaultRoles,
+	)
+	return q.canAssignRoles(ctx, organizationID, addedRoles, []rbac.RoleIdentifier{})
+}
+
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -6201,65 +6232,22 @@ func (q *querier) InsertOrganization(ctx context.Context, arg database.InsertOrg
 }
 
 func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.InsertOrganizationMemberParams) (database.OrganizationMember, error) {
-	orgRoles, err := q.convertToOrganizationRoles(arg.OrganizationID, arg.Roles)
-	if err != nil {
-		return database.OrganizationMember{}, xerrors.Errorf("converting to organization roles: %w", err)
-	}
-
-	// The org's default_org_member_roles are implied at request time by
-	// GetAuthorizationUserRoles. Include them in canAssignRoles so the
-	// caller is required to be authorized to grant the full effective set
-	// (the explicit roles, organization-member, plus the defaults).
-	org, err := q.db.GetOrganizationByID(ctx, arg.OrganizationID)
-	if err != nil {
-		return database.OrganizationMember{}, xerrors.Errorf("get organization: %w", err)
-	}
-	defaultRoles, err := q.convertToOrganizationRoles(arg.OrganizationID, org.DefaultOrgMemberRoles)
-	if err != nil {
-		return database.OrganizationMember{}, xerrors.Errorf("convert default member roles: %w", err)
-	}
-
-	// All roles are added roles. Org member is always implied.
-	//nolint:gocritic
-	addedRoles := append(orgRoles, rbac.ScopedRoleOrgMember(arg.OrganizationID))
-	addedRoles = append(addedRoles, defaultRoles...)
-	err = q.canAssignRoles(ctx, arg.OrganizationID, addedRoles, []rbac.RoleIdentifier{})
-	if err != nil {
+	if err := q.authorizeOrganizationMemberInsert(ctx, arg.OrganizationID, arg.Roles); err != nil {
 		return database.OrganizationMember{}, err
 	}
 
+	// Scope the create authorization to the specific user being added.
 	obj := rbac.ResourceOrganizationMember.InOrg(arg.OrganizationID).WithID(arg.UserID)
 	return insert(q.log, q.auth, obj, q.db.InsertOrganizationMember)(ctx, arg)
 }
 
 func (q *querier) InsertOrganizationMembersBatch(ctx context.Context, arg database.InsertOrganizationMembersBatchParams) ([]database.OrganizationMember, error) {
-	orgRoles, err := q.convertToOrganizationRoles(arg.OrganizationID, arg.Roles)
-	if err != nil {
-		return nil, xerrors.Errorf("converting to organization roles: %w", err)
-	}
-
-	// The org's default_org_member_roles are implied at request time by
-	// GetAuthorizationUserRoles. Include them in canAssignRoles so the
-	// caller is required to be authorized to grant the full effective set
-	// (the explicit roles, organization-member, plus the defaults).
-	org, err := q.db.GetOrganizationByID(ctx, arg.OrganizationID)
-	if err != nil {
-		return nil, xerrors.Errorf("get organization: %w", err)
-	}
-	defaultRoles, err := q.convertToOrganizationRoles(arg.OrganizationID, org.DefaultOrgMemberRoles)
-	if err != nil {
-		return nil, xerrors.Errorf("convert default member roles: %w", err)
-	}
-
-	// All roles are added roles. Org member is always implied.
-	//nolint:gocritic
-	addedRoles := append(orgRoles, rbac.ScopedRoleOrgMember(arg.OrganizationID))
-	addedRoles = append(addedRoles, defaultRoles...)
-	err = q.canAssignRoles(ctx, arg.OrganizationID, addedRoles, []rbac.RoleIdentifier{})
-	if err != nil {
+	if err := q.authorizeOrganizationMemberInsert(ctx, arg.OrganizationID, arg.Roles); err != nil {
 		return nil, err
 	}
 
+	// The batch inserts multiple users, so the create permission is authorized
+	// at the organization scope rather than a single user ID.
 	obj := rbac.ResourceOrganizationMember.InOrg(arg.OrganizationID)
 	if err := q.authorizeContext(ctx, policy.ActionCreate, obj); err != nil {
 		return nil, err
