@@ -265,7 +265,24 @@ func (api *API) putOAuth2ProviderSettings(rw http.ResponseWriter, r *http.Reques
 	})
 	defer commitAudit()
 
-	err := api.Database.UpsertOAuth2DCREnabled(ctx, req.DynamicClientRegistrationEnabled)
+	oldEnabled, err := api.Database.GetOAuth2DCREnabled(ctx)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		if rbac.IsUnauthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	// If the setting was never configured, treat DCR as disabled.
+	if errors.Is(err, sql.ErrNoRows) {
+		oldEnabled = false
+	}
+	aReq.Old = database.OAuth2ProviderSettings{
+		DynamicClientRegistrationEnabled: oldEnabled,
+	}
+
+	err = api.Database.UpsertOAuth2DCREnabled(ctx, req.DynamicClientRegistrationEnabled)
 	if err != nil {
 		if rbac.IsUnauthorizedError(err) {
 			httpapi.Forbidden(rw)
