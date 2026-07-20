@@ -440,6 +440,55 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 				require.Contains(t, entitlements.Warnings,
 					"Your deployment has 250 active users but is only licensed for 200.")
 			})
+
+			t.Run("GraceAddonCompliantBeatsEntitledOver", func(t *testing.T) {
+				// A grace-period addon pair that fits its count wins over an
+				// entitled non-addon pair that does not, carrying its grace
+				// entitlement and the revert warning with it.
+				licenses := []database.License{
+					dbLicense(*(&coderdenttest.LicenseOptions{
+						Features: license.Features{codersdk.FeatureUserLimit: 200},
+					}).Valid(now)),
+					dbLicense(*(&coderdenttest.LicenseOptions{
+						Features: license.Features{codersdk.FeatureUserLimit: 100},
+					}).GracePeriod(now).AIGovernanceAddon(10)),
+				}
+				entitlements, err := license.LicensesEntitlements(ctx, now, licenses, enablements, coderdenttest.Keys, license.FeatureArguments{
+					ActiveUserCount: 250,
+					WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
+						return 90, nil
+					},
+				})
+				require.NoError(t, err)
+				require.Equal(t, int64(90), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
+				require.Equal(t, int64(100), *entitlements.Features[codersdk.FeatureUserLimit].Limit)
+				require.Equal(t, codersdk.EntitlementGracePeriod, entitlements.Features[codersdk.FeatureUserLimit].Entitlement)
+				require.Contains(t, entitlements.Warnings,
+					"Your deployment has 90 workspace-capable users but the license with the limit 100 is expired.")
+				require.Contains(t, entitlements.Warnings,
+					"Your license with the AI Governance addon is expired. When it fully expires, all 250 active users will count toward the user limit instead of the 90 workspace-capable users.")
+			})
+
+			t.Run("EqualLimitsPreferAddon", func(t *testing.T) {
+				// Identical limit and entitlement on an addon and a
+				// non-addon license: the addon pair wins the tie, so the
+				// workspace-capable count is displayed.
+				licenses := []database.License{
+					dbLicense(*(&coderdenttest.LicenseOptions{
+						Features: license.Features{codersdk.FeatureUserLimit: 100},
+					}).Valid(now)),
+					addonLicense(),
+				}
+				entitlements, err := license.LicensesEntitlements(ctx, now, licenses, enablements, coderdenttest.Keys, license.FeatureArguments{
+					ActiveUserCount: 80,
+					WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
+						return 30, nil
+					},
+				})
+				require.NoError(t, err)
+				require.Equal(t, int64(30), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
+				require.Equal(t, int64(100), *entitlements.Features[codersdk.FeatureUserLimit].Limit)
+			})
 		})
 
 		t.Run("OverLimitWarnsWithCapableCount", func(t *testing.T) {
