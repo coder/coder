@@ -1428,6 +1428,52 @@ func TestSpawnAgent_ExplicitModelConfigID(t *testing.T) {
 	}
 }
 
+type personalOverrideErrorStore struct {
+	database.Store
+}
+
+func (*personalOverrideErrorStore) GetUserChatPersonalModelOverride(
+	context.Context,
+	database.GetUserChatPersonalModelOverrideParams,
+) (string, error) {
+	return "", xerrors.New("unexpected personal override lookup")
+}
+
+func TestSpawnAgent_ExplicitModelSkipsConfiguredOverrides(t *testing.T) {
+	t.Parallel()
+
+	for _, subagentType := range []string{subagentTypeGeneral, subagentTypeExplore} {
+		t.Run(subagentType, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			store := &personalOverrideErrorStore{Store: db}
+			server := newInternalTestServer(t, store, ps, chatprovider.ProviderAPIKeys{})
+
+			ctx := chatdTestContext(t)
+			user, org, parentModel := seedInternalChatDeps(t, db)
+			// Arm the sentinel: with the admin gate on, any configured
+			// override resolution would hit the erroring personal lookup.
+			enableInternalChatPersonalModelOverrides(t, db)
+			selectedModel := insertInternalChatModelConfig(
+				t, db, "selected-skip-overrides-"+uuid.NewString(), true,
+			)
+			parentChat := createInternalParentChat(
+				ctx, t, server, store, org.ID, user.ID, parentModel.ID, "parent-skip-overrides",
+			)
+
+			resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+				Type:          subagentType,
+				Prompt:        "delegate work",
+				ModelConfigID: selectedModel.ID.String(),
+			})
+			childChat, err := db.GetChatByID(ctx, requireSpawnAgentChildChatID(t, resp))
+			require.NoError(t, err)
+			require.Equal(t, selectedModel.ID, childChat.LastModelConfigID)
+		})
+	}
+}
+
 func TestSpawnAgent_ExplicitModelBeatsConfiguredOverrides(t *testing.T) {
 	t.Parallel()
 
@@ -1460,8 +1506,7 @@ func TestSpawnAgent_ExplicitModelBeatsConfiguredOverrides(t *testing.T) {
 		ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-explicit-beats-overrides",
 	)
 
-	// Baseline: without explicit args the personal override and its
-	// carried reasoning effort win.
+	// Verify the personal override is active before testing explicit precedence.
 	baselineResp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
 		Type:   subagentTypeGeneral,
 		Prompt: "delegate baseline work",
@@ -1475,8 +1520,6 @@ func TestSpawnAgent_ExplicitModelBeatsConfiguredOverrides(t *testing.T) {
 		baselineChild.LastReasoningEffort,
 	)
 
-	// An explicit selection wins over both configured overrides, and the
-	// override-carried reasoning effort must not leak into the child.
 	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
 		Type:          subagentTypeGeneral,
 		Prompt:        "delegate explicit work",

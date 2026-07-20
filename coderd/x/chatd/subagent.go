@@ -545,11 +545,8 @@ func (p *Server) resolveModelConfigAndNormalizedProvider(
 	return database.ChatModelConfig{}, "", sql.ErrNoRows
 }
 
-// resolveExplicitSpawnOverrides validates spawn_agent's optional
-// model_config_id and reasoning_effort arguments. Explicit selections are
-// invocation-level overrides: they win over personal and deployment
-// subagent overrides but never bypass config enablement, provider
-// enablement, or the chat owner's credentials.
+// Explicit selections take precedence over configured overrides but still
+// require an enabled model, enabled provider, and the owner's credentials.
 func (p *Server) resolveExplicitSpawnOverrides(
 	ctx context.Context,
 	ownerID uuid.UUID,
@@ -614,7 +611,7 @@ func (p *Server) resolveExplicitSpawnOverrides(
 	var explicitReasoningEffort *string
 	if raw := strings.TrimSpace(args.ReasoningEffort); raw != "" {
 		effort := strings.ToLower(raw)
-		if !slices.Contains(codersdk.ChatModelReasoningEffortValues(), effort) {
+		if !chatprovider.IsValidReasoningEffort(effort) {
 			return nil, nil, xerrors.Errorf(
 				"invalid reasoning_effort: must be one of %s",
 				strings.Join(codersdk.ChatModelReasoningEffortValues(), ", "),
@@ -626,9 +623,6 @@ func (p *Server) resolveExplicitSpawnOverrides(
 	return explicitModelConfigID, explicitReasoningEffort, nil
 }
 
-// listSpawnableModelConfigs returns the enabled model configs the chat
-// owner can spawn subagents on, applying the same provider-credential
-// usability check as explicit spawn_agent model selection.
 func (p *Server) listSpawnableModelConfigs(
 	ctx context.Context,
 	ownerID uuid.UUID,
@@ -640,6 +634,7 @@ func (p *Server) listSpawnableModelConfigs(
 		return nil, xerrors.Errorf("get enabled chat model configs: %w", err)
 	}
 	models := make([]map[string]any, 0, len(rows))
+	providerKeysByID := make(map[uuid.UUID]chatprovider.ProviderAPIKeys)
 	for _, row := range rows {
 		providerName := chatprovider.NormalizeProvider(row.Provider)
 		if providerName == "" {
@@ -651,13 +646,18 @@ func (p *Server) listSpawnableModelConfigs(
 		); err != nil {
 			continue
 		}
-		providerKeys, err := p.resolveUserProviderAPIKeys(
-			chatdCtx,
-			ownerID,
-			modelConfigAIProviderID(row.ChatModelConfig),
-		)
-		if err != nil {
-			return nil, xerrors.Errorf("resolve provider API keys: %w", err)
+		providerID := modelConfigAIProviderID(row.ChatModelConfig)
+		providerKeys, ok := providerKeysByID[providerID]
+		if !ok {
+			providerKeys, err = p.resolveUserProviderAPIKeys(
+				chatdCtx,
+				ownerID,
+				providerID,
+			)
+			if err != nil {
+				return nil, xerrors.Errorf("resolve provider API keys: %w", err)
+			}
+			providerKeysByID[providerID] = providerKeys
 		}
 		if !userCanUseProviderKeys(providerKeys, providerName) {
 			continue
@@ -752,20 +752,13 @@ func (p *Server) subagentTools(
 					parent,
 					turnParent,
 					currentModelConfigID,
+					explicitModelConfigID,
 					args.Prompt,
 				)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
-				// Explicit selections win over the configured-override
-				// resolution in buildOptions. An explicit model without an
-				// explicit effort clears any override-carried effort so the
-				// selected config's own default applies.
-				if explicitModelConfigID != nil {
-					options.modelConfigIDOverride = explicitModelConfigID
-					options.reasoningEffortOverride = nil
-				}
 				if explicitReasoningEffort != nil {
 					options.reasoningEffortOverride = explicitReasoningEffort
 				}
@@ -802,8 +795,6 @@ func (p *Server) subagentTools(
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
 				}
 
-				// Gate identically to spawn_agent: chats that cannot spawn
-				// subagents have no use for the model list.
 				parent, err := p.loadSubagentSpawnParentChat(ctx, currentChat)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
