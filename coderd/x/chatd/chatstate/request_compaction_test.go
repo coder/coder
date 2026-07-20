@@ -21,14 +21,27 @@ import (
 // (ownership changes, queue appends) and the intended consumers
 // (compaction commit, turn-terminal transitions).
 
-// requestCompaction seeds an idle chat and records a manual
-// compaction request, returning the machine for follow-up
-// transitions.
 func requestCompaction(t *testing.T, f *testFixture) (uuid.UUID, *chatstate.ChatMachine) {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	seeded := seedState(t, f, chatstate.StateW)
 	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
+
+	worker := uuid.New()
+	runner := uuid.New()
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: worker, RunnerID: runner})
+		return err
+	}))
+	stale, err := f.DB.IsChatHeartbeatStale(ctx, database.IsChatHeartbeatStaleParams{
+		ChatID:       seeded.chatID,
+		RunnerID:     runner,
+		StaleSeconds: chatstate.HeartbeatStaleSeconds,
+	})
+	require.NoError(t, err)
+	require.False(t, stale, "owned runner heartbeat must be fresh")
+	ownershipBefore := f.Pub.ownershipPublishCount()
+
 	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		_, err := tx.RequestCompaction(chatstate.RequestCompactionInput{})
 		return err
@@ -36,7 +49,17 @@ func requestCompaction(t *testing.T, f *testFixture) (uuid.UUID, *chatstate.Chat
 	chat := f.readChat(ctx, t, seeded.chatID)
 	require.True(t, chat.CompactionRequestedAt.Valid, "request must set the marker")
 	require.Equal(t, database.ChatStatusRunning, chat.Status)
+	require.False(t, chat.WorkerID.Valid, "request must clear worker_id")
+	require.False(t, chat.RunnerID.Valid, "request must clear runner_id")
+	require.Equal(t, ownershipBefore+1, f.Pub.ownershipPublishCount(),
+		"cleared ownership must publish an ownership hint")
 	return seeded.chatID, m
+}
+
+func TestRequestCompaction_ClearsOwnershipAndPublishesHint(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	requestCompaction(t, f)
 }
 
 // TestRequestCompaction_PreservedByAcquireAndQueueAppend verifies the

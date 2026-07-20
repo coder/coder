@@ -633,11 +633,10 @@ type RequestCompactionResult struct {
 	Chat database.Chat
 }
 
-// RequestCompaction records a manual compaction request on an idle
-// chat and moves it to running so a worker picks it up. No message is
-// inserted; the request is a one-shot marker consumed by the worker's
-// compaction commit and cleared by every transition that starts a new
-// turn or leaves running, so a stale request never replays later.
+// RequestCompaction records a manual compaction request and hands ownership
+// off to a worker. The transition changes no history, so the previous runner
+// cannot detect the work from its existing running snapshot. Clearing ownership
+// makes ChatMachine.Update publish an ownership hint for worker acquisition.
 func (tx *Tx) RequestCompaction(_ RequestCompactionInput) (RequestCompactionResult, error) {
 	chat, _, err := tx.requireFromAllowed(TransitionRequestCompaction)
 	if err != nil {
@@ -650,8 +649,8 @@ func (tx *Tx) RequestCompaction(_ RequestCompactionInput) (RequestCompactionResu
 	updated, err := tx.applyExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,
 		Archived:                 false,
-		WorkerID:                 chat.WorkerID,
-		RunnerID:                 chat.RunnerID,
+		WorkerID:                 uuid.NullUUID{},
+		RunnerID:                 uuid.NullUUID{},
 		LastError:                chat.LastError,
 		RequiresActionDeadlineAt: sql.NullTime{},
 		CompactionRequestedAt:    sql.NullTime{Time: now, Valid: true},
