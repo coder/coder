@@ -33,6 +33,10 @@ import {
 	invalidateChatListQueries,
 	mergeWatchedChatIntoCaches,
 	mergeWatchedChatSummary,
+	organizationChatModelConfigs,
+	organizationChatModelConfigsKey,
+	organizationChatModels,
+	organizationChatModelsKey,
 	paginatedChatCostUsers,
 	pinChat,
 	prependToInfiniteChatsCache,
@@ -67,6 +71,8 @@ vi.mock("#/api/api", () => ({
 			promoteChatQueuedMessage: vi.fn(),
 			proposeChatTitle: vi.fn(),
 			getChatAdvisorConfig: vi.fn(),
+			getOrganizationChatModels: vi.fn(),
+			getOrganizationChatModelConfigs: vi.fn(),
 			updateChatAdvisorConfig: vi.fn(),
 			getChatACL: vi.fn(),
 			updateChatACL: vi.fn(),
@@ -140,6 +146,49 @@ const createTestQueryClient = (): QueryClient =>
 			},
 		},
 	});
+
+describe("organization chat model query factories", () => {
+	it("uses distinct organization-scoped keys and API calls", async () => {
+		const organizationA = "organization-a";
+		const organizationB = "organization-b";
+		const models: TypesGen.ChatModelsResponse = {
+			providers: [],
+			unsupported_providers: [],
+		};
+		const configs: TypesGen.ChatModelConfig[] = [];
+		vi.mocked(API.experimental.getOrganizationChatModels).mockResolvedValue(
+			models,
+		);
+		vi.mocked(
+			API.experimental.getOrganizationChatModelConfigs,
+		).mockResolvedValue(configs);
+
+		const modelsA = organizationChatModels(organizationA);
+		const modelsB = organizationChatModels(organizationB);
+		const configsA = organizationChatModelConfigs(organizationA);
+		const configsB = organizationChatModelConfigs(organizationB);
+
+		expect(modelsA.queryKey).toEqual(organizationChatModelsKey(organizationA));
+		expect(modelsB.queryKey).toEqual(organizationChatModelsKey(organizationB));
+		expect(modelsA.queryKey).not.toEqual(modelsB.queryKey);
+		expect(configsA.queryKey).toEqual(
+			organizationChatModelConfigsKey(organizationA),
+		);
+		expect(configsB.queryKey).toEqual(
+			organizationChatModelConfigsKey(organizationB),
+		);
+		expect(configsA.queryKey).not.toEqual(configsB.queryKey);
+
+		await expect(modelsA.queryFn()).resolves.toEqual(models);
+		await expect(configsA.queryFn()).resolves.toEqual(configs);
+		expect(API.experimental.getOrganizationChatModels).toHaveBeenCalledWith(
+			organizationA,
+		);
+		expect(
+			API.experimental.getOrganizationChatModelConfigs,
+		).toHaveBeenCalledWith(organizationA);
+	});
+});
 
 describe("advisor config query factories", () => {
 	it("builds the advisor config query and delegates to the API", async () => {

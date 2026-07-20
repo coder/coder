@@ -1529,6 +1529,29 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 // @Router /api/experimental/chats/models [get]
 // @Description Experimental: this endpoint is subject to change.
 func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
+	api.writeChatModels(rw, r)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary List organization chat models
+// @ID list-organization-chat-models
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param organization path string true "Organization ID or name"
+// @Success 200 {object} codersdk.ChatModelsResponse
+// @Router /api/experimental/organizations/{organization}/chats/models [get]
+// @x-apidocgen {"skip": true}
+// @Description Experimental: this endpoint is subject to change.
+func (api *API) listOrganizationChatModels(rw http.ResponseWriter, r *http.Request) {
+	if !api.requireRequestedOrganizationMembership(rw, r) {
+		return
+	}
+	api.writeChatModels(rw, r)
+}
+
+func (api *API) writeChatModels(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 	availability, err := api.getUserChatProviderAvailability(ctx, apiKey.UserID)
@@ -7133,6 +7156,45 @@ func (*API) upsertUserChatProviderKey(rw http.ResponseWriter, r *http.Request) {
 
 func (*API) deleteUserChatProviderKey(rw http.ResponseWriter, r *http.Request) {
 	writeLegacyChatProviderGone(rw, r)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary List organization chat model configs
+// @ID list-organization-chat-model-configs
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param organization path string true "Organization ID or name"
+// @Success 200 {array} codersdk.ChatModelConfig
+// @Router /api/experimental/organizations/{organization}/chat-model-configs [get]
+// @x-apidocgen {"skip": true}
+// @Description Experimental: this endpoint is subject to change.
+func (api *API) listOrganizationChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
+	if !api.requireRequestedOrganizationMembership(rw, r) {
+		return
+	}
+	api.listChatModelConfigs(rw, r)
+}
+
+func (*API) requireRequestedOrganizationMembership(rw http.ResponseWriter, r *http.Request) bool {
+	ctx := r.Context()
+	organization := httpmw.OrganizationParam(r)
+	isMember, err := httpmw.UserAuthorization(ctx).HasOrganizationMembership(organization.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to validate organization membership.",
+			Detail:  xerrors.Errorf("check organization membership: %w", err).Error(),
+		})
+		return false
+	}
+	if !isMember {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "You are not a member of the specified organization.",
+		})
+		return false
+	}
+	return true
 }
 
 func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {

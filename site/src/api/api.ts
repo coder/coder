@@ -3509,6 +3509,15 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	getOrganizationChatModels = async (
+		organization: string,
+	): Promise<TypesGen.ChatModelsResponse> => {
+		const response = await this.axios.get<TypesGen.ChatModelsResponse>(
+			`/api/experimental/organizations/${encodeURIComponent(organization)}/chats/models`,
+		);
+		return response.data;
+	};
+
 	listAIProviders = async (): Promise<TypesGen.AIProvider[]> => {
 		const response = await this.axios.get<TypesGen.AIProvider[]>(
 			aiProviderConfigsPath,
@@ -3913,6 +3922,15 @@ class ExperimentalApiMethods {
 	getChatModelConfigs = async (): Promise<TypesGen.ChatModelConfig[]> => {
 		const response =
 			await this.axios.get<TypesGen.ChatModelConfig[]>(chatModelConfigsPath);
+		return response.data;
+	};
+
+	getOrganizationChatModelConfigs = async (
+		organization: string,
+	): Promise<TypesGen.ChatModelConfig[]> => {
+		const response = await this.axios.get<TypesGen.ChatModelConfig[]>(
+			`/api/experimental/organizations/${encodeURIComponent(organization)}/chat-model-configs`,
+		);
 		return response.data;
 	};
 

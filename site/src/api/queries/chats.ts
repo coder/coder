@@ -1781,6 +1781,15 @@ export const chatModels = () => ({
 		API.experimental.getChatModels(),
 });
 
+export const organizationChatModelsKey = (organization: string) =>
+	["organization", organization, "chat-models"] as const;
+
+export const organizationChatModels = (organization: string) => ({
+	queryKey: organizationChatModelsKey(organization),
+	queryFn: (): Promise<TypesGen.ChatModelsResponse> =>
+		API.experimental.getOrganizationChatModels(organization),
+});
+
 const chatProviderConfigsKey = ["chat-provider-configs"] as const;
 
 const toChatProviderConfig = (
@@ -1815,6 +1824,15 @@ export const chatModelConfigs = () => ({
 	queryKey: chatModelConfigsKey,
 	queryFn: (): Promise<TypesGen.ChatModelConfig[]> =>
 		API.experimental.getChatModelConfigs(),
+});
+
+export const organizationChatModelConfigsKey = (organization: string) =>
+	["organization", organization, "chat-model-configs"] as const;
+
+export const organizationChatModelConfigs = (organization: string) => ({
+	queryKey: organizationChatModelConfigsKey(organization),
+	queryFn: (): Promise<TypesGen.ChatModelConfig[]> =>
+		API.experimental.getOrganizationChatModelConfigs(organization),
 });
 
 export const userChatProviderConfigsKey = [

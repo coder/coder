@@ -2304,6 +2304,21 @@ func (c *ExperimentalClient) ListChatModels(ctx context.Context) (ChatModelsResp
 	return catalog, json.NewDecoder(res.Body).Decode(&catalog)
 }
 
+// ListOrganizationChatModels returns the available chat model catalog for an organization member.
+func (c *ExperimentalClient) ListOrganizationChatModels(ctx context.Context, organization string) (ChatModelsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/chats/models", url.PathEscape(organization)), nil)
+	if err != nil {
+		return ChatModelsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatModelsResponse{}, ReadBodyAsError(res)
+	}
+
+	var catalog ChatModelsResponse
+	return catalog, json.NewDecoder(res.Body).Decode(&catalog)
+}
+
 // ListChatProviders returns admin-managed chat provider configs.
 func (c *ExperimentalClient) ListChatProviders(ctx context.Context) ([]ChatProviderConfig, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/providers", nil)
@@ -2451,6 +2466,21 @@ func (c *ExperimentalClient) DeleteUserChatProviderKey(ctx context.Context, prov
 // ListChatModelConfigs returns admin-managed chat model configs.
 func (c *ExperimentalClient) ListChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/model-configs", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var configs []ChatModelConfig
+	return configs, json.NewDecoder(res.Body).Decode(&configs)
+}
+
+// ListOrganizationChatModelConfigs returns chat model configs for an organization member.
+func (c *ExperimentalClient) ListOrganizationChatModelConfigs(ctx context.Context, organization string) ([]ChatModelConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/chat-model-configs", url.PathEscape(organization)), nil)
 	if err != nil {
 		return nil, err
 	}

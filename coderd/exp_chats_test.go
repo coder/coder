@@ -43,6 +43,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -2073,6 +2074,92 @@ func TestListChatModels(t *testing.T) {
 		models, err = client.ListChatModels(ctx)
 		require.NoError(t, err)
 		require.Empty(t, models.Providers)
+	})
+}
+
+func TestOrganizationChatModelDiscovery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Models", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		modelConfig := createChatModelConfig(t, adminClient)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		models, err := memberClient.ListOrganizationChatModels(ctx, firstUser.OrganizationID.String())
+		require.NoError(t, err)
+		require.True(t, slices.ContainsFunc(models.Providers, func(provider codersdk.ChatModelProvider) bool {
+			return slices.ContainsFunc(provider.Models, func(model codersdk.ChatModel) bool {
+				return model.Model == modelConfig.Model
+			})
+		}))
+
+		otherOrganization := dbgen.Organization(t, db, database.Organization{})
+		_, err = memberClient.ListOrganizationChatModels(ctx, otherOrganization.ID.String())
+		requireSDKError(t, err, http.StatusForbidden)
+
+		_, err = memberClient.ListOrganizationChatModels(ctx, uuid.NewString())
+		requireSDKError(t, err, http.StatusNotFound)
+
+		unauthenticatedClient := codersdk.NewExperimentalClient(codersdk.New(adminClient.URL))
+		_, err = unauthenticatedClient.ListOrganizationChatModels(ctx, firstUser.OrganizationID.String())
+		requireSDKError(t, err, http.StatusUnauthorized)
+
+		legacyModels, err := memberClient.ListChatModels(ctx)
+		require.NoError(t, err)
+		require.Equal(t, models, legacyModels)
+	})
+
+	t.Run("ModelConfigs", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		enabledConfig := createChatModelConfig(t, adminClient)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		contextLimit := int64(4096)
+		enabled := false
+		disabledConfig, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &enabledConfig.AIProviderID,
+			Model:        "organization-disabled-model",
+			Enabled:      &enabled,
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+
+		adminConfigs, err := adminClient.ListOrganizationChatModelConfigs(ctx, firstUser.OrganizationID.String())
+		require.NoError(t, err)
+		require.True(t, slices.ContainsFunc(adminConfigs, func(config codersdk.ChatModelConfig) bool {
+			return config.ID == disabledConfig.ID
+		}))
+
+		memberConfigs, err := memberClient.ListOrganizationChatModelConfigs(ctx, firstUser.OrganizationID.String())
+		require.NoError(t, err)
+		require.Equal(t, []uuid.UUID{enabledConfig.ID}, slice.List(memberConfigs, func(config codersdk.ChatModelConfig) uuid.UUID {
+			return config.ID
+		}))
+
+		otherOrganization := dbgen.Organization(t, db, database.Organization{})
+		_, err = memberClient.ListOrganizationChatModelConfigs(ctx, otherOrganization.ID.String())
+		requireSDKError(t, err, http.StatusForbidden)
+
+		_, err = memberClient.ListOrganizationChatModelConfigs(ctx, uuid.NewString())
+		requireSDKError(t, err, http.StatusNotFound)
+
+		unauthenticatedClient := codersdk.NewExperimentalClient(codersdk.New(adminClient.URL))
+		_, err = unauthenticatedClient.ListOrganizationChatModelConfigs(ctx, firstUser.OrganizationID.String())
+		requireSDKError(t, err, http.StatusUnauthorized)
+
+		legacyConfigs, err := memberClient.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		require.Equal(t, memberConfigs, legacyConfigs)
 	})
 }
 

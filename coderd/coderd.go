@@ -1312,6 +1312,14 @@ func New(options *Options) *API {
 				r.Delete("/", api.deleteUserAIProviderKey)
 			})
 		})
+		r.Route("/organizations/{organization}", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.AsAuthzSystem(httpmw.ExtractOrganizationParam(options.Database)),
+			)
+			r.Get("/chats/models", api.listOrganizationChatModels)
+			r.Get("/chat-model-configs", api.listOrganizationChatModelConfigs)
+		})
 		r.Route("/chats", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,

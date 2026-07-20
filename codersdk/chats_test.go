@@ -19,6 +19,57 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+func TestOrganizationChatModelDiscoveryPaths(t *testing.T) {
+	t.Parallel()
+
+	organization := "example/org name"
+	tests := []struct {
+		name     string
+		path     string
+		response string
+		request  func(context.Context, *codersdk.ExperimentalClient) error
+	}{
+		{
+			name:     "Models",
+			path:     "/api/experimental/organizations/example%2Forg%20name/chats/models",
+			response: `{"providers":[]}`,
+			request: func(ctx context.Context, client *codersdk.ExperimentalClient) error {
+				_, err := client.ListOrganizationChatModels(ctx, organization)
+				return err
+			},
+		},
+		{
+			name:     "ModelConfigs",
+			path:     "/api/experimental/organizations/example%2Forg%20name/chat-model-configs",
+			response: `[]`,
+			request: func(ctx context.Context, client *codersdk.ExperimentalClient) error {
+				_, err := client.ListOrganizationChatModelConfigs(ctx, organization)
+				return err
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				require.Equal(t, http.MethodGet, r.Method)
+				require.Equal(t, test.path, r.URL.EscapedPath())
+				rw.Header().Set("Content-Type", "application/json")
+				_, err := rw.Write([]byte(test.response))
+				require.NoError(t, err)
+			}))
+			defer srv.Close()
+
+			serverURL, err := url.Parse(srv.URL)
+			require.NoError(t, err)
+			client := codersdk.NewExperimentalClient(codersdk.New(serverURL))
+			require.NoError(t, test.request(context.Background(), client))
+		})
+	}
+}
+
 func TestChatModelProviderOptions_MarshalJSON_UsesPlainProviderPayload(t *testing.T) {
 	t.Parallel()
 

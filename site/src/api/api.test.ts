@@ -373,6 +373,8 @@ describe("api.ts", () => {
 	});
 
 	describe("chat configuration endpoints", () => {
+		const organization = "example/org name";
+
 		it.each<[string, () => Promise<unknown>, unknown]>([
 			[
 				"/api/experimental/chats/models",
@@ -384,6 +386,16 @@ describe("api.ts", () => {
 			[
 				"/api/experimental/chats/model-configs",
 				() => API.experimental.getChatModelConfigs(),
+				[],
+			],
+			[
+				"/api/experimental/organizations/example%2Forg%20name/chats/models",
+				() => API.experimental.getOrganizationChatModels(organization),
+				{ providers: [] },
+			],
+			[
+				"/api/experimental/organizations/example%2Forg%20name/chat-model-configs",
+				() => API.experimental.getOrganizationChatModelConfigs(organization),
 				[],
 			],
 		])("returns response data for %s", async (path, request, responseData) => {
@@ -405,6 +417,14 @@ describe("api.ts", () => {
 			[
 				"/api/experimental/chats/model-configs",
 				() => API.experimental.getChatModelConfigs(),
+			],
+			[
+				"/api/experimental/organizations/example%2Forg%20name/chats/models",
+				() => API.experimental.getOrganizationChatModels(organization),
+			],
+			[
+				"/api/experimental/organizations/example%2Forg%20name/chat-model-configs",
+				() => API.experimental.getOrganizationChatModelConfigs(organization),
 			],
 		])("rethrows axios errors for %s", async (path, request) => {
 			const expectedError = new Error("request failed");
