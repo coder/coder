@@ -6867,7 +6867,7 @@ func convertChatQueuedMessagePtr(m database.ChatQueuedMessage) *codersdk.ChatQue
 func convertChatQueuedMessages(msgs []database.ChatQueuedMessage) []codersdk.ChatQueuedMessage {
 	result := make([]codersdk.ChatQueuedMessage, 0, len(msgs))
 	for _, m := range msgs {
-		result = append(result, db2sdk.ChatQueuedMessage(m))
+		result = append(result, convertChatQueuedMessage(m))
 	}
 	return result
 }

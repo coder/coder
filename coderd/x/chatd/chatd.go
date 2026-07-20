@@ -2779,10 +2779,6 @@ func appendMessageFields(
 	params.RuntimeMs = append(params.RuntimeMs, msg.runtimeMs)
 }
 
-func appendChatMessage(params *database.InsertChatMessagesParams, msg chatMessage) {
-	appendMessageFields(params, msg)
-}
-
 // BuildSingleChatMessageInsertParams builds insert parameters for one chat message.
 func BuildSingleChatMessageInsertParams(
 	chatID uuid.UUID,
@@ -2793,14 +2789,14 @@ func BuildSingleChatMessageInsertParams(
 	contentVersion int16,
 	createdBy uuid.UUID,
 ) database.InsertChatMessagesParams {
-	params := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+	params := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendMessageFields.
 		ChatID: chatID,
 	}
 	msg := newChatMessage(role, content, visibility, modelConfigID, contentVersion)
 	if createdBy != uuid.Nil {
 		msg = msg.withCreatedBy(createdBy)
 	}
-	appendChatMessage(&params, msg)
+	appendMessageFields(&params, msg)
 	return params
 }
 

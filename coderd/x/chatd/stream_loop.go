@@ -176,11 +176,10 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 
 		if chat.QueueVersion > l.state.queueVersion {
 			snapshot.queueChanged = true
-			queued, err := tx.GetChatQueuedMessages(ctx, l.chatID)
+			snapshot.queue, err = tx.GetChatQueuedMessages(ctx, l.chatID)
 			if err != nil {
 				return xerrors.Errorf("get chat queue: %w", err)
 			}
-			snapshot.queue = queued
 		}
 
 		if chat.Status == database.ChatStatusRequiresAction {
