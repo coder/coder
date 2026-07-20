@@ -130,6 +130,7 @@ ORDER BY groups.id;
 -- is null when the user has no configured budget or when the effective group
 -- belongs to a different organization than the queried group.
 -- The period_start parameter is normalized to its UTC calendar day.
+-- TODO(AIGOV-527): unify effective group resolution in a single place.
 WITH queried_group AS (
 	-- The queried group's org, used to detect cross-org effective groups.
 	SELECT organization_id

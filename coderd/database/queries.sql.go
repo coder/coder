@@ -2630,6 +2630,7 @@ type GetGroupMembersAISpendRow struct {
 // is null when the user has no configured budget or when the effective group
 // belongs to a different organization than the queried group.
 // The period_start parameter is normalized to its UTC calendar day.
+// TODO(AIGOV-527): unify effective group resolution in a single place.
 // Spend is aggregated for the queried group, not the user's effective group.
 // A LEFT JOIN leaves spend_limit_micros and limit_source null for users
 // whose effective budget source is not the queried group.
