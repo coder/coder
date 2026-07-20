@@ -60,7 +60,7 @@ func BenchmarkCountWorkspaceCapableUsers(b *testing.B) {
 	} {
 		b.Run(scenario.name, func(b *testing.B) {
 			db, _, sqlDB := dbtestutil.NewDBWithSQLDB(b)
-			seedBenchUsers(b, ctx, db, sqlDB, scenario)
+			seedBenchUsers(ctx, b, db, sqlDB, scenario)
 
 			b.ResetTimer()
 			var count int64
@@ -92,13 +92,13 @@ type benchScenario struct {
 // seedBenchUsers bulk-inserts active users and their org memberships.
 // Deterministic UUIDs (zero-prefixed, numbered) let memberships be
 // generated from the same series without returning inserted rows.
-func seedBenchUsers(b *testing.B, ctx context.Context, db database.Store, sqlDB *sql.DB, s benchScenario) {
+func seedBenchUsers(ctx context.Context, b *testing.B, db database.Store, sqlDB *sql.DB, s benchScenario) {
 	b.Helper()
 
 	orgIDs := make([]uuid.UUID, s.orgs)
 	for i := range orgIDs {
 		org := dbgen.Organization(b, db, database.Organization{})
-		emptyOrgDefaultRoles(b, ctx, db, org)
+		emptyOrgDefaultRoles(ctx, b, db, org)
 		orgIDs[i] = org.ID
 	}
 
@@ -200,7 +200,7 @@ func seedBenchUsers(b *testing.B, ctx context.Context, db database.Store, sqlDB 
 	require.NoError(b, err)
 }
 
-func emptyOrgDefaultRoles(b *testing.B, ctx context.Context, db database.Store, org database.Organization) {
+func emptyOrgDefaultRoles(ctx context.Context, b *testing.B, db database.Store, org database.Organization) {
 	b.Helper()
 	_, err := db.UpdateOrganization(ctx, database.UpdateOrganizationParams{
 		ID:                    org.ID,
