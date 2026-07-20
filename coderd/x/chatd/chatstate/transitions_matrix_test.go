@@ -136,7 +136,6 @@ func applyEditMessage(t *testing.T, f *testFixture, tx *chatstate.Tx, seeded see
 		MessageID: seeded.initialUserMessageID,
 		CreatedBy: f.User.ID,
 		Content:   content,
-		APIKeyID:  f.apiKeyID(),
 	})
 	return err
 }

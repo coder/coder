@@ -198,6 +198,7 @@ type Options struct {
 	APIKeyEncryptionCache              cryptokeys.EncryptionKeycache
 	OIDCConvertKeyCache                cryptokeys.SigningKeycache
 	Clock                              quartz.Clock
+	Acquirer                           *provisionerdserver.Acquirer
 	TelemetryReporter                  telemetry.Reporter
 
 	ProvisionerdServerMetrics *provisionerdserver.Metrics
@@ -655,6 +656,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			NotificationsEnqueuer:              options.NotificationsEnqueuer,
 			OneTimePasscodeValidityPeriod:      options.OneTimePasscodeValidityPeriod,
 			Clock:                              options.Clock,
+			Acquirer:                           options.Acquirer,
 			AppEncryptionKeyCache:              options.APIKeyEncryptionCache,
 			OIDCConvertKeyCache:                options.OIDCConvertKeyCache,
 			ProvisionerdServerMetrics:          options.ProvisionerdServerMetrics,

@@ -319,6 +319,9 @@ type Options struct {
 	// rotator is the sole creator of nats_ca rows, so this cache is read-only.
 	NATSCACache cryptokeys.SigningKeycache
 	Clock       quartz.Clock
+	// Acquirer acquires provisioner jobs. Defaults to provisionerdserver.Acquirer
+	// backed by Database and Pubsub.
+	Acquirer *provisionerdserver.Acquirer
 
 	// WebPushDispatcher is a way to send notifications over Web Push.
 	WebPushDispatcher webpush.Dispatcher
@@ -671,6 +674,15 @@ func New(options *Options) *API {
 	var buildUsageChecker atomic.Pointer[wsbuilder.UsageChecker]
 	var noopUsageChecker wsbuilder.UsageChecker = wsbuilder.NoopUsageChecker{}
 	buildUsageChecker.Store(&noopUsageChecker)
+	acquirer := options.Acquirer
+	if acquirer == nil {
+		acquirer = provisionerdserver.NewAcquirer(
+			ctx,
+			options.Logger.Named("acquirer"),
+			options.Database,
+			options.Pubsub,
+		)
+	}
 	api := &API{
 		ctx:          ctx,
 		cancel:       cancel,
@@ -696,15 +708,10 @@ func New(options *Options) *API {
 		Experiments:                 experiments,
 		WebpushDispatcher:           options.WebPushDispatcher,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
-		Acquirer: provisionerdserver.NewAcquirer(
-			ctx,
-			options.Logger.Named("acquirer"),
-			options.Database,
-			options.Pubsub,
-		),
-		dbRolluper:       options.DatabaseRolluper,
-		ProfileCollector: defaultProfileCollector{},
-		AISeatTracker:    aiseats.Noop{},
+		Acquirer:                    acquirer,
+		dbRolluper:                  options.DatabaseRolluper,
+		ProfileCollector:            defaultProfileCollector{},
+		AISeatTracker:               aiseats.Noop{},
 	}
 
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(

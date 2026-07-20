@@ -740,7 +740,6 @@ func (s *taskStarter) generateCompaction(
 	}
 	messages, err := buildCompactionMessages(buildCompactionMessagesInput{
 		modelConfigID:  prepared.ModelConfigID,
-		activeAPIKeyID: prepared.ModelBuildOptions.ActiveAPIKeyID,
 		toolCallID:     compactionOpts.ToolCallID,
 		toolName:       compactionOpts.ToolName,
 		compaction:     compactionOutcome(outcome),

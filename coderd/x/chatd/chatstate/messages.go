@@ -35,7 +35,6 @@ type Message struct {
 	ContextLimit        sql.NullInt64
 	TotalCostMicros     sql.NullInt64
 	RuntimeMs           sql.NullInt64
-	APIKeyID            sql.NullString
 }
 
 // toInsertParams converts a batch of Messages into the parallel-array
@@ -51,7 +50,6 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 		CreatedBy:           make([]uuid.UUID, n),
 		ModelConfigID:       make([]uuid.UUID, n),
 		ReasoningEffort:     make([]string, n),
-		APIKeyID:            make([]string, n),
 		Role:                make([]database.ChatMessageRole, n),
 		Content:             make([]string, n),
 		ContentVersion:      make([]int16, n),
@@ -72,9 +70,6 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 		params.ModelConfigID[i] = nullUUIDOrNil(m.ModelConfigID)
 		if m.ReasoningEffort.Valid {
 			params.ReasoningEffort[i] = string(m.ReasoningEffort.ChatReasoningEffort)
-		}
-		if m.APIKeyID.Valid {
-			params.APIKeyID[i] = m.APIKeyID.String
 		}
 		params.Role[i] = m.Role
 		if m.Content.Valid {
