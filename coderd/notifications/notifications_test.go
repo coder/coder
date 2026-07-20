@@ -1461,6 +1461,21 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "TemplateAIBudgetWarningUser",
+			id:   notifications.TemplateAIBudgetWarningUser,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"threshold":  "90",
+					"limit":      "$1000.00",
+					"group_name": "Engineering",
+				},
+				Data: map[string]any{},
+			},
+		},
 	}
 
 	// We must have a test case for every notification_template. This is enforced below:

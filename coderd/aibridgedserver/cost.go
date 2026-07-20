@@ -23,6 +23,7 @@ const tokensPerMillion = 1_000_000
 // price or cost of 0 is recorded as 0, which is distinct from NULL.
 type tokenUsageCost struct {
 	effectiveGroupID      uuid.NullUUID
+	spendLimitMicros      sql.NullInt64
 	inputPriceMicros      sql.NullInt64
 	outputPriceMicros     sql.NullInt64
 	cacheReadPriceMicros  sql.NullInt64
@@ -47,6 +48,7 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 	}
 	if ok {
 		result.effectiveGroupID = uuid.NullUUID{UUID: effectiveBudget.GroupID, Valid: true}
+		result.spendLimitMicros = sql.NullInt64{Int64: effectiveBudget.SpendLimitMicros, Valid: true}
 	}
 
 	// Snapshot the price for this (provider, model) and compute cost.

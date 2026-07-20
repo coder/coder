@@ -1,0 +1,25 @@
+{
+  "_version": "1.1",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
+  "payload": {
+    "_version": "1.2",
+    "notification_name": "AI Budget Warning Threshold Reached",
+    "notification_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [],
+    "labels": {
+      "group_name": "Engineering",
+      "limit": "$1000.00",
+      "threshold": "90"
+    },
+    "data": {},
+    "targets": null
+  },
+  "title": "You're approaching your monthly AI budget limit",
+  "title_markdown": "You're approaching your monthly AI budget limit",
+  "body": "You have used more than 90% of your monthly AI budget ($1000.00), set by Engineering.",
+  "body_markdown": "You have used more than 90% of your monthly AI budget ($1000.00), set by **Engineering**."
+}

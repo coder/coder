@@ -44,6 +44,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
+	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -1663,6 +1665,9 @@ func TestRecordTokenUsage(t *testing.T) {
 						Day:              now.UTC().Truncate(24 * time.Hour),
 						CostMicros:       wantCost,
 					}).Return(database.AIUserDailySpend{}, nil)
+
+					db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
+						Return(database.GetUserAISpendSinceRow{SpendMicros: wantCost}, nil)
 				},
 			},
 			{
@@ -1715,6 +1720,9 @@ func TestRecordTokenUsage(t *testing.T) {
 						Day:              now.UTC().Truncate(24 * time.Hour),
 						CostMicros:       wantCost,
 					}).Return(database.AIUserDailySpend{}, nil)
+
+					db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
+						Return(database.GetUserAISpendSinceRow{SpendMicros: wantCost}, nil)
 				},
 			},
 			{
@@ -2199,6 +2207,140 @@ func TestRecordTokenUsageAuthorized(t *testing.T) {
 	require.Equal(t, group.ID, spend.EffectiveGroupID, "effective group ID")
 	require.True(t, today.Equal(spend.PeriodStart), "period start: want %s, got %s", today, spend.PeriodStart)
 	require.Equal(t, wantCost, spend.SpendMicros, "spend micros")
+}
+
+// TestRecordTokenUsageBudgetWarningNotification verifies that recording token
+// usage that pushes the user's period spend across the 90% warning threshold
+// enqueues a warning notification to the user, and that staying below the
+// threshold does not.
+func TestRecordTokenUsageBudgetWarningNotification(t *testing.T) {
+	t.Parallel()
+
+	const (
+		spendLimitMicros int64 = 1_000_000 // $1 limit
+		warnAtMicros     int64 = 900_000   // 90% of the limit
+		inputTokens      int64 = 1000
+		inputPriceMicros int64 = 1_000_000 // $1 per million tokens
+	)
+	now := time.Date(2026, 6, 25, 14, 30, 0, 0, time.UTC)
+
+	// inputTokens * inputPriceMicros / 1e6 -> this interception costs 1000
+	// micros. newSpend is the post-increment period total; the code derives the
+	// pre-increment total as newSpend - 1000 and fires a warning only when it
+	// crosses warnAtMicros (pre < warnAtMicros <= post).
+	price := &database.AIModelPrice{
+		InputPrice: sql.NullInt64{Int64: inputPriceMicros, Valid: true},
+	}
+
+	testCases := []struct {
+		name          string
+		newSpend      int64
+		wantNotified  bool
+		wantThreshold string
+		wantLimit     string
+	}{
+		{
+			name: "crosses warning threshold",
+			// pre  = 900_500 - 1000 = 899_500 (< 900_000)
+			// post = 900_500                  (>= 900_000) -> crosses.
+			newSpend:      warnAtMicros + 500,
+			wantNotified:  true,
+			wantThreshold: "90",
+			wantLimit:     "$1.00",
+		},
+		{
+			name: "crosses when post lands exactly on threshold",
+			// pre  = 900_000 - 1000 = 899_000 (< 900_000)
+			// post = 900_000                  (>= 900_000) -> crosses.
+			newSpend:      warnAtMicros,
+			wantNotified:  true,
+			wantThreshold: "90",
+			wantLimit:     "$1.00",
+		},
+		{
+			name: "stays below warning threshold",
+			// pre  = 899_999 - 1000 = 898_999 (< 900_000)
+			// post = 899_999                  (< 900_000) -> no crossing.
+			newSpend:     warnAtMicros - 1,
+			wantNotified: false,
+		},
+		{
+			name: "already at warning threshold",
+			// pre  = 901_000 - 1000 = 900_000 (not < 900_000)
+			// post = 901_000                  -> no fresh crossing.
+			newSpend:     warnAtMicros + 1000,
+			wantNotified: false,
+		},
+		{
+			name: "already above warning threshold",
+			// pre  = 910_000 - 1000 = 909_000 (>= 900_000)
+			// post = 910_000                  -> no fresh crossing.
+			newSpend:     warnAtMicros + 10000,
+			wantNotified: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			enq := &notificationstest.FakeEnqueuer{}
+
+			intc := newTestInterception(uuid.New())
+			groupID := uuid.New()
+			group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: spendLimitMicros}
+
+			expectTokenUsageCostLookups(db, intc, nil, group, price)
+
+			db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+				func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
+			)
+			db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).
+				Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: intc.ID}, nil)
+			db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
+				Return(database.AIUserDailySpend{}, nil)
+			db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
+				Return(database.GetUserAISpendSinceRow{SpendMicros: tc.newSpend}, nil)
+			if tc.wantNotified {
+				db.EXPECT().GetGroupByID(gomock.Any(), groupID).
+					Return(database.Group{ID: groupID, Name: "Engineering"}, nil)
+			}
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+				Store:         db,
+				AISeatTracker: agplaiseats.Noop{},
+				AccessURL:     "/",
+				GatewayCfg:    codersdk.AIBridgeConfig{},
+				Experiments:   requiredExperiments,
+				Enqueuer:      enq,
+				Logger:        testutil.Logger(t),
+				Clock:         quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+				InterceptionId: intc.ID.String(),
+				MsgId:          "msg_123",
+				InputTokens:    1000,
+				CreatedAt:      timestamppb.New(now),
+			})
+			require.NoError(t, err)
+
+			sent := enq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIBudgetWarningUser))
+			if !tc.wantNotified {
+				require.Empty(t, sent, "no budget warning notification expected")
+				return
+			}
+			require.Len(t, sent, 1, "expected one budget warning notification")
+			require.Equal(t, intc.InitiatorID, sent[0].UserID)
+			require.Equal(t, tc.wantThreshold, sent[0].Labels["threshold"])
+			require.Equal(t, tc.wantLimit, sent[0].Labels["limit"])
+			require.Equal(t, "Engineering", sent[0].Labels["group_name"])
+		})
+	}
 }
 
 // newTestInterception returns an interception with a fixed initiator, provider,

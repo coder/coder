@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
+	"github.com/coder/coder/v2/coderd/notifications"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -81,6 +82,7 @@ type store interface {
 	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error)
 	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error)
 	GetUserAISpendSince(ctx context.Context, arg database.GetUserAISpendSinceParams) (database.GetUserAISpendSinceRow, error)
+	GetGroupByID(ctx context.Context, id uuid.UUID) (database.Group, error)
 
 	// MCPConfigurator-related queries.
 	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error)
@@ -118,6 +120,9 @@ type Server struct {
 	// derive the window over which user AI spend is aggregated.
 	budgetPeriod codersdk.AIBudgetPeriod
 	clock        quartz.Clock
+	// notifEnqueuer enqueues notifications. It is never nil; NewServer defaults
+	// it to a no-op enqueuer.
+	notifEnqueuer notifications.Enqueuer
 }
 
 // Options carries the dependencies required to construct an aibridged Server.
@@ -125,6 +130,9 @@ type Options struct {
 	Store         store
 	Pubsub        pubsub.Pubsub
 	AISeatTracker aiseats.SeatTracker
+	// Enqueuer enqueues notifications. When nil, NewServer substitutes a no-op
+	// enqueuer.
+	Enqueuer notifications.Enqueuer
 
 	AccessURL           string
 	GatewayCfg          codersdk.AIBridgeConfig
@@ -136,6 +144,11 @@ type Options struct {
 }
 
 func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
+	enqueuer := opts.Enqueuer
+	if enqueuer == nil {
+		enqueuer = notifications.NewNoopEnqueuer()
+	}
+
 	eac := make(map[string]*externalauth.Config, len(opts.ExternalAuthConfigs))
 
 	for _, cfg := range opts.ExternalAuthConfigs {
@@ -157,6 +170,7 @@ func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
 		budgetPolicy:        codersdk.NewAIBudgetPolicyFromString(opts.GatewayCfg.BudgetPolicy),
 		budgetPeriod:        codersdk.NewAIBudgetPeriodFromString(opts.GatewayCfg.BudgetPeriod),
 		clock:               opts.Clock,
+		notifEnqueuer:       enqueuer,
 	}
 
 	if opts.GatewayCfg.InjectCoderMCPTools {
@@ -356,7 +370,14 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 // positive, accumulates that cost into the user's daily spend.
 func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIBridgeInterception, cost tokenUsageCost, in *proto.RecordTokenUsageRequest, metadataJSON []byte) error {
 	createdAt := in.GetCreatedAt().AsTime()
-	return s.store.InTx(func(tx database.Store) error {
+
+	// Populated inside the transaction when this interception crosses a budget
+	// threshold.
+	var (
+		crossing budgetThresholdCrossing
+		crossed  bool
+	)
+	err := s.store.InTx(func(tx database.Store) error {
 		if _, err := tx.InsertAIBridgeTokenUsage(ctx, database.InsertAIBridgeTokenUsageParams{
 			ID:                    uuid.New(),
 			InterceptionID:        intc.ID,
@@ -399,8 +420,34 @@ func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIB
 		}); err != nil {
 			return xerrors.Errorf("increment user daily spend: %w", err)
 		}
+
+		// Threshold detection is best-effort: a failed read must not roll back
+		// the committed spend, so the error is logged rather than propagated.
+		var detectErr error
+		crossing, crossed, detectErr = s.detectBudgetThresholdCrossing(ctx, tx, intc, cost)
+		if detectErr != nil {
+			// crossed is false on error; log and continue so a failed read does
+			// not roll back the committed spend.
+			s.logger.Warn(ctx, "failed to detect AI budget threshold crossing",
+				slog.F("interception_id", intc.ID),
+				slog.F("initiator_id", intc.InitiatorID),
+				slog.Error(detectErr))
+		}
 		return nil
 	}, nil)
+	if err != nil {
+		return err
+	}
+
+	if crossed {
+		if err := s.notifyBudgetThresholdCrossing(ctx, crossing); err != nil {
+			s.logger.Warn(ctx, "failed to send AI budget warning notification",
+				slog.F("user_id", crossing.userID),
+				slog.F("group_id", crossing.groupID),
+				slog.Error(err))
+		}
+	}
+	return nil
 }
 
 func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUsageRequest) (*proto.RecordPromptUsageResponse, error) {
