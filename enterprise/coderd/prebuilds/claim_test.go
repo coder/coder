@@ -171,6 +171,7 @@ func TestClaimPrebuild(t *testing.T) {
 				}
 
 				acquirerTickerTrap := acquirerClock.Trap().NewTicker("acquirer", "backup_poll")
+				defer acquirerTickerTrap.Close()
 				provisionerCloser := coderdenttest.NewExternalProvisionerDaemon(t, client, orgID, map[string]string{
 					provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 				})
@@ -218,7 +219,6 @@ func TestClaimPrebuild(t *testing.T) {
 					actions, err := reconciler.CalculateActions(ctx, *ps)
 					require.NoError(t, err)
 					require.NotNil(t, actions)
-
 					require.NoError(t, reconciler.ReconcilePreset(ctx, *ps))
 				}
 
