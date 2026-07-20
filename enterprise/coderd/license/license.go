@@ -58,11 +58,10 @@ func Entitlements(
 	}
 
 	// Permission-based licensing counts only users the RBAC engine
-	// authorizes to create workspaces. Users without workspace-create
-	// capability ("gateway accounts") do not consume seats. The count is
-	// resolved lazily by LicensesEntitlements, and only when a valid
-	// license carries the AI Governance addon; deployments without the
-	// addon always use the plain active user count.
+	// authorizes to create workspaces. The count is resolved lazily by
+	// LicensesEntitlements, and only when a valid license carries the AI
+	// Governance addon; deployments without the addon always use the
+	// plain active user count.
 	var workspaceCapableUserCountFn WorkspaceCapableUserCountFn
 	if experiments.Enabled(codersdk.ExperimentPermissionBasedLicensing) && authorizer != nil {
 		workspaceCapableUserCountFn = func(ctx context.Context) (int64, error) {
@@ -442,9 +441,8 @@ func LicensesEntitlements(
 		}
 	}
 
-	// Permission-based seat counting. When a valid license carries the AI
-	// Governance addon, only workspace-capable users consume user_limit
-	// seats; gateway accounts (users without workspace-create) are free.
+	// Permission-based seat counting: when a valid license carries the AI
+	// Governance addon, user_limit counts only workspace-capable users.
 	// The resolved count overwrites featureArguments.ActiveUserCount,
 	// which the user_limit feature's Actual pointer aliases: Feature
 	// values copy the pointer, not the int64, so every copy of the
@@ -467,10 +465,11 @@ func LicensesEntitlements(
 		permissionBasedUserCount = true
 
 		// The user_limit merge keeps the highest limit across all licenses,
-		// which can come from a license without the addon. Workspace-capable
-		// counting is priced against the addon license's seat limit, so
-		// clamp the merged limit down to it. Addon licenses without a
-		// user_limit claim leave the merged limit untouched.
+		// which can come from a license without the addon. Clamp the merged
+		// limit to the addon license's own user_limit so a non-addon
+		// license's higher limit does not apply to the workspace-capable
+		// count. Addon licenses without a user_limit claim leave the merged
+		// limit untouched.
 		userLimit := entitlements.Features[codersdk.FeatureUserLimit]
 		if userLimit.Limit != nil && aiGovernanceAddonUserLimit > 0 && *userLimit.Limit > aiGovernanceAddonUserLimit {
 			userLimit.Limit = &aiGovernanceAddonUserLimit
@@ -590,9 +589,9 @@ func LicensesEntitlements(
 				"Your deployment has %d %s but the license with the limit %d is expired.",
 				featureArguments.ActiveUserCount, userNoun, *userLimit.Limit))
 		}
-		// Warn about the counting-mode revert while the addon license can
-		// still be renewed: workspace-capable counting stops at the end of
-		// the grace period, at which point every active user counts.
+		// The addon exists only on grace-period licenses: warn that
+		// workspace-capable counting stops at the end of the grace period,
+		// at which point every active user counts.
 		if permissionBasedUserCount && !aiGovernanceAddonEntitled {
 			entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf(
 				"Your license with the AI Governance addon is expired. When it fully expires, all %d active users will count toward the user limit instead of the %d workspace-capable users.",
