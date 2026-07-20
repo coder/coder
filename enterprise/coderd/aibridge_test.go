@@ -257,9 +257,6 @@ func TestAIBridgeListSessions(t *testing.T) {
 
 	t.Run("NetworkCalls", func(t *testing.T) {
 		t.Parallel()
-		// Use the raw store for seeding: boundary logs are agent-created, so
-		// neither the owner nor system-restricted role can insert them through
-		// dbauthz. The API client still enforces authorization on reads.
 		db, ps := dbtestutil.NewDB(t)
 		opts := aibridgeOpts(t)
 		opts.Options.Database = db
@@ -269,9 +266,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 
 		now := dbtime.Now()
 
-		// mkIntc creates an ended interception tied to a firewall session at a
-		// given sequence number. A nil fw leaves the firewall keys unset.
-		mkIntc := func(clientSessionID string, startOffset time.Duration, fw *uuid.UUID, seq int32) {
+		makeInterception := func(clientSessionID string, startOffset time.Duration, fw *uuid.UUID, seq int32) {
 			endedAt := now.Add(startOffset + time.Minute)
 			params := database.InsertAIBridgeInterceptionParams{
 				InitiatorID:     firstUser.UserID,
@@ -285,10 +280,6 @@ func TestAIBridgeListSessions(t *testing.T) {
 			dbgen.AIBridgeInterception(t, db, params, &endedAt)
 		}
 
-		// insertLogs seeds boundary logs for one firewall session. allowed=false
-		// leaves matched_rule empty, which the insert stores as NULL (a
-		// denied/blocked request). Boundary logs are agent-created, so seed them
-		// with a system context rather than the owner-scoped dbgen helper.
 		type logSeed struct {
 			seq     int32
 			allowed bool
@@ -323,8 +314,8 @@ func TestAIBridgeListSessions(t *testing.T) {
 		// seq 3, so A's window is (0,3) and B's is (3, +inf). The logs at seq 0
 		// and 3 are the interceptions' own LLM-provider calls and must be
 		// excluded by the exclusive lower bound.
-		mkIntc("sess-A", -time.Minute, &fw1, 0)
-		mkIntc("sess-B", -2*time.Minute, &fw1, 3)
+		makeInterception("sess-A", -time.Minute, &fw1, 0)
+		makeInterception("sess-B", -2*time.Minute, &fw1, 3)
 		insertLogs(fw1, []logSeed{
 			{0, true},  // LLM call for A, excluded
 			{1, true},  // A egress
@@ -336,8 +327,8 @@ func TestAIBridgeListSessions(t *testing.T) {
 
 		// Session C spans two firewall sessions (agent restarted): fw2 and fw3.
 		// Its counts sum across both windows.
-		mkIntc("sess-C", -3*time.Minute, &fw2, 0)
-		mkIntc("sess-C", -4*time.Minute, &fw3, 0)
+		makeInterception("sess-C", -3*time.Minute, &fw2, 0)
+		makeInterception("sess-C", -4*time.Minute, &fw3, 0)
 		insertLogs(fw2, []logSeed{
 			{0, true}, // LLM call, excluded
 			{1, true},
@@ -349,10 +340,10 @@ func TestAIBridgeListSessions(t *testing.T) {
 		})
 
 		// Session D never passed through the firewall: NetworkCalls stays nil.
-		mkIntc("sess-D", -5*time.Minute, nil, 0)
+		makeInterception("sess-D", -5*time.Minute, nil, 0)
 
 		// Session E is firewall-active but has no logs in range: counts are zero.
-		mkIntc("sess-E", -6*time.Minute, &fw4, 0)
+		makeInterception("sess-E", -6*time.Minute, &fw4, 0)
 
 		//nolint:gocritic // Owner role is irrelevant here.
 		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})

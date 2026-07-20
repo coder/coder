@@ -494,9 +494,6 @@ LEFT JOIN LATERAL (
 		ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider) AS providers,
 		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model) AS models,
 		ARRAY_AGG(ai.id) AS interception_ids,
-		-- firewall_active reports whether any interception in the session
-		-- passed through Agent Firewall. When false, network call monitoring
-		-- was not active and db2sdk leaves NetworkCalls nil ("Disabled").
 		BOOL_OR(ai.agent_firewall_session_id IS NOT NULL) AS firewall_active
 	FROM aibridge_interceptions ai
 	WHERE ai.session_id = sp.session_id
