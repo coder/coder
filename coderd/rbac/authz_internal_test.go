@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/open-policy-agent/opa/v1/rego"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -909,6 +910,114 @@ func TestAuthorizeACLCapabilityPrecondition(t *testing.T) {
 			allow:   true,
 		},
 	})
+}
+
+// TestAuthorizeACLGatedFieldAbsent evaluates the policy with raw JSON
+// input that omits the acl_use_gated object field, which every Go input
+// construction path normally injects. The precondition must then treat
+// every type as gated: ACL grants on ungated types are denied unless the
+// subject's member-level permissions carry the action, and grants on
+// gated types keep working for subjects whose permissions do. The field
+// being absent may narrow access but must never widen it.
+func TestAuthorizeACLGatedFieldAbsent(t *testing.T) {
+	t.Parallel()
+
+	query, err := rego.New(
+		rego.Query("data.authz.allow"),
+		rego.Module("policy.rego", regoPolicy),
+	).PrepareForEval(context.Background())
+	require.NoError(t, err)
+
+	// rawObject drops Object's MarshalJSON, so the encoded object carries
+	// only the struct fields and no acl_use_gated.
+	type rawObject Object
+
+	evalAllow := func(t *testing.T, subject Subject, action policy.Action, object any) bool {
+		t.Helper()
+		d, err := json.Marshal(map[string]any{
+			"subject": authSubject{
+				ID:     subject.ID,
+				Roles:  must(subject.Roles.Expand()),
+				Groups: subject.Groups,
+				Scope:  must(subject.Scope.Expand()),
+			},
+			"action": action,
+			"object": object,
+		})
+		require.NoError(t, err)
+		var input any
+		require.NoError(t, json.Unmarshal(d, &input))
+
+		results, err := query.Eval(context.Background(), rego.EvalInput(input))
+		require.NoError(t, err)
+		return results.Allowed()
+	}
+
+	orgID := uuid.New()
+	member := Subject{
+		ID:     "member",
+		Scope:  must(ExpandScope(ScopeAll)),
+		Groups: []string{},
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			orgMemberRole(orgID),
+		},
+	}
+
+	// Template ACL grants require no role permissions because the type is
+	// ungated. The raw encoding must not contain the field; the guard
+	// below keeps the test honest if Object's encoding changes.
+	template := ResourceTemplate.InOrg(orgID).WithACLUserList(map[string][]policy.Action{
+		member.ID: {policy.ActionUpdate},
+	})
+	rawTemplate, err := json.Marshal(rawObject(template))
+	require.NoError(t, err)
+	require.NotContains(t, string(rawTemplate), "acl_use_gated")
+
+	// Control: with the field present (normal encoding), the ungated
+	// template ACL grant applies.
+	require.True(t, evalAllow(t, member, policy.ActionUpdate, template))
+	// With the field absent, the type is treated as gated and the member
+	// holds no template actions, so the same grant is denied.
+	require.False(t, evalAllow(t, member, policy.ActionUpdate, rawObject(template)))
+
+	// A gated type is unaffected by the field's absence when the subject
+	// holds the matching member-level action: the acl_action_orgs rule
+	// satisfies the precondition without consulting the field.
+	capable := Subject{
+		ID:     "capable",
+		Scope:  must(ExpandScope(ScopeAll)),
+		Groups: []string{},
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(ScopedRoleOrgWorkspaceAccess(orgID))),
+		},
+	}
+	workspace := ResourceWorkspace.WithID(uuid.New()).InOrg(orgID).
+		WithOwner(uuid.NewString()).
+		WithACLUserList(map[string][]policy.Action{
+			capable.ID: {policy.ActionSSH},
+		})
+	require.True(t, evalAllow(t, capable, policy.ActionSSH, rawObject(workspace)))
+	// And a floor-only org member (no workspace actions at the member
+	// level) stays denied.
+	floor := Subject{
+		ID:     "floor",
+		Scope:  must(ExpandScope(ScopeAll)),
+		Groups: []string{},
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			{
+				Identifier: RoleIdentifier{Name: "org-floor", OrganizationID: orgID},
+				ByOrgID: map[string]OrgPermissions{
+					orgID.String(): {},
+				},
+			},
+		},
+	}
+	require.False(t, evalAllow(t, floor, policy.ActionSSH, rawObject(workspace.WithACLUserList(map[string][]policy.Action{
+		floor.ID: {policy.ActionSSH},
+	}))))
 }
 
 // TestAuthorizeLevels ensures level overrides are acting appropriately
