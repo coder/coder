@@ -227,6 +227,14 @@ func (c Chat) RBACObject() rbac.Object {
 		WithGroupACL(c.GroupACL.RBACACL())
 }
 
+func (c ChatModelConfig) RBACObject() rbac.Object {
+	return rbac.ResourceChatModelConfig.
+		WithID(c.ID).
+		InOrg(c.OrganizationID).
+		WithACLUserList(c.UserACL).
+		WithGroupACL(c.GroupACL)
+}
+
 func (c Chat) IsSubChat() bool {
 	return c.RootChatID.Valid || c.ParentChatID.Valid
 }

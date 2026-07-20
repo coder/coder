@@ -52,6 +52,7 @@ type customQuerier interface {
 	auditLogQuerier
 	connectionLogQuerier
 	aibridgeQuerier
+	chatModelConfigQuerier
 	chatQuerier
 }
 
@@ -743,6 +744,120 @@ func (q *sqlQuerier) CountAuthorizedConnectionLogs(ctx context.Context, arg Coun
 		return 0, err
 	}
 	return count, nil
+}
+
+type chatModelConfigQuerier interface {
+	GetAuthorizedChatModelConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]ChatModelConfig, error)
+	GetAuthorizedEnabledChatModelConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]GetEnabledChatModelConfigsRow, error)
+}
+
+func (q *sqlQuerier) GetAuthorizedChatModelConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]ChatModelConfig, error) {
+	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigChatModelConfigs())
+	if err != nil {
+		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+	}
+
+	filtered, err := insertAuthorizedFilter(getChatModelConfigs, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
+	query := fmt.Sprintf("-- name: GetAuthorizedChatModelConfigs :many\n%s", filtered)
+	rows, err := q.db.QueryContext(ctx, query, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []ChatModelConfig
+	for rows.Next() {
+		var i ChatModelConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.Model,
+			&i.DisplayName,
+			&i.CreatedBy,
+			&i.UpdatedBy,
+			&i.Enabled,
+			&i.IsDefault,
+			&i.Deleted,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ContextLimit,
+			&i.CompressionThreshold,
+			&i.Options,
+			&i.AIProviderID,
+			&i.OrganizationID,
+			&i.UserACL,
+			&i.GroupACL,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (q *sqlQuerier) GetAuthorizedEnabledChatModelConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]GetEnabledChatModelConfigsRow, error) {
+	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigChatModelConfigs())
+	if err != nil {
+		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+	}
+
+	filtered, err := insertAuthorizedFilter(getEnabledChatModelConfigs, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
+	query := fmt.Sprintf("-- name: GetAuthorizedEnabledChatModelConfigs :many\n%s", filtered)
+	rows, err := q.db.QueryContext(ctx, query, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []GetEnabledChatModelConfigsRow
+	for rows.Next() {
+		var i GetEnabledChatModelConfigsRow
+		if err := rows.Scan(
+			&i.ChatModelConfig.ID,
+			&i.ChatModelConfig.Model,
+			&i.ChatModelConfig.DisplayName,
+			&i.ChatModelConfig.CreatedBy,
+			&i.ChatModelConfig.UpdatedBy,
+			&i.ChatModelConfig.Enabled,
+			&i.ChatModelConfig.IsDefault,
+			&i.ChatModelConfig.Deleted,
+			&i.ChatModelConfig.DeletedAt,
+			&i.ChatModelConfig.CreatedAt,
+			&i.ChatModelConfig.UpdatedAt,
+			&i.ChatModelConfig.ContextLimit,
+			&i.ChatModelConfig.CompressionThreshold,
+			&i.ChatModelConfig.Options,
+			&i.ChatModelConfig.AIProviderID,
+			&i.ChatModelConfig.OrganizationID,
+			&i.ChatModelConfig.UserACL,
+			&i.ChatModelConfig.GroupACL,
+			&i.Provider,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 type chatQuerier interface {

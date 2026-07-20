@@ -167,37 +167,41 @@ SELECT
 INSERT INTO site_configs (key, value) VALUES ('agents_chat_plan_mode_instructions', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_plan_mode_instructions';
 
--- name: GetChatExploreModelOverride :one
+-- name: GetChatExploreModelOverrideForOrganization :one
 SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_explore_model_override'), '') :: text AS model_config_id;
+	COALESCE((SELECT value FROM site_configs WHERE key = (@organization_id::uuid)::text || ':agents_chat_explore_model_override'), '') :: text AS model_config_id;
 
--- name: UpsertChatExploreModelOverride :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_chat_explore_model_override', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_explore_model_override';
+-- name: UpsertChatExploreModelOverrideForOrganization :exec
+INSERT INTO site_configs (key, value)
+VALUES ((@organization_id::uuid)::text || ':agents_chat_explore_model_override', @model_config_id::text)
+ON CONFLICT (key) DO UPDATE SET value = @model_config_id::text;
 
--- name: GetChatGeneralModelOverride :one
+-- name: GetChatGeneralModelOverrideForOrganization :one
 SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_general_model_override'), '') :: text AS model_config_id;
+	COALESCE((SELECT value FROM site_configs WHERE key = (@organization_id::uuid)::text || ':agents_chat_general_model_override'), '') :: text AS model_config_id;
 
--- name: UpsertChatGeneralModelOverride :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_chat_general_model_override', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_general_model_override';
+-- name: UpsertChatGeneralModelOverrideForOrganization :exec
+INSERT INTO site_configs (key, value)
+VALUES ((@organization_id::uuid)::text || ':agents_chat_general_model_override', @model_config_id::text)
+ON CONFLICT (key) DO UPDATE SET value = @model_config_id::text;
 
--- name: GetChatTitleGenerationModelOverride :one
+-- name: GetChatTitleGenerationModelOverrideForOrganization :one
 SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_title_generation_model_override'), '') :: text AS model_config_id;
+	COALESCE((SELECT value FROM site_configs WHERE key = (@organization_id::uuid)::text || ':agents_chat_title_generation_model_override'), '') :: text AS model_config_id;
 
--- name: UpsertChatTitleGenerationModelOverride :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_chat_title_generation_model_override', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_title_generation_model_override';
+-- name: UpsertChatTitleGenerationModelOverrideForOrganization :exec
+INSERT INTO site_configs (key, value)
+VALUES ((@organization_id::uuid)::text || ':agents_chat_title_generation_model_override', @model_config_id::text)
+ON CONFLICT (key) DO UPDATE SET value = @model_config_id::text;
 
--- name: GetChatCompactionModelOverride :one
+-- name: GetChatCompactionModelOverrideForOrganization :one
 SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_compaction_model_override'), '') :: text AS model_config_id;
+	COALESCE((SELECT value FROM site_configs WHERE key = (@organization_id::uuid)::text || ':agents_chat_compaction_model_override'), '') :: text AS model_config_id;
 
--- name: UpsertChatCompactionModelOverride :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_chat_compaction_model_override', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_compaction_model_override';
+-- name: UpsertChatCompactionModelOverrideForOrganization :exec
+INSERT INTO site_configs (key, value)
+VALUES ((@organization_id::uuid)::text || ':agents_chat_compaction_model_override', @model_config_id::text)
+ON CONFLICT (key) DO UPDATE SET value = @model_config_id::text;
 
 -- name: GetChatDesktopEnabled :one
 SELECT
@@ -219,20 +223,14 @@ SET value = CASE
 END
 WHERE site_configs.key = 'agents_desktop_enabled';
 
--- GetChatAdvisorConfig returns the deployment-wide runtime configuration
--- for the experimental chat advisor as a JSON blob. Callers unmarshal the
--- result into codersdk.AdvisorConfig. Returns '{}' when unset so zero
--- values apply by default.
--- name: GetChatAdvisorConfig :one
+-- name: GetChatAdvisorConfigForOrganization :one
 SELECT
-    COALESCE((SELECT value FROM site_configs WHERE key = 'agents_advisor_config'), '{}') :: text AS advisor_config;
+    COALESCE((SELECT value FROM site_configs WHERE key = (@organization_id::uuid)::text || ':agents_advisor_config'), '{}') :: text AS advisor_config;
 
--- UpsertChatAdvisorConfig stores the deployment-wide runtime configuration
--- for the experimental chat advisor. Callers marshal codersdk.AdvisorConfig
--- to JSON before invoking this query.
--- name: UpsertChatAdvisorConfig :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_advisor_config', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_advisor_config';
+-- name: UpsertChatAdvisorConfigForOrganization :exec
+INSERT INTO site_configs (key, value)
+VALUES ((@organization_id::uuid)::text || ':agents_advisor_config', @advisor_config::text)
+ON CONFLICT (key) DO UPDATE SET value = @advisor_config::text;
 
 -- name: GetChatComputerUseProvider :one
 SELECT

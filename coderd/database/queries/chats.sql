@@ -913,7 +913,8 @@ INSERT INTO chat_messages (
     context_limit,
     compressed,
     total_cost_micros,
-    runtime_ms
+    runtime_ms,
+    organization_id
 )
 SELECT
     @chat_id::uuid,
@@ -933,7 +934,12 @@ SELECT
     NULLIF(UNNEST(@context_limit::bigint[]), 0),
     UNNEST(@compressed::boolean[]),
     NULLIF(UNNEST(@total_cost_micros::bigint[]), 0),
-    NULLIF(UNNEST(@runtime_ms::bigint[]), 0)
+    NULLIF(UNNEST(@runtime_ms::bigint[]), 0),
+    (
+        SELECT organization_id
+        FROM chats
+        WHERE id = @chat_id::uuid
+    )
 RETURNING
     *;
 
@@ -1869,13 +1875,14 @@ RETURNING
 -- Legacy queue insertion path. When no caller-supplied creator exists,
 -- preserve the created_by invariant by attributing the queued row to the
 -- chat owner.
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by, organization_id)
 SELECT
     @chat_id::uuid,
     @content::jsonb,
     sqlc.narg('model_config_id')::uuid,
     sqlc.narg('reasoning_effort')::chat_reasoning_effort,
-    chats.owner_id
+    chats.owner_id,
+    chats.organization_id
 FROM chats
 WHERE chats.id = @chat_id::uuid
 RETURNING *;
@@ -2544,7 +2551,7 @@ GROUP BY cm.chat_id;
 -- name: GetChatModelConfigsForTelemetry :many
 -- Returns all model configurations for telemetry snapshot collection.
 -- deleted = false guarantees ai_provider_id is non-null, so INNER JOIN is safe.
-SELECT cmc.id, ap.type::text AS provider, cmc.model, cmc.context_limit, cmc.enabled, cmc.is_default
+SELECT cmc.id, cmc.organization_id, ap.type::text AS provider, cmc.model, cmc.context_limit, cmc.enabled, cmc.is_default
 FROM chat_model_configs cmc
 JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE cmc.deleted = false;
@@ -2881,14 +2888,16 @@ SELECT NOW()::timestamptz AS now;
 -- Inserts a queued message that carries a position (from the default
 -- sequence) and an explicit created_by reference. Use this when the
 -- queued-message creator differs from the chat owner.
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by)
-VALUES (
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by, organization_id)
+SELECT
     @chat_id::uuid,
     @content::jsonb,
     sqlc.narg('model_config_id')::uuid,
     sqlc.narg('reasoning_effort')::chat_reasoning_effort,
-    @created_by::uuid
-)
+    @created_by::uuid,
+    chats.organization_id
+FROM chats
+WHERE chats.id = @chat_id::uuid
 RETURNING *;
 
 -- name: GetChatQueuedMessagesByPosition :many

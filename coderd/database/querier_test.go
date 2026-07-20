@@ -1252,6 +1252,7 @@ func TestChatContextHydration(t *testing.T) {
 	owner := dbgen.User(t, db, database.User{})
 	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		OrganizationID:       org.ID,
 		Model:                "test-model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
 		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -1385,6 +1386,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 		DisplayName: "OpenAI",
 	})
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		OrganizationID:       org.ID,
 		Model:                "test-model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
 		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -1648,6 +1650,7 @@ func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 
 	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		OrganizationID:       org.ID,
 		Model:                "test-model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
 		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -1768,6 +1771,7 @@ func TestGetAuthorizedChatsACLSharingGroupACL(t *testing.T) {
 
 	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		OrganizationID:       org.ID,
 		Model:                "test-model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
 		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -1870,6 +1874,7 @@ func TestGetAuthorizedChatsByChatFileIDACLSharing(t *testing.T) {
 
 	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		OrganizationID:       org.ID,
 		Model:                "test-model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
 		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -11768,6 +11773,8 @@ func TestGetEnabledChatModelConfigsUsesAIProviders(t *testing.T) {
 
 	store, _ := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitMedium)
+	organization, err := store.GetDefaultOrganization(ctx)
+	require.NoError(t, err)
 
 	enabledProvider := dbgen.AIProvider(t, store, database.AIProvider{
 		Type: database.AIProviderTypeOpenrouter,
@@ -11780,21 +11787,24 @@ func TestGetEnabledChatModelConfigsUsesAIProviders(t *testing.T) {
 		params.Enabled = false
 	})
 	enabledConfig := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
-		Model: "openrouter-model-" + uuid.NewString(),
+		Model:          "openrouter-model-" + uuid.NewString(),
+		OrganizationID: organization.ID,
 		AIProviderID: uuid.NullUUID{
 			UUID:  enabledProvider.ID,
 			Valid: true,
 		},
 	})
 	disabledProviderConfig := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
-		Model: "vercel-model-" + uuid.NewString(),
+		Model:          "vercel-model-" + uuid.NewString(),
+		OrganizationID: organization.ID,
 		AIProviderID: uuid.NullUUID{
 			UUID:  disabledProvider.ID,
 			Valid: true,
 		},
 	})
 	disabledModelConfig := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
-		Model: "disabled-model-" + uuid.NewString(),
+		Model:          "disabled-model-" + uuid.NewString(),
+		OrganizationID: organization.ID,
 		AIProviderID: uuid.NullUUID{
 			UUID:  enabledProvider.ID,
 			Valid: true,
@@ -11803,7 +11813,7 @@ func TestGetEnabledChatModelConfigsUsesAIProviders(t *testing.T) {
 		params.Enabled = false
 	})
 
-	configs, err := store.GetEnabledChatModelConfigs(ctx)
+	configs, err := store.GetEnabledChatModelConfigs(ctx, organization.ID)
 	require.NoError(t, err)
 	require.True(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsRow) bool {
 		return row.ChatModelConfig.ID == enabledConfig.ID
@@ -11815,14 +11825,14 @@ func TestGetEnabledChatModelConfigsUsesAIProviders(t *testing.T) {
 		return row.ChatModelConfig.ID == disabledModelConfig.ID
 	}))
 
-	config, err := store.GetEnabledChatModelConfigByID(ctx, enabledConfig.ID)
+	config, err := store.GetEnabledChatModelConfigByID(ctx, database.GetEnabledChatModelConfigByIDParams{ID: enabledConfig.ID, OrganizationID: organization.ID})
 	require.NoError(t, err)
 	require.Equal(t, enabledConfig.ID, config.ID)
 
-	_, err = store.GetEnabledChatModelConfigByID(ctx, disabledProviderConfig.ID)
+	_, err = store.GetEnabledChatModelConfigByID(ctx, database.GetEnabledChatModelConfigByIDParams{ID: disabledProviderConfig.ID, OrganizationID: organization.ID})
 	require.ErrorIs(t, err, sql.ErrNoRows)
 
-	_, err = store.GetEnabledChatModelConfigByID(ctx, disabledModelConfig.ID)
+	_, err = store.GetEnabledChatModelConfigByID(ctx, database.GetEnabledChatModelConfigByIDParams{ID: disabledModelConfig.ID, OrganizationID: organization.ID})
 	require.ErrorIs(t, err, sql.ErrNoRows)
 }
 
@@ -11871,6 +11881,7 @@ func TestInsertChatMessages(t *testing.T) {
 		store database.Store,
 		ctx context.Context,
 		userID uuid.UUID,
+		organizationID uuid.UUID,
 		provider string,
 		model string,
 		displayName string,
@@ -11879,6 +11890,7 @@ func TestInsertChatMessages(t *testing.T) {
 		t.Helper()
 
 		modelConfig, err := insertChatModelConfigForTest(ctx, t, store, provider, database.InsertChatModelConfigParams{
+			OrganizationID:       organizationID,
 			Model:                model,
 			DisplayName:          displayName,
 			CreatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
@@ -11918,6 +11930,7 @@ func TestInsertChatMessages(t *testing.T) {
 			store,
 			ctx,
 			user.ID,
+			org.ID,
 			provider,
 			"test-model-a-"+uuid.NewString(),
 			"Test Model A",
@@ -11970,6 +11983,7 @@ func TestInsertChatMessages(t *testing.T) {
 			store,
 			ctx,
 			user.ID,
+			chat.OrganizationID,
 			provider,
 			"test-model-b-"+uuid.NewString(),
 			"Test Model B",
@@ -12084,6 +12098,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 	})
 
 	modelCfg, err := insertChatModelConfigForTest(ctx, t, db, "openai", database.InsertChatModelConfigParams{
+		OrganizationID:       org.ID,
 		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
 		Model:                "test-model",
 		DisplayName:          "Test Model",
@@ -13712,6 +13727,7 @@ func TestChatPinOrderQueries(t *testing.T) {
 		})
 
 		modelCfg, err := insertChatModelConfigForTest(bg, t, db, "openai", database.InsertChatModelConfigParams{
+			OrganizationID:       org.ID,
 			Model:                "test-model",
 			DisplayName:          "Test Model",
 			CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -13891,6 +13907,7 @@ func TestChatPinOrderConstraints(t *testing.T) {
 	})
 
 	modelCfg, err := insertChatModelConfigForTest(bg, t, db, "openai", database.InsertChatModelConfigParams{
+		OrganizationID:       org.ID,
 		Model:                "test-model",
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -13982,6 +13999,7 @@ func TestChatLabels(t *testing.T) {
 	})
 
 	modelCfg, err := insertChatModelConfigForTest(ctx, t, db, "openai", database.InsertChatModelConfigParams{
+		OrganizationID:       org.ID,
 		Model:                "test-model",
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -14280,6 +14298,7 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 	})
 
 	modelCfg, err := insertChatModelConfigForTest(ctx, t, db, "openai", database.InsertChatModelConfigParams{
+		OrganizationID:       org.ID,
 		Model:                "test-model",
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -14419,6 +14438,7 @@ func TestUpdateChatWorkspaceBindingNoOp(t *testing.T) {
 	})
 
 	modelCfg, err := insertChatModelConfigForTest(ctx, t, db, "openai", database.InsertChatModelConfigParams{
+		OrganizationID:       org.ID,
 		Model:                "test-model",
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -14501,6 +14521,7 @@ func TestDeleteChatDebugDataAfterMessageIDIncludesTriggeredRuns(t *testing.T) {
 	})
 
 	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
+		OrganizationID:       org.ID,
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -14692,6 +14713,7 @@ func TestDeleteChatDebugDataAfterMessageIDStepLevelFieldBoundariesAndNulls(t *te
 	})
 
 	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
+		OrganizationID:       org.ID,
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -14948,6 +14970,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	})
 
 	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
+		OrganizationID:       org.ID,
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -15385,6 +15408,7 @@ func TestChatDebugSQLGuards(t *testing.T) {
 	})
 
 	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
+		OrganizationID:       org.ID,
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -15517,6 +15541,7 @@ func TestChatDebugRunCOALESCEPreservation(t *testing.T) {
 	})
 
 	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
+		OrganizationID:       org.ID,
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -15630,6 +15655,7 @@ func TestChatDebugStepCOALESCEPreservation(t *testing.T) {
 	})
 
 	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
+		OrganizationID:       org.ID,
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -15753,6 +15779,7 @@ func TestDeleteChatDebugDataAfterMessageIDNullMessagesSurvive(t *testing.T) {
 	})
 
 	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
+		OrganizationID:       org.ID,
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -15849,6 +15876,7 @@ func TestDeleteChatDebugDataAfterMessageIDStartedBeforeFiltersNewerRuns(t *testi
 	})
 
 	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
+		OrganizationID:       org.ID,
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -15959,6 +15987,7 @@ func TestDeleteChatDebugDataByChatIDStartedBeforeFiltersNewerRuns(t *testing.T) 
 	})
 
 	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
+		OrganizationID:       org.ID,
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -16042,6 +16071,7 @@ func TestGetChatsFilter(t *testing.T) {
 	}, "test-key")
 
 	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		OrganizationID:       org.ID,
 		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
 		Model:                "test-model-" + uuid.NewString(),
 		DisplayName:          "Test Model",
@@ -16335,6 +16365,7 @@ func TestGetChatsSearch(t *testing.T) {
 	}, "test-key")
 
 	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		OrganizationID:       org.ID,
 		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
 		Model:                "test-model-" + uuid.NewString(),
 		DisplayName:          "Test Model",
@@ -16570,6 +16601,7 @@ func TestChatHasUnread(t *testing.T) {
 	})
 
 	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, "openai", database.InsertChatModelConfigParams{
+		OrganizationID:       org.ID,
 		Model:                "test-model-" + uuid.NewString(),
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -17295,4 +17327,53 @@ func requireAIGatewayKeysViolation(
 	default:
 		require.FailNow(t, "test case must expect a constraint error")
 	}
+}
+
+func TestGetAuthorizedChatModelConfigs(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+	organization := dbgen.Organization(t, db, database.Organization{})
+	otherOrganization := dbgen.Organization(t, db, database.Organization{})
+	admin := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         admin.ID,
+		OrganizationID: organization.ID,
+		Roles:          []string{rbac.RoleOrgAdmin()},
+	})
+
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		OrganizationID: organization.ID,
+		Model:          "authorized-model",
+		DisplayName:    "Authorized Model",
+	})
+	_ = dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		OrganizationID: otherOrganization.ID,
+		Model:          "other-organization-model",
+		DisplayName:    "Other Organization Model",
+	})
+
+	subject, _, err := httpmw.UserRBACSubject(ctx, db, admin.ID, rbac.ExpandableScope(rbac.ScopeAll))
+	require.NoError(t, err)
+	prepared, err := authorizer.Prepare(ctx, subject, policy.ActionRead, rbac.ResourceChatModelConfig.Type)
+	require.NoError(t, err)
+
+	configs, err := db.GetAuthorizedChatModelConfigs(ctx, organization.ID, prepared)
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	require.Equal(t, model.ID, configs[0].ID)
+
+	enabledConfigs, err := db.GetAuthorizedEnabledChatModelConfigs(ctx, organization.ID, prepared)
+	require.NoError(t, err)
+	require.Len(t, enabledConfigs, 1)
+	require.Equal(t, model.ID, enabledConfigs[0].ChatModelConfig.ID)
 }

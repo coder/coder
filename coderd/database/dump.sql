@@ -273,7 +273,13 @@ CREATE TYPE api_key_scope AS ENUM (
     'workspace_build_orchestration:create',
     'workspace_build_orchestration:delete',
     'workspace_build_orchestration:read',
-    'workspace_build_orchestration:update'
+    'workspace_build_orchestration:update',
+    'chat_model_config:create',
+    'chat_model_config:read',
+    'chat_model_config:update',
+    'chat_model_config:delete',
+    'chat_model_config:share',
+    'chat_model_config:*'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -1965,7 +1971,8 @@ CREATE TABLE chat_messages (
     provider_response_id text,
     revision bigint NOT NULL,
     reasoning_effort chat_reasoning_effort,
-    search_tsv tsvector
+    search_tsv tsvector,
+    organization_id uuid NOT NULL
 );
 
 COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
@@ -1997,6 +2004,9 @@ CREATE TABLE chat_model_configs (
     compression_threshold integer NOT NULL,
     options jsonb DEFAULT '{}'::jsonb NOT NULL,
     ai_provider_id uuid,
+    organization_id uuid NOT NULL,
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT chat_model_configs_ai_provider_required_when_active CHECK (((deleted = true) OR (ai_provider_id IS NOT NULL))),
     CONSTRAINT chat_model_configs_compression_threshold_check CHECK (((compression_threshold >= 0) AND (compression_threshold <= 100))),
     CONSTRAINT chat_model_configs_context_limit_check CHECK ((context_limit > 0))
@@ -2017,7 +2027,8 @@ CREATE TABLE chat_queued_messages (
     model_config_id uuid,
     "position" bigint DEFAULT nextval('chat_queued_messages_position_seq'::regclass) NOT NULL,
     created_by uuid NOT NULL,
-    reasoning_effort chat_reasoning_effort
+    reasoning_effort chat_reasoning_effort,
+    organization_id uuid NOT NULL
 );
 
 COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'Stores the selected effort until the queued row is promoted.';
@@ -4299,6 +4310,9 @@ ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY chat_model_configs
+    ADD CONSTRAINT chat_model_configs_id_organization_id_key UNIQUE (id, organization_id);
+
+ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY chat_queued_messages
@@ -4309,6 +4323,9 @@ ALTER TABLE ONLY chat_usage_limit_config
 
 ALTER TABLE ONLY chat_usage_limit_config
     ADD CONSTRAINT chat_usage_limit_config_singleton_key UNIQUE (singleton);
+
+ALTER TABLE ONLY chats
+    ADD CONSTRAINT chats_id_organization_id_key UNIQUE (id, organization_id);
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_pkey PRIMARY KEY (id);
@@ -4776,7 +4793,9 @@ CREATE INDEX idx_chat_model_configs_ai_provider_id ON chat_model_configs USING b
 
 CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs USING btree (enabled);
 
-CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs USING btree ((1)) WHERE ((is_default = true) AND (deleted = false));
+CREATE INDEX idx_chat_model_configs_organization_id ON chat_model_configs USING btree (organization_id);
+
+CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs USING btree (organization_id) WHERE ((is_default = true) AND (deleted = false));
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 
@@ -5143,10 +5162,10 @@ ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
-    ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+    ADD CONSTRAINT chat_messages_chat_id_organization_id_fkey FOREIGN KEY (chat_id, organization_id) REFERENCES chats(id, organization_id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
-    ADD CONSTRAINT chat_messages_model_config_id_fkey FOREIGN KEY (model_config_id) REFERENCES chat_model_configs(id);
+    ADD CONSTRAINT chat_messages_model_config_id_organization_id_fkey FOREIGN KEY (model_config_id, organization_id) REFERENCES chat_model_configs(id, organization_id);
 
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_ai_provider_id_fkey FOREIGN KEY (ai_provider_id) REFERENCES ai_providers(id);
@@ -5155,10 +5174,16 @@ ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 ALTER TABLE ONLY chat_model_configs
+    ADD CONSTRAINT chat_model_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);
 
 ALTER TABLE ONLY chat_queued_messages
-    ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+    ADD CONSTRAINT chat_queued_messages_chat_id_organization_id_fkey FOREIGN KEY (chat_id, organization_id) REFERENCES chats(id, organization_id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_queued_messages
+    ADD CONSTRAINT chat_queued_messages_model_config_id_organization_id_fkey FOREIGN KEY (model_config_id, organization_id) REFERENCES chat_model_configs(id, organization_id);
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE SET NULL;
@@ -5167,7 +5192,7 @@ ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_build_id_fkey FOREIGN KEY (build_id) REFERENCES workspace_builds(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chats
-    ADD CONSTRAINT chats_last_model_config_id_fkey FOREIGN KEY (last_model_config_id) REFERENCES chat_model_configs(id);
+    ADD CONSTRAINT chats_last_model_config_id_organization_id_fkey FOREIGN KEY (last_model_config_id, organization_id) REFERENCES chat_model_configs(id, organization_id);
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

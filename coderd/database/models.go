@@ -465,6 +465,12 @@ const (
 	ApiKeyScopeWorkspaceBuildOrchestrationDelete   APIKeyScope = "workspace_build_orchestration:delete"
 	ApiKeyScopeWorkspaceBuildOrchestrationRead     APIKeyScope = "workspace_build_orchestration:read"
 	ApiKeyScopeWorkspaceBuildOrchestrationUpdate   APIKeyScope = "workspace_build_orchestration:update"
+	ApiKeyScopeChatModelConfigCreate               APIKeyScope = "chat_model_config:create"
+	ApiKeyScopeChatModelConfigRead                 APIKeyScope = "chat_model_config:read"
+	ApiKeyScopeChatModelConfigUpdate               APIKeyScope = "chat_model_config:update"
+	ApiKeyScopeChatModelConfigDelete               APIKeyScope = "chat_model_config:delete"
+	ApiKeyScopeChatModelConfigShare                APIKeyScope = "chat_model_config:share"
+	ApiKeyScopeChatModelConfig                     APIKeyScope = "chat_model_config:*"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -739,7 +745,13 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeWorkspaceBuildOrchestrationCreate,
 		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
 		ApiKeyScopeWorkspaceBuildOrchestrationRead,
-		ApiKeyScopeWorkspaceBuildOrchestrationUpdate:
+		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
+		ApiKeyScopeChatModelConfigCreate,
+		ApiKeyScopeChatModelConfigRead,
+		ApiKeyScopeChatModelConfigUpdate,
+		ApiKeyScopeChatModelConfigDelete,
+		ApiKeyScopeChatModelConfigShare,
+		ApiKeyScopeChatModelConfig:
 		return true
 	}
 	return false
@@ -983,6 +995,12 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
 		ApiKeyScopeWorkspaceBuildOrchestrationRead,
 		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
+		ApiKeyScopeChatModelConfigCreate,
+		ApiKeyScopeChatModelConfigRead,
+		ApiKeyScopeChatModelConfigUpdate,
+		ApiKeyScopeChatModelConfigDelete,
+		ApiKeyScopeChatModelConfigShare,
+		ApiKeyScopeChatModelConfig,
 	}
 }
 
@@ -5124,7 +5142,8 @@ type ChatMessage struct {
 	// Stores the selected effort for the turn triggered by this message.
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 	// Used for full text search. NULL initially, populated async via background job.
-	SearchTsv interface{} `db:"search_tsv" json:"search_tsv"`
+	SearchTsv      interface{} `db:"search_tsv" json:"search_tsv"`
+	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
 }
 
 type ChatModelConfig struct {
@@ -5143,6 +5162,9 @@ type ChatModelConfig struct {
 	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
 	Options              json.RawMessage `db:"options" json:"options"`
 	AIProviderID         uuid.NullUUID   `db:"ai_provider_id" json:"ai_provider_id"`
+	OrganizationID       uuid.UUID       `db:"organization_id" json:"organization_id"`
+	UserACL              TemplateACL     `db:"user_acl" json:"user_acl"`
+	GroupACL             TemplateACL     `db:"group_acl" json:"group_acl"`
 }
 
 type ChatQueuedMessage struct {
@@ -5155,6 +5177,7 @@ type ChatQueuedMessage struct {
 	CreatedBy     uuid.UUID       `db:"created_by" json:"created_by"`
 	// Stores the selected effort until the queued row is promoted.
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
+	OrganizationID  uuid.UUID               `db:"organization_id" json:"organization_id"`
 }
 
 type ChatTable struct {

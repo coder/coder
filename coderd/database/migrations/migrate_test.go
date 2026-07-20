@@ -2043,6 +2043,247 @@ func TestMigration000543ChatSearchSchemaIndexes(t *testing.T) {
 	}
 }
 
+func TestMigration000551OrganizationScopedChatModelConfigs(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	const (
+		migrationVersion = 551
+		legacyActiveID   = "84f7df20-0d04-4dd7-97e9-7c276c337a11"
+		legacyDeletedID  = "84f7df20-0d04-4dd7-97e9-7c276c337a12"
+		fixtureChatID    = "72c0438a-18eb-4688-ab80-e4c6a126ef96"
+		deletedOrgChatID = "72c0438a-18eb-4688-ab80-e4c6a126ef97"
+		fixtureUserID    = "0ed9befc-4911-4ccf-a8e2-559bf72daa94"
+	)
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Down(sqlDB))
+
+	fixtureDriver, fixtureMigrate := setupMigrate(t, sqlDB, "org_scope_chat_model_configs", filepath.Join("testdata", "fixtures"))
+	nextFixtureVersion, err := fixtureDriver.First()
+	require.NoError(t, err)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		require.True(t, more, "migration %d not found", migrationVersion)
+
+		if nextFixtureVersion == version {
+			require.NoError(t, fixtureMigrate.Steps(1))
+			nextVersion, nextErr := fixtureDriver.Next(nextFixtureVersion)
+			if nextErr == nil {
+				nextFixtureVersion = nextVersion
+			}
+		}
+		if version == migrationVersion {
+			break
+		}
+	}
+	_, more, err := next()
+	require.NoError(t, err)
+	require.False(t, more)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	var organizationCount, activeOrganizationCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT count(*) FROM organizations`).Scan(&organizationCount))
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT count(*) FROM organizations WHERE deleted = false`).Scan(&activeOrganizationCount))
+	require.Greater(t, activeOrganizationCount, 1)
+	require.Greater(t, organizationCount, activeOrganizationCount)
+
+	var clonedConfigCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*)
+		FROM chat_model_configs
+		WHERE model IN ('model-fixture-active', 'model-fixture-deleted')
+	`).Scan(&clonedConfigCount))
+	require.Equal(t, organizationCount*2, clonedConfigCount)
+
+	var legacyConfigCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*)
+		FROM chat_model_configs
+		WHERE id IN ($1, $2)
+	`, legacyActiveID, legacyDeletedID).Scan(&legacyConfigCount))
+	require.Zero(t, legacyConfigCount)
+
+	var deletedCloneCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*)
+		FROM chat_model_configs
+		WHERE model = 'model-fixture-deleted' AND deleted = true
+	`).Scan(&deletedCloneCount))
+	require.Equal(t, organizationCount, deletedCloneCount)
+
+	var chatOrganizationID, chatModelConfigID uuid.UUID
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT organization_id, last_model_config_id
+		FROM chats
+		WHERE id = $1
+	`, fixtureChatID).Scan(&chatOrganizationID, &chatModelConfigID))
+	require.NotEqual(t, legacyActiveID, chatModelConfigID.String())
+
+	var modelOrganizationID uuid.UUID
+	var userACL, groupACL []byte
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT organization_id, user_acl, group_acl
+		FROM chat_model_configs
+		WHERE id = $1
+	`, chatModelConfigID).Scan(&modelOrganizationID, &userACL, &groupACL))
+	require.Equal(t, chatOrganizationID, modelOrganizationID)
+	require.JSONEq(t, `{}`, string(userACL))
+	require.JSONEq(t, fmt.Sprintf(`{%q:["read"]}`, chatOrganizationID), string(groupACL))
+
+	var deletedChatOrganizationID, deletedChatModelConfigID uuid.UUID
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT organization_id, last_model_config_id
+		FROM chats
+		WHERE id = $1
+	`, deletedOrgChatID).Scan(&deletedChatOrganizationID, &deletedChatModelConfigID))
+	require.NotEqual(t, legacyActiveID, deletedChatModelConfigID.String())
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT organization_id
+		FROM chat_model_configs
+		WHERE id = $1
+	`, deletedChatModelConfigID).Scan(&modelOrganizationID))
+	require.Equal(t, deletedChatOrganizationID, modelOrganizationID)
+
+	for _, table := range []string{"chat_messages", "chat_queued_messages"} {
+		var mismatchedReferences int
+		require.NoError(t, sqlDB.QueryRowContext(ctx, fmt.Sprintf(`
+			SELECT count(*)
+			FROM %s
+			WHERE chat_id = $1
+				AND (organization_id != $2 OR model_config_id != $3)
+		`, table), fixtureChatID, chatOrganizationID, chatModelConfigID).Scan(&mismatchedReferences))
+		require.Zero(t, mismatchedReferences, table)
+	}
+
+	var mismatchedDebugRuns int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*)
+		FROM chat_debug_runs
+		WHERE chat_id = $1 AND model_config_id != $2
+	`, fixtureChatID, chatModelConfigID).Scan(&mismatchedDebugRuns))
+	require.Zero(t, mismatchedDebugRuns)
+
+	var globalSiteConfigCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*)
+		FROM site_configs
+		WHERE key IN (
+			'agents_chat_explore_model_override',
+			'agents_chat_general_model_override',
+			'agents_chat_title_generation_model_override',
+			'agents_chat_compaction_model_override',
+			'agents_advisor_config'
+		)
+	`).Scan(&globalSiteConfigCount))
+	require.Zero(t, globalSiteConfigCount)
+
+	var scopedModelOverrideCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*)
+		FROM site_configs
+		WHERE key ~ '^[0-9a-fA-F-]+:agents_chat_general_model_override$'
+	`).Scan(&scopedModelOverrideCount))
+	require.Equal(t, activeOrganizationCount, scopedModelOverrideCount)
+
+	var activeMembershipCount, scopedPersonalOverrideCount, scopedCompactionThresholdCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*)
+		FROM organization_members om
+		JOIN organizations o ON o.id = om.organization_id
+		WHERE om.user_id = $1 AND o.deleted = false
+	`, fixtureUserID).Scan(&activeMembershipCount))
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*)
+		FROM user_configs
+		WHERE user_id = $1 AND key ~ '^chat_personal_model_override:[0-9a-fA-F-]+:root$'
+	`, fixtureUserID).Scan(&scopedPersonalOverrideCount))
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*)
+		FROM user_configs
+		WHERE user_id = $1 AND key ~ '^chat_compaction_threshold_pct:[0-9a-fA-F-]+:[0-9a-fA-F-]+$'
+	`, fixtureUserID).Scan(&scopedCompactionThresholdCount))
+	require.Equal(t, activeMembershipCount, scopedPersonalOverrideCount)
+	require.Equal(t, activeMembershipCount, scopedCompactionThresholdCount)
+
+	var restoreOrganizationID uuid.UUID
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT id
+		FROM organizations
+		WHERE deleted = false
+		ORDER BY CASE WHEN is_default THEN 0 ELSE 1 END, created_at, id
+		LIMIT 1
+	`).Scan(&restoreOrganizationID))
+
+	var restoreModelConfigID uuid.UUID
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT id
+		FROM chat_model_configs
+		WHERE organization_id = $1 AND model = 'model-fixture-active'
+	`, restoreOrganizationID).Scan(&restoreModelConfigID))
+
+	var restoreGeneralOverride, restoreAdvisorConfig string
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT value FROM site_configs WHERE key = $1`, restoreOrganizationID.String()+":agents_chat_general_model_override").Scan(&restoreGeneralOverride))
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT value FROM site_configs WHERE key = $1`, restoreOrganizationID.String()+":agents_advisor_config").Scan(&restoreAdvisorConfig))
+
+	downSQL, err := os.ReadFile("000551_org_scope_chat_model_configs.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+
+	var organizationColumnCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*)
+		FROM information_schema.columns
+		WHERE table_schema = current_schema()
+			AND table_name = 'chat_model_configs'
+			AND column_name IN ('organization_id', 'user_acl', 'group_acl')
+	`).Scan(&organizationColumnCount))
+	require.Zero(t, organizationColumnCount)
+
+	var retainedConfigCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*)
+		FROM chat_model_configs
+		WHERE model IN ('model-fixture-active', 'model-fixture-deleted')
+	`).Scan(&retainedConfigCount))
+	require.Equal(t, organizationCount*2, retainedConfigCount)
+
+	var retainedChatModelConfigID uuid.UUID
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT last_model_config_id FROM chats WHERE id = $1`, fixtureChatID).Scan(&retainedChatModelConfigID))
+	require.Equal(t, chatModelConfigID, retainedChatModelConfigID)
+
+	var globalGeneralOverride, globalAdvisorConfig string
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT value FROM site_configs WHERE key = 'agents_chat_general_model_override'`).Scan(&globalGeneralOverride))
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT value FROM site_configs WHERE key = 'agents_advisor_config'`).Scan(&globalAdvisorConfig))
+	require.Equal(t, restoreGeneralOverride, globalGeneralOverride)
+	require.Equal(t, restoreAdvisorConfig, globalAdvisorConfig)
+
+	var scopedSiteConfigCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*)
+		FROM site_configs
+		WHERE key ~ '^[0-9a-fA-F-]+:(agents_chat_(explore|general|title_generation|compaction)_model_override|agents_advisor_config)$'
+	`).Scan(&scopedSiteConfigCount))
+	require.Zero(t, scopedSiteConfigCount)
+
+	var activeDefaultCount int
+	var activeDefaultID uuid.UUID
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*), min(id::text)::uuid
+		FROM chat_model_configs
+		WHERE is_default = true AND deleted = false
+	`).Scan(&activeDefaultCount, &activeDefaultID))
+	require.Equal(t, 1, activeDefaultCount)
+	require.Equal(t, restoreModelConfigID, activeDefaultID)
+}
+
 func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -2058,9 +2299,10 @@ func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
 	owner := dbgen.User(t, db, database.User{})
 	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		CreatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true},
-		UpdatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true},
-		IsDefault: true,
+		OrganizationID: org.ID,
+		CreatedBy:      uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: owner.ID, Valid: true},
+		IsDefault:      true,
 	})
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
