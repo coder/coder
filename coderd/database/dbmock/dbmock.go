@@ -2953,6 +2953,21 @@ func (mr *MockStoreMockRecorder) GetChatFilesByIDs(ctx, ids any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatFilesByIDs", reflect.TypeOf((*MockStore)(nil).GetChatFilesByIDs), ctx, ids)
 }
 
+// GetChatGatewayAPIKey mocks base method.
+func (m *MockStore) GetChatGatewayAPIKey(ctx context.Context, arg database.GetChatGatewayAPIKeyParams) (database.APIKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatGatewayAPIKey", ctx, arg)
+	ret0, _ := ret[0].(database.APIKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatGatewayAPIKey indicates an expected call of GetChatGatewayAPIKey.
+func (mr *MockStoreMockRecorder) GetChatGatewayAPIKey(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatGatewayAPIKey", reflect.TypeOf((*MockStore)(nil).GetChatGatewayAPIKey), ctx, arg)
+}
+
 // GetChatGeneralModelOverride mocks base method.
 func (m *MockStore) GetChatGeneralModelOverride(ctx context.Context) (string, error) {
 	m.ctrl.T.Helper()
@@ -6133,6 +6148,21 @@ func (mr *MockStoreMockRecorder) GetUserCount(ctx, includeSystem any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserCount", reflect.TypeOf((*MockStore)(nil).GetUserCount), ctx, includeSystem)
 }
 
+// GetUserForChatSyntheticAPIKeyByID mocks base method.
+func (m *MockStore) GetUserForChatSyntheticAPIKeyByID(ctx context.Context, id uuid.UUID) (database.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserForChatSyntheticAPIKeyByID", ctx, id)
+	ret0, _ := ret[0].(database.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserForChatSyntheticAPIKeyByID indicates an expected call of GetUserForChatSyntheticAPIKeyByID.
+func (mr *MockStoreMockRecorder) GetUserForChatSyntheticAPIKeyByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserForChatSyntheticAPIKeyByID", reflect.TypeOf((*MockStore)(nil).GetUserForChatSyntheticAPIKeyByID), ctx, id)
+}
+
 // GetUserGroupSpendLimit mocks base method.
 func (m *MockStore) GetUserGroupSpendLimit(ctx context.Context, arg database.GetUserGroupSpendLimitParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -7349,11 +7379,12 @@ func (mr *MockStoreMockRecorder) HasTemplateVersionsUsingCachedModuleFileInOrg(c
 }
 
 // HydrateAgentChatsContext mocks base method.
-func (m *MockStore) HydrateAgentChatsContext(ctx context.Context, arg database.HydrateAgentChatsContextParams) error {
+func (m *MockStore) HydrateAgentChatsContext(ctx context.Context, arg database.HydrateAgentChatsContextParams) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "HydrateAgentChatsContext", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // HydrateAgentChatsContext indicates an expected call of HydrateAgentChatsContext.
@@ -10141,6 +10172,21 @@ func (m *MockStore) UpdateMCPServerConfig(ctx context.Context, arg database.Upda
 func (mr *MockStoreMockRecorder) UpdateMCPServerConfig(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMCPServerConfig", reflect.TypeOf((*MockStore)(nil).UpdateMCPServerConfig), ctx, arg)
+}
+
+// UpdateMCPServerUserTokenFromRefresh mocks base method.
+func (m *MockStore) UpdateMCPServerUserTokenFromRefresh(ctx context.Context, arg database.UpdateMCPServerUserTokenFromRefreshParams) (database.MCPServerUserToken, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateMCPServerUserTokenFromRefresh", ctx, arg)
+	ret0, _ := ret[0].(database.MCPServerUserToken)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateMCPServerUserTokenFromRefresh indicates an expected call of UpdateMCPServerUserTokenFromRefresh.
+func (mr *MockStoreMockRecorder) UpdateMCPServerUserTokenFromRefresh(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMCPServerUserTokenFromRefresh", reflect.TypeOf((*MockStore)(nil).UpdateMCPServerUserTokenFromRefresh), ctx, arg)
 }
 
 // UpdateMemberRoles mocks base method.

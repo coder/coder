@@ -83,6 +83,7 @@ import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
 } from "./ChatMessageInput/ChatMessageInput";
+import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
@@ -190,6 +191,7 @@ interface AgentChatInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
+	workspaceSkills?: readonly SkillMetadata[];
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	chatId?: string;
@@ -398,6 +400,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
+	workspaceSkills,
 	workspace,
 	workspaceAgent,
 	chatId,
@@ -572,15 +575,27 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		}
 		const name = mcpDisconnectTarget.display_name;
 		mcpDisconnectMutation.mutate(mcpDisconnectTarget.id, {
-			onSuccess: () => {
+			onSuccess: (response) => {
 				setMcpDisconnectTarget(null);
-				toast.success(`Disconnected ${name}.`);
+				if (response.token_revocation_error) {
+					toast.warning(`Disconnected ${name}.`, {
+						description: response.token_revocation_error,
+					});
+				} else {
+					toast.success(`Disconnected ${name}.`);
+				}
 			},
 			onError: (error) => {
 				toast.error(getErrorMessage(error, `Failed to disconnect ${name}.`));
 			},
 		});
 	};
+
+	// Only a chat-bound workspace counts: an unbound selection (new chat
+	// form, or a picked workspace before the first send) has no pinned
+	// context to resolve, so treating it as a workspace would leave the
+	// menu in the loading state forever.
+	const hasSkillsWorkspace = Boolean(attachedWorkspace?.id ?? workspace?.id);
 
 	const selectedWorkspace = workspaceOptions?.find(
 		(ws) => ws.id === selectedWorkspaceId,
@@ -1210,6 +1225,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					onEnter={handleSubmit}
 					sendShortcut={sendShortcut}
 					disabled={isDisabled || isLoading}
+					hasWorkspace={hasSkillsWorkspace}
+					workspaceSkills={workspaceSkills}
 					autoFocus
 				/>
 				{/* Warn about invisible Unicode in the message text.

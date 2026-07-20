@@ -85,6 +85,7 @@ import {
 } from "./components/ChatConversation/chatStore";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import type { PendingAttachment } from "./components/ChatPageContent";
+import { workspaceSkillsFromChat } from "./components/ChatPageContent";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -1756,6 +1757,7 @@ const AgentChatPage: FC = () => {
 			onMCPSelectionChange={handleMCPSelectionChange}
 			onMCPAuthComplete={handleMCPAuthComplete}
 			chatContext={chatQuery.data?.context}
+			workspaceSkills={workspaceSkillsFromChat(chatQuery.data)}
 		/>
 	);
 };

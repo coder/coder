@@ -651,12 +651,7 @@ func (s *taskStarter) executeLocalTools(
 		provider = prepared.Model.Provider()
 		modelName = prepared.Model.Model()
 	}
-	// Local tool callbacks (e.g. spawn_agent, message_agent) read the
-	// active turn's delegated API key ID from the context to route
-	// subagent traffic through the AI Gateway. prepareGeneration sets it
-	// only on its own context, so re-derive it here for tool execution.
-	toolCtx := withActiveTurnAPIKeyID(ctx, prepared.ModelBuildOptions)
-	outcome, err := chatloop.ExecuteLocalTools(toolCtx, chatloop.ExecuteLocalToolsOptions{
+	outcome, err := chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
 		Tools:              prepared.Tools,
 		ActiveTools:        prepared.ActiveTools,
 		ProviderTools:      prepared.ProviderTools,

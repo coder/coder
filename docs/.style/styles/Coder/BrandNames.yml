@@ -17,7 +17,7 @@
 # unchanged; the `%s` token interpolates the matched (wrong) text.
 extends: substitution
 message: "Use '%s' instead of '%s' (brand-name casing)."
-link: https://github.com/coder/coder/blob/main/docs/.style/style-guide.md#brand-names
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/word-choice.md#brand-names
 level: error
 ignorecase: false
 nonword: false

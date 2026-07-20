@@ -195,6 +195,7 @@ export const canManageProviderModels = (
 ): boolean => {
 	return Boolean(
 		providerState?.providerConfig &&
+			providerState.providerConfig.enabled !== false &&
 			(providerState.hasEffectiveAPIKey ||
 				providerState.providerConfig.allow_user_api_key),
 	);

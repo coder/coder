@@ -399,10 +399,11 @@ func TestPinnedWorkspaceContextFromHydratedPin(t *testing.T) {
 		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
 		Status:            database.ChatStatusWaiting,
 	})
-	require.NoError(t, db.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
+	_, err := db.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
 		AgentID:       agent.ID,
 		AggregateHash: hash,
-	}))
+	})
+	require.NoError(t, err)
 	rows, err := db.ListChatContextResourcesByChatID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Len(t, rows, 2, "the pin holds the agent's instruction file and skill")

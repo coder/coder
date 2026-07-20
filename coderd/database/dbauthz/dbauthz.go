@@ -473,6 +473,27 @@ var (
 		}.WithCachedASTValue()
 	}
 
+	subjectChatdKeyMinter = func(userID uuid.UUID) rbac.Subject {
+		return rbac.Subject{
+			Type:         rbac.SubjectTypeChatdKeyMinter,
+			FriendlyName: "Chatd Key Minter",
+			ID:           userID.String(),
+			Roles: rbac.Roles([]rbac.Role{
+				{
+					Identifier:  rbac.RoleIdentifier{Name: "chatdkeyminter"},
+					DisplayName: "Chatd Key Minter",
+					Site:        []rbac.Permission{},
+					User: rbac.Permissions(map[string][]policy.Action{
+						rbac.ResourceApiKey.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+						rbac.ResourceUser.Type:   {policy.ActionReadPersonal},
+					}),
+					ByOrgID: map[string]rbac.OrgPermissions{},
+				},
+			}),
+			Scope: rbac.ScopeAll,
+		}.WithCachedASTValue()
+	}
+
 	subjectSystemRestricted = rbac.Subject{
 		Type:         rbac.SubjectTypeSystemRestricted,
 		FriendlyName: "System",
@@ -877,6 +898,12 @@ func AsSubAgentAPI(ctx context.Context, orgID uuid.UUID, userID uuid.UUID) conte
 // keys owned by the specified user, and nothing else.
 func AsAPIKeyRevoker(ctx context.Context, userID uuid.UUID) context.Context {
 	return As(ctx, subjectAPIKeyRevoker(userID))
+}
+
+// AsChatdKeyMinter returns a context with an actor that manages the synthetic
+// gateway API key owned by the specified user.
+func AsChatdKeyMinter(ctx context.Context, userID uuid.UUID) context.Context {
+	return As(ctx, subjectChatdKeyMinter(userID))
 }
 
 // AsSystemRestricted returns a context with an actor that has permissions
@@ -3320,6 +3347,10 @@ func (q *querier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]dat
 	return files, nil
 }
 
+func (q *querier) GetChatGatewayAPIKey(ctx context.Context, arg database.GetChatGatewayAPIKeyParams) (database.APIKey, error) {
+	return fetch(q.log, q.auth, q.db.GetChatGatewayAPIKey)(ctx, arg)
+}
+
 func (q *querier) GetChatGeneralModelOverride(ctx context.Context) (string, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return "", err
@@ -5084,6 +5115,10 @@ func (q *querier) GetUserCount(ctx context.Context, includeSystem bool) (int64, 
 	return q.db.GetUserCount(ctx, includeSystem)
 }
 
+func (q *querier) GetUserForChatSyntheticAPIKeyByID(ctx context.Context, id uuid.UUID) (database.User, error) {
+	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetUserForChatSyntheticAPIKeyByID)(ctx, id)
+}
+
 func (q *querier) GetUserGroupSpendLimit(ctx context.Context, arg database.GetUserGroupSpendLimitParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.UserID.String())); err != nil {
 		return 0, err
@@ -5805,12 +5840,12 @@ func (q *querier) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Cont
 	return q.db.HasTemplateVersionsUsingCachedModuleFileInOrg(ctx, arg)
 }
 
-func (q *querier) HydrateAgentChatsContext(ctx context.Context, arg database.HydrateAgentChatsContextParams) error {
+func (q *querier) HydrateAgentChatsContext(ctx context.Context, arg database.HydrateAgentChatsContextParams) ([]uuid.UUID, error) {
 	// System-level operation: an agent context push fans hydration out
 	// across every not-yet-pinned chat for the agent, so it authorizes at
 	// the resource level rather than per-chat.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
-		return err
+		return nil, err
 	}
 	return q.db.HydrateAgentChatsContext(ctx, arg)
 }
@@ -7574,6 +7609,13 @@ func (q *querier) UpdateMCPServerConfig(ctx context.Context, arg database.Update
 		return database.MCPServerConfig{}, err
 	}
 	return q.db.UpdateMCPServerConfig(ctx, arg)
+}
+
+func (q *querier) UpdateMCPServerUserTokenFromRefresh(ctx context.Context, arg database.UpdateMCPServerUserTokenFromRefreshParams) (database.MCPServerUserToken, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return database.MCPServerUserToken{}, err
+	}
+	return q.db.UpdateMCPServerUserTokenFromRefresh(ctx, arg)
 }
 
 func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {

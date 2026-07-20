@@ -1296,11 +1296,14 @@ func TestChatContextHydration(t *testing.T) {
 	_, err := db.ArchiveChatByID(ctx, chatArchived.ID)
 	require.NoError(t, err)
 
-	// Hydrate stamps only the NULL-hash chat for this agent.
-	require.NoError(t, db.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
+	// Hydrate stamps only the NULL-hash chat for this agent and returns
+	// exactly the chats it pinned.
+	hydrated, err := db.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
 		AgentID:       agent.ID,
 		AggregateHash: hashH,
-	}))
+	})
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{chatNull.ID}, hydrated)
 	gotNull, err := db.GetChatByID(ctx, chatNull.ID)
 	require.NoError(t, err)
 	require.Equal(t, hashH, gotNull.ContextAggregateHash, "NULL-hash chat is hydrated")
@@ -13503,6 +13506,92 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, sql.NullString{String: "still fresh summary", Valid: true}, fetched.LastTurnSummary)
 	require.NotEqual(t, chat.HistoryVersion, fetched.HistoryVersion)
+}
+
+func TestUpdateChatWorkspaceBindingNoOp(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	owner := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
+
+	dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, db, "openai", database.InsertChatModelConfigParams{
+		Model:                "test-model",
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "binding-chat",
+	})
+	require.NoError(t, err)
+
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      owner.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:        owner.ID,
+		OrganizationID: org.ID,
+		TemplateID:     template.ID,
+	})
+	workspaceID := workspace.ID
+
+	bound, err := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+		ID:          chat.ID,
+		WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+	})
+	require.NoError(t, err)
+	require.Equal(t, workspaceID, bound.WorkspaceID.UUID)
+	require.False(t, bound.UpdatedAt.Before(chat.UpdatedAt))
+
+	// Rebinding to the same workspace/build/agent is a no-op and must
+	// preserve updated_at so chat list ordering and watch events stay
+	// stable.
+	rebound, err := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+		ID:          chat.ID,
+		WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+	})
+	require.NoError(t, err)
+	require.Equal(t, workspaceID, rebound.WorkspaceID.UUID)
+	require.Equal(t, bound.UpdatedAt, rebound.UpdatedAt)
+
+	// Clearing the binding is a real change and must advance updated_at.
+	cleared, err := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+		ID: chat.ID,
+	})
+	require.NoError(t, err)
+	require.False(t, cleared.WorkspaceID.Valid)
+	require.True(t, cleared.UpdatedAt.After(bound.UpdatedAt))
 }
 
 func TestDeleteChatDebugDataAfterMessageIDIncludesTriggeredRuns(t *testing.T) {

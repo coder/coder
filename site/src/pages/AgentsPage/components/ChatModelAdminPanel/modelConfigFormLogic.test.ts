@@ -324,6 +324,22 @@ describe("extractModelConfigFormState", () => {
 		expect(anthropic.disableParallelToolUse).toBe("false");
 	});
 
+	it("extracts Anthropic 1M context window option", () => {
+		const model: TypesGen.ChatModelConfig = {
+			...baseChatModelConfig,
+			model_config: {
+				provider_options: {
+					anthropic: {
+						context_1m_enabled: true,
+					},
+				},
+			},
+		};
+		const result = extractModelConfigFormState(model);
+		const anthropic = result.anthropic as Record<string, unknown>;
+		expect(anthropic.context1mEnabled).toBe("true");
+	});
+
 	it("extracts Google provider options with safety settings", () => {
 		const safetySettings = [{ category: "harm", threshold: "block" }];
 		const model: TypesGen.ChatModelConfig = {
@@ -832,6 +848,17 @@ describe("buildModelConfigFromForm", () => {
 			expect(result.fieldErrors).toEqual({});
 			expect(result.modelConfig?.provider_options?.anthropic).toEqual({
 				send_reasoning: true,
+			});
+		});
+
+		it("builds Anthropic options with 1M context window enabled", () => {
+			const result = buildModelConfigFromForm(
+				"anthropic",
+				formWith({ anthropic: { context1mEnabled: "true" } }),
+			);
+			expect(result.fieldErrors).toEqual({});
+			expect(result.modelConfig?.provider_options?.anthropic).toEqual({
+				context_1m_enabled: true,
 			});
 		});
 

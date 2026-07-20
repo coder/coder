@@ -149,6 +149,7 @@ export const ModelFormFields: FC<{
 					<ModelFormProviderSelect
 						providerStates={providerStates}
 						selectedProviderKey={selectedProviderKey}
+						isEditing={mode === "edit"}
 						onProviderChange={onProviderChange}
 						disabled={isDuplicating || providerStates.length === 0}
 					/>

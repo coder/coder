@@ -27,7 +27,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
-	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -1193,6 +1192,21 @@ func (api *API) validateUserChatModelConfigAvailable(
 	}
 }
 
+// validateExplicitChatModelConfigAvailable validates a caller-supplied
+// model config ID. A nil ID keeps the chat's current model and is
+// validated by the daemon's fallback resolution instead.
+func (api *API) validateExplicitChatModelConfigAvailable(
+	ctx context.Context,
+	userID uuid.UUID,
+	modelConfigID uuid.UUID,
+) (int, *codersdk.Response) {
+	if modelConfigID == uuid.Nil {
+		return 0, nil
+	}
+	_, status, resp := api.validateUserChatModelConfigAvailable(ctx, userID, modelConfigID)
+	return status, resp
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Create chat
@@ -1420,7 +1434,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		ClientType:         clientType,
 		SystemPrompt:       req.SystemPrompt,
 		InitialUserContent: contentBlocks,
-		APIKeyID:           apiKey.ID,
 		MCPServerIDs:       mcpServerIDs,
 		Labels:             labels,
 		DynamicTools:       dynamicToolsJSON,
@@ -1429,6 +1442,13 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if maybeWriteLimitErr(ctx, rw, err) {
+			return
+		}
+		if xerrors.Is(err, chatd.ErrInvalidModelConfigID) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid model config ID.",
+				Detail:  err.Error(),
+			})
 			return
 		}
 		if database.IsForeignKeyViolation(
@@ -3336,6 +3356,10 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	if req.ModelConfigID != nil {
 		modelConfigID = *req.ModelConfigID
 	}
+	if status, resp := api.validateExplicitChatModelConfigAvailable(ctx, apiKey.UserID, modelConfigID); resp != nil {
+		httpapi.Write(ctx, rw, status, *resp)
+		return
+	}
 
 	reasoningEffort := req.ReasoningEffort
 	if reasoningEffort != nil && !chatprovider.IsValidReasoningEffort(*reasoningEffort) {
@@ -3351,7 +3375,6 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			Content:         contentBlocks,
 			ModelConfigID:   modelConfigID,
 			ReasoningEffort: reasoningEffort,
-			APIKeyID:        apiKey.ID,
 			BusyBehavior:    busyBehavior,
 			PlanMode:        sendPlanMode,
 			MCPServerIDs:    req.MCPServerIDs,
@@ -3382,6 +3405,12 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		if xerrors.Is(sendErr, chatd.ErrInvalidModelConfigID) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid model config ID.",
+			})
+			return
+		}
+		if xerrors.Is(sendErr, chatd.ErrNoDefaultChatModelConfig) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "No default chat model config is configured.",
 			})
 			return
 		}
@@ -3501,6 +3530,10 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	if req.ModelConfigID != nil {
 		editModelConfigID = *req.ModelConfigID
 	}
+	if status, resp := api.validateExplicitChatModelConfigAvailable(ctx, apiKey.UserID, editModelConfigID); resp != nil {
+		httpapi.Write(ctx, rw, status, *resp)
+		return
+	}
 
 	editReasoningEffort := req.ReasoningEffort
 	if editReasoningEffort != nil && !chatprovider.IsValidReasoningEffort(*editReasoningEffort) {
@@ -3513,7 +3546,6 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		CreatedBy:       apiKey.UserID,
 		EditedMessageID: messageID,
 		Content:         contentBlocks,
-		APIKeyID:        apiKey.ID,
 		ModelConfigID:   editModelConfigID,
 		ReasoningEffort: editReasoningEffort,
 	})
@@ -3539,6 +3571,10 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		case xerrors.Is(editErr, chatd.ErrInvalidModelConfigID):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid model config ID.",
+			})
+		case xerrors.Is(editErr, chatd.ErrNoDefaultChatModelConfig):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "No default chat model config is configured.",
 			})
 		case errors.Is(editErr, chatstate.ErrChatNotFound):
 			httpapi.ResourceNotFound(rw)
@@ -4026,7 +4062,6 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx = aibridge.WithDelegatedAPIKeyID(ctx, apiKey.ID)
 	updatedChat, err := api.chatDaemon.RegenerateChatTitle(ctx, chat)
 	if err != nil {
 		if errors.Is(err, chatd.ErrNoDefaultChatModelConfig) {
@@ -4076,7 +4111,6 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx = aibridge.WithDelegatedAPIKeyID(ctx, apiKey.ID)
 	title, err := api.chatDaemon.ProposeChatTitle(ctx, chat)
 	if err != nil {
 		if errors.Is(err, chatd.ErrNoDefaultChatModelConfig) {
@@ -4818,6 +4852,9 @@ func (api *API) resolveCreateChatModelConfigID(
 				Message: "Invalid model config ID.",
 			}
 		}
+		if _, status, resp := api.validateUserChatModelConfigAvailable(ctx, userID, *req.ModelConfigID); resp != nil {
+			return uuid.Nil, nil, status, resp
+		}
 		return *req.ModelConfigID, nil, 0, nil
 	}
 
@@ -4904,6 +4941,21 @@ func (api *API) defaultCreateChatModelConfigID(
 		if xerrors.Is(err, sql.ErrNoRows) {
 			return uuid.Nil, http.StatusBadRequest, &codersdk.Response{
 				Message: "No default chat model config is configured.",
+			}
+		}
+		return uuid.Nil, http.StatusInternalServerError, &codersdk.Response{
+			Message: "Failed to resolve chat model config.",
+			Detail:  err.Error(),
+		}
+	}
+
+	// The resolved default may itself be disabled or under a disabled
+	// provider.
+	if _, err := lookupEnabledChatModelConfigByID(ctx, api.Database, defaultModelConfig.ID); err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return uuid.Nil, http.StatusBadRequest, &codersdk.Response{
+				Message: "No default chat model config is configured.",
+				Detail:  "The default chat model or its provider is disabled.",
 			}
 		}
 		return uuid.Nil, http.StatusInternalServerError, &codersdk.Response{
@@ -5703,16 +5755,11 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		// Use system context because GetChatModelConfigByID requires
-		// deployment-config read access, which can be broader than the
-		// handler's explicit update check. The lookup validates the model and
-		// any selected reasoning effort before persisting deployment config.
-		//nolint:gocritic // This admin-authorized validation lookup intentionally bypasses read authz.
-		modelConfig, err := api.Database.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), req.ModelConfigID)
+		modelConfig, err := lookupEnabledChatModelConfigByID(ctx, api.Database, req.ModelConfigID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: fmt.Sprintf("model_config_id %q does not match any existing model config.", req.ModelConfigID),
+					Message: fmt.Sprintf("model_config_id %q does not match any enabled model config.", req.ModelConfigID),
 				})
 				return
 			}
@@ -7625,7 +7672,20 @@ func ensureDefaultChatModelConfig(
 		return nil
 	}
 
-	candidateConfig := modelConfigs[0]
+	// Prefer a config that can actually serve requests (enabled, under an
+	// enabled provider) so the promoted default does not reject
+	// omitted-model chat creation. Fall back to any non-excluded config
+	// when no usable candidate exists.
+	//nolint:gocritic // Candidate usability depends on deployment-wide provider state, not the caller's permissions.
+	enabledRows, err := tx.GetEnabledChatModelConfigs(dbauthz.AsChatd(ctx))
+	if err != nil {
+		return xerrors.Errorf("list enabled chat model configs: %w", err)
+	}
+	usable := make(map[uuid.UUID]struct{}, len(enabledRows))
+	for _, row := range enabledRows {
+		usable[row.ChatModelConfig.ID] = struct{}{}
+	}
+
 	excluded := make(map[uuid.UUID]struct{}, len(excludedConfigIDs))
 	for _, configID := range excludedConfigIDs {
 		if configID == uuid.Nil {
@@ -7633,12 +7693,24 @@ func ensureDefaultChatModelConfig(
 		}
 		excluded[configID] = struct{}{}
 	}
-	for _, config := range modelConfigs {
+
+	candidateConfig := modelConfigs[0]
+	var selected *database.ChatModelConfig
+	for i := range modelConfigs {
+		config := &modelConfigs[i]
 		if _, skip := excluded[config.ID]; skip {
 			continue
 		}
-		candidateConfig = config
-		break
+		if selected == nil {
+			selected = config
+		}
+		if _, ok := usable[config.ID]; ok {
+			selected = config
+			break
+		}
+	}
+	if selected != nil {
+		candidateConfig = *selected
 	}
 
 	if err := tx.UnsetDefaultChatModelConfigs(ctx); err != nil {
