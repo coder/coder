@@ -8,7 +8,8 @@
 	"shotConcurrency": 64,
 	"matrix": {
 		"browsers": ["chrome"],
-		"viewports": ["mobile", "tablet", "desktop"],
+		// TODO: Add "phone" and "tablet" when upgrading to pixel-storybook 0.3.
+		"viewports": ["desktop"],
 		"themes": ["light", "dark"]
 	}
 }
