@@ -2367,7 +2367,8 @@ WHERE c.owner_id = @user_id::uuid
 -- output pricing in their JSONB options.cost configuration.
 SELECT COUNT(*)::bigint AS count
 FROM chat_model_configs
-WHERE enabled = TRUE
+WHERE organization_id IS NULL
+  AND enabled = TRUE
   AND deleted = FALSE
   AND (
     options->'cost' IS NULL
@@ -2536,7 +2537,8 @@ GROUP BY cm.chat_id;
 SELECT cmc.id, ap.type::text AS provider, cmc.model, cmc.context_limit, cmc.enabled, cmc.is_default
 FROM chat_model_configs cmc
 JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
-WHERE cmc.deleted = false;
+WHERE cmc.organization_id IS NULL
+  AND cmc.deleted = false;
 -- name: GetActiveChatsByAgentID :many
 SELECT *
 FROM chats_expanded

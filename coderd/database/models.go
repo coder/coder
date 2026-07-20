@@ -5143,6 +5143,16 @@ type ChatModelConfig struct {
 	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
 	Options              json.RawMessage `db:"options" json:"options"`
 	AIProviderID         uuid.NullUUID   `db:"ai_provider_id" json:"ai_provider_id"`
+	OrganizationID       uuid.NullUUID   `db:"organization_id" json:"organization_id"`
+	UserACL              json.RawMessage `db:"user_acl" json:"user_acl"`
+	GroupACL             json.RawMessage `db:"group_acl" json:"group_acl"`
+	LegacyModelConfigID  uuid.NullUUID   `db:"legacy_model_config_id" json:"legacy_model_config_id"`
+	InheritsLegacyConfig bool            `db:"inherits_legacy_config" json:"inherits_legacy_config"`
+}
+
+type ChatModelConfigOrgDefaultInheritance struct {
+	OrganizationID        uuid.UUID `db:"organization_id" json:"organization_id"`
+	InheritsLegacyDefault bool      `db:"inherits_legacy_default" json:"inherits_legacy_default"`
 }
 
 type ChatQueuedMessage struct {

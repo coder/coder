@@ -5242,6 +5242,7 @@ SET
     updated_at = NOW()
 WHERE
     id = $1::uuid
+    AND organization_id IS NULL
 `
 
 func (q *sqlQuerier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error {
@@ -5258,6 +5259,7 @@ SET
     updated_at = NOW()
 WHERE
     ai_provider_id = $1::uuid
+    AND organization_id IS NULL
     AND deleted = FALSE
 `
 
@@ -5268,11 +5270,12 @@ func (q *sqlQuerier) DeleteChatModelConfigsByAIProviderID(ctx context.Context, a
 
 const getChatModelConfigByID = `-- name: GetChatModelConfigByID :one
 SELECT
-    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
+    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, user_acl, group_acl, legacy_model_config_id, inherits_legacy_config
 FROM
     chat_model_configs
 WHERE
     id = $1::uuid
+    AND organization_id IS NULL
     AND deleted = FALSE
 `
 
@@ -5295,19 +5298,25 @@ func (q *sqlQuerier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (
 		&i.CompressionThreshold,
 		&i.Options,
 		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.LegacyModelConfigID,
+		&i.InheritsLegacyConfig,
 	)
 	return i, err
 }
 
 const getChatModelConfigs = `-- name: GetChatModelConfigs :many
 SELECT
-    cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id
+    cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id, cmc.organization_id, cmc.user_acl, cmc.group_acl, cmc.legacy_model_config_id, cmc.inherits_legacy_config
 FROM
     chat_model_configs cmc
 LEFT JOIN
     ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
-    cmc.deleted = FALSE
+    cmc.organization_id IS NULL
+    AND cmc.deleted = FALSE
 ORDER BY
     ap.type::text ASC,
     cmc.model ASC,
@@ -5340,6 +5349,11 @@ func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig
 			&i.CompressionThreshold,
 			&i.Options,
 			&i.AIProviderID,
+			&i.OrganizationID,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.LegacyModelConfigID,
+			&i.InheritsLegacyConfig,
 		); err != nil {
 			return nil, err
 		}
@@ -5356,11 +5370,12 @@ func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig
 
 const getDefaultChatModelConfig = `-- name: GetDefaultChatModelConfig :one
 SELECT
-    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
+    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, user_acl, group_acl, legacy_model_config_id, inherits_legacy_config
 FROM
     chat_model_configs
 WHERE
-    is_default = TRUE
+    organization_id IS NULL
+    AND is_default = TRUE
     AND deleted = FALSE
 `
 
@@ -5383,19 +5398,25 @@ func (q *sqlQuerier) GetDefaultChatModelConfig(ctx context.Context) (ChatModelCo
 		&i.CompressionThreshold,
 		&i.Options,
 		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.LegacyModelConfigID,
+		&i.InheritsLegacyConfig,
 	)
 	return i, err
 }
 
 const getEnabledChatModelConfigByID = `-- name: GetEnabledChatModelConfigByID :one
 SELECT
-    cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id
+    cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id, cmc.organization_id, cmc.user_acl, cmc.group_acl, cmc.legacy_model_config_id, cmc.inherits_legacy_config
 FROM
     chat_model_configs cmc
 JOIN
     ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
     cmc.id = $1::uuid
+    AND cmc.organization_id IS NULL
     AND cmc.deleted = FALSE
     AND cmc.enabled = TRUE
     AND ap.enabled = TRUE
@@ -5423,20 +5444,26 @@ func (q *sqlQuerier) GetEnabledChatModelConfigByID(ctx context.Context, id uuid.
 		&i.CompressionThreshold,
 		&i.Options,
 		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.LegacyModelConfigID,
+		&i.InheritsLegacyConfig,
 	)
 	return i, err
 }
 
 const getEnabledChatModelConfigs = `-- name: GetEnabledChatModelConfigs :many
 SELECT
-    cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id,
+    cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id, cmc.organization_id, cmc.user_acl, cmc.group_acl, cmc.legacy_model_config_id, cmc.inherits_legacy_config,
     ap.type::text AS provider
 FROM
     chat_model_configs cmc
 JOIN
     ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
-    cmc.enabled = TRUE
+    cmc.organization_id IS NULL
+    AND cmc.enabled = TRUE
     AND cmc.deleted = FALSE
     AND ap.enabled = TRUE
     AND ap.deleted = FALSE
@@ -5477,6 +5504,11 @@ func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context) ([]GetEnabl
 			&i.ChatModelConfig.CompressionThreshold,
 			&i.ChatModelConfig.Options,
 			&i.ChatModelConfig.AIProviderID,
+			&i.ChatModelConfig.OrganizationID,
+			&i.ChatModelConfig.UserACL,
+			&i.ChatModelConfig.GroupACL,
+			&i.ChatModelConfig.LegacyModelConfigID,
+			&i.ChatModelConfig.InheritsLegacyConfig,
 			&i.Provider,
 		); err != nil {
 			return nil, err
@@ -5517,7 +5549,7 @@ INSERT INTO chat_model_configs (
     $10::uuid
 )
 RETURNING
-    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
+    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, user_acl, group_acl, legacy_model_config_id, inherits_legacy_config
 `
 
 type InsertChatModelConfigParams struct {
@@ -5563,6 +5595,11 @@ func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatMo
 		&i.CompressionThreshold,
 		&i.Options,
 		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.LegacyModelConfigID,
+		&i.InheritsLegacyConfig,
 	)
 	return i, err
 }
@@ -5574,7 +5611,8 @@ SET
     is_default = FALSE,
     updated_at = NOW()
 WHERE
-    is_default = TRUE
+    organization_id IS NULL
+    AND is_default = TRUE
     AND deleted = FALSE
 `
 
@@ -5599,9 +5637,10 @@ SET
     updated_at = NOW()
 WHERE
     id = $10::uuid
+    AND organization_id IS NULL
     AND deleted = FALSE
 RETURNING
-    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
+    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, user_acl, group_acl, legacy_model_config_id, inherits_legacy_config
 `
 
 type UpdateChatModelConfigParams struct {
@@ -5647,6 +5686,11 @@ func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatMo
 		&i.CompressionThreshold,
 		&i.Options,
 		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.LegacyModelConfigID,
+		&i.InheritsLegacyConfig,
 	)
 	return i, err
 }
@@ -6202,7 +6246,8 @@ func (q *sqlQuerier) CountChatQueuedMessages(ctx context.Context, chatID uuid.UU
 const countEnabledModelsWithoutPricing = `-- name: CountEnabledModelsWithoutPricing :one
 SELECT COUNT(*)::bigint AS count
 FROM chat_model_configs
-WHERE enabled = TRUE
+WHERE organization_id IS NULL
+  AND enabled = TRUE
   AND deleted = FALSE
   AND (
     options->'cost' IS NULL
@@ -8014,7 +8059,8 @@ const getChatModelConfigsForTelemetry = `-- name: GetChatModelConfigsForTelemetr
 SELECT cmc.id, ap.type::text AS provider, cmc.model, cmc.context_limit, cmc.enabled, cmc.is_default
 FROM chat_model_configs cmc
 JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
-WHERE cmc.deleted = false
+WHERE cmc.organization_id IS NULL
+  AND cmc.deleted = false
 `
 
 type GetChatModelConfigsForTelemetryRow struct {

@@ -1296,6 +1296,71 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION provision_chat_model_configs_for_organization() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	IF NEW.deleted = false THEN
+		INSERT INTO chat_model_configs (
+			id,
+			model,
+			display_name,
+			created_by,
+			updated_by,
+			enabled,
+			is_default,
+			deleted,
+			deleted_at,
+			created_at,
+			updated_at,
+			context_limit,
+			compression_threshold,
+			options,
+			ai_provider_id,
+			organization_id,
+			user_acl,
+			group_acl,
+			legacy_model_config_id,
+			inherits_legacy_config
+		)
+		SELECT
+			gen_random_uuid(),
+			cmc.model,
+			cmc.display_name,
+			cmc.created_by,
+			cmc.updated_by,
+			cmc.enabled,
+			cmc.is_default,
+			cmc.deleted,
+			cmc.deleted_at,
+			cmc.created_at,
+			cmc.updated_at,
+			cmc.context_limit,
+			cmc.compression_threshold,
+			cmc.options,
+			cmc.ai_provider_id,
+			NEW.id,
+			'{}'::jsonb,
+			jsonb_build_object(NEW.id::text, jsonb_build_array('read')),
+			cmc.id,
+			true
+		FROM chat_model_configs cmc
+		WHERE cmc.organization_id IS NULL
+			AND cmc.deleted = false;
+
+		INSERT INTO chat_model_config_org_default_inheritance (
+			organization_id,
+			inherits_legacy_default
+		) VALUES (
+			NEW.id,
+			true
+		);
+	END IF;
+
+	RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION provisioner_tagset_contains(provisioner_tags tagset, job_tags tagset) RETURNS boolean
     LANGUAGE plpgsql
     AS $$
@@ -1982,6 +2047,11 @@ CREATE SEQUENCE chat_messages_id_seq
 
 ALTER SEQUENCE chat_messages_id_seq OWNED BY chat_messages.id;
 
+CREATE TABLE chat_model_config_org_default_inheritance (
+    organization_id uuid NOT NULL,
+    inherits_legacy_default boolean NOT NULL
+);
+
 CREATE TABLE chat_model_configs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     model text NOT NULL,
@@ -1998,9 +2068,17 @@ CREATE TABLE chat_model_configs (
     compression_threshold integer NOT NULL,
     options jsonb DEFAULT '{}'::jsonb NOT NULL,
     ai_provider_id uuid,
+    organization_id uuid,
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    legacy_model_config_id uuid,
+    inherits_legacy_config boolean DEFAULT false NOT NULL,
     CONSTRAINT chat_model_configs_ai_provider_required_when_active CHECK (((deleted = true) OR (ai_provider_id IS NOT NULL))),
+    CONSTRAINT chat_model_configs_coexistence_row_form CHECK ((((organization_id IS NULL) AND (legacy_model_config_id IS NULL) AND (inherits_legacy_config = false)) OR ((organization_id IS NOT NULL) AND ((legacy_model_config_id IS NOT NULL) OR ((legacy_model_config_id IS NULL) AND (inherits_legacy_config = false)))))),
     CONSTRAINT chat_model_configs_compression_threshold_check CHECK (((compression_threshold >= 0) AND (compression_threshold <= 100))),
-    CONSTRAINT chat_model_configs_context_limit_check CHECK ((context_limit > 0))
+    CONSTRAINT chat_model_configs_context_limit_check CHECK ((context_limit > 0)),
+    CONSTRAINT chat_model_configs_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
+    CONSTRAINT chat_model_configs_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
 
 CREATE SEQUENCE chat_queued_messages_position_seq
@@ -4296,6 +4374,9 @@ ALTER TABLE ONLY chat_heartbeats
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_model_config_org_default_inheritance
+    ADD CONSTRAINT chat_model_config_org_default_inheritance_pkey PRIMARY KEY (organization_id);
+
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_pkey PRIMARY KEY (id);
 
@@ -4774,7 +4855,13 @@ CREATE INDEX idx_chat_model_configs_ai_provider_id ON chat_model_configs USING b
 
 CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs USING btree (enabled);
 
-CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs USING btree ((1)) WHERE ((is_default = true) AND (deleted = false));
+CREATE INDEX idx_chat_model_configs_organization_id ON chat_model_configs USING btree (organization_id) WHERE (organization_id IS NOT NULL);
+
+CREATE UNIQUE INDEX idx_chat_model_configs_organization_legacy_model_config ON chat_model_configs USING btree (organization_id, legacy_model_config_id) WHERE ((organization_id IS NOT NULL) AND (legacy_model_config_id IS NOT NULL));
+
+CREATE UNIQUE INDEX idx_chat_model_configs_single_global_default ON chat_model_configs USING btree ((1)) WHERE ((organization_id IS NULL) AND (is_default = true) AND (deleted = false));
+
+CREATE UNIQUE INDEX idx_chat_model_configs_single_organization_default ON chat_model_configs USING btree (organization_id) WHERE ((organization_id IS NOT NULL) AND (is_default = true) AND (deleted = false));
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 
@@ -5022,6 +5109,8 @@ CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_message
 
 CREATE TRIGGER protect_deleting_organizations BEFORE UPDATE ON organizations FOR EACH ROW WHEN (((new.deleted = true) AND (old.deleted = false))) EXECUTE FUNCTION protect_deleting_organizations();
 
+CREATE TRIGGER provision_chat_model_configs_after_organization_insert AFTER INSERT ON organizations FOR EACH ROW EXECUTE FUNCTION provision_chat_model_configs_for_organization();
+
 CREATE TRIGGER remove_chat_mcp_server_config_id BEFORE DELETE ON mcp_server_configs FOR EACH ROW EXECUTE FUNCTION remove_mcp_server_config_id_from_chats();
 
 COMMENT ON TRIGGER remove_chat_mcp_server_config_id ON mcp_server_configs IS 'When an MCP server config is deleted, this trigger removes its ID from all chats.';
@@ -5146,11 +5235,17 @@ ALTER TABLE ONLY chat_messages
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_model_config_id_fkey FOREIGN KEY (model_config_id) REFERENCES chat_model_configs(id);
 
+ALTER TABLE ONLY chat_model_config_org_default_inheritance
+    ADD CONSTRAINT chat_model_config_org_default_inheritance_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_ai_provider_id_fkey FOREIGN KEY (ai_provider_id) REFERENCES ai_providers(id);
 
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
+
+ALTER TABLE ONLY chat_model_configs
+    ADD CONSTRAINT chat_model_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);

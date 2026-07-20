@@ -5,6 +5,7 @@ FROM
     chat_model_configs
 WHERE
     id = @id::uuid
+    AND organization_id IS NULL
     AND deleted = FALSE;
 
 -- name: GetDefaultChatModelConfig :one
@@ -13,7 +14,8 @@ SELECT
 FROM
     chat_model_configs
 WHERE
-    is_default = TRUE
+    organization_id IS NULL
+    AND is_default = TRUE
     AND deleted = FALSE;
 
 -- name: GetChatModelConfigs :many
@@ -24,7 +26,8 @@ FROM
 LEFT JOIN
     ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
-    cmc.deleted = FALSE
+    cmc.organization_id IS NULL
+    AND cmc.deleted = FALSE
 ORDER BY
     ap.type::text ASC,
     cmc.model ASC,
@@ -40,7 +43,8 @@ FROM
 JOIN
     ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
-    cmc.enabled = TRUE
+    cmc.organization_id IS NULL
+    AND cmc.enabled = TRUE
     AND cmc.deleted = FALSE
     AND ap.enabled = TRUE
     AND ap.deleted = FALSE
@@ -61,6 +65,7 @@ JOIN
     ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
     cmc.id = @id::uuid
+    AND cmc.organization_id IS NULL
     AND cmc.deleted = FALSE
     AND cmc.enabled = TRUE
     AND ap.enabled = TRUE
@@ -109,6 +114,7 @@ SET
     updated_at = NOW()
 WHERE
     id = @id::uuid
+    AND organization_id IS NULL
     AND deleted = FALSE
 RETURNING
     *;
@@ -120,7 +126,8 @@ SET
     is_default = FALSE,
     updated_at = NOW()
 WHERE
-    is_default = TRUE
+    organization_id IS NULL
+    AND is_default = TRUE
     AND deleted = FALSE;
 
 -- name: DeleteChatModelConfigByID :exec
@@ -131,7 +138,8 @@ SET
     deleted_at = NOW(),
     updated_at = NOW()
 WHERE
-    id = @id::uuid;
+    id = @id::uuid
+    AND organization_id IS NULL;
 
 -- name: DeleteChatModelConfigsByAIProviderID :exec
 UPDATE
@@ -142,4 +150,5 @@ SET
     updated_at = NOW()
 WHERE
     ai_provider_id = @ai_provider_id::uuid
+    AND organization_id IS NULL
     AND deleted = FALSE;

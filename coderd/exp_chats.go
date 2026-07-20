@@ -7258,7 +7258,7 @@ func validateChatModelConfigProviderModel(aiProvider database.AIProvider, model 
 // lock serializing chat model config writes. All writes to the table must go
 // through this helper so concurrent writers cannot act on stale reads, e.g.
 // two creates on an empty deployment both self-promoting to default and
-// violating the idx_chat_model_configs_single_default unique index.
+// violating the idx_chat_model_configs_single_global_default unique index.
 func (api *API) inChatModelConfigWriteTx(ctx context.Context, fn func(tx database.Store) error) error {
 	return api.Database.InTx(func(tx database.Store) error {
 		if err := tx.AcquireLock(ctx, database.LockIDChatModelConfigWrites); err != nil {
