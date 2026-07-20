@@ -22,8 +22,8 @@ type chatClient interface {
 var _ chatClient = (*codersdk.ExperimentalClient)(nil)
 
 type chatModelConfigClient interface {
-	ListChatModelConfigs(ctx context.Context) ([]codersdk.ChatModelConfig, error)
-	CreateChatModelConfig(ctx context.Context, req codersdk.CreateChatModelConfigRequest) (codersdk.ChatModelConfig, error)
+	ListChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]codersdk.ChatModelConfig, error)
+	CreateChatModelConfig(ctx context.Context, organizationID uuid.UUID, req codersdk.CreateChatModelConfigRequest) (codersdk.ChatModelConfig, error)
 }
 
 var _ chatModelConfigClient = (*codersdk.ExperimentalClient)(nil)

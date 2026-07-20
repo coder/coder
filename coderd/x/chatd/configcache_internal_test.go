@@ -25,11 +25,14 @@ import (
 type stubChatConfigStore struct {
 	database.Store
 
-	getAIProviders            func(context.Context) ([]database.AIProvider, error)
-	getChatModelConfigByID    func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
-	getDefaultChatModelConfig func(context.Context) (database.ChatModelConfig, error)
-	getUserChatCustomPrompt   func(context.Context, uuid.UUID) (string, error)
-	getChatAdvisorConfig      func(context.Context) (string, error)
+	getAIProviders                        func(context.Context) ([]database.AIProvider, error)
+	getChatModelConfigByID                func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
+	getChatModelConfigByIDForOrganization func(context.Context, uuid.UUID, uuid.UUID) (database.ChatModelConfig, error)
+	getDefaultChatModelConfig             func(context.Context) (database.ChatModelConfig, error)
+	getDefaultModelConfigForOrganization  func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
+	getUserChatCustomPrompt               func(context.Context, uuid.UUID) (string, error)
+	getChatAdvisorConfig                  func(context.Context) (string, error)
+	getChatAdvisorConfigForOrganization   func(context.Context, uuid.UUID) (string, error)
 
 	enabledProvidersCalls  atomic.Int32
 	modelConfigByIDCalls   atomic.Int32
@@ -46,20 +49,45 @@ func (s *stubChatConfigStore) GetAIProviders(ctx context.Context, _ database.Get
 	return s.getAIProviders(ctx)
 }
 
-func (s *stubChatConfigStore) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
+func (s *stubChatConfigStore) GetChatModelConfigByIDForOrganization(ctx context.Context, organizationID, id uuid.UUID) (database.ChatModelConfig, error) {
 	s.modelConfigByIDCalls.Add(1)
+	if s.getChatModelConfigByIDForOrganization != nil {
+		return s.getChatModelConfigByIDForOrganization(ctx, organizationID, id)
+	}
 	if s.getChatModelConfigByID == nil {
-		panic("unexpected GetChatModelConfigByID call")
+		panic("unexpected GetChatModelConfigByIDForOrganization call")
 	}
 	return s.getChatModelConfigByID(ctx, id)
 }
 
-func (s *stubChatConfigStore) GetDefaultChatModelConfig(ctx context.Context) (database.ChatModelConfig, error) {
+func (s *stubChatConfigStore) GetDefaultChatModelConfigForOrganization(ctx context.Context, organizationID uuid.UUID) (database.ChatModelConfig, error) {
 	s.defaultModelConfigCall.Add(1)
+	if s.getDefaultModelConfigForOrganization != nil {
+		return s.getDefaultModelConfigForOrganization(ctx, organizationID)
+	}
 	if s.getDefaultChatModelConfig == nil {
-		panic("unexpected GetDefaultChatModelConfig call")
+		panic("unexpected GetDefaultChatModelConfigForOrganization call")
 	}
 	return s.getDefaultChatModelConfig(ctx)
+}
+
+func (s *stubChatConfigStore) GetChatAdvisorConfigForOrganization(ctx context.Context, organizationID uuid.UUID) (string, error) {
+	s.advisorConfigCalls.Add(1)
+	if s.getChatAdvisorConfigForOrganization != nil {
+		return s.getChatAdvisorConfigForOrganization(ctx, organizationID)
+	}
+	if s.getChatAdvisorConfig == nil {
+		panic("unexpected GetChatAdvisorConfigForOrganization call")
+	}
+	return s.getChatAdvisorConfig(ctx)
+}
+
+func (s *stubChatConfigStore) GetChatModelConfigByID(ctx context.Context, arg database.GetChatModelConfigByIDParams) (database.ChatModelConfig, error) {
+	return s.GetChatModelConfigByIDForOrganization(ctx, arg.OrganizationID, arg.ID)
+}
+
+func (s *stubChatConfigStore) GetDefaultChatModelConfig(ctx context.Context, organizationID uuid.UUID) (database.ChatModelConfig, error) {
+	return s.GetDefaultChatModelConfigForOrganization(ctx, organizationID)
 }
 
 func (s *stubChatConfigStore) GetUserChatCustomPrompt(ctx context.Context, userID uuid.UUID) (string, error) {
@@ -70,13 +98,7 @@ func (s *stubChatConfigStore) GetUserChatCustomPrompt(ctx context.Context, userI
 	return s.getUserChatCustomPrompt(ctx, userID)
 }
 
-func (s *stubChatConfigStore) GetChatAdvisorConfig(ctx context.Context) (string, error) {
-	s.advisorConfigCalls.Add(1)
-	if s.getChatAdvisorConfig == nil {
-		panic("unexpected GetChatAdvisorConfig call")
-	}
-	return s.getChatAdvisorConfig(ctx)
-}
+var cacheTestOrganizationID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
 
 func TestConfigCache_EnabledProviders_CacheHit(t *testing.T) {
 	t.Parallel()
@@ -159,9 +181,9 @@ func TestConfigCache_ModelConfigByID_CacheHit(t *testing.T) {
 	}
 	cache := newChatConfigCache(ctx, store, clock)
 
-	first, err := cache.ModelConfigByID(ctx, configID)
+	first, err := cache.ModelConfigByID(ctx, cacheTestOrganizationID, configID)
 	require.NoError(t, err)
-	second, err := cache.ModelConfigByID(ctx, configID)
+	second, err := cache.ModelConfigByID(ctx, cacheTestOrganizationID, configID)
 	require.NoError(t, err)
 
 	require.Equal(t, config, first)
@@ -186,18 +208,18 @@ func TestConfigCache_ModelConfigByID_ClonesOptionsForCache(t *testing.T) {
 	cache := newChatConfigCache(ctx, store, clock)
 
 	// First call populates cache via singleflight.
-	first, err := cache.ModelConfigByID(ctx, configID)
+	first, err := cache.ModelConfigByID(ctx, cacheTestOrganizationID, configID)
 	require.NoError(t, err)
 	first.Options[0] = 'x' // mutate singleflight return
 
 	// Second call is a cache hit.
-	second, err := cache.ModelConfigByID(ctx, configID)
+	second, err := cache.ModelConfigByID(ctx, cacheTestOrganizationID, configID)
 	require.NoError(t, err)
 	require.Equal(t, options, string(second.Options))
 	second.Options[0] = 'y' // mutate cache-hit return
 
 	// Third call is another cache hit — must be unaffected.
-	third, err := cache.ModelConfigByID(ctx, configID)
+	third, err := cache.ModelConfigByID(ctx, cacheTestOrganizationID, configID)
 	require.NoError(t, err)
 	require.Equal(t, options, string(third.Options))
 }
@@ -215,13 +237,13 @@ func TestConfigCache_ModelConfigByID_NotFound(t *testing.T) {
 	}
 	cache := newChatConfigCache(ctx, store, clock)
 
-	_, err := cache.ModelConfigByID(ctx, configID)
+	_, err := cache.ModelConfigByID(ctx, cacheTestOrganizationID, configID)
 	require.ErrorIs(t, err, sql.ErrNoRows)
-	_, err = cache.ModelConfigByID(ctx, configID)
+	_, err = cache.ModelConfigByID(ctx, cacheTestOrganizationID, configID)
 	require.ErrorIs(t, err, sql.ErrNoRows)
 
 	require.Equal(t, int32(2), store.modelConfigByIDCalls.Load())
-	_, ok := cache.modelConfigs[configID]
+	_, ok := cache.modelConfigs[modelConfigCacheKey{organizationID: cacheTestOrganizationID, modelConfigID: configID}]
 	require.False(t, ok)
 }
 
@@ -242,15 +264,16 @@ func TestConfigCache_InvalidateModelConfig_CascadesToDefault(t *testing.T) {
 	}
 	cache := newChatConfigCache(ctx, store, clock)
 
-	_, err := cache.ModelConfigByID(ctx, configID)
+	_, err := cache.ModelConfigByID(ctx, cacheTestOrganizationID, configID)
 	require.NoError(t, err)
-	firstDefault, err := cache.DefaultModelConfig(ctx)
+	firstDefault, err := cache.DefaultModelConfig(ctx, cacheTestOrganizationID)
 	require.NoError(t, err)
 
-	cache.InvalidateModelConfig(configID)
-	require.Nil(t, cache.defaultModelConfig)
+	cache.InvalidateModelConfig(configID, cacheTestOrganizationID)
+	_, ok := cache.defaultModelConfigs[cacheTestOrganizationID]
+	require.False(t, ok)
 
-	secondDefault, err := cache.DefaultModelConfig(ctx)
+	secondDefault, err := cache.DefaultModelConfig(ctx, cacheTestOrganizationID)
 	require.NoError(t, err)
 
 	require.NotEqual(t, firstDefault, secondDefault)
@@ -570,10 +593,10 @@ func TestConfigCache_InvalidateProviders_CascadesToModelConfigs(t *testing.T) {
 	}
 	cache := newChatConfigCache(ctx, store, clock)
 
-	first, err := cache.ModelConfigByID(ctx, configID)
+	first, err := cache.ModelConfigByID(ctx, cacheTestOrganizationID, configID)
 	require.NoError(t, err)
 	cache.InvalidateProviders()
-	second, err := cache.ModelConfigByID(ctx, configID)
+	second, err := cache.ModelConfigByID(ctx, cacheTestOrganizationID, configID)
 	require.NoError(t, err)
 
 	require.NotEqual(t, first, second)
@@ -592,10 +615,10 @@ func TestConfigCache_InvalidateProviders_CascadesToDefaultModelConfig(t *testing
 	}
 	cache := newChatConfigCache(ctx, store, clock)
 
-	first, err := cache.DefaultModelConfig(ctx)
+	first, err := cache.DefaultModelConfig(ctx, cacheTestOrganizationID)
 	require.NoError(t, err)
 	cache.InvalidateProviders()
-	second, err := cache.DefaultModelConfig(ctx)
+	second, err := cache.DefaultModelConfig(ctx, cacheTestOrganizationID)
 	require.NoError(t, err)
 
 	require.NotEqual(t, first, second)
@@ -638,7 +661,7 @@ func TestConfigCache_InvalidateProviders_BlocksStaleInFlightModelConfig(t *testi
 
 	firstResult := make(chan result, 1)
 	go func() {
-		config, err := cache.ModelConfigByID(ctx, configID)
+		config, err := cache.ModelConfigByID(ctx, cacheTestOrganizationID, configID)
 		firstResult <- result{config: config, err: err}
 	}()
 
@@ -647,7 +670,7 @@ func TestConfigCache_InvalidateProviders_BlocksStaleInFlightModelConfig(t *testi
 
 	secondResult := make(chan result, 1)
 	go func() {
-		config, err := cache.ModelConfigByID(ctx, configID)
+		config, err := cache.ModelConfigByID(ctx, cacheTestOrganizationID, configID)
 		secondResult <- result{config: config, err: err}
 	}()
 
@@ -656,7 +679,7 @@ func TestConfigCache_InvalidateProviders_BlocksStaleInFlightModelConfig(t *testi
 	first := <-firstResult
 	require.NoError(t, first.err)
 	require.Equal(t, staleConfig, first.config)
-	_, ok := cache.modelConfigs[configID]
+	_, ok := cache.modelConfigs[modelConfigCacheKey{organizationID: cacheTestOrganizationID, modelConfigID: configID}]
 	require.False(t, ok)
 
 	close(releaseSecond)
@@ -665,7 +688,7 @@ func TestConfigCache_InvalidateProviders_BlocksStaleInFlightModelConfig(t *testi
 	require.Equal(t, freshConfig, second.config)
 	require.Equal(t, int32(2), store.modelConfigByIDCalls.Load())
 
-	third, err := cache.ModelConfigByID(ctx, configID)
+	third, err := cache.ModelConfigByID(ctx, cacheTestOrganizationID, configID)
 	require.NoError(t, err)
 	require.Equal(t, freshConfig, third)
 	require.Equal(t, int32(2), store.modelConfigByIDCalls.Load())
@@ -787,7 +810,7 @@ func TestConfigCache_CallerCancellation(t *testing.T) {
 				}
 			},
 			call: func(ctx context.Context, cache *chatConfigCache) error {
-				_, err := cache.ModelConfigByID(ctx, configID)
+				_, err := cache.ModelConfigByID(ctx, cacheTestOrganizationID, configID)
 				return err
 			},
 			storeCalls: func(store *stubChatConfigStore) int32 {
@@ -817,7 +840,7 @@ func TestConfigCache_CallerCancellation(t *testing.T) {
 				}
 			},
 			call: func(ctx context.Context, cache *chatConfigCache) error {
-				_, err := cache.DefaultModelConfig(ctx)
+				_, err := cache.DefaultModelConfig(ctx, cacheTestOrganizationID)
 				return err
 			},
 			storeCalls: func(store *stubChatConfigStore) int32 {
@@ -1002,9 +1025,9 @@ func TestConfigCache_AdvisorConfig_CacheHit(t *testing.T) {
 	}
 	cache := newChatConfigCache(ctx, store, clock)
 
-	first, err := cache.AdvisorConfig(ctx)
+	first, err := cache.AdvisorConfig(ctx, cacheTestOrganizationID)
 	require.NoError(t, err)
-	second, err := cache.AdvisorConfig(ctx)
+	second, err := cache.AdvisorConfig(ctx, cacheTestOrganizationID)
 	require.NoError(t, err)
 
 	require.True(t, first.Enabled)
@@ -1027,10 +1050,10 @@ func TestConfigCache_AdvisorConfig_TTLExpiry(t *testing.T) {
 	}
 	cache := newChatConfigCache(ctx, store, clock)
 
-	first, err := cache.AdvisorConfig(ctx)
+	first, err := cache.AdvisorConfig(ctx, cacheTestOrganizationID)
 	require.NoError(t, err)
 	clock.Advance(chatConfigAdvisorConfigTTL).MustWait(ctx)
-	second, err := cache.AdvisorConfig(ctx)
+	second, err := cache.AdvisorConfig(ctx, cacheTestOrganizationID)
 	require.NoError(t, err)
 
 	require.NotEqual(t, first.MaxUsesPerRun, second.MaxUsesPerRun,
@@ -1051,9 +1074,9 @@ func TestConfigCache_AdvisorConfig_DBErrorNotCached(t *testing.T) {
 	}
 	cache := newChatConfigCache(ctx, store, clock)
 
-	_, err := cache.AdvisorConfig(ctx)
+	_, err := cache.AdvisorConfig(ctx, cacheTestOrganizationID)
 	require.ErrorIs(t, err, expected)
-	_, err = cache.AdvisorConfig(ctx)
+	_, err = cache.AdvisorConfig(ctx, cacheTestOrganizationID)
 	require.ErrorIs(t, err, expected)
 
 	require.Equal(t, int32(2), store.advisorConfigCalls.Load(),
@@ -1072,9 +1095,9 @@ func TestConfigCache_AdvisorConfig_InvalidJSONNotCached(t *testing.T) {
 	}
 	cache := newChatConfigCache(ctx, store, clock)
 
-	_, err := cache.AdvisorConfig(ctx)
+	_, err := cache.AdvisorConfig(ctx, cacheTestOrganizationID)
 	require.Error(t, err, "malformed JSON must surface as an error")
-	_, err = cache.AdvisorConfig(ctx)
+	_, err = cache.AdvisorConfig(ctx, cacheTestOrganizationID)
 	require.Error(t, err)
 
 	require.Equal(t, int32(2), store.advisorConfigCalls.Load(),
@@ -1096,13 +1119,13 @@ func TestConfigCache_AdvisorConfig_EmptyJSONYieldsZeroValue(t *testing.T) {
 	}
 	cache := newChatConfigCache(ctx, store, clock)
 
-	cfg, err := cache.AdvisorConfig(ctx)
+	cfg, err := cache.AdvisorConfig(ctx, cacheTestOrganizationID)
 	require.NoError(t, err)
 	require.Equal(t, codersdk.AdvisorConfig{}, cfg)
 }
 
 // Guards the pubsub-driven invalidation path. Without this, an admin
-// writing PUT /api/experimental/chats/config/advisor could keep every
+// writing an organization advisor configuration could keep every
 // replica serving stale enabled/model/limits for up to
 // chatConfigAdvisorConfigTTL, which defeats the subscriber in chatd.go.
 func TestConfigCache_InvalidateAdvisorConfig(t *testing.T) {
@@ -1117,12 +1140,12 @@ func TestConfigCache_InvalidateAdvisorConfig(t *testing.T) {
 	}
 	cache := newChatConfigCache(ctx, store, clock)
 
-	first, err := cache.AdvisorConfig(ctx)
+	first, err := cache.AdvisorConfig(ctx, cacheTestOrganizationID)
 	require.NoError(t, err)
 
-	cache.InvalidateAdvisorConfig()
+	cache.InvalidateAdvisorConfig(cacheTestOrganizationID)
 
-	second, err := cache.AdvisorConfig(ctx)
+	second, err := cache.AdvisorConfig(ctx, cacheTestOrganizationID)
 	require.NoError(t, err)
 
 	require.NotEqual(t, first.MaxUsesPerRun, second.MaxUsesPerRun,
@@ -1169,16 +1192,16 @@ func TestConfigCache_InvalidateAdvisorConfig_BlocksStaleInFlight(t *testing.T) {
 
 	firstResult := make(chan result, 1)
 	go func() {
-		config, err := cache.AdvisorConfig(ctx)
+		config, err := cache.AdvisorConfig(ctx, cacheTestOrganizationID)
 		firstResult <- result{config: config, err: err}
 	}()
 
 	waitForSignal(t, firstStarted)
-	cache.InvalidateAdvisorConfig()
+	cache.InvalidateAdvisorConfig(cacheTestOrganizationID)
 
 	secondResult := make(chan result, 1)
 	go func() {
-		config, err := cache.AdvisorConfig(ctx)
+		config, err := cache.AdvisorConfig(ctx, cacheTestOrganizationID)
 		secondResult <- result{config: config, err: err}
 	}()
 
@@ -1187,8 +1210,8 @@ func TestConfigCache_InvalidateAdvisorConfig_BlocksStaleInFlight(t *testing.T) {
 	first := <-firstResult
 	require.NoError(t, first.err)
 	require.EqualValues(t, 1, first.config.MaxUsesPerRun)
-	require.Nil(t, cache.advisorConfig,
-		"stale fill must not re-cache after invalidation")
+	_, ok := cache.advisorConfigs[cacheTestOrganizationID]
+	require.False(t, ok, "stale fill must not re-cache after invalidation")
 
 	close(releaseSecond)
 	second := <-secondResult
@@ -1196,7 +1219,7 @@ func TestConfigCache_InvalidateAdvisorConfig_BlocksStaleInFlight(t *testing.T) {
 	require.EqualValues(t, 2, second.config.MaxUsesPerRun)
 	require.Equal(t, int32(2), store.advisorConfigCalls.Load())
 
-	third, err := cache.AdvisorConfig(ctx)
+	third, err := cache.AdvisorConfig(ctx, cacheTestOrganizationID)
 	require.NoError(t, err)
 	require.EqualValues(t, 2, third.MaxUsesPerRun)
 	require.Equal(t, int32(2), store.advisorConfigCalls.Load())
@@ -1216,4 +1239,155 @@ func TestConfigCache_InvalidatesProvidersOnAIProvidersChangedEvent(t *testing.T)
 	require.Eventually(t, func() bool {
 		return server.configCache.providersGeneration() > gen
 	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+func TestConfigCache_DefaultModelConfig_OrganizationIsolation(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	organizationA := uuid.New()
+	organizationB := uuid.New()
+	store := &stubChatConfigStore{
+		getDefaultModelConfigForOrganization: func(_ context.Context, organizationID uuid.UUID) (database.ChatModelConfig, error) {
+			switch organizationID {
+			case organizationA:
+				return testChatModelConfig(uuid.New(), "model-a"), nil
+			case organizationB:
+				return testChatModelConfig(uuid.New(), "model-b"), nil
+			default:
+				return database.ChatModelConfig{}, xerrors.New("unexpected organization")
+			}
+		},
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	firstA, err := cache.DefaultModelConfig(ctx, organizationA)
+	require.NoError(t, err)
+	firstB, err := cache.DefaultModelConfig(ctx, organizationB)
+	require.NoError(t, err)
+	secondA, err := cache.DefaultModelConfig(ctx, organizationA)
+	require.NoError(t, err)
+
+	require.Equal(t, "model-a", firstA.Model)
+	require.Equal(t, "model-b", firstB.Model)
+	require.Equal(t, firstA, secondA)
+	require.Equal(t, int32(2), store.defaultModelConfigCall.Load())
+}
+
+func TestConfigCache_InvalidateModelConfig_ScopesDefaultToOrganization(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	organizationA := uuid.New()
+	organizationB := uuid.New()
+	modelA := testChatModelConfig(uuid.New(), "model-a")
+	modelB := testChatModelConfig(uuid.New(), "model-b")
+	store := &stubChatConfigStore{
+		getDefaultModelConfigForOrganization: func(_ context.Context, organizationID uuid.UUID) (database.ChatModelConfig, error) {
+			if organizationID == organizationA {
+				return modelA, nil
+			}
+			return modelB, nil
+		},
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	_, err := cache.DefaultModelConfig(ctx, organizationA)
+	require.NoError(t, err)
+	_, err = cache.DefaultModelConfig(ctx, organizationB)
+	require.NoError(t, err)
+
+	cache.InvalidateModelConfig(modelA.ID, organizationA)
+
+	_, err = cache.DefaultModelConfig(ctx, organizationA)
+	require.NoError(t, err)
+	_, err = cache.DefaultModelConfig(ctx, organizationB)
+	require.NoError(t, err)
+	require.Equal(t, int32(3), store.defaultModelConfigCall.Load())
+}
+
+func TestConfigCache_DefaultModelConfig_SingleflightDoesNotCrossOrganizations(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	organizationA := uuid.New()
+	organizationB := uuid.New()
+	startedA := make(chan struct{})
+	startedB := make(chan struct{})
+	releaseA := make(chan struct{})
+	releaseB := make(chan struct{})
+	store := &stubChatConfigStore{
+		getDefaultModelConfigForOrganization: func(_ context.Context, organizationID uuid.UUID) (database.ChatModelConfig, error) {
+			switch organizationID {
+			case organizationA:
+				close(startedA)
+				<-releaseA
+				return testChatModelConfig(uuid.New(), "model-a"), nil
+			case organizationB:
+				close(startedB)
+				<-releaseB
+				return testChatModelConfig(uuid.New(), "model-b"), nil
+			default:
+				return database.ChatModelConfig{}, xerrors.New("unexpected organization")
+			}
+		},
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	results := make(chan error, 2)
+	go func() {
+		_, err := cache.DefaultModelConfig(ctx, organizationA)
+		results <- err
+	}()
+	go func() {
+		_, err := cache.DefaultModelConfig(ctx, organizationB)
+		results <- err
+	}()
+	waitForSignal(t, startedA)
+	waitForSignal(t, startedB)
+	close(releaseA)
+	close(releaseB)
+	require.NoError(t, <-results)
+	require.NoError(t, <-results)
+	require.Equal(t, int32(2), store.defaultModelConfigCall.Load())
+}
+
+func TestConfigCache_AdvisorConfig_OrganizationIsolation(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	organizationA := uuid.New()
+	organizationB := uuid.New()
+	store := &stubChatConfigStore{
+		getChatAdvisorConfigForOrganization: func(_ context.Context, organizationID uuid.UUID) (string, error) {
+			switch organizationID {
+			case organizationA:
+				return `{"max_uses_per_run":1}`, nil
+			case organizationB:
+				return `{"max_uses_per_run":2}`, nil
+			default:
+				return "", xerrors.New("unexpected organization")
+			}
+		},
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	configA, err := cache.AdvisorConfig(ctx, organizationA)
+	require.NoError(t, err)
+	configB, err := cache.AdvisorConfig(ctx, organizationB)
+	require.NoError(t, err)
+	cache.InvalidateAdvisorConfig(organizationA)
+	_, err = cache.AdvisorConfig(ctx, organizationA)
+	require.NoError(t, err)
+	cachedB, err := cache.AdvisorConfig(ctx, organizationB)
+	require.NoError(t, err)
+
+	require.EqualValues(t, 1, configA.MaxUsesPerRun)
+	require.EqualValues(t, 2, configB.MaxUsesPerRun)
+	require.Equal(t, configB, cachedB)
+	require.Equal(t, int32(3), store.advisorConfigCalls.Load())
 }

@@ -2317,12 +2317,13 @@ func ConvertChatMessageSummary(dbRow database.GetChatMessageSummariesPerChatRow)
 // telemetry ChatModelConfig.
 func ConvertChatModelConfig(dbRow database.GetChatModelConfigsForTelemetryRow) ChatModelConfig {
 	return ChatModelConfig{
-		ID:           dbRow.ID,
-		Provider:     dbRow.Provider,
-		Model:        dbRow.Model,
-		ContextLimit: dbRow.ContextLimit,
-		Enabled:      dbRow.Enabled,
-		IsDefault:    dbRow.IsDefault,
+		ID:             dbRow.ID,
+		OrganizationID: dbRow.OrganizationID,
+		Provider:       dbRow.Provider,
+		Model:          dbRow.Model,
+		ContextLimit:   dbRow.ContextLimit,
+		Enabled:        dbRow.Enabled,
+		IsDefault:      dbRow.IsDefault,
 	}
 }
 
@@ -2377,11 +2378,16 @@ type AgentsComputerUseTelemetry struct {
 // AgentsAdvisorTelemetry is the value shape for the advisor entry in
 // Deployment.AgentsExperiments.
 type AgentsAdvisorTelemetry struct {
-	Enabled         bool   `json:"enabled"`
-	MaxUsesPerRun   int    `json:"max_uses_per_run"`
-	MaxOutputTokens int64  `json:"max_output_tokens"`
-	Provider        string `json:"provider"`
-	Model           string `json:"model"`
+	Enabled       bool                                 `json:"enabled"`
+	Organizations []AgentsAdvisorOrganizationTelemetry `json:"organizations"`
+}
+
+type AgentsAdvisorOrganizationTelemetry struct {
+	OrganizationID  uuid.UUID `json:"organization_id"`
+	MaxUsesPerRun   int       `json:"max_uses_per_run"`
+	MaxOutputTokens int64     `json:"max_output_tokens"`
+	Provider        string    `json:"provider"`
+	Model           string    `json:"model"`
 }
 
 // CollectAgentsVirtualDesktop collects the virtual_desktop entry in
@@ -2417,20 +2423,30 @@ func CollectAgentsVirtualDesktop(ctx context.Context, opts Options) json.RawMess
 // Deployment.AgentsExperiments.
 func CollectAgentsAdvisor(ctx context.Context, opts Options) json.RawMessage {
 	payload := AgentsAdvisorTelemetry{
-		Enabled:  opts.Experiments.Enabled(codersdk.ExperimentChatAdvisor),
-		Provider: AgentsExperimentUnknown,
-		Model:    AgentsExperimentUnknown,
+		Enabled: opts.Experiments.Enabled(codersdk.ExperimentChatAdvisor),
 	}
-	var cfg codersdk.AdvisorConfig
-	raw, err := opts.Database.GetChatAdvisorConfig(ctx)
+	organizations, err := opts.Database.GetOrganizations(ctx, database.GetOrganizationsParams{})
 	if err != nil {
-		opts.Logger.Warn(ctx, "get chat advisor config for telemetry", slog.Error(err))
-	} else if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
-		opts.Logger.Warn(ctx, "parse chat advisor config for telemetry", slog.Error(err))
-	} else {
-		payload.MaxUsesPerRun = max(cfg.MaxUsesPerRun, 0)
-		payload.MaxOutputTokens = max(cfg.MaxOutputTokens, 0)
-		payload.Provider, payload.Model = advisorModelTelemetry(ctx, opts.Database, opts.Logger, cfg.ModelConfigID)
+		opts.Logger.Warn(ctx, "get organizations for chat advisor telemetry", slog.Error(err))
+	}
+	for _, organization := range organizations {
+		entry := AgentsAdvisorOrganizationTelemetry{
+			OrganizationID: organization.ID,
+			Provider:       AgentsExperimentUnknown,
+			Model:          AgentsExperimentUnknown,
+		}
+		var cfg codersdk.AdvisorConfig
+		raw, err := opts.Database.GetChatAdvisorConfigForOrganization(ctx, organization.ID)
+		if err != nil {
+			opts.Logger.Warn(ctx, "get chat advisor config for telemetry", slog.F("organization_id", organization.ID), slog.Error(err))
+		} else if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+			opts.Logger.Warn(ctx, "parse chat advisor config for telemetry", slog.F("organization_id", organization.ID), slog.Error(err))
+		} else {
+			entry.MaxUsesPerRun = max(cfg.MaxUsesPerRun, 0)
+			entry.MaxOutputTokens = max(cfg.MaxOutputTokens, 0)
+			entry.Provider, entry.Model = advisorModelTelemetry(ctx, opts.Database, opts.Logger, cfg.ModelConfigID)
+		}
+		payload.Organizations = append(payload.Organizations, entry)
 	}
 	val, err := json.Marshal(payload)
 	if err != nil {
@@ -2445,7 +2461,19 @@ func advisorModelTelemetry(ctx context.Context, db database.Store, log slog.Logg
 		return AgentsExperimentAdvisorReuseChatModel, AgentsExperimentAdvisorReuseChatModel
 	}
 
-	cfg, err := db.GetEnabledChatModelConfigByID(ctx, id)
+	modelConfig, err := db.GetChatModelConfigByIDForAuthorization(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return AgentsExperimentAdvisorReuseChatModel, AgentsExperimentAdvisorReuseChatModel
+	}
+	if err != nil {
+		log.Warn(ctx, "resolve chat advisor model config organization for telemetry", slog.Error(err))
+		return AgentsExperimentUnknown, AgentsExperimentUnknown
+	}
+
+	cfg, err := db.GetEnabledChatModelConfigByID(ctx, database.GetEnabledChatModelConfigByIDParams{
+		ID:             id,
+		OrganizationID: modelConfig.OrganizationID,
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		// An inactive override; the runtime falls back to the chat model.
 		return AgentsExperimentAdvisorReuseChatModel, AgentsExperimentAdvisorReuseChatModel
@@ -2611,12 +2639,13 @@ type ChatMessageSummary struct {
 // ChatModelConfig contains model configuration metadata for
 // telemetry. Sensitive fields like API keys are excluded.
 type ChatModelConfig struct {
-	ID           uuid.UUID `json:"id"`
-	Provider     string    `json:"provider"`
-	Model        string    `json:"model"`
-	ContextLimit int64     `json:"context_limit"`
-	Enabled      bool      `json:"enabled"`
-	IsDefault    bool      `json:"is_default"`
+	ID             uuid.UUID `json:"id"`
+	OrganizationID uuid.UUID `json:"organization_id"`
+	Provider       string    `json:"provider"`
+	Model          string    `json:"model"`
+	ContextLimit   int64     `json:"context_limit"`
+	Enabled        bool      `json:"enabled"`
+	IsDefault      bool      `json:"is_default"`
 }
 
 // ChatDiffStatusSummary contains aggregate PR counts across all

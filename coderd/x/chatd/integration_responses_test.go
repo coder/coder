@@ -63,7 +63,7 @@ func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 	})
 
 	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
-	model := insertOpenAIResponsesModelConfig(t, db, user.ID, false, true)
+	model := insertOpenAIResponsesModelConfig(t, db, org.ID, user.ID, false, true)
 	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
@@ -147,8 +147,8 @@ func TestOpenAIResponsesFullReplayPairsReasoningAndWebSearch(t *testing.T) {
 	})
 
 	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
-	firstModel := insertOpenAIResponsesModelConfig(t, db, user.ID, true, true)
-	secondModel := insertOpenAIResponsesModelConfig(t, db, user.ID, true, true)
+	firstModel := insertOpenAIResponsesModelConfig(t, db, org.ID, user.ID, true, true)
+	secondModel := insertOpenAIResponsesModelConfig(t, db, org.ID, user.ID, true, true)
 	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
@@ -242,6 +242,7 @@ func newOpenAIResponsesTestServer(
 func insertOpenAIResponsesModelConfig(
 	t *testing.T,
 	db database.Store,
+	organizationID uuid.UUID,
 	userID uuid.UUID,
 	store bool,
 	webSearchEnabled bool,
@@ -250,6 +251,7 @@ func insertOpenAIResponsesModelConfig(
 	return insertChatModelConfigWithCallConfig(
 		t,
 		db,
+		organizationID,
 		userID,
 		"openai",
 		"gpt-4o",

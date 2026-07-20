@@ -256,7 +256,7 @@ func newRebindFixture(t *testing.T) rebindFixture {
 	agentB := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
 	// A third agent that never pushes a snapshot, for the clear-only re-pin path.
 	agentNoSnap := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
-	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: org.ID})
 
 	fix := rebindFixture{
 		db:          db,

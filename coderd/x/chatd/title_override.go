@@ -40,10 +40,11 @@ func parseModelOverride(raw string) (parsedModelOverride, bool) {
 func readTitleGenerationModelOverride(
 	ctx context.Context,
 	db database.Store,
+	organizationID uuid.UUID,
 ) (string, error) {
 	//nolint:gocritic // Chatd is internal, not a user, so this read uses AsChatd.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	raw, err := db.GetChatTitleGenerationModelOverride(chatdCtx)
+	raw, err := getChatModelOverrideForOrganization(chatdCtx, db, organizationID, titleGenerationOverrideContext)
 	if err != nil {
 		return "", xerrors.Errorf(
 			"get chat title generation model override: %w",
@@ -62,7 +63,7 @@ func (p *Server) resolveTitleGenerationModelOverride(
 	chat database.Chat,
 	modelOpts modelBuildOptions,
 ) (database.ChatModelConfig, fantasy.LanguageModel, aiGatewayModelRoute, bool, error) {
-	raw, err := readTitleGenerationModelOverride(ctx, p.db)
+	raw, err := readTitleGenerationModelOverride(ctx, p.db, chat.OrganizationID)
 	if err != nil {
 		return database.ChatModelConfig{}, nil, aiGatewayModelRoute{}, false, xerrors.Errorf(
 			"read title generation model override: %w",
@@ -75,7 +76,9 @@ func (p *Server) resolveTitleGenerationModelOverride(
 		titleGenerationOverrideContext,
 		raw,
 		chat.OwnerID,
-		p.resolveModelConfigAndNormalizedProvider,
+		func(ctx context.Context, modelConfigID uuid.UUID) (database.ChatModelConfig, string, error) {
+			return p.resolveModelConfigAndNormalizedProvider(ctx, chat.OrganizationID, modelConfigID)
+		},
 		func(ctx context.Context, ownerID uuid.UUID, aiProviderID uuid.UUID) (chatprovider.ProviderAPIKeys, error) {
 			return p.resolveUserProviderAPIKeys(ctx, ownerID, aiProviderID)
 		},

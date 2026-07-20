@@ -874,7 +874,10 @@ func newTaskTestFixture(t *testing.T) *taskTestFixture {
 		DisplayName: "openai",
 		BaseUrl:     "http://example.invalid",
 	})
-	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{IsDefault: true})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		OrganizationID: org.ID,
+		IsDefault:      true,
+	})
 	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
 	return &taskTestFixture{db: db, pubsub: newTaskRecordingPubsub(ps), rawPS: ps, sqlDB: sqlDB, user: user, org: org, model: model, apiKey: apiKey}
 }

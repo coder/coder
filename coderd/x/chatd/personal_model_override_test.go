@@ -11,16 +11,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func TestChatPersonalModelOverrideKey(t *testing.T) {
-	t.Parallel()
-
-	require.Equal(
-		t,
-		"chat_personal_model_override:root",
-		chatd.ChatPersonalModelOverrideKey(codersdk.ChatPersonalModelOverrideContextRoot),
-	)
-}
-
 func TestParseChatPersonalModelOverride(t *testing.T) {
 	t.Parallel()
 

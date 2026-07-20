@@ -377,7 +377,7 @@ func TestPinnedWorkspaceContextFromHydratedPin(t *testing.T) {
 		OperatingSystem: "linux",
 		Directory:       "/home/coder/ws",
 	})
-	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: org.ID})
 
 	hash := []byte{0x01, 0x02, 0x03}
 	seedAgentContext(ctx, t, db, agent.ID, "/home/coder/ws/AGENTS.md", hash,

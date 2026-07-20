@@ -38,7 +38,8 @@ func newTriggerFixture(t *testing.T) *triggerFixture {
 		BaseUrl:     "http://example.invalid",
 	})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		IsDefault: true,
+		OrganizationID: org.ID,
+		IsDefault:      true,
 	})
 	f := &testFixture{
 		DB:     db,
@@ -94,9 +95,9 @@ func TestMessageInsertAssignsRevisionAndHistoryVersion(t *testing.T) {
 	// history_version.
 	content := userMessageContent(t, "hello-after-bump")
 	_, err = tf.sqlDB.ExecContext(ctx, `
-		INSERT INTO chat_messages (chat_id, role, content, content_version, visibility)
-		VALUES ($1, 'assistant', $2::jsonb, $3, 'both')
-	`, created.Chat.ID, string(content), int(chatprompt.CurrentContentVersion))
+		INSERT INTO chat_messages (chat_id, role, content, content_version, visibility, organization_id)
+		VALUES ($1, 'assistant', $2::jsonb, $3, 'both', $4)
+	`, created.Chat.ID, string(content), int(chatprompt.CurrentContentVersion), created.Chat.OrganizationID)
 	require.NoError(t, err)
 
 	// History version equals snapshot_version, generation_attempt resets.
@@ -523,9 +524,9 @@ func TestNonQueueUpdateDoesNotUpdateQueueVersion(t *testing.T) {
 
 	content := userMessageContent(t, "non-queue mutation")
 	_, err = tf.sqlDB.ExecContext(ctx, `
-		INSERT INTO chat_messages (chat_id, role, content, content_version, visibility)
-		VALUES ($1, 'assistant', $2::jsonb, $3, 'both')
-	`, created.Chat.ID, string(content), int(chatprompt.CurrentContentVersion))
+		INSERT INTO chat_messages (chat_id, role, content, content_version, visibility, organization_id)
+		VALUES ($1, 'assistant', $2::jsonb, $3, 'both', $4)
+	`, created.Chat.ID, string(content), int(chatprompt.CurrentContentVersion), created.Chat.OrganizationID)
 	require.NoError(t, err)
 
 	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
@@ -686,9 +687,9 @@ func TestHistoryChangeClearsRetryState(t *testing.T) {
 	require.NoError(t, err)
 	content := userMessageContent(t, "history clears retry state")
 	_, err = tf.sqlDB.ExecContext(ctx, `
-		INSERT INTO chat_messages (chat_id, role, content, content_version, visibility)
-		VALUES ($1, 'assistant', $2::jsonb, $3, 'both')
-	`, created.Chat.ID, string(content), int(chatprompt.CurrentContentVersion))
+		INSERT INTO chat_messages (chat_id, role, content, content_version, visibility, organization_id)
+		VALUES ($1, 'assistant', $2::jsonb, $3, 'both', $4)
+	`, created.Chat.ID, string(content), int(chatprompt.CurrentContentVersion), created.Chat.OrganizationID)
 	require.NoError(t, err)
 
 	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)

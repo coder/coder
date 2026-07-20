@@ -129,19 +129,10 @@ func subagentModelOverrideLogLabel(
 func readSubagentModelOverride(
 	ctx context.Context,
 	db database.Store,
+	organizationID uuid.UUID,
 	overrideContext codersdk.ChatModelOverrideContext,
 ) (string, error) {
-	switch overrideContext {
-	case codersdk.ChatModelOverrideContextGeneral:
-		return db.GetChatGeneralModelOverride(ctx)
-	case codersdk.ChatModelOverrideContextExplore:
-		return db.GetChatExploreModelOverride(ctx)
-	default:
-		return "", xerrors.Errorf(
-			"unsupported subagent model override context %q",
-			overrideContext,
-		)
-	}
+	return getChatModelOverrideForOrganization(ctx, db, organizationID, string(overrideContext))
 }
 
 func personalModelOverrideContextForSubagent(
@@ -291,6 +282,7 @@ func (p *Server) resolveConfiguredModelOverride(
 
 func (p *Server) resolvePersonalSubagentModelConfigID(
 	ctx context.Context,
+	organizationID uuid.UUID,
 	ownerID uuid.UUID,
 	overrideContext codersdk.ChatModelOverrideContext,
 ) (uuid.UUID, *string, bool, error) {
@@ -298,12 +290,12 @@ func (p *Server) resolvePersonalSubagentModelConfigID(
 	if err != nil {
 		return uuid.Nil, nil, false, err
 	}
-	raw, err := p.db.GetUserChatPersonalModelOverride(
+	raw, err := getUserChatPersonalModelOverrideForOrganization(
 		ctx,
-		database.GetUserChatPersonalModelOverrideParams{
-			UserID: ownerID,
-			Key:    ChatPersonalModelOverrideKey(personalContext),
-		},
+		p.db,
+		ownerID,
+		organizationID,
+		personalContext,
 	)
 	if err != nil {
 		if !xerrors.Is(err, sql.ErrNoRows) {
@@ -335,6 +327,7 @@ func (p *Server) resolvePersonalSubagentModelConfigID(
 	case codersdk.ChatPersonalModelOverrideModeModel:
 		modelConfig, ok, err := p.resolvePersonalModelOverride(
 			ctx,
+			organizationID,
 			overrideContext,
 			ownerID,
 			parsed.ModelConfigID,
@@ -359,12 +352,14 @@ func (p *Server) resolvePersonalSubagentModelConfigID(
 
 func (p *Server) resolvePersonalModelOverride(
 	ctx context.Context,
+	organizationID uuid.UUID,
 	overrideContext codersdk.ChatModelOverrideContext,
 	ownerID uuid.UUID,
 	modelConfigID uuid.UUID,
 ) (database.ChatModelConfig, bool, error) {
 	modelConfig, providerName, err := p.resolveModelConfigAndNormalizedProvider(
 		ctx,
+		organizationID,
 		modelConfigID,
 	)
 	if err != nil {
@@ -449,6 +444,7 @@ func withResolvedReasoningEffort(
 
 func (p *Server) resolveSubagentModelConfigID(
 	ctx context.Context,
+	organizationID uuid.UUID,
 	ownerID uuid.UUID,
 	overrideContext codersdk.ChatModelOverrideContext,
 ) (uuid.UUID, *string, error) {
@@ -464,6 +460,7 @@ func (p *Server) resolveSubagentModelConfigID(
 	if personalOverridesEnabled {
 		modelConfigID, reasoningEffort, resolved, err := p.resolvePersonalSubagentModelConfigID(
 			chatdCtx,
+			organizationID,
 			ownerID,
 			overrideContext,
 		)
@@ -475,7 +472,7 @@ func (p *Server) resolveSubagentModelConfigID(
 		}
 	}
 
-	raw, err := readSubagentModelOverride(chatdCtx, p.db, overrideContext)
+	raw, err := readSubagentModelOverride(chatdCtx, p.db, organizationID, overrideContext)
 	if err != nil {
 		return uuid.Nil, nil, xerrors.Errorf(
 			"get %s model override: %w",
@@ -488,7 +485,9 @@ func (p *Server) resolveSubagentModelConfigID(
 		string(overrideContext),
 		raw,
 		ownerID,
-		p.resolveModelConfigAndNormalizedProvider,
+		func(ctx context.Context, modelConfigID uuid.UUID) (database.ChatModelConfig, string, error) {
+			return p.resolveModelConfigAndNormalizedProvider(ctx, organizationID, modelConfigID)
+		},
 		p.resolveUserProviderAPIKeys,
 		modelOverrideFailureModeSoft,
 	)
@@ -510,12 +509,13 @@ func modelConfigAIProviderID(modelConfig database.ChatModelConfig) uuid.UUID {
 
 func (p *Server) resolveModelConfigAndNormalizedProvider(
 	ctx context.Context,
+	organizationID uuid.UUID,
 	modelConfigID uuid.UUID,
 ) (database.ChatModelConfig, string, error) {
 	if modelConfigID == uuid.Nil {
 		return database.ChatModelConfig{}, "", sql.ErrNoRows
 	}
-	modelConfig, err := p.configCache.ModelConfigByID(ctx, modelConfigID)
+	modelConfig, err := p.configCache.ModelConfigByID(ctx, organizationID, modelConfigID)
 	if err != nil {
 		return database.ChatModelConfig{}, "", err
 	}

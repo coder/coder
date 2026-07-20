@@ -722,6 +722,7 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 	webSearchModel := insertChatModelConfigWithCallConfig(
 		t,
 		db,
+		org.ID,
 		user.ID,
 		"openai",
 		"gpt-4o",
@@ -962,6 +963,7 @@ func TestRootExploreChatExcludesWebSearchProviderToolAtRuntime(t *testing.T) {
 	webSearchModel := insertChatModelConfigWithCallConfig(
 		t,
 		db,
+		org.ID,
 		user.ID,
 		"openai",
 		"gpt-4o",
@@ -1979,6 +1981,7 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	modelConfigB := insertChatModelConfigWithCallConfig(
 		t,
 		db,
+		org.ID,
 		user.ID,
 		"openai-compat",
 		"gpt-4o-mini-queue-b-"+uuid.NewString(),
@@ -1987,6 +1990,7 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	modelConfigC := insertChatModelConfigWithCallConfig(
 		t,
 		db,
+		org.ID,
 		user.ID,
 		"openai-compat",
 		"gpt-4o-mini-queue-c-"+uuid.NewString(),
@@ -5976,9 +5980,10 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 	seedOverrideModel := func(ctx context.Context, t *testing.T, db database.Store, chatModel database.ChatModelConfig, modelName, effort string, contextLimit int64) database.ChatModelConfig {
 		t.Helper()
 		overrideModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:        modelName,
-			AIProviderID: chatModel.AIProviderID,
-			ContextLimit: contextLimit,
+			OrganizationID: chatModel.OrganizationID,
+			Model:          modelName,
+			AIProviderID:   chatModel.AIProviderID,
+			ContextLimit:   contextLimit,
 		})
 		overrideModel = updateChatModelCallConfig(t, db, overrideModel, codersdk.ChatModelCallConfig{
 			ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
@@ -5986,7 +5991,10 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 				Max:     &effort,
 			},
 		})
-		require.NoError(t, db.UpsertChatCompactionModelOverride(ctx, overrideModel.ID.String()))
+		require.NoError(t, db.UpsertChatCompactionModelOverrideForOrganization(ctx, database.UpsertChatCompactionModelOverrideForOrganizationParams{
+			OrganizationID: chatModel.OrganizationID,
+			ModelConfigID:  overrideModel.ID.String(),
+		}))
 		return overrideModel
 	}
 
@@ -7745,7 +7753,7 @@ func TestActiveServer_ExclusiveToolPolicy(t *testing.T) {
 			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
 		})
 		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-		seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{Enabled: true, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
+		seedAdvisorConfig(ctx, t, db, org.ID, codersdk.AdvisorConfig{Enabled: true, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
 		ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
 		ctrl := gomock.NewController(t)
@@ -7805,7 +7813,7 @@ func TestActiveServer_ExclusiveToolPolicy(t *testing.T) {
 			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
 		})
 		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-		seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{Enabled: true, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
+		seedAdvisorConfig(ctx, t, db, org.ID, codersdk.AdvisorConfig{Enabled: true, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
 		dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
 			Name:        "mcp_tool",
 			Description: "dynamic test tool",
@@ -7862,7 +7870,7 @@ func TestActiveServer_ExclusiveToolPolicy(t *testing.T) {
 			}
 		})
 		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-		seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{Enabled: true, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
+		seedAdvisorConfig(ctx, t, db, org.ID, codersdk.AdvisorConfig{Enabled: true, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 		})
@@ -7907,7 +7915,7 @@ func TestActiveServer_ExclusiveToolPolicy(t *testing.T) {
 				OpenAI: &codersdk.ChatModelOpenAIProviderOptions{WebSearchEnabled: &webSearchEnabled},
 			},
 		})
-		seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{Enabled: true, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
+		seedAdvisorConfig(ctx, t, db, org.ID, codersdk.AdvisorConfig{Enabled: true, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 		})
@@ -8286,6 +8294,7 @@ func updateChatModelCompressionThreshold(t *testing.T, db database.Store, model 
 	model.CompressionThreshold = threshold
 	updated, err := db.UpdateChatModelConfig(context.Background(), database.UpdateChatModelConfigParams{
 		ID:                   model.ID,
+		OrganizationID:       model.OrganizationID,
 		DisplayName:          model.DisplayName,
 		Model:                model.Model,
 		Enabled:              model.Enabled,
@@ -8302,6 +8311,7 @@ func updateChatModelContextLimit(t *testing.T, db database.Store, model database
 	t.Helper()
 	updated, err := db.UpdateChatModelConfig(context.Background(), database.UpdateChatModelConfigParams{
 		ID:                   model.ID,
+		OrganizationID:       model.OrganizationID,
 		DisplayName:          model.DisplayName,
 		Model:                model.Model,
 		Enabled:              model.Enabled,
@@ -8320,6 +8330,7 @@ func updateChatModelCallConfig(t *testing.T, db database.Store, model database.C
 	require.NoError(t, err)
 	updated, err := db.UpdateChatModelConfig(context.Background(), database.UpdateChatModelConfigParams{
 		ID:                   model.ID,
+		OrganizationID:       model.OrganizationID,
 		DisplayName:          model.DisplayName,
 		Model:                model.Model,
 		Enabled:              model.Enabled,
@@ -8946,8 +8957,9 @@ func seedChatDependenciesWithProvider(
 		BaseUrl:     baseURL,
 	})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		AIProviderID: uuid.NullUUID{UUID: providerConfig.ID, Valid: true},
-		IsDefault:    true,
+		OrganizationID: org.ID,
+		AIProviderID:   uuid.NullUUID{UUID: providerConfig.ID, Valid: true},
+		IsDefault:      true,
 	})
 	return user, org, model
 }
@@ -8984,8 +8996,9 @@ func seedChatDependenciesWithProviderPolicy(
 	})
 
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		AIProviderID: uuid.NullUUID{UUID: providerConfig.ID, Valid: true},
-		IsDefault:    true,
+		OrganizationID: org.ID,
+		AIProviderID:   uuid.NullUUID{UUID: providerConfig.ID, Valid: true},
+		IsDefault:      true,
 	})
 
 	return user, org, providerConfig, model
@@ -9033,6 +9046,7 @@ func waitForTerminalChat(
 func insertChatModelConfigWithCallConfig(
 	t *testing.T,
 	db database.Store,
+	organizationID uuid.UUID,
 	userID uuid.UUID,
 	provider string,
 	model string,
@@ -9063,12 +9077,13 @@ func insertChatModelConfigWithCallConfig(
 		})
 	}
 	return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		AIProviderID: uuid.NullUUID{UUID: aiProvider.ID, Valid: true},
-		Model:        model,
-		DisplayName:  model,
-		CreatedBy:    uuid.NullUUID{UUID: userID, Valid: true},
-		UpdatedBy:    uuid.NullUUID{UUID: userID, Valid: true},
-		Options:      options,
+		OrganizationID: organizationID,
+		AIProviderID:   uuid.NullUUID{UUID: aiProvider.ID, Valid: true},
+		Model:          model,
+		DisplayName:    model,
+		CreatedBy:      uuid.NullUUID{UUID: userID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: userID, Valid: true},
+		Options:        options,
 	})
 }
 
@@ -10267,9 +10282,10 @@ func seedAIGatewayOpenAITestDependencies(
 		BaseUrl: openAIURL,
 	})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:        "gpt-4o-mini",
-		IsDefault:    true,
-		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
+		Model:          "gpt-4o-mini",
+		IsDefault:      true,
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
 	})
 	_, err := db.UpsertUserAIProviderKey(context.Background(), database.UpsertUserAIProviderKeyParams{
 		ID:           uuid.New(),
@@ -12016,6 +12032,7 @@ func TestEditMessageWithModelConfigOverride(t *testing.T) {
 	modelB := insertChatModelConfigWithCallConfig(
 		t,
 		db,
+		org.ID,
 		user.ID,
 		"openai",
 		"gpt-4o-mini-edit-"+uuid.NewString(),
@@ -12284,7 +12301,7 @@ func TestAdvisorGating_ExperimentDisabled(t *testing.T) {
 	})
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
+	seedAdvisorConfig(ctx, t, db, org.ID, codersdk.AdvisorConfig{
 		Enabled:         true,
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 16384,
@@ -12388,7 +12405,7 @@ func TestAdvisorGating_RootChat(t *testing.T) {
 	})
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
+	seedAdvisorConfig(ctx, t, db, org.ID, codersdk.AdvisorConfig{
 		Enabled:         true,
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 16384,
@@ -12566,7 +12583,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	})
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
+	seedAdvisorConfig(ctx, t, db, org.ID, codersdk.AdvisorConfig{
 		Enabled:         true,
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 16384,
@@ -12746,7 +12763,7 @@ func TestAdvisorGating_ChildChat(t *testing.T) {
 	})
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
+	seedAdvisorConfig(ctx, t, db, org.ID, codersdk.AdvisorConfig{
 		Enabled:         true,
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 16384,
@@ -12841,7 +12858,7 @@ func TestAdvisorGating_PlanMode(t *testing.T) {
 	})
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
+	seedAdvisorConfig(ctx, t, db, org.ID, codersdk.AdvisorConfig{
 		Enabled:         true,
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 16384,
@@ -12924,7 +12941,7 @@ func TestAdvisorGating_ExploreSubagent(t *testing.T) {
 	})
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
+	seedAdvisorConfig(ctx, t, db, org.ID, codersdk.AdvisorConfig{
 		Enabled:         true,
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 16384,
@@ -13025,16 +13042,18 @@ func TestProviderSwitchSanitizesAndRestoresPEToolHistory(t *testing.T) {
 	})
 
 	mA := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:        "gpt-4o-mini",
-		DisplayName:  "Model A",
-		Enabled:      true,
-		AIProviderID: uuid.NullUUID{UUID: cpA.ID, Valid: true},
+		OrganizationID: org.ID,
+		Model:          "gpt-4o-mini",
+		DisplayName:    "Model A",
+		Enabled:        true,
+		AIProviderID:   uuid.NullUUID{UUID: cpA.ID, Valid: true},
 	})
 	mB := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:        "gpt-4o-mini",
-		DisplayName:  "Model B",
-		Enabled:      true,
-		AIProviderID: uuid.NullUUID{UUID: cpB.ID, Valid: true},
+		OrganizationID: org.ID,
+		Model:          "gpt-4o-mini",
+		DisplayName:    "Model B",
+		Enabled:        true,
+		AIProviderID:   uuid.NullUUID{UUID: cpB.ID, Valid: true},
 	})
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
@@ -13156,15 +13175,19 @@ func seedAdvisorConfig(
 	ctx context.Context,
 	t *testing.T,
 	db database.Store,
+	organizationID uuid.UUID,
 	cfg codersdk.AdvisorConfig,
 ) {
 	t.Helper()
 
 	data, err := json.Marshal(cfg)
 	require.NoError(t, err)
-	err = db.UpsertChatAdvisorConfig(
+	err = db.UpsertChatAdvisorConfigForOrganization(
 		dbauthz.AsSystemRestricted(ctx),
-		string(data),
+		database.UpsertChatAdvisorConfigForOrganizationParams{
+			OrganizationID: organizationID,
+			AdvisorConfig:  string(data),
+		},
 	)
 	require.NoError(t, err)
 }

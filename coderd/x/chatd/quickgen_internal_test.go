@@ -545,7 +545,8 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model: "test-model",
+		OrganizationID: org.ID,
+		Model:          "test-model",
 	})
 
 	userPrompt := "summarize failed workspace build logs"
@@ -642,7 +643,7 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 	}
 
 	db := dbmock.NewMockStore(gomock.NewController(t))
-	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
+	db.EXPECT().GetChatTitleGenerationModelOverrideForOrganization(gomock.Any(), chat.OrganizationID).Return("", nil)
 	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
 		ID:    chat.ID,
 		Title: "Reasoning title",
