@@ -3984,6 +3984,7 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Success 200 {object} codersdk.Chat
 // @Router /api/experimental/chats/{chat}/compact [post]
+// @x-apidocgen {"skip": true}
 // @Description Experimental: this endpoint is subject to change.
 // @Description Requests a manual context compaction on an idle chat. The
 // @Description compaction runs asynchronously through the chat worker and
