@@ -79,7 +79,9 @@ If AI Gateway Proxy is enabled and should forward intercepted requests to
 this standalone Gateway instead of the embedded one, point coderd at the
 Gateway Service created by this chart. The exact target, including the scheme
 selected by `aigateway.listenerTLS`, is shown after installation and can be
-retrieved with `helm get notes ai-gateway`.
+retrieved with `helm get notes ai-gateway --namespace <release-namespace>`.
+When listener TLS uses a private CA, the AI Gateway Proxy must trust that CA to
+forward requests to the Service over HTTPS.
 
 When `service.enable` is false, configure `CODER_AI_GATEWAY_PROXY_TARGET` with
 the URL of your user-managed route to the deployment.
@@ -155,7 +157,8 @@ your monitoring stack or `extraTemplates`.
 1. Create a new AI Gateway key in Coder.
 2. Update the Kubernetes Secret.
 3. Restart the Deployment, for example with
-   `kubectl rollout restart deployment/coder-ai-gateway`.
+   `kubectl rollout restart deployment/coder-ai-gateway \
+     --namespace <release-namespace>`.
 4. Verify every replica is ready and serving with the new key.
 5. Revoke the old key.
 

@@ -39,6 +39,7 @@ var testCases = []testCase{
 	{name: "ingress_without_service", expectedError: "service.enable must be true when ingress.enable is true."},
 	{name: "ingress_without_host", expectedError: "ingress.host is required when ingress.enable is true."},
 	{name: "httproute_without_service", expectedError: "service.enable must be true when httproute.enable is true."},
+	{name: "httproute_without_parent_refs", expectedError: "httproute.parentRefs is required when httproute.enable is true.", apiVersions: []string{"gateway.networking.k8s.io/v1/HTTPRoute"}},
 	{name: "httproute_without_crd", expectedError: "httproute.enable requires the gateway.networking.k8s.io/v1 HTTPRoute CRD."},
 	{name: "nodeport_with_clusterip", expectedError: "service.nodePort requires service.type to be NodePort or LoadBalancer."},
 	{name: "owned_env", expectedError: "coder.env cannot override chart-owned variable CODER_URL."},

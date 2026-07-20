@@ -72,6 +72,9 @@ message is asserted verbatim in tests/chart_test.go.
 {{- if and .Values.httproute.enable (not .Values.service.enable) }}
 {{- fail "service.enable must be true when httproute.enable is true." }}
 {{- end }}
+{{- if and .Values.httproute.enable (empty .Values.httproute.parentRefs) }}
+{{- fail "httproute.parentRefs is required when httproute.enable is true." }}
+{{- end }}
 {{- $listener := .Values.aigateway.listenerTLS }}
 {{- if and $listener.name (or (not $listener.certKey) (not $listener.keyKey)) }}
 {{- fail "aigateway.listenerTLS.certKey and keyKey are required when name is set." }}
