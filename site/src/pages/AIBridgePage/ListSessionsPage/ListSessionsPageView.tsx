@@ -86,9 +86,6 @@ export const ListSessionsPageView: FC<ListSessionsPageViewProps> = ({
 							<TableHead className="text-nowrap">Provider</TableHead>
 							<TableHead className="text-nowrap">Client</TableHead>
 							<TableHead className="text-nowrap">In/Out Tokens</TableHead>
-							<TableHead className="w-40">
-								Total/blocked network calls
-							</TableHead>
 							<TableHead className="flex items-center flex-nowrap gap-1">
 								Threads
 								<ThreadTooltip>
