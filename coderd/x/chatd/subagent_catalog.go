@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	spawnAgentToolName = "spawn_agent"
+	spawnAgentToolName         = "spawn_agent"
+	listSubagentModelsToolName = "list_subagent_models"
 
 	subagentTypeGeneral     = "general"
 	subagentTypeExplore     = "explore"
@@ -38,9 +39,11 @@ const (
 )
 
 type spawnAgentArgs struct {
-	Type   string `json:"type"`
-	Prompt string `json:"prompt"`
-	Title  string `json:"title,omitempty"`
+	Type            string `json:"type"`
+	Prompt          string `json:"prompt"`
+	Title           string `json:"title,omitempty"`
+	ModelConfigID   string `json:"model_config_id,omitempty" description:"Optional model config UUID from list_subagent_models. Runs the child on that model instead of the configured default. Not supported for type 'computer_use'."`
+	ReasoningEffort string `json:"reasoning_effort,omitempty" description:"Optional reasoning effort for the child: none, minimal, low, medium, high, xhigh, or max. Clamped to the selected model's supported range. Not supported for type 'computer_use'."`
 }
 
 type subagentDefinition struct {
@@ -301,6 +304,11 @@ func buildSpawnAgentDescription(
 		"subagents modify the same files they will conflict with each other, " +
 		"so ensure parallel subagent tasks are independent. The child agent " +
 		"receives the same workspace tools but cannot spawn its own subagents. " +
+		"You may optionally set model_config_id (a model config UUID from " +
+		listSubagentModelsToolName + ") to run the child on a specific model " +
+		"instead of the configured default, and reasoning_effort to pin the " +
+		"child's reasoning effort; both apply only to type \"" +
+		subagentTypeGeneral + "\" and type \"" + subagentTypeExplore + "\". " +
 		"After spawning, use wait_agent to retrieve the result. Agents persist " +
 		"after completion; reuse an agent via message_agent for follow-up work " +
 		"when it already has relevant context. Spawned agents are your " +
