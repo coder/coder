@@ -727,8 +727,10 @@ func (c *Client) PostOrganizationMember(ctx context.Context, organizationID uuid
 	return member, json.NewDecoder(res.Body).Decode(&member)
 }
 
-// PostOrganizationMembers adds multiple users to an organization in
-// a single batch request.
+// PostOrganizationMembers adds multiple users to an organization in a single
+// batch request. Users that are already members are silently skipped, so the
+// returned slice contains only the members that were newly added and may be
+// shorter than the request (empty when every user was already a member).
 func (c *Client) PostOrganizationMembers(ctx context.Context, organizationID uuid.UUID, req AddOrganizationMembersRequest) ([]OrganizationMember, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/members", organizationID), req)
 	if err != nil {
