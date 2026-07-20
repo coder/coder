@@ -39,8 +39,8 @@ import (
 //
 //	go test ./enterprise/coderd/license/ -bench BenchmarkCountWorkspaceCapableUsers -benchtime 5x -run '^$' -v
 func BenchmarkCountWorkspaceCapableUsers(b *testing.B) {
-	// The gateway-accounts use case: workspace-create flows only through
-	// explicit grants, so capability actually varies between users.
+	// Workspace-create flows only through explicit grants under
+	// MinimumImplicitMember, so capability actually varies between users.
 	rbac.ReloadBuiltinRoles(&rbac.RoleOptions{MinimumImplicitMember: true})
 	b.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
 
