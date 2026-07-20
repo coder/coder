@@ -13,17 +13,19 @@ import {
 	chatDiffContentsKey,
 	chatKey,
 	chatMessagesKey,
-	chatModelConfigs,
 	chatModelsKey,
 	chatPromptsKey,
 	chatsKey,
 	mcpServerConfigsKey,
+	organizationChatModelConfigsKey,
+	organizationChatModelsKey,
 } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import {
+	MockDefaultOrganization,
 	MockGroup,
 	MockOrganizationMember,
 	MockOrganizationMember2,
@@ -80,6 +82,7 @@ const AgentChatPageLayout: FC = () => {
 // Shared mock data
 // ---------------------------------------------------------------------------
 const CHAT_ID = "chat-1";
+const CHAT_ORGANIZATION_ID = "chat-organization-id";
 const MODEL_CONFIG_ID = "model-config-1";
 
 const mockWorkspace: TypesGen.Workspace = {
@@ -133,7 +136,7 @@ const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 ];
 
 const baseChatFields = {
-	organization_id: "test-org-id",
+	organization_id: CHAT_ORGANIZATION_ID,
 	owner_id: MockUserOwner.id,
 	owner_username: MockUserOwner.username,
 	owner_name: MockUserOwner.name,
@@ -232,7 +235,7 @@ const buildChatAuthorizationQuery = (
 const buildQueries = (
 	chat: TypesGen.Chat,
 	messagesData: TypesGen.ChatMessagesResponse,
-	opts?: { diffUrl?: string },
+	opts?: { diffUrl?: string; seedModelDiscovery?: boolean },
 ) => {
 	const diffStatus: TypesGen.ChatDiffStatus = {
 		chat_id: CHAT_ID,
@@ -273,8 +276,18 @@ const buildQueries = (
 			key: workspaceByIdKey(mockWorkspace.id),
 			data: mockWorkspace,
 		},
-		{ key: chatModelsKey, data: mockModelCatalog },
-		{ key: chatModelConfigs().queryKey, data: mockModelConfigs },
+		...(opts?.seedModelDiscovery === false
+			? []
+			: [
+					{
+						key: organizationChatModelsKey(chat.organization_id),
+						data: mockModelCatalog,
+					},
+					{
+						key: organizationChatModelConfigsKey(chat.organization_id),
+						data: mockModelConfigs,
+					},
+				]),
 		{ key: mcpServerConfigsKey, data: [] },
 		buildChatAuthorizationQuery(chat, {
 			canShareChat: {
@@ -1301,6 +1314,74 @@ export const RootChatShareActionAvailable: Story = {
 		await waitFor(() => {
 			expect(body.getByText("No shared members or groups yet")).toBeVisible();
 		});
+	},
+};
+
+/** A loaded chat discovers models from its own non-default organization. */
+export const NonDefaultOrganizationModelDiscovery: Story = {
+	parameters: {
+		organizations: [
+			MockDefaultOrganization,
+			{
+				...MockDefaultOrganization,
+				id: CHAT_ORGANIZATION_ID,
+				name: "chat-organization",
+				display_name: "Chat Organization",
+				is_default: false,
+			},
+		],
+		queries: [
+			...buildQueries(
+				{
+					id: CHAT_ID,
+					...baseChatFields,
+					title: "Non-default organization chat",
+					status: "waiting",
+				},
+				{ messages: [], queued_messages: [], has_more: false },
+				{ seedModelDiscovery: false },
+			),
+			{
+				key: chatModelsKey,
+				data: { providers: [], unsupported_providers: [] },
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getOrganizationChatModels").mockResolvedValue(
+			mockModelCatalog,
+		);
+		spyOn(
+			API.experimental,
+			"getOrganizationChatModelConfigs",
+		).mockResolvedValue(mockModelConfigs);
+		spyOn(API.experimental, "getChatModels").mockResolvedValue(
+			mockModelCatalog,
+		);
+		spyOn(API.experimental, "getChatModelConfigs").mockResolvedValue(
+			mockModelConfigs,
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Non-default organization chat");
+
+		await waitFor(() => {
+			expect(API.experimental.getOrganizationChatModels).toHaveBeenCalledWith(
+				CHAT_ORGANIZATION_ID,
+			);
+			expect(
+				API.experimental.getOrganizationChatModelConfigs,
+			).toHaveBeenCalledWith(CHAT_ORGANIZATION_ID);
+		});
+		expect(API.experimental.getOrganizationChatModels).not.toHaveBeenCalledWith(
+			MockDefaultOrganization.id,
+		);
+		expect(
+			API.experimental.getOrganizationChatModelConfigs,
+		).not.toHaveBeenCalledWith(MockDefaultOrganization.id);
+		expect(API.experimental.getChatModels).not.toHaveBeenCalled();
+		expect(API.experimental.getChatModelConfigs).not.toHaveBeenCalled();
 	},
 };
 

@@ -28,14 +28,14 @@ import {
 	chat,
 	chatKey,
 	chatMessagesForInfiniteScroll,
-	chatModelConfigs,
-	chatModels,
 	chatProviderConfigs,
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
 	interruptChat,
 	mcpServerConfigs,
+	organizationChatModelConfigs,
+	organizationChatModels,
 	promoteChatQueuedMessage,
 	updateChatPlanMode,
 	updateChatWorkspace,
@@ -778,8 +778,15 @@ const AgentChatPage: FC = () => {
 	});
 	const workspace = workspaceQuery.data;
 
-	const chatModelsQuery = useQuery(chatModels());
-	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const organizationID = chatQuery.data?.organization_id;
+	const chatModelsQuery = useQuery({
+		...organizationChatModels(organizationID ?? ""),
+		enabled: Boolean(organizationID),
+	});
+	const chatModelConfigsQuery = useQuery({
+		...organizationChatModelConfigs(organizationID ?? ""),
+		enabled: Boolean(organizationID),
+	});
 	const chatProviderConfigsQuery = useQuery({
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
