@@ -73,6 +73,13 @@ export const RBACResourceActions: Partial<
 		share: "share a chat with other users or groups",
 		update: "update chat title or settings",
 	},
+	chat_model_config: {
+		create: "create a chat model configuration",
+		delete: "delete a chat model configuration",
+		read: "read chat model configurations",
+		share: "share a chat model configuration with users or groups",
+		update: "update a chat model configuration",
+	},
 	connection_log: {
 		read: "read connection logs",
 		update: "upsert connection log entries",

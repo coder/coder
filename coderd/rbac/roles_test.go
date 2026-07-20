@@ -718,6 +718,54 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:    "ChatModelConfigRead",
+			Actions: []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceChatModelConfig.WithID(uuid.New()).InOrg(orgID).WithGroupACL(
+				map[string][]policy.Action{
+					orgID.String(): {policy.ActionRead},
+				}),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgMemberMe, orgTemplateAdmin, orgUserAdmin, orgAuditor, agentsAccessUser, orgWorkspaceAccessUser},
+				false: {setOtherOrg, memberMe, userAdmin, templateAdmin},
+			},
+		},
+		{
+			Name:    "ChatModelConfigMutation",
+			Actions: []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete, policy.ActionShare},
+			Resource: rbac.ResourceChatModelConfig.WithID(uuid.New()).InOrg(orgID).WithGroupACL(
+				map[string][]policy.Action{
+					orgID.String(): {policy.ActionRead},
+				}),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin},
+				false: {setOtherOrg, memberMe, agentsAccessUser, orgWorkspaceAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+			},
+		},
+		{
+			Name:    "ChatModelConfigDirectACLRead",
+			Actions: []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceChatModelConfig.WithID(uuid.New()).InOrg(orgID).WithACLUserList(
+				map[string][]policy.Action{
+					currentUser.String(): {policy.ActionRead},
+				}),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgMemberMe, agentsAccessUser, orgWorkspaceAccessUser},
+				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+			},
+		},
+		{
+			Name:    "ChatModelConfigDirectACLNoMutation",
+			Actions: []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete, policy.ActionShare},
+			Resource: rbac.ResourceChatModelConfig.WithID(uuid.New()).InOrg(orgID).WithACLUserList(
+				map[string][]policy.Action{
+					currentUser.String(): {policy.ActionRead},
+				}),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin},
+				false: {setOtherOrg, memberMe, agentsAccessUser, orgWorkspaceAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+			},
+		},
+		{
 			Name:    "Groups",
 			Actions: []policy.Action{policy.ActionCreate, policy.ActionDelete, policy.ActionUpdate},
 			Resource: rbac.ResourceGroup.WithID(groupID).InOrg(orgID).WithGroupACL(map[string][]policy.Action{

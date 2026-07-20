@@ -85,6 +85,14 @@ var chatActions = map[Action]ActionDefinition{
 	ActionShare:  "share a chat with other users or groups",
 }
 
+var chatModelConfigActions = map[Action]ActionDefinition{
+	ActionCreate: "create a chat model configuration",
+	ActionRead:   "read chat model configurations",
+	ActionUpdate: "update a chat model configuration",
+	ActionDelete: "delete a chat model configuration",
+	ActionShare:  "share a chat model configuration with users or groups",
+}
+
 // RBACPermissions is indexed by the type
 var RBACPermissions = map[string]PermissionDefinition{
 	// Wildcard is every object, and the action "*" provides all actions.
@@ -113,6 +121,9 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"chat": {
 		Actions: chatActions,
+	},
+	"chat_model_config": {
+		Actions: chatModelConfigActions,
 	},
 	// Dormant workspaces have the same perms as workspaces.
 	"workspace_dormant": {
