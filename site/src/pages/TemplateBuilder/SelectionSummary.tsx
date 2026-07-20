@@ -182,7 +182,7 @@ const ModuleSelection: React.FC<ModuleSelectionProps> = ({
 						aria-label={`Configure ${module.name}`}
 						className={cn(
 							"flex items-start w-full text-left p-1 mb-1 rounded-sm bg-transparent border-0 cursor-pointer",
-							"text-content-secondary hover:text-content-primary hover:bg-surface-secondary",
+							"text-sm text-content-secondary hover:text-content-primary hover:bg-surface-secondary",
 							"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-primary",
 						)}
 					>
