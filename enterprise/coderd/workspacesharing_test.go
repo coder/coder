@@ -11,10 +11,12 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -582,6 +584,99 @@ func TestWorkspaceSharingDormancySurvivesACL(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = recipientClient.Workspace(ctx, ws.ID)
+	require.NoError(t, err)
+}
+
+// TestWorkspaceSharingPartialCapability verifies that a share to a
+// recipient whose roles carry only some of the granted actions is
+// accepted, and that the entry then has per-action effect: actions the
+// recipient's member-level permissions carry work, the rest are denied
+// at access time.
+//
+// The partial recipient is a regular org member with a custom role that
+// negates workspace update at the member level. Negation is used instead
+// of the MinimumImplicitMember experiment because the experiment's rbac
+// global is reset by concurrently constructed coderd test servers.
+func TestWorkspaceSharingPartialCapability(t *testing.T) {
+	t.Parallel()
+
+	client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		},
+	})
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	wsOwnerClient, wsOwner := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	ws := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:        wsOwner.ID,
+		OrganizationID: owner.OrganizationID,
+	}).Do().Workspace
+
+	recipientClient, recipient := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+	// A member-level negation vetoes the org for that action in the ACL
+	// precondition, so the recipient's capability set is every workspace
+	// action except update. Member-key permissions are only storable on
+	// system roles (dbauthz customRoleCheck), so the ban is inserted as
+	// one, mirroring how workspace capability roles are provisioned.
+	//nolint:gocritic // Inserting the custom role directly requires system access.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	updateBan, err := db.InsertCustomRole(sysCtx, database.InsertCustomRoleParams{
+		Name:           "workspace-update-ban",
+		DisplayName:    "Workspace Update Ban",
+		OrganizationID: uuid.NullUUID{UUID: owner.OrganizationID, Valid: true},
+		IsSystem:       true,
+		MemberPermissions: []database.CustomRolePermission{{
+			Negate:       true,
+			ResourceType: rbac.ResourceWorkspace.Type,
+			Action:       policy.ActionUpdate,
+		}},
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateMemberRoles(sysCtx, database.UpdateMemberRolesParams{
+		GrantedRoles: []string{updateBan.Name},
+		UserID:       recipient.ID,
+		OrgID:        owner.OrganizationID,
+	})
+	require.NoError(t, err)
+
+	// The admin role's action set includes update, which the recipient
+	// cannot receive. The share is still accepted because the remaining
+	// actions are effective.
+	err = wsOwnerClient.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+		UserRoles: map[string]codersdk.WorkspaceRole{
+			recipient.ID.String(): codersdk.WorkspaceRoleAdmin,
+		},
+	})
+	require.NoError(t, err)
+
+	// Granted actions the recipient's roles carry are effective.
+	_, err = recipientClient.Workspace(ctx, ws.ID)
+	require.NoError(t, err)
+	listed, err := recipientClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.True(t, slices.ContainsFunc(listed.Workspaces, func(w codersdk.Workspace) bool {
+		return w.ID == ws.ID
+	}), "shared workspace should appear in the recipient's list")
+
+	// The banned action is denied at access time even though the ACL
+	// entry grants it. Autostart updates are gated on workspace update
+	// alone.
+	err = recipientClient.UpdateWorkspaceAutostart(ctx, ws.ID, codersdk.UpdateWorkspaceAutostartRequest{
+		Schedule: ptr.Ref("CRON_TZ=UTC 30 9 * * 1-5"),
+	})
+	var apiErr *codersdk.Error
+	require.ErrorAs(t, err, &apiErr)
+	require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+
+	// The workspace owner's own update capability is unaffected; the
+	// denial above is the recipient's negation, not an endpoint problem.
+	err = wsOwnerClient.UpdateWorkspaceAutostart(ctx, ws.ID, codersdk.UpdateWorkspaceAutostartRequest{
+		Schedule: ptr.Ref("CRON_TZ=UTC 30 9 * * 1-5"),
+	})
 	require.NoError(t, err)
 }
 
