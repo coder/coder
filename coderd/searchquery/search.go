@@ -174,14 +174,7 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	return filter, parser.Errors
 }
 
-// GroupsParams holds the parsed filters for a groups search query. Groups
-// only support free-text search against name and display name, so the query
-// captures bare terms as Search and rejects any key:value filters.
-type GroupsParams struct {
-	Search string
-}
-
-func Groups(query string) (GroupsParams, []codersdk.ValidationError) {
+func Groups(query string) (string, []codersdk.ValidationError) {
 	// Always lowercase for all searches.
 	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
@@ -189,15 +182,13 @@ func Groups(query string) (GroupsParams, []codersdk.ValidationError) {
 		return nil
 	})
 	if len(errors) > 0 {
-		return GroupsParams{}, errors
+		return "", errors
 	}
 
 	parser := httpapi.NewQueryParamParser()
-	filter := GroupsParams{
-		Search: parser.String(values, "", "search"),
-	}
+	search := parser.String(values, "", "search")
 	parser.ErrorExcessParams(values)
-	return filter, parser.Errors
+	return search, parser.Errors
 }
 
 func Members(query string, organizationID uuid.UUID) (database.OrganizationMembersParams, []codersdk.ValidationError) {
