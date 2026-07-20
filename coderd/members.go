@@ -169,10 +169,7 @@ func (api *API) postOrganizationMembers(rw http.ResponseWriter, r *http.Request)
 			}
 		}
 		if len(oidcUsernames) > 0 {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Organization sync is enabled for OIDC users, meaning manual organization assignment is not allowed for these users. Have the users re-login to refresh their organizations.",
-				Detail:  fmt.Sprintf("Users %v are OIDC users and organization sync is enabled. Ask an administrator to resolve the membership in your external IDP.", oidcUsernames),
-			})
+			httpapi.Write(ctx, rw, http.StatusBadRequest, manualMembershipBlockedResponse(oidcUsernames))
 			return
 		}
 	}
@@ -741,11 +738,26 @@ func convertOrganizationMembersWithUserData(ctx context.Context, db database.Sto
 // since all organization membership is controlled by the external IDP.
 func (api *API) manualOrganizationMembership(ctx context.Context, rw http.ResponseWriter, user database.User) bool {
 	if user.LoginType == database.LoginTypeOIDC && api.IDPSync.OrganizationSyncEnabled(ctx, api.Database) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Organization sync is enabled for OIDC users, meaning manual organization assignment is not allowed for this user. Have the user re-login to refresh their organizations.",
-			Detail:  fmt.Sprintf("User %s is an OIDC user and organization sync is enabled. Ask an administrator to resolve the membership in your external IDP.", user.Username),
-		})
+		httpapi.Write(ctx, rw, http.StatusBadRequest, manualMembershipBlockedResponse([]string{user.Username}))
 		return false
 	}
 	return true
+}
+
+// manualMembershipBlockedResponse builds the error response returned when
+// organization sync is enabled and manual organization membership changes are
+// attempted for OIDC users. usernames must contain at least one entry. Both the
+// single-member and batch handlers route through here so the wording stays in
+// sync; the message is pluralized based on the number of blocked users.
+func manualMembershipBlockedResponse(usernames []string) codersdk.Response {
+	target, who := "this user", "the user"
+	subject := fmt.Sprintf("User %s is an OIDC user", usernames[0])
+	if len(usernames) > 1 {
+		target, who = "these users", "the users"
+		subject = fmt.Sprintf("Users %v are OIDC users", usernames)
+	}
+	return codersdk.Response{
+		Message: fmt.Sprintf("Organization sync is enabled for OIDC users, meaning manual organization assignment is not allowed for %s. Have %s re-login to refresh their organizations.", target, who),
+		Detail:  fmt.Sprintf("%s and organization sync is enabled. Ask an administrator to resolve the membership in your external IDP.", subject),
+	}
 }

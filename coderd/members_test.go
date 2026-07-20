@@ -181,6 +181,29 @@ func TestAddMembers(t *testing.T) {
 		require.Contains(t, ids, user2.ID)
 	})
 
+	t.Run("DuplicateUserIDs", func(t *testing.T) {
+		t.Parallel()
+		owner, db := coderdtest.NewWithDatabase(t, nil)
+		first := coderdtest.CreateFirstUser(t, owner)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		secondOrg := dbgen.Organization(t, db, database.Organization{})
+
+		_, user := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+
+		// The same user ID appears twice in the request. GetUsersByIDs
+		// dedupes on lookup and the batch insert uses ON CONFLICT DO
+		// NOTHING, so the user is added exactly once with no error.
+		// nolint:gocritic // must be an owner to add members
+		members, err := owner.PostOrganizationMembers(ctx, secondOrg.ID, codersdk.AddOrganizationMembersRequest{
+			UserIDs: []uuid.UUID{user.ID, user.ID},
+		})
+		require.NoError(t, err)
+		require.Len(t, members, 1)
+		require.Equal(t, user.ID, members[0].UserID)
+	})
+
 	t.Run("DeletedUser", func(t *testing.T) {
 		t.Parallel()
 		owner, db := coderdtest.NewWithDatabase(t, nil)
