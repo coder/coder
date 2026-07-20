@@ -18,9 +18,11 @@ import (
 // TestBatchAddMembersReadAuthorization verifies that postOrganizationMembers
 // resolves target users in the requester's authorization context, so a caller
 // that can create organization members but cannot read site users is rejected
-// with 403. The read gate is the only thing preventing membership additions for
-// users the caller cannot see, so it must stay covered: switching the handler
-// to AsSystemRestricted would turn this 403 into a success.
+// with 403 at the read gate before any insert. The read gate is tamper-evident:
+// swapping the handler to AsSystemRestricted does not make this succeed, it
+// makes the request fail later at the role-assignment gate (canAssignRoles
+// rejects the custom role's implied organization-member grant, a 500), which
+// the require.Equal(403) assertion still catches as a non-403.
 func TestBatchAddMembersReadAuthorization(t *testing.T) {
 	t.Parallel()
 
