@@ -5472,10 +5472,16 @@ SET
     updated_at = NOW()
 WHERE
     id = $1::uuid
+    AND organization_id = $2::uuid
 `
 
-func (q *sqlQuerier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteChatModelConfigByID, id)
+type DeleteChatModelConfigByIDParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) DeleteChatModelConfigByID(ctx context.Context, arg DeleteChatModelConfigByIDParams) error {
+	_, err := q.db.ExecContext(ctx, deleteChatModelConfigByID, arg.ID, arg.OrganizationID)
 	return err
 }
 
@@ -5496,18 +5502,53 @@ func (q *sqlQuerier) DeleteChatModelConfigsByAIProviderID(ctx context.Context, a
 	return err
 }
 
-const getChatModelConfigByID = `-- name: GetChatModelConfigByID :one
+const getChatModelConfigACLByID = `-- name: GetChatModelConfigACLByID :one
 SELECT
-    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
+    user_acl AS users,
+    group_acl AS groups
 FROM
     chat_model_configs
 WHERE
     id = $1::uuid
+    AND organization_id = $2::uuid
     AND deleted = FALSE
 `
 
-func (q *sqlQuerier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error) {
-	row := q.db.QueryRowContext(ctx, getChatModelConfigByID, id)
+type GetChatModelConfigACLByIDParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+type GetChatModelConfigACLByIDRow struct {
+	Users  TemplateACL `db:"users" json:"users"`
+	Groups TemplateACL `db:"groups" json:"groups"`
+}
+
+func (q *sqlQuerier) GetChatModelConfigACLByID(ctx context.Context, arg GetChatModelConfigACLByIDParams) (GetChatModelConfigACLByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatModelConfigACLByID, arg.ID, arg.OrganizationID)
+	var i GetChatModelConfigACLByIDRow
+	err := row.Scan(&i.Users, &i.Groups)
+	return i, err
+}
+
+const getChatModelConfigByID = `-- name: GetChatModelConfigByID :one
+SELECT
+    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, user_acl, group_acl
+FROM
+    chat_model_configs
+WHERE
+    id = $1::uuid
+    AND organization_id = $2::uuid
+    AND deleted = FALSE
+`
+
+type GetChatModelConfigByIDParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) GetChatModelConfigByID(ctx context.Context, arg GetChatModelConfigByIDParams) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, getChatModelConfigByID, arg.ID, arg.OrganizationID)
 	var i ChatModelConfig
 	err := row.Scan(
 		&i.ID,
@@ -5525,19 +5566,61 @@ func (q *sqlQuerier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (
 		&i.CompressionThreshold,
 		&i.Options,
 		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.UserACL,
+		&i.GroupACL,
+	)
+	return i, err
+}
+
+const getChatModelConfigByIDForAuthorization = `-- name: GetChatModelConfigByIDForAuthorization :one
+SELECT
+    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, user_acl, group_acl
+FROM
+    chat_model_configs
+WHERE
+    id = $1::uuid
+    AND deleted = FALSE
+`
+
+func (q *sqlQuerier) GetChatModelConfigByIDForAuthorization(ctx context.Context, id uuid.UUID) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, getChatModelConfigByIDForAuthorization, id)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Model,
+		&i.DisplayName,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.Enabled,
+		&i.IsDefault,
+		&i.Deleted,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
+		&i.Options,
+		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.UserACL,
+		&i.GroupACL,
 	)
 	return i, err
 }
 
 const getChatModelConfigs = `-- name: GetChatModelConfigs :many
 SELECT
-    cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id
+    cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id, cmc.organization_id, cmc.user_acl, cmc.group_acl
 FROM
     chat_model_configs cmc
 LEFT JOIN
     ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
-    cmc.deleted = FALSE
+    cmc.organization_id = $1::uuid
+    AND cmc.deleted = FALSE
+    -- Authorize Filter clause will be injected below in GetAuthorizedChatModelConfigs
+    -- @authorize_filter
 ORDER BY
     ap.type::text ASC,
     cmc.model ASC,
@@ -5545,8 +5628,8 @@ ORDER BY
     cmc.id DESC
 `
 
-func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
-	rows, err := q.db.QueryContext(ctx, getChatModelConfigs)
+func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]ChatModelConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getChatModelConfigs, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -5570,6 +5653,61 @@ func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig
 			&i.CompressionThreshold,
 			&i.Options,
 			&i.AIProviderID,
+			&i.OrganizationID,
+			&i.UserACL,
+			&i.GroupACL,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatModelConfigsByOrganizationID = `-- name: GetChatModelConfigsByOrganizationID :many
+SELECT
+    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, user_acl, group_acl
+FROM
+    chat_model_configs
+WHERE
+    organization_id = $1::uuid
+    AND deleted = FALSE
+`
+
+func (q *sqlQuerier) GetChatModelConfigsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]ChatModelConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getChatModelConfigsByOrganizationID, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatModelConfig
+	for rows.Next() {
+		var i ChatModelConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.Model,
+			&i.DisplayName,
+			&i.CreatedBy,
+			&i.UpdatedBy,
+			&i.Enabled,
+			&i.IsDefault,
+			&i.Deleted,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ContextLimit,
+			&i.CompressionThreshold,
+			&i.Options,
+			&i.AIProviderID,
+			&i.OrganizationID,
+			&i.UserACL,
+			&i.GroupACL,
 		); err != nil {
 			return nil, err
 		}
@@ -5586,16 +5724,17 @@ func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig
 
 const getDefaultChatModelConfig = `-- name: GetDefaultChatModelConfig :one
 SELECT
-    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
+    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, user_acl, group_acl
 FROM
     chat_model_configs
 WHERE
-    is_default = TRUE
+    organization_id = $1::uuid
+    AND is_default = TRUE
     AND deleted = FALSE
 `
 
-func (q *sqlQuerier) GetDefaultChatModelConfig(ctx context.Context) (ChatModelConfig, error) {
-	row := q.db.QueryRowContext(ctx, getDefaultChatModelConfig)
+func (q *sqlQuerier) GetDefaultChatModelConfig(ctx context.Context, organizationID uuid.UUID) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, getDefaultChatModelConfig, organizationID)
 	var i ChatModelConfig
 	err := row.Scan(
 		&i.ID,
@@ -5613,29 +5752,38 @@ func (q *sqlQuerier) GetDefaultChatModelConfig(ctx context.Context) (ChatModelCo
 		&i.CompressionThreshold,
 		&i.Options,
 		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.UserACL,
+		&i.GroupACL,
 	)
 	return i, err
 }
 
 const getEnabledChatModelConfigByID = `-- name: GetEnabledChatModelConfigByID :one
 SELECT
-    cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id
+    cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id, cmc.organization_id, cmc.user_acl, cmc.group_acl
 FROM
     chat_model_configs cmc
 JOIN
     ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
     cmc.id = $1::uuid
+    AND cmc.organization_id = $2::uuid
     AND cmc.deleted = FALSE
     AND cmc.enabled = TRUE
     AND ap.enabled = TRUE
     AND ap.deleted = FALSE
 `
 
+type GetEnabledChatModelConfigByIDParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
 // Providers can be disabled independently of their model configs.
 // Check both to ensure the selected config is actually usable.
-func (q *sqlQuerier) GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error) {
-	row := q.db.QueryRowContext(ctx, getEnabledChatModelConfigByID, id)
+func (q *sqlQuerier) GetEnabledChatModelConfigByID(ctx context.Context, arg GetEnabledChatModelConfigByIDParams) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, getEnabledChatModelConfigByID, arg.ID, arg.OrganizationID)
 	var i ChatModelConfig
 	err := row.Scan(
 		&i.ID,
@@ -5653,23 +5801,29 @@ func (q *sqlQuerier) GetEnabledChatModelConfigByID(ctx context.Context, id uuid.
 		&i.CompressionThreshold,
 		&i.Options,
 		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.UserACL,
+		&i.GroupACL,
 	)
 	return i, err
 }
 
 const getEnabledChatModelConfigs = `-- name: GetEnabledChatModelConfigs :many
 SELECT
-    cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id,
+    cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id, cmc.organization_id, cmc.user_acl, cmc.group_acl,
     ap.type::text AS provider
 FROM
     chat_model_configs cmc
 JOIN
     ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
-    cmc.enabled = TRUE
+    cmc.organization_id = $1::uuid
+    AND cmc.enabled = TRUE
     AND cmc.deleted = FALSE
     AND ap.enabled = TRUE
     AND ap.deleted = FALSE
+    -- Authorize Filter clause will be injected below in GetAuthorizedEnabledChatModelConfigs
+    -- @authorize_filter
 ORDER BY
     ap.type::text ASC,
     cmc.model ASC,
@@ -5682,8 +5836,8 @@ type GetEnabledChatModelConfigsRow struct {
 	Provider        string          `db:"provider" json:"provider"`
 }
 
-func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context) ([]GetEnabledChatModelConfigsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getEnabledChatModelConfigs)
+func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]GetEnabledChatModelConfigsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getEnabledChatModelConfigs, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -5707,6 +5861,9 @@ func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context) ([]GetEnabl
 			&i.ChatModelConfig.CompressionThreshold,
 			&i.ChatModelConfig.Options,
 			&i.ChatModelConfig.AIProviderID,
+			&i.ChatModelConfig.OrganizationID,
+			&i.ChatModelConfig.UserACL,
+			&i.ChatModelConfig.GroupACL,
 			&i.Provider,
 		); err != nil {
 			return nil, err
@@ -5733,7 +5890,10 @@ INSERT INTO chat_model_configs (
     context_limit,
     compression_threshold,
     options,
-    ai_provider_id
+    ai_provider_id,
+    organization_id,
+    user_acl,
+    group_acl
 ) VALUES (
     $1::text,
     $2::text,
@@ -5744,10 +5904,13 @@ INSERT INTO chat_model_configs (
     $7::bigint,
     $8::integer,
     $9::jsonb,
-    $10::uuid
+    $10::uuid,
+    $11::uuid,
+    $12,
+    $13
 )
 RETURNING
-    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
+    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, user_acl, group_acl
 `
 
 type InsertChatModelConfigParams struct {
@@ -5761,6 +5924,9 @@ type InsertChatModelConfigParams struct {
 	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
 	Options              json.RawMessage `db:"options" json:"options"`
 	AIProviderID         uuid.NullUUID   `db:"ai_provider_id" json:"ai_provider_id"`
+	OrganizationID       uuid.UUID       `db:"organization_id" json:"organization_id"`
+	UserACL              TemplateACL     `db:"user_acl" json:"user_acl"`
+	GroupACL             TemplateACL     `db:"group_acl" json:"group_acl"`
 }
 
 func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error) {
@@ -5775,6 +5941,9 @@ func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatMo
 		arg.CompressionThreshold,
 		arg.Options,
 		arg.AIProviderID,
+		arg.OrganizationID,
+		arg.UserACL,
+		arg.GroupACL,
 	)
 	var i ChatModelConfig
 	err := row.Scan(
@@ -5793,6 +5962,9 @@ func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatMo
 		&i.CompressionThreshold,
 		&i.Options,
 		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.UserACL,
+		&i.GroupACL,
 	)
 	return i, err
 }
@@ -5804,12 +5976,13 @@ SET
     is_default = FALSE,
     updated_at = NOW()
 WHERE
-    is_default = TRUE
+    organization_id = $1::uuid
+    AND is_default = TRUE
     AND deleted = FALSE
 `
 
-func (q *sqlQuerier) UnsetDefaultChatModelConfigs(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, unsetDefaultChatModelConfigs)
+func (q *sqlQuerier) UnsetDefaultChatModelConfigs(ctx context.Context, organizationID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, unsetDefaultChatModelConfigs, organizationID)
 	return err
 }
 
@@ -5829,9 +6002,10 @@ SET
     updated_at = NOW()
 WHERE
     id = $10::uuid
+    AND organization_id = $11::uuid
     AND deleted = FALSE
 RETURNING
-    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
+    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, user_acl, group_acl
 `
 
 type UpdateChatModelConfigParams struct {
@@ -5845,6 +6019,7 @@ type UpdateChatModelConfigParams struct {
 	Options              json.RawMessage `db:"options" json:"options"`
 	AIProviderID         uuid.NullUUID   `db:"ai_provider_id" json:"ai_provider_id"`
 	ID                   uuid.UUID       `db:"id" json:"id"`
+	OrganizationID       uuid.UUID       `db:"organization_id" json:"organization_id"`
 }
 
 func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatModelConfigParams) (ChatModelConfig, error) {
@@ -5859,6 +6034,7 @@ func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatMo
 		arg.Options,
 		arg.AIProviderID,
 		arg.ID,
+		arg.OrganizationID,
 	)
 	var i ChatModelConfig
 	err := row.Scan(
@@ -5877,8 +6053,40 @@ func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatMo
 		&i.CompressionThreshold,
 		&i.Options,
 		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.UserACL,
+		&i.GroupACL,
 	)
 	return i, err
+}
+
+const updateChatModelConfigACLByID = `-- name: UpdateChatModelConfigACLByID :exec
+UPDATE
+    chat_model_configs
+SET
+    user_acl = $1,
+    group_acl = $2
+WHERE
+    id = $3::uuid
+    AND organization_id = $4::uuid
+    AND deleted = FALSE
+`
+
+type UpdateChatModelConfigACLByIDParams struct {
+	UserACL        TemplateACL `db:"user_acl" json:"user_acl"`
+	GroupACL       TemplateACL `db:"group_acl" json:"group_acl"`
+	ID             uuid.UUID   `db:"id" json:"id"`
+	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) UpdateChatModelConfigACLByID(ctx context.Context, arg UpdateChatModelConfigACLByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateChatModelConfigACLByID,
+		arg.UserACL,
+		arg.GroupACL,
+		arg.ID,
+		arg.OrganizationID,
+	)
+	return err
 }
 
 const acquireStaleChatDiffStatuses = `-- name: AcquireStaleChatDiffStatuses :many
@@ -7730,7 +7938,7 @@ func (q *sqlQuerier) GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatP
 
 const getChatMessageByID = `-- name: GetChatMessageByID :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, organization_id
 FROM
     chat_messages
 WHERE
@@ -7766,6 +7974,7 @@ func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMess
 		&i.Revision,
 		&i.ReasoningEffort,
 		&i.SearchTsv,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -7855,7 +8064,7 @@ func (q *sqlQuerier) GetChatMessageSummariesPerChat(ctx context.Context, created
 
 const getChatMessagesByChatID = `-- name: GetChatMessagesByChatID :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, organization_id
 FROM
     chat_messages
 WHERE
@@ -7906,6 +8115,7 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 			&i.Revision,
 			&i.ReasoningEffort,
 			&i.SearchTsv,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -7922,7 +8132,7 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 
 const getChatMessagesByChatIDAscPaginated = `-- name: GetChatMessagesByChatIDAscPaginated :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, organization_id
 FROM
     chat_messages
 WHERE
@@ -7976,6 +8186,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDAscPaginated(ctx context.Context, ar
 			&i.Revision,
 			&i.ReasoningEffort,
 			&i.SearchTsv,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -7992,7 +8203,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDAscPaginated(ctx context.Context, ar
 
 const getChatMessagesByChatIDDescPaginated = `-- name: GetChatMessagesByChatIDDescPaginated :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, organization_id
 FROM
     chat_messages
 WHERE
@@ -8059,6 +8270,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, a
 			&i.Revision,
 			&i.ReasoningEffort,
 			&i.SearchTsv,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -8075,7 +8287,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, a
 
 const getChatMessagesByRevisionForStream = `-- name: GetChatMessagesByRevisionForStream :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, organization_id
 FROM
     chat_messages
 WHERE
@@ -8125,6 +8337,7 @@ func (q *sqlQuerier) GetChatMessagesByRevisionForStream(ctx context.Context, arg
 			&i.Revision,
 			&i.ReasoningEffort,
 			&i.SearchTsv,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -8157,7 +8370,7 @@ WITH latest_compressed_summary AS (
         1
 )
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, organization_id
 FROM
     chat_messages
 WHERE
@@ -8232,6 +8445,7 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 			&i.Revision,
 			&i.ReasoningEffort,
 			&i.SearchTsv,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -8247,19 +8461,20 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 }
 
 const getChatModelConfigsForTelemetry = `-- name: GetChatModelConfigsForTelemetry :many
-SELECT cmc.id, ap.type::text AS provider, cmc.model, cmc.context_limit, cmc.enabled, cmc.is_default
+SELECT cmc.id, cmc.organization_id, ap.type::text AS provider, cmc.model, cmc.context_limit, cmc.enabled, cmc.is_default
 FROM chat_model_configs cmc
 JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE cmc.deleted = false
 `
 
 type GetChatModelConfigsForTelemetryRow struct {
-	ID           uuid.UUID `db:"id" json:"id"`
-	Provider     string    `db:"provider" json:"provider"`
-	Model        string    `db:"model" json:"model"`
-	ContextLimit int64     `db:"context_limit" json:"context_limit"`
-	Enabled      bool      `db:"enabled" json:"enabled"`
-	IsDefault    bool      `db:"is_default" json:"is_default"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Provider       string    `db:"provider" json:"provider"`
+	Model          string    `db:"model" json:"model"`
+	ContextLimit   int64     `db:"context_limit" json:"context_limit"`
+	Enabled        bool      `db:"enabled" json:"enabled"`
+	IsDefault      bool      `db:"is_default" json:"is_default"`
 }
 
 // Returns all model configurations for telemetry snapshot collection.
@@ -8275,6 +8490,7 @@ func (q *sqlQuerier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]Get
 		var i GetChatModelConfigsForTelemetryRow
 		if err := rows.Scan(
 			&i.ID,
+			&i.OrganizationID,
 			&i.Provider,
 			&i.Model,
 			&i.ContextLimit,
@@ -8295,7 +8511,7 @@ func (q *sqlQuerier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]Get
 }
 
 const getChatQueuedMessageByID = `-- name: GetChatQueuedMessageByID :one
-SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, organization_id FROM chat_queued_messages
 WHERE id = $1::bigint AND chat_id = $2::uuid
 `
 
@@ -8316,12 +8532,13 @@ func (q *sqlQuerier) GetChatQueuedMessageByID(ctx context.Context, arg GetChatQu
 		&i.Position,
 		&i.CreatedBy,
 		&i.ReasoningEffort,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const getChatQueuedMessageHead = `-- name: GetChatQueuedMessageHead :one
-SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, organization_id FROM chat_queued_messages
 WHERE chat_id = $1::uuid
 ORDER BY position ASC, id ASC
 LIMIT 1
@@ -8340,12 +8557,13 @@ func (q *sqlQuerier) GetChatQueuedMessageHead(ctx context.Context, chatID uuid.U
 		&i.Position,
 		&i.CreatedBy,
 		&i.ReasoningEffort,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const getChatQueuedMessages = `-- name: GetChatQueuedMessages :many
-SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, organization_id FROM chat_queued_messages
 WHERE chat_id = $1
 ORDER BY created_at ASC, id ASC
 `
@@ -8368,6 +8586,7 @@ func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID
 			&i.Position,
 			&i.CreatedBy,
 			&i.ReasoningEffort,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -8383,7 +8602,7 @@ func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID
 }
 
 const getChatQueuedMessagesByPosition = `-- name: GetChatQueuedMessagesByPosition :many
-SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, organization_id FROM chat_queued_messages
 WHERE chat_id = $1::uuid
 ORDER BY position ASC, id ASC
 `
@@ -8407,6 +8626,7 @@ func (q *sqlQuerier) GetChatQueuedMessagesByPosition(ctx context.Context, chatID
 			&i.Position,
 			&i.CreatedBy,
 			&i.ReasoningEffort,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -9522,7 +9742,7 @@ func (q *sqlQuerier) GetDatabaseNow(ctx context.Context) (time.Time, error) {
 
 const getLastChatMessageByRole = `-- name: GetLastChatMessageByRole :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, organization_id
 FROM
     chat_messages
 WHERE
@@ -9568,6 +9788,7 @@ func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastCh
 		&i.Revision,
 		&i.ReasoningEffort,
 		&i.SearchTsv,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -10079,7 +10300,8 @@ INSERT INTO chat_messages (
     context_limit,
     compressed,
     total_cost_micros,
-    runtime_ms
+    runtime_ms,
+    organization_id
 )
 SELECT
     $1::uuid,
@@ -10099,9 +10321,14 @@ SELECT
     NULLIF(UNNEST($15::bigint[]), 0),
     UNNEST($16::boolean[]),
     NULLIF(UNNEST($17::bigint[]), 0),
-    NULLIF(UNNEST($18::bigint[]), 0)
+    NULLIF(UNNEST($18::bigint[]), 0),
+    (
+        SELECT organization_id
+        FROM chats
+        WHERE id = $1::uuid
+    )
 RETURNING
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, organization_id
 `
 
 type InsertChatMessagesParams struct {
@@ -10178,6 +10405,7 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 			&i.Revision,
 			&i.ReasoningEffort,
 			&i.SearchTsv,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -10193,16 +10421,17 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 }
 
 const insertChatQueuedMessage = `-- name: InsertChatQueuedMessage :one
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by, organization_id)
 SELECT
     $1::uuid,
     $2::jsonb,
     $3::uuid,
     $4::chat_reasoning_effort,
-    chats.owner_id
+    chats.owner_id,
+    chats.organization_id
 FROM chats
 WHERE chats.id = $1::uuid
-RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, organization_id
 `
 
 type InsertChatQueuedMessageParams struct {
@@ -10232,20 +10461,23 @@ func (q *sqlQuerier) InsertChatQueuedMessage(ctx context.Context, arg InsertChat
 		&i.Position,
 		&i.CreatedBy,
 		&i.ReasoningEffort,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const insertChatQueuedMessageWithCreator = `-- name: InsertChatQueuedMessageWithCreator :one
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by)
-VALUES (
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by, organization_id)
+SELECT
     $1::uuid,
     $2::jsonb,
     $3::uuid,
     $4::chat_reasoning_effort,
-    $5::uuid
-)
-RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort
+    $5::uuid,
+    chats.organization_id
+FROM chats
+WHERE chats.id = $1::uuid
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, organization_id
 `
 
 type InsertChatQueuedMessageWithCreatorParams struct {
@@ -10277,6 +10509,7 @@ func (q *sqlQuerier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg
 		&i.Position,
 		&i.CreatedBy,
 		&i.ReasoningEffort,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -10744,7 +10977,7 @@ WHERE id = (
     ORDER BY cqm.created_at ASC, cqm.id ASC
     LIMIT 1
 )
-RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, organization_id
 `
 
 func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error) {
@@ -10759,6 +10992,7 @@ func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID)
 		&i.Position,
 		&i.CreatedBy,
 		&i.ReasoningEffort,
+		&i.OrganizationID,
 	)
 	return i, err
 }
@@ -24635,17 +24869,13 @@ func (q *sqlQuerier) GetApplicationName(ctx context.Context) (string, error) {
 	return value, err
 }
 
-const getChatAdvisorConfig = `-- name: GetChatAdvisorConfig :one
+const getChatAdvisorConfigForOrganization = `-- name: GetChatAdvisorConfigForOrganization :one
 SELECT
-    COALESCE((SELECT value FROM site_configs WHERE key = 'agents_advisor_config'), '{}') :: text AS advisor_config
+    COALESCE((SELECT value FROM site_configs WHERE key = ($1::uuid)::text || ':agents_advisor_config'), '{}') :: text AS advisor_config
 `
 
-// GetChatAdvisorConfig returns the deployment-wide runtime configuration
-// for the experimental chat advisor as a JSON blob. Callers unmarshal the
-// result into codersdk.AdvisorConfig. Returns '{}' when unset so zero
-// values apply by default.
-func (q *sqlQuerier) GetChatAdvisorConfig(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getChatAdvisorConfig)
+func (q *sqlQuerier) GetChatAdvisorConfigForOrganization(ctx context.Context, organizationID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatAdvisorConfigForOrganization, organizationID)
 	var advisor_config string
 	err := row.Scan(&advisor_config)
 	return advisor_config, err
@@ -24667,13 +24897,13 @@ func (q *sqlQuerier) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArch
 	return auto_archive_days, err
 }
 
-const getChatCompactionModelOverride = `-- name: GetChatCompactionModelOverride :one
+const getChatCompactionModelOverrideForOrganization = `-- name: GetChatCompactionModelOverrideForOrganization :one
 SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_compaction_model_override'), '') :: text AS model_config_id
+	COALESCE((SELECT value FROM site_configs WHERE key = ($1::uuid)::text || ':agents_chat_compaction_model_override'), '') :: text AS model_config_id
 `
 
-func (q *sqlQuerier) GetChatCompactionModelOverride(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getChatCompactionModelOverride)
+func (q *sqlQuerier) GetChatCompactionModelOverrideForOrganization(ctx context.Context, organizationID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatCompactionModelOverrideForOrganization, organizationID)
 	var model_config_id string
 	err := row.Scan(&model_config_id)
 	return model_config_id, err
@@ -24734,25 +24964,25 @@ func (q *sqlQuerier) GetChatDesktopEnabled(ctx context.Context) (bool, error) {
 	return enable_desktop, err
 }
 
-const getChatExploreModelOverride = `-- name: GetChatExploreModelOverride :one
+const getChatExploreModelOverrideForOrganization = `-- name: GetChatExploreModelOverrideForOrganization :one
 SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_explore_model_override'), '') :: text AS model_config_id
+	COALESCE((SELECT value FROM site_configs WHERE key = ($1::uuid)::text || ':agents_chat_explore_model_override'), '') :: text AS model_config_id
 `
 
-func (q *sqlQuerier) GetChatExploreModelOverride(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getChatExploreModelOverride)
+func (q *sqlQuerier) GetChatExploreModelOverrideForOrganization(ctx context.Context, organizationID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatExploreModelOverrideForOrganization, organizationID)
 	var model_config_id string
 	err := row.Scan(&model_config_id)
 	return model_config_id, err
 }
 
-const getChatGeneralModelOverride = `-- name: GetChatGeneralModelOverride :one
+const getChatGeneralModelOverrideForOrganization = `-- name: GetChatGeneralModelOverrideForOrganization :one
 SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_general_model_override'), '') :: text AS model_config_id
+	COALESCE((SELECT value FROM site_configs WHERE key = ($1::uuid)::text || ':agents_chat_general_model_override'), '') :: text AS model_config_id
 `
 
-func (q *sqlQuerier) GetChatGeneralModelOverride(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getChatGeneralModelOverride)
+func (q *sqlQuerier) GetChatGeneralModelOverrideForOrganization(ctx context.Context, organizationID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatGeneralModelOverrideForOrganization, organizationID)
 	var model_config_id string
 	err := row.Scan(&model_config_id)
 	return model_config_id, err
@@ -24884,13 +25114,13 @@ func (q *sqlQuerier) GetChatTemplateAllowlist(ctx context.Context) (string, erro
 	return template_allowlist, err
 }
 
-const getChatTitleGenerationModelOverride = `-- name: GetChatTitleGenerationModelOverride :one
+const getChatTitleGenerationModelOverrideForOrganization = `-- name: GetChatTitleGenerationModelOverrideForOrganization :one
 SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_title_generation_model_override'), '') :: text AS model_config_id
+	COALESCE((SELECT value FROM site_configs WHERE key = ($1::uuid)::text || ':agents_chat_title_generation_model_override'), '') :: text AS model_config_id
 `
 
-func (q *sqlQuerier) GetChatTitleGenerationModelOverride(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getChatTitleGenerationModelOverride)
+func (q *sqlQuerier) GetChatTitleGenerationModelOverrideForOrganization(ctx context.Context, organizationID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatTitleGenerationModelOverrideForOrganization, organizationID)
 	var model_config_id string
 	err := row.Scan(&model_config_id)
 	return model_config_id, err
@@ -25095,16 +25325,19 @@ func (q *sqlQuerier) UpsertApplicationName(ctx context.Context, value string) er
 	return err
 }
 
-const upsertChatAdvisorConfig = `-- name: UpsertChatAdvisorConfig :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_advisor_config', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_advisor_config'
+const upsertChatAdvisorConfigForOrganization = `-- name: UpsertChatAdvisorConfigForOrganization :exec
+INSERT INTO site_configs (key, value)
+VALUES (($1::uuid)::text || ':agents_advisor_config', $2::text)
+ON CONFLICT (key) DO UPDATE SET value = $2::text
 `
 
-// UpsertChatAdvisorConfig stores the deployment-wide runtime configuration
-// for the experimental chat advisor. Callers marshal codersdk.AdvisorConfig
-// to JSON before invoking this query.
-func (q *sqlQuerier) UpsertChatAdvisorConfig(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertChatAdvisorConfig, value)
+type UpsertChatAdvisorConfigForOrganizationParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	AdvisorConfig  string    `db:"advisor_config" json:"advisor_config"`
+}
+
+func (q *sqlQuerier) UpsertChatAdvisorConfigForOrganization(ctx context.Context, arg UpsertChatAdvisorConfigForOrganizationParams) error {
+	_, err := q.db.ExecContext(ctx, upsertChatAdvisorConfigForOrganization, arg.OrganizationID, arg.AdvisorConfig)
 	return err
 }
 
@@ -25120,13 +25353,19 @@ func (q *sqlQuerier) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveD
 	return err
 }
 
-const upsertChatCompactionModelOverride = `-- name: UpsertChatCompactionModelOverride :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_chat_compaction_model_override', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_compaction_model_override'
+const upsertChatCompactionModelOverrideForOrganization = `-- name: UpsertChatCompactionModelOverrideForOrganization :exec
+INSERT INTO site_configs (key, value)
+VALUES (($1::uuid)::text || ':agents_chat_compaction_model_override', $2::text)
+ON CONFLICT (key) DO UPDATE SET value = $2::text
 `
 
-func (q *sqlQuerier) UpsertChatCompactionModelOverride(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertChatCompactionModelOverride, value)
+type UpsertChatCompactionModelOverrideForOrganizationParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ModelConfigID  string    `db:"model_config_id" json:"model_config_id"`
+}
+
+func (q *sqlQuerier) UpsertChatCompactionModelOverrideForOrganization(ctx context.Context, arg UpsertChatCompactionModelOverrideForOrganizationParams) error {
+	_, err := q.db.ExecContext(ctx, upsertChatCompactionModelOverrideForOrganization, arg.OrganizationID, arg.ModelConfigID)
 	return err
 }
 
@@ -25198,23 +25437,35 @@ func (q *sqlQuerier) UpsertChatDesktopEnabled(ctx context.Context, enableDesktop
 	return err
 }
 
-const upsertChatExploreModelOverride = `-- name: UpsertChatExploreModelOverride :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_chat_explore_model_override', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_explore_model_override'
+const upsertChatExploreModelOverrideForOrganization = `-- name: UpsertChatExploreModelOverrideForOrganization :exec
+INSERT INTO site_configs (key, value)
+VALUES (($1::uuid)::text || ':agents_chat_explore_model_override', $2::text)
+ON CONFLICT (key) DO UPDATE SET value = $2::text
 `
 
-func (q *sqlQuerier) UpsertChatExploreModelOverride(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertChatExploreModelOverride, value)
+type UpsertChatExploreModelOverrideForOrganizationParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ModelConfigID  string    `db:"model_config_id" json:"model_config_id"`
+}
+
+func (q *sqlQuerier) UpsertChatExploreModelOverrideForOrganization(ctx context.Context, arg UpsertChatExploreModelOverrideForOrganizationParams) error {
+	_, err := q.db.ExecContext(ctx, upsertChatExploreModelOverrideForOrganization, arg.OrganizationID, arg.ModelConfigID)
 	return err
 }
 
-const upsertChatGeneralModelOverride = `-- name: UpsertChatGeneralModelOverride :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_chat_general_model_override', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_general_model_override'
+const upsertChatGeneralModelOverrideForOrganization = `-- name: UpsertChatGeneralModelOverrideForOrganization :exec
+INSERT INTO site_configs (key, value)
+VALUES (($1::uuid)::text || ':agents_chat_general_model_override', $2::text)
+ON CONFLICT (key) DO UPDATE SET value = $2::text
 `
 
-func (q *sqlQuerier) UpsertChatGeneralModelOverride(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertChatGeneralModelOverride, value)
+type UpsertChatGeneralModelOverrideForOrganizationParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ModelConfigID  string    `db:"model_config_id" json:"model_config_id"`
+}
+
+func (q *sqlQuerier) UpsertChatGeneralModelOverrideForOrganization(ctx context.Context, arg UpsertChatGeneralModelOverrideForOrganizationParams) error {
+	_, err := q.db.ExecContext(ctx, upsertChatGeneralModelOverrideForOrganization, arg.OrganizationID, arg.ModelConfigID)
 	return err
 }
 
@@ -25306,13 +25557,19 @@ func (q *sqlQuerier) UpsertChatTemplateAllowlist(ctx context.Context, templateAl
 	return err
 }
 
-const upsertChatTitleGenerationModelOverride = `-- name: UpsertChatTitleGenerationModelOverride :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_chat_title_generation_model_override', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_title_generation_model_override'
+const upsertChatTitleGenerationModelOverrideForOrganization = `-- name: UpsertChatTitleGenerationModelOverrideForOrganization :exec
+INSERT INTO site_configs (key, value)
+VALUES (($1::uuid)::text || ':agents_chat_title_generation_model_override', $2::text)
+ON CONFLICT (key) DO UPDATE SET value = $2::text
 `
 
-func (q *sqlQuerier) UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertChatTitleGenerationModelOverride, value)
+type UpsertChatTitleGenerationModelOverrideForOrganizationParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ModelConfigID  string    `db:"model_config_id" json:"model_config_id"`
+}
+
+func (q *sqlQuerier) UpsertChatTitleGenerationModelOverrideForOrganization(ctx context.Context, arg UpsertChatTitleGenerationModelOverrideForOrganizationParams) error {
+	_, err := q.db.ExecContext(ctx, upsertChatTitleGenerationModelOverrideForOrganization, arg.OrganizationID, arg.ModelConfigID)
 	return err
 }
 
@@ -29915,17 +30172,37 @@ func (q *sqlQuerier) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid
 	return items, nil
 }
 
-const deleteUserChatCompactionThreshold = `-- name: DeleteUserChatCompactionThreshold :exec
-DELETE FROM user_configs WHERE user_id = $1 AND key = $2
+const deleteUserChatCompactionThresholdForOrganization = `-- name: DeleteUserChatCompactionThresholdForOrganization :exec
+DELETE FROM user_configs
+WHERE user_id = $1
+	AND key = 'chat_compaction_threshold_pct:' || ($2::uuid)::text || ':' || ($3::uuid)::text
 `
 
-type DeleteUserChatCompactionThresholdParams struct {
-	UserID uuid.UUID `db:"user_id" json:"user_id"`
-	Key    string    `db:"key" json:"key"`
+type DeleteUserChatCompactionThresholdForOrganizationParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ModelConfigID  uuid.UUID `db:"model_config_id" json:"model_config_id"`
 }
 
-func (q *sqlQuerier) DeleteUserChatCompactionThreshold(ctx context.Context, arg DeleteUserChatCompactionThresholdParams) error {
-	_, err := q.db.ExecContext(ctx, deleteUserChatCompactionThreshold, arg.UserID, arg.Key)
+func (q *sqlQuerier) DeleteUserChatCompactionThresholdForOrganization(ctx context.Context, arg DeleteUserChatCompactionThresholdForOrganizationParams) error {
+	_, err := q.db.ExecContext(ctx, deleteUserChatCompactionThresholdForOrganization, arg.UserID, arg.OrganizationID, arg.ModelConfigID)
+	return err
+}
+
+const deleteUserChatPersonalModelOverrideForOrganization = `-- name: DeleteUserChatPersonalModelOverrideForOrganization :exec
+DELETE FROM user_configs
+WHERE user_id = $1
+	AND key = 'chat_personal_model_override:' || ($2::uuid)::text || ':' || $3::text
+`
+
+type DeleteUserChatPersonalModelOverrideForOrganizationParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Context        string    `db:"context" json:"context"`
+}
+
+func (q *sqlQuerier) DeleteUserChatPersonalModelOverrideForOrganization(ctx context.Context, arg DeleteUserChatPersonalModelOverrideForOrganizationParams) error {
+	_, err := q.db.ExecContext(ctx, deleteUserChatPersonalModelOverrideForOrganization, arg.UserID, arg.OrganizationID, arg.Context)
 	return err
 }
 
@@ -30175,18 +30452,20 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 	return i, err
 }
 
-const getUserChatCompactionThreshold = `-- name: GetUserChatCompactionThreshold :one
+const getUserChatCompactionThresholdForOrganization = `-- name: GetUserChatCompactionThresholdForOrganization :one
 SELECT value AS threshold_percent FROM user_configs
-WHERE user_id = $1 AND key = $2
+WHERE user_id = $1
+	AND key = 'chat_compaction_threshold_pct:' || ($2::uuid)::text || ':' || ($3::uuid)::text
 `
 
-type GetUserChatCompactionThresholdParams struct {
-	UserID uuid.UUID `db:"user_id" json:"user_id"`
-	Key    string    `db:"key" json:"key"`
+type GetUserChatCompactionThresholdForOrganizationParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ModelConfigID  uuid.UUID `db:"model_config_id" json:"model_config_id"`
 }
 
-func (q *sqlQuerier) GetUserChatCompactionThreshold(ctx context.Context, arg GetUserChatCompactionThresholdParams) (string, error) {
-	row := q.db.QueryRowContext(ctx, getUserChatCompactionThreshold, arg.UserID, arg.Key)
+func (q *sqlQuerier) GetUserChatCompactionThresholdForOrganization(ctx context.Context, arg GetUserChatCompactionThresholdForOrganizationParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserChatCompactionThresholdForOrganization, arg.UserID, arg.OrganizationID, arg.ModelConfigID)
 	var threshold_percent string
 	err := row.Scan(&threshold_percent)
 	return threshold_percent, err
@@ -30226,19 +30505,20 @@ func (q *sqlQuerier) GetUserChatDebugLoggingEnabled(ctx context.Context, userID 
 	return debug_logging_enabled, err
 }
 
-const getUserChatPersonalModelOverride = `-- name: GetUserChatPersonalModelOverride :one
+const getUserChatPersonalModelOverrideForOrganization = `-- name: GetUserChatPersonalModelOverrideForOrganization :one
 SELECT value AS personal_model_override FROM user_configs
 WHERE user_id = $1
-	AND key = $2
+	AND key = 'chat_personal_model_override:' || ($2::uuid)::text || ':' || $3::text
 `
 
-type GetUserChatPersonalModelOverrideParams struct {
-	UserID uuid.UUID `db:"user_id" json:"user_id"`
-	Key    string    `db:"key" json:"key"`
+type GetUserChatPersonalModelOverrideForOrganizationParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Context        string    `db:"context" json:"context"`
 }
 
-func (q *sqlQuerier) GetUserChatPersonalModelOverride(ctx context.Context, arg GetUserChatPersonalModelOverrideParams) (string, error) {
-	row := q.db.QueryRowContext(ctx, getUserChatPersonalModelOverride, arg.UserID, arg.Key)
+func (q *sqlQuerier) GetUserChatPersonalModelOverrideForOrganization(ctx context.Context, arg GetUserChatPersonalModelOverrideForOrganizationParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserChatPersonalModelOverrideForOrganization, arg.UserID, arg.OrganizationID, arg.Context)
 	var personal_model_override string
 	err := row.Scan(&personal_model_override)
 	return personal_model_override, err
@@ -30726,15 +31006,20 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 	return i, err
 }
 
-const listUserChatCompactionThresholds = `-- name: ListUserChatCompactionThresholds :many
+const listUserChatCompactionThresholdsForOrganization = `-- name: ListUserChatCompactionThresholdsForOrganization :many
 SELECT user_id, key, value FROM user_configs
 WHERE user_id = $1
-	AND key LIKE 'chat\_compaction\_threshold\_pct:%'
+	AND key LIKE 'chat\_compaction\_threshold\_pct:' || ($2::uuid)::text || ':%'
 ORDER BY key
 `
 
-func (q *sqlQuerier) ListUserChatCompactionThresholds(ctx context.Context, userID uuid.UUID) ([]UserConfig, error) {
-	rows, err := q.db.QueryContext(ctx, listUserChatCompactionThresholds, userID)
+type ListUserChatCompactionThresholdsForOrganizationParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) ListUserChatCompactionThresholdsForOrganization(ctx context.Context, arg ListUserChatCompactionThresholdsForOrganizationParams) ([]UserConfig, error) {
+	rows, err := q.db.QueryContext(ctx, listUserChatCompactionThresholdsForOrganization, arg.UserID, arg.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -30756,27 +31041,32 @@ func (q *sqlQuerier) ListUserChatCompactionThresholds(ctx context.Context, userI
 	return items, nil
 }
 
-const listUserChatPersonalModelOverrides = `-- name: ListUserChatPersonalModelOverrides :many
+const listUserChatPersonalModelOverridesForOrganization = `-- name: ListUserChatPersonalModelOverridesForOrganization :many
 SELECT key, value FROM user_configs
 WHERE user_id = $1
-	AND key LIKE 'chat\_personal\_model\_override:%'
+	AND key LIKE 'chat\_personal\_model\_override:' || ($2::uuid)::text || ':%'
 ORDER BY key
 `
 
-type ListUserChatPersonalModelOverridesRow struct {
+type ListUserChatPersonalModelOverridesForOrganizationParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+type ListUserChatPersonalModelOverridesForOrganizationRow struct {
 	Key   string `db:"key" json:"key"`
 	Value string `db:"value" json:"value"`
 }
 
-func (q *sqlQuerier) ListUserChatPersonalModelOverrides(ctx context.Context, userID uuid.UUID) ([]ListUserChatPersonalModelOverridesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listUserChatPersonalModelOverrides, userID)
+func (q *sqlQuerier) ListUserChatPersonalModelOverridesForOrganization(ctx context.Context, arg ListUserChatPersonalModelOverridesForOrganizationParams) ([]ListUserChatPersonalModelOverridesForOrganizationRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUserChatPersonalModelOverridesForOrganization, arg.UserID, arg.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListUserChatPersonalModelOverridesRow
+	var items []ListUserChatPersonalModelOverridesForOrganizationRow
 	for rows.Next() {
-		var i ListUserChatPersonalModelOverridesRow
+		var i ListUserChatPersonalModelOverridesForOrganizationRow
 		if err := rows.Scan(&i.Key, &i.Value); err != nil {
 			return nil, err
 		}
@@ -30869,27 +31159,6 @@ func (q *sqlQuerier) UpdateUserAgentChatSendShortcut(ctx context.Context, arg Up
 	var agent_chat_send_shortcut string
 	err := row.Scan(&agent_chat_send_shortcut)
 	return agent_chat_send_shortcut, err
-}
-
-const updateUserChatCompactionThreshold = `-- name: UpdateUserChatCompactionThreshold :one
-INSERT INTO user_configs (user_id, key, value)
-VALUES ($1, $2, ($3::int)::text)
-ON CONFLICT ON CONSTRAINT user_configs_pkey
-DO UPDATE SET value = ($3::int)::text
-RETURNING user_id, key, value
-`
-
-type UpdateUserChatCompactionThresholdParams struct {
-	UserID           uuid.UUID `db:"user_id" json:"user_id"`
-	Key              string    `db:"key" json:"key"`
-	ThresholdPercent int32     `db:"threshold_percent" json:"threshold_percent"`
-}
-
-func (q *sqlQuerier) UpdateUserChatCompactionThreshold(ctx context.Context, arg UpdateUserChatCompactionThresholdParams) (UserConfig, error) {
-	row := q.db.QueryRowContext(ctx, updateUserChatCompactionThreshold, arg.UserID, arg.Key, arg.ThresholdPercent)
-	var i UserConfig
-	err := row.Scan(&i.UserID, &i.Key, &i.Value)
-	return i, err
 }
 
 const updateUserChatCustomPrompt = `-- name: UpdateUserChatCustomPrompt :one
@@ -31529,6 +31798,37 @@ func (q *sqlQuerier) UpdateUserThinkingDisplayMode(ctx context.Context, arg Upda
 	return thinking_display_mode, err
 }
 
+const upsertUserChatCompactionThresholdForOrganization = `-- name: UpsertUserChatCompactionThresholdForOrganization :one
+INSERT INTO user_configs (user_id, key, value)
+VALUES (
+	$1,
+	'chat_compaction_threshold_pct:' || ($2::uuid)::text || ':' || ($3::uuid)::text,
+	($4::int)::text
+)
+ON CONFLICT ON CONSTRAINT user_configs_pkey
+DO UPDATE SET value = ($4::int)::text
+RETURNING user_id, key, value
+`
+
+type UpsertUserChatCompactionThresholdForOrganizationParams struct {
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID   uuid.UUID `db:"organization_id" json:"organization_id"`
+	ModelConfigID    uuid.UUID `db:"model_config_id" json:"model_config_id"`
+	ThresholdPercent int32     `db:"threshold_percent" json:"threshold_percent"`
+}
+
+func (q *sqlQuerier) UpsertUserChatCompactionThresholdForOrganization(ctx context.Context, arg UpsertUserChatCompactionThresholdForOrganizationParams) (UserConfig, error) {
+	row := q.db.QueryRowContext(ctx, upsertUserChatCompactionThresholdForOrganization,
+		arg.UserID,
+		arg.OrganizationID,
+		arg.ModelConfigID,
+		arg.ThresholdPercent,
+	)
+	var i UserConfig
+	err := row.Scan(&i.UserID, &i.Key, &i.Value)
+	return i, err
+}
+
 const upsertUserChatDebugLoggingEnabled = `-- name: UpsertUserChatDebugLoggingEnabled :exec
 INSERT INTO user_configs (user_id, key, value)
 VALUES (
@@ -31558,21 +31858,31 @@ func (q *sqlQuerier) UpsertUserChatDebugLoggingEnabled(ctx context.Context, arg 
 	return err
 }
 
-const upsertUserChatPersonalModelOverride = `-- name: UpsertUserChatPersonalModelOverride :exec
+const upsertUserChatPersonalModelOverrideForOrganization = `-- name: UpsertUserChatPersonalModelOverrideForOrganization :exec
 INSERT INTO user_configs (user_id, key, value)
-VALUES ($1::uuid, $2::text, $3::text)
+VALUES (
+	$1::uuid,
+	'chat_personal_model_override:' || ($2::uuid)::text || ':' || $3::text,
+	$4::text
+)
 ON CONFLICT ON CONSTRAINT user_configs_pkey
-DO UPDATE SET value = $3::text
+DO UPDATE SET value = $4::text
 `
 
-type UpsertUserChatPersonalModelOverrideParams struct {
-	UserID uuid.UUID `db:"user_id" json:"user_id"`
-	Key    string    `db:"key" json:"key"`
-	Value  string    `db:"value" json:"value"`
+type UpsertUserChatPersonalModelOverrideForOrganizationParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Context        string    `db:"context" json:"context"`
+	Value          string    `db:"value" json:"value"`
 }
 
-func (q *sqlQuerier) UpsertUserChatPersonalModelOverride(ctx context.Context, arg UpsertUserChatPersonalModelOverrideParams) error {
-	_, err := q.db.ExecContext(ctx, upsertUserChatPersonalModelOverride, arg.UserID, arg.Key, arg.Value)
+func (q *sqlQuerier) UpsertUserChatPersonalModelOverrideForOrganization(ctx context.Context, arg UpsertUserChatPersonalModelOverrideForOrganizationParams) error {
+	_, err := q.db.ExecContext(ctx, upsertUserChatPersonalModelOverrideForOrganization,
+		arg.UserID,
+		arg.OrganizationID,
+		arg.Context,
+		arg.Value,
+	)
 	return err
 }
 

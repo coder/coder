@@ -85,6 +85,47 @@ func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.
 func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 	t.Helper()
 
+	organizationID := seed.OrganizationID
+	lastModelConfigID := seed.LastModelConfigID
+	var modelConfig database.ChatModelConfig
+	if lastModelConfigID != uuid.Nil {
+		// Test fixtures need the persisted organization before constructing the chat actor.
+		var err error
+		modelConfig, err = db.GetChatModelConfigByIDForAuthorization(dbauthz.AsSystemRestricted(genCtx), lastModelConfigID) //nolint:gocritic
+		require.NoError(t, err, "get chat model config organization")
+		if organizationID == uuid.Nil {
+			organizationID = modelConfig.OrganizationID
+		}
+	}
+	if organizationID == uuid.Nil {
+		organization, err := db.GetDefaultOrganization(genCtx)
+		require.NoError(t, err, "get default organization")
+		organizationID = organization.ID
+	}
+	if lastModelConfigID == uuid.Nil {
+		lastModelConfigID = ChatModelConfig(t, db, database.ChatModelConfig{
+			OrganizationID: organizationID,
+		}).ID
+	} else if modelConfig.OrganizationID != organizationID {
+		// Legacy fixtures often created a global model before choosing the chat's
+		// organization. Preserve the fixture's model properties in an organization-local row.
+		lastModelConfigID = ChatModelConfig(t, db, database.ChatModelConfig{
+			OrganizationID:       organizationID,
+			Model:                modelConfig.Model,
+			DisplayName:          modelConfig.DisplayName,
+			CreatedBy:            modelConfig.CreatedBy,
+			UpdatedBy:            modelConfig.UpdatedBy,
+			Enabled:              modelConfig.Enabled,
+			IsDefault:            false,
+			ContextLimit:         modelConfig.ContextLimit,
+			CompressionThreshold: modelConfig.CompressionThreshold,
+			Options:              modelConfig.Options,
+			AIProviderID:         modelConfig.AIProviderID,
+			UserACL:              modelConfig.UserACL,
+			GroupACL:             modelConfig.GroupACL,
+		}).ID
+	}
+
 	var labels pqtype.NullRawMessage
 	if seed.Labels != nil {
 		raw, err := json.Marshal(seed.Labels)
@@ -93,14 +134,14 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 	}
 
 	chat, err := db.InsertChat(genCtx, database.InsertChatParams{
-		OrganizationID:    takeFirst(seed.OrganizationID, uuid.New()),
+		OrganizationID:    organizationID,
 		OwnerID:           takeFirst(seed.OwnerID, uuid.New()),
 		WorkspaceID:       seed.WorkspaceID,
 		BuildID:           seed.BuildID,
 		AgentID:           seed.AgentID,
 		ParentChatID:      seed.ParentChatID,
 		RootChatID:        seed.RootChatID,
-		LastModelConfigID: takeFirst(seed.LastModelConfigID, uuid.New()),
+		LastModelConfigID: lastModelConfigID,
 		Title:             takeFirst(seed.Title, testutil.GetRandomName(t)),
 		Mode:              seed.Mode,
 		PlanMode:          seed.PlanMode,
@@ -121,12 +162,21 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 	if seed.Content.Valid {
 		content = string(seed.Content.RawMessage)
 	}
+	modelConfigID := seed.ModelConfigID.UUID
+	if modelConfigID != uuid.Nil {
+		chat, err := db.GetChatByID(genCtx, seed.ChatID)
+		require.NoError(t, err, "get chat organization")
+		modelConfig, err := db.GetChatModelConfigByIDForAuthorization(dbauthz.AsSystemRestricted(genCtx), modelConfigID) //nolint:gocritic // Test fixtures need the persisted organization before inserting a message.
+		require.NoError(t, err, "get chat message model config organization")
+		if modelConfig.OrganizationID != chat.OrganizationID {
+			modelConfigID = chat.LastModelConfigID
+		}
+	}
 	role := takeFirst(seed.Role, database.ChatMessageRoleUser)
-
 	msgs, err := db.InsertChatMessages(genCtx, database.InsertChatMessagesParams{
 		ChatID:              seed.ChatID,
 		CreatedBy:           []uuid.UUID{seed.CreatedBy.UUID},
-		ModelConfigID:       []uuid.UUID{seed.ModelConfigID.UUID},
+		ModelConfigID:       []uuid.UUID{modelConfigID},
 		ReasoningEffort:     []string{string(seed.ReasoningEffort.ChatReasoningEffort)},
 		Role:                []database.ChatMessageRole{role},
 		Content:             []string{content},
@@ -156,6 +206,12 @@ const (
 
 func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelConfig, munge ...func(*database.InsertChatModelConfigParams)) database.ChatModelConfig {
 	t.Helper()
+	organizationID := seed.OrganizationID
+	if organizationID == uuid.Nil {
+		organization, err := db.GetDefaultOrganization(genCtx)
+		require.NoError(t, err, "get default organization")
+		organizationID = organization.ID
+	}
 	aiProviderID := seed.AIProviderID
 	if !aiProviderID.Valid {
 		// No AIProviderID supplied: reuse or create a default openai provider.
@@ -189,6 +245,9 @@ func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelCon
 		CompressionThreshold: takeFirst(seed.CompressionThreshold, defaultChatModelCompressionThreshold),
 		Options:              takeFirstSlice(seed.Options, json.RawMessage(`{}`)),
 		AIProviderID:         aiProviderID,
+		OrganizationID:       organizationID,
+		UserACL:              seed.UserACL,
+		GroupACL:             seed.GroupACL,
 	}
 	for _, fn := range munge {
 		fn(&params)

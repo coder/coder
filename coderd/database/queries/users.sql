@@ -237,25 +237,32 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'chat_custom_prompt'
 RETURNING *;
 
--- name: ListUserChatCompactionThresholds :many
+-- name: ListUserChatCompactionThresholdsForOrganization :many
 SELECT user_id, key, value FROM user_configs
 WHERE user_id = @user_id
-	AND key LIKE 'chat\_compaction\_threshold\_pct:%'
+	AND key LIKE 'chat\_compaction\_threshold\_pct:' || (@organization_id::uuid)::text || ':%'
 ORDER BY key;
 
--- name: GetUserChatCompactionThreshold :one
+-- name: GetUserChatCompactionThresholdForOrganization :one
 SELECT value AS threshold_percent FROM user_configs
-WHERE user_id = @user_id AND key = @key;
+WHERE user_id = @user_id
+	AND key = 'chat_compaction_threshold_pct:' || (@organization_id::uuid)::text || ':' || (@model_config_id::uuid)::text;
 
--- name: UpdateUserChatCompactionThreshold :one
+-- name: UpsertUserChatCompactionThresholdForOrganization :one
 INSERT INTO user_configs (user_id, key, value)
-VALUES (@user_id, @key, (@threshold_percent::int)::text)
+VALUES (
+	@user_id,
+	'chat_compaction_threshold_pct:' || (@organization_id::uuid)::text || ':' || (@model_config_id::uuid)::text,
+	(@threshold_percent::int)::text
+)
 ON CONFLICT ON CONSTRAINT user_configs_pkey
 DO UPDATE SET value = (@threshold_percent::int)::text
 RETURNING *;
 
--- name: DeleteUserChatCompactionThreshold :exec
-DELETE FROM user_configs WHERE user_id = @user_id AND key = @key;
+-- name: DeleteUserChatCompactionThresholdForOrganization :exec
+DELETE FROM user_configs
+WHERE user_id = @user_id
+	AND key = 'chat_compaction_threshold_pct:' || (@organization_id::uuid)::text || ':' || (@model_config_id::uuid)::text;
 
 -- name: GetUserChatDebugLoggingEnabled :one
 SELECT
@@ -284,22 +291,31 @@ END
 WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'chat_debug_logging_enabled';
 
--- name: ListUserChatPersonalModelOverrides :many
+-- name: ListUserChatPersonalModelOverridesForOrganization :many
 SELECT key, value FROM user_configs
 WHERE user_id = @user_id
-	AND key LIKE 'chat\_personal\_model\_override:%'
+	AND key LIKE 'chat\_personal\_model\_override:' || (@organization_id::uuid)::text || ':%'
 ORDER BY key;
 
--- name: GetUserChatPersonalModelOverride :one
+-- name: GetUserChatPersonalModelOverrideForOrganization :one
 SELECT value AS personal_model_override FROM user_configs
 WHERE user_id = @user_id
-	AND key = @key;
+	AND key = 'chat_personal_model_override:' || (@organization_id::uuid)::text || ':' || @context::text;
 
--- name: UpsertUserChatPersonalModelOverride :exec
+-- name: UpsertUserChatPersonalModelOverrideForOrganization :exec
 INSERT INTO user_configs (user_id, key, value)
-VALUES (@user_id::uuid, @key::text, @value::text)
+VALUES (
+	@user_id::uuid,
+	'chat_personal_model_override:' || (@organization_id::uuid)::text || ':' || @context::text,
+	@value::text
+)
 ON CONFLICT ON CONSTRAINT user_configs_pkey
 DO UPDATE SET value = @value::text;
+
+-- name: DeleteUserChatPersonalModelOverrideForOrganization :exec
+DELETE FROM user_configs
+WHERE user_id = @user_id
+	AND key = 'chat_personal_model_override:' || (@organization_id::uuid)::text || ':' || @context::text;
 
 -- name: GetUserTaskNotificationAlertDismissed :one
 SELECT

@@ -835,17 +835,17 @@ func (mr *MockStoreMockRecorder) DeleteChatDebugDataByChatID(ctx, arg any) *gomo
 }
 
 // DeleteChatModelConfigByID mocks base method.
-func (m *MockStore) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error {
+func (m *MockStore) DeleteChatModelConfigByID(ctx context.Context, arg database.DeleteChatModelConfigByIDParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteChatModelConfigByID", ctx, id)
+	ret := m.ctrl.Call(m, "DeleteChatModelConfigByID", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteChatModelConfigByID indicates an expected call of DeleteChatModelConfigByID.
-func (mr *MockStoreMockRecorder) DeleteChatModelConfigByID(ctx, id any) *gomock.Call {
+func (mr *MockStoreMockRecorder) DeleteChatModelConfigByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatModelConfigByID", reflect.TypeOf((*MockStore)(nil).DeleteChatModelConfigByID), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatModelConfigByID", reflect.TypeOf((*MockStore)(nil).DeleteChatModelConfigByID), ctx, arg)
 }
 
 // DeleteChatModelConfigsByAIProviderID mocks base method.
@@ -1540,18 +1540,32 @@ func (mr *MockStoreMockRecorder) DeleteUserAIProviderKeysByProviderID(ctx, aiPro
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserAIProviderKeysByProviderID", reflect.TypeOf((*MockStore)(nil).DeleteUserAIProviderKeysByProviderID), ctx, aiProviderID)
 }
 
-// DeleteUserChatCompactionThreshold mocks base method.
-func (m *MockStore) DeleteUserChatCompactionThreshold(ctx context.Context, arg database.DeleteUserChatCompactionThresholdParams) error {
+// DeleteUserChatCompactionThresholdForOrganization mocks base method.
+func (m *MockStore) DeleteUserChatCompactionThresholdForOrganization(ctx context.Context, arg database.DeleteUserChatCompactionThresholdForOrganizationParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteUserChatCompactionThreshold", ctx, arg)
+	ret := m.ctrl.Call(m, "DeleteUserChatCompactionThresholdForOrganization", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DeleteUserChatCompactionThreshold indicates an expected call of DeleteUserChatCompactionThreshold.
-func (mr *MockStoreMockRecorder) DeleteUserChatCompactionThreshold(ctx, arg any) *gomock.Call {
+// DeleteUserChatCompactionThresholdForOrganization indicates an expected call of DeleteUserChatCompactionThresholdForOrganization.
+func (mr *MockStoreMockRecorder) DeleteUserChatCompactionThresholdForOrganization(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserChatCompactionThreshold", reflect.TypeOf((*MockStore)(nil).DeleteUserChatCompactionThreshold), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserChatCompactionThresholdForOrganization", reflect.TypeOf((*MockStore)(nil).DeleteUserChatCompactionThresholdForOrganization), ctx, arg)
+}
+
+// DeleteUserChatPersonalModelOverrideForOrganization mocks base method.
+func (m *MockStore) DeleteUserChatPersonalModelOverrideForOrganization(ctx context.Context, arg database.DeleteUserChatPersonalModelOverrideForOrganizationParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteUserChatPersonalModelOverrideForOrganization", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteUserChatPersonalModelOverrideForOrganization indicates an expected call of DeleteUserChatPersonalModelOverrideForOrganization.
+func (mr *MockStoreMockRecorder) DeleteUserChatPersonalModelOverrideForOrganization(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserChatPersonalModelOverrideForOrganization", reflect.TypeOf((*MockStore)(nil).DeleteUserChatPersonalModelOverrideForOrganization), ctx, arg)
 }
 
 // DeleteUserSecretByUserIDAndName mocks base method.
@@ -2398,6 +2412,21 @@ func (mr *MockStoreMockRecorder) GetAuthorizedAuditLogsOffset(ctx, arg, prepared
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedAuditLogsOffset", reflect.TypeOf((*MockStore)(nil).GetAuthorizedAuditLogsOffset), ctx, arg, prepared)
 }
 
+// GetAuthorizedChatModelConfigs mocks base method.
+func (m *MockStore) GetAuthorizedChatModelConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.ChatModelConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAuthorizedChatModelConfigs", ctx, organizationID, prepared)
+	ret0, _ := ret[0].([]database.ChatModelConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAuthorizedChatModelConfigs indicates an expected call of GetAuthorizedChatModelConfigs.
+func (mr *MockStoreMockRecorder) GetAuthorizedChatModelConfigs(ctx, organizationID, prepared any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedChatModelConfigs", reflect.TypeOf((*MockStore)(nil).GetAuthorizedChatModelConfigs), ctx, organizationID, prepared)
+}
+
 // GetAuthorizedChats mocks base method.
 func (m *MockStore) GetAuthorizedChats(ctx context.Context, arg database.GetChatsParams, prepared rbac.PreparedAuthorized) ([]database.GetChatsRow, error) {
 	m.ctrl.T.Helper()
@@ -2441,6 +2470,21 @@ func (m *MockStore) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg d
 func (mr *MockStoreMockRecorder) GetAuthorizedConnectionLogsOffset(ctx, arg, prepared any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedConnectionLogsOffset", reflect.TypeOf((*MockStore)(nil).GetAuthorizedConnectionLogsOffset), ctx, arg, prepared)
+}
+
+// GetAuthorizedEnabledChatModelConfigs mocks base method.
+func (m *MockStore) GetAuthorizedEnabledChatModelConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.GetEnabledChatModelConfigsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAuthorizedEnabledChatModelConfigs", ctx, organizationID, prepared)
+	ret0, _ := ret[0].([]database.GetEnabledChatModelConfigsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAuthorizedEnabledChatModelConfigs indicates an expected call of GetAuthorizedEnabledChatModelConfigs.
+func (mr *MockStoreMockRecorder) GetAuthorizedEnabledChatModelConfigs(ctx, organizationID, prepared any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedEnabledChatModelConfigs", reflect.TypeOf((*MockStore)(nil).GetAuthorizedEnabledChatModelConfigs), ctx, organizationID, prepared)
 }
 
 // GetAuthorizedTemplates mocks base method.
@@ -2563,19 +2607,19 @@ func (mr *MockStoreMockRecorder) GetChatACLByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatACLByID", reflect.TypeOf((*MockStore)(nil).GetChatACLByID), ctx, id)
 }
 
-// GetChatAdvisorConfig mocks base method.
-func (m *MockStore) GetChatAdvisorConfig(ctx context.Context) (string, error) {
+// GetChatAdvisorConfigForOrganization mocks base method.
+func (m *MockStore) GetChatAdvisorConfigForOrganization(ctx context.Context, organizationID uuid.UUID) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatAdvisorConfig", ctx)
+	ret := m.ctrl.Call(m, "GetChatAdvisorConfigForOrganization", ctx, organizationID)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetChatAdvisorConfig indicates an expected call of GetChatAdvisorConfig.
-func (mr *MockStoreMockRecorder) GetChatAdvisorConfig(ctx any) *gomock.Call {
+// GetChatAdvisorConfigForOrganization indicates an expected call of GetChatAdvisorConfigForOrganization.
+func (mr *MockStoreMockRecorder) GetChatAdvisorConfigForOrganization(ctx, organizationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAdvisorConfig", reflect.TypeOf((*MockStore)(nil).GetChatAdvisorConfig), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAdvisorConfigForOrganization", reflect.TypeOf((*MockStore)(nil).GetChatAdvisorConfigForOrganization), ctx, organizationID)
 }
 
 // GetChatAutoArchiveDays mocks base method.
@@ -2638,19 +2682,19 @@ func (mr *MockStoreMockRecorder) GetChatByIDForUpdate(ctx, id any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetChatByIDForUpdate), ctx, id)
 }
 
-// GetChatCompactionModelOverride mocks base method.
-func (m *MockStore) GetChatCompactionModelOverride(ctx context.Context) (string, error) {
+// GetChatCompactionModelOverrideForOrganization mocks base method.
+func (m *MockStore) GetChatCompactionModelOverrideForOrganization(ctx context.Context, organizationID uuid.UUID) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatCompactionModelOverride", ctx)
+	ret := m.ctrl.Call(m, "GetChatCompactionModelOverrideForOrganization", ctx, organizationID)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetChatCompactionModelOverride indicates an expected call of GetChatCompactionModelOverride.
-func (mr *MockStoreMockRecorder) GetChatCompactionModelOverride(ctx any) *gomock.Call {
+// GetChatCompactionModelOverrideForOrganization indicates an expected call of GetChatCompactionModelOverrideForOrganization.
+func (mr *MockStoreMockRecorder) GetChatCompactionModelOverrideForOrganization(ctx, organizationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatCompactionModelOverride", reflect.TypeOf((*MockStore)(nil).GetChatCompactionModelOverride), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatCompactionModelOverrideForOrganization", reflect.TypeOf((*MockStore)(nil).GetChatCompactionModelOverrideForOrganization), ctx, organizationID)
 }
 
 // GetChatComputerUseProvider mocks base method.
@@ -2863,19 +2907,19 @@ func (mr *MockStoreMockRecorder) GetChatDiffStatusesByChatIDs(ctx, chatIds any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatDiffStatusesByChatIDs", reflect.TypeOf((*MockStore)(nil).GetChatDiffStatusesByChatIDs), ctx, chatIds)
 }
 
-// GetChatExploreModelOverride mocks base method.
-func (m *MockStore) GetChatExploreModelOverride(ctx context.Context) (string, error) {
+// GetChatExploreModelOverrideForOrganization mocks base method.
+func (m *MockStore) GetChatExploreModelOverrideForOrganization(ctx context.Context, organizationID uuid.UUID) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatExploreModelOverride", ctx)
+	ret := m.ctrl.Call(m, "GetChatExploreModelOverrideForOrganization", ctx, organizationID)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetChatExploreModelOverride indicates an expected call of GetChatExploreModelOverride.
-func (mr *MockStoreMockRecorder) GetChatExploreModelOverride(ctx any) *gomock.Call {
+// GetChatExploreModelOverrideForOrganization indicates an expected call of GetChatExploreModelOverrideForOrganization.
+func (mr *MockStoreMockRecorder) GetChatExploreModelOverrideForOrganization(ctx, organizationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatExploreModelOverride", reflect.TypeOf((*MockStore)(nil).GetChatExploreModelOverride), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatExploreModelOverrideForOrganization", reflect.TypeOf((*MockStore)(nil).GetChatExploreModelOverrideForOrganization), ctx, organizationID)
 }
 
 // GetChatFamilyIDsByRootID mocks base method.
@@ -2968,19 +3012,19 @@ func (mr *MockStoreMockRecorder) GetChatGatewayAPIKey(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatGatewayAPIKey", reflect.TypeOf((*MockStore)(nil).GetChatGatewayAPIKey), ctx, arg)
 }
 
-// GetChatGeneralModelOverride mocks base method.
-func (m *MockStore) GetChatGeneralModelOverride(ctx context.Context) (string, error) {
+// GetChatGeneralModelOverrideForOrganization mocks base method.
+func (m *MockStore) GetChatGeneralModelOverrideForOrganization(ctx context.Context, organizationID uuid.UUID) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatGeneralModelOverride", ctx)
+	ret := m.ctrl.Call(m, "GetChatGeneralModelOverrideForOrganization", ctx, organizationID)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetChatGeneralModelOverride indicates an expected call of GetChatGeneralModelOverride.
-func (mr *MockStoreMockRecorder) GetChatGeneralModelOverride(ctx any) *gomock.Call {
+// GetChatGeneralModelOverrideForOrganization indicates an expected call of GetChatGeneralModelOverrideForOrganization.
+func (mr *MockStoreMockRecorder) GetChatGeneralModelOverrideForOrganization(ctx, organizationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatGeneralModelOverride", reflect.TypeOf((*MockStore)(nil).GetChatGeneralModelOverride), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatGeneralModelOverrideForOrganization", reflect.TypeOf((*MockStore)(nil).GetChatGeneralModelOverrideForOrganization), ctx, organizationID)
 }
 
 // GetChatHeartbeat mocks base method.
@@ -3118,34 +3162,79 @@ func (mr *MockStoreMockRecorder) GetChatMessagesForPromptByChatID(ctx, chatID an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesForPromptByChatID", reflect.TypeOf((*MockStore)(nil).GetChatMessagesForPromptByChatID), ctx, chatID)
 }
 
-// GetChatModelConfigByID mocks base method.
-func (m *MockStore) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
+// GetChatModelConfigACLByID mocks base method.
+func (m *MockStore) GetChatModelConfigACLByID(ctx context.Context, arg database.GetChatModelConfigACLByIDParams) (database.GetChatModelConfigACLByIDRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatModelConfigByID", ctx, id)
+	ret := m.ctrl.Call(m, "GetChatModelConfigACLByID", ctx, arg)
+	ret0, _ := ret[0].(database.GetChatModelConfigACLByIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatModelConfigACLByID indicates an expected call of GetChatModelConfigACLByID.
+func (mr *MockStoreMockRecorder) GetChatModelConfigACLByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatModelConfigACLByID", reflect.TypeOf((*MockStore)(nil).GetChatModelConfigACLByID), ctx, arg)
+}
+
+// GetChatModelConfigByID mocks base method.
+func (m *MockStore) GetChatModelConfigByID(ctx context.Context, arg database.GetChatModelConfigByIDParams) (database.ChatModelConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatModelConfigByID", ctx, arg)
 	ret0, _ := ret[0].(database.ChatModelConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetChatModelConfigByID indicates an expected call of GetChatModelConfigByID.
-func (mr *MockStoreMockRecorder) GetChatModelConfigByID(ctx, id any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetChatModelConfigByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatModelConfigByID", reflect.TypeOf((*MockStore)(nil).GetChatModelConfigByID), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatModelConfigByID", reflect.TypeOf((*MockStore)(nil).GetChatModelConfigByID), ctx, arg)
+}
+
+// GetChatModelConfigByIDForAuthorization mocks base method.
+func (m *MockStore) GetChatModelConfigByIDForAuthorization(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatModelConfigByIDForAuthorization", ctx, id)
+	ret0, _ := ret[0].(database.ChatModelConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatModelConfigByIDForAuthorization indicates an expected call of GetChatModelConfigByIDForAuthorization.
+func (mr *MockStoreMockRecorder) GetChatModelConfigByIDForAuthorization(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatModelConfigByIDForAuthorization", reflect.TypeOf((*MockStore)(nil).GetChatModelConfigByIDForAuthorization), ctx, id)
 }
 
 // GetChatModelConfigs mocks base method.
-func (m *MockStore) GetChatModelConfigs(ctx context.Context) ([]database.ChatModelConfig, error) {
+func (m *MockStore) GetChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.ChatModelConfig, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatModelConfigs", ctx)
+	ret := m.ctrl.Call(m, "GetChatModelConfigs", ctx, organizationID)
 	ret0, _ := ret[0].([]database.ChatModelConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetChatModelConfigs indicates an expected call of GetChatModelConfigs.
-func (mr *MockStoreMockRecorder) GetChatModelConfigs(ctx any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetChatModelConfigs(ctx, organizationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatModelConfigs", reflect.TypeOf((*MockStore)(nil).GetChatModelConfigs), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatModelConfigs", reflect.TypeOf((*MockStore)(nil).GetChatModelConfigs), ctx, organizationID)
+}
+
+// GetChatModelConfigsByOrganizationID mocks base method.
+func (m *MockStore) GetChatModelConfigsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.ChatModelConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatModelConfigsByOrganizationID", ctx, organizationID)
+	ret0, _ := ret[0].([]database.ChatModelConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatModelConfigsByOrganizationID indicates an expected call of GetChatModelConfigsByOrganizationID.
+func (mr *MockStoreMockRecorder) GetChatModelConfigsByOrganizationID(ctx, organizationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatModelConfigsByOrganizationID", reflect.TypeOf((*MockStore)(nil).GetChatModelConfigsByOrganizationID), ctx, organizationID)
 }
 
 // GetChatModelConfigsForTelemetry mocks base method.
@@ -3328,19 +3417,19 @@ func (mr *MockStoreMockRecorder) GetChatTemplateAllowlist(ctx any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatTemplateAllowlist", reflect.TypeOf((*MockStore)(nil).GetChatTemplateAllowlist), ctx)
 }
 
-// GetChatTitleGenerationModelOverride mocks base method.
-func (m *MockStore) GetChatTitleGenerationModelOverride(ctx context.Context) (string, error) {
+// GetChatTitleGenerationModelOverrideForOrganization mocks base method.
+func (m *MockStore) GetChatTitleGenerationModelOverrideForOrganization(ctx context.Context, organizationID uuid.UUID) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatTitleGenerationModelOverride", ctx)
+	ret := m.ctrl.Call(m, "GetChatTitleGenerationModelOverrideForOrganization", ctx, organizationID)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetChatTitleGenerationModelOverride indicates an expected call of GetChatTitleGenerationModelOverride.
-func (mr *MockStoreMockRecorder) GetChatTitleGenerationModelOverride(ctx any) *gomock.Call {
+// GetChatTitleGenerationModelOverrideForOrganization indicates an expected call of GetChatTitleGenerationModelOverrideForOrganization.
+func (mr *MockStoreMockRecorder) GetChatTitleGenerationModelOverrideForOrganization(ctx, organizationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatTitleGenerationModelOverride", reflect.TypeOf((*MockStore)(nil).GetChatTitleGenerationModelOverride), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatTitleGenerationModelOverrideForOrganization", reflect.TypeOf((*MockStore)(nil).GetChatTitleGenerationModelOverrideForOrganization), ctx, organizationID)
 }
 
 // GetChatUsageLimitConfig mocks base method.
@@ -3629,18 +3718,18 @@ func (mr *MockStoreMockRecorder) GetDatabaseNow(ctx any) *gomock.Call {
 }
 
 // GetDefaultChatModelConfig mocks base method.
-func (m *MockStore) GetDefaultChatModelConfig(ctx context.Context) (database.ChatModelConfig, error) {
+func (m *MockStore) GetDefaultChatModelConfig(ctx context.Context, organizationID uuid.UUID) (database.ChatModelConfig, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetDefaultChatModelConfig", ctx)
+	ret := m.ctrl.Call(m, "GetDefaultChatModelConfig", ctx, organizationID)
 	ret0, _ := ret[0].(database.ChatModelConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetDefaultChatModelConfig indicates an expected call of GetDefaultChatModelConfig.
-func (mr *MockStoreMockRecorder) GetDefaultChatModelConfig(ctx any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetDefaultChatModelConfig(ctx, organizationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDefaultChatModelConfig", reflect.TypeOf((*MockStore)(nil).GetDefaultChatModelConfig), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDefaultChatModelConfig", reflect.TypeOf((*MockStore)(nil).GetDefaultChatModelConfig), ctx, organizationID)
 }
 
 // GetDefaultOrganization mocks base method.
@@ -3749,33 +3838,33 @@ func (mr *MockStoreMockRecorder) GetEligibleProvisionerDaemonsByProvisionerJobID
 }
 
 // GetEnabledChatModelConfigByID mocks base method.
-func (m *MockStore) GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
+func (m *MockStore) GetEnabledChatModelConfigByID(ctx context.Context, arg database.GetEnabledChatModelConfigByIDParams) (database.ChatModelConfig, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEnabledChatModelConfigByID", ctx, id)
+	ret := m.ctrl.Call(m, "GetEnabledChatModelConfigByID", ctx, arg)
 	ret0, _ := ret[0].(database.ChatModelConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetEnabledChatModelConfigByID indicates an expected call of GetEnabledChatModelConfigByID.
-func (mr *MockStoreMockRecorder) GetEnabledChatModelConfigByID(ctx, id any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetEnabledChatModelConfigByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledChatModelConfigByID", reflect.TypeOf((*MockStore)(nil).GetEnabledChatModelConfigByID), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledChatModelConfigByID", reflect.TypeOf((*MockStore)(nil).GetEnabledChatModelConfigByID), ctx, arg)
 }
 
 // GetEnabledChatModelConfigs mocks base method.
-func (m *MockStore) GetEnabledChatModelConfigs(ctx context.Context) ([]database.GetEnabledChatModelConfigsRow, error) {
+func (m *MockStore) GetEnabledChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.GetEnabledChatModelConfigsRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEnabledChatModelConfigs", ctx)
+	ret := m.ctrl.Call(m, "GetEnabledChatModelConfigs", ctx, organizationID)
 	ret0, _ := ret[0].([]database.GetEnabledChatModelConfigsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetEnabledChatModelConfigs indicates an expected call of GetEnabledChatModelConfigs.
-func (mr *MockStoreMockRecorder) GetEnabledChatModelConfigs(ctx any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetEnabledChatModelConfigs(ctx, organizationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledChatModelConfigs", reflect.TypeOf((*MockStore)(nil).GetEnabledChatModelConfigs), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledChatModelConfigs", reflect.TypeOf((*MockStore)(nil).GetEnabledChatModelConfigs), ctx, organizationID)
 }
 
 // GetEnabledMCPServerConfigs mocks base method.
@@ -6058,19 +6147,19 @@ func (mr *MockStoreMockRecorder) GetUserByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserByID", reflect.TypeOf((*MockStore)(nil).GetUserByID), ctx, id)
 }
 
-// GetUserChatCompactionThreshold mocks base method.
-func (m *MockStore) GetUserChatCompactionThreshold(ctx context.Context, arg database.GetUserChatCompactionThresholdParams) (string, error) {
+// GetUserChatCompactionThresholdForOrganization mocks base method.
+func (m *MockStore) GetUserChatCompactionThresholdForOrganization(ctx context.Context, arg database.GetUserChatCompactionThresholdForOrganizationParams) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserChatCompactionThreshold", ctx, arg)
+	ret := m.ctrl.Call(m, "GetUserChatCompactionThresholdForOrganization", ctx, arg)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetUserChatCompactionThreshold indicates an expected call of GetUserChatCompactionThreshold.
-func (mr *MockStoreMockRecorder) GetUserChatCompactionThreshold(ctx, arg any) *gomock.Call {
+// GetUserChatCompactionThresholdForOrganization indicates an expected call of GetUserChatCompactionThresholdForOrganization.
+func (mr *MockStoreMockRecorder) GetUserChatCompactionThresholdForOrganization(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserChatCompactionThreshold", reflect.TypeOf((*MockStore)(nil).GetUserChatCompactionThreshold), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserChatCompactionThresholdForOrganization", reflect.TypeOf((*MockStore)(nil).GetUserChatCompactionThresholdForOrganization), ctx, arg)
 }
 
 // GetUserChatCustomPrompt mocks base method.
@@ -6103,19 +6192,19 @@ func (mr *MockStoreMockRecorder) GetUserChatDebugLoggingEnabled(ctx, userID any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserChatDebugLoggingEnabled", reflect.TypeOf((*MockStore)(nil).GetUserChatDebugLoggingEnabled), ctx, userID)
 }
 
-// GetUserChatPersonalModelOverride mocks base method.
-func (m *MockStore) GetUserChatPersonalModelOverride(ctx context.Context, arg database.GetUserChatPersonalModelOverrideParams) (string, error) {
+// GetUserChatPersonalModelOverrideForOrganization mocks base method.
+func (m *MockStore) GetUserChatPersonalModelOverrideForOrganization(ctx context.Context, arg database.GetUserChatPersonalModelOverrideForOrganizationParams) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserChatPersonalModelOverride", ctx, arg)
+	ret := m.ctrl.Call(m, "GetUserChatPersonalModelOverrideForOrganization", ctx, arg)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetUserChatPersonalModelOverride indicates an expected call of GetUserChatPersonalModelOverride.
-func (mr *MockStoreMockRecorder) GetUserChatPersonalModelOverride(ctx, arg any) *gomock.Call {
+// GetUserChatPersonalModelOverrideForOrganization indicates an expected call of GetUserChatPersonalModelOverrideForOrganization.
+func (mr *MockStoreMockRecorder) GetUserChatPersonalModelOverrideForOrganization(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserChatPersonalModelOverride", reflect.TypeOf((*MockStore)(nil).GetUserChatPersonalModelOverride), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserChatPersonalModelOverrideForOrganization", reflect.TypeOf((*MockStore)(nil).GetUserChatPersonalModelOverrideForOrganization), ctx, arg)
 }
 
 // GetUserChatSpendInPeriod mocks base method.
@@ -9056,34 +9145,34 @@ func (mr *MockStoreMockRecorder) ListTasks(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTasks", reflect.TypeOf((*MockStore)(nil).ListTasks), ctx, arg)
 }
 
-// ListUserChatCompactionThresholds mocks base method.
-func (m *MockStore) ListUserChatCompactionThresholds(ctx context.Context, userID uuid.UUID) ([]database.UserConfig, error) {
+// ListUserChatCompactionThresholdsForOrganization mocks base method.
+func (m *MockStore) ListUserChatCompactionThresholdsForOrganization(ctx context.Context, arg database.ListUserChatCompactionThresholdsForOrganizationParams) ([]database.UserConfig, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListUserChatCompactionThresholds", ctx, userID)
+	ret := m.ctrl.Call(m, "ListUserChatCompactionThresholdsForOrganization", ctx, arg)
 	ret0, _ := ret[0].([]database.UserConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ListUserChatCompactionThresholds indicates an expected call of ListUserChatCompactionThresholds.
-func (mr *MockStoreMockRecorder) ListUserChatCompactionThresholds(ctx, userID any) *gomock.Call {
+// ListUserChatCompactionThresholdsForOrganization indicates an expected call of ListUserChatCompactionThresholdsForOrganization.
+func (mr *MockStoreMockRecorder) ListUserChatCompactionThresholdsForOrganization(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserChatCompactionThresholds", reflect.TypeOf((*MockStore)(nil).ListUserChatCompactionThresholds), ctx, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserChatCompactionThresholdsForOrganization", reflect.TypeOf((*MockStore)(nil).ListUserChatCompactionThresholdsForOrganization), ctx, arg)
 }
 
-// ListUserChatPersonalModelOverrides mocks base method.
-func (m *MockStore) ListUserChatPersonalModelOverrides(ctx context.Context, userID uuid.UUID) ([]database.ListUserChatPersonalModelOverridesRow, error) {
+// ListUserChatPersonalModelOverridesForOrganization mocks base method.
+func (m *MockStore) ListUserChatPersonalModelOverridesForOrganization(ctx context.Context, arg database.ListUserChatPersonalModelOverridesForOrganizationParams) ([]database.ListUserChatPersonalModelOverridesForOrganizationRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListUserChatPersonalModelOverrides", ctx, userID)
-	ret0, _ := ret[0].([]database.ListUserChatPersonalModelOverridesRow)
+	ret := m.ctrl.Call(m, "ListUserChatPersonalModelOverridesForOrganization", ctx, arg)
+	ret0, _ := ret[0].([]database.ListUserChatPersonalModelOverridesForOrganizationRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ListUserChatPersonalModelOverrides indicates an expected call of ListUserChatPersonalModelOverrides.
-func (mr *MockStoreMockRecorder) ListUserChatPersonalModelOverrides(ctx, userID any) *gomock.Call {
+// ListUserChatPersonalModelOverridesForOrganization indicates an expected call of ListUserChatPersonalModelOverridesForOrganization.
+func (mr *MockStoreMockRecorder) ListUserChatPersonalModelOverridesForOrganization(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserChatPersonalModelOverrides", reflect.TypeOf((*MockStore)(nil).ListUserChatPersonalModelOverrides), ctx, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserChatPersonalModelOverridesForOrganization", reflect.TypeOf((*MockStore)(nil).ListUserChatPersonalModelOverridesForOrganization), ctx, arg)
 }
 
 // ListUserSecrets mocks base method.
@@ -9657,17 +9746,17 @@ func (mr *MockStoreMockRecorder) UnpinChatByID(ctx, id any) *gomock.Call {
 }
 
 // UnsetDefaultChatModelConfigs mocks base method.
-func (m *MockStore) UnsetDefaultChatModelConfigs(ctx context.Context) error {
+func (m *MockStore) UnsetDefaultChatModelConfigs(ctx context.Context, organizationID uuid.UUID) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UnsetDefaultChatModelConfigs", ctx)
+	ret := m.ctrl.Call(m, "UnsetDefaultChatModelConfigs", ctx, organizationID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UnsetDefaultChatModelConfigs indicates an expected call of UnsetDefaultChatModelConfigs.
-func (mr *MockStoreMockRecorder) UnsetDefaultChatModelConfigs(ctx any) *gomock.Call {
+func (mr *MockStoreMockRecorder) UnsetDefaultChatModelConfigs(ctx, organizationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnsetDefaultChatModelConfigs", reflect.TypeOf((*MockStore)(nil).UnsetDefaultChatModelConfigs), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnsetDefaultChatModelConfigs", reflect.TypeOf((*MockStore)(nil).UnsetDefaultChatModelConfigs), ctx, organizationID)
 }
 
 // UpdateAIBridgeInterceptionEnded mocks base method.
@@ -9920,6 +10009,20 @@ func (m *MockStore) UpdateChatModelConfig(ctx context.Context, arg database.Upda
 func (mr *MockStoreMockRecorder) UpdateChatModelConfig(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatModelConfig", reflect.TypeOf((*MockStore)(nil).UpdateChatModelConfig), ctx, arg)
+}
+
+// UpdateChatModelConfigACLByID mocks base method.
+func (m *MockStore) UpdateChatModelConfigACLByID(ctx context.Context, arg database.UpdateChatModelConfigACLByIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatModelConfigACLByID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateChatModelConfigACLByID indicates an expected call of UpdateChatModelConfigACLByID.
+func (mr *MockStoreMockRecorder) UpdateChatModelConfigACLByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatModelConfigACLByID", reflect.TypeOf((*MockStore)(nil).UpdateChatModelConfigACLByID), ctx, arg)
 }
 
 // UpdateChatPinOrder mocks base method.
@@ -10720,21 +10823,6 @@ func (m *MockStore) UpdateUserAgentChatSendShortcut(ctx context.Context, arg dat
 func (mr *MockStoreMockRecorder) UpdateUserAgentChatSendShortcut(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserAgentChatSendShortcut", reflect.TypeOf((*MockStore)(nil).UpdateUserAgentChatSendShortcut), ctx, arg)
-}
-
-// UpdateUserChatCompactionThreshold mocks base method.
-func (m *MockStore) UpdateUserChatCompactionThreshold(ctx context.Context, arg database.UpdateUserChatCompactionThresholdParams) (database.UserConfig, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateUserChatCompactionThreshold", ctx, arg)
-	ret0, _ := ret[0].(database.UserConfig)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateUserChatCompactionThreshold indicates an expected call of UpdateUserChatCompactionThreshold.
-func (mr *MockStoreMockRecorder) UpdateUserChatCompactionThreshold(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserChatCompactionThreshold", reflect.TypeOf((*MockStore)(nil).UpdateUserChatCompactionThreshold), ctx, arg)
 }
 
 // UpdateUserChatCustomPrompt mocks base method.
@@ -11622,18 +11710,18 @@ func (mr *MockStoreMockRecorder) UpsertBoundaryUsageStats(ctx, arg any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertBoundaryUsageStats", reflect.TypeOf((*MockStore)(nil).UpsertBoundaryUsageStats), ctx, arg)
 }
 
-// UpsertChatAdvisorConfig mocks base method.
-func (m *MockStore) UpsertChatAdvisorConfig(ctx context.Context, value string) error {
+// UpsertChatAdvisorConfigForOrganization mocks base method.
+func (m *MockStore) UpsertChatAdvisorConfigForOrganization(ctx context.Context, arg database.UpsertChatAdvisorConfigForOrganizationParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertChatAdvisorConfig", ctx, value)
+	ret := m.ctrl.Call(m, "UpsertChatAdvisorConfigForOrganization", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpsertChatAdvisorConfig indicates an expected call of UpsertChatAdvisorConfig.
-func (mr *MockStoreMockRecorder) UpsertChatAdvisorConfig(ctx, value any) *gomock.Call {
+// UpsertChatAdvisorConfigForOrganization indicates an expected call of UpsertChatAdvisorConfigForOrganization.
+func (mr *MockStoreMockRecorder) UpsertChatAdvisorConfigForOrganization(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatAdvisorConfig", reflect.TypeOf((*MockStore)(nil).UpsertChatAdvisorConfig), ctx, value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatAdvisorConfigForOrganization", reflect.TypeOf((*MockStore)(nil).UpsertChatAdvisorConfigForOrganization), ctx, arg)
 }
 
 // UpsertChatAutoArchiveDays mocks base method.
@@ -11650,18 +11738,18 @@ func (mr *MockStoreMockRecorder) UpsertChatAutoArchiveDays(ctx, autoArchiveDays 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatAutoArchiveDays", reflect.TypeOf((*MockStore)(nil).UpsertChatAutoArchiveDays), ctx, autoArchiveDays)
 }
 
-// UpsertChatCompactionModelOverride mocks base method.
-func (m *MockStore) UpsertChatCompactionModelOverride(ctx context.Context, value string) error {
+// UpsertChatCompactionModelOverrideForOrganization mocks base method.
+func (m *MockStore) UpsertChatCompactionModelOverrideForOrganization(ctx context.Context, arg database.UpsertChatCompactionModelOverrideForOrganizationParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertChatCompactionModelOverride", ctx, value)
+	ret := m.ctrl.Call(m, "UpsertChatCompactionModelOverrideForOrganization", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpsertChatCompactionModelOverride indicates an expected call of UpsertChatCompactionModelOverride.
-func (mr *MockStoreMockRecorder) UpsertChatCompactionModelOverride(ctx, value any) *gomock.Call {
+// UpsertChatCompactionModelOverrideForOrganization indicates an expected call of UpsertChatCompactionModelOverrideForOrganization.
+func (mr *MockStoreMockRecorder) UpsertChatCompactionModelOverrideForOrganization(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatCompactionModelOverride", reflect.TypeOf((*MockStore)(nil).UpsertChatCompactionModelOverride), ctx, value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatCompactionModelOverrideForOrganization", reflect.TypeOf((*MockStore)(nil).UpsertChatCompactionModelOverrideForOrganization), ctx, arg)
 }
 
 // UpsertChatComputerUseProvider mocks base method.
@@ -11750,32 +11838,32 @@ func (mr *MockStoreMockRecorder) UpsertChatDiffStatusReference(ctx, arg any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatDiffStatusReference", reflect.TypeOf((*MockStore)(nil).UpsertChatDiffStatusReference), ctx, arg)
 }
 
-// UpsertChatExploreModelOverride mocks base method.
-func (m *MockStore) UpsertChatExploreModelOverride(ctx context.Context, value string) error {
+// UpsertChatExploreModelOverrideForOrganization mocks base method.
+func (m *MockStore) UpsertChatExploreModelOverrideForOrganization(ctx context.Context, arg database.UpsertChatExploreModelOverrideForOrganizationParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertChatExploreModelOverride", ctx, value)
+	ret := m.ctrl.Call(m, "UpsertChatExploreModelOverrideForOrganization", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpsertChatExploreModelOverride indicates an expected call of UpsertChatExploreModelOverride.
-func (mr *MockStoreMockRecorder) UpsertChatExploreModelOverride(ctx, value any) *gomock.Call {
+// UpsertChatExploreModelOverrideForOrganization indicates an expected call of UpsertChatExploreModelOverrideForOrganization.
+func (mr *MockStoreMockRecorder) UpsertChatExploreModelOverrideForOrganization(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatExploreModelOverride", reflect.TypeOf((*MockStore)(nil).UpsertChatExploreModelOverride), ctx, value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatExploreModelOverrideForOrganization", reflect.TypeOf((*MockStore)(nil).UpsertChatExploreModelOverrideForOrganization), ctx, arg)
 }
 
-// UpsertChatGeneralModelOverride mocks base method.
-func (m *MockStore) UpsertChatGeneralModelOverride(ctx context.Context, value string) error {
+// UpsertChatGeneralModelOverrideForOrganization mocks base method.
+func (m *MockStore) UpsertChatGeneralModelOverrideForOrganization(ctx context.Context, arg database.UpsertChatGeneralModelOverrideForOrganizationParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertChatGeneralModelOverride", ctx, value)
+	ret := m.ctrl.Call(m, "UpsertChatGeneralModelOverrideForOrganization", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpsertChatGeneralModelOverride indicates an expected call of UpsertChatGeneralModelOverride.
-func (mr *MockStoreMockRecorder) UpsertChatGeneralModelOverride(ctx, value any) *gomock.Call {
+// UpsertChatGeneralModelOverrideForOrganization indicates an expected call of UpsertChatGeneralModelOverrideForOrganization.
+func (mr *MockStoreMockRecorder) UpsertChatGeneralModelOverrideForOrganization(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatGeneralModelOverride", reflect.TypeOf((*MockStore)(nil).UpsertChatGeneralModelOverride), ctx, value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatGeneralModelOverrideForOrganization", reflect.TypeOf((*MockStore)(nil).UpsertChatGeneralModelOverrideForOrganization), ctx, arg)
 }
 
 // UpsertChatHeartbeat mocks base method.
@@ -11876,18 +11964,18 @@ func (mr *MockStoreMockRecorder) UpsertChatTemplateAllowlist(ctx, templateAllowl
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatTemplateAllowlist", reflect.TypeOf((*MockStore)(nil).UpsertChatTemplateAllowlist), ctx, templateAllowlist)
 }
 
-// UpsertChatTitleGenerationModelOverride mocks base method.
-func (m *MockStore) UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error {
+// UpsertChatTitleGenerationModelOverrideForOrganization mocks base method.
+func (m *MockStore) UpsertChatTitleGenerationModelOverrideForOrganization(ctx context.Context, arg database.UpsertChatTitleGenerationModelOverrideForOrganizationParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertChatTitleGenerationModelOverride", ctx, value)
+	ret := m.ctrl.Call(m, "UpsertChatTitleGenerationModelOverrideForOrganization", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpsertChatTitleGenerationModelOverride indicates an expected call of UpsertChatTitleGenerationModelOverride.
-func (mr *MockStoreMockRecorder) UpsertChatTitleGenerationModelOverride(ctx, value any) *gomock.Call {
+// UpsertChatTitleGenerationModelOverrideForOrganization indicates an expected call of UpsertChatTitleGenerationModelOverrideForOrganization.
+func (mr *MockStoreMockRecorder) UpsertChatTitleGenerationModelOverrideForOrganization(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatTitleGenerationModelOverride", reflect.TypeOf((*MockStore)(nil).UpsertChatTitleGenerationModelOverride), ctx, value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatTitleGenerationModelOverrideForOrganization", reflect.TypeOf((*MockStore)(nil).UpsertChatTitleGenerationModelOverrideForOrganization), ctx, arg)
 }
 
 // UpsertChatUsageLimitConfig mocks base method.
@@ -12252,6 +12340,21 @@ func (mr *MockStoreMockRecorder) UpsertUserAIProviderKey(ctx, arg any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertUserAIProviderKey", reflect.TypeOf((*MockStore)(nil).UpsertUserAIProviderKey), ctx, arg)
 }
 
+// UpsertUserChatCompactionThresholdForOrganization mocks base method.
+func (m *MockStore) UpsertUserChatCompactionThresholdForOrganization(ctx context.Context, arg database.UpsertUserChatCompactionThresholdForOrganizationParams) (database.UserConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertUserChatCompactionThresholdForOrganization", ctx, arg)
+	ret0, _ := ret[0].(database.UserConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertUserChatCompactionThresholdForOrganization indicates an expected call of UpsertUserChatCompactionThresholdForOrganization.
+func (mr *MockStoreMockRecorder) UpsertUserChatCompactionThresholdForOrganization(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertUserChatCompactionThresholdForOrganization", reflect.TypeOf((*MockStore)(nil).UpsertUserChatCompactionThresholdForOrganization), ctx, arg)
+}
+
 // UpsertUserChatDebugLoggingEnabled mocks base method.
 func (m *MockStore) UpsertUserChatDebugLoggingEnabled(ctx context.Context, arg database.UpsertUserChatDebugLoggingEnabledParams) error {
 	m.ctrl.T.Helper()
@@ -12266,18 +12369,18 @@ func (mr *MockStoreMockRecorder) UpsertUserChatDebugLoggingEnabled(ctx, arg any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertUserChatDebugLoggingEnabled", reflect.TypeOf((*MockStore)(nil).UpsertUserChatDebugLoggingEnabled), ctx, arg)
 }
 
-// UpsertUserChatPersonalModelOverride mocks base method.
-func (m *MockStore) UpsertUserChatPersonalModelOverride(ctx context.Context, arg database.UpsertUserChatPersonalModelOverrideParams) error {
+// UpsertUserChatPersonalModelOverrideForOrganization mocks base method.
+func (m *MockStore) UpsertUserChatPersonalModelOverrideForOrganization(ctx context.Context, arg database.UpsertUserChatPersonalModelOverrideForOrganizationParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertUserChatPersonalModelOverride", ctx, arg)
+	ret := m.ctrl.Call(m, "UpsertUserChatPersonalModelOverrideForOrganization", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpsertUserChatPersonalModelOverride indicates an expected call of UpsertUserChatPersonalModelOverride.
-func (mr *MockStoreMockRecorder) UpsertUserChatPersonalModelOverride(ctx, arg any) *gomock.Call {
+// UpsertUserChatPersonalModelOverrideForOrganization indicates an expected call of UpsertUserChatPersonalModelOverrideForOrganization.
+func (mr *MockStoreMockRecorder) UpsertUserChatPersonalModelOverrideForOrganization(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertUserChatPersonalModelOverride", reflect.TypeOf((*MockStore)(nil).UpsertUserChatPersonalModelOverride), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertUserChatPersonalModelOverrideForOrganization", reflect.TypeOf((*MockStore)(nil).UpsertUserChatPersonalModelOverrideForOrganization), ctx, arg)
 }
 
 // UpsertWebpushVAPIDKeys mocks base method.
