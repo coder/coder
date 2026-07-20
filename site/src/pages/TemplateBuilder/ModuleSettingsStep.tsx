@@ -151,8 +151,6 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 					const optionalFields = optionalVars.map(toField);
 
 					return (
-						// `scroll-mt-24` offsets the sticky top nav so the module
-						// title is not hidden when scrolled into view via the sidebar.
 						<div
 							key={mod.id}
 							id={`module-config-${mod.id}`}
