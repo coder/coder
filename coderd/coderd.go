@@ -166,7 +166,7 @@ type Options struct {
 	Pubsub           pubsub.Pubsub
 	// ReplicaSyncPubsub is used explicitly to instantiate the replicasync manager downstream if it exists.
 	// All other consumers of pubsub should reference Options.Pubsub.
-	ReplicaSyncPubsub *pubsub.PGPubsub
+	ReplicaSyncPubsub pubsub.Pubsub
 	RuntimeConfig     *runtimeconfig.Manager
 
 	// CacheDir is used for caching files served by the API.
