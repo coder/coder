@@ -65,8 +65,17 @@ func (api *API) CreateInMemoryAIBridgeServer(dialCtx context.Context) (client ai
 	}()
 
 	mux := drpcmux.New()
-	srv, err := aibridgedserver.NewServer(api.ctx, api.Database, api.Pubsub, api.Logger.Named("aibridgedserver"),
-		api.AccessURL.String(), api.DeploymentValues.AI.BridgeConfig, api.ExternalAuthConfigs, api.Experiments, api.AISeatTracker, api.Clock)
+	srv, err := aibridgedserver.NewServer(api.ctx, aibridgedserver.Options{
+		Store:               api.Database,
+		Pubsub:              api.Pubsub,
+		AISeatTracker:       api.AISeatTracker,
+		AccessURL:           api.AccessURL.String(),
+		GatewayCfg:          api.DeploymentValues.AI.BridgeConfig,
+		ExternalAuthConfigs: api.ExternalAuthConfigs,
+		Experiments:         api.Experiments,
+		Logger:              api.Logger.Named("aibridgedserver"),
+		Clock:               api.Clock,
+	})
 	if err != nil {
 		return nil, err
 	}

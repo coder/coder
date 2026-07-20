@@ -23,12 +23,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func testAPIKeyID(t testing.TB, db database.Store, userID uuid.UUID) string {
-	t.Helper()
-	key, _ := dbgen.APIKey(t, db, database.APIKey{ID: uuid.NewString(), UserID: userID})
-	return key.ID
-}
-
 type workerTestFixture struct {
 	db     database.Store
 	pubsub dbpubsub.Pubsub

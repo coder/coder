@@ -21,6 +21,24 @@ WHERE
 LIMIT
 	1;
 
+-- name: GetChatGatewayAPIKey :one
+SELECT
+	*
+FROM
+	api_keys
+WHERE
+	user_id = @user_id AND
+	token_name = @token_name AND
+	-- Token names are unvalidated user input, so a user could create a token
+	-- with the chat gateway name. Excluding login_type 'token' ensures chatd
+	-- never picks up (and extends) a real bearer token. Synthetic gateway
+	-- keys are minted with the owner's login type, which is never 'token'.
+	login_type != 'token'
+ORDER BY
+	created_at ASC, id ASC
+LIMIT
+	1;
+
 -- name: GetAPIKeysLastUsedAfter :many
 SELECT * FROM api_keys WHERE last_used > $1;
 

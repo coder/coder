@@ -966,7 +966,7 @@ describe("mutation invalidation scope", () => {
 		}
 	});
 
-	it("createChatMessage invalidates only debug runs, not chat detail or messages", async () => {
+	it("createChatMessage invalidates debug runs and chat detail, not messages", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		seedAllActiveQueries(queryClient, chatId);
@@ -980,10 +980,9 @@ describe("mutation invalidation scope", () => {
 		).toBe(true);
 
 		const chatState = queryClient.getQueryState(chatKey(chatId));
-		expect(
-			chatState?.isInvalidated,
-			"chatKey should NOT be invalidated",
-		).not.toBe(true);
+		expect(chatState?.isInvalidated, "chatKey should be invalidated").toBe(
+			true,
+		);
 
 		const messagesState = queryClient.getQueryState(chatMessagesKey(chatId));
 		expect(

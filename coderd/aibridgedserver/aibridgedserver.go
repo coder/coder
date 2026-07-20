@@ -120,13 +120,25 @@ type Server struct {
 	clock        quartz.Clock
 }
 
-func NewServer(lifecycleCtx context.Context, store store, ps pubsub.Pubsub, logger slog.Logger, accessURL string,
-	bridgeCfg codersdk.AIBridgeConfig, externalAuthConfigs []*externalauth.Config, experiments codersdk.Experiments,
-	aiSeatTracker aiseats.SeatTracker, clock quartz.Clock,
-) (*Server, error) {
-	eac := make(map[string]*externalauth.Config, len(externalAuthConfigs))
+// Options carries the dependencies required to construct an aibridged Server.
+type Options struct {
+	Store         store
+	Pubsub        pubsub.Pubsub
+	AISeatTracker aiseats.SeatTracker
 
-	for _, cfg := range externalAuthConfigs {
+	AccessURL           string
+	GatewayCfg          codersdk.AIBridgeConfig
+	ExternalAuthConfigs []*externalauth.Config
+	Experiments         codersdk.Experiments
+
+	Logger slog.Logger
+	Clock  quartz.Clock
+}
+
+func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
+	eac := make(map[string]*externalauth.Config, len(opts.ExternalAuthConfigs))
+
+	for _, cfg := range opts.ExternalAuthConfigs {
 		// Only External Auth configs which are configured with an MCP URL are relevant to aibridged.
 		if cfg.MCPURL == "" {
 			continue
@@ -136,22 +148,22 @@ func NewServer(lifecycleCtx context.Context, store store, ps pubsub.Pubsub, logg
 
 	srv := &Server{
 		lifecycleCtx:        lifecycleCtx,
-		store:               store,
-		pubsub:              ps,
-		logger:              logger,
+		store:               opts.Store,
+		pubsub:              opts.Pubsub,
+		logger:              opts.Logger,
 		externalAuthConfigs: eac,
-		structuredLogging:   bridgeCfg.StructuredLogging.Value(),
-		aiSeatTracker:       aiSeatTracker,
-		budgetPolicy:        codersdk.NewAIBudgetPolicyFromString(bridgeCfg.BudgetPolicy),
-		budgetPeriod:        codersdk.NewAIBudgetPeriodFromString(bridgeCfg.BudgetPeriod),
-		clock:               clock,
+		structuredLogging:   opts.GatewayCfg.StructuredLogging.Value(),
+		aiSeatTracker:       opts.AISeatTracker,
+		budgetPolicy:        codersdk.NewAIBudgetPolicyFromString(opts.GatewayCfg.BudgetPolicy),
+		budgetPeriod:        codersdk.NewAIBudgetPeriodFromString(opts.GatewayCfg.BudgetPeriod),
+		clock:               opts.Clock,
 	}
 
-	if bridgeCfg.InjectCoderMCPTools {
-		logger.Warn(lifecycleCtx, "inject MCP tools option is deprecated and will be removed in a future release")
-		coderMCPConfig, err := getCoderMCPServerConfig(experiments, accessURL)
+	if opts.GatewayCfg.InjectCoderMCPTools {
+		opts.Logger.Warn(lifecycleCtx, "inject MCP tools option is deprecated and will be removed in a future release")
+		coderMCPConfig, err := getCoderMCPServerConfig(opts.Experiments, opts.AccessURL)
 		if err != nil {
-			logger.Warn(lifecycleCtx, "failed to retrieve coder MCP server config, Coder MCP will not be available", slog.Error(err))
+			opts.Logger.Warn(lifecycleCtx, "failed to retrieve coder MCP server config, Coder MCP will not be available", slog.Error(err))
 		}
 		srv.coderMCPConfig = coderMCPConfig
 	}

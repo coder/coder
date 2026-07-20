@@ -4,8 +4,10 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { withToaster } from "#/testHelpers/storybook";
 import {
 	MockAnthropicProviderState,
+	MockDisabledProviderState,
 	MockOpenAIProviderState,
 	mockGPT5,
+	mockProviderDisabledModel,
 } from "../testFixtures";
 import { ModelForm } from "./ModelForm";
 
@@ -126,6 +128,66 @@ export const ReplaceDefaultWarning: Story = {
 	},
 };
 
+export const AddHidesDisabledProviders: Story = {
+	args: {
+		providerStates: [
+			MockOpenAIProviderState,
+			MockAnthropicProviderState,
+			MockDisabledProviderState,
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("combobox", { name: /provider/i }));
+		// Option names include the provider icon alt text, so match loosely.
+		const optionNames = screen
+			.getAllByRole("option")
+			.map((option) => option.textContent?.trim());
+		await expect(optionNames).toEqual(["OpenAI", "Anthropic"]);
+		await expect(
+			screen.queryByRole("option", { name: /Secondary/ }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const AddBlocksDisabledSelectedProvider: Story = {
+	args: {
+		providerStates: [MockOpenAIProviderState, MockDisabledProviderState],
+		selectedProviderState: MockDisabledProviderState,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// A ?provider= query param can preselect a disabled provider on
+		// the add page.
+		await expect(
+			canvas.getByText(/OpenAI Secondary is disabled/),
+		).toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("button", { name: /add model/i }),
+		).not.toBeInTheDocument();
+		await userEvent.click(canvas.getByRole("combobox", { name: /provider/i }));
+		await expect(
+			screen.queryByRole("option", { name: /Secondary/ }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const EditKeepsDisabledProviderVisible: Story = {
+	args: {
+		providerStates: [MockOpenAIProviderState, MockDisabledProviderState],
+		selectedProviderState: MockDisabledProviderState,
+		editingModel: mockProviderDisabledModel,
+		onDeleteModel: fn(async () => undefined),
+		onDuplicate: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("combobox", { name: /provider/i }),
+		).toHaveTextContent("OpenAI Secondary");
+	},
+};
+
 export const Edit: Story = {
 	args: {
 		editingModel: mockGPT5,
@@ -218,18 +280,31 @@ export const EditUpdateDisabledUntilDirty: Story = {
 	},
 };
 
-export const ReasoningEffortVisibleWithoutExpanding: Story = {
+export const ReasoningEffortInProviderConfiguration: Story = {
+	args: {
+		selectedProviderState: MockAnthropicProviderState,
+	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 
-		const defaultSelect = canvas.getByRole("combobox", {
-			name: /default reasoning effort/i,
-		});
+		await userEvent.click(
+			canvas.getByRole("button", { name: /provider configuration/i }),
+		);
+		const thinkingBudget = canvas.getByLabelText(/thinking budget tokens/i);
 		const maxSelect = canvas.getByRole("combobox", {
 			name: /max reasoning effort/i,
 		});
-		await expect(defaultSelect).toBeVisible();
+		const defaultSelect = canvas.getByRole("combobox", {
+			name: /default reasoning effort/i,
+		});
 		await expect(maxSelect).toBeVisible();
+		await expect(defaultSelect).toBeVisible();
+		await expect(thinkingBudget.compareDocumentPosition(maxSelect)).toBe(
+			Node.DOCUMENT_POSITION_FOLLOWING,
+		);
+		await expect(maxSelect.compareDocumentPosition(defaultSelect)).toBe(
+			Node.DOCUMENT_POSITION_FOLLOWING,
+		);
 		await expect(defaultSelect).toHaveTextContent("Not set");
 		await expect(maxSelect).toHaveTextContent("Not set");
 
@@ -271,6 +346,9 @@ export const ReasoningEffortVisibleWithoutExpanding: Story = {
 export const ReasoningEffortValidationError: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /provider configuration/i }),
+		);
 		const defaultSelect = canvas.getByRole("combobox", {
 			name: /default reasoning effort/i,
 		});

@@ -519,6 +519,8 @@ func Tasks(ctx context.Context, db database.Store, query string, actorID uuid.UU
 //     ownership scope; created_by_me returns only chats the caller owns,
 //     shared_with_me returns only chats shared with the caller, all returns
 //     both)
+//   - search: full-text search over chat content; mutually exclusive
+//     with title, pr_title, and pr
 func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	filter := database.GetChatsParams{
 		// Default to hiding archived chats and chats not owned by the caller.
@@ -603,6 +605,30 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 			})
 		} else {
 			filter.PrNumber = int32(n)
+		}
+	}
+
+	if values.Has("search") {
+		parser.RequiredNotEmpty("search")
+		if search := parser.String(values, "", "search"); search != "" {
+			var conflicts []string
+			if filter.TitleQuery != "" {
+				conflicts = append(conflicts, `"title"`)
+			}
+			if filter.PrTitleQuery != "" {
+				conflicts = append(conflicts, `"pr_title"`)
+			}
+			if filter.PrNumber != 0 {
+				conflicts = append(conflicts, `"pr"`)
+			}
+			if len(conflicts) > 0 {
+				parser.Errors = append(parser.Errors, codersdk.ValidationError{
+					Field:  "search",
+					Detail: fmt.Sprintf(`"search" cannot be combined with %s`, strings.Join(conflicts, ", ")),
+				})
+			} else {
+				filter.Search = search
+			}
 		}
 	}
 

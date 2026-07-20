@@ -783,6 +783,18 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION chat_message_search_text(content jsonb) RETURNS text
+    LANGUAGE sql IMMUTABLE PARALLEL SAFE
+    AS $$
+    SELECT CASE WHEN jsonb_typeof(content) = 'array' THEN (
+        SELECT string_agg(part->>'text', ' ' ORDER BY ordinality)
+        FROM jsonb_array_elements(content) WITH ORDINALITY AS t(part, ordinality)
+        WHERE part->>'type' = 'text'
+    ) END
+$$;
+
+COMMENT ON FUNCTION chat_message_search_text(content jsonb) IS 'Extracts searchable content from chat_messages. Returns NULL for scalar JSON strings (content_version=0). Immutable as it is used in indexes.';
+
 CREATE FUNCTION check_workspace_agent_name_unique() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1365,6 +1377,7 @@ CREATE FUNCTION set_chat_message_revision_before() RETURNS trigger
     AS $$
 DECLARE
     chat_snapshot_version bigint;
+    cmp chat_messages;
 BEGIN
     IF TG_OP = 'INSERT' AND NEW.revision IS NOT NULL THEN
         RAISE EXCEPTION 'chat_messages.revision must be assigned by trigger';
@@ -1379,7 +1392,9 @@ BEGIN
             RAISE EXCEPTION 'chat_messages.revision must be assigned by trigger';
         END IF;
 
-        IF OLD IS NOT DISTINCT FROM NEW THEN
+        cmp := NEW;
+        cmp.search_tsv := OLD.search_tsv;
+        IF OLD IS NOT DISTINCT FROM cmp THEN
             RETURN NEW;
         END IF;
     END IF;
@@ -1395,6 +1410,8 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+COMMENT ON FUNCTION set_chat_message_revision_before() IS 'Component of chatd. Updates chat_snapshot_version when any fields of chat_messages change. Excludes changes to search_tsv as it is not relevant to chatd''s processing loop.';
 
 CREATE FUNCTION sync_chat_retry_state() RETURNS trigger
     LANGUAGE plpgsql
@@ -1446,7 +1463,7 @@ BEGIN
         SELECT DISTINCT n.chat_id
         FROM chat_message_history_new_rows n
         JOIN chat_message_history_old_rows o ON o.id = n.id
-        WHERE o IS DISTINCT FROM n
+        WHERE (to_jsonb(o) - 'search_tsv') IS DISTINCT FROM (to_jsonb(n) - 'search_tsv')
     ) AS affected
     WHERE c.id = affected.chat_id
       AND (
@@ -1456,6 +1473,8 @@ BEGIN
     RETURN NULL;
 END;
 $$;
+
+COMMENT ON FUNCTION update_chat_history_after_message_update() IS 'Component of chatd. Updates history_version and generation_attempt on chats when chat_messages is updated. Excludes changes to search_tsv.';
 
 CREATE TABLE ai_gateway_keys (
     id uuid NOT NULL,
@@ -1946,10 +1965,13 @@ CREATE TABLE chat_messages (
     provider_response_id text,
     api_key_id text,
     revision bigint NOT NULL,
-    reasoning_effort chat_reasoning_effort
+    reasoning_effort chat_reasoning_effort,
+    search_tsv tsvector
 );
 
 COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
+
+COMMENT ON COLUMN chat_messages.search_tsv IS 'Used for full text search. NULL initially, populated async via background job.';
 
 CREATE SEQUENCE chat_messages_id_seq
     START WITH 1
@@ -2474,6 +2496,7 @@ CREATE TABLE mcp_server_configs (
     model_intent boolean DEFAULT false NOT NULL,
     allow_in_plan_mode boolean DEFAULT false NOT NULL,
     forward_coder_headers boolean DEFAULT false NOT NULL,
+    oauth2_revocation_url text DEFAULT ''::text NOT NULL,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text])))
@@ -2490,7 +2513,8 @@ CREATE TABLE mcp_server_user_tokens (
     token_type text DEFAULT 'Bearer'::text NOT NULL,
     expiry timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    oauth_refresh_failure_reason text DEFAULT ''::text NOT NULL
 );
 
 CREATE TABLE notification_messages (
@@ -4716,6 +4740,8 @@ CREATE UNIQUE INDEX idx_chat_debug_steps_run_step ON chat_debug_steps USING btre
 
 CREATE INDEX idx_chat_debug_steps_stale ON chat_debug_steps USING btree (updated_at) WHERE (finished_at IS NULL);
 
+CREATE INDEX idx_chat_diff_statuses_pr_title_fts ON chat_diff_statuses USING gin (to_tsvector('simple'::regconfig, pull_request_title));
+
 CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (stale_at);
 
 CREATE INDEX idx_chat_diff_statuses_url_lower ON chat_diff_statuses USING btree (lower(url)) WHERE ((url IS NOT NULL) AND (url <> ''::text));
@@ -4735,6 +4761,12 @@ CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USIN
 CREATE INDEX idx_chat_messages_created_at ON chat_messages USING btree (created_at);
 
 CREATE INDEX idx_chat_messages_owner_spend ON chat_messages USING btree (chat_id, created_at) WHERE (total_cost_micros IS NOT NULL);
+
+CREATE INDEX idx_chat_messages_search_tsv ON chat_messages USING gin (search_tsv) WHERE ((search_tsv IS NOT NULL) AND (deleted = false) AND (visibility = ANY (ARRAY['user'::chat_message_visibility, 'both'::chat_message_visibility])) AND (role = ANY (ARRAY['user'::chat_message_role, 'assistant'::chat_message_role])));
+
+COMMENT ON INDEX idx_chat_messages_search_tsv IS 'Partial index over chat_messages used for populating search_tsv in the background. Only defined over ''searchable'' rows of chat_messages where search_tsv is NULL.';
+
+CREATE INDEX idx_chat_messages_search_tsv_pending ON chat_messages USING btree (id DESC) WHERE ((search_tsv IS NULL) AND (deleted = false) AND (visibility = ANY (ARRAY['user'::chat_message_visibility, 'both'::chat_message_visibility])) AND (role = ANY (ARRAY['user'::chat_message_role, 'assistant'::chat_message_role])));
 
 CREATE INDEX idx_chat_messages_user_prompts ON chat_messages USING btree (chat_id, id DESC) WHERE ((deleted = false) AND (role = 'user'::chat_message_role) AND (visibility = ANY (ARRAY['user'::chat_message_visibility, 'both'::chat_message_visibility])));
 
@@ -4761,6 +4793,10 @@ CREATE INDEX idx_chats_owner ON chats USING btree (owner_id);
 CREATE INDEX idx_chats_parent_chat_id ON chats USING btree (parent_chat_id);
 
 CREATE INDEX idx_chats_root_chat_id ON chats USING btree (root_chat_id);
+
+CREATE INDEX idx_chats_title_fts ON chats USING gin (to_tsvector('simple'::regconfig, title));
+
+COMMENT ON INDEX idx_chats_title_fts IS 'Used for full text search. Defined over all rows of the chats table.';
 
 CREATE INDEX idx_chats_worker_acquisition_candidates ON chats USING btree (status, updated_at, id) WHERE (archived = false);
 
@@ -5105,9 +5141,6 @@ ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
-    ADD CONSTRAINT chat_messages_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE SET NULL;
-
-ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
@@ -5121,9 +5154,6 @@ ALTER TABLE ONLY chat_model_configs
 
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);
-
-ALTER TABLE ONLY chat_queued_messages
-    ADD CONSTRAINT chat_queued_messages_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;

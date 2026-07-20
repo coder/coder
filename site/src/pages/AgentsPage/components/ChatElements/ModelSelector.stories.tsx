@@ -92,6 +92,21 @@ export const WithSelectedValue: Story = {
 	},
 };
 
+export const CustomTriggerLabel: Story = {
+	args: {
+		options: openAIModels,
+		value: "openai/gpt-4o",
+		triggerAriaLabel: "Agent model behavior",
+	},
+	play: async ({ canvasElement }) => {
+		expect(
+			within(canvasElement).getByRole("combobox", {
+				name: "Agent model behavior, GPT-4o",
+			}),
+		).toBeInTheDocument();
+	},
+};
+
 export const CustomPlaceholder: Story = {
 	args: {
 		placeholder: "Choose a model…",
@@ -197,6 +212,7 @@ export const SelectsModel: Story = {
 		options: openAIModels,
 		value: "",
 		onValueChange: fn(),
+		onReasoningEffortChange: fn(),
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -204,10 +220,20 @@ export const SelectsModel: Story = {
 		const trigger = canvas.getByRole("combobox");
 		await userEvent.click(trigger);
 
-		const listbox = await within(document.body).findByRole("listbox");
+		const body = within(document.body);
+		const listbox = await body.findByRole("listbox");
+		const search = body.getByPlaceholderText("Search...");
+		await userEvent.type(search, "mini");
 		await userEvent.click(within(listbox).getByText("GPT-4o Mini"));
 
 		expect(args.onValueChange).toHaveBeenCalledWith("openai/gpt-4o-mini");
+		await waitFor(() => {
+			expect(trigger).toHaveAttribute("aria-expanded", "false");
+			expect(body.queryByRole("listbox")).not.toBeInTheDocument();
+		});
+
+		await userEvent.click(trigger);
+		expect(await body.findByPlaceholderText("Search...")).toHaveValue("");
 	},
 };
 
@@ -298,16 +324,22 @@ export const EffortRowHiddenWithoutConfig: Story = {
 };
 
 const EffortRowStory = ({
+	onValueChange,
 	onReasoningEffortChange,
 }: {
+	onValueChange: (value: string) => void;
 	onReasoningEffortChange: (value: string) => void;
 }) => {
+	const [model, setModel] = useState("openai/gpt-4o");
 	const [effort, setEffort] = useState("medium");
 	return (
 		<ModelSelector
 			options={[...openAIModels, effortModel]}
-			value="openai/gpt-5"
-			onValueChange={fn()}
+			value={model}
+			onValueChange={(value) => {
+				onValueChange(value);
+				setModel(value);
+			}}
 			reasoningEffort={effort}
 			onReasoningEffortChange={(value) => {
 				onReasoningEffortChange(value);
@@ -323,6 +355,7 @@ export const EffortRow: Story = {
 	},
 	render: (args) => (
 		<EffortRowStory
+			onValueChange={args.onValueChange}
 			onReasoningEffortChange={(value) => args.onReasoningEffortChange?.(value)}
 		/>
 	),
@@ -330,11 +363,20 @@ export const EffortRow: Story = {
 		const canvas = within(canvasElement);
 		const body = within(document.body);
 
-		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-5" }));
-		await body.findByRole("listbox");
+		const trigger = canvas.getByRole("combobox", { name: "GPT-4o" });
+		await userEvent.click(trigger);
+		const listbox = await body.findByRole("listbox");
+		const search = body.getByPlaceholderText("Search...");
+		await userEvent.type(search, "gpt-5");
+		await userEvent.click(
+			within(listbox).getByRole("option", { name: /GPT-5/ }),
+		);
 
-		// The row is visible with one discrete step per selectable effort.
+		expect(args.onValueChange).toHaveBeenCalledWith("openai/gpt-5");
 		await waitFor(() => {
+			expect(trigger).toHaveAttribute("aria-expanded", "true");
+			expect(listbox).toBeVisible();
+			expect(search).toHaveValue("");
 			expect(body.getByText("Effort")).toBeVisible();
 		});
 		const slider = await body.findByRole("slider");

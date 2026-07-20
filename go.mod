@@ -108,8 +108,13 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //     content-filter.
 // 16) coder/fantasy#46, route the gpt-5.6 family (sol, terra, luna)
 //     through the OpenAI Responses API.
-// See: https://github.com/coder/fantasy/commits/6da0c3b10237
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260709180403-6da0c3b10237
+// 17) coder/fantasy#47, convert Anthropic reasoning effort to enabled
+//     budget thinking on pre-4.6 models instead of sending adaptive
+//     thinking, which those models reject with an HTTP 400, and send
+//     an explicit thinking disable for effort none on Claude 5+ models
+//     that otherwise run adaptive thinking by default.
+// See: https://github.com/coder/fantasy/commits/a63de4b40315
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260718195754-a63de4b40315
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
@@ -322,7 +327,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bep/godartsass/v2 v2.5.0 // indirect
 	github.com/bep/golibsass v1.2.0 // indirect
-	github.com/bmatcuk/doublestar/v4 v4.10.0 // indirect
+	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/charmbracelet/x/ansi v0.11.6 // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/chromedp/sysutil v1.1.0 // indirect

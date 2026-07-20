@@ -149,6 +149,7 @@ export const ModelFormFields: FC<{
 					<ModelFormProviderSelect
 						providerStates={providerStates}
 						selectedProviderKey={selectedProviderKey}
+						isEditing={mode === "edit"}
 						onProviderChange={onProviderChange}
 						disabled={isDuplicating || providerStates.length === 0}
 					/>
@@ -240,12 +241,6 @@ export const ModelFormFields: FC<{
 							</InputGroupAddon>
 						</InputGroup>
 					</div>
-					<ReasoningEffortConfigFields
-						provider={selectedProviderState.provider}
-						form={form}
-						fieldErrors={modelConfigFormBuildResult.fieldErrors}
-						disabled={isSaving}
-					/>
 				</div>
 
 				<div className="overflow-hidden rounded-lg border border-solid border-border">
@@ -278,7 +273,14 @@ export const ModelFormFields: FC<{
 								form={form}
 								fieldErrors={modelConfigFormBuildResult.fieldErrors}
 								disabled={isSaving}
-							/>
+							>
+								<ReasoningEffortConfigFields
+									provider={selectedProviderState.provider}
+									form={form}
+									fieldErrors={modelConfigFormBuildResult.fieldErrors}
+									disabled={isSaving}
+								/>
+							</ModelConfigFields>
 						</CollapsibleSection>
 					)}
 
