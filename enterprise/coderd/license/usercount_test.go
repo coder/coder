@@ -388,28 +388,58 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			}
 		})
 
-		t.Run("AddonLimitBindsCounting", func(t *testing.T) {
-			// A higher user limit from a license without the addon must not
-			// apply to workspace-capable counting: the merged limit is
-			// clamped to the addon license's own user limit.
+		t.Run("BestPairSelection", func(t *testing.T) {
+			// A deployment holding both an addon license and a non-addon
+			// license has two user_limit candidates, each evaluated with
+			// its own counting mode. Limits and modes never mix.
 			licenses := []database.License{
 				dbLicense(*(&coderdenttest.LicenseOptions{
-					Features: license.Features{codersdk.FeatureUserLimit: 500},
+					Features: license.Features{codersdk.FeatureUserLimit: 200},
 				}).Valid(now)),
-				addonLicense(),
+				addonLicense(), // user_limit 100, AI Governance addon.
 			}
-			entitlements, err := license.LicensesEntitlements(ctx, now, licenses, enablements, coderdenttest.Keys, license.FeatureArguments{
-				ActiveUserCount: 7,
-				WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
-					return 150, nil
-				},
+			run := func(t *testing.T, activeUsers, capableUsers int64) codersdk.Entitlements {
+				entitlements, err := license.LicensesEntitlements(ctx, now, licenses, enablements, coderdenttest.Keys, license.FeatureArguments{
+					ActiveUserCount: activeUsers,
+					WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
+						return capableUsers, nil
+					},
+				})
+				require.NoError(t, err)
+				return entitlements
+			}
+
+			t.Run("LegacyPairCompliant", func(t *testing.T) {
+				// 180 active <= 200 wins over 150 capable > 100: the
+				// non-addon license keeps the deployment compliant.
+				entitlements := run(t, 180, 150)
+				require.Equal(t, int64(180), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
+				require.Equal(t, int64(200), *entitlements.Features[codersdk.FeatureUserLimit].Limit)
+				for _, warning := range entitlements.Warnings {
+					require.NotContains(t, warning, "users but")
+				}
 			})
-			require.NoError(t, err)
-			require.Equal(t, int64(150), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
-			require.Equal(t, int64(100), *entitlements.Features[codersdk.FeatureUserLimit].Limit,
-				"the non-addon license's higher limit must not apply")
-			require.Contains(t, entitlements.Warnings,
-				"Your deployment has 150 workspace-capable users but is only licensed for 100.")
+
+			t.Run("AddonPairCompliant", func(t *testing.T) {
+				// 90 capable <= 100 wins over 250 active > 200: the addon
+				// license keeps the deployment compliant.
+				entitlements := run(t, 250, 90)
+				require.Equal(t, int64(90), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
+				require.Equal(t, int64(100), *entitlements.Features[codersdk.FeatureUserLimit].Limit)
+				for _, warning := range entitlements.Warnings {
+					require.NotContains(t, warning, "users but")
+				}
+			})
+
+			t.Run("NeitherPairCompliant", func(t *testing.T) {
+				// Both pairs over: the higher limit is reported, with the
+				// counting mode of its own license.
+				entitlements := run(t, 250, 150)
+				require.Equal(t, int64(250), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
+				require.Equal(t, int64(200), *entitlements.Features[codersdk.FeatureUserLimit].Limit)
+				require.Contains(t, entitlements.Warnings,
+					"Your deployment has 250 active users but is only licensed for 200.")
+			})
 		})
 
 		t.Run("OverLimitWarnsWithCapableCount", func(t *testing.T) {
