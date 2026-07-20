@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
 	Command,
 	CommandEmpty,
@@ -170,16 +170,47 @@ export const SkillsTriggerMenu = ({
 	const shouldShowEmpty = allSkills.length === 0 && statusItems.length === 0;
 	const selectedValue = selectedIndex >= 0 ? String(selectedIndex) : "";
 
+	const listRef = useRef<HTMLDivElement>(null);
+	const pointerHighlightRef = useRef(false);
+
 	const handleHighlightedValueChange = (value: string) => {
 		const nextIndex = Number(value);
 		if (
 			Number.isInteger(nextIndex) &&
 			nextIndex >= 0 &&
-			nextIndex < allSkills.length
+			nextIndex < allSkills.length &&
+			nextIndex !== selectedIndex
 		) {
+			pointerHighlightRef.current = true;
 			onSelectedIndexChange(nextIndex);
 		}
 	};
+
+	// cmdk only auto-scrolls for its own key handling; arrow keys here are
+	// consumed by the Lexical trigger plugin and arrive as a controlled value
+	// change, so scroll the highlighted item into view manually. Pointer
+	// highlights skip scrolling, like cmdk, to avoid hover/scroll loops.
+	useLayoutEffect(() => {
+		const fromPointer = pointerHighlightRef.current;
+		pointerHighlightRef.current = false;
+		if (fromPointer || selectedIndex < 0) {
+			return;
+		}
+		const item = listRef.current?.querySelector(
+			`[cmdk-item][data-value="${selectedIndex}"]`,
+		);
+		if (!item) {
+			return;
+		}
+		if (item.parentElement?.firstElementChild === item) {
+			// First item in a group: reveal the group heading as well.
+			item
+				.closest("[cmdk-group]")
+				?.querySelector("[cmdk-group-heading]")
+				?.scrollIntoView({ block: "nearest" });
+		}
+		item.scrollIntoView({ block: "nearest" });
+	}, [selectedIndex]);
 
 	const renderSkill = (skill: SkillMenuItem, index: number) => (
 		<SkillCommandItem
@@ -229,7 +260,10 @@ export const SkillsTriggerMenu = ({
 					onValueChange={handleHighlightedValueChange}
 					value={selectedValue}
 				>
-					<CommandList className="max-h-72 border-t-0 mobile-full-width-dropdown-scroll-area">
+					<CommandList
+						ref={listRef}
+						className="max-h-72 border-t-0 mobile-full-width-dropdown-scroll-area"
+					>
 						{commands.length > 0 && (
 							<CommandGroup heading="Commands">
 								{commands.map((skill, index) => renderSkill(skill, index))}
