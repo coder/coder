@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { Organization } from "#/api/typesGenerated";
+import { SidebarContext } from "#/components/Sidebar/SidebarContext";
 import {
 	MockNoOrganizationPermissions,
 	MockNoPermissions,
@@ -158,6 +159,46 @@ export const NoPermissions: Story = {
 		activeOrganization: MockOrganization,
 		orgPermissions: MockNoOrganizationPermissions,
 		permissions: MockNoPermissions,
+	},
+};
+
+export const Collapsed: Story = {
+	args: {
+		activeOrganization: MockOrganization,
+		orgPermissions: MockOrganizationPermissions,
+		organizations: [MockOrganization],
+	},
+	decorators: [
+		(Story) => (
+			<SidebarContext.Provider
+				value={{
+					collapsed: true,
+					expand: () => {},
+					collapse: () => {},
+					toggle: () => {},
+				}}
+			>
+				<Story />
+			</SidebarContext.Provider>
+		),
+	],
+};
+
+export const ProvisionersAccordion: Story = {
+	args: {
+		activeOrganization: MockOrganization,
+		orgPermissions: MockOrganizationPermissions,
+		organizations: [MockOrganization],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Provisioners/i }),
+		);
+		await waitFor(() =>
+			expect(canvas.getByRole("link", { name: "Keys" })).toBeVisible(),
+		);
+		await expect(canvas.getByRole("link", { name: "Jobs" })).toBeVisible();
 	},
 };
 

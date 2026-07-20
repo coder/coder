@@ -1,5 +1,3 @@
-import { linkToAuditing } from "#/modules/navigation";
-
 /**
  * Permissions that determine which items appear in the Admin settings menu.
  * Shared by the desktop `DeploymentDropdown` and the mobile `MobileMenu` so
@@ -23,7 +21,8 @@ type AdminSettingsItem = {
 /**
  * Builds the ordered list of Admin settings menu items for the given
  * permissions. Organizations is always available; the rest are gated behind
- * their respective permissions.
+ * their respective permissions. Logs appears when the user can view any of
+ * the log pages; the logs section's own sidebar handles per-page gating.
  */
 export const getAdminSettingsItems = ({
 	canViewDeployment,
@@ -36,12 +35,8 @@ export const getAdminSettingsItems = ({
 	...(canViewDeployment ? [{ label: "Deployment", to: "/deployment" }] : []),
 	{ label: "Organizations", to: "/organizations" },
 	...(canViewAISettings ? [{ label: "AI", to: "/ai/settings" }] : []),
-	...(canViewAuditLog ? [{ label: "Audit logs", to: linkToAuditing }] : []),
-	...(canViewConnectionLog
-		? [{ label: "Connection logs", to: "/connectionlog" }]
-		: []),
-	...(canViewAIBridge
-		? [{ label: "AI sessions", to: "/ai-gateway/sessions" }]
+	...(canViewAuditLog || canViewConnectionLog || canViewAIBridge
+		? [{ label: "Logs", to: "/logs" }]
 		: []),
 	...(canViewHealth ? [{ label: "Healthcheck", to: "/health" }] : []),
 ];

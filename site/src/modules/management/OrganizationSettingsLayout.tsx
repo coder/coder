@@ -4,14 +4,6 @@ import { Outlet, useParams } from "react-router";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import type { Organization } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Avatar } from "#/components/Avatar/Avatar";
-import {
-	Breadcrumb,
-	BreadcrumbItem,
-	BreadcrumbList,
-	BreadcrumbPage,
-	BreadcrumbSeparator,
-} from "#/components/Breadcrumb/Breadcrumb";
 import { Loader } from "#/components/Loader/Loader";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
@@ -91,41 +83,9 @@ const OrganizationSettingsLayout: FC = () => {
 				organizationPermissions,
 			}}
 		>
-			<div>
-				<Breadcrumb>
-					<BreadcrumbList>
-						<BreadcrumbItem>
-							<BreadcrumbPage>Admin Settings</BreadcrumbPage>
-						</BreadcrumbItem>
-						<BreadcrumbSeparator />
-						<BreadcrumbItem>
-							<BreadcrumbPage className="flex items-center gap-2">
-								Organizations
-							</BreadcrumbPage>
-						</BreadcrumbItem>
-						{organization && (
-							<>
-								<BreadcrumbSeparator />
-								<BreadcrumbItem>
-									<BreadcrumbPage className="text-content-primary">
-										<Avatar
-											key={organization.id}
-											size="sm"
-											fallback={organization.display_name}
-											src={organization.icon}
-										/>
-										{organization.display_name}
-									</BreadcrumbPage>
-								</BreadcrumbItem>
-							</>
-						)}
-					</BreadcrumbList>
-				</Breadcrumb>
-				<div className="h-px border-none bg-border" />
-				<Suspense fallback={<Loader />}>
-					<Outlet />
-				</Suspense>
-			</div>
+			<Suspense fallback={<Loader />}>
+				<Outlet />
+			</Suspense>
 		</OrganizationSettingsContext.Provider>
 	);
 };

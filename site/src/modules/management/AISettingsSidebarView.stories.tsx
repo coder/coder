@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { SidebarContext } from "#/components/Sidebar/SidebarContext";
 import { MockNoPermissions, MockPermissions } from "#/testHelpers/entities";
 import AISettingsSidebarView from "./AISettingsSidebarView";
 
@@ -8,6 +9,7 @@ const meta: Meta<typeof AISettingsSidebarView> = {
 	component: AISettingsSidebarView,
 	args: {
 		permissions: MockPermissions,
+		activeSection: "coder-agents",
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -60,13 +62,57 @@ export const LifecycleActive: Story = {
 	},
 };
 
+export const GovernanceActive: Story = {
+	args: {
+		activeSection: "governance",
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/governance" },
+			routing: [{ path: "/ai/settings/governance", useStoryElement: true }],
+		}),
+	},
+};
+
+export const GatewayKeysActive: Story = {
+	args: {
+		activeSection: "gateway-keys",
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/gateway-keys" },
+			routing: [{ path: "/ai/settings/gateway-keys", useStoryElement: true }],
+		}),
+	},
+};
+
 export const ProvidersActive: Story = {
+	args: {
+		activeSection: "providers",
+	},
 	parameters: {
 		reactRouter: reactRouterParameters({
 			location: { path: "/ai/settings/providers" },
 			routing: [{ path: "/ai/settings/providers", useStoryElement: true }],
 		}),
 	},
+};
+
+export const Collapsed: Story = {
+	decorators: [
+		(Story) => (
+			<SidebarContext.Provider
+				value={{
+					collapsed: true,
+					expand: () => {},
+					collapse: () => {},
+					toggle: () => {},
+				}}
+			>
+				<Story />
+			</SidebarContext.Provider>
+		),
+	],
 };
 
 export const NoDeploymentConfig: Story = {
