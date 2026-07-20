@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
@@ -12,9 +13,37 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestPublishChatConfigEventIncludesOrganization(t *testing.T) {
+	t.Parallel()
+
+	ps := dbpubsub.NewInMemory()
+	organizationID := uuid.New()
+	entityID := uuid.New()
+	events := make(chan coderdpubsub.ChatConfigEvent, 1)
+	cancel, err := ps.SubscribeWithErr(
+		coderdpubsub.ChatConfigEventChannel,
+		coderdpubsub.HandleChatConfigEvent(func(_ context.Context, event coderdpubsub.ChatConfigEvent, err error) {
+			require.NoError(t, err)
+			events <- event
+		}),
+	)
+	require.NoError(t, err)
+	defer cancel()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	publishChatConfigEvent(logger, ps, coderdpubsub.ChatConfigEventModelConfig, organizationID, entityID)
+
+	event := testutil.RequireReceive(testutil.Context(t, testutil.WaitShort), t, events)
+	require.Equal(t, coderdpubsub.ChatConfigEventModelConfig, event.Kind)
+	require.Equal(t, organizationID, event.OrganizationID)
+	require.Equal(t, entityID, event.EntityID)
+}
 
 func TestEnrichMissingChatAgentIDs(t *testing.T) {
 	t.Parallel()

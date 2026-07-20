@@ -634,6 +634,12 @@ export type APIKeyScope =
 	| "chat:*"
 	| "chat:create"
 	| "chat:delete"
+	| "chat_model_config:*"
+	| "chat_model_config:create"
+	| "chat_model_config:delete"
+	| "chat_model_config:read"
+	| "chat_model_config:share"
+	| "chat_model_config:update"
 	| "chat:read"
 	| "chat:share"
 	| "chat:update"
@@ -874,6 +880,12 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"chat:*",
 	"chat:create",
 	"chat:delete",
+	"chat_model_config:*",
+	"chat_model_config:create",
+	"chat_model_config:delete",
+	"chat_model_config:read",
+	"chat_model_config:share",
+	"chat_model_config:update",
 	"chat:read",
 	"chat:share",
 	"chat:update",
@@ -1765,8 +1777,8 @@ export const ChatClientTypes: ChatClientType[] = ["api", "ui"];
 
 // From codersdk/chats.go
 /**
- * ChatCompactionThresholdKeyPrefix scopes per-model chat compaction
- * threshold settings.
+ * ChatCompactionThresholdKeyPrefix identifies organization-scoped per-model
+ * chat compaction threshold settings.
  */
 export const ChatCompactionThresholdKeyPrefix =
 	"chat_compaction_threshold_pct:";
@@ -2620,6 +2632,36 @@ export interface ChatModelConfig {
 	readonly reasoning_efforts?: readonly string[];
 	readonly created_at: string;
 	readonly updated_at: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatModelConfigACL describes the users and groups granted access to a chat model configuration.
+ */
+export interface ChatModelConfigACL {
+	readonly users: readonly ChatModelConfigUser[];
+	readonly groups: readonly ChatModelConfigGroup[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatModelConfigGroup is a group granted access to a chat model configuration.
+ */
+export interface ChatModelConfigGroup extends Group {
+	readonly role: ChatModelConfigRole;
+}
+
+// From codersdk/chats.go
+export type ChatModelConfigRole = "" | "read";
+
+export const ChatModelConfigRoles: ChatModelConfigRole[] = ["", "read"];
+
+// From codersdk/chats.go
+/**
+ * ChatModelConfigUser is a user granted access to a chat model configuration.
+ */
+export interface ChatModelConfigUser extends MinimalUser {
+	readonly role: ChatModelConfigRole;
 }
 
 // From codersdk/chats.go
@@ -7388,6 +7430,7 @@ export type RBACResource =
 	| "boundary_log"
 	| "boundary_usage"
 	| "chat"
+	| "chat_model_config"
 	| "connection_log"
 	| "crypto_key"
 	| "debug_info"
@@ -7441,6 +7484,7 @@ export const RBACResources: RBACResource[] = [
 	"boundary_log",
 	"boundary_usage",
 	"chat",
+	"chat_model_config",
 	"connection_log",
 	"crypto_key",
 	"debug_info",
@@ -9220,6 +9264,15 @@ export interface UpdateChatDebugLoggingAllowUsersRequest {
  */
 export interface UpdateChatDebugRetentionDaysRequest {
 	readonly debug_retention_days: number;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatModelConfigACL replaces or removes individual chat model configuration ACL entries.
+ */
+export interface UpdateChatModelConfigACL {
+	readonly user_roles?: Record<string, ChatModelConfigRole>;
+	readonly group_roles?: Record<string, ChatModelConfigRole>;
 }
 
 // From codersdk/chats.go

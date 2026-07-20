@@ -43,7 +43,7 @@ The advisor is not available in plan mode or to subagents. Failed advisor
 invocations refund the per-turn budget, and advisor calls are not metered
 against the root chat's usage limit.
 
-The same configuration is available at:
+The same configuration is available for each organization at:
 
-- `GET /api/experimental/chats/config/advisor`
-- `PUT /api/experimental/chats/config/advisor`
+- `GET /api/experimental/organizations/{organization}/chats/config/advisor`
+- `PATCH /api/experimental/organizations/{organization}/chats/config/advisor`

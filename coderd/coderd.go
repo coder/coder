@@ -1312,6 +1312,39 @@ func New(options *Options) *API {
 				r.Delete("/", api.deleteUserAIProviderKey)
 			})
 		})
+		r.Route("/chat-model-configs/{modelConfig}", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", api.getChatModelConfig)
+			r.Patch("/", api.updateChatModelConfig)
+			r.Delete("/", api.deleteChatModelConfig)
+			r.Get("/acl", api.getChatModelConfigACL)
+			r.Patch("/acl", api.patchChatModelConfigACL)
+		})
+		r.Route("/organizations/{organization}", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			r.Get("/chat-model-configs", api.listChatModelConfigs)
+			r.Post("/chat-model-configs", api.createChatModelConfig)
+			r.Route("/chats", func(r chi.Router) {
+				r.Get("/models", api.listChatModels)
+				r.Route("/config", func(r chi.Router) {
+					r.Get("/model-override/{context}", api.getChatModelOverride)
+					r.Patch("/model-override/{context}", api.putChatModelOverride)
+					r.Get("/user-personal-model-overrides", api.getUserChatPersonalModelOverrides)
+					r.Patch("/user-personal-model-overrides/{context}", api.putUserChatPersonalModelOverride)
+					r.Group(func(r chi.Router) {
+						r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatAdvisor))
+						r.Get("/advisor", api.getChatAdvisorConfig)
+						r.Patch("/advisor", api.putChatAdvisorConfig)
+					})
+					r.Get("/user-compaction-thresholds", api.getUserChatCompactionThresholds)
+					r.Patch("/user-compaction-thresholds/{modelConfig}", api.putUserChatCompactionThreshold)
+					r.Delete("/user-compaction-thresholds/{modelConfig}", api.deleteUserChatCompactionThreshold)
+				})
+			})
+		})
 		r.Route("/chats", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1319,7 +1352,6 @@ func New(options *Options) *API {
 			r.Get("/by-workspace", api.chatsByWorkspace)
 			r.Get("/", api.listChats)
 			r.Post("/", api.postChats)
-			r.Get("/models", api.listChatModels)
 			r.Get("/watch", api.watchChats)
 			r.Route("/cost", func(r chi.Router) {
 				r.Get("/users", api.chatCostUsers)
@@ -1338,12 +1370,8 @@ func New(options *Options) *API {
 				r.Put("/system-prompt", api.putChatSystemPrompt)
 				r.Get("/plan-mode-instructions", api.getChatPlanModeInstructions)
 				r.Put("/plan-mode-instructions", api.putChatPlanModeInstructions)
-				r.Get("/model-override/{context}", api.getChatModelOverride)
-				r.Put("/model-override/{context}", api.putChatModelOverride)
 				r.Get("/personal-model-overrides", api.getChatPersonalModelOverridesAdminSettings)
 				r.Put("/personal-model-overrides", api.putChatPersonalModelOverridesAdminSettings)
-				r.Get("/user-personal-model-overrides", api.getUserChatPersonalModelOverrides)
-				r.Put("/user-personal-model-overrides/{context}", api.putUserChatPersonalModelOverride)
 				r.Group(func(r chi.Router) {
 					r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatVirtualDesktop))
 					r.Get("/computer-use-provider", api.getChatComputerUseProvider)
@@ -1353,16 +1381,8 @@ func New(options *Options) *API {
 				r.Put("/debug-logging", api.putChatDebugLogging)
 				r.Get("/user-debug-logging", api.getUserChatDebugLogging)
 				r.Put("/user-debug-logging", api.putUserChatDebugLogging)
-				r.Group(func(r chi.Router) {
-					r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatAdvisor))
-					r.Get("/advisor", api.getChatAdvisorConfig)
-					r.Put("/advisor", api.putChatAdvisorConfig)
-				})
 				r.Get("/user-prompt", api.getUserChatCustomPrompt)
 				r.Put("/user-prompt", api.putUserChatCustomPrompt)
-				r.Get("/user-compaction-thresholds", api.getUserChatCompactionThresholds)
-				r.Put("/user-compaction-thresholds/{modelConfig}", api.putUserChatCompactionThreshold)
-				r.Delete("/user-compaction-thresholds/{modelConfig}", api.deleteUserChatCompactionThreshold)
 				r.Get("/workspace-ttl", api.getChatWorkspaceTTL)
 				r.Put("/workspace-ttl", api.putChatWorkspaceTTL)
 				r.Get("/retention-days", api.getChatRetentionDays)
@@ -1381,15 +1401,6 @@ func New(options *Options) *API {
 				r.Route("/{providerConfig}", func(r chi.Router) {
 					r.Patch("/", api.updateChatProvider)
 					r.Delete("/", api.deleteChatProvider)
-				})
-			})
-			// TODO(cian): place under /api/experimental/chats/config
-			r.Route("/model-configs", func(r chi.Router) {
-				r.Get("/", api.listChatModelConfigs)
-				r.Post("/", api.createChatModelConfig)
-				r.Route("/{modelConfig}", func(r chi.Router) {
-					r.Patch("/", api.updateChatModelConfig)
-					r.Delete("/", api.deleteChatModelConfig)
 				})
 			})
 			r.Route("/usage-limits", func(r chi.Router) {

@@ -45,6 +45,15 @@ func createOpenAIProviderForTest(
 	return provider
 }
 
+func chatModelConfigOrganizationID(t testing.TB, client *codersdk.ExperimentalClient) uuid.UUID {
+	t.Helper()
+
+	user, err := client.User(testutil.Context(t, testutil.WaitLong), codersdk.Me)
+	require.NoError(t, err)
+	require.NotEmpty(t, user.OrganizationIDs)
+	return user.OrganizationIDs[0]
+}
+
 func createOpenAIModelConfigForTest(
 	ctx context.Context,
 	t testing.TB,
@@ -54,7 +63,7 @@ func createOpenAIModelConfigForTest(
 ) codersdk.ChatModelConfig {
 	t.Helper()
 	provider := createOpenAIProviderForTest(ctx, t, client, apiKey, baseURL)
-	model, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+	model, err := client.CreateChatModelConfig(ctx, chatModelConfigOrganizationID(t, client), codersdk.CreateChatModelConfigRequest{
 		AIProviderID:         &provider.ID,
 		Model:                "gpt-4",
 		DisplayName:          "GPT-4",
@@ -940,7 +949,7 @@ func TestChatModelConfigDefault(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	client, _ := coderdenttest.New(t, nil)
+	client, firstUser := coderdenttest.New(t, nil)
 	expClient := codersdk.NewExperimentalClient(client)
 
 	provider := createOpenAIProviderForTest(ctx, t, expClient, "test", "https://example.com")
@@ -952,6 +961,7 @@ func TestChatModelConfigDefault(t *testing.T) {
 
 	firstModel, err := expClient.CreateChatModelConfig(
 		ctx,
+		firstUser.OrganizationID,
 		codersdk.CreateChatModelConfigRequest{
 			AIProviderID:         &provider.ID,
 			Model:                "gpt-5-a",
@@ -966,6 +976,7 @@ func TestChatModelConfigDefault(t *testing.T) {
 
 	secondModel, err := expClient.CreateChatModelConfig(
 		ctx,
+		firstUser.OrganizationID,
 		codersdk.CreateChatModelConfigRequest{
 			AIProviderID:         &provider.ID,
 			Model:                "gpt-5-b",
@@ -978,7 +989,7 @@ func TestChatModelConfigDefault(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, secondModel.IsDefault)
 
-	modelConfigs, err := expClient.ListChatModelConfigs(ctx)
+	modelConfigs, err := expClient.ListChatModelConfigs(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
 	firstStored := findChatModelConfigByID(t, modelConfigs, firstModel.ID)
 	secondStored := findChatModelConfigByID(t, modelConfigs, secondModel.ID)
@@ -995,7 +1006,7 @@ func TestChatModelConfigDefault(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, updatedFirst.IsDefault)
 
-	modelConfigs, err = expClient.ListChatModelConfigs(ctx)
+	modelConfigs, err = expClient.ListChatModelConfigs(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
 	firstStored = findChatModelConfigByID(t, modelConfigs, firstModel.ID)
 	secondStored = findChatModelConfigByID(t, modelConfigs, secondModel.ID)
@@ -1012,12 +1023,78 @@ func TestChatModelConfigDefault(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, updatedFirst.IsDefault)
 
-	modelConfigs, err = expClient.ListChatModelConfigs(ctx)
+	modelConfigs, err = expClient.ListChatModelConfigs(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
 	firstStored = findChatModelConfigByID(t, modelConfigs, firstModel.ID)
 	secondStored = findChatModelConfigByID(t, modelConfigs, secondModel.ID)
 	require.False(t, firstStored.IsDefault)
 	require.True(t, secondStored.IsDefault)
+}
+
+func createChatModelConfigForOrganization(
+	ctx context.Context,
+	t testing.TB,
+	client *codersdk.ExperimentalClient,
+	organizationID uuid.UUID,
+	providerID uuid.UUID,
+	model string,
+	isDefault bool,
+) codersdk.ChatModelConfig {
+	t.Helper()
+
+	config, err := client.CreateChatModelConfig(ctx, organizationID, codersdk.CreateChatModelConfigRequest{
+		AIProviderID:         &providerID,
+		Model:                model,
+		ContextLimit:         ptr.Ref(int64(4096)),
+		CompressionThreshold: ptr.Ref(int32(70)),
+		IsDefault:            &isDefault,
+	})
+	require.NoError(t, err)
+	return config
+}
+
+func requireChatModelConfigIDs(t *testing.T, configs []codersdk.ChatModelConfig, want ...uuid.UUID) {
+	t.Helper()
+
+	actual := make([]uuid.UUID, 0, len(configs))
+	for _, config := range configs {
+		actual = append(actual, config.ID)
+	}
+	require.ElementsMatch(t, want, actual)
+}
+
+func requireSingleDefaultChatModelConfig(t *testing.T, configs []codersdk.ChatModelConfig, want uuid.UUID) {
+	t.Helper()
+
+	var defaults []uuid.UUID
+	for _, config := range configs {
+		if config.IsDefault {
+			defaults = append(defaults, config.ID)
+		}
+	}
+	require.Equal(t, []uuid.UUID{want}, defaults)
+}
+
+func requireChatModelConfigRequestStatus(
+	t *testing.T,
+	client *codersdk.ExperimentalClient,
+	method string,
+	modelConfigID uuid.UUID,
+	pathSuffix string,
+	body any,
+	wantStatus int,
+) {
+	t.Helper()
+
+	res, err := client.Request(
+		testutil.Context(t, testutil.WaitLong),
+		method,
+		"/api/experimental/chat-model-configs/"+modelConfigID.String()+pathSuffix,
+		body,
+	)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, wantStatus, res.StatusCode)
 }
 
 func findChatModelConfigByID(
@@ -1074,6 +1151,276 @@ func (p cookieOnlySessionTokenProvider) SetDialOption(opts *websocket.DialOption
 	opts.HTTPHeader.Set("Cookie", cookieName+"="+p.token)
 }
 
+func requireSDKErrorStatus(t *testing.T, err error, wantStatus int) *codersdk.Error {
+	t.Helper()
+
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, wantStatus, sdkErr.StatusCode())
+	return sdkErr
+}
+
+func TestChatModelConfigCollectionOrganizationIsolation(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		},
+	})
+	expClient := codersdk.NewExperimentalClient(client)
+	secondOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+	provider := createOpenAIProviderForTest(ctx, t, expClient, "test-key", "https://example.com")
+
+	firstConfig := createChatModelConfigForOrganization(ctx, t, expClient, firstUser.OrganizationID, provider.ID, "org-one-model", true)
+	secondConfig := createChatModelConfigForOrganization(ctx, t, expClient, secondOrg.ID, provider.ID, "org-two-model", true)
+
+	firstConfigs, err := expClient.ListChatModelConfigs(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	requireChatModelConfigIDs(t, firstConfigs, firstConfig.ID)
+
+	secondConfigs, err := expClient.ListChatModelConfigs(ctx, secondOrg.ID)
+	require.NoError(t, err)
+	requireChatModelConfigIDs(t, secondConfigs, secondConfig.ID)
+}
+
+func TestChatModelConfigItemCrossOrganizationConcealment(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureMultipleOrganizations: 1,
+				codersdk.FeatureTemplateRBAC:          1,
+			},
+		},
+	})
+	expClient := codersdk.NewExperimentalClient(client)
+	secondOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+	otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client, secondOrg.ID)
+	otherClient := codersdk.NewExperimentalClient(otherClientRaw)
+	provider := createOpenAIProviderForTest(ctx, t, expClient, "test-key", "https://example.com")
+	config := createChatModelConfigForOrganization(ctx, t, expClient, firstUser.OrganizationID, provider.ID, "private-org-one-model", true)
+
+	for _, test := range []struct {
+		name       string
+		method     string
+		pathSuffix string
+		body       any
+	}{
+		{name: "Get", method: http.MethodGet},
+		{name: "Patch", method: http.MethodPatch, body: codersdk.UpdateChatModelConfigRequest{DisplayName: "cross-org"}},
+		{name: "Delete", method: http.MethodDelete},
+		{name: "GetACL", method: http.MethodGet, pathSuffix: "/acl"},
+		{name: "PatchACL", method: http.MethodPatch, pathSuffix: "/acl", body: codersdk.UpdateChatModelConfigACL{}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			requireChatModelConfigRequestStatus(t, otherClient, test.method, config.ID, test.pathSuffix, test.body, http.StatusNotFound)
+		})
+	}
+}
+
+func TestChatModelConfigACL(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		},
+	})
+	expClient := codersdk.NewExperimentalClient(client)
+	provider := createOpenAIProviderForTest(ctx, t, expClient, "test-key", "https://example.com")
+	config := createChatModelConfigForOrganization(ctx, t, expClient, firstUser.OrganizationID, provider.ID, "acl-model", true)
+	userClientRaw, user := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	userClient := codersdk.NewExperimentalClient(userClientRaw)
+	groupMemberClientRaw, groupMember := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	groupMemberClient := codersdk.NewExperimentalClient(groupMemberClientRaw)
+	group := coderdtest.CreateGroup(t, client, firstUser.OrganizationID, "model-readers", groupMember)
+
+	// API-created configs begin with Everyone read. Remove it before asserting
+	// direct user and group grants independently.
+	err := expClient.UpdateChatModelConfigACL(ctx, config.ID, codersdk.UpdateChatModelConfigACL{
+		GroupRoles: map[string]codersdk.ChatModelConfigRole{
+			firstUser.OrganizationID.String(): codersdk.ChatModelConfigRoleDeleted,
+		},
+	})
+	require.NoError(t, err)
+
+	for _, client := range []*codersdk.ExperimentalClient{userClient, groupMemberClient} {
+		requireChatModelConfigRequestStatus(t, client, http.MethodGet, config.ID, "", nil, http.StatusNotFound)
+		requireChatModelConfigRequestStatus(t, client, http.MethodGet, config.ID, "/acl", nil, http.StatusNotFound)
+	}
+
+	err = expClient.UpdateChatModelConfigACL(ctx, config.ID, codersdk.UpdateChatModelConfigACL{
+		UserRoles: map[string]codersdk.ChatModelConfigRole{
+			user.ID.String(): codersdk.ChatModelConfigRoleRead,
+		},
+		GroupRoles: map[string]codersdk.ChatModelConfigRole{
+			group.ID.String(): codersdk.ChatModelConfigRoleRead,
+		},
+	})
+	require.NoError(t, err)
+
+	acl, err := expClient.GetChatModelConfigACL(ctx, config.ID)
+	require.NoError(t, err)
+	require.Len(t, acl.Users, 1)
+	require.Equal(t, user.ID, acl.Users[0].ID)
+	require.Equal(t, codersdk.ChatModelConfigRoleRead, acl.Users[0].Role)
+	require.Len(t, acl.Groups, 1)
+	require.Equal(t, group.ID, acl.Groups[0].ID)
+	require.Equal(t, codersdk.ChatModelConfigRoleRead, acl.Groups[0].Role)
+
+	for _, reader := range []*codersdk.ExperimentalClient{userClient, groupMemberClient} {
+		configs, err := reader.ListChatModelConfigs(ctx, firstUser.OrganizationID)
+		require.NoError(t, err)
+		requireChatModelConfigIDs(t, configs, config.ID)
+		requireChatModelConfigRequestStatus(t, reader, http.MethodGet, config.ID, "", nil, http.StatusOK)
+		requireChatModelConfigRequestStatus(t, reader, http.MethodGet, config.ID, "/acl", nil, http.StatusOK)
+		requireChatModelConfigRequestStatus(t, reader, http.MethodPatch, config.ID, "", codersdk.UpdateChatModelConfigRequest{DisplayName: "reader"}, http.StatusNotFound)
+		requireChatModelConfigRequestStatus(t, reader, http.MethodDelete, config.ID, "", nil, http.StatusNotFound)
+		requireChatModelConfigRequestStatus(t, reader, http.MethodPatch, config.ID, "/acl", codersdk.UpdateChatModelConfigACL{}, http.StatusNotFound)
+	}
+
+	// The ACL endpoint accepts only read and deletion roles.
+	err = expClient.UpdateChatModelConfigACL(ctx, config.ID, codersdk.UpdateChatModelConfigACL{
+		UserRoles: map[string]codersdk.ChatModelConfigRole{
+			user.ID.String(): codersdk.ChatModelConfigRole("write"),
+		},
+	})
+	requireSDKErrorStatus(t, err, http.StatusBadRequest)
+}
+
+func TestChatModelConfigACLRequiresTemplateRBAC(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, firstUser := coderdenttest.New(t, nil)
+	expClient := codersdk.NewExperimentalClient(client)
+	provider := createOpenAIProviderForTest(ctx, t, expClient, "test-key", "https://example.com")
+	config := createChatModelConfigForOrganization(ctx, t, expClient, firstUser.OrganizationID, provider.ID, "unlicensed-acl-model", true)
+
+	err := expClient.UpdateChatModelConfigACL(ctx, config.ID, codersdk.UpdateChatModelConfigACL{})
+	requireSDKErrorStatus(t, err, http.StatusNotFound)
+}
+
+func TestChatModelConfigDefaultsAreIndependentPerOrganization(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		},
+	})
+	expClient := codersdk.NewExperimentalClient(client)
+	secondOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+	provider := createOpenAIProviderForTest(ctx, t, expClient, "test-key", "https://example.com")
+
+	firstA := createChatModelConfigForOrganization(ctx, t, expClient, firstUser.OrganizationID, provider.ID, "org-one-a", false)
+	secondA := createChatModelConfigForOrganization(ctx, t, expClient, secondOrg.ID, provider.ID, "org-two-a", false)
+	firstB := createChatModelConfigForOrganization(ctx, t, expClient, firstUser.OrganizationID, provider.ID, "org-one-b", true)
+	secondB := createChatModelConfigForOrganization(ctx, t, expClient, secondOrg.ID, provider.ID, "org-two-b", true)
+
+	firstConfigs, err := expClient.ListChatModelConfigs(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	requireSingleDefaultChatModelConfig(t, firstConfigs, firstB.ID)
+	secondConfigs, err := expClient.ListChatModelConfigs(ctx, secondOrg.ID)
+	require.NoError(t, err)
+	requireSingleDefaultChatModelConfig(t, secondConfigs, secondB.ID)
+
+	// Disabling a default must not silently select a default in another org.
+	disabled, err := expClient.UpdateChatModelConfig(ctx, firstB.ID, codersdk.UpdateChatModelConfigRequest{Enabled: ptr.Ref(false)})
+	require.NoError(t, err)
+	require.False(t, disabled.Enabled)
+	require.True(t, disabled.IsDefault)
+	firstConfigs, err = expClient.ListChatModelConfigs(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	requireSingleDefaultChatModelConfig(t, firstConfigs, firstB.ID)
+
+	err = expClient.DeleteChatModelConfig(ctx, firstB.ID)
+	require.NoError(t, err)
+	firstConfigs, err = expClient.ListChatModelConfigs(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	requireChatModelConfigIDs(t, firstConfigs, firstA.ID)
+	requireSingleDefaultChatModelConfig(t, firstConfigs, firstA.ID)
+	secondConfigs, err = expClient.ListChatModelConfigs(ctx, secondOrg.ID)
+	require.NoError(t, err)
+	requireChatModelConfigIDs(t, secondConfigs, secondA.ID, secondB.ID)
+	requireSingleDefaultChatModelConfig(t, secondConfigs, secondB.ID)
+}
+
+func TestChatAdvisorPersonalOverrideAndThresholdOrganizationIsolation(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues: func() *codersdk.DeploymentValues {
+				values := coderdtest.DeploymentValues(t)
+				values.Experiments = append(values.Experiments, string(codersdk.ExperimentChatAdvisor))
+				return values
+			}(),
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		},
+	})
+	expClient := codersdk.NewExperimentalClient(client)
+	secondOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+	provider := createOpenAIProviderForTest(ctx, t, expClient, "test-key", "https://example.com")
+	firstConfig := createChatModelConfigForOrganization(ctx, t, expClient, firstUser.OrganizationID, provider.ID, "org-one-scoped-settings", true)
+	secondConfig := createChatModelConfigForOrganization(ctx, t, expClient, secondOrg.ID, provider.ID, "org-two-scoped-settings", true)
+
+	err := expClient.UpdateChatAdvisorConfig(ctx, firstUser.OrganizationID, codersdk.AdvisorConfig{Enabled: true, MaxUsesPerRun: 1, ModelConfigID: firstConfig.ID})
+	require.NoError(t, err)
+	err = expClient.UpdateChatAdvisorConfig(ctx, secondOrg.ID, codersdk.AdvisorConfig{Enabled: true, MaxUsesPerRun: 2, ModelConfigID: secondConfig.ID})
+	require.NoError(t, err)
+	firstAdvisor, err := expClient.GetChatAdvisorConfig(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	secondAdvisor, err := expClient.GetChatAdvisorConfig(ctx, secondOrg.ID)
+	require.NoError(t, err)
+	require.Equal(t, firstConfig.ID, firstAdvisor.ModelConfigID)
+	require.Equal(t, secondConfig.ID, secondAdvisor.ModelConfigID)
+	require.Equal(t, 1, firstAdvisor.MaxUsesPerRun)
+	require.Equal(t, 2, secondAdvisor.MaxUsesPerRun)
+
+	err = expClient.UpdateChatPersonalModelOverridesAdminSettings(ctx, codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest{AllowUsers: true})
+	require.NoError(t, err)
+	err = expClient.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{Mode: codersdk.ChatPersonalModelOverrideModeModel, ModelConfigID: firstConfig.ID.String()})
+	require.NoError(t, err)
+	err = expClient.UpdateUserChatPersonalModelOverride(ctx, secondOrg.ID, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{Mode: codersdk.ChatPersonalModelOverrideModeModel, ModelConfigID: secondConfig.ID.String()})
+	require.NoError(t, err)
+	firstPersonal, err := expClient.GetUserChatPersonalModelOverrides(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	secondPersonal, err := expClient.GetUserChatPersonalModelOverrides(ctx, secondOrg.ID)
+	require.NoError(t, err)
+	require.Equal(t, firstConfig.ID.String(), firstPersonal.Root.ModelConfigID)
+	require.Equal(t, secondConfig.ID.String(), secondPersonal.Root.ModelConfigID)
+
+	_, err = expClient.UpdateUserChatCompactionThreshold(ctx, firstUser.OrganizationID, firstConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{ThresholdPercent: 25})
+	require.NoError(t, err)
+	_, err = expClient.UpdateUserChatCompactionThreshold(ctx, secondOrg.ID, secondConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{ThresholdPercent: 75})
+	require.NoError(t, err)
+	firstThresholds, err := expClient.GetUserChatCompactionThresholds(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	secondThresholds, err := expClient.GetUserChatCompactionThresholds(ctx, secondOrg.ID)
+	require.NoError(t, err)
+	require.Equal(t, []codersdk.UserChatCompactionThreshold{{ModelConfigID: firstConfig.ID, ThresholdPercent: 25}}, firstThresholds.Thresholds)
+	require.Equal(t, []codersdk.UserChatCompactionThreshold{{ModelConfigID: secondConfig.ID, ThresholdPercent: 75}}, secondThresholds.Thresholds)
+}
+
 func TestCreateChatNonDefaultOrg(t *testing.T) {
 	t.Parallel()
 
@@ -1095,7 +1442,7 @@ func TestCreateChatNonDefaultOrg(t *testing.T) {
 	expClient := codersdk.NewExperimentalClient(client)
 
 	provider := createOpenAIProviderForTest(ctx, t, expClient, "test-key", "https://example.com")
-	_, err := expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+	_, err := expClient.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 		AIProviderID:         &provider.ID,
 		Model:                "gpt-4o-mini",
 		DisplayName:          "Test Model",
@@ -1107,6 +1454,15 @@ func TestCreateChatNonDefaultOrg(t *testing.T) {
 
 	// Create a second (non-default) org via the API.
 	secondOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+	_, err = expClient.CreateChatModelConfig(ctx, secondOrg.ID, codersdk.CreateChatModelConfigRequest{
+		AIProviderID:         &provider.ID,
+		Model:                "gpt-4o-mini",
+		DisplayName:          "Second Organization Model",
+		IsDefault:            ptr.Ref(true),
+		ContextLimit:         ptr.Ref(int64(1000)),
+		CompressionThreshold: ptr.Ref(int32(70)),
+	})
+	require.NoError(t, err)
 
 	// Create a member with agents-access in both orgs.
 	memberClientRaw, member := coderdtest.CreateAnotherUser(
@@ -1164,7 +1520,7 @@ func TestListChats_OrgAdminOnlySeesOwnChats(t *testing.T) {
 	expClient := codersdk.NewExperimentalClient(client)
 
 	provider := createOpenAIProviderForTest(ctx, t, expClient, "test-key", "https://example.com")
-	_, err := expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+	_, err := expClient.CreateChatModelConfig(ctx, firstUser.OrganizationID, codersdk.CreateChatModelConfigRequest{
 		AIProviderID:         &provider.ID,
 		Model:                "gpt-4o-mini",
 		DisplayName:          "Test Model",
@@ -1176,6 +1532,15 @@ func TestListChats_OrgAdminOnlySeesOwnChats(t *testing.T) {
 
 	// Create a second (non-default) org.
 	secondOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+	_, err = expClient.CreateChatModelConfig(ctx, secondOrg.ID, codersdk.CreateChatModelConfigRequest{
+		AIProviderID:         &provider.ID,
+		Model:                "gpt-4o-mini",
+		DisplayName:          "Second Organization Model",
+		IsDefault:            ptr.Ref(true),
+		ContextLimit:         ptr.Ref(int64(1000)),
+		CompressionThreshold: ptr.Ref(int32(70)),
+	})
+	require.NoError(t, err)
 
 	// Create a member with agents-access in both orgs.
 	memberClientRaw, _ := coderdtest.CreateAnotherUser(
