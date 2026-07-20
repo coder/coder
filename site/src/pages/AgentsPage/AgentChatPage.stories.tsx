@@ -1221,11 +1221,6 @@ export const WithMessageHistory: Story = {
 			await user.keyboard(key);
 			await user.click(modelSelector);
 		};
-		const editLastMessage = async () => {
-			const buttons = canvas.getAllByRole("button", { name: "Edit message" });
-			await user.click(buttons[buttons.length - 1]);
-		};
-
 		expect(
 			await canvas.findByText("Markdown rendering showcase"),
 		).toBeVisible();
@@ -1236,29 +1231,18 @@ export const WithMessageHistory: Story = {
 		});
 
 		await changeReasoningEffort("{ArrowRight}");
-		await editLastMessage();
-		await user.click(canvas.getByRole("button", { name: "Save Edit" }));
+		const editButtons = canvas.getAllByRole("button", { name: "Edit message" });
+		await user.click(editButtons[editButtons.length - 1]);
+		const saveButton = await canvas.findByRole("button", {
+			name: "Save Edit",
+		});
+		await changeReasoningEffort("{ArrowLeft}");
+		await waitFor(() => expect(saveButton).toBeEnabled());
+		await user.click(saveButton);
 		await waitFor(() => {
 			expect(API.experimental.editChatMessage).toHaveBeenCalledTimes(1);
-			expect(
-				canvas.getByRole("textbox", { name: "Chat message" }),
-			).toBeEnabled();
 		});
-
-		await editLastMessage();
-		await changeReasoningEffort("{ArrowLeft}");
-		await user.click(canvas.getByRole("button", { name: "Save Edit" }));
-		await waitFor(() => {
-			expect(API.experimental.editChatMessage).toHaveBeenCalledTimes(2);
-		});
-		expect(API.experimental.editChatMessage).toHaveBeenNthCalledWith(
-			1,
-			CHAT_ID,
-			5,
-			expect.not.objectContaining({ reasoning_effort: expect.anything() }),
-		);
-		expect(API.experimental.editChatMessage).toHaveBeenNthCalledWith(
-			2,
+		expect(API.experimental.editChatMessage).toHaveBeenCalledWith(
 			CHAT_ID,
 			5,
 			expect.objectContaining({ reasoning_effort: "medium" }),

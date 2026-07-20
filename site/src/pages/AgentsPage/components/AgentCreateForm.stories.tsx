@@ -346,7 +346,7 @@ export const SubmitsReasoningEffort: Story = {
 		expect(slider).toHaveAttribute("aria-valuenow", "3");
 
 		// Bump the effort to "high" with the keyboard, then close.
-		await userEvent.tab();
+		slider.focus();
 		expect(slider).toHaveFocus();
 		await userEvent.keyboard("{ArrowRight}");
 		await waitFor(() => {
