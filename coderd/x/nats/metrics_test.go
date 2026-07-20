@@ -20,10 +20,9 @@ func TestPubsub_Metrics(t *testing.T) {
 	registry := prometheus.NewRegistry()
 	uut := newPubsub(t, nats.Options{Metrics: pubsub.NewMetrics(registry)})
 
-	// The send/receive byte and call counters are perturbed by the
-	// background latency loop, so we assert lower bounds for those. The
-	// current_events/current_subscribers gauges exclude the latency probe
-	// channel, so they remain exact.
+	// Counters use lower-bound assertions because the exact values depend on
+	// live traffic timing. The precise probe-exclusion behavior is covered by
+	// TestMetrics_CountersExcludeLatencyChannel in the pubsub package.
 	const backend = "nats"
 	positive := func(in float64) bool { return in > 0 }
 

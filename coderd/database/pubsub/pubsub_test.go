@@ -34,11 +34,9 @@ func TestPGPubsub_Metrics(t *testing.T) {
 	require.NoError(t, err)
 	defer uut.Close()
 
-	// The send/receive byte and call counters are perturbed by the
-	// background latency loop (it publishes and subscribes on its own
-	// channel), so we assert on lower bounds for those. The
-	// current_events/current_subscribers gauges exclude the latency probe
-	// channel, so they remain exact.
+	// Counters use lower-bound assertions because the exact values depend on
+	// live traffic timing. The precise probe-exclusion behavior is covered by
+	// TestMetrics_CountersExcludeLatencyChannel.
 	const backend = "postgres"
 	positive := func(in float64) bool { return in > 0 }
 

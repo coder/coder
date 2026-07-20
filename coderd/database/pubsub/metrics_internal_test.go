@@ -18,12 +18,12 @@ func TestMetrics_RecordHelpers(t *testing.T) {
 	m := NewMetrics(reg).ForBackend(slog.Make(), BackendPostgres)
 	const backend = BackendPostgres
 
-	m.RecordPublishSuccess(10)
-	m.RecordPublishFailure()
-	m.RecordSubscribeSuccess()
-	m.RecordSubscribeFailure()
-	m.RecordReceived([]byte("hi"))
-	m.RecordReceived(make([]byte, ColossalThreshold))
+	m.RecordPublishSuccess("a", 10)
+	m.RecordPublishFailure("a")
+	m.RecordSubscribeSuccess("a")
+	m.RecordSubscribeFailure("a")
+	m.RecordReceived("a", []byte("hi"))
+	m.RecordReceived("a", make([]byte, ColossalThreshold))
 	m.RecordDisconnect()
 	m.MarkConnected()
 
@@ -71,6 +71,40 @@ func TestMetrics_GaugesExcludeLatencyChannel(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, testutil.PromGaugeHasValue(t, metrics, 1, "coder_pubsub_current_events", backend))
 	require.True(t, testutil.PromGaugeHasValue(t, metrics, 1, "coder_pubsub_current_subscribers", backend))
+}
+
+func TestMetrics_CountersExcludeLatencyChannel(t *testing.T) {
+	t.Parallel()
+
+	reg := prometheus.NewRegistry()
+	m := NewMetrics(reg).ForBackend(slog.Make(), BackendNATS)
+	const backend = BackendNATS
+
+	// Traffic on the latency probe channel must not pollute the
+	// publish/subscribe/message/bytes counters, just as it is excluded from
+	// the gauges.
+	probe := m.latencyMeasurer.nextChannelName()
+	m.RecordPublishSuccess(probe, 10)
+	m.RecordPublishFailure(probe)
+	m.RecordSubscribeSuccess(probe)
+	m.RecordSubscribeFailure(probe)
+	m.RecordReceived(probe, []byte("hi"))
+
+	// Real traffic is still counted.
+	m.RecordPublishSuccess("real", 5)
+	m.RecordSubscribeSuccess("real")
+	m.RecordReceived("real", []byte("hey"))
+
+	metrics, err := reg.Gather()
+	require.NoError(t, err)
+	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_publishes_total", backend, "true"))
+	require.True(t, testutil.PromCounterHasValue(t, metrics, 5, "coder_pubsub_published_bytes_total", backend))
+	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_subscribes_total", backend, "true"))
+	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_messages_total", backend, "normal"))
+	require.True(t, testutil.PromCounterHasValue(t, metrics, 3, "coder_pubsub_received_bytes_total", backend))
+	// The probe's publish/subscribe failures must not register either.
+	require.False(t, testutil.PromCounterGathered(t, metrics, "coder_pubsub_publishes_total", backend, "false"))
+	require.False(t, testutil.PromCounterGathered(t, metrics, "coder_pubsub_subscribes_total", backend, "false"))
 }
 
 func TestMetrics_MeasureOnce(t *testing.T) {

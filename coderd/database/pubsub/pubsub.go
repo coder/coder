@@ -231,12 +231,6 @@ type PGPubsub struct {
 	closeListenerErr error
 
 	metrics *BackendMetrics
-
-	// closeCtx is canceled by Close to stop the background latency loop.
-	// latencyLoopDone is closed when that loop exits.
-	closeCtx        context.Context
-	closeCancel     context.CancelFunc
-	latencyLoopDone chan struct{}
 }
 
 // BufferSize is the maximum number of unhandled messages we will buffer
@@ -258,9 +252,9 @@ func (p *PGPubsub) subscribeQueue(event string, newQ *MsgQueue) (cancel func(), 
 			// if we hit an error, we need to close the queue so we don't
 			// leak its goroutine.
 			newQ.Close()
-			p.metrics.RecordSubscribeFailure()
+			p.metrics.RecordSubscribeFailure(event)
 		} else {
-			p.metrics.RecordSubscribeSuccess()
+			p.metrics.RecordSubscribeSuccess(event)
 		}
 	}()
 
@@ -379,24 +373,19 @@ func (p *PGPubsub) Publish(event string, message []byte) error {
 	//nolint:gosec
 	_, err := p.db.ExecContext(context.Background(), `select pg_notify(`+pq.QuoteLiteral(event)+`, $1)`, message)
 	if err != nil {
-		p.metrics.RecordPublishFailure()
+		p.metrics.RecordPublishFailure(event)
 		return xerrors.Errorf("exec pg_notify: %w", err)
 	}
-	p.metrics.RecordPublishSuccess(len(message))
+	p.metrics.RecordPublishSuccess(event, len(message))
 	return nil
 }
 
 // Close closes the pubsub instance.
 func (p *PGPubsub) Close() error {
 	p.logger.Info(context.Background(), "pubsub is closing")
-	// Stop the background latency loop and wait for any in-flight
-	// measurement to unsubscribe before we close the listener. The loop is
-	// only started by New, so latencyLoopDone is nil when the pubsub was
-	// built directly via newWithoutListener (e.g. in tests).
-	p.closeCancel()
-	if p.latencyLoopDone != nil {
-		<-p.latencyLoopDone
-	}
+	// Stop the latency loop before closing the listener so an in-flight
+	// probe unsubscribes first. No-op if the loop was never started.
+	p.metrics.StopLatencyLoop()
 	err := p.closeListener()
 	<-p.listenDone
 	p.logger.Debug(context.Background(), "pubsub closed")
@@ -436,7 +425,7 @@ func (p *PGPubsub) listen() {
 }
 
 func (p *PGPubsub) listenReceive(notif *pq.Notification) {
-	p.metrics.RecordReceived([]byte(notif.Extra))
+	p.metrics.RecordReceived(notif.Channel, []byte(notif.Extra))
 
 	p.qMu.Lock()
 	defer p.qMu.Unlock()
@@ -606,13 +595,11 @@ func New(startCtx context.Context, logger slog.Logger, db *sql.DB, connectURL st
 		return nil, err
 	}
 	go p.listen()
-	// Measure latency out-of-band. The loop stops when closeCtx is canceled
-	// by Close, which then waits on latencyLoopDone.
-	p.latencyLoopDone = make(chan struct{})
-	go func() {
-		defer close(p.latencyLoopDone)
-		p.metrics.StartLatencyLoop(p.closeCtx, LatencyMeasureInterval, p)
-	}()
+	// Only probe latency when metrics are collected; a nil metrics means
+	// Prometheus is disabled, so the probe traffic would have nowhere to go.
+	if metrics != nil {
+		p.metrics.StartLatencyLoop(LatencyMeasureInterval, p)
+	}
 	logger.Debug(startCtx, "pubsub has started")
 	return p, nil
 }
@@ -622,14 +609,11 @@ func newWithoutListener(logger slog.Logger, db *sql.DB, metrics *Metrics) *PGPub
 	if metrics == nil {
 		metrics = NewMetrics(nil)
 	}
-	closeCtx, closeCancel := context.WithCancel(context.Background())
 	return &PGPubsub{
-		logger:      logger,
-		listenDone:  make(chan struct{}),
-		db:          db,
-		queues:      make(map[string]*queueSet),
-		metrics:     metrics.ForBackend(logger, BackendPostgres),
-		closeCtx:    closeCtx,
-		closeCancel: closeCancel,
+		logger:     logger,
+		listenDone: make(chan struct{}),
+		db:         db,
+		queues:     make(map[string]*queueSet),
+		metrics:    metrics.ForBackend(logger, BackendPostgres),
 	}
 }

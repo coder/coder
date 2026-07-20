@@ -147,12 +147,9 @@ type Options struct {
 
 	// Metrics is the shared pubsub metrics. When nil, an unregistered set is
 	// created internally so the Pubsub still works without exporting metrics.
+	// The background latency measurement loop only runs when Metrics is
+	// non-nil, so nothing probes the backend when metrics are discarded.
 	Metrics *pubsub.Metrics
-
-	// DisableLatencyMeasurement disables the background latency measurement
-	// loop. It exists for tests that inspect internal subscription state,
-	// which the loop's transient probe subscription would otherwise perturb.
-	DisableLatencyMeasurement bool
 
 	// RoutePoolSize is the NATS route pool size. Zero means the package
 	// default when cluster mode is enabled.
@@ -424,10 +421,10 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (pubSub *Pubsub,
 		<-p.ctx.Done()
 		_ = p.Close()
 	}()
-	// Measure pubsub latency out-of-band. The loop stops when p.ctx is
-	// canceled by Close.
-	if !opts.DisableLatencyMeasurement {
-		go p.metrics.StartLatencyLoop(p.ctx, pubsub.LatencyMeasureInterval, p)
+	// Only probe latency when metrics are collected; a nil Metrics means
+	// Prometheus is disabled, so the probe traffic would have nowhere to go.
+	if opts.Metrics != nil {
+		p.metrics.StartLatencyLoop(pubsub.LatencyMeasureInterval, p)
 	}
 
 	return p, nil
@@ -462,15 +459,15 @@ func newConnPool(ns *natsserver.Server, opts Options, handlers connHandlers, cou
 // same-subject publishes preserve per-subject ordering.
 func (p *Pubsub) Publish(event string, message []byte) error {
 	if p.ctx.Err() != nil {
-		p.metrics.RecordPublishFailure()
+		p.metrics.RecordPublishFailure(event)
 		return errClosed
 	}
 
 	if err := pickConn(p.publishPool, event).Publish(event, message); err != nil {
-		p.metrics.RecordPublishFailure()
+		p.metrics.RecordPublishFailure(event)
 		return xerrors.Errorf("publish: %w", err)
 	}
-	p.metrics.RecordPublishSuccess(len(message))
+	p.metrics.RecordPublishSuccess(event, len(message))
 	return nil
 }
 
@@ -554,12 +551,12 @@ func (p *Pubsub) subscribeQueue(event string, newQ *pubsub.MsgQueue) (cancel fun
 	}()
 
 	if _, err := g.sub.get(); err != nil {
-		p.metrics.RecordSubscribeFailure()
+		p.metrics.RecordSubscribeFailure(event)
 		// A failed subscribe was never counted (we increment only on
 		// success below), so there is nothing to undo here.
 		return nil, err
 	}
-	p.metrics.RecordSubscribeSuccess()
+	p.metrics.RecordSubscribeSuccess(event)
 	// Count the subscriber once the NATS subscription is established. The
 	// matching decrement is in closeLocalSubFunc when the localSub is
 	// removed. A mid-subscribe Close may decrement without a matching
@@ -669,6 +666,10 @@ func (p *Pubsub) handleSlowSubscriber(nsub *groupSub) {
 // Close does not drain queued listener messages.
 func (p *Pubsub) Close() error {
 	p.closeOnce.Do(func() {
+		// Stop the latency loop before tearing down connections. Done
+		// outside p.mu because an in-flight probe can block on subscriber
+		// state that Close holds. No-op if the loop was never started.
+		p.metrics.StopLatencyLoop()
 		// Report disconnected immediately. The owned connections are
 		// closed below without firing the disconnect handler, so nothing
 		// else resets the gauge during shutdown.
@@ -862,7 +863,7 @@ func erroredGroupSub(m *pubsub.BackendMetrics, err error) *groupSub {
 // local listener without cloning. Listeners on a coalesced subject MUST
 // treat the delivered bytes as immutable.
 func (g *groupSub) handleMessage(msg *natsgo.Msg) {
-	g.metrics.RecordReceived(msg.Data)
+	g.metrics.RecordReceived(g.event, msg.Data)
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	for l := range g.localSubs {

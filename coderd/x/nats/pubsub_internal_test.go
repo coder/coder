@@ -275,7 +275,7 @@ func Test_Pubsub_connectedMetric(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	reg := prometheus.NewRegistry()
-	ps := newPubsub(ctx, logger, Options{disableCluster: true, Metrics: pubsub.NewMetrics(reg), DisableLatencyMeasurement: true})
+	ps := newPubsub(ctx, logger, Options{disableCluster: true, Metrics: pubsub.NewMetrics(reg)})
 	handlers := ps.buildConnHandlers()
 
 	// Two owned connections, all up.
@@ -308,7 +308,7 @@ func Test_Pubsub_failureMetrics(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	reg := prometheus.NewRegistry()
-	ps := newPubsub(ctx, logger, Options{disableCluster: true, Metrics: pubsub.NewMetrics(reg), DisableLatencyMeasurement: true})
+	ps := newPubsub(ctx, logger, Options{disableCluster: true, Metrics: pubsub.NewMetrics(reg)})
 	// Closing makes Publish and Subscribe fail fast so we can exercise the
 	// success="false" label without needing the embedded server to error.
 	require.NoError(t, ps.Close())
@@ -325,7 +325,7 @@ func Test_Pubsub_gracefulCloseDoesNotCountDisconnect(t *testing.T) {
 	t.Parallel()
 
 	reg := prometheus.NewRegistry()
-	ps := newTestPubsub(t, Options{disableCluster: true, Metrics: pubsub.NewMetrics(reg), DisableLatencyMeasurement: true})
+	ps := newTestPubsub(t, Options{disableCluster: true, Metrics: pubsub.NewMetrics(reg)})
 	require.Equal(t, 0.0, metricValue(t, reg, "coder_pubsub_disconnections_total", "nats"))
 	require.Equal(t, 1.0, metricValue(t, reg, "coder_pubsub_connected", "nats"))
 
@@ -613,11 +613,11 @@ func goroutineBlockedInChanReceive(funcName string) bool {
 }
 
 func defaultTestOptions() Options {
-	// Disable the latency loop by default: most tests inspect internal
-	// subscription state or connection counts that the loop's transient
-	// probe subscription would perturb. Tests that exercise latency metrics
-	// opt back in explicitly.
-	return Options{disableCluster: true, DisableLatencyMeasurement: true}
+	// Leave Metrics nil so the background latency loop stays off by default:
+	// most tests inspect internal subscription state or connection counts
+	// that the loop's transient probe subscription would perturb. Tests that
+	// exercise latency metrics supply a Metrics set to opt back in.
+	return Options{disableCluster: true}
 }
 
 // metricValue gathers reg and returns the gauge or counter value for the
