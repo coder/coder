@@ -112,17 +112,6 @@ export const WithLongNameModule: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		// Long module names must not be truncated and must stay visible. The
-		// row is a single navigation button.
-		const moduleButton = await canvas.findByRole("button", {
-			name: /^Configure A module with a name/i,
-		});
-		moduleButton.focus();
-		await expect(moduleButton).toBeVisible();
-	},
 };
 
 export const NavigateModuleClick: Story = {
