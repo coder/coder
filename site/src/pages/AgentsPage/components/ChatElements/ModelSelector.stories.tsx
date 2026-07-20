@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { ModelSelector, type ModelSelectorOption } from "./ModelSelector";
 import { MockModelSelectorOption } from "./modelSelectorFixtures";
@@ -451,18 +451,57 @@ export const EffortRowClampedToMax: Story = {
 	},
 };
 
-// Mobile dropdown with a reasoning-effort-capable model selected. The
-// pinned effort row must stay visible inside the capped dropdown height
-// above the composer. Visual regression coverage only.
+// The pinned effort row must stay inside the mobile dropdown's capped
+// height above the composer while the model list scrolls.
 export const MobileEffortRow: Story = {
 	args: {
-		options: [...openAIModels, effortModel],
+		options: [
+			...Array.from({ length: 30 }, (_, index) => ({
+				...MockModelSelectorOption,
+				id: `openai/model-${index}`,
+				model: `model-${index}`,
+				displayName: `Model ${index}`,
+			})),
+			effortModel,
+		],
 		value: "openai/gpt-5",
 		reasoningEffort: "medium",
 		onReasoningEffortChange: fn(),
 		enableMobileFullWidthDropdown: true,
 	},
 	parameters: {
-		chromatic: { viewports: [320] },
+		chromatic: { viewports: [390] },
+	},
+	decorators: [
+		(Story) => {
+			useEffect(() => {
+				const root = document.documentElement.style;
+				root.setProperty(
+					"--mobile-dropdown-above-composer-max-height",
+					"260px",
+				);
+				return () => {
+					root.removeProperty("--mobile-dropdown-above-composer-max-height");
+				};
+			}, []);
+			return <Story />;
+		},
+	],
+	play: async ({ canvasElement }) => {
+		await userEvent.click(within(canvasElement).getByRole("combobox"));
+		const body = within(document.body);
+		const listbox = await body.findByRole("listbox");
+		const slider = await body.findByRole("slider");
+
+		await waitFor(() => {
+			// The list scrolls because the models overflow the cap.
+			expect(listbox.scrollHeight).toBeGreaterThan(listbox.clientHeight);
+			// The pinned effort row is not pushed past the clipped edge.
+			expect(slider.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+				listbox
+					.closest("[data-radix-popper-content-wrapper]")
+					?.getBoundingClientRect().bottom ?? 0,
+			);
+		});
 	},
 };

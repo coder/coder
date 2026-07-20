@@ -86,8 +86,8 @@
 			display: flex !important;
 			flex-direction: column !important;
 		}
-		/* min-height: 0 lets the list shrink below its content so it scrolls
-			inside the capped column instead of overflowing the clipped edge. */
+		/* min-height: 0 on both flex children lets the list shrink below its
+			content and scroll inside the capped column instead of overflowing. */
 		.mobile-full-width-dropdown-above-composer > [cmdk-root],
 		.mobile-full-width-dropdown-above-composer > [cmdk-root] > [cmdk-list] {
 			flex: 1 1 0% !important;
