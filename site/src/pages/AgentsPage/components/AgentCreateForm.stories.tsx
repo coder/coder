@@ -9,6 +9,11 @@ import {
 	within,
 } from "storybook/test";
 import { API } from "#/api/api";
+import {
+	chatModelsKey,
+	organizationChatModelConfigsKey,
+	organizationChatModelsKey,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
@@ -29,21 +34,6 @@ const permittedOrgsKey = [
 
 const modelConfigID = "model-config-1";
 const claudeModelConfigID = "model-config-claude";
-
-const modelOptions = [
-	{
-		id: modelConfigID,
-		provider: "openai",
-		model: "gpt-4o",
-		displayName: "GPT-4o",
-	},
-	{
-		id: claudeModelConfigID,
-		provider: "anthropic",
-		model: "claude-sonnet-4",
-		displayName: "Claude Sonnet 4",
-	},
-] as const;
 
 const buildModelConfig = (
 	overrides: Partial<TypesGen.ChatModelConfig> = {},
@@ -66,6 +56,68 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 		display_name: "Claude Sonnet 4",
 		context_limit: 200_000,
 	}),
+];
+
+const defaultModelCatalog: TypesGen.ChatModelsResponse = {
+	providers: [
+		{
+			provider: "openai",
+			available: true,
+			models: [
+				{
+					id: "openai:gpt-4o",
+					provider: "openai",
+					model: "gpt-4o",
+					display_name: "GPT-4o",
+				},
+			],
+		},
+		{
+			provider: "anthropic",
+			available: true,
+			models: [
+				{
+					id: "anthropic:claude-sonnet-4",
+					provider: "anthropic",
+					model: "claude-sonnet-4",
+					display_name: "Claude Sonnet 4",
+				},
+			],
+		},
+	],
+	unsupported_providers: [],
+};
+
+const defaultUserProviderConfigs: TypesGen.UserChatProviderConfig[] = [
+	{
+		provider_id: "provider-1",
+		provider: "openai",
+		display_name: "OpenAI",
+		icon: "",
+		enabled: true,
+		has_user_api_key: false,
+		has_central_api_key_fallback: true,
+		byok_enabled: true,
+	},
+	{
+		provider_id: "provider-anthropic",
+		provider: "anthropic",
+		display_name: "Anthropic",
+		icon: "",
+		enabled: true,
+		has_user_api_key: false,
+		has_central_api_key_fallback: true,
+		byok_enabled: true,
+	},
+];
+
+const modelDiscoveryQueries = (
+	organizationId: string,
+	modelCatalog: TypesGen.ChatModelsResponse = defaultModelCatalog,
+	modelConfigs: readonly TypesGen.ChatModelConfig[] = defaultModelConfigs,
+) => [
+	{ key: organizationChatModelsKey(organizationId), data: modelCatalog },
+	{ key: organizationChatModelConfigsKey(organizationId), data: modelConfigs },
 ];
 
 const buildRootPersonalModelOverride = (
@@ -102,17 +154,16 @@ const meta: Meta<typeof AgentCreateForm> = {
 	title: "pages/AgentsPage/AgentCreateForm",
 	component: AgentCreateForm,
 	decorators: [withDashboardProvider],
+	parameters: {
+		queries: modelDiscoveryQueries(MockDefaultOrganization.id),
+	},
 	args: {
 		onCreateChat: fn(),
 		sendShortcut: "enter",
 		isCreating: false,
 		createError: undefined,
 		canCreateChat: true,
-		modelCatalog: null,
-		modelOptions: [...modelOptions],
-		isModelCatalogLoading: false,
-		modelConfigs: [],
-		isModelConfigsLoading: false,
+		userProviderConfigs: defaultUserProviderConfigs,
 		workspaceCount: 0,
 		workspaceOptions: [],
 		workspacesError: undefined,
@@ -164,7 +215,6 @@ export const RootPersonalModelOverrideModelSelected: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
 		rootPersonalModelOverride: buildRootPersonalModelOverride({
 			mode: "model",
 			model_config_id: claudeModelConfigID,
@@ -187,7 +237,6 @@ export const RootChatDefaultSubmitsDisplayedModel: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
 		rootPersonalModelOverride: buildRootPersonalModelOverride({
 			mode: "chat_default",
 			model_config_id: "",
@@ -210,7 +259,6 @@ export const RootOverrideMissingFromCatalog: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
 		rootPersonalModelOverride: buildRootPersonalModelOverride({
 			mode: "model",
 			model_config_id: "model-does-not-exist",
@@ -235,7 +283,6 @@ export const MalformedRootOverrideUsesDefaultModel: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
 		rootPersonalModelOverride: buildRootPersonalModelOverride({
 			mode: "model",
 			model_config_id: claudeModelConfigID,
@@ -262,7 +309,6 @@ export const LastUsedModelFallbackWithoutRootOverride: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
 	},
 	beforeEach: () => {
 		localStorage.clear();
@@ -285,7 +331,6 @@ export const ManualSelectionOverridesRootChatDefault: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
 		rootPersonalModelOverride: buildRootPersonalModelOverride({
 			mode: "chat_default",
 			model_config_id: "",
@@ -306,13 +351,15 @@ export const ManualSelectionOverridesRootChatDefault: Story = {
 	},
 };
 
-// Model options with reasoning effort bounds configured. GPT-4o uses the
+// Model configs with reasoning effort bounds configured. GPT-4o uses the
 // full global scale; Claude is capped at medium.
-const effortModelOptions = [
-	{
-		...modelOptions[0],
-		reasoningEffortDefault: "medium",
-		reasoningEfforts: [
+const effortModelConfigs = [
+	buildModelConfig({
+		is_default: true,
+		model_config: {
+			reasoning_effort: { default: "medium", max: "max" },
+		},
+		reasoning_efforts: [
 			"none",
 			"minimal",
 			"low",
@@ -321,19 +368,31 @@ const effortModelOptions = [
 			"xhigh",
 			"max",
 		],
-	},
-	{
-		...modelOptions[1],
-		reasoningEffortDefault: "low",
-		reasoningEfforts: ["low", "medium"],
-	},
-] as const;
+	}),
+	buildModelConfig({
+		id: claudeModelConfigID,
+		ai_provider_id: "provider-anthropic",
+		model: "claude-sonnet-4",
+		display_name: "Claude Sonnet 4",
+		context_limit: 200_000,
+		model_config: {
+			reasoning_effort: { default: "low", max: "medium" },
+		},
+		reasoning_efforts: ["low", "medium"],
+	}),
+];
 
 export const SubmitsReasoningEffort: Story = {
+	parameters: {
+		queries: modelDiscoveryQueries(
+			MockDefaultOrganization.id,
+			defaultModelCatalog,
+			effortModelConfigs,
+		),
+	},
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelOptions: [...effortModelOptions],
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -346,7 +405,7 @@ export const SubmitsReasoningEffort: Story = {
 		expect(slider).toHaveAttribute("aria-valuenow", "3");
 
 		// Bump the effort to "high" with the keyboard, then close.
-		await userEvent.tab();
+		await userEvent.click(slider);
 		expect(slider).toHaveFocus();
 		await userEvent.keyboard("{ArrowRight}");
 		await waitFor(() => {
@@ -490,12 +549,18 @@ export const SelectWorkspaceViaSearch: Story = {
 };
 
 export const LoadingModelCatalog: Story = {
+	parameters: { queries: [] },
 	args: {
 		...defaultArgs,
-		modelCatalog: null,
-		modelOptions: [],
-		isModelCatalogLoading: true,
-		isModelConfigsLoading: true,
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		spyOn(API.experimental, "getOrganizationChatModels").mockReturnValue(
+			new Promise(() => undefined),
+		);
+		spyOn(API.experimental, "getOrganizationChatModelConfigs").mockReturnValue(
+			new Promise(() => undefined),
+		);
 	},
 };
 
@@ -514,25 +579,28 @@ export const LoadingPersonalModelOverrides: Story = {
 };
 
 export const NoModelsConfigured: Story = {
-	args: {
-		...defaultArgs,
-		modelCatalog: { providers: [], unsupported_providers: [] },
-		modelOptions: [],
-		isModelCatalogLoading: false,
-		isModelConfigsLoading: false,
+	parameters: {
+		queries: modelDiscoveryQueries(
+			MockDefaultOrganization.id,
+			{ providers: [], unsupported_providers: [] },
+			[],
+		),
 	},
 };
 
 export const MissingProviderAndModelSetup: Story = {
+	parameters: {
+		queries: modelDiscoveryQueries(
+			MockDefaultOrganization.id,
+			{ providers: [], unsupported_providers: [] },
+			[],
+		),
+	},
 	args: {
 		...defaultArgs,
 		canConfigureAgentSetup: true,
-		providerCount: 0,
-		modelCount: 0,
-		modelCatalog: { providers: [], unsupported_providers: [] },
-		modelOptions: [],
-		isModelCatalogLoading: false,
-		isModelConfigsLoading: false,
+		providerConfigs: [],
+		areProviderConfigsLoaded: true,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -682,22 +750,57 @@ export const WithOrganizationPicker: Story = {
 				key: permittedOrgsKey,
 				data: [MockDefaultOrganization, MockOrganization2],
 			},
+			...modelDiscoveryQueries(MockDefaultOrganization.id),
+			{
+				key: chatModelsKey,
+				data: { providers: [], unsupported_providers: [] },
+			},
 		],
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		spyOn(API.experimental, "getOrganizationChatModels").mockResolvedValue(
+			defaultModelCatalog,
+		);
+		spyOn(
+			API.experimental,
+			"getOrganizationChatModelConfigs",
+		).mockResolvedValue(defaultModelConfigs);
+		spyOn(API.experimental, "getChatModels").mockResolvedValue(
+			defaultModelCatalog,
+		);
+		spyOn(API.experimental, "getChatModelConfigs").mockResolvedValue(
+			defaultModelConfigs,
+		);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Verify the org picker rendered (component didn't crash).
-		await waitFor(() => {
-			expect(canvas.getByTestId("compact-org-selector")).toBeInTheDocument();
-		});
+		const body = within(canvasElement.ownerDocument.body);
+		const orgSelector = await canvas.findByTestId("compact-org-selector");
+
 		// Type into the chat input to trigger re-renders. If the
 		// permittedOrgs fallback is referentially unstable, this
 		// causes a render cascade that hits React's update limit.
 		const input = canvas.getByTestId("chat-message-input");
 		await userEvent.click(input);
 		await userEvent.keyboard("hello world");
-		// The org picker should still be present after typing.
-		expect(canvas.getByTestId("compact-org-selector")).toBeInTheDocument();
+		expect(orgSelector).toBeInTheDocument();
+
+		await userEvent.click(orgSelector);
+		await userEvent.click(
+			await body.findByRole("option", { name: MockOrganization2.display_name }),
+		);
+
+		await waitFor(() => {
+			expect(API.experimental.getOrganizationChatModels).toHaveBeenCalledWith(
+				MockOrganization2.id,
+			);
+			expect(
+				API.experimental.getOrganizationChatModelConfigs,
+			).toHaveBeenCalledWith(MockOrganization2.id);
+		});
+		expect(API.experimental.getChatModels).not.toHaveBeenCalled();
+		expect(API.experimental.getChatModelConfigs).not.toHaveBeenCalled();
 	},
 };
 
@@ -710,6 +813,7 @@ export const OrgPickerTightSpacing: Story = {
 				key: permittedOrgsKey,
 				data: [MockDefaultOrganization, MockOrganization2],
 			},
+			...modelDiscoveryQueries(MockDefaultOrganization.id),
 		],
 	},
 	play: async ({ canvasElement }) => {
@@ -845,6 +949,10 @@ export const PermittedOrgsResolvesToSubset: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			...modelDiscoveryQueries(MockDefaultOrganization.id),
+			...modelDiscoveryQueries(MockOrganization2.id),
+		],
 	},
 	args: {
 		...defaultArgs,
