@@ -6,6 +6,7 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { AdminChatDebugLoggingSettings } from "#/pages/AgentsPage/components/AdminChatDebugLoggingSettings";
 import { AutoArchiveSettings } from "./components/AutoArchiveSettings";
 import { DebugRetentionSettings } from "./components/DebugRetentionSettings";
 import { RetentionPeriodSettings } from "./components/RetentionPeriodSettings";
@@ -56,6 +57,16 @@ export interface LifecyclePageViewProps {
 	>;
 	isSavingAutoArchiveDays: boolean;
 	isSaveAutoArchiveDaysError: boolean;
+	debugLoggingData: TypesGen.ChatDebugLoggingAdminSettings | undefined;
+	isDebugLoggingLoading: boolean;
+	onSaveDebugLogging: UseMutateFunction<
+		void,
+		Error,
+		TypesGen.UpdateChatDebugLoggingAllowUsersRequest,
+		unknown
+	>;
+	isSavingDebugLogging: boolean;
+	isSaveDebugLoggingError: boolean;
 }
 
 export const LifecyclePageView: FC<LifecyclePageViewProps> = ({
@@ -83,6 +94,11 @@ export const LifecyclePageView: FC<LifecyclePageViewProps> = ({
 	onSaveAutoArchiveDays,
 	isSavingAutoArchiveDays,
 	isSaveAutoArchiveDaysError,
+	debugLoggingData,
+	isDebugLoggingLoading,
+	onSaveDebugLogging,
+	isSavingDebugLogging,
+	isSaveDebugLoggingError,
 }) => {
 	return (
 		<div className="flex max-w-[1100px] flex-col gap-4">
@@ -124,6 +140,13 @@ export const LifecyclePageView: FC<LifecyclePageViewProps> = ({
 					onSaveDebugRetentionDays={onSaveDebugRetentionDays}
 					isSavingDebugRetentionDays={isSavingDebugRetentionDays}
 					isSaveDebugRetentionDaysError={isSaveDebugRetentionDaysError}
+				/>
+				<AdminChatDebugLoggingSettings
+					adminSettings={debugLoggingData}
+					isLoadingAdminSetting={isDebugLoggingLoading}
+					onSaveAdminSetting={onSaveDebugLogging}
+					isSavingAdminSetting={isSavingDebugLogging}
+					isSaveAdminSettingError={isSaveDebugLoggingError}
 				/>
 			</div>
 		</div>

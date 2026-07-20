@@ -1249,8 +1249,11 @@ func executeToolParsedCommands(toolName string, args json.RawMessage) [][]string
 	return steps
 }
 
+// IsSyntheticPaste reports whether a file name and media type identify
+// a synthetic pasted-text attachment created by the chat UI.
+//
 // TODO: Replace filename-based detection with explicit origin metadata.
-func isSyntheticPaste(name string, mediaType string) bool {
+func IsSyntheticPaste(name string, mediaType string) bool {
 	if !syntheticPasteFileNamePattern.MatchString(name) {
 		return false
 	}
@@ -1554,7 +1557,7 @@ func partsToMessageParts(
 			// paste sent as a text/plain FilePart is dropped or rejected,
 			// so the model sees nothing. Converting it to TextPart keeps
 			// the pasted content visible to every provider.
-			if isSyntheticPaste(name, mediaType) {
+			if IsSyntheticPaste(name, mediaType) {
 				result = append(result, fantasy.TextPart{
 					Text:            formatSyntheticPasteText(name, data),
 					ProviderOptions: opts,
@@ -1585,7 +1588,7 @@ func partsToMessageParts(
 			// When the target provider would drop a text-family file part,
 			// inline the content as text so the model still sees it.
 			//
-			// This must run after the isSyntheticPaste check above;
+			// This must run after the IsSyntheticPaste check above;
 			// synthetic pastes use a truncating path and must not fall
 			// through to the non-truncating inline path.
 			if acceptsFilePart != nil &&

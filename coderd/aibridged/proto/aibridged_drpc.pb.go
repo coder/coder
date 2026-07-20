@@ -429,6 +429,7 @@ type DRPCAuthorizerClient interface {
 	DRPCConn() drpc.Conn
 
 	IsAuthorized(ctx context.Context, in *IsAuthorizedRequest) (*IsAuthorizedResponse, error)
+	IsBudgetExceeded(ctx context.Context, in *IsBudgetExceededRequest) (*IsBudgetExceededResponse, error)
 }
 
 type drpcAuthorizerClient struct {
@@ -450,8 +451,18 @@ func (c *drpcAuthorizerClient) IsAuthorized(ctx context.Context, in *IsAuthorize
 	return out, nil
 }
 
+func (c *drpcAuthorizerClient) IsBudgetExceeded(ctx context.Context, in *IsBudgetExceededRequest) (*IsBudgetExceededResponse, error) {
+	out := new(IsBudgetExceededResponse)
+	err := c.cc.Invoke(ctx, "/proto.Authorizer/IsBudgetExceeded", drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 type DRPCAuthorizerServer interface {
 	IsAuthorized(context.Context, *IsAuthorizedRequest) (*IsAuthorizedResponse, error)
+	IsBudgetExceeded(context.Context, *IsBudgetExceededRequest) (*IsBudgetExceededResponse, error)
 }
 
 type DRPCAuthorizerUnimplementedServer struct{}
@@ -460,9 +471,13 @@ func (s *DRPCAuthorizerUnimplementedServer) IsAuthorized(context.Context, *IsAut
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCAuthorizerUnimplementedServer) IsBudgetExceeded(context.Context, *IsBudgetExceededRequest) (*IsBudgetExceededResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCAuthorizerDescription struct{}
 
-func (DRPCAuthorizerDescription) NumMethods() int { return 1 }
+func (DRPCAuthorizerDescription) NumMethods() int { return 2 }
 
 func (DRPCAuthorizerDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -475,6 +490,15 @@ func (DRPCAuthorizerDescription) Method(n int) (string, drpc.Encoding, drpc.Rece
 						in1.(*IsAuthorizedRequest),
 					)
 			}, DRPCAuthorizerServer.IsAuthorized, true
+	case 1:
+		return "/proto.Authorizer/IsBudgetExceeded", drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAuthorizerServer).
+					IsBudgetExceeded(
+						ctx,
+						in1.(*IsBudgetExceededRequest),
+					)
+			}, DRPCAuthorizerServer.IsBudgetExceeded, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -500,10 +524,27 @@ func (x *drpcAuthorizer_IsAuthorizedStream) SendAndClose(m *IsAuthorizedResponse
 	return x.CloseSend()
 }
 
+type DRPCAuthorizer_IsBudgetExceededStream interface {
+	drpc.Stream
+	SendAndClose(*IsBudgetExceededResponse) error
+}
+
+type drpcAuthorizer_IsBudgetExceededStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAuthorizer_IsBudgetExceededStream) SendAndClose(m *IsBudgetExceededResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
 type DRPCProviderConfiguratorClient interface {
 	DRPCConn() drpc.Conn
 
 	GetAIProviders(ctx context.Context, in *GetAIProvidersRequest) (*GetAIProvidersResponse, error)
+	WatchAIProviders(ctx context.Context, in *WatchAIProvidersRequest) (DRPCProviderConfigurator_WatchAIProvidersClient, error)
 }
 
 type drpcProviderConfiguratorClient struct {
@@ -525,8 +566,49 @@ func (c *drpcProviderConfiguratorClient) GetAIProviders(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *drpcProviderConfiguratorClient) WatchAIProviders(ctx context.Context, in *WatchAIProvidersRequest) (DRPCProviderConfigurator_WatchAIProvidersClient, error) {
+	stream, err := c.cc.NewStream(ctx, "/proto.ProviderConfigurator/WatchAIProviders", drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{})
+	if err != nil {
+		return nil, err
+	}
+	x := &drpcProviderConfigurator_WatchAIProvidersClient{stream}
+	if err := x.MsgSend(in, drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}); err != nil {
+		return nil, err
+	}
+	if err := x.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type DRPCProviderConfigurator_WatchAIProvidersClient interface {
+	drpc.Stream
+	Recv() (*WatchAIProvidersResponse, error)
+}
+
+type drpcProviderConfigurator_WatchAIProvidersClient struct {
+	drpc.Stream
+}
+
+func (x *drpcProviderConfigurator_WatchAIProvidersClient) GetStream() drpc.Stream {
+	return x.Stream
+}
+
+func (x *drpcProviderConfigurator_WatchAIProvidersClient) Recv() (*WatchAIProvidersResponse, error) {
+	m := new(WatchAIProvidersResponse)
+	if err := x.MsgRecv(m, drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (x *drpcProviderConfigurator_WatchAIProvidersClient) RecvMsg(m *WatchAIProvidersResponse) error {
+	return x.MsgRecv(m, drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{})
+}
+
 type DRPCProviderConfiguratorServer interface {
 	GetAIProviders(context.Context, *GetAIProvidersRequest) (*GetAIProvidersResponse, error)
+	WatchAIProviders(*WatchAIProvidersRequest, DRPCProviderConfigurator_WatchAIProvidersStream) error
 }
 
 type DRPCProviderConfiguratorUnimplementedServer struct{}
@@ -535,9 +617,13 @@ func (s *DRPCProviderConfiguratorUnimplementedServer) GetAIProviders(context.Con
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCProviderConfiguratorUnimplementedServer) WatchAIProviders(*WatchAIProvidersRequest, DRPCProviderConfigurator_WatchAIProvidersStream) error {
+	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCProviderConfiguratorDescription struct{}
 
-func (DRPCProviderConfiguratorDescription) NumMethods() int { return 1 }
+func (DRPCProviderConfiguratorDescription) NumMethods() int { return 2 }
 
 func (DRPCProviderConfiguratorDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -550,6 +636,15 @@ func (DRPCProviderConfiguratorDescription) Method(n int) (string, drpc.Encoding,
 						in1.(*GetAIProvidersRequest),
 					)
 			}, DRPCProviderConfiguratorServer.GetAIProviders, true
+	case 1:
+		return "/proto.ProviderConfigurator/WatchAIProviders", drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return nil, srv.(DRPCProviderConfiguratorServer).
+					WatchAIProviders(
+						in1.(*WatchAIProvidersRequest),
+						&drpcProviderConfigurator_WatchAIProvidersStream{in2.(drpc.Stream)},
+					)
+			}, DRPCProviderConfiguratorServer.WatchAIProviders, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -573,4 +668,17 @@ func (x *drpcProviderConfigurator_GetAIProvidersStream) SendAndClose(m *GetAIPro
 		return err
 	}
 	return x.CloseSend()
+}
+
+type DRPCProviderConfigurator_WatchAIProvidersStream interface {
+	drpc.Stream
+	Send(*WatchAIProvidersResponse) error
+}
+
+type drpcProviderConfigurator_WatchAIProvidersStream struct {
+	drpc.Stream
+}
+
+func (x *drpcProviderConfigurator_WatchAIProvidersStream) Send(m *WatchAIProvidersResponse) error {
+	return x.MsgSend(m, drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{})
 }

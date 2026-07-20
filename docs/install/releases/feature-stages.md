@@ -43,13 +43,13 @@ access features:
 
 - Enable all early access features:
 
-  ```shell
+  ```sh
   coder server --experiments=*
   ```
 
 - Enable multiple early access features:
 
-  ```shell
+  ```sh
   coder server --experiments=feature1,feature2
   ```
 

@@ -20,6 +20,7 @@ func (r *RootCmd) aiGateway() *serpent.Command {
 			return inv.Command.HelpHandler(inv)
 		},
 		Children: []*serpent.Command{
+			r.aiGatewayStart(),
 			r.aiGatewayKeys(),
 		},
 	}

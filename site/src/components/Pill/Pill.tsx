@@ -1,10 +1,8 @@
-import { useTheme } from "@emotion/react";
-import CircularProgress, {
-	type CircularProgressProps,
-} from "@mui/material/CircularProgress";
-import { type FC, type ReactNode, useMemo } from "react";
+import { cva } from "class-variance-authority";
+import type { FC, ReactNode } from "react";
 import type { ThemeRole } from "#/theme/roles";
 import { cn } from "#/utils/cn";
+import { Spinner } from "../Spinner/Spinner";
 
 type PillType = ThemeRole | "muted";
 
@@ -14,7 +12,72 @@ type PillProps = React.ComponentPropsWithRef<"div"> & {
 	size?: "md" | "lg";
 };
 
-const PILL_ICON_SIZE = 14;
+const pillRoleVariants = cva("text-content-primary", {
+	variants: {
+		type: {
+			error: "border-border-destructive bg-surface-red",
+			warning: "border-border-warning bg-surface-orange",
+			notice: "border-border-pending bg-surface-sky",
+			info: "border-border bg-surface-secondary",
+			success: "border-border-success bg-surface-green",
+			active: "border-border-pending bg-surface-sky",
+			inactive: "border-border bg-surface-secondary",
+			danger: "border-border-warning bg-surface-orange",
+			preview: "border-border-purple bg-surface-purple",
+			muted:
+				"border-border-secondary bg-surface-tertiary text-content-secondary",
+		},
+	},
+	defaultVariants: {
+		type: "inactive",
+	},
+});
+
+const pillLayoutVariants = cva(
+	"inline-flex cursor-default items-center whitespace-nowrap rounded-full border border-solid text-[12px] font-normal leading-none [&_svg]:size-[14px]",
+	{
+		variants: {
+			size: {
+				md: "h-6",
+				lg: "",
+			},
+			withIcon: {
+				true: "",
+				false: "",
+			},
+		},
+		compoundVariants: [
+			{
+				size: "md",
+				withIcon: false,
+				class: "gap-[5px] px-3",
+			},
+			{
+				size: "md",
+				withIcon: true,
+				class: "gap-[5px] pr-3 pl-[5px]",
+			},
+			{
+				size: "lg",
+				withIcon: false,
+				class: "gap-2.5 py-3.5 px-4",
+			},
+			{
+				size: "lg",
+				withIcon: true,
+				class: "gap-2.5 py-3.5 pr-4 pl-2.5",
+			},
+		],
+		defaultVariants: {
+			size: "md",
+			withIcon: false,
+		},
+	},
+);
+
+export const PillSpinner: FC = () => {
+	return <Spinner loading />;
+};
 
 export const Pill: FC<PillProps> = ({
 	icon,
@@ -22,53 +85,19 @@ export const Pill: FC<PillProps> = ({
 	children,
 	size = "md",
 	className,
-	style,
 	...divProps
 }) => {
-	const theme = useTheme();
-	const roleColors = useMemo(() => {
-		if (type === "muted") {
-			return undefined;
-		}
-		const palette = theme.roles[type];
-		return {
-			backgroundColor: palette.background,
-			borderColor: palette.outline,
-			color: palette.text,
-		};
-	}, [theme, type]);
-
 	return (
 		<div
 			className={cn(
-				"inline-flex items-center whitespace-nowrap rounded-full border border-solid",
-				"font-normal text-xs leading-none cursor-default",
-				"[&>svg]:size-[14px]",
-				type === "muted" &&
-					"bg-surface-tertiary border-border-secondary text-content-secondary",
-				size === "md" && "h-6 gap-[5px] px-3",
-				Boolean(icon) && size === "md" && "pl-[5px]",
-				size === "lg" && "h-[30px] gap-[10px] px-4",
-				Boolean(icon) && size === "lg" && "pl-[10px]",
+				pillLayoutVariants({ size, withIcon: Boolean(icon) }),
+				pillRoleVariants({ type }),
 				className,
 			)}
-			style={{ ...roleColors, ...style }}
 			{...divProps}
 		>
 			{icon}
 			{children}
 		</div>
-	);
-};
-
-export const PillSpinner: FC<CircularProgressProps> = (props) => {
-	const theme = useTheme();
-	return (
-		<CircularProgress
-			size={PILL_ICON_SIZE}
-			sx={{ "& svg": { transform: "scale(.75)" } }}
-			style={{ color: theme.experimental.l1.text }}
-			{...props}
-		/>
 	);
 };

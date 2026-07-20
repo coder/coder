@@ -35,6 +35,12 @@ models, internal gateways, or third-party proxies like LiteLLM.
 Coder Agents route model requests through AI Gateway automatically by using
 the provider configuration stored in Coder's database.
 
+Some provider types work as AI Gateway proxy targets but cannot back Coder
+Agents. GitHub Copilot, for example, authenticates with a per-request token
+that only an official Copilot client can mint, so the server-side Agents
+harness cannot use it. Configuring such a provider does not unlock Agents;
+add one of the supported provider types above instead.
+
 ### Add a provider
 
 LLM providers are managed from the deployment AI settings, not from the Agents
@@ -182,10 +188,11 @@ fields appear dynamically in the admin UI when you select a provider.
 
 #### Anthropic
 
-| Option                 | Description                                                      |
-|------------------------|------------------------------------------------------------------|
-| Thinking Budget Tokens | Maximum tokens allocated for extended thinking.                  |
-| Effort                 | Thinking effort level (`low`, `medium`, `high`, `xhigh`, `max`). |
+| Option                 | Description                                                                                                                                                                                                                      |
+|------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Thinking Budget Tokens | Maximum tokens allocated for extended thinking.                                                                                                                                                                                  |
+| Effort                 | Thinking effort level (`low`, `medium`, `high`, `xhigh`, `max`).                                                                                                                                                                 |
+| 1M Context Window      | Sends the `anthropic-beta: context-1m-2025-08-07` header to unlock the 1M token context window on supported Claude models. Pair it with a raised Context Limit, which still controls compaction. Long-context pricing may apply. |
 
 #### OpenAI
 

@@ -216,17 +216,29 @@ export const getStaticProps: GetStaticProps = (context) => {
 	const routes = mapRoutes(manifest);
 	const urlPath = slug.join("/");
 	const route = routes[urlPath];
-	const { body } = fm(readContentFile(route.path));
+	const { attributes, body } = fm<{ title?: string }>(
+		readContentFile(route.path),
+	);
 	// Serialize MDX to support custom components
 	const content = sanitizeHtml(body);
 	const navigation = getNavigation(manifest);
 	const version = manifest.versions[0];
+
+	// Prefer a front-matter title, falling back to the manifest nav
+	// label. Keeps the offline docs renderer in step with the hosted
+	// docs renderer (front matter -> manifest title) as pages migrate to
+	// front-matter titles, so exactly one H1 is shown.
+	const title =
+		typeof attributes.title === "string" && attributes.title.trim() !== ""
+			? attributes.title
+			: route.title;
 
 	return {
 		props: {
 			content,
 			navigation,
 			route,
+			title,
 			version,
 		},
 	};
@@ -369,12 +381,13 @@ const DocsPage: NextPage<{
 	content: string;
 	navigation: Nav;
 	route: Route;
+	title: string;
 	version: string;
-}> = ({ content, navigation, route, version }) => {
+}> = ({ content, navigation, route, title, version }) => {
 	return (
 		<>
 			<Head>
-				<title>{route.title}</title>
+				<title>{title}</title>
 				<meta name="source" content={route.path} />
 			</Head>
 			<Box
@@ -411,7 +424,7 @@ const DocsPage: NextPage<{
 								// Hide this title if the doc has the title already
 								sx={{ "& + h1": { display: "none" } }}
 							>
-								{route.title}
+								{title}
 							</Heading>
 
 							<ReactMarkdown

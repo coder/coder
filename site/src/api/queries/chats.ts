@@ -1197,38 +1197,6 @@ export const reorderPinnedChat = (queryClient: QueryClient) => ({
 	},
 });
 
-export const regenerateChatTitle = (queryClient: QueryClient) => ({
-	mutationFn: (chatId: string) => API.experimental.regenerateChatTitle(chatId),
-
-	onSuccess: (updatedChat: TypesGen.Chat) => {
-		queryClient.setQueryData<TypesGen.Chat>(
-			chatKey(updatedChat.id),
-			(previousChat) =>
-				previousChat ? { ...previousChat, ...updatedChat } : updatedChat,
-		);
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) =>
-				chat.id === updatedChat.id
-					? { ...chat, title: updatedChat.title }
-					: chat,
-			),
-		);
-	},
-
-	onSettled: async (
-		_data: TypesGen.Chat | undefined,
-		_error: unknown,
-		chatId: string,
-	) => {
-		await invalidateChatListQueries(queryClient);
-		await queryClient.invalidateQueries({
-			queryKey: chatKey(chatId),
-			exact: true,
-		});
-		void invalidateChatDebugRuns(queryClient, chatId);
-	},
-});
-
 export const proposeChatTitle = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) => API.experimental.proposeChatTitle(chatId),
 
@@ -1369,6 +1337,10 @@ export const createChatMessage = (
 		API.experimental.createChatMessage(chatId, req),
 	onSuccess: () => {
 		void invalidateChatDebugRuns(queryClient, chatId);
+		void queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
 		void queryClient.invalidateQueries({
 			queryKey: chatPromptsKey(chatId),
 			exact: true,
@@ -1577,22 +1549,6 @@ export const updateChatPlanModeInstructions = (queryClient: QueryClient) => ({
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatPlanModeInstructionsKey,
-		});
-	},
-});
-
-const chatDesktopEnabledKey = ["chat-desktop-enabled"] as const;
-
-export const chatDesktopEnabled = () => ({
-	queryKey: chatDesktopEnabledKey,
-	queryFn: () => API.experimental.getChatDesktopEnabled(),
-});
-
-export const updateChatDesktopEnabled = (queryClient: QueryClient) => ({
-	mutationFn: API.experimental.updateChatDesktopEnabled,
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatDesktopEnabledKey,
 		});
 	},
 });
@@ -1833,6 +1789,7 @@ const toChatProviderConfig = (
 	id: provider.id,
 	provider: provider.type,
 	display_name: provider.display_name || provider.type,
+	icon: provider.icon,
 	enabled: provider.enabled,
 	has_api_key: provider.api_keys.length > 0,
 	central_api_key_enabled: true,
@@ -1872,6 +1829,8 @@ export const userChatProviderConfigs = () => ({
 			provider_id: config.provider.id,
 			provider: config.provider.type,
 			display_name: config.provider.display_name || config.provider.type,
+			icon: config.provider.icon,
+			enabled: config.provider.enabled,
 			has_user_api_key: config.has_user_api_key,
 			byok_enabled: config.byok_enabled,
 			has_central_api_key_fallback: config.has_provider_api_key,
@@ -1915,6 +1874,16 @@ const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {
 		queryClient.invalidateQueries({ queryKey: chatProviderConfigsKey }),
 		queryClient.invalidateQueries({ queryKey: chatModelConfigsKey }),
 		queryClient.invalidateQueries({ queryKey: chatModelsKey }),
+	]);
+};
+
+// Called after AI provider mutations so open model pickers refresh.
+export const invalidateChatProviderDependentQueries = async (
+	queryClient: QueryClient,
+) => {
+	await Promise.all([
+		invalidateChatConfigurationQueries(queryClient),
+		queryClient.invalidateQueries({ queryKey: userChatProviderConfigsKey }),
 	]);
 };
 
@@ -2111,6 +2080,13 @@ export const updateMCPServerConfig = (queryClient: QueryClient) => ({
 
 export const deleteMCPServerConfig = (queryClient: QueryClient) => ({
 	mutationFn: (id: string) => API.experimental.deleteMCPServerConfig(id),
+	onSuccess: async () => {
+		await invalidateMCPServerConfigQueries(queryClient);
+	},
+});
+
+export const disconnectMCPServerOAuth2 = (queryClient: QueryClient) => ({
+	mutationFn: (id: string) => API.experimental.disconnectMCPServerOAuth2(id),
 	onSuccess: async () => {
 		await invalidateMCPServerConfigQueries(queryClient);
 	},

@@ -1,4 +1,4 @@
-import { type FC, type RefObject, useRef } from "react";
+import { type FC, type RefObject, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
@@ -26,9 +26,11 @@ export interface AgentsOutletContext {
 	requestPinAgent: (chatId: string) => void;
 	requestUnpinAgent: (chatId: string) => void;
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
-	onRegenerateTitle?: (chatId: string) => void;
+	isArchiving: boolean;
+	archivingChatId: string | undefined;
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
-	regeneratingTitleChatIds: readonly string[];
+	/** Opens the shared rename dialog so both menus drive the same instance. */
+	onOpenRenameDialog?: (chat: TypesGen.Chat) => void;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
@@ -67,10 +69,8 @@ interface AgentsPageViewProps {
 	requestPinAgent: (chatId: string) => void;
 	requestUnpinAgent: (chatId: string) => void;
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
-	onRegenerateTitle: (chatId: string) => Promise<string>;
 	onProposeTitle: (chatId: string) => Promise<string>;
 	onRenameTitle: (chatId: string, title: string) => Promise<void>;
-	regeneratingTitleChatIds: readonly string[];
 	onToggleSidebarCollapsed: () => void;
 	isPersonalModelOverridesEnabled?: boolean;
 	isAgentsAdmin: boolean;
@@ -108,10 +108,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	requestPinAgent,
 	requestUnpinAgent,
 	requestReorderPinnedAgent,
-	onRegenerateTitle,
 	onProposeTitle,
 	onRenameTitle,
-	regeneratingTitleChatIds,
 	onToggleSidebarCollapsed,
 	isPersonalModelOverridesEnabled,
 	isAgentsAdmin,
@@ -142,6 +140,11 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
+	// State for the shared rename-chat dialog. Lifted here so both the
+	// sidebar menu and the chat top bar open the same dialog instance.
+	const [chatPendingRename, setChatPendingRename] =
+		useState<TypesGen.Chat | null>(null);
+
 	const outletContextValue: AgentsOutletContext = {
 		chatErrorReasons,
 		setChatErrorReason,
@@ -152,10 +155,9 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		requestPinAgent,
 		requestUnpinAgent,
 		requestReorderPinnedAgent,
-		onRegenerateTitle: (chatId: string) => {
-			onRegenerateTitle(chatId).catch(() => {});
-		},
-		regeneratingTitleChatIds,
+		isArchiving,
+		archivingChatId,
+		onOpenRenameDialog: setChatPendingRename,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onExpandSidebar,
@@ -194,7 +196,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					onReorderPinnedAgent={requestReorderPinnedAgent}
 					onRenameTitle={onRenameTitle}
 					onProposeTitle={onProposeTitle}
-					regeneratingTitleChatIds={regeneratingTitleChatIds}
+					chatPendingRename={chatPendingRename}
+					onChatPendingRenameChange={setChatPendingRename}
 					onBeforeNewAgent={handleNewAgent}
 					isSearchDialogOpen={isSearchDialogOpen}
 					onSearchDialogOpenChange={onSearchDialogOpenChange}

@@ -35,7 +35,7 @@ ensures your templates are validated, tested, and promoted seamlessly.
 
 For Premium deployments, create a service account:
 
-```shell
+```sh
 coder users create \
   --username machine-user \
   --service-account
@@ -46,7 +46,7 @@ coder tokens create --user machine-user --lifetime 8760h
 
 For OSS deployments, create a regular user:
 
-```shell
+```sh
 coder users create \
   --username machine-user \
   --email machine-user@example.com \

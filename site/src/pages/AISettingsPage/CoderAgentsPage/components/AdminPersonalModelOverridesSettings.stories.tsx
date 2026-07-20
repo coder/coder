@@ -110,7 +110,9 @@ export const Saving: Story = {
 		});
 
 		expect(toggle).toBeDisabled();
-		expect(canvas.getByRole("button", { name: /save/i })).toBeDisabled();
+		expect(
+			canvas.queryByRole("button", { name: "Save" }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -136,16 +138,14 @@ export const SavesChangedSetting: Story = {
 			name: "Allow personal model overrides",
 		});
 		await userEvent.click(toggle);
-		const saveButton = await canvas.findByRole("button", { name: "Save" });
+
 		await waitFor(() => {
-			expect(saveButton).toBeEnabled();
+			expect(args.onSaveAdminSetting).toHaveBeenCalledWith({
+				allow_users: true,
+			});
 		});
-		await userEvent.click(saveButton);
-		await waitFor(() => {
-			expect(args.onSaveAdminSetting).toHaveBeenCalledWith(
-				{ allow_users: true },
-				expect.anything(),
-			);
-		});
+		expect(
+			canvas.queryByRole("button", { name: "Save" }),
+		).not.toBeInTheDocument();
 	},
 };

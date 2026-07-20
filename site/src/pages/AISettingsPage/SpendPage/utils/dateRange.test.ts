@@ -1,5 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { formatUsageDateRange, toInclusiveDateRange } from "./dateRange";
+import {
+	formatUsageDateRange,
+	toExclusiveEndOfDayDateRange,
+	toInclusiveDateRange,
+} from "./dateRange";
+
+describe("toExclusiveEndOfDayDateRange", () => {
+	it("moves a non-midnight end date to the next midnight", () => {
+		const startDate = new Date(2025, 5, 1, 0, 0, 0, 0);
+		const endDate = new Date(2025, 5, 8, 14, 30, 0, 0);
+		const result = toExclusiveEndOfDayDateRange({ startDate, endDate });
+		expect(result.endDate).toEqual(new Date(2025, 5, 9, 0, 0, 0, 0));
+	});
+
+	it("returns unchanged when the end date is already midnight", () => {
+		const startDate = new Date(2025, 5, 1, 0, 0, 0, 0);
+		const endDate = new Date(2025, 5, 8, 0, 0, 0, 0);
+		const result = toExclusiveEndOfDayDateRange({ startDate, endDate });
+		expect(result.endDate).toBe(endDate);
+	});
+
+	it("preserves startDate", () => {
+		const startDate = new Date(2025, 5, 1, 0, 0, 0, 0);
+		const endDate = new Date(2025, 5, 8, 14, 30, 0, 0);
+		const result = toExclusiveEndOfDayDateRange({ startDate, endDate });
+		expect(result.startDate).toBe(startDate);
+	});
+});
 
 describe("toInclusiveDateRange", () => {
 	it("subtracts 1ms when endDateIsExclusive is true and end date is midnight", () => {

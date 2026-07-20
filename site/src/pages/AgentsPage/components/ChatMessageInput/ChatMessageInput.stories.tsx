@@ -3,12 +3,25 @@ import { type PropsWithChildren, useEffect } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatMessageInput } from "./ChatMessageInput";
+import type { SkillMetadata } from "./SkillsTriggerMenu";
 import {
 	expectNoVisibleText,
 	findVisibleText,
 	MockSkill,
 	MockSkills,
 } from "./storyHelpers";
+
+// Override props keep skill menu stories deterministic without network calls.
+const mockWorkspaceSkills: SkillMetadata[] = [
+	{
+		name: "test-runner",
+		description: "Run the workspace test command.",
+	},
+	{
+		name: "workspace-docs",
+		description: "Use repository documentation conventions.",
+	},
+];
 
 const meta: Meta<typeof ChatMessageInput> = {
 	title: "components/ChatMessageInput/ChatMessageInput",
@@ -79,10 +92,26 @@ export const EmptySkills: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const editor = await typeInEditor(canvasElement, "/");
-		expect(await findVisibleText("No personal skills found.")).toBeDefined();
+		// "/" is plain text when the skills list is empty.
+		expectNoVisibleTextImmediately("No personal skills found.");
+		await userEvent.keyboard("{Enter}");
+		expect(args.onEnter).toHaveBeenCalledTimes(1);
+		expect(editor.textContent).toBe("/");
+	},
+};
+
+export const FilteredEmptyKeepsMenuOpen: Story = {
+	args: {
+		onEnter: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const editor = await typeInEditor(canvasElement, "/zzzz");
+		expect(
+			await findVisibleText("No personal skills match that query."),
+		).toBeDefined();
 		await userEvent.keyboard("{Enter}");
 		expect(args.onEnter).not.toHaveBeenCalled();
-		expect(editor.textContent).toBe("/");
+		expect(editor.textContent).toBe("/zzzz");
 	},
 };
 
@@ -140,6 +169,110 @@ export const ClickSelectsSkill: Story = {
 	},
 };
 
+export const OpensWithPersonalAndWorkspaceSkills: Story = {
+	args: {
+		hasWorkspace: true,
+		workspaceSkills: mockWorkspaceSkills,
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+		expect(await findVisibleText("Personal skills")).toBeDefined();
+		expect(await findVisibleText("Workspace skills")).toBeDefined();
+		expect(await findVisibleText("/reviewer")).toBeDefined();
+		expect(await findVisibleText("/workspace/test-runner")).toBeDefined();
+	},
+};
+
+export const ArrowDownSelectsWorkspaceSkill: Story = {
+	args: {
+		hasWorkspace: true,
+		workspaceSkills: mockWorkspaceSkills,
+	},
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/");
+		await findVisibleText("/workspace/test-runner");
+		await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{Enter}");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/workspace/test-runner");
+		});
+	},
+};
+
+export const CollidingPersonalSkillInsertsQualifiedTrigger: Story = {
+	args: {
+		hasWorkspace: true,
+		workspaceSkills: [
+			{ name: "reviewer", description: "Workspace review process." },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/rev");
+		expect(await findVisibleText("/personal/reviewer")).toBeDefined();
+		expect(await findVisibleText("/workspace/reviewer")).toBeDefined();
+		await userEvent.click(await findVisibleText("/personal/reviewer"));
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/personal/reviewer");
+		});
+	},
+};
+
+export const PersonalTriggersQualifiedWhileWorkspaceSkillsUnknown: Story = {
+	args: {
+		// No workspaceSkills: the chat detail has not resolved, so
+		// collisions are unknown.
+		hasWorkspace: true,
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/rev");
+		expect(await findVisibleText("/personal/reviewer")).toBeDefined();
+	},
+};
+
+export const EmptyPersonalKeepsMenuOpenWhileWorkspaceSkillsUnknown: Story = {
+	args: {
+		personalSkillsOverride: [],
+		// No workspaceSkills: closing the menu here would record the slash
+		// as dismissed, so skills arriving later could never reopen it.
+		hasWorkspace: true,
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+		expect(await findVisibleText("Loading workspace skills...")).toBeDefined();
+	},
+};
+
+export const QualifiedPersonalQueryMatchesBareTrigger: Story = {
+	args: {
+		hasWorkspace: true,
+		// Workspace skills resolve without collisions, so personal items
+		// display bare triggers while the typed query stays qualified.
+		workspaceSkills: mockWorkspaceSkills,
+	},
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/personal/rev");
+		expect(await findVisibleText("/reviewer")).toBeDefined();
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/reviewer");
+		});
+	},
+};
+
+export const UniqueWorkspaceQualifiedPrefixStaysSearchable: Story = {
+	args: {
+		hasWorkspace: true,
+		workspaceSkills: mockWorkspaceSkills,
+	},
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/workspace/t");
+		expect(await findVisibleText("/workspace/test-runner")).toBeDefined();
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/workspace/test-runner");
+		});
+	},
+};
+
 export const EmptyDescriptionInsertsNameOnly: Story = {
 	play: async ({ canvasElement }) => {
 		const editor = await typeInEditor(canvasElement, "/pla");
@@ -154,18 +287,6 @@ export const EmptyDescriptionInsertsNameOnly: Story = {
 export const SlashInsideUrlDoesNotOpen: Story = {
 	play: async ({ canvasElement }) => {
 		await typeInEditor(canvasElement, "https://");
-		await expectNoVisibleText("/reviewer");
-	},
-};
-
-export const BackspaceClosesWithoutEmptyStateFlash: Story = {
-	play: async ({ canvasElement }) => {
-		const editor = await typeInEditor(canvasElement, "/");
-		await findVisibleText("/reviewer");
-		await userEvent.keyboard("{Backspace}");
-
-		expect(editor.textContent).toBe("");
-		expectNoVisibleTextImmediately("No personal skills found.");
 		await expectNoVisibleText("/reviewer");
 	},
 };
@@ -214,8 +335,35 @@ export const OutsideClickDismissesTriggerOnRefocus: Story = {
 	},
 };
 
-// Stories below verify that on mobile viewports, the personal skills
-// popup sits directly above the chat input rather than being clipped
+export const BackspaceClosesMenuWithoutRepositioning: Story = {
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+		await findVisibleText("/reviewer");
+		const popperWrapper = () =>
+			document.querySelector<HTMLElement>(
+				"[data-radix-popper-content-wrapper]",
+			);
+		const openRect = popperWrapper()?.getBoundingClientRect();
+		expect(openRect?.left).toBeGreaterThan(0);
+		await userEvent.keyboard("{Backspace}");
+		// The closing menu must hold its position through the exit
+		// animation instead of flashing at the viewport origin.
+		let wrapper = popperWrapper();
+		for (let frame = 0; wrapper && frame < 300; frame++) {
+			const rect = wrapper.getBoundingClientRect();
+			expect({ top: rect.top, left: rect.left }).toEqual({
+				top: openRect?.top,
+				left: openRect?.left,
+			});
+			await new Promise((resolve) => requestAnimationFrame(resolve));
+			wrapper = popperWrapper();
+		}
+		expect(wrapper).toBeNull();
+	},
+};
+
+// Stories below verify that on mobile viewports, the skills popup
+// sits directly above the chat input rather than being clipped
 // above the visible viewport.
 
 const MOBILE_MEDIA_QUERY = "(max-width: 767px)";

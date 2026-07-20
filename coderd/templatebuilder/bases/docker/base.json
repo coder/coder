@@ -3,6 +3,17 @@
 	"display_name": "Docker",
 	"os": "linux",
 	"default_context": {
-		"container_image": "codercom/enterprise-base:ubuntu"
-	}
+		"container_image": "codercom/example-base:ubuntu"
+	},
+	"variables": [
+		{
+			"name": "container_image",
+			"type": "string",
+			"description": "Container image for workspaces. The image determines which tools and languages are available in the workspace by default. See the template README for guidance on choosing an image.",
+			"default": "codercom/example-base:ubuntu",
+			"required": false,
+			"sensitive": false,
+			"computed": false
+		}
+	]
 }

@@ -4,7 +4,6 @@ import {
 	type ReactNode,
 	type SyntheticEvent,
 	useCallback,
-	useEffect,
 	useId,
 	useRef,
 	useState,
@@ -83,7 +82,6 @@ export function Autocomplete<TOption>({
 	"data-testid": testId,
 }: AutocompleteProps<TOption>) {
 	const inlineInputRef = useRef<HTMLInputElement>(null);
-	const highlightedValueRef = useRef<string | null>(null);
 	const [managedOpen, setManagedOpen] = useState(false);
 	const [managedInputValue, setManagedInputValue] = useState("");
 	const [highlightedValue, setHighlightedValue] = useState<string | null>(null);
@@ -91,7 +89,6 @@ export function Autocomplete<TOption>({
 	const listboxId = `${generatedListboxId}-listbox`;
 
 	const updateHighlightedValue = useCallback((newValue: string | null) => {
-		highlightedValueRef.current = newValue;
 		setHighlightedValue(newValue);
 	}, []);
 	const isOpen = controlledOpen ?? managedOpen;
@@ -166,20 +163,13 @@ export function Autocomplete<TOption>({
 		[handleOpenChange, onEscapeKeyDown],
 	);
 
-	useEffect(() => {
-		if (
-			highlightedValue !== null &&
-			!options.some((option) => getOptionValue(option) === highlightedValue)
-		) {
-			updateHighlightedValue(null);
-		}
-	}, [highlightedValue, options, getOptionValue, updateHighlightedValue]);
-
 	const displayValue = value ? getOptionLabel(value) : "";
 	const showClearButton = clearable && value && !disabled;
 	const highlightedIndex = options.findIndex(
 		(option) => getOptionValue(option) === highlightedValue,
 	);
+	const effectiveHighlightedValue =
+		highlightedIndex >= 0 ? highlightedValue : null;
 	const activeDescendant =
 		highlightedIndex >= 0
 			? `${listboxId}-option-${highlightedIndex}`
@@ -202,7 +192,7 @@ export function Autocomplete<TOption>({
 			}
 
 			const currentIndex = options.findIndex(
-				(option) => getOptionValue(option) === highlightedValueRef.current,
+				(option) => getOptionValue(option) === highlightedValue,
 			);
 			const nextIndex =
 				e.key === "ArrowDown"
@@ -226,7 +216,7 @@ export function Autocomplete<TOption>({
 			}
 
 			const highlightedOption = options.find(
-				(option) => getOptionValue(option) === highlightedValueRef.current,
+				(option) => getOptionValue(option) === highlightedValue,
 			);
 			if (highlightedOption) {
 				handleSelect(highlightedOption);
@@ -332,7 +322,7 @@ export function Autocomplete<TOption>({
 				>
 					<Command
 						shouldFilter={false}
-						value={highlightedValue ?? ""}
+						value={effectiveHighlightedValue ?? ""}
 						onValueChange={(newValue) => {
 							if (newValue) {
 								updateHighlightedValue(newValue);

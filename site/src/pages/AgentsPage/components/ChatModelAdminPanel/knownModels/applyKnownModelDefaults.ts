@@ -35,11 +35,6 @@ const pricingModelFieldByName = {
 	KnownModelCostField
 >;
 
-const reasoningEffortPathByProvider: Record<string, string> = {
-	openai: "config.openai.reasoningEffort",
-	anthropic: "config.anthropic.effort",
-};
-
 const thinkingBudgetTokensPathByProvider: Record<string, string> = {
 	anthropic: "config.anthropic.thinking.budgetTokens",
 };
@@ -118,16 +113,17 @@ export const applyKnownModelDefaults = ({
 	}
 
 	if (knownModel.reasoningEffort !== undefined) {
-		// The catalog uses a single `reasoningEffort` field, but each provider
-		// exposes it under a different form path: OpenAI as `reasoningEffort`,
-		// Anthropic as `effort`. Providers without a mapping skip this default.
-		const reasoningEffortPath = reasoningEffortPathByProvider[provider];
-		if (reasoningEffortPath !== undefined) {
+		// The catalog carries a single curated effort value. Write both
+		// reasoning_effort bounds because the API requires default and max.
+		for (const path of [
+			"config.reasoningEffort.default",
+			"config.reasoningEffort.max",
+		]) {
 			maybeApplyDefault({
 				appliedFields,
 				initialValues,
 				nextValues,
-				path: reasoningEffortPath,
+				path,
 				value: knownModel.reasoningEffort,
 				values,
 			});

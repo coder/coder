@@ -29,6 +29,10 @@ fi
   - Obtain an extra property of an access token for additional metadata.:
 
      $ coder external-auth access-token slack --extra "authed_user.id"
+
+  - Print the full token response as JSON.:
+
+     $ coder external-auth access-token github --output json
 ```
 
 ## Options
@@ -40,6 +44,15 @@ fi
 | Type | <code>string</code> |
 
 Extract a field from the "extra" properties of the OAuth token.
+
+### --output
+
+|         |                         |
+|---------|-------------------------|
+| Type    | <code>text\|json</code> |
+| Default | <code>text</code>       |
+
+Output format. Available formats: text, json.
 
 ### --agent-token
 

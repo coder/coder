@@ -671,10 +671,7 @@ func TestMultiReplica_NATSPubsubPeers(t *testing.T) {
 	t.Cleanup(func() { _ = natsB.Close() })
 
 	mgr, err := replicasync.New(ctx, logger.Named("replica-b"), db, pgPubsub, &replicasync.Options{
-		ID: uuid.New(),
-		// port doesn't matter because we don't have an API up, but replicasync will refuse peers that don't set
-		// RelayAddress at all.
-		RelayAddress:   "https://127.0.0.1",
+		ID:             uuid.New(),
 		ClusterHost:    "127.0.0.1",
 		RegionID:       12345,
 		UpdateInterval: testutil.IntervalFast,

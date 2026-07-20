@@ -586,7 +586,7 @@ export const ContextUsageIndicator: FC<{
 
 	// On mobile, a tap toggles the popover. On desktop, hover opens
 	// it like a dropdown menu and skill descriptions appear as
-	// nested tooltips to the right (same pattern as ModelSelector).
+	// nested tooltips to the right.
 	if (isMobileViewport()) {
 		return (
 			<Popover>

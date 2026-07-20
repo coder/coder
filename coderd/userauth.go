@@ -430,8 +430,9 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 			return xerrors.Errorf("update user hashed password: %w", err)
 		}
 
-		//nolint:gocritic // We need the system auth context to be able to delete all API keys for the user.
-		err = tx.DeleteAPIKeysByUserID(dbauthz.AsSystemRestricted(ctx), user.ID)
+		//nolint:gocritic // Password resets must revoke all keys owned by the
+		// target user, not just keys addressable by the caller's actor.
+		err = tx.DeleteAPIKeysByUserID(dbauthz.AsAPIKeyRevoker(ctx, user.ID), user.ID)
 		if err != nil {
 			logger.Error(ctx, "unable to delete user's api keys", slog.Error(err))
 			return xerrors.Errorf("delete api keys for user: %w", err)
@@ -1193,6 +1194,19 @@ type OIDCConfig struct {
 	// check. Used for IdP brokers that do not issue a stable `sub` for the
 	// same user across connections.
 	EmailFallback bool
+	// RedirectAllowedHosts, when non-empty, enables dynamic redirect_uri
+	// construction from the request Host header. The request Host must match
+	// (case-insensitive, ignoring port) one of the hostnames in this list,
+	// otherwise the OIDC flow is rejected.
+	RedirectAllowedHosts []string
+	// RedirectDefaultScheme is the scheme to use in the dynamically built
+	// redirect_uri. It is populated from the configured AccessURL (or
+	// OIDC.RedirectURL if explicitly overridden) so that the dynamic path
+	// uses the same scheme as the static path. It takes precedence over
+	// X-Forwarded-Proto because some reverse proxies report the inner-hop
+	// scheme (e.g. "http") rather than the original client-facing scheme,
+	// which would produce a redirect_uri the IdP rejects.
+	RedirectDefaultScheme string
 }
 
 // PKCESupported is to prevent nil pointer dereference.

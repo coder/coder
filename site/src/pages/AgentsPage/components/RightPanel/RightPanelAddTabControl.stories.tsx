@@ -48,7 +48,6 @@ const meta = {
 	title: "pages/AgentsPage/components/RightPanel/RightPanelAddTabControl",
 	component: RightPanelAddTabControl,
 	args: {
-		appExperimentEnabled: true,
 		workspace: MockWorkspace,
 		agent: {
 			...MockWorkspaceAgent,
@@ -174,16 +173,5 @@ export const DisconnectedWorkspace: Story = {
 			const portsItem = body.getByText("Ports").closest("[role=menuitem]");
 			expect(portsItem).toHaveAttribute("aria-disabled", "true");
 		});
-	},
-};
-
-export const AppExperimentDisabled: Story = {
-	args: {
-		appExperimentEnabled: false,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByLabelText("New terminal tab")).toBeEnabled();
-		await expect(canvas.queryByLabelText("Add panel")).not.toBeInTheDocument();
 	},
 };

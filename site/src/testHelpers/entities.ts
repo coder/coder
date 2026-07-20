@@ -620,6 +620,7 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 ];
 
 export const MockTasksTabVisible: boolean = false;
+export const MockAIGatewayEnabled: boolean = true;
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 	organization_id: MockOrganization.id,
@@ -1902,20 +1903,19 @@ export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
 		ephemeral: false,
 	};
 
-export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
-	{
-		name: "fourth_parameter",
-		type: "string",
-		form_type: "input",
-		description: "This is fourth parameter",
-		description_plaintext: "Markdown: This is fourth parameter",
-		default_value: "def",
-		mutable: false,
-		icon: "/icon/database.svg",
-		options: [],
-		required: true,
-		ephemeral: false,
-	};
+const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter = {
+	name: "fourth_parameter",
+	type: "string",
+	form_type: "input",
+	description: "This is fourth parameter",
+	description_plaintext: "Markdown: This is fourth parameter",
+	default_value: "def",
+	mutable: false,
+	icon: "/icon/database.svg",
+	options: [],
+	required: true,
+	ephemeral: false,
+};
 
 const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter = {
 	name: "fifth_parameter",
@@ -1950,23 +1950,22 @@ export const MockTemplateVersionParameter6: TypesGen.TemplateVersionParameter =
 	};
 
 // Not required and the default is a blank string.
-export const MockTemplateVersionParameter7: TypesGen.TemplateVersionParameter =
-	{
-		name: "seventh_parameter",
-		type: "string",
-		form_type: "input",
-		description: "This is seventh parameter",
-		description_plaintext: "Markdown: This is seventh parameter",
-		default_value: "",
-		mutable: true,
-		icon: "/icon/folder.svg",
-		options: [],
-		validation_min: 1,
-		validation_max: 10,
-		validation_monotonic: "decreasing",
-		required: false,
-		ephemeral: false,
-	};
+const MockTemplateVersionParameter7: TypesGen.TemplateVersionParameter = {
+	name: "seventh_parameter",
+	type: "string",
+	form_type: "input",
+	description: "This is seventh parameter",
+	description_plaintext: "Markdown: This is seventh parameter",
+	default_value: "",
+	mutable: true,
+	icon: "/icon/folder.svg",
+	options: [],
+	validation_min: 1,
+	validation_max: 10,
+	validation_monotonic: "decreasing",
+	required: false,
+	ephemeral: false,
+};
 
 export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {
 	name: "first_variable",
@@ -3561,7 +3560,7 @@ export const MockDropdownParameter: TypesGen.PreviewParameter = {
 	order: 1,
 };
 
-const MockTagSelectParameter: TypesGen.PreviewParameter = {
+export const MockTagSelectParameter: TypesGen.PreviewParameter = {
 	...MockPreviewParameter,
 	name: "tags",
 	display_name: "Tags",
@@ -3579,7 +3578,7 @@ const MockTagSelectParameter: TypesGen.PreviewParameter = {
 	order: 4,
 };
 
-const MockSwitchParameter: TypesGen.PreviewParameter = {
+export const MockSwitchParameter: TypesGen.PreviewParameter = {
 	...MockPreviewParameter,
 	name: "enable_monitoring",
 	display_name: "Enable Monitoring",
@@ -3614,7 +3613,7 @@ export const MockSliderParameter: TypesGen.PreviewParameter = {
 	order: 2,
 };
 
-const MockMultiSelectParameter: TypesGen.PreviewParameter = {
+export const MockMultiSelectParameter: TypesGen.PreviewParameter = {
 	...MockPreviewParameter,
 	name: "ides",
 	display_name: "IDEs",
@@ -3673,19 +3672,6 @@ export const MockValidationParameter: TypesGen.PreviewParameter = {
 	],
 	order: 1,
 };
-
-export const MockDynamicParametersResponse: TypesGen.DynamicParametersResponse =
-	{
-		id: 1,
-		parameters: [
-			MockDropdownParameter,
-			MockSliderParameter,
-			MockSwitchParameter,
-			MockTagSelectParameter,
-			MockMultiSelectParameter,
-		],
-		diagnostics: [],
-	};
 
 export const MockDynamicParametersResponseWithError: TypesGen.DynamicParametersResponse =
 	{
@@ -5546,6 +5532,7 @@ export const MockAIProviderOpenAI: TypesGen.AIProvider = {
 	type: "openai",
 	name: "openai",
 	display_name: "OpenAI",
+	icon: "",
 	base_url: "https://api.openai.com",
 	enabled: false,
 	api_keys: [
@@ -5565,6 +5552,7 @@ export const MockAIProviderAnthropic: TypesGen.AIProvider = {
 	type: "anthropic",
 	name: "anthropic",
 	display_name: "Anthropic",
+	icon: "",
 	base_url: "https://api.anthropic.com",
 	enabled: false,
 	api_keys: [],
@@ -5584,6 +5572,7 @@ export const MockAIProviderBedrock: TypesGen.AIProvider = {
 	type: "bedrock",
 	name: "bedrock",
 	display_name: "Bedrock",
+	icon: "",
 	base_url: "https://bedrock-runtime.us-east-2.amazonaws.com",
 	enabled: true,
 	api_keys: [],
@@ -5603,6 +5592,7 @@ export const MockAIProviderCopilot: TypesGen.AIProvider = {
 	type: "copilot",
 	name: "copilot",
 	display_name: "GitHub Copilot",
+	icon: "",
 	base_url: "https://api.business.githubcopilot.com",
 	enabled: true,
 	api_keys: [],

@@ -7,7 +7,7 @@ editing operations on a remote server.
 
 To connect to your workspace first run:
 
-```shell
+```sh
 coder config-ssh
 ```
 
@@ -61,7 +61,7 @@ To fix this:
 2. Next in the shell profile file on the workspace (ex., `~/.bashrc` for Bash
    and `~/.zshrc` for Zsh) add the following:
 
-   ```bash
+   ```sh
    ansi_term_announce_host() {
        printf '\033AnSiTh %s\n' "coder.$CODER_WORKSPACE_NAME"
    }

@@ -2135,7 +2135,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-	resp, err := createExternalAuthResponse(externalAuthConfig.Type, refreshedLink.OAuthAccessToken, refreshedLink.OAuthExtra)
+	resp, err := createExternalAuthResponse(externalAuthConfig.Type, refreshedLink.OAuthAccessToken, refreshedLink.OAuthExtra, refreshedLink.OAuthExpiry)
 	if err != nil {
 		handleRetrying(http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create external auth response.",
@@ -2208,7 +2208,7 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 		if !valid {
 			continue
 		}
-		resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken, externalAuthLink.OAuthExtra)
+		resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken, externalAuthLink.OAuthExtra, externalAuthLink.OAuthExpiry)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to create external auth response.",
@@ -2375,7 +2375,7 @@ func fillCoderDesktopTelemetry(r *http.Request, event *telemetry.UserTailnetConn
 // createExternalAuthResponse creates an ExternalAuthResponse based on the
 // provider type. This is to support legacy `/workspaceagents/me/gitauth`
 // which uses `Username` and `Password`.
-func createExternalAuthResponse(typ, token string, extra pqtype.NullRawMessage) (agentsdk.ExternalAuthResponse, error) {
+func createExternalAuthResponse(typ, token string, extra pqtype.NullRawMessage, expiry time.Time) (agentsdk.ExternalAuthResponse, error) {
 	var resp agentsdk.ExternalAuthResponse
 	switch typ {
 	case string(codersdk.EnhancedExternalAuthProviderGitLab):
@@ -2398,6 +2398,10 @@ func createExternalAuthResponse(typ, token string, extra pqtype.NullRawMessage) 
 	}
 	resp.AccessToken = token
 	resp.Type = typ
+	// Normalize to UTC so JSON encoding always uses the "Z" suffix and
+	// preserves the full timestamp without losing sub-minute precision from
+	// historical timezone offsets (e.g. LMT).
+	resp.ExpiresAt = expiry.UTC()
 
 	var err error
 	if extra.Valid {

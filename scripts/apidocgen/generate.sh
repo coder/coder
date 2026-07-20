@@ -38,7 +38,7 @@ pnpm exec -- widdershins \
 	--user_templates "./markdown-template" \
 	--search false \
 	--omitHeader true \
-	--language_tabs "shell:curl" \
+	--language_tabs "sh:curl" \
 	--summary "${SWAG_OUTPUT_DIR}/swagger.json" \
 	--outfile "${API_MD_TMP_FILE}"
 # Perform the postprocessing
