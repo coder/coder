@@ -99,18 +99,26 @@ func TestUpdateChatSummary(t *testing.T) {
 		server := &Server{db: db, pubsub: ps}
 		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), HistoryVersion: 7}
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		caller := rbac.Subject{
+			ID:    chat.OwnerID.String(),
+			Type:  rbac.SubjectTypeUser,
+			Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
+		}
+		//nolint:gocritic // Verify updateChatSummary preserves its caller's actor.
+		ctx := dbauthz.As(context.Background(), caller)
 
 		db.EXPECT().UpdateChatSummary(gomock.Any(), database.UpdateChatSummaryParams{
 			ID:                     chat.ID,
 			ExpectedHistoryVersion: chat.HistoryVersion,
 			Summary:                sql.NullString{String: "trimmed summary", Valid: true},
 		}).DoAndReturn(func(ctx context.Context, _ database.UpdateChatSummaryParams) (int64, error) {
-			_, ok := dbauthz.ActorFromContext(ctx)
-			require.True(t, ok, "summary writes must have an actor")
+			actor, ok := dbauthz.ActorFromContext(ctx)
+			require.True(t, ok, "summary writes must preserve the caller's actor")
+			require.Equal(t, caller, actor)
 			return 1, nil
 		})
 
-		server.updateChatSummary(context.Background(), chat, chat.HistoryVersion, " \n trimmed summary\t ", logger)
+		server.updateChatSummary(ctx, chat, chat.HistoryVersion, " \n trimmed summary\t ", logger)
 
 		events := ps.watchEvents(t)
 		require.Len(t, events, 1)

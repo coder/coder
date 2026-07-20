@@ -4802,23 +4802,21 @@ func (p *Server) updateChatSummary(
 	}
 	sqlSummary := sql.NullString{String: summary, Valid: true}
 
-	//nolint:gocritic // Narrow daemon access for best-effort summary cache writes.
-	updateCtx := dbauthz.AsChatd(ctx)
-	updateCtx, cancel := context.WithTimeout(updateCtx, chatSummaryWriteTimeout)
+	ctx, cancel := context.WithTimeout(ctx, chatSummaryWriteTimeout)
 	defer cancel()
 
-	affected, err := p.db.UpdateChatSummary(updateCtx, database.UpdateChatSummaryParams{
+	affected, err := p.db.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{
 		ID:                     chat.ID,
 		ExpectedHistoryVersion: expectedHistoryVersion,
 		Summary:                sqlSummary,
 	})
 	if err != nil {
-		logger.Warn(updateCtx, "failed to update chat summary",
+		logger.Warn(ctx, "failed to update chat summary",
 			slog.F("chat_id", chat.ID), slog.Error(err))
 		return
 	}
 	if affected == 0 {
-		logger.Info(updateCtx, "skipped stale chat summary update",
+		logger.Info(ctx, "skipped stale chat summary update",
 			slog.F("chat_id", chat.ID),
 			slog.F("summary_length", len(summary)),
 			slog.F("expected_history_version", expectedHistoryVersion),
