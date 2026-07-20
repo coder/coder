@@ -967,6 +967,7 @@ describe("submitEditAndScroll", () => {
 		const callOrder: string[] = [];
 		const editMessage = vi.fn(async () => {
 			callOrder.push("editMessage");
+			return { ended: false };
 		});
 		const scrollToBottom = vi.fn(() => {
 			callOrder.push("scrollToBottom");
@@ -980,6 +981,19 @@ describe("submitEditAndScroll", () => {
 		});
 
 		expect(callOrder).toEqual(["editMessage", "scrollToBottom"]);
+	});
+
+	it("returns the editMessage response so callers can handle ended chats", async () => {
+		const editMessage = vi.fn().mockResolvedValue({ ended: true });
+
+		const response = await submitEditAndScroll({
+			editMessage,
+			editArgs: dummyArgs,
+			scrollToBottom: vi.fn(),
+			onError: vi.fn(),
+		});
+
+		expect(response).toEqual({ ended: true });
 	});
 
 	it("does not call scrollToBottom when editMessage throws", async () => {
@@ -1003,7 +1017,7 @@ describe("submitEditAndScroll", () => {
 	});
 
 	it("tolerates null scrollToBottom", async () => {
-		const editMessage = vi.fn().mockResolvedValue(undefined);
+		const editMessage = vi.fn().mockResolvedValue({ ended: false });
 
 		await submitEditAndScroll({
 			editMessage,

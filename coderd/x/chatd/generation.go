@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agenthooks"
 )
 
 // generationPrepareInput contains the committed state used to prepare one
@@ -329,12 +330,63 @@ func hasExclusiveToolCall(toolCalls []fantasy.ToolCallContent, exclusiveToolName
 	return false
 }
 
+func (s *taskStarter) startGenerationSession(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	chat database.Chat,
+	messages []database.ChatMessage,
+) (result sessionStartResult, dispatched bool, err error) {
+	dispatched, complete, err := input.SessionStart.claim(ctx)
+	if err != nil {
+		return sessionStartResult{}, false, errors.Join(errTaskExpectedExit, xerrors.Errorf("claim session_start: %w", err))
+	}
+	if !dispatched {
+		return sessionStartResult{Chat: chat}, false, nil
+	}
+
+	completed := false
+	// Re-arm the claim until its response is applied so a replacement task
+	// can replay session_start effects.
+	defer func() { complete(completed) }()
+	turnID := activeTurnID(messages)
+	response, err := s.server.dispatchSessionStart(ctx, chat, turnID, sessionStartSource(messages))
+	if err != nil {
+		return sessionStartResult{}, true, sessionStartDispatchError(err)
+	}
+	result, err = applySessionStartResponse(ctx, machine, input, chat, turnID, response)
+	if err != nil {
+		return sessionStartResult{}, true, err
+	}
+	completed = true
+	return result, true, nil
+}
+
 func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskStartInput) error {
+	if input.StopNudges == nil {
+		input.StopNudges = &stopNudgeTracker{}
+	}
 	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
 	for {
 		chat, messages, err := loadGenerationState(ctx, machine, input)
 		if err != nil {
 			return xerrors.Errorf("load generation state: %w", err)
+		}
+		if s.server.hookDispatcher != nil && s.server.hookDispatcher.Enabled() {
+			result, dispatched, err := s.startGenerationSession(ctx, machine, input, chat, messages)
+			if err != nil {
+				if errors.Is(err, errTaskExpectedExit) {
+					return err
+				}
+				return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
+			}
+			if dispatched {
+				if result.Ended {
+					return s.finishSessionStartEnd(ctx, input, result)
+				}
+				input.HistoryVersion = result.Chat.HistoryVersion
+				continue
+			}
 		}
 		prepareInput := generationPrepareInput{
 			Chat:     chat,
@@ -350,20 +402,25 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 		}
 		cleanup := prepared.Cleanup
-		decision, err := retryGenerationPhase(ctx, s, "decide", func() (generationDecision, error) {
-			return decideGenerationAction(generationDecisionInput{
-				chat:                       prepared.Chat,
-				messages:                   prepared.Messages,
-				dynamicToolNames:           prepared.DynamicToolNames,
-				exclusiveToolNames:         prepared.ExclusiveToolNames,
-				stopAfterTools:             prepared.StopAfterTools,
-				maxSteps:                   prepared.MaxSteps,
-				compactionEnabled:          prepared.Compaction != nil,
-				compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
-				compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
-				compactionContextLimit:     generationCompactionContextLimit(prepared.Compaction),
+		var decision generationDecision
+		if input.StopNudges.consume(activeTurnID(prepared.Messages)) {
+			decision = generationDecision{kind: generationActionGenerateAssistant}
+		} else {
+			decision, err = retryGenerationPhase(ctx, s, "decide", func() (generationDecision, error) {
+				return decideGenerationAction(generationDecisionInput{
+					chat:                       prepared.Chat,
+					messages:                   prepared.Messages,
+					dynamicToolNames:           prepared.DynamicToolNames,
+					exclusiveToolNames:         prepared.ExclusiveToolNames,
+					stopAfterTools:             prepared.StopAfterTools,
+					maxSteps:                   prepared.MaxSteps,
+					compactionEnabled:          prepared.Compaction != nil,
+					compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
+					compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
+					compactionContextLimit:     generationCompactionContextLimit(prepared.Compaction),
+				})
 			})
-		})
+		}
 		if err != nil {
 			cleanup()
 			if errors.Is(err, errTaskExpectedExit) || errors.Is(err, errTaskRetryable) {
@@ -384,8 +441,24 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		var actionErr error
 		switch decision.kind {
 		case generationActionEnterRequiresAction:
-			cleanup()
-			return s.enterRequiresAction(ctx, machine, input)
+			toolCalls := make([]fantasy.ToolCallContent, 0, len(decision.pendingDynamicToolCalls))
+			for _, toolCall := range decision.pendingDynamicToolCalls {
+				toolCalls = append(toolCalls, fantasy.ToolCallContent{
+					ToolCallID: toolCall.ToolCallID,
+					ToolName:   toolCall.ToolName,
+					Input:      toolCall.Args,
+				})
+			}
+			preflight, err := s.server.preflightPendingToolCalls(ctx, prepared.Chat, activeTurnID(prepared.Messages), toolCalls)
+			if err != nil {
+				cleanup()
+				return s.finishGenerationError(ctx, machine, input, generationHookDispatchError(agenthooks.EventPreToolUse, err), generationAttemptNotRequired)
+			}
+			if len(preflight.Denied) == 0 {
+				cleanup()
+				return s.enterRequiresAction(ctx, machine, input, prepared, preflight)
+			}
+			actionErr = s.commitPreToolUseDeniedResults(ctx, machine, input, prepared, preflight)
 		case generationActionFinishTurn:
 			cleanup()
 			return s.finishGenerationTurn(ctx, machine, input, decision, generationAttemptNotRequired)
@@ -636,10 +709,15 @@ func (s *taskStarter) generateAssistant(
 	if len(outcome.Step.Content) == 0 {
 		return s.finishGenerationTurn(ctx, machine, input, generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, requireGenerationAttempt(attempt.number))
 	}
+	turnID := activeTurnID(prepared.Messages)
+	preflight, err := s.server.preflightToolCalls(ctx, prepared.Chat, turnID, outcome.Step, outcome.ToolCalls)
+	if err != nil {
+		return generationHookDispatchError(agenthooks.EventPreToolUse, err)
+	}
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:      prepared.ModelConfigID,
 		modelCallConfig:    prepared.ModelConfig,
-		step:               stepDataFromPersisted(outcome.Step),
+		step:               stepDataFromPersisted(preflight.Step),
 		toolNameToConfigID: prepared.ToolNameToConfigID,
 		logger:             s.opts.Logger,
 		contentVersion:     chatprompt.CurrentContentVersion,
@@ -647,7 +725,55 @@ func (s *taskStarter) generateAssistant(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
-	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionGenerateAssistant, messages)
+	messages, endChat, err := applyHookResponseMessages(messages, preflight.Responses, prepared.ModelConfigID, turnID)
+	if err != nil {
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+	}
+	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionGenerateAssistant, messages, generationCommitHooks{
+		Responses:         preflight.Responses,
+		EndChat:           endChat,
+		EffectDispatchIDs: preflight.EffectDispatchIDs,
+	})
+}
+
+func (s *taskStarter) commitPreToolUseDeniedResults(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	prepared generationPrepared,
+	preflight preToolUseExecutionResult,
+) error {
+	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
+	if err != nil {
+		return xerrors.Errorf("begin generation attempt: %w", err)
+	}
+	defer attempt.closeEpisode()
+	content := make([]fantasy.Content, 0, len(preflight.Denied))
+	for _, denied := range preflight.Denied {
+		content = append(content, denied)
+	}
+	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
+		modelConfigID:      prepared.ModelConfigID,
+		modelCallConfig:    prepared.ModelConfig,
+		step:               stepDataFromPersisted(chatloop.PersistedStep{Content: content}),
+		toolNameToConfigID: prepared.ToolNameToConfigID,
+		logger:             s.opts.Logger,
+		contentVersion:     chatprompt.CurrentContentVersion,
+	})
+	if err != nil {
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+	}
+	turnID := activeTurnID(prepared.Messages)
+	messages, endChat, err := applyHookResponseMessages(messages, preflight.Responses, prepared.ModelConfigID, turnID)
+	if err != nil {
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+	}
+	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages, generationCommitHooks{
+		Responses:         preflight.Responses,
+		Overrides:         preflight.Overrides,
+		EndChat:           endChat,
+		EffectDispatchIDs: preflight.EffectDispatchIDs,
+	})
 }
 
 func (s *taskStarter) executeLocalTools(
@@ -657,6 +783,21 @@ func (s *taskStarter) executeLocalTools(
 	prepared generationPrepared,
 	decision generationDecision,
 ) error {
+	turnID := activeTurnID(prepared.Messages)
+	preflight, err := s.server.preflightPendingToolCalls(ctx, prepared.Chat, turnID, decision.localToolCalls)
+	if err != nil {
+		return generationHookDispatchError(agenthooks.EventPreToolUse, err)
+	}
+	for _, response := range preflight.Responses {
+		if response.EndChat {
+			// end_chat commits hook effects before any allowed tool executes.
+			return s.commitPreToolUseDeniedResults(ctx, machine, input, prepared, preflight)
+		}
+	}
+	pendingPolicy, hasPendingPolicy, err := narrowHookAllowedToolsResponses(prepared.Chat.HookAllowedTools, preflight.Responses)
+	if err != nil {
+		return xerrors.Errorf("narrow pending hook allowed tools: %w", err)
+	}
 	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
 		return xerrors.Errorf("beginGenerationAttempt: %w", err)
@@ -668,24 +809,35 @@ func (s *taskStarter) executeLocalTools(
 		provider = prepared.Model.Provider()
 		modelName = prepared.Model.Model()
 	}
-	outcome, err := chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
-		Tools:              prepared.Tools,
-		ActiveTools:        prepared.ActiveTools,
-		ProviderTools:      prepared.ProviderTools,
-		ToolCalls:          decision.localToolCalls,
-		ExclusiveToolNames: prepared.ExclusiveToolNames,
-		BuiltinToolNames:   prepared.BuiltinToolNames,
-		ModelProvider:      provider,
-		ModelName:          modelName,
-		ContextLimit:       prepared.ContextLimitFallback,
-		ToolNameAliases:    subagentToolNameAliases,
-		PublishMessagePart: attempt.publish,
-		Logger:             s.opts.Logger,
-		Metrics:            s.server.metrics,
-		Clock:              s.opts.Clock,
-	})
-	if err != nil {
-		return xerrors.Errorf("execute local tools: %w", err)
+	toolCtx := ctx
+	if hasPendingPolicy {
+		toolCtx = withPendingHookAllowedTools(toolCtx, prepared.Chat.ID, pendingPolicy)
+	}
+	var outcome chatloop.ToolExecutionOutcome
+	if len(preflight.Allowed) > 0 {
+		outcome, err = chatloop.ExecuteLocalTools(toolCtx, chatloop.ExecuteLocalToolsOptions{
+			Tools:              prepared.Tools,
+			ActiveTools:        prepared.ActiveTools,
+			ProviderTools:      prepared.ProviderTools,
+			ToolCalls:          preflight.Allowed,
+			ExclusiveToolNames: prepared.ExclusiveToolNames,
+			BuiltinToolNames:   prepared.BuiltinToolNames,
+			ModelProvider:      provider,
+			ModelName:          modelName,
+			ContextLimit:       prepared.ContextLimitFallback,
+			ToolNameAliases:    subagentToolNameAliases,
+			PublishMessagePart: attempt.publish,
+			Logger:             s.opts.Logger,
+			Metrics:            s.server.metrics,
+			Clock:              s.opts.Clock,
+		})
+		if err != nil {
+			return xerrors.Errorf("execute local tools: %w", err)
+		}
+	}
+	postResponses, postDispatchErr := s.server.dispatchPostToolUseResults(ctx, prepared.Chat, turnID, outcome.Step.Content)
+	for _, denied := range preflight.Denied {
+		outcome.Step.Content = append(outcome.Step.Content, denied)
 	}
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:      prepared.ModelConfigID,
@@ -698,7 +850,30 @@ func (s *taskStarter) executeLocalTools(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
-	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages)
+	messages, preEndChat, err := applyHookResponseMessages(messages, preflight.Responses, prepared.ModelConfigID, turnID)
+	if err != nil {
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+	}
+	messages, postEndChat, err := appendHookResponseMessages(messages, postResponses, prepared.ModelConfigID, turnID)
+	if err != nil {
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+	}
+	responses := make([]agenthooks.Response, 0, len(preflight.Responses)+len(postResponses))
+	responses = append(responses, preflight.Responses...)
+	responses = append(responses, postResponses...)
+	endChat := preEndChat || postEndChat
+	// An accepted end_chat outranks a later post_tool_use failure.
+	var postCommitErr error
+	if postDispatchErr != nil && !endChat {
+		postCommitErr = generationHookDispatchError(agenthooks.EventPostToolUse, postDispatchErr)
+	}
+	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages, generationCommitHooks{
+		Responses:         responses,
+		Overrides:         preflight.Overrides,
+		EndChat:           endChat,
+		PostCommitError:   postCommitErr,
+		EffectDispatchIDs: preflight.EffectDispatchIDs,
+	})
 }
 
 // compactionSourceForDecision maps a compact decision to the
@@ -751,6 +926,12 @@ func (s *taskStarter) generateCompaction(
 			overrideModel.modelConfig,
 		)
 	}
+	turnID := activeTurnID(prepared.Messages)
+	preResponse, err := s.server.dispatchPreCompact(ctx, prepared.Chat, turnID)
+	if err != nil {
+		return generationHookDispatchError(agenthooks.EventPreCompact, err)
+	}
+	compactionOpts.SummaryHint = preResponse.ModelContext
 	compactionOpts.PublishMessagePart = attempt.publish
 	compactionOpts.Source = source
 	compactionOpts.Force = source == chatloop.CompactionSourceManual
@@ -779,16 +960,128 @@ func (s *taskStarter) generateCompaction(
 		s.server.metrics.RecordCompaction(metricProvider, metricModel, false, err)
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
-	err = s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionCompact, stepMessagesForCommit{
+	persistedPreResponse := preResponse
+	persistedPreResponse.ModelContext = ""
+	commitMessages, preEndChat, err := applyHookResponseMessages(stepMessagesForCommit{
 		Messages:                 messages.Messages,
 		VisibleIndexes:           visibleMessageIndexes(messages.Messages),
 		ConsumeCompactionRequest: true,
-	})
+	}, []agenthooks.Response{persistedPreResponse}, prepared.ModelConfigID, turnID)
+	if err != nil {
+		s.server.metrics.RecordCompaction(metricProvider, metricModel, false, err)
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+	}
+	compacted, err := commitCompactionStep(ctx, machine, input, attempt.number, commitMessages, preResponse)
 	s.server.metrics.RecordCompaction(metricProvider, metricModel, err == nil, err)
 	if err != nil {
 		return xerrors.Errorf("commit generation step: %w", err)
 	}
-	return nil
+
+	input.HistoryVersion = compacted.HistoryVersion
+	postCommitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), postCommitWatchPublishTimeout)
+	defer cancel()
+	postResponse, err := s.server.dispatchPostCompact(postCommitCtx, compacted, turnID)
+	if err != nil {
+		// An accepted pre_compact end_chat outranks a post_compact failure.
+		if preEndChat {
+			return s.applyPostCompactResponse(postCommitCtx, machine, input, compacted, prepared.ModelConfigID, turnID, agenthooks.Response{}, preEndChat)
+		}
+		return s.finishGenerationError(postCommitCtx, machine, input, generationHookDispatchError(agenthooks.EventPostCompact, err), generationAttemptNotRequired)
+	}
+	return s.applyPostCompactResponse(postCommitCtx, machine, input, compacted, prepared.ModelConfigID, turnID, postResponse, preEndChat)
+}
+
+func commitCompactionStep(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	attempt int64,
+	messages stepMessagesForCommit,
+	preResponse agenthooks.Response,
+) (database.Chat, error) {
+	var committed database.Chat
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		if _, err := loadChatForGeneration(ctx, store, input, requireGenerationAttempt(attempt)); err != nil {
+			return xerrors.Errorf("load chat for generation: %w", err)
+		}
+		if err := applyHookAllowedTools(ctx, store, input.ChatID, preResponse); err != nil {
+			return err
+		}
+		if _, err := tx.CommitStep(chatstate.CommitStepInput{
+			Messages:                 messages.Messages,
+			ConsumeCompactionRequest: messages.ConsumeCompactionRequest,
+		}); err != nil {
+			return xerrors.Errorf("tx.CommitStep: %w", err)
+		}
+		chat, err := store.GetChatByID(ctx, input.ChatID)
+		if err != nil {
+			return xerrors.Errorf("load committed chat: %w", err)
+		}
+		committed = chat
+		return nil
+	})
+	if err != nil {
+		return database.Chat{}, normalizeTaskTransitionError(err, "commit compaction step")
+	}
+	return committed, nil
+}
+
+func (s *taskStarter) applyPostCompactResponse(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	compacted database.Chat,
+	modelConfigID uuid.UUID,
+	turnID *uuid.UUID,
+	response agenthooks.Response,
+	preEndChat bool,
+) error {
+	prefixMessages, err := hookPrefixMessages(response, modelConfigID, turnID)
+	if err != nil {
+		return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
+	}
+	endChat := preEndChat || response.EndChat
+	committed := compacted
+	var endedDescendants []database.Chat
+	if len(prefixMessages) > 0 || response.AllowedTools != nil || endChat {
+		err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+			if _, err := loadChatForGeneration(ctx, store, input, generationAttemptNotRequired); err != nil {
+				return xerrors.Errorf("load chat for post_compact response: %w", err)
+			}
+			if err := applyHookAllowedTools(ctx, store, input.ChatID, response); err != nil {
+				return err
+			}
+			if endChat {
+				endResult, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages})
+				if err != nil {
+					return xerrors.Errorf("tx.EndChat: %w", err)
+				}
+				endedDescendants = endResult.EndedDescendants
+			} else if len(prefixMessages) > 0 {
+				if _, err := tx.CommitStep(chatstate.CommitStepInput{Messages: prefixMessages}); err != nil {
+					return xerrors.Errorf("commit post_compact messages: %w", err)
+				}
+			}
+			chat, err := store.GetChatByID(ctx, input.ChatID)
+			if err != nil {
+				return xerrors.Errorf("load post_compact chat: %w", err)
+			}
+			committed = chat
+			return nil
+		})
+		if err != nil {
+			return normalizeTaskTransitionError(err, "apply post_compact response")
+		}
+	}
+	if endChat {
+		input.StopNudges.reset()
+		return s.finishEndedChat(ctx, input, committed, endedDescendants)
+	}
+	s.routeStateHint(ctx, stateUpdateFromChat(committed))
+	return s.afterGenerationOutcome(ctx, generationOutcome{
+		Chat: committed,
+		Kind: runnerActionKind(generationActionCompact),
+	})
 }
 
 // compactionMetricIdentity returns the provider/model labels for compaction
@@ -871,6 +1164,14 @@ func (s *taskStarter) beginGenerationAttempt(
 	}, nil
 }
 
+type generationCommitHooks struct {
+	Responses         []agenthooks.Response
+	Overrides         map[string]json.RawMessage
+	EndChat           bool
+	PostCommitError   error
+	EffectDispatchIDs []uuid.UUID
+}
+
 func (s *taskStarter) commitGenerationStep(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
@@ -878,35 +1179,68 @@ func (s *taskStarter) commitGenerationStep(
 	attempt int64,
 	kind generationActionKind,
 	messages stepMessagesForCommit,
+	hooks generationCommitHooks,
 ) error {
-	if len(messages.Messages) == 0 {
+	// end_chat must commit even when the step carries no messages.
+	if len(messages.Messages) == 0 && !hooks.EndChat {
 		return s.finishGenerationTurn(ctx, machine, input, generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, requireGenerationAttempt(attempt))
 	}
 	var committed database.Chat
+	var endedDescendants []database.Chat
 	insertedMessages := []runnerActionMessage{}
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForGeneration(ctx, store, input, requireGenerationAttempt(attempt)); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
-		commitResult, err := tx.CommitStep(chatstate.CommitStepInput{
-			Messages:                 messages.Messages,
-			ConsumeCompactionRequest: messages.ConsumeCompactionRequest,
-		})
-		if err != nil {
-			return xerrors.Errorf("tx.CommitStep: %w", err)
+		if err := replacePersistedToolCallInputs(ctx, store, input.ChatID, hooks.Overrides); err != nil {
+			return err
 		}
-		insertedMessages = make([]runnerActionMessage, 0, len(commitResult.InsertedMessages))
-		for _, msg := range commitResult.InsertedMessages {
+		if err := applyHookAllowedToolsResponses(ctx, store, input.ChatID, hooks.Responses); err != nil {
+			return err
+		}
+		if err := markHookDispatchEffectsApplied(ctx, store, input.ChatID, hooks.EffectDispatchIDs); err != nil {
+			return err
+		}
+		var inserted []database.ChatMessage
+		if hooks.EndChat {
+			endResult, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: messages.Messages})
+			if err != nil {
+				return xerrors.Errorf("tx.EndChat: %w", err)
+			}
+			inserted = endResult.InsertedMessages
+			endedDescendants = endResult.EndedDescendants
+		} else {
+			commitResult, err := tx.CommitStep(chatstate.CommitStepInput{
+				Messages:                 messages.Messages,
+				ConsumeCompactionRequest: messages.ConsumeCompactionRequest,
+			})
+			if err != nil {
+				return xerrors.Errorf("tx.CommitStep: %w", err)
+			}
+			inserted = commitResult.InsertedMessages
+		}
+		insertedMessages = make([]runnerActionMessage, 0, len(inserted))
+		for _, msg := range inserted {
 			insertedMessages = append(insertedMessages, runnerActionMessage{ID: msg.ID, Role: codersdk.ChatMessageRole(msg.Role)})
 		}
-		committed, err = store.GetChatByID(ctx, input.ChatID)
+		loadedChat, err := store.GetChatByID(ctx, input.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load committed chat: %w", err)
 		}
+		committed = loadedChat
 		return nil
 	})
 	if err != nil {
 		return normalizeTaskTransitionError(err, "commit generation step")
+	}
+	if hooks.PostCommitError != nil {
+		input.HistoryVersion = committed.HistoryVersion
+		postCommitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), postCommitWatchPublishTimeout)
+		defer cancel()
+		return s.finishGenerationError(postCommitCtx, machine, input, hooks.PostCommitError, generationAttemptNotRequired)
+	}
+	if hooks.EndChat {
+		return s.finishEndedChat(ctx, input, committed, endedDescendants)
 	}
 	s.routeStateHint(ctx, stateUpdateFromChat(committed))
 	return s.afterGenerationOutcome(ctx, generationOutcome{
@@ -920,14 +1254,52 @@ func (s *taskStarter) enterRequiresAction(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
+	prepared generationPrepared,
+	preflight preToolUseExecutionResult,
 ) error {
+	turnID := activeTurnID(prepared.Messages)
+	messages, endChat, err := applyHookResponseMessages(stepMessagesForCommit{}, preflight.Responses, prepared.ModelConfigID, turnID)
+	if err != nil {
+		return err
+	}
 	var committed database.Chat
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	var endedDescendants []database.Chat
+	insertedMessages := []runnerActionMessage{}
+	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForTask(ctx, store, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
-		if _, err := tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{}); err != nil {
-			return xerrors.Errorf("tx.EnterRequiresAction: %w", err)
+		if err := replacePersistedToolCallInputs(ctx, store, input.ChatID, preflight.Overrides); err != nil {
+			return err
+		}
+		if err := applyHookAllowedToolsResponses(ctx, store, input.ChatID, preflight.Responses); err != nil {
+			return err
+		}
+		if err := markHookDispatchEffectsApplied(ctx, store, input.ChatID, preflight.EffectDispatchIDs); err != nil {
+			return err
+		}
+		var inserted []database.ChatMessage
+		if endChat {
+			result, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: messages.Messages})
+			if err != nil {
+				return xerrors.Errorf("tx.EndChat: %w", err)
+			}
+			inserted = result.InsertedMessages
+			endedDescendants = result.EndedDescendants
+		} else {
+			if len(messages.Messages) > 0 {
+				result, err := tx.CommitStep(chatstate.CommitStepInput{Messages: messages.Messages})
+				if err != nil {
+					return xerrors.Errorf("tx.CommitStep: %w", err)
+				}
+				inserted = result.InsertedMessages
+			}
+			if _, err := tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{}); err != nil {
+				return xerrors.Errorf("tx.EnterRequiresAction: %w", err)
+			}
+		}
+		for _, message := range inserted {
+			insertedMessages = append(insertedMessages, runnerActionMessage{ID: message.ID, Role: codersdk.ChatMessageRole(message.Role)})
 		}
 		chat, err := store.GetChatByID(ctx, input.ChatID)
 		if err != nil {
@@ -939,13 +1311,17 @@ func (s *taskStarter) enterRequiresAction(
 	if err != nil {
 		return normalizeTaskTransitionError(err, "enter requires action")
 	}
+	if endChat {
+		return s.finishEndedChat(ctx, input, committed, endedDescendants)
+	}
 	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindActionRequired); err != nil {
 		return xerrors.Errorf("publish watch and route: %w", err)
 	}
 	return s.afterGenerationOutcome(ctx, generationOutcome{
-		Chat:           committed,
-		Kind:           runnerActionKindEnterRequiresAction,
-		WatchEventKind: codersdk.ChatWatchEventKindActionRequired,
+		Chat:             committed,
+		Kind:             runnerActionKindEnterRequiresAction,
+		WatchEventKind:   codersdk.ChatWatchEventKindActionRequired,
+		InsertedMessages: insertedMessages,
 	})
 }
 
@@ -997,7 +1373,14 @@ func recordGenerationFinishFailure(turn *runnerDebugTurn, err error) {
 	turn.RecordOutcome(chatdebug.StatusError)
 }
 
-func (s *taskStarter) finishGenerationTurn(
+func (s *taskStarter) finishEndedChat(ctx context.Context, input chatWorkerTaskStartInput, committed database.Chat, descendants []database.Chat) error {
+	input.DebugTurn.RecordOutcome(chatdebug.StatusCompleted)
+	s.server.scheduleArchiveDebugCleanup(ctx, append([]database.Chat{committed}, descendants...))
+	s.server.publishChatPubsubEvents(descendants, codersdk.ChatWatchEventKindDeleted)
+	return s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindDeleted)
+}
+
+func (s *taskStarter) finishGenerationTurnWithoutHook(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
@@ -1024,6 +1407,129 @@ func (s *taskStarter) finishGenerationTurn(
 		recordGenerationFinishFailure(input.DebugTurn, err)
 		return err
 	}
+	input.StopNudges.reset()
+	input.DebugTurn.RecordOutcome(chatdebug.StatusCompleted)
+	watchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), postCommitWatchPublishTimeout)
+	defer cancel()
+	if err := s.publishWatchWithRetry(watchCtx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
+		return xerrors.Errorf("publish watch and route: %w", err)
+	}
+	if err := s.afterGenerationOutcome(ctx, generationOutcome{
+		Chat:              committed,
+		Kind:              runnerActionKindFinishTurn,
+		WatchEventKind:    codersdk.ChatWatchEventKindStatusChange,
+		PromotedMessageID: decision.promotedMessageID,
+	}); err != nil {
+		return xerrors.Errorf("after generation outcome: %w", err)
+	}
+	s.routeStateHint(ctx, stateUpdateFromChat(committed))
+	return nil
+}
+
+func (s *taskStarter) finishGenerationTurn(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	decision generationDecision,
+	fence generationAttemptFence,
+) error {
+	if s.server.hookDispatcher == nil || !s.server.hookDispatcher.Enabled() {
+		return s.finishGenerationTurnWithoutHook(ctx, machine, input, decision, fence)
+	}
+	var chat database.Chat
+	var messages []database.ChatMessage
+	err := machine.ReadLock(ctx, func(store database.Store) error {
+		loadedChat, err := loadChatForGeneration(ctx, store, input, fence)
+		if err != nil {
+			return xerrors.Errorf("load chat for stop hook: %w", err)
+		}
+		loadedMessages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  input.ChatID,
+			AfterID: 0,
+		})
+		if err != nil {
+			return xerrors.Errorf("load messages for stop hook: %w", err)
+		}
+		chat = loadedChat
+		messages = loadedMessages
+		return nil
+	})
+	if err != nil {
+		return normalizeTaskTransitionError(err, "load stop hook state")
+	}
+	turnID := activeTurnID(messages)
+	response, err := s.server.dispatchStop(ctx, chat, turnID)
+	if err != nil {
+		return s.finishGenerationError(ctx, machine, input, generationHookDispatchError(agenthooks.EventStop, err), fence)
+	}
+	prefixMessages, err := hookPrefixMessages(response, chat.LastModelConfigID, turnID)
+	if err != nil {
+		return s.finishGenerationError(ctx, machine, input, err, fence)
+	}
+	continueTurn := response.ModelContext != "" && !response.EndChat && input.StopNudges.claim(turnID)
+
+	var committed database.Chat
+	var endedDescendants []database.Chat
+	ended := false
+	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
+			return xerrors.Errorf("load chat for generation: %w", err)
+		}
+		if err := applyHookAllowedTools(ctx, store, input.ChatID, response); err != nil {
+			return err
+		}
+		if response.EndChat {
+			endResult, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages})
+			if err != nil {
+				return xerrors.Errorf("tx.EndChat: %w", err)
+			}
+			endedDescendants = endResult.EndedDescendants
+			ended = true
+		} else {
+			if len(prefixMessages) > 0 {
+				if _, err := tx.CommitStep(chatstate.CommitStepInput{Messages: prefixMessages}); err != nil {
+					return xerrors.Errorf("commit stop hook messages: %w", err)
+				}
+			}
+			if !continueTurn {
+				finishResult, err := tx.FinishTurn(chatstate.FinishTurnInput{})
+				if err != nil {
+					return xerrors.Errorf("tx.FinishTurn: %w", err)
+				}
+				if finishResult.PromotedMessage != nil {
+					decision.promotedMessageID = finishResult.PromotedMessage.ID
+				}
+				committed = finishResult.Chat
+				return nil
+			}
+		}
+		loadedChat, err := store.GetChatByID(ctx, input.ChatID)
+		if err != nil {
+			return xerrors.Errorf("load committed chat: %w", err)
+		}
+		committed = loadedChat
+		return nil
+	})
+	if err != nil {
+		if continueTurn {
+			input.StopNudges.cancel(turnID)
+		}
+		err := normalizeTaskTransitionError(err, "finish generation turn")
+		recordGenerationFinishFailure(input.DebugTurn, err)
+		return err
+	}
+	if ended {
+		input.StopNudges.reset()
+		return s.finishEndedChat(ctx, input, committed, endedDescendants)
+	}
+	if continueTurn {
+		s.routeStateHint(ctx, stateUpdateFromChat(committed))
+		return s.afterGenerationOutcome(ctx, generationOutcome{
+			Chat: committed,
+			Kind: runnerActionKind(generationActionGenerateAssistant),
+		})
+	}
+	input.StopNudges.reset()
 	input.DebugTurn.RecordOutcome(chatdebug.StatusCompleted)
 	watchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), postCommitWatchPublishTimeout)
 	defer cancel()

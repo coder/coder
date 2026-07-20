@@ -1210,6 +1210,7 @@ export const WithMessageHistory: Story = {
 				id: 5,
 				created_at: "2026-02-18T00:03:00.000Z",
 			},
+			ended: false,
 		});
 	},
 	play: async ({ canvasElement }) => {

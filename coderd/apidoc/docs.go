@@ -17059,6 +17059,18 @@ const docTemplate = `{
                 },
                 "debug_logging_enabled": {
                     "type": "boolean"
+                },
+                "hook_enabled": {
+                    "type": "boolean"
+                },
+                "hook_secret": {
+                    "type": "string"
+                },
+                "hook_timeout": {
+                    "type": "integer"
+                },
+                "hook_url": {
+                    "$ref": "#/definitions/serpent.URL"
                 }
             }
         },
@@ -17309,7 +17321,8 @@ const docTemplate = `{
                 "usage_limit",
                 "missing_key",
                 "provider_disabled",
-                "content_filter"
+                "content_filter",
+                "hook_dispatch_failed"
             ],
             "x-enum-varnames": [
                 "ChatErrorKindGeneric",
@@ -17322,7 +17335,8 @@ const docTemplate = `{
                 "ChatErrorKindUsageLimit",
                 "ChatErrorKindMissingKey",
                 "ChatErrorKindProviderDisabled",
-                "ChatErrorKindContentFilter"
+                "ChatErrorKindContentFilter",
+                "ChatErrorKindHookDispatchFailed"
             ]
         },
         "codersdk.ChatFileMetadata": {
@@ -18431,6 +18445,9 @@ const docTemplate = `{
         "codersdk.CreateChatMessageResponse": {
             "type": "object",
             "properties": {
+                "ended": {
+                    "type": "boolean"
+                },
                 "message": {
                     "$ref": "#/definitions/codersdk.ChatMessage"
                 },
@@ -19867,6 +19884,9 @@ const docTemplate = `{
         "codersdk.EditChatMessageResponse": {
             "type": "object",
             "properties": {
+                "ended": {
+                    "type": "boolean"
+                },
                 "message": {
                     "$ref": "#/definitions/codersdk.ChatMessage"
                 },

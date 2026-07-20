@@ -15,6 +15,7 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -264,6 +266,144 @@ func insertInternalAIProvider(
 		Type: providerType,
 	}, apiKey, func(params *database.InsertAIProviderParams) {
 		params.Enabled = enabled
+	})
+}
+
+func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
+	t.Parallel()
+
+	newFixture := func(t *testing.T, handler http.HandlerFunc) (context.Context, database.Store, database.Chat, *Server) {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+		model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+		parent := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+			HookAllowedTools:  pqtype.NullRawMessage{RawMessage: []byte(`["read_file","spawn_agent"]`), Valid: true},
+		})
+		apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+		ctx = aibridge.WithDelegatedAPIKeyID(ctx, apiKey.ID)
+
+		consumer := httptest.NewServer(handler)
+		t.Cleanup(consumer.Close)
+		server := &Server{
+			db:     db,
+			logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			hookDispatcher: chathooks.New(
+				slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				db,
+				consumer.Client(),
+				consumer.URL,
+				"test-hook-secret-32-bytes-minimum!!",
+				time.Second,
+				"test-deployment",
+				"test-version",
+				prometheus.NewRegistry(),
+			),
+		}
+		return ctx, db, parent, server
+	}
+
+	t.Run("RewriteAndPolicyIntersection", func(t *testing.T) {
+		t.Parallel()
+
+		var meta struct {
+			sync.Mutex
+			parentChatID string
+			prompt       string
+		}
+		ctx, db, parent, server := newFixture(t, func(rw http.ResponseWriter, r *http.Request) {
+			var request struct {
+				Type string `json:"type"`
+				Meta struct {
+					ParentChatID *uuid.UUID `json:"parent_chat_id"`
+				} `json:"meta"`
+				Data struct {
+					Prompt string `json:"prompt"`
+				} `json:"data"`
+			}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+			require.Equal(t, "user_prompt_submit", request.Type)
+			meta.Lock()
+			if request.Meta.ParentChatID != nil {
+				meta.parentChatID = request.Meta.ParentChatID.String()
+			}
+			meta.prompt = request.Data.Prompt
+			meta.Unlock()
+			rw.Header().Set("Content-Type", "application/json")
+			_, _ = rw.Write([]byte(`{
+				"permission": {"decision": "allow", "input_override": {"prompt": "REVIEWED: inspect"}},
+				"allowed_tools": ["read_file", "execute"]
+			}`))
+		})
+
+		child, err := server.createChildSubagentChatWithOptions(ctx, parent, "inspect the workspace", "", childSubagentChatOptions{})
+		require.NoError(t, err)
+
+		meta.Lock()
+		require.Equal(t, parent.ID.String(), meta.parentChatID, "spawn dispatch must identify the parent chat")
+		require.Equal(t, "inspect the workspace", meta.prompt)
+		meta.Unlock()
+
+		messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: child.ID})
+		require.NoError(t, err)
+		var childUserMessage database.ChatMessage
+		for _, message := range messages {
+			if message.Role == database.ChatMessageRoleUser {
+				childUserMessage = message
+				break
+			}
+		}
+		require.NotZero(t, childUserMessage.ID)
+		require.True(t, childUserMessage.Content.Valid)
+		require.Contains(t, string(childUserMessage.Content.RawMessage), "REVIEWED: inspect",
+			"the hook rewrite must land as the child's initial prompt")
+		require.NotContains(t, string(childUserMessage.Content.RawMessage), "inspect the workspace")
+		require.True(t, childUserMessage.TurnID.Valid, "the gated spawn prompt starts the child's first turn")
+
+		require.True(t, child.HookAllowedTools.Valid)
+		require.JSONEq(t, `["read_file"]`, string(child.HookAllowedTools.RawMessage),
+			"child policy is the parent policy narrowed by the response")
+	})
+
+	t.Run("DenyRefusesSpawn", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, db, parent, server := newFixture(t, func(rw http.ResponseWriter, _ *http.Request) {
+			rw.Header().Set("Content-Type", "application/json")
+			_, _ = rw.Write([]byte(`{"permission": {"decision": "deny", "reason": "spawn blocked"}, "user_message": "not allowed"}`))
+		})
+
+		_, err := server.createChildSubagentChatWithOptions(ctx, parent, "exfiltrate secrets", "", childSubagentChatOptions{})
+		var denied *UserPromptDeniedError
+		require.ErrorAs(t, err, &denied)
+		require.Equal(t, "not allowed", denied.UserMessage)
+
+		chats, err := db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
+			ParentIds: []uuid.UUID{parent.ID},
+		})
+		require.NoError(t, err)
+		require.Empty(t, chats, "a denied spawn must not create a child chat")
+	})
+
+	t.Run("ParentPolicyInheritedWithoutResponsePolicy", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, _, parent, server := newFixture(t, func(rw http.ResponseWriter, _ *http.Request) {
+			rw.Header().Set("Content-Type", "application/json")
+			_, _ = rw.Write([]byte(`{}`))
+		})
+
+		child, err := server.createChildSubagentChatWithOptions(ctx, parent, "inspect the workspace", "", childSubagentChatOptions{})
+		require.NoError(t, err)
+		require.True(t, child.HookAllowedTools.Valid)
+		require.JSONEq(t, `["read_file","spawn_agent"]`, string(child.HookAllowedTools.RawMessage),
+			"a restricted parent must not spawn an unrestricted child")
 	})
 }
 

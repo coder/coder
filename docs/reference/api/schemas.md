@@ -995,7 +995,23 @@
   },
   "chat": {
     "acquire_batch_size": 0,
-    "debug_logging_enabled": true
+    "debug_logging_enabled": true,
+    "hook_enabled": true,
+    "hook_secret": "string",
+    "hook_timeout": 0,
+    "hook_url": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
+    }
   }
 }
 ```
@@ -2365,16 +2381,36 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "acquire_batch_size": 0,
-  "debug_logging_enabled": true
+  "debug_logging_enabled": true,
+  "hook_enabled": true,
+  "hook_secret": "string",
+  "hook_timeout": 0,
+  "hook_url": {
+    "forceQuery": true,
+    "fragment": "string",
+    "host": "string",
+    "omitHost": true,
+    "opaque": "string",
+    "path": "string",
+    "rawFragment": "string",
+    "rawPath": "string",
+    "rawQuery": "string",
+    "scheme": "string",
+    "user": {}
+  }
 }
 ```
 
 ### Properties
 
-| Name                    | Type    | Required | Restrictions | Description |
-|-------------------------|---------|----------|--------------|-------------|
-| `acquire_batch_size`    | integer | false    |              |             |
-| `debug_logging_enabled` | boolean | false    |              |             |
+| Name                    | Type                       | Required | Restrictions | Description |
+|-------------------------|----------------------------|----------|--------------|-------------|
+| `acquire_batch_size`    | integer                    | false    |              |             |
+| `debug_logging_enabled` | boolean                    | false    |              |             |
+| `hook_enabled`          | boolean                    | false    |              |             |
+| `hook_secret`           | string                     | false    |              |             |
+| `hook_timeout`          | integer                    | false    |              |             |
+| `hook_url`              | [serpent.URL](#serpenturl) | false    |              |             |
 
 ## codersdk.ChatContext
 
@@ -2597,9 +2633,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                          |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `auth`, `config`, `content_filter`, `generic`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit` |
+| Value(s)                                                                                                                                                                                  |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `auth`, `config`, `content_filter`, `generic`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit` |
 
 ## codersdk.ChatFileMetadata
 
@@ -4440,6 +4476,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "ended": true,
   "message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
@@ -4602,6 +4639,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name             | Type                                                     | Required | Restrictions | Description |
 |------------------|----------------------------------------------------------|----------|--------------|-------------|
+| `ended`          | boolean                                                  | false    |              |             |
 | `message`        | [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |             |
 | `queued`         | boolean                                                  | false    |              |             |
 | `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |             |
@@ -5704,7 +5742,23 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       },
       "chat": {
         "acquire_batch_size": 0,
-        "debug_logging_enabled": true
+        "debug_logging_enabled": true,
+        "hook_enabled": true,
+        "hook_secret": "string",
+        "hook_timeout": 0,
+        "hook_url": {
+          "forceQuery": true,
+          "fragment": "string",
+          "host": "string",
+          "omitHost": true,
+          "opaque": "string",
+          "path": "string",
+          "rawFragment": "string",
+          "rawPath": "string",
+          "rawQuery": "string",
+          "scheme": "string",
+          "user": {}
+        }
       }
     },
     "allow_workspace_renames": true,
@@ -6314,7 +6368,23 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     },
     "chat": {
       "acquire_batch_size": 0,
-      "debug_logging_enabled": true
+      "debug_logging_enabled": true,
+      "hook_enabled": true,
+      "hook_secret": "string",
+      "hook_timeout": 0,
+      "hook_url": {
+        "forceQuery": true,
+        "fragment": "string",
+        "host": "string",
+        "omitHost": true,
+        "opaque": "string",
+        "path": "string",
+        "rawFragment": "string",
+        "rawPath": "string",
+        "rawQuery": "string",
+        "scheme": "string",
+        "user": {}
+      }
     }
   },
   "allow_workspace_renames": true,
@@ -7021,6 +7091,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
+  "ended": true,
   "message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
@@ -7112,6 +7183,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 | Name       | Type                                         | Required | Restrictions | Description |
 |------------|----------------------------------------------|----------|--------------|-------------|
+| `ended`    | boolean                                      | false    |              |             |
 | `message`  | [codersdk.ChatMessage](#codersdkchatmessage) | false    |              |             |
 | `warnings` | array of string                              | false    |              |             |
 

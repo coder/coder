@@ -803,6 +803,16 @@ chat:
   # opt-in settings.
   # (default: false, type: bool)
   debugLoggingEnabled: false
+  # HTTPS URL to receive chat agent lifecycle hook events. Hooks are disabled when
+  # unset.
+  # (default: <unset>, type: url)
+  hookURL:
+  # Maximum time to wait for a chat agent lifecycle hook response.
+  # (default: 1.5s, type: duration)
+  hookTimeout: 1.5s
+  # Whether to dispatch chat agent lifecycle hooks when a hook URL is configured.
+  # (default: true, type: bool)
+  hookEnabled: true
   # Deprecated: AI Gateway routing is now the only routing path. Setting this value
   # has no effect. This option will be removed in a future release.
   # (default: true, type: bool)

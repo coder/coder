@@ -3,6 +3,7 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -62,6 +63,102 @@ type chatWorkerTaskStartInput struct {
 	Status                   database.ChatStatus
 	RequiresActionDeadlineAt sql.NullTime
 	DebugTurn                *runnerDebugTurn
+	SessionStart             *sessionStartTracker
+	StopNudges               *stopNudgeTracker
+}
+
+type stopNudgeTracker struct {
+	mu      sync.Mutex
+	turnID  uuid.UUID
+	claimed bool
+	pending bool
+}
+
+func stopNudgeTurnID(turnID *uuid.UUID) uuid.UUID {
+	if turnID == nil {
+		return uuid.Nil
+	}
+	return *turnID
+}
+
+func (t *stopNudgeTracker) claim(turnID *uuid.UUID) bool {
+	currentTurnID := stopNudgeTurnID(turnID)
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.turnID != currentTurnID {
+		t.turnID = currentTurnID
+		t.claimed = false
+	}
+	if t.claimed {
+		return false
+	}
+	t.claimed = true
+	t.pending = true
+	return true
+}
+
+func (t *stopNudgeTracker) consume(turnID *uuid.UUID) bool {
+	currentTurnID := stopNudgeTurnID(turnID)
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.turnID != currentTurnID || !t.pending {
+		return false
+	}
+	t.pending = false
+	return true
+}
+
+func (t *stopNudgeTracker) cancel(turnID *uuid.UUID) {
+	currentTurnID := stopNudgeTurnID(turnID)
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.turnID != currentTurnID || !t.pending {
+		return
+	}
+	t.pending = false
+	t.claimed = false
+}
+
+func (t *stopNudgeTracker) reset() {
+	t.mu.Lock()
+	t.turnID = uuid.Nil
+	t.claimed = false
+	t.pending = false
+	t.mu.Unlock()
+}
+
+type sessionStartTracker struct {
+	mu        sync.Mutex
+	completed bool
+	inFlight  chan struct{}
+}
+
+func (t *sessionStartTracker) claim(ctx context.Context) (bool, func(bool), error) {
+	for {
+		t.mu.Lock()
+		if t.completed {
+			t.mu.Unlock()
+			return false, nil, nil
+		}
+		if t.inFlight == nil {
+			t.inFlight = make(chan struct{})
+			t.mu.Unlock()
+			return true, func(completed bool) {
+				t.mu.Lock()
+				t.completed = completed
+				close(t.inFlight)
+				t.inFlight = nil
+				t.mu.Unlock()
+			}, nil
+		}
+		inFlight := t.inFlight
+		t.mu.Unlock()
+		select {
+		case <-inFlight:
+		case <-ctx.Done():
+			return false, nil, ctx.Err()
+		}
+	}
 }
 
 // chatWorkerOptions configures a chatWorker.

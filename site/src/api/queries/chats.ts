@@ -1410,14 +1410,32 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	onSuccess: (
 		response: TypesGen.EditChatMessageResponse,
 		variables: EditChatMessageMutationArgs,
+		context: EditChatMessageMutationContext | undefined,
 	) => {
+		// A hook-ended edit has no committed message, so restore and refresh the transcript.
+		const responseMessage = response.message;
+		if (!responseMessage) {
+			if (context?.previousData) {
+				queryClient.setQueryData(chatMessagesKey(chatId), context.previousData);
+			}
+			void queryClient.invalidateQueries({
+				queryKey: chatMessagesKey(chatId),
+				exact: true,
+			});
+			// Refresh lists in case the WebSocket delete event was missed.
+			void invalidateChatListQueries(queryClient);
+			void queryClient.invalidateQueries({
+				queryKey: chatsByWorkspaceKeyPrefix,
+			});
+			return;
+		}
 		queryClient.setQueryData<
 			InfiniteData<TypesGen.ChatMessagesResponse> | undefined
 		>(chatMessagesKey(chatId), (current) =>
 			reconcileEditedMessageInCache({
 				currentData: current,
 				optimisticMessageId: variables.messageId,
-				responseMessage: response.message,
+				responseMessage,
 			}),
 		);
 	},

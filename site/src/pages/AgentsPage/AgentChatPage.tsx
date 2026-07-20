@@ -28,14 +28,17 @@ import {
 	chat,
 	chatKey,
 	chatMessagesForInfiniteScroll,
+	chatMessagesKey,
 	chatModelConfigs,
 	chatModels,
 	chatProviderConfigs,
+	chatsByWorkspaceKeyPrefix,
 	compactChat,
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
 	interruptChat,
+	invalidateChatListQueries,
 	mcpServerConfigs,
 	promoteChatQueuedMessage,
 	updateChatPlanMode,
@@ -242,7 +245,7 @@ export async function submitEditAndScroll({
 		messageId: number;
 		optimisticMessage?: TypesGen.ChatMessage;
 		req: TypesGen.EditChatMessageRequest;
-	}) => Promise<unknown>;
+	}) => Promise<TypesGen.EditChatMessageResponse>;
 	editArgs: {
 		messageId: number;
 		optimisticMessage?: TypesGen.ChatMessage;
@@ -250,9 +253,10 @@ export async function submitEditAndScroll({
 	};
 	scrollToBottom: (() => void) | null | undefined;
 	onError: (error: unknown) => void;
-}): Promise<void> {
+}): Promise<TypesGen.EditChatMessageResponse> {
+	let response: TypesGen.EditChatMessageResponse;
 	try {
-		await editMessage(editArgs);
+		response = await editMessage(editArgs);
 	} catch (error) {
 		onError(error);
 		throw error;
@@ -264,6 +268,7 @@ export async function submitEditAndScroll({
 	// as the IntersectionObserver reacts to rapid layout
 	// shifts between the old and truncated content.
 	scrollToBottom?.();
+	return response;
 }
 
 /** @internal Exported for testing. */
@@ -1585,7 +1590,7 @@ const AgentChatPage: FC = () => {
 				store.setChatStatus("running");
 				store.clearStreamState();
 			});
-			await submitEditAndScroll({
+			const editResponse = await submitEditAndScroll({
 				editMessage,
 				editArgs: {
 					messageId: editedMessageID,
@@ -1598,6 +1603,12 @@ const AgentChatPage: FC = () => {
 					handleUsageLimitError(error);
 				},
 			});
+			// A hook-ended edit must also restore the optimistic running state.
+			if (editResponse.ended) {
+				restoreOptimisticRequestSnapshot(store, previousSnapshot);
+				store.clearStreamState();
+				return;
+			}
 			if (editSelectedModelConfigID) {
 				localStorage.setItem(
 					lastModelConfigIDStorageKey,
@@ -1637,6 +1648,20 @@ const AgentChatPage: FC = () => {
 		} catch (error) {
 			handleUsageLimitError(error);
 			throw error;
+		}
+		// A hook-ended send may add notices and archive the chat, so refresh both views.
+		if (response.ended) {
+			store.clearStreamState();
+			void queryClient.invalidateQueries({ queryKey: chatKey(agentId) });
+			void queryClient.invalidateQueries({
+				queryKey: chatMessagesKey(agentId),
+				exact: true,
+			});
+			void invalidateChatListQueries(queryClient);
+			void queryClient.invalidateQueries({
+				queryKey: chatsByWorkspaceKeyPrefix,
+			});
+			return;
 		}
 		// When the server accepts the message immediately (not
 		// queued), clear the stream and insert the user's message

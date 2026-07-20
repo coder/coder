@@ -110,6 +110,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 
 - `Create(initialMessages)` creates a new chat, initializes `snapshot_version` to 1, inserts its initial history, and lands in `running`. The inserted initial history sets `history_version` to 1. Since the queue has not changed, `queue_version` remains 0. This transition is a special case: since the chat does not exist at the time it's run, the chat row cannot be locked before the transition is applied.
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
+- `EndChat(prefixMessages)` inserts hook response messages, clears the queue and ownership state, then lands a root chat in archived `waiting`.
 - `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be either `queue` or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption or cancels a pending dynamic-tool action as needed.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn, and lands in `running`.
 - `DeleteQueuedMessage(qid)` removes one queued message without changing the active history.
@@ -150,10 +151,12 @@ stateDiagram-v2
     W --> R0: EditMessage
     W --> R0: RequestCompaction
     W --> XW: SetArchived(true)
+    W --> XW: EndChat
 
     E0 --> R0: SendMessage
     E0 --> R0: EditMessage
     E0 --> XE0: SetArchived(true)
+    E0 --> XW: EndChat
 
     E1 --> R1: SendMessage
     E1 --> R0: EditMessage
@@ -162,6 +165,7 @@ stateDiagram-v2
     E1 --> R0: PromoteQueuedMessage / promoted last queued
     E1 --> R1: PromoteQueuedMessage / queue still non-empty
     E1 --> XE1: SetArchived(true)
+    E1 --> XW: EndChat
 
     R0 --> R0: RecordGenerationAttempt
     R0 --> R0: RecordRetryState
@@ -173,6 +177,7 @@ stateDiagram-v2
     R0 --> W: FinishTurn / queue empty
     R0 --> E0: FinishError
     R0 --> R1: SendMessage(queue)
+    R0 --> XW: EndChat
 
     R1 --> R1: RecordGenerationAttempt
     R1 --> R1: RecordRetryState
@@ -183,6 +188,7 @@ stateDiagram-v2
     R1 --> R0: EditMessage
     R1 --> E1: FinishError
     R1 --> R1: SendMessage(queue)
+    R1 --> XW: EndChat
     R1 --> R0: DeleteQueuedMessage / removed last queued
     R1 --> R1: DeleteQueuedMessage / queue still non-empty
     R1 --> I1: PromoteQueuedMessage
@@ -192,18 +198,21 @@ stateDiagram-v2
     I0 --> I1: SendMessage
     I0 --> R0: EditMessage
     I0 --> W: FinishInterruption
+    I0 --> XW: EndChat
 
     I1 --> I1: SendMessage
     I1 --> R0: EditMessage
     I1 --> I0: DeleteQueuedMessage / removed last queued
     I1 --> I1: DeleteQueuedMessage / queue still non-empty
     I1 --> I1: PromoteQueuedMessage
+    I1 --> XW: EndChat
     I1 --> R0: FinishInterruption / promoted last queued
     I1 --> R1: FinishInterruption / queue still non-empty after promoting head
 
     A0 --> R0: CompleteRequiresAction
     A0 --> R0: Interrupt
     A0 --> R0: CancelRequiresAction
+    A0 --> XW: EndChat
     A0 --> A1: SendMessage(queue)
     A0 --> R1: SendMessage(interrupt)
     A0 --> R0: EditMessage
@@ -211,6 +220,7 @@ stateDiagram-v2
     A1 --> R1: CompleteRequiresAction
     A1 --> R1: Interrupt
     A1 --> R1: CancelRequiresAction
+    A1 --> XW: EndChat
     A1 --> A1: SendMessage(queue)
     A1 --> R1: SendMessage(interrupt)
     A1 --> R0: EditMessage

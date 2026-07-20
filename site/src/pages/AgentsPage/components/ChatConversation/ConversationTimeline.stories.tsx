@@ -404,6 +404,74 @@ const meta: Meta<typeof ConversationTimeline> = {
 export default meta;
 type Story = StoryObj<typeof ConversationTimeline>;
 
+export const LifecycleHookNotice: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "system",
+				content: [
+					{
+						type: "text",
+						text: "Your organization requires an approval before deployment.",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const notice = canvas.getByRole("alert");
+		expect(notice).toBeVisible();
+		expect(within(notice).getByText("Lifecycle hook")).toBeVisible();
+		expect(
+			within(notice).getByText(
+				"Your organization requires an approval before deployment.",
+			),
+		).toBeVisible();
+		expect(
+			canvas.queryByRole("button", { name: "Copy message" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const LifecycleHookNoticeDimmedWhileEditing: Story = {
+	args: {
+		...defaultArgs,
+		editingMessageId: 1,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "original prompt" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "system",
+				content: [
+					{
+						type: "text",
+						text: "See the [policy](https://example.com/policy) for details.",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const notice = canvas.getByRole("alert");
+		const link = notice.querySelector("a");
+		expect(link).not.toBeNull();
+		link?.focus();
+		expect(document.activeElement).not.toBe(link);
+		expect(notice.closest("[inert]")).not.toBeNull();
+	},
+};
+
 export const DurableListTemplatesToolLifecycle: Story = {
 	args: {
 		...defaultArgs,

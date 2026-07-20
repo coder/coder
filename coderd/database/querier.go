@@ -200,6 +200,7 @@ type sqlcQuerier interface {
 	// 2. Files whose every referencing chat has been archived for longer
 	//    than the retention period.
 	DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error)
+	DeleteOldChatHookDispatches(ctx context.Context, arg DeleteOldChatHookDispatchesParams) (int64, error)
 	// Deletes chats that have been archived for longer than the given
 	// threshold. Active (non-archived) chats are never deleted.
 	// All chat-scoped child tables are removed via ON DELETE CASCADE.
@@ -272,6 +273,7 @@ type sqlcQuerier interface {
 	FetchNewMessageMetadata(ctx context.Context, arg FetchNewMessageMetadataParams) (FetchNewMessageMetadataRow, error)
 	FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceAgentVolumeResourceMonitor, error)
 	FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]WorkspaceAgentVolumeResourceMonitor, error)
+	FinalizeChatHookDispatch(ctx context.Context, arg FinalizeChatHookDispatchParams) (ChatHookDispatch, error)
 	// Marks orphaned in-progress rows as interrupted so they do not stay
 	// in a non-terminal state forever. The NOT IN list must match the
 	// terminal statuses defined by ChatDebugStatus in codersdk/chats.go.
@@ -408,6 +410,9 @@ type sqlcQuerier interface {
 	// Callers must supply an explicit limit to avoid unbounded result sets.
 	GetChatDebugRunsByChatID(ctx context.Context, arg GetChatDebugRunsByChatIDParams) ([]ChatDebugRun, error)
 	GetChatDebugStepsByRunID(ctx context.Context, runID uuid.UUID) ([]ChatDebugStep, error)
+	// Creation order preserves the ancestor-first lock order used by
+	// SetFamilyArchived.
+	GetChatDescendantIDsByChatID(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error)
 	GetChatDesktopEnabled(ctx context.Context) (bool, error)
 	GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (ChatDiffStatus, error)
 	// Returns aggregate PR counts across all agent chats for telemetry.
@@ -436,6 +441,7 @@ type sqlcQuerier interface {
 	GetChatGatewayAPIKey(ctx context.Context, arg GetChatGatewayAPIKeyParams) (APIKey, error)
 	GetChatGeneralModelOverride(ctx context.Context) (string, error)
 	GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatParams) (ChatHeartbeat, error)
+	GetChatHookDispatchDecision(ctx context.Context, arg GetChatHookDispatchDecisionParams) (ChatHookDispatch, error)
 	// GetChatIncludeDefaultSystemPrompt preserves the legacy default
 	// for deployments created before the explicit include-default toggle.
 	// When the toggle is unset, a non-empty custom prompt implies false;
@@ -1074,6 +1080,7 @@ type sqlcQuerier interface {
 	// with concurrent FinalizeStale under READ COMMITTED isolation.
 	InsertChatDebugStep(ctx context.Context, arg InsertChatDebugStepParams) (ChatDebugStep, error)
 	InsertChatFile(ctx context.Context, arg InsertChatFileParams) (InsertChatFileRow, error)
+	InsertChatHookDispatch(ctx context.Context, arg InsertChatHookDispatchParams) (ChatHookDispatch, error)
 	InsertChatMessages(ctx context.Context, arg InsertChatMessagesParams) ([]ChatMessage, error)
 	InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error)
 	// Legacy queue insertion path. When no caller-supplied creator exists,
@@ -1206,6 +1213,7 @@ type sqlcQuerier interface {
 	// Lists a chat's pinned context resources, ordered deterministically by
 	// source.
 	ListChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatContextResource, error)
+	ListChatHookDispatchesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatHookDispatch, error)
 	ListChatUsageLimitGroupOverrides(ctx context.Context) ([]ListChatUsageLimitGroupOverridesRow, error)
 	ListChatUsageLimitOverrides(ctx context.Context) ([]ListChatUsageLimitOverridesRow, error)
 	ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
@@ -1229,6 +1237,7 @@ type sqlcQuerier interface {
 	// allocate a new snapshot version in one round trip.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
+	MarkChatHookDispatchEffectsApplied(ctx context.Context, arg MarkChatHookDispatchEffectsAppliedParams) error
 	// Flips active, already-hydrated chats for an agent to dirty when the
 	// agent's latest snapshot hash differs from the chat's pinned hash. The
 	// pinned hash is intentionally left untouched; the refresh endpoint
@@ -1400,6 +1409,7 @@ type sqlcQuerier interface {
 	// worker. Returns the IDs that were actually updated so the
 	// caller can detect stolen or completed chats via set-difference.
 	UpdateChatHeartbeats(ctx context.Context, arg UpdateChatHeartbeatsParams) ([]uuid.UUID, error)
+	UpdateChatHookAllowedTools(ctx context.Context, arg UpdateChatHookAllowedToolsParams) error
 	UpdateChatLabelsByID(ctx context.Context, arg UpdateChatLabelsByIDParams) (Chat, error)
 	UpdateChatLastModelConfigByID(ctx context.Context, arg UpdateChatLastModelConfigByIDParams) (Chat, error)
 	// Updates the last read message ID for a chat. This is used to track
@@ -1414,6 +1424,7 @@ type sqlcQuerier interface {
 	// Two summary workers using the same freshness marker are last-write-wins.
 	UpdateChatLastTurnSummary(ctx context.Context, arg UpdateChatLastTurnSummaryParams) (int64, error)
 	UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatMCPServerIDsParams) (Chat, error)
+	UpdateChatMessageContentByID(ctx context.Context, arg UpdateChatMessageContentByIDParams) error
 	UpdateChatModelConfig(ctx context.Context, arg UpdateChatModelConfigParams) (ChatModelConfig, error)
 	UpdateChatPinOrder(ctx context.Context, arg UpdateChatPinOrderParams) error
 	UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatPlanModeByIDParams) (Chat, error)

@@ -9,6 +9,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
@@ -195,6 +196,155 @@ func TestSetFamilyArchivedAcceptsAlreadyDesiredMembers(t *testing.T) {
 	childAfter, err := db.GetChatByID(ctx, child.ID)
 	require.NoError(t, err)
 	require.True(t, childAfter.Archived)
+}
+
+func TestEndChatArchivesChildren(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	user, org, model := seedFamilyDeps(t, db)
+
+	root := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "root",
+		Status:            database.ChatStatusWaiting,
+	})
+	child := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "child",
+		Status:            database.ChatStatusRunning,
+		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+	})
+	grandchild := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "grandchild",
+		Status:            database.ChatStatusRunning,
+		ParentChatID:      uuid.NullUUID{UUID: child.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+	})
+	rawContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("queued"),
+	})
+	require.NoError(t, err)
+	_, err = db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+		ChatID:        child.ID,
+		Content:       rawContent.RawMessage,
+		ModelConfigID: uuid.NullUUID{},
+	})
+	require.NoError(t, err)
+
+	pub := newRecordingPubsub()
+	machine := chatstate.NewChatMachine(db, pub, root.ID)
+	var endResult chatstate.EndChatResult
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		var err error
+		endResult, err = tx.EndChat(chatstate.EndChatInput{})
+		return err
+	}))
+
+	for _, chatID := range []uuid.UUID{root.ID, child.ID, grandchild.ID} {
+		after, err := db.GetChatByID(ctx, chatID)
+		require.NoError(t, err)
+		require.True(t, after.Archived, "family member must be archived")
+		require.Equal(t, database.ChatStatusWaiting, after.Status)
+		require.False(t, after.WorkerID.Valid, "worker ownership must be cleared")
+		require.False(t, after.RunnerID.Valid, "runner ownership must be cleared")
+	}
+	count, err := db.CountChatQueuedMessages(ctx, child.ID)
+	require.NoError(t, err)
+	require.Zero(t, count, "child queue must be cleared")
+	for _, chatID := range []uuid.UUID{child.ID, grandchild.ID} {
+		require.Contains(t, pub.channels, coderdpubsub.ChatStateUpdateChannel(chatID),
+			"ended child must publish a chat:update")
+	}
+	endedIDs := make([]uuid.UUID, 0, len(endResult.EndedDescendants))
+	for _, desc := range endResult.EndedDescendants {
+		require.True(t, desc.Archived, "returned descendant must carry the post-transition row")
+		endedIDs = append(endedIDs, desc.ID)
+	}
+	require.ElementsMatch(t, []uuid.UUID{child.ID, grandchild.ID}, endedIDs,
+		"cascade must surface newly ended descendants for caller side effects")
+}
+
+func TestEndChatOnChildArchivesSubtreeOnly(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	user, org, model := seedFamilyDeps(t, db)
+
+	root := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "root",
+		Status:            database.ChatStatusRunning,
+	})
+	child := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "child",
+		Status:            database.ChatStatusRunning,
+		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+	})
+	grandchild := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "grandchild",
+		Status:            database.ChatStatusRunning,
+		ParentChatID:      uuid.NullUUID{UUID: child.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+	})
+	sibling := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "sibling",
+		Status:            database.ChatStatusRunning,
+		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+	})
+
+	pub := newRecordingPubsub()
+	machine := chatstate.NewChatMachine(db, pub, child.ID)
+	var endResult chatstate.EndChatResult
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		var err error
+		endResult, err = tx.EndChat(chatstate.EndChatInput{})
+		return err
+	}))
+
+	for _, chatID := range []uuid.UUID{child.ID, grandchild.ID} {
+		after, err := db.GetChatByID(ctx, chatID)
+		require.NoError(t, err)
+		require.True(t, after.Archived, "subtree member must be archived")
+		require.Equal(t, database.ChatStatusWaiting, after.Status)
+		require.False(t, after.WorkerID.Valid)
+		require.False(t, after.RunnerID.Valid)
+	}
+	for _, chatID := range []uuid.UUID{root.ID, sibling.ID} {
+		after, err := db.GetChatByID(ctx, chatID)
+		require.NoError(t, err)
+		require.False(t, after.Archived, "root and sibling must stay active")
+		require.Equal(t, database.ChatStatusRunning, after.Status)
+	}
+	require.Contains(t, pub.channels, coderdpubsub.ChatStateUpdateChannel(grandchild.ID),
+		"ended grandchild must publish a chat:update")
+	endedIDs := make([]uuid.UUID, 0, len(endResult.EndedDescendants))
+	for _, desc := range endResult.EndedDescendants {
+		endedIDs = append(endedIDs, desc.ID)
+	}
+	require.ElementsMatch(t, []uuid.UUID{grandchild.ID}, endedIDs,
+		"subtree cascade must surface only newly ended descendants")
 }
 
 func seedFamilyDeps(t *testing.T, db database.Store) (database.User, database.Organization, database.ChatModelConfig) {
