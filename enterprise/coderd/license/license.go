@@ -131,15 +131,47 @@ type FeatureArguments struct {
 	ManagedAgentCountFn ManagedAgentCountFn
 	// WorkspaceCapableUserCountFn returns the number of active users the
 	// RBAC engine authorizes to create workspaces. It is invoked only when
-	// a valid license carries the AI Governance addon; the result then
-	// replaces ActiveUserCount for the user_limit feature and its
-	// warnings. May be nil, in which case ActiveUserCount is always used.
+	// a valid license carries both the AI Governance addon and a
+	// user_limit claim; the result then applies to that license's
+	// user_limit candidate, and replaces ActiveUserCount when such a
+	// candidate is selected for enforcement. May be nil, in which case
+	// ActiveUserCount is always used.
 	WorkspaceCapableUserCountFn WorkspaceCapableUserCountFn
 }
 
 type ManagedAgentCountFn func(ctx context.Context, from time.Time, to time.Time) (int64, error)
 
 type WorkspaceCapableUserCountFn func(ctx context.Context) (int64, error)
+
+// userLimitCandidate is one license's user_limit terms: its seat limit,
+// its entitlement, and the counting mode implied by whether the license
+// carries the AI Governance addon.
+type userLimitCandidate struct {
+	limit             int64
+	entitlement       codersdk.Entitlement
+	aiGovernanceAddon bool
+}
+
+// betterUserLimit reports whether candidate a is more favorable than b,
+// where countA and countB are the user counts each candidate's mode
+// implies. Ordering mirrors Feature.Compare: a candidate whose count is
+// within its limit beats one whose count is not, then higher entitlement,
+// then higher limit; the addon mode breaks remaining ties since its
+// count is never larger than the active user count.
+func betterUserLimit(a, b userLimitCandidate, countA, countB int64) bool {
+	compliantA := countA <= a.limit
+	compliantB := countB <= b.limit
+	if compliantA != compliantB {
+		return compliantA
+	}
+	if a.entitlement.Weight() != b.entitlement.Weight() {
+		return a.entitlement.Weight() > b.entitlement.Weight()
+	}
+	if a.limit != b.limit {
+		return a.limit > b.limit
+	}
+	return a.aiGovernanceAddon && !b.aiGovernanceAddon
+}
 
 // LicensesEntitlements returns the entitlements for licenses. Entitlements are
 // merged from all licenses and the highest entitlement is used for each feature.
@@ -165,17 +197,12 @@ func LicensesEntitlements(
 	// suppress the soft warning for AI Bridge GA.
 	hasExplicitAIBridgeEntitlement := false
 
-	// Track whether any valid license carries the AI Governance addon with
-	// its dependencies satisfied. This gates permission-based seat
-	// counting below.
-	hasAIGovernanceAddon := false
-	// aiGovernanceAddonEntitled is true when at least one addon-carrying
-	// license is fully valid rather than in its grace period.
-	aiGovernanceAddonEntitled := false
-	// aiGovernanceAddonUserLimit is the highest user_limit claimed by an
-	// addon-carrying license. Permission-based counting is enforced
-	// against this limit rather than limits from non-addon licenses.
-	var aiGovernanceAddonUserLimit int64
+	// Each valid license's user_limit claim forms a candidate pairing of
+	// seat limit and counting mode: licenses carrying the AI Governance
+	// addon count workspace-capable users, others count all active users.
+	// The most favorable candidate is selected once all licenses are
+	// processed.
+	var userLimitCandidates []userLimitCandidate
 
 	// Default all entitlements to be disabled.
 	entitlements := codersdk.Entitlements{
@@ -403,6 +430,7 @@ func LicensesEntitlements(
 		}
 
 		addonFeatures := make(map[codersdk.FeatureName]codersdk.Feature)
+		licenseHasAIGovernanceAddon := false
 
 		// Finally, add all features from the addons. We do this last so that
 		// any dependencies of an addon are validated against the calculated
@@ -419,13 +447,7 @@ func LicensesEntitlements(
 				continue
 			}
 			if addon == codersdk.AddonAIGovernance {
-				hasAIGovernanceAddon = true
-				if entitlement == codersdk.EntitlementEntitled {
-					aiGovernanceAddonEntitled = true
-				}
-				if limit := claims.Features[codersdk.FeatureUserLimit]; limit > aiGovernanceAddonUserLimit {
-					aiGovernanceAddonUserLimit = limit
-				}
+				licenseHasAIGovernanceAddon = true
 			}
 			for _, featureName := range addon.Features() {
 				if _, exists := addonFeatures[featureName]; !exists {
@@ -439,44 +461,84 @@ func LicensesEntitlements(
 		for featureName, feature := range addonFeatures {
 			entitlements.AddFeature(featureName, feature)
 		}
+
+		if limit := claims.Features[codersdk.FeatureUserLimit]; limit > 0 {
+			userLimitCandidates = append(userLimitCandidates, userLimitCandidate{
+				limit:             limit,
+				entitlement:       entitlement,
+				aiGovernanceAddon: licenseHasAIGovernanceAddon,
+			})
+		}
 	}
 
-	// Permission-based seat counting: when a valid license carries the AI
-	// Governance addon, user_limit counts only workspace-capable users.
-	// The resolved count overwrites featureArguments.ActiveUserCount,
-	// which the user_limit feature's Actual pointer aliases: Feature
-	// values copy the pointer, not the int64, so every copy of the
-	// feature observes the write, as do the over-limit warnings below.
-	// Replacing Actual with a fresh allocation would break this.
+	// Best-pair user_limit selection. Every candidate is evaluated against
+	// the count its own license's mode implies, so one license's limit is
+	// never combined with another license's counting mode. A candidate
+	// satisfied by its count wins over any unsatisfied one.
+	//
+	// When an addon candidate is selected, the capable count overwrites
+	// featureArguments.ActiveUserCount, which the user_limit feature's
+	// Actual pointer aliases: Feature values copy the pointer, not the
+	// int64, so every copy of the feature observes the write, as do the
+	// over-limit warnings below. Replacing Actual with a fresh allocation
+	// would break this.
 	permissionBasedUserCount := false
 	var legacyActiveUserCount int64
-	if hasAIGovernanceAddon && featureArguments.WorkspaceCapableUserCountFn != nil {
-		capableCount, err := featureArguments.WorkspaceCapableUserCountFn(ctx)
-		if err != nil {
-			// A failed seat count is deliberately a hard failure rather
-			// than a recorded entitlement error: continuing with
-			// ActiveUserCount would silently change what user_limit
-			// measures. The caller keeps the previous entitlements, so a
-			// failure yields a stale count rather than a different one.
-			return entitlements, xerrors.Errorf("count workspace capable users: %w", err)
+	aiGovernanceAddonEntitled := false
+	if len(userLimitCandidates) > 0 {
+		hasAddonCandidate := false
+		for _, c := range userLimitCandidates {
+			if c.aiGovernanceAddon {
+				hasAddonCandidate = true
+				if c.entitlement == codersdk.EntitlementEntitled {
+					aiGovernanceAddonEntitled = true
+				}
+			}
 		}
-		legacyActiveUserCount = featureArguments.ActiveUserCount
-		featureArguments.ActiveUserCount = capableCount
-		permissionBasedUserCount = true
 
-		// The user_limit merge keeps the highest limit across all licenses,
-		// which can come from a license without the addon. Clamp the merged
-		// limit to the addon license's own user_limit so a non-addon
-		// license's higher limit does not apply to the workspace-capable
-		// count. Addon licenses without a user_limit claim leave the merged
-		// limit untouched.
-		userLimit := entitlements.Features[codersdk.FeatureUserLimit]
-		if userLimit.Limit != nil && aiGovernanceAddonUserLimit > 0 && *userLimit.Limit > aiGovernanceAddonUserLimit {
-			userLimit.Limit = &aiGovernanceAddonUserLimit
-			// Assigned directly: AddFeature would keep the existing
-			// higher-limit feature.
-			entitlements.Features[codersdk.FeatureUserLimit] = userLimit
+		var capableCount int64
+		capableCountValid := false
+		if hasAddonCandidate && featureArguments.WorkspaceCapableUserCountFn != nil {
+			count, err := featureArguments.WorkspaceCapableUserCountFn(ctx)
+			if err != nil {
+				// A failed seat count is deliberately a hard failure rather
+				// than a recorded entitlement error: continuing with
+				// ActiveUserCount would silently change what user_limit
+				// measures. The caller keeps the previous entitlements, so a
+				// failure yields a stale count rather than a different one.
+				return entitlements, xerrors.Errorf("count workspace capable users: %w", err)
+			}
+			capableCount = count
+			capableCountValid = true
 		}
+		countFor := func(c userLimitCandidate) int64 {
+			if c.aiGovernanceAddon && capableCountValid {
+				return capableCount
+			}
+			return featureArguments.ActiveUserCount
+		}
+
+		best := userLimitCandidates[0]
+		for _, c := range userLimitCandidates[1:] {
+			if betterUserLimit(c, best, countFor(c), countFor(best)) {
+				best = c
+			}
+		}
+
+		if best.aiGovernanceAddon && capableCountValid {
+			legacyActiveUserCount = featureArguments.ActiveUserCount
+			featureArguments.ActiveUserCount = capableCount
+			permissionBasedUserCount = true
+		}
+
+		// AddFeature merged limits and entitlements across licenses without
+		// pairing them to counting modes; overwrite the merged terms with
+		// the selected candidate's. Actual keeps aliasing
+		// featureArguments.ActiveUserCount.
+		userLimit := entitlements.Features[codersdk.FeatureUserLimit]
+		userLimit.Limit = &best.limit
+		userLimit.Entitlement = best.entitlement
+		entitlements.Features[codersdk.FeatureUserLimit] = userLimit
 	}
 
 	// Now the license specific warnings and errors are added to the entitlements.
