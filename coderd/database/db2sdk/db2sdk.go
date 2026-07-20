@@ -1281,6 +1281,17 @@ func buildAIBridgeThread(
 			n := rootIntc.AgentFirewallSequenceNumber.Int32
 			thread.AgentFirewallSequenceNumber = &n
 		}
+		// Surface the terminal upstream error from the root interception. The
+		// message is only meaningful alongside a type, so it is nested to avoid
+		// a half-populated error on the response.
+		if rootIntc.ErrorType.Valid {
+			errType := string(rootIntc.ErrorType.AIBridgeInterceptionErrorType)
+			thread.ErrorType = &errType
+			if rootIntc.ErrorMessage.Valid {
+				errMsg := rootIntc.ErrorMessage.String
+				thread.ErrorMessage = &errMsg
+			}
+		}
 	}
 
 	// Compute thread time bounds from interceptions.
@@ -1704,6 +1715,10 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	}
 	if c.Summary.Valid {
 		chat.Summary = &c.Summary.String
+	}
+	if c.LastReasoningEffort.Valid {
+		lastReasoningEffort := string(c.LastReasoningEffort.ChatReasoningEffort)
+		chat.LastReasoningEffort = &lastReasoningEffort
 	}
 	if c.PlanMode.Valid {
 		chat.PlanMode = codersdk.ChatPlanMode(c.PlanMode.ChatPlanMode)

@@ -26,7 +26,7 @@ with `NET_ADMIN`) so that Agent Firewall can create namespaces and run nsjail.
 
 **Task definition (Terraform) — `linuxParameters`:**
 
-```hcl
+```tf
 container_definitions = jsonencode([{
   name      = "coder-agent"
   image     = "your-coder-agent-image"

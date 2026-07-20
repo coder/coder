@@ -18,6 +18,7 @@ const createProvider = (
 	provider: overrides.provider,
 	display_name: overrides.display_name ?? overrides.provider,
 	icon: overrides.icon ?? "",
+	enabled: overrides.enabled ?? true,
 	has_user_api_key: overrides.has_user_api_key ?? false,
 	has_central_api_key_fallback: overrides.has_central_api_key_fallback ?? false,
 	byok_enabled: overrides.byok_enabled ?? true,

@@ -55,7 +55,7 @@ helm install postgresql bitnami/postgresql \
 
 The cluster-internal DB URL for the above database is:
 
-```shell
+```sh
 postgres://coder:coder@postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable
 ```
 
@@ -75,7 +75,7 @@ kubectl create secret generic coder-db-url -n coder \
 
 ## 4. Install Coder with Helm
 
-```shell
+```sh
 helm repo add coder-v2 https://helm.coder.com/v2
 ```
 
@@ -131,7 +131,7 @@ We support two release channels: mainline and stable - read the
   - **Chart Registry**
     <!-- autoversion(mainline): "--version [version]" -->
 
-    ```shell
+    ```sh
     helm install coder coder-v2/coder \
         --namespace coder \
         --values values.yaml \
@@ -142,7 +142,7 @@ We support two release channels: mainline and stable - read the
 
     <!-- autoversion(mainline): "--version [version]" -->
 
-    ```shell
+    ```sh
     helm install coder oci://ghcr.io/coder/chart/coder \
         --namespace coder \
         --values values.yaml \
@@ -155,7 +155,7 @@ We support two release channels: mainline and stable - read the
 
     <!-- autoversion(stable): "--version [version]" -->
 
-    ```shell
+    ```sh
     helm install coder coder-v2/coder \
         --namespace coder \
         --values values.yaml \
@@ -166,7 +166,7 @@ We support two release channels: mainline and stable - read the
 
     <!-- autoversion(stable): "--version [version]" -->
 
-    ```shell
+    ```sh
     helm install coder oci://ghcr.io/coder/chart/coder \
         --namespace coder \
         --values values.yaml \
@@ -190,7 +190,7 @@ to the proper Coder URL.
 To upgrade Coder in the future or change values, you can run the following
 command:
 
-```shell
+```sh
 helm repo update
 helm upgrade coder coder-v2/coder \
   --namespace coder \

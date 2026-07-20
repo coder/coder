@@ -1,8 +1,6 @@
 import { cva } from "class-variance-authority";
-import { XIcon } from "lucide-react";
 import { createContext, type PropsWithChildren, useContext } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
-import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
 
 type Variant = "complete" | "current" | "upcoming" | null | undefined;
@@ -24,14 +22,12 @@ type SelectionSummaryProps = {
 	currentStep: number;
 	selectedTemplate?: SelectedTemplate;
 	selectedModules?: SelectedModule[];
-	onDeselectModule: (moduleId: string) => void;
 };
 
 export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 	currentStep,
 	selectedTemplate,
 	selectedModules,
-	onDeselectModule,
 }) => {
 	const variant = (step: number) => {
 		if (currentStep === step) return "current";
@@ -53,10 +49,7 @@ export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 				<VariantContext.Provider value={variant(2)}>
 					<StepIndicator step={2}>Modules</StepIndicator>
 					{selectedModules ? (
-						<ModuleSelection
-							modules={selectedModules}
-							onDeselectModule={onDeselectModule}
-						/>
+						<ModuleSelection modules={selectedModules} />
 					) : (
 						<StepDivider />
 					)}
@@ -161,19 +154,15 @@ const BaseTemplateSelection: React.FC<BaseTemplateSelectionProps> = ({
 
 type ModuleSelectionProps = {
 	modules: SelectedModule[];
-	onDeselectModule: (moduleId: string) => void;
 };
 
-const ModuleSelection: React.FC<ModuleSelectionProps> = ({
-	modules,
-	onDeselectModule,
-}) => {
+const ModuleSelection: React.FC<ModuleSelectionProps> = ({ modules }) => {
 	return (
 		<StepDivider className="max-h-72 overflow-y-auto">
 			{modules.map((module) => (
 				<div
 					key={module.id}
-					className="group flex items-start justify-between p-1 mb-1 rounded-sm hover:bg-surface-secondary"
+					className="group flex items-start justify-between p-1 mb-1 rounded-sm"
 				>
 					<div className="h-[1lh] content-center">
 						<Avatar src={module.iconUrl} size="sm" variant="icon" />
@@ -181,17 +170,6 @@ const ModuleSelection: React.FC<ModuleSelectionProps> = ({
 					<span className="flex-1 ml-2 text-content-secondary">
 						{module.name}
 					</span>
-					<div className="h-[1lh] content-center">
-						<Button
-							size="xs"
-							variant="subtle"
-							className="flex opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-							onClick={() => onDeselectModule(module.id)}
-							aria-label="Deselect module"
-						>
-							<XIcon className="size-4" />
-						</Button>
-					</div>
 				</div>
 			))}
 		</StepDivider>

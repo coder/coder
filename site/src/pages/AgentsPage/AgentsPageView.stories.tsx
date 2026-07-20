@@ -187,6 +187,9 @@ const AgentsRouteElement = () => (
 		onSaveTitleGenerationModel={fn()}
 		isSavingTitleGenerationModel={false}
 		isSaveTitleGenerationModelError={false}
+		onSaveCompactionModel={fn()}
+		isSavingCompactionModel={false}
+		isSaveCompactionModelError={false}
 		onSaveExploreModelOverride={fn()}
 		isSavingExploreModelOverride={false}
 		isSaveExploreModelOverrideError={false}
@@ -535,7 +538,7 @@ export const WithChatList: Story = {
 			buildChat({
 				id: "chat-1",
 				title: "Refactor authentication module",
-				status: "completed",
+				status: "waiting",
 				updated_at: todayTimestamp,
 			}),
 			buildChat({
@@ -564,13 +567,13 @@ export const WithChatList: Story = {
 			buildChat({
 				id: "chat-5",
 				title: "Implement WebSocket handler",
-				status: "completed",
+				status: "requires_action",
 				updated_at: todayTimestamp,
 			}),
 			buildChat({
 				id: "chat-6",
 				title: "Debug memory leak in worker",
-				status: "paused",
+				status: "interrupting",
 				updated_at: todayTimestamp,
 			}),
 		],

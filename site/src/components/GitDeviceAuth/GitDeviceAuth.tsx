@@ -1,5 +1,3 @@
-import CircularProgress from "@mui/material/CircularProgress";
-import Link from "@mui/material/Link";
 import { isAxiosError } from "axios";
 import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
@@ -7,6 +5,9 @@ import type { ApiErrorResponse } from "#/api/errors";
 import type { ExternalAuthDevice } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
+import { Link } from "#/components/Link/Link";
+import { Loader } from "#/components/Loader/Loader";
+import { Spinner } from "../Spinner/Spinner";
 
 interface GitDeviceAuthProps {
 	externalAuthDevice?: ExternalAuthDevice;
@@ -72,7 +73,7 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 }) => {
 	let status = (
 		<p className="flex items-center justify-center gap-2 text-content-disabled">
-			<CircularProgress size={16} color="secondary" data-pixel="ignore" />
+			<Spinner size="sm" loading />
 			Checking for authentication...
 		</p>
 	);
@@ -125,14 +126,14 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 	}
 
 	if (!externalAuthDevice) {
-		return <CircularProgress />;
+		return <Loader />;
 	}
 
 	return (
 		<div>
 			<p className="m-0 text-center text-base leading-relaxed text-content-secondary">
 				Copy your one-time code:&nbsp;
-				<div className="inline-flex items-center">
+				<span className="inline-flex items-center">
 					<span className="font-bold text-content-primary">
 						{externalAuthDevice.user_code}
 					</span>
@@ -141,7 +142,7 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 						text={externalAuthDevice.user_code}
 						label="Copy user code"
 					/>
-				</div>
+				</span>
 				<br />
 				Then open the link below and paste it:
 			</p>
@@ -151,6 +152,7 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 					href={externalAuthDevice.verification_uri}
 					target="_blank"
 					rel="noreferrer"
+					showExternalIcon={false}
 				>
 					<ExternalLinkIcon className="size-icon-xs" />
 					Open and Paste

@@ -62,13 +62,13 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
 			</div>
 
 			<div>
-				<h3
-					id={nameId}
-					className="flex items-center gap-1.5 text-md font-semibold text-content-primary"
-				>
+				<h3 id={nameId} className="text-md font-semibold text-content-primary">
 					{name}
 					{official && (
-						<BadgeCheckIcon className="size-4 text-highlight-sky shrink-0" />
+						<>
+							{" "}
+							<BadgeCheckIcon className="size-4 text-highlight-sky align-middle" />
+						</>
 					)}
 				</h3>
 				<p className="text-sm font-normal text-content-secondary">

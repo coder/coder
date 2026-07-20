@@ -76,8 +76,8 @@ func TestReplica(t *testing.T) {
 		require.NoError(t, err)
 		defer server.Close()
 
-		require.Len(t, server.Regional(), 1)
-		require.Equal(t, peer.ID, server.Regional()[0].ID)
+		require.Len(t, server.DERPReplicasThisRegion(), 1)
+		require.Equal(t, peer.ID, server.DERPReplicasThisRegion()[0].ID)
 		require.Empty(t, server.Self().Error)
 		_ = server.Close()
 	})
@@ -122,8 +122,8 @@ func TestReplica(t *testing.T) {
 		require.NoError(t, err)
 		defer server.Close()
 
-		require.Len(t, server.Regional(), 1)
-		require.Equal(t, peer.ID, server.Regional()[0].ID)
+		require.Len(t, server.DERPReplicasThisRegion(), 1)
+		require.Equal(t, peer.ID, server.DERPReplicasThisRegion()[0].ID)
 		require.Empty(t, server.Self().Error)
 		_ = server.Close()
 	})
@@ -150,8 +150,8 @@ func TestReplica(t *testing.T) {
 		require.NoError(t, err)
 		defer server.Close()
 
-		require.Len(t, server.Regional(), 1)
-		require.Equal(t, peer.ID, server.Regional()[0].ID)
+		require.Len(t, server.DERPReplicasThisRegion(), 1)
+		require.Equal(t, peer.ID, server.DERPReplicasThisRegion()[0].ID)
 		require.NotEmpty(t, server.Self().Error)
 		require.Contains(t, server.Self().Error, "Failed to dial peers")
 		_ = server.Close()
@@ -182,7 +182,7 @@ func TestReplica(t *testing.T) {
 		err = pubsub.Publish(replicasync.PubsubEvent, []byte(peer.ID.String()))
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
-			return len(server.Regional()) == 1
+			return len(server.DERPReplicasThisRegion()) == 1
 		}, testutil.WaitShort, testutil.IntervalFast)
 		_ = server.Close()
 	})
@@ -204,7 +204,7 @@ func TestReplica(t *testing.T) {
 		require.NoError(t, err)
 		defer server.Close()
 		require.Eventually(t, func() bool {
-			return len(server.Regional()) == 0
+			return len(server.DERPReplicasThisRegion()) == 0
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 	t.Run("MultipleCallbacks", func(t *testing.T) {

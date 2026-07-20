@@ -2,7 +2,14 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	fireEvent,
+	fn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -231,18 +238,12 @@ export const ChatStreamingOverridesTurnSummary: Story = {
 				status: "running",
 				last_turn_summary: "Added Docker and Terraform validation",
 			}),
-			buildChat({
-				id: "chat-streaming-pending",
-				title: "Queued continuation",
-				status: "pending",
-				last_turn_summary: "Added Docker and Terraform validation",
-			}),
 		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await expect(canvas.getAllByText("GPT-4o streaming…")).toHaveLength(2);
+		await expect(canvas.getByText("GPT-4o streaming…")).toBeInTheDocument();
 		expect(
 			canvas.queryByText("Added Docker and Terraform validation"),
 		).not.toBeInTheDocument();
@@ -391,41 +392,6 @@ export const RunningDelegatedChat: Story = {
 		const canvas = within(canvasElement);
 		await expect(
 			canvas.getByTestId("agents-tree-executing-child-running"),
-		).toBeInTheDocument();
-	},
-};
-
-export const PendingDelegatedChat: Story = {
-	args: {
-		chats: [
-			buildChat({
-				id: "root-pending",
-				title: "Root agent",
-				children: [
-					buildChat({
-						id: "child-pending",
-						title: "Pending child",
-						status: "pending",
-						parent_chat_id: "root-pending",
-						root_chat_id: "root-pending",
-					}),
-				],
-			}),
-		],
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: {
-				path: "/agents/child-pending",
-				pathParams: { agentId: "child-pending" },
-			},
-			routing: agentsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByTestId("agents-tree-executing-child-pending"),
 		).toBeInTheDocument();
 	},
 };
@@ -2034,6 +2000,125 @@ export const AgentWithWorkspaceMenuFull: Story = {
 		const body = within(document.body);
 		expect(body.queryByText("Unpin agent")).not.toBeInTheDocument();
 		expect(body.queryByText("Unarchive agent")).not.toBeInTheDocument();
+	},
+};
+
+export const ArchivedChildChatRowHasNoActionsMenu: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "root-archived",
+				title: "Archived root agent",
+				archived: true,
+				children: [
+					buildChat({
+						id: "child-archived",
+						title: "Archived child agent",
+						archived: true,
+						parent_chat_id: "root-archived",
+						root_chat_id: "root-archived",
+					}),
+				],
+			}),
+		],
+		sidebarFilters: { ...defaultSidebarFilters, archiveStatus: "archived" },
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/child-archived",
+				pathParams: { agentId: "child-archived" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Archived child agent")).toBeInTheDocument();
+		});
+		// The archived root keeps its actions menu (unarchive lives there).
+		expect(
+			canvas.getByLabelText("Open actions for Archived root agent"),
+		).toBeInTheDocument();
+		// Archive state is root-only, so the archived child has no menu
+		// actions at all: its dropdown trigger is hidden entirely.
+		expect(
+			canvas.queryByLabelText("Open actions for Archived child agent"),
+		).not.toBeInTheDocument();
+
+		// The timestamp normally swaps out for the actions trigger on hover
+		// (a CSS-only group-hover swap). Without menu actions there is no
+		// trigger, so the row keeps its timestamp: ChatTreeNode only applies
+		// the hover-hidden classes when the row has menu actions. CSS :hover
+		// cannot be reliably driven in this environment, so this story
+		// asserts the timestamp is present and visible in the resting state.
+		const childRow = canvas.getByTestId("agents-tree-node-child-archived");
+		expect(within(childRow).getByText("1w")).toBeVisible();
+
+		// Positive control: right-clicking the root row opens a context menu,
+		// proving the context menu mechanism works in this story.
+		fireEvent.contextMenu(canvas.getByTestId("agents-tree-node-root-archived"));
+		await waitFor(() => {
+			expect(within(document.body).getByRole("menu")).toBeInTheDocument();
+		});
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument();
+		});
+
+		// Right-clicking the archived child row must not open a context menu.
+		fireEvent.contextMenu(
+			canvas.getByTestId("agents-tree-node-child-archived"),
+		);
+		expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument();
+	},
+};
+
+export const ChildChatMenuHidesArchiveActions: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "root-child-menu",
+				title: "Root agent",
+				children: [
+					buildChat({
+						id: "child-menu",
+						title: "Child agent",
+						parent_chat_id: "root-child-menu",
+						root_chat_id: "root-child-menu",
+						workspace_id: "workspace-1",
+					}),
+				],
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/child-menu",
+				pathParams: { agentId: "child-menu" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Child agent")).toBeInTheDocument();
+		});
+		const trigger = canvas.getByLabelText("Open actions for Child agent");
+		await userEvent.click(trigger);
+		await waitFor(() => {
+			const body = within(document.body);
+			expect(body.getByText("Rename chat")).toBeInTheDocument();
+		});
+		const body = within(document.body);
+		expect(body.queryByText("Pin agent")).not.toBeInTheDocument();
+		expect(body.queryByText("Archive agent")).not.toBeInTheDocument();
+		expect(
+			body.queryByText("Archive & delete workspace"),
+		).not.toBeInTheDocument();
 	},
 };
 

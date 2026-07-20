@@ -162,6 +162,8 @@ export type ProviderInfo = {
 	readonly provider: string;
 	readonly displayName: string;
 	readonly icon: string;
+	// Absent is treated as enabled.
+	readonly enabled?: boolean;
 };
 
 // providerInfoByIDFromConfigs and providerInfoByIDFromUserConfigs build
@@ -179,6 +181,7 @@ export const providerInfoByIDFromConfigs = (
 				provider: providerConfig.provider,
 				displayName: providerConfig.display_name,
 				icon: providerConfig.icon,
+				enabled: providerConfig.enabled,
 			},
 		]),
 	);
@@ -196,6 +199,7 @@ export const providerInfoByIDFromUserConfigs = (
 				provider: providerConfig.provider,
 				displayName: providerConfig.display_name,
 				icon: providerConfig.icon,
+				enabled: providerConfig.enabled,
 			},
 		]),
 	);
@@ -223,6 +227,20 @@ export const providerTypeByIDFromUserConfigs = (
 		),
 	);
 
+/**
+ * Drops model configs whose provider row is disabled or missing. Both
+ * provider-info sources include every enabled provider, so a missing row
+ * means the provider is disabled or deleted.
+ */
+export const filterConfigsWithEnabledProvider = (
+	configs: readonly TypesGen.ChatModelConfig[],
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
+): readonly TypesGen.ChatModelConfig[] =>
+	configs.filter((config) => {
+		const info = providerInfoByID.get(config.ai_provider_id);
+		return info !== undefined && info.enabled !== false;
+	});
+
 export const getModelOptionsFromConfigs = (
 	configs: readonly TypesGen.ChatModelConfig[] | null | undefined,
 	catalog: TypesGen.ChatModelsResponse | null | undefined,
@@ -235,7 +253,12 @@ export const getModelOptionsFromConfigs = (
 	const availableProviders = getAvailableProviders(catalog);
 	const options: ModelSelectorOption[] = [];
 
-	for (const config of configs) {
+	// The catalog check below is keyed by provider type, so it cannot
+	// exclude a disabled provider when another of the same type is enabled.
+	for (const config of filterConfigsWithEnabledProvider(
+		configs,
+		providerInfoByID,
+	)) {
 		if (!config.enabled) {
 			continue;
 		}
@@ -253,6 +276,9 @@ export const getModelOptionsFromConfigs = (
 
 		const displayName = config.display_name.trim() || model;
 		const contextLimit = asNumber(config.context_limit);
+		const reasoningEffort = config.model_config?.reasoning_effort;
+		const reasoningEffortDefault = asString(reasoningEffort?.default).trim();
+		const reasoningEfforts = config.reasoning_efforts ?? [];
 		options.push({
 			id: configID,
 			provider,
@@ -262,6 +288,8 @@ export const getModelOptionsFromConfigs = (
 			model,
 			displayName,
 			...(contextLimit !== undefined ? { contextLimit } : {}),
+			...(reasoningEffortDefault ? { reasoningEffortDefault } : {}),
+			...(reasoningEfforts.length > 0 ? { reasoningEfforts } : {}),
 		});
 	}
 

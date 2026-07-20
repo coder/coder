@@ -984,7 +984,7 @@ describe("mutation invalidation scope", () => {
 		}
 	});
 
-	it("createChatMessage invalidates only debug runs, not chat detail or messages", async () => {
+	it("createChatMessage invalidates debug runs and chat detail, not messages", async () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		seedAllActiveQueries(queryClient, chatId);
@@ -998,10 +998,9 @@ describe("mutation invalidation scope", () => {
 		).toBe(true);
 
 		const chatState = queryClient.getQueryState(chatKey(chatId));
-		expect(
-			chatState?.isInvalidated,
-			"chatKey should NOT be invalidated",
-		).not.toBe(true);
+		expect(chatState?.isInvalidated, "chatKey should be invalidated").toBe(
+			true,
+		);
 
 		const messagesState = queryClient.getQueryState(chatMessagesKey(chatId));
 		expect(
@@ -2219,7 +2218,7 @@ describe("mergeWatchedChatSummary", () => {
 	it("leaves context untouched for non-context events", () => {
 		const context = { dirty: true, dirty_since: "2025-01-02T00:00:00.000Z" };
 		const cachedChat = makeChat("chat-1", {
-			status: "pending",
+			status: "waiting",
 			updated_at: "2025-01-01T00:00:00.000Z",
 			context,
 		});
@@ -2238,7 +2237,7 @@ describe("mergeWatchedChatSummary", () => {
 
 	it("merges fresh status updates without clobbering a newer title snapshot", () => {
 		const cachedChat = makeChat("chat-1", {
-			status: "pending",
+			status: "waiting",
 			title: "Fresh title",
 			last_model_config_id: "model-old",
 			updated_at: "2025-01-01T00:00:00.000Z",
@@ -2342,9 +2341,10 @@ describe("mergeWatchedChatSummary", () => {
 			last_turn_summary: "Old turn",
 			updated_at: "2025-01-01T00:00:00.000Z",
 		});
-		// summary_change and chat_summary_change share the triggering turn's
-		// updated_at, so the timestamps are equal. The summary_change snapshot
-		// still carries a stale whole-chat summary from when the turn finished.
+		// Neither summary write bumps chats.updated_at, so both events replay
+		// the triggering turn's timestamp and arrive with equal updated_at. The
+		// summary_change snapshot still carries a stale whole-chat summary from
+		// when the turn finished.
 		const watchedChat = makeChat("chat-1", {
 			summary: null,
 			last_turn_summary: "New turn",
@@ -2396,7 +2396,7 @@ describe("mergeWatchedChatSummary", () => {
 
 	it("compares updated_at values as instants instead of strings", () => {
 		const cachedChat = makeChat("chat-1", {
-			status: "pending",
+			status: "waiting",
 			last_model_config_id: "model-old",
 			updated_at: "2025-01-01T00:00:00.12Z",
 		});
@@ -2424,7 +2424,7 @@ describe("mergeWatchedChatSummary", () => {
 			updated_at: "2025-01-01T00:00:00.000Z",
 		});
 		const watchedChat = makeChat("chat-1", {
-			status: "completed",
+			status: "waiting",
 			title: "Updated title",
 			updated_at: "2025-01-01T00:05:00.000Z",
 		});
@@ -2446,7 +2446,7 @@ describe("mergeWatchedChatSummary", () => {
 			updated_at: "2025-01-01T00:10:00.000Z",
 		});
 		const watchedChat = makeChat("chat-1", {
-			status: "completed",
+			status: "waiting",
 			title: "Newer generated title",
 			updated_at: "2025-01-01T00:05:00.000Z",
 		});
@@ -2496,7 +2496,7 @@ describe("mergeWatchedChatSummary", () => {
 			updated_at: "2025-01-01T00:00:00.000Z",
 		});
 		const watchedChat = makeChat("chat-1", {
-			status: "completed",
+			status: "waiting",
 			title: "Stale title",
 			diff_status: watchedDiffStatus,
 			updated_at: "2025-01-01T00:05:00.000Z",
@@ -2547,7 +2547,7 @@ describe("mergeWatchedChatSummary", () => {
 			updated_at: "2025-01-01T00:10:00.000Z",
 		});
 		const watchedChat = makeChat("chat-1", {
-			status: "completed",
+			status: "waiting",
 			title: "Stale title",
 			diff_status: watchedDiffStatus,
 			updated_at: "2025-01-01T00:05:00.000Z",
@@ -2571,7 +2571,7 @@ describe("mergeWatchedChatSummary", () => {
 			updated_at: "2025-01-01T00:00:00.000Z",
 		});
 		const watchedChat = makeChat("chat-1", {
-			status: "completed",
+			status: "waiting",
 			updated_at: "2025-01-01T00:05:00.000Z",
 		});
 
@@ -2608,7 +2608,7 @@ describe("mergeWatchedChatSummary", () => {
 			updated_at: "2025-01-01T00:00:00.000Z",
 		});
 		const watchedChat = makeChat("chat-1", {
-			status: "completed",
+			status: "waiting",
 			updated_at: "2025-01-01T00:05:00.000Z",
 		});
 
@@ -2626,7 +2626,7 @@ describe("mergeWatchedChatIntoCaches", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		const cachedChat = makeChat(chatId, {
-			status: "pending",
+			status: "waiting",
 			last_model_config_id: "model-old",
 			updated_at: "2025-01-01T00:00:00.000Z",
 		});
@@ -2663,7 +2663,7 @@ describe("mergeWatchedChatIntoCaches", () => {
 		const cachedChild = makeChat(childId, {
 			parent_chat_id: "parent-1",
 			root_chat_id: "parent-1",
-			status: "pending",
+			status: "waiting",
 			last_model_config_id: "model-old",
 			updated_at: "2025-01-01T00:00:00.000Z",
 		});
@@ -2701,7 +2701,7 @@ describe("mergeWatchedChatIntoCaches", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		const cachedChat = makeChat(chatId, {
-			status: "completed",
+			status: "waiting",
 			title: "Fresh title",
 			last_model_config_id: "model-new",
 			workspace_id: "workspace-new",
@@ -2725,7 +2725,7 @@ describe("mergeWatchedChatIntoCaches", () => {
 		});
 
 		expect(readInfiniteChats(queryClient)?.[0]).toMatchObject({
-			status: "completed",
+			status: "waiting",
 			title: "Fresh title",
 			last_model_config_id: "model-new",
 			workspace_id: "workspace-new",
@@ -2735,7 +2735,7 @@ describe("mergeWatchedChatIntoCaches", () => {
 		expect(
 			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId)),
 		).toMatchObject({
-			status: "completed",
+			status: "waiting",
 			title: "Fresh title",
 			last_model_config_id: "model-new",
 			workspace_id: "workspace-new",

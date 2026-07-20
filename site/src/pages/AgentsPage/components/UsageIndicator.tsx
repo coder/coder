@@ -29,8 +29,6 @@ import { getUsageLimitPeriodLabel } from "#/pages/AISettingsPage/SpendPage/compo
 import {
 	clampPercentage,
 	getSeverity,
-	severityRingClassName,
-	severityTextClassName,
 	type UsageSeverity,
 	usageProgressPercentage,
 } from "#/utils/budget";
@@ -48,7 +46,7 @@ type UsageSectionData = {
 	hoverLabel: string;
 	secondaryDetail?: ReactNode;
 	tooltip?: ReactNode;
-	severity?: UsageSeverity;
+	severity: UsageSeverity;
 };
 
 const numberFormatter = new Intl.NumberFormat("en-US");
@@ -183,6 +181,18 @@ const UsageMenu: FC<{ sections: readonly UsageSectionData[] }> = ({
 const RING_SIZE = 28;
 const RING_STROKE = 1;
 
+const severityTextClasses = {
+	normal: "text-content-secondary",
+	warning: "text-content-warning",
+	exceeded: "text-content-destructive",
+} as const satisfies Record<UsageSeverity, string>;
+
+const severityRingClasses = {
+	normal: "stroke-content-secondary",
+	warning: "stroke-content-warning",
+	exceeded: "stroke-content-destructive",
+} as const satisfies Record<UsageSeverity, string>;
+
 const UsageTriggerProgress: FC<{ sections: readonly UsageSectionData[] }> = ({
 	sections,
 }) => {
@@ -233,13 +243,13 @@ const UsageRingProgress: FC<{
 				size={RING_SIZE}
 				strokeWidth={RING_STROKE}
 				percent={clampedPercent}
-				progressClassName={severityRingClassName(severity)}
+				progressClassName={severityRingClasses[severity]}
 			/>
 			<span
 				aria-hidden="true"
 				className={cn(
 					"absolute inset-0 flex items-center justify-center",
-					severityTextClassName(severity),
+					severityTextClasses[severity],
 				)}
 			>
 				{icon}
@@ -260,7 +270,7 @@ const UsageSection: FC<{ section: UsageSectionData }> = ({ section }) => {
 				<span
 					className={cn(
 						"shrink-0 text-xs",
-						severityTextClassName(section.severity),
+						severityTextClasses[section.severity],
 					)}
 				>
 					{roundedPercent}%

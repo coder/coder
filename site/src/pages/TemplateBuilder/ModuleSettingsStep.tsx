@@ -26,6 +26,7 @@ interface ModuleSettingsStepProps {
 		moduleId: string,
 		variables: Record<string, string>,
 	) => void;
+	onRemoveModule: (moduleId: string) => void;
 }
 
 function variableToField(
@@ -107,6 +108,7 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 	selectedModuleIds,
 	moduleVariables,
 	onChangeModuleVariables,
+	onRemoveModule,
 }) => {
 	const { data } = useQuery(templateBuilderModules(baseId));
 	const modules = data?.modules ?? [];
@@ -157,6 +159,7 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 								detailsUrl={moduleDetailsUrl(mod.id)}
 								fields={requiredFields}
 								optionalFields={optionalFields}
+								onRemove={() => onRemoveModule(mod.id)}
 							/>
 
 							{sensitiveVars.length > 0 && (

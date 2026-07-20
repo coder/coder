@@ -2,13 +2,19 @@ package dbgen
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"maps"
+	"math/big"
 	"net"
 	"strings"
 	"testing"
@@ -131,6 +137,7 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		CreatedBy:           []uuid.UUID{seed.CreatedBy.UUID},
 		APIKeyID:            []string{apiKeyID},
 		ModelConfigID:       []uuid.UUID{seed.ModelConfigID.UUID},
+		ReasoningEffort:     []string{string(seed.ReasoningEffort.ChatReasoningEffort)},
 		Role:                []database.ChatMessageRole{role},
 		Content:             []string{content},
 		ContentVersion:      []int16{takeFirst(seed.ContentVersion, chatprompt.CurrentContentVersion)},
@@ -354,6 +361,7 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		OAuth2ClientSecretKeyID: seed.OAuth2ClientSecretKeyID,
 		OAuth2AuthURL:           seed.OAuth2AuthURL,
 		OAuth2TokenURL:          seed.OAuth2TokenURL,
+		OAuth2RevocationURL:     seed.OAuth2RevocationURL,
 		OAuth2Scopes:            seed.OAuth2Scopes,
 		APIKeyHeader:            seed.APIKeyHeader,
 		APIKeyValue:             seed.APIKeyValue,
@@ -2022,6 +2030,8 @@ func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertA
 			ID:             interception.ID,
 			EndedAt:        *endedAt,
 			CredentialHint: takeFirst(seed.CredentialHint, ""),
+			ErrorType:      database.NullAIBridgeInterceptionErrorType{},
+			ErrorMessage:   sql.NullString{},
 		})
 		require.NoError(t, err, "insert aibridge interception")
 	}
@@ -2220,8 +2230,45 @@ func newCryptoKeySecret(feature database.CryptoKeyFeature) (string, error) {
 		return generateCryptoKey(64)
 	case database.CryptoKeyFeatureTailnetResume:
 		return generateCryptoKey(64)
+	case database.CryptoKeyFeatureNATSCA:
+		return generateCACryptoKeySecret()
 	}
 	return "", xerrors.Errorf("unknown feature: %s", feature)
+}
+
+// generateCACryptoKeySecret generates a self-signed CA certificate and private
+// key as a PEM bundle, matching the secret format that coderd/cryptokeys
+// produces for the nats_ca feature. It intentionally duplicates
+// cryptokeys.generateCASecret rather than calling it: coderd/cryptokeys's
+// internal tests import dbgen, so importing cryptokeys here would create a
+// test-build import cycle.
+func generateCACryptoKeySecret() (string, error) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return "", xerrors.Errorf("generate key: %w", err)
+	}
+	template := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "dbgen-ca"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		MaxPathLenZero:        true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, key.Public(), key)
+	if err != nil {
+		return "", xerrors.Errorf("create certificate: %w", err)
+	}
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		return "", xerrors.Errorf("marshal private key: %w", err)
+	}
+	var secret []byte
+	secret = append(secret, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})...)
+	secret = append(secret, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})...)
+	return string(secret), nil
 }
 
 func generateCryptoKey(length int) (string, error) {

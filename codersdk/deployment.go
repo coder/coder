@@ -612,6 +612,15 @@ var AIBudgetPeriods = []string{
 	string(AIBudgetPeriodMonth),
 }
 
+// NewAIBudgetPeriodFromString converts s to an AIBudgetPeriod, falling back to
+// AIBudgetPeriodMonth when s is empty or not a recognized period.
+func NewAIBudgetPeriodFromString(s string) AIBudgetPeriod {
+	if slices.Contains(AIBudgetPeriods, s) {
+		return AIBudgetPeriod(s)
+	}
+	return AIBudgetPeriodMonth
+}
+
 // DeploymentValues is the central configuration values the coder server.
 type DeploymentValues struct {
 	Verbose             serpent.Bool   `json:"verbose,omitempty"`
@@ -2122,6 +2131,16 @@ communicating directly.`,
 		Group:       &deploymentGroupAIGatewayProxy,
 		YAML:        "listen_addr",
 	}
+	aiGatewayProxyTarget := serpent.Option{
+		Name:        "AI Gateway Proxy Target",
+		Description: "Base URL of the AI Gateway to forward intercepted requests to. Defaults to the embedded AI Gateway address at the Coder access URL plus /api/v2/ai-gateway.",
+		Flag:        "ai-gateway-proxy-target",
+		Env:         "CODER_AI_GATEWAY_PROXY_TARGET",
+		Value:       &c.AI.BridgeProxyConfig.Target,
+		Default:     "",
+		Group:       &deploymentGroupAIGatewayProxy,
+		YAML:        "target",
+	}
 	aiGatewayProxyTLSCertFile := serpent.Option{
 		Name:        "AI Gateway Proxy TLS Certificate File",
 		Description: "Path to the TLS certificate file for the AI Gateway Proxy listener. Must be set together with AI Gateway Proxy TLS Key File.",
@@ -2667,7 +2686,7 @@ communicating directly.`,
 		},
 		{
 			Name:        "OAuth2 GitHub Allowed Teams",
-			Description: "Teams inside organizations the user must be a member of to Login with GitHub. Structured as: <organization-name>/<team-slug>.",
+			Description: "Teams inside organizations the user must be a member of to Login with GitHub. Structured as: `<organization-name>/<team-slug>`.",
 			Flag:        "oauth2-github-allowed-teams",
 			Env:         "CODER_OAUTH2_GITHUB_ALLOWED_TEAMS",
 			Value:       &c.OAuth2.Github.AllowedTeams,
@@ -4641,6 +4660,7 @@ Write out the current server config as YAML to stdout.`,
 			UseInstead:  serpent.OptionSet{aiGatewayProxyListenAddr},
 		},
 		aiGatewayProxyListenAddr,
+		aiGatewayProxyTarget,
 		{
 			Name:        "AI Bridge Proxy TLS Certificate File",
 			Description: "Deprecated: use --ai-gateway-proxy-tls-cert-file or CODER_AI_GATEWAY_PROXY_TLS_CERT_FILE instead. Path to the TLS certificate file for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS Key File.",
@@ -4854,13 +4874,13 @@ Write out the current server config as YAML to stdout.`,
 
 type AIBridgeConfig struct {
 	Enabled serpent.Bool `json:"enabled" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	// Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
 	LegacyOpenAI AIBridgeOpenAIConfig `json:"openai" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	// Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
 	LegacyAnthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	// Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
 	LegacyBedrock AIBridgeBedrockConfig `json:"bedrock" typescript:",notnull"`
-	// Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>
+	// Providers holds provider instances populated from `CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>`
 	// env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
 	Providers []AIProviderConfig `json:"providers,omitempty"`
 	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
@@ -4942,6 +4962,7 @@ type AIProviderConfig struct {
 type AIBridgeProxyConfig struct {
 	Enabled             serpent.Bool        `json:"enabled" typescript:",notnull"`
 	ListenAddr          serpent.String      `json:"listen_addr" typescript:",notnull"`
+	Target              serpent.String      `json:"target" typescript:",notnull"`
 	TLSCertFile         serpent.String      `json:"tls_cert_file" typescript:",notnull"`
 	TLSKeyFile          serpent.String      `json:"tls_key_file" typescript:",notnull"`
 	MITMCertFile        serpent.String      `json:"cert_file" typescript:",notnull"`
@@ -5512,6 +5533,12 @@ const (
 	CryptoKeyFeatureWorkspaceAppsToken CryptoKeyFeature = "workspace_apps_token"
 	CryptoKeyFeatureOIDCConvert        CryptoKeyFeature = "oidc_convert"
 	CryptoKeyFeatureTailnetResume      CryptoKeyFeature = "tailnet_resume"
+	// CryptoKeyFeatureNATSCA is the CA that signs NATS cluster mTLS leaf
+	// certificates. Its secret is a PEM cert+key bundle (not a hex secret like
+	// the other features) and contains a private key, so it must never be
+	// served over the API. It is deliberately excluded from
+	// whitelistedCryptoKeyFeatures in enterprise/coderd/workspaceproxy.go.
+	CryptoKeyFeatureNATSCA CryptoKeyFeature = "nats_ca"
 )
 
 type CryptoKey struct {

@@ -457,9 +457,11 @@ export const mergeWatchedChatSummary = (
 	const nextLastModelConfigId = isFreshEnough
 		? watchedChat.last_model_config_id
 		: cachedChat.last_model_config_id;
-	// summary_change and chat_summary_change share the triggering turn's
-	// updated_at, so isFreshEnough cannot distinguish them. Scope each field to
-	// its own event, else one event clobbers the other field's value.
+	// The summary writes (UpdateChatLastTurnSummary, UpdateChatSummary) never
+	// bump chats.updated_at, and both events publish pre-write chat snapshots,
+	// so updated_at cannot order summary_change against chat_summary_change and
+	// isFreshEnough cannot guard these fields. Scope each field to its own
+	// event, else one event's stale snapshot clobbers the other field's value.
 	const nextLastTurnSummary = isSummaryEvent
 		? watchedChat.last_turn_summary
 		: cachedChat.last_turn_summary;
@@ -1346,6 +1348,10 @@ export const createChatMessage = (
 	onSuccess: () => {
 		void invalidateChatDebugRuns(queryClient, chatId);
 		void queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		void queryClient.invalidateQueries({
 			queryKey: chatPromptsKey(chatId),
 			exact: true,
 		});
@@ -1834,6 +1840,7 @@ export const userChatProviderConfigs = () => ({
 			provider: config.provider.type,
 			display_name: config.provider.display_name || config.provider.type,
 			icon: config.provider.icon,
+			enabled: config.provider.enabled,
 			has_user_api_key: config.has_user_api_key,
 			byok_enabled: config.byok_enabled,
 			has_central_api_key_fallback: config.has_provider_api_key,
@@ -1877,6 +1884,16 @@ const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {
 		queryClient.invalidateQueries({ queryKey: chatProviderConfigsKey }),
 		queryClient.invalidateQueries({ queryKey: chatModelConfigsKey }),
 		queryClient.invalidateQueries({ queryKey: chatModelsKey }),
+	]);
+};
+
+// Called after AI provider mutations so open model pickers refresh.
+export const invalidateChatProviderDependentQueries = async (
+	queryClient: QueryClient,
+) => {
+	await Promise.all([
+		invalidateChatConfigurationQueries(queryClient),
+		queryClient.invalidateQueries({ queryKey: userChatProviderConfigsKey }),
 	]);
 };
 
@@ -2086,6 +2103,13 @@ export const updateMCPServerConfig = (queryClient: QueryClient) => ({
 
 export const deleteMCPServerConfig = (queryClient: QueryClient) => ({
 	mutationFn: (id: string) => API.experimental.deleteMCPServerConfig(id),
+	onSuccess: async () => {
+		await invalidateMCPServerConfigQueries(queryClient);
+	},
+});
+
+export const disconnectMCPServerOAuth2 = (queryClient: QueryClient) => ({
+	mutationFn: (id: string) => API.experimental.disconnectMCPServerOAuth2(id),
 	onSuccess: async () => {
 		await invalidateMCPServerConfigQueries(queryClient);
 	},

@@ -1,4 +1,4 @@
-import { CheckIcon } from "lucide-react";
+import { CheckIcon, InfoIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
@@ -15,9 +15,16 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { Slider } from "#/components/Slider/Slider";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 import { formatProviderLabel as defaultFormatProviderLabel } from "#/utils/aiProviders";
 import { cn } from "#/utils/cn";
+import { formatReasoningEffort } from "../../utils/reasoningEffort";
 
 export interface ModelSelectorOption {
 	id: string;
@@ -28,14 +35,27 @@ export interface ModelSelectorOption {
 	model: string;
 	displayName: string;
 	contextLimit?: number;
+	reasoningEffortDefault?: string;
+	reasoningEfforts?: readonly string[];
 }
 
 interface ModelSelectorProps {
 	options: readonly ModelSelectorOption[];
 	value: string;
 	onValueChange: (value: string) => void;
+	/**
+	 * When set, the trigger's accessible name is this contextual label followed
+	 * by the selected model's display name or the placeholder.
+	 */
+	triggerAriaLabel?: string;
 	disabled?: boolean;
 	placeholder?: string;
+	/**
+	 * When set, renders an option above the model list that selects the
+	 * empty value, letting users unset the model without a separate
+	 * clear control.
+	 */
+	unsetLabel?: string;
 	emptyMessage?: string;
 	formatProviderLabel?: (provider: string) => string;
 	className?: string;
@@ -44,6 +64,8 @@ interface ModelSelectorProps {
 	contentClassName?: string;
 	onTriggerTouchStart?: () => void;
 	enableMobileFullWidthDropdown?: boolean;
+	reasoningEffort?: string;
+	onReasoningEffortChange?: (value: string) => void;
 }
 
 const formatContextLimit = (tokens: number): string => {
@@ -75,8 +97,10 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	options,
 	value,
 	onValueChange,
+	triggerAriaLabel,
 	disabled = false,
 	placeholder = "Select model",
+	unsetLabel,
 	emptyMessage = "No models found.",
 	formatProviderLabel = defaultFormatProviderLabel,
 	className,
@@ -85,6 +109,8 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	contentClassName,
 	onTriggerTouchStart,
 	enableMobileFullWidthDropdown = false,
+	reasoningEffort,
+	onReasoningEffortChange,
 }) => {
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
@@ -95,7 +121,10 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 		setOpen(nextOpen);
 	};
 	const selectedModel = options.find((option) => option.id === value);
-	const isDisabled = disabled || options.length === 0;
+	const triggerLabel = selectedModel?.displayName ?? placeholder;
+	// With an unset option the selector stays usable even when no model
+	// options exist, so a saved override can still be switched back.
+	const isDisabled = disabled || (options.length === 0 && !unsetLabel);
 	const query = search.trim().toLowerCase();
 	const optionsByProvider = (() => {
 		const grouped = new Map<string, ModelSelectorOption[]>();
@@ -122,7 +151,11 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild disabled={isDisabled}>
 				<Button
-					aria-label={selectedModel ? selectedModel.displayName : placeholder}
+					aria-label={
+						triggerAriaLabel
+							? `${triggerAriaLabel}, ${triggerLabel}`
+							: triggerLabel
+					}
 					aria-expanded={open}
 					aria-haspopup="listbox"
 					disabled={isDisabled}
@@ -135,9 +168,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					)}
 					onTouchStart={onTriggerTouchStart}
 				>
-					<span className="truncate">
-						{selectedModel ? selectedModel.displayName : placeholder}
-					</span>
+					<span className="truncate">{triggerLabel}</span>
 					<ChevronDownIcon open={open} className="size-icon-sm" />
 				</Button>
 			</PopoverTrigger>
@@ -183,6 +214,32 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 						<CommandEmpty className="py-3 text-xs font-normal leading-[18px] text-content-secondary">
 							{emptyMessage}
 						</CommandEmpty>
+						{unsetLabel &&
+							(!query || unsetLabel.toLowerCase().includes(query)) && (
+								<CommandGroup className="p-1">
+									<CommandItem
+										value="__unset__"
+										onSelect={() => {
+											onValueChange("");
+											handleOpenChange(false);
+										}}
+										className={cn(
+											"gap-2 px-2 py-1 font-medium text-content-secondary data-[selected=true]:bg-surface-tertiary",
+											!value && "bg-surface-secondary",
+										)}
+									>
+										<span className="min-w-0 truncate text-left text-xs font-medium leading-[18px] text-content-secondary">
+											{unsetLabel}
+										</span>
+										<CheckIcon
+											className={cn(
+												"ml-auto size-4 shrink-0",
+												value && "opacity-0",
+											)}
+										/>
+									</CommandItem>
+								</CommandGroup>
+							)}
 						{optionsByProvider.map(([providerKey, providerOptions], index) => {
 							const firstOption = providerOptions[0];
 							const providerLabel = getProviderLabel(
@@ -215,7 +272,13 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 											isSelected={option.id === value}
 											onSelect={() => {
 												onValueChange(option.id);
-												handleOpenChange(false);
+												setSearch("");
+												if (
+													!option.reasoningEfforts?.length ||
+													!onReasoningEffortChange
+												) {
+													handleOpenChange(false);
+												}
 											}}
 										/>
 									))}
@@ -224,8 +287,80 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 						})}
 					</CommandList>
 				</Command>
+				{selectedModel &&
+					reasoningEffort !== undefined &&
+					onReasoningEffortChange && (
+						<ReasoningEffortRow
+							option={selectedModel}
+							value={reasoningEffort}
+							onChange={onReasoningEffortChange}
+						/>
+					)}
 			</PopoverContent>
 		</Popover>
+	);
+};
+
+interface ReasoningEffortRowProps {
+	option: ModelSelectorOption;
+	value: string;
+	onChange: (value: string) => void;
+}
+
+// Effort row pinned below the model list. Lives outside the Command
+// so it stays visible while the list scrolls and cmdk's arrow-key
+// navigation does not capture the slider's keyboard interaction.
+const ReasoningEffortRow: FC<ReasoningEffortRowProps> = ({
+	option,
+	value,
+	onChange,
+}) => {
+	const selectableEfforts = option.reasoningEfforts ?? [];
+	if (selectableEfforts.length === 0) {
+		return null;
+	}
+	const valueIndex = selectableEfforts.indexOf(value);
+	const effortIndex = valueIndex >= 0 ? valueIndex : 0;
+
+	return (
+		<div className="flex items-center gap-3 border-0 border-t border-solid border-border-default px-3 py-2">
+			<div className="flex shrink-0 items-center gap-1">
+				<span className="text-xs font-medium leading-[18px] text-content-secondary">
+					Effort
+				</span>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<button
+							type="button"
+							aria-label="About reasoning effort"
+							className="inline-flex size-3 items-center justify-center rounded-sm border-none bg-transparent p-0 text-content-secondary outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+						>
+							<InfoIcon aria-hidden="true" className="size-3" />
+						</button>
+					</TooltipTrigger>
+					<TooltipContent side="top" className="max-w-[240px]">
+						Controls how much reasoning the model performs before responding.
+						Higher effort can improve quality but is slower and costs more.
+					</TooltipContent>
+				</Tooltip>
+			</div>
+			<Slider
+				aria-label="Reasoning effort"
+				value={[effortIndex]}
+				onValueChange={([index]) => {
+					const nextEffort = selectableEfforts[index];
+					if (nextEffort && nextEffort !== value) {
+						onChange(nextEffort);
+					}
+				}}
+				min={0}
+				max={selectableEfforts.length - 1}
+				step={1}
+			/>
+			<span className="shrink-0 rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-medium leading-[18px] text-content-secondary">
+				{formatReasoningEffort(value)}
+			</span>
+		</div>
 	);
 };
 

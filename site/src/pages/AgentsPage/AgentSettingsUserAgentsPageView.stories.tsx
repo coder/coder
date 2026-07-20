@@ -70,6 +70,16 @@ const claudeModelConfig = buildModelConfig({
 	context_limit: 200_000,
 });
 
+const reasoningModelConfig = buildModelConfig({
+	id: "model-gpt-5",
+	model: "gpt-5",
+	display_name: "GPT-5",
+	model_config: {
+		reasoning_effort: { default: "medium", max: "high" },
+	},
+	reasoning_efforts: ["none", "minimal", "low", "medium", "high"],
+});
+
 const disabledModelConfig = buildModelConfig({
 	id: "model-disabled",
 	model: "gpt-4.1-legacy",
@@ -87,9 +97,20 @@ const inaccessibleModelConfig = buildModelConfig({
 const modelConfigs = [
 	defaultModelConfig,
 	claudeModelConfig,
+	reasoningModelConfig,
 	disabledModelConfig,
 	inaccessibleModelConfig,
 ];
+
+const reasoningModelOption: ModelSelectorOption = {
+	id: reasoningModelConfig.id,
+	provider: "openai",
+	model: reasoningModelConfig.model,
+	displayName: reasoningModelConfig.display_name,
+	contextLimit: reasoningModelConfig.context_limit,
+	reasoningEffortDefault: "medium",
+	reasoningEfforts: ["none", "minimal", "low", "medium", "high"],
+};
 
 const modelOptions: ModelSelectorOption[] = [
 	{
@@ -106,6 +127,7 @@ const modelOptions: ModelSelectorOption[] = [
 		displayName: claudeModelConfig.display_name,
 		contextLimit: claudeModelConfig.context_limit,
 	},
+	reasoningModelOption,
 ];
 
 const buildOverridesResponse = (
@@ -168,14 +190,16 @@ const getSection = async (
 const selectOption = async (
 	section: HTMLElement,
 	canvasElement: HTMLElement,
-	comboboxName: string | RegExp,
+	comboboxName: string,
 	optionName: string | RegExp,
 ) => {
-	await userEvent.click(
-		within(section).getByRole("combobox", { name: comboboxName }),
-	);
+	const combobox = within(section).getByRole("combobox", {
+		name: comboboxName,
+	});
+	await userEvent.click(combobox);
 	const body = within(canvasElement.ownerDocument.body);
 	await userEvent.click(await body.findByRole("option", { name: optionName }));
+	return combobox;
 };
 
 const meta = {
@@ -236,10 +260,20 @@ export const EnabledWithSavedValues: Story = {
 	}),
 	play: async ({ canvasElement, args }) => {
 		const rootSection = await getSection(canvasElement, "Root agent model");
+		const exploreSection = await getSection(
+			canvasElement,
+			"Explore subagent model",
+		);
+		expect(
+			within(exploreSection).getByRole("combobox", {
+				name: "Explore subagent model behavior, Claude Sonnet 4",
+			}),
+		).toHaveTextContent("Claude Sonnet 4");
+
 		await selectOption(
 			rootSection,
 			canvasElement,
-			"Root agent model behavior",
+			"Root agent model behavior, Chat default: GPT 4.1 Mini",
 			/Claude Sonnet 4/i,
 		);
 		const rootSaveButton = within(rootSection).getByRole("button", {
@@ -263,17 +297,124 @@ export const EnabledWithSavedValues: Story = {
 		await selectOption(
 			generalSection,
 			canvasElement,
-			"General subagent model behavior",
+			"General subagent model behavior, Deployment default: Claude Sonnet 4",
 			/Chat default/i,
 		);
 		await userEvent.click(
 			within(generalSection).getByRole("button", { name: "Save" }),
 		);
+
 		await waitFor(() => {
 			expect(args.onSaveGeneralModelOverride).toHaveBeenCalledWith(
 				{ mode: "chat_default", model_config_id: "" },
 				expect.anything(),
 			);
+		});
+	},
+};
+
+export const SavedReasoningModel: Story = {
+	args: buildArgs({
+		modelOptions: [
+			{
+				id: defaultModelConfig.id,
+				provider: "openai",
+				model: defaultModelConfig.model,
+				displayName: defaultModelConfig.display_name,
+				contextLimit: defaultModelConfig.context_limit,
+			},
+			{
+				id: reasoningModelConfig.id,
+				provider: "openai",
+				model: reasoningModelConfig.model,
+				displayName: reasoningModelConfig.display_name,
+				contextLimit: reasoningModelConfig.context_limit,
+				reasoningEffortDefault: "medium",
+				reasoningEfforts: ["none", "minimal", "low", "medium", "high"],
+			},
+		],
+		overridesData: buildOverridesResponse({
+			root: buildOverride("root", {
+				mode: "model",
+				model_config_id: defaultModelConfig.id,
+				is_set: true,
+			}),
+		}),
+	}),
+	play: async ({ canvasElement, args }) => {
+		const rootSection = await getSection(canvasElement, "Root agent model");
+		const modelPicker = await selectOption(
+			rootSection,
+			canvasElement,
+			"Root agent model behavior, GPT 4.1 Mini",
+			/GPT-5/i,
+		);
+
+		const body = within(canvasElement.ownerDocument.body);
+		expect(modelPicker).toHaveAttribute("aria-expanded", "true");
+		expect(await body.findByRole("listbox")).toBeVisible();
+		const slider = await body.findByRole("slider");
+		expect(slider).toBeVisible();
+		expect(slider).toHaveAttribute("aria-valuenow", "3");
+		expect(body.getByText("Medium")).toBeVisible();
+
+		const infoTrigger = body.getByRole("button", {
+			name: "About reasoning effort",
+		});
+		await userEvent.tab();
+		expect(infoTrigger).toHaveFocus();
+
+		await userEvent.tab();
+		expect(slider).toHaveFocus();
+		await userEvent.keyboard("{ArrowRight}");
+		await waitFor(() => {
+			expect(slider).toHaveAttribute("aria-valuenow", "4");
+		});
+		expect(body.getByText("High")).toBeVisible();
+
+		await userEvent.keyboard("{Escape}");
+		await userEvent.click(
+			within(rootSection).getByRole("button", { name: "Save" }),
+		);
+		await waitFor(() => {
+			expect(args.onSaveRootModelOverride).toHaveBeenCalledWith(
+				{
+					mode: "model",
+					model_config_id: reasoningModelConfig.id,
+					reasoning_effort: "high",
+				},
+				expect.anything(),
+			);
+		});
+	},
+};
+
+export const SavedLowReasoningEffort: Story = {
+	args: buildArgs({
+		modelOptions: [reasoningModelOption],
+		overridesData: buildOverridesResponse({
+			root: buildOverride("root", {
+				mode: "model",
+				model_config_id: reasoningModelConfig.id,
+				reasoning_effort: "low",
+				is_set: true,
+			}),
+		}),
+	}),
+	play: async ({ canvasElement }) => {
+		const rootSection = await getSection(canvasElement, "Root agent model");
+		const modelPicker = within(rootSection).getByRole("combobox", {
+			name: "Root agent model behavior, GPT-5",
+		});
+		expect(modelPicker).toHaveTextContent("GPT-5");
+		await userEvent.click(modelPicker);
+
+		const body = within(canvasElement.ownerDocument.body);
+		expect(modelPicker).toHaveAttribute("aria-expanded", "true");
+		const slider = await body.findByRole("slider");
+		expect(slider).toHaveAttribute("aria-valuenow", "2");
+		await waitFor(() => {
+			expect(body.getByText("Low")).toBeVisible();
 		});
 	},
 };
@@ -460,19 +601,19 @@ export const ModelConfigsError: Story = {
 		await selectOption(
 			rootSection,
 			canvasElement,
-			"Root agent model behavior",
+			"Root agent model behavior, Claude Sonnet 4",
 			/Chat default/i,
 		);
 		await selectOption(
 			generalSection,
 			canvasElement,
-			"General subagent model behavior",
+			"General subagent model behavior, Claude Sonnet 4",
 			/Deployment default/i,
 		);
 		await selectOption(
 			exploreSection,
 			canvasElement,
-			"Explore subagent model behavior",
+			"Explore subagent model behavior, Claude Sonnet 4",
 			/Chat default/i,
 		);
 
@@ -493,7 +634,7 @@ export const LoadingState: Story = {
 		const rootSection = await getSection(canvasElement, "Root agent model");
 		expect(
 			within(rootSection).getByRole("combobox", {
-				name: "Root agent model behavior",
+				name: "Root agent model behavior, Chat default: GPT 4.1 Mini",
 			}),
 		).toBeDisabled();
 		expect(
@@ -576,7 +717,7 @@ export const AdminDisabledReadOnly: Story = {
 		const rootSection = await getSection(canvasElement, "Root agent model");
 		expect(
 			within(rootSection).getByRole("combobox", {
-				name: "Root agent model behavior",
+				name: "Root agent model behavior, GPT 4.1 Mini",
 			}),
 		).toBeDisabled();
 		expect(
@@ -609,7 +750,7 @@ export const InvalidRootDeploymentDefault: Story = {
 		await selectOption(
 			rootSection,
 			canvasElement,
-			"Root agent model behavior",
+			"Root agent model behavior, Invalid deployment default",
 			/Chat default/i,
 		);
 		await userEvent.click(

@@ -25,7 +25,7 @@ The id in the template's `coder_external_auth` data source must match the
 
 If you want the template to clone a specific git repo:
 
-```hcl
+```tf
 # Require external authentication to use this template
 data "coder_external_auth" "github" {
     id = "primary-github"
@@ -56,7 +56,7 @@ resource "coder_agent" "dev" {
 If you want the template to support any repository via
 [parameters](./extending-templates/parameters.md)
 
-```hcl
+```tf
 # Require external authentication to use this template
 data "coder_external_auth" "github" {
     id = "primary-github"
