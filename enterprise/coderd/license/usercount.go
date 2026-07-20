@@ -47,8 +47,7 @@ func CountWorkspaceCapableUsers(ctx context.Context, logger slog.Logger, db data
 	// cannot change the result. Deduplicate on the role signature so
 	// evaluation cost scales with the number of unique role sets, not the
 	// number of users. TestWorkspaceCreateIgnoresGroups enforces the
-	// group-independence assumption; if it ever breaks, groups must be
-	// added back to the subject, the signature, and the query.
+	// group-independence assumption.
 	capableBySignature := make(map[string]bool)
 	var count int64
 	for _, row := range rows {
@@ -66,10 +65,8 @@ func CountWorkspaceCapableUsers(ctx context.Context, logger slog.Logger, db data
 		}
 	}
 
-	// This line doubles as the counting-mode signal: it is emitted only
-	// when permission-based seat counting ran, and it carries both the
-	// counted seats and the total eligible active users so the two can be
-	// compared when diagnosing seat disputes.
+	// Emitted only when permission-based counting runs, so the line's
+	// presence identifies the counting mode.
 	logger.Info(ctx, "counted workspace-capable users for license seats",
 		slog.F("workspace_capable_users", count),
 		slog.F("active_users", len(rows)),
@@ -88,10 +85,9 @@ func canCreateWorkspace(ctx context.Context, logger slog.Logger, db database.Sto
 	if err != nil {
 		// A stored role string that fails to parse grants nothing:
 		// authorization fails closed on it, so this user cannot create a
-		// workspace. Treat the user as not capable rather than returning
-		// the error, which would fail the count for every user over one
-		// bad row. Role-signature dedupe means this logs once per unique
-		// role set, not once per user sharing it.
+		// workspace. Treat the user as not capable instead of failing the
+		// entire count. Logged once per unique role set due to the
+		// signature dedupe.
 		logger.Warn(ctx, "user has an unparsable role, counting them as not workspace-capable for license seats",
 			slog.F("user_id", row.ID),
 			slog.Error(err),

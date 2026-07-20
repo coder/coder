@@ -30129,8 +30129,9 @@ WITH org_roles AS (
 		-- too, but their rows never survive the join against the outer
 		-- WHERE, so the organization-service-account case does not apply.
 		--
-		-- organizations.default_org_member_roles is unioned in so changes
-		-- to org defaults propagate on the next entitlement refresh.
+		-- organizations.default_org_member_roles applies to every member
+		-- but is not materialized on membership rows, so it is unioned in
+		-- here.
 		unnest(
 			array_cat(
 				array_append(organization_members.roles, 'organization-member'),
@@ -30164,12 +30165,11 @@ type GetActiveUsersAuthorizationRolesRow struct {
 }
 
 // Returns the authorization roles (site and org-scoped, including implied
-// member roles and organization default roles) for every user eligible for
-// license seat counting: active, not deleted, and neither a system user nor
-// a service account. Used by permission-based license seat counting to
-// evaluate workspace-create capability. Group memberships are intentionally
-// not returned: they only influence authorization through object ACL
-// matching, and the seat-count evaluation uses objects without ACLs.
+// member roles and organization default roles) for every active, non-deleted
+// user who is neither a system user nor a service account, matching the
+// GetActiveUserCount population. Group memberships are not returned, so the
+// results only support authorization decisions on objects without ACLs:
+// groups influence authorization solely through object ACL matching.
 func (q *sqlQuerier) GetActiveUsersAuthorizationRoles(ctx context.Context) ([]GetActiveUsersAuthorizationRolesRow, error) {
 	rows, err := q.db.QueryContext(ctx, getActiveUsersAuthorizationRoles)
 	if err != nil {
