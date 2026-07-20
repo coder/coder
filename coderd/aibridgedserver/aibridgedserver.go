@@ -262,8 +262,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 	}
 
 	// Bridge usage claims an AI Governance seat only when
-	// permission-based licensing is disabled; under the experiment the
-	// ai-gateway-access role gates access instead.
+	// permission-based licensing is disabled.
 	if !s.experiments.Enabled(codersdk.ExperimentPermissionBasedLicensing) {
 		reason := aiseats.ReasonAIBridge("provider=" + in.Provider + ", model=" + in.Model)
 		s.aiSeatTracker.RecordUsage(ctx, initID, reason)
