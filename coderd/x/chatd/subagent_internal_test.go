@@ -3647,6 +3647,28 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 	})
 }
 
+func TestWaitAgentToolSchema(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
+
+	tool := findToolByName(server.subagentTools(ctx, func() database.Chat {
+		return parent
+	}, parent.LastModelConfigID), "wait_agent")
+	require.NotNil(t, tool)
+
+	timeoutSeconds, ok := tool.Info().Parameters["timeout_seconds"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "integer", timeoutSeconds["type"])
+	assert.Equal(t, "Defaults to 5 minutes.", timeoutSeconds["description"])
+	assert.Contains(t, tool.Info().Description, "Returns immediately when the agent finishes")
+	assert.Contains(t, tool.Info().Description, "A timeout does not stop the agent")
+}
+
 func TestWaitAgentTimeoutReturnsInformationalPayload(t *testing.T) {
 	t.Parallel()
 

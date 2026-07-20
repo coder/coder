@@ -95,7 +95,7 @@ Guidelines:
 
 type waitAgentArgs struct {
 	ChatID         string `json:"chat_id"`
-	TimeoutSeconds *int   `json:"timeout_seconds,omitempty"`
+	TimeoutSeconds *int   `json:"timeout_seconds,omitempty" description:"Defaults to 5 minutes."`
 }
 
 type messageAgentArgs struct {
@@ -620,10 +620,10 @@ func (p *Server) subagentTools(
 		),
 		fantasy.NewAgentTool(
 			"wait_agent",
-			"Wait until a spawned child agent finishes its task. "+
-				"Returns the agent's response and status. A timeout is not "+
-				"a failure: the agent is still running. Call wait_agent again "+
-				"or use list_agents to check its status.",
+			"Wait for a spawned child agent to finish and return its response "+
+				"and status. Returns immediately when the agent finishes, even if "+
+				"a longer timeout is set. A timeout does not stop the agent; call "+
+				"wait_agent again or use list_agents to check its status.",
 			func(ctx context.Context, args waitAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
