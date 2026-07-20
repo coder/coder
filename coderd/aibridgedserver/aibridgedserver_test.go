@@ -1560,9 +1560,6 @@ func (c *countingSeatTracker) RecordUsage(context.Context, uuid.UUID, agplaiseat
 
 // TestRecordInterceptionAISeat verifies that bridge usage claims an AI
 // Governance seat only when permission-based licensing is disabled.
-// Under the experiment, AI Gateway access is licensed by the AI
-// Governance addon and gated by the ai-gateway-access role rather than
-// per seat.
 func TestRecordInterceptionAISeat(t *testing.T) {
 	t.Parallel()
 

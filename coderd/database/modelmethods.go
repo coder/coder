@@ -937,10 +937,8 @@ func (s UserSecret) RBACObject() rbac.Object {
 
 func (s AIBridgeInterception) RBACObject() rbac.Object {
 	// Interceptions have no organization column, so the object is scoped
-	// to any organization. Create/update flow through the member-scoped
-	// perms of the organization-ai-gateway-access role, which authorize
-	// holders in any org they belong to; reads flow through site-level
-	// roles (auditor, owner).
+	// to any organization: member-scoped grants match in any org the
+	// subject belongs to, constrained to objects the subject owns.
 	return rbac.ResourceAibridgeInterception.AnyOrganization().WithOwner(s.InitiatorID.String())
 }
 

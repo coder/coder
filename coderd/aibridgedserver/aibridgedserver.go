@@ -262,10 +262,9 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		return nil, xerrors.Errorf("start interception: %w", err)
 	}
 
-	// Under permission-based licensing, AI Gateway access is licensed by
-	// the AI Governance addon and gated by the ai-gateway-access role
-	// rather than per seat, so bridge usage does not claim an AI
-	// Governance seat. Task usage still does.
+	// Bridge usage claims an AI Governance seat only when
+	// permission-based licensing is disabled; under the experiment the
+	// ai-gateway-access role gates access instead.
 	if !s.experiments.Enabled(codersdk.ExperimentPermissionBasedLicensing) {
 		reason := aiseats.ReasonAIBridge("provider=" + in.Provider + ", model=" + in.Model)
 		s.aiSeatTracker.RecordUsage(ctx, initID, reason)
@@ -771,13 +770,11 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		return nil, ErrSystemUser
 	}
 
-	// The initiator must be authorized to create AI Bridge interceptions,
-	// which is granted by the organization-ai-gateway-access role. This is
-	// what gates AI Gateway usage under permission-based licensing:
-	// recording itself happens under the aibridged system subject, so the
-	// user's own permissions are checked here, at authentication time.
-	// Without the experiment, access is licensed per seat instead (see
-	// RecordInterception) and no role is required.
+	// Under permission-based licensing, the initiator must hold
+	// permission to create AI Bridge interceptions, granted by the
+	// organization-ai-gateway-access role. Recording runs under the
+	// aibridged system subject, so this is the only place the
+	// initiator's own permissions are evaluated.
 	if s.experiments.Enabled(codersdk.ExperimentPermissionBasedLicensing) {
 		//nolint:gocritic // Expanding the initiator's roles requires system access.
 		sysCtx := dbauthz.AsSystemRestricted(ctx)
