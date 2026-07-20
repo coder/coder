@@ -3294,10 +3294,12 @@ class ApiMethods {
 
 	acceptMCPServerProposal = async (
 		id: string,
+		req: TypesGen.AcceptMCPServerProposalRequest,
 	): Promise<TypesGen.AcceptMCPServerProposalResponse> => {
 		const response =
 			await this.axios.post<TypesGen.AcceptMCPServerProposalResponse>(
 				`${mcpServerProposalsPath}/${encodeURIComponent(id)}/accept`,
+				req,
 			);
 		return response.data;
 	};

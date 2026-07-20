@@ -49,9 +49,6 @@ const CliAuthPage = lazy(() => import("./pages/CliAuthPage/CliAuthPage"));
 const CliInstallPage = lazy(
 	() => import("./pages/CliInstallPage/CliInstallPage"),
 );
-const MCPProposalPage = lazy(
-	() => import("./pages/MCPProposalPage/MCPProposalPage"),
-);
 const AccountPage = lazy(
 	() => import("./pages/UserSettingsPage/AccountPage/AccountPage"),
 );
@@ -393,6 +390,9 @@ const AgentSettingsAPIKeysPage = lazy(
 const AgentSettingsMCPServersPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsMCPServersPage"),
 );
+const MCPProposalPage = lazy(
+	() => import("./pages/MCPProposalPage/MCPProposalPage"),
+);
 const AgentSettingsAddMCPServerPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsAddMCPServerPage"),
 );
@@ -589,11 +589,6 @@ export const router = createBrowserRouter(
 					<Route
 						path="/external-auth/:provider"
 						element={<ExternalAuthPage />}
-					/>
-
-					<Route
-						path="/mcp-proposals/:proposal"
-						element={<MCPProposalPage />}
 					/>
 
 					<Route path="/workspaces" element={<WorkspacesPage />} />
@@ -915,6 +910,10 @@ export const router = createBrowserRouter(
 								element={<AgentSettingsUpdateMCPServerPage />}
 							/>
 						</Route>
+						<Route
+							path="mcp-proposals/:proposal"
+							element={<MCPProposalPage />}
+						/>
 						<Route
 							path="providers"
 							element={<Navigate to="/ai/settings/providers" replace />}

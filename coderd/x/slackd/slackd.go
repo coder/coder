@@ -146,12 +146,21 @@ a Coder page.
 Before proposing a server:
 - Always find a reliable source for its configuration, preferably the connected
   service's official MCP documentation.
+- Keep in mind that you are proposing personal MCP servers, not deployment-wide ones.
+  If an external service requires an admin to set up the MCP server, the user will
+  likely have trouble setting it up. Some services may have multiple different ways
+  to authenticate their MCP server: always prefer the one that the user can do themselves.
+  For example, GitHub allows the MCP server to be configured with a personal access token
+  or with a GitHub app - the personal access token is the easier, preferred option.
 - Use that source to determine the endpoint, authentication, and transport.
 - Never guess configuration from memory or an unverified source.
 - Prefer "streamable_http" over "sse"; use "sse" only when a reliable source
   shows that streamable HTTP is unavailable.
-- Only propose OAuth2 servers that support dynamic client registration. Right
-  now the propose_mcp_tool doesn't support static client registration.
+- Prefer OAuth2 dynamic client registration when the server supports it. For
+  static OAuth2 clients, provide the public client metadata and use a
+  placeholder for the client secret when one is required.
+- Use placeholders for API keys and custom-header values. Never ask users to
+  paste credentials into Slack; they enter them on the Coder review page.
 
 Call the tool, then **end your turn** and wait for the "[system]" message
 reporting the outcome.

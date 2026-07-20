@@ -34,13 +34,14 @@ type MCPServerProposal struct {
 	Status    MCPServerProposalStatus `json:"status"`
 	CreatedAt time.Time               `json:"created_at" format:"date-time"`
 
-	DisplayName string `json:"display_name"`
-	Slug        string `json:"slug"`
-	Description string `json:"description,omitempty"`
-	IconURL     string `json:"icon_url,omitempty"`
-	URL         string `json:"url"`
-	Transport   string `json:"transport"`
-	AuthType    string `json:"auth_type"`
+	DisplayName  string `json:"display_name"`
+	Slug         string `json:"slug"`
+	Description  string `json:"description,omitempty"`
+	Instructions string `json:"instructions,omitempty"`
+	IconURL      string `json:"icon_url,omitempty"`
+	URL          string `json:"url"`
+	Transport    string `json:"transport"`
+	AuthType     string `json:"auth_type"`
 
 	ToolAllowList []string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  []string `json:"tool_deny_list,omitempty"`
@@ -51,6 +52,10 @@ type MCPServerProposal struct {
 	HasAPIKey                  bool `json:"has_api_key"`
 	HasCustomHeaders           bool `json:"has_custom_headers"`
 
+	// SecretPlaceholders contains display hints for credentials the
+	// requester must provide before accepting the proposal.
+	SecretPlaceholders MCPServerProposalSecretPlaceholders `json:"secret_placeholders"`
+
 	// CreateDisabled reports that the server would be created in a
 	// disabled state.
 	CreateDisabled bool `json:"create_disabled,omitempty"`
@@ -59,6 +64,23 @@ type MCPServerProposal struct {
 	MCPServerConfigID uuid.UUID `json:"mcp_server_config_id,omitzero" format:"uuid"`
 	Authenticated     bool      `json:"authenticated"`
 	ConnectURL        string    `json:"connect_url,omitempty"`
+}
+
+// MCPServerProposalSecretPlaceholders describes the secret fields that the
+// requester must fill on the proposal review page. The strings are display
+// hints, not secret values.
+type MCPServerProposalSecretPlaceholders struct {
+	OAuth2ClientSecret string            `json:"oauth2_client_secret,omitempty"`
+	APIKeyValue        string            `json:"api_key_value,omitempty"`
+	CustomHeaders      map[string]string `json:"custom_headers,omitempty"`
+}
+
+// AcceptMCPServerProposalRequest supplies values for the secret placeholders
+// declared by an MCP server proposal.
+type AcceptMCPServerProposalRequest struct {
+	OAuth2ClientSecret string            `json:"oauth2_client_secret,omitempty"`
+	APIKeyValue        string            `json:"api_key_value,omitempty"`
+	CustomHeaders      map[string]string `json:"custom_headers,omitempty"`
 }
 
 // AcceptMCPServerProposalResponse is returned by the proposal accept
@@ -87,8 +109,8 @@ func (c *Client) MCPServerProposal(ctx context.Context, id uuid.UUID) (MCPServer
 // AcceptMCPServerProposal accepts an MCP server proposal, creating the
 // personal MCP server and enabling it for the proposing chat. The call
 // is idempotent: repeating it returns the same config.
-func (c *Client) AcceptMCPServerProposal(ctx context.Context, id uuid.UUID) (AcceptMCPServerProposalResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/mcp-server-proposals/%s/accept", id), nil)
+func (c *Client) AcceptMCPServerProposal(ctx context.Context, id uuid.UUID, req AcceptMCPServerProposalRequest) (AcceptMCPServerProposalResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/mcp-server-proposals/%s/accept", id), req)
 	if err != nil {
 		return AcceptMCPServerProposalResponse{}, err
 	}

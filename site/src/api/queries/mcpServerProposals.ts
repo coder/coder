@@ -15,8 +15,10 @@ export const acceptMCPServerProposal = (
 	queryClient: QueryClient,
 	proposalId: string,
 ) => ({
-	mutationFn: (): Promise<TypesGen.AcceptMCPServerProposalResponse> =>
-		API.acceptMCPServerProposal(proposalId),
+	mutationFn: (
+		req: TypesGen.AcceptMCPServerProposalRequest,
+	): Promise<TypesGen.AcceptMCPServerProposalResponse> =>
+		API.acceptMCPServerProposal(proposalId, req),
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: mcpServerProposalKey(proposalId),

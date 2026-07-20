@@ -1009,6 +1009,17 @@ export interface APIKeyWithOwner extends APIKey {
 
 // From codersdk/mcpserverproposals.go
 /**
+ * AcceptMCPServerProposalRequest supplies values for the secret placeholders
+ * declared by an MCP server proposal.
+ */
+export interface AcceptMCPServerProposalRequest {
+	readonly oauth2_client_secret?: string;
+	readonly api_key_value?: string;
+	readonly custom_headers?: Record<string, string>;
+}
+
+// From codersdk/mcpserverproposals.go
+/**
  * AcceptMCPServerProposalResponse is returned by the proposal accept
  * endpoint. When ConnectURL is set and Authenticated is false, the
  * frontend redirects to ConnectURL to finish OAuth2 authentication.
@@ -5671,6 +5682,7 @@ export interface MCPServerProposal {
 	readonly display_name: string;
 	readonly slug: string;
 	readonly description?: string;
+	readonly instructions?: string;
 	readonly icon_url?: string;
 	readonly url: string;
 	readonly transport: string;
@@ -5685,6 +5697,11 @@ export interface MCPServerProposal {
 	readonly has_api_key: boolean;
 	readonly has_custom_headers: boolean;
 	/**
+	 * SecretPlaceholders contains display hints for credentials the
+	 * requester must provide before accepting the proposal.
+	 */
+	readonly secret_placeholders: MCPServerProposalSecretPlaceholders;
+	/**
 	 * CreateDisabled reports that the server would be created in a
 	 * disabled state.
 	 */
@@ -5695,6 +5712,18 @@ export interface MCPServerProposal {
 	readonly mcp_server_config_id?: string;
 	readonly authenticated: boolean;
 	readonly connect_url?: string;
+}
+
+// From codersdk/mcpserverproposals.go
+/**
+ * MCPServerProposalSecretPlaceholders describes the secret fields that the
+ * requester must fill on the proposal review page. The strings are display
+ * hints, not secret values.
+ */
+export interface MCPServerProposalSecretPlaceholders {
+	readonly oauth2_client_secret?: string;
+	readonly api_key_value?: string;
+	readonly custom_headers?: Record<string, string>;
 }
 
 // From codersdk/mcpserverproposals.go

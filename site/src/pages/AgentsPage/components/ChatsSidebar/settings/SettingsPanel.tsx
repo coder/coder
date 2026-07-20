@@ -108,7 +108,10 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 				<SettingsNavItem
 					icon={ServerIcon}
 					label="Personal MCP servers"
-					active={settingsSection === "mcp-servers"}
+					active={
+						settingsSection === "mcp-servers" ||
+						settingsSection === "mcp-proposals"
+					}
 					to="/agents/settings/mcp-servers"
 					state={location.state}
 				/>

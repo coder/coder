@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -179,9 +180,21 @@ func noAuthRequest() chattool.MCPServerProposalRequest {
 // doProposal performs one handler invocation as userID and returns the
 // recorder.
 func doProposal(t *testing.T, handler func(http.ResponseWriter, *http.Request, uuid.UUID), method string, proposalID, userID uuid.UUID) *httptest.ResponseRecorder {
+	return doProposalBody(t, handler, method, proposalID, userID, nil)
+}
+
+func doProposalBody(t *testing.T, handler func(http.ResponseWriter, *http.Request, uuid.UUID), method string, proposalID, userID uuid.UUID, body any) *httptest.ResponseRecorder {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	r := httptest.NewRequest(method, "/", nil)
+	var bodyReader *strings.Reader
+	if body != nil {
+		data, err := json.Marshal(body)
+		require.NoError(t, err)
+		bodyReader = strings.NewReader(string(data))
+	} else {
+		bodyReader = strings.NewReader("")
+	}
+	r := httptest.NewRequest(method, "/", bodyReader)
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("mcpProposal", proposalID.String())
 	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
@@ -217,6 +230,26 @@ func TestMCPProposalGet(t *testing.T) {
 		require.True(t, proposal.HasAPIKey)
 		require.True(t, proposal.HasCustomHeaders)
 		require.Equal(t, uuid.Nil, proposal.MCPServerConfigID)
+	})
+
+	t.Run("PendingReturnsOnlySecretPlaceholders", func(t *testing.T) {
+		t.Parallel()
+		req := oauthManualRequest()
+		req.OAuth2ClientSecretPlaceholder = "Paste the OAuth2 client secret"
+		req.APIKeyValuePlaceholder = "Paste the API key"
+		req.CustomHeaderPlaceholders = map[string]string{"X-Secret": "Paste the header value"}
+		req.Instructions = "Create the credentials in the service settings, then paste them below."
+		deps := newProposalsTest(t, req)
+
+		rec := doProposal(t, deps.api.getProposal, http.MethodGet, deps.proposalID, deps.ownerID)
+		require.Equal(t, http.StatusOK, rec.Code)
+		var proposal codersdk.MCPServerProposal
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &proposal))
+		require.Equal(t, "Paste the OAuth2 client secret", proposal.SecretPlaceholders.OAuth2ClientSecret)
+		require.Equal(t, "Paste the API key", proposal.SecretPlaceholders.APIKeyValue)
+		require.Equal(t, map[string]string{"X-Secret": "Paste the header value"}, proposal.SecretPlaceholders.CustomHeaders)
+		require.Equal(t, req.Instructions, proposal.Instructions)
+		require.NotContains(t, rec.Body.String(), "super-secret")
 	})
 
 	t.Run("Accepted", func(t *testing.T) {
@@ -340,6 +373,141 @@ func TestMCPProposalAccept(t *testing.T) {
 		require.True(t, proposal.AcceptedAt.Valid)
 	})
 
+	t.Run("UserSuppliedCustomHeaderSecrets", func(t *testing.T) {
+		t.Parallel()
+		req := chattool.MCPServerProposalRequest{
+			DisplayName: "Headers",
+			Slug:        "headers-" + uuid.NewString(),
+			URL:         "https://headers.example.com/mcp",
+			Transport:   "streamable_http",
+			AuthType:    "custom_headers",
+			CustomHeaders: map[string]string{
+				"X-Static": "agent-secret",
+			},
+			CustomHeaderPlaceholders: map[string]string{
+				"X-API-Key": "Paste your API key",
+				"X-Account": "Paste your account token",
+			},
+		}
+		deps := newProposalsTest(t, req)
+		values := codersdk.AcceptMCPServerProposalRequest{CustomHeaders: map[string]string{
+			"X-API-Key": "user-api-key",
+			"X-Account": "user-account-token",
+		}}
+
+		rec := doProposalBody(t, deps.api.acceptProposal, http.MethodPost, deps.proposalID, deps.ownerID, values)
+		require.Equal(t, http.StatusOK, rec.Code)
+		var resp codersdk.AcceptMCPServerProposalResponse
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		config, err := deps.db.GetMCPServerConfigByID(ctx, resp.MCPServerConfigID)
+		require.NoError(t, err)
+		var headers map[string]string
+		require.NoError(t, json.Unmarshal([]byte(config.CustomHeaders), &headers))
+		require.Equal(t, map[string]string{
+			"X-Static":  "agent-secret",
+			"X-API-Key": "user-api-key",
+			"X-Account": "user-account-token",
+		}, headers)
+
+		proposal, err := deps.db.GetMCPServerProposalByID(ctx, deps.proposalID)
+		require.NoError(t, err)
+		require.NotContains(t, string(proposal.Request), "user-api-key")
+		require.NotContains(t, string(proposal.Request), "user-account-token")
+	})
+
+	t.Run("PlaceholderValidationKeepsProposalPending", func(t *testing.T) {
+		t.Parallel()
+		tests := []struct {
+			name   string
+			values codersdk.AcceptMCPServerProposalRequest
+		}{
+			{name: "Missing"},
+			{name: "Undeclared", values: codersdk.AcceptMCPServerProposalRequest{OAuth2ClientSecret: "unexpected"}},
+			{name: "Blank", values: codersdk.AcceptMCPServerProposalRequest{APIKeyValue: "   "}},
+			{name: "UnexpectedCustomHeader", values: codersdk.AcceptMCPServerProposalRequest{
+				APIKeyValue: "secret",
+				CustomHeaders: map[string]string{
+					"X-Extra": "unexpected",
+				},
+			}},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				req := chattool.MCPServerProposalRequest{
+					DisplayName:            "API key",
+					Slug:                   "api-key-" + uuid.NewString(),
+					URL:                    "https://api-key.example.com/mcp",
+					Transport:              "streamable_http",
+					AuthType:               "api_key",
+					APIKeyHeader:           "Authorization",
+					APIKeyValuePlaceholder: "Paste your API key",
+				}
+				deps := newProposalsTest(t, req)
+				rec := doProposalBody(t, deps.api.acceptProposal, http.MethodPost, deps.proposalID, deps.ownerID, tt.values)
+				require.Equal(t, http.StatusBadRequest, rec.Code)
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				proposal, err := deps.db.GetMCPServerProposalByID(ctx, deps.proposalID)
+				require.NoError(t, err)
+				require.Equal(t, "pending", proposal.Status)
+			})
+		}
+	})
+
+	t.Run("UserSuppliedOAuth2ClientSecret", func(t *testing.T) {
+		t.Parallel()
+		req := oauthManualRequest()
+		req.Slug = "oauth-secret-" + uuid.NewString()
+		req.OAuth2ClientSecretPlaceholder = "Paste the OAuth2 client secret"
+		deps := newProposalsTest(t, req)
+
+		rec := doProposalBody(t, deps.api.acceptProposal, http.MethodPost, deps.proposalID, deps.ownerID,
+			codersdk.AcceptMCPServerProposalRequest{OAuth2ClientSecret: "user-client-secret"})
+		require.Equal(t, http.StatusOK, rec.Code)
+		var resp codersdk.AcceptMCPServerProposalResponse
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		config, err := deps.db.GetMCPServerConfigByID(ctx, resp.MCPServerConfigID)
+		require.NoError(t, err)
+		require.Equal(t, "user-client-secret", config.OAuth2ClientSecret)
+
+		proposal, err := deps.db.GetMCPServerProposalByID(ctx, deps.proposalID)
+		require.NoError(t, err)
+		require.NotContains(t, string(proposal.Request), "user-client-secret")
+	})
+
+	t.Run("RepeatedAcceptIgnoresLaterSecret", func(t *testing.T) {
+		t.Parallel()
+		req := chattool.MCPServerProposalRequest{
+			DisplayName:            "API key",
+			Slug:                   "repeat-secret-" + uuid.NewString(),
+			URL:                    "https://api-key.example.com/mcp",
+			Transport:              "streamable_http",
+			AuthType:               "api_key",
+			APIKeyHeader:           "Authorization",
+			APIKeyValuePlaceholder: "Paste your API key",
+		}
+		deps := newProposalsTest(t, req)
+
+		first := doProposalBody(t, deps.api.acceptProposal, http.MethodPost, deps.proposalID, deps.ownerID,
+			codersdk.AcceptMCPServerProposalRequest{APIKeyValue: " first-secret "})
+		require.Equal(t, http.StatusOK, first.Code)
+		second := doProposalBody(t, deps.api.acceptProposal, http.MethodPost, deps.proposalID, deps.ownerID,
+			codersdk.AcceptMCPServerProposalRequest{APIKeyValue: "second-secret"})
+		require.Equal(t, http.StatusOK, second.Code)
+
+		var resp codersdk.AcceptMCPServerProposalResponse
+		require.NoError(t, json.Unmarshal(first.Body.Bytes(), &resp))
+		ctx := testutil.Context(t, testutil.WaitLong)
+		config, err := deps.db.GetMCPServerConfigByID(ctx, resp.MCPServerConfigID)
+		require.NoError(t, err)
+		require.Equal(t, " first-secret ", config.APIKeyValue)
+	})
+
 	t.Run("RepeatBeforeAuthReturnsSameConfig", func(t *testing.T) {
 		t.Parallel()
 		deps := newProposalsTest(t, oauthManualRequest())
@@ -401,7 +569,16 @@ func TestMCPProposalAccept(t *testing.T) {
 
 	t.Run("ConcurrentDoublePost", func(t *testing.T) {
 		t.Parallel()
-		deps := newProposalsTest(t, noAuthRequest())
+		req := chattool.MCPServerProposalRequest{
+			DisplayName:            "Concurrent API key",
+			Slug:                   "concurrent-api-key-" + uuid.NewString(),
+			URL:                    "https://api-key.example.com/mcp",
+			Transport:              "streamable_http",
+			AuthType:               "api_key",
+			APIKeyHeader:           "Authorization",
+			APIKeyValuePlaceholder: "Paste your API key",
+		}
+		deps := newProposalsTest(t, req)
 
 		var wg sync.WaitGroup
 		results := make([]*httptest.ResponseRecorder, 2)
@@ -409,7 +586,8 @@ func TestMCPProposalAccept(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				results[i] = doProposal(t, deps.api.acceptProposal, http.MethodPost, deps.proposalID, deps.ownerID)
+				results[i] = doProposalBody(t, deps.api.acceptProposal, http.MethodPost, deps.proposalID, deps.ownerID,
+					codersdk.AcceptMCPServerProposalRequest{APIKeyValue: fmt.Sprintf("secret-%d", i)})
 			}()
 		}
 		wg.Wait()
@@ -431,6 +609,7 @@ func TestMCPProposalAccept(t *testing.T) {
 		for _, config := range configs {
 			if config.OwnerID.Valid {
 				personal++
+				require.Contains(t, []string{"secret-0", "secret-1"}, config.APIKeyValue)
 			}
 		}
 		require.Equal(t, 1, personal)
@@ -829,6 +1008,70 @@ func TestMCPProposalOAuth2Discovery(t *testing.T) {
 	// The registered callback URL points at the created config.
 	require.Contains(t, registeredRedirect, config.ID.String())
 	require.True(t, strings.HasPrefix(registeredRedirect, "https://coder.example.com/"))
+}
+
+func TestValidateMCPServerOAuth2Discovery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("MissingRegistrationEndpoint", func(t *testing.T) {
+		t.Parallel()
+		mux := http.NewServeMux()
+		srv := httptest.NewServer(mux)
+		t.Cleanup(srv.Close)
+		mux.HandleFunc("/.well-known/oauth-protected-resource", func(w http.ResponseWriter, _ *http.Request) {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"resource":              srv.URL,
+				"authorization_servers": []string{srv.URL},
+			})
+		})
+		mux.HandleFunc("/.well-known/oauth-authorization-server", func(w http.ResponseWriter, _ *http.Request) {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"issuer":                 srv.URL,
+				"authorization_endpoint": srv.URL + "/authorize",
+				"token_endpoint":         srv.URL + "/token",
+			})
+		})
+
+		err := ValidateMCPServerOAuth2Discovery(t.Context(), srv.Client(), srv.URL)
+		require.ErrorContains(t, err, "does not advertise a registration_endpoint")
+	})
+
+	t.Run("DiscoveryFailure", func(t *testing.T) {
+		t.Parallel()
+		srv := httptest.NewServer(http.NotFoundHandler())
+		t.Cleanup(srv.Close)
+
+		err := ValidateMCPServerOAuth2Discovery(t.Context(), srv.Client(), srv.URL)
+		require.ErrorContains(t, err, "protected resource discovery")
+	})
+
+	t.Run("MetadataOnly", func(t *testing.T) {
+		t.Parallel()
+		mux := http.NewServeMux()
+		srv := httptest.NewServer(mux)
+		t.Cleanup(srv.Close)
+		mux.HandleFunc("/.well-known/oauth-protected-resource", func(w http.ResponseWriter, _ *http.Request) {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"resource":              srv.URL,
+				"authorization_servers": []string{srv.URL},
+			})
+		})
+		mux.HandleFunc("/.well-known/oauth-authorization-server", func(w http.ResponseWriter, _ *http.Request) {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"issuer":                 srv.URL,
+				"authorization_endpoint": srv.URL + "/authorize",
+				"token_endpoint":         srv.URL + "/token",
+				"registration_endpoint":  srv.URL + "/register",
+			})
+		})
+		registrationCalls := 0
+		mux.HandleFunc("/register", func(http.ResponseWriter, *http.Request) {
+			registrationCalls++
+		})
+
+		require.NoError(t, ValidateMCPServerOAuth2Discovery(t.Context(), srv.Client(), srv.URL))
+		require.Zero(t, registrationCalls)
+	})
 }
 
 // messageText concatenates the text parts of a system message.

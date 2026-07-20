@@ -172,6 +172,7 @@ type Server struct {
 	slackAPI                       chattool.SlackAPI
 	slackUserResolver              func(context.Context, string) (uuid.UUID, error)
 	accessURL                      *url.URL
+	validateOAuth2Discovery        func(context.Context, string) error
 	pubsub                         pubsub.Pubsub
 	webpushDispatcher              webpush.Dispatcher
 	providerAPIKeys                chatprovider.ProviderAPIKeys
@@ -3059,7 +3060,10 @@ type Config struct {
 	// SlackUserResolver maps a Slack user id to the Coder user id
 	// selected by slackd's chat-owner routing. The MCP proposal tool
 	// invokes it at proposal creation time.
-	SlackUserResolver        func(context.Context, string) (uuid.UUID, error)
+	SlackUserResolver func(context.Context, string) (uuid.UUID, error)
+	// ValidateOAuth2Discovery verifies that automatic OAuth2
+	// configuration is supported before the proposal tool posts a card.
+	ValidateOAuth2Discovery  func(context.Context, string) error
 	ProviderAPIKeys          chatprovider.ProviderAPIKeys
 	AllowBYOK                bool
 	AllowBYOKSet             bool
@@ -3147,6 +3151,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		slackAPI:                       cfg.SlackAPI,
 		slackUserResolver:              cfg.SlackUserResolver,
 		accessURL:                      cfg.AccessURL,
+		validateOAuth2Discovery:        cfg.ValidateOAuth2Discovery,
 		pubsub:                         ps,
 		webpushDispatcher:              cfg.WebpushDispatcher,
 		providerAPIKeys:                cfg.ProviderAPIKeys,

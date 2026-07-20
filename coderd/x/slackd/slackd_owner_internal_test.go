@@ -96,6 +96,8 @@ func TestHandleMentionLinkedSenderOwnsChat(t *testing.T) {
 	assert.Contains(t, create.SystemPrompt, "propose_mcp_server")
 	assert.Contains(t, create.SystemPrompt, "Always find a reliable source for its configuration")
 	assert.Contains(t, create.SystemPrompt, `"streamable_http" over "sse"`)
+	assert.Contains(t, create.SystemPrompt, "Use placeholders for API keys")
+	assert.Contains(t, create.SystemPrompt, "Never ask users to")
 	assert.NotContains(t, create.SystemPrompt, "you're running in shared mode")
 }
 

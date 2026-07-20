@@ -884,6 +884,9 @@ func New(options *Options) *API {
 				OIDCTokenSource:                oidcMCPSrc,
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
 				Auditor:                        &api.Auditor,
+				ValidateOAuth2Discovery: func(ctx context.Context, serverURL string) error {
+					return slackd.ValidateMCPServerOAuth2Discovery(ctx, options.HTTPClient, serverURL)
+				},
 			})
 			if !options.ChatWorkerDisabled {
 				api.chatDaemon.Start()

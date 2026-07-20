@@ -7,6 +7,7 @@ const AgentSettingsPage: FC = () => {
 	const location = useLocation();
 	const match = location.pathname.match(/\/agents\/settings\/(.+)/);
 	const section = match?.[1];
+	const isProposalReview = section?.startsWith("mcp-proposals");
 	const mobileBack = section
 		? { to: "/agents/settings", label: "Settings" }
 		: undefined;
@@ -15,7 +16,9 @@ const AgentSettingsPage: FC = () => {
 		<ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:!block">
 			<AgentPageHeader mobileBack={mobileBack} />
 			<div className="p-4 pt-8">
-				<div className="mx-auto w-full max-w-3xl">
+				<div
+					className={`mx-auto w-full ${isProposalReview ? "max-w-5xl" : "max-w-3xl"}`}
+				>
 					<Outlet />
 				</div>
 			</div>

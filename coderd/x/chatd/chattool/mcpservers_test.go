@@ -141,6 +141,10 @@ func mcpTestSetup(t *testing.T, db database.Store, api chattool.SlackAPI) (chatt
 			*enabled = append(*enabled, serverID)
 			return nil
 		},
+
+		ValidateOAuth2Discovery: func(context.Context, string) error {
+			return nil
+		},
 	}
 	return opts, enabled
 }
@@ -388,16 +392,25 @@ func TestProposeMCPServer(t *testing.T) {
 		t.Cleanup(srv.Close)
 		api := slack.New("token", slack.OptionAPIURL(srv.URL+"/"))
 		opts, _ := mcpTestSetup(t, db, api)
+		var validatedURL string
+		opts.ValidateOAuth2Discovery = func(_ context.Context, serverURL string) error {
+			validatedURL = serverURL
+			return nil
+		}
 
 		result := runMCPTool(t, chattool.MCPServerTools(opts), "propose_mcp_server", map[string]any{
 			"display_name": "Linear",
 			"slug":         "linear",
 			"url":          "https://mcp.linear.app/mcp",
+			"description":  "Access Linear issues and projects from chat.",
+			"instructions": "1. Open **Linear settings**.\n2. [Create a token](https://linear.app/settings/api).",
 			"auth_type":    "oauth2",
 		})
 		require.Equal(t, true, result["ok"])
 		require.Equal(t, "1700000002.000300", result["dialog_ts"])
 		require.Contains(t, result["note"], "NOT created yet")
+		require.Contains(t, result["note"], "Instructions are shown only on the review page")
+		require.Equal(t, "https://mcp.linear.app/mcp", validatedURL)
 
 		rawID, ok := result["proposal_id"].(string)
 		require.True(t, ok)
@@ -418,6 +431,8 @@ func TestProposeMCPServer(t *testing.T) {
 		var req chattool.MCPServerProposalRequest
 		require.NoError(t, json.Unmarshal(proposal.Request, &req))
 		require.Equal(t, "Linear", req.DisplayName)
+		require.Equal(t, "Access Linear issues and projects from chat.", req.Description)
+		require.Equal(t, "1. Open **Linear settings**.\n2. [Create a token](https://linear.app/settings/api).", req.Instructions)
 		require.Equal(t, "oauth2", req.AuthType)
 		require.Equal(t, "streamable_http", req.Transport)
 
@@ -430,10 +445,187 @@ func TestProposeMCPServer(t *testing.T) {
 		require.Equal(t, "1700000000.000100", form.Get("thread_ts"))
 		attachments := form.Get("attachments")
 		require.Contains(t, attachments, "This MCP server will only be available to you.")
-		require.Contains(t, attachments, "https://coder.example.com/mcp-proposals/"+proposalID.String())
+		require.Contains(t, attachments, "https://coder.example.com/agents/settings/mcp-proposals/"+proposalID.String())
 		require.Contains(t, attachments, chattool.MCPProposalCancelActionID)
+		require.Contains(t, attachments, "mcp_proposal_review")
 		require.Contains(t, attachments, chattool.MCPProposalPendingColor)
 		require.Contains(t, attachments, "Connect Linear?")
+		require.Contains(t, attachments, "Description")
+		require.Contains(t, attachments, "Access Linear issues and projects from chat.")
+		require.NotContains(t, attachments, "Instructions")
+		require.NotContains(t, attachments, "Linear settings")
+	})
+
+	t.Run("OAuth2DiscoveryFailureDoesNotPost", func(t *testing.T) {
+		t.Parallel()
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		api := &mcpFakeSlackAPI{}
+		opts, _ := mcpTestSetup(t, db, api)
+		var validatedURL string
+		opts.ValidateOAuth2Discovery = func(_ context.Context, serverURL string) error {
+			validatedURL = serverURL
+			return xerrors.New("authorization server does not advertise a registration_endpoint")
+		}
+
+		result := runMCPTool(t, chattool.MCPServerTools(opts), "propose_mcp_server", map[string]any{
+			"display_name": "X", "slug": "x", "url": "https://example.com/mcp", "auth_type": "oauth2",
+		})
+		require.Equal(t, "https://example.com/mcp", validatedURL)
+		require.Contains(t, result["error"], "authorization server does not advertise a registration_endpoint")
+		require.Contains(t, result["error"], "oauth2_client_id")
+		require.Contains(t, result["error"], "oauth2_auth_url")
+		require.Contains(t, result["error"], "oauth2_token_url")
+		require.Empty(t, api.postChannel)
+		var proposalCount int
+		require.NoError(t, sqlDB.QueryRowContext(t.Context(), "SELECT COUNT(*) FROM mcp_server_proposals").Scan(&proposalCount))
+		require.Zero(t, proposalCount)
+	})
+
+	t.Run("OAuth2DiscoveryValidatorUnavailable", func(t *testing.T) {
+		t.Parallel()
+		api := &mcpFakeSlackAPI{}
+		result := runMCPTool(t, chattool.MCPServerTools(chattool.MCPServerToolsOptions{
+			SlackAPI: api,
+		}), "propose_mcp_server", map[string]any{
+			"display_name": "X", "slug": "x", "url": "https://example.com/mcp", "auth_type": "oauth2",
+		})
+		require.Contains(t, result["error"], "validation is unavailable")
+		require.Contains(t, result["error"], "oauth2_client_id")
+		require.Empty(t, api.postChannel)
+	})
+
+	t.Run("OAuth2DiscoveryBypass", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name string
+			args map[string]any
+		}{
+			{
+				name: "ManualOAuth2",
+				args: map[string]any{
+					"display_name": "Manual", "slug": "manual", "url": "https://example.com/mcp",
+					"auth_type": "oauth2", "oauth2_client_id": "client-id",
+					"oauth2_auth_url": "https://example.com/authorize", "oauth2_token_url": "https://example.com/token",
+				},
+			},
+			{
+				name: "NoAuth",
+				args: map[string]any{
+					"display_name": "No auth", "slug": "no-auth", "url": "https://example.com/mcp",
+				},
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				db, _ := dbtestutil.NewDB(t)
+				api := &mcpFakeSlackAPI{}
+				opts, _ := mcpTestSetup(t, db, api)
+				calls := 0
+				opts.ValidateOAuth2Discovery = func(context.Context, string) error {
+					calls++
+					return xerrors.New("must not be called")
+				}
+
+				result := runMCPTool(t, chattool.MCPServerTools(opts), "propose_mcp_server", tc.args)
+				require.Equal(t, true, result["ok"])
+				require.Zero(t, calls)
+			})
+		}
+	})
+
+	t.Run("SecretValuesAndPlaceholders", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		opts, _ := mcpTestSetup(t, db, &mcpFakeSlackAPI{})
+
+		tests := []struct {
+			name  string
+			args  map[string]any
+			check func(chattool.MCPServerProposalRequest)
+		}{
+			{
+				name: "APIKeyValue",
+				args: map[string]any{
+					"display_name": "API key value", "slug": "api-key-value", "url": "https://example.com/mcp",
+					"auth_type": "api_key", "api_key_header": "Authorization",
+					"api_key_value": map[string]any{"value": "agent-api-key"},
+				},
+				check: func(req chattool.MCPServerProposalRequest) {
+					require.Equal(t, "agent-api-key", req.APIKeyValue)
+					require.Empty(t, req.APIKeyValuePlaceholder)
+				},
+			},
+			{
+				name: "APIKeyPlaceholder",
+				args: map[string]any{
+					"display_name": "API key", "slug": "api-key", "url": "https://example.com/mcp",
+					"auth_type": "api_key", "api_key_header": "Authorization",
+					"api_key_value": map[string]any{"placeholder": "Paste your API key"},
+					"instructions":  "Create an API key in the service settings.",
+				},
+				check: func(req chattool.MCPServerProposalRequest) {
+					require.Empty(t, req.APIKeyValue)
+					require.Equal(t, "Paste your API key", req.APIKeyValuePlaceholder)
+				},
+			},
+			{
+				name: "OAuth2SecretValue",
+				args: map[string]any{
+					"display_name": "OAuth2 value", "slug": "oauth2-value", "url": "https://example.com/mcp",
+					"auth_type": "oauth2", "oauth2_client_id": "client-id",
+					"oauth2_auth_url": "https://example.com/authorize", "oauth2_token_url": "https://example.com/token",
+					"oauth2_client_secret": map[string]any{"value": "agent-client-secret"},
+				},
+				check: func(req chattool.MCPServerProposalRequest) {
+					require.Equal(t, "agent-client-secret", req.OAuth2ClientSecret)
+					require.Empty(t, req.OAuth2ClientSecretPlaceholder)
+				},
+			},
+			{
+				name: "OAuth2SecretPlaceholder",
+				args: map[string]any{
+					"display_name": "OAuth2", "slug": "oauth2", "url": "https://example.com/mcp",
+					"auth_type": "oauth2", "oauth2_client_id": "client-id",
+					"oauth2_auth_url": "https://example.com/authorize", "oauth2_token_url": "https://example.com/token",
+					"oauth2_client_secret": map[string]any{"placeholder": "Paste the client secret"},
+					"instructions":         "Register an OAuth2 client and copy its secret.",
+				},
+				check: func(req chattool.MCPServerProposalRequest) {
+					require.Empty(t, req.OAuth2ClientSecret)
+					require.Equal(t, "Paste the client secret", req.OAuth2ClientSecretPlaceholder)
+				},
+			},
+			{
+				name: "MixedCustomHeaders",
+				args: map[string]any{
+					"display_name": "Headers", "slug": "headers", "url": "https://example.com/mcp",
+					"auth_type": "custom_headers",
+					"custom_headers": map[string]any{
+						"X-Static":  map[string]any{"value": "agent-secret"},
+						"X-API-Key": map[string]any{"placeholder": "Paste your API key"},
+					},
+					"instructions": "Create an API key in the service settings.",
+				},
+				check: func(req chattool.MCPServerProposalRequest) {
+					require.Equal(t, map[string]string{"X-Static": "agent-secret"}, req.CustomHeaders)
+					require.Equal(t, map[string]string{"X-API-Key": "Paste your API key"}, req.CustomHeaderPlaceholders)
+				},
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				result := runMCPTool(t, chattool.MCPServerTools(opts), "propose_mcp_server", tt.args)
+				require.Equal(t, true, result["ok"])
+				proposalID, err := uuid.Parse(result["proposal_id"].(string))
+				require.NoError(t, err)
+				proposal, err := db.GetMCPServerProposalByID(ctx, proposalID)
+				require.NoError(t, err)
+				var req chattool.MCPServerProposalRequest
+				require.NoError(t, json.Unmarshal(proposal.Request, &req))
+				tt.check(req)
+			})
+		}
 	})
 
 	t.Run("Validation", func(t *testing.T) {
@@ -451,6 +643,11 @@ func TestProposeMCPServer(t *testing.T) {
 			{"APIKeyMissingValue", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "api_key"}, "api_key_header and api_key_value"},
 			{"CustomHeadersEmpty", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "custom_headers"}, "at least one custom header"},
 			{"PartialOAuth2", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "oauth2", "oauth2_client_id": "id"}, "all of oauth2_client_id"},
+			{"APIKeyBoth", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "api_key", "api_key_header": "Authorization", "api_key_value": map[string]any{"value": "secret", "placeholder": "Paste secret"}}, "exactly one of value or placeholder"},
+			{"CustomHeaderNeither", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "custom_headers", "custom_headers": map[string]any{"X-Key": map[string]any{}}}, "exactly one of value or placeholder"},
+			{"CustomHeaderBoth", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "custom_headers", "custom_headers": map[string]any{"X-Key": map[string]any{"value": "secret", "placeholder": "Paste secret"}}}, "exactly one of value or placeholder"},
+			{"OAuthSecretWithDiscovery", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "oauth2", "oauth2_client_secret": map[string]any{"placeholder": "Paste secret"}}, "only valid with complete manual OAuth2 metadata"},
+			{"PlaceholderMissingInstructions", map[string]any{"display_name": "X", "slug": "s", "url": "https://x", "auth_type": "api_key", "api_key_header": "Authorization", "api_key_value": map[string]any{"placeholder": "Paste secret"}}, "instructions is required when the user must provide credentials"},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {

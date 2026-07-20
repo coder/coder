@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -58,6 +60,8 @@ const (
 // errProposalHandled aborts a proposal transition because the row is no
 // longer pending (or has expired).
 var errProposalHandled = xerrors.New("proposal expired or already handled")
+
+var errInvalidProposalSecrets = xerrors.New("invalid proposal secret values")
 
 // ProposalChat is the subset of *chatd.Server used by the MCP proposal
 // handlers.
@@ -130,10 +134,7 @@ func NewProposalsAPI(opts ProposalsAPIOptions) (*ProposalsAPI, error) {
 	if opts.Database == nil {
 		return nil, xerrors.New("slackd: proposals api requires a database")
 	}
-	httpClient := opts.HTTPClient
-	if httpClient == nil {
-		httpClient = &http.Client{Timeout: 30 * time.Second}
-	}
+	httpClient := mcpOAuth2HTTPClient(opts.HTTPClient)
 	pollInterval := opts.AuthPollInterval
 	if pollInterval <= 0 {
 		pollInterval = defaultAuthPollInterval
@@ -294,6 +295,10 @@ func (p *ProposalsAPI) AcceptProposal(rw http.ResponseWriter, r *http.Request) {
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (p *ProposalsAPI) acceptProposal(rw http.ResponseWriter, r *http.Request, userID uuid.UUID) {
 	ctx := r.Context()
+	secretValues, ok := readProposalSecretValues(rw, r)
+	if !ok {
+		return
+	}
 	proposal, chat, ok := p.loadAuthorizedProposal(rw, r, userID)
 	if !ok {
 		return
@@ -331,6 +336,10 @@ func (p *ProposalsAPI) acceptProposal(rw http.ResponseWriter, r *http.Request, u
 		if err != nil {
 			return xerrors.Errorf("decode proposal request: %w", err)
 		}
+		req, err = resolveProposalSecrets(req, secretValues)
+		if err != nil {
+			return err
+		}
 		config, err = p.createProposedMCPServerConfig(sysCtx, tx, locked.RequesterID, req)
 		if err != nil {
 			return xerrors.Errorf("create mcp server config: %w", err)
@@ -353,6 +362,12 @@ func (p *ProposalsAPI) acceptProposal(rw http.ResponseWriter, r *http.Request, u
 	case database.IsUniqueViolation(err):
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: "An MCP server with this slug already exists.",
+			Detail:  err.Error(),
+		})
+		return
+	case errors.Is(err, errInvalidProposalSecrets):
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid MCP server proposal credentials.",
 			Detail:  err.Error(),
 		})
 		return
@@ -380,6 +395,83 @@ func (p *ProposalsAPI) acceptProposal(rw http.ResponseWriter, r *http.Request, u
 		resp.ConnectURL = chattool.MCPOAuth2ConnectURL(p.accessURL, config.ID)
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// readProposalSecretValues accepts an empty body for compatibility with
+// proposals that do not require user-supplied secrets.
+func readProposalSecretValues(rw http.ResponseWriter, r *http.Request) (codersdk.AcceptMCPServerProposalRequest, bool) {
+	var values codersdk.AcceptMCPServerProposalRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&values); err != nil {
+		if errors.Is(err, io.EOF) {
+			return values, true
+		}
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Request body must be valid JSON.",
+			Detail:  err.Error(),
+		})
+		return codersdk.AcceptMCPServerProposalRequest{}, false
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Request body must contain a single JSON object.",
+		})
+		return codersdk.AcceptMCPServerProposalRequest{}, false
+	}
+	return values, true
+}
+
+func resolveProposalSecrets(
+	req chattool.MCPServerProposalRequest,
+	values codersdk.AcceptMCPServerProposalRequest,
+) (chattool.MCPServerProposalRequest, error) {
+	resolve := func(field, placeholder, value string) (string, error) {
+		nonBlank := strings.TrimSpace(value) != ""
+		switch {
+		case placeholder != "" && !nonBlank:
+			return "", xerrors.Errorf("%w: %s is required", errInvalidProposalSecrets, field)
+		case placeholder == "" && nonBlank:
+			return "", xerrors.Errorf("%w: %s was not requested", errInvalidProposalSecrets, field)
+		default:
+			return value, nil
+		}
+	}
+
+	oauth2ClientSecret, err := resolve("oauth2_client_secret", req.OAuth2ClientSecretPlaceholder, values.OAuth2ClientSecret)
+	if err != nil {
+		return req, err
+	}
+	if req.OAuth2ClientSecretPlaceholder != "" {
+		req.OAuth2ClientSecret = oauth2ClientSecret
+	}
+	apiKeyValue, err := resolve("api_key_value", req.APIKeyValuePlaceholder, values.APIKeyValue)
+	if err != nil {
+		return req, err
+	}
+	if req.APIKeyValuePlaceholder != "" {
+		req.APIKeyValue = apiKeyValue
+	}
+
+	for header := range values.CustomHeaders {
+		if _, ok := req.CustomHeaderPlaceholders[header]; !ok {
+			return req, xerrors.Errorf("%w: custom header %q was not requested", errInvalidProposalSecrets, header)
+		}
+	}
+	if len(req.CustomHeaderPlaceholders) > 0 && req.CustomHeaders == nil {
+		req.CustomHeaders = make(map[string]string, len(req.CustomHeaderPlaceholders))
+	}
+	for header, placeholder := range req.CustomHeaderPlaceholders {
+		value, ok := values.CustomHeaders[header]
+		if !ok || strings.TrimSpace(value) == "" {
+			return req, xerrors.Errorf("%w: custom header %q is required", errInvalidProposalSecrets, header)
+		}
+		if placeholder == "" {
+			return req, xerrors.Errorf("%w: custom header %q has an empty placeholder", errInvalidProposalSecrets, header)
+		}
+		req.CustomHeaders[header] = value
+	}
+	return req, nil
 }
 
 // RejectProposal handles POST
@@ -853,13 +945,14 @@ func convertMCPServerProposal(proposal database.MCPServerProposal, req chattool.
 		Status:    codersdk.MCPServerProposalStatus(proposal.Status),
 		CreatedAt: proposal.CreatedAt,
 
-		DisplayName: req.DisplayName,
-		Slug:        req.Slug,
-		Description: req.Description,
-		IconURL:     req.IconURL,
-		URL:         req.URL,
-		Transport:   req.Transport,
-		AuthType:    req.AuthType,
+		DisplayName:  req.DisplayName,
+		Slug:         req.Slug,
+		Description:  req.Description,
+		Instructions: req.Instructions,
+		IconURL:      req.IconURL,
+		URL:          req.URL,
+		Transport:    req.Transport,
+		AuthType:     req.AuthType,
 
 		ToolAllowList: req.ToolAllowList,
 		ToolDenyList:  req.ToolDenyList,
@@ -867,6 +960,11 @@ func convertMCPServerProposal(proposal database.MCPServerProposal, req chattool.
 		HasOAuth2ClientCredentials: req.OAuth2ClientID != "",
 		HasAPIKey:                  req.APIKeyValue != "",
 		HasCustomHeaders:           len(req.CustomHeaders) > 0,
+		SecretPlaceholders: codersdk.MCPServerProposalSecretPlaceholders{
+			OAuth2ClientSecret: req.OAuth2ClientSecretPlaceholder,
+			APIKeyValue:        req.APIKeyValuePlaceholder,
+			CustomHeaders:      req.CustomHeaderPlaceholders,
+		},
 
 		CreateDisabled: req.Disabled,
 	}

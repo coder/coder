@@ -32,28 +32,41 @@ const MCPProposalPendingColor = "#4A154B"
 // propose_mcp_server tool and consumed by the slackd accept handler
 // when the proposal is accepted.
 type MCPServerProposalRequest struct {
-	DisplayName string `json:"display_name"`
-	Slug        string `json:"slug"`
-	Description string `json:"description,omitempty"`
-	IconURL     string `json:"icon_url,omitempty"`
-	URL         string `json:"url"`
-	Transport   string `json:"transport"`
-	AuthType    string `json:"auth_type"`
+	DisplayName  string `json:"display_name"`
+	Slug         string `json:"slug"`
+	Description  string `json:"description,omitempty"`
+	Instructions string `json:"instructions,omitempty"`
+	IconURL      string `json:"icon_url,omitempty"`
+	URL          string `json:"url"`
+	Transport    string `json:"transport"`
+	AuthType     string `json:"auth_type"`
 
 	OAuth2ClientID     string `json:"oauth2_client_id,omitempty"`
 	OAuth2ClientSecret string `json:"oauth2_client_secret,omitempty"`
-	OAuth2AuthURL      string `json:"oauth2_auth_url,omitempty"`
-	OAuth2TokenURL     string `json:"oauth2_token_url,omitempty"`
-	OAuth2Scopes       string `json:"oauth2_scopes,omitempty"`
+	// OAuth2ClientSecretPlaceholder is a short form-field placeholder for a
+	// secret the requester must supply on the proposal review page.
+	OAuth2ClientSecretPlaceholder string `json:"oauth2_client_secret_placeholder,omitempty"`
+	OAuth2AuthURL                 string `json:"oauth2_auth_url,omitempty"`
+	OAuth2TokenURL                string `json:"oauth2_token_url,omitempty"`
+	OAuth2Scopes                  string `json:"oauth2_scopes,omitempty"`
 
-	APIKeyHeader  string            `json:"api_key_header,omitempty"`
-	APIKeyValue   string            `json:"api_key_value,omitempty"`
-	CustomHeaders map[string]string `json:"custom_headers,omitempty"`
+	APIKeyHeader             string            `json:"api_key_header,omitempty"`
+	APIKeyValue              string            `json:"api_key_value,omitempty"`
+	APIKeyValuePlaceholder   string            `json:"api_key_value_placeholder,omitempty"`
+	CustomHeaders            map[string]string `json:"custom_headers,omitempty"`
+	CustomHeaderPlaceholders map[string]string `json:"custom_header_placeholders,omitempty"`
 
 	ToolAllowList []string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  []string `json:"tool_deny_list,omitempty"`
 
 	Disabled bool `json:"disabled,omitempty"`
+}
+
+// MCPServerProposalSecret is a secret-valued propose_mcp_server argument.
+// Exactly one of Value or Placeholder must be set when the argument is used.
+type MCPServerProposalSecret struct {
+	Value       string `json:"value,omitempty" description:"Concrete secret value, only when it is already available to the agent"`
+	Placeholder string `json:"placeholder,omitempty" description:"Short form-field placeholder showing the expected credential format. Shown inside the review-page input, so keep it brief (e.g. \"Bearer gh_xxx\"). Do not put setup instructions here; put those in instructions."`
 }
 
 // MCPServerToolsOptions configures the MCP server management tools for
@@ -68,6 +81,10 @@ type MCPServerToolsOptions struct {
 	// AccessURL is the deployment access URL, used to build OAuth2
 	// connect URLs and proposal review URLs.
 	AccessURL *url.URL
+	// ValidateOAuth2Discovery verifies that automatic OAuth2
+	// configuration is supported before a proposal is posted. It must not
+	// perform Dynamic Client Registration or other persistent mutations.
+	ValidateOAuth2Discovery func(ctx context.Context, serverURL string) error
 
 	// ChatMCPServerIDs returns the chat's currently enabled MCP server
 	// IDs, fresh from the database.
@@ -145,7 +162,8 @@ func MCPProposalReviewURL(accessURL *url.URL, proposalID uuid.UUID) string {
 	if accessURL == nil {
 		return ""
 	}
-	return strings.TrimSuffix(accessURL.String(), "/") + "/mcp-proposals/" + proposalID.String()
+	return strings.TrimSuffix(accessURL.String(), "/") +
+		"/agents/settings/mcp-proposals/" + proposalID.String()
 }
 
 // MCPAuthConnected reports whether auth for the config is usable by the
@@ -315,23 +333,24 @@ func enableMCPServer(opts MCPServerToolsOptions) fantasy.AgentTool {
 }
 
 type proposeMCPServerArgs struct {
-	DisplayName string `json:"display_name" description:"Human-readable server name shown in the confirmation card"`
-	Slug        string `json:"slug" description:"URL-safe identifier, e.g. linear or github"`
-	URL         string `json:"url" description:"The MCP server endpoint URL"`
-	Description string `json:"description,omitempty" description:"Optional short description"`
-	IconURL     string `json:"icon_url,omitempty" description:"Optional icon URL"`
-	Transport   string `json:"transport,omitempty" description:"streamable_http (default) or sse"`
-	AuthType    string `json:"auth_type,omitempty" description:"none (default), oauth2, api_key, or custom_headers"`
+	DisplayName  string `json:"display_name" description:"Human-readable server name shown in the confirmation card"`
+	Slug         string `json:"slug" description:"URL-safe identifier, e.g. linear or github"`
+	URL          string `json:"url" description:"The MCP server endpoint URL"`
+	Description  string `json:"description,omitempty" description:"Optional short description"`
+	Instructions string `json:"instructions,omitempty" description:"Concise step-by-step Markdown guide shown on the proposal review page; required when any credential uses a placeholder. Be exhaustive about what to do, but brief: no filler. Prefer direct clickable links over steps for navigating a web UI."`
+	IconURL      string `json:"icon_url,omitempty" description:"Optional icon URL"`
+	Transport    string `json:"transport,omitempty" description:"streamable_http (default) or sse"`
+	AuthType     string `json:"auth_type,omitempty" description:"none (default), oauth2, api_key, or custom_headers"`
 
-	OAuth2ClientID     string `json:"oauth2_client_id,omitempty" description:"Optional; omit for automatic discovery + Dynamic Client Registration"`
-	OAuth2ClientSecret string `json:"oauth2_client_secret,omitempty" description:"Optional; omit for automatic discovery"`
-	OAuth2AuthURL      string `json:"oauth2_auth_url,omitempty" description:"Optional; omit for automatic discovery"`
-	OAuth2TokenURL     string `json:"oauth2_token_url,omitempty" description:"Optional; omit for automatic discovery"`
-	OAuth2Scopes       string `json:"oauth2_scopes,omitempty" description:"Optional space-separated OAuth2 scopes"`
+	OAuth2ClientID     string                  `json:"oauth2_client_id,omitempty" description:"Optional; omit for automatic discovery + Dynamic Client Registration"`
+	OAuth2ClientSecret MCPServerProposalSecret `json:"oauth2_client_secret,omitempty" description:"Optional secret object containing exactly one of value or placeholder; only valid with complete manual OAuth2 metadata"`
+	OAuth2AuthURL      string                  `json:"oauth2_auth_url,omitempty" description:"Optional; omit for automatic discovery"`
+	OAuth2TokenURL     string                  `json:"oauth2_token_url,omitempty" description:"Optional; omit for automatic discovery"`
+	OAuth2Scopes       string                  `json:"oauth2_scopes,omitempty" description:"Optional space-separated OAuth2 scopes"`
 
-	APIKeyHeader  string            `json:"api_key_header,omitempty" description:"Header name for api_key auth, e.g. Authorization"`
-	APIKeyValue   string            `json:"api_key_value,omitempty" description:"Header value for api_key auth"`
-	CustomHeaders map[string]string `json:"custom_headers,omitempty" description:"Headers for custom_headers auth"`
+	APIKeyHeader  string                             `json:"api_key_header,omitempty" description:"Header name for api_key auth, e.g. Authorization"`
+	APIKeyValue   MCPServerProposalSecret            `json:"api_key_value,omitempty" description:"Secret object containing exactly one of value or placeholder"`
+	CustomHeaders map[string]MCPServerProposalSecret `json:"custom_headers,omitempty" description:"Header names mapped to secret objects containing exactly one of value or placeholder"`
 
 	ToolAllowList []string `json:"tool_allow_list,omitempty" description:"Optional allow list of tool names"`
 	ToolDenyList  []string `json:"tool_deny_list,omitempty" description:"Optional deny list of tool names"`
@@ -342,13 +361,15 @@ type proposeMCPServerArgs struct {
 func proposeMCPServer(opts MCPServerToolsOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"propose_mcp_server",
-		`Propose a new MCP server for the user requesting it. This tool posts a confirmation card to the Slack thread and returns immediately; NOTHING is created until the requesting user reviews and accepts the proposal on a Coder page. Send an explanatory Slack message BEFORE calling this tool; the card only shows the config summary.
+		`Propose a new MCP server for the user requesting it. This tool posts a confirmation card to the Slack thread and returns immediately; NOTHING is created until the requesting user reviews and accepts the proposal on a Coder page. Include a concise description for the Slack card and review page. Include any setup instructions in this tool call so they appear on the review page. The Slack card does NOT show setup instructions; instructions are shown only on the review page.
 
 Accepting creates the server, enables it for this chat, and takes the user straight into authentication when needed. A follow-up [system] message reports the outcome, so end your turn and wait for it instead of assuming the result.
 
 The server is created PERSONAL-SCOPED: it will only be available to the requesting user, not the whole deployment.
 
-For oauth2 servers a server URL alone is enough (automatic discovery + Dynamic Client Registration); do not ask for client credentials unless discovery fails. Only api_key and custom_headers require pasting secrets, which are visible to the whole Slack channel, so suggest configuring those in the Coder UI instead.`,
+For oauth2 servers a server URL alone is usually enough (automatic discovery + Dynamic Client Registration). This tool validates automatic discovery before posting the proposal. If validation fails, use complete manual OAuth2 metadata. When manual OAuth2 metadata is required, use a placeholder for the client secret. For api_key and custom_headers authentication, use placeholders whenever the user must provide credentials. Never ask the user to paste credentials into Slack.
+
+Credential placeholders are shown inside the review-page input fields, so keep them short and format-focused (good: "Bearer gh_xxx"; bad: "Enter your api key that you generated in GitHub settings. The required format is 'gh_xxx'."). Whenever a credential uses a placeholder, instructions must contain a concise step-by-step Markdown guide that is still exhaustive about how to obtain it. Prefer a direct clickable link when one exists; do not narrate how to click through a web UI. Never send those instructions as a separate Slack message; keep the proposal as the single source of truth.`,
 		func(ctx context.Context, args proposeMCPServerArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if opts.SharedMode {
 				msg := "this chat is in shared mode because the Slack user is not linked to a Coder account. Ask them to connect their Coder account to Slack, then ping you again so you can propose the MCP server on their behalf."
@@ -362,6 +383,19 @@ For oauth2 servers a server URL alone is enough (automatic discovery + Dynamic C
 			req, errMsg := buildMCPProposalRequest(args)
 			if errMsg != "" {
 				return toolResponse(map[string]any{"error": errMsg}), nil
+			}
+			if req.AuthType == "oauth2" && req.OAuth2ClientID == "" {
+				const manualOAuth2Guidance = " Call propose_mcp_server again with oauth2_client_id, oauth2_auth_url, and oauth2_token_url for a manual OAuth2 configuration."
+				if opts.ValidateOAuth2Discovery == nil {
+					return toolResponse(map[string]any{
+						"error": "oauth2 auto-discovery validation is unavailable." + manualOAuth2Guidance,
+					}), nil
+				}
+				if err := opts.ValidateOAuth2Discovery(ctx, req.URL); err != nil {
+					return toolResponse(map[string]any{
+						"error": "oauth2 auto-discovery preflight failed: " + err.Error() + "." + manualOAuth2Guidance,
+					}), nil
+				}
 			}
 
 			requestJSON, err := json.Marshal(req)
@@ -416,7 +450,7 @@ For oauth2 servers a server URL alone is enough (automatic discovery + Dynamic C
 				"ok":          true,
 				"proposal_id": proposalID.String(),
 				"dialog_ts":   dialogTS,
-				"note":        "The proposal card was posted. The MCP server is NOT created yet: end your turn and wait for the [system] message reporting whether the user accepted or rejected it.",
+				"note":        "The proposal card was posted without setup instructions. Instructions are shown only on the review page. The MCP server is NOT created yet: end your turn and wait for the [system] message reporting whether the user accepted or rejected it.",
 			}), nil
 		})
 }
@@ -425,24 +459,56 @@ For oauth2 servers a server URL alone is enough (automatic discovery + Dynamic C
 // into the persisted request. It returns a non-empty error message on
 // invalid input.
 func buildMCPProposalRequest(args proposeMCPServerArgs) (MCPServerProposalRequest, string) {
+	oauth2ClientSecret, oauth2ClientSecretPlaceholder, errMsg := normalizeMCPProposalSecret("oauth2_client_secret", args.OAuth2ClientSecret, true)
+	if errMsg != "" {
+		return MCPServerProposalRequest{}, errMsg
+	}
+	apiKeyValue, apiKeyValuePlaceholder, errMsg := normalizeMCPProposalSecret("api_key_value", args.APIKeyValue, true)
+	if errMsg != "" {
+		return MCPServerProposalRequest{}, errMsg
+	}
+	customHeaders := make(map[string]string)
+	customHeaderPlaceholders := make(map[string]string)
+	for header, secret := range args.CustomHeaders {
+		value, placeholder, secretErr := normalizeMCPProposalSecret("custom_headers."+header, secret, false)
+		if secretErr != "" {
+			return MCPServerProposalRequest{}, secretErr
+		}
+		if value != "" {
+			customHeaders[header] = value
+		} else {
+			customHeaderPlaceholders[header] = placeholder
+		}
+	}
+	if len(customHeaders) == 0 {
+		customHeaders = nil
+	}
+	if len(customHeaderPlaceholders) == 0 {
+		customHeaderPlaceholders = nil
+	}
+
 	req := MCPServerProposalRequest{
-		DisplayName: strings.TrimSpace(args.DisplayName),
-		Slug:        strings.TrimSpace(args.Slug),
-		Description: strings.TrimSpace(args.Description),
-		IconURL:     strings.TrimSpace(args.IconURL),
-		URL:         strings.TrimSpace(args.URL),
-		Transport:   strings.TrimSpace(args.Transport),
-		AuthType:    strings.TrimSpace(args.AuthType),
+		DisplayName:  strings.TrimSpace(args.DisplayName),
+		Slug:         strings.TrimSpace(args.Slug),
+		Description:  strings.TrimSpace(args.Description),
+		Instructions: strings.TrimSpace(args.Instructions),
+		IconURL:      strings.TrimSpace(args.IconURL),
+		URL:          strings.TrimSpace(args.URL),
+		Transport:    strings.TrimSpace(args.Transport),
+		AuthType:     strings.TrimSpace(args.AuthType),
 
-		OAuth2ClientID:     strings.TrimSpace(args.OAuth2ClientID),
-		OAuth2ClientSecret: strings.TrimSpace(args.OAuth2ClientSecret),
-		OAuth2AuthURL:      strings.TrimSpace(args.OAuth2AuthURL),
-		OAuth2TokenURL:     strings.TrimSpace(args.OAuth2TokenURL),
-		OAuth2Scopes:       strings.TrimSpace(args.OAuth2Scopes),
+		OAuth2ClientID:                strings.TrimSpace(args.OAuth2ClientID),
+		OAuth2ClientSecret:            oauth2ClientSecret,
+		OAuth2ClientSecretPlaceholder: oauth2ClientSecretPlaceholder,
+		OAuth2AuthURL:                 strings.TrimSpace(args.OAuth2AuthURL),
+		OAuth2TokenURL:                strings.TrimSpace(args.OAuth2TokenURL),
+		OAuth2Scopes:                  strings.TrimSpace(args.OAuth2Scopes),
 
-		APIKeyHeader:  strings.TrimSpace(args.APIKeyHeader),
-		APIKeyValue:   strings.TrimSpace(args.APIKeyValue),
-		CustomHeaders: args.CustomHeaders,
+		APIKeyHeader:             strings.TrimSpace(args.APIKeyHeader),
+		APIKeyValue:              apiKeyValue,
+		APIKeyValuePlaceholder:   apiKeyValuePlaceholder,
+		CustomHeaders:            customHeaders,
+		CustomHeaderPlaceholders: customHeaderPlaceholders,
 
 		ToolAllowList: trimStringSlice(args.ToolAllowList),
 		ToolDenyList:  trimStringSlice(args.ToolDenyList),
@@ -472,11 +538,11 @@ func buildMCPProposalRequest(args proposeMCPServerArgs) (MCPServerProposalReques
 	switch req.AuthType {
 	case "none", "oauth2":
 	case "api_key":
-		if req.APIKeyHeader == "" || req.APIKeyValue == "" {
-			return req, "api_key auth requires api_key_header and api_key_value"
+		if req.APIKeyHeader == "" || (req.APIKeyValue == "" && req.APIKeyValuePlaceholder == "") {
+			return req, "api_key auth requires api_key_header and api_key_value with either value or placeholder"
 		}
 	case "custom_headers":
-		if len(req.CustomHeaders) == 0 {
+		if len(req.CustomHeaders)+len(req.CustomHeaderPlaceholders) == 0 {
 			return req, "custom_headers auth requires at least one custom header"
 		}
 	default:
@@ -488,8 +554,33 @@ func buildMCPProposalRequest(args proposeMCPServerArgs) (MCPServerProposalReques
 		if provided && !complete {
 			return req, "oauth2 requires either all of oauth2_client_id, oauth2_auth_url, and oauth2_token_url, or none of them (automatic discovery)"
 		}
+		if !provided && (req.OAuth2ClientSecret != "" || req.OAuth2ClientSecretPlaceholder != "") {
+			return req, "oauth2_client_secret is only valid with complete manual OAuth2 metadata"
+		}
+	}
+	credentialsRequired := req.OAuth2ClientSecretPlaceholder != "" ||
+		req.APIKeyValuePlaceholder != "" || len(req.CustomHeaderPlaceholders) > 0
+	if credentialsRequired && req.Instructions == "" {
+		return req, "instructions is required when the user must provide credentials"
 	}
 	return req, ""
+}
+
+func normalizeMCPProposalSecret(name string, secret MCPServerProposalSecret, optional bool) (normalizedValue, normalizedPlaceholder, errMsg string) {
+	value := strings.TrimSpace(secret.Value)
+	placeholder := strings.TrimSpace(secret.Placeholder)
+	switch {
+	case value != "" && placeholder != "":
+		return "", "", name + " must contain exactly one of value or placeholder"
+	case value != "":
+		return secret.Value, "", ""
+	case placeholder != "":
+		return "", placeholder, ""
+	case optional:
+		return "", "", ""
+	default:
+		return "", "", name + " must contain exactly one of value or placeholder"
+	}
 }
 
 // postMCPProposalCard posts the pending confirmation card to the Slack
@@ -505,20 +596,24 @@ func postMCPProposalCard(ctx context.Context, opts MCPServerToolsOptions, propos
 		slack.NewTextBlockObject(slack.PlainTextType, "Cancel", false, false))
 
 	summary := fmt.Sprintf("*%s* (`%s`)\n%s", req.DisplayName, req.Slug, req.URL)
-	if req.Description != "" {
-		summary += "\n" + req.Description
+	blocks := []slack.Block{
+		slack.NewHeaderBlock(slack.NewTextBlockObject(slack.PlainTextType,
+			fmt.Sprintf("Connect %s?", req.DisplayName), false, false)),
+		slack.NewSectionBlock(slack.NewTextBlockObject(slack.MarkdownType, summary, false, false), nil, nil),
 	}
+	if req.Description != "" {
+		blocks = append(blocks, slack.NewSectionBlock(slack.NewTextBlockObject(slack.MarkdownType,
+			"*Description*\n"+req.Description, false, false), nil, nil))
+	}
+	blocks = append(blocks,
+		slack.NewSectionBlock(slack.NewTextBlockObject(slack.MarkdownType,
+			"This MCP server will only be available to you.", false, false), nil, nil),
+		slack.NewActionBlock("mcp_proposal_actions_"+proposalID.String(), reviewBtn, cancelBtn),
+	)
 
 	attachment := slack.Attachment{
-		Color: MCPProposalPendingColor,
-		Blocks: slack.Blocks{BlockSet: []slack.Block{
-			slack.NewHeaderBlock(slack.NewTextBlockObject(slack.PlainTextType,
-				fmt.Sprintf("Connect %s?", req.DisplayName), false, false)),
-			slack.NewSectionBlock(slack.NewTextBlockObject(slack.MarkdownType, summary, false, false), nil, nil),
-			slack.NewSectionBlock(slack.NewTextBlockObject(slack.MarkdownType,
-				"This MCP server will only be available to you.", false, false), nil, nil),
-			slack.NewActionBlock("mcp_proposal_actions_"+proposalID.String(), reviewBtn, cancelBtn),
-		}},
+		Color:  MCPProposalPendingColor,
+		Blocks: slack.Blocks{BlockSet: blocks},
 	}
 
 	_, ts, err := opts.SlackAPI.PostMessageContext(ctx, opts.Channel,

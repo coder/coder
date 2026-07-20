@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"golang.org/x/xerrors"
@@ -45,6 +46,13 @@ type authServerMetadata struct {
 	TokenEndpoint         string   `json:"token_endpoint"`
 	RegistrationEndpoint  string   `json:"registration_endpoint,omitempty"`
 	ScopesSupported       []string `json:"scopes_supported,omitempty"`
+}
+
+func mcpOAuth2HTTPClient(httpClient *http.Client) *http.Client {
+	if httpClient != nil {
+		return httpClient
+	}
+	return &http.Client{Timeout: 30 * time.Second}
 }
 
 // fetchJSON performs a GET request to the given URL with the
@@ -222,15 +230,7 @@ func registerOAuth2Client(
 	return result.ClientID, result.ClientSecret, nil
 }
 
-// discoverAndRegisterMCPOAuth2 performs the full MCP OAuth2 discovery
-// and Dynamic Client Registration flow:
-//
-//  1. Discover the authorization server via Protected Resource
-//     Metadata (RFC 9728).
-//  2. Fetch Authorization Server Metadata (RFC 8414).
-//  3. Register a client via Dynamic Client Registration (RFC 7591).
-//  4. Return the discovered endpoints and credentials.
-func discoverAndRegisterMCPOAuth2(ctx context.Context, httpClient *http.Client, mcpServerURL, callbackURL string) (*mcpOAuth2Discovery, error) {
+func discoverMCPOAuth2Metadata(ctx context.Context, httpClient *http.Client, mcpServerURL string) (*authServerMetadata, error) {
 	parsed, err := url.Parse(mcpServerURL)
 	if err != nil {
 		return nil, xerrors.Errorf("parse MCP server URL: %w", err)
@@ -250,6 +250,24 @@ func discoverAndRegisterMCPOAuth2(ctx context.Context, httpClient *http.Client, 
 
 	if asMeta.RegistrationEndpoint == "" {
 		return nil, xerrors.New("authorization server does not advertise a registration_endpoint (dynamic client registration may not be supported)")
+	}
+	return asMeta, nil
+}
+
+// ValidateMCPServerOAuth2Discovery verifies that an MCP server's OAuth2
+// metadata supports automatic configuration. It performs discovery only and
+// does not register an OAuth2 client.
+func ValidateMCPServerOAuth2Discovery(ctx context.Context, httpClient *http.Client, mcpServerURL string) error {
+	_, err := discoverMCPOAuth2Metadata(ctx, mcpOAuth2HTTPClient(httpClient), mcpServerURL)
+	return err
+}
+
+// discoverAndRegisterMCPOAuth2 performs MCP OAuth2 discovery and Dynamic
+// Client Registration, returning the discovered endpoints and credentials.
+func discoverAndRegisterMCPOAuth2(ctx context.Context, httpClient *http.Client, mcpServerURL, callbackURL string) (*mcpOAuth2Discovery, error) {
+	asMeta, err := discoverMCPOAuth2Metadata(ctx, httpClient, mcpServerURL)
+	if err != nil {
+		return nil, err
 	}
 
 	clientID, clientSecret, err := registerOAuth2Client(ctx, httpClient, asMeta.RegistrationEndpoint, callbackURL, "Coder")

@@ -146,6 +146,8 @@ func (p *Server) appendSlackTools(
 			_, err := p.AddChatMCPServerID(ctx, opts.chat.ID, serverID)
 			return err
 		},
+
+		ValidateOAuth2Discovery: p.validateOAuth2Discovery,
 	}
 	if opts.isPlanModeTurn {
 		tools = append(tools, chattool.SlackReadOnlyTools(slackOpts)...)
