@@ -2197,6 +2197,99 @@ describe("mergeWatchedChatSummary", () => {
 		});
 	});
 
+	it("applies context_ready state while preserving the pinned resource list", () => {
+		const cachedChat = makeChat("chat-1", {
+			updated_at: "2025-01-01T00:00:00.000Z",
+			context: {
+				state: "waiting",
+				dirty: false,
+				resources: [
+					{
+						source: "/AGENTS.md",
+						kind: "instruction_file",
+						size_bytes: 10,
+						status: "ok",
+					},
+				],
+			},
+		});
+		const watchedChat = makeChat("chat-1", {
+			// Readiness is tracked outside updated_at, so an older event
+			// timestamp still applies the state flip.
+			updated_at: "2024-12-31T00:00:00.000Z",
+			context: { state: "ready", dirty: false },
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "context_ready",
+			}).context,
+		).toEqual({
+			state: "ready",
+			dirty: false,
+			// The lightweight watch payload omits resources; the merge keeps the
+			// pinned list a prior single-chat GET populated.
+			resources: [
+				{
+					source: "/AGENTS.md",
+					kind: "instruction_file",
+					size_bytes: 10,
+					status: "ok",
+				},
+			],
+		});
+	});
+
+	it("applies context_error state while preserving the pinned resource list", () => {
+		const cachedChat = makeChat("chat-1", {
+			updated_at: "2025-01-01T00:00:00.000Z",
+			context: {
+				state: "waiting",
+				dirty: false,
+				resources: [
+					{
+						source: "/AGENTS.md",
+						kind: "instruction_file",
+						size_bytes: 10,
+						status: "ok",
+					},
+				],
+			},
+		});
+		const watchedChat = makeChat("chat-1", {
+			// Degrade errors are tracked outside updated_at, so an older event
+			// timestamp still applies the error.
+			updated_at: "2024-12-31T00:00:00.000Z",
+			context: {
+				state: "waiting",
+				dirty: false,
+				error:
+					"workspace agent is not connected, so it cannot report chat context",
+			},
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "context_error",
+			}).context,
+		).toEqual({
+			state: "waiting",
+			dirty: false,
+			error:
+				"workspace agent is not connected, so it cannot report chat context",
+			// The lightweight watch payload omits resources; the merge keeps the
+			// pinned list a prior single-chat GET populated.
+			resources: [
+				{
+					source: "/AGENTS.md",
+					kind: "instruction_file",
+					size_bytes: 10,
+					status: "ok",
+				},
+			],
+		});
+	});
+
 	it("leaves context untouched for non-context events", () => {
 		const context = { dirty: true, dirty_since: "2025-01-02T00:00:00.000Z" };
 		const cachedChat = makeChat("chat-1", {

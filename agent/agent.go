@@ -80,6 +80,12 @@ const (
 	EnvProcOOMScore = "CODER_PROC_OOM_SCORE"
 )
 
+// mcpFirstSyncTimeout bounds how long the startup goroutine waits for
+// the first MCP catalog sync before releasing the context gate. The
+// reload keeps running in the background on timeout, and late-settling
+// servers still re-push via the catalog-change callback.
+const mcpFirstSyncTimeout = 30 * time.Second
+
 var ErrAgentClosing = xerrors.New("agent is closing")
 
 type Options struct {
@@ -1551,19 +1557,24 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				a.metrics.startupScriptSeconds.WithLabelValues(label).Set(dur)
 				a.scriptRunner.StartCron()
 
-				// Startup finished (success or terminal failure): release
-				// the context gate. MCP servers connect below and
-				// re-trigger a push once up, so we don't block readiness
-				// on them.
-				a.contextManager.SetReady()
-
-				// Connect to workspace MCP servers after the
-				// lifecycle transition to avoid delaying Ready.
-				// This runs inside the tracked goroutine so it
-				// is properly awaited on shutdown.
-				if mcpErr := a.mcpManager.Reload(a.gracefulCtx, a.contextConfigAPI.MCPConfigFiles()); mcpErr != nil {
+				// Connect to workspace MCP servers before releasing the
+				// context gate so the first context push already contains
+				// the MCP catalog. The wait is bounded: if the catalog has
+				// not settled within mcpFirstSyncTimeout, the gate is
+				// released anyway while the reload keeps running in the
+				// background. Lifecycle Ready was reported above and is
+				// not delayed by this wait. This runs inside the tracked
+				// goroutine so it is properly awaited on shutdown.
+				if mcpErr := a.mcpManager.ReloadWithTimeout(a.gracefulCtx, a.contextConfigAPI.MCPConfigFiles(), mcpFirstSyncTimeout); mcpErr != nil {
 					a.logger.Warn(ctx, "failed to reload workspace MCP servers", slog.Error(mcpErr))
 				}
+
+				// Startup finished (success or terminal failure): release
+				// the context gate so the first context snapshot resolves
+				// and is pushed. Servers that settle after the bounded
+				// wait above still re-trigger a push via the MCP manager's
+				// catalog-change callback.
+				a.contextManager.SetReady()
 			})
 			if err != nil {
 				return xerrors.Errorf("track conn goroutine: %w", err)

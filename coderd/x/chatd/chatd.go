@@ -195,6 +195,10 @@ type Server struct {
 	streamSyncPoller  *streamSyncPoller
 	recordingSem      chan struct{}
 
+	// contextReportTimeout is the ceiling on how long a turn waits for the
+	// workspace agent's first context report before failing the turn.
+	contextReportTimeout time.Duration
+
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
 
@@ -670,17 +674,27 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 		if chatSnapshot.AgentID.Valid {
 			agent, err := c.server.db.GetWorkspaceAgentByID(ctx, chatSnapshot.AgentID.UUID)
 			if err == nil {
-				latestChat, workspaceMatches := c.currentWorkspaceMatches(chatSnapshot.WorkspaceID)
-				if !workspaceMatches {
-					chatSnapshot = latestChat
-					continue
+				stale, staleErr := c.chatBindingStale(ctx, chatSnapshot)
+				if staleErr != nil {
+					return chatSnapshot, database.WorkspaceAgent{}, staleErr
 				}
-				c.agent = agent
-				c.agentLoaded = true
-				c.cachedWorkspaceID = chatSnapshot.WorkspaceID
-				return chatSnapshot, c.agent, nil
-			}
-			if !xerrors.Is(err, sql.ErrNoRows) {
+				if !stale {
+					latestChat, workspaceMatches := c.currentWorkspaceMatches(chatSnapshot.WorkspaceID)
+					if !workspaceMatches {
+						chatSnapshot = latestChat
+						continue
+					}
+					c.agent = agent
+					c.agentLoaded = true
+					c.cachedWorkspaceID = chatSnapshot.WorkspaceID
+					return chatSnapshot, c.agent, nil
+				}
+				// The workspace has a newer start build than the one the chat
+				// is bound to. GetWorkspaceAgentByID keeps resolving agents
+				// from old builds, so fall through to the re-resolve path
+				// below, which rebinds to the latest build's agent and
+				// re-pins the chat's context.
+			} else if !xerrors.Is(err, sql.ErrNoRows) {
 				c.server.logger.Warn(ctx, "agent binding lookup failed, re-resolving",
 					slog.F("agent_id", chatSnapshot.AgentID.UUID),
 					slog.Error(err),
@@ -739,6 +753,38 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 	return chatSnapshot, database.WorkspaceAgent{}, xerrors.New(
 		"chat workspace changed while resolving agent",
 	)
+}
+
+// chatBindingStale reports whether the chat's bound agent belongs to an
+// older build. Rebinding only chases start builds: when the latest build is
+// a stop or delete transition, the chat keeps its existing agent and pinned
+// context so pinned turns still work on a stopped workspace.
+func (c *turnWorkspaceContext) chatBindingStale(
+	ctx context.Context,
+	chatSnapshot database.Chat,
+) (bool, error) {
+	build, err := c.server.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, chatSnapshot.WorkspaceID.UUID)
+	if err != nil {
+		return false, xerrors.Errorf("get latest workspace build: %w", err)
+	}
+	if build.Transition != database.WorkspaceTransitionStart {
+		return false, nil
+	}
+	return !chatSnapshot.BuildID.Valid || chatSnapshot.BuildID.UUID != build.ID, nil
+}
+
+// refreshWorkspaceAgent drops the cached agent and re-resolves it, so the
+// caller observes rebinds performed by loadWorkspaceAgentLocked while the
+// cache would otherwise short-circuit. The cached workspace connection is
+// left alone; the dial path revalidates it on the next use.
+func (c *turnWorkspaceContext) refreshWorkspaceAgent(
+	ctx context.Context,
+) (database.Chat, database.WorkspaceAgent, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.agent = database.WorkspaceAgent{}
+	c.agentLoaded = false
+	return c.loadWorkspaceAgentLocked(ctx)
 }
 
 func (c *turnWorkspaceContext) latestWorkspaceAgentID(
@@ -2991,6 +3037,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		agentConnFn:                    cfg.AgentConn,
 		agentInactiveDisconnectTimeout: cfg.AgentInactiveDisconnectTimeout,
 		dialTimeout:                    defaultDialTimeout,
+		contextReportTimeout:           defaultContextReportTimeout,
 		instructionLookupTimeout:       instructionLookupTimeout,
 		createWorkspaceFn:              cfg.CreateWorkspace,
 		startWorkspaceFn:               cfg.StartWorkspace,

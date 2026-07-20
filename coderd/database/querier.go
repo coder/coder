@@ -1367,6 +1367,11 @@ type sqlcQuerier interface {
 	UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)
+	// Written by the chatd context gate when a turn degrades because the
+	// workspace agent's context report is unavailable. The pinned hash is
+	// left untouched so push-side hydration, which is NULL-gated on the
+	// hash, still stamps the chat and replaces this error.
+	UpdateChatContextError(ctx context.Context, arg UpdateChatContextErrorParams) error
 	// Uses COALESCE so that passing NULL from Go means "keep the
 	// existing value." This is intentional: debug rows follow a
 	// write-once-finalize pattern where fields are set at creation

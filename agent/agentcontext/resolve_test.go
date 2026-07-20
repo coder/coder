@@ -498,37 +498,76 @@ func TestResolver_MCPResourcesRespectAggregateByteCap(t *testing.T) {
 	require.NotEmpty(t, snap.SnapshotError, "snapshot must surface the cap breach")
 }
 
-// TestResolver_MCPExcludedFromAggregateHash verifies that MCP resources
-// (config and live servers) are carried in the snapshot but excluded
-// from the drift/aggregate hash, so an MCP server connecting (or its
-// tools changing) does not flip already-hydrated chats to dirty.
-func TestResolver_MCPExcludedFromAggregateHash(t *testing.T) {
+// TestResolver_MCPIncludedInAggregateHash verifies that MCP resources
+// (config and live servers) participate in the aggregate hash. coderd
+// pins MCP servers and their tools into chat context, so a server
+// appearing, its tools changing, or the .mcp.json config changing must
+// all surface as chat-context drift.
+func TestResolver_MCPIncludedInAggregateHash(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	// An instruction file provides drift-relevant pinned content.
 	mustWriteFile(t, filepath.Join(dir, "AGENTS.md"), "workspace rules")
 
 	base := (&agentcontext.Resolver{}).Resolve([]agentcontext.ScanRoot{{Path: dir}})
 
-	mcpRes := agentcontext.Resource{
-		ID:          "mcp_server:github",
-		Kind:        agentcontext.KindMCPServer,
-		Source:      "github",
-		Name:        "github",
-		Status:      agentcontext.StatusOK,
-		ContentHash: sha256.Sum256([]byte("tool-list")),
-		Tools:       []agentcontext.MCPTool{{Name: "search"}},
+	mcpServer := func(contentHash [32]byte) func() []agentcontext.Resource {
+		return func() []agentcontext.Resource {
+			return []agentcontext.Resource{{
+				ID:          "mcp_server:github",
+				Kind:        agentcontext.KindMCPServer,
+				Source:      "github",
+				Name:        "github",
+				Status:      agentcontext.StatusOK,
+				ContentHash: contentHash,
+				Tools:       []agentcontext.MCPTool{{Name: "search"}},
+			}}
+		}
 	}
+	toolsV1 := sha256.Sum256([]byte("tool-list-v1"))
+	toolsV2 := sha256.Sum256([]byte("tool-list-v2"))
+
 	withMCP := (&agentcontext.Resolver{
-		MCPResources: func() []agentcontext.Resource { return []agentcontext.Resource{mcpRes} },
+		MCPResources: mcpServer(toolsV1),
 	}).Resolve([]agentcontext.ScanRoot{{Path: dir}})
 
-	// The MCP server resource is present in the snapshot...
+	// The MCP server resource is present in the snapshot and changes
+	// the aggregate hash relative to a snapshot without it.
 	got := findResource(t, withMCP.Resources, agentcontext.KindMCPServer, "github")
 	require.Len(t, got.Tools, 1)
-	// ...but does not change the drift/aggregate hash.
-	require.Equal(t, base.AggregateHash, withMCP.AggregateHash,
-		"MCP resources must not participate in the drift hash")
+	require.NotEqual(t, base.AggregateHash, withMCP.AggregateHash,
+		"an MCP server appearing must change the aggregate hash")
+
+	// Identical inputs produce an identical hash.
+	sameMCP := (&agentcontext.Resolver{
+		MCPResources: mcpServer(toolsV1),
+	}).Resolve([]agentcontext.ScanRoot{{Path: dir}})
+	require.Equal(t, withMCP.AggregateHash, sameMCP.AggregateHash,
+		"identical inputs must hash identically")
+
+	// A tool-list change (a new content hash) changes the aggregate hash.
+	changedTools := (&agentcontext.Resolver{
+		MCPResources: mcpServer(toolsV2),
+	}).Resolve([]agentcontext.ScanRoot{{Path: dir}})
+	require.NotEqual(t, withMCP.AggregateHash, changedTools.AggregateHash,
+		"an MCP server's tools changing must change the aggregate hash")
+}
+
+// TestResolver_MCPConfigChangesAggregateHash verifies that an .mcp.json
+// config resource participates in the aggregate hash, so editing the
+// config surfaces as chat-context drift.
+func TestResolver_MCPConfigChangesAggregateHash(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".mcp.json")
+
+	mustWriteFile(t, path, `{"mcpServers": {}}`)
+	base := (&agentcontext.Resolver{}).Resolve([]agentcontext.ScanRoot{{Path: dir}})
+	findResource(t, base.Resources, agentcontext.KindMCPConfig, path)
+
+	mustWriteFile(t, path, `{"mcpServers": {"github": {"command": "gh-mcp"}}}`)
+	changed := (&agentcontext.Resolver{}).Resolve([]agentcontext.ScanRoot{{Path: dir}})
+	require.NotEqual(t, base.AggregateHash, changed.AggregateHash,
+		"an MCP config change must change the aggregate hash")
 }
 
 // TestResolver_UnreadableInstructionFile verifies the

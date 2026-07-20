@@ -1506,6 +1506,15 @@ SET
     context_dirty_since = NULL
 WHERE id = @id::uuid;
 
+-- name: UpdateChatContextError :exec
+-- Written by the chatd context gate when a turn degrades because the
+-- workspace agent's context report is unavailable. The pinned hash is
+-- left untouched so push-side hydration, which is NULL-gated on the
+-- hash, still stamps the chat and replaces this error.
+UPDATE chats
+SET context_error = @context_error::text
+WHERE id = @id::uuid;
+
 -- name: HydrateAgentChatsContext :many
 -- Stamps the pinned hash and error on every not-yet-hydrated chat for
 -- an agent (context_aggregate_hash IS NULL) and copies the agent's

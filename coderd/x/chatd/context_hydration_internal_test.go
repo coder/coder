@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -13,6 +12,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -90,62 +90,6 @@ func TestHydrateChatContextOnCreate(t *testing.T) {
 	})
 }
 
-// TestHydrateAndMarkChatsDirtyPublishesForHydratedAndDirtied covers the
-// agent-push path: a chat hydrated by the push (first pin, no dirty marker)
-// and a chat flipped to dirty must both get a context watch event, because
-// watching clients refetch pinned resources only on those events.
-func TestHydrateAndMarkChatsDirtyPublishesForHydratedAndDirtied(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	ps := dbpubsub.NewInMemory()
-	server := &Server{db: db, logger: slogtest.Make(t, nil), pubsub: ps}
-
-	ownerID := uuid.New()
-	agentID := uuid.New()
-	hash := []byte{0x01}
-	now := time.Now()
-
-	hydratedChat := database.Chat{ID: uuid.New(), OwnerID: ownerID, ContextAggregateHash: hash}
-	dirtiedChat := database.Chat{ID: uuid.New(), OwnerID: ownerID, ContextAggregateHash: []byte{0x99}}
-
-	events := make(chan codersdk.ChatWatchEvent, 2)
-	cancelSub, err := ps.SubscribeWithErr(
-		coderdpubsub.ChatWatchEventChannel(ownerID),
-		coderdpubsub.HandleChatWatchEvent(func(_ context.Context, payload codersdk.ChatWatchEvent, err error) {
-			require.NoError(t, err)
-			events <- payload
-		}),
-	)
-	require.NoError(t, err)
-	defer cancelSub()
-
-	db.EXPECT().HydrateAgentChatsContext(gomock.Any(), database.HydrateAgentChatsContextParams{
-		AgentID:       agentID,
-		AggregateHash: hash,
-	}).Return([]uuid.UUID{hydratedChat.ID}, nil)
-	db.EXPECT().MarkChatsContextDirtyByAgent(gomock.Any(), database.MarkChatsContextDirtyByAgentParams{
-		AgentID:       agentID,
-		AggregateHash: hash,
-		DirtySince:    sql.NullTime{Time: now, Valid: true},
-	}).Return([]database.MarkChatsContextDirtyByAgentRow{{ID: dirtiedChat.ID, OwnerID: ownerID}}, nil)
-	db.EXPECT().GetChatByID(gomock.Any(), hydratedChat.ID).Return(hydratedChat, nil)
-	db.EXPECT().GetChatByID(gomock.Any(), dirtiedChat.ID).Return(dirtiedChat, nil)
-
-	publish, err := server.HydrateAndMarkChatsDirty(ctx, db, agentID, hash, "", now)
-	require.NoError(t, err)
-	publish()
-
-	gotChatIDs := make([]uuid.UUID, 0, 2)
-	for range 2 {
-		event := testutil.RequireReceive(ctx, t, events)
-		require.Equal(t, codersdk.ChatWatchEventKindContextDirty, event.Kind)
-		gotChatIDs = append(gotChatIDs, event.Chat.ID)
-	}
-	require.ElementsMatch(t, []uuid.UUID{hydratedChat.ID, dirtiedChat.ID}, gotChatIDs)
-}
-
 // TestEnsureChatContextPinnedOnFirstTurn covers the lazy-bind pinning path. An
 // API-created chat carries no agent at create, binds its agent on the first
 // turn, and must pin the agent's already-pushed snapshot then. This is the
@@ -207,11 +151,11 @@ func TestEnsureChatContextPinnedOnFirstTurn(t *testing.T) {
 		server.ensureChatContextPinnedOnFirstTurn(ctx, chat)
 
 		// Watching clients cached both details without pinned resources, so
-		// every hydrated chat must broadcast a context event.
+		// every hydrated chat must broadcast a context_ready event.
 		gotChatIDs := make([]uuid.UUID, 0, 2)
 		for range 2 {
 			event := testutil.RequireReceive(ctx, t, events)
-			require.Equal(t, codersdk.ChatWatchEventKindContextDirty, event.Kind)
+			require.Equal(t, codersdk.ChatWatchEventKindContextReady, event.Kind)
 			gotChatIDs = append(gotChatIDs, event.Chat.ID)
 		}
 		require.ElementsMatch(t, []uuid.UUID{chat.ID, siblingChat.ID}, gotChatIDs)
@@ -266,4 +210,55 @@ func TestEnsureChatContextPinnedOnFirstTurn(t *testing.T) {
 
 		server.ensureChatContextPinnedOnFirstTurn(ctx, database.Chat{ID: uuid.New()})
 	})
+}
+
+// TestHydrateAndMarkChatsDirtyPublishesEvents proves the push-path fan-out
+// against a real database: the returned post-commit callback publishes
+// context_ready for first hydrations (NULL-hash chats stamped by the push)
+// and context_dirty for already-pinned chats whose hash drifted.
+func TestHydrateAndMarkChatsDirtyPublishesEvents(t *testing.T) {
+	t.Parallel()
+	fix := newRebindFixture(t)
+	server := &Server{db: fix.db, pubsub: fix.ps, logger: slogtest.Make(t, nil)}
+
+	// A never-hydrated chat (NULL hash) and an already-pinned chat whose
+	// hash will drift on the push below.
+	waitingChat := gateChat(t, fix, fix.agentA, fix.buildID)
+	require.Nil(t, waitingChat.ContextAggregateHash)
+	pinnedChat := gateChat(t, fix, fix.agentA, fix.buildID)
+	require.NoError(t, fix.db.SetChatContextSnapshot(fix.ctx, database.SetChatContextSnapshotParams{
+		ID:            pinnedChat.ID,
+		AggregateHash: []byte{0x01},
+	}))
+
+	events := subscribeChatWatchEvents(t, fix)
+
+	hashNew := []byte{0x77, 0x78}
+	var publish func()
+	err := fix.db.InTx(func(tx database.Store) error {
+		var err error
+		publish, err = server.HydrateAndMarkChatsDirty(
+			fix.ctx, tx, fix.agentA, hashNew, "", dbtime.Now())
+		return err
+	}, nil)
+	require.NoError(t, err)
+	require.NotNil(t, publish)
+	publish()
+
+	// One ready event for the hydrated chat and one dirty event for the
+	// drifted chat; delivery order is not guaranteed, so key by chat.
+	kindsByChat := map[uuid.UUID]codersdk.ChatWatchEventKind{}
+	for range 2 {
+		event := testutil.RequireReceive(fix.ctx, t, events)
+		kindsByChat[event.Chat.ID] = event.Kind
+		if event.Chat.ID == waitingChat.ID {
+			require.NotNil(t, event.Chat.Context)
+			require.Equal(t, codersdk.ChatContextStateReady, event.Chat.Context.State,
+				"the ready payload reports the pinned state")
+		}
+	}
+	require.Equal(t, map[uuid.UUID]codersdk.ChatWatchEventKind{
+		waitingChat.ID: codersdk.ChatWatchEventKindContextReady,
+		pinnedChat.ID:  codersdk.ChatWatchEventKindContextDirty,
+	}, kindsByChat)
 }

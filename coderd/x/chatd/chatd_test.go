@@ -45,6 +45,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -4917,6 +4918,11 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	require.True(t, foundToolResultInSecondCall, "expected second streamed model call to include create_workspace tool output")
 }
 
+// TestStartWorkspaceTool_EndToEnd covers the start_workspace tool through
+// the chat worker on a chat bound to a stopped workspace. The context gate
+// cannot obtain a report from the stopped workspace, so the turn degrades
+// (recording the reason on the chat's context error) and still runs, letting
+// the model call start_workspace.
 func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	t.Parallel()
 
@@ -5004,6 +5010,13 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 		}
 		require.FailNowf(t, "chat run failed", "last_error=%q", lastError)
 	}
+
+	// The gate degraded the turn instead of failing it: the stopped-workspace
+	// reason is recorded on the chat's context (populated on single-chat GET).
+	require.NotNil(t, chatResult.Context)
+	require.Equal(t, "workspace must be started to report chat context",
+		chatResult.Context.Error,
+		"the degrade reason must surface on the chat's context error")
 
 	// Verify the workspace was started.
 	require.NotNil(t, chatResult.WorkspaceID)
@@ -5125,6 +5138,17 @@ func TestStoppedWorkspaceWithPersistedAgentBindingDoesNotBlockChat(t *testing.T)
 		ID:      chat.ID,
 		BuildID: uuid.NullUUID{UUID: build.ID, Valid: true},
 		AgentID: uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// The agent reported context while the workspace ran, pinning the chat.
+	// The context-report gate only lets a pinned chat run once the workspace
+	// is stopped below, matching the production sequence this test models.
+	snapshot, err := db.GetLatestWorkspaceAgentContextSnapshot(ctx, dbAgent.ID)
+	require.NoError(t, err)
+	_, err = db.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
+		AgentID:       dbAgent.ID,
+		AggregateHash: snapshot.AggregateHash,
 	})
 	require.NoError(t, err)
 
@@ -9108,7 +9132,18 @@ func seedWorkspaceWithAgent(
 		Version:           "v1.0.0",
 		ExpandedDirectory: "/home/coder/project",
 	}))
-	dbAgent, err := db.GetWorkspaceAgentByID(context.Background(), dbAgent.ID)
+	// The context-report gate blocks workspace turns until the agent has
+	// pushed a context snapshot. Seed an empty snapshot so turns proceed
+	// as they did before the gate; row existence alone marks the agent as
+	// having reported, and an empty snapshot contributes no prompt context.
+	_, err := db.UpsertWorkspaceAgentContextSnapshot(context.Background(), database.UpsertWorkspaceAgentContextSnapshotParams{
+		WorkspaceAgentID: dbAgent.ID,
+		Version:          1,
+		AggregateHash:    []byte{0x01},
+		ReceivedAt:       dbtime.Now(),
+	})
+	require.NoError(t, err)
+	dbAgent, err = db.GetWorkspaceAgentByID(context.Background(), dbAgent.ID)
 	require.NoError(t, err)
 	return ws, dbAgent
 }

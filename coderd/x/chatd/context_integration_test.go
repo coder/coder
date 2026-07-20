@@ -86,10 +86,14 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 	})
 
-	// Before any push there is no pinned context.
+	// Before any push the chat is workspace-bound but unpinned, so the
+	// context reports the waiting state.
 	got, err := expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Nil(t, got.Context, "no pinned context before the first push")
+	require.NotNil(t, got.Context, "workspace-bound chats always report context state")
+	require.Equal(t, codersdk.ChatContextStateWaiting, got.Context.State,
+		"unpinned workspace chat is waiting for the agent's report")
+	require.False(t, got.Context.Dirty)
 
 	requireChatContextNil := func(id uuid.UUID, msg string) {
 		t.Helper()
@@ -173,6 +177,8 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	got, err = expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
 	require.NotNil(t, got.Context, "chat should be hydrated after the initial push")
+	require.Equal(t, codersdk.ChatContextStateReady, got.Context.State,
+		"first hydration flips the chat to ready")
 	require.False(t, got.Context.Dirty, "initial hydration is clean")
 	require.Nil(t, got.Context.DirtySince)
 

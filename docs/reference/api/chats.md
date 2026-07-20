@@ -58,7 +58,8 @@ Experimental: this endpoint is subject to change.
             }
           ]
         }
-      ]
+      ],
+      "state": "waiting"
     },
     "created_at": "2019-08-24T14:15:22Z",
     "diff_status": {
@@ -150,7 +151,7 @@ Status Code **200**
 | `» build_id`              | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» children`              | [codersdk.Chat](schemas.md#codersdkchat)                                           | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
 | `» client_type`           | [codersdk.ChatClientType](schemas.md#codersdkchatclienttype)                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `» context`               | [codersdk.ChatContext](schemas.md#codersdkchatcontext)                             | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                                 |
+| `» context`               | [codersdk.ChatContext](schemas.md#codersdkchatcontext)                             | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Present for every workspace-bound chat; nil for chats with no workspace and no context remnants.                                             |
 | `»» dirty`                | boolean                                                                            | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash.                                                                                                                                                                                   |
 | `»» dirty_since`          | string(date-time)                                                                  | false    |              | Dirty since is when drift was first detected; nil when not dirty.                                                                                                                                                                                                          |
 | `»» error`                | string                                                                             | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).                                                                                                                                                                                    |
@@ -165,6 +166,7 @@ Status Code **200**
 | `»»» tools`               | array                                                                              | false    |              | Tools lists the tools exposed by an MCP server. Populated only for the mcp_server kind; nil otherwise.                                                                                                                                                                     |
 | `»»»» description`        | string                                                                             | false    |              | Description is the tool's human-readable summary; may be empty.                                                                                                                                                                                                            |
 | `»»»» name`               | string                                                                             | false    |              | Name is the tool name with the "<server>__" prefix the agent adds stripped, so it reads as the server exposes it.                                                                                                                                                          |
+| `»» state`                | [codersdk.ChatContextState](schemas.md#codersdkchatcontextstate)                   | false    |              | State reports where the chat stands in the context-reporting lifecycle: waiting for the agent's first report or ready (pinned).                                                                                                                                            |
 | `» created_at`            | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
 | `» diff_status`           | [codersdk.ChatDiffStatus](schemas.md#codersdkchatdiffstatus)                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» additions`            | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
@@ -230,6 +232,7 @@ Status Code **200**
 | `client_type` | `api`, `ui`                                                                                                                                                                                                                |
 | `kind`        | `auth`, `config`, `content_filter`, `generic`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
 | `status`      | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                    |
+| `state`       | `ready`, `waiting`                                                                                                                                                                                                         |
 | `plan_mode`   | `plan`                                                                                                                                                                                                                     |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -333,7 +336,8 @@ Experimental: this endpoint is subject to change.
               }
             ]
           }
-        ]
+        ],
+        "state": "waiting"
       },
       "created_at": "2019-08-24T14:15:22Z",
       "diff_status": {
@@ -426,7 +430,8 @@ Experimental: this endpoint is subject to change.
           }
         ]
       }
-    ]
+    ],
+    "state": "waiting"
   },
   "created_at": "2019-08-24T14:15:22Z",
   "diff_status": {
@@ -676,7 +681,8 @@ Experimental: this endpoint is subject to change.
             }
           ]
         }
-      ]
+      ],
+      "state": "waiting"
     },
     "created_at": "2019-08-24T14:15:22Z",
     "diff_status": {
@@ -823,7 +829,8 @@ Experimental: this endpoint is subject to change.
               }
             ]
           }
-        ]
+        ],
+        "state": "waiting"
       },
       "created_at": "2019-08-24T14:15:22Z",
       "diff_status": {
@@ -916,7 +923,8 @@ Experimental: this endpoint is subject to change.
           }
         ]
       }
-    ]
+    ],
+    "state": "waiting"
   },
   "created_at": "2019-08-24T14:15:22Z",
   "diff_status": {
@@ -1100,7 +1108,8 @@ Experimental: this endpoint is subject to change.
               }
             ]
           }
-        ]
+        ],
+        "state": "waiting"
       },
       "created_at": "2019-08-24T14:15:22Z",
       "diff_status": {
@@ -1193,7 +1202,8 @@ Experimental: this endpoint is subject to change.
           }
         ]
       }
-    ]
+    ],
+    "state": "waiting"
   },
   "created_at": "2019-08-24T14:15:22Z",
   "diff_status": {
@@ -1375,7 +1385,8 @@ Experimental: this endpoint is subject to change.
               }
             ]
           }
-        ]
+        ],
+        "state": "waiting"
       },
       "created_at": "2019-08-24T14:15:22Z",
       "diff_status": {
@@ -1468,7 +1479,8 @@ Experimental: this endpoint is subject to change.
           }
         ]
       }
-    ]
+    ],
+    "state": "waiting"
   },
   "created_at": "2019-08-24T14:15:22Z",
   "diff_status": {
@@ -2219,7 +2231,8 @@ Experimental: this endpoint is subject to change.
               }
             ]
           }
-        ]
+        ],
+        "state": "waiting"
       },
       "created_at": "2019-08-24T14:15:22Z",
       "diff_status": {
@@ -2312,7 +2325,8 @@ Experimental: this endpoint is subject to change.
           }
         ]
       }
-    ]
+    ],
+    "state": "waiting"
   },
   "created_at": "2019-08-24T14:15:22Z",
   "diff_status": {
@@ -2819,7 +2833,8 @@ Experimental: this endpoint is subject to change.
               }
             ]
           }
-        ]
+        ],
+        "state": "waiting"
       },
       "created_at": "2019-08-24T14:15:22Z",
       "diff_status": {
@@ -2912,7 +2927,8 @@ Experimental: this endpoint is subject to change.
           }
         ]
       }
-    ]
+    ],
+    "state": "waiting"
   },
   "created_at": "2019-08-24T14:15:22Z",
   "diff_status": {

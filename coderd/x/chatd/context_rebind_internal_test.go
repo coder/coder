@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -196,6 +197,7 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 
 type rebindFixture struct {
 	db          database.Store
+	ps          pubsub.Pubsub
 	ctx         context.Context
 	org         database.Organization
 	user        database.User
@@ -219,7 +221,7 @@ type rebindFixture struct {
 // rebind guard keys on the agent, not the build.
 func newRebindFixture(t *testing.T) rebindFixture {
 	t.Helper()
-	db, _ := dbtestutil.NewDB(t)
+	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	user := dbgen.User(t, db, database.User{})
@@ -260,6 +262,7 @@ func newRebindFixture(t *testing.T) rebindFixture {
 
 	fix := rebindFixture{
 		db:          db,
+		ps:          ps,
 		ctx:         ctx,
 		org:         org,
 		user:        user,

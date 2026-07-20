@@ -872,6 +872,93 @@ func TestChat_FileMetadataConversion(t *testing.T) {
 	require.NotContains(t, string(data), `"mimetype"`)
 }
 
+// TestChat_ContextState covers when the converter emits a Context and which
+// State it reports: workspace-bound chats always carry one (ready when a
+// pinned hash exists, waiting otherwise), non-workspace chats carry one only
+// when dirty/error remnants exist (with no state), and plain non-workspace
+// chats keep a nil Context.
+func TestChat_ContextState(t *testing.T) {
+	t.Parallel()
+
+	now := dbtime.Now()
+	workspaceID := uuid.NullUUID{UUID: uuid.New(), Valid: true}
+
+	tests := []struct {
+		name        string
+		chat        database.Chat
+		wantContext bool
+		wantState   codersdk.ChatContextState
+		wantDirty   bool
+	}{
+		{
+			name: "WorkspaceBoundPinnedIsReady",
+			chat: database.Chat{
+				WorkspaceID:          workspaceID,
+				ContextAggregateHash: []byte{0x01},
+			},
+			wantContext: true,
+			wantState:   codersdk.ChatContextStateReady,
+		},
+		{
+			name: "WorkspaceBoundUnpinnedIsWaiting",
+			chat: database.Chat{
+				WorkspaceID: workspaceID,
+			},
+			wantContext: true,
+			wantState:   codersdk.ChatContextStateWaiting,
+		},
+		{
+			// A rebind clears the pin to an empty non-NULL hash; the chat
+			// waits again for the new agent's report.
+			name: "WorkspaceBoundRebindClearedIsWaiting",
+			chat: database.Chat{
+				WorkspaceID:          workspaceID,
+				ContextAggregateHash: []byte{},
+			},
+			wantContext: true,
+			wantState:   codersdk.ChatContextStateWaiting,
+		},
+		{
+			name:        "NonWorkspaceStaysNil",
+			chat:        database.Chat{},
+			wantContext: false,
+		},
+		{
+			// A non-workspace chat with dirty remnants keeps its Context
+			// (existing behavior) but reports no lifecycle state.
+			name: "NonWorkspaceDirtyRemnantHasNoState",
+			chat: database.Chat{
+				ContextDirtySince: sql.NullTime{Time: now, Valid: true},
+			},
+			wantContext: true,
+			wantState:   "",
+			wantDirty:   true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tc.chat.ID = uuid.New()
+			tc.chat.OwnerID = uuid.New()
+			tc.chat.LastModelConfigID = uuid.New()
+			tc.chat.Status = database.ChatStatusWaiting
+			tc.chat.CreatedAt = now
+			tc.chat.UpdatedAt = now
+
+			result := db2sdk.Chat(tc.chat, nil, nil)
+			if !tc.wantContext {
+				require.Nil(t, result.Context)
+				return
+			}
+			require.NotNil(t, result.Context)
+			require.Equal(t, tc.wantState, result.Context.State)
+			require.Equal(t, tc.wantDirty, result.Context.Dirty)
+		})
+	}
+}
+
 func TestChat_NilFilesOmitted(t *testing.T) {
 	t.Parallel()
 

@@ -1794,12 +1794,21 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 			})
 		}
 	}
-	// Report pinned-context state when the chat is context-tracked
-	// (has a pinned hash), dirty, or carries a snapshot error.
-	if len(c.ContextAggregateHash) > 0 || c.ContextDirtySince.Valid || c.ContextError != "" {
+	// Report pinned-context state when the chat is workspace-bound or
+	// context-tracked (has a pinned hash, is dirty, or carries a snapshot
+	// error). Workspace-bound chats always get a Context so the client can
+	// distinguish waiting (not yet pinned to a reported snapshot) from
+	// ready (pinned).
+	if c.WorkspaceID.Valid || len(c.ContextAggregateHash) > 0 || c.ContextDirtySince.Valid || c.ContextError != "" {
 		chatContext := &codersdk.ChatContext{
 			Dirty: c.ContextDirtySince.Valid,
 			Error: c.ContextError,
+		}
+		switch {
+		case len(c.ContextAggregateHash) > 0:
+			chatContext.State = codersdk.ChatContextStateReady
+		case c.WorkspaceID.Valid:
+			chatContext.State = codersdk.ChatContextStateWaiting
 		}
 		if c.ContextDirtySince.Valid {
 			dirtySince := c.ContextDirtySince.Time

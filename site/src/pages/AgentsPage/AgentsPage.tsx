@@ -621,7 +621,11 @@ const AgentsPage: FC = () => {
 						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
 							void invalidateChatListQueries(queryClient);
 						}
-						if (chatEvent.kind === "context_dirty") {
+						if (
+							chatEvent.kind === "context_dirty" ||
+							chatEvent.kind === "context_ready" ||
+							chatEvent.kind === "context_error"
+						) {
 							// The watch payload carries only the lightweight
 							// context flags (the merge above applies them);
 							// refetch the open chat to pull the pinned

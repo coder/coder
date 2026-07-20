@@ -1277,6 +1277,7 @@ func TestTurnWorkspaceContext_BindingFirstPath(t *testing.T) {
 	workspaceAgent := database.WorkspaceAgent{ID: agentID}
 
 	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).Return(workspaceAgent, nil).Times(1)
+	expectBoundBindingFresh(db, workspaceID)
 
 	chatStateMu := &sync.Mutex{}
 	currentChat := chat
@@ -1364,6 +1365,16 @@ func expectBestEffortContextRepin(db *dbmock.MockStore) {
 		Return(database.WorkspaceAgentContextSnapshot{}, sql.ErrNoRows).AnyTimes()
 	db.EXPECT().SetChatContextSnapshot(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	db.EXPECT().DeleteChatContextResourcesByChatID(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+}
+
+// expectBoundBindingFresh satisfies the bound-agent staleness probe that
+// loadWorkspaceAgentLocked runs before trusting an existing agent binding.
+// The latest build is reported without a start transition, so the probe
+// keeps the chat's bound agent and the test exercises its original flow.
+func expectBoundBindingFresh(db *dbmock.MockStore, workspaceID uuid.UUID) {
+	db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return(database.WorkspaceBuild{WorkspaceID: workspaceID}, nil).
+		AnyTimes()
 }
 
 func TestTurnWorkspaceContext_StaleBindingRepair(t *testing.T) {
@@ -1454,7 +1465,6 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 	gomock.InOrder(
 		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), staleAgentID).Return(staleAgent, nil),
 		db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return([]database.WorkspaceAgent{currentAgent}, nil),
-		db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).Return(database.WorkspaceBuild{ID: buildID}, nil),
 		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), currentAgentID).Return(currentAgent, nil),
 		db.EXPECT().UpdateChatBuildAgentBinding(gomock.Any(), database.UpdateChatBuildAgentBindingParams{
 			BuildID: uuid.NullUUID{UUID: buildID, Valid: true},
@@ -1462,6 +1472,10 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 			ID:      chat.ID,
 		}).Return(updatedChat, nil),
 	)
+	// Serves both the bound-agent staleness probe (the zero transition is
+	// not a start, so the binding is kept) and the post-switch build fetch.
+	db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return(database.WorkspaceBuild{ID: buildID}, nil).AnyTimes()
 
 	conn := agentconnmock.NewMockAgentConn(ctrl)
 	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
@@ -1529,6 +1543,7 @@ func TestTurnWorkspaceContextGetWorkspaceConnFastFailsWithoutCurrentAgent(t *tes
 	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), staleAgentID).
 		Return(staleAgent, nil).
 		Times(1)
+	expectBoundBindingFresh(db, workspaceID)
 	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Return([]database.WorkspaceAgent{}, nil).
 		Times(1)
@@ -2217,9 +2232,10 @@ func TestGetWorkspaceConn_StaleAgentRecovery(t *testing.T) {
 	// Lazy validation discovers the new agent.
 	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Return([]database.WorkspaceAgent{newAgent}, nil).Times(1)
-	// Post-switch: persist the new binding.
+	// Serves both the bound-agent staleness probe (the zero transition is
+	// not a start, so the binding is kept) and the post-switch build fetch.
 	db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).
-		Return(database.WorkspaceBuild{ID: buildID}, nil).Times(1)
+		Return(database.WorkspaceBuild{ID: buildID}, nil).AnyTimes()
 	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), newAgentID).
 		Return(newAgent, nil).Times(1)
 
@@ -2325,6 +2341,7 @@ func TestGetWorkspaceConn_SameBuildAgentCrash(t *testing.T) {
 	// ensureWorkspaceAgent fetches the (crashed) agent.
 	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
 		Return(agent, nil).Times(1)
+	expectBoundBindingFresh(db, workspaceID)
 	// Validation finds the same agent in the latest build.
 	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Return([]database.WorkspaceAgent{agent}, nil).Times(1)
@@ -2634,6 +2651,7 @@ func TestGetWorkspaceConn_DialTimeoutDisconnectedRecoveryThreshold(t *testing.T)
 			db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), boundAgent.ID).
 				Return(boundAgent, nil).
 				Times(1)
+			expectBoundBindingFresh(db, workspaceID)
 			db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), latestAgent.ID).
 				Return(latestAgent, nil).
 				Times(1)
@@ -2750,6 +2768,7 @@ func TestGetWorkspaceConn_DisconnectedStatusDialSuccessDoesNotEscalate(t *testin
 	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
 		Return(disconnectedAgent, nil).
 		Times(1)
+	expectBoundBindingFresh(db, workspaceID)
 
 	server := &Server{
 		db:                             db,
@@ -2819,6 +2838,7 @@ func TestGetWorkspaceConn_CacheHitDisconnectedRetriesDialBeforeEscalating(t *tes
 	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
 		Return(disconnectedAgent, nil).
 		Times(2)
+	expectBoundBindingFresh(db, workspaceID)
 
 	server := &Server{
 		db:                             db,
@@ -2899,6 +2919,7 @@ func TestGetWorkspaceConn_DialTimeout(t *testing.T) {
 	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
 		Return(connectedAgent, nil).
 		Times(2)
+	expectBoundBindingFresh(db, workspaceID)
 	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Return([]database.WorkspaceAgent{connectedAgent}, nil).
 		Times(1)
@@ -2970,6 +2991,7 @@ func TestGetWorkspaceConn_DialTimeoutParentCanceled(t *testing.T) {
 	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
 		Return(connectedAgent, nil).
 		Times(1)
+	expectBoundBindingFresh(db, workspaceID)
 
 	parentErr := xerrors.New("parent canceled")
 	ctx, cancel := context.WithCancelCause(testutil.Context(t, testutil.WaitShort))
@@ -3050,6 +3072,7 @@ func TestGetWorkspaceConn_PreflightExternalAgentTimedOut(t *testing.T) {
 	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
 		Return(agent, nil).
 		Times(1)
+	expectBoundBindingFresh(db, workspaceID)
 	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Return([]database.WorkspaceAgent{agent}, nil).
 		Times(1)
@@ -3124,6 +3147,7 @@ func TestGetWorkspaceConn_PreflightExternalAgentConnectingDials(t *testing.T) {
 	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
 		Return(agent, nil).
 		Times(1)
+	expectBoundBindingFresh(db, workspaceID)
 
 	conn := agentconnmock.NewMockAgentConn(ctrl)
 	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
@@ -3200,6 +3224,7 @@ func TestGetWorkspaceConn_DialErrorNotMisclassifiedAsTimeout(t *testing.T) {
 	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
 		Return(connectedAgent, nil).
 		Times(1)
+	expectBoundBindingFresh(db, workspaceID)
 	// When the initial dial fails immediately, dialWithLazyValidation
 	// calls resolveFastFailure which validates the binding. Mock the
 	// validation to return the same agent, triggering a synchronous

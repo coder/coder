@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -275,6 +276,97 @@ func TestManager_WaitReloadTimeout(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.Contains(t, err.Error(), "tools reload timed out after 1m0s")
+}
+
+// TestReloadWithTimeout_Settles verifies that ReloadWithTimeout
+// returns nil once the reload settles within the timeout and the
+// catalog reflects the connected server.
+func TestReloadWithTimeout_Settles(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	dir := t.TempDir()
+
+	_, entry := fakeMCPServerConfig(t, "srv")
+	configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	t.Cleanup(func() { _ = m.Close() })
+
+	err := m.ReloadWithTimeout(ctx, []string{configPath}, time.Minute)
+	require.NoError(t, err)
+
+	tools := m.connectedTools()
+	require.Len(t, tools, 1)
+	assert.Equal(t, "echo", tools[0].tool)
+
+	// A fresh snapshot short-circuits the next bounded reload.
+	err = m.ReloadWithTimeout(ctx, []string{configPath}, time.Minute)
+	require.NoError(t, err)
+}
+
+// TestReloadWithTimeout_TimesOut verifies that ReloadWithTimeout
+// returns a deadline error when the reload has not settled by the
+// time the timer fires, and that the reload keeps running in the
+// background so the catalog still settles afterwards.
+func TestReloadWithTimeout_TimesOut(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	clock := quartz.NewMock(t)
+	timerTrap := clock.Trap().NewTimer("agentmcp", "tools_reload")
+	defer timerTrap.Close()
+	dir := t.TempDir()
+
+	_, entry := fakeMCPServerConfig(t, "srv")
+	configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	m.clock = clock
+	t.Cleanup(func() { _ = m.Close() })
+
+	// Block the reload body in connectAll so it cannot settle
+	// before the timer fires. Release runs on cleanup too, before
+	// Close, so a failed assertion cannot leave the hook blocked.
+	reached := make(chan struct{})
+	release := make(chan struct{})
+	var reachedOnce, releaseOnce sync.Once
+	releaseHook := func() { releaseOnce.Do(func() { close(release) }) }
+	t.Cleanup(releaseHook)
+	m.connectStartedHook = func() {
+		reachedOnce.Do(func() { close(reached) })
+		select {
+		case <-release:
+		case <-ctx.Done():
+		}
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- m.ReloadWithTimeout(ctx, []string{configPath}, time.Minute)
+	}()
+
+	// The reload body is blocked inside the hook while the caller
+	// waits on the bounded timer.
+	testutil.TryReceive(ctx, t, reached)
+	call := timerTrap.MustWait(ctx)
+	require.Equal(t, time.Minute, call.Duration)
+	call.MustRelease(ctx)
+
+	clock.Advance(time.Minute).MustWait(ctx)
+	err := testutil.RequireReceive(ctx, t, done)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+
+	// The reload was not canceled by the timed-out caller: once
+	// unblocked it settles and the catalog contains the server.
+	releaseHook()
+	require.Eventually(t, func() bool {
+		return len(m.connectedTools()) == 1
+	}, testutil.WaitLong, testutil.IntervalFast,
+		"catalog should settle after the timed-out reload completes")
 }
 
 // runFakeMCPServer implements a minimal JSON-RPC / MCP server over

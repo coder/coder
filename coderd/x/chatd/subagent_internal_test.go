@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -592,6 +593,17 @@ func seedWorkspaceBinding(
 		JobID:      job.ID,
 	})
 	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID})
+	// The context-report gate blocks workspace turns until the agent has
+	// pushed a context snapshot. Seed an empty snapshot so turns proceed
+	// as they did before the gate; row existence alone marks the agent as
+	// having reported, and an empty snapshot contributes no prompt context.
+	_, err := db.UpsertWorkspaceAgentContextSnapshot(context.Background(), database.UpsertWorkspaceAgentContextSnapshotParams{
+		WorkspaceAgentID: agent.ID,
+		Version:          1,
+		AggregateHash:    []byte{0x01},
+		ReceivedAt:       dbtime.Now(),
+	})
+	require.NoError(t, err)
 	return workspace, build, agent
 }
 

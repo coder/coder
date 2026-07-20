@@ -5185,6 +5185,14 @@ func (m queryMetricsStore) UpdateChatByID(ctx context.Context, arg database.Upda
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateChatContextError(ctx context.Context, arg database.UpdateChatContextErrorParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateChatContextError(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatContextError").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatContextError").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpdateChatDebugRun(ctx context.Context, arg database.UpdateChatDebugRunParams) (database.ChatDebugRun, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatDebugRun(ctx, arg)

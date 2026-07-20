@@ -9773,6 +9773,20 @@ func (mr *MockStoreMockRecorder) UpdateChatByID(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatByID", reflect.TypeOf((*MockStore)(nil).UpdateChatByID), ctx, arg)
 }
 
+// UpdateChatContextError mocks base method.
+func (m *MockStore) UpdateChatContextError(ctx context.Context, arg database.UpdateChatContextErrorParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatContextError", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateChatContextError indicates an expected call of UpdateChatContextError.
+func (mr *MockStoreMockRecorder) UpdateChatContextError(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatContextError", reflect.TypeOf((*MockStore)(nil).UpdateChatContextError), ctx, arg)
+}
+
 // UpdateChatDebugRun mocks base method.
 func (m *MockStore) UpdateChatDebugRun(ctx context.Context, arg database.UpdateChatDebugRunParams) (database.ChatDebugRun, error) {
 	m.ctrl.T.Helper()

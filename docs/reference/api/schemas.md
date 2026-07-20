@@ -2075,7 +2075,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
               }
             ]
           }
-        ]
+        ],
+        "state": "waiting"
       },
       "created_at": "2019-08-24T14:15:22Z",
       "diff_status": {
@@ -2168,7 +2169,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           }
         ]
       }
-    ]
+    ],
+    "state": "waiting"
   },
   "created_at": "2019-08-24T14:15:22Z",
   "diff_status": {
@@ -2250,7 +2252,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `build_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `children`              | array of [codersdk.Chat](#codersdkchat)                         | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
 | `client_type`           | [codersdk.ChatClientType](#codersdkchatclienttype)              | false    |              |                                                                                                                                                                                                                                                                            |
-| `context`               | [codersdk.ChatContext](#codersdkchatcontext)                    | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                                 |
+| `context`               | [codersdk.ChatContext](#codersdkchatcontext)                    | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Present for every workspace-bound chat; nil for chats with no workspace and no context remnants.                                             |
 | `created_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `diff_status`           | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)              | false    |              |                                                                                                                                                                                                                                                                            |
 | `files`                 | array of [codersdk.ChatFileMetadata](#codersdkchatfilemetadata) | false    |              |                                                                                                                                                                                                                                                                            |
@@ -2399,7 +2401,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       ]
     }
-  ]
+  ],
+  "state": "waiting"
 }
 ```
 
@@ -2411,6 +2414,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `dirty_since` | string                                                                | false    |              | Dirty since is when drift was first detected; nil when not dirty.                                                                                                                                                                          |
 | `error`       | string                                                                | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).                                                                                                                                                    |
 | `resources`   | array of [codersdk.ChatContextResource](#codersdkchatcontextresource) | false    |              | Resources is the chat's pinned context (instruction files and skills) the prompt is built from, metadata only (no bodies). It is populated only on the single-chat GET response; list and watch payloads leave it nil to stay lightweight. |
+| `state`       | [codersdk.ChatContextState](#codersdkchatcontextstate)                | false    |              | State reports where the chat stands in the context-reporting lifecycle: waiting for the agent's first report or ready (pinned).                                                                                                            |
 
 ## codersdk.ChatContextResource
 
@@ -2472,6 +2476,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s)                                              |
 |-------------------------------------------------------|
 | `excluded`, `invalid`, `ok`, `oversize`, `unreadable` |
+
+## codersdk.ChatContextState
+
+```json
+"waiting"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)           |
+|--------------------|
+| `ready`, `waiting` |
 
 ## codersdk.ChatContextTool
 
@@ -3953,7 +3971,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             }
           ]
         }
-      ]
+      ],
+      "state": "waiting"
     },
     "created_at": "2019-08-24T14:15:22Z",
     "diff_status": {
@@ -4053,9 +4072,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                          |
-|-----------------------------------------------------------------------------------------------------------------------------------|
-| `action_required`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
+| Value(s)                                                                                                                                                            |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `context_dirty`, `context_error`, `context_ready`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
 
 ## codersdk.ClusterConfig
 

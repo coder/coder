@@ -152,3 +152,57 @@ func TestBuildMCPServerResources(t *testing.T) {
 		require.Equal(t, StatusOK, got[1].Status)
 	})
 }
+
+// TestAggregateHash_MCPServerState verifies that live MCP server state
+// participates in the aggregate hash: tool changes and connect-state
+// flips change the hash, while identical inputs and tool order
+// permutations do not (buildMCPServerResources sorts tools by name
+// before hashing).
+func TestAggregateHash_MCPServerState(t *testing.T) {
+	t.Parallel()
+
+	hashOf := func(servers []MCPServerStatus) [32]byte {
+		return ComputeAggregateHash(buildMCPServerResources(servers))
+	}
+
+	connected := []MCPServerStatus{
+		{Name: "fs", Connected: true, Tools: []MCPTool{
+			{Name: "read", Description: "Read"},
+			{Name: "write", Description: "Write"},
+		}},
+	}
+	base := hashOf(connected)
+
+	// Identical inputs hash identically.
+	require.Equal(t, base, hashOf(connected))
+
+	// Tool order permutations hash identically because tools are
+	// sorted by name before hashing.
+	permuted := []MCPServerStatus{
+		{Name: "fs", Connected: true, Tools: []MCPTool{
+			{Name: "write", Description: "Write"},
+			{Name: "read", Description: "Read"},
+		}},
+	}
+	require.Equal(t, base, hashOf(permuted))
+
+	// A tool-list change flips the aggregate hash.
+	toolAdded := []MCPServerStatus{
+		{Name: "fs", Connected: true, Tools: []MCPTool{
+			{Name: "read", Description: "Read"},
+			{Name: "write", Description: "Write"},
+			{Name: "stat", Description: "Stat"},
+		}},
+	}
+	require.NotEqual(t, base, hashOf(toolAdded))
+
+	// A connected-to-failed flip changes both the resource status and
+	// its content hash, so the aggregate hash flips too.
+	failed := []MCPServerStatus{
+		{Name: "fs", Connected: false, Err: "connection refused"},
+	}
+	require.NotEqual(t, base, hashOf(failed))
+
+	// A server disappearing entirely flips the aggregate hash.
+	require.NotEqual(t, base, hashOf(nil))
+}

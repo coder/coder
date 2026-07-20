@@ -79,14 +79,32 @@ const MockChatContextResources: ChatContextResource[] = [
 ];
 
 export const MockChatContextClean: ChatContext = {
+	state: "ready",
 	dirty: false,
 	resources: MockChatContextResources,
 };
 
 export const MockChatContextDirty: ChatContext = {
+	state: "ready",
 	dirty: true,
 	dirty_since: "2024-01-02T00:00:00Z",
 	resources: MockChatContextResources,
+};
+
+// A workspace-bound chat that has not been pinned to a reported snapshot
+// yet; turns gate on the agent's first context report.
+export const MockChatContextWaiting: ChatContext = {
+	state: "waiting",
+	dirty: false,
+};
+
+// A workspace-bound chat whose turn degraded: the agent's context report is
+// unavailable, so turns run without workspace context. The chat is still
+// unpinned (waiting) and the degrade reason is recorded on error.
+export const MockChatContextDegraded: ChatContext = {
+	state: "waiting",
+	dirty: false,
+	error: "workspace agent is not connected, so it cannot report chat context",
 };
 
 export const MockMCPServerConfig: MCPServerConfig = {

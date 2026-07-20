@@ -184,10 +184,10 @@ func (r *Resolver) ResolveContext(ctx context.Context, roots []ScanRoot) Snapsho
 		payloadBytes += uint64(len(r.Payload))
 	}
 
-	// The drift hash covers only pinned prompt content; MCP resources are
-	// excluded (see driftResources). Snapshot.Resources still carries the
-	// full set so MCP servers stay visible in the chat-context snapshot.
-	hash := ComputeAggregateHash(driftResources(resources))
+	// The aggregate hash covers every resource, including MCP config and
+	// live MCP server state, so MCP changes (server added or removed, tool
+	// list changed, connect state changed) surface as chat-context drift.
+	hash := ComputeAggregateHash(resources)
 
 	snap := Snapshot{
 		Resources:     resources,
@@ -959,12 +959,12 @@ type Snapshot struct {
 	// loop withholds.
 	Version uint64
 	// AggregateHash is sha256 over a canonical encoding of
-	// (ID, Kind, Source, ContentHash, Status) for every
-	// drift-relevant resource. MCP resources (KindMCPConfig and
-	// KindMCPServer) are excluded because they describe live,
-	// agent-global runtime capabilities discovered at turn time,
-	// not pinned prompt content; see driftResources. Identical
-	// inputs always produce identical hashes; see
+	// (ID, Kind, Source, ContentHash, Status) for every resource in
+	// the snapshot, including MCP config and live MCP server state.
+	// coderd pins MCP servers and their tools into chat context, so
+	// an MCP change (server added or removed, tool list changed,
+	// connect state changed) surfaces as chat-context drift.
+	// Identical inputs always produce identical hashes; see
 	// ComputeAggregateHash.
 	AggregateHash [32]byte
 	// Resources is sorted by ID for deterministic encoding.
@@ -976,28 +976,6 @@ type Snapshot struct {
 	// string when present (count cap exceeded, watcher
 	// degraded, ENOSPC, etc.). Empty when healthy.
 	SnapshotError string
-}
-
-// driftResources returns the subset of resources that participate in
-// chat-context drift detection. MCP resources (the .mcp.json config and
-// connected MCP servers) are deliberately excluded: an agent connects to
-// its MCP servers asynchronously after startup, and the chat model
-// discovers their tools live at turn time, not from pinned prompt
-// content. Hashing them would dirty an already-hydrated chat the moment
-// a server finished connecting, even though nothing the user pinned
-// changed. Instruction files and skills, whose content is pinned into
-// the chat, stay drift-relevant.
-func driftResources(resources []Resource) []Resource {
-	out := make([]Resource, 0, len(resources))
-	for _, r := range resources {
-		switch r.Kind {
-		case KindMCPConfig, KindMCPServer:
-			continue
-		default:
-			out = append(out, r)
-		}
-	}
-	return out
 }
 
 // ComputeAggregateHash produces the deterministic snapshot

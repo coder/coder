@@ -11370,6 +11370,26 @@ func (q *sqlQuerier) UpdateChatByID(ctx context.Context, arg UpdateChatByIDParam
 	return i, err
 }
 
+const updateChatContextError = `-- name: UpdateChatContextError :exec
+UPDATE chats
+SET context_error = $1::text
+WHERE id = $2::uuid
+`
+
+type UpdateChatContextErrorParams struct {
+	ContextError string    `db:"context_error" json:"context_error"`
+	ID           uuid.UUID `db:"id" json:"id"`
+}
+
+// Written by the chatd context gate when a turn degrades because the
+// workspace agent's context report is unavailable. The pinned hash is
+// left untouched so push-side hydration, which is NULL-gated on the
+// hash, still stamps the chat and replaces this error.
+func (q *sqlQuerier) UpdateChatContextError(ctx context.Context, arg UpdateChatContextErrorParams) error {
+	_, err := q.db.ExecContext(ctx, updateChatContextError, arg.ContextError, arg.ID)
+	return err
+}
+
 const updateChatExecutionState = `-- name: UpdateChatExecutionState :one
 WITH updated_chat AS (
     UPDATE chats

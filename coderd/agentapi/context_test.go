@@ -88,6 +88,45 @@ func TestPushContextState(t *testing.T) {
 		require.True(t, resp.GetAccepted())
 	})
 
+	t.Run("AcceptsEmptyReport", func(t *testing.T) {
+		t.Parallel()
+
+		api, dbm := makeAPI(t)
+		marker := &fakeDirtyMarker{}
+		api.DirtyMarker = marker
+		expectInTx(dbm)
+
+		// A workspace with no instruction files, skills, or MCP servers
+		// still reports: the snapshot row is the "context reported"
+		// signal, and hydration pins waiting chats to the empty set's
+		// hash with zero pinned resources.
+		emptySetHash := []byte{0xe3, 0xb0, 0xc4, 0x42}
+		dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+			Return(database.WorkspaceAgentContextSnapshot{}, errNoRows())
+		dbm.EXPECT().UpsertWorkspaceAgentContextSnapshot(gomock.Any(), database.UpsertWorkspaceAgentContextSnapshotParams{
+			WorkspaceAgentID: agentID,
+			Version:          1,
+			AggregateHash:    emptySetHash,
+			ReceivedAt:       now,
+		}).Return(database.WorkspaceAgentContextSnapshot{}, nil)
+		// No resource upserts: the report carries zero resources.
+		dbm.EXPECT().DeleteStaleWorkspaceAgentContextResources(gomock.Any(), database.DeleteStaleWorkspaceAgentContextResourcesParams{
+			WorkspaceAgentID: agentID,
+			ActiveSources:    []string{},
+		}).Return(nil)
+
+		resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+			Version:       1,
+			AggregateHash: emptySetHash,
+			Initial:       true,
+		})
+		require.NoError(t, err)
+		require.True(t, resp.GetAccepted())
+		require.Equal(t, 1, marker.called, "empty reports must still hydrate waiting chats")
+		require.Equal(t, emptySetHash, marker.gotHash)
+		require.Equal(t, 1, marker.published)
+	})
+
 	t.Run("DirtyMarkerInvokedAfterCommit", func(t *testing.T) {
 		t.Parallel()
 

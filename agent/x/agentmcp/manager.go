@@ -177,6 +177,24 @@ func (m *Manager) Reload(ctx context.Context, paths []string) error {
 	return m.waitReload(ctx, ch, 0)
 }
 
+// ReloadWithTimeout behaves like Reload but bounds the caller's wait:
+// it waits up to timeout for the reload to settle and returns a
+// context.DeadlineExceeded-wrapping error if it does not. The reload
+// itself keeps running in the background under the manager context,
+// so a timed-out caller does not cancel it and a later Reload or
+// catalog callback observes the eventual result. A timeout of zero
+// or less waits indefinitely, matching Reload.
+func (m *Manager) ReloadWithTimeout(ctx context.Context, paths []string, timeout time.Duration) error {
+	ch, started, err := m.startReloadIfNeeded(paths)
+	if err != nil {
+		return err
+	}
+	if !started {
+		return nil
+	}
+	return m.waitReload(ctx, ch, timeout)
+}
+
 // SetOnReload registers a callback fired (outside the cache lock) after
 // a reload changes the per-server catalog. The agent wires this to the
 // agentcontext manager's Trigger so discovery re-resolves and re-pushes
