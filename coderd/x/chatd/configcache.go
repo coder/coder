@@ -44,6 +44,11 @@ type cachedModelConfig struct {
 	expiresAt time.Time
 }
 
+type modelConfigCacheKey struct {
+	organizationID uuid.UUID
+	modelConfigID  uuid.UUID
+}
+
 type modelConfigSnapshot struct {
 	epoch      uint64
 	generation uint64
@@ -77,13 +82,14 @@ type chatConfigCache struct {
 	providerFetches    singleflight.Group[string, []database.AIProvider]
 
 	// Model configs (keyed by ID).
-	modelTopologyEpoch uint64
-	modelConfigs       map[uuid.UUID]cachedModelConfig
-	modelConfigFetches singleflight.Group[string, database.ChatModelConfig]
+	modelTopologyEpoch    uint64
+	modelConfigs          map[modelConfigCacheKey]cachedModelConfig
+	modelConfigGeneration map[modelConfigCacheKey]uint64
+	modelConfigFetches    singleflight.Group[string, database.ChatModelConfig]
 
-	// Default model config (singleton).
-	defaultModelConfig           *cachedModelConfig
-	defaultModelConfigGeneration uint64
+	// Default model config (keyed by organization ID).
+	defaultModelConfigs          map[uuid.UUID]cachedModelConfig
+	defaultModelConfigGeneration map[uuid.UUID]uint64
 	defaultModelConfigFetches    singleflight.Group[string, database.ChatModelConfig]
 
 	// User custom prompts (keyed by user ID).
@@ -91,18 +97,23 @@ type chatConfigCache struct {
 	userPrompts       *tlru.Cache[uuid.UUID, string]
 	userPromptFetches singleflight.Group[string, string]
 
-	// Advisor configuration (singleton).
-	advisorConfig           *cachedAdvisorConfig
-	advisorConfigGeneration uint64
+	// Advisor configuration (keyed by organization ID).
+	advisorConfigs          map[uuid.UUID]cachedAdvisorConfig
+	advisorConfigGeneration map[uuid.UUID]uint64
 	advisorConfigFetches    singleflight.Group[string, codersdk.AdvisorConfig]
 }
 
 func newChatConfigCache(ctx context.Context, db database.Store, clock quartz.Clock) *chatConfigCache {
 	return &chatConfigCache{
-		db:           db,
-		clock:        clock,
-		ctx:          ctx,
-		modelConfigs: make(map[uuid.UUID]cachedModelConfig),
+		db:                           db,
+		clock:                        clock,
+		ctx:                          ctx,
+		modelConfigs:                 make(map[modelConfigCacheKey]cachedModelConfig),
+		modelConfigGeneration:        make(map[modelConfigCacheKey]uint64),
+		defaultModelConfigs:          make(map[uuid.UUID]cachedModelConfig),
+		defaultModelConfigGeneration: make(map[uuid.UUID]uint64),
+		advisorConfigs:               make(map[uuid.UUID]cachedAdvisorConfig),
+		advisorConfigGeneration:      make(map[uuid.UUID]uint64),
 		userPrompts: tlru.New[uuid.UUID](
 			tlru.ConstantCost[string],
 			chatConfigUserPromptEntryLimit,
@@ -210,27 +221,32 @@ func (c *chatConfigCache) InvalidateProviders() {
 	// provider existence, so flush all model-config state.
 	clear(c.modelConfigs)
 	c.modelTopologyEpoch++
-	c.defaultModelConfig = nil
-	c.defaultModelConfigGeneration++
+	clear(c.defaultModelConfigs)
+	for organizationID := range c.defaultModelConfigGeneration {
+		c.defaultModelConfigGeneration[organizationID]++
+	}
 	c.mu.Unlock()
 }
 
-func (c *chatConfigCache) ModelConfigByID(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
-	if config, ok := c.cachedModelConfig(id); ok {
+func (c *chatConfigCache) ModelConfigByID(ctx context.Context, organizationID, id uuid.UUID) (database.ChatModelConfig, error) {
+	if config, ok := c.cachedModelConfig(organizationID, id); ok {
 		return config, nil
 	}
 
-	snap := c.modelConfigSnapshot()
-	config, err := singleflightDoChan(ctx, &c.modelConfigFetches, fmt.Sprintf("%d:%s", snap.epoch, id), func() (database.ChatModelConfig, error) {
-		if cached, ok := c.cachedModelConfig(id); ok {
+	snap := c.modelConfigSnapshot(organizationID, id)
+	config, err := singleflightDoChan(ctx, &c.modelConfigFetches, fmt.Sprintf("%d:%d:%s:%s", snap.epoch, snap.generation, organizationID, id), func() (database.ChatModelConfig, error) {
+		if cached, ok := c.cachedModelConfig(organizationID, id); ok {
 			return cached, nil
 		}
 
-		fetched, err := c.db.GetChatModelConfigByID(c.ctx, id)
+		fetched, err := c.db.GetChatModelConfigByID(c.ctx, database.GetChatModelConfigByIDParams{
+			OrganizationID: organizationID,
+			ID:             id,
+		})
 		if err != nil {
 			return database.ChatModelConfig{}, err
 		}
-		c.storeModelConfig(snap, fetched)
+		c.storeModelConfig(organizationID, snap, fetched)
 		return cloneModelConfig(fetched), nil
 	})
 	if err != nil {
@@ -240,9 +256,10 @@ func (c *chatConfigCache) ModelConfigByID(ctx context.Context, id uuid.UUID) (da
 	return config, nil
 }
 
-func (c *chatConfigCache) cachedModelConfig(id uuid.UUID) (database.ChatModelConfig, bool) {
+func (c *chatConfigCache) cachedModelConfig(organizationID, id uuid.UUID) (database.ChatModelConfig, bool) {
 	c.mu.RLock()
-	entry, ok := c.modelConfigs[id]
+	key := modelConfigCacheKey{organizationID: organizationID, modelConfigID: id}
+	entry, ok := c.modelConfigs[key]
 	c.mu.RUnlock()
 	if !ok {
 		return database.ChatModelConfig{}, false
@@ -252,51 +269,56 @@ func (c *chatConfigCache) cachedModelConfig(id uuid.UUID) (database.ChatModelCon
 	}
 
 	c.mu.Lock()
-	if current, ok := c.modelConfigs[id]; ok && !c.clock.Now().Before(current.expiresAt) {
-		delete(c.modelConfigs, id)
+	if current, ok := c.modelConfigs[key]; ok && !c.clock.Now().Before(current.expiresAt) {
+		delete(c.modelConfigs, key)
 	}
 	c.mu.Unlock()
 
 	return database.ChatModelConfig{}, false
 }
 
-func (c *chatConfigCache) modelConfigSnapshot() modelConfigSnapshot {
+func (c *chatConfigCache) modelConfigSnapshot(organizationID, modelConfigID uuid.UUID) modelConfigSnapshot {
+	key := modelConfigCacheKey{organizationID: organizationID, modelConfigID: modelConfigID}
 	c.mu.RLock()
-	snap := modelConfigSnapshot{epoch: c.modelTopologyEpoch}
+	snap := modelConfigSnapshot{epoch: c.modelTopologyEpoch, generation: c.modelConfigGeneration[key]}
 	c.mu.RUnlock()
 	return snap
 }
 
-func (c *chatConfigCache) storeModelConfig(snap modelConfigSnapshot, config database.ChatModelConfig) {
+func (c *chatConfigCache) storeModelConfig(organizationID uuid.UUID, snap modelConfigSnapshot, config database.ChatModelConfig) {
+	key := modelConfigCacheKey{organizationID: organizationID, modelConfigID: config.ID}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if c.modelTopologyEpoch != snap.epoch {
 		return
 	}
+	if c.modelConfigGeneration[key] != snap.generation {
+		return
+	}
 
-	c.modelConfigs[config.ID] = cachedModelConfig{
+	c.modelConfigs[key] = cachedModelConfig{
 		config:    cloneModelConfig(config),
 		expiresAt: c.clock.Now().Add(chatConfigModelConfigTTL),
 	}
 }
 
-func (c *chatConfigCache) DefaultModelConfig(ctx context.Context) (database.ChatModelConfig, error) {
-	if config, ok := c.cachedDefaultModelConfig(); ok {
+func (c *chatConfigCache) DefaultModelConfig(ctx context.Context, organizationID uuid.UUID) (database.ChatModelConfig, error) {
+	if config, ok := c.cachedDefaultModelConfig(organizationID); ok {
 		return config, nil
 	}
 
-	snap := c.defaultModelConfigSnapshot()
-	config, err := singleflightDoChan(ctx, &c.defaultModelConfigFetches, fmt.Sprintf("%d:default", snap.epoch), func() (database.ChatModelConfig, error) {
-		if cached, ok := c.cachedDefaultModelConfig(); ok {
+	snap := c.defaultModelConfigSnapshot(organizationID)
+	config, err := singleflightDoChan(ctx, &c.defaultModelConfigFetches, fmt.Sprintf("%d:%d:%s:default", snap.epoch, snap.generation, organizationID), func() (database.ChatModelConfig, error) {
+		if cached, ok := c.cachedDefaultModelConfig(organizationID); ok {
 			return cached, nil
 		}
 
-		fetched, err := c.db.GetDefaultChatModelConfig(c.ctx)
+		fetched, err := c.db.GetDefaultChatModelConfig(c.ctx, organizationID)
 		if err != nil {
 			return database.ChatModelConfig{}, err
 		}
-		c.storeDefaultModelConfig(snap, fetched)
+		c.storeDefaultModelConfig(organizationID, snap, fetched)
 		return cloneModelConfig(fetched), nil
 	})
 	if err != nil {
@@ -306,11 +328,11 @@ func (c *chatConfigCache) DefaultModelConfig(ctx context.Context) (database.Chat
 	return config, nil
 }
 
-func (c *chatConfigCache) cachedDefaultModelConfig() (database.ChatModelConfig, bool) {
+func (c *chatConfigCache) cachedDefaultModelConfig(organizationID uuid.UUID) (database.ChatModelConfig, bool) {
 	c.mu.RLock()
-	entry := c.defaultModelConfig
+	entry, ok := c.defaultModelConfigs[organizationID]
 	c.mu.RUnlock()
-	if entry == nil {
+	if !ok {
 		return database.ChatModelConfig{}, false
 	}
 	if c.clock.Now().Before(entry.expiresAt) {
@@ -318,36 +340,36 @@ func (c *chatConfigCache) cachedDefaultModelConfig() (database.ChatModelConfig, 
 	}
 
 	c.mu.Lock()
-	if current := c.defaultModelConfig; current != nil && !c.clock.Now().Before(current.expiresAt) {
-		c.defaultModelConfig = nil
+	if current, ok := c.defaultModelConfigs[organizationID]; ok && !c.clock.Now().Before(current.expiresAt) {
+		delete(c.defaultModelConfigs, organizationID)
 	}
 	c.mu.Unlock()
 
 	return database.ChatModelConfig{}, false
 }
 
-func (c *chatConfigCache) defaultModelConfigSnapshot() modelConfigSnapshot {
+func (c *chatConfigCache) defaultModelConfigSnapshot(organizationID uuid.UUID) modelConfigSnapshot {
 	c.mu.RLock()
 	snap := modelConfigSnapshot{
 		epoch:      c.modelTopologyEpoch,
-		generation: c.defaultModelConfigGeneration,
+		generation: c.defaultModelConfigGeneration[organizationID],
 	}
 	c.mu.RUnlock()
 	return snap
 }
 
-func (c *chatConfigCache) storeDefaultModelConfig(snap modelConfigSnapshot, config database.ChatModelConfig) {
+func (c *chatConfigCache) storeDefaultModelConfig(organizationID uuid.UUID, snap modelConfigSnapshot, config database.ChatModelConfig) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if c.modelTopologyEpoch != snap.epoch {
 		return
 	}
-	if c.defaultModelConfigGeneration != snap.generation {
+	if c.defaultModelConfigGeneration[organizationID] != snap.generation {
 		return
 	}
 
-	c.defaultModelConfig = &cachedModelConfig{
+	c.defaultModelConfigs[organizationID] = cachedModelConfig{
 		config:    cloneModelConfig(config),
 		expiresAt: c.clock.Now().Add(chatConfigModelConfigTTL),
 	}
@@ -408,12 +430,13 @@ func (c *chatConfigCache) storeUserPrompt(epoch uint64, userID uuid.UUID, prompt
 	c.userPrompts.Set(userID, prompt, chatConfigUserPromptTTL)
 }
 
-func (c *chatConfigCache) InvalidateModelConfig(id uuid.UUID) {
+func (c *chatConfigCache) InvalidateModelConfig(id uuid.UUID, organizationID uuid.UUID) {
 	c.mu.Lock()
-	delete(c.modelConfigs, id)
-	c.modelTopologyEpoch++
-	c.defaultModelConfig = nil
-	c.defaultModelConfigGeneration++
+	key := modelConfigCacheKey{organizationID: organizationID, modelConfigID: id}
+	delete(c.modelConfigs, key)
+	c.modelConfigGeneration[key]++
+	delete(c.defaultModelConfigs, organizationID)
+	c.defaultModelConfigGeneration[organizationID]++
 	c.mu.Unlock()
 }
 
@@ -424,42 +447,33 @@ func (c *chatConfigCache) InvalidateUserPrompt(userID uuid.UUID) {
 	c.mu.Unlock()
 }
 
-// InvalidateAdvisorConfig drops the cached advisor configuration so the
-// next AdvisorConfig call re-fetches from the database. Called from the
-// ChatConfigEvent subscriber after an admin writes
-// PUT /api/experimental/chats/config/advisor; without this the cache
-// could serve stale enabled/model/limits for up to
-// chatConfigAdvisorConfigTTL. Bumping the generation counter also
-// discards any in-flight fill started before the invalidation, so a
-// stale DB read cannot re-cache the pre-update value.
-func (c *chatConfigCache) InvalidateAdvisorConfig() {
+// InvalidateAdvisorConfig drops the cached advisor configuration for one
+// organization. Bumping its generation rejects a stale in-flight fill without
+// invalidating other organizations' entries.
+func (c *chatConfigCache) InvalidateAdvisorConfig(organizationID uuid.UUID) {
 	c.mu.Lock()
-	c.advisorConfig = nil
-	c.advisorConfigGeneration++
+	delete(c.advisorConfigs, organizationID)
+	c.advisorConfigGeneration[organizationID]++
 	c.mu.Unlock()
 }
 
-// AdvisorConfig returns the deployment-wide advisor configuration. The
-// underlying site-config row changes on the order of hours or days, so
-// this cache saves a per-turn DB round trip on chats that reference the
-// advisor. Parse errors and lookup errors are surfaced to the caller;
-// callers that prefer silent fallback handle that at the call site.
-func (c *chatConfigCache) AdvisorConfig(ctx context.Context) (codersdk.AdvisorConfig, error) {
-	if config, ok := c.cachedAdvisorConfig(); ok {
+// AdvisorConfig returns the advisor configuration for organizationID.
+func (c *chatConfigCache) AdvisorConfig(ctx context.Context, organizationID uuid.UUID) (codersdk.AdvisorConfig, error) {
+	if config, ok := c.cachedAdvisorConfig(organizationID); ok {
 		return config, nil
 	}
 
-	generation := c.advisorConfigGenerationSnapshot()
+	generation := c.advisorConfigGenerationSnapshot(organizationID)
 	config, err := singleflightDoChan(
 		ctx,
 		&c.advisorConfigFetches,
-		fmt.Sprintf("%d:advisor", generation),
+		fmt.Sprintf("%d:%s:advisor", generation, organizationID),
 		func() (codersdk.AdvisorConfig, error) {
-			if cached, ok := c.cachedAdvisorConfig(); ok {
+			if cached, ok := c.cachedAdvisorConfig(organizationID); ok {
 				return cached, nil
 			}
 
-			raw, err := c.db.GetChatAdvisorConfig(c.ctx)
+			raw, err := c.db.GetChatAdvisorConfigForOrganization(c.ctx, organizationID)
 			if err != nil {
 				return codersdk.AdvisorConfig{}, err
 			}
@@ -467,7 +481,7 @@ func (c *chatConfigCache) AdvisorConfig(ctx context.Context) (codersdk.AdvisorCo
 			if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
 				return codersdk.AdvisorConfig{}, err
 			}
-			c.storeAdvisorConfig(generation, cfg)
+			c.storeAdvisorConfig(organizationID, generation, cfg)
 			return cfg, nil
 		},
 	)
@@ -477,11 +491,11 @@ func (c *chatConfigCache) AdvisorConfig(ctx context.Context) (codersdk.AdvisorCo
 	return config, nil
 }
 
-func (c *chatConfigCache) cachedAdvisorConfig() (codersdk.AdvisorConfig, bool) {
+func (c *chatConfigCache) cachedAdvisorConfig(organizationID uuid.UUID) (codersdk.AdvisorConfig, bool) {
 	c.mu.RLock()
-	entry := c.advisorConfig
+	entry, ok := c.advisorConfigs[organizationID]
 	c.mu.RUnlock()
-	if entry == nil {
+	if !ok {
 		return codersdk.AdvisorConfig{}, false
 	}
 	if c.clock.Now().Before(entry.expiresAt) {
@@ -489,30 +503,30 @@ func (c *chatConfigCache) cachedAdvisorConfig() (codersdk.AdvisorConfig, bool) {
 	}
 
 	c.mu.Lock()
-	if current := c.advisorConfig; current != nil && !c.clock.Now().Before(current.expiresAt) {
-		c.advisorConfig = nil
+	if current, ok := c.advisorConfigs[organizationID]; ok && !c.clock.Now().Before(current.expiresAt) {
+		delete(c.advisorConfigs, organizationID)
 	}
 	c.mu.Unlock()
 
 	return codersdk.AdvisorConfig{}, false
 }
 
-func (c *chatConfigCache) advisorConfigGenerationSnapshot() uint64 {
+func (c *chatConfigCache) advisorConfigGenerationSnapshot(organizationID uuid.UUID) uint64 {
 	c.mu.RLock()
-	generation := c.advisorConfigGeneration
+	generation := c.advisorConfigGeneration[organizationID]
 	c.mu.RUnlock()
 	return generation
 }
 
-func (c *chatConfigCache) storeAdvisorConfig(generation uint64, config codersdk.AdvisorConfig) {
+func (c *chatConfigCache) storeAdvisorConfig(organizationID uuid.UUID, generation uint64, config codersdk.AdvisorConfig) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.advisorConfigGeneration != generation {
+	if c.advisorConfigGeneration[organizationID] != generation {
 		return
 	}
 
-	c.advisorConfig = &cachedAdvisorConfig{
+	c.advisorConfigs[organizationID] = cachedAdvisorConfig{
 		config:    config,
 		expiresAt: c.clock.Now().Add(chatConfigAdvisorConfigTTL),
 	}

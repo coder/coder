@@ -211,7 +211,8 @@ func seedFamilyDeps(t *testing.T, db database.Store) (database.User, database.Or
 		BaseUrl:     "http://example.invalid",
 	})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		IsDefault: true,
+		OrganizationID: org.ID,
+		IsDefault:      true,
 	})
 	return user, org, model
 }

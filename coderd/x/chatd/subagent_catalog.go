@@ -58,6 +58,7 @@ func allSubagentDefinitions() []subagentDefinition {
 			buildOptions: func(ctx context.Context, p *Server, parent database.Chat, _ database.Chat, _ uuid.UUID, _ string) (childSubagentChatOptions, error) {
 				modelConfigID, reasoningEffort, err := p.resolveSubagentModelConfigID(
 					ctx,
+					parent.OrganizationID,
 					parent.OwnerID,
 					codersdk.ChatModelOverrideContextGeneral,
 				)
@@ -78,6 +79,7 @@ func allSubagentDefinitions() []subagentDefinition {
 			buildOptions: func(ctx context.Context, p *Server, _ database.Chat, turnParent database.Chat, currentModelConfigID uuid.UUID, _ string) (childSubagentChatOptions, error) {
 				modelConfigID, reasoningEffort, err := p.resolveSubagentModelConfigID(
 					ctx,
+					turnParent.OrganizationID,
 					turnParent.OwnerID,
 					codersdk.ChatModelOverrideContextExplore,
 				)

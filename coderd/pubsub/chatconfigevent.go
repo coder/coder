@@ -37,6 +37,8 @@ func HandleChatConfigEvent(cb func(ctx context.Context, payload ChatConfigEvent,
 // updates). Subscribers use this to invalidate their local caches.
 type ChatConfigEvent struct {
 	Kind ChatConfigEventKind `json:"kind"`
+	// OrganizationID scopes model and advisor invalidations to one organization.
+	OrganizationID uuid.UUID `json:"organization_id"`
 	// EntityID carries context for the invalidation:
 	//   - For model configs: the specific config ID.
 	//   - For user prompts: the user ID.

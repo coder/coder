@@ -66,7 +66,7 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	// so the test exercises the context flow rather than turn resolution.
 	// dbgen.ChatModelConfig provisions an AI provider as needed so the chat's
 	// last_model_config_id foreign key is satisfied.
-	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: user.OrganizationID})
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    user.OrganizationID,
 		OwnerID:           user.UserID,
@@ -318,7 +318,7 @@ func TestChatContextRefreshFromAgentToken(t *testing.T) {
 
 	// A chat bound to the agent, plus an unrelated chat bound to no agent that
 	// must stay untouched by the agent-scoped refresh.
-	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: user.OrganizationID})
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    user.OrganizationID,
 		OwnerID:           user.UserID,

@@ -42,7 +42,7 @@ const (
 // config used by chat scaletests. When the provider was created or updated,
 // it sleeps for propagationWait so every coderd replica's cached provider
 // config expires before chats start.
-func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.Client, logger slog.Logger, llmMockURL string, propagationWait time.Duration) (uuid.UUID, error) {
+func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.Client, logger slog.Logger, organizationID uuid.UUID, llmMockURL string, propagationWait time.Duration) (uuid.UUID, error) {
 	expClient := codersdk.NewExperimentalClient(client)
 
 	logger.Info(ctx, "bootstrapping mock LLM provider", slog.F("llm_mock_url", llmMockURL))
@@ -72,7 +72,7 @@ func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.Client, lo
 		)
 	}
 
-	modelConfigID, err := ensureScaletestChatModelConfig(ctx, expClient, logger, provider)
+	modelConfigID, err := ensureScaletestChatModelConfig(ctx, expClient, logger, organizationID, provider)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -92,8 +92,8 @@ func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.Client, lo
 	return modelConfigID, nil
 }
 
-func ensureScaletestChatModelConfig(ctx context.Context, client chatModelConfigClient, logger slog.Logger, provider codersdk.AIProvider) (uuid.UUID, error) {
-	modelConfigs, err := client.ListChatModelConfigs(ctx)
+func ensureScaletestChatModelConfig(ctx context.Context, client chatModelConfigClient, logger slog.Logger, organizationID uuid.UUID, provider codersdk.AIProvider) (uuid.UUID, error) {
+	modelConfigs, err := client.ListChatModelConfigs(ctx, organizationID)
 	if err != nil {
 		return uuid.Nil, xerrors.Errorf("list chat model configs: %w", err)
 	}
@@ -115,7 +115,7 @@ func ensureScaletestChatModelConfig(ctx context.Context, client chatModelConfigC
 	enabled := true
 	isDefault := false
 	contextLimit := scaletestModelContextLimit
-	created, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+	created, err := client.CreateChatModelConfig(ctx, organizationID, codersdk.CreateChatModelConfigRequest{
 		AIProviderID: &provider.ID,
 		Model:        scaletestModelName,
 		DisplayName:  scaletestModelDisplayName,

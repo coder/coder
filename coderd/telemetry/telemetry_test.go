@@ -1610,6 +1610,8 @@ func TestChatsTelemetry(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 
 	user := dbgen.User(t, db, database.User{})
+	org, err := db.GetDefaultOrganization(ctx)
+	require.NoError(t, err)
 
 	// Create chat providers (required FK for model configs).
 	anthropicProvider := dbgen.ChatProvider(t, db, database.ChatProvider{
@@ -1623,33 +1625,37 @@ func TestChatsTelemetry(t *testing.T) {
 
 	// Create a model config.
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		AIProviderID: uuid.NullUUID{UUID: anthropicProvider.ID, Valid: true},
-		Model:        "claude-sonnet-4-20250514",
-		DisplayName:  "Claude Sonnet",
-		IsDefault:    true,
-		ContextLimit: 200000,
+		AIProviderID:   uuid.NullUUID{UUID: anthropicProvider.ID, Valid: true},
+		Model:          "claude-sonnet-4-20250514",
+		DisplayName:    "Claude Sonnet",
+		IsDefault:      true,
+		ContextLimit:   200000,
+		OrganizationID: org.ID,
 	})
 
 	// Create a second model config to test full dump.
 	modelCfg2 := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		AIProviderID: uuid.NullUUID{UUID: openaiProvider.ID, Valid: true},
-		Model:        "gpt-4o",
-		DisplayName:  "GPT-4o",
+		AIProviderID:   uuid.NullUUID{UUID: openaiProvider.ID, Valid: true},
+		Model:          "gpt-4o",
+		DisplayName:    "GPT-4o",
+		OrganizationID: org.ID,
 	})
 
 	// Create a soft-deleted model config — should NOT appear in telemetry.
 	deletedCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		AIProviderID: uuid.NullUUID{UUID: anthropicProvider.ID, Valid: true},
-		Model:        "claude-deleted",
-		DisplayName:  "Deleted Model",
-		ContextLimit: 100000,
+		AIProviderID:   uuid.NullUUID{UUID: anthropicProvider.ID, Valid: true},
+		Model:          "claude-deleted",
+		DisplayName:    "Deleted Model",
+		ContextLimit:   100000,
+		OrganizationID: org.ID,
 	})
-	err := db.DeleteChatModelConfigByID(ctx, deletedCfg.ID)
+	err = db.DeleteChatModelConfigByID(ctx, database.DeleteChatModelConfigByIDParams{
+		ID:             deletedCfg.ID,
+		OrganizationID: deletedCfg.OrganizationID,
+	})
 	require.NoError(t, err)
 
 	// Create a root chat with a workspace.
-	org, err := db.GetDefaultOrganization(ctx)
-	require.NoError(t, err)
 	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 		OrganizationID: org.ID,
 		Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
@@ -1966,11 +1972,12 @@ func TestChatDiffStatusSummaryTelemetry(t *testing.T) {
 	})
 
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		AIProviderID: uuid.NullUUID{UUID: anthropicProvider.ID, Valid: true},
-		Model:        "claude-sonnet-4-20250514",
-		DisplayName:  "Claude Sonnet",
-		IsDefault:    true,
-		ContextLimit: 200000,
+		AIProviderID:   uuid.NullUUID{UUID: anthropicProvider.ID, Valid: true},
+		Model:          "claude-sonnet-4-20250514",
+		DisplayName:    "Claude Sonnet",
+		IsDefault:      true,
+		ContextLimit:   200000,
+		OrganizationID: org.ID,
 	})
 
 	// Helper to create a chat and upsert its diff status.
@@ -2361,20 +2368,25 @@ func TestCollectAgentsAdvisor(t *testing.T) {
 		require.NoError(t, err)
 		return string(raw)
 	}
+	organization := database.Organization{ID: uuid.New()}
 
 	t.Run("ReuseChatModel", func(t *testing.T) {
 		t.Parallel()
 
 		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
+		db.EXPECT().GetOrganizations(gomock.Any(), database.GetOrganizationsParams{}).Return([]database.Organization{organization}, nil)
+		db.EXPECT().GetChatAdvisorConfigForOrganization(gomock.Any(), organization.ID).
 			Return(marshalConfig(t, codersdk.AdvisorConfig{}), nil)
 
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
 		require.False(t, payload.Enabled)
-		require.Zero(t, payload.MaxUsesPerRun)
-		require.Zero(t, payload.MaxOutputTokens)
-		require.Equal(t, telemetry.AgentsExperimentAdvisorReuseChatModel, payload.Provider)
-		require.Equal(t, telemetry.AgentsExperimentAdvisorReuseChatModel, payload.Model)
+		require.Len(t, payload.Organizations, 1)
+		entry := payload.Organizations[0]
+		require.Equal(t, organization.ID, entry.OrganizationID)
+		require.Zero(t, entry.MaxUsesPerRun)
+		require.Zero(t, entry.MaxOutputTokens)
+		require.Equal(t, telemetry.AgentsExperimentAdvisorReuseChatModel, entry.Provider)
+		require.Equal(t, telemetry.AgentsExperimentAdvisorReuseChatModel, entry.Model)
 	})
 
 	t.Run("ModelOverride", func(t *testing.T) {
@@ -2383,13 +2395,20 @@ func TestCollectAgentsAdvisor(t *testing.T) {
 		modelID := uuid.New()
 		providerID := uuid.New()
 		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return(marshalConfig(t, codersdk.AdvisorConfig{
+		db.EXPECT().GetOrganizations(gomock.Any(), database.GetOrganizationsParams{}).Return([]database.Organization{organization}, nil)
+		db.EXPECT().GetChatAdvisorConfigForOrganization(gomock.Any(), organization.ID).Return(marshalConfig(t, codersdk.AdvisorConfig{
 			Enabled:         true,
 			MaxUsesPerRun:   7,
 			MaxOutputTokens: 2048,
 			ModelConfigID:   modelID,
 		}), nil)
-		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).Return(database.ChatModelConfig{
+		db.EXPECT().GetChatModelConfigByIDForAuthorization(gomock.Any(), modelID).Return(database.ChatModelConfig{
+			OrganizationID: organization.ID,
+		}, nil)
+		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), database.GetEnabledChatModelConfigByIDParams{
+			ID:             modelID,
+			OrganizationID: organization.ID,
+		}).Return(database.ChatModelConfig{
 			Model:        "gpt-6-preview",
 			AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
 		}, nil)
@@ -2397,126 +2416,53 @@ func TestCollectAgentsAdvisor(t *testing.T) {
 			Type: database.AIProviderTypeOpenai,
 		}, nil)
 
-		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
-		// Stored enabled is ignored; the chat-advisor experiment gates it.
-		require.False(t, payload.Enabled)
-		require.Equal(t, 7, payload.MaxUsesPerRun)
-		require.Equal(t, int64(2048), payload.MaxOutputTokens)
-		require.Equal(t, string(database.AIProviderTypeOpenai), payload.Provider)
-		require.Equal(t, "gpt-6-preview", payload.Model)
-	})
-
-	t.Run("ExperimentEnabled", func(t *testing.T) {
-		t.Parallel()
-
-		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
-			Return(marshalConfig(t, codersdk.AdvisorConfig{}), nil)
-
 		payload := collect(t, telemetry.Options{
 			Database:    db,
 			Logger:      testutil.Logger(t),
 			Experiments: codersdk.Experiments{codersdk.ExperimentChatAdvisor},
 		})
 		require.True(t, payload.Enabled)
+		require.Len(t, payload.Organizations, 1)
+		entry := payload.Organizations[0]
+		require.Equal(t, 7, entry.MaxUsesPerRun)
+		require.Equal(t, int64(2048), entry.MaxOutputTokens)
+		require.Equal(t, string(database.AIProviderTypeOpenai), entry.Provider)
+		require.Equal(t, "gpt-6-preview", entry.Model)
 	})
 
-	t.Run("MalformedJSON", func(t *testing.T) {
+	t.Run("MalformedOrganizationConfig", func(t *testing.T) {
 		t.Parallel()
 
 		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return("not-json", nil)
+		db.EXPECT().GetOrganizations(gomock.Any(), database.GetOrganizationsParams{}).Return([]database.Organization{organization}, nil)
+		db.EXPECT().GetChatAdvisorConfigForOrganization(gomock.Any(), organization.ID).Return("not-json", nil)
 
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
-		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
-		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Model)
+		require.Len(t, payload.Organizations, 1)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Organizations[0].Provider)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Organizations[0].Model)
 	})
 
-	t.Run("PartialParse", func(t *testing.T) {
+	t.Run("OrganizationConfigFetchError", func(t *testing.T) {
 		t.Parallel()
 
 		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
-			Return(`{"max_uses_per_run": 42, "model_config_id": "not-a-uuid"}`, nil)
+		db.EXPECT().GetOrganizations(gomock.Any(), database.GetOrganizationsParams{}).Return([]database.Organization{organization}, nil)
+		db.EXPECT().GetChatAdvisorConfigForOrganization(gomock.Any(), organization.ID).Return("", sql.ErrConnDone)
 
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
-		require.Zero(t, payload.MaxUsesPerRun)
-		require.Zero(t, payload.MaxOutputTokens)
-		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
-		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Model)
+		require.Len(t, payload.Organizations, 1)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Organizations[0].Provider)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Organizations[0].Model)
 	})
 
-	t.Run("ClampsNegativeLimits", func(t *testing.T) {
+	t.Run("OrganizationListError", func(t *testing.T) {
 		t.Parallel()
 
 		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
-			Return(`{"max_uses_per_run": -3, "max_output_tokens": -99}`, nil)
+		db.EXPECT().GetOrganizations(gomock.Any(), database.GetOrganizationsParams{}).Return(nil, sql.ErrConnDone)
 
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
-		require.Zero(t, payload.MaxUsesPerRun)
-		require.Zero(t, payload.MaxOutputTokens)
-	})
-
-	t.Run("InactiveModelConfig", func(t *testing.T) {
-		t.Parallel()
-
-		modelID := uuid.New()
-		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
-			Return(marshalConfig(t, codersdk.AdvisorConfig{ModelConfigID: modelID}), nil)
-		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).
-			Return(database.ChatModelConfig{}, sql.ErrNoRows)
-
-		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
-		require.Equal(t, telemetry.AgentsExperimentAdvisorReuseChatModel, payload.Provider)
-		require.Equal(t, telemetry.AgentsExperimentAdvisorReuseChatModel, payload.Model)
-	})
-
-	t.Run("ConfigFetchError", func(t *testing.T) {
-		t.Parallel()
-
-		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return("", sql.ErrConnDone)
-
-		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
-		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
-		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Model)
-	})
-
-	t.Run("ModelResolveError", func(t *testing.T) {
-		t.Parallel()
-
-		modelID := uuid.New()
-		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
-			Return(marshalConfig(t, codersdk.AdvisorConfig{ModelConfigID: modelID}), nil)
-		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).
-			Return(database.ChatModelConfig{}, sql.ErrConnDone)
-
-		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
-		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
-		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Model)
-	})
-
-	t.Run("ProviderResolveError", func(t *testing.T) {
-		t.Parallel()
-
-		modelID := uuid.New()
-		providerID := uuid.New()
-		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
-			Return(marshalConfig(t, codersdk.AdvisorConfig{ModelConfigID: modelID}), nil)
-		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).Return(database.ChatModelConfig{
-			Model:        "gpt-6-preview",
-			AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
-		}, nil)
-		db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).
-			Return(database.AIProvider{}, sql.ErrConnDone)
-
-		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
-		// The provider is unknown, but the already-resolved model still ships.
-		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
-		require.Equal(t, "gpt-6-preview", payload.Model)
+		require.Empty(t, payload.Organizations)
 	})
 }

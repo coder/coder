@@ -40,6 +40,7 @@ func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
 	})
 
 	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		OrganizationID:       org.ID,
 		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
 		Model:                "test-model",
 		DisplayName:          "Test Model",
@@ -132,6 +133,7 @@ func TestSuccessfulChildChatOutcomeSkipsSummaryAndWebPush(t *testing.T) {
 	})
 
 	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		OrganizationID:       org.ID,
 		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
 		Model:                "test-model",
 		DisplayName:          "Test Model",

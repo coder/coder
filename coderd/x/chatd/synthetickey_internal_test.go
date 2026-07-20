@@ -207,7 +207,7 @@ func TestSyntheticAPIKeyDeletionDoesNotMutateChatState(t *testing.T) {
 			db, _ := dbtestutil.NewDB(t)
 			user := dbgen.User(t, db, database.User{})
 			org := dbgen.Organization(t, db, database.Organization{})
-			model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+			model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: org.ID})
 			server := &Server{db: db, clock: quartz.NewReal()}
 			syntheticID, err := server.ensureSyntheticAPIKeyID(t.Context(), user.ID)
 			require.NoError(t, err)

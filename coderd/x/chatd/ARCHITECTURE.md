@@ -855,7 +855,7 @@ During generation preparation, the effective effort is resolved as the chat's `l
 
 Compaction is an auxiliary LLM call: when the conversation approaches the context limit, the generation goroutine asks a model to summarize the history, commits the summary as a compressed boundary, and continues the turn on the chat model.
 
-By default the summary is generated with the chat model. Admins can override the compaction model deployment-wide via the `compaction` context of the chat model override API (`/api/experimental/chats/config/model-override/{context}`, stored in the `agents_chat_compaction_model_override` site config). The override affects only the summary call; thresholds, compressed-message storage, and the post-compaction assistant generation keep using the chat model.
+By default the summary is generated with the chat model. Admins can override the compaction model for an organization via the `compaction` context of the organization chat model override API. The override affects only the summary call; thresholds, compressed-message storage, and the post-compaction assistant generation keep using the chat model.
 
 Details that follow from the override:
 

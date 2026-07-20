@@ -117,7 +117,7 @@ func (server *Server) prepareGeneration(
 	}
 
 	planModeInstructions := server.loadPlanModeInstructions(ctx, currentPlanMode, logger)
-	advisorCfg := server.loadAdvisorConfig(ctx, logger)
+	advisorCfg := server.loadAdvisorConfig(ctx, chat.OrganizationID, logger)
 	// Force Enabled from the experiment; the stored DB value is ignored.
 	advisorCfg.Enabled = server.experiments.Enabled(codersdk.ExperimentChatAdvisor)
 
@@ -222,7 +222,7 @@ func (server *Server) prepareGeneration(
 	// (e.g. Bedrock and Anthropic) can still reject the other's
 	// provider-executed blocks, so a mid-chat provider switch must not replay
 	// them.
-	promptRows = server.sanitizeForeignProviderExecutedToolRows(ctx, logger, promptRows, modelConfig.ID)
+	promptRows = server.sanitizeForeignProviderExecutedToolRows(ctx, logger, promptRows, chat.OrganizationID, modelConfig.ID)
 
 	if chat.WorkspaceID.Valid {
 		// Resolve the workspace agent so the chat row's AgentID and
@@ -579,7 +579,7 @@ func (server *Server) prepareGeneration(
 
 	compactionToolCallID := "chat_summarized_" + uuid.NewString()
 	effectiveThreshold := modelConfig.CompressionThreshold
-	if override, ok := server.resolveUserCompactionThreshold(ctx, chat.OwnerID, modelConfig.ID); ok {
+	if override, ok := server.resolveUserCompactionThreshold(ctx, chat.OwnerID, chat.OrganizationID, modelConfig.ID); ok {
 		effectiveThreshold = override
 	}
 	// The compaction trigger uses the stricter of the chat and override

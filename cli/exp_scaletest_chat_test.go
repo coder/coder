@@ -35,7 +35,7 @@ func TestScaleTestChat(t *testing.T) {
 		DeploymentValues: values,
 	})
 	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-	coderdtest.CreateFirstUser(t, client)
+	firstUser := coderdtest.CreateFirstUser(t, client)
 
 	server := new(llmmock.Server)
 	require.NoError(t, server.Start(context.Background(), llmmock.Config{
@@ -77,7 +77,7 @@ func TestScaleTestChat(t *testing.T) {
 	require.Equal(t, mockURL, provider.BaseURL)
 
 	expClient := codersdk.NewExperimentalClient(client)
-	configs, err := expClient.ListChatModelConfigs(ctx)
+	configs, err := expClient.ListChatModelConfigs(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
 	matchingConfigs := scaletestModelConfigsForProvider(configs, provider.ID)
 	require.Len(t, matchingConfigs, 1)

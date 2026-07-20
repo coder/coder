@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/xerrors"
@@ -77,9 +78,18 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			}
 
 			logger := inv.Logger
-			modelConfigID, err := chat.EnsureScaletestModelConfig(ctx, client, logger, llmMockURL, providerPropagationWait)
-			if err != nil {
-				return err
+			modelConfigIDs := make(map[uuid.UUID]uuid.UUID)
+			for _, workspace := range workspaces {
+				if _, ok := modelConfigIDs[workspace.OrganizationID]; ok {
+					continue
+				}
+				modelConfigID, err := chat.EnsureScaletestModelConfig(
+					ctx, client, logger, workspace.OrganizationID, llmMockURL, providerPropagationWait,
+				)
+				if err != nil {
+					return err
+				}
+				modelConfigIDs[workspace.OrganizationID] = modelConfigID
 			}
 
 			// Start metrics and tracing before creating runners.
@@ -128,7 +138,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 						OrganizationID:          targetWorkspace.OrganizationID,
 						WorkspaceID:             targetWorkspace.ID,
 						Prompt:                  prompt,
-						ModelConfigID:           modelConfigID,
+						ModelConfigID:           modelConfigIDs[targetWorkspace.OrganizationID],
 						Turns:                   int(turns),
 						TurnStartDelay:          turnStartDelay,
 						TurnStartReadyWaitGroup: turnStartReadyWaitGroup,

@@ -19,10 +19,11 @@ const compactionOverrideContext = "compaction"
 func readCompactionModelOverride(
 	ctx context.Context,
 	db database.Store,
+	organizationID uuid.UUID,
 ) (string, error) {
 	//nolint:gocritic // Chatd is internal, not a user, so this read uses AsChatd.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	raw, err := db.GetChatCompactionModelOverride(chatdCtx)
+	raw, err := getChatModelOverrideForOrganization(chatdCtx, db, organizationID, compactionOverrideContext)
 	if err != nil {
 		return "", xerrors.Errorf(
 			"get chat compaction model override: %w",
@@ -67,7 +68,7 @@ func (p *Server) resolveCompactionOverrideConfig(
 	ctx context.Context,
 	chat database.Chat,
 ) (*resolvedCompactionOverride, error) {
-	raw, err := readCompactionModelOverride(ctx, p.db)
+	raw, err := readCompactionModelOverride(ctx, p.db, chat.OrganizationID)
 	if err != nil {
 		return nil, xerrors.Errorf(
 			"read compaction model override: %w",
@@ -80,7 +81,9 @@ func (p *Server) resolveCompactionOverrideConfig(
 		compactionOverrideContext,
 		raw,
 		chat.OwnerID,
-		p.resolveModelConfigAndNormalizedProvider,
+		func(ctx context.Context, modelConfigID uuid.UUID) (database.ChatModelConfig, string, error) {
+			return p.resolveModelConfigAndNormalizedProvider(ctx, chat.OrganizationID, modelConfigID)
+		},
 		func(ctx context.Context, ownerID uuid.UUID, aiProviderID uuid.UUID) (chatprovider.ProviderAPIKeys, error) {
 			return p.resolveUserProviderAPIKeys(ctx, ownerID, aiProviderID)
 		},

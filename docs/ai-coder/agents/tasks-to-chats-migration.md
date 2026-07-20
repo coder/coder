@@ -57,7 +57,7 @@ The table below maps each Tasks API endpoint to its Chats API equivalent.
 | Resume            | `POST /api/v2/tasks/{user}/{task}/resume` | `POST /api/experimental/chats/{chat}/messages` (send a new message) |
 | Watch all         | n/a                                       | `GET /api/experimental/chats/watch` (WebSocket)                     |
 | Get messages      | n/a                                       | `GET /api/experimental/chats/{chat}/messages`                       |
-| List models       | n/a                                       | `GET /api/experimental/chats/models`                                |
+| List models       | n/a                                       | `GET /api/experimental/organizations/{organization}/chats/models`   |
 | Upload file       | n/a                                       | `POST /api/experimental/chats/files`                                |
 
 ## Migration steps
@@ -510,8 +510,8 @@ List available models to verify at least one provider is configured and
 reachable:
 
 ```sh
-curl -s https://coder.example.com/api/experimental/chats/models \
-  -H "Coder-Session-Token: $CODER_SESSION_TOKEN" | jq '.[].display_name'
+curl -s "https://coder.example.com/api/experimental/organizations/$CODER_ORGANIZATION/chats/models" \
+  -H "Coder-Session-Token: $CODER_SESSION_TOKEN" | jq '.providers[].models[].display_name'
 ```
 
 If this returns an empty list or an error, revisit
