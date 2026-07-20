@@ -4,23 +4,25 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: 'coder-ai-gateway-extra'
+  namespace: 'ai-gateway-test'
 data:
   release: 'ai-gateway'
 ---
 # Source: coder-ai-gateway/templates/extra-templates.yaml
 apiVersion: v1
 data:
-  namespace: 'default'
+  namespace: 'ai-gateway-test'
 kind: ConfigMap
 metadata:
   name: 'coder-ai-gateway-object'
+  namespace: 'ai-gateway-test'
 ---
 # Source: coder-ai-gateway/templates/service.yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: coder-ai-gateway
-  namespace: default
+  namespace: ai-gateway-test
   labels:
     helm.sh/chart: coder-ai-gateway-0.1.0
     app.kubernetes.io/name: coder-ai-gateway
@@ -45,8 +47,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  annotations:
-    deployment.example.com/reloader: enabled
+  annotations: {}
   labels:
     app.kubernetes.io/instance: ai-gateway
     app.kubernetes.io/managed-by: Helm
@@ -54,9 +55,8 @@ metadata:
     app.kubernetes.io/part-of: coder-ai-gateway
     app.kubernetes.io/version: 0.1.0
     helm.sh/chart: coder-ai-gateway-0.1.0
-    team: ai
   name: coder-ai-gateway
-  namespace: default
+  namespace: ai-gateway-test
 spec:
   replicas: 1
   selector:
@@ -72,9 +72,6 @@ spec:
     metadata:
       annotations:
         app.kubernetes.io/component: ai-gateway
-        example.com/reload: ai-gateway-key
-        prometheus.io/port: "2112"
-        prometheus.io/scrape: "true"
       labels:
         app.kubernetes.io/instance: ai-gateway
         app.kubernetes.io/managed-by: Helm
@@ -82,14 +79,7 @@ spec:
         app.kubernetes.io/part-of: coder-ai-gateway
         app.kubernetes.io/version: 0.1.0
         helm.sh/chart: coder-ai-gateway-0.1.0
-        workload: gateway
     spec:
-      affinity:
-        podAntiAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-          - podAffinityTerm:
-              topologyKey: kubernetes.io/hostname
-            weight: 100
       automountServiceAccountToken: false
       containers:
       - args:
@@ -103,7 +93,7 @@ spec:
         - name: CODER_AI_GATEWAY_KEY_FILE
           value: /etc/coder/ai-gateway-auth/key
         - name: CODER_URL
-          value: http://coder.default.svc.cluster.local:80
+          value: http://coder.ai-gateway-test.svc.cluster.local:80
         - name: CODER_PROMETHEUS_ENABLE
           value: "true"
         - name: CODER_PROMETHEUS_ADDRESS
@@ -114,18 +104,18 @@ spec:
         - configMapRef:
             name: gateway-config
         image: ghcr.io/coder/coder:v2.36.0
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         lifecycle: {}
         livenessProbe:
-          failureThreshold: 3
+          failureThreshold: 17
           httpGet:
             path: /healthz
             port: http
             scheme: HTTP
-          initialDelaySeconds: 3
-          periodSeconds: 5
+          initialDelaySeconds: 12
+          periodSeconds: 15
           successThreshold: 1
-          timeoutSeconds: 2
+          timeoutSeconds: 13
         name: coder
         ports:
         - containerPort: 4001
@@ -135,21 +125,19 @@ spec:
           name: metrics
           protocol: TCP
         readinessProbe:
-          failureThreshold: 6
+          failureThreshold: 27
           httpGet:
             path: /readyz
             port: http
             scheme: HTTP
-          initialDelaySeconds: 4
-          periodSeconds: 5
-          successThreshold: 1
-          timeoutSeconds: 2
+          initialDelaySeconds: 22
+          periodSeconds: 25
+          successThreshold: 21
+          timeoutSeconds: 23
         resources:
-          limits:
-            memory: 512Mi
           requests:
-            cpu: 100m
-            memory: 128Mi
+            cpu: "1"
+            memory: 1Gi
         securityContext:
           allowPrivilegeEscalation: false
           runAsGroup: 1000
@@ -158,50 +146,22 @@ spec:
           seccompProfile:
             type: RuntimeDefault
         startupProbe:
-          failureThreshold: 12
+          failureThreshold: 7
           httpGet:
             path: /healthz
             port: http
             scheme: HTTP
-          initialDelaySeconds: 3
+          initialDelaySeconds: 2
           periodSeconds: 5
           successThreshold: 1
-          timeoutSeconds: 2
+          timeoutSeconds: 3
         volumeMounts:
         - mountPath: /etc/coder/ai-gateway-auth
           name: ai-gateway-auth
           readOnly: true
-        - mountPath: /tmp/gateway
-          name: scratch
-      imagePullSecrets:
-      - name: registry
-      initContainers:
-      - command:
-        - sh
-        - -c
-        - "true"
-        image: busybox:1.36
-        name: init
-      nodeSelector:
-        kubernetes.io/os: linux
-      priorityClassName: important
       restartPolicy: Always
-      securityContext:
-        fsGroup: 1000
       serviceAccountName: workload-identity
       terminationGracePeriodSeconds: 330
-      tolerations:
-      - effect: NoSchedule
-        key: dedicated
-        operator: Equal
-        value: ai
-      topologySpreadConstraints:
-      - labelSelector:
-          matchLabels:
-            app.kubernetes.io/component: ai-gateway
-        maxSkew: 1
-        topologyKey: topology.kubernetes.io/zone
-        whenUnsatisfiable: ScheduleAnyway
       volumes:
       - name: ai-gateway-auth
         secret:
@@ -209,5 +169,3 @@ spec:
           - key: key
             path: key
           secretName: ai-gateway-key
-      - emptyDir: {}
-        name: scratch

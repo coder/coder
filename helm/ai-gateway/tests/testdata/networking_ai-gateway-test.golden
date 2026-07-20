@@ -13,14 +13,14 @@ metadata:
     app.kubernetes.io/version: 0.1.0
     helm.sh/chart: coder-ai-gateway-0.1.0
   name: coder-ai-gateway
-  namespace: coder
+  namespace: ai-gateway-test
 ---
 # Source: coder-ai-gateway/templates/service.yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: coder-ai-gateway
-  namespace: coder
+  namespace: ai-gateway-test
   labels:
     helm.sh/chart: coder-ai-gateway-0.1.0
     app.kubernetes.io/name: coder-ai-gateway
@@ -28,15 +28,19 @@ metadata:
     app.kubernetes.io/part-of: coder-ai-gateway
     app.kubernetes.io/version: "0.1.0"
     app.kubernetes.io/managed-by: Helm
+  annotations:
+    service.example.com/internal: "true"
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   sessionAffinity: None
+  externalTrafficPolicy: Cluster
+  loadBalancerClass: example.com/lb
   selector:
     app.kubernetes.io/name: coder-ai-gateway
     app.kubernetes.io/instance: ai-gateway
   ports:
     - name: http
-      port: 80
+      port: 443
       targetPort: http
       protocol: TCP
 ---
@@ -53,9 +57,9 @@ metadata:
     app.kubernetes.io/version: 0.1.0
     helm.sh/chart: coder-ai-gateway-0.1.0
   name: coder-ai-gateway
-  namespace: coder
+  namespace: ai-gateway-test
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/instance: ai-gateway
@@ -90,7 +94,7 @@ spec:
         - name: CODER_AI_GATEWAY_KEY_FILE
           value: /etc/coder/ai-gateway-auth/key
         - name: CODER_URL
-          value: https://coder.example.com
+          value: http://coder.ai-gateway-test.svc.cluster.local:80
         - name: CODER_PROMETHEUS_ENABLE
           value: "true"
         - name: CODER_PROMETHEUS_ADDRESS
@@ -137,3 +141,66 @@ spec:
           - key: key
             path: key
           secretName: ai-gateway-key
+---
+# Source: coder-ai-gateway/templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: coder-ai-gateway
+  namespace: ai-gateway-test
+  labels:
+    helm.sh/chart: coder-ai-gateway-0.1.0
+    app.kubernetes.io/name: coder-ai-gateway
+    app.kubernetes.io/instance: ai-gateway
+    app.kubernetes.io/part-of: coder-ai-gateway
+    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - "ai.example.com"
+      secretName: ai-example-tls
+  rules:
+    - host: "ai.example.com"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: coder-ai-gateway
+                port:
+                  number: 443
+---
+# Source: coder-ai-gateway/templates/httproute.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: coder-ai-gateway
+  namespace: ai-gateway-test
+  labels:
+    helm.sh/chart: coder-ai-gateway-0.1.0
+    app.kubernetes.io/name: coder-ai-gateway
+    app.kubernetes.io/instance: ai-gateway
+    app.kubernetes.io/part-of: coder-ai-gateway
+    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    example.com/route: ai
+spec:
+  parentRefs:
+    - name: shared-gateway
+      namespace: gateway-system
+  hostnames:
+    - ai.example.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: coder-ai-gateway
+          port: 443
