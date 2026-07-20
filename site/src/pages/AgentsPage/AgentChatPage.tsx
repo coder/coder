@@ -1498,11 +1498,12 @@ const AgentChatPage: FC = () => {
 
 		// "/compact" on its own (no attachments or file references)
 		// requests a manual context compaction instead of sending a
-		// message. Only new sends are intercepted; edits keep their
-		// original meaning, and a personal or workspace skill named
-		// "compact" takes precedence so the command cannot shadow it.
+		// message. Only new sends are intercepted; history and queued
+		// edits keep their original meaning, and a personal or workspace
+		// skill named "compact" takes precedence so the command cannot shadow it.
 		const isExactCompactSubmission =
 			editedMessageID === undefined &&
+			editing.editingQueuedMessageID === null &&
 			content.length === 1 &&
 			content[0].type === "text" &&
 			content[0].text?.trim() ===
