@@ -143,6 +143,31 @@ func TestAPIKeyScopesExpand(t *testing.T) {
 	})
 }
 
+func TestChatModelConfigRBACObject(t *testing.T) {
+	t.Parallel()
+
+	organizationID := uuid.New()
+	userID := uuid.NewString()
+	groupID := uuid.NewString()
+	config := ChatModelConfig{
+		ID:             uuid.New(),
+		OrganizationID: uuid.NullUUID{UUID: organizationID, Valid: true},
+		UserACL: ChatModelConfigACL{
+			userID: {policy.ActionRead, policy.ActionUpdate},
+		},
+		GroupACL: ChatModelConfigACL{
+			groupID: {policy.ActionDelete},
+		},
+	}
+
+	obj := config.RBACObject()
+	require.Equal(t, rbac.ResourceChatModelConfig.Type, obj.Type)
+	require.Equal(t, config.ID.String(), obj.ID)
+	require.Equal(t, organizationID.String(), obj.OrgID)
+	require.Equal(t, []policy.Action{policy.ActionRead}, obj.ACLUserList[userID])
+	require.NotContains(t, obj.ACLGroupList, groupID)
+}
+
 //nolint:tparallel,paralleltest
 func TestChatACLDisabled(t *testing.T) {
 	uid := uuid.NewString()

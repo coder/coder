@@ -1,0 +1,2 @@
+-- API key scope enum values remain because PostgreSQL cannot remove enum values
+-- without replacing the enum type and rewriting dependent columns.

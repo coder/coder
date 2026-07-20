@@ -318,6 +318,20 @@ neq(input.object.owner, "");
 			ExpectedSQL: p("organization_id :: text = 'org-id'"), VariableConverter: regosql.NoACLConverter(),
 		},
 		{
+			Name: "ChatModelConfigACL",
+			Queries: []string{
+				`input.object.org_owner = "org-id"`,
+				`"read" in input.object.acl_group_list[input.object.org_owner]`,
+				`"read" in input.object.acl_user_list.me`,
+			},
+			ExpectedSQL: p(
+				p("cmc.organization_id :: text = 'org-id'") + " OR " +
+					p("cmc.group_acl->cmc.organization_id :: text ? 'read'") + " OR " +
+					p("cmc.user_acl->'me' ? 'read'"),
+			),
+			VariableConverter: regosql.ChatModelConfigConverter(),
+		},
+		{
 			Name: "AuditLogUUID",
 			Queries: []string{
 				`"8c0b9bdc-a013-4b14-a49b-5747bc335708" = input.object.org_owner`,

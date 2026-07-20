@@ -2654,11 +2654,29 @@ func (q *querier) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUID)
 	return q.db.DeleteWorkspaceSubAgentByID(ctx, id)
 }
 
+func (q *querier) DetachOrganizationChatModelConfig(ctx context.Context, arg database.DetachOrganizationChatModelConfigParams) error {
+	config, err := q.db.GetOrganizationChatModelConfigByID(ctx, database.GetOrganizationChatModelConfigByIDParams(arg))
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, config.RBACObject()); err != nil {
+		return err
+	}
+	return q.db.DetachOrganizationChatModelConfig(ctx, arg)
+}
+
 func (q *querier) DisableForeignKeysAndTriggers(ctx context.Context) error {
 	if flag.Lookup("test.v") == nil {
 		return xerrors.Errorf("DisableForeignKeysAndTriggers is only allowed in tests")
 	}
 	return q.db.DisableForeignKeysAndTriggers(ctx)
+}
+
+func (q *querier) ElectOrganizationDefaultChatModelConfig(ctx context.Context, organizationID uuid.UUID) (database.ChatModelConfig, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatModelConfig.InOrg(organizationID)); err != nil {
+		return database.ChatModelConfig{}, err
+	}
+	return q.db.ElectOrganizationDefaultChatModelConfig(ctx, organizationID)
 }
 
 func (q *querier) EnqueueNotificationMessage(ctx context.Context, arg database.EnqueueNotificationMessageParams) error {
@@ -3445,6 +3463,17 @@ func (q *querier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (dat
 	return q.db.GetChatModelConfigByID(ctx, id)
 }
 
+func (q *querier) GetChatModelConfigLineageByID(ctx context.Context, id uuid.UUID) (database.GetChatModelConfigLineageByIDRow, error) {
+	actor, ok := ActorFromContext(ctx)
+	if !ok {
+		return database.GetChatModelConfigLineageByIDRow{}, ErrNoActor
+	}
+	if actor.Type != rbac.SubjectTypeSystemRestricted {
+		return database.GetChatModelConfigLineageByIDRow{}, NotAuthorizedError{Err: xerrors.New("chat model lineage lookup requires system-restricted context")}
+	}
+	return q.db.GetChatModelConfigLineageByID(ctx, id)
+}
+
 func (q *querier) GetChatModelConfigs(ctx context.Context) ([]database.ChatModelConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return nil, err
@@ -4215,6 +4244,67 @@ func (q *querier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (databa
 
 func (q *querier) GetOrganizationByName(ctx context.Context, name database.GetOrganizationByNameParams) (database.Organization, error) {
 	return fetch(q.log, q.auth, q.db.GetOrganizationByName)(ctx, name)
+}
+
+func (q *querier) GetOrganizationChatModelConfigACL(ctx context.Context, arg database.GetOrganizationChatModelConfigACLParams) (database.GetOrganizationChatModelConfigACLRow, error) {
+	config, err := q.db.GetOrganizationChatModelConfigByID(ctx, database.GetOrganizationChatModelConfigByIDParams(arg))
+	if err != nil {
+		return database.GetOrganizationChatModelConfigACLRow{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionShare, config.RBACObject()); err != nil {
+		return database.GetOrganizationChatModelConfigACLRow{}, err
+	}
+	return q.db.GetOrganizationChatModelConfigACL(ctx, arg)
+}
+
+func (q *querier) GetOrganizationChatModelConfigByID(ctx context.Context, arg database.GetOrganizationChatModelConfigByIDParams) (database.ChatModelConfig, error) {
+	return fetch(q.log, q.auth, q.db.GetOrganizationChatModelConfigByID)(ctx, arg)
+}
+
+func (q *querier) GetOrganizationChatModelConfigByIDForAuthorization(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
+	actor, ok := ActorFromContext(ctx)
+	if !ok {
+		return database.ChatModelConfig{}, ErrNoActor
+	}
+	if actor.Type != rbac.SubjectTypeSystemRestricted {
+		return database.ChatModelConfig{}, NotAuthorizedError{Err: xerrors.New("chat model authorization lookup requires system-restricted context")}
+	}
+	return q.db.GetOrganizationChatModelConfigByIDForAuthorization(ctx, id)
+}
+
+func (q *querier) GetOrganizationChatModelConfigByLegacyID(ctx context.Context, arg database.GetOrganizationChatModelConfigByLegacyIDParams) (database.ChatModelConfig, error) {
+	return fetch(q.log, q.auth, q.db.GetOrganizationChatModelConfigByLegacyID)(ctx, arg)
+}
+
+func (q *querier) GetOrganizationChatModelConfigDefaultInheritance(ctx context.Context, organizationID uuid.UUID) (database.ChatModelConfigOrgDefaultInheritance, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatModelConfig.InOrg(organizationID)); err != nil {
+		return database.ChatModelConfigOrgDefaultInheritance{}, err
+	}
+	return q.db.GetOrganizationChatModelConfigDefaultInheritance(ctx, organizationID)
+}
+
+func (q *querier) GetOrganizationChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.ChatModelConfig, error) {
+	prepared, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceChatModelConfig.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("prepare chat model config filter: %w", err)
+	}
+	return q.db.GetAuthorizedOrganizationChatModelConfigs(ctx, organizationID, prepared)
+}
+
+func (q *querier) GetOrganizationDefaultChatModelConfig(ctx context.Context, organizationID uuid.UUID) (database.ChatModelConfig, error) {
+	return fetch(q.log, q.auth, q.db.GetOrganizationDefaultChatModelConfig)(ctx, organizationID)
+}
+
+func (q *querier) GetOrganizationEnabledChatModelConfigByID(ctx context.Context, arg database.GetOrganizationEnabledChatModelConfigByIDParams) (database.ChatModelConfig, error) {
+	return fetch(q.log, q.auth, q.db.GetOrganizationEnabledChatModelConfigByID)(ctx, arg)
+}
+
+func (q *querier) GetOrganizationEnabledChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.GetOrganizationEnabledChatModelConfigsRow, error) {
+	prepared, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceChatModelConfig.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("prepare enabled chat model config filter: %w", err)
+	}
+	return q.db.GetAuthorizedOrganizationEnabledChatModelConfigs(ctx, organizationID, prepared)
 }
 
 func (q *querier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetOrganizationIDsByMemberIDsRow, error) {
@@ -6138,6 +6228,13 @@ func (q *querier) InsertInboxNotification(ctx context.Context, arg database.Inse
 	return insert(q.log, q.auth, rbac.ResourceInboxNotification.WithOwner(arg.UserID.String()), q.db.InsertInboxNotification)(ctx, arg)
 }
 
+func (q *querier) InsertInheritedOrganizationChatModelConfigs(ctx context.Context, legacyModelConfigID uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.InsertInheritedOrganizationChatModelConfigs(ctx, legacyModelConfigID)
+}
+
 func (q *querier) InsertLicense(ctx context.Context, arg database.InsertLicenseParams) (database.License, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceLicense); err != nil {
 		return database.License{}, err
@@ -6198,6 +6295,10 @@ func (q *querier) InsertOAuth2ProviderAppToken(ctx context.Context, arg database
 
 func (q *querier) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
 	return insert(q.log, q.auth, rbac.ResourceOrganization, q.db.InsertOrganization)(ctx, arg)
+}
+
+func (q *querier) InsertOrganizationChatModelConfig(ctx context.Context, arg database.InsertOrganizationChatModelConfigParams) (database.ChatModelConfig, error) {
+	return insert(q.log, q.auth, rbac.ResourceChatModelConfig.InOrg(arg.OrganizationID), q.db.InsertOrganizationChatModelConfig)(ctx, arg)
 }
 
 func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.InsertOrganizationMemberParams) (database.OrganizationMember, error) {
@@ -7067,6 +7168,13 @@ func (q *querier) SetChatContextSnapshot(ctx context.Context, arg database.SetCh
 	return q.db.SetChatContextSnapshot(ctx, arg)
 }
 
+func (q *querier) SetOrganizationChatModelConfigDefaultInheritance(ctx context.Context, arg database.SetOrganizationChatModelConfigDefaultInheritanceParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatModelConfig.InOrg(arg.OrganizationID)); err != nil {
+		return err
+	}
+	return q.db.SetOrganizationChatModelConfigDefaultInheritance(ctx, arg)
+}
+
 func (q *querier) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
 	msg, err := q.db.GetChatMessageByID(ctx, id)
 	if err != nil {
@@ -7104,6 +7212,24 @@ func (q *querier) SoftDeleteContextFileMessages(ctx context.Context, chatID uuid
 	return q.db.SoftDeleteContextFileMessages(ctx, chatID)
 }
 
+func (q *querier) SoftDeleteInheritedOrganizationChatModelConfigs(ctx context.Context, legacyModelConfigID uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.SoftDeleteInheritedOrganizationChatModelConfigs(ctx, legacyModelConfigID)
+}
+
+func (q *querier) SoftDeleteOrganizationChatModelConfig(ctx context.Context, arg database.SoftDeleteOrganizationChatModelConfigParams) error {
+	config, err := q.db.GetOrganizationChatModelConfigByID(ctx, database.GetOrganizationChatModelConfigByIDParams(arg))
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionDelete, config.RBACObject()); err != nil {
+		return err
+	}
+	return q.db.SoftDeleteOrganizationChatModelConfig(ctx, arg)
+}
+
 func (q *querier) SoftDeletePriorWorkspaceAgents(ctx context.Context, arg database.SoftDeletePriorWorkspaceAgentsParams) error {
 	// Internal bookkeeping called from wsbuilder.Builder.Build inside the
 	// same transaction as an already-authorized InsertWorkspaceBuild.
@@ -7123,6 +7249,20 @@ func (q *querier) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, wo
 		return err
 	}
 	return q.db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, workspaceID)
+}
+
+func (q *querier) SynchronizeInheritedOrganizationChatModelConfigDefaults(ctx context.Context, legacyModelConfigID uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.SynchronizeInheritedOrganizationChatModelConfigDefaults(ctx, legacyModelConfigID)
+}
+
+func (q *querier) SynchronizeInheritedOrganizationChatModelConfigs(ctx context.Context, legacyModelConfigID uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.SynchronizeInheritedOrganizationChatModelConfigs(ctx, legacyModelConfigID)
 }
 
 func (q *querier) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {
@@ -7208,6 +7348,13 @@ func (q *querier) UnsetDefaultChatModelConfigs(ctx context.Context) error {
 		return err
 	}
 	return q.db.UnsetDefaultChatModelConfigs(ctx)
+}
+
+func (q *querier) UnsetOrganizationDefaultChatModelConfigs(ctx context.Context, organizationID uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChatModelConfig.InOrg(organizationID)); err != nil {
+		return err
+	}
+	return q.db.UnsetOrganizationDefaultChatModelConfigs(ctx, organizationID)
 }
 
 func (q *querier) UpdateAIBridgeInterceptionEnded(ctx context.Context, params database.UpdateAIBridgeInterceptionEndedParams) (database.AIBridgeInterception, error) {
@@ -7710,6 +7857,20 @@ func (q *querier) UpdateOrganization(ctx context.Context, arg database.UpdateOrg
 		}
 	}
 	return q.db.UpdateOrganization(ctx, arg)
+}
+
+func (q *querier) UpdateOrganizationChatModelConfig(ctx context.Context, arg database.UpdateOrganizationChatModelConfigParams) (database.ChatModelConfig, error) {
+	fetchConfig := func(ctx context.Context, arg database.UpdateOrganizationChatModelConfigParams) (database.ChatModelConfig, error) {
+		return q.db.GetOrganizationChatModelConfigByID(ctx, database.GetOrganizationChatModelConfigByIDParams{ID: arg.ID, OrganizationID: arg.OrganizationID})
+	}
+	return updateWithReturn(q.log, q.auth, fetchConfig, q.db.UpdateOrganizationChatModelConfig)(ctx, arg)
+}
+
+func (q *querier) UpdateOrganizationChatModelConfigACL(ctx context.Context, arg database.UpdateOrganizationChatModelConfigACLParams) error {
+	fetchConfig := func(ctx context.Context, arg database.UpdateOrganizationChatModelConfigACLParams) (database.ChatModelConfig, error) {
+		return q.db.GetOrganizationChatModelConfigByID(ctx, database.GetOrganizationChatModelConfigByIDParams{ID: arg.ID, OrganizationID: arg.OrganizationID})
+	}
+	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetchConfig, q.db.UpdateOrganizationChatModelConfigACL)(ctx, arg)
 }
 
 func (q *querier) UpdateOrganizationDeletedByID(ctx context.Context, arg database.UpdateOrganizationDeletedByIDParams) error {
@@ -9321,6 +9482,14 @@ func (q *querier) CountAuthorizedAIBridgeSessions(ctx context.Context, arg datab
 
 func (q *querier) ListAuthorizedAIBridgeSessionThreads(ctx context.Context, arg database.ListAIBridgeSessionThreadsParams, prepared rbac.PreparedAuthorized) ([]database.ListAIBridgeSessionThreadsRow, error) {
 	return q.db.ListAuthorizedAIBridgeSessionThreads(ctx, arg, prepared)
+}
+
+func (q *querier) GetAuthorizedOrganizationChatModelConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.ChatModelConfig, error) {
+	return q.db.GetAuthorizedOrganizationChatModelConfigs(ctx, organizationID, prepared)
+}
+
+func (q *querier) GetAuthorizedOrganizationEnabledChatModelConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.GetOrganizationEnabledChatModelConfigsRow, error) {
+	return q.db.GetAuthorizedOrganizationEnabledChatModelConfigs(ctx, organizationID, prepared)
 }
 
 func (q *querier) GetAuthorizedChats(ctx context.Context, arg database.GetChatsParams, _ rbac.PreparedAuthorized) ([]database.GetChatsRow, error) {

@@ -465,6 +465,12 @@ const (
 	ApiKeyScopeWorkspaceBuildOrchestrationDelete   APIKeyScope = "workspace_build_orchestration:delete"
 	ApiKeyScopeWorkspaceBuildOrchestrationRead     APIKeyScope = "workspace_build_orchestration:read"
 	ApiKeyScopeWorkspaceBuildOrchestrationUpdate   APIKeyScope = "workspace_build_orchestration:update"
+	ApiKeyScopeChatModelConfig                     APIKeyScope = "chat_model_config:*"
+	ApiKeyScopeChatModelConfigCreate               APIKeyScope = "chat_model_config:create"
+	ApiKeyScopeChatModelConfigDelete               APIKeyScope = "chat_model_config:delete"
+	ApiKeyScopeChatModelConfigRead                 APIKeyScope = "chat_model_config:read"
+	ApiKeyScopeChatModelConfigShare                APIKeyScope = "chat_model_config:share"
+	ApiKeyScopeChatModelConfigUpdate               APIKeyScope = "chat_model_config:update"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -739,7 +745,13 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeWorkspaceBuildOrchestrationCreate,
 		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
 		ApiKeyScopeWorkspaceBuildOrchestrationRead,
-		ApiKeyScopeWorkspaceBuildOrchestrationUpdate:
+		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
+		ApiKeyScopeChatModelConfig,
+		ApiKeyScopeChatModelConfigCreate,
+		ApiKeyScopeChatModelConfigDelete,
+		ApiKeyScopeChatModelConfigRead,
+		ApiKeyScopeChatModelConfigShare,
+		ApiKeyScopeChatModelConfigUpdate:
 		return true
 	}
 	return false
@@ -983,6 +995,12 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
 		ApiKeyScopeWorkspaceBuildOrchestrationRead,
 		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
+		ApiKeyScopeChatModelConfig,
+		ApiKeyScopeChatModelConfigCreate,
+		ApiKeyScopeChatModelConfigDelete,
+		ApiKeyScopeChatModelConfigRead,
+		ApiKeyScopeChatModelConfigShare,
+		ApiKeyScopeChatModelConfigUpdate,
 	}
 }
 
@@ -5128,26 +5146,26 @@ type ChatMessage struct {
 }
 
 type ChatModelConfig struct {
-	ID                   uuid.UUID       `db:"id" json:"id"`
-	Model                string          `db:"model" json:"model"`
-	DisplayName          string          `db:"display_name" json:"display_name"`
-	CreatedBy            uuid.NullUUID   `db:"created_by" json:"created_by"`
-	UpdatedBy            uuid.NullUUID   `db:"updated_by" json:"updated_by"`
-	Enabled              bool            `db:"enabled" json:"enabled"`
-	IsDefault            bool            `db:"is_default" json:"is_default"`
-	Deleted              bool            `db:"deleted" json:"deleted"`
-	DeletedAt            sql.NullTime    `db:"deleted_at" json:"deleted_at"`
-	CreatedAt            time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt            time.Time       `db:"updated_at" json:"updated_at"`
-	ContextLimit         int64           `db:"context_limit" json:"context_limit"`
-	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
-	Options              json.RawMessage `db:"options" json:"options"`
-	AIProviderID         uuid.NullUUID   `db:"ai_provider_id" json:"ai_provider_id"`
-	OrganizationID       uuid.NullUUID   `db:"organization_id" json:"organization_id"`
-	UserACL              json.RawMessage `db:"user_acl" json:"user_acl"`
-	GroupACL             json.RawMessage `db:"group_acl" json:"group_acl"`
-	LegacyModelConfigID  uuid.NullUUID   `db:"legacy_model_config_id" json:"legacy_model_config_id"`
-	InheritsLegacyConfig bool            `db:"inherits_legacy_config" json:"inherits_legacy_config"`
+	ID                   uuid.UUID          `db:"id" json:"id"`
+	Model                string             `db:"model" json:"model"`
+	DisplayName          string             `db:"display_name" json:"display_name"`
+	CreatedBy            uuid.NullUUID      `db:"created_by" json:"created_by"`
+	UpdatedBy            uuid.NullUUID      `db:"updated_by" json:"updated_by"`
+	Enabled              bool               `db:"enabled" json:"enabled"`
+	IsDefault            bool               `db:"is_default" json:"is_default"`
+	Deleted              bool               `db:"deleted" json:"deleted"`
+	DeletedAt            sql.NullTime       `db:"deleted_at" json:"deleted_at"`
+	CreatedAt            time.Time          `db:"created_at" json:"created_at"`
+	UpdatedAt            time.Time          `db:"updated_at" json:"updated_at"`
+	ContextLimit         int64              `db:"context_limit" json:"context_limit"`
+	CompressionThreshold int32              `db:"compression_threshold" json:"compression_threshold"`
+	Options              json.RawMessage    `db:"options" json:"options"`
+	AIProviderID         uuid.NullUUID      `db:"ai_provider_id" json:"ai_provider_id"`
+	OrganizationID       uuid.NullUUID      `db:"organization_id" json:"organization_id"`
+	UserACL              ChatModelConfigACL `db:"user_acl" json:"user_acl"`
+	GroupACL             ChatModelConfigACL `db:"group_acl" json:"group_acl"`
+	LegacyModelConfigID  uuid.NullUUID      `db:"legacy_model_config_id" json:"legacy_model_config_id"`
+	InheritsLegacyConfig bool               `db:"inherits_legacy_config" json:"inherits_legacy_config"`
 }
 
 type ChatModelConfigOrgDefaultInheritance struct {

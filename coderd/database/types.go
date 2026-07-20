@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"slices"
 	"strings"
 	"time"
 
@@ -113,6 +114,38 @@ func (c ChatACL) Value() (driver.Value, error) {
 
 type ChatACLEntry struct {
 	Permissions []policy.Action `json:"permissions"`
+}
+
+// ChatModelConfigACL stores model actions by user or group ID. RBAC honors only read grants.
+type ChatModelConfigACL map[string][]policy.Action
+
+func (c *ChatModelConfigACL) Scan(src interface{}) error {
+	switch v := src.(type) {
+	case string:
+		return json.Unmarshal([]byte(v), &c)
+	case []byte:
+		return json.Unmarshal(v, &c)
+	case json.RawMessage:
+		return json.Unmarshal(v, &c)
+	}
+	return xerrors.Errorf("unexpected type %T", src)
+}
+
+func (c ChatModelConfigACL) Value() (driver.Value, error) {
+	if c == nil {
+		return json.Marshal(ChatModelConfigACL{})
+	}
+	return json.Marshal(c)
+}
+
+func (c ChatModelConfigACL) RBACACL() map[string][]policy.Action {
+	acl := make(map[string][]policy.Action, len(c))
+	for id, actions := range c {
+		if slices.Contains(actions, policy.ActionRead) {
+			acl[id] = []policy.Action{policy.ActionRead}
+		}
+	}
+	return acl
 }
 
 type WorkspaceACL map[string]WorkspaceACLEntry

@@ -255,10 +255,13 @@ type sqlcQuerier interface {
 	// agents are never hard-deleted, so the rows would otherwise orphan
 	// forever.
 	DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUID) error
+	DetachOrganizationChatModelConfig(ctx context.Context, arg DetachOrganizationChatModelConfigParams) error
 	// Disable foreign keys and triggers for all tables.
 	// Deprecated: disable foreign keys was created to aid in migrating off
 	// of the test-only in-memory database. Do not use this in new code.
 	DisableForeignKeysAndTriggers(ctx context.Context) error
+	// The caller must clear the existing organization default before electing a replacement.
+	ElectOrganizationDefaultChatModelConfig(ctx context.Context, organizationID uuid.UUID) (ChatModelConfig, error)
 	EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) error
 	// Firstly, collect api_keys owned by the prebuilds user that correlate
 	// to workspaces no longer owned by the prebuilds user.
@@ -452,6 +455,7 @@ type sqlcQuerier interface {
 	GetChatMessagesByRevisionForStream(ctx context.Context, arg GetChatMessagesByRevisionForStreamParams) ([]ChatMessage, error)
 	GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)
 	GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
+	GetChatModelConfigLineageByID(ctx context.Context, id uuid.UUID) (GetChatModelConfigLineageByIDRow, error)
 	GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error)
 	// Returns all model configurations for telemetry snapshot collection.
 	// deleted = false guarantees ai_provider_id is non-null, so INNER JOIN is safe.
@@ -651,6 +655,15 @@ type sqlcQuerier interface {
 	GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid.UUID) ([]GetOAuth2ProviderAppsByUserIDRow, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, arg GetOrganizationByNameParams) (Organization, error)
+	GetOrganizationChatModelConfigACL(ctx context.Context, arg GetOrganizationChatModelConfigACLParams) (GetOrganizationChatModelConfigACLRow, error)
+	GetOrganizationChatModelConfigByID(ctx context.Context, arg GetOrganizationChatModelConfigByIDParams) (ChatModelConfig, error)
+	GetOrganizationChatModelConfigByIDForAuthorization(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
+	GetOrganizationChatModelConfigByLegacyID(ctx context.Context, arg GetOrganizationChatModelConfigByLegacyIDParams) (ChatModelConfig, error)
+	GetOrganizationChatModelConfigDefaultInheritance(ctx context.Context, organizationID uuid.UUID) (ChatModelConfigOrgDefaultInheritance, error)
+	GetOrganizationChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]ChatModelConfig, error)
+	GetOrganizationDefaultChatModelConfig(ctx context.Context, organizationID uuid.UUID) (ChatModelConfig, error)
+	GetOrganizationEnabledChatModelConfigByID(ctx context.Context, arg GetOrganizationEnabledChatModelConfigByIDParams) (ChatModelConfig, error)
+	GetOrganizationEnabledChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]GetOrganizationEnabledChatModelConfigsRow, error)
 	GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]GetOrganizationIDsByMemberIDsRow, error)
 	GetOrganizationResourceCountByID(ctx context.Context, organizationID uuid.UUID) (GetOrganizationResourceCountByIDRow, error)
 	GetOrganizations(ctx context.Context, arg GetOrganizationsParams) ([]Organization, error)
@@ -1078,6 +1091,7 @@ type sqlcQuerier interface {
 	InsertGroup(ctx context.Context, arg InsertGroupParams) (Group, error)
 	InsertGroupMember(ctx context.Context, arg InsertGroupMemberParams) error
 	InsertInboxNotification(ctx context.Context, arg InsertInboxNotificationParams) (InboxNotification, error)
+	InsertInheritedOrganizationChatModelConfigs(ctx context.Context, legacyModelConfigID uuid.UUID) error
 	InsertLicense(ctx context.Context, arg InsertLicenseParams) (License, error)
 	InsertMCPServerConfig(ctx context.Context, arg InsertMCPServerConfigParams) (MCPServerConfig, error)
 	InsertMemoryResourceMonitor(ctx context.Context, arg InsertMemoryResourceMonitorParams) (WorkspaceAgentMemoryResourceMonitor, error)
@@ -1091,6 +1105,7 @@ type sqlcQuerier interface {
 	InsertOAuth2ProviderAppSecret(ctx context.Context, arg InsertOAuth2ProviderAppSecretParams) (OAuth2ProviderAppSecret, error)
 	InsertOAuth2ProviderAppToken(ctx context.Context, arg InsertOAuth2ProviderAppTokenParams) (OAuth2ProviderAppToken, error)
 	InsertOrganization(ctx context.Context, arg InsertOrganizationParams) (Organization, error)
+	InsertOrganizationChatModelConfig(ctx context.Context, arg InsertOrganizationChatModelConfigParams) (ChatModelConfig, error)
 	InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error)
 	InsertPreset(ctx context.Context, arg InsertPresetParams) (TemplateVersionPreset, error)
 	InsertPresetParameters(ctx context.Context, arg InsertPresetParametersParams) ([]TemplateVersionPresetParameter, error)
@@ -1273,9 +1288,12 @@ type sqlcQuerier interface {
 	// refresh endpoint. Does not bump updated_at: context pinning is
 	// background state and must not reorder chat lists.
 	SetChatContextSnapshot(ctx context.Context, arg SetChatContextSnapshotParams) error
+	SetOrganizationChatModelConfigDefaultInheritance(ctx context.Context, arg SetOrganizationChatModelConfigDefaultInheritanceParams) error
 	SoftDeleteChatMessageByID(ctx context.Context, id int64) error
 	SoftDeleteChatMessagesAfterID(ctx context.Context, arg SoftDeleteChatMessagesAfterIDParams) error
 	SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error
+	SoftDeleteInheritedOrganizationChatModelConfigs(ctx context.Context, legacyModelConfigID uuid.UUID) error
+	SoftDeleteOrganizationChatModelConfig(ctx context.Context, arg SoftDeleteOrganizationChatModelConfigParams) error
 	// Marks agents from all prior builds of this workspace as deleted,
 	// preserving only agents belonging to @current_build_id. Called from
 	// provisionerdserver when a workspace build completes, after the new
@@ -1296,6 +1314,8 @@ type sqlcQuerier interface {
 	// Agent context rows are hard-deleted for the same reason as in
 	// SoftDeletePriorWorkspaceAgents.
 	SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
+	SynchronizeInheritedOrganizationChatModelConfigDefaults(ctx context.Context, legacyModelConfigID uuid.UUID) error
+	SynchronizeInheritedOrganizationChatModelConfigs(ctx context.Context, legacyModelConfigID uuid.UUID) error
 	// Overrides updated_at on the parent run without touching any
 	// other column. Used by tests that need to stamp a run with a
 	// specific timestamp after the InsertChatDebugStep CTE has
@@ -1340,6 +1360,7 @@ type sqlcQuerier interface {
 	UnlinkOIDCUsersByIssuerMismatch(ctx context.Context, expectedPrefix string) (int64, error)
 	UnpinChatByID(ctx context.Context, id uuid.UUID) error
 	UnsetDefaultChatModelConfigs(ctx context.Context) error
+	UnsetOrganizationDefaultChatModelConfigs(ctx context.Context, organizationID uuid.UUID) error
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
 	// Records heartbeat liveness for an active Gateway DRPC session. The database sets the
 	// timestamp so it stays consistent regardless of clock drift between API
@@ -1437,6 +1458,8 @@ type sqlcQuerier interface {
 	UpdateOAuth2ProviderAppByClientID(ctx context.Context, arg UpdateOAuth2ProviderAppByClientIDParams) (OAuth2ProviderApp, error)
 	UpdateOAuth2ProviderAppByID(ctx context.Context, arg UpdateOAuth2ProviderAppByIDParams) (OAuth2ProviderApp, error)
 	UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) (Organization, error)
+	UpdateOrganizationChatModelConfig(ctx context.Context, arg UpdateOrganizationChatModelConfigParams) (ChatModelConfig, error)
+	UpdateOrganizationChatModelConfigACL(ctx context.Context, arg UpdateOrganizationChatModelConfigACLParams) error
 	UpdateOrganizationDeletedByID(ctx context.Context, arg UpdateOrganizationDeletedByIDParams) error
 	UpdateOrganizationWorkspaceSharingSettings(ctx context.Context, arg UpdateOrganizationWorkspaceSharingSettingsParams) (Organization, error)
 	// Cancels all pending provisioner jobs for prebuilt workspaces on a specific preset from an

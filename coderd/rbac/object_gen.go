@@ -128,6 +128,17 @@ var (
 		Type: "chat",
 	}
 
+	// ResourceChatModelConfig
+	// Valid Actions
+	//  - "ActionCreate" :: create a chat model configuration
+	//  - "ActionDelete" :: delete a chat model configuration
+	//  - "ActionRead" :: read chat model configurations
+	//  - "ActionShare" :: share a chat model configuration with users or groups
+	//  - "ActionUpdate" :: update a chat model configuration
+	ResourceChatModelConfig = Object{
+		Type: "chat_model_config",
+	}
+
 	// ResourceConnectionLog
 	// Valid Actions
 	//  - "ActionRead" :: read connection logs
@@ -511,6 +522,7 @@ func AllResources() []Objecter {
 		ResourceBoundaryLog,
 		ResourceBoundaryUsage,
 		ResourceChat,
+		ResourceChatModelConfig,
 		ResourceConnectionLog,
 		ResourceCryptoKey,
 		ResourceDebugInfo,

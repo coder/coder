@@ -263,7 +263,12 @@ func (s *MethodTestSuite) SubtestWithDB(db database.Store, testCaseF func(db dat
 				fakeAuthorizer.AlwaysReturn(nil)
 			}
 
-			outputs, err := callMethod(ctx)
+			successCtx := ctx
+			if testCase.successContext != nil {
+				successCtx = testCase.successContext(ctx)
+			}
+
+			outputs, err := callMethod(successCtx)
 			if testCase.err == nil {
 				s.NoError(err, "method %q returned an error", methodName)
 			} else {
@@ -447,6 +452,7 @@ type expects struct {
 	notAuthorizedExpect string
 	cancelledCtxExpect  string
 	successAuthorizer   func(ctx context.Context, subject rbac.Subject, action policy.Action, obj rbac.Object) error
+	successContext      func(context.Context) context.Context
 	outOfOrder          bool
 }
 
@@ -499,6 +505,11 @@ func (m *expects) FailSystemObjectChecks() *expects {
 // to assert the more nuanced RBAC checks.
 func (m *expects) WithSuccessAuthorizer(f func(ctx context.Context, subject rbac.Subject, action policy.Action, obj rbac.Object) error) *expects {
 	m.successAuthorizer = f
+	return m
+}
+
+func (m *expects) WithSuccessContext(f func(context.Context) context.Context) *expects {
+	m.successContext = f
 	return m
 }
 

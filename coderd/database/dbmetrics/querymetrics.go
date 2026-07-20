@@ -985,12 +985,28 @@ func (m queryMetricsStore) DeleteWorkspaceSubAgentByID(ctx context.Context, id u
 	return r0
 }
 
+func (m queryMetricsStore) DetachOrganizationChatModelConfig(ctx context.Context, arg database.DetachOrganizationChatModelConfigParams) error {
+	start := time.Now()
+	r0 := m.s.DetachOrganizationChatModelConfig(ctx, arg)
+	m.queryLatencies.WithLabelValues("DetachOrganizationChatModelConfig").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DetachOrganizationChatModelConfig").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DisableForeignKeysAndTriggers(ctx context.Context) error {
 	start := time.Now()
 	r0 := m.s.DisableForeignKeysAndTriggers(ctx)
 	m.queryLatencies.WithLabelValues("DisableForeignKeysAndTriggers").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DisableForeignKeysAndTriggers").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) ElectOrganizationDefaultChatModelConfig(ctx context.Context, organizationID uuid.UUID) (database.ChatModelConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.ElectOrganizationDefaultChatModelConfig(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("ElectOrganizationDefaultChatModelConfig").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ElectOrganizationDefaultChatModelConfig").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) EnqueueNotificationMessage(ctx context.Context, arg database.EnqueueNotificationMessageParams) error {
@@ -1694,6 +1710,14 @@ func (m queryMetricsStore) GetChatModelConfigByID(ctx context.Context, id uuid.U
 	r0, r1 := m.s.GetChatModelConfigByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetChatModelConfigByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatModelConfigByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatModelConfigLineageByID(ctx context.Context, id uuid.UUID) (database.GetChatModelConfigLineageByIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatModelConfigLineageByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatModelConfigLineageByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatModelConfigLineageByID").Inc()
 	return r0, r1
 }
 
@@ -2534,6 +2558,78 @@ func (m queryMetricsStore) GetOrganizationByName(ctx context.Context, arg databa
 	r0, r1 := m.s.GetOrganizationByName(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetOrganizationByName").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationByName").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOrganizationChatModelConfigACL(ctx context.Context, arg database.GetOrganizationChatModelConfigACLParams) (database.GetOrganizationChatModelConfigACLRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationChatModelConfigACL(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetOrganizationChatModelConfigACL").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationChatModelConfigACL").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOrganizationChatModelConfigByID(ctx context.Context, arg database.GetOrganizationChatModelConfigByIDParams) (database.ChatModelConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationChatModelConfigByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetOrganizationChatModelConfigByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationChatModelConfigByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOrganizationChatModelConfigByIDForAuthorization(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationChatModelConfigByIDForAuthorization(ctx, id)
+	m.queryLatencies.WithLabelValues("GetOrganizationChatModelConfigByIDForAuthorization").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationChatModelConfigByIDForAuthorization").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOrganizationChatModelConfigByLegacyID(ctx context.Context, arg database.GetOrganizationChatModelConfigByLegacyIDParams) (database.ChatModelConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationChatModelConfigByLegacyID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetOrganizationChatModelConfigByLegacyID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationChatModelConfigByLegacyID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOrganizationChatModelConfigDefaultInheritance(ctx context.Context, organizationID uuid.UUID) (database.ChatModelConfigOrgDefaultInheritance, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationChatModelConfigDefaultInheritance(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("GetOrganizationChatModelConfigDefaultInheritance").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationChatModelConfigDefaultInheritance").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOrganizationChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.ChatModelConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationChatModelConfigs(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("GetOrganizationChatModelConfigs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationChatModelConfigs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOrganizationDefaultChatModelConfig(ctx context.Context, organizationID uuid.UUID) (database.ChatModelConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationDefaultChatModelConfig(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("GetOrganizationDefaultChatModelConfig").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationDefaultChatModelConfig").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOrganizationEnabledChatModelConfigByID(ctx context.Context, arg database.GetOrganizationEnabledChatModelConfigByIDParams) (database.ChatModelConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationEnabledChatModelConfigByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetOrganizationEnabledChatModelConfigByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationEnabledChatModelConfigByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOrganizationEnabledChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.GetOrganizationEnabledChatModelConfigsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationEnabledChatModelConfigs(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("GetOrganizationEnabledChatModelConfigs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationEnabledChatModelConfigs").Inc()
 	return r0, r1
 }
 
@@ -4225,6 +4321,14 @@ func (m queryMetricsStore) InsertInboxNotification(ctx context.Context, arg data
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertInheritedOrganizationChatModelConfigs(ctx context.Context, legacyModelConfigID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.InsertInheritedOrganizationChatModelConfigs(ctx, legacyModelConfigID)
+	m.queryLatencies.WithLabelValues("InsertInheritedOrganizationChatModelConfigs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertInheritedOrganizationChatModelConfigs").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) InsertLicense(ctx context.Context, arg database.InsertLicenseParams) (database.License, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertLicense(ctx, arg)
@@ -4294,6 +4398,14 @@ func (m queryMetricsStore) InsertOrganization(ctx context.Context, arg database.
 	r0, r1 := m.s.InsertOrganization(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertOrganization").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertOrganization").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertOrganizationChatModelConfig(ctx context.Context, arg database.InsertOrganizationChatModelConfigParams) (database.ChatModelConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertOrganizationChatModelConfig(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertOrganizationChatModelConfig").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertOrganizationChatModelConfig").Inc()
 	return r0, r1
 }
 
@@ -5001,6 +5113,14 @@ func (m queryMetricsStore) SetChatContextSnapshot(ctx context.Context, arg datab
 	return r0
 }
 
+func (m queryMetricsStore) SetOrganizationChatModelConfigDefaultInheritance(ctx context.Context, arg database.SetOrganizationChatModelConfigDefaultInheritanceParams) error {
+	start := time.Now()
+	r0 := m.s.SetOrganizationChatModelConfigDefaultInheritance(ctx, arg)
+	m.queryLatencies.WithLabelValues("SetOrganizationChatModelConfigDefaultInheritance").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SetOrganizationChatModelConfigDefaultInheritance").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
 	start := time.Now()
 	r0 := m.s.SoftDeleteChatMessageByID(ctx, id)
@@ -5025,6 +5145,22 @@ func (m queryMetricsStore) SoftDeleteContextFileMessages(ctx context.Context, ch
 	return r0
 }
 
+func (m queryMetricsStore) SoftDeleteInheritedOrganizationChatModelConfigs(ctx context.Context, legacyModelConfigID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.SoftDeleteInheritedOrganizationChatModelConfigs(ctx, legacyModelConfigID)
+	m.queryLatencies.WithLabelValues("SoftDeleteInheritedOrganizationChatModelConfigs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteInheritedOrganizationChatModelConfigs").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) SoftDeleteOrganizationChatModelConfig(ctx context.Context, arg database.SoftDeleteOrganizationChatModelConfigParams) error {
+	start := time.Now()
+	r0 := m.s.SoftDeleteOrganizationChatModelConfig(ctx, arg)
+	m.queryLatencies.WithLabelValues("SoftDeleteOrganizationChatModelConfig").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteOrganizationChatModelConfig").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) SoftDeletePriorWorkspaceAgents(ctx context.Context, arg database.SoftDeletePriorWorkspaceAgentsParams) error {
 	start := time.Now()
 	r0 := m.s.SoftDeletePriorWorkspaceAgents(ctx, arg)
@@ -5038,6 +5174,22 @@ func (m queryMetricsStore) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Co
 	r0 := m.s.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, workspaceID)
 	m.queryLatencies.WithLabelValues("SoftDeleteWorkspaceAgentsByWorkspaceID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteWorkspaceAgentsByWorkspaceID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) SynchronizeInheritedOrganizationChatModelConfigDefaults(ctx context.Context, legacyModelConfigID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.SynchronizeInheritedOrganizationChatModelConfigDefaults(ctx, legacyModelConfigID)
+	m.queryLatencies.WithLabelValues("SynchronizeInheritedOrganizationChatModelConfigDefaults").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SynchronizeInheritedOrganizationChatModelConfigDefaults").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) SynchronizeInheritedOrganizationChatModelConfigs(ctx context.Context, legacyModelConfigID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.SynchronizeInheritedOrganizationChatModelConfigs(ctx, legacyModelConfigID)
+	m.queryLatencies.WithLabelValues("SynchronizeInheritedOrganizationChatModelConfigs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SynchronizeInheritedOrganizationChatModelConfigs").Inc()
 	return r0
 }
 
@@ -5110,6 +5262,14 @@ func (m queryMetricsStore) UnsetDefaultChatModelConfigs(ctx context.Context) err
 	r0 := m.s.UnsetDefaultChatModelConfigs(ctx)
 	m.queryLatencies.WithLabelValues("UnsetDefaultChatModelConfigs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UnsetDefaultChatModelConfigs").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UnsetOrganizationDefaultChatModelConfigs(ctx context.Context, organizationID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.UnsetOrganizationDefaultChatModelConfigs(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("UnsetOrganizationDefaultChatModelConfigs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UnsetOrganizationDefaultChatModelConfigs").Inc()
 	return r0
 }
 
@@ -5447,6 +5607,22 @@ func (m queryMetricsStore) UpdateOrganization(ctx context.Context, arg database.
 	m.queryLatencies.WithLabelValues("UpdateOrganization").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateOrganization").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateOrganizationChatModelConfig(ctx context.Context, arg database.UpdateOrganizationChatModelConfigParams) (database.ChatModelConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateOrganizationChatModelConfig(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateOrganizationChatModelConfig").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateOrganizationChatModelConfig").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateOrganizationChatModelConfigACL(ctx context.Context, arg database.UpdateOrganizationChatModelConfigACLParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateOrganizationChatModelConfigACL(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateOrganizationChatModelConfigACL").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateOrganizationChatModelConfigACL").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) UpdateOrganizationDeletedByID(ctx context.Context, arg database.UpdateOrganizationDeletedByIDParams) error {
@@ -6742,6 +6918,22 @@ func (m queryMetricsStore) ListAuthorizedAIBridgeSessionThreads(ctx context.Cont
 	r0, r1 := m.s.ListAuthorizedAIBridgeSessionThreads(ctx, arg, prepared)
 	m.queryLatencies.WithLabelValues("ListAuthorizedAIBridgeSessionThreads").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAuthorizedAIBridgeSessionThreads").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAuthorizedOrganizationChatModelConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.ChatModelConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizedOrganizationChatModelConfigs(ctx, organizationID, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedOrganizationChatModelConfigs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedOrganizationChatModelConfigs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAuthorizedOrganizationEnabledChatModelConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.GetOrganizationEnabledChatModelConfigsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizedOrganizationEnabledChatModelConfigs(ctx, organizationID, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedOrganizationEnabledChatModelConfigs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedOrganizationEnabledChatModelConfigs").Inc()
 	return r0, r1
 }
 

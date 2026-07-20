@@ -5695,6 +5695,778 @@ func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatMo
 	return i, err
 }
 
+const detachOrganizationChatModelConfig = `-- name: DetachOrganizationChatModelConfig :exec
+UPDATE chat_model_configs
+SET inherits_legacy_config = FALSE, updated_at = NOW()
+WHERE id = $1::uuid
+  AND organization_id = $2::uuid
+  AND inherits_legacy_config = TRUE
+`
+
+type DetachOrganizationChatModelConfigParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) DetachOrganizationChatModelConfig(ctx context.Context, arg DetachOrganizationChatModelConfigParams) error {
+	_, err := q.db.ExecContext(ctx, detachOrganizationChatModelConfig, arg.ID, arg.OrganizationID)
+	return err
+}
+
+const electOrganizationDefaultChatModelConfig = `-- name: ElectOrganizationDefaultChatModelConfig :one
+UPDATE chat_model_configs
+SET is_default = TRUE, updated_at = NOW()
+WHERE id = (
+  SELECT cmc.id
+  FROM chat_model_configs cmc
+  LEFT JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
+  WHERE cmc.organization_id = $1::uuid
+    AND cmc.deleted = FALSE
+  ORDER BY
+    (cmc.enabled AND COALESCE(ap.enabled AND NOT ap.deleted, FALSE)) DESC,
+    ap.type::text ASC,
+    cmc.model ASC,
+    cmc.updated_at DESC,
+    cmc.id DESC
+  LIMIT 1
+)
+RETURNING id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, user_acl, group_acl, legacy_model_config_id, inherits_legacy_config
+`
+
+// The caller must clear the existing organization default before electing a replacement.
+func (q *sqlQuerier) ElectOrganizationDefaultChatModelConfig(ctx context.Context, organizationID uuid.UUID) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, electOrganizationDefaultChatModelConfig, organizationID)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Model,
+		&i.DisplayName,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.Enabled,
+		&i.IsDefault,
+		&i.Deleted,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
+		&i.Options,
+		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.LegacyModelConfigID,
+		&i.InheritsLegacyConfig,
+	)
+	return i, err
+}
+
+const getChatModelConfigLineageByID = `-- name: GetChatModelConfigLineageByID :one
+SELECT id, organization_id, legacy_model_config_id, inherits_legacy_config
+FROM chat_model_configs
+WHERE id = $1::uuid
+`
+
+type GetChatModelConfigLineageByIDRow struct {
+	ID                   uuid.UUID     `db:"id" json:"id"`
+	OrganizationID       uuid.NullUUID `db:"organization_id" json:"organization_id"`
+	LegacyModelConfigID  uuid.NullUUID `db:"legacy_model_config_id" json:"legacy_model_config_id"`
+	InheritsLegacyConfig bool          `db:"inherits_legacy_config" json:"inherits_legacy_config"`
+}
+
+func (q *sqlQuerier) GetChatModelConfigLineageByID(ctx context.Context, id uuid.UUID) (GetChatModelConfigLineageByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatModelConfigLineageByID, id)
+	var i GetChatModelConfigLineageByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.LegacyModelConfigID,
+		&i.InheritsLegacyConfig,
+	)
+	return i, err
+}
+
+const getOrganizationChatModelConfigACL = `-- name: GetOrganizationChatModelConfigACL :one
+SELECT user_acl, group_acl
+FROM chat_model_configs
+WHERE id = $1::uuid
+  AND organization_id = $2::uuid
+  AND deleted = FALSE
+`
+
+type GetOrganizationChatModelConfigACLParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+type GetOrganizationChatModelConfigACLRow struct {
+	UserACL  ChatModelConfigACL `db:"user_acl" json:"user_acl"`
+	GroupACL ChatModelConfigACL `db:"group_acl" json:"group_acl"`
+}
+
+func (q *sqlQuerier) GetOrganizationChatModelConfigACL(ctx context.Context, arg GetOrganizationChatModelConfigACLParams) (GetOrganizationChatModelConfigACLRow, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationChatModelConfigACL, arg.ID, arg.OrganizationID)
+	var i GetOrganizationChatModelConfigACLRow
+	err := row.Scan(&i.UserACL, &i.GroupACL)
+	return i, err
+}
+
+const getOrganizationChatModelConfigByID = `-- name: GetOrganizationChatModelConfigByID :one
+SELECT id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, user_acl, group_acl, legacy_model_config_id, inherits_legacy_config
+FROM chat_model_configs
+WHERE id = $1::uuid
+  AND organization_id = $2::uuid
+  AND deleted = FALSE
+`
+
+type GetOrganizationChatModelConfigByIDParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) GetOrganizationChatModelConfigByID(ctx context.Context, arg GetOrganizationChatModelConfigByIDParams) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationChatModelConfigByID, arg.ID, arg.OrganizationID)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Model,
+		&i.DisplayName,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.Enabled,
+		&i.IsDefault,
+		&i.Deleted,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
+		&i.Options,
+		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.LegacyModelConfigID,
+		&i.InheritsLegacyConfig,
+	)
+	return i, err
+}
+
+const getOrganizationChatModelConfigByIDForAuthorization = `-- name: GetOrganizationChatModelConfigByIDForAuthorization :one
+SELECT id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, user_acl, group_acl, legacy_model_config_id, inherits_legacy_config
+FROM chat_model_configs
+WHERE id = $1::uuid
+  AND organization_id IS NOT NULL
+  AND deleted = FALSE
+`
+
+func (q *sqlQuerier) GetOrganizationChatModelConfigByIDForAuthorization(ctx context.Context, id uuid.UUID) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationChatModelConfigByIDForAuthorization, id)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Model,
+		&i.DisplayName,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.Enabled,
+		&i.IsDefault,
+		&i.Deleted,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
+		&i.Options,
+		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.LegacyModelConfigID,
+		&i.InheritsLegacyConfig,
+	)
+	return i, err
+}
+
+const getOrganizationChatModelConfigByLegacyID = `-- name: GetOrganizationChatModelConfigByLegacyID :one
+SELECT id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, user_acl, group_acl, legacy_model_config_id, inherits_legacy_config
+FROM chat_model_configs
+WHERE organization_id = $1::uuid
+  AND legacy_model_config_id = $2::uuid
+  AND deleted = FALSE
+`
+
+type GetOrganizationChatModelConfigByLegacyIDParams struct {
+	OrganizationID      uuid.UUID `db:"organization_id" json:"organization_id"`
+	LegacyModelConfigID uuid.UUID `db:"legacy_model_config_id" json:"legacy_model_config_id"`
+}
+
+func (q *sqlQuerier) GetOrganizationChatModelConfigByLegacyID(ctx context.Context, arg GetOrganizationChatModelConfigByLegacyIDParams) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationChatModelConfigByLegacyID, arg.OrganizationID, arg.LegacyModelConfigID)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Model,
+		&i.DisplayName,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.Enabled,
+		&i.IsDefault,
+		&i.Deleted,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
+		&i.Options,
+		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.LegacyModelConfigID,
+		&i.InheritsLegacyConfig,
+	)
+	return i, err
+}
+
+const getOrganizationChatModelConfigDefaultInheritance = `-- name: GetOrganizationChatModelConfigDefaultInheritance :one
+SELECT organization_id, inherits_legacy_default FROM chat_model_config_org_default_inheritance
+WHERE organization_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetOrganizationChatModelConfigDefaultInheritance(ctx context.Context, organizationID uuid.UUID) (ChatModelConfigOrgDefaultInheritance, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationChatModelConfigDefaultInheritance, organizationID)
+	var i ChatModelConfigOrgDefaultInheritance
+	err := row.Scan(&i.OrganizationID, &i.InheritsLegacyDefault)
+	return i, err
+}
+
+const getOrganizationChatModelConfigs = `-- name: GetOrganizationChatModelConfigs :many
+SELECT cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id, cmc.organization_id, cmc.user_acl, cmc.group_acl, cmc.legacy_model_config_id, cmc.inherits_legacy_config
+FROM chat_model_configs cmc
+LEFT JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
+WHERE cmc.organization_id = $1::uuid
+  AND cmc.deleted = FALSE
+  -- Authorize Filter clause will be injected below in GetAuthorizedOrganizationChatModelConfigs
+  -- @authorize_filter
+ORDER BY ap.type::text ASC, cmc.model ASC, cmc.updated_at DESC, cmc.id DESC
+`
+
+func (q *sqlQuerier) GetOrganizationChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]ChatModelConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getOrganizationChatModelConfigs, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatModelConfig
+	for rows.Next() {
+		var i ChatModelConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.Model,
+			&i.DisplayName,
+			&i.CreatedBy,
+			&i.UpdatedBy,
+			&i.Enabled,
+			&i.IsDefault,
+			&i.Deleted,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ContextLimit,
+			&i.CompressionThreshold,
+			&i.Options,
+			&i.AIProviderID,
+			&i.OrganizationID,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.LegacyModelConfigID,
+			&i.InheritsLegacyConfig,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getOrganizationDefaultChatModelConfig = `-- name: GetOrganizationDefaultChatModelConfig :one
+SELECT id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, user_acl, group_acl, legacy_model_config_id, inherits_legacy_config
+FROM chat_model_configs
+WHERE organization_id = $1::uuid
+  AND is_default = TRUE
+  AND deleted = FALSE
+`
+
+func (q *sqlQuerier) GetOrganizationDefaultChatModelConfig(ctx context.Context, organizationID uuid.UUID) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationDefaultChatModelConfig, organizationID)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Model,
+		&i.DisplayName,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.Enabled,
+		&i.IsDefault,
+		&i.Deleted,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
+		&i.Options,
+		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.LegacyModelConfigID,
+		&i.InheritsLegacyConfig,
+	)
+	return i, err
+}
+
+const getOrganizationEnabledChatModelConfigByID = `-- name: GetOrganizationEnabledChatModelConfigByID :one
+SELECT cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id, cmc.organization_id, cmc.user_acl, cmc.group_acl, cmc.legacy_model_config_id, cmc.inherits_legacy_config
+FROM chat_model_configs cmc
+JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
+WHERE cmc.id = $1::uuid
+  AND cmc.organization_id = $2::uuid
+  AND cmc.deleted = FALSE
+  AND cmc.enabled = TRUE
+  AND ap.enabled = TRUE
+  AND ap.deleted = FALSE
+`
+
+type GetOrganizationEnabledChatModelConfigByIDParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) GetOrganizationEnabledChatModelConfigByID(ctx context.Context, arg GetOrganizationEnabledChatModelConfigByIDParams) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationEnabledChatModelConfigByID, arg.ID, arg.OrganizationID)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Model,
+		&i.DisplayName,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.Enabled,
+		&i.IsDefault,
+		&i.Deleted,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
+		&i.Options,
+		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.LegacyModelConfigID,
+		&i.InheritsLegacyConfig,
+	)
+	return i, err
+}
+
+const getOrganizationEnabledChatModelConfigs = `-- name: GetOrganizationEnabledChatModelConfigs :many
+SELECT cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id, cmc.organization_id, cmc.user_acl, cmc.group_acl, cmc.legacy_model_config_id, cmc.inherits_legacy_config, ap.type::text AS provider
+FROM chat_model_configs cmc
+JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
+WHERE cmc.organization_id = $1::uuid
+  AND cmc.enabled = TRUE
+  AND cmc.deleted = FALSE
+  AND ap.enabled = TRUE
+  AND ap.deleted = FALSE
+  -- Authorize Filter clause will be injected below in GetAuthorizedOrganizationEnabledChatModelConfigs
+  -- @authorize_filter
+ORDER BY ap.type::text ASC, cmc.model ASC, cmc.updated_at DESC, cmc.id DESC
+`
+
+type GetOrganizationEnabledChatModelConfigsRow struct {
+	ChatModelConfig ChatModelConfig `db:"chat_model_config" json:"chat_model_config"`
+	Provider        string          `db:"provider" json:"provider"`
+}
+
+func (q *sqlQuerier) GetOrganizationEnabledChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]GetOrganizationEnabledChatModelConfigsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getOrganizationEnabledChatModelConfigs, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOrganizationEnabledChatModelConfigsRow
+	for rows.Next() {
+		var i GetOrganizationEnabledChatModelConfigsRow
+		if err := rows.Scan(
+			&i.ChatModelConfig.ID,
+			&i.ChatModelConfig.Model,
+			&i.ChatModelConfig.DisplayName,
+			&i.ChatModelConfig.CreatedBy,
+			&i.ChatModelConfig.UpdatedBy,
+			&i.ChatModelConfig.Enabled,
+			&i.ChatModelConfig.IsDefault,
+			&i.ChatModelConfig.Deleted,
+			&i.ChatModelConfig.DeletedAt,
+			&i.ChatModelConfig.CreatedAt,
+			&i.ChatModelConfig.UpdatedAt,
+			&i.ChatModelConfig.ContextLimit,
+			&i.ChatModelConfig.CompressionThreshold,
+			&i.ChatModelConfig.Options,
+			&i.ChatModelConfig.AIProviderID,
+			&i.ChatModelConfig.OrganizationID,
+			&i.ChatModelConfig.UserACL,
+			&i.ChatModelConfig.GroupACL,
+			&i.ChatModelConfig.LegacyModelConfigID,
+			&i.ChatModelConfig.InheritsLegacyConfig,
+			&i.Provider,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertInheritedOrganizationChatModelConfigs = `-- name: InsertInheritedOrganizationChatModelConfigs :exec
+INSERT INTO chat_model_configs (
+  id, model, display_name, created_by, updated_by, enabled, is_default,
+  deleted, deleted_at, created_at, updated_at, context_limit,
+  compression_threshold, options, ai_provider_id, organization_id,
+  user_acl, group_acl, legacy_model_config_id, inherits_legacy_config
+)
+SELECT gen_random_uuid(), legacy.model, legacy.display_name, legacy.created_by,
+  legacy.updated_by, legacy.enabled, legacy.is_default, legacy.deleted,
+  legacy.deleted_at, legacy.created_at, legacy.updated_at, legacy.context_limit,
+  legacy.compression_threshold, legacy.options, legacy.ai_provider_id, org.id,
+  '{}'::jsonb, jsonb_build_object(org.id::text, jsonb_build_array('read')),
+  legacy.id, TRUE
+FROM chat_model_configs legacy
+CROSS JOIN organizations org
+WHERE legacy.id = $1::uuid
+  AND legacy.organization_id IS NULL
+  AND org.deleted = FALSE
+ON CONFLICT (organization_id, legacy_model_config_id)
+  WHERE organization_id IS NOT NULL AND legacy_model_config_id IS NOT NULL
+DO NOTHING
+`
+
+func (q *sqlQuerier) InsertInheritedOrganizationChatModelConfigs(ctx context.Context, legacyModelConfigID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, insertInheritedOrganizationChatModelConfigs, legacyModelConfigID)
+	return err
+}
+
+const insertOrganizationChatModelConfig = `-- name: InsertOrganizationChatModelConfig :one
+INSERT INTO chat_model_configs (
+  model, display_name, created_by, updated_by, enabled, is_default,
+  context_limit, compression_threshold, options, ai_provider_id,
+  organization_id, user_acl, group_acl, legacy_model_config_id,
+  inherits_legacy_config
+) VALUES (
+  $1::text, $2::text, $3::uuid,
+  $4::uuid, $5::boolean, $6::boolean,
+  $7::bigint, $8::integer, $9::jsonb,
+  $10::uuid, $11::uuid, $12,
+  $13, NULL, FALSE
+) RETURNING id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, user_acl, group_acl, legacy_model_config_id, inherits_legacy_config
+`
+
+type InsertOrganizationChatModelConfigParams struct {
+	Model                string             `db:"model" json:"model"`
+	DisplayName          string             `db:"display_name" json:"display_name"`
+	CreatedBy            uuid.NullUUID      `db:"created_by" json:"created_by"`
+	UpdatedBy            uuid.NullUUID      `db:"updated_by" json:"updated_by"`
+	Enabled              bool               `db:"enabled" json:"enabled"`
+	IsDefault            bool               `db:"is_default" json:"is_default"`
+	ContextLimit         int64              `db:"context_limit" json:"context_limit"`
+	CompressionThreshold int32              `db:"compression_threshold" json:"compression_threshold"`
+	Options              json.RawMessage    `db:"options" json:"options"`
+	AIProviderID         uuid.NullUUID      `db:"ai_provider_id" json:"ai_provider_id"`
+	OrganizationID       uuid.UUID          `db:"organization_id" json:"organization_id"`
+	UserACL              ChatModelConfigACL `db:"user_acl" json:"user_acl"`
+	GroupACL             ChatModelConfigACL `db:"group_acl" json:"group_acl"`
+}
+
+func (q *sqlQuerier) InsertOrganizationChatModelConfig(ctx context.Context, arg InsertOrganizationChatModelConfigParams) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, insertOrganizationChatModelConfig,
+		arg.Model,
+		arg.DisplayName,
+		arg.CreatedBy,
+		arg.UpdatedBy,
+		arg.Enabled,
+		arg.IsDefault,
+		arg.ContextLimit,
+		arg.CompressionThreshold,
+		arg.Options,
+		arg.AIProviderID,
+		arg.OrganizationID,
+		arg.UserACL,
+		arg.GroupACL,
+	)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Model,
+		&i.DisplayName,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.Enabled,
+		&i.IsDefault,
+		&i.Deleted,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
+		&i.Options,
+		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.LegacyModelConfigID,
+		&i.InheritsLegacyConfig,
+	)
+	return i, err
+}
+
+const setOrganizationChatModelConfigDefaultInheritance = `-- name: SetOrganizationChatModelConfigDefaultInheritance :exec
+INSERT INTO chat_model_config_org_default_inheritance (organization_id, inherits_legacy_default)
+VALUES ($1::uuid, $2::boolean)
+ON CONFLICT (organization_id) DO UPDATE
+SET inherits_legacy_default = EXCLUDED.inherits_legacy_default
+`
+
+type SetOrganizationChatModelConfigDefaultInheritanceParams struct {
+	OrganizationID        uuid.UUID `db:"organization_id" json:"organization_id"`
+	InheritsLegacyDefault bool      `db:"inherits_legacy_default" json:"inherits_legacy_default"`
+}
+
+func (q *sqlQuerier) SetOrganizationChatModelConfigDefaultInheritance(ctx context.Context, arg SetOrganizationChatModelConfigDefaultInheritanceParams) error {
+	_, err := q.db.ExecContext(ctx, setOrganizationChatModelConfigDefaultInheritance, arg.OrganizationID, arg.InheritsLegacyDefault)
+	return err
+}
+
+const softDeleteInheritedOrganizationChatModelConfigs = `-- name: SoftDeleteInheritedOrganizationChatModelConfigs :exec
+UPDATE chat_model_configs
+SET inherits_legacy_config = FALSE,
+    deleted = TRUE,
+    deleted_at = NOW(),
+    updated_at = NOW()
+WHERE legacy_model_config_id = $1::uuid
+  AND organization_id IS NOT NULL
+  AND inherits_legacy_config = TRUE
+  AND deleted = FALSE
+`
+
+func (q *sqlQuerier) SoftDeleteInheritedOrganizationChatModelConfigs(ctx context.Context, legacyModelConfigID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, softDeleteInheritedOrganizationChatModelConfigs, legacyModelConfigID)
+	return err
+}
+
+const softDeleteOrganizationChatModelConfig = `-- name: SoftDeleteOrganizationChatModelConfig :exec
+UPDATE chat_model_configs
+SET inherits_legacy_config = FALSE,
+    deleted = TRUE,
+    deleted_at = NOW(),
+    updated_at = NOW()
+WHERE id = $1::uuid
+  AND organization_id = $2::uuid
+  AND deleted = FALSE
+`
+
+type SoftDeleteOrganizationChatModelConfigParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) SoftDeleteOrganizationChatModelConfig(ctx context.Context, arg SoftDeleteOrganizationChatModelConfigParams) error {
+	_, err := q.db.ExecContext(ctx, softDeleteOrganizationChatModelConfig, arg.ID, arg.OrganizationID)
+	return err
+}
+
+const synchronizeInheritedOrganizationChatModelConfigDefaults = `-- name: SynchronizeInheritedOrganizationChatModelConfigDefaults :exec
+WITH target_defaults AS (
+  SELECT cmc.organization_id, cmc.id
+  FROM chat_model_configs cmc
+  JOIN chat_model_config_org_default_inheritance inheritance
+    ON inheritance.organization_id = cmc.organization_id
+  WHERE inheritance.inherits_legacy_default = TRUE
+    AND cmc.legacy_model_config_id = $1::uuid
+    AND cmc.inherits_legacy_config = TRUE
+    AND cmc.deleted = FALSE
+), moved_defaults AS (
+  UPDATE chat_model_configs current_default
+  SET is_default = FALSE, updated_at = NOW()
+  FROM target_defaults target
+  WHERE current_default.organization_id = target.organization_id
+    AND current_default.is_default = TRUE
+    AND current_default.deleted = FALSE
+  RETURNING current_default.organization_id
+)
+UPDATE chat_model_configs target
+SET is_default = TRUE, updated_at = NOW()
+FROM target_defaults selected
+LEFT JOIN moved_defaults moved
+  ON moved.organization_id = selected.organization_id
+WHERE target.id = selected.id
+`
+
+func (q *sqlQuerier) SynchronizeInheritedOrganizationChatModelConfigDefaults(ctx context.Context, legacyModelConfigID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, synchronizeInheritedOrganizationChatModelConfigDefaults, legacyModelConfigID)
+	return err
+}
+
+const synchronizeInheritedOrganizationChatModelConfigs = `-- name: SynchronizeInheritedOrganizationChatModelConfigs :exec
+UPDATE chat_model_configs copy
+SET model = legacy.model,
+    display_name = legacy.display_name,
+    updated_by = legacy.updated_by,
+    enabled = legacy.enabled,
+    context_limit = legacy.context_limit,
+    compression_threshold = legacy.compression_threshold,
+    options = legacy.options,
+    ai_provider_id = legacy.ai_provider_id,
+    updated_at = legacy.updated_at
+FROM chat_model_configs legacy
+WHERE legacy.id = $1::uuid
+  AND legacy.organization_id IS NULL
+  AND copy.legacy_model_config_id = legacy.id
+  AND copy.organization_id IS NOT NULL
+  AND copy.inherits_legacy_config = TRUE
+`
+
+func (q *sqlQuerier) SynchronizeInheritedOrganizationChatModelConfigs(ctx context.Context, legacyModelConfigID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, synchronizeInheritedOrganizationChatModelConfigs, legacyModelConfigID)
+	return err
+}
+
+const unsetOrganizationDefaultChatModelConfigs = `-- name: UnsetOrganizationDefaultChatModelConfigs :exec
+UPDATE chat_model_configs
+SET is_default = FALSE, updated_at = NOW()
+WHERE organization_id = $1::uuid
+  AND is_default = TRUE
+  AND deleted = FALSE
+`
+
+func (q *sqlQuerier) UnsetOrganizationDefaultChatModelConfigs(ctx context.Context, organizationID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, unsetOrganizationDefaultChatModelConfigs, organizationID)
+	return err
+}
+
+const updateOrganizationChatModelConfig = `-- name: UpdateOrganizationChatModelConfig :one
+UPDATE chat_model_configs
+SET model = $1::text,
+    display_name = $2::text,
+    updated_by = $3::uuid,
+    enabled = $4::boolean,
+    is_default = $5::boolean,
+    context_limit = $6::bigint,
+    compression_threshold = $7::integer,
+    options = $8::jsonb,
+    ai_provider_id = $9::uuid,
+    inherits_legacy_config = FALSE,
+    updated_at = NOW()
+WHERE id = $10::uuid
+  AND organization_id = $11::uuid
+  AND deleted = FALSE
+RETURNING id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, user_acl, group_acl, legacy_model_config_id, inherits_legacy_config
+`
+
+type UpdateOrganizationChatModelConfigParams struct {
+	Model                string          `db:"model" json:"model"`
+	DisplayName          string          `db:"display_name" json:"display_name"`
+	UpdatedBy            uuid.NullUUID   `db:"updated_by" json:"updated_by"`
+	Enabled              bool            `db:"enabled" json:"enabled"`
+	IsDefault            bool            `db:"is_default" json:"is_default"`
+	ContextLimit         int64           `db:"context_limit" json:"context_limit"`
+	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
+	Options              json.RawMessage `db:"options" json:"options"`
+	AIProviderID         uuid.NullUUID   `db:"ai_provider_id" json:"ai_provider_id"`
+	ID                   uuid.UUID       `db:"id" json:"id"`
+	OrganizationID       uuid.UUID       `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) UpdateOrganizationChatModelConfig(ctx context.Context, arg UpdateOrganizationChatModelConfigParams) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateOrganizationChatModelConfig,
+		arg.Model,
+		arg.DisplayName,
+		arg.UpdatedBy,
+		arg.Enabled,
+		arg.IsDefault,
+		arg.ContextLimit,
+		arg.CompressionThreshold,
+		arg.Options,
+		arg.AIProviderID,
+		arg.ID,
+		arg.OrganizationID,
+	)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Model,
+		&i.DisplayName,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.Enabled,
+		&i.IsDefault,
+		&i.Deleted,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
+		&i.Options,
+		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.LegacyModelConfigID,
+		&i.InheritsLegacyConfig,
+	)
+	return i, err
+}
+
+const updateOrganizationChatModelConfigACL = `-- name: UpdateOrganizationChatModelConfigACL :exec
+UPDATE chat_model_configs
+SET user_acl = $1,
+    group_acl = $2,
+    updated_at = NOW()
+WHERE id = $3::uuid
+  AND organization_id = $4::uuid
+  AND deleted = FALSE
+`
+
+type UpdateOrganizationChatModelConfigACLParams struct {
+	UserACL        ChatModelConfigACL `db:"user_acl" json:"user_acl"`
+	GroupACL       ChatModelConfigACL `db:"group_acl" json:"group_acl"`
+	ID             uuid.UUID          `db:"id" json:"id"`
+	OrganizationID uuid.UUID          `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) UpdateOrganizationChatModelConfigACL(ctx context.Context, arg UpdateOrganizationChatModelConfigACLParams) error {
+	_, err := q.db.ExecContext(ctx, updateOrganizationChatModelConfigACL,
+		arg.UserACL,
+		arg.GroupACL,
+		arg.ID,
+		arg.OrganizationID,
+	)
+	return err
+}
+
 const acquireStaleChatDiffStatuses = `-- name: AcquireStaleChatDiffStatuses :many
 WITH acquired AS (
     UPDATE
