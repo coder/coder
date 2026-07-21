@@ -6555,7 +6555,7 @@ type WorkspaceApp struct {
 	Tooltip string `db:"tooltip" json:"tooltip"`
 }
 
-// Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.
+// Audit sessions for workspace apps, ports, and tunnels. The data in this table is ephemeral and is used to deduplicate connection log entries. While a session is active, the same data will not be logged again. This table does not store historical data.
 type WorkspaceAppAuditSession struct {
 	// The agent that the workspace app or port forward belongs to.
 	AgentID uuid.UUID `db:"agent_id" json:"agent_id"`

@@ -3864,7 +3864,7 @@ CREATE UNLOGGED TABLE workspace_app_audit_sessions (
     id uuid NOT NULL
 );
 
-COMMENT ON TABLE workspace_app_audit_sessions IS 'Audit sessions for workspace apps, the data in this table is ephemeral and is used to deduplicate audit log entries for workspace apps. While a session is active, the same data will not be logged again. This table does not store historical data.';
+COMMENT ON TABLE workspace_app_audit_sessions IS 'Audit sessions for workspace apps, ports, and tunnels. The data in this table is ephemeral and is used to deduplicate connection log entries. While a session is active, the same data will not be logged again. This table does not store historical data.';
 
 COMMENT ON COLUMN workspace_app_audit_sessions.agent_id IS 'The agent that the workspace app or port forward belongs to.';
 

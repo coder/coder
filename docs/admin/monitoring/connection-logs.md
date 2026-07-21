@@ -43,9 +43,12 @@ Keep the following in mind when interpreting tunnel events:
   including `coder ssh`, `coder port-forward`, `coder ping`,
   `coder speedtest`, and IDE extensions. One tunnel may carry many
   sessions, or none.
-- Clients automatically re-establish tunnels after network
-  interruptions or server restarts, and each reconnection produces a
-  new event.
+- Tunnel events are deduplicated per user, workspace agent, IP address,
+  and client. Clients automatically re-establish tunnels after network
+  interruptions or server restarts; reconnections do not produce new
+  events while a session is active. A new event is recorded when a
+  session has been idle for one hour, or when the user connects from a
+  new IP address or client.
 - Connections made through Coder Desktop (Coder Connect) do not
   currently produce tunnel events.
 - Like workspace app connections, tunnel events are point-in-time

@@ -968,25 +968,27 @@ func TestWorkspaceAgentClientCoordinate_ConnectionLog(t *testing.T) {
 	err = conn.Close()
 	require.NoError(t, err)
 
-	// A second handshake must produce its own row rather than
-	// upserting into the first one.
+	// A second handshake within the audit session stale interval is a
+	// reconnection and must be deduplicated rather than producing a
+	// second row.
 	conn2, err := workspacesdk.New(client).
 		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
 			Logger: testutil.Logger(t).Named("client2"),
 		})
 	require.NoError(t, err)
 	defer conn2.Close()
+	// The connection log write happens in the coordinate handler
+	// before any coordination traffic is served, so once the tunnel is
+	// reachable the second handshake has already been processed.
 	require.True(t, conn2.AwaitReachable(ctx))
 
-	require.Eventually(t, func() bool {
-		ids := make(map[uuid.UUID]struct{})
-		for _, cl := range connLogger.ConnectionLogs() {
-			if cl.Type == database.ConnectionTypeTunnel {
-				ids[cl.ID] = struct{}{}
-			}
+	tunnelRows := 0
+	for _, cl := range connLogger.ConnectionLogs() {
+		if cl.Type == database.ConnectionTypeTunnel {
+			tunnelRows++
 		}
-		return len(ids) >= 2
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}
+	require.Equal(t, 1, tunnelRows)
 }
 
 func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {

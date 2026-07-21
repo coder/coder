@@ -1402,17 +1402,66 @@ func (api *API) logTunnelConnection(ctx context.Context, r *http.Request, waws d
 	if !ok {
 		return
 	}
-	// Bound the write so that connection log backpressure (e.g. a
+	// Bound the writes so that connection log backpressure (e.g. a
 	// wedged database write) cannot stall tunnel establishment. Losing
 	// a log row under extreme backpressure is preferable to refusing
-	// tunnels; the error below records the loss.
+	// tunnels; the errors below record the loss.
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	userAgent := r.UserAgent()
+	now := dbtime.Now()
+
+	// Clients automatically re-dial the coordinate endpoint after
+	// network blips, load balancer timeouts, and coderd restarts, so a
+	// row per handshake would flood the connection log with reconnect
+	// noise. Deduplicate through the same audit session mechanism used
+	// by workspace apps: only log when there is no active session for
+	// this (agent, user, IP, client) key. Tunnel sessions use uuid.Nil
+	// for app_id and an empty slug like port forwarding does; status
+	// code 101 keeps them from colliding with app sessions.
+	staleInterval := api.Options.WorkspaceAppAuditSessionTimeout
+	if staleInterval == 0 {
+		staleInterval = time.Hour
+	}
+	// nolint:gocritic // System context is needed to write audit sessions.
+	dangerousSystemCtx := dbauthz.AsSystemRestricted(ctx)
+	newOrStale, err := api.Database.UpsertWorkspaceAppAuditSession(dangerousSystemCtx, database.UpsertWorkspaceAppAuditSessionParams{
+		// Config.
+		StaleIntervalMS: staleInterval.Milliseconds(),
+
+		// Data.
+		ID:         uuid.New(),
+		AgentID:    waws.WorkspaceAgent.ID,
+		AppID:      uuid.Nil, // Tunnels are not associated with an app.
+		UserID:     apiKey.UserID,
+		Ip:         r.RemoteAddr,
+		UserAgent:  userAgent,
+		SlugOrPort: "",
+		StatusCode: http.StatusSwitchingProtocols,
+		StartedAt:  now,
+		UpdatedAt:  now,
+	})
+	if err != nil {
+		api.Logger.Error(ctx, "upsert tunnel audit session failed",
+			slog.F("workspace_id", waws.WorkspaceTable.ID),
+			slog.F("user_id", apiKey.UserID),
+			slog.Error(err),
+		)
+		// Avoid spamming the connection log if deduplication failed;
+		// this should only happen if there are problems communicating
+		// with the database.
+		return
+	}
+	if !newOrStale {
+		// An active session for this key was already logged; this
+		// handshake is a reconnection.
+		return
+	}
+
 	connLogger := *api.ConnectionLogger.Load()
-	err := connLogger.Upsert(ctx, database.UpsertConnectionLogParams{
+	err = connLogger.Upsert(ctx, database.UpsertConnectionLogParams{
 		ID:               uuid.New(),
-		Time:             dbtime.Now(),
+		Time:             now,
 		OrganizationID:   waws.WorkspaceTable.OrganizationID,
 		WorkspaceOwnerID: waws.WorkspaceTable.OwnerID,
 		WorkspaceID:      waws.WorkspaceTable.ID,
@@ -1427,9 +1476,9 @@ func (api *API) logTunnelConnection(ctx context.Context, r *http.Request, waws d
 		UserAgent: sql.NullString{String: userAgent, Valid: userAgent != ""},
 		UserID:    uuid.NullUUID{UUID: apiKey.UserID, Valid: true},
 		// ConnectionID is intentionally left unset so that each
-		// handshake produces its own row. Reusing peerID here
-		// would cause resume_token reconnects to upsert into the
-		// existing row without updating ip/user_agent.
+		// new or stale audit session produces its own row. Reusing
+		// peerID here would cause resume_token reconnects to upsert
+		// into the existing row without updating ip/user_agent.
 		ConnectionID:     uuid.NullUUID{},
 		ConnectionStatus: database.ConnectionStatusConnected,
 		// N/A

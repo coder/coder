@@ -9,3 +9,5 @@ COMMENT ON COLUMN connection_logs.slug_or_port IS 'Null for agent-reported (SSH)
 COMMENT ON COLUMN connection_logs.disconnect_time IS 'The time the connection was closed. Null for coderd-reported connections (workspace_app, port_forwarding, tunnel). For agent-reported connections, this is null until we receive a disconnect event for the same connection_id.';
 
 COMMENT ON COLUMN connection_logs.disconnect_reason IS 'The reason the connection was closed. Null for coderd-reported connections (workspace_app, port_forwarding, tunnel). For agent-reported connections, this is null until we receive a disconnect event for the same connection_id.';
+
+COMMENT ON TABLE workspace_app_audit_sessions IS 'Audit sessions for workspace apps, ports, and tunnels. The data in this table is ephemeral and is used to deduplicate connection log entries. While a session is active, the same data will not be logged again. This table does not store historical data.';
