@@ -195,7 +195,7 @@ deployment. Use this to encode organizational conventions:
 - Required review processes before merging.
 - Any guardrails specific to your environment.
 
-Configure the system prompt from **AI Settings** > **Instructions**
+Configure the system prompt from **AI Settings** > **Coder Agents** > **Instructions**
 or via the API at `PUT /api/experimental/chats/config/system-prompt`.
 See [Platform Controls](./platform-controls/index.md) for details.
 
@@ -269,7 +269,7 @@ curl -X POST https://coder.example.com/api/experimental/chats \
 
 Stream updates in real time by connecting to the WebSocket endpoint:
 
-```text
+```txt
 GET /api/experimental/chats/{chat}/stream
 ```
 

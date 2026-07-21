@@ -250,4 +250,25 @@ func TestParseBasesFromFS(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "", bases["nospec"].Manifest.OS)
 	})
+
+	t.Run("AcceptsWindowsOS", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := fstest.MapFS{
+			"bases/winbox/base.json": &fstest.MapFile{
+				Data: []byte(`{"id": "winbox", "os": "windows"}`),
+			},
+			"bases/winbox/main.tf.tmpl": &fstest.MapFile{
+				Data: []byte(`resource "coder_agent" "main" {}`),
+			},
+			"bases/winbox/README.md": &fstest.MapFile{
+				Data: []byte("# Windows\n"),
+			},
+		}
+
+		bases, err := parseBasesFromFS(fsys)
+		require.NoError(t, err)
+		require.Equal(t, "windows", bases["winbox"].Manifest.OS)
+		require.Equal(t, BaseOSWindows, validBaseOS[bases["winbox"].Manifest.OS])
+	})
 }

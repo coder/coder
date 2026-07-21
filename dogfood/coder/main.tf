@@ -34,7 +34,7 @@ locals {
     "za-cpt"      = "tcp://schonkopf-cpt-cdr-dev.tailscale.svc.cluster.local:2375"
   }
 
-  repo_base_dir  = "/home/coder"
+  repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
   repo_dir       = replace(try(module.git-clone[0].repo_dir, ""), "/^~\\//", "/home/coder/")
   container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
 
@@ -50,8 +50,9 @@ data "coder_workspace_preset" "pittsburgh" {
   description = "Development workspace hosted in United States with 2 prebuild instances"
   icon        = "/emojis/1f1fa-1f1f8.png"
   parameters = {
-    (data.coder_parameter.region.name)     = "us-pittsburgh"
-    (data.coder_parameter.image_type.name) = data.coder_parameter.image_type.default
+    (data.coder_parameter.region.name)        = "us-pittsburgh"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
   }
   prebuilds {
     instances = 2
@@ -63,8 +64,9 @@ data "coder_workspace_preset" "cpt" {
   description = "Development workspace hosted in South Africa with 1 prebuild instance"
   icon        = "/emojis/1f1ff-1f1e6.png"
   parameters = {
-    (data.coder_parameter.region.name)     = "za-cpt"
-    (data.coder_parameter.image_type.name) = data.coder_parameter.image_type.default
+    (data.coder_parameter.region.name)        = "za-cpt"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
   }
   prebuilds {
     instances = 1
@@ -76,8 +78,9 @@ data "coder_workspace_preset" "falkenstein" {
   description = "Development workspace hosted in Europe with 1 prebuild instance"
   icon        = "/emojis/1f1ea-1f1fa.png"
   parameters = {
-    (data.coder_parameter.region.name)     = "eu-helsinki"
-    (data.coder_parameter.image_type.name) = data.coder_parameter.image_type.default
+    (data.coder_parameter.region.name)        = "eu-helsinki"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
   }
   prebuilds {
     instances = 1
@@ -89,8 +92,9 @@ data "coder_workspace_preset" "sydney" {
   description = "Development workspace hosted in Australia with 1 prebuild instance"
   icon        = "/emojis/1f1e6-1f1fa.png"
   parameters = {
-    (data.coder_parameter.region.name)     = "ap-sydney"
-    (data.coder_parameter.image_type.name) = data.coder_parameter.image_type.default
+    (data.coder_parameter.region.name)        = "ap-sydney"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
   }
   prebuilds {
     instances = 1
@@ -108,11 +112,20 @@ locals {
   }
 }
 
+data "coder_parameter" "repo_base_dir" {
+  type        = "string"
+  name        = "Coder Repository Base Directory"
+  default     = "~"
+  description = "The directory specified will be created (if missing) and [coder/coder](https://github.com/coder/coder) will be automatically cloned into [base directory]/coder 🪄."
+  mutable     = true
+}
+
 data "coder_parameter" "image_type" {
   type        = "string"
   name        = "Coder Image"
-  default     = "codercom/oss-dogfood:latest"
+  default     = "ubuntu-latest"
   description = "The Docker image used to run your workspace."
+  mutable     = true
   option {
     icon  = "/icon/coder.svg"
     name  = "Ubuntu 26.04"
@@ -175,6 +188,14 @@ data "coder_parameter" "devcontainer_autostart" {
   name        = "Automatically start devcontainer for coder/coder"
   default     = false
   description = "If enabled, a devcontainer will be automatically started for the [coder/coder](https://github.com/coder/coder) repository."
+  mutable     = true
+}
+
+data "coder_parameter" "enable_kvm" {
+  type        = "bool"
+  name        = "Expose /dev/kvm to the workspace"
+  default     = false
+  description = "If enabled, the host's /dev/kvm device is mapped into the workspace container to allow hardware-accelerated VMs. Only works when the underlying host exposes /dev/kvm; leave disabled otherwise."
   mutable     = true
 }
 
@@ -314,7 +335,7 @@ module "personalize" {
 module "mux" {
   count                = data.coder_workspace.me.start_count
   source               = "registry.coder.com/coder/mux/coder"
-  version              = "1.4.3"
+  version              = "1.5.0"
   agent_id             = coder_agent.dev.id
   subdomain            = true
   display_name         = "Mux"
@@ -328,7 +349,7 @@ module "mux" {
 module "code-server" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.5.0"
+  version                 = "1.5.2"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -338,7 +359,7 @@ module "code-server" {
 module "vscode-web" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode-web") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/vscode-web/coder"
-  version                 = "1.5.1"
+  version                 = "1.6.1"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   extensions              = ["github.copilot"]
@@ -392,7 +413,7 @@ module "windsurf" {
 module "zed" {
   count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "zed") ? data.coder_workspace.me.start_count : 0
   source     = "dev.registry.coder.com/coder/zed/coder"
-  version    = "1.1.4"
+  version    = "1.1.5"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
   folder     = local.repo_dir
@@ -867,6 +888,15 @@ resource "docker_container" "workspace" {
   capabilities {
     add = ["CAP_NET_ADMIN", "CAP_SYS_NICE"]
   }
+  # Gated behind a parameter because mapping /dev/kvm fails container creation
+  # on hosts that do not expose it.
+  dynamic "devices" {
+    for_each = data.coder_parameter.enable_kvm.value ? [1] : []
+    content {
+      host_path      = "/dev/kvm"
+      container_path = "/dev/kvm"
+    }
+  }
   # Add labels in Docker to keep track of orphan resources.
   labels {
     label = "coder.owner"
@@ -956,7 +986,7 @@ resource "coder_app" "claude" {
 
 module "codex" {
   source            = "dev.registry.coder.com/coder-labs/codex/coder"
-  version           = "5.2.0"
+  version           = "5.3.0"
   agent_id          = coder_agent.dev.id
   workdir           = local.repo_dir
   enable_ai_gateway = true

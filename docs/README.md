@@ -184,4 +184,4 @@ See the [templates documentation](./admin/templates/index.md) for details.
 - [Coder Agents](./ai-coder/agents/index.md)
 - [Templates](./admin/templates/index.md)
 - [Installing Coder](./install/index.md)
-- [Quickstart tutorial](./tutorials/quickstart.md)
+- [Quickstart tutorial](./get-started/index.md)

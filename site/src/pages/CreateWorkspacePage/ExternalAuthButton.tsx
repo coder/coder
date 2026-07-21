@@ -31,7 +31,7 @@ export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
 			<span className="flex flex-row items-center gap-2">
 				{auth.display_icon && (
 					<ExternalImage
-						className="w-5 h-5"
+						className="size-5"
 						src={auth.display_icon}
 						alt={`${auth.display_name} Icon`}
 					/>
@@ -47,7 +47,7 @@ export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
 			<span className="flex flex-row items-center gap-2">
 				{auth.authenticated ? (
 					<>
-						<CheckIcon className="w-4 h-4 text-content-success" />
+						<CheckIcon className="size-4 text-content-success" />
 						<p className="text-xs font-semibold text-content-secondary m-0">
 							Authenticated
 						</p>

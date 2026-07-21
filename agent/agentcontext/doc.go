@@ -17,6 +17,11 @@
 //     the tree downward or up to a parent directory.
 //   - A fixed-location fsnotify watcher that signals a re-resolve
 //     when any recognized file changes.
+//   - A readiness gate (Manager.SetReady). The Manager starts gated,
+//     publishing only an empty version-0 snapshot until the agent calls
+//     SetReady from the workspace lifecycle transition once startup
+//     scripts finish. This keeps pre-startup partial state out of
+//     coderd and chats.
 //   - An HTTP API at /api/v0/context/sources for source CRUD
 //     and /api/v0/context/resync for synchronous push barriers.
 //   - A Pusher abstraction so the latest Snapshot can be shipped

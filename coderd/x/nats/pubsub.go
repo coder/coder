@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"net"
 	"net/url"
 	"sync"
 	"time"
@@ -15,7 +16,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/quartz"
 )
 
 // DefaultServerMaxPendingBytes caps how many bytes the embedded NATS server will
@@ -113,12 +116,31 @@ type Options struct {
 	ClusterHost string
 
 	// ClusterPort is the embedded NATS route listener port. Zero means
-	// 6222 when cluster mode is enabled.
+	// 6222 when cluster mode is enabled. NATS `server.RANDOM_PORT` can be
+	// used to select a random port.
 	ClusterPort int
 
 	// ClusterAuthToken is the shared route authentication token for
 	// clustered embedded NATS servers. Empty disables route auth.
 	ClusterAuthToken string
+
+	// ClusterCA enables mutual TLS on the cluster route listener. When set
+	// (and cluster mode is enabled), each replica mints an ephemeral leaf
+	// certificate from the active nats_ca CA and verifies peers against the
+	// CA fetched from this cache on each handshake. Nil keeps routes
+	// plaintext (token auth only). cryptokeys.SigningKeycache satisfies this.
+	//
+	// The leaf's IP SAN (and the accept-side source binding) is this replica's
+	// ClusterHost, so ClusterHost must be an IP for mTLS to activate.
+	ClusterCA cryptokeys.SigningKeycache
+
+	// clock overrides the cluster TLS clock, for tests.
+	clock quartz.Clock
+
+	// clusterTLSTimeout overrides the cluster route TLS handshake timeout, for
+	// tests. Zero leaves the NATS default (2s). Tests use a longer timeout
+	// because handshakes are flaky under load and in CI.
+	clusterTLSTimeout time.Duration
 
 	// PeerFetcher provides the current set of peer route addresses.
 	// RefreshPeers uses it to update the configured cluster routes.
@@ -181,6 +203,8 @@ type Pubsub struct {
 	clustered     bool
 	serverOpts    *natsserver.Options
 	currentRoutes []*url.URL
+	// clusterTLS is non-nil when the cluster route listener runs mutual TLS.
+	clusterTLS *clusterTLS
 
 	peerFetcher PeerFetcher
 	peerRefresh chan struct{}
@@ -297,27 +321,41 @@ func (p *Pubsub) buildConnHandlers() connHandlers {
 // New creates an embedded NATS Pubsub. The returned *Pubsub owns the
 // embedded server and the publisher and subscriber connection pools.
 // Close shuts down all owned resources.
-func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error) {
-	// Persist the default cluster port onto opts so it is the same value the
-	// listener (buildServerOptions) binds and the value parsePeerAddresses
-	// compares against. parsePeerAddresses overwrites each peer's parsed port
-	// with defaultClusterPort, but only when opts.ClusterPort already equals
-	// defaultClusterPort. Callers like the cli leave ClusterPort at 0, so
-	// without this that branch is skipped and peers are dialed on the relay
-	// URL's port (e.g. 8080) instead of the NATS route port (6222).
-	if opts.ClusterPort == 0 {
-		opts.ClusterPort = defaultClusterPort
-	}
-
+func New(ctx context.Context, logger slog.Logger, opts Options) (pubSub *Pubsub, retErr error) {
 	sopts, err := buildServerOptions(opts)
 	if err != nil {
 		return nil, err
+	}
+
+	// When ClusterCA is set, install the cluster TLS callbacks at boot so the
+	// route listener can negotiate mTLS. The callbacks read the CA cache on
+	// each handshake, so the default noop cache keeps routes inert (no leaf can
+	// be minted) until SetCACache swaps in a real cache. The leaf IP SAN is this
+	// replica's ClusterHost, fixed here at construction; leaf minting enforces
+	// that it is an IP. ClusterCA == nil keeps routes plaintext (token auth
+	// only).
+	var ct *clusterTLS
+	if !opts.disableCluster && opts.ClusterCA != nil {
+		selfIP := net.ParseIP(opts.ClusterHost)
+		ct = newClusterTLS(ctx, logger, opts.clock, opts.ClusterCA, selfIP)
+		sopts.Cluster.TLSConfig = ct.tlsConfig()
+		// Leave TLSTimeout unset (NATS defaults to 2s) unless a test overrides
+		// it; the default has not shown a need to change in production.
+		if opts.clusterTLSTimeout > 0 {
+			sopts.Cluster.TLSTimeout = opts.clusterTLSTimeout.Seconds()
+		}
 	}
 
 	ns, err := startEmbeddedServer(sopts)
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if retErr != nil {
+			ns.Shutdown()
+			ns.WaitForShutdown()
+		}
+	}()
 
 	logger.Info(context.Background(), "embedded nats server started",
 		slog.F("client_url", ns.ClientURL()),
@@ -328,37 +366,57 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 	}
 
 	p := newPubsub(ctx, logger, opts)
+	defer func() {
+		if retErr != nil {
+			p.cancel()
+		}
+	}()
 	p.Server = ns
 	p.clustered = !opts.disableCluster
 	p.serverOpts = sopts.Clone()
 	p.currentRoutes = cloneRouteURLs(sopts.Routes)
+	p.clusterTLS = ct
 	handlers := p.buildConnHandlers()
 
 	publishPool, err := newConnPool(ns, opts, handlers, opts.PublishConns, "coder-pubsub-pub")
 	if err != nil {
-		p.cancel()
-		ns.Shutdown()
-		ns.WaitForShutdown()
 		return nil, err
 	}
+	defer func() {
+		if retErr != nil {
+			for _, c := range publishPool {
+				c.Close()
+			}
+		}
+	}()
+	p.publishPool = publishPool
 
 	subscribePool, err := newConnPool(ns, opts, handlers, opts.SubscribeConns, "coder-pubsub-sub")
 	if err != nil {
-		p.cancel()
-		for _, c := range publishPool {
-			c.Close()
-		}
-		ns.Shutdown()
-		ns.WaitForShutdown()
 		return nil, err
 	}
-
-	p.publishPool = publishPool
+	defer func() {
+		if retErr != nil {
+			for _, c := range subscribePool {
+				c.Close()
+			}
+		}
+	}()
 	p.subscribePool = subscribePool
 	// All owned connections dialed successfully above.
 	p.metrics.markConnected(len(publishPool) + len(subscribePool))
 
 	if p.clustered {
+		ca := ns.ClusterAddr()
+		if ca == nil {
+			return nil, xerrors.New("no cluster address")
+		}
+		// sec checks, just to be sure
+		if ca.Port < 0 || ca.Port > 65535 {
+			return nil, xerrors.Errorf("invalid cluster port: %d", ca.Port)
+		}
+		//nolint:gosec // range checked above so conversion is safe.
+		opts.PeerFetcher.SetSelfNATSPort(int32(ca.Port))
 		go p.runPeerRefresh()
 	}
 	go func() {
@@ -535,15 +593,23 @@ func (p *Pubsub) handleAsyncError(sub *natsgo.Subscription, err error) {
 	if sub == nil || !errors.Is(err, natsgo.ErrSlowConsumer) {
 		return
 	}
+	// Snapshot candidates under p.mu, then match via the blocking
+	// sub.get() outside the lock. Holding p.mu across get() stalls other
+	// Pubsub operations and can deadlock with subscribeGroup's cleanup.
 	p.mu.Lock()
-	var nsub *groupSub
+	candidates := make([]*groupSub, 0, len(p.subscriptions))
 	for _, candidate := range p.subscriptions {
+		candidates = append(candidates, candidate)
+	}
+	p.mu.Unlock()
+
+	var nsub *groupSub
+	for _, candidate := range candidates {
 		if s, _ := candidate.sub.get(); s == sub {
 			nsub = candidate
 			break
 		}
 	}
-	p.mu.Unlock()
 	if nsub == nil {
 		return
 	}
@@ -691,6 +757,9 @@ func (p *Pubsub) closeLocalSubFunc(l *localSub, g *groupSub) func() {
 
 func (p *Pubsub) subscribeGroup(g *groupSub) {
 	defer func() {
+		// Close subscribeDone before taking p.mu: a goroutine holding
+		// p.mu may be blocked in get(), so the reverse order deadlocks.
+		close(g.sub.subscribeDone)
 		if g.sub.err != nil {
 			// failed to subscribe. Kick this out of the pubsub map of subscriptions, so that we don't permanently
 			// fail to subscribe to this event. The subscribe that kicked this off as well as any concurrent ones will
@@ -702,7 +771,6 @@ func (p *Pubsub) subscribeGroup(g *groupSub) {
 				p.metrics.removeEvent()
 			}
 		}
-		close(g.sub.subscribeDone)
 	}()
 	logger := p.logger.With(slog.F("event", g.event))
 	logger.Debug(context.Background(), "subscribing on nats")

@@ -147,8 +147,8 @@ func (w *chatWorker) archiveCandidate(
 	if len(familyChats) == 0 {
 		return nil, nil
 	}
-	w.scheduleArchiveDebugCleanup(ctx, familyChats)
-	w.publishArchiveWatchEvents(familyChats)
+	w.server.scheduleArchiveDebugCleanup(ctx, familyChats)
+	w.server.publishChatPubsubEvents(familyChats, codersdk.ChatWatchEventKindDeleted)
 
 	archived := make([]autoArchivedChat, 0, len(familyChats))
 	for _, chat := range familyChats {
@@ -170,28 +170,6 @@ func isExpectedAutoArchiveError(err error) bool {
 		errors.Is(err, chatstate.ErrChatNotRoot) ||
 		errors.Is(err, chatstate.ErrInvalidState) ||
 		errors.Is(err, chatstate.ErrTransitionNotAllowed)
-}
-
-func (w *chatWorker) publishArchiveWatchEvents(familyChats []database.Chat) {
-	if w.server != nil {
-		w.server.publishChatPubsubEvents(familyChats, codersdk.ChatWatchEventKindDeleted)
-		return
-	}
-	for _, chat := range familyChats {
-		if err := publishChatWatchEvent(w.opts.Pubsub, chat, codersdk.ChatWatchEventKindDeleted); err != nil {
-			w.opts.Logger.Warn(context.Background(), "chatworker auto-archive watch publish failed",
-				slog.F("chat_id", chat.ID),
-				slog.Error(err),
-			)
-		}
-	}
-}
-
-func (w *chatWorker) scheduleArchiveDebugCleanup(ctx context.Context, familyChats []database.Chat) {
-	if w.server == nil || len(familyChats) == 0 {
-		return
-	}
-	w.server.scheduleArchiveDebugCleanup(ctx, familyChats)
 }
 
 func (p *Server) scheduleArchiveDebugCleanup(ctx context.Context, familyChats []database.Chat) {

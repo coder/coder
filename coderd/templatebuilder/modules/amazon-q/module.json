@@ -36,7 +36,7 @@
     {
       "name": "agentapi_chat_based_path",
       "type": "bool",
-      "description": "Whether to use chat-based path for AgentAPI.Required if CODER_WILDCARD_ACCESS_URL is not defined in coder deployment",
+      "description": "Use chat-based path for AgentAPI.",
       "default": false,
       "required": false,
       "sensitive": false,
@@ -99,7 +99,7 @@
     {
       "name": "coder_mcp_instructions",
       "type": "string",
-      "description": "Instructions for the Coder MCP server integration. This defines how the agent should report tasks to Coder.",
+      "description": "Instructions for the Coder MCP server integration.",
       "default": "YOU MUST REPORT ALL TASKS TO CODER.\nWhen reporting tasks you MUST follow these EXACT instructions:\n- IMMEDIATELY report status after receiving ANY user message\n- Be granular If you are investigating with multiple steps report each step to coder.\n\nTask state MUST be one of the following:\n- Use \"state\": \"working\" when actively processing WITHOUT needing additional user input\n- Use \"state\": \"complete\" only when finished with a task\n- Use \"state\": \"failure\" when you need ANY user input lack sufficient details or encounter blockers.\n\nTask summaries MUST:\n- Include specifics about what you're doing\n- Include clear and actionable steps for the user\n- Be less than 160 characters in length\n",
       "required": false,
       "sensitive": false,

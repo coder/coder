@@ -35,6 +35,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
+	"github.com/nats-io/nats-server/v2/server"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/smallstep/pkcs7"
 	"github.com/stretchr/testify/assert"
@@ -93,6 +94,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	natspubsub "github.com/coder/coder/v2/coderd/x/nats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -171,7 +173,7 @@ type Options struct {
 	// test instances are running against the same database.
 	Database          database.Store
 	Pubsub            pubsub.Pubsub
-	ReplicaSyncPubsub *pubsub.PGPubsub
+	ReplicaSyncPubsub pubsub.Pubsub
 
 	// APIMiddleware inserts middleware before api.RootHandler, this can be
 	// useful in certain tests where you want to intercept requests before
@@ -198,6 +200,7 @@ type Options struct {
 	APIKeyEncryptionCache              cryptokeys.EncryptionKeycache
 	OIDCConvertKeyCache                cryptokeys.SigningKeycache
 	Clock                              quartz.Clock
+	Acquirer                           *provisionerdserver.Acquirer
 	TelemetryReporter                  telemetry.Reporter
 
 	ProvisionerdServerMetrics *provisionerdserver.Metrics
@@ -289,13 +292,28 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		usageInserter.Store(&options.UsageInserter)
 	}
 	if options.Database == nil {
-		options.Database, options.Pubsub = dbtestutil.NewDB(t)
+		var ps pubsub.Pubsub
+		options.Database, ps = dbtestutil.NewDB(t)
+		var ok bool
+		options.ReplicaSyncPubsub, ok = ps.(*pubsub.PGPubsub)
+		require.True(t, ok)
 	}
 	if options.ReplicaSyncPubsub == nil {
-		pgPubsub, ok := options.Pubsub.(*pubsub.PGPubsub)
-		require.True(t, ok, "ReplicaSyncPubsub must be a PGPubsub")
-		options.ReplicaSyncPubsub = pgPubsub
+		// To get here, the database must have been passed in, but not the ReplicSyncPubsub. We can't create a PGPubsub
+		// just from the database.Store since it could be anything including a mock. We need this to be independent from
+		// the main Pubsub in case it's NATS, since that uses the ReplicaSync to bootstrap the cluster. The in-mem
+		// pubsub satisfies these requirements.
+		options.ReplicaSyncPubsub = pubsub.NewInMemory()
 	}
+	if options.Pubsub == nil {
+		natsCtx, natsCancel := context.WithCancel(context.Background())
+		t.Cleanup(natsCancel)
+		natPS, err := natspubsub.New(natsCtx, *options.Logger, natspubsub.Options{ClusterPort: server.RANDOM_PORT})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = natPS.Close() })
+		options.Pubsub = natPS
+	}
+
 	if options.CoordinatorResumeTokenProvider == nil {
 		options.CoordinatorResumeTokenProvider = tailnet.NewInsecureTestResumeTokenProvider()
 	}
@@ -655,6 +673,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			NotificationsEnqueuer:              options.NotificationsEnqueuer,
 			OneTimePasscodeValidityPeriod:      options.OneTimePasscodeValidityPeriod,
 			Clock:                              options.Clock,
+			Acquirer:                           options.Acquirer,
 			AppEncryptionKeyCache:              options.APIKeyEncryptionCache,
 			OIDCConvertKeyCache:                options.OIDCConvertKeyCache,
 			ProvisionerdServerMetrics:          options.ProvisionerdServerMetrics,
@@ -1223,35 +1242,59 @@ func AwaitTemplateVersionJobRunning(t testing.TB, client *codersdk.Client, versi
 }
 
 // AwaitTemplateVersionJobCompleted waits for the build to be completed. This may result
-// from cancelation, an error, or from completing successfully.
+// from cancelation, an error, or from completing successfully. The wait is bounded by
+// testutil.WaitLong; use AwaitTemplateVersionJobCompletedWithTimeout to wait longer.
 func AwaitTemplateVersionJobCompleted(t testing.TB, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
+	return AwaitTemplateVersionJobCompletedWithTimeout(t, client, version, testutil.WaitLong)
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+// AwaitTemplateVersionJobCompletedWithTimeout waits up to timeout for the template
+// version build job to complete, polling at testutil.IntervalFast. Transient API errors
+// are logged and retried. Fails the test if the job does not complete in time.
+func AwaitTemplateVersionJobCompletedWithTimeout(t testing.TB, client *codersdk.Client, version uuid.UUID, timeout time.Duration) codersdk.TemplateVersion {
+	t.Helper()
+
+	ctx := testutil.Context(t, timeout)
 
 	t.Logf("waiting for template version %s build job to complete", version)
 	var templateVersion codersdk.TemplateVersion
-	require.Eventually(t, func() bool {
+	completed := testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		var err error
 		templateVersion, err = client.TemplateVersion(ctx, version)
+		if err != nil {
+			t.Logf("failed to get template version %s: %v", version, err)
+			return false
+		}
 		t.Logf("template version job status: %s", templateVersion.Job.Status)
-		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
-	}, testutil.WaitLong, testutil.IntervalFast, "make sure you set `IncludeProvisionerDaemon`!")
+		return templateVersion.Job.CompletedAt != nil
+	}, testutil.IntervalFast, "make sure you set `IncludeProvisionerDaemon`!")
+	if !completed {
+		t.FailNow()
+	}
 	t.Logf("template version %s job has completed", version)
 	return templateVersion
 }
 
-// AwaitWorkspaceBuildJobCompleted waits for a workspace provision job to reach completed status.
+// AwaitWorkspaceBuildJobCompleted waits for a workspace provision job to reach completed
+// status. The wait is bounded by testutil.WaitMedium; use
+// AwaitWorkspaceBuildJobCompletedWithTimeout to wait longer.
 func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
 	t.Helper()
+	return AwaitWorkspaceBuildJobCompletedWithTimeout(t, client, build, testutil.WaitMedium)
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer cancel()
+// AwaitWorkspaceBuildJobCompletedWithTimeout waits up to timeout for a workspace
+// provision job to reach completed status, polling at testutil.IntervalFast. Transient
+// API errors are logged and retried. Fails the test if the job does not complete in time.
+func AwaitWorkspaceBuildJobCompletedWithTimeout(t testing.TB, client *codersdk.Client, build uuid.UUID, timeout time.Duration) codersdk.WorkspaceBuild {
+	t.Helper()
+
+	ctx := testutil.Context(t, timeout)
 
 	t.Logf("waiting for workspace build job %s", build)
 	var workspaceBuild codersdk.WorkspaceBuild
-	require.Eventually(t, func() bool {
+	completed := testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		var err error
 		workspaceBuild, err = client.WorkspaceBuild(ctx, build)
 		if err != nil {
@@ -1263,7 +1306,10 @@ func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, buil
 			return false
 		}
 		return true
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast, "workspace build %s did not complete", build)
+	if !completed {
+		t.FailNow()
+	}
 	t.Logf("got workspace build job %s (status: %s)", build, workspaceBuild.Job.Status)
 	return workspaceBuild
 }

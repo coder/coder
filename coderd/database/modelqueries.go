@@ -786,6 +786,7 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 		arg.PrNumber,
 		arg.RepoQuery,
 		arg.PrTitleQuery,
+		arg.Search,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
@@ -810,6 +811,7 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 			&i.Chat.ParentChatID,
 			&i.Chat.RootChatID,
 			&i.Chat.LastModelConfigID,
+			&i.Chat.LastReasoningEffort,
 			&i.Chat.Archived,
 			&i.Chat.LastError,
 			&i.Chat.Mode,
@@ -840,6 +842,7 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 			&i.Chat.ContextDirtySince,
 			&i.Chat.ContextDirtyResources,
 			&i.Chat.ContextError,
+			&i.Chat.CompactionRequestedAt,
 			&i.HasUnread); err != nil {
 			return nil, err
 		}
@@ -888,6 +891,7 @@ func (q *sqlQuerier) GetAuthorizedChatsByChatFileID(ctx context.Context, fileID 
 			&i.ParentChatID,
 			&i.RootChatID,
 			&i.LastModelConfigID,
+			&i.LastReasoningEffort,
 			&i.Archived,
 			&i.LastError,
 			&i.Mode,
@@ -917,7 +921,8 @@ func (q *sqlQuerier) GetAuthorizedChatsByChatFileID(ctx context.Context, fileID 
 			&i.ContextAggregateHash,
 			&i.ContextDirtySince,
 			&i.ContextDirtyResources,
-			&i.ContextError); err != nil {
+			&i.ContextError,
+			&i.CompactionRequestedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1049,6 +1054,9 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessions(ctx context.Context, arg Lis
 			&i.CacheWriteInputTokens,
 			&i.LastPrompt,
 			&i.LastActiveAt,
+			&i.NetworkCallsTotal,
+			&i.NetworkCallsBlocked,
+			&i.FirewallActive,
 		); err != nil {
 			return nil, err
 		}
@@ -1151,6 +1159,8 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessionThreads(ctx context.Context, a
 			&i.AIBridgeInterception.CredentialHint,
 			&i.AIBridgeInterception.AgentFirewallSessionID,
 			&i.AIBridgeInterception.AgentFirewallSequenceNumber,
+			&i.AIBridgeInterception.ErrorType,
+			&i.AIBridgeInterception.ErrorMessage,
 		); err != nil {
 			return nil, err
 		}

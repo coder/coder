@@ -184,7 +184,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 				</div>
 			</TableCell>
 			<TableCell
-				data-chromatic="ignore"
+				data-pixel="ignore"
 				className="whitespace-nowrap text-sm font-medium leading-6 text-content-secondary"
 			>
 				{createDayString(template.updated_at)}

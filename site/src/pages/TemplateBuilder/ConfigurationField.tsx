@@ -1,4 +1,5 @@
 import type { FC, PropsWithChildren, ReactNode } from "react";
+import type { TemplateBuilderModuleVariable } from "#/api/typesGenerated";
 import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
@@ -122,13 +123,15 @@ const SelectField: FC<SelectFieldDefinition> = ({
 		<div className="!col-end-1 flex flex-col gap-2">
 			<Label htmlFor={id}>
 				{label}
-				{required && (
+				{required ? (
 					<>
 						{" "}
 						<span className="text-sm font-bold text-content-destructive">
 							*
 						</span>
 					</>
+				) : (
+					<OptionalIndicator />
 				)}
 			</Label>
 			{description && (
@@ -170,13 +173,15 @@ const RadioField: FC<RadioFieldDefinition> = ({
 		<div className="flex flex-col gap-2">
 			<Label id={labelId}>
 				{label}
-				{required && (
+				{required ? (
 					<>
 						{" "}
 						<span className="text-sm font-bold text-content-destructive">
 							*
 						</span>
 					</>
+				) : (
+					<OptionalIndicator />
 				)}
 			</Label>
 			{description && (
@@ -293,13 +298,15 @@ const SwitchGroupField: FC<SwitchGroupFieldDefinition> = ({
 		<div className="flex flex-col gap-2">
 			<Label id={labelId}>
 				{label}
-				{required && (
+				{required ? (
 					<>
 						{" "}
 						<span className="text-sm font-bold text-content-destructive">
 							*
 						</span>
 					</>
+				) : (
+					<OptionalIndicator />
 				)}
 			</Label>
 			{description && (
@@ -333,5 +340,25 @@ export const ConfigurationFieldContainer: FC<PropsWithChildren> = ({
 		<div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start *:col-start-1 *:col-span-full">
 			{children}
 		</div>
+	);
+};
+
+const OptionalIndicator: FC = () => {
+	return (
+		<>
+			{" "}
+			<span className="text-content-secondary">(optional)</span>
+		</>
+	);
+};
+
+export const ConfigurationFieldLabel: FC<{
+	variable: TemplateBuilderModuleVariable;
+}> = ({ variable }) => {
+	return (
+		<>
+			{variable.name}
+			{!variable.required && <OptionalIndicator />}
+		</>
 	);
 };

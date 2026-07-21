@@ -627,6 +627,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 			ID:            row.ID,
 			Type:          database.AIProviderTypeAnthropic,
 			DisplayName:   row.DisplayName,
+			Icon:          row.Icon,
 			Enabled:       row.Enabled,
 			BaseUrl:       row.BaseUrl,
 			Settings:      row.Settings,

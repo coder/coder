@@ -4,7 +4,7 @@
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/notifications/custom \
   -H 'Content-Type: application/json' \
@@ -63,7 +63,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/notifications/dispatch-methods \
   -H 'Accept: application/json' \
@@ -109,7 +109,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/notifications/inbox \
   -H 'Accept: application/json' \
@@ -170,7 +170,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/notifications/inbox/mark-all-as-read \
   -H 'Coder-Session-Token: API_KEY'
@@ -190,7 +190,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/notifications/inbox/watch \
   -H 'Accept: application/json' \
@@ -255,7 +255,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/notifications/inbox/{id}/read-status \
   -H 'Accept: application/json' \
@@ -299,7 +299,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/notifications/settings \
   -H 'Accept: application/json' \
@@ -330,7 +330,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/notifications/settings \
   -H 'Content-Type: application/json' \
@@ -377,7 +377,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/notifications/templates/custom \
   -H 'Accept: application/json' \
@@ -436,7 +436,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/notifications/templates/system \
   -H 'Accept: application/json' \
@@ -495,7 +495,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/notifications/test \
   -H 'Coder-Session-Token: API_KEY'
@@ -515,7 +515,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/users/{user}/notifications/preferences \
   -H 'Accept: application/json' \
@@ -567,7 +567,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/users/{user}/notifications/preferences \
   -H 'Content-Type: application/json' \

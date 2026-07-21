@@ -13,6 +13,7 @@ import {
 } from "./ProviderForm";
 import {
 	aiProviderToFormValues,
+	bedrockExternalId,
 	getProviderDisplayType,
 	hasBedrockStoredCredentials,
 	isBedrockProvider,
@@ -24,7 +25,9 @@ const baseOpenAIFormValues: ProviderFormValues = {
 	type: "openai",
 	name: "primary-openai",
 	displayName: "Primary OpenAI",
+	icon: "",
 	baseUrl: "https://api.openai.com",
+	protocol: "invoke-model",
 	model: "",
 	smallFastModel: "",
 	accessKey: "",
@@ -38,7 +41,9 @@ const baseBedrockFormValues: ProviderFormValues = {
 	type: "bedrock",
 	name: "primary-bedrock",
 	displayName: "Primary Bedrock",
+	icon: "",
 	baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
+	protocol: "invoke-model",
 	model: "anthropic.claude-sonnet-4-5",
 	smallFastModel: "anthropic.claude-haiku-4-5",
 	accessKey: "AKIA-test",
@@ -52,7 +57,9 @@ const baseCopilotFormValues: ProviderFormValues = {
 	type: "copilot",
 	name: "copilot",
 	displayName: "GitHub Copilot",
+	icon: "",
 	baseUrl: "https://api.business.githubcopilot.com",
+	protocol: "invoke-model",
 	model: "",
 	smallFastModel: "",
 	accessKey: "",
@@ -83,6 +90,22 @@ describe("parseBedrockRegionFromBaseUrl", () => {
 				"https://bedrock-runtime.us-west-2.amazonaws.com/",
 			),
 		).toBe("us-west-2");
+	});
+
+	it("extracts the region from a mantle URL", () => {
+		expect(
+			parseBedrockRegionFromBaseUrl(
+				"https://bedrock-mantle.eu-west-1.api.aws/anthropic",
+			),
+		).toBe("eu-west-1");
+	});
+
+	it("returns undefined for a mantle URL missing the /anthropic suffix", () => {
+		// The /anthropic suffix is required, so a bare mantle host is not a
+		// valid endpoint and yields no region.
+		expect(
+			parseBedrockRegionFromBaseUrl("https://bedrock-mantle.us-east-1.api.aws"),
+		).toBeUndefined();
 	});
 
 	it("lowercases the region", () => {
@@ -139,8 +162,12 @@ describe("parseBedrockRegionFromBaseUrl", () => {
 });
 
 describe("isBedrockProvider", () => {
-	it("recognises a discriminated bedrock provider", () => {
-		expect(isBedrockProvider(MockAIProviderBedrock)).toBe(true);
+	it("recognises a legacy bedrock provider stored as type=anthropic", () => {
+		const provider: AIProvider = {
+			...MockAIProviderBedrock,
+			type: "anthropic",
+		};
+		expect(isBedrockProvider(provider)).toBe(true);
 	});
 
 	it("recognises a provider with explicit bedrock type", () => {
@@ -182,6 +209,36 @@ describe("hasBedrockStoredCredentials", () => {
 	it("is false for non-Bedrock providers", () => {
 		expect(hasBedrockStoredCredentials(MockAIProviderOpenAI)).toBe(false);
 		expect(hasBedrockStoredCredentials(MockAIProviderAnthropic)).toBe(false);
+	});
+});
+
+describe("bedrockExternalId", () => {
+	it("returns the external ID from a role-based Bedrock provider", () => {
+		const provider: AIProvider = {
+			...MockAIProviderBedrock,
+			settings: settings({
+				_type: "bedrock",
+				role_arn: "arn:aws:iam::123456789012:role/BedrockRole",
+				external_id: "7QF3ZK2MLP4RS6TUVWXY2ABCDE",
+			}),
+		};
+		expect(bedrockExternalId(provider)).toBe("7QF3ZK2MLP4RS6TUVWXY2ABCDE");
+	});
+
+	it("returns undefined when the provider has no external ID", () => {
+		expect(bedrockExternalId(MockAIProviderBedrock)).toBeUndefined();
+	});
+
+	it("returns undefined when the external ID is an empty string", () => {
+		const provider: AIProvider = {
+			...MockAIProviderBedrock,
+			settings: settings({ _type: "bedrock", external_id: "" }),
+		};
+		expect(bedrockExternalId(provider)).toBeUndefined();
+	});
+
+	it("returns undefined for a non-Bedrock provider", () => {
+		expect(bedrockExternalId(MockAIProviderOpenAI)).toBeUndefined();
 	});
 });
 
@@ -284,6 +341,22 @@ describe("providerFormValuesToCreate", () => {
 			expect(req.display_name).toBeUndefined();
 		});
 
+		it("trims and sends icon when provided", () => {
+			const req = providerFormValuesToCreate({
+				...baseOpenAIFormValues,
+				icon: "  https://example.com/openai.svg  ",
+			});
+			expect(req.icon).toBe("https://example.com/openai.svg");
+		});
+
+		it("omits icon when blank", () => {
+			const req = providerFormValuesToCreate({
+				...baseOpenAIFormValues,
+				icon: "   ",
+			});
+			expect(req.icon).toBeUndefined();
+		});
+
 		it("trims whitespace from name and baseUrl", () => {
 			const req = providerFormValuesToCreate({
 				...baseOpenAIFormValues,
@@ -332,9 +405,9 @@ describe("providerFormValuesToCreate", () => {
 	});
 
 	describe("Bedrock", () => {
-		it('maps Bedrock to a wire `type:"anthropic"`', () => {
+		it('maps Bedrock to a wire `type:"bedrock"`', () => {
 			const req = providerFormValuesToCreate(baseBedrockFormValues);
-			expect(req.type).toBe("anthropic");
+			expect(req.type).toBe("bedrock");
 		});
 
 		it("derives the region from a canonical AWS URL", () => {
@@ -342,6 +415,33 @@ describe("providerFormValuesToCreate", () => {
 			const s = req.settings as unknown as Record<string, unknown>;
 			expect(s._type).toBe("bedrock");
 			expect(s.region).toBe("us-east-1");
+		});
+
+		it("emits protocol=invoke-model and includes the model fields for InvokeModel", () => {
+			// The protocol is emitted explicitly, and the model fields are
+			// configured on the provider.
+			const req = providerFormValuesToCreate(baseBedrockFormValues);
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s.protocol).toBe("invoke-model");
+			expect(s.model).toBe("anthropic.claude-sonnet-4-5");
+			expect(s.small_fast_model).toBe("anthropic.claude-haiku-4-5");
+		});
+
+		it("sets protocol=mantle, derives the region, and omits the model fields", () => {
+			// Mantle is a passthrough: the client sends the model, so the
+			// provider stores neither model field but keeps the region so the
+			// backend recognises the Bedrock provider.
+			const req = providerFormValuesToCreate({
+				...baseBedrockFormValues,
+				protocol: "mantle",
+				baseUrl: "https://bedrock-mantle.us-east-1.api.aws/anthropic",
+			});
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s._type).toBe("bedrock");
+			expect(s.protocol).toBe("mantle");
+			expect(s.region).toBe("us-east-1");
+			expect(s.model).toBeUndefined();
+			expect(s.small_fast_model).toBeUndefined();
 		});
 
 		it("omits the region when the URL is non-canonical", () => {
@@ -508,6 +608,14 @@ describe("providerFormValuesToUpdate", () => {
 			);
 			expect(req.api_keys).toEqual([]);
 		});
+
+		it("sends a trimmed icon so blank clears the stored icon", () => {
+			const req = providerFormValuesToUpdate(
+				{ ...baseOpenAIFormValues, icon: "   " },
+				MockAIProviderOpenAI,
+			);
+			expect(req.icon).toBe("");
+		});
 	});
 
 	describe("Bedrock", () => {
@@ -629,10 +737,14 @@ describe("providerFormValuesToUpdate", () => {
 
 describe("aiProviderToFormValues", () => {
 	it("seeds OpenAI form values from a wire provider", () => {
-		const values = aiProviderToFormValues(MockAIProviderOpenAI);
+		const values = aiProviderToFormValues({
+			...MockAIProviderOpenAI,
+			icon: "https://example.com/openai.svg",
+		});
 		expect(values.type).toBe("openai");
 		expect(values.name).toBe(MockAIProviderOpenAI.name);
 		expect(values.baseUrl).toBe(MockAIProviderOpenAI.base_url);
+		expect(values.icon).toBe("https://example.com/openai.svg");
 		expect(values.apiKey).toBe("");
 	});
 
@@ -669,15 +781,48 @@ describe("aiProviderToFormValues", () => {
 		expect(values.smallFastModel).toBe("anthropic.claude-haiku-4-5");
 	});
 
-	it("seeds Bedrock form values from an explicit Bedrock provider type", () => {
+	it("seeds Bedrock form values from a legacy anthropic-typed provider", () => {
 		const provider: AIProvider = {
 			...MockAIProviderBedrock,
-			type: "bedrock",
+			type: "anthropic",
 		};
 		const values = aiProviderToFormValues(provider);
 		expect(values.type).toBe("bedrock");
 		expect(values.model).toBe("anthropic.claude-opus-4-7");
 		expect(values.smallFastModel).toBe("anthropic.claude-haiku-4-5");
+	});
+
+	it("reads protocol=mantle back and leaves the model fields blank", () => {
+		const provider: AIProvider = {
+			...MockAIProviderBedrock,
+			settings: settings({
+				_type: "bedrock",
+				protocol: "mantle",
+				region: "us-east-1",
+			}),
+		};
+		const values = aiProviderToFormValues(provider);
+		expect(values.protocol).toBe("mantle");
+		expect(values.model).toBe("");
+		expect(values.smallFastModel).toBe("");
+	});
+
+	it("defaults protocol to invoke-model for a legacy provider without one", () => {
+		const values = aiProviderToFormValues(MockAIProviderBedrock);
+		expect(values.protocol).toBe("invoke-model");
+	});
+
+	it("resolves an empty stored protocol to invoke-model", () => {
+		const provider: AIProvider = {
+			...MockAIProviderBedrock,
+			settings: settings({
+				_type: "bedrock",
+				protocol: "",
+				region: "us-east-1",
+			}),
+		};
+		const values = aiProviderToFormValues(provider);
+		expect(values.protocol).toBe("invoke-model");
 	});
 
 	it("never round-trips Bedrock secrets back to the form", () => {
@@ -723,12 +868,12 @@ describe("aiProviderToFormValues", () => {
 
 	it("handles a Bedrock provider whose settings are null", () => {
 		// `isBedrockProvider` will return false, so the provider falls
-		// through to the anthropic branch. The helper must not throw.
+		// through to the generic branch. The helper must not throw.
 		const provider: AIProvider = {
 			...MockAIProviderBedrock,
 			settings: null as unknown as AIProvider["settings"],
 		};
 		const values = aiProviderToFormValues(provider);
-		expect(values.type).toBe("anthropic");
+		expect(values.type).toBe("bedrock");
 	});
 });

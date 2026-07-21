@@ -2,9 +2,8 @@ package agentapi
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -47,6 +46,13 @@ type BoundaryLogsAPI struct {
 	TemplateID           uuid.UUID
 	TemplateVersionID    uuid.UUID
 	BoundaryUsageTracker *boundaryusage.Tracker
+
+	// mu guards ensuredSessions, which records session IDs already persisted
+	// by this connection so repeated batches skip the existence check and
+	// insert. The API is one instance per agent connection, so this lives for
+	// the session's lifetime.
+	mu              sync.Mutex
+	ensuredSessions map[uuid.UUID]struct{}
 }
 
 func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentproto.ReportBoundaryLogsRequest) (*agentproto.ReportBoundaryLogsResponse, error) {
@@ -80,16 +86,19 @@ func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentprot
 		}
 	}
 
-	if persistEnabled {
+	if persistEnabled && !a.sessionEnsured(sessionID) {
 		// Lazy-create the boundary session on first log arrival.
 		// If this fails (transient DB error), we continue so that
 		// logs are still persisted. The session will be created on
 		// a subsequent batch since every request carries the session
-		// details.
+		// details. On success we record the session so later batches
+		// skip the existence check and insert entirely.
 		if sessionErr := a.ensureSession(ctx, sessionID, req.GetConfinedProcessName(), now); sessionErr != nil {
 			a.Log.Error(ctx, "failed to ensure boundary session",
 				slog.F("session_id", sessionID.String()),
 				slog.Error(sessionErr))
+		} else {
+			a.markSessionEnsured(sessionID)
 		}
 	}
 
@@ -179,6 +188,25 @@ func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentprot
 	return &agentproto.ReportBoundaryLogsResponse{}, nil
 }
 
+// sessionEnsured reports whether this connection has already persisted the
+// session, letting repeated batches skip the database round-trip.
+func (a *BoundaryLogsAPI) sessionEnsured(sessionID uuid.UUID) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	_, ok := a.ensuredSessions[sessionID]
+	return ok
+}
+
+// markSessionEnsured records that the session has been persisted.
+func (a *BoundaryLogsAPI) markSessionEnsured(sessionID uuid.UUID) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.ensuredSessions == nil {
+		a.ensuredSessions = make(map[uuid.UUID]struct{})
+	}
+	a.ensuredSessions[sessionID] = struct{}{}
+}
+
 // ensureSession creates the boundary_sessions row if it does not
 // already exist.
 func (a *BoundaryLogsAPI) ensureSession(ctx context.Context, sessionID uuid.UUID, confinedProcess string, now time.Time) error {
@@ -186,19 +214,7 @@ func (a *BoundaryLogsAPI) ensureSession(ctx context.Context, sessionID uuid.UUID
 		return nil
 	}
 
-	// Check the database in case another replica or reconnection
-	// already created this session.
-	_, err := a.Database.GetBoundarySessionByID(ctx, sessionID)
-	if err == nil {
-		return nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return xerrors.Errorf("check boundary session existence: %w", err)
-	}
-
-	// Session does not exist; create it. started_at is the time
-	// the first log is received by coderd, per the RFC.
-	_, err = a.Database.InsertBoundarySession(ctx, database.InsertBoundarySessionParams{
+	_, err := a.Database.InsertBoundarySession(ctx, database.InsertBoundarySessionParams{
 		ID:                  sessionID,
 		WorkspaceAgentID:    a.AgentID,
 		OwnerID:             uuid.NullUUID{UUID: a.OwnerID, Valid: true},
@@ -207,13 +223,8 @@ func (a *BoundaryLogsAPI) ensureSession(ctx context.Context, sessionID uuid.UUID
 		UpdatedAt:           now,
 	})
 	if err != nil {
-		// A second coderd replica may receive a batch for this session
-		// before the first replica has finished inserting it. Both
-		// attempt the INSERT; the second fails with a primary-key
-		// unique violation. Treat it as success because the session
-		// now exists.
 		if database.IsUniqueViolation(err, database.UniqueBoundarySessionsPkey) {
-			a.Log.Debug(ctx, "boundary session already created by another replica",
+			a.Log.Debug(ctx, "boundary session already created",
 				slog.F("session_id", sessionID.String()))
 			return nil
 		}

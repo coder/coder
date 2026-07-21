@@ -4,7 +4,7 @@
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/ai-gateway/clients \
   -H 'Accept: application/json' \
@@ -39,7 +39,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/ai-gateway/models \
   -H 'Accept: application/json' \
@@ -74,7 +74,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/ai-gateway/sessions \
   -H 'Accept: application/json' \
@@ -121,6 +121,10 @@ Alias: also available at /api/v2/aibridge/sessions for backward compatibility.
       "models": [
         "string"
       ],
+      "network_calls": {
+        "blocked": 0,
+        "total": 0
+      },
       "providers": [
         "string"
       ],
@@ -149,7 +153,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/ai-gateway/sessions/{session_id} \
   -H 'Accept: application/json' \
@@ -240,6 +244,8 @@ Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward com
       "credential_hint": "string",
       "credential_kind": "string",
       "ended_at": "2019-08-24T14:15:22Z",
+      "error_message": "string",
+      "error_type": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "model": "string",
       "prompt": "string",

@@ -619,11 +619,9 @@ func TestKeyConcurrent(t *testing.T) {
 			const numGoroutines = 10
 			var wg sync.WaitGroup
 			for r := range numGoroutines {
-				wg.Add(1)
-				go func(r int) {
-					defer wg.Done()
+				wg.Go(func() {
 					tc.run(r, key)
-				}(r)
+				})
 			}
 			wg.Wait()
 

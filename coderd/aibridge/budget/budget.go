@@ -15,17 +15,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// LimitSource identifies which tier produced an EffectiveBudget.
-type LimitSource string
-
-const (
-	// SourceUserOverride indicates the budget came from a per-user override.
-	SourceUserOverride LimitSource = "user_override"
-	// SourceGroup indicates the budget came from a group budget selected by the
-	// deployment policy.
-	SourceGroup LimitSource = "group"
-)
-
 // Store is the subset of database.Store needed to resolve a user's effective
 // AI budget.
 type Store interface {
@@ -41,13 +30,15 @@ type EffectiveBudget struct {
 	// SpendLimitMicros is the effective spend limit in micro-units
 	// (1 unit = 1,000,000).
 	SpendLimitMicros int64
-	Source           LimitSource
+	Source           codersdk.AIBudgetLimitSource
 }
 
 // ResolveUserAIBudget returns the effective AI budget for userID. The second
 // return value is false when no budget is configured for the user. A per-user
 // override wins unconditionally; otherwise the budget is selected from the
 // user's groups according to policy.
+//
+// TODO(AIGOV-527): unify effective group resolution in a single place.
 func ResolveUserAIBudget(ctx context.Context, db Store, userID uuid.UUID, policy codersdk.AIBudgetPolicy) (EffectiveBudget, bool, error) {
 	// A per-user override always wins.
 	override, err := db.GetUserAIBudgetOverride(ctx, userID)
@@ -55,7 +46,7 @@ func ResolveUserAIBudget(ctx context.Context, db Store, userID uuid.UUID, policy
 		return EffectiveBudget{
 			GroupID:          override.GroupID,
 			SpendLimitMicros: override.SpendLimitMicros,
-			Source:           SourceUserOverride,
+			Source:           codersdk.AIBudgetLimitSourceUserOverride,
 		}, true, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
@@ -75,7 +66,7 @@ func ResolveUserAIBudget(ctx context.Context, db Store, userID uuid.UUID, policy
 		return EffectiveBudget{
 			GroupID:          row.GroupID,
 			SpendLimitMicros: row.SpendLimitMicros,
-			Source:           SourceGroup,
+			Source:           codersdk.AIBudgetLimitSourceGroup,
 		}, true, nil
 	default:
 		return EffectiveBudget{}, false, xerrors.Errorf("unsupported AI budget policy: %q", policy)

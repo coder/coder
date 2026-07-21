@@ -2,16 +2,18 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { API } from "#/api/api";
-import type { DynamicParametersResponse, Preset } from "#/api/typesGenerated";
+import type { Preset, PreviewParameter } from "#/api/typesGenerated";
 import {
 	MockDropdownParameter,
-	MockDynamicParametersResponse,
 	MockDynamicParametersResponseWithError,
+	MockMultiSelectParameter,
 	MockPermissions,
 	MockPreviewParameter1,
 	MockPreviewParameter2,
 	MockPreviewParameter7,
 	MockSliderParameter,
+	MockSwitchParameter,
+	MockTagSelectParameter,
 	MockTemplate,
 	MockTemplateVersion,
 	MockTemplateVersionExternalAuthGithub,
@@ -25,7 +27,11 @@ import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
 } from "#/testHelpers/renderHelpers";
-import { mockDynamicParameterWebSocket } from "#/testHelpers/websockets";
+import {
+	type MockWebSocket,
+	type MockWebSocketServer,
+	mockDynamicParameterWebSocket,
+} from "#/testHelpers/websockets";
 import CreateWorkspacePage from "./CreateWorkspacePage";
 
 describe("CreateWorkspacePage", () => {
@@ -44,25 +50,163 @@ describe("CreateWorkspacePage", () => {
 		});
 	};
 
-	const renderCreateWorkspacePageWithSocket = (route?: string) => {
-		mockDynamicParameterWebSocket((publisher) => {
-			publisher.publishOpen(new Event("open"));
-			publisher.publishMessage(
-				new MessageEvent("message", {
-					data: JSON.stringify(MockDynamicParametersResponse),
+	type Context = ReturnType<typeof renderCreateWorkspacePage> & {
+		mockSocket: MockWebSocket;
+		mockPublisher: MockWebSocketServer;
+	};
+
+	// Mocks the required endpoints, most importantly the web socket, constructs
+	// the route with the required query parameters, then renders the page on that
+	// route.
+	//
+	// Returns the mock web socket and router context for further testing.
+	const renderPageWithSocket = async (
+		opts: {
+			// route can be overridden to set additional query variables.
+			route?: string;
+			// urlfill contains template parameters auto-filled via the query string.
+			urlfill?: Record<string, string>;
+			// version will be added to the query string.
+			version?: string;
+			// preset will be added to the query string and set on the preset endpoint.
+			preset?: Preset;
+		} = {},
+	): Promise<Context> => {
+		const [mockSocket, mockPublisher] = mockDynamicParameterWebSocket();
+
+		const params = new URLSearchParams();
+		if (opts.urlfill) {
+			Object.entries(opts.urlfill).forEach(([k, v]) => {
+				params.set(`param.${k}`, v);
+			});
+		}
+		if (opts.preset) {
+			vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([
+				opts.preset,
+			]);
+			params.set("preset", opts.preset.Name);
+		}
+		if (opts.version) {
+			params.set("version", opts.version);
+		}
+		let route = opts?.route || `/templates/${MockTemplate.name}/workspace`;
+		const query = params.toString();
+		if (query.length > 0) {
+			if (route.includes("?")) {
+				route += `&${query}`;
+			} else {
+				route += `?${query}`;
+			}
+		}
+		const router = renderCreateWorkspacePage(route);
+		return { mockSocket, mockPublisher, ...router };
+	};
+
+	// Waits for the client to connect to the socket then sends the initial
+	// message.  Then, if there are auto-fill parameters (whether from a URL or a
+	// preset), also waits for the client's initial message.
+	const expectSocketHandshake = async (opts: {
+		mockPublisher: MockWebSocketServer;
+		// parameters are template parameters to send via the initial message from
+		// the backend to the client.
+		parameters: PreviewParameter[];
+		// urlfill will be expected in the client's init message.
+		urlfill?: Record<string, string>;
+		// version will be asserted in the web socket API call.
+		version?: string;
+		// preset will be expected in the client's init message.
+		preset?: Preset;
+	}): Promise<void> => {
+		// Wait for the web socket connection.
+		const version = opts.version || MockTemplate.active_version_id;
+		await waitFor(() => {
+			expect(API.templateVersionDynamicParameters).toHaveBeenCalledWith(
+				version,
+				MockUserOwner.id,
+				expect.objectContaining({
+					onMessage: expect.any(Function),
+					onError: expect.any(Function),
+					onClose: expect.any(Function),
 				}),
 			);
 		});
 
-		return renderCreateWorkspacePage(route);
+		// Open and and send the initial message.
+		await act(async () => {
+			opts.mockPublisher.publishOpen(new Event("open"));
+			// The initial message always has the default values.
+			opts.mockPublisher.publishMessage(
+				new MessageEvent("message", {
+					data: JSON.stringify({
+						id: -1,
+						parameters: opts.parameters,
+						diagnostics: [],
+					}),
+				}),
+			);
+		});
+
+		// Wait for the client's own init message, which should include all the
+		// auto-filled values, including from a preset.  Without any auto-fill
+		// values, the client does not send any init message.
+		const inputs = opts.urlfill ? { ...opts.urlfill } : {};
+		opts.preset?.Parameters?.forEach((p) => {
+			inputs[p.Name] = p.Value;
+		});
+		if (Object.keys(inputs).length > 0) {
+			await waitFor(() => {
+				expect(opts.mockPublisher.clientSentData).toHaveLength(1);
+				expect(
+					JSON.parse(opts.mockPublisher.clientSentData[0] as string),
+				).toEqual(
+					expect.objectContaining({
+						id: 0,
+						inputs,
+					}),
+				);
+			});
+		}
+	};
+
+	// Wait for the loader to be removed then asserts form fields based on
+	// parameters and auto-fill.  Lastly asserts the submit button is enabled.
+	const expectFormFields = async (opts: {
+		parameters: PreviewParameter[];
+		urlfill?: Record<string, string>;
+		preset?: Preset;
+	}): Promise<void> => {
+		// Add any preset to the autofill.
+		const autofill = opts.urlfill ? { ...opts.urlfill } : {};
+		opts.preset?.Parameters?.forEach((p) => {
+			autofill[p.Name] = p.Value;
+		});
+
+		await waitForLoaderToBeRemoved();
+
+		const parameters = opts.parameters.map((p) => {
+			return {
+				...p,
+				value: Object.hasOwn(autofill, p.name)
+					? { valid: true, value: autofill[p.name] }
+					: p.value,
+			};
+		});
+
+		// The page should render with the defaults plus any auto-fill.
+		await checkParameters(...parameters);
+		const form = screen.getByTestId("form");
+		const submitButton = within(form).getByRole("button", {
+			name: /create workspace/i,
+		});
+		await waitFor(() => expect(submitButton).toBeEnabled());
 	};
 
 	const mockGpuPreset: Preset = {
 		ID: "preset-gpu",
 		Name: "gpu-large",
 		Parameters: [
-			{ Name: "instance_type", Value: "t3.medium" },
-			{ Name: "cpu_count", Value: "4" },
+			{ Name: MockDropdownParameter.name, Value: "t3.medium" },
+			{ Name: MockSliderParameter.name, Value: "4" },
 		],
 		Default: false,
 		DesiredPrebuildInstances: null,
@@ -87,84 +231,58 @@ describe("CreateWorkspacePage", () => {
 	});
 
 	describe("WebSocket Integration", () => {
-		it("establishes WebSocket connection and receives initial parameters", async () => {
-			renderCreateWorkspacePageWithSocket();
-			await waitForLoaderToBeRemoved();
-
-			expect(API.templateVersionDynamicParameters).toHaveBeenCalledWith(
-				MockTemplate.active_version_id,
-				MockUserOwner.id,
-				expect.objectContaining({
-					onMessage: expect.any(Function),
-					onError: expect.any(Function),
-					onClose: expect.any(Function),
-				}),
-			);
-
-			await waitFor(() => {
-				expect(screen.getByText(/instance type/i)).toBeInTheDocument();
-				expect(screen.getByText("CPU Count")).toBeInTheDocument();
-				expect(screen.getByText("Enable Monitoring")).toBeInTheDocument();
-				expect(screen.getByText("Tags")).toBeInTheDocument();
-			});
+		it("skips initial parameters when no auto-fill", async () => {
+			const parameters = [
+				MockDropdownParameter,
+				MockSliderParameter,
+				MockSwitchParameter,
+				MockTagSelectParameter,
+				MockMultiSelectParameter,
+			];
+			const { mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters });
+			// Should render without any sending any init message.
+			await expectFormFields({ parameters });
+			expect(mockPublisher.clientSentData).toHaveLength(0);
 		});
 
-		it("sends parameter updates via WebSocket when form values change", async () => {
-			const [mockWebSocket] = mockDynamicParameterWebSocket((publisher) => {
-				publisher.publishOpen(new Event("open"));
-				publisher.publishMessage(
-					new MessageEvent("message", {
-						data: JSON.stringify(MockDynamicParametersResponse),
-					}),
-				);
-			});
-
-			renderCreateWorkspacePage();
-			await waitForLoaderToBeRemoved();
-
-			expect(screen.getByText(/instance type/i)).toBeInTheDocument();
-
-			const instanceTypeField = screen.getByTestId(
-				"parameter-field-instance_type",
-			);
-			const instanceTypeSelect =
-				within(instanceTypeField).getByRole("combobox");
-			expect(instanceTypeSelect).toBeInTheDocument();
-
-			vi.useFakeTimers({ shouldAdvanceTime: true });
-
-			await userEvent.click(instanceTypeSelect);
-
-			const mediumOption = await screen.findByRole("option", {
-				name: /t3\.medium/i,
-			});
-
-			await userEvent.click(mediumOption);
-
-			await act(async () => {
-				await vi.runAllTimersAsync();
-			});
-
-			expect(mockWebSocket.send).toHaveBeenCalledWith(
-				expect.stringContaining('"instance_type":"t3.medium"'),
-			);
-
-			vi.useRealTimers();
+		it("waits for and sends initial parameters when auto-filled", async () => {
+			const parameters = [
+				MockDropdownParameter,
+				MockSliderParameter,
+				MockSwitchParameter,
+				MockTagSelectParameter,
+				MockMultiSelectParameter,
+			];
+			const urlfill = {
+				[MockDropdownParameter.name]: "t3.micro",
+				[MockSliderParameter.name]: "55",
+				[MockSwitchParameter.name]: "false",
+				[MockTagSelectParameter.name]: JSON.stringify(["tag1", "tag2"]),
+				[MockMultiSelectParameter.name]: JSON.stringify(["goland", "vscode"]),
+			};
+			const { mockPublisher } = await renderPageWithSocket({ urlfill });
+			await expectSocketHandshake({ mockPublisher, parameters, urlfill });
+			// Should still see the loader as the client wais for the response to the
+			// client's init message.
+			expect(screen.queryByTestId("loader")).toBeInTheDocument();
 		});
 
-		it("handles WebSocket error gracefully", async () => {
+		it("handles error gracefully", async () => {
 			const [_, mockPublisher] = mockDynamicParameterWebSocket();
-
 			renderCreateWorkspacePage();
 
+			// Wait for the client to open the web socket.
 			await waitFor(() => {
 				expect(API.templateVersionDynamicParameters).toHaveBeenCalled();
 			});
 
+			// Then error the web socket.
 			await act(async () => {
 				mockPublisher.publishError(new Event("Connection failed"));
 			});
 
+			// We should see an error message.
 			await waitFor(() => {
 				const alert = screen.getByRole("alert");
 				expect(
@@ -175,30 +293,18 @@ describe("CreateWorkspacePage", () => {
 			});
 		});
 
-		it("handles WebSocket close event", async () => {
-			const [_, mockPublisher] = mockDynamicParameterWebSocket((publisher) => {
-				publisher.publishOpen(new Event("open"));
-				publisher.publishMessage(
-					new MessageEvent("message", {
-						data: JSON.stringify({
-							id: -1,
-							parameters: [],
-							diagnostics: [],
-						}),
-					}),
-				);
-			});
+		it("handles close", async () => {
+			const { mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters: [] });
 
-			renderCreateWorkspacePage();
+			await waitForLoaderToBeRemoved();
 
-			await waitFor(() => {
-				expect(API.templateVersionDynamicParameters).toHaveBeenCalled();
-			});
-
+			// Close the web socket.
 			await act(async () => {
 				mockPublisher.publishClose(new Event("close") as CloseEvent);
 			});
 
+			// We should see an error message.
 			await waitFor(() => {
 				const alert = screen.getByRole("alert");
 				expect(
@@ -209,67 +315,56 @@ describe("CreateWorkspacePage", () => {
 			});
 		});
 
-		it("only parameters from latest response are displayed", async () => {
-			const [, mockPublisher] = mockDynamicParameterWebSocket((publisher) => {
-				publisher.publishOpen(new Event("open"));
-				publisher.publishMessage(
-					new MessageEvent("message", {
-						data: JSON.stringify({
-							id: -1,
-							parameters: [MockDropdownParameter],
-							diagnostics: [],
-						}),
-					}),
-				);
-			});
-
-			renderCreateWorkspacePage();
-			await waitForLoaderToBeRemoved();
-
-			const response1: DynamicParametersResponse = {
-				id: 1,
-				parameters: [MockDropdownParameter],
-				diagnostics: [],
-			};
-			const response2: DynamicParametersResponse = {
-				id: 4,
-				parameters: [MockSliderParameter],
-				diagnostics: [],
-			};
-
-			await act(async () => {
-				mockPublisher.publishMessage(
-					new MessageEvent("message", { data: JSON.stringify(response1) }),
-				);
-
-				mockPublisher.publishMessage(
-					new MessageEvent("message", { data: JSON.stringify(response2) }),
-				);
-			});
-
-			await waitFor(() => {
-				expect(screen.queryByText("CPU Count")).toBeInTheDocument();
-				expect(screen.queryByText("Instance Type")).not.toBeInTheDocument();
-			});
+		it("displays no parameters if none from init message", async () => {
+			const { mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters: [] });
+			await expectFormFields({ parameters: [] });
 		});
 
-		it("does not clobber user values", async () => {
-			const [, mockPublisher] = mockDynamicParameterWebSocket((publisher) => {
-				publisher.publishOpen(new Event("open"));
-				// The initial message always has the default values.
-				publisher.publishMessage(
+		it("only parameters from the latest response are displayed", async () => {
+			const parameters = [MockDropdownParameter];
+			const { mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters });
+			await expectFormFields({ parameters });
+
+			// Send multiple messages.
+			await act(async () => {
+				mockPublisher.publishMessage(
+					new MessageEvent("message", {
+						data: JSON.stringify({
+							id: 0,
+							parameters: [MockSliderParameter],
+							diagnostics: [],
+						}),
+					}),
+				);
+				mockPublisher.publishMessage(
 					new MessageEvent("message", {
 						data: JSON.stringify({
 							id: -1,
-							parameters: [MockPreviewParameter1, MockPreviewParameter7],
+							parameters: [MockSwitchParameter],
 							diagnostics: [],
 						}),
 					}),
 				);
 			});
 
-			renderCreateWorkspacePage();
-			await waitForLoaderToBeRemoved();
+			// Page should re-render with the last message only.
+			await checkParameters(MockSwitchParameter);
+
+			// The submit button should still be enabled.
+			const form = screen.getByTestId("form");
+			const submitButton = within(form).getByRole("button", {
+				name: /create workspace/i,
+			});
+			await waitFor(() => expect(submitButton).toBeEnabled());
+		});
+
+		it("does not clobber edited parameters", async () => {
+			const parameters = [MockPreviewParameter1, MockPreviewParameter7];
+			const { mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters });
+			await expectFormFields({ parameters });
 
 			// Blank out one field and fill out another.
 			const editedParameters = [
@@ -286,7 +381,7 @@ describe("CreateWorkspacePage", () => {
 			];
 			editParameters(...editedParameters);
 
-			// Respond with different values.
+			// Send a message with different values.
 			await act(async () => {
 				mockPublisher.publishMessage(
 					new MessageEvent("message", {
@@ -305,52 +400,34 @@ describe("CreateWorkspacePage", () => {
 
 			// Should have the new field, but keep the existing user-filled values.
 			await checkParameters(...editedParameters, MockPreviewParameter2);
+
+			// The submit button should still be enabled.
+			const form = screen.getByTestId("form");
+			const submitButton = within(form).getByRole("button", {
+				name: /create workspace/i,
+			});
+			await waitFor(() => expect(submitButton).toBeEnabled());
 		});
 
 		it("does not clobber auto-filled values", async () => {
-			const [, mockPublisher] = mockDynamicParameterWebSocket((publisher) => {
-				publisher.publishOpen(new Event("open"));
-				// The initial message always has the default values.
-				publisher.publishMessage(
-					new MessageEvent("message", {
-						data: JSON.stringify({
-							id: -1,
-							parameters: [MockPreviewParameter1, MockPreviewParameter7],
-							diagnostics: [],
-						}),
-					}),
-				);
-			});
-
+			const parameters = [MockPreviewParameter1, MockPreviewParameter7];
 			// Blank out one field and fill out another.
-			const editedParameters = [
-				{
-					name: MockPreviewParameter1.name,
-					value: "",
-				},
-				{
-					name: MockPreviewParameter7.name,
-					value: "not-blank",
-				},
-			];
-			const query = editedParameters
-				.map((param) => `param.${param.name}=${param.value}`)
-				.join("&");
-			renderCreateWorkspacePage(
-				`/templates/${MockTemplate.name}/workspace?${query}`,
-			);
-			await waitForLoaderToBeRemoved();
+			const urlfill = {
+				[MockPreviewParameter1.name]: "",
+				[MockPreviewParameter7.name]: "not-blank",
+			};
+			const { mockPublisher } = await renderPageWithSocket({ urlfill });
+			await expectSocketHandshake({ mockPublisher, parameters, urlfill });
 
-			// Respond with different values.
+			// Respond to the client's init message with different values.
 			await act(async () => {
 				mockPublisher.publishMessage(
 					new MessageEvent("message", {
 						data: JSON.stringify({
 							id: 2,
 							parameters: [
-								MockPreviewParameter1,
+								...parameters,
 								MockPreviewParameter2, // new field
-								MockPreviewParameter7,
 							],
 							diagnostics: [],
 						}),
@@ -358,8 +435,10 @@ describe("CreateWorkspacePage", () => {
 				);
 			});
 
-			// Should have the new field, but keep the existing auto-filled values.
-			await checkParameters(...editedParameters, MockPreviewParameter2);
+			await expectFormFields({
+				parameters: [...parameters, MockPreviewParameter2],
+				urlfill,
+			});
 		});
 	});
 
@@ -388,73 +467,55 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("displays parameter validation errors for min/max constraints", async () => {
-			const mockResponseInitial: DynamicParametersResponse = {
-				id: 1,
+			const { mockSocket, mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({
+				mockPublisher,
 				parameters: [MockValidationParameter],
-				diagnostics: [],
-			};
+			});
 
-			const mockResponseWithError: DynamicParametersResponse = {
-				id: 2,
-				parameters: [
-					{
-						...MockValidationParameter,
-						value: { value: "200", valid: false },
-						diagnostics: [
-							{
-								severity: "error",
-								summary:
-									"Invalid parameter value according to 'validation' block",
-								detail: "value 200 is more than the maximum 100",
-								extra: {
-									code: "",
+			// Respond to the client's edit with an error.
+			mockSocket.send.mockImplementation((data) => {
+				expect(JSON.parse(data as string)).toEqual(
+					expect.objectContaining({
+						id: 0,
+						inputs: {
+							[MockValidationParameter.name]: "200",
+						},
+					}),
+				);
+				mockPublisher.publishMessage(
+					new MessageEvent("message", {
+						data: JSON.stringify({
+							id: 2,
+							parameters: [
+								{
+									...MockValidationParameter,
+									value: { value: "200", valid: false },
+									diagnostics: [
+										{
+											severity: "error",
+											summary:
+												"Invalid parameter value according to 'validation' block",
+											detail: "value 200 is more than the maximum 100",
+											extra: {
+												code: "",
+											},
+										},
+									],
 								},
-							},
-						],
-					},
-				],
-				diagnostics: [],
+							],
+							diagnostics: [],
+						}),
+					}),
+				);
+			});
+
+			const edited = {
+				name: MockValidationParameter.name,
+				display_name: MockValidationParameter.display_name,
+				value: "200",
 			};
-
-			const [mockWebSocket, mockPublisher] = mockDynamicParameterWebSocket(
-				(publisher) => {
-					publisher.publishOpen(new Event("open"));
-					publisher.publishMessage(
-						new MessageEvent("message", {
-							data: JSON.stringify(mockResponseInitial),
-						}),
-					);
-				},
-			);
-			const originalSend = mockWebSocket.send;
-			mockWebSocket.send = vi.fn((data) => {
-				originalSend.call(mockWebSocket, data);
-
-				if (typeof data === "string" && data.includes('"200"')) {
-					mockPublisher.publishMessage(
-						new MessageEvent("message", {
-							data: JSON.stringify(mockResponseWithError),
-						}),
-					);
-				}
-			});
-
-			renderCreateWorkspacePage();
-			await waitForLoaderToBeRemoved();
-
-			await waitFor(() => {
-				expect(screen.getByText("Invalid Parameter")).toBeInTheDocument();
-			});
-
-			const numberInput = screen.getByDisplayValue("50");
-			expect(numberInput).toBeInTheDocument();
-
-			await userEvent.clear(numberInput);
-			await userEvent.type(numberInput, "200");
-
-			await waitFor(() => {
-				expect(screen.getByDisplayValue("200")).toBeInTheDocument();
-			});
+			editParameters(edited);
 
 			await waitFor(() => {
 				expect(
@@ -485,8 +546,8 @@ describe("CreateWorkspacePage", () => {
 				MockTemplateVersionExternalAuthGithub,
 			]);
 
-			renderCreateWorkspacePageWithSocket();
-			await waitForLoaderToBeRemoved();
+			const { mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters: [] });
 
 			await waitFor(() => {
 				expect(screen.getByText("GitHub")).toBeInTheDocument();
@@ -501,8 +562,8 @@ describe("CreateWorkspacePage", () => {
 				MockTemplateVersionExternalAuthGithubAuthenticated,
 			]);
 
-			renderCreateWorkspacePageWithSocket();
-			await waitForLoaderToBeRemoved();
+			const { mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters: [] });
 
 			await waitFor(() => {
 				expect(screen.getByText("GitHub")).toBeInTheDocument();
@@ -515,10 +576,12 @@ describe("CreateWorkspacePage", () => {
 				MockTemplateVersionExternalAuthGithub,
 			]);
 
-			renderCreateWorkspacePageWithSocket(
-				`/templates/${MockTemplate.name}/workspace?mode=auto&version=${MockTemplate.id}`,
-			);
-			await waitForLoaderToBeRemoved();
+			const version = MockTemplate.id;
+			const { mockPublisher } = await renderPageWithSocket({
+				route: `/templates/${MockTemplate.name}/workspace?mode=auto`,
+				version,
+			});
+			await expectSocketHandshake({ mockPublisher, parameters: [], version });
 
 			await waitFor(() => {
 				expect(
@@ -542,19 +605,27 @@ describe("CreateWorkspacePage", () => {
 				new Error("Auto-creation failed"),
 			);
 
-			renderCreateWorkspacePageWithSocket(
-				`/templates/${MockTemplate.name}/workspace?mode=auto`,
-			);
+			const parameters = [
+				MockDropdownParameter,
+				MockSliderParameter,
+				MockSwitchParameter,
+				MockTagSelectParameter,
+				MockMultiSelectParameter,
+			];
+			const { mockPublisher } = await renderPageWithSocket({
+				route: `/templates/${MockTemplate.name}/workspace?mode=auto`,
+			});
+			await expectSocketHandshake({ mockPublisher, parameters });
 
 			// Consent dialog appears for mode=auto. Confirm to proceed.
-			const confirmButton = await screen.findByRole("button", {
-				name: /confirm and create/i,
+			await act(async () => {
+				const confirmButton = await screen.findByRole("button", {
+					name: /confirm and create/i,
+				});
+				await userEvent.click(confirmButton);
 			});
-			await userEvent.click(confirmButton);
 
-			await waitForLoaderToBeRemoved();
-
-			expect(screen.getByText(/instance type/i)).toBeInTheDocument();
+			await expectFormFields({ parameters });
 
 			await waitFor(() => {
 				expect(screen.getByText("Create workspace")).toBeInTheDocument();
@@ -567,10 +638,16 @@ describe("CreateWorkspacePage", () => {
 
 	describe("Form Submission", () => {
 		it("creates workspace with correct parameters", async () => {
-			renderCreateWorkspacePageWithSocket();
-			await waitForLoaderToBeRemoved();
-
-			expect(screen.getByText(/instance type/i)).toBeInTheDocument();
+			const parameters = [
+				MockDropdownParameter,
+				MockSliderParameter,
+				MockSwitchParameter,
+				MockTagSelectParameter,
+				MockMultiSelectParameter,
+			];
+			const { mockPublisher } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters });
+			await expectFormFields({ parameters });
 
 			const nameInput = screen.getByRole("textbox", {
 				name: /workspace name/i,
@@ -590,16 +667,10 @@ describe("CreateWorkspacePage", () => {
 						name: "my-test-workspace",
 						template_version_id: MockTemplate.active_version_id,
 						template_id: undefined,
-						rich_parameter_values: [
-							expect.objectContaining({ name: "instance_type", value: "" }),
-							expect.objectContaining({ name: "cpu_count", value: "2" }),
-							expect.objectContaining({
-								name: "enable_monitoring",
-								value: "true",
-							}),
-							expect.objectContaining({ name: "tags", value: "[]" }),
-							expect.objectContaining({ name: "ides", value: "[]" }),
-						],
+						rich_parameter_values: parameters.map((p) => ({
+							name: p.name,
+							value: p.value.value,
+						})),
 					}),
 				);
 			});
@@ -607,38 +678,20 @@ describe("CreateWorkspacePage", () => {
 	});
 
 	describe("URL Parameters", () => {
-		it("pre-fills parameters from URL", async () => {
-			renderCreateWorkspacePageWithSocket(
-				`/templates/${MockTemplate.name}/workspace?param.instance_type=t3.large&param.cpu_count=4`,
-			);
-			await waitForLoaderToBeRemoved();
-
-			expect(screen.getByText(/instance type/i)).toBeInTheDocument();
-			expect(screen.getByText("CPU Count")).toBeInTheDocument();
-		});
-
 		it("uses custom template version when specified", async () => {
-			const customVersionId = "custom-version-123";
-
-			renderCreateWorkspacePageWithSocket(
-				`/templates/${MockTemplate.name}/workspace?version=${customVersionId}`,
-			);
-
-			await waitFor(() => {
-				expect(API.templateVersionDynamicParameters).toHaveBeenCalledWith(
-					customVersionId,
-					MockUserOwner.id,
-					expect.any(Object),
-				);
-			});
+			const version = "custom-version-123";
+			const { mockPublisher } = await renderPageWithSocket({ version });
+			await expectSocketHandshake({ mockPublisher, parameters: [], version });
 		});
 
 		it("pre-fills workspace name from URL", async () => {
 			const workspaceName = "my-custom-workspace";
 
-			renderCreateWorkspacePageWithSocket(
-				`/templates/${MockTemplate.name}/workspace?name=${workspaceName}`,
-			);
+			const { mockPublisher } = await renderPageWithSocket({
+				route: `/templates/${MockTemplate.name}/workspace?name=${workspaceName}`,
+			});
+			await expectSocketHandshake({ mockPublisher, parameters: [] });
+
 			await waitForLoaderToBeRemoved();
 
 			await waitFor(() => {
@@ -651,14 +704,26 @@ describe("CreateWorkspacePage", () => {
 	});
 
 	describe("URL Presets", () => {
+		const parameters = [MockDropdownParameter];
 		it("resolves a preset from the URL and selects it in the form", async () => {
-			vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([
-				mockGpuPreset,
-			]);
+			const { mockPublisher } = await renderPageWithSocket({
+				preset: mockGpuPreset,
+			});
+			await expectSocketHandshake({ mockPublisher, parameters });
 
-			renderCreateWorkspacePageWithSocket(
-				`/templates/${MockTemplate.name}/workspace?preset=gpu-large`,
-			);
+			// Respond to the client's init message.
+			await act(async () => {
+				mockPublisher.publishMessage(
+					new MessageEvent("message", {
+						data: JSON.stringify({
+							id: 2,
+							parameters,
+							diagnostics: [],
+						}),
+					}),
+				);
+			});
+
 			await waitForLoaderToBeRemoved();
 
 			expect(
@@ -667,19 +732,12 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("resolves a preset against the pinned template version", async () => {
-			const getTemplateVersionPresetsSpy = vi
-				.spyOn(API, "getTemplateVersionPresets")
-				.mockResolvedValue([mockGpuPreset]);
-
-			renderCreateWorkspacePageWithSocket(
-				`/templates/${MockTemplate.name}/workspace?version=custom-version&preset=gpu-large`,
-			);
-
-			await waitFor(() => {
-				expect(getTemplateVersionPresetsSpy).toHaveBeenCalledWith(
-					"custom-version",
-				);
+			const version = "custom-version";
+			const { mockPublisher } = await renderPageWithSocket({
+				version,
+				preset: mockGpuPreset,
 			});
+			await expectSocketHandshake({ mockPublisher, parameters, version });
 		});
 
 		it("falls back to form mode when auto-create cannot resolve the preset", async () => {
@@ -690,9 +748,11 @@ describe("CreateWorkspacePage", () => {
 				mockGpuPreset,
 			]);
 
-			renderCreateWorkspacePageWithSocket(
-				`/templates/${MockTemplate.name}/workspace?mode=auto&preset=missing`,
-			);
+			const { mockPublisher } = await renderPageWithSocket({
+				route: `/templates/${MockTemplate.name}/workspace?mode=auto&preset=missing`,
+			});
+			await expectSocketHandshake({ mockPublisher, parameters: [] });
+
 			await waitForLoaderToBeRemoved();
 
 			expect(
@@ -717,10 +777,10 @@ describe("CreateWorkspacePage", () => {
 				new Error("presets unavailable"),
 			);
 
-			renderCreateWorkspacePageWithSocket(
-				`/templates/${MockTemplate.name}/workspace?mode=auto&preset=gpu-large`,
-			);
-			await waitForLoaderToBeRemoved();
+			const { mockPublisher } = await renderPageWithSocket({
+				route: `/templates/${MockTemplate.name}/workspace?mode=auto&preset=gpu-large`,
+			});
+			await expectSocketHandshake({ mockPublisher, parameters: [] });
 
 			expect(
 				screen.queryByRole("button", { name: /confirm and create/i }),
@@ -735,16 +795,39 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("uses preset parameters instead of param values", async () => {
-			vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([
-				mockGpuPreset,
-			]);
+			const parameters = [MockDropdownParameter, MockSliderParameter];
+			const urlfill = {
+				[MockDropdownParameter.name]: "t3.small",
+				[MockSliderParameter.name]: "99",
+			};
+			const { mockPublisher } = await renderPageWithSocket({
+				preset: mockGpuPreset,
+				// Will be overridden by the preset values.
+				urlfill,
+			});
+			await expectSocketHandshake({
+				mockPublisher,
+				parameters,
+				urlfill,
+				preset: mockGpuPreset,
+			});
 
-			renderCreateWorkspacePageWithSocket(
-				`/templates/${MockTemplate.name}/workspace?preset=gpu-large&param.instance_type=t3.small&param.cpu_count=99`,
-			);
-			await waitForLoaderToBeRemoved();
+			// Respond to the client's init message.  Even though this uses the
+			// default values, it should not clobber the preset values.
+			await act(async () => {
+				mockPublisher.publishMessage(
+					new MessageEvent("message", {
+						data: JSON.stringify({
+							id: 2,
+							parameters,
+							diagnostics: [],
+						}),
+					}),
+				);
+			});
 
-			expect(screen.getAllByText(/param\.\*/i).length).toBeGreaterThan(0);
+			// No parameters show since they are under the preset section toggle.
+			await expectFormFields({ parameters: [] });
 
 			const nameInput = screen.getByRole("textbox", {
 				name: /workspace name/i,
@@ -760,13 +843,10 @@ describe("CreateWorkspacePage", () => {
 					"test-user",
 					expect.objectContaining({
 						template_version_preset_id: mockGpuPreset.ID,
-						rich_parameter_values: expect.arrayContaining([
-							expect.objectContaining({
-								name: "instance_type",
-								value: "t3.medium",
-							}),
-							expect.objectContaining({ name: "cpu_count", value: "4" }),
-						]),
+						rich_parameter_values: mockGpuPreset.Parameters.map((p) => ({
+							name: p.Name,
+							value: p.Value,
+						})),
 					}),
 				);
 			});
@@ -776,13 +856,16 @@ describe("CreateWorkspacePage", () => {
 			vi.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
 				MockTemplateVersionExternalAuthGithubAuthenticated,
 			]);
-			vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([
-				mockGpuPreset,
-			]);
 
-			renderCreateWorkspacePageWithSocket(
-				`/templates/${MockTemplate.name}/workspace?mode=auto&preset=gpu-large&name=preset-workspace`,
-			);
+			const { mockPublisher } = await renderPageWithSocket({
+				route: `/templates/${MockTemplate.name}/workspace?mode=auto&name=preset-workspace`,
+				preset: mockGpuPreset,
+			});
+			await expectSocketHandshake({
+				mockPublisher,
+				parameters: [],
+				preset: mockGpuPreset,
+			});
 
 			const confirmButton = await screen.findByRole("button", {
 				name: /confirm and create/i,
@@ -804,8 +887,8 @@ describe("CreateWorkspacePage", () => {
 
 	describe("Navigation", () => {
 		it("navigates to workspace after successful creation", async () => {
-			const { router } = renderCreateWorkspacePageWithSocket();
-			await waitForLoaderToBeRemoved();
+			const { mockPublisher, router } = await renderPageWithSocket();
+			await expectSocketHandshake({ mockPublisher, parameters: [] });
 
 			const nameInput = screen.getByRole("textbox", {
 				name: /workspace name/i,

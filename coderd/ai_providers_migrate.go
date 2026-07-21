@@ -143,7 +143,7 @@ func SeedAIProvidersFromEnv(
 				if existingHash == dp.Hash {
 					continue
 				}
-				return xerrors.Errorf("AI provider %q already exists in the database and differs from the current environment configuration; update the provider through the API or remove the CODER_AIBRIDGE_* env vars to stop seeding it", dp.Name)
+				return xerrors.Errorf("AI provider %q already exists in the database and differs from the current environment configuration; update the provider through the API or remove the CODER_AIBRIDGE_* (legacy) / CODER_AI_GATEWAY_* env vars to stop seeding it", dp.Name)
 			}
 
 			row, err := tx.InsertAIProvider(sysCtx, database.InsertAIProviderParams{
@@ -151,6 +151,7 @@ func SeedAIProvidersFromEnv(
 				Type:          dp.Type,
 				Name:          dp.Name,
 				DisplayName:   sql.NullString{String: dp.Name, Valid: true},
+				Icon:          "",
 				Enabled:       true,
 				BaseUrl:       dp.BaseURL,
 				Settings:      settings,

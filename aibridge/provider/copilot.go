@@ -16,8 +16,10 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
+	"github.com/coder/coder/v2/aibridge/intercept/messages"
 	"github.com/coder/coder/v2/aibridge/intercept/responses"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/coder/v2/aibridge/utils"
 )
@@ -28,6 +30,7 @@ const (
 	// Copilot exposes an OpenAI-compatible API, including for Anthropic models.
 	routeCopilotChatCompletions = "/chat/completions"
 	routeCopilotResponses       = "/responses"
+	routeCopilotMessages        = "/v1/messages"
 )
 
 var copilotOpenErrorResponse = func() []byte {
@@ -82,6 +85,7 @@ func (*Copilot) BridgedRoutes() []string {
 	return []string{
 		routeCopilotChatCompletions,
 		routeCopilotResponses,
+		routeCopilotMessages,
 	}
 }
 
@@ -116,6 +120,15 @@ func (p *Copilot) CircuitBreakerConfig() *config.CircuitBreaker {
 
 func (p *Copilot) APIDumpDir() string {
 	return p.cfg.APIDumpDir
+}
+
+func (*Copilot) CategorizeError(err error) *recorder.ErrorType {
+	// Copilot serves both OpenAI-compatible routes and an Anthropic-style
+	// /v1/messages route, so fall back to the Anthropic shapes.
+	if t := categorizeOpenAIError(err); t != nil {
+		return t
+	}
+	return categorizeAnthropicError(err)
 }
 
 func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tracer trace.Tracer) (_ intercept.Interceptor, outErr error) {
@@ -170,6 +183,22 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 			interceptor = responses.NewStreamingInterceptor(id, reqPayload, cfg, cred, r.Header, tracer)
 		} else {
 			interceptor = responses.NewBlockingInterceptor(id, reqPayload, cfg, cred, r.Header, tracer)
+		}
+
+	case routeCopilotMessages:
+		payload, err := io.ReadAll(r.Body)
+		if err != nil {
+			return nil, xerrors.Errorf("read body: %w", err)
+		}
+		reqPayload, err := messages.NewRequestPayload(payload)
+		if err != nil {
+			return nil, xerrors.Errorf("unmarshal request body: %w", err)
+		}
+
+		if reqPayload.Stream() {
+			interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, nil, r.Header, tracer)
+		} else {
+			interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, nil, r.Header, tracer)
 		}
 
 	default:

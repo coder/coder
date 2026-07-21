@@ -7,6 +7,7 @@ const MockOpenAIProviderConfig: ChatProviderConfig = {
 	id: "prov-openai",
 	provider: "openai",
 	display_name: "OpenAI",
+	icon: "",
 	enabled: true,
 	has_api_key: true,
 	central_api_key_enabled: true,
@@ -27,7 +28,6 @@ const MockAnthropicProviderConfig: ChatProviderConfig = {
 
 export const mockGPT5: ChatModelConfig = {
 	id: "model-gpt5",
-	provider: "openai",
 	ai_provider_id: "prov-openai",
 	model: "gpt-5",
 	display_name: "GPT-5",
@@ -42,7 +42,6 @@ export const mockGPT5: ChatModelConfig = {
 export const mockClaude: ChatModelConfig = {
 	...mockGPT5,
 	id: "model-claude",
-	provider: "anthropic",
 	ai_provider_id: "prov-anthropic",
 	model: "claude-sonnet-4-5",
 	display_name: "Claude Sonnet 4.5",
@@ -81,6 +80,55 @@ export const MockAnthropicProviderState: ProviderState = {
 	label: "Anthropic",
 	providerConfig: MockAnthropicProviderConfig,
 	modelConfigs: [mockClaude],
+};
+
+const MockBedrockProviderConfig: ChatProviderConfig = {
+	...MockOpenAIProviderConfig,
+	id: "prov-bedrock",
+	provider: "bedrock",
+	display_name: "AWS Bedrock",
+};
+
+export const mockBedrockClaude: ChatModelConfig = {
+	...mockClaude,
+	id: "model-bedrock-claude",
+	ai_provider_id: "prov-bedrock",
+	model: "anthropic.claude-sonnet-4-5",
+	display_name: "Claude Sonnet 4.5 (Bedrock)",
+};
+
+export const MockBedrockProviderState: ProviderState = {
+	...MockOpenAIProviderState,
+	key: "prov-bedrock",
+	provider: "bedrock",
+	label: "AWS Bedrock",
+	providerConfig: MockBedrockProviderConfig,
+	modelConfigs: [mockBedrockClaude],
+};
+
+const MockDisabledProviderConfig: ChatProviderConfig = {
+	...MockOpenAIProviderConfig,
+	id: "prov-openai-disabled",
+	display_name: "OpenAI Secondary",
+	enabled: false,
+};
+
+export const mockProviderDisabledModel: ChatModelConfig = {
+	...mockGPT5,
+	id: "model-provider-disabled",
+	ai_provider_id: "prov-openai-disabled",
+	model: "gpt-4o-secondary",
+	display_name: "GPT-4o Secondary",
+	is_default: false,
+};
+
+export const MockDisabledProviderState: ProviderState = {
+	...MockOpenAIProviderState,
+	key: "prov-openai-disabled",
+	provider: "openai",
+	label: "OpenAI Secondary",
+	providerConfig: MockDisabledProviderConfig,
+	modelConfigs: [mockProviderDisabledModel],
 };
 
 export const MockCopilotProviderState: ProviderState = {

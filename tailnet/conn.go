@@ -495,6 +495,12 @@ func (c *Conn) MagicsockSetDebugLoggingEnabled(enabled bool) {
 	c.magicConn.SetDebugLoggingEnabled(enabled)
 }
 
+// Rebind resets local network bindings and rediscovers peer paths.
+func (c *Conn) Rebind() {
+	c.magicConn.Rebind()
+	c.magicConn.ReSTUN("wake")
+}
+
 func (c *Conn) SetAddresses(ips []netip.Prefix) error {
 	c.configMaps.setAddresses(ips)
 	c.nodeUpdater.setAddresses(ips)

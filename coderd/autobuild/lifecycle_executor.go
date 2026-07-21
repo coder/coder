@@ -189,7 +189,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	// NOTE: If a workspace build is created with a given TTL and then the user either
 	//       changes or unsets the TTL, the deadline for the workspace build will not
 	//       have changed. This behavior is as expected per #2229.
-	workspaces, err := e.db.GetWorkspacesEligibleForTransition(e.ctx, currentTick)
+	workspaces, err := e.db.GetWorkspacesEligibleForLifecycleAction(e.ctx, currentTick)
 	if err != nil {
 		e.log.Error(e.ctx, "get workspaces for autostart or autostop", slog.Error(err))
 		return stats
@@ -207,7 +207,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	//  set of identical template versions. Then unload the files when the builds
 	//  are done. Right now, this relies on luck for the 10 goroutine workers to
 	//  overlap and keep the file reference in the cache alive.
-	slices.SortFunc(workspaces, func(a, b database.GetWorkspacesEligibleForTransitionRow) int {
+	slices.SortFunc(workspaces, func(a, b database.GetWorkspacesEligibleForLifecycleActionRow) int {
 		return strings.Compare(a.BuildTemplateVersionID.UUID.String(), b.BuildTemplateVersionID.UUID.String())
 	})
 
@@ -232,6 +232,9 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					auditLog              *auditParams
 					shouldNotifyDormancy  bool
 					shouldNotifyTaskPause bool
+					shouldRemind          bool
+					reminderDeadline      time.Time
+					reminderBuildID       uuid.UUID
 					nextBuild             *database.WorkspaceBuild
 					activeTemplateVersion database.TemplateVersion
 					ws                    database.Workspace
@@ -309,11 +312,29 @@ func (e *Executor) runOnce(t time.Time) Stats {
 
 					nextTransition, reason, err := getNextTransition(user, ws, latestBuild, latestJob, templateSchedule, currentTick)
 					if err != nil {
-						log.Debug(e.ctx, "skipping workspace", slog.Error(err))
-						// err is used to indicate that a workspace is not eligible
-						// so returning nil here is ok although ultimately the distinction
-						// doesn't matter since the transaction is  read-only up to
-						// this point.
+						return xerrors.Errorf("get next transition: %w", err)
+					}
+
+					// No transition is due. The workspace may still need a one-time
+					// autostop reminder; reuse the lock and transaction we already
+					// hold to stamp the marker.
+					if reason == "" {
+						log.Debug(e.ctx, "skipping workspace, no transition due")
+						// A deadline change (e.g. activity bump) re-arms the reminder; users near
+						// the boundary may receive one reminder per bump. Intentional: one-per-build
+						// would leave stale reminders after a bump.
+						if shouldRemindAutostop(latestBuild, ws.LastUsedAt, templateSchedule, currentTick) {
+							if err := tx.UpdateWorkspaceBuildNotifiedAutostopDeadline(e.ctx, database.UpdateWorkspaceBuildNotifiedAutostopDeadlineParams{
+								ID:                       latestBuild.ID,
+								NotifiedAutostopDeadline: latestBuild.Deadline,
+								UpdatedAt:                dbtime.Now(),
+							}); err != nil {
+								return xerrors.Errorf("stamp autostop reminder marker: %w", err)
+							}
+							reminderDeadline = latestBuild.Deadline
+							reminderBuildID = latestBuild.ID
+							shouldRemind = true
+						}
 						return nil
 					}
 
@@ -536,6 +557,24 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						}
 					}
 				}
+				if shouldRemind {
+					// At-most-once: the marker is already committed, so a failed
+					// enqueue only logs (no retry).
+					if _, err := e.notificationsEnqueuer.Enqueue(
+						e.ctx,
+						ws.OwnerID,
+						notifications.TemplateWorkspaceAutostopReminder,
+						map[string]string{
+							"workspace":       ws.Name,
+							"timeTilShutdown": humanize.Time(reminderDeadline),
+						},
+						"lifecycle_executor",
+						// Associate this notification with all the related entities.
+						ws.ID, ws.OwnerID, ws.TemplateID, ws.OrganizationID,
+					); err != nil {
+						log.Warn(e.ctx, "failed to notify of upcoming workspace autostop", slog.F("build_id", reminderBuildID), slog.Error(err))
+					}
+				}
 				return nil
 			}()
 			if err != nil && !xerrors.Is(err, context.Canceled) {
@@ -559,12 +598,77 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	return stats
 }
 
+// autostopReminderActiveThreshold is how recently a workspace must have been
+// used to count as "active" and suppress the autostop reminder. A default
+// deployment refreshes last_used_at within ~90s, but the agent stats interval
+// is configurable up to a few minutes, so we stay conservative. It must remain
+// well below activity_bump (default 1h): an idle user's now-last_used_at is
+// bounded by activity_bump, so a larger threshold would make idle users look
+// active forever and never be reminded. Keep in sync with the INTERVAL '15
+// minutes' literal in GetWorkspacesEligibleForLifecycleAction (workspaces.sql).
+const autostopReminderActiveThreshold = 15 * time.Minute
+
+// shouldRemindAutostop reports whether an autostop reminder should be sent for
+// the build at currentTick. It skips genuinely-active workspaces only when
+// activity can still move the deadline out of the lead window.
+//
+// time_til_autostop_notify has no upper bound, so the lead window can already
+// cover "now" at build creation. The result is still exactly one reminder per
+// deadline (never one per tick): we require deadline > now, and the marker
+// (NotifiedAutostopDeadline == Deadline, stamped before the send attempt)
+// filters every subsequent tick.
+//
+// The skip-guard below is the exact complement of the keep-condition in the
+// reminder arm of GetWorkspacesEligibleForLifecycleAction, so a row that passes
+// the SQL pre-filter also passes this re-check (and vice versa).
+func shouldRemindAutostop(build database.WorkspaceBuild, lastUsedAt time.Time, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
+	if templateSchedule.TimeTilAutostopNotify <= 0 {
+		return false
+	}
+
+	if build.Transition != database.WorkspaceTransitionStart || build.Deadline.IsZero() {
+		return false
+	}
+
+	if !build.Deadline.After(currentTick) {
+		return false
+	}
+
+	// "now" must be within the lead window before the deadline, i.e.
+	// deadline <= now + time_til_autostop_notify.
+	if build.Deadline.After(currentTick.Add(templateSchedule.TimeTilAutostopNotify)) {
+		return false
+	}
+
+	// Skip the reminder only for an active user whose deadline can still be
+	// bumped out of the lead window.
+	userActive := currentTick.Sub(lastUsedAt) < autostopReminderActiveThreshold
+	bumpEnabled := templateSchedule.ActivityBump > 0
+	// The hard ceiling traps the workspace inside the window: a non-zero
+	// max_deadline at or before now+ttl means no bump can push the stop out of
+	// the lead window, so it WILL stop regardless of activity.
+	maxDeadlineTraps := !build.MaxDeadline.IsZero() &&
+		!build.MaxDeadline.After(currentTick.Add(templateSchedule.TimeTilAutostopNotify))
+
+	if userActive && bumpEnabled && !maxDeadlineTraps {
+		return false
+	}
+
+	// Idempotence: a reminder has not yet been sent for THIS deadline. The
+	// marker re-arms automatically when the deadline changes (e.g. an activity
+	// bump), so a new reminder fires once the new deadline re-enters the window.
+	return !build.NotifiedAutostopDeadline.Equal(build.Deadline)
+}
+
 // getNextTransition returns the next eligible transition for the workspace
-// as well as the reason for why it is transitioning. It is possible
-// for this function to return a nil error as well as an empty transition.
-// In such cases it means no provisioning should occur but the workspace
-// may be "transitioning" to a new state (such as an inactive, stopped
-// workspace transitioning to the dormant state).
+// as well as the reason for why it is transitioning. It is possible for this
+// function to return a nil error as well as an empty transition with a
+// non-empty reason. In such cases it means no provisioning should occur but
+// the workspace may be "transitioning" to a new state (such as an inactive,
+// stopped workspace transitioning to the dormant state).
+//
+// When nothing is due, it returns an empty transition, an empty reason, and a
+// nil error. Callers gate on reason == "" for the "nothing to do" case.
 func getNextTransition(
 	user database.User,
 	ws database.Workspace,
@@ -604,7 +708,8 @@ func getNextTransition(
 	case isEligibleForDelete(ws, templateSchedule, latestBuild, latestJob, currentTick):
 		return database.WorkspaceTransitionDelete, database.BuildReasonAutodelete, nil
 	default:
-		return "", "", xerrors.Errorf("last transition not valid for autostart or autostop")
+		// No autostart, autostop, dormancy, or deletion transition is due.
+		return "", "", nil
 	}
 }
 

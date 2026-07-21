@@ -11,8 +11,8 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -58,11 +58,19 @@ func newAIBridgeProxyDaemon(coderAPI *coderd.API) (io.Closer, error) {
 		}
 	}
 
+	target, err := resolveAIGatewayProxyTarget(
+		coderAPI.AccessURL,
+		coderAPI.DeploymentValues.AI.BridgeProxyConfig.Target.String(),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	srv, err := aibridgeproxyd.New(ctx, logger, aibridgeproxyd.Options{
 		ListenAddr:          coderAPI.DeploymentValues.AI.BridgeProxyConfig.ListenAddr.String(),
 		TLSCertFile:         coderAPI.DeploymentValues.AI.BridgeProxyConfig.TLSCertFile.String(),
 		TLSKeyFile:          coderAPI.DeploymentValues.AI.BridgeProxyConfig.TLSKeyFile.String(),
-		CoderAccessURL:      coderAPI.AccessURL.String(),
+		GatewayURL:          target,
 		MITMCertFile:        coderAPI.DeploymentValues.AI.BridgeProxyConfig.MITMCertFile.String(),
 		MITMKeyFile:         coderAPI.DeploymentValues.AI.BridgeProxyConfig.MITMKeyFile.String(),
 		UpstreamProxy:       coderAPI.DeploymentValues.AI.BridgeProxyConfig.UpstreamProxy.String(),
@@ -78,8 +86,10 @@ func newAIBridgeProxyDaemon(coderAPI *coderd.API) (io.Closer, error) {
 
 	unsubscribe, err := aibridged.SubscribeProviderReload(ctx, coderAPI.Pubsub, srv, logger.Named("provider-reload"))
 	if err != nil {
-		logger.Warn(ctx, "subscribe aibridgeproxyd to ai providers change channel", slog.Error(err))
-		unsubscribe = func() {}
+		// Without the subscription the proxy can never track provider changes,
+		// so fail startup rather than serve a permanently stale snapshot.
+		_ = srv.Close()
+		return nil, xerrors.Errorf("subscribe aibridgeproxyd to ai providers change channel: %w", err)
 	}
 
 	// Register the handler so coderd can serve the proxy endpoints.
@@ -89,6 +99,19 @@ func newAIBridgeProxyDaemon(coderAPI *coderd.API) (io.Closer, error) {
 		server:      srv,
 		unsubscribe: unsubscribe,
 	}, nil
+}
+
+// resolveAIGatewayProxyTarget returns the URL to which the aibridgeproxyd should forward requests.
+func resolveAIGatewayProxyTarget(accessURL *url.URL, target string) (string, error) {
+	if target != "" {
+		return target, nil
+	}
+
+	target, err := url.JoinPath(accessURL.String(), agplaibridge.AIGatewayRootPath)
+	if err != nil {
+		return "", xerrors.Errorf("build embedded AI Gateway proxy target: %w", err)
+	}
+	return target, nil
 }
 
 // refreshProxyProviders classifies every ai_providers row as enabled,

@@ -7,14 +7,14 @@
 
 From a workspace terminal, test if sync is working using `coder exp sync ping`:
 
-```bash
+```sh
 coder exp sync ping
 ```
 
 * If sync is working, expect the output to be `Success`.
 * Otherwise, you will see an error message similar to the below:
 
-```bash
+```sh
 error: connect to agent socket: connect to socket: dial unix /tmp/coder-agent.sock: connect: permission denied
 ```
 
@@ -22,13 +22,13 @@ error: connect to agent socket: connect to socket: dial unix /tmp/coder-agent.so
 
 You can check the status of a specific unit using `coder exp sync status`:
 
-```bash
+```sh
 coder exp sync status git-clone
 ```
 
 If the unit exists, you will see output similar to the below:
 
-```bash
+```sh
 # coder exp sync status git-clone
 Unit: git-clone
 Status: completed
@@ -37,7 +37,7 @@ Ready: true
 
 If the unit is not known to the agent, you will see output similar to the below:
 
-```bash
+```sh
 # coder exp sync status doesnotexist
 Unit: doesnotexist
 Status: not registered
@@ -51,13 +51,13 @@ No dependencies found
 
 If you are unsure which units are registered, or want a quick overview of every unit's state, use `coder exp sync list`:
 
-```bash
+```sh
 coder exp sync list
 ```
 
 This displays all registered units, their statuses, and whether they are ready to start:
 
-```bash
+```sh
 UNIT           STATUS     READY
 git-clone      completed  true
 env-setup      started    true
@@ -66,7 +66,7 @@ ide-configure  pending    false
 
 You can also get JSON output for scripting:
 
-```bash
+```sh
 coder exp sync list --output json
 ```
 
@@ -89,7 +89,7 @@ If the workspace startup scripts fail:
 * Review `/tmp/coder-script-*.log` inside the workspace for script errors.
 * Verify the Coder CLI is available in `$PATH` inside the workspace:
 
-    ```bash
+    ```sh
     command -v coder
     ```
 
@@ -97,7 +97,7 @@ If the workspace startup scripts fail:
 
 If you see an error similar to the below in your startup script logs, you have defined a cyclic dependency:
 
-```bash
+```sh
 error: declare dependency failed: cannot add dependency: adding edge for unit "bar": failed to add dependency
 adding edge (bar -> foo): cycle detected
 ```

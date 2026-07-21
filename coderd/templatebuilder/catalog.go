@@ -35,6 +35,7 @@ type ModuleManifest struct {
 	Tags          []string         `json:"tags"`
 	CompatibleOS  []string         `json:"compatible_os"`
 	ConflictsWith []string         `json:"conflicts_with"`
+	Namespace     string           `json:"namespace"`
 	PinnedVersion string           `json:"pinned_version"`
 	Variables     []ModuleVariable `json:"variables"`
 }

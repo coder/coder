@@ -16,7 +16,7 @@ Get up and running with Coder in minutes. Choose your programming languages, pic
 When you create a workspace from this template, you select:
 
 1. **Languages** to pre-install (Python, Node.js, Go, Rust, Java, C/C++)
-2. **Editors** to connect (VS Code in the browser, VS Code Desktop, Cursor, JetBrains, Zed, Windsurf)
+2. **Editors** to connect (VS Code in the browser, Cursor, JetBrains, Zed, Windsurf)
 3. **A Git repository** to clone (optional)
 
 Coder provisions a workspace with your selections and you can start developing immediately.
@@ -59,6 +59,7 @@ Select a preset to auto-fill languages and editors for common workflows:
 ## IDE Notes
 
 - **VS Code (Browser)**: Opens directly in your browser with no local install required.
-- **VS Code Desktop, Cursor, Windsurf**: Require the desktop application installed on your local machine. Coder opens them via protocol handler.
+- **VS Code Desktop**: Available on every workspace by default (Coder enables the VS Code Desktop display app automatically), so it is not listed as a separate editor option.
+- **Cursor, Windsurf**: Require the desktop application installed on your local machine. Coder opens them via protocol handler.
 - **JetBrains IDEs**: Filtered by your language selection (e.g. PyCharm for Python, GoLand for Go). Requires JetBrains Toolbox or Gateway on your local machine.
 - **Zed**: Connects over SSH. Requires Zed installed on your local machine.

@@ -851,8 +851,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
 				Labels: map[string]string{
-					"workspace": "bobby-workspace",
-					"deadline":  "2024-03-15 14:00 UTC",
+					"workspace":       "bobby-workspace",
+					"timeTilShutdown": "1 hour from now",
 				},
 			},
 		},
@@ -1364,6 +1364,21 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
+			name: "TemplateChatShared",
+			id:   notifications.TemplateChatShared,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"chat_id":    "00000000-0000-0000-0000-000000000001",
+					"chat_title": "Onboarding kickoff",
+					"initiator":  "alice",
+				},
+				Data: map[string]any{},
+			},
+		},
+		{
 			// Default branch: multiple visible chats, retention enabled,
 			// no overflow. Body phrasing is number-neutral so this also
 			// covers the n>1 grammar shape without a dedicated branch in
@@ -1541,11 +1556,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 
 				// Start mock SMTP server in the background.
 				var wg sync.WaitGroup
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					assert.NoError(t, srv.Serve(listen))
-				}()
+				})
 
 				// Wait for the server to become pingable.
 				require.Eventually(t, func() bool {

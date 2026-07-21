@@ -26,13 +26,13 @@ You can also use a URI handler to launch an RDP session directly.
 
 The URI format is:
 
-```text
+```txt
 coder://<your Coder server name>/v0/open/ws/<workspace name>/agent/<agent name>/rdp?username=<username>&password=<password>
 ```
 
 For example:
 
-```text
+```txt
 coder://coder.example.com/v0/open/ws/myworkspace/agent/main/rdp?username=Administrator&password=coderRDP!
 ```
 
@@ -149,7 +149,7 @@ Use a VNC client (e.g., [TigerVNC](https://tigervnc.org/)) by forwarding the VNC
 
 Use the following command to forward the VNC port to your local machine:
 
-```bash
+```sh
 coder port-forward <workspace-name> --tcp 5900:5900
 ```
 

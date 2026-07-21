@@ -26,7 +26,7 @@
     {
       "name": "config",
       "type": "string",
-      "description": "A JSON string of JupyterLab server configuration settings. When set, writes ~/.jupyter/jupyter_server_config.json.",
+      "description": "JupyterLab server configuration as a JSON string.",
       "default": "{}",
       "required": false,
       "sensitive": false,

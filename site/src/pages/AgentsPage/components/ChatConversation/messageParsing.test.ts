@@ -960,7 +960,7 @@ describe("subagent transcript parsing", () => {
 		expect(variants.get("unified-child")).toBe("explore");
 	});
 
-	it("includes close_agent in the shared subagent parsing path", () => {
+	it("includes close_agent (legacy alias) in the shared subagent parsing path", () => {
 		const { variants } = parseSubagents([
 			msg(1, [
 				toolCall("close-tool", "close_agent", { chat_id: "closing-child" }),
@@ -973,6 +973,24 @@ describe("subagent transcript parsing", () => {
 		]);
 
 		expect(variants.get("closing-child")).toBe("explore");
+	});
+
+	it("includes interrupt_agent in the shared subagent parsing path", () => {
+		const { variants } = parseSubagents([
+			msg(1, [
+				toolCall("interrupt-tool", "interrupt_agent", {
+					chat_id: "interrupting-child",
+				}),
+				toolResult("interrupt-tool", "interrupt_agent", {
+					chat_id: "interrupting-child",
+					type: "explore",
+					status: "completed",
+					interrupted: true,
+				}),
+			]),
+		]);
+
+		expect(variants.get("interrupting-child")).toBe("explore");
 	});
 
 	it("tracks computer-use variants for legacy and spawn_agent tools", () => {
@@ -1022,8 +1040,10 @@ describe("subagent transcript parsing", () => {
 				}),
 			]),
 			msg(3, [
-				toolCall("close-tool", "close_agent", { chat_id: "close-child" }),
-				toolResult("close-tool", "close_agent", {
+				toolCall("interrupt-tool", "interrupt_agent", {
+					chat_id: "close-child",
+				}),
+				toolResult("interrupt-tool", "interrupt_agent", {
 					chat_id: "close-child",
 					type: "general",
 					status: "completed",
@@ -1068,8 +1088,10 @@ describe("subagent transcript parsing", () => {
 				}),
 			]),
 			msg(4, [
-				toolCall("close-tool", "close_agent", { chat_id: "history-child" }),
-				toolResult("close-tool", "close_agent", {
+				toolCall("interrupt-tool", "interrupt_agent", {
+					chat_id: "history-child",
+				}),
+				toolResult("interrupt-tool", "interrupt_agent", {
 					chat_id: "history-child",
 					status: "completed",
 				}),
@@ -1086,7 +1108,8 @@ describe("getSubagentDescriptor", () => {
 		const lifecycleTools = [
 			{ name: "wait_agent", action: "wait" },
 			{ name: "message_agent", action: "message" },
-			{ name: "close_agent", action: "close" },
+			{ name: "close_agent", action: "interrupt" },
+			{ name: "interrupt_agent", action: "interrupt" },
 		] as const;
 
 		for (const tool of lifecycleTools) {
@@ -1111,6 +1134,7 @@ describe("getSubagentDescriptor", () => {
 			"wait_agent",
 			"message_agent",
 			"close_agent",
+			"interrupt_agent",
 		] as const;
 
 		for (const name of lifecycleToolNames) {
@@ -1126,5 +1150,31 @@ describe("getSubagentDescriptor", () => {
 				supportsDesktopAffordance: false,
 			});
 		}
+	});
+
+	it("renders list_agents with a fixed generic affordance", () => {
+		const descriptor = getSubagentDescriptor({
+			name: "list_agents",
+			args: {},
+			result: {
+				agents: [
+					{ chat_id: "agent-1", type: "explore", status: "completed" },
+					{ chat_id: "agent-2", type: "computer_use", status: "running" },
+				],
+				total: 2,
+				returned: 2,
+				offset: 0,
+				has_more: false,
+			},
+		});
+
+		// The list result has no single top-level type, so the descriptor
+		// must not derive a variant from per-agent types.
+		expect(descriptor).toMatchObject({
+			action: "list",
+			variant: "general",
+			iconKind: "bot",
+			supportsDesktopAffordance: false,
+		});
 	});
 });

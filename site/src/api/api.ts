@@ -213,7 +213,7 @@ export type GroupMemberAICostControl = Readonly<{
 	current_spend_micros: number;
 	spend_limit_micros: number | null;
 	effective_group_id: string | null;
-	limit_source: "group" | "override" | null;
+	limit_source: TypesGen.AIBudgetLimitSource | null;
 }>;
 export type GroupMemberWithAICostControl = TypesGen.ReducedUser &
 	Readonly<{ ai_cost_control?: GroupMemberAICostControl }>;
@@ -572,6 +572,13 @@ class ApiMethods {
 
 	getAuthenticatedUser = async () => {
 		const response = await this.axios.get<TypesGen.User>("/api/v2/users/me");
+		return response.data;
+	};
+
+	getUserAISpend = async (): Promise<TypesGen.UserAISpendStatus> => {
+		const response = await this.axios.get<TypesGen.UserAISpendStatus>(
+			"/api/v2/users/me/ai/spend",
+		);
 		return response.data;
 	};
 
@@ -3421,13 +3428,6 @@ class ExperimentalApiMethods {
 		await this.axios.patch(`/api/experimental/chats/${chatId}`, req);
 	};
 
-	regenerateChatTitle = async (chatId: string): Promise<TypesGen.Chat> => {
-		const response = await this.axios.post<TypesGen.Chat>(
-			`/api/experimental/chats/${chatId}/title/regenerate`,
-		);
-		return response.data;
-	};
-
 	proposeChatTitle = async (chatId: string): Promise<{ title: string }> => {
 		const response = await this.axios.post<{ title: string }>(
 			`/api/experimental/chats/${chatId}/title/propose`,
@@ -3460,6 +3460,18 @@ class ExperimentalApiMethods {
 	interruptChat = async (chatId: string): Promise<TypesGen.Chat> => {
 		const response = await this.axios.post<TypesGen.Chat>(
 			`/api/experimental/chats/${chatId}/interrupt`,
+		);
+		return response.data;
+	};
+
+	/**
+	 * Requests a manual context compaction on an idle chat. The
+	 * compaction runs asynchronously through the chat worker and
+	 * bypasses the automatic usage threshold.
+	 */
+	compactChat = async (chatId: string): Promise<TypesGen.Chat> => {
+		const response = await this.axios.post<TypesGen.Chat>(
+			`/api/experimental/chats/${chatId}/compact`,
 		);
 		return response.data;
 	};
@@ -3707,20 +3719,6 @@ class ExperimentalApiMethods {
 			`/api/experimental/chats/${chatId}/debug/runs/${runId}`,
 		);
 		return response.data;
-	};
-	getChatDesktopEnabled =
-		async (): Promise<TypesGen.ChatDesktopEnabledResponse> => {
-			const response =
-				await this.axios.get<TypesGen.ChatDesktopEnabledResponse>(
-					"/api/experimental/chats/config/desktop-enabled",
-				);
-			return response.data;
-		};
-
-	updateChatDesktopEnabled = async (
-		req: TypesGen.UpdateChatDesktopEnabledRequest,
-	): Promise<void> => {
-		await this.axios.put("/api/experimental/chats/config/desktop-enabled", req);
 	};
 
 	getChatAdvisorConfig = async (): Promise<AdvisorConfig> => {
@@ -3988,6 +3986,16 @@ class ExperimentalApiMethods {
 		await this.axios.delete(
 			`${mcpServerConfigsPath}/${encodeURIComponent(id)}`,
 		);
+	};
+
+	disconnectMCPServerOAuth2 = async (
+		id: string,
+	): Promise<TypesGen.MCPServerOAuth2DisconnectResponse> => {
+		const response =
+			await this.axios.delete<TypesGen.MCPServerOAuth2DisconnectResponse>(
+				`${mcpServerConfigsPath}/${encodeURIComponent(id)}/oauth2/disconnect`,
+			);
+		return response.data;
 	};
 
 	getChatCostSummary = async (

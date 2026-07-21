@@ -24,7 +24,7 @@ const meta = {
 	},
 	parameters: {
 		layout: "centered",
-		chromatic: { disableSnapshot: true },
+		pixel: { exclude: true },
 	},
 	decorators: [
 		(Story) => (

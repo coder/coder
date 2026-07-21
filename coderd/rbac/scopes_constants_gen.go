@@ -10,6 +10,7 @@ const (
 	ScopeAiGatewayKeyCreate                  ScopeName = "ai_gateway_key:create"
 	ScopeAiGatewayKeyDelete                  ScopeName = "ai_gateway_key:delete"
 	ScopeAiGatewayKeyRead                    ScopeName = "ai_gateway_key:read"
+	ScopeAiGatewayKeyUpdate                  ScopeName = "ai_gateway_key:update"
 	ScopeAiModelPriceRead                    ScopeName = "ai_model_price:read"
 	ScopeAiModelPriceUpdate                  ScopeName = "ai_model_price:update"
 	ScopeAiProviderCreate                    ScopeName = "ai_provider:create"
@@ -163,6 +164,10 @@ const (
 	ScopeWorkspaceAgentResourceMonitorCreate ScopeName = "workspace_agent_resource_monitor:create"
 	ScopeWorkspaceAgentResourceMonitorRead   ScopeName = "workspace_agent_resource_monitor:read"
 	ScopeWorkspaceAgentResourceMonitorUpdate ScopeName = "workspace_agent_resource_monitor:update"
+	ScopeWorkspaceBuildOrchestrationCreate   ScopeName = "workspace_build_orchestration:create"
+	ScopeWorkspaceBuildOrchestrationDelete   ScopeName = "workspace_build_orchestration:delete"
+	ScopeWorkspaceBuildOrchestrationRead     ScopeName = "workspace_build_orchestration:read"
+	ScopeWorkspaceBuildOrchestrationUpdate   ScopeName = "workspace_build_orchestration:update"
 	ScopeWorkspaceDormantApplicationConnect  ScopeName = "workspace_dormant:application_connect"
 	ScopeWorkspaceDormantCreate              ScopeName = "workspace_dormant:create"
 	ScopeWorkspaceDormantCreateAgent         ScopeName = "workspace_dormant:create_agent"
@@ -193,6 +198,7 @@ func (e ScopeName) Valid() bool {
 		ScopeAiGatewayKeyCreate,
 		ScopeAiGatewayKeyDelete,
 		ScopeAiGatewayKeyRead,
+		ScopeAiGatewayKeyUpdate,
 		ScopeAiModelPriceRead,
 		ScopeAiModelPriceUpdate,
 		ScopeAiProviderCreate,
@@ -346,6 +352,10 @@ func (e ScopeName) Valid() bool {
 		ScopeWorkspaceAgentResourceMonitorCreate,
 		ScopeWorkspaceAgentResourceMonitorRead,
 		ScopeWorkspaceAgentResourceMonitorUpdate,
+		ScopeWorkspaceBuildOrchestrationCreate,
+		ScopeWorkspaceBuildOrchestrationDelete,
+		ScopeWorkspaceBuildOrchestrationRead,
+		ScopeWorkspaceBuildOrchestrationUpdate,
 		ScopeWorkspaceDormantApplicationConnect,
 		ScopeWorkspaceDormantCreate,
 		ScopeWorkspaceDormantCreateAgent,
@@ -377,6 +387,7 @@ func AllScopeNameValues() []ScopeName {
 		ScopeAiGatewayKeyCreate,
 		ScopeAiGatewayKeyDelete,
 		ScopeAiGatewayKeyRead,
+		ScopeAiGatewayKeyUpdate,
 		ScopeAiModelPriceRead,
 		ScopeAiModelPriceUpdate,
 		ScopeAiProviderCreate,
@@ -530,6 +541,10 @@ func AllScopeNameValues() []ScopeName {
 		ScopeWorkspaceAgentResourceMonitorCreate,
 		ScopeWorkspaceAgentResourceMonitorRead,
 		ScopeWorkspaceAgentResourceMonitorUpdate,
+		ScopeWorkspaceBuildOrchestrationCreate,
+		ScopeWorkspaceBuildOrchestrationDelete,
+		ScopeWorkspaceBuildOrchestrationRead,
+		ScopeWorkspaceBuildOrchestrationUpdate,
 		ScopeWorkspaceDormantApplicationConnect,
 		ScopeWorkspaceDormantCreate,
 		ScopeWorkspaceDormantCreateAgent,

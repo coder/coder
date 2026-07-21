@@ -98,6 +98,12 @@ type Manager struct {
 	// observe a change.
 	trigger chan struct{}
 
+	// ready gates collection. While false (until the first SetReady
+	// call) the Manager does not scan; Snapshot() returns the empty
+	// version-0 value, which the push loop never sends to coderd.
+	// Guarded by mu.
+	ready bool
+
 	// running tracks Run lifetime.
 	running      bool
 	closed       bool
@@ -108,10 +114,10 @@ type Manager struct {
 	watcher *Watcher
 }
 
-// NewManager validates options, canonicalizes initial sources,
-// performs the first resolver pass synchronously, and returns
-// the resulting Manager. Run must be called separately to start
-// the watcher and re-resolve goroutine.
+// NewManager validates options and canonicalizes initial sources. The
+// returned Manager is gated, so its first snapshot is the empty
+// version-0 placeholder and the first real resolve runs on SetReady.
+// Call Run to start the watcher and re-resolve goroutine.
 func NewManager(opts ManagerOptions) *Manager {
 	clock := opts.Clock
 	if clock == nil {
@@ -146,9 +152,8 @@ func NewManager(opts ManagerOptions) *Manager {
 	// resources unless the resolver already has a provider (tests
 	// inject one via Resolver). The engine owns the connection
 	// lifecycle and notifies this Manager via Trigger when its
-	// catalog changes (see agent wiring). The provider must be wired
-	// before the eager first resolve below so the seam is present
-	// from the first snapshot.
+	// catalog changes (see agent wiring). Wire it before SetReady runs
+	// the first resolve.
 	if resolver.MCPResources == nil && opts.MCPCatalog != nil {
 		resolver.MCPResources = func() []Resource {
 			return buildMCPServerResources(opts.MCPCatalog())
@@ -170,12 +175,8 @@ func NewManager(opts ManagerOptions) *Manager {
 		m.addSourceLocked(identity)
 	}
 
-	// First snapshot is computed eagerly. The push protocol
-	// requires a snapshot to be present before the agent signals
-	// lifecycle = ready, so callers can rely on Snapshot() being
-	// populated immediately after NewManager returns.
-	m.resolveLocked()
-
+	// Start gated: m.snapshot stays the zero value (version 0) until
+	// SetReady runs the first resolve.
 	return m
 }
 
@@ -444,6 +445,12 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 		m.mu.Unlock()
 		return m.Snapshot(), ErrManagerClosed
 	}
+	if !m.ready {
+		// Gated until SetReady: return the version-0 placeholder, no scan.
+		snap := m.snapshot
+		m.mu.Unlock()
+		return snap, nil
+	}
 	roots := m.scanRootsLocked()
 	resolver := m.resolver
 	watcher := m.watcher
@@ -535,6 +542,31 @@ func (m *Manager) Trigger() {
 	m.signal()
 }
 
+// SetReady starts context collection: the agent calls it once startup
+// scripts finish (or terminally fail) so context is never collected
+// from a half-built workspace. Idempotent; the first call triggers the
+// first resolve and push.
+func (m *Manager) SetReady() {
+	m.mu.Lock()
+	if m.ready || m.closed {
+		m.mu.Unlock()
+		return
+	}
+	m.ready = true
+	running := m.running
+	m.mu.Unlock()
+
+	if running {
+		// The Run loop owns the watcher; signal it to re-sync and resolve
+		// with ready=true.
+		m.signal()
+		return
+	}
+	// No Run loop yet (embedders or tests driving the Manager directly):
+	// resolve inline.
+	m.resolveAndBroadcast(context.Background())
+}
+
 // scanRootsLocked returns the list of ScanRoots to feed the
 // resolver and watcher. The Manager's mutex must be held.
 func (m *Manager) scanRootsLocked() []ScanRoot {
@@ -599,6 +631,11 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	// RemoveSource, Snapshot, and SubscribeChanges for the
 	// duration of the pass.
 	m.mu.Lock()
+	if !m.ready {
+		// Gated until SetReady: no scan, no broadcast.
+		m.mu.Unlock()
+		return
+	}
 	roots := m.scanRootsLocked()
 	resolver := m.resolver
 	watcher := m.watcher
@@ -652,26 +689,6 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 		default:
 		}
 	}
-}
-
-// resolveLocked runs the resolver inline while m.mu is held.
-// It is used by the synchronous initial resolve in NewManager,
-// where there is no concurrent reader. Background re-resolves
-// must use resolveAndBroadcast, which drops the lock around
-// filesystem I/O.
-func (m *Manager) resolveLocked() {
-	roots := m.scanRootsLocked()
-	snap := m.resolver.Resolve(roots)
-	m.version++
-	snap.Version = m.version
-	// Surface watcher degradation as a snapshot-level error
-	// when the resolver did not already emit one.
-	if snap.SnapshotError == "" && m.watcher != nil {
-		if d := m.watcher.Degraded(); d != "" {
-			snap.SnapshotError = d
-		}
-	}
-	m.snapshot = snap
 }
 
 // ErrSourceNotFound is returned by RemoveSource when the

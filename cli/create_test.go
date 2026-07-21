@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clitest"
@@ -2117,6 +2118,7 @@ func TestCreateWithGitAuth(t *testing.T) {
 			Regex:                    regexp.MustCompile(`github\.com`),
 			Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 			DisplayName:              "GitHub",
+			RefreshGroup:             new(singleflight.Group),
 		}},
 		IncludeProvisionerDaemon: true,
 	})

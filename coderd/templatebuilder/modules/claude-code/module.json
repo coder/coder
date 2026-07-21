@@ -37,7 +37,7 @@
     {
       "name": "claude_binary_path",
       "type": "string",
-      "description": "Directory where the Claude Code binary is located. Use this if Claude is pre-installed or installed outside the module to a non-default location.",
+      "description": "Directory where the Claude Code binary is located.",
       "default": "$HOME/.local/bin",
       "required": false,
       "sensitive": false,
@@ -46,7 +46,7 @@
     {
       "name": "claude_code_oauth_token",
       "type": "string",
-      "description": "OAuth token passed to Claude Code via the CLAUDE_CODE_OAUTH_TOKEN env var. Generate one with `claude setup-token`.",
+      "description": "OAuth token for Claude Code.",
       "default": "",
       "required": false,
       "sensitive": true,
@@ -100,7 +100,7 @@
     {
       "name": "mcp",
       "type": "string",
-      "description": "JSON-encoded string of MCP server configurations. When set, servers are added at Claude Code's user scope so they are available across every project the workspace owner opens.",
+      "description": "JSON-encoded MCP server configurations for Claude Code.",
       "default": "",
       "required": false,
       "sensitive": false,
@@ -109,7 +109,7 @@
     {
       "name": "model",
       "type": "string",
-      "description": "Sets the default model for Claude Code via ANTHROPIC_MODEL env var. If empty, Claude Code uses its default. Supports aliases (sonnet, opus) or full model names.",
+      "description": "Default model for Claude Code via ANTHROPIC_MODEL env var.",
       "default": "",
       "required": false,
       "sensitive": false,
@@ -126,7 +126,7 @@
     {
       "name": "pre_install_script",
       "type": "string",
-      "description": "Custom script to run before installing Claude Code. Can be used for dependency ordering between modules (e.g., waiting for git-clone to complete before Claude Code initialization).",
+      "description": "Custom script to run before installing Claude Code.",
       "required": false,
       "sensitive": false,
       "computed": false
@@ -134,7 +134,7 @@
     {
       "name": "workdir",
       "type": "string",
-      "description": "Optional project directory. When set, the module pre-creates it if missing and pre-accepts the Claude Code trust/onboarding prompt for it in ~/.claude.json.",
+      "description": "Project directory. Pre-created if missing.",
       "required": false,
       "sensitive": false,
       "computed": false

@@ -795,8 +795,13 @@ func assertChatMessageText(t *testing.T, msg database.ChatMessage, want string) 
 // chat_queued_messages via SendMessage.
 func assertQueuedMessageText(t *testing.T, queued database.ChatQueuedMessage, want string) {
 	t.Helper()
+	assertQueuedMessageContent(t, queued.Content, want)
+}
+
+func assertQueuedMessageContent(t *testing.T, content json.RawMessage, want string) {
+	t.Helper()
 	var parts []codersdk.ChatMessagePart
-	require.NoError(t, json.Unmarshal(queued.Content, &parts), "unmarshal queued content")
+	require.NoError(t, json.Unmarshal(content, &parts), "unmarshal queued content")
 	require.Len(t, parts, 1, "expected exactly one queued content part")
 	require.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type,
 		"expected a text content part")
@@ -814,7 +819,7 @@ func assertQueueBodiesInOrder(ctx context.Context, t *testing.T, f *testFixture,
 	require.NoError(t, err)
 	require.Len(t, rows, len(want), "queue length must match expected bodies")
 	for i, r := range rows {
-		assertQueuedMessageText(t, r, want[i])
+		assertQueuedMessageContent(t, r.Content, want[i])
 	}
 }
 

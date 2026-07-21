@@ -2559,12 +2559,21 @@ func TestPrebuildsAutobuild(t *testing.T) {
 
 		// Set the clock to Monday, January 1st, 2024 at 8:00 AM UTC to keep the test deterministic
 		clock := quartz.NewMock(t)
+		acquirerClock := quartz.NewMock(t)
 		clock.Set(time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC))
+		acquirerTickerTrap := acquirerClock.Trap().NewTicker("acquirer", "backup_poll")
 
 		// Setup
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		db, pb := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 		logger := testutil.Logger(t)
+		acquirer := provisionerdserver.NewAcquirer(
+			ctx,
+			logger.Named("acquirer"),
+			db,
+			pb,
+			provisionerdserver.WithClock(acquirerClock),
+		)
 		tickCh := make(chan time.Time)
 		statsCh := make(chan autobuild.Stats)
 		notificationsNoop := notifications.NewNoopEnqueuer()
@@ -2576,6 +2585,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statsCh,
 				Clock:                    clock,
+				Acquirer:                 acquirer,
 				TemplateScheduleStore: schedule.NewEnterpriseTemplateScheduleStore(
 					agplUserQuietHoursScheduleStore(),
 					notificationsNoop,
@@ -2589,6 +2599,10 @@ func TestPrebuildsAutobuild(t *testing.T) {
 				},
 			},
 		})
+		// The Acquirer creates a fresh backup-poll ticker for the initial idle
+		// wait and again after completing the template import job. Release both
+		// so the second ticker exists before the clock advances below.
+		acquirerTickerTrap.MustWait(ctx).MustRelease(ctx)
 
 		// Setup Prebuild reconciler
 		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
@@ -2620,8 +2634,12 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, presets, 1)
 
+		acquirerTickerTrap.MustWait(ctx).MustRelease(ctx)
+		acquirerTickerTrap.Close()
+
 		// Given: reconciliation loop runs and starts prebuilt workspace in failed state
 		runReconciliationLoop(t, ctx, db, reconciler, presets)
+		acquirerClock.Advance(30 * time.Second).MustWait(ctx)
 		var failedWorkspaceBuilds []database.GetFailedWorkspaceBuildsByTemplateIDRow
 		require.Eventually(t, func() bool {
 			rows, err := db.GetFailedWorkspaceBuildsByTemplateID(ctx, database.GetFailedWorkspaceBuildsByTemplateIDParams{
@@ -3233,8 +3251,9 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 
 	_ = coderdenttest.NewExternalProvisionerDaemonTerraform(t, client, owner.OrganizationID, nil)
 
-	// This can take a while, so set a relatively long timeout.
-	ctx := testutil.Context(t, 2*testutil.WaitSuperLong)
+	// This can take a while, so set a long timeout that outlasts the three
+	// build awaits below.
+	ctx := testutil.Context(t, 6*testutil.WaitSuperLong)
 
 	// Creating a template as a template admin must succeed
 	templateFiles := map[string]string{"main.tf": mainTfTemplate}
@@ -3250,7 +3269,9 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 		UserVariableValues: []codersdk.VariableValue{},
 	})
 	require.NoError(t, err, "failed to create template version")
-	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
+	// Uncached Windows runners make real terraform builds much slower than
+	// the default await timeout.
+	coderdtest.AwaitTemplateVersionJobCompletedWithTimeout(t, templateAdmin, tv.ID, 2*testutil.WaitSuperLong)
 	tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, tv.ID)
 
 	// Set to dynamic params
@@ -3281,7 +3302,8 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	// Then: the build should succeed. The updated value of param_min should be
 	// used to validate param instead of the value defined in the temp
 	require.NoError(t, err, "failed to create workspace")
-	createBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
+	// Same timeout reason as above.
+	createBuild := coderdtest.AwaitWorkspaceBuildJobCompletedWithTimeout(t, member, ws.LatestBuild.ID, 2*testutil.WaitSuperLong)
 	require.Equal(t, createBuild.Status, codersdk.WorkspaceStatusRunning)
 
 	// File should exist
@@ -3293,7 +3315,8 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 		Transition: codersdk.WorkspaceTransitionDelete,
 	})
 	require.NoError(t, err)
-	build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, build.ID)
+	// Same timeout reason as above.
+	build = coderdtest.AwaitWorkspaceBuildJobCompletedWithTimeout(t, member, build.ID, 2*testutil.WaitSuperLong)
 	require.Equal(t, codersdk.WorkspaceStatusDeleted, build.Status)
 
 	logsCh, closeLogs, err := member.WorkspaceBuildLogsAfter(ctx, build.ID, 0)
@@ -3527,8 +3550,9 @@ func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dyn
 	templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 	member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-	// This can take a while, so set a relatively long timeout.
-	ctx := testutil.Context(t, 2*testutil.WaitSuperLong)
+	// This can take a while, so set a long timeout that outlasts both build
+	// awaits below.
+	ctx := testutil.Context(t, 4*testutil.WaitSuperLong)
 
 	emptyTar := testutil.CreateTar(t, map[string]string{"main.tf": ""})
 	emptyFi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(emptyTar))
@@ -3566,7 +3590,9 @@ func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dyn
 		TemplateID:         tpl.ID,
 	})
 	require.NoError(t, err, "failed to create template version")
-	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
+	// Uncached Windows runners make real terraform builds much slower than
+	// the default await timeout.
+	coderdtest.AwaitTemplateVersionJobCompletedWithTimeout(t, templateAdmin, tv.ID, 2*testutil.WaitSuperLong)
 
 	err = templateAdmin.UpdateActiveTemplateVersion(ctx, tpl.ID, codersdk.UpdateActiveTemplateVersion{
 		ID: tv.ID,
@@ -3583,7 +3609,8 @@ func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dyn
 		require.NoError(t, err, "failed to create workspace")
 		tagJSON, _ := json.Marshal(ws.LatestBuild.Job.Tags)
 		t.Logf("Created workspace build [%s] with tags: %s", ws.LatestBuild.Job.Type, tagJSON)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
+		// Same timeout reason as above.
+		coderdtest.AwaitWorkspaceBuildJobCompletedWithTimeout(t, member, ws.LatestBuild.ID, 2*testutil.WaitSuperLong)
 	}
 }
 

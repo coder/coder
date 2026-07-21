@@ -400,6 +400,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"type":            ActionTrack,
 		"name":            ActionTrack,
 		"display_name":    ActionTrack,
+		"icon":            ActionTrack,
 		"enabled":         ActionTrack,
 		"deleted":         ActionTrack,
 		"base_url":        ActionTrack,
@@ -417,12 +418,12 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"updated_at":     ActionIgnore, // Changes; not useful in a diff.
 	},
 	&database.AIGatewayKey{}: {
-		"id":            ActionTrack,
-		"name":          ActionTrack,
-		"secret_prefix": ActionTrack,
-		"hashed_secret": ActionSecret, // Bearer token hash, never expose.
-		"created_at":    ActionIgnore, // Implicit; not useful in a diff.
-		"last_used_at":  ActionIgnore, // Bumped on every use.
+		"id":                ActionTrack,
+		"name":              ActionTrack,
+		"secret_prefix":     ActionTrack,
+		"hashed_secret":     ActionSecret, // Bearer token hash, never expose.
+		"created_at":        ActionIgnore, // Implicit; not useful in a diff.
+		"last_heartbeat_at": ActionIgnore, // Bumped on every heartbeat.
 	},
 	&database.TaskTable{}: {
 		"id":                  ActionTrack,
@@ -456,6 +457,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"parent_chat_id":              ActionIgnore, // Immutable after creation.
 		"root_chat_id":                ActionIgnore, // Immutable after creation.
 		"last_model_config_id":        ActionIgnore, // Churns every message.
+		"last_reasoning_effort":       ActionIgnore, // Churns every message.
 		"archived":                    ActionTrack,
 		"last_error":                  ActionIgnore, // Internal.
 		"last_turn_summary":           ActionIgnore, // Internal cached display text.
@@ -481,6 +483,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"generation_attempt":          ActionIgnore, // Internal retry counter.
 		"runner_id":                   ActionIgnore, // Internal ownership identifier.
 		"requires_action_deadline_at": ActionIgnore, // Internal pending-action deadline.
+		"compaction_requested_at":     ActionIgnore, // Internal one-shot manual compaction signal.
 	},
 	&database.UserSkill{}: {
 		"id":          ActionTrack,
