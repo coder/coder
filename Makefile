@@ -1440,11 +1440,7 @@ helm/provisioner/tests/testdata/.gen-golden: $(wildcard helm/provisioner/tests/t
 	touch "$@"
 
 helm/ai-gateway/tests/testdata/.gen-golden: $(wildcard helm/ai-gateway/tests/testdata/*.yaml) $(wildcard helm/ai-gateway/tests/testdata/*.golden) $(GO_SRC_FILES) $(wildcard helm/ai-gateway/tests/*_test.go)
-	if command -v helm >/dev/null 2>&1; then
-		TZ=UTC go test ./helm/ai-gateway/tests -run=TestUpdateGoldenFiles -update
-	else
-		echo "WARNING: helm not found; skipping helm/ai-gateway golden generation" >&2
-	fi
+	TZ=UTC go test ./helm/ai-gateway/tests -run=TestUpdateGoldenFiles -update
 	touch "$@"
 
 coderd/.gen-golden: $(wildcard coderd/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/*_test.go)

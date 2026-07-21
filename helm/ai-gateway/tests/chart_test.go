@@ -24,14 +24,6 @@ var testCases = []testCase{
 		fixture: "default_values",
 	},
 	{
-		name:    "coder_url_from_service",
-		fixture: "coder_url_from_service",
-	},
-	{
-		name:    "tls",
-		fixture: "tls",
-	},
-	{
 		name:        "networking",
 		fixture:     "networking",
 		namespace:   "ai-gateway-test",
@@ -48,27 +40,27 @@ var testCases = []testCase{
 	},
 	{
 		name:          "missing_key",
-		fixture:       "missing_key",
+		fixture:       "fails_missing_key",
 		expectedError: "aigateway.keySecret.name is required.",
 	},
 	{
 		name:          "missing_key_field",
-		fixture:       "missing_key_field",
+		fixture:       "fails_missing_key_field",
 		expectedError: "aigateway.keySecret.key is required.",
 	},
 	{
 		name:          "invalid_url",
-		fixture:       "invalid_url",
+		fixture:       "fails_invalid_url",
 		expectedError: "aigateway.coderURL must begin with http:// or https://.",
 	},
 	{
 		name:          "missing_coder_scheme",
-		fixture:       "missing_coder_scheme",
+		fixture:       "fails_missing_coder_scheme",
 		expectedError: "aigateway.coderService.scheme must be set to http or https when aigateway.coderURL is empty.",
 	},
 	{
 		name:          "partial_listener_tls",
-		fixture:       "partial_listener_tls",
+		fixture:       "fails_partial_listener_tls",
 		expectedError: "aigateway.listenerTLS.certKey and keyKey are required when name is set.",
 	},
 	// This verifies that listener TLS and Ingress can be rendered together.
@@ -80,32 +72,32 @@ var testCases = []testCase{
 	},
 	{
 		name:          "partial_client_tls",
-		fixture:       "partial_client_tls",
+		fixture:       "fails_partial_client_tls",
 		expectedError: "aigateway.coderTLS.clientSecret.certKey and keyKey are required when name is set.",
 	},
 	{
 		name:          "partial_ca_tls",
-		fixture:       "partial_ca_tls",
+		fixture:       "fails_partial_ca_tls",
 		expectedError: "aigateway.coderTLS.caSecret.key is required when name is set.",
 	},
 	{
 		name:          "ingress_without_service",
-		fixture:       "ingress_without_service",
+		fixture:       "fails_ingress_without_service",
 		expectedError: "service.enable must be true when ingress.enable is true.",
 	},
 	{
 		name:          "ingress_without_host",
-		fixture:       "ingress_without_host",
+		fixture:       "fails_ingress_without_host",
 		expectedError: "ingress.host is required when ingress.enable is true.",
 	},
 	{
 		name:          "httproute_without_service",
-		fixture:       "httproute_without_service",
+		fixture:       "fails_httproute_without_service",
 		expectedError: "service.enable must be true when httproute.enable is true.",
 	},
 	{
 		name:          "httproute_without_parent_refs",
-		fixture:       "httproute_without_parent_refs",
+		fixture:       "fails_httproute_without_parent_refs",
 		expectedError: "httproute.parentRefs is required when httproute.enable is true.",
 		apiVersions:   []string{"gateway.networking.k8s.io/v1/HTTPRoute"},
 	},
@@ -116,17 +108,17 @@ var testCases = []testCase{
 	},
 	{
 		name:          "nodeport_with_clusterip",
-		fixture:       "nodeport_with_clusterip",
+		fixture:       "fails_nodeport_with_clusterip",
 		expectedError: "service.nodePort requires service.type to be NodePort or LoadBalancer.",
 	},
 	{
 		name:          "chart_owned_env",
-		fixture:       "chart_owned_env",
+		fixture:       "fails_chart_owned_env",
 		expectedError: "coder.env cannot override chart-owned variable CODER_URL.",
 	},
 	{
 		name:          "env_key_conflict",
-		fixture:       "env_key_conflict",
+		fixture:       "fails_env_key_conflict",
 		expectedError: "coder.env cannot override chart-owned variable CODER_AI_GATEWAY_KEY.",
 	},
 }

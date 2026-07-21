@@ -33,9 +33,25 @@ coder:
         name: gateway-config
 aigateway:
   coderService:
-    scheme: http
+    name: coder-primary
+    namespace: coder-system
+    scheme: https
+    port: 8443
   keySecret:
     name: ai-gateway-key
+    key: token
+  coderTLS:
+    caSecret:
+      name: coder-ca
+      key: root.pem
+    clientSecret:
+      name: coder-client
+      certKey: client.crt
+      keyKey: client.key
+  listenerTLS:
+    name: gateway-tls
+    certKey: cert.pem
+    keyKey: key.pem
 extraTemplates:
   - |
     apiVersion: v1

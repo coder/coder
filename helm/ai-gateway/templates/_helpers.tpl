@@ -13,8 +13,10 @@ release namespace.
 {{- end -}}
 
 {{/*
-Chart-owned environment variables. This is also parsed by validation so the
-list of protected names cannot drift from the rendered container environment.
+Chart-owned environment variables. Their values must remain coordinated with
+chart-managed ports, probes, and volume mounts, so coder.env cannot override
+them. This is also parsed by validation so the protected names cannot drift
+from the rendered container environment.
 */}}
 {{- define "coder-ai-gateway.ownedEnv" -}}
 - name: CODER_AI_GATEWAY_HTTP_ADDRESS

@@ -93,11 +93,21 @@ spec:
         - name: CODER_AI_GATEWAY_KEY_FILE
           value: /etc/coder/ai-gateway-auth/key
         - name: CODER_URL
-          value: http://coder.ai-gateway-test.svc.cluster.local:80
+          value: https://coder-primary.coder-system.svc.cluster.local:8443
         - name: CODER_PROMETHEUS_ENABLE
           value: "true"
         - name: CODER_PROMETHEUS_ADDRESS
           value: 0.0.0.0:2112
+        - name: CODER_AI_GATEWAY_TLS_CERT_FILE
+          value: /etc/coder/ai-gateway-listener/tls.crt
+        - name: CODER_AI_GATEWAY_TLS_KEY_FILE
+          value: /etc/coder/ai-gateway-listener/tls.key
+        - name: CODER_CLIENT_TLS_CA_FILE
+          value: /etc/coder/coder-client-ca/ca.crt
+        - name: CODER_CLIENT_TLS_CERT_FILE
+          value: /etc/coder/coder-client-tls/tls.crt
+        - name: CODER_CLIENT_TLS_KEY_FILE
+          value: /etc/coder/coder-client-tls/tls.key
         - name: CODER_VERBOSE
           value: "true"
         envFrom:
@@ -111,7 +121,7 @@ spec:
           httpGet:
             path: /healthz
             port: http
-            scheme: HTTP
+            scheme: HTTPS
           initialDelaySeconds: 12
           periodSeconds: 15
           successThreshold: 1
@@ -129,7 +139,7 @@ spec:
           httpGet:
             path: /readyz
             port: http
-            scheme: HTTP
+            scheme: HTTPS
           initialDelaySeconds: 22
           periodSeconds: 25
           successThreshold: 21
@@ -150,7 +160,7 @@ spec:
           httpGet:
             path: /healthz
             port: http
-            scheme: HTTP
+            scheme: HTTPS
           initialDelaySeconds: 2
           periodSeconds: 5
           successThreshold: 1
@@ -159,6 +169,15 @@ spec:
         - mountPath: /etc/coder/ai-gateway-auth
           name: ai-gateway-auth
           readOnly: true
+        - mountPath: /etc/coder/ai-gateway-listener
+          name: ai-gateway-listener
+          readOnly: true
+        - mountPath: /etc/coder/coder-client-ca
+          name: coder-client-ca
+          readOnly: true
+        - mountPath: /etc/coder/coder-client-tls
+          name: coder-client-tls
+          readOnly: true
       restartPolicy: Always
       serviceAccountName: workload-identity
       terminationGracePeriodSeconds: 330
@@ -166,6 +185,28 @@ spec:
       - name: ai-gateway-auth
         secret:
           items:
-          - key: key
+          - key: token
             path: key
           secretName: ai-gateway-key
+      - name: ai-gateway-listener
+        secret:
+          items:
+          - key: cert.pem
+            path: tls.crt
+          - key: key.pem
+            path: tls.key
+          secretName: gateway-tls
+      - name: coder-client-ca
+        secret:
+          items:
+          - key: root.pem
+            path: ca.crt
+          secretName: coder-ca
+      - name: coder-client-tls
+        secret:
+          items:
+          - key: client.crt
+            path: tls.crt
+          - key: client.key
+            path: tls.key
+          secretName: coder-client
