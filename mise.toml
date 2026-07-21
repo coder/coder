@@ -56,6 +56,7 @@ cosign = "2.4.3"
 # truth, deterministic version, no apt drift across CI / wrapper).
 crane = "0.21.6"
 helm = "3.21.0"
+kind = "0.32.0"
 kubectx = "0.9.4"
 syft = "1.26.1"
 terraform = "1.15.5"
