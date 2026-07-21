@@ -222,6 +222,28 @@ export const NoUsage: Story = {
 	},
 };
 
+// A fresh chat has pinned context before any assistant message reports token
+// usage, so the popover pairs the empty-usage copy with the resource list.
+export const NoUsageWithContext: Story = {
+	args: {
+		usage: {
+			context: MockChatContextClean,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+		const body = within(document.body);
+		await waitFor(() =>
+			expect(
+				body.getByText("Context usage will appear after sending a message."),
+			).toBeVisible(),
+		);
+		expect(body.getByText("Context files")).toBeVisible();
+		expect(body.getByText("AGENTS.md")).toBeVisible();
+	},
+};
+
 // Snapshot-level error: the ring shows a distinct error treatment and the
 // popover surfaces the error message.
 export const SnapshotError: Story = {
