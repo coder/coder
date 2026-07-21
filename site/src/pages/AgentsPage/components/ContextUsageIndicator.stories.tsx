@@ -204,6 +204,24 @@ export const Dirty: Story = {
 	},
 };
 
+// Before any assistant message reports token usage there is no percentage,
+// so the popover explains when the numbers will appear.
+export const NoUsage: Story = {
+	args: {
+		usage: null,
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+		const body = within(document.body);
+		await waitFor(() =>
+			expect(
+				body.getByText("Context usage will appear after sending a message."),
+			).toBeVisible(),
+		);
+	},
+};
+
 // Snapshot-level error: the ring shows a distinct error treatment and the
 // popover surfaces the error message.
 export const SnapshotError: Story = {
