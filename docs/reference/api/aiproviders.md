@@ -1,4 +1,6 @@
-# AI Providers
+---
+title: AI Providers
+---
 
 ## List AI providers
 

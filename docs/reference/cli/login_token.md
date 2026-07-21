@@ -1,5 +1,9 @@
+---
+title: login token
+description: Print the current session token
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# login token
 
 Print the current session token
 

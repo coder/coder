@@ -1,5 +1,9 @@
+---
+title: users edit-roles
+description: "Edit a user's roles by username or id"
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# users edit-roles
 
 Edit a user's roles by username or id
 

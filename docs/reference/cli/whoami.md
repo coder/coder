@@ -1,5 +1,9 @@
+---
+title: whoami
+description: Fetch authenticated user info for Coder deployment
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# whoami
 
 Fetch authenticated user info for Coder deployment
 

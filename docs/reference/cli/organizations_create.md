@@ -1,5 +1,9 @@
+---
+title: organizations create
+description: Create a new organization.
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# organizations create
 
 Create a new organization.
 

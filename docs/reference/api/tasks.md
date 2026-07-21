@@ -1,4 +1,6 @@
-# Tasks
+---
+title: Tasks
+---
 
 ## List AI tasks
 

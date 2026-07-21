@@ -1,5 +1,9 @@
+---
+title: secret list
+description: "List secrets, or show one by name"
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# secret list
 
 List secrets, or show one by name
 

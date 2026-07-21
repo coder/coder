@@ -1,5 +1,9 @@
+---
+title: tokens
+description: Manage personal access tokens
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# tokens
 
 Manage personal access tokens
 

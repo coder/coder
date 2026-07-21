@@ -1,4 +1,6 @@
-# Git
+---
+title: Git
+---
 
 ## Get user external auths
 

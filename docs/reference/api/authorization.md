@@ -1,4 +1,6 @@
-# Authorization
+---
+title: Authorization
+---
 
 ## List API key scopes
 

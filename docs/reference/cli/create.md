@@ -1,5 +1,9 @@
+---
+title: create
+description: Create a workspace
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# create
 
 Create a workspace
 

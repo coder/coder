@@ -1,5 +1,9 @@
+---
+title: groups create
+description: Create a user group
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# groups create
 
 Create a user group
 

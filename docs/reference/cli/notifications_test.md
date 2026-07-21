@@ -1,5 +1,9 @@
+---
+title: notifications test
+description: Send a test notification
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# notifications test
 
 Send a test notification
 

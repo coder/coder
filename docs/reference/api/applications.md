@@ -1,4 +1,6 @@
-# Applications
+---
+title: Applications
+---
 
 ## Redirect to URI with encrypted API key
 

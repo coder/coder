@@ -1,4 +1,9 @@
-# Chats
+---
+title: Chats
+description: "REST endpoints for Coder Agents Chats API (programmatic agent sessions)."
+state:
+  - early access
+---
 
 Programmatic API for Coder Agents (the user-facing "Coder Agents" / "Chats" product). Use these endpoints to create, list, and manage AI coding agent sessions.
 

@@ -1,5 +1,9 @@
+---
+title: server dbcrypt delete
+description: Delete all encrypted data from the database. THIS IS A DESTRUCTIVE OPERATION.
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# server dbcrypt delete
 
 Delete all encrypted data from the database. THIS IS A DESTRUCTIVE OPERATION.
 

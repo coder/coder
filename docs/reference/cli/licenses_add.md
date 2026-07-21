@@ -1,5 +1,9 @@
+---
+title: licenses add
+description: Add license to Coder deployment
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# licenses add
 
 Add license to Coder deployment
 

@@ -1,5 +1,9 @@
+---
+title: organizations settings show
+description: Outputs specified organization setting.
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# organizations settings show
 
 Outputs specified organization setting.
 

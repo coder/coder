@@ -1,5 +1,9 @@
+---
+title: features
+description: List Enterprise features
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# features
 
 List Enterprise features
 

@@ -1,5 +1,9 @@
+---
+title: state
+description: Manually manage Terraform state to fix broken workspaces
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# state
 
 Manually manage Terraform state to fix broken workspaces
 

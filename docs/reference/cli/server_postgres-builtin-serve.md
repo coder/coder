@@ -1,5 +1,9 @@
+---
+title: server postgres-builtin-serve
+description: Run the built-in PostgreSQL deployment.
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# server postgres-builtin-serve
 
 Run the built-in PostgreSQL deployment.
 

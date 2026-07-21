@@ -1,4 +1,8 @@
-# API
+---
+title: REST API
+description: Learn how to use Coderd API
+icon_path: "./images/icons/api.svg"
+---
 
 Get started with the Coder API:
 

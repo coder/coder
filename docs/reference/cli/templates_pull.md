@@ -1,5 +1,9 @@
+---
+title: templates pull
+description: "Download the active, latest, or specified version of a template to a path."
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# templates pull
 
 Download the active, latest, or specified version of a template to a path.
 

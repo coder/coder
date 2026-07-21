@@ -1,5 +1,9 @@
+---
+title: open vscode
+description: Open a workspace in VS Code Desktop
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# open vscode
 
 Open a workspace in VS Code Desktop
 

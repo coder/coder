@@ -1,5 +1,9 @@
+---
+title: templates
+description: Manage templates
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# templates
 
 Manage templates
 

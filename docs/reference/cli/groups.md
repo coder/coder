@@ -1,5 +1,9 @@
+---
+title: groups
+description: Manage groups
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# groups
 
 Manage groups
 

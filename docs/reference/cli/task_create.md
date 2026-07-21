@@ -1,5 +1,9 @@
+---
+title: task create
+description: Create a task
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# task create
 
 Create a task
 

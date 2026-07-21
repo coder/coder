@@ -1,4 +1,6 @@
-# Organizations
+---
+title: Organizations
+---
 
 ## Get organizations
 

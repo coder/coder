@@ -1,5 +1,9 @@
+---
+title: tokens remove
+description: Expire or delete a token
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# tokens remove
 
 Expire or delete a token
 

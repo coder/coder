@@ -1,5 +1,9 @@
+---
+title: list
+description: List workspaces
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# list
 
 List workspaces
 
