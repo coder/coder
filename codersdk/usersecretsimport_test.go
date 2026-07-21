@@ -231,6 +231,78 @@ func TestParseSecretsFileYAMLMultiDocument(t *testing.T) {
 	})
 }
 
+// FuzzParseSecretsFile checks two invariants: (1) the parser never panics
+// regardless of input (the fuzz engine catches panics automatically); (2) on
+// success the result is well-formed: at least one entry, at most
+// MaxUserSecretsPerUserCount entries, EnvName == Name for every entry,
+// and all keys unique. On error the returned slice must be nil/empty.
+func FuzzParseSecretsFile(f *testing.F) {
+	// env - valid
+	f.Add("env", "KEY=value")
+	f.Add("env", "export EXPORTED=val\nPLAIN=plain")
+	f.Add("env", "\ufeffKEY1=val1\r\nKEY2=val2\r\n")
+	f.Add("env", "EMPTY=\nKEY=val")
+	f.Add("env", "EQ=a=b=c")
+	f.Add("env", `DQUOTED="double quoted"`)
+	f.Add("env", `SQUOTED='single quoted'`)
+	f.Add("env", "# comment\nKEY=val")
+	// env - malformed / tricky quoting
+	f.Add("env", `KEY="unterminated`)
+	f.Add("env", `KEY='unterminated`)
+	f.Add("env", `KEY="escaped\"`)
+	f.Add("env", `KEY="two backslashes\\"`)
+	f.Add("env", "NOEQUALS")
+	f.Add("env", "=value")
+	f.Add("env", `KEY="ok" # trailing`)
+	f.Add("env", "DUP=a\nDUP=b")
+	// json - valid
+	f.Add("json", `{"A":"1","B":"two"}`)
+	// json - malformed
+	f.Add("json", `{"A":`)
+	f.Add("json", `["a","b"]`)
+	f.Add("json", `"just a string"`)
+	f.Add("json", `{"A":1}`)
+	f.Add("json", `{"A":true}`)
+	f.Add("json", `{"A":null}`)
+	f.Add("json", `{"A":{"x":"y"}}`)
+	f.Add("json", `{"A":["x"]}`)
+	f.Add("json", `{"DUP":"a","DUP":"b"}`)
+	f.Add("json", `{"A":"1"} {"B":"2"}`)
+	// yaml - valid
+	f.Add("yaml", "A: one\nB: \"two\"\n")
+	// yaml - malformed
+	f.Add("yaml", "A: [unclosed")
+	f.Add("yaml", "- a\n- b\n")
+	f.Add("yaml", "OUTER:\n  inner: x\n")
+	f.Add("yaml", "PORT: 8080\n")
+	f.Add("yaml", "FLAG: true\n")
+	f.Add("yaml", "a: &a \"x\"\nb: *a\n")
+	f.Add("yaml", "A: \"1\"\n---\nB: \"2\"\n")
+	// unknown / empty format
+	f.Add("", "KEY=value")
+	f.Add("toml", "KEY=value")
+
+	f.Fuzz(func(t *testing.T, format string, content string) {
+		reqs, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormat(format), content)
+		if err != nil {
+			require.Empty(t, reqs)
+			return
+		}
+
+		// On success: at least one entry, within the per-user cap.
+		require.NotEmpty(t, reqs)
+		require.LessOrEqual(t, len(reqs), codersdk.MaxUserSecretsPerUserCount)
+
+		seen := make(map[string]struct{}, len(reqs))
+		for _, req := range reqs {
+			require.Equal(t, req.Name, req.EnvName)
+			_, dup := seen[req.Name]
+			require.False(t, dup, "duplicate key %q in result", req.Name)
+			seen[req.Name] = struct{}{}
+		}
+	})
+}
+
 func TestParseSecretsFileGeneralErrors(t *testing.T) {
 	t.Parallel()
 
