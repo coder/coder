@@ -1192,8 +1192,6 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		// sets WithOwner to the user's own ID.
 		ResourceGroupMember.Type: {policy.ActionRead},
 
-		// AI Bridge interception perms are granted by the site member
-		// role, not the floor.
 		// Own session tokens and workspace agent auth keys.
 		ResourceApiKey.Type: ResourceApiKey.AvailableActions(),
 
@@ -1270,9 +1268,8 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		// sets WithOwner to the user's own ID.
 		ResourceGroupMember.Type: {policy.ActionRead},
 
-		// AI Bridge interception perms are granted by the site member
-		// role, not the floor. Chat access requires the agents-access role
-		// and is intentionally not granted here either.
+		// Chat access requires the agents-access role and is
+		// intentionally not granted here.
 
 		// Own session tokens and workspace agent auth keys.
 		ResourceApiKey.Type: ResourceApiKey.AvailableActions(),

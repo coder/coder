@@ -670,11 +670,7 @@ var (
 						policy.ActionRead,         // Required to validate API key owner is active.
 						policy.ActionReadPersonal, // Required to read users' external auth links. // TODO: this is too broad; reduce scope to just external_auth_links by creating separate resource.
 					},
-					rbac.ResourceApiKey.Type: {policy.ActionRead}, // Validate API keys.
-					// Site-level, so the owner/any-org attributes on interception
-					// objects never constrain this subject: it records interceptions
-					// on behalf of initiators whose own access must already have been
-					// authorized before acting under this identity.
+					rbac.ResourceApiKey.Type:               {policy.ActionRead}, // Validate API keys.
 					rbac.ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceAiModelPrice.Type:         {policy.ActionRead, policy.ActionUpdate}, // Read: per-interception cost lookup. Update: startup price seeder.
 					rbac.ResourceAiSeat.Type:               {policy.ActionCreate},                    // Required for UpsertAISeatState.
