@@ -169,8 +169,9 @@ func TestImportUserSecretsReservedEnvNameBestEffort(t *testing.T) {
 	assert.Len(t, auditor.AuditLogs(), 2)
 }
 
-// an already-existing secret. The conflict aborts the whole batch, so
-// the other (new) entry is not created and no audit log is written.
+// TestImportUserSecretsConflict verifies that a batch containing an
+// already-existing secret name aborts entirely: the new entry is not
+// created and no audit log is written.
 func TestImportUserSecretsConflict(t *testing.T) {
 	t.Parallel()
 	auditor := audit.NewMock()
@@ -189,9 +190,6 @@ func TestImportUserSecretsConflict(t *testing.T) {
 		Format:  codersdk.SecretsFileFormatEnv,
 		Content: "BRANDNEW=x\nEXISTING=collision",
 	})
-	var sdkErr *codersdk.Error
-	require.ErrorAs(t, err, &sdkErr)
-	assert.Equal(t, http.StatusConflict, sdkErr.StatusCode())
 	validation := requireSecretValidation(t, err, http.StatusConflict, "secrets[1].name")
 	assert.Equal(t, "name already in use", validation.Detail)
 

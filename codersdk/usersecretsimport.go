@@ -83,12 +83,8 @@ func ParseSecretsFile(format SecretsFileFormat, content string) ([]CreateUserSec
 	reqs := make([]CreateUserSecretRequest, 0, len(entries))
 	for _, e := range entries {
 		req := CreateUserSecretRequest{Name: e.key, Value: e.value}
-		// Best-effort env injection: only set EnvName when the key is a
-		// valid POSIX env variable name and not reserved. Keys such as
-		// "MY-TOKEN" (hyphens) or "PATH" (reserved) are silently imported
-		// without env injection rather than failing the entire batch.
-		// The env_name uniqueness index is a partial index
-		// (WHERE env_name != ''), so multiple empty env_names are fine.
+		// env_name uses a partial unique index (WHERE env_name != ''),
+		// so multiple empty env_names are allowed.
 		if UserSecretEnvNameValid(e.key) == nil {
 			req.EnvName = e.key
 		}
@@ -97,10 +93,8 @@ func ParseSecretsFile(format SecretsFileFormat, content string) ([]CreateUserSec
 	return reqs, nil
 }
 
-// detectDuplicateKeys scans for repeated keys in source order. Because
-// the flat mapping sets Name == KEY (and EnvName == KEY when valid),
-// catching duplicates here gives a clear up-front error (citing the
-// line for env files) instead of a later per-row uniqueness violation.
+// Duplicate keys are rejected up front (citing the line for env files)
+// instead of surfacing as a per-row uniqueness violation later.
 func detectDuplicateKeys(entries []secretEntry) error {
 	seen := make(map[string]struct{}, len(entries))
 	for _, e := range entries {

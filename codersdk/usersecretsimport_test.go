@@ -234,8 +234,8 @@ func TestParseSecretsFileYAMLMultiDocument(t *testing.T) {
 // FuzzParseSecretsFile checks two invariants: (1) the parser never panics
 // regardless of input (the fuzz engine catches panics automatically); (2) on
 // success the result is well-formed: at least one entry, at most
-// MaxUserSecretsPerUserCount entries, EnvName == Name for every entry,
-// and all keys unique. On error the returned slice must be nil/empty.
+// MaxUserSecretsPerUserCount entries, EnvName is empty or equals Name for every
+// entry, and all keys unique. On error the returned slice must be nil/empty.
 func FuzzParseSecretsFile(f *testing.F) {
 	// env - valid
 	f.Add("env", "KEY=value")
@@ -295,7 +295,7 @@ func FuzzParseSecretsFile(f *testing.F) {
 
 		seen := make(map[string]struct{}, len(reqs))
 		for _, req := range reqs {
-			require.Equal(t, req.Name, req.EnvName)
+			require.True(t, req.EnvName == "" || req.EnvName == req.Name, "EnvName must be empty or equal to Name")
 			_, dup := seen[req.Name]
 			require.False(t, dup, "duplicate key %q in result", req.Name)
 			seen[req.Name] = struct{}{}
@@ -443,14 +443,17 @@ func TestParseSecretsFileMappingEquivalence(t *testing.T) {
 		{codersdk.SecretsFileFormatYAML, "FOO: bar"},
 	}
 	for _, tc := range cases {
-		reqs, err := codersdk.ParseSecretsFile(tc.format, tc.content)
-		require.NoErrorf(t, err, "format %s", tc.format)
-		require.Lenf(t, reqs, 1, "format %s", tc.format)
-		got := reqs[0]
-		assert.Equal(t, "FOO", got.Name)
-		assert.Equal(t, "FOO", got.EnvName)
-		assert.Equal(t, "bar", got.Value)
-		assert.Empty(t, got.FilePath)
-		assert.Empty(t, got.Description)
+		t.Run(string(tc.format), func(t *testing.T) {
+			t.Parallel()
+			reqs, err := codersdk.ParseSecretsFile(tc.format, tc.content)
+			require.NoError(t, err)
+			require.Len(t, reqs, 1)
+			got := reqs[0]
+			assert.Equal(t, "FOO", got.Name)
+			assert.Equal(t, "FOO", got.EnvName)
+			assert.Equal(t, "bar", got.Value)
+			assert.Empty(t, got.FilePath)
+			assert.Empty(t, got.Description)
+		})
 	}
 }

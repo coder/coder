@@ -106,6 +106,9 @@ func (api *API) postUserSecretsBatch(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
+	// Cap body size before reading; worst-case JSON escaping can inflate
+	// a max-size file several-fold, so 8x gives comfortable headroom.
+	r.Body = http.MaxBytesReader(rw, r.Body, 8*codersdk.MaxSecretsFileBytes)
 	var req codersdk.ImportUserSecretsRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -144,10 +147,6 @@ func (api *API) postUserSecretsBatch(rw http.ResponseWriter, r *http.Request) {
 	var created []database.UserSecret
 	failedIndex := -1
 	err = api.Database.InTx(func(tx database.Store) error {
-		// Reset on entry so a transaction retry does not accumulate state
-		// from a previous attempt.
-		created = created[:0]
-		failedIndex = -1
 		for i, sreq := range reqs {
 			s, txErr := tx.CreateUserSecret(ctx, database.CreateUserSecretParams{
 				ID:          uuid.New(),
