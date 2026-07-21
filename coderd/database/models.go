@@ -5098,6 +5098,32 @@ type ChatHeartbeat struct {
 	HeartbeatAt time.Time `db:"heartbeat_at" json:"heartbeat_at"`
 }
 
+// Lifecycle hook attempts keyed by dispatch_id (JWT jti).
+type ChatHookDispatch struct {
+	ID               uuid.UUID             `db:"id" json:"id"`
+	ChatID           uuid.UUID             `db:"chat_id" json:"chat_id"`
+	Event            string                `db:"event" json:"event"`
+	TurnID           uuid.NullUUID         `db:"turn_id" json:"turn_id"`
+	ToolUseID        sql.NullString        `db:"tool_use_id" json:"tool_use_id"`
+	OwnerID          uuid.UUID             `db:"owner_id" json:"owner_id"`
+	WorkspaceID      uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
+	StartedAt        time.Time             `db:"started_at" json:"started_at"`
+	FinishedAt       sql.NullTime          `db:"finished_at" json:"finished_at"`
+	Result           string                `db:"result" json:"result"`
+	HttpStatus       sql.NullInt32         `db:"http_status" json:"http_status"`
+	Decision         sql.NullString        `db:"decision" json:"decision"`
+	InputOverride    pqtype.NullRawMessage `db:"input_override" json:"input_override"`
+	OriginalInput    pqtype.NullRawMessage `db:"original_input" json:"original_input"`
+	ModelContext     sql.NullString        `db:"model_context" json:"model_context"`
+	UserMessage      sql.NullString        `db:"user_message" json:"user_message"`
+	AllowedTools     pqtype.NullRawMessage `db:"allowed_tools" json:"allowed_tools"`
+	EndChat          sql.NullBool          `db:"end_chat" json:"end_chat"`
+	Error            sql.NullString        `db:"error" json:"error"`
+	DecisionReason   sql.NullString        `db:"decision_reason" json:"decision_reason"`
+	EffectsAppliedAt sql.NullTime          `db:"effects_applied_at" json:"effects_applied_at"`
+	ToolName         sql.NullString        `db:"tool_name" json:"tool_name"`
+}
+
 type ChatMessage struct {
 	ID                  int64                 `db:"id" json:"id"`
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`

@@ -2496,6 +2496,9 @@ WITH deletable AS (
       AND updated_at < @before_time::timestamptz
     ORDER BY updated_at ASC
     LIMIT @limit_count
+), purged_hook_dispatches AS (
+    DELETE FROM chat_hook_dispatches
+    WHERE chat_id IN (SELECT id FROM deletable)
 )
 DELETE FROM chats
 USING deletable

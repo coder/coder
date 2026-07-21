@@ -1941,6 +1941,33 @@ CREATE UNLOGGED TABLE chat_heartbeats (
 
 COMMENT ON TABLE chat_heartbeats IS 'Ephemeral runner ownership leases for runnable chats. The table is unlogged because losing heartbeat rows after a crash is safe: missing heartbeats are treated as stale ownership and cause workers to reacquire runnable chats.';
 
+CREATE TABLE chat_hook_dispatches (
+    id uuid NOT NULL,
+    chat_id uuid NOT NULL,
+    event text NOT NULL,
+    turn_id uuid,
+    tool_use_id text,
+    owner_id uuid NOT NULL,
+    workspace_id uuid,
+    started_at timestamp with time zone NOT NULL,
+    finished_at timestamp with time zone,
+    result text DEFAULT 'pending'::text NOT NULL,
+    http_status integer,
+    decision text,
+    input_override jsonb,
+    original_input jsonb,
+    model_context text,
+    user_message text,
+    allowed_tools jsonb,
+    end_chat boolean,
+    error text,
+    decision_reason text,
+    effects_applied_at timestamp with time zone,
+    tool_name text
+);
+
+COMMENT ON TABLE chat_hook_dispatches IS 'Lifecycle hook attempts keyed by dispatch_id (JWT jti).';
+
 CREATE TABLE chat_messages (
     id bigint NOT NULL,
     chat_id uuid NOT NULL,
@@ -4295,6 +4322,9 @@ ALTER TABLE ONLY chat_files
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_pkey PRIMARY KEY (chat_id, runner_id);
 
+ALTER TABLE ONLY chat_hook_dispatches
+    ADD CONSTRAINT chat_hook_dispatches_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
 
@@ -4753,6 +4783,10 @@ CREATE INDEX idx_chat_file_links_chat_id ON chat_file_links USING btree (chat_id
 CREATE INDEX idx_chat_files_org ON chat_files USING btree (organization_id);
 
 CREATE INDEX idx_chat_files_owner ON chat_files USING btree (owner_id);
+
+CREATE INDEX idx_chat_hook_dispatches_chat_id ON chat_hook_dispatches USING btree (chat_id);
+
+CREATE INDEX idx_chat_hook_dispatches_started_at ON chat_hook_dispatches USING btree (started_at);
 
 CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);
 

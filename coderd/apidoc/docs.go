@@ -17078,6 +17078,18 @@ const docTemplate = `{
                 },
                 "debug_logging_enabled": {
                     "type": "boolean"
+                },
+                "hook_enabled": {
+                    "type": "boolean"
+                },
+                "hook_secret": {
+                    "type": "string"
+                },
+                "hook_timeout": {
+                    "type": "integer"
+                },
+                "hook_url": {
+                    "$ref": "#/definitions/serpent.URL"
                 }
             }
         },
@@ -19960,10 +19972,12 @@ const docTemplate = `{
                 "minimum-implicit-member",
                 "ai-gateway-cost-control",
                 "chat-advisor",
-                "chat-virtual-desktop"
+                "chat-virtual-desktop",
+                "agent-lifecycle-hooks"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayCostControl": "Enables AI Gateway cost control functionality.",
+                "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
@@ -19988,7 +20002,8 @@ const docTemplate = `{
                 "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
                 "Enables AI Gateway cost control functionality.",
                 "Enables the advisor tool for root agent chats.",
-                "Enables virtual desktop and computer use provider for agents."
+                "Enables virtual desktop and computer use provider for agents.",
+                "Enables chat lifecycle hook webhooks for agent chats."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -20002,7 +20017,8 @@ const docTemplate = `{
                 "ExperimentMinimumImplicitMember",
                 "ExperimentAIGatewayCostControl",
                 "ExperimentChatAdvisor",
-                "ExperimentChatVirtualDesktop"
+                "ExperimentChatVirtualDesktop",
+                "ExperimentAgentLifecycleHooks"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {

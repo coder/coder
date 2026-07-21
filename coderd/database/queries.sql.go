@@ -5463,6 +5463,339 @@ func (q *sqlQuerier) InsertChatFile(ctx context.Context, arg InsertChatFileParam
 	return i, err
 }
 
+const deleteOldChatHookDispatches = `-- name: DeleteOldChatHookDispatches :execrows
+WITH deletable AS (
+	SELECT id
+	FROM chat_hook_dispatches
+	WHERE started_at < $1::timestamptz
+	ORDER BY started_at ASC
+	LIMIT $2::int
+)
+DELETE FROM chat_hook_dispatches
+USING deletable
+WHERE chat_hook_dispatches.id = deletable.id
+`
+
+type DeleteOldChatHookDispatchesParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+func (q *sqlQuerier) DeleteOldChatHookDispatches(ctx context.Context, arg DeleteOldChatHookDispatchesParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldChatHookDispatches, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const finalizeChatHookDispatch = `-- name: FinalizeChatHookDispatch :one
+UPDATE chat_hook_dispatches
+SET
+	finished_at = $1::timestamptz,
+	result = $2::text,
+	http_status = $3::integer,
+	decision = $4::text,
+	decision_reason = $5::text,
+	input_override = $6::jsonb,
+	original_input = $7::jsonb,
+	model_context = $8::text,
+	user_message = $9::text,
+	allowed_tools = $10::jsonb,
+	end_chat = $11::boolean,
+	error = $12::text
+WHERE id = $13::uuid
+	AND chat_id = $14::uuid
+	AND owner_id = $15::uuid
+RETURNING id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason, effects_applied_at, tool_name
+`
+
+type FinalizeChatHookDispatchParams struct {
+	FinishedAt     time.Time             `db:"finished_at" json:"finished_at"`
+	Result         string                `db:"result" json:"result"`
+	HttpStatus     sql.NullInt32         `db:"http_status" json:"http_status"`
+	Decision       sql.NullString        `db:"decision" json:"decision"`
+	DecisionReason sql.NullString        `db:"decision_reason" json:"decision_reason"`
+	InputOverride  pqtype.NullRawMessage `db:"input_override" json:"input_override"`
+	OriginalInput  pqtype.NullRawMessage `db:"original_input" json:"original_input"`
+	ModelContext   sql.NullString        `db:"model_context" json:"model_context"`
+	UserMessage    sql.NullString        `db:"user_message" json:"user_message"`
+	AllowedTools   pqtype.NullRawMessage `db:"allowed_tools" json:"allowed_tools"`
+	EndChat        sql.NullBool          `db:"end_chat" json:"end_chat"`
+	Error          sql.NullString        `db:"error" json:"error"`
+	ID             uuid.UUID             `db:"id" json:"id"`
+	ChatID         uuid.UUID             `db:"chat_id" json:"chat_id"`
+	OwnerID        uuid.UUID             `db:"owner_id" json:"owner_id"`
+}
+
+func (q *sqlQuerier) FinalizeChatHookDispatch(ctx context.Context, arg FinalizeChatHookDispatchParams) (ChatHookDispatch, error) {
+	row := q.db.QueryRowContext(ctx, finalizeChatHookDispatch,
+		arg.FinishedAt,
+		arg.Result,
+		arg.HttpStatus,
+		arg.Decision,
+		arg.DecisionReason,
+		arg.InputOverride,
+		arg.OriginalInput,
+		arg.ModelContext,
+		arg.UserMessage,
+		arg.AllowedTools,
+		arg.EndChat,
+		arg.Error,
+		arg.ID,
+		arg.ChatID,
+		arg.OwnerID,
+	)
+	var i ChatHookDispatch
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.Event,
+		&i.TurnID,
+		&i.ToolUseID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Result,
+		&i.HttpStatus,
+		&i.Decision,
+		&i.InputOverride,
+		&i.OriginalInput,
+		&i.ModelContext,
+		&i.UserMessage,
+		&i.AllowedTools,
+		&i.EndChat,
+		&i.Error,
+		&i.DecisionReason,
+		&i.EffectsAppliedAt,
+		&i.ToolName,
+	)
+	return i, err
+}
+
+const getChatHookDispatchDecision = `-- name: GetChatHookDispatchDecision :one
+SELECT
+	id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason, effects_applied_at, tool_name
+FROM
+	chat_hook_dispatches
+WHERE
+	chat_id = $1::uuid
+	AND event = 'pre_tool_use'
+	AND tool_use_id = $2::text
+	AND tool_name = $3::text
+	AND (
+		original_input = $4::jsonb
+		OR input_override = $4::jsonb
+	)
+	AND turn_id IS NOT DISTINCT FROM $5::uuid
+	AND decision IS NOT NULL
+	AND result IN ('ok', 'denied')
+ORDER BY
+	started_at DESC,
+	id DESC
+LIMIT 1
+`
+
+type GetChatHookDispatchDecisionParams struct {
+	ChatID    uuid.UUID       `db:"chat_id" json:"chat_id"`
+	ToolUseID string          `db:"tool_use_id" json:"tool_use_id"`
+	ToolName  string          `db:"tool_name" json:"tool_name"`
+	ToolInput json.RawMessage `db:"tool_input" json:"tool_input"`
+	TurnID    uuid.NullUUID   `db:"turn_id" json:"turn_id"`
+}
+
+func (q *sqlQuerier) GetChatHookDispatchDecision(ctx context.Context, arg GetChatHookDispatchDecisionParams) (ChatHookDispatch, error) {
+	row := q.db.QueryRowContext(ctx, getChatHookDispatchDecision,
+		arg.ChatID,
+		arg.ToolUseID,
+		arg.ToolName,
+		arg.ToolInput,
+		arg.TurnID,
+	)
+	var i ChatHookDispatch
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.Event,
+		&i.TurnID,
+		&i.ToolUseID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Result,
+		&i.HttpStatus,
+		&i.Decision,
+		&i.InputOverride,
+		&i.OriginalInput,
+		&i.ModelContext,
+		&i.UserMessage,
+		&i.AllowedTools,
+		&i.EndChat,
+		&i.Error,
+		&i.DecisionReason,
+		&i.EffectsAppliedAt,
+		&i.ToolName,
+	)
+	return i, err
+}
+
+const insertChatHookDispatch = `-- name: InsertChatHookDispatch :one
+INSERT INTO chat_hook_dispatches (
+	id,
+	chat_id,
+	event,
+	turn_id,
+	tool_use_id,
+	tool_name,
+	owner_id,
+	workspace_id,
+	started_at
+) VALUES (
+	$1::uuid,
+	$2::uuid,
+	$3::text,
+	$4::uuid,
+	$5::text,
+	$6::text,
+	$7::uuid,
+	$8::uuid,
+	$9::timestamptz
+)
+RETURNING id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason, effects_applied_at, tool_name
+`
+
+type InsertChatHookDispatchParams struct {
+	ID          uuid.UUID      `db:"id" json:"id"`
+	ChatID      uuid.UUID      `db:"chat_id" json:"chat_id"`
+	Event       string         `db:"event" json:"event"`
+	TurnID      uuid.NullUUID  `db:"turn_id" json:"turn_id"`
+	ToolUseID   sql.NullString `db:"tool_use_id" json:"tool_use_id"`
+	ToolName    sql.NullString `db:"tool_name" json:"tool_name"`
+	OwnerID     uuid.UUID      `db:"owner_id" json:"owner_id"`
+	WorkspaceID uuid.NullUUID  `db:"workspace_id" json:"workspace_id"`
+	StartedAt   time.Time      `db:"started_at" json:"started_at"`
+}
+
+func (q *sqlQuerier) InsertChatHookDispatch(ctx context.Context, arg InsertChatHookDispatchParams) (ChatHookDispatch, error) {
+	row := q.db.QueryRowContext(ctx, insertChatHookDispatch,
+		arg.ID,
+		arg.ChatID,
+		arg.Event,
+		arg.TurnID,
+		arg.ToolUseID,
+		arg.ToolName,
+		arg.OwnerID,
+		arg.WorkspaceID,
+		arg.StartedAt,
+	)
+	var i ChatHookDispatch
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.Event,
+		&i.TurnID,
+		&i.ToolUseID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Result,
+		&i.HttpStatus,
+		&i.Decision,
+		&i.InputOverride,
+		&i.OriginalInput,
+		&i.ModelContext,
+		&i.UserMessage,
+		&i.AllowedTools,
+		&i.EndChat,
+		&i.Error,
+		&i.DecisionReason,
+		&i.EffectsAppliedAt,
+		&i.ToolName,
+	)
+	return i, err
+}
+
+const listChatHookDispatchesByChatID = `-- name: ListChatHookDispatchesByChatID :many
+SELECT
+	id, chat_id, event, turn_id, tool_use_id, owner_id, workspace_id, started_at, finished_at, result, http_status, decision, input_override, original_input, model_context, user_message, allowed_tools, end_chat, error, decision_reason, effects_applied_at, tool_name
+FROM
+	chat_hook_dispatches
+WHERE
+	chat_id = $1::uuid
+ORDER BY
+	started_at ASC,
+	id ASC
+`
+
+func (q *sqlQuerier) ListChatHookDispatchesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatHookDispatch, error) {
+	rows, err := q.db.QueryContext(ctx, listChatHookDispatchesByChatID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatHookDispatch
+	for rows.Next() {
+		var i ChatHookDispatch
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.Event,
+			&i.TurnID,
+			&i.ToolUseID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.Result,
+			&i.HttpStatus,
+			&i.Decision,
+			&i.InputOverride,
+			&i.OriginalInput,
+			&i.ModelContext,
+			&i.UserMessage,
+			&i.AllowedTools,
+			&i.EndChat,
+			&i.Error,
+			&i.DecisionReason,
+			&i.EffectsAppliedAt,
+			&i.ToolName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markChatHookDispatchEffectsApplied = `-- name: MarkChatHookDispatchEffectsApplied :exec
+UPDATE chat_hook_dispatches
+SET
+	effects_applied_at = COALESCE(effects_applied_at, NOW())
+WHERE
+	chat_id = $1::uuid
+	AND event = 'pre_tool_use'
+	AND id = ANY($2::uuid[])
+`
+
+type MarkChatHookDispatchEffectsAppliedParams struct {
+	ChatID      uuid.UUID   `db:"chat_id" json:"chat_id"`
+	DispatchIds []uuid.UUID `db:"dispatch_ids" json:"dispatch_ids"`
+}
+
+func (q *sqlQuerier) MarkChatHookDispatchEffectsApplied(ctx context.Context, arg MarkChatHookDispatchEffectsAppliedParams) error {
+	_, err := q.db.ExecContext(ctx, markChatHookDispatchEffectsApplied, arg.ChatID, pq.Array(arg.DispatchIds))
+	return err
+}
+
 const deleteChatModelConfigByID = `-- name: DeleteChatModelConfigByID :exec
 UPDATE
     chat_model_configs
@@ -6564,6 +6897,9 @@ WITH deletable AS (
       AND updated_at < $1::timestamptz
     ORDER BY updated_at ASC
     LIMIT $2
+), purged_hook_dispatches AS (
+    DELETE FROM chat_hook_dispatches
+    WHERE chat_id IN (SELECT id FROM deletable)
 )
 DELETE FROM chats
 USING deletable
