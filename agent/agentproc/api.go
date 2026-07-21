@@ -60,6 +60,7 @@ func (api *API) Routes() http.Handler {
 	r.Get("/list", api.handleListProcesses)
 	r.Get("/{id}/output", api.handleProcessOutput)
 	r.Post("/{id}/signal", api.handleSignalProcess)
+	r.Post("/signal-by-idempotency-key", api.handleSignalProcessByIdempotencyKey)
 	return r
 }
 
@@ -247,6 +248,96 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleSignalProcessByIdempotencyKey sends a signal to the process
+// started under an idempotency key. It exists so a caller whose start
+// response was lost can still stop the command it asked for: the key
+// identifies the process even when its ID never arrived. The key
+// travels in the body rather than the path so no key value needs URL
+// escaping.
+func (api *API) handleSignalProcessByIdempotencyKey(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var chatID string
+	if chatContext, ok := agentchat.FromContext(ctx); ok {
+		chatID = chatContext.ID.String()
+	}
+
+	var req workspacesdk.SignalProcessByIdempotencyKeyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Request body must be valid JSON.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if req.IdempotencyKey == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Idempotency key is required.",
+		})
+		return
+	}
+	if !validateSignal(ctx, rw, req.Signal) {
+		return
+	}
+
+	if err := api.manager.signalByKey(ctx, chatID, req.IdempotencyKey, req.Signal); err != nil {
+		switch {
+		case errors.Is(err, errProcessNotFound):
+			httpapi.Write(ctx, rw, http.StatusNotFound, workspacesdk.ProcessKeyNotFoundError{
+				Code: workspacesdk.ProcessKeyNotFoundCode,
+				Response: codersdk.Response{
+					Message: "No process was started with this idempotency key.",
+				},
+			})
+		case errors.Is(err, errProcessStartPending):
+			httpapi.Write(ctx, rw, http.StatusConflict, workspacesdk.ProcessConflictError{
+				Code: workspacesdk.ProcessConflictStartPending,
+				Response: codersdk.Response{
+					Message: "The start holding this idempotency key has not spawned its process yet.",
+				},
+			})
+		case errors.Is(err, errProcessNotRunning):
+			httpapi.Write(ctx, rw, http.StatusConflict, workspacesdk.ProcessConflictError{
+				Code: workspacesdk.ProcessConflictNotRunning,
+				Response: codersdk.Response{
+					Message: "The process started with this idempotency key is not running.",
+				},
+			})
+		default:
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to signal process.",
+				Detail:  err.Error(),
+			})
+		}
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
+		Message: fmt.Sprintf("Signal %q sent.", req.Signal),
+	})
+}
+
+// validateSignal writes its own error response; false means the caller
+// must stop.
+func validateSignal(ctx context.Context, rw http.ResponseWriter, signal string) bool {
+	if signal == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Signal is required.",
+		})
+		return false
+	}
+	if signal != "kill" && signal != "terminate" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf(
+				"Unsupported signal %q. Use \"kill\" or \"terminate\".",
+				signal,
+			),
+		})
+		return false
+	}
+	return true
+}
+
 // handleSignalProcess sends a signal to a running process.
 func (api *API) handleSignalProcess(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -272,21 +363,7 @@ func (api *API) handleSignalProcess(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
-	if req.Signal == "" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Signal is required.",
-		})
-		return
-	}
-
-	if req.Signal != "kill" && req.Signal != "terminate" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf(
-				"Unsupported signal %q. Use \"kill\" or \"terminate\".",
-				req.Signal,
-			),
-		})
+	if !validateSignal(ctx, rw, req.Signal) {
 		return
 	}
 
