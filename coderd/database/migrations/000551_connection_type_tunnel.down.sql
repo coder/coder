@@ -1,24 +1,11 @@
--- Remove the 'tunnel' value from connection_type. Postgres cannot drop an
--- enum value in place, so recreate the type without it, following the
--- pattern in 000533_nats_ca_crypto_key_feature.down.sql.
-DELETE FROM connection_logs WHERE type = 'tunnel';
-
-CREATE TYPE old_connection_type AS ENUM (
-    'ssh',
-    'vscode',
-    'jetbrains',
-    'reconnecting_pty',
-    'workspace_app',
-    'port_forwarding'
-);
-
-ALTER TABLE connection_logs
-    ALTER COLUMN type TYPE old_connection_type
-    USING (type::text::old_connection_type);
-
-DROP TYPE connection_type;
-
-ALTER TYPE old_connection_type RENAME TO connection_type;
+-- The 'tunnel' enum value is intentionally not removed. Postgres cannot
+-- drop an enum value in place; removing it would require recreating
+-- connection_type and rewriting the connection_logs type column, which
+-- takes an exclusive lock on the table and would have to DELETE all
+-- tunnel rows (audit data) because they cannot exist in the old type.
+-- Leaving the value in place is harmless: old code never queries for it
+-- and renders unknown types without error. This matches the precedent
+-- of other enum-value additions (e.g. 000517, 000531).
 
 COMMENT ON COLUMN connection_logs.user_agent IS 'Null for SSH events. For web connections, this is the User-Agent header from the request.';
 
