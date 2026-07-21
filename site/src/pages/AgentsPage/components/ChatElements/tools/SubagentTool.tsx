@@ -199,8 +199,7 @@ export const SubagentTool: React.FC<{
 	const [expanded, setExpanded] = useState(false);
 	const { desktopChatId, onOpenDesktop } = useDesktopPanel();
 	const wantsModelDisplay =
-		descriptor.action === "spawn" &&
-		Boolean(descriptor.modelConfigId || descriptor.reasoningEffort);
+		descriptor.action === "spawn" && Boolean(descriptor.modelConfigId);
 	const modelConfigsQuery = useQuery({
 		...chatModelConfigs(),
 		enabled: wantsModelDisplay,

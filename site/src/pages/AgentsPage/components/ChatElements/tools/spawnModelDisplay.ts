@@ -31,12 +31,13 @@ export type SpawnModelDisplay = {
 
 /**
  * Resolves the model display name and effective reasoning effort for a
- * spawn tool call that explicitly selected them. Effort resolution
+ * spawn tool call that explicitly selected a model. Effort resolution
  * mirrors the backend (chatprovider.ResolveReasoningEffort): the
  * requested value wins over the config's default and is clamped to the
  * config's max. When the selected config is unknown (effort-only spawn
- * or a config removed since the spawn), the requested effort is shown
- * unclamped.
+ * or a config removed since the spawn), nothing is shown: the child
+ * resolves against a model whose effort bounds are unknown here, so a
+ * displayed effort could misstate what actually ran.
  */
 export const resolveSpawnModelDisplay = ({
 	configs,
@@ -53,9 +54,7 @@ export const resolveSpawnModelDisplay = ({
 		? configs?.find((c) => c.id === modelConfigId)
 		: undefined;
 	if (!config) {
-		return requested && requested !== ChatModelReasoningEffortNone
-			? { effortLabel: requested }
-			: {};
+		return {};
 	}
 
 	const modelLabel = config.display_name.trim() || config.model.trim();

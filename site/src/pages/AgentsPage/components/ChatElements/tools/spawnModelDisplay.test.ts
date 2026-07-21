@@ -69,23 +69,23 @@ describe("resolveSpawnModelDisplay", () => {
 		).toEqual({ modelLabel: "GPT-4.1" });
 	});
 
-	it("shows the requested effort unclamped when the config is unknown", () => {
+	it("shows nothing when the config is unknown", () => {
 		expect(
 			resolveSpawnModelDisplay({
 				configs: [sonnet],
 				modelConfigId: "deleted-config",
 				reasoningEffort: "xhigh",
 			}),
-		).toEqual({ effortLabel: "xhigh" });
+		).toEqual({});
 	});
 
-	it("shows the requested effort for effort-only spawns", () => {
+	it("shows nothing for effort-only spawns", () => {
 		expect(
 			resolveSpawnModelDisplay({
 				configs: [sonnet],
 				reasoningEffort: "high",
 			}),
-		).toEqual({ effortLabel: "high" });
+		).toEqual({});
 	});
 
 	it("omits an effective effort of none", () => {

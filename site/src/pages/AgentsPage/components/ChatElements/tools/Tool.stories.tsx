@@ -765,6 +765,8 @@ export const SubagentSpawnWithModelDefaultEffort: Story = {
 	},
 };
 
+// Effort-only spawns resolve against an inherited model whose effort
+// bounds are unknown client-side, so no suffix is shown.
 export const SubagentSpawnWithEffortOnly: Story = {
 	args: {
 		name: "spawn_agent",
@@ -785,13 +787,11 @@ export const SubagentSpawnWithEffortOnly: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await waitFor(() =>
-			expect(
-				canvas.getByRole("button", {
-					name: /Spawned Workspace diagnostics with high thinking/,
-				}),
-			).toBeInTheDocument(),
-		);
+		const label = canvas.getByRole("button", {
+			name: /Spawned Workspace diagnostics/,
+		});
+		expect(label).toBeInTheDocument();
+		expect(label).not.toHaveTextContent(/with/);
 	},
 };
 
