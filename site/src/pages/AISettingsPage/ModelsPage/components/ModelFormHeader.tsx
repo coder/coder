@@ -2,6 +2,7 @@ import {
 	ArrowLeftIcon,
 	CopyIcon,
 	EllipsisVerticalIcon,
+	Share2Icon,
 	TrashIcon,
 } from "lucide-react";
 import type { FC } from "react";
@@ -51,6 +52,7 @@ export const ModelFormHeader: FC<{
 	editingModel?: TypesGen.ChatModelConfig;
 	onDeleteModel?: (modelConfigId: string) => Promise<void>;
 	onDuplicate?: () => void;
+	sharingPath?: string;
 	onToggleEnabled?: (enabled: boolean) => void;
 	isSaving: boolean;
 	enabledToggleDisabled: boolean;
@@ -62,46 +64,65 @@ export const ModelFormHeader: FC<{
 	editingModel,
 	onDeleteModel,
 	onDuplicate,
+	sharingPath,
 	onToggleEnabled,
 	isSaving,
 	enabledToggleDisabled,
 	onRequestDelete,
 }) => {
+	const location = useLocation();
+
 	return (
 		<>
 			<div className="flex items-center justify-between">
 				<ModelFormBackLink />
-				{isEditing && editingModel && onDeleteModel && (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								variant="subtle"
-								size="icon"
-								type="button"
-								disabled={isSaving}
-								aria-label="Model actions"
-							>
-								<EllipsisVerticalIcon />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							{onDuplicate && (
-								<DropdownMenuItem onClick={onDuplicate}>
-									<CopyIcon className="size-icon-sm" />
-									Duplicate model
-								</DropdownMenuItem>
-							)}
-							<DropdownMenuSeparator />
-							<DropdownMenuItem
-								className="text-content-destructive focus:text-content-destructive"
-								onClick={onRequestDelete}
-							>
-								<TrashIcon />
-								Delete…
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				)}
+				{isEditing &&
+					editingModel &&
+					(sharingPath || onDuplicate || onDeleteModel) && (
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									variant="subtle"
+									size="icon"
+									type="button"
+									disabled={isSaving}
+									aria-label="Model actions"
+								>
+									<EllipsisVerticalIcon />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								{sharingPath && (
+									<DropdownMenuItem asChild>
+										<Link
+											to={{ pathname: sharingPath, search: location.search }}
+										>
+											<Share2Icon className="size-icon-sm" />
+											Share model
+										</Link>
+									</DropdownMenuItem>
+								)}
+								{onDuplicate && (
+									<DropdownMenuItem onClick={onDuplicate}>
+										<CopyIcon className="size-icon-sm" />
+										Duplicate model
+									</DropdownMenuItem>
+								)}
+								{onDeleteModel && (
+									<>
+										<DropdownMenuSeparator />
+										<DropdownMenuItem
+											className="text-content-destructive focus:text-content-destructive"
+											onClick={onRequestDelete}
+										>
+											<TrashIcon />
+											Delete…
+										</DropdownMenuItem>
+									</>
+								)}
+							</DropdownMenuContent>
+						</DropdownMenu>
+					)}
 			</div>
 			<div className="flex items-center justify-between gap-4">
 				<div className="flex items-center gap-4 min-w-0">

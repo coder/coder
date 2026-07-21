@@ -31,6 +31,10 @@ const meta: Meta<typeof MCPServersPageView> = {
 				{ path: "/ai/settings/mcp-servers", useStoryElement: true },
 				{ path: "/ai/settings/mcp-servers/add", useStoryElement: true },
 				{ path: "/ai/settings/mcp-servers/:serverId", useStoryElement: true },
+				{
+					path: "/ai/settings/mcp-servers/:serverId/sharing",
+					useStoryElement: true,
+				},
 			],
 		}),
 	},
@@ -65,7 +69,7 @@ export const ReadOnly: Story = {
 			canvas.queryByRole("button", { name: /add server/i }),
 		).not.toBeInTheDocument();
 		await expect(canvas.getByText("Coder")).toBeInTheDocument();
-		await expect(canvas.getByText("Coder").closest("tr")).not.toHaveAttribute(
+		await expect(canvas.getByText("Coder").closest("tr")).toHaveAttribute(
 			"role",
 			"button",
 		);
@@ -82,7 +86,7 @@ export const CreateOnlyControls: Story = {
 		await expect(
 			canvas.getByRole("button", { name: /add server/i }),
 		).toBeVisible();
-		await expect(canvas.getByText("Coder").closest("tr")).not.toHaveAttribute(
+		await expect(canvas.getByText("Coder").closest("tr")).toHaveAttribute(
 			"role",
 			"button",
 		);

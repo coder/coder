@@ -280,14 +280,13 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 								model={model}
 								providerLabel={providerLabelByModelId.get(model.id) ?? ""}
 								providerTypeByID={providerTypeByID}
-								onClick={
-									canEditModels
-										? () =>
-												void navigate({
-													pathname: `/ai/settings/models/${model.id}`,
-													search: location.search,
-												})
-										: undefined
+								onClick={() =>
+									void navigate({
+										pathname: canEditModels
+											? `/ai/settings/models/${model.id}`
+											: `/ai/settings/models/${model.id}/sharing`,
+										search: location.search,
+									})
 								}
 							/>
 						))

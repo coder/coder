@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { withToaster } from "#/testHelpers/storybook";
 import {
 	MockAnthropicProviderState,
@@ -22,6 +22,7 @@ const meta: Meta<typeof UpdateModelPageView> = {
 		onUpdateModel: fn(async () => undefined),
 		onDeleteModel: fn(async () => undefined),
 		onDuplicate: fn(),
+		sharingPath: `/ai/settings/models/${mockGPT5.id}/sharing`,
 		onToggleEnabled: fn(),
 	},
 };
@@ -36,5 +37,16 @@ export const Default: Story = {
 			canvas.getByRole("button", { name: /^update model$/i }),
 		).toBeVisible();
 		await expect(canvas.getByLabelText(/model identifier/i)).toBeEnabled();
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Model actions" }),
+		);
+		await expect(
+			within(canvasElement.ownerDocument.body).findByRole("menuitem", {
+				name: "Share model",
+			}),
+		).resolves.toHaveAttribute(
+			"href",
+			"/ai/settings/models/model-gpt5/sharing",
+		);
 	},
 };

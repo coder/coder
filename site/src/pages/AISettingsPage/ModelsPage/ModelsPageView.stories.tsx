@@ -42,6 +42,10 @@ const meta: Meta<typeof ModelsPageView> = {
 				{ path: "/ai/settings/models", useStoryElement: true },
 				{ path: "/ai/settings/models/add", useStoryElement: true },
 				{ path: "/ai/settings/models/:modelId", useStoryElement: true },
+				{
+					path: "/ai/settings/models/:modelId/sharing",
+					useStoryElement: true,
+				},
 			],
 		}),
 	},
@@ -144,9 +148,10 @@ export const ReadOnly: Story = {
 			canvas.queryByRole("button", { name: /add model/i }),
 		).not.toBeInTheDocument();
 		await expect(canvas.getByText("GPT-5")).toBeInTheDocument();
-		await expect(
-			canvas.queryByRole("button", { name: /GPT-5/i }),
-		).not.toBeInTheDocument();
+		await expect(canvas.getByText("GPT-5").closest("tr")).toHaveAttribute(
+			"role",
+			"button",
+		);
 	},
 };
 
@@ -160,9 +165,10 @@ export const CreateOnlyControls: Story = {
 		await expect(
 			canvas.getByRole("button", { name: /add model/i }),
 		).toBeVisible();
-		await expect(
-			canvas.queryByRole("button", { name: /GPT-5/i }),
-		).not.toBeInTheDocument();
+		await expect(canvas.getByText("GPT-5").closest("tr")).toHaveAttribute(
+			"role",
+			"button",
+		);
 	},
 };
 

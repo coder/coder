@@ -62,6 +62,7 @@ interface ModelFormProps {
 	currentDefaultModel?: TypesGen.ChatModelConfig;
 	onSetDefault?: () => void;
 	onDuplicate?: () => void;
+	sharingPath?: string;
 	onToggleEnabled?: (enabled: boolean) => void;
 }
 
@@ -77,6 +78,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	onUpdateModel,
 	onDeleteModel,
 	onDuplicate,
+	sharingPath,
 	currentDefaultModel,
 	onToggleEnabled,
 }) => {
@@ -298,6 +300,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				editingModel={editingModel}
 				onDeleteModel={onDeleteModel}
 				onDuplicate={onDuplicate}
+				sharingPath={sharingPath}
 				onToggleEnabled={onToggleEnabled}
 				isSaving={isSaving}
 				enabledToggleDisabled={enabledToggleDisabled}

@@ -56,6 +56,7 @@ const UpdateMCPServerPage: FC = () => {
 					server={server}
 					isSaving={updateMutation.isPending}
 					isDeleting={deleteMutation.isPending}
+					sharingPath={`/ai/settings/mcp-servers/${server.id}/sharing`}
 					onCancel={() =>
 						void navigate({
 							pathname: "/ai/settings/mcp-servers",

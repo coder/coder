@@ -23,6 +23,7 @@ type MCPServerFormCreateProps = {
 	onUpdateServer?: undefined;
 	onDeleteServer?: undefined;
 	onToggleEnabled?: undefined;
+	sharingPath?: undefined;
 	onCancel: () => void;
 };
 
@@ -37,6 +38,7 @@ type MCPServerFormEditProps = {
 	) => Promise<unknown>;
 	onDeleteServer?: (serverId: string) => Promise<void>;
 	onToggleEnabled?: (enabled: boolean) => void;
+	sharingPath?: string;
 	onCancel: () => void;
 };
 
@@ -50,6 +52,7 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 	onUpdateServer,
 	onDeleteServer,
 	onToggleEnabled,
+	sharingPath,
 	onCancel,
 }) => {
 	const isEditing = server !== undefined;
@@ -93,6 +96,7 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 				isDisabled={isDisabled}
 				onRequestDelete={() => setConfirmingDelete(true)}
 				onToggleEnabled={onToggleEnabled}
+				sharingPath={sharingPath}
 			/>
 			<div className="flex flex-col gap-6 pt-6">
 				<MCPServerFormFields

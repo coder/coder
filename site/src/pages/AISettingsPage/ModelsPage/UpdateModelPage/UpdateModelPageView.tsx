@@ -18,6 +18,7 @@ interface UpdateModelPageViewProps {
 	) => Promise<unknown>;
 	onDeleteModel?: (modelConfigId: string) => Promise<void>;
 	onDuplicate: () => void;
+	sharingPath: string;
 	onToggleEnabled: (enabled: boolean) => void;
 }
 
@@ -32,6 +33,7 @@ const UpdateModelPageView: FC<UpdateModelPageViewProps> = ({
 	onUpdateModel,
 	onDeleteModel,
 	onDuplicate,
+	sharingPath,
 	onToggleEnabled,
 }) => {
 	return (
@@ -52,6 +54,7 @@ const UpdateModelPageView: FC<UpdateModelPageViewProps> = ({
 				onUpdateModel={onUpdateModel}
 				onDeleteModel={onDeleteModel}
 				onDuplicate={onDuplicate}
+				sharingPath={sharingPath}
 				onToggleEnabled={onToggleEnabled}
 			/>
 		</>
