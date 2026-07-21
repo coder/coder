@@ -236,7 +236,6 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.
 		ModelConfigID:   m.ModelConfigID,
 		ReasoningEffort: m.ReasoningEffort,
 		CreatedBy:       createdBy,
-		APIKeyID:        m.APIKeyID,
 	})
 }
 
@@ -251,7 +250,6 @@ func messageFromQueuedRow(q database.ChatQueuedMessage) Message {
 		ReasoningEffort: q.ReasoningEffort,
 		CreatedBy:       uuid.NullUUID{UUID: q.CreatedBy, Valid: true},
 		ContentVersion:  chatprompt.CurrentContentVersion,
-		APIKeyID:        q.APIKeyID,
 	}
 }
 
@@ -491,7 +489,6 @@ type EditMessageInput struct {
 	Content                 pqtype.NullRawMessage
 	ModelConfigIDOverride   uuid.NullUUID
 	ReasoningEffortOverride database.NullChatReasoningEffort
-	APIKeyID                sql.NullString
 }
 
 // EditMessageResult is returned by [Tx.EditMessage].
@@ -571,10 +568,6 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 	if input.ReasoningEffortOverride.Valid {
 		reasoningEffort = input.ReasoningEffortOverride
 	}
-	apiKeyID := input.APIKeyID
-	if !apiKeyID.Valid {
-		return EditMessageResult{}, xerrors.Errorf("api_key_id is required")
-	}
 	replacement := Message{
 		Role:            database.ChatMessageRoleUser,
 		Content:         input.Content,
@@ -583,7 +576,6 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 		ReasoningEffort: reasoningEffort,
 		CreatedBy:       uuid.NullUUID{UUID: input.CreatedBy, Valid: true},
 		ContentVersion:  chatprompt.CurrentContentVersion,
-		APIKeyID:        apiKeyID,
 	}
 	insertedReplacement, err := tx.insertMessages([]Message{replacement})
 	if err != nil {

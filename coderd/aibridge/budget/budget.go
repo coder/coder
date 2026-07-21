@@ -37,6 +37,8 @@ type EffectiveBudget struct {
 // return value is false when no budget is configured for the user. A per-user
 // override wins unconditionally; otherwise the budget is selected from the
 // user's groups according to policy.
+//
+// TODO(AIGOV-527): unify effective group resolution in a single place.
 func ResolveUserAIBudget(ctx context.Context, db Store, userID uuid.UUID, policy codersdk.AIBudgetPolicy) (EffectiveBudget, bool, error) {
 	// A per-user override always wins.
 	override, err := db.GetUserAIBudgetOverride(ctx, userID)

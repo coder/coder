@@ -1030,6 +1030,22 @@
 | `last_heartbeat_at` | string | false    |              |             |
 | `name`              | string | false    |              |             |
 
+## codersdk.AIGroupBudget
+
+```json
+{
+  "limit_source": "user_override",
+  "spend_limit_micros": 0
+}
+```
+
+### Properties
+
+| Name                 | Type                                                         | Required | Restrictions | Description |
+|----------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `limit_source`       | [codersdk.AIBudgetLimitSource](#codersdkaibudgetlimitsource) | false    |              |             |
+| `spend_limit_micros` | integer                                                      | false    |              |             |
+
 ## codersdk.AIProvider
 
 ```json
@@ -7689,6 +7705,57 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `spend_limit_micros` | integer | false    |              |             |
 | `updated_at`         | string  | false    |              |             |
 
+## codersdk.GroupMemberAISpend
+
+```json
+{
+  "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+  "group_budget": {
+    "limit_source": "user_override",
+    "spend_limit_micros": 0
+  },
+  "group_spend_micros": 0,
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name                 | Type                                             | Required | Restrictions | Description                                                                                                                                                                                                                                         |
+|----------------------|--------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `effective_group_id` | string                                           | false    |              | Effective group ID is the user's effective budget group within the queried group's organization. Null when no effective budget group is visible in this organization, including when the user's budget resolves to a group in another organization. |
+| `group_budget`       | [codersdk.AIGroupBudget](#codersdkaigroupbudget) | false    |              | Group budget is the budget when the queried group is this user's effective budget source. Null when the user's budget resolves to another group or no budget applies to the user.                                                                   |
+| `group_spend_micros` | integer                                          | false    |              | Group spend micros is the user's spend attributed to the queried group over the current budget period.                                                                                                                                              |
+| `user_id`            | string                                           | false    |              |                                                                                                                                                                                                                                                     |
+
+## codersdk.GroupMembersAISpend
+
+```json
+{
+  "members": [
+    {
+      "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+      "group_budget": {
+        "limit_source": "user_override",
+        "spend_limit_micros": 0
+      },
+      "group_spend_micros": 0,
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+    }
+  ],
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name           | Type                                                                | Required | Restrictions | Description                                                             |
+|----------------|---------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
+| `members`      | array of [codersdk.GroupMemberAISpend](#codersdkgroupmemberaispend) | false    |              |                                                                         |
+| `period_end`   | string                                                              | false    |              | Period end is the exclusive upper bound of the current budget period.   |
+| `period_start` | string                                                              | false    |              | Period start is the inclusive lower bound of the current budget period. |
+
 ## codersdk.GroupMembersResponse
 
 ```json
@@ -9145,6 +9212,48 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `is_default`               | boolean         | true     |              |                                                                                                                                                 |
 | `name`                     | string          | false    |              |                                                                                                                                                 |
 | `updated_at`               | string          | true     |              |                                                                                                                                                 |
+
+## codersdk.OrganizationGroupAISpend
+
+```json
+{
+  "current_spend_micros": 0,
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "spend_limit_micros": 0
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description                                                                                                |
+|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros` | integer | false    |              | Current spend micros is the group's spend over the current budget period.                                  |
+| `group_id`             | string  | false    |              |                                                                                                            |
+| `spend_limit_micros`   | integer | false    |              | Spend limit micros is the group's configured AI spend limit. Null when the group has no configured budget. |
+
+## codersdk.OrganizationGroupsAISpend
+
+```json
+{
+  "groups": [
+    {
+      "current_spend_micros": 0,
+      "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+      "spend_limit_micros": 0
+    }
+  ],
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name           | Type                                                                            | Required | Restrictions | Description                                                             |
+|----------------|---------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
+| `groups`       | array of [codersdk.OrganizationGroupAISpend](#codersdkorganizationgroupaispend) | false    |              |                                                                         |
+| `period_end`   | string                                                                          | false    |              | Period end is the exclusive upper bound of the current budget period.   |
+| `period_start` | string                                                                          | false    |              | Period start is the inclusive lower bound of the current budget period. |
 
 ## codersdk.OrganizationMember
 
