@@ -2343,6 +2343,116 @@ func TestRecordTokenUsageBudgetWarningNotification(t *testing.T) {
 	}
 }
 
+// TestRecordTokenUsageBudgetLimitReachedNotification verifies that crossing the
+// 100% limit enqueues the limit-reached notification, and that a single
+// interception crossing both the warning and limit thresholds enqueues both.
+func TestRecordTokenUsageBudgetLimitReachedNotification(t *testing.T) {
+	t.Parallel()
+
+	const spendLimitMicros int64 = 1_000_000 // $1 limit (100% threshold)
+	now := time.Date(2026, 6, 25, 14, 30, 0, 0, time.UTC)
+
+	// $1 per million tokens means the interception cost in micros equals the
+	// input token count, so each case sets its cost via inputTokens.
+	price := &database.AIModelPrice{
+		InputPrice: sql.NullInt64{Int64: 1_000_000, Valid: true},
+	}
+
+	testCases := []struct {
+		name          string
+		inputTokens   int64 // also the interception cost in micros
+		newSpend      int64 // post-increment period total
+		wantTemplates []uuid.UUID
+	}{
+		{
+			name: "crosses limit",
+			// pre = 999_500 (>= 850_000, so no warning; < 1_000_000)
+			// post = 1_000_500 (>= 1_000_000) -> limit only.
+			inputTokens:   1000,
+			newSpend:      spendLimitMicros + 500,
+			wantTemplates: []uuid.UUID{notifications.TemplateAIBudgetLimitReachedUser},
+		},
+		{
+			name: "crosses warning and limit in one interception",
+			// pre = 1_000_000 - 200_000 = 800_000 (< 850_000)
+			// post = 1_000_000 (>= 850_000 and >= 1_000_000) -> warning + limit.
+			inputTokens: 200_000,
+			newSpend:    spendLimitMicros,
+			wantTemplates: []uuid.UUID{
+				notifications.TemplateAIBudgetWarningUser,
+				notifications.TemplateAIBudgetLimitReachedUser,
+			},
+		},
+		{
+			name: "already above limit",
+			// pre = 1_009_000 (>= 1_000_000) -> no fresh crossing.
+			inputTokens:   1000,
+			newSpend:      spendLimitMicros + 10_000,
+			wantTemplates: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			enq := &notificationstest.FakeEnqueuer{}
+
+			intc := newTestInterception(uuid.New())
+			groupID := uuid.New()
+			group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: spendLimitMicros}
+
+			expectTokenUsageCostLookups(db, intc, nil, group, price)
+
+			db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+				func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
+			)
+			db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).
+				Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: intc.ID}, nil)
+			db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
+				Return(database.AIUserDailySpend{}, nil)
+			db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
+				Return(database.GetUserAISpendSinceRow{SpendMicros: tc.newSpend}, nil)
+			// The group is looked up once per crossing that notifies.
+			db.EXPECT().GetGroupByID(gomock.Any(), groupID).
+				Return(database.Group{ID: groupID, Name: "Engineering"}, nil).
+				Times(len(tc.wantTemplates))
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+				Store:         db,
+				AISeatTracker: agplaiseats.Noop{},
+				AccessURL:     "/",
+				GatewayCfg:    codersdk.AIBridgeConfig{},
+				Experiments:   requiredExperiments,
+				Enqueuer:      enq,
+				Logger:        testutil.Logger(t),
+				Clock:         quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+				InterceptionId: intc.ID.String(),
+				MsgId:          "msg_123",
+				InputTokens:    tc.inputTokens,
+				CreatedAt:      timestamppb.New(now),
+			})
+			require.NoError(t, err)
+
+			require.Len(t, enq.Sent(), len(tc.wantTemplates), "unexpected number of notifications")
+			for _, tmpl := range tc.wantTemplates {
+				sent := enq.Sent(notificationstest.WithTemplateID(tmpl))
+				require.Len(t, sent, 1, "expected one notification for template %s", tmpl)
+				require.Equal(t, intc.InitiatorID, sent[0].UserID)
+				require.Equal(t, "$1.00", sent[0].Labels["limit"])
+				require.Equal(t, "Engineering", sent[0].Labels["group_name"])
+			}
+		})
+	}
+}
+
 // newTestInterception returns an interception with a fixed initiator, provider,
 // and model for cost-attribution test setup.
 func newTestInterception(id uuid.UUID) database.AIBridgeInterception {
