@@ -84,9 +84,7 @@ const AddModelDropdown: FC<{
 								)
 							}
 						>
-							<span aria-hidden className="flex items-center">
-								<ProviderIcon provider={providerState.provider} />
-							</span>
+							<ProviderIcon provider={providerState.provider} />
 							<span>{providerState.label}</span>
 						</DropdownMenuItem>
 					))
@@ -226,9 +224,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 						{providerStates.map((providerState) => (
 							<SelectItem key={providerState.key} value={providerState.key}>
 								<span className="flex items-center gap-2">
-									<span aria-hidden className="flex items-center">
-										<ProviderIcon provider={providerState.provider} />
-									</span>
+									<ProviderIcon provider={providerState.provider} />
 									{providerState.label}
 								</span>
 							</SelectItem>

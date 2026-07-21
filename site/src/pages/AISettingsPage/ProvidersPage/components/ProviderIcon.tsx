@@ -28,45 +28,19 @@ export const getProviderIcon = (provider: string): string | undefined => {
 	}
 };
 
-const getProviderName = (provider: string): string => {
-	switch (provider) {
-		case "openai":
-			return "OpenAI";
-		case "anthropic":
-			return "Anthropic";
-		case "bedrock":
-			return "AWS Bedrock";
-		case "azure":
-			return "Azure OpenAI";
-		case "copilot":
-			return "GitHub Copilot";
-		case "google":
-			return "Google";
-		case "openai-compat":
-			return "OpenAI-compatible";
-		case "openrouter":
-			return "OpenRouter";
-		case "vercel":
-			return "Vercel";
-		default:
-			return provider || "Unknown provider";
-	}
-};
-
 export const ProviderIcon: React.FC<ProviderIconProps> = ({
 	provider,
 	icon,
 	className = "size-icon-sm",
 }) => {
 	const iconSrc = icon || getProviderIcon(provider);
-	const name = getProviderName(provider);
 	if (iconSrc === undefined) {
-		return (
-			<Building2Icon
-				className={`${className} flex-shrink-0`}
-				aria-label={name}
-			/>
-		);
+		// Lucide icons are aria-hidden by default when given no a11y prop.
+		return <Building2Icon className={`${className} flex-shrink-0`} />;
 	}
-	return <ExternalImage src={iconSrc} alt={name} className={className} />;
+	// Decorative: callers render the provider name as visible text beside the
+	// icon, so exposing it here too would double-announce it.
+	return (
+		<ExternalImage src={iconSrc} alt="" aria-hidden className={className} />
+	);
 };

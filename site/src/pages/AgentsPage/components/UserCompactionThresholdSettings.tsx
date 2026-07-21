@@ -283,15 +283,12 @@ export const UserCompactionThresholdSettings: FC<
 								<TableRow key={modelConfig.id}>
 									<TableCell className="text-sm font-medium text-content-primary">
 										<Badge size="sm" variant="default" className="w-fit">
-											<span aria-hidden>
-												<ProviderIcon
-													provider={
-														providerTypeByID.get(modelConfig.ai_provider_id) ??
-														""
-													}
-													className="size-4"
-												/>
-											</span>
+											<ProviderIcon
+												provider={
+													providerTypeByID.get(modelConfig.ai_provider_id) ?? ""
+												}
+												className="size-4"
+											/>
 											{modelName}
 										</Badge>
 										{rowError && (

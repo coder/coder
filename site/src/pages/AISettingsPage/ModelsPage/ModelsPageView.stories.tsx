@@ -68,8 +68,8 @@ export const Default: Story = {
 			canvas.getByText("Claude Sonnet 4.5 (Bedrock)"),
 		).toBeInTheDocument();
 		await expect(canvas.getByText("AWS Bedrock")).toBeInTheDocument();
-		// The Bedrock model config should render the Bedrock provider icon.
-		await expect(canvas.getByAltText("AWS Bedrock")).toBeInTheDocument();
+		// The provider icon is decorative (alt=""), so its name comes from the
+		// visible label asserted above rather than the image alt text.
 		await expect(canvas.getAllByText("Enabled").length).toBeGreaterThan(0);
 		await expect(canvas.getByText("Default")).toBeInTheDocument();
 		await expect(canvas.getByText("Disabled")).toBeInTheDocument();

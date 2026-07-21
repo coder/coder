@@ -62,9 +62,7 @@ const AddProviderDropdown: React.FC<{ align?: "start" | "end" }> = ({
 							)
 						}
 					>
-						<span aria-hidden className="flex items-center">
-							<ProviderIcon provider={entry.value} />
-						</span>
+						<ProviderIcon provider={entry.value} />
 						<span>{entry.label}</span>
 					</DropdownMenuItem>
 				))}

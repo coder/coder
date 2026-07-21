@@ -3,7 +3,6 @@ import type { FC } from "react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { normalizeProvider } from "#/modules/aiModels/helpers";
 import { cn } from "#/utils/cn";
-import { formatProviderLabel } from "../../utils/modelOptions";
 
 const providerIconMap: Record<string, string> = {
 	openai: "/icon/openai.svg",
@@ -33,11 +32,7 @@ export const ProviderIcon: FC<ProviderIconProps> = ({
 					className,
 				)}
 			>
-				<ExternalImage
-					src={iconPath}
-					alt={`${formatProviderLabel(provider)} logo`}
-					className="size-3/5"
-				/>
+				<ExternalImage src={iconPath} alt="" className="size-3/5" />
 			</div>
 		);
 	}
