@@ -7,7 +7,7 @@ export function baseOptions(): BaseLayoutProps {
 		nav: {
 			title: (
 				<span className="inline-flex items-center gap-2 font-semibold">
-					<CoderMark className="size-5 text-fd-primary" />
+					<CoderMark className="size-5 text-fd-foreground" />
 					{appName}
 				</span>
 			),

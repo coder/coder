@@ -14,7 +14,14 @@ const config = {
 	// and can be served by any static file host with no Node server. This is
 	// what the release pipeline tars into coder_docs_<version>.tgz for
 	// offline/airgapped use.
-	output: "export",
+	//
+	// Only export for production builds (`next build`). Under `output: export`
+	// an optional catch-all route rejects any path that generateStaticParams
+	// did not emit, so `next dev` throws on incidental requests (a stale
+	// /serviceWorker.js, favicon probes, etc.). Leaving dev on the default
+	// server keeps the local workflow normal (clean 404s) while `next build`
+	// still produces the static export.
+	output: process.env.NODE_ENV === "production" ? "export" : undefined,
 	reactStrictMode: true,
 	// Canonical URLs end in a slash and every route is emitted as
 	// <route>/index.html, which is what a plain static file server expects.
