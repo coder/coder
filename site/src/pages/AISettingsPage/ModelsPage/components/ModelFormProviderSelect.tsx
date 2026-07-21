@@ -58,7 +58,9 @@ export const ModelFormProviderSelect: FC<{
 					{selectableProviderStates.map((ps) => (
 						<SelectItem key={ps.key} value={ps.key}>
 							<span className="flex items-center gap-2">
-								<ProviderIcon provider={ps.provider} />
+								<span aria-hidden className="flex items-center">
+									<ProviderIcon provider={ps.provider} />
+								</span>
 								{ps.label}
 							</span>
 						</SelectItem>

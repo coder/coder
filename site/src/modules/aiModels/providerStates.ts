@@ -144,7 +144,7 @@ export const deriveProviderStates = (
 		}
 	}
 
-	return orderedEntries.map(({ key, provider }) => {
+	const states = orderedEntries.map(({ key, provider }) => {
 		const providerConfigEntry = providerConfigsByKey.get(key);
 		const providerConfigSource = providerConfigEntry?.source;
 		const providerConfig = isDatabaseProviderConfig(
@@ -188,6 +188,9 @@ export const deriveProviderStates = (
 			baseURL: getProviderBaseURL(providerConfigEntry),
 		};
 	});
+
+	// Providers surface in dropdowns ordered by their display label.
+	return states.toSorted((a, b) => a.label.localeCompare(b.label));
 };
 
 export const canManageProviderModels = (

@@ -94,7 +94,10 @@ export const FilterByProvider: Story = {
 			name: /filter by provider/i,
 		});
 		await userEvent.click(providerFilter);
-		const anthropicOption = await within(document.body).findByRole("option", {
+		const listbox = await within(document.body).findByRole("listbox");
+		// The provider icon is decorative (aria-hidden), so the option's
+		// accessible name is just the label, matching the Add model select.
+		const anthropicOption = await within(listbox).findByRole("option", {
 			name: "Anthropic",
 		});
 		await userEvent.click(anthropicOption);
