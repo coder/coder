@@ -60,10 +60,6 @@ var requiredExperiments = []codersdk.Experiment{
 	codersdk.ExperimentMCPServerHTTP, codersdk.ExperimentOAuth2,
 }
 
-// testOrgID scopes the org-member role used by the role expansion
-// failure case.
-var testOrgID = uuid.New()
-
 // expectMemberRoles mocks the authorization role lookup with the site
 // member role, which grants the interception create permission required
 // to pass IsAuthorized. The DB-backed organization-member role is omitted
@@ -213,7 +209,7 @@ func TestAuthorization(t *testing.T) {
 					Status:   user.Status,
 					Roles: []string{
 						"member",
-						fmt.Sprintf("organization-member:%s", testOrgID),
+						fmt.Sprintf("organization-member:%s", uuid.NewString()),
 					},
 					Groups: []string{},
 				}, nil)
