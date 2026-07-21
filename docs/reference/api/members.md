@@ -1,4 +1,6 @@
-# Members
+---
+title: Members
+---
 
 ## List organization members
 

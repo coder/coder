@@ -1,5 +1,9 @@
+---
+title: server create-admin-user
+description: "Create a new admin user with the given username, email and password and adds it to every organization."
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# server create-admin-user
 
 Create a new admin user with the given username, email and password and adds it to every organization.
 

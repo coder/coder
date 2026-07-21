@@ -1,4 +1,6 @@
-# AI Gateway
+---
+title: AI Gateway
+---
 
 ## List AI Gateway clients
 

@@ -1,5 +1,9 @@
+---
+title: organizations members add
+description: Add a new member to the current organization
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# organizations members add
 
 Add a new member to the current organization
 

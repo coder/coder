@@ -1,4 +1,6 @@
-# Secrets
+---
+title: Secrets
+---
 
 ## List user secrets
 

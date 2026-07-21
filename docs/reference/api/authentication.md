@@ -1,4 +1,6 @@
-# Authentication
+---
+title: Authentication
+---
 
 Long-lived tokens can be generated to perform actions on behalf of your user account:
 

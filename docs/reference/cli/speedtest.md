@@ -1,5 +1,9 @@
+---
+title: speedtest
+description: Run upload and download tests from your machine to a workspace
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# speedtest
 
 Run upload and download tests from your machine to a workspace
 

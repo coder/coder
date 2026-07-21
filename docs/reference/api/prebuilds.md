@@ -1,4 +1,6 @@
-# Prebuilds
+---
+title: Prebuilds
+---
 
 ## Get prebuilds settings
 

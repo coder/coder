@@ -1,4 +1,6 @@
-# Provisioning
+---
+title: Provisioning
+---
 
 ## Get provisioner daemons
 

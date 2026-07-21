@@ -1,5 +1,9 @@
+---
+title: secret
+description: Manage secrets
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# secret
 
 Manage secrets
 

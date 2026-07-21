@@ -1,5 +1,10 @@
+---
+title: Command Line
+description: Learn how to use Coder CLI
+icon_path: "./images/icons/terminal.svg"
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# coder
 
 ## Usage
 

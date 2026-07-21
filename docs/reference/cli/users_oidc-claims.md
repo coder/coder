@@ -1,5 +1,9 @@
+---
+title: users oidc-claims
+description: Display the OIDC claims for the authenticated user.
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# users oidc-claims
 
 Display the OIDC claims for the authenticated user.
 

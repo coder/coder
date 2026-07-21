@@ -1,5 +1,9 @@
+---
+title: ai-gateway keys list
+description: List AI Gateway keys
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# ai-gateway keys list
 
 List AI Gateway keys
 

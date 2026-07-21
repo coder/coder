@@ -1,5 +1,9 @@
+---
+title: stat disk
+description: "Show disk usage, in gigabytes."
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# stat disk
 
 Show disk usage, in gigabytes.
 

@@ -1,4 +1,6 @@
-# TemplateBuilder
+---
+title: TemplateBuilder
+---
 
 ## List template builder base templates
 

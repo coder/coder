@@ -1,4 +1,6 @@
-# Debug
+---
+title: Debug
+---
 
 ## Debug Info Wireguard Coordinator
 

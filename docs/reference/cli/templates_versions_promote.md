@@ -1,5 +1,9 @@
+---
+title: templates versions promote
+description: Promote a template version to active.
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# templates versions promote
 
 Promote a template version to active.
 

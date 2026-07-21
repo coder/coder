@@ -1,4 +1,6 @@
-# Workspaces
+---
+title: Workspaces
+---
 
 ## Create user workspace by organization
 

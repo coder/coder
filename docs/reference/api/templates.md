@@ -1,4 +1,6 @@
-# Templates
+---
+title: Templates
+---
 
 ## Get templates by organization
 

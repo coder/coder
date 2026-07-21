@@ -1,5 +1,9 @@
+---
+title: organizations members remove
+description: Remove a new member to the current organization
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# organizations members remove
 
 Remove a new member to the current organization
 

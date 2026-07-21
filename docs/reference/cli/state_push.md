@@ -1,5 +1,9 @@
+---
+title: state push
+description: Push a Terraform state file to a workspace.
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# state push
 
 Push a Terraform state file to a workspace.
 

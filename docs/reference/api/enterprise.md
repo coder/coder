@@ -1,4 +1,6 @@
-# Enterprise
+---
+title: Enterprise
+---
 
 ## OAuth2 authorization server metadata
 

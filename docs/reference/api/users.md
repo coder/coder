@@ -1,4 +1,6 @@
-# Users
+---
+title: Users
+---
 
 ## Get users
 

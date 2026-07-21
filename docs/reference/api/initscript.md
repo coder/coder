@@ -1,4 +1,6 @@
-# InitScript
+---
+title: InitScript
+---
 
 ## Get agent init script
 

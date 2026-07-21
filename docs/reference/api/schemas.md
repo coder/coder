@@ -1,4 +1,6 @@
-# Schemas
+---
+title: Schemas
+---
 
 ## agentsdk.AWSInstanceIdentityToken
 

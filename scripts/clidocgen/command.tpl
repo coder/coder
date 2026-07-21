@@ -1,5 +1,5 @@
+{{- frontMatter . -}}
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# {{ fullName . }}
 
 {{ with .Short }}
 {{ . }}

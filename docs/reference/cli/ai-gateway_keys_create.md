@@ -1,5 +1,9 @@
+---
+title: ai-gateway keys create
+description: Create an AI Gateway key
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# ai-gateway keys create
 
 Create an AI Gateway key
 

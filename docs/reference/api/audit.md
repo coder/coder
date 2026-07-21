@@ -1,4 +1,6 @@
-# Audit
+---
+title: Audit
+---
 
 ## Get audit logs
 

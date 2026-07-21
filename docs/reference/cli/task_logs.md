@@ -1,5 +1,9 @@
+---
+title: task logs
+description: "Show a task's logs"
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# task logs
 
 Show a task's logs
 

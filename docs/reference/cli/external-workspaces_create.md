@@ -1,5 +1,9 @@
+---
+title: external-workspaces create
+description: Create a new external workspace
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# external-workspaces create
 
 Create a new external workspace
 

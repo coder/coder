@@ -1,5 +1,9 @@
+---
+title: prebuilds pause
+description: Pause prebuilds
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# prebuilds pause
 
 Pause prebuilds
 
