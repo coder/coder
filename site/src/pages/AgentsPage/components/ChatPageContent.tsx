@@ -11,6 +11,7 @@ import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { getChatFileURL } from "../utils/chatAttachments";
 import { getProviderForModelOption } from "../utils/modelOptions";
+import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
 	AgentChatInput,
@@ -565,6 +566,12 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			modelCount={modelCount}
 			unsupportedProviderNames={unsupportedProviderNames}
 			aiGatewayDisabled={aiGatewayDisabled}
+			// Commands act on the whole chat, so they only make sense
+			// for new sends: hide them while editing a history or
+			// queued message.
+			slashCommands={
+				isEditing || isEditingHistoryMessage ? undefined : CHAT_SLASH_COMMANDS
+			}
 		/>
 	);
 

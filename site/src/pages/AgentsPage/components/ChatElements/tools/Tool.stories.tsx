@@ -1262,6 +1262,59 @@ export const ChatSummarized: Story = {
 	},
 };
 
+// Automatic compactions include source: "automatic" but keep the
+// plain "Summarized" label; only manual ones are called out.
+export const ChatSummarizedAutomaticSource: Story = {
+	args: {
+		name: "chat_summarized",
+		args: JSON.stringify({ source: "automatic" }),
+		result: { summary: "Compaction summary text.", source: "automatic" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: "Summarized" }),
+		).toBeInTheDocument();
+	},
+};
+
+// A user-requested /compact renders with a distinct manual label.
+export const ChatSummarizedManual: Story = {
+	args: {
+		name: "chat_summarized",
+		args: JSON.stringify({ source: "manual" }),
+		result: { summary: "Manual compaction summary text.", source: "manual" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", { name: "Summarized (manual)" });
+		expect(toggle).toBeInTheDocument();
+
+		await userEvent.click(toggle);
+
+		expect(
+			await canvas.findByText((text) =>
+				text.includes("Manual compaction summary text."),
+			),
+		).toBeInTheDocument();
+	},
+};
+
+// While the summary streams in, the manual source is only present in
+// the call args; the header still shows the running label.
+export const ChatSummarizedManualRunning: Story = {
+	args: {
+		name: "chat_summarized",
+		args: JSON.stringify({ source: "manual" }),
+		status: "running",
+		result: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Summarizing…")).toBeInTheDocument();
+	},
+};
+
 // ---------------------------------------------------------------------------
 // SubagentInterrupt stories
 // ---------------------------------------------------------------------------

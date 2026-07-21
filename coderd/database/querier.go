@@ -577,6 +577,18 @@ type sqlcQuerier interface {
 	GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error)
 	GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error)
 	GetGroupMembers(ctx context.Context, includeSystem bool) ([]GroupMember, error)
+	// Returns each user's AI spend attributed to the queried group, on or after
+	// period_start until NOW. Only current members of the queried group are
+	// returned. spend_limit_micros and limit_source are populated only when the
+	// queried group is the user's effective budget source. The effective_group_id
+	// is null when the user has no configured budget or when the effective group
+	// belongs to a different organization than the queried group.
+	// The period_start parameter is normalized to its UTC calendar day.
+	// TODO(AIGOV-527): unify effective group resolution in a single place.
+	// Spend is aggregated for the queried group, not the user's effective group.
+	// A LEFT JOIN leaves spend_limit_micros and limit_source null for users
+	// whose effective budget source is not the queried group.
+	GetGroupMembersAISpend(ctx context.Context, arg GetGroupMembersAISpendParams) ([]GetGroupMembersAISpendRow, error)
 	GetGroupMembersByGroupID(ctx context.Context, arg GetGroupMembersByGroupIDParams) ([]GroupMember, error)
 	GetGroupMembersByGroupIDPaginated(ctx context.Context, arg GetGroupMembersByGroupIDPaginatedParams) ([]GetGroupMembersByGroupIDPaginatedRow, error)
 	// Returns the total count of members in a group. Shows the total
@@ -651,6 +663,11 @@ type sqlcQuerier interface {
 	GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid.UUID) ([]GetOAuth2ProviderAppsByUserIDRow, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, arg GetOrganizationByNameParams) (Organization, error)
+	// Returns AI spend limits and aggregate spend for groups in @group_ids that
+	// belong to @organization_id, on or after period_start until NOW. The spend
+	// limit is null when the group has no configured budget.
+	// The period_start parameter is normalized to its UTC calendar day.
+	GetOrganizationGroupsAISpend(ctx context.Context, arg GetOrganizationGroupsAISpendParams) ([]GetOrganizationGroupsAISpendRow, error)
 	GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]GetOrganizationIDsByMemberIDsRow, error)
 	GetOrganizationResourceCountByID(ctx context.Context, organizationID uuid.UUID) (GetOrganizationResourceCountByIDRow, error)
 	GetOrganizations(ctx context.Context, arg GetOrganizationsParams) ([]Organization, error)
@@ -1373,9 +1390,10 @@ type sqlcQuerier interface {
 	// the injectable quartz.Clock used by FinalizeStale sweeps.
 	UpdateChatDebugStep(ctx context.Context, arg UpdateChatDebugStepParams) (ChatDebugStep, error)
 	// Atomically updates the execution-state-managed fields on a chat:
-	// status, archived, last_error, ownership identifiers, and the
-	// requires-action deadline. Callers compose this with transition
-	// mutations inside a single ChatMachine.Update transaction.
+	// status, archived, last_error, ownership identifiers, the
+	// requires-action deadline, and the manual compaction request marker.
+	// Callers compose this with transition mutations inside a single
+	// ChatMachine.Update transaction.
 	UpdateChatExecutionState(ctx context.Context, arg UpdateChatExecutionStateParams) (Chat, error)
 	// Bumps the heartbeat timestamp for the given set of chat IDs,
 	// provided they are still running and owned by the specified

@@ -44,13 +44,9 @@ func TestRegions(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		db, pubsub := dbtestutil.NewDB(t)
-
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+		client, db, _ := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				AppHostname: appHostname,
-				Database:    db,
-				Pubsub:      pubsub,
 			},
 		})
 

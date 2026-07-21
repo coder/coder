@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -252,6 +253,132 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.EqualValues(t, 2, s4.Threads)
 		require.ElementsMatch(t, []string{"anthropic", "openai"}, s4.Providers)
 		require.ElementsMatch(t, []string{"claude-4", "gpt-4"}, s4.Models)
+	})
+
+	t.Run("NetworkCalls", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		opts := aibridgeOpts(t)
+		opts.Options.Database = db
+		opts.Options.Pubsub = ps
+		client, _, firstUser := coderdenttest.NewWithDatabase(t, opts)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+
+		makeInterception := func(clientSessionID string, startOffset time.Duration, fw *uuid.UUID, seq int32) {
+			endedAt := now.Add(startOffset + time.Minute)
+			params := database.InsertAIBridgeInterceptionParams{
+				InitiatorID:     firstUser.UserID,
+				StartedAt:       now.Add(startOffset),
+				ClientSessionID: sql.NullString{String: clientSessionID, Valid: true},
+			}
+			if fw != nil {
+				params.AgentFirewallSessionID = uuid.NullUUID{UUID: *fw, Valid: true}
+				params.AgentFirewallSequenceNumber = sql.NullInt32{Int32: seq, Valid: true}
+			}
+			dbgen.AIBridgeInterception(t, db, params, &endedAt)
+		}
+
+		type logSeed struct {
+			seq     int32
+			allowed bool
+		}
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+		insertLogs := func(fw uuid.UUID, seeds []logSeed) {
+			params := database.InsertBoundaryLogsParams{
+				SessionID: fw,
+				OwnerID:   firstUser.UserID,
+			}
+			for _, s := range seeds {
+				rule := ""
+				if s.allowed {
+					rule = "allow example.com"
+				}
+				params.ID = append(params.ID, uuid.New())
+				params.SequenceNumber = append(params.SequenceNumber, s.seq)
+				params.CapturedAt = append(params.CapturedAt, now)
+				params.CreatedAt = append(params.CreatedAt, now)
+				params.Proto = append(params.Proto, "http")
+				params.Method = append(params.Method, "GET")
+				params.Detail = append(params.Detail, "https://example.com")
+				params.MatchedRule = append(params.MatchedRule, rule)
+			}
+			_, err := db.InsertBoundaryLogs(sysCtx, params)
+			require.NoError(t, err, "insert boundary logs")
+		}
+
+		fw1, fw2, fw3, fw4 := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+
+		// Sessions A and B share firewall session fw1. A is marked at seq 0, B at
+		// seq 3, so A's window is (0,3) and B's is (3, +inf).
+		makeInterception("sess-A", -time.Minute, &fw1, 0)
+		makeInterception("sess-B", -2*time.Minute, &fw1, 3)
+		insertLogs(fw1, []logSeed{
+			{0, true},  // LLM call for A, excluded
+			{1, true},  // A egress
+			{2, false}, // A egress, blocked
+			{3, true},  // LLM call for B, excluded
+			{4, true},  // B egress
+			{5, true},  // B egress
+		})
+
+		// Session C spans two firewall sessions (agent restarted): fw2 and fw3.
+		// Its counts sum across both windows.
+		makeInterception("sess-C", -3*time.Minute, &fw2, 0)
+		makeInterception("sess-C", -4*time.Minute, &fw3, 0)
+		insertLogs(fw2, []logSeed{
+			{0, true}, // LLM call, excluded
+			{1, true},
+			{2, true},
+		})
+		insertLogs(fw3, []logSeed{
+			{0, true},  // LLM call, excluded
+			{1, false}, // blocked
+		})
+
+		// Session D never passed through the firewall: NetworkCalls stays nil.
+		makeInterception("sess-D", -5*time.Minute, nil, 0)
+
+		// Session E is firewall-active but has no logs in range: counts are zero.
+		makeInterception("sess-E", -6*time.Minute, &fw4, 0)
+
+		//nolint:gocritic // Owner role is irrelevant here.
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+
+		byID := make(map[string]codersdk.AIBridgeSession, len(res.Sessions))
+		for _, s := range res.Sessions {
+			byID[s.ID] = s
+		}
+
+		// A: seq 1,2 in (0,3); seq 2 blocked. LLM calls at 0 and 3 excluded.
+		a := byID["sess-A"]
+		require.NotNil(t, a.NetworkCalls)
+		require.EqualValues(t, 2, a.NetworkCalls.Total)
+		require.EqualValues(t, 1, a.NetworkCalls.Blocked)
+
+		// B: seq 4,5 in (3, +inf); none blocked. No bleed from A's window.
+		b := byID["sess-B"]
+		require.NotNil(t, b.NetworkCalls)
+		require.EqualValues(t, 2, b.NetworkCalls.Total)
+		require.EqualValues(t, 0, b.NetworkCalls.Blocked)
+
+		// C: fw2 contributes seq 1,2; fw3 contributes seq 1 (blocked).
+		c := byID["sess-C"]
+		require.NotNil(t, c.NetworkCalls)
+		require.EqualValues(t, 3, c.NetworkCalls.Total)
+		require.EqualValues(t, 1, c.NetworkCalls.Blocked)
+
+		// D: no firewall session, so monitoring was not active.
+		d := byID["sess-D"]
+		require.Nil(t, d.NetworkCalls)
+
+		// E: firewall-active but no logs in range.
+		e := byID["sess-E"]
+		require.NotNil(t, e.NetworkCalls)
+		require.EqualValues(t, 0, e.NetworkCalls.Total)
+		require.EqualValues(t, 0, e.NetworkCalls.Blocked)
 	})
 
 	t.Run("Pagination", func(t *testing.T) {
@@ -3204,6 +3331,758 @@ func TestUserAISpendStatusRoleAccess(t *testing.T) {
 			require.Equal(t, tc.WantCode, sdkErr.StatusCode())
 		})
 	}
+}
+
+func TestOrganizationGroupsAISpend(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RequiresLicenseFeature", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{DeploymentValues: dv},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is irrelevant here; the request is blocked before RBAC.
+		_, err := client.OrganizationGroupsAISpend(ctx, owner.OrganizationID, []uuid.UUID{uuid.New()})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "AI Gateway is a Premium feature")
+	})
+
+	t.Run("RequiresExperiment", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{DeploymentValues: dv},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+					codersdk.FeatureAIBridge:     1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is irrelevant here; the request is blocked before RBAC.
+		_, err := client.OrganizationGroupsAISpend(ctx, owner.OrganizationID, []uuid.UUID{uuid.New()})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "ai-gateway-cost-control")
+	})
+
+	t.Run("MissingGroupIDs", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "missing-ids-group"})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Given: no group_ids query parameter.
+		// When: querying spend.
+		_, err := adminClient.OrganizationGroupsAISpend(ctx, group.OrganizationID, nil)
+
+		// Then: request fails with 400.
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("InclusiveMaxGroupIDs", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "inclusive-max-group-ids-group"})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Given: 100 group_ids, exactly at the cap.
+		ids := make([]uuid.UUID, 100)
+		for i := range ids {
+			ids[i] = uuid.New()
+		}
+
+		// When: querying spend.
+		_, err := adminClient.OrganizationGroupsAISpend(ctx, group.OrganizationID, ids)
+
+		// Then: request succeeds.
+		require.NoError(t, err)
+	})
+
+	t.Run("TooManyGroupIDs", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "too-many-group-ids-group"})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Given: 101 group_ids, above the cap of 100.
+		ids := make([]uuid.UUID, 101)
+		for i := range ids {
+			ids[i] = uuid.New()
+		}
+
+		// When: querying spend.
+		_, err := adminClient.OrganizationGroupsAISpend(ctx, group.OrganizationID, ids)
+
+		// Then: request fails with 400.
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("MalformedGroupID", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "malformed-group-id-group"})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Given: a malformed UUID passed via raw HTTP.
+		// When: querying spend.
+		res, err := adminClient.Request(ctx, http.MethodGet,
+			"/api/v2/organizations/"+group.OrganizationID.String()+"/groups/ai/spend",
+			nil,
+			func(r *http.Request) {
+				q := r.URL.Query()
+				q.Set("group_ids", "not-a-uuid")
+				r.URL.RawQuery = q.Encode()
+			},
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		// Then: 400.
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("GroupInOtherOrgExcluded", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: two groups, one in the queried org and one in a different org.
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "primary-org-group",
+			Database:  db,
+			Pubsub:    ps,
+		})
+		otherOrg := dbgen.Organization(t, db, database.Organization{})
+		otherOrgGroup := dbgen.Group(t, db, database.Group{OrganizationID: otherOrg.ID})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// When: querying the primary org with both group IDs.
+		resp, err := adminClient.OrganizationGroupsAISpend(ctx, group.OrganizationID, []uuid.UUID{group.ID, otherOrgGroup.ID})
+		require.NoError(t, err)
+
+		// Then: only the primary-org group is returned.
+		require.Len(t, resp.Groups, 1)
+		require.Equal(t, group.ID, resp.Groups[0].GroupID)
+	})
+
+	tests := []struct {
+		name             string
+		setBudget        bool
+		spendLimit       int64
+		spent            int64
+		wantSpendLimit   *int64
+		wantCurrentSpend int64
+	}{
+		{
+			name: "NoBudgetNoSpend",
+		},
+		{
+			name:             "ZeroLimitBudget",
+			setBudget:        true,
+			spendLimit:       0,
+			wantSpendLimit:   ptr.Ref(int64(0)),
+			wantCurrentSpend: 0,
+		},
+		{
+			name:             "BudgetZeroSpend",
+			setBudget:        true,
+			spendLimit:       1_000_000_000,
+			wantSpendLimit:   ptr.Ref(int64(1_000_000_000)),
+			wantCurrentSpend: 0,
+		},
+		{
+			name:             "BudgetWithSpend",
+			setBudget:        true,
+			spendLimit:       1_000_000_000,
+			spent:            250_000_000,
+			wantSpendLimit:   ptr.Ref(int64(1_000_000_000)),
+			wantCurrentSpend: 250_000_000,
+		},
+		{
+			name:             "SpendExceedsLimit",
+			setBudget:        true,
+			spendLimit:       1_000_000_000,
+			spent:            1_500_000_000,
+			wantSpendLimit:   ptr.Ref(int64(1_000_000_000)),
+			wantCurrentSpend: 1_500_000_000,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Given: an admin, a group, and optionally a budget and seeded spend.
+			clock := quartz.NewMock(t)
+			db, ps := dbtestutil.NewDB(t)
+			adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+				GroupName: "spend-test-group",
+				Clock:     clock,
+				Database:  db,
+				Pubsub:    ps,
+			})
+			ctx := testutil.Context(t, testutil.WaitLong)
+			clock.Set(time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC))
+			wantPeriodStart := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+			wantPeriodEnd := time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC)
+
+			if tt.setBudget {
+				_, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+					SpendLimitMicros: tt.spendLimit,
+				})
+				require.NoError(t, err)
+			}
+			if tt.spent > 0 {
+				_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+					UserID:           targetUser.ID,
+					EffectiveGroupID: group.ID,
+					Day:              clock.Now(),
+					CostMicros:       tt.spent,
+				})
+				require.NoError(t, err)
+			}
+
+			// When: querying the group's spend.
+			got, err := adminClient.OrganizationGroupsAISpend(ctx, group.OrganizationID, []uuid.UUID{group.ID})
+			require.NoError(t, err)
+
+			// Then: the response contains one row with the expected fields.
+			require.Equal(t, wantPeriodStart, got.PeriodStart)
+			require.Equal(t, wantPeriodEnd, got.PeriodEnd)
+			require.Len(t, got.Groups, 1)
+			require.Equal(t, group.ID, got.Groups[0].GroupID)
+			require.Equal(t, tt.wantSpendLimit, got.Groups[0].SpendLimitMicros)
+			require.Equal(t, tt.wantCurrentSpend, got.Groups[0].CurrentSpendMicros)
+		})
+	}
+}
+
+func TestOrganizationGroupsAISpendRoleAccess(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{DeploymentValues: dv},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC:          1,
+				codersdk.FeatureAIBridge:              1,
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		},
+	})
+	userAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+	orgAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
+	orgUserAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgUserAdmin(owner.OrganizationID))
+	memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+	otherOrg := coderdenttest.CreateOrganization(t, ownerClient, coderdenttest.CreateOrganizationOptions{})
+	otherOrgMemberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, otherOrg.ID)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	group, err := userAdminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+		Name: "role-access-group",
+	})
+	require.NoError(t, err)
+
+	cases := []struct {
+		name      string
+		client    *codersdk.Client
+		wantGroup bool
+	}{
+		{name: "Owner", client: ownerClient, wantGroup: true},
+		{name: "UserAdmin", client: userAdminClient, wantGroup: true},
+		{name: "OrgAdmin", client: orgAdminClient, wantGroup: true},
+		{name: "OrgUserAdmin", client: orgUserAdminClient, wantGroup: true},
+		{name: "Member", client: memberClient, wantGroup: true},
+		{name: "OtherOrgMember", client: otherOrgMemberClient, wantGroup: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			resp, err := tc.client.OrganizationGroupsAISpend(ctx, owner.OrganizationID, []uuid.UUID{group.ID})
+			if !tc.wantGroup {
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, resp.Groups, 1)
+			require.Equal(t, group.ID, resp.Groups[0].GroupID)
+		})
+	}
+}
+
+func TestGroupMembersAISpend(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RequiresLicenseFeature", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{DeploymentValues: dv},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			},
+		})
+		adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		group, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "req-license-feature-members-group",
+		})
+		require.NoError(t, err)
+
+		_, err = adminClient.GroupMembersAISpend(ctx, group.ID, []uuid.UUID{uuid.New()})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "AI Gateway is a Premium feature")
+	})
+
+	t.Run("RequiresExperiment", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{DeploymentValues: dv},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+					codersdk.FeatureAIBridge:     1,
+				},
+			},
+		})
+		adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		group, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "req-experiment-members-group",
+		})
+		require.NoError(t, err)
+
+		_, err = adminClient.GroupMembersAISpend(ctx, group.ID, []uuid.UUID{uuid.New()})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "ai-gateway-cost-control")
+	})
+
+	t.Run("MissingUserIDs", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "missing-ids-members-group"})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// When: querying with no user_ids.
+		_, err := adminClient.GroupMembersAISpend(ctx, group.ID, nil)
+
+		// Then: request fails with 400.
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("InclusiveMaxUserIDs", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "inclusive-max-user-ids-group"})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Given: 100 user_ids, exactly at the cap.
+		ids := make([]uuid.UUID, 100)
+		for i := range ids {
+			ids[i] = uuid.New()
+		}
+
+		// When: querying spend.
+		_, err := adminClient.GroupMembersAISpend(ctx, group.ID, ids)
+
+		// Then: request succeeds.
+		require.NoError(t, err)
+	})
+
+	t.Run("TooManyUserIDs", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "too-many-user-ids-group"})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Given: 101 user_ids, above the cap of 100.
+		ids := make([]uuid.UUID, 101)
+		for i := range ids {
+			ids[i] = uuid.New()
+		}
+
+		// When: querying spend.
+		_, err := adminClient.GroupMembersAISpend(ctx, group.ID, ids)
+
+		// Then: request fails with 400.
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("MalformedUserID", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "malformed-user-id-group"})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Given: a malformed UUID passed via raw HTTP.
+		res, err := adminClient.Request(ctx, http.MethodGet,
+			"/api/v2/groups/"+group.ID.String()+"/members/ai/spend",
+			nil,
+			func(r *http.Request) {
+				q := r.URL.Query()
+				q.Set("user_ids", "not-a-uuid")
+				r.URL.RawQuery = q.Encode()
+			},
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		// Then: 400.
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("UserInOtherOrgExcluded", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "primary-org-members-group",
+			Database:  db,
+			Pubsub:    ps,
+		})
+		otherOrg := dbgen.Organization(t, db, database.Organization{})
+		otherOrgUser := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: otherOrgUser.ID, OrganizationID: otherOrg.ID})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// When: querying the group with a user from the primary org and one from another org.
+		resp, err := adminClient.GroupMembersAISpend(ctx, group.ID, []uuid.UUID{targetUser.ID, otherOrgUser.ID})
+		require.NoError(t, err)
+
+		// Then: only the primary-org user is returned.
+		require.Len(t, resp.Members, 1)
+		require.Equal(t, targetUser.ID, resp.Members[0].UserID)
+		require.Nil(t, resp.Members[0].EffectiveGroupID)
+		require.Nil(t, resp.Members[0].GroupBudget)
+		require.Equal(t, int64(0), resp.Members[0].GroupSpendMicros)
+	})
+
+	tests := []struct {
+		name               string
+		groupLimit         int64
+		overrideLimit      int64
+		spent              int64
+		wantEffectiveGroup bool
+		wantGroupBudget    *codersdk.AIGroupBudget
+		wantSpendMicros    int64
+	}{
+		{
+			name: "NoBudgetNoSpend",
+		},
+		{
+			name:               "BudgetZeroSpend",
+			groupLimit:         1_000_000_000,
+			wantEffectiveGroup: true,
+			wantGroupBudget: &codersdk.AIGroupBudget{
+				SpendLimitMicros: 1_000_000_000,
+				LimitSource:      codersdk.AIBudgetLimitSourceGroup,
+			},
+		},
+		{
+			name:               "BudgetWithSpend",
+			groupLimit:         1_000_000_000,
+			spent:              250_000_000,
+			wantEffectiveGroup: true,
+			wantGroupBudget: &codersdk.AIGroupBudget{
+				SpendLimitMicros: 1_000_000_000,
+				LimitSource:      codersdk.AIBudgetLimitSourceGroup,
+			},
+			wantSpendMicros: 250_000_000,
+		},
+		{
+			name:            "NoBudgetWithSpend",
+			spent:           100_000_000,
+			wantSpendMicros: 100_000_000,
+		},
+		{
+			name:               "OverrideBudget",
+			overrideLimit:      500_000_000,
+			wantEffectiveGroup: true,
+			wantGroupBudget: &codersdk.AIGroupBudget{
+				SpendLimitMicros: 500_000_000,
+				LimitSource:      codersdk.AIBudgetLimitSourceUserOverride,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Given: an admin, a group with a member, optionally a group budget,
+			// a user override, and seeded spend attributed to the group.
+			clock := quartz.NewMock(t)
+			db, ps := dbtestutil.NewDB(t)
+			adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+				GroupName: "members-spend-test-group",
+				Clock:     clock,
+				Database:  db,
+				Pubsub:    ps,
+			})
+			ctx := testutil.Context(t, testutil.WaitLong)
+			clock.Set(time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC))
+			wantPeriodStart := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+			wantPeriodEnd := time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC)
+
+			if tt.groupLimit > 0 {
+				_, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+					SpendLimitMicros: tt.groupLimit,
+				})
+				require.NoError(t, err)
+			}
+			if tt.overrideLimit > 0 {
+				_, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+					GroupID:          group.ID,
+					SpendLimitMicros: tt.overrideLimit,
+				})
+				require.NoError(t, err)
+			}
+			if tt.spent > 0 {
+				_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+					UserID:           targetUser.ID,
+					EffectiveGroupID: group.ID,
+					Day:              clock.Now(),
+					CostMicros:       tt.spent,
+				})
+				require.NoError(t, err)
+			}
+
+			// When: querying the group's member spend.
+			got, err := adminClient.GroupMembersAISpend(ctx, group.ID, []uuid.UUID{targetUser.ID})
+			require.NoError(t, err)
+
+			// Then: one row is returned with the expected fields.
+			require.Equal(t, wantPeriodStart, got.PeriodStart)
+			require.Equal(t, wantPeriodEnd, got.PeriodEnd)
+			require.Len(t, got.Members, 1)
+			require.Equal(t, targetUser.ID, got.Members[0].UserID)
+			if tt.wantEffectiveGroup {
+				require.NotNil(t, got.Members[0].EffectiveGroupID)
+				require.Equal(t, group.ID, *got.Members[0].EffectiveGroupID)
+			} else {
+				require.Nil(t, got.Members[0].EffectiveGroupID)
+			}
+			require.Equal(t, tt.wantGroupBudget, got.Members[0].GroupBudget)
+			require.Equal(t, tt.wantSpendMicros, got.Members[0].GroupSpendMicros)
+		})
+	}
+
+	t.Run("CrossOrgEffectiveGroupMasked", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
+		db, ps := dbtestutil.NewDB(t)
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{DeploymentValues: dv, Database: db, Pubsub: ps},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC:          1,
+					codersdk.FeatureAIBridge:              1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Given: a member of the queried group whose highest-limit budget
+		// group lives in a different org.
+		otherOrg := coderdenttest.CreateOrganization(t, ownerClient, coderdenttest.CreateOrganizationOptions{})
+		_, targetUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: targetUser.ID, OrganizationID: otherOrg.ID})
+		queried, err := userAdminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "queried-cross-org-mask-group",
+		})
+		require.NoError(t, err)
+		_, err = userAdminClient.PatchGroup(ctx, queried.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{targetUser.ID.String()},
+		})
+		require.NoError(t, err)
+		crossOrgGroup, err := userAdminClient.CreateGroup(ctx, otherOrg.ID, codersdk.CreateGroupRequest{
+			Name: "cross-org-budget-group",
+		})
+		require.NoError(t, err)
+		_, err = userAdminClient.PatchGroup(ctx, crossOrgGroup.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{targetUser.ID.String()},
+		})
+		require.NoError(t, err)
+		_, err = userAdminClient.UpsertGroupAIBudget(ctx, crossOrgGroup.ID, codersdk.UpsertGroupAIBudgetRequest{
+			SpendLimitMicros: 9_999_999,
+		})
+		require.NoError(t, err)
+
+		// When: the owner, who can read both orgs, queries the primary group.
+		//nolint:gocritic // The test asserts that even an owner sees the mask.
+		resp, err := ownerClient.GroupMembersAISpend(ctx, queried.ID, []uuid.UUID{targetUser.ID})
+		require.NoError(t, err)
+
+		// Then: effective_group_id is nil, even though the caller can read both orgs.
+		require.Len(t, resp.Members, 1)
+		require.Equal(t, targetUser.ID, resp.Members[0].UserID)
+		require.Nil(t, resp.Members[0].EffectiveGroupID, "cross-org effective group must be masked even for the owner")
+		require.Nil(t, resp.Members[0].GroupBudget)
+		require.Equal(t, int64(0), resp.Members[0].GroupSpendMicros)
+	})
+
+	t.Run("OrgScopedRoute", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "org-scoped-route-group"})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// When: hitting the org-scoped alias route via raw HTTP.
+		res, err := adminClient.Request(ctx, http.MethodGet,
+			"/api/v2/organizations/"+group.OrganizationID.String()+"/groups/"+group.Name+"/members/ai/spend",
+			nil,
+			func(r *http.Request) {
+				q := r.URL.Query()
+				q.Set("user_ids", targetUser.ID.String())
+				r.URL.RawQuery = q.Encode()
+			},
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		// Then: 200 with the target user in the response.
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		var got codersdk.GroupMembersAISpend
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&got))
+		require.Len(t, got.Members, 1)
+		require.Equal(t, targetUser.ID, got.Members[0].UserID)
+		require.Nil(t, got.Members[0].EffectiveGroupID)
+		require.Nil(t, got.Members[0].GroupBudget)
+		require.Equal(t, int64(0), got.Members[0].GroupSpendMicros)
+	})
+}
+
+func TestGroupMembersAISpendRoleAccess(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{DeploymentValues: dv},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC:          1,
+				codersdk.FeatureAIBridge:              1,
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		},
+	})
+	userAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+	orgAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
+	orgUserAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgUserAdmin(owner.OrganizationID))
+	memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+	_, otherMember := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+	otherOrg := coderdenttest.CreateOrganization(t, ownerClient, coderdenttest.CreateOrganizationOptions{})
+	otherOrgMemberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, otherOrg.ID)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	group, err := userAdminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+		Name: "role-access-members-group",
+	})
+	require.NoError(t, err)
+	_, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+		AddUsers: []string{member.ID.String(), otherMember.ID.String()},
+	})
+	require.NoError(t, err)
+
+	cases := []struct {
+		name       string
+		client     *codersdk.Client
+		wantMember bool
+	}{
+		{name: "Owner", client: ownerClient, wantMember: true},
+		{name: "UserAdmin", client: userAdminClient, wantMember: true},
+		{name: "OrgAdmin", client: orgAdminClient, wantMember: true},
+		{name: "OrgUserAdmin", client: orgUserAdminClient, wantMember: true},
+		{name: "Member", client: memberClient, wantMember: true},
+		{name: "OtherOrgMember", client: otherOrgMemberClient, wantMember: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			resp, err := tc.client.GroupMembersAISpend(ctx, group.ID, []uuid.UUID{member.ID})
+			if !tc.wantMember {
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, resp.Members, 1)
+			require.Equal(t, member.ID, resp.Members[0].UserID)
+		})
+	}
+
+	t.Run("MemberCanOnlyReadOwnRow", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// When: a member queries spend for themselves and another member.
+		resp, err := memberClient.GroupMembersAISpend(ctx, group.ID, []uuid.UUID{member.ID, otherMember.ID})
+		require.NoError(t, err)
+
+		// Then: only the caller's own row is returned.
+		require.Len(t, resp.Members, 1)
+		require.Equal(t, member.ID, resp.Members[0].UserID)
+	})
 }
 
 // aiCostControlTestOptions configures the setup of an AI cost control test

@@ -3465,6 +3465,18 @@ class ExperimentalApiMethods {
 	};
 
 	/**
+	 * Requests a manual context compaction on an idle chat. The
+	 * compaction runs asynchronously through the chat worker and
+	 * bypasses the automatic usage threshold.
+	 */
+	compactChat = async (chatId: string): Promise<TypesGen.Chat> => {
+		const response = await this.axios.post<TypesGen.Chat>(
+			`/api/experimental/chats/${chatId}/compact`,
+		);
+		return response.data;
+	};
+
+	/**
 	 * Re-pins the chat to its agent's latest context snapshot and clears
 	 * the dirty marker. Returns the updated chat.
 	 */

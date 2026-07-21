@@ -1135,6 +1135,10 @@ var (
 	// ErrNoDefaultChatModelConfig indicates no default chat model config
 	// is configured, so chatd cannot resolve a model for the request.
 	ErrNoDefaultChatModelConfig = xerrors.New("no default chat model config is configured")
+	// ErrNothingToCompact indicates a manual compaction request found
+	// no uncompressed conversation after the latest compaction
+	// boundary, so running a compaction would produce nothing.
+	ErrNothingToCompact = xerrors.New("nothing to compact")
 )
 
 // UsageLimitExceededError indicates the user has exceeded their chat spend
@@ -1286,9 +1290,10 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		return database.Chat{}, limitErr
 	}
 
-	apiKeyID, err := p.ensureSyntheticAPIKeyID(ctx, opts.OwnerID)
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("ensure synthetic API key: %w", err)
+	if opts.ModelConfigID != uuid.Nil {
+		if err := requireEnabledChatModelConfig(ctx, p.db, opts.ModelConfigID); err != nil {
+			return database.Chat{}, err
+		}
 	}
 
 	labelsJSON, err := json.Marshal(opts.Labels)
@@ -1332,13 +1337,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		initialMessages = append(initialMessages, systemMessage(userPromptContent, opts.ModelConfigID))
 	}
 	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, opts.ModelConfigID))
-	initialMessages = append(initialMessages, userMessageWithAPIKeyID(userContent, opts.ModelConfigID, opts.OwnerID, apiKeyID, opts.ReasoningEffort))
-
-	if opts.ModelConfigID != uuid.Nil {
-		if err := requireEnabledChatModelConfig(ctx, p.db, opts.ModelConfigID); err != nil {
-			return database.Chat{}, err
-		}
-	}
+	initialMessages = append(initialMessages, userMessage(userContent, opts.ModelConfigID, opts.OwnerID, opts.ReasoningEffort))
 
 	result, err := chatstate.CreateChat(ctx, p.db, p.pubsub, chatstate.CreateChatInput{
 		OrganizationID:    opts.OrganizationID,
@@ -1418,15 +1417,6 @@ func (p *Server) SendMessage(
 	requestedPlanMode := opts.PlanMode
 	requestedMCPServerIDs := opts.MCPServerIDs
 
-	chat, err := p.db.GetChatByID(ctx, opts.ChatID)
-	if err != nil {
-		return SendMessageResult{}, xerrors.Errorf("load chat: %w", err)
-	}
-	apiKeyID, err := p.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
-	if err != nil {
-		return SendMessageResult{}, xerrors.Errorf("ensure synthetic API key: %w", err)
-	}
-
 	var result SendMessageResult
 	machine := p.newChatMachine(opts.ChatID)
 	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
@@ -1491,7 +1481,7 @@ func (p *Server) SendMessage(
 		// Queue capacity is enforced inside tx.SendMessage; this
 		// wrapper only propagates the typed error.
 		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
-			Message:      userMessageWithAPIKeyID(content, modelConfigID, messageCreatedBy, apiKeyID, opts.ReasoningEffort),
+			Message:      userMessage(content, modelConfigID, messageCreatedBy, opts.ReasoningEffort),
 			BusyBehavior: busyBehaviorToChatState(busyBehavior),
 		})
 		if err != nil {
@@ -1665,15 +1655,6 @@ func (p *Server) EditMessage(
 	if err != nil {
 		return EditMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
 	}
-	chat, err := p.db.GetChatByID(ctx, opts.ChatID)
-	if err != nil {
-		return EditMessageResult{}, xerrors.Errorf("load chat: %w", err)
-	}
-	apiKeyID, err := p.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
-	if err != nil {
-		return EditMessageResult{}, xerrors.Errorf("ensure synthetic API key: %w", err)
-	}
-
 	var (
 		result        EditMessageResult
 		editedMsg     database.ChatMessage
@@ -1744,7 +1725,6 @@ func (p *Server) EditMessage(
 			Content:                 content,
 			ModelConfigIDOverride:   modelOverride,
 			ReasoningEffortOverride: reasoningEffortOverride,
-			APIKeyID:                sql.NullString{String: apiKeyID, Valid: true},
 		})
 		if err != nil {
 			if errors.Is(err, chatstate.ErrEditedMessageNotUser) {
@@ -2139,6 +2119,73 @@ func (p *Server) InterruptChat(
 			return xerrors.Errorf("reload chat after interrupt: %w", err)
 		}
 		refreshed = latest
+		return nil
+	})
+	if err != nil {
+		return chat, err
+	}
+
+	p.publishChatPubsubEvent(refreshed, codersdk.ChatWatchEventKindStatusChange, nil)
+	return refreshed, nil
+}
+
+// CompactChat records a manual compaction request through the
+// chatstate.RequestCompaction transition and wakes workers. The chat
+// must be idle (waiting); the worker then generates and commits the
+// compaction summary through the normal generation loop, bypassing
+// the usage threshold, and the chat returns to waiting with no
+// assistant follow-up.
+//
+// Returns the post-transition chat and an error so callers can map
+// state conflicts deliberately: archived chats return ErrChatArchived,
+// non-idle chats return a chatstate.ErrTransitionNotAllowed wrapper,
+// and chats with no compactable conversation return
+// ErrNothingToCompact.
+func (p *Server) CompactChat(
+	ctx context.Context,
+	chat database.Chat,
+) (database.Chat, error) {
+	if chat.ID == uuid.Nil {
+		return chat, xerrors.New("chat_id is required")
+	}
+
+	var refreshed database.Chat
+	machine := p.newChatMachine(chat.ID)
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		lockedChat, err := store.GetChatByID(ctx, chat.ID)
+		if err != nil {
+			return xerrors.Errorf("load chat: %w", err)
+		}
+		if lockedChat.Archived {
+			return ErrChatArchived
+		}
+		// Run the transition before content and usage validation so busy
+		// chats surface the state conflict first.
+		result, err := tx.RequestCompaction(chatstate.RequestCompactionInput{})
+		if err != nil {
+			return err
+		}
+		// Reject requests with nothing to compact inside the same
+		// transaction (rolling back the transition) so no LLM call
+		// is ever started for an empty or already-compacted chat.
+		// This also covers a double-/compact.
+		messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  chat.ID,
+			AfterID: 0,
+		})
+		if err != nil {
+			return xerrors.Errorf("load chat messages: %w", err)
+		}
+		boundary := latestCompactionBoundaryIndex(messages)
+		if _, ok := firstUncompressedAssistantAfter(messages, boundary); !ok {
+			return ErrNothingToCompact
+		}
+		// Usage validation runs last so rejected requests report the more
+		// specific state or content conflict. Its failure rolls back the marker.
+		if limitErr := p.checkUsageLimit(ctx, store, lockedChat.OwnerID, uuid.NullUUID{UUID: lockedChat.OrganizationID, Valid: true}); limitErr != nil {
+			return limitErr
+		}
+		refreshed = result.Chat
 		return nil
 	})
 	if err != nil {
@@ -2759,16 +2806,6 @@ type chatMessage struct {
 	runtimeMs           int64
 }
 
-type userChatMessage struct {
-	chatMessage
-	apiKeyID string
-}
-
-func (m userChatMessage) withCreatedBy(id uuid.UUID) userChatMessage {
-	m.chatMessage = m.chatMessage.withCreatedBy(id)
-	return m
-}
-
 func newChatMessage(
 	role database.ChatMessageRole,
 	content pqtype.NullRawMessage,
@@ -2785,25 +2822,6 @@ func newChatMessage(
 	}
 }
 
-func newUserChatMessage(
-	apiKeyID string,
-	content pqtype.NullRawMessage,
-	visibility database.ChatMessageVisibility,
-	modelConfigID uuid.UUID,
-	contentVersion int16,
-) userChatMessage {
-	return userChatMessage{
-		chatMessage: newChatMessage(
-			database.ChatMessageRoleUser,
-			content,
-			visibility,
-			modelConfigID,
-			contentVersion,
-		),
-		apiKeyID: apiKeyID,
-	}
-}
-
 func (m chatMessage) withCreatedBy(id uuid.UUID) chatMessage {
 	m.createdBy = id
 	return m
@@ -2812,10 +2830,8 @@ func (m chatMessage) withCreatedBy(id uuid.UUID) chatMessage {
 func appendMessageFields(
 	params *database.InsertChatMessagesParams,
 	msg chatMessage,
-	apiKeyID string,
 ) {
 	params.CreatedBy = append(params.CreatedBy, msg.createdBy)
-	params.APIKeyID = append(params.APIKeyID, apiKeyID)
 	params.ModelConfigID = append(params.ModelConfigID, msg.modelConfigID)
 	params.ReasoningEffort = append(params.ReasoningEffort, "")
 	params.Role = append(params.Role, msg.role)
@@ -2834,21 +2850,7 @@ func appendMessageFields(
 	params.RuntimeMs = append(params.RuntimeMs, msg.runtimeMs)
 }
 
-func appendChatMessage(params *database.InsertChatMessagesParams, msg chatMessage) {
-	if msg.role == database.ChatMessageRoleUser {
-		panic("developer error: use appendUserChatMessage for user-role messages")
-	}
-	appendMessageFields(params, msg, "")
-}
-
-func appendUserChatMessage(params *database.InsertChatMessagesParams, msg userChatMessage) {
-	appendMessageFields(params, msg.chatMessage, msg.apiKeyID)
-}
-
-// BuildSingleUserChatMessageInsertParams creates batch insert params for
-// one user message, requiring an apiKeyID for AI Gateway attribution.
-// BuildSingleChatMessageInsertParams creates batch insert params for one
-// non-user message using the shared chat message builder.
+// BuildSingleChatMessageInsertParams builds insert parameters for one chat message.
 func BuildSingleChatMessageInsertParams(
 	chatID uuid.UUID,
 	role database.ChatMessageRole,
@@ -2858,38 +2860,14 @@ func BuildSingleChatMessageInsertParams(
 	contentVersion int16,
 	createdBy uuid.UUID,
 ) database.InsertChatMessagesParams {
-	params := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+	params := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendMessageFields.
 		ChatID: chatID,
 	}
 	msg := newChatMessage(role, content, visibility, modelConfigID, contentVersion)
 	if createdBy != uuid.Nil {
 		msg = msg.withCreatedBy(createdBy)
 	}
-	if role == database.ChatMessageRoleUser {
-		appendMessageFields(&params, msg, "")
-	} else {
-		appendChatMessage(&params, msg)
-	}
-	return params
-}
-
-func BuildSingleUserChatMessageInsertParams(
-	chatID uuid.UUID,
-	apiKeyID string,
-	content pqtype.NullRawMessage,
-	visibility database.ChatMessageVisibility,
-	modelConfigID uuid.UUID,
-	contentVersion int16,
-	createdBy uuid.UUID,
-) database.InsertChatMessagesParams {
-	params := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendUserChatMessage.
-		ChatID: chatID,
-	}
-	msg := newUserChatMessage(apiKeyID, content, visibility, modelConfigID, contentVersion)
-	if createdBy != uuid.Nil {
-		msg = msg.withCreatedBy(createdBy)
-	}
-	appendUserChatMessage(&params, msg)
+	appendMessageFields(&params, msg)
 	return params
 }
 

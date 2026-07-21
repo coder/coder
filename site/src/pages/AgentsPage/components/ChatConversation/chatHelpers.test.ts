@@ -92,8 +92,29 @@ describe("extractContextUsageFromMessage", () => {
 // ---------------------------------------------------------------------------
 
 describe("getLatestContextUsage", () => {
-	it("returns null for an empty message list", () => {
-		expect(getLatestContextUsage([])).toBeNull();
+	const compactionSummaryMessage: TypesGen.ChatMessage = {
+		...MockChatMessage,
+		id: 2,
+		role: "tool",
+		content: [{ type: "tool-result", tool_name: "chat_summarized" }],
+	};
+
+	it("returns usage from the newest usage-bearing message", () => {
+		const messages = [
+			{ ...MockChatMessage, id: 1, usage: { input_tokens: 100 } },
+			{ ...MockChatMessage, id: 2 },
+			{ ...MockChatMessage, id: 3, usage: { input_tokens: 300 } },
+		];
+		const result = getLatestContextUsage(messages);
+		expect(result?.inputTokens).toBe(300);
+	});
+
+	it("returns null when a compaction summary is newer than usage", () => {
+		const messages = [
+			{ ...MockChatMessage, id: 1, usage: { input_tokens: 100 } },
+			compactionSummaryMessage,
+		];
+		expect(getLatestContextUsage(messages)).toBeNull();
 	});
 
 	it("returns null when no messages have usage data", () => {
@@ -101,26 +122,13 @@ describe("getLatestContextUsage", () => {
 		expect(getLatestContextUsage(messages)).toBeNull();
 	});
 
-	it("returns usage from the last message with usage data", () => {
+	it("returns usage when it is newer than a compaction summary", () => {
 		const messages = [
-			{ ...MockChatMessage, id: 1, usage: { input_tokens: 100 } },
-			{ ...MockChatMessage, id: 2 },
+			compactionSummaryMessage,
 			{ ...MockChatMessage, id: 3, usage: { input_tokens: 300 } },
 		];
 		const result = getLatestContextUsage(messages);
-		expect(result).not.toBeNull();
-		expect(result!.inputTokens).toBe(300);
-	});
-
-	it("skips trailing messages without usage and finds the latest one", () => {
-		const messages = [
-			{ ...MockChatMessage, id: 1, usage: { input_tokens: 50 } },
-			{ ...MockChatMessage, id: 2, usage: { input_tokens: 200 } },
-			{ ...MockChatMessage, id: 3 },
-		];
-		const result = getLatestContextUsage(messages);
-		expect(result).not.toBeNull();
-		expect(result!.inputTokens).toBe(200);
+		expect(result?.inputTokens).toBe(300);
 	});
 });
 
