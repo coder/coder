@@ -897,7 +897,7 @@ func extractExpectedAudience(accessURL *url.URL, r *http.Request) string {
 // UserRBACSubjectStore is the subset of database.Store required to build
 // a user's rbac.Subject.
 type UserRBACSubjectStore interface {
-	rolestore.Store
+	rolestore.ExpandStore
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error)
 }
 
