@@ -1,4 +1,9 @@
-import { ArrowLeftIcon, EllipsisVerticalIcon, TrashIcon } from "lucide-react";
+import {
+	ArrowLeftIcon,
+	EllipsisVerticalIcon,
+	Share2Icon,
+	TrashIcon,
+} from "lucide-react";
 import type { FC } from "react";
 import { Link, useLocation } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -44,6 +49,7 @@ interface MCPServerFormHeaderProps {
 	isDisabled: boolean;
 	onRequestDelete: () => void;
 	onToggleEnabled?: (enabled: boolean) => void;
+	sharingPath?: string;
 }
 
 export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
@@ -54,7 +60,9 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 	isDisabled,
 	onRequestDelete,
 	onToggleEnabled,
+	sharingPath,
 }) => {
+	const location = useLocation();
 	return (
 		<>
 			<div className="flex items-center justify-between">
@@ -73,6 +81,14 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
+							{sharingPath && (
+								<DropdownMenuItem asChild>
+									<Link to={{ pathname: sharingPath, search: location.search }}>
+										<Share2Icon />
+										Share server
+									</Link>
+								</DropdownMenuItem>
+							)}
 							<DropdownMenuItem
 								className="text-content-destructive focus:text-content-destructive"
 								onClick={onRequestDelete}

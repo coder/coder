@@ -13,6 +13,7 @@ interface UpdateMCPServerPageViewProps {
 	) => Promise<unknown>;
 	onDeleteServer?: (serverId: string) => Promise<void>;
 	onToggleEnabled: (enabled: boolean) => void;
+	sharingPath: string;
 	onCancel: () => void;
 }
 
@@ -23,6 +24,7 @@ const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
 	onUpdateServer,
 	onDeleteServer,
 	onToggleEnabled,
+	sharingPath,
 	onCancel,
 }) => {
 	return (
@@ -36,6 +38,7 @@ const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
 				onUpdateServer={onUpdateServer}
 				onDeleteServer={onDeleteServer}
 				onToggleEnabled={onToggleEnabled}
+				sharingPath={sharingPath}
 				onCancel={onCancel}
 			/>
 		</>

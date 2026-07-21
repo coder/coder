@@ -142,6 +142,7 @@ const UpdateModelPage: FC = () => {
 								}
 							: undefined
 					}
+					sharingPath={`/ai/settings/models/${model.id}/sharing`}
 					onDuplicate={() => {
 						if (!selectedProviderState) return;
 						const params = new URLSearchParams(location.search);

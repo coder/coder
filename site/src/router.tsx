@@ -454,6 +454,12 @@ const AISettingsUpdateModelPage = lazy(
 	() =>
 		import("./pages/AISettingsPage/ModelsPage/UpdateModelPage/UpdateModelPage"),
 );
+const AISettingsModelSharingPage = lazy(
+	() =>
+		import(
+			"./pages/AISettingsPage/ModelsPage/ModelSharingPage/ModelSharingPage"
+		),
+);
 const AISettingsMCPServersPage = lazy(
 	() => import("./pages/AISettingsPage/MCPServersPage/MCPServersPage"),
 );
@@ -467,6 +473,12 @@ const AISettingsUpdateMCPServerPage = lazy(
 	() =>
 		import(
 			"./pages/AISettingsPage/MCPServersPage/UpdateMCPServerPage/UpdateMCPServerPage"
+		),
+);
+const AISettingsMCPServerSharingPage = lazy(
+	() =>
+		import(
+			"./pages/AISettingsPage/MCPServersPage/MCPServerSharingPage/MCPServerSharingPage"
 		),
 );
 
@@ -807,6 +819,14 @@ export const router = createBrowserRouter(
 							/>
 							<Route path="coder-agents" element={<CoderAgentsPage />} />
 						</Route>
+						<Route
+							path="models/:modelId/sharing"
+							element={<AISettingsModelSharingPage />}
+						/>
+						<Route
+							path="mcp-servers/:serverId/sharing"
+							element={<AISettingsMCPServerSharingPage />}
+						/>
 						<Route path="spend" element={<AISettingsSpendPage />} />
 						<Route
 							path="instructions"

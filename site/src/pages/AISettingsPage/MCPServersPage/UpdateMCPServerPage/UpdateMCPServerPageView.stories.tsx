@@ -22,6 +22,7 @@ const meta: Meta<typeof UpdateMCPServerPageView> = {
 		onUpdateServer,
 		onDeleteServer: fn(async () => undefined),
 		onToggleEnabled: fn(),
+		sharingPath: `/ai/settings/mcp-servers/${MockCoderMCPServer.id}/sharing`,
 		onCancel: fn(),
 	},
 	parameters: {
@@ -61,5 +62,22 @@ export const Default: Story = {
 			);
 		});
 		expect(onUpdateServer.mock.calls[0]?.[1]).not.toHaveProperty("enabled");
+	},
+};
+
+export const SharingEntryPoint: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Server actions" }),
+		);
+		await expect(
+			within(canvasElement.ownerDocument.body).findByRole("menuitem", {
+				name: "Share server",
+			}),
+		).resolves.toHaveAttribute(
+			"href",
+			"/ai/settings/mcp-servers/mcp-coder/sharing",
+		);
 	},
 };

@@ -99,14 +99,13 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 							<MCPServerRow
 								key={server.id}
 								server={server}
-								onClick={
-									canEditMCPServers
-										? () =>
-												void navigate({
-													pathname: `/ai/settings/mcp-servers/${server.id}`,
-													search: location.search,
-												})
-										: undefined
+								onClick={() =>
+									void navigate({
+										pathname: canEditMCPServers
+											? `/ai/settings/mcp-servers/${server.id}`
+											: `/ai/settings/mcp-servers/${server.id}/sharing`,
+										search: location.search,
+									})
 								}
 							/>
 						))
