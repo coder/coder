@@ -34,28 +34,24 @@ import (
 )
 
 const (
-	defaultNamespace     = "coder"
-	defaultCoderPort     = 3000
-	defaultGatewayPort   = 4001
-	coderNodePort        = 30080
-	gatewayNodePort      = 30081
-	kindNodeImage        = "kindest/node:v1.35.0@sha256:4613778f3cfcd10e615029370f5786704559103cf27bef934597ba562b269661"
-	postgresChart        = "oci://registry-1.docker.io/bitnamicharts/postgresql"
-	postgresChartVersion = "18.8.0"
-	postgresImageRepo    = "bitnamilegacy/postgresql"
-	postgresImageTag     = "17.6.0-debian-12-r0"
-	postgresImageDigest  = "sha256:de520acd66fc954d538faa997771ca791f9fcba8b837419a8bc4d08a08df3762"
-	coderRelease         = "coder"
-	postgresRelease      = "coder-db"
-	provisionerRelease   = "coder-provisioner"
-	gatewayRelease       = "coder-ai-gateway"
-	databaseURLName      = "coder-db-url"
-	databaseAuthName     = "coder-db-auth"
-	provisionerKeyName   = "coder-provisioner-key"
-	gatewayKeyName       = "coder-ai-gateway-key"
-	workspaceNamespace   = "coder-workspaces"
-	healthTimeout        = 5 * time.Minute
-	rolloutTimeout       = 5 * time.Minute
+	defaultNamespace   = "coder"
+	defaultCoderPort   = 3000
+	defaultGatewayPort = 4001
+	coderNodePort      = 30080
+	gatewayNodePort    = 30081
+	kindNodeImage      = "kindest/node:v1.35.0@sha256:4613778f3cfcd10e615029370f5786704559103cf27bef934597ba562b269661"
+	postgresImage      = "us-docker.pkg.dev/coder-v2-images-public/public/postgres@sha256:cb51e9f73d5b6fd77340999cc0fdfcf56a1d580daa6f4c2f6c72264993e6de34"
+	coderRelease       = "coder"
+	postgresRelease    = "coder-db"
+	provisionerRelease = "coder-provisioner"
+	gatewayRelease     = "coder-ai-gateway"
+	databaseURLName    = "coder-db-url"
+	databaseAuthName   = "coder-db-auth"
+	provisionerKeyName = "coder-provisioner-key"
+	gatewayKeyName     = "coder-ai-gateway-key"
+	workspaceNamespace = "coder-workspaces"
+	healthTimeout      = 5 * time.Minute
+	rolloutTimeout     = 5 * time.Minute
 )
 
 type reloadOptions struct {
@@ -642,26 +638,129 @@ func (cfg *clusterConfig) ensureNamespaces(ctx context.Context) error {
 }
 
 func (cfg *clusterConfig) installPostgres(ctx context.Context) error {
+	if cfg.releaseExists(ctx, postgresRelease) {
+		return xerrors.Errorf("existing Helm-managed PostgreSQL release %q cannot be upgraded to the Coder PostgreSQL image in place. Run ./scripts/develop-local-cluster.sh down, then run up to create a new local database", postgresRelease)
+	}
+	if cfg.postgresStatefulSetExists(ctx) {
+		name, err := cfg.output(ctx, "kubectl", "--context", cfg.context, "--namespace", cfg.namespace, "get", "statefulset", postgresRelease+"-postgresql", "-o", "jsonpath={.spec.selector.matchLabels.app\\.kubernetes\\.io/name}")
+		if err != nil {
+			return err
+		}
+		if name != "coder-postgresql" {
+			return xerrors.Errorf("existing PostgreSQL StatefulSet %q is not managed by this command. Run ./scripts/develop-local-cluster.sh down before creating a new local database", postgresRelease+"-postgresql")
+		}
+	}
 	if err := cfg.ensureDatabaseCredentials(ctx); err != nil {
 		return err
 	}
-	args := []string{
-		"upgrade", "--install", postgresRelease, postgresChart,
-		"--version", postgresChartVersion,
-		"--namespace", cfg.namespace,
-		"--kube-context", cfg.context,
-		"--wait", "--timeout", rolloutTimeout.String(),
-		"--set", "image.repository=" + postgresImageRepo,
-		"--set", "image.tag=" + postgresImageTag,
-		"--set", "image.digest=" + postgresImageDigest,
-		"--set", "auth.username=coder",
-		"--set", "auth.database=coder",
-		"--set", "auth.existingSecret=" + databaseAuthName,
-		"--set", "auth.secretKeys.userPasswordKey=password",
-		"--set", "auth.secretKeys.adminPasswordKey=postgres-password",
-		"--set", "primary.persistence.size=2Gi",
+
+	manifest := fmt.Sprintf(`apiVersion: v1
+kind: Service
+metadata:
+  name: %[1]s-postgresql
+  namespace: %[2]s
+spec:
+  selector:
+    app.kubernetes.io/name: coder-postgresql
+    app.kubernetes.io/instance: %[1]s
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: postgresql
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: %[1]s-postgresql-headless
+  namespace: %[2]s
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: coder-postgresql
+    app.kubernetes.io/instance: %[1]s
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: postgresql
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: %[1]s-postgresql
+  namespace: %[2]s
+spec:
+  serviceName: %[1]s-postgresql-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: coder-postgresql
+      app.kubernetes.io/instance: %[1]s
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: coder-postgresql
+        app.kubernetes.io/instance: %[1]s
+    spec:
+      containers:
+        - name: postgresql
+          image: %[3]s
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgresql
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: coder
+            - name: POSTGRES_DB
+              value: coder
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: %[4]s
+                  key: password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -ec
+                - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+`, postgresRelease, cfg.namespace, postgresImage, databaseAuthName)
+	if err := cfg.run(ctx, strings.NewReader(manifest), "kubectl", "--context", cfg.context, "apply", "-f", "-"); err != nil {
+		return err
 	}
-	return cfg.run(ctx, nil, "helm", args...)
+	return cfg.run(ctx, nil, "kubectl", "--context", cfg.context, "--namespace", cfg.namespace, "rollout", "status", "statefulset/"+postgresRelease+"-postgresql", "--timeout", rolloutTimeout.String())
+}
+
+func (cfg *clusterConfig) postgresStatefulSetExists(ctx context.Context) bool {
+	return cfg.commandSucceeds(ctx, "kubectl", "--context", cfg.context, "--namespace", cfg.namespace, "get", "statefulset", postgresRelease+"-postgresql")
 }
 
 func (cfg *clusterConfig) ensureDatabaseCredentials(ctx context.Context) error {
@@ -672,11 +771,7 @@ func (cfg *clusterConfig) ensureDatabaseCredentials(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	postgresPassword, err := randomText(24)
-	if err != nil {
-		return err
-	}
-	manifest := fmt.Sprintf("apiVersion: v1\nkind: Secret\nmetadata:\n  name: %s\n  namespace: %s\ntype: Opaque\nstringData:\n  password: %s\n  postgres-password: %s\n", databaseAuthName, cfg.namespace, password, postgresPassword)
+	manifest := fmt.Sprintf("apiVersion: v1\nkind: Secret\nmetadata:\n  name: %s\n  namespace: %s\ntype: Opaque\nstringData:\n  password: %s\n", databaseAuthName, cfg.namespace, password)
 	return cfg.run(ctx, strings.NewReader(manifest), "kubectl", "--context", cfg.context, "apply", "-f", "-")
 }
 
