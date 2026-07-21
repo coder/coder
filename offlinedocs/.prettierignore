@@ -1,1 +1,6 @@
 **/pnpm-lock.yaml
+.next/
+out/
+.source/
+content/docs/
+public/images/
