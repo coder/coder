@@ -1,6 +1,7 @@
 "use client";
 
-import { Tabs } from "fumadocs-ui/components/tabs";
+import { AppleLogo, LinuxLogo, WindowsLogo } from "@phosphor-icons/react/ssr";
+import { Tabs, TabsList, TabsTrigger } from "fumadocs-ui/components/tabs";
 import { type ReactNode, useRef } from "react";
 
 // Shared identifier so every OS tab set on the site stays in sync (and syncs
@@ -11,6 +12,14 @@ const OS_GROUP = "os";
 // Preference order used when the user agent matches more than one OS. Also the
 // set of operating systems OSTab knows how to detect.
 const OS_ORDER = ["macOS", "Linux", "Windows"] as const;
+
+// Brand glyphs for the OS switcher triggers, keyed by the escaped tab value
+// (escapeValue("macOS") === "macos", and so on).
+const OS_ICONS: Record<string, ReactNode> = {
+	macos: <AppleLogo />,
+	linux: <LinuxLogo />,
+	windows: <WindowsLogo />,
+};
 
 // Match the escaping Fumadocs' Tabs applies to a label before comparing it to
 // the stored group value (lowercase, first whitespace to a dash).
@@ -73,8 +82,25 @@ export function OSTab({
 		}
 	}
 
+	// Render the triggers ourselves (rather than passing `items` to Tabs) so
+	// each OS gets its brand icon; the Tab panels carry explicit `value`s, so
+	// they still resolve without `items`. `groupId` + `persist` keep the OS
+	// choice synced across tab sets and pages.
+	const defaultValue = items[0] ? escapeValue(items[0]) : undefined;
+
 	return (
-		<Tabs items={items} groupId={OS_GROUP} persist>
+		<Tabs groupId={OS_GROUP} persist defaultValue={defaultValue}>
+			<TabsList>
+				{items.map((os) => {
+					const value = escapeValue(os);
+					return (
+						<TabsTrigger key={value} value={value}>
+							{OS_ICONS[value]}
+							{os}
+						</TabsTrigger>
+					);
+				})}
+			</TabsList>
 			{children}
 		</Tabs>
 	);

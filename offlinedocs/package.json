@@ -15,6 +15,7 @@
 		"format:check": "prettier --cache --check './**/*.{css,js,jsx,json,mjs,ts,tsx,yaml,yml}'"
 	},
 	"dependencies": {
+		"@phosphor-icons/react": "2.1.10",
 		"fumadocs-core": "16.10.5",
 		"fumadocs-mdx": "15.0.12",
 		"fumadocs-ui": "16.10.5",
