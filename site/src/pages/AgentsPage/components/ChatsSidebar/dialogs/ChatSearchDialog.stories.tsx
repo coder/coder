@@ -195,7 +195,7 @@ export const Results: Story = {
 		await waitFor(() => {
 			expect(API.experimental.getChats).toHaveBeenCalledWith({
 				limit: CHAT_SEARCH_LIMIT,
-				q: 'title:"Fix"',
+				q: 'search:"Fix"',
 			});
 		});
 		await expect(
@@ -263,7 +263,7 @@ export const OverflowResults: Story = {
 		await waitFor(() => {
 			expect(API.experimental.getChats).toHaveBeenCalledWith({
 				limit: CHAT_SEARCH_LIMIT,
-				q: 'title:"review"',
+				q: 'search:"review"',
 			});
 		});
 
@@ -299,7 +299,7 @@ export const CappedResults: Story = {
 		await waitFor(() => {
 			expect(API.experimental.getChats).toHaveBeenCalledWith({
 				limit: CHAT_SEARCH_LIMIT,
-				q: 'title:"Fix"',
+				q: 'search:"Fix"',
 			});
 		});
 		await expect(
@@ -367,7 +367,7 @@ export const NoResults: Story = {
 			"none",
 		);
 		await expect(
-			await body.findByText("No matching chats"),
+			await body.findByText("No matching chats", { exact: false }),
 		).toBeInTheDocument();
 	},
 };
@@ -633,7 +633,7 @@ export const CombinedFilterAndText: Story = {
 		await waitFor(() => {
 			expect(API.experimental.getChats).toHaveBeenCalledWith({
 				limit: CHAT_SEARCH_LIMIT,
-				q: 'has_unread:true title:"Fix"',
+				q: 'has_unread:true search:"Fix"',
 			});
 		});
 	},
