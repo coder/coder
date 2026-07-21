@@ -1400,6 +1400,68 @@ func TestScopeAllowList(t *testing.T) {
 	)
 }
 
+// TestAuthorizeOrgVoteDecides makes an organization-level vote the deciding
+// factor and verifies deny-wins semantics. It exists to guard the partial
+// (Prepare) org-permission construction: testAuthorize cross-checks the prepared
+// result against full Authorize for every non-any_org case, but only a case
+// where the org vote actually decides exercises org_vote's deny-wins logic.
+// Without this, flipping org_vote's deny result from -1 to 1 (a real
+// authorization bug) leaves the suite green.
+//
+// The subject is a member of enough organizations (>= the org-count threshold in
+// policy.rego) that Prepare takes the linear set-based construction, so this also
+// guards that implementation specifically rather than the full-evaluation one.
+func TestAuthorizeOrgVoteDecides(t *testing.T) {
+	t.Parallel()
+
+	// denyOrg has both an allow and a same-org deny for workspace.read; deny
+	// must win. allowOrg has only an allow. The remaining orgs are memberships
+	// with no permissions, present only to push the subject over the linear-path
+	// org-count threshold so the partial path under test is the set-based one.
+	denyOrg := uuid.New()
+	allowOrg := uuid.New()
+
+	byOrg := map[string]OrgPermissions{
+		denyOrg.String(): {
+			Org: []Permission{
+				{Negate: false, ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead},
+				{Negate: true, ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead},
+			},
+		},
+		allowOrg.String(): {
+			Org: []Permission{
+				{Negate: false, ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead},
+			},
+		},
+	}
+	// Pad with empty memberships so the subject belongs to >= 10 orgs.
+	for len(byOrg) < 12 {
+		byOrg[uuid.NewString()] = OrgPermissions{}
+	}
+
+	subject := Subject{
+		ID:    "org-vote-subject",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			{
+				Identifier: RoleIdentifier{Name: "org-vote-role"},
+				ByOrgID:    byOrg,
+			},
+		},
+	}
+
+	testAuthorize(t, "OrgVoteDecides", subject,
+		[]authTestCase{
+			// deny-wins: allow and deny on the same org resolves to deny.
+			{resource: ResourceWorkspace.InOrg(denyOrg), actions: []policy.Action{policy.ActionRead}, allow: false},
+			// positive mirror: allow only resolves to allow.
+			{resource: ResourceWorkspace.InOrg(allowOrg), actions: []policy.Action{policy.ActionRead}, allow: true},
+			// an org the subject is a member of but has no perms for: abstain -> deny.
+			{resource: ResourceWorkspace.InOrg(denyOrg).WithOwner("not-me"), actions: []policy.Action{policy.ActionRead}, allow: false},
+		},
+	)
+}
+
 // cases applies a given function to all test cases. This makes generalities easier to create.
 func cases(opt func(c authTestCase) authTestCase, cases []authTestCase) []authTestCase {
 	if opt == nil {

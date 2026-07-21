@@ -108,11 +108,12 @@ default scope_org := 0
 scope_org := check_org_permissions([input.subject.scope], "org")
 
 # org_allow_ids is the set of orgs where the subject has a matching *allow*
-# (non-negated) permission for this action and object type. It is built by
-# iterating each role's own `by_org_id` entries exactly once, so the total work
-# is linear in the number of org-scoped permissions rather than quadratic. The
-# previous implementation built a per-org vote map by iterating every role for
-# every membership (O(N^2) in the number of organizations).
+# (non-negated) permission for this action and object type. Together with
+# org_deny_ids this is a linear pass per set over the subject's `by_org_id`
+# entries, so the total work is linear in the number of org-scoped permissions
+# rather than quadratic. The previous implementation built a per-org vote map by
+# iterating every role for every membership (O(N^2) in the number of
+# organizations).
 org_allow_ids(roles, key) := {org_id |
 	some role in roles
 	some org_id, perms in role.by_org_id
@@ -155,43 +156,40 @@ org_vote(org_id, allow, deny) := 0 if {
 	not org_id in allow
 }
 
-# check_all_org_permissions creates a map from org ids to votes at each org
-# level, for each org that the subject is a member of. It doesn't actually check
-# if the object is in the same org. Instead we look up the correct vote from
-# this map based on the object's org id in `check_org_permissions`.
-# For example, the map will look something like this:
+# check_all_org_permissions_{partial,fulleval} both create a map from org ids to
+# votes at each org level, for each org that the subject is a member of. They do
+# not check whether the object is in the same org; the caller (check_org_permissions)
+# looks up the correct vote from this map by the object's org id. For example, the
+# map will look something like this:
 #
 #   {"<org_id_a>": 1, "<org_id_b>": 0, "<org_id_c>": -1}
-#
-# The caller then uses `output[input.object.org_owner]` to get the correct vote.
 #
 # We have to create this map, rather than just getting the vote of the object's
 # org id, because the org id _might_ be unknown. In order to make sure that this
 # policy compresses down to simple queries we need to keep unknown values out of
 # comprehensions.
 #
-# There are two implementations, selected by `input.partial`:
+# There are two implementations with identical results, chosen by
+# check_org_permissions based on `input.use_org_perm_sets`:
 #
-#   - Partial evaluation (Prepare, org id unknown): the full map must be built
-#     because the object's org is unknown, so we use the set-based
-#     implementation whose map construction is linear in the number of
-#     organizations rather than quadratic.
-#   - Full evaluation (Authorize, org id known): the caller only needs a single
-#     org's vote, so building the allow/deny sets over every org is wasted work.
-#     We use the original per-membership implementation, which is cheaper for
-#     the common low-org-count Authorize case.
+#   - Partial evaluation (Prepare) with many organizations: the full map must be
+#     built because the object's org is unknown, and the set-based implementation
+#     (_partial) builds it in linear rather than quadratic time. This only wins
+#     once the subject belongs to enough organizations.
+#   - Everything else (full evaluation, or partial evaluation with few orgs): the
+#     original per-membership implementation (_fulleval) has lower fixed overhead
+#     and is faster.
 #
-# `input.partial` is set by the Go authorizer (true for partial evaluation,
-# false/absent for full evaluation) and is a known value in both paths, so OPA
-# prunes the unused branch during compilation.
-check_all_org_permissions(roles, key) := check_all_org_permissions_partial(roles, key) if {
-	input.partial
-}
-
-check_all_org_permissions(roles, key) := check_all_org_permissions_fulleval(roles, key) if {
-	not input.partial
-}
-
+# check_org_permissions selects between them directly (rather than through a
+# shared wrapper) so that only the chosen implementation appears in the partial
+# evaluation residual. `input.use_org_perm_sets` is a boolean the Go authorizer
+# computes (partial evaluation AND org count over the crossover threshold) and
+# passes as a known value, so OPA prunes the unused branch during compilation.
+# The comparison is done in Go rather than as `input.org_count >= N` here because
+# a `>=` against a known input does not fold to a constant as reliably as a plain
+# boolean during partial evaluation, which would leave both branches in the
+# residual.
+#
 # check_all_org_permissions_partial builds the vote map from precomputed allow
 # and deny sets. Each set is linear in the number of org-scoped permissions, and
 # the map is built by iterating the membership set once with O(1) set lookups
@@ -228,8 +226,20 @@ check_all_org_permissions_fulleval(roles, key) := {org_id: vote |
 check_org_permissions(roles, key) := vote if {
 	# Disallow setting any_org at the same time as an org id.
 	not input.object.any_org
+	input.use_org_perm_sets
 
-	allow_map := check_all_org_permissions(roles, key)
+	allow_map := check_all_org_permissions_partial(roles, key)
+
+	# Return only the vote of the object's org.
+	vote := allow_map[input.object.org_owner]
+}
+
+check_org_permissions(roles, key) := vote if {
+	# Disallow setting any_org at the same time as an org id.
+	not input.object.any_org
+	not input.use_org_perm_sets
+
+	allow_map := check_all_org_permissions_fulleval(roles, key)
 
 	# Return only the vote of the object's org.
 	vote := allow_map[input.object.org_owner]
@@ -244,11 +254,22 @@ check_org_permissions(roles, key) := vote if {
 check_org_permissions(roles, key) := vote if {
 	# Require `any_org` to be set
 	input.object.any_org
+	input.use_org_perm_sets
 
-	allow_map := check_all_org_permissions(roles, key)
+	allow_map := check_all_org_permissions_partial(roles, key)
 
-	# Since we're checking if the subject has the permission in _any_ org, we're
-	# essentially trying to find the highest vote from any org.
+	vote := max({vote |
+		some vote in allow_map
+	})
+}
+
+check_org_permissions(roles, key) := vote if {
+	# Require `any_org` to be set
+	input.object.any_org
+	not input.use_org_perm_sets
+
+	allow_map := check_all_org_permissions_fulleval(roles, key)
+
 	vote := max({vote |
 		some vote in allow_map
 	})

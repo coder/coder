@@ -116,9 +116,9 @@ func TestRegoInputValue(t *testing.T) {
 				Groups: actor.Groups,
 				Scope:  must(actor.Scope.Expand()),
 			},
-			"action":  action,
-			"object":  obj,
-			"partial": false,
+			"action":            action,
+			"object":            obj,
+			"use_org_perm_sets": false,
 		}
 
 		manual, err := regoInputValue(actor, action, obj)
@@ -152,7 +152,7 @@ func TestRegoInputValue(t *testing.T) {
 			"object": map[string]any{
 				"type": obj.Type,
 			},
-			"partial": true,
+			"use_org_perm_sets": must(actor.orgMembershipCount()) >= orgPermissionSetThreshold,
 		}
 
 		manual, err := regoPartialInputValue(actor, action, obj.Type)

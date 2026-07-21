@@ -7,6 +7,14 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
+// orgPermissionSetThreshold is the number of organizations a subject must belong
+// to before partial evaluation (Prepare) uses the set-based org-permission map
+// construction. Below it, the original per-membership construction has lower
+// fixed overhead and is faster; at and above it, the set-based construction's
+// linear (rather than quadratic) scaling wins. The crossover is ~10 orgs, see
+// BenchmarkRBACManyOrgs.
+const orgPermissionSetThreshold = 10
+
 // regoInputValue returns a rego input value for the given subject, action, and
 // object. This rego input is already parsed and can be used directly in a
 // rego query.
@@ -28,14 +36,15 @@ func regoInputValue(subject Subject, action policy.Action, object Object) (ast.V
 		ast.StringTerm("object"),
 		ast.NewTerm(object.regoValue()),
 	}
-	// partial marks this as a full evaluation. The policy uses it to select the
-	// full-evaluation implementation of check_all_org_permissions.
-	p := [2]*ast.Term{
-		ast.StringTerm("partial"),
+	// use_org_perm_sets is always false for full evaluation: the set-based
+	// org-permission construction only helps the partial-evaluation (Prepare)
+	// path, so full evaluation always uses the original construction.
+	u := [2]*ast.Term{
+		ast.StringTerm("use_org_perm_sets"),
 		ast.BooleanTerm(false),
 	}
 
-	input := ast.NewObject(s, a, o, p)
+	input := ast.NewObject(s, a, o, u)
 
 	return input, nil
 }
@@ -65,16 +74,45 @@ func regoPartialInputValue(subject Subject, action policy.Action, objectType str
 			}),
 		),
 	}
-	// partial marks this as a partial evaluation. The policy uses it to select
-	// the partial-evaluation implementation of check_all_org_permissions.
-	p := [2]*ast.Term{
-		ast.StringTerm("partial"),
-		ast.BooleanTerm(true),
+	// use_org_perm_sets selects the set-based org-permission construction. It is
+	// worthwhile only for partial evaluation (this function) once the subject
+	// belongs to enough organizations, so the value is (org count >= threshold).
+	// Computing the comparison here and passing a plain boolean lets OPA prune
+	// the unused branch at compile time; an `input.org_count >= N` comparison in
+	// the policy does not fold as reliably during partial evaluation and would
+	// leave both branches in the residual.
+	orgCount, err := subject.orgMembershipCount()
+	if err != nil {
+		return nil, xerrors.Errorf("org membership count: %w", err)
+	}
+	u := [2]*ast.Term{
+		ast.StringTerm("use_org_perm_sets"),
+		ast.BooleanTerm(orgCount >= orgPermissionSetThreshold),
 	}
 
-	input := ast.NewObject(s, a, o, p)
+	input := ast.NewObject(s, a, o, u)
 
 	return input, nil
+}
+
+// orgMembershipCount returns the number of distinct organizations the subject
+// belongs to. This mirrors how the policy derives `org_memberships` from
+// `input.subject.roles[_].by_org_id`, and is used to decide whether partial
+// evaluation should use the set-based org-permission construction. Expanding
+// concrete roles is a no-op, so this is cheap on the request path.
+func (s Subject) orgMembershipCount() (int, error) {
+	roles, err := s.Roles.Expand()
+	if err != nil {
+		return 0, xerrors.Errorf("expand roles: %w", err)
+	}
+
+	orgs := make(map[string]struct{})
+	for _, role := range roles {
+		for orgID := range role.ByOrgID {
+			orgs[orgID] = struct{}{}
+		}
+	}
+	return len(orgs), nil
 }
 
 // regoValue returns the ast.Object representation of the subject.
