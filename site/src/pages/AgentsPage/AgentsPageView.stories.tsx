@@ -26,6 +26,7 @@ import {
 import {
 	withAuthProvider,
 	withDashboardProvider,
+	withWebSocket,
 } from "#/testHelpers/storybook";
 import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgentsPageView";
 import AgentAnalyticsPage from "./AgentAnalyticsPage";
@@ -48,21 +49,6 @@ import {
 import { ChatTopBar } from "./components/ChatTopBar";
 
 const defaultModelConfigID = "model-config-1";
-
-// The layout opens a chat-watch WebSocket on mount. Replace the global
-// constructor with an inert socket so no real connection is attempted;
-// restored in afterEach.
-const RealWebSocket = globalThis.WebSocket;
-
-class InertWebSocket {
-	static readonly OPEN = 1;
-	readonly OPEN = 1;
-	readonly readyState = 1;
-	binaryType: BinaryType = "blob";
-	addEventListener() {}
-	removeEventListener() {}
-	close() {}
-}
 
 const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	{
@@ -343,9 +329,12 @@ const agentsWithChatTopBarRouting = {
 const meta: Meta<typeof AgentsPageLayout> = {
 	title: "pages/AgentsPage/AgentsPageLayout",
 	component: AgentsPageLayout,
-	decorators: [withAuthProvider, withDashboardProvider],
+	decorators: [withAuthProvider, withDashboardProvider, withWebSocket],
 	parameters: {
 		layout: "fullscreen",
+		// The layout opens a chat-watch WebSocket on mount. An empty
+		// event list gives an inert socket that never emits.
+		webSocket: [],
 		user: MockUserOwner,
 		permissions: MockPermissions,
 		reactRouter: reactRouterParameters({
@@ -356,7 +345,6 @@ const meta: Meta<typeof AgentsPageLayout> = {
 	args: {},
 	beforeEach: () => {
 		localStorage.removeItem(LEFT_SIDEBAR_STORAGE_KEY);
-		globalThis.WebSocket = InertWebSocket as unknown as typeof WebSocket;
 		// Mocks for the queries AgentsPageLayout runs for the sidebar.
 		spyOn(API.experimental, "getChats").mockResolvedValue([]);
 		spyOn(
@@ -527,9 +515,6 @@ const meta: Meta<typeof AgentsPageLayout> = {
 			count: 0,
 			users: [],
 		});
-	},
-	afterEach: () => {
-		globalThis.WebSocket = RealWebSocket;
 	},
 };
 
