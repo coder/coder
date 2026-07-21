@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { WorkspaceAgentLifecycle } from "#/api/typesGenerated";
 import {
 	MockDeploymentConfig,
@@ -60,6 +62,50 @@ export const Connected: Story = {
 	decorators: [withWebSocket],
 	parameters: {
 		webSocket: [{ event: "message", data: promptMessage }],
+	},
+};
+
+const RapidUnmountTerminal = () => {
+	const [mounted, setMounted] = useState(true);
+	return (
+		<div className="flex h-full flex-col gap-2">
+			<button type="button" onClick={() => setMounted(false)}>
+				Unmount terminal
+			</button>
+			<div className="min-h-0 flex-1">
+				{mounted ? (
+					<TerminalPanel
+						chatId="rapid-unmount"
+						isHot
+						workspaceAgent={createAgent("ready")}
+					/>
+				) : (
+					<div>Terminal unmounted</div>
+				)}
+			</div>
+		</div>
+	);
+};
+
+/** Regression coverage for closing a terminal during xterm initialization. */
+export const RapidUnmount: Story = {
+	decorators: [withWebSocket],
+	parameters: {
+		webSocket: [],
+	},
+	render: () => <RapidUnmountTerminal />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByTestId("agents-sidebar-terminal");
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Unmount terminal" }),
+		);
+		expect(canvas.getByText("Terminal unmounted")).toBeVisible();
+		await waitFor(() => {
+			expect(
+				canvas.queryByTestId("agents-sidebar-terminal"),
+			).not.toBeInTheDocument();
+		});
 	},
 };
 

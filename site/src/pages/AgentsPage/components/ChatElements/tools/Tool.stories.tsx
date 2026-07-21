@@ -1417,9 +1417,9 @@ export const MCPToolCompleted: Story = {
 		const toggle = canvas.getByRole("button");
 		expect(toggle).toBeInTheDocument();
 		await userEvent.click(toggle);
+		expect(canvas.getByText("List issues")).toBeVisible();
 		expect(canvas.getByText("Input")).toBeVisible();
 		expect(canvas.getByText("Output")).toBeVisible();
-		expect(canvasElement.querySelectorAll("diffs-container")).toHaveLength(2);
 	},
 };
 

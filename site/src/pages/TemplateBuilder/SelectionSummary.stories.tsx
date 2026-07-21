@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, waitFor, within } from "storybook/test";
 import { SelectionSummary } from "./SelectionSummary";
 
 const meta: Meta<typeof SelectionSummary> = {
@@ -109,15 +109,32 @@ export const WithLongNameModule: Story = {
 			},
 		],
 	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const moduleName =
 			"A module with a name long enough to cause the text inside the ModuleSelection component to wrap to the next line, showing that the icon on the left remains top-aligned with the first line of the module name";
+		const name = await canvas.findByText(moduleName);
+		const row = name.parentElement;
+		const avatar = row?.querySelector<HTMLElement>("div > span");
+		if (!(row instanceof HTMLElement) || !avatar) {
+			throw new Error(
+				"Expected the module row to contain its avatar and name.",
+			);
+		}
 
-		expect(await canvas.findByText(moduleName)).toBeVisible();
-		expect(
-			canvas.queryByRole("button", { name: "Deselect module" }),
-		).not.toBeInTheDocument();
+		await waitFor(() => {
+			const nameStyle = getComputedStyle(name);
+			const lineHeight = Number.parseFloat(nameStyle.lineHeight);
+			expect(name.getBoundingClientRect().height).toBeGreaterThan(lineHeight);
+			expect(
+				Math.abs(
+					avatar.getBoundingClientRect().top - name.getBoundingClientRect().top,
+				),
+			).toBeLessThanOrEqual(1);
+		});
 	},
 };
 

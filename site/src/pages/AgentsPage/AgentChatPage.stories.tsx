@@ -1197,33 +1197,8 @@ export const WithMessageHistory: Story = {
 			{ diffUrl: undefined },
 		),
 	},
-	beforeEach: () => {
-		spyOn(API.experimental, "getChat").mockResolvedValue({
-			id: CHAT_ID,
-			...baseChatFields,
-			title: "Markdown rendering showcase",
-			status: "waiting",
-		});
-		spyOn(API.experimental, "editChatMessage").mockResolvedValue({
-			message: {
-				...MockChatMessage,
-				id: 5,
-				created_at: "2026-02-18T00:03:00.000Z",
-			},
-		});
-	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(document.body);
-		const user = userEvent.setup();
-		const changeReasoningEffort = async (key: string) => {
-			const modelSelector = canvas.getByRole("combobox", { name: "GPT-4o" });
-			await user.click(modelSelector);
-			const slider = await body.findByRole("slider");
-			slider.focus();
-			await user.keyboard(key);
-			await user.click(modelSelector);
-		};
 		expect(
 			await canvas.findByText("Markdown rendering showcase"),
 		).toBeVisible();
@@ -1232,23 +1207,116 @@ export const WithMessageHistory: Story = {
 				canvas.queryByText(/^This chat is owned by/),
 			).not.toBeInTheDocument();
 		});
+	},
+};
 
-		await changeReasoningEffort("{ArrowRight}");
-		const editButtons = canvas.getAllByRole("button", { name: "Edit message" });
-		await user.click(editButtons[editButtons.length - 1]);
-		const saveButton = await canvas.findByRole("button", {
-			name: "Save Edit",
-		});
-		await changeReasoningEffort("{ArrowLeft}");
-		await waitFor(() => expect(saveButton).toBeEnabled());
+const editReasoningParameters = {
+	queries: buildQueries(
+		{
+			id: CHAT_ID,
+			...baseChatFields,
+			title: "Edit reasoning effort",
+			status: "waiting",
+		},
+		{
+			messages: [
+				{
+					id: 5,
+					chat_id: CHAT_ID,
+					created_at: "2026-02-18T00:03:00.000Z",
+					role: "user",
+					content: [{ type: "text", text: "Explain the auth flow." }],
+				},
+			],
+			queued_messages: [],
+			has_more: false,
+		},
+		{ diffUrl: undefined },
+	),
+};
+
+const setupEditReasoningStory = () => {
+	spyOn(API.experimental, "getChat").mockResolvedValue({
+		id: CHAT_ID,
+		...baseChatFields,
+		title: "Edit reasoning effort",
+		status: "waiting",
+	});
+	spyOn(API.experimental, "editChatMessage").mockResolvedValue({
+		message: {
+			...MockChatMessage,
+			id: 5,
+			created_at: "2026-02-18T00:03:00.000Z",
+		},
+	});
+};
+
+const startEditingMessage = async (
+	canvas: ReturnType<typeof within>,
+	user: ReturnType<typeof userEvent.setup>,
+) => {
+	await canvas.findByText("Explain the auth flow.");
+	await user.click(canvas.getByRole("button", { name: "Edit message" }));
+	return canvas.findByRole("button", { name: "Save Edit" });
+};
+
+export const EditPreservesReasoningEffortWhenUnchanged: Story = {
+	parameters: editReasoningParameters,
+	beforeEach: setupEditReasoningStory,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+		const saveButton = await startEditingMessage(canvas, user);
 		await user.click(saveButton);
+
 		await waitFor(() => {
 			expect(API.experimental.editChatMessage).toHaveBeenCalledTimes(1);
 		});
 		expect(API.experimental.editChatMessage).toHaveBeenCalledWith(
 			CHAT_ID,
 			5,
-			expect.objectContaining({ reasoning_effort: "medium" }),
+			expect.not.objectContaining({ reasoning_effort: expect.anything() }),
+		);
+	},
+};
+
+export const EditSubmitsChangedReasoningEffort: Story = {
+	parameters: editReasoningParameters,
+	beforeEach: setupEditReasoningStory,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const user = userEvent.setup();
+		await startEditingMessage(canvas, user);
+		expect(
+			canvas.getByRole("textbox", { name: "Chat message" }),
+		).toHaveTextContent("Explain the auth flow.");
+		expect(canvas.getByRole("button", { name: "Save Edit" })).toBeEnabled();
+
+		await user.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
+		const slider = await body.findByRole("slider");
+		expect(slider).toHaveAttribute("aria-valuenow", "1");
+		await user.click(slider);
+		await user.keyboard("{ArrowRight}");
+		await waitFor(() => {
+			expect(slider).toHaveAttribute("aria-valuenow", "2");
+		});
+		await user.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
+		expect(
+			canvas.getByRole("textbox", { name: "Chat message" }),
+		).toHaveTextContent("Explain the auth flow.");
+		await waitFor(() => {
+			expect(canvas.getByRole("button", { name: "Save Edit" })).toBeEnabled();
+		});
+		await user.click(canvas.getByRole("button", { name: "Save Edit" }));
+
+		await waitFor(() => {
+			expect(API.experimental.editChatMessage).toHaveBeenCalledTimes(1);
+		});
+		expect(API.experimental.editChatMessage).toHaveBeenCalledWith(
+			CHAT_ID,
+			5,
+			expect.objectContaining({ reasoning_effort: "high" }),
 		);
 	},
 };
