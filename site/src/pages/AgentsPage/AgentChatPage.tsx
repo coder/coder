@@ -1161,13 +1161,13 @@ const AgentChatPage: FC = () => {
 	);
 	const prNumber =
 		chatQuery.data?.diff_status?.pr_number ?? (parsedPrNumber || undefined);
-	// Compute an effective selected model by validating the user's
-	// explicit choice against the current model options, falling
-	// back to the chat's last model or the first available option.
 	const resolvedChatModel = resolveModelOptionId(
 		chatLastModelConfigID,
 		modelOptions,
 	);
+	// Compute an effective selected model by validating the user's
+	// explicit choice against the current model options, falling
+	// back to the chat's last model or the first available option.
 	const effectiveSelectedModel = (() => {
 		const resolvedSelectedModel = resolveModelOptionId(
 			selectedModel,
@@ -1786,8 +1786,9 @@ const AgentChatPage: FC = () => {
 					...current,
 					[effectiveSelectedModel]: value,
 				}));
-				// Editing a historical message scopes the effort to that
-				// edit; do not make it the remembered default.
+				// Editing a historical message does not overwrite the
+				// persisted default; the session map still tracks the
+				// latest explicit choice so the slider stays responsive.
 				if (editing.editingMessageId === null) {
 					saveReasoningEffortForModel(effectiveSelectedModel, value);
 				} else {
