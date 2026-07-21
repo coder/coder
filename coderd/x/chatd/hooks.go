@@ -293,8 +293,11 @@ func (p *Server) preflightPendingToolCalls(
 		}
 		if err == nil {
 			// Replay unapplied effects from a finalized dispatch without re-dispatching.
+			endChat := false
 			if !row.EffectsAppliedAt.Valid {
-				result.Responses = append(result.Responses, dispatchRowResponse(row))
+				response := dispatchRowResponse(row)
+				endChat = response.EndChat
+				result.Responses = append(result.Responses, response)
 				result.EffectDispatchIDs = append(result.EffectDispatchIDs, row.ID)
 			}
 			switch agenthooks.PermissionDecision(row.Decision.String) {
@@ -306,6 +309,11 @@ func (p *Server) preflightPendingToolCalls(
 				result.Allowed = append(result.Allowed, toolCall)
 			case agenthooks.PermissionDeny:
 				result.Denied = append(result.Denied, deniedToolResult(toolCall, row.DecisionReason.String))
+			}
+			// end_chat ends the chat before any tool executes, so later
+			// dispatches (and their failures) must not override it.
+			if endChat {
+				break
 			}
 			continue
 		}
@@ -321,15 +329,20 @@ func (p *Server) preflightPendingToolCalls(
 		result.EffectDispatchIDs = append(result.EffectDispatchIDs, dispatchID)
 		if response.Permission == nil {
 			result.Allowed = append(result.Allowed, toolCall)
-			continue
+		} else {
+			switch response.Permission.Decision {
+			case agenthooks.PermissionAllow:
+				toolCall.Input = string(response.Permission.InputOverride)
+				result.Overrides[toolCall.ToolCallID] = response.Permission.InputOverride
+				result.Allowed = append(result.Allowed, toolCall)
+			case agenthooks.PermissionDeny:
+				result.Denied = append(result.Denied, deniedToolResult(toolCall, response.Permission.Reason))
+			}
 		}
-		switch response.Permission.Decision {
-		case agenthooks.PermissionAllow:
-			toolCall.Input = string(response.Permission.InputOverride)
-			result.Overrides[toolCall.ToolCallID] = response.Permission.InputOverride
-			result.Allowed = append(result.Allowed, toolCall)
-		case agenthooks.PermissionDeny:
-			result.Denied = append(result.Denied, deniedToolResult(toolCall, response.Permission.Reason))
+		// end_chat ends the chat before any tool executes, so later
+		// dispatches (and their failures) must not override it.
+		if response.EndChat {
+			break
 		}
 	}
 	return result, nil

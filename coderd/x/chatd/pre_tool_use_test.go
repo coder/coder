@@ -438,6 +438,148 @@ func TestPreToolUseHookEndChatSkipsLocalToolExecution(t *testing.T) {
 	require.True(t, result.IsError, "never-executed call must persist as a synthetic cancellation")
 }
 
+func TestPreToolUseHookEndChatShortCircuitsLaterDispatches(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	// Seed one assistant step with two unresolved tool calls so the
+	// preflight loop dispatches sequentially.
+	userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("resume")})
+	require.NoError(t, err)
+	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:           uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		LastModelConfigID: model.ID,
+		Title:             "pending-tool-calls",
+		ClientType:        database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			{
+				Role:           database.ChatMessageRoleUser,
+				Content:        userContent,
+				Visibility:     database.ChatMessageVisibilityBoth,
+				TurnID:         uuid.NullUUID{UUID: uuid.New(), Valid: true},
+				ContentVersion: chatprompt.CurrentContentVersion,
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+			},
+		},
+	})
+	require.NoError(t, err)
+	chatID := created.Chat.ID
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: "call_end_chat_first",
+			ToolName:   "read_file",
+			Args:       json.RawMessage(`{"path":"/tmp/first.txt"}`),
+		},
+		{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: "call_never_dispatched",
+			ToolName:   "read_file",
+			Args:       json.RawMessage(`{"path":"/tmp/second.txt"}`),
+		},
+	})
+	require.NoError(t, err)
+	machine := chatstate.NewChatMachine(db, ps, chatID)
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{
+			{
+				Role:           database.ChatMessageRoleAssistant,
+				Content:        assistantContent,
+				Visibility:     database.ChatMessageVisibilityBoth,
+				TurnID:         created.InitialMessages[0].TurnID,
+				ContentVersion: chatprompt.CurrentContentVersion,
+				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+			},
+		}})
+		return err
+	}))
+
+	// end_chat on the first call, hard failure on the second: the
+	// second dispatch must never happen, so its failure cannot push
+	// the chat into an error state.
+	var hookCalls atomic.Int32
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request agenthooks.Request
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		if request.Type != agenthooks.EventPreToolUse {
+			_, err := w.Write([]byte(`{}`))
+			require.NoError(t, err)
+			return
+		}
+		hookCalls.Add(1)
+		decoded, err := request.Decode()
+		require.NoError(t, err)
+		data, ok := decoded.(*agenthooks.PreToolUseData)
+		require.True(t, ok)
+		if data.ToolUseID != "call_end_chat_first" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		_, err = w.Write([]byte(`{"end_chat":true}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+
+	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	server.Start()
+
+	var archived database.Chat
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		var err error
+		archived, err = db.GetChatByID(ctx, chatID)
+		return err == nil && archived.Archived && archived.Status == database.ChatStatusWaiting
+	}, testutil.IntervalFast)
+	require.False(t, archived.LastError.Valid)
+	require.Equal(t, int32(1), hookCalls.Load())
+
+	rows, err := db.ListChatHookDispatchesByChatID(ctx, chatID)
+	require.NoError(t, err)
+	preToolUse := 0
+	for _, row := range rows {
+		if row.Event == string(agenthooks.EventPreToolUse) {
+			preToolUse++
+			require.Equal(t, "call_end_chat_first", row.ToolUseID.String)
+		}
+	}
+	require.Equal(t, 1, preToolUse)
+
+	results := map[string]bool{}
+	for _, part := range chatToolParts(ctx, t, db, chatID) {
+		if part.Type == codersdk.ChatMessagePartTypeToolResult {
+			results[part.ToolCallID] = part.IsError
+		}
+	}
+	require.Equal(t, map[string]bool{
+		"call_end_chat_first":   true,
+		"call_never_dispatched": true,
+	}, results, "both never-executed calls must persist as synthetic cancellations")
+}
+
 func TestPreToolUseHookRecordedEndChatSkipsExecution(t *testing.T) {
 	t.Parallel()
 
