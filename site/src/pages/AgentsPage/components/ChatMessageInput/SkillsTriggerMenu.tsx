@@ -98,16 +98,44 @@ const SkillCommandItem = ({
 	value,
 	selected,
 	onSelect,
+	consumePointerHighlight,
 }: {
 	skill: SkillMenuItem;
 	value: string;
 	selected: boolean;
 	onSelect: (skill: SkillMenuItem) => void;
+	consumePointerHighlight: () => boolean;
 }) => {
 	const handleSelect = () => onSelect(skill);
+	const itemRef = useRef<HTMLDivElement>(null);
+
+	// cmdk only auto-scrolls for its own key handling; arrow keys here are
+	// consumed by the Lexical trigger plugin and arrive as a controlled value
+	// change, so the item scrolls itself when it becomes the highlight.
+	// Pointer highlights skip scrolling, like cmdk, to avoid hover/scroll loops.
+	useLayoutEffect(() => {
+		if (!selected || consumePointerHighlight()) {
+			return;
+		}
+		const item = itemRef.current;
+		if (!item) {
+			return;
+		}
+		if (item.parentElement?.firstElementChild === item) {
+			// First item in a group: reveal the group heading as well. cmdk
+			// renders headings internally without exposing a ref, so locate
+			// it through the DOM the same way cmdk does.
+			item
+				.closest("[cmdk-group]")
+				?.querySelector("[cmdk-group-heading]")
+				?.scrollIntoView({ block: "nearest" });
+		}
+		item.scrollIntoView({ block: "nearest" });
+	}, [selected, consumePointerHighlight]);
 
 	return (
 		<CommandItem
+			ref={itemRef}
 			value={value}
 			aria-selected={selected}
 			className={cn(
@@ -170,8 +198,13 @@ export const SkillsTriggerMenu = ({
 	const shouldShowEmpty = allSkills.length === 0 && statusItems.length === 0;
 	const selectedValue = selectedIndex >= 0 ? String(selectedIndex) : "";
 
-	const listRef = useRef<HTMLDivElement>(null);
 	const pointerHighlightRef = useRef(false);
+
+	const consumePointerHighlight = () => {
+		const fromPointer = pointerHighlightRef.current;
+		pointerHighlightRef.current = false;
+		return fromPointer;
+	};
 
 	const handleHighlightedValueChange = (value: string) => {
 		const nextIndex = Number(value);
@@ -186,32 +219,6 @@ export const SkillsTriggerMenu = ({
 		}
 	};
 
-	// cmdk only auto-scrolls for its own key handling; arrow keys here are
-	// consumed by the Lexical trigger plugin and arrive as a controlled value
-	// change, so scroll the highlighted item into view manually. Pointer
-	// highlights skip scrolling, like cmdk, to avoid hover/scroll loops.
-	useLayoutEffect(() => {
-		const fromPointer = pointerHighlightRef.current;
-		pointerHighlightRef.current = false;
-		if (fromPointer || selectedIndex < 0) {
-			return;
-		}
-		const item = listRef.current?.querySelector(
-			`[cmdk-item][data-value="${selectedIndex}"]`,
-		);
-		if (!item) {
-			return;
-		}
-		if (item.parentElement?.firstElementChild === item) {
-			// First item in a group: reveal the group heading as well.
-			item
-				.closest("[cmdk-group]")
-				?.querySelector("[cmdk-group-heading]")
-				?.scrollIntoView({ block: "nearest" });
-		}
-		item.scrollIntoView({ block: "nearest" });
-	}, [selectedIndex]);
-
 	const renderSkill = (skill: SkillMenuItem, index: number) => (
 		<SkillCommandItem
 			key={`${skill.source}:${skill.name}:${index}`}
@@ -219,6 +226,7 @@ export const SkillsTriggerMenu = ({
 			value={String(index)}
 			selected={index === selectedIndex}
 			onSelect={onSelect}
+			consumePointerHighlight={consumePointerHighlight}
 		/>
 	);
 
@@ -260,10 +268,7 @@ export const SkillsTriggerMenu = ({
 					onValueChange={handleHighlightedValueChange}
 					value={selectedValue}
 				>
-					<CommandList
-						ref={listRef}
-						className="max-h-72 border-t-0 mobile-full-width-dropdown-scroll-area"
-					>
+					<CommandList className="max-h-72 border-t-0 mobile-full-width-dropdown-scroll-area">
 						{commands.length > 0 && (
 							<CommandGroup heading="Commands">
 								{commands.map((skill, index) => renderSkill(skill, index))}
