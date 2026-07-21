@@ -379,3 +379,96 @@ func TestCloseBeforeSpawnAbortsStart(t *testing.T) {
 		})
 	}
 }
+
+func TestSignalByKeyWaitsForPendingStart(t *testing.T) {
+	t.Parallel()
+
+	gate := newStartGate(t)
+	m := newTestManager(t, gate.option())
+	req := workspacesdk.StartProcessRequest{
+		Command:        "sleep 600",
+		IdempotencyKey: "key-pending",
+		Background:     true,
+	}
+
+	start := startAsync(context.Background(), m, req, "chat-1")
+	gate.waitStalled(t)
+
+	// The reservation exists but names no process yet. This is the
+	// expected state on the by-key path, because that path is used
+	// precisely when the start response was lost.
+	signalErr := make(chan error, 1)
+	go func() {
+		signalErr <- m.signalByKey(context.Background(), "chat-1", "key-pending", "kill")
+	}()
+
+	// Nothing resolves until the start publishes.
+	select {
+	case err := <-signalErr:
+		t.Fatalf("signal resolved before the start published: %v", err)
+	case <-time.After(testutil.IntervalMedium):
+	}
+
+	gate.release()
+	res := awaitStart(t, start)
+	require.NoError(t, res.err)
+
+	select {
+	case err := <-signalErr:
+		require.NoError(t, err)
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("signal did not return after the start published")
+	}
+	<-res.proc.done
+}
+
+func TestSignalByKeyReportsPendingAtDeadline(t *testing.T) {
+	t.Parallel()
+
+	gate := newStartGate(t)
+	m := newTestManager(t, gate.option())
+	req := workspacesdk.StartProcessRequest{
+		Command:        "sleep 600",
+		IdempotencyKey: "key-pending-deadline",
+		Background:     true,
+	}
+
+	start := startAsync(context.Background(), m, req, "chat-1")
+	gate.waitStalled(t)
+
+	// A caller that gives up must not learn "not found", which would
+	// let it record the command as gone while it is about to run.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := m.signalByKey(ctx, "chat-1", "key-pending-deadline", "kill")
+	require.ErrorIs(t, err, errProcessStartPending)
+	require.NotErrorIs(t, err, errProcessNotFound)
+
+	gate.release()
+	require.NoError(t, awaitStart(t, start).err)
+}
+
+func TestSignalByKeyUnknownKeyNotFound(t *testing.T) {
+	t.Parallel()
+
+	m := newTestManager(t)
+	err := m.signalByKey(context.Background(), "chat-1", "key-missing", "kill")
+	require.ErrorIs(t, err, errProcessNotFound)
+}
+
+func TestSignalByKeyIsChatScoped(t *testing.T) {
+	t.Parallel()
+
+	m := newTestManager(t)
+	proc := requireStarted(t, m, workspacesdk.StartProcessRequest{
+		Command:        "sleep 600",
+		IdempotencyKey: "key-1",
+		Background:     true,
+	}, "chat-a")
+
+	require.ErrorIs(t, m.signalByKey(context.Background(), "chat-b", "key-1", "kill"), errProcessNotFound)
+	require.True(t, proc.info().Running)
+
+	require.NoError(t, m.signalByKey(context.Background(), "chat-a", "key-1", "kill"))
+	<-proc.done
+}

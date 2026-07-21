@@ -58,6 +58,41 @@ func TestReadProcessConflictError(t *testing.T) {
 	})
 }
 
+func TestReadProcessKeyNotFoundError(t *testing.T) {
+	t.Parallel()
+
+	response := func(body string) *http.Response {
+		return &http.Response{
+			StatusCode: http.StatusNotFound,
+			Body:       io.NopCloser(strings.NewReader(body)),
+		}
+	}
+
+	t.Run("coded answer means no process", func(t *testing.T) {
+		t.Parallel()
+
+		res := response(`{"code":"process_key_not_found","message":"No process."}`)
+		defer res.Body.Close()
+		err := readProcessKeyNotFoundError(res)
+		var notFound *ProcessKeyNotFoundError
+		require.ErrorAs(t, err, &notFound)
+		require.NotErrorIs(t, err, ErrProcessKeySignalUnsupported)
+	})
+
+	t.Run("uncoded answer means the route is unsupported", func(t *testing.T) {
+		t.Parallel()
+
+		// An agent without the route answers a plain 404, which proves
+		// nothing about the process, so it must not read as gone.
+		res := response(`{"message":"Not Found."}`)
+		defer res.Body.Close()
+		err := readProcessKeyNotFoundError(res)
+		require.ErrorIs(t, err, ErrProcessKeySignalUnsupported)
+		var notFound *ProcessKeyNotFoundError
+		require.NotErrorAs(t, err, &notFound)
+	})
+}
+
 func TestAgentAPIPath(t *testing.T) {
 	t.Parallel()
 
