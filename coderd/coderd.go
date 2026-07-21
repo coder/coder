@@ -1320,6 +1320,15 @@ func New(options *Options) *API {
 			r.Get("/acl", api.getChatModelConfigACL)
 			r.Patch("/acl", api.patchChatModelConfigACL)
 		})
+		r.Route("/mcp-servers/{mcpServer}", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", api.getMCPServerConfig)
+			r.Patch("/", api.updateMCPServerConfig)
+			r.Delete("/", api.deleteMCPServerConfig)
+			r.Get("/oauth2/connect", api.mcpServerOAuth2Connect)
+			r.Get("/oauth2/callback", api.mcpServerOAuth2Callback)
+			r.Delete("/oauth2/disconnect", api.mcpServerOAuth2Disconnect)
+		})
 		r.Route("/organizations/{organization}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1327,6 +1336,8 @@ func New(options *Options) *API {
 			)
 			r.Get("/chat-model-configs", api.listChatModelConfigs)
 			r.Post("/chat-model-configs", api.createChatModelConfig)
+			r.Get("/mcp-servers", api.listMCPServerConfigs)
+			r.Post("/mcp-servers", api.createMCPServerConfig)
 			r.Route("/chats", func(r chi.Router) {
 				r.Get("/models", api.listChatModels)
 				r.Route("/config", func(r chi.Router) {
@@ -1464,20 +1475,6 @@ func New(options *Options) *API {
 			r.Use(
 				apiKeyMiddleware,
 			)
-			// MCP server configuration endpoints.
-			r.Route("/servers", func(r chi.Router) {
-				r.Get("/", api.listMCPServerConfigs)
-				r.Post("/", api.createMCPServerConfig)
-				r.Route("/{mcpServer}", func(r chi.Router) {
-					r.Get("/", api.getMCPServerConfig)
-					r.Patch("/", api.updateMCPServerConfig)
-					r.Delete("/", api.deleteMCPServerConfig)
-					// OAuth2 user flow
-					r.Get("/oauth2/connect", api.mcpServerOAuth2Connect)
-					r.Get("/oauth2/callback", api.mcpServerOAuth2Callback)
-					r.Delete("/oauth2/disconnect", api.mcpServerOAuth2Disconnect)
-				})
-			})
 			// MCP HTTP transport endpoint with mandatory authentication
 			r.Route("/http", func(r chi.Router) {
 				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP))
