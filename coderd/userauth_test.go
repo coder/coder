@@ -221,63 +221,6 @@ func TestUserOAuth2Github(t *testing.T) {
 
 		resp := oauth2Callback(t, client)
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-		location, err := resp.Location()
-		require.NoError(t, err)
-		require.NotContains(t, location.Query().Get("message"), "Coder GitHub app")
-	})
-	t.Run("NotInAllowedOrganizationDefaultProvider", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{
-			GithubOAuth2Config: &coderd.GithubOAuth2Config{
-				OAuth2Config:              &testutil.OAuth2Config{},
-				DefaultProviderConfigured: true,
-				AllowOrganizations:        []string{"coder"},
-				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
-					// The default provider is a GitHub App, so it reports no
-					// memberships for organizations it isn't installed in.
-					return []*github.Membership{}, nil
-				},
-			},
-		})
-
-		resp := oauth2Callback(t, client)
-		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-		// The error must tell the user how to fix the likely cause: the Coder
-		// GitHub app isn't installed in the allowed organization.
-		location, err := resp.Location()
-		require.NoError(t, err)
-		require.Contains(t, location.Query().Get("message"), "Coder GitHub app")
-		require.Contains(t, location.Query().Get("message"), "https://github.com/apps/coder")
-	})
-	t.Run("NotInAllowedOrganizationDefaultProviderDeviceFlow", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{
-			GithubOAuth2Config: &coderd.GithubOAuth2Config{
-				OAuth2Config:              &testutil.OAuth2Config{},
-				DefaultProviderConfigured: true,
-				AllowOrganizations:        []string{"coder"},
-				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
-					return []*github.Membership{}, nil
-				},
-				DeviceFlowEnabled: true,
-				ExchangeDeviceCode: func(_ context.Context, _ string) (*oauth2.Token, error) {
-					return &oauth2.Token{
-						AccessToken:  "access_token",
-						RefreshToken: "refresh_token",
-						Expiry:       time.Now().Add(time.Hour),
-					}, nil
-				},
-			},
-		})
-
-		resp := oauth2Callback(t, client)
-		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
-		// In the device flow the error is rendered client-side, so the hint
-		// must arrive in the response body Detail rather than the redirect.
-		var apiErr codersdk.Response
-		require.NoError(t, json.NewDecoder(resp.Body).Decode(&apiErr))
-		require.Contains(t, apiErr.Detail, "Coder GitHub app")
-		require.Contains(t, apiErr.Detail, "https://github.com/apps/coder")
 	})
 	t.Run("NotInAllowedTeam", func(t *testing.T) {
 		t.Parallel()

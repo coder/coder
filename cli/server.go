@@ -1006,7 +1006,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 			options.WebPushDispatcher = webpusher
 
-			githubOAuth2ConfigParams, err := getGithubOAuth2ConfigParams(ctx, options.Logger, options.Database, vals)
+			githubOAuth2ConfigParams, err := getGithubOAuth2ConfigParams(ctx, options.Database, vals)
 			if err != nil {
 				return xerrors.Errorf("get github oauth2 config params: %w", err)
 			}
@@ -2213,7 +2213,7 @@ func maybeAppendDefaultGithubExternalAuthProvider(
 	}), nil
 }
 
-func getGithubOAuth2ConfigParams(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues) (*githubOAuth2ConfigParams, error) {
+func getGithubOAuth2ConfigParams(ctx context.Context, db database.Store, vals *codersdk.DeploymentValues) (*githubOAuth2ConfigParams, error) {
 	params := githubOAuth2ConfigParams{
 		accessURL:         vals.AccessURL.Value(),
 		clientID:          vals.OAuth2.Github.ClientID.String(),
@@ -2250,16 +2250,6 @@ func getGithubOAuth2ConfigParams(ctx context.Context, logger slog.Logger, db dat
 	params.deviceFlow = GithubOAuth2DefaultProviderDeviceFlow
 	if len(params.allowOrgs) == 0 {
 		params.allowEveryone = GithubOAuth2DefaultProviderAllowEveryone
-	} else {
-		// The default provider is a GitHub App, which can only see memberships
-		// in organizations that have installed it. If the app isn't installed
-		// in an allowed organization, every login from that organization is
-		// rejected as "not a member".
-		logger.Warn(ctx, "the default GitHub OAuth provider can only see memberships in organizations that have installed the Coder GitHub app; "+
-			"users cannot log in until the app is installed in each allowed organization, or a custom GitHub OAuth app is configured",
-			slog.F("allowed_orgs", params.allowOrgs),
-			slog.F("install_url", coderd.GithubOAuth2DefaultProviderInstallURL),
-		)
 	}
 
 	return &params, nil

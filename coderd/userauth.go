@@ -772,20 +772,6 @@ type GithubOAuth2Config struct {
 	DefaultProviderConfigured bool
 }
 
-const (
-	// GithubOAuth2DefaultProviderInstallURL is where admins install the
-	// default Coder GitHub app so it can see organization and team
-	// memberships.
-	GithubOAuth2DefaultProviderInstallURL = "https://github.com/apps/coder/installations/select_target"
-
-	// githubOAuth2DefaultProviderRemediation explains why the default GitHub
-	// app can fail org and team membership checks, and how to fix it. It is
-	// appended to login rejection messages and mirrored by the server startup
-	// warning and the GitHub auth docs, so keep those in sync.
-	githubOAuth2DefaultProviderRemediation = "The default GitHub OAuth provider can only see organizations and teams that have installed the Coder GitHub app. " +
-		"Install it from " + GithubOAuth2DefaultProviderInstallURL + " for each authorized organization, or configure a custom GitHub OAuth app."
-)
-
 func (*GithubOAuth2Config) PKCESupported() []promoauth.Oauth2PKCEChallengeMethod {
 	return []promoauth.Oauth2PKCEChallengeMethod{promoauth.PKCEChallengeMethodSha256}
 }
@@ -945,13 +931,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		if len(selectedMemberships) == 0 {
 			status := http.StatusUnauthorized
 			msg := "You aren't a member of the authorized Github organizations!"
-			if api.GithubOAuth2Config.DefaultProviderConfigured {
-				// The default provider is a GitHub App, so it can only report
-				// memberships in organizations that have installed it. Without
-				// this hint, users in an allowed organization see a confusing
-				// rejection with no way to discover the missing installation.
-				msg += " " + githubOAuth2DefaultProviderRemediation
-			}
 			if api.GithubOAuth2Config.DeviceFlowEnabled {
 				// In the device flow, the error is rendered client-side.
 				httpapi.Write(ctx, rw, status, codersdk.Response{
@@ -998,12 +977,6 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		}
 		if allowedTeam == nil {
 			msg := fmt.Sprintf("You aren't a member of an authorized team in the %v Github organization(s)!", organizationNames)
-			if api.GithubOAuth2Config.DefaultProviderConfigured {
-				// Team visibility has the same limitation as org visibility:
-				// the default GitHub App cannot see teams in organizations
-				// where it isn't installed.
-				msg += " " + githubOAuth2DefaultProviderRemediation
-			}
 			status := http.StatusUnauthorized
 			if api.GithubOAuth2Config.DeviceFlowEnabled {
 				// In the device flow, the error is rendered client-side.
