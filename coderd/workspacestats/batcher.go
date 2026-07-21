@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/idemetadata"
 )
 
 const (
@@ -142,14 +143,15 @@ func (b *DBBatcher) Add(
 	usage bool,
 ) {
 	// Normalize outside the lock; Add serializes every stats report.
-	sessionCounts := SessionCountsFromProto(st)
-	if len(st.GetSessionCounts()) > maxSessionCountEntries {
+	sessionCounts := normalizedSessionCounts(st)
+	if len(sessionCounts) > idemetadata.MaxSessionCountEntries {
 		b.log.Warn(context.Background(), "agent reported too many distinct session types, overflow aggregated under unknown",
 			slog.F("agent_id", agentID),
-			slog.F("reported", len(st.GetSessionCounts())),
-			slog.F("max", maxSessionCountEntries),
+			slog.F("reported", len(sessionCounts)),
+			slog.F("max", idemetadata.MaxSessionCountEntries),
 		)
 	}
+	sessionCounts = capSessionCounts(sessionCounts)
 
 	b.mu.Lock()
 	defer b.mu.Unlock()

@@ -13,6 +13,11 @@ import (
 // names are truncated before storage.
 const MaxAppNameLength = 64
 
+// MaxSessionCountEntries bounds distinct app names per stats report;
+// overflow aggregates under AppNameUnknown. Applied by both agent and
+// server.
+const MaxSessionCountEntries = 64
+
 // Canonical app names for Coder's built-in session types.
 const (
 	AppNameVSCode          = "vscode"

@@ -82,6 +82,21 @@ func TestSessionCountsFromProto(t *testing.T) {
 		require.NotContains(t, got, "zz_ide_199")
 	})
 
+	t.Run("CapKeepsWellKnownNames", func(t *testing.T) {
+		t.Parallel()
+		// Junk names sort before "ssh", so only the known-first
+		// ordering keeps the canonical entry under the cap.
+		sessionCounts := map[string]int64{"ssh": 5}
+		for i := range 100 {
+			sessionCounts[fmt.Sprintf("0ide-%03d", i)] = 1
+		}
+		got := workspacestats.SessionCountsFromProto(&agentproto.Stats{SessionCounts: sessionCounts})
+		require.Len(t, got, 65)
+		require.EqualValues(t, 5, got["ssh"])
+		require.EqualValues(t, 37, got["unknown"])
+		require.NotContains(t, got, "0ide_099")
+	})
+
 	t.Run("Empty", func(t *testing.T) {
 		t.Parallel()
 		require.Empty(t, workspacestats.SessionCountsFromProto(&agentproto.Stats{}))

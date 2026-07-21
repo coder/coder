@@ -47,6 +47,7 @@ func newSSHServerMetrics(registerer prometheus.Registerer) *sshServerMetrics {
 			Subsystem: "sessions",
 			Name:      "total",
 		},
+		// magic_type is the app family (see magicTypeMetricLabel).
 		[]string{"magic_type", "pty"},
 	)
 	registerer.MustRegister(sessionsTotal)
@@ -57,6 +58,7 @@ func newSSHServerMetrics(registerer prometheus.Registerer) *sshServerMetrics {
 			Subsystem: "sessions",
 			Name:      "errors_total",
 		},
+		// magic_type is the app family (see magicTypeMetricLabel).
 		[]string{"magic_type", "pty", "error_type"},
 	)
 	registerer.MustRegister(sessionErrors)

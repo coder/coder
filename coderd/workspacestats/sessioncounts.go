@@ -9,15 +9,16 @@ import (
 	"github.com/coder/coder/v2/coderd/idemetadata"
 )
 
-// maxSessionCountEntries bounds distinct app names per stats report so a bad
-// agent cannot fan out child-table rows; overflow aggregates under
-// AppNameUnknown.
-const maxSessionCountEntries = 64
-
 // SessionCountsFromProto returns an agent's per-app session counts,
-// normalized, with non-positive counts dropped. The deprecated fixed fields
-// are converted for agents predating the session_counts map (API < 2.11).
+// normalized and capped, with non-positive counts dropped.
 func SessionCountsFromProto(st *agentproto.Stats) map[string]int64 {
+	return capSessionCounts(normalizedSessionCounts(st))
+}
+
+// normalizedSessionCounts is SessionCountsFromProto without the entry cap,
+// so callers can observe overflow. Deprecated fixed fields are converted
+// for agents predating the session_counts map (API < 2.11).
+func normalizedSessionCounts(st *agentproto.Stats) map[string]int64 {
 	counts := make(map[string]int64, len(st.GetSessionCounts()))
 	for app, count := range st.GetSessionCounts() {
 		if count > 0 {
@@ -40,14 +41,14 @@ func SessionCountsFromProto(st *agentproto.Stats) map[string]int64 {
 			}
 		}
 	}
-	return capSessionCounts(counts)
+	return counts
 }
 
-// capSessionCounts keeps at most maxSessionCountEntries named entries,
-// well-known names first then lexicographic for determinism; the rest sums
-// into AppNameUnknown, which can add one entry past the cap.
+// capSessionCounts keeps at most idemetadata.MaxSessionCountEntries named
+// entries, well-known names first then lexicographic for determinism; the
+// rest sums into AppNameUnknown, which can add one entry past the cap.
 func capSessionCounts(counts map[string]int64) map[string]int64 {
-	if len(counts) <= maxSessionCountEntries {
+	if len(counts) <= idemetadata.MaxSessionCountEntries {
 		return counts
 	}
 	names := slices.Collect(maps.Keys(counts))
@@ -64,12 +65,12 @@ func capSessionCounts(counts map[string]int64) map[string]int64 {
 		}
 		return strings.Compare(a, b)
 	})
-	capped := make(map[string]int64, maxSessionCountEntries+1)
-	for _, name := range names[:maxSessionCountEntries] {
+	capped := make(map[string]int64, idemetadata.MaxSessionCountEntries+1)
+	for _, name := range names[:idemetadata.MaxSessionCountEntries] {
 		capped[name] = counts[name]
 	}
 	var overflow int64
-	for _, name := range names[maxSessionCountEntries:] {
+	for _, name := range names[idemetadata.MaxSessionCountEntries:] {
 		overflow += counts[name]
 	}
 	if overflow > 0 {

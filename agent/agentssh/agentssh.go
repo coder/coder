@@ -156,8 +156,8 @@ type Server struct {
 
 	config *Config
 
-	// connCounts tracks active sessions per session type, created on demand.
-	connCounts syncmap.Map[string, *atomic.Int64]
+	// sessionCounts tracks active sessions per session type.
+	sessionCounts *syncmap.Map[string, *atomic.Int64]
 
 	metrics *sshServerMetrics
 }
@@ -200,13 +200,14 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 
 	metrics := newSSHServerMetrics(prometheusRegistry)
 	s := &Server{
-		Execer:    execer,
-		listeners: make(map[net.Listener]struct{}),
-		fs:        fs,
-		conns:     make(map[net.Conn]struct{}),
-		sessions:  make(map[ssh.Session]struct{}),
-		processes: make(map[*os.Process]struct{}),
-		logger:    logger,
+		Execer:        execer,
+		listeners:     make(map[net.Listener]struct{}),
+		fs:            fs,
+		conns:         make(map[net.Conn]struct{}),
+		sessions:      make(map[ssh.Session]struct{}),
+		processes:     make(map[*os.Process]struct{}),
+		sessionCounts: syncmap.New[string, *atomic.Int64](),
+		logger:        logger,
 
 		config: config,
 
@@ -228,7 +229,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		},
 	}
 
-	jetbrainsCounter := s.getOrCreateConnCounter(MagicSessionTypeJetBrains)
+	jetbrainsCounter := s.getOrCreateSessionCounter(MagicSessionTypeJetBrains)
 	srv := &ssh.Server{
 		ChannelHandlers: map[string]ssh.ChannelHandler{
 			"direct-tcpip": func(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
@@ -325,27 +326,30 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 	return s, nil
 }
 
-// maxSessionTypes bounds distinct client-supplied session-type counters;
-// overflow shares the unknown counter, mirroring the server-side cap.
-const maxSessionTypes = 64
-
-// getOrCreateConnCounter returns the active session counter for the given
-// session type, creating it on first use.
-func (s *Server) getOrCreateConnCounter(sessionType MagicSessionType) *atomic.Int64 {
+// getOrCreateSessionCounter returns the active session counter for the
+// given session type, creating it on first use. Known-family types always
+// get their own counter; unrecognized types past the cap share the unknown
+// counter, mirroring the server-side cap.
+func (s *Server) getOrCreateSessionCounter(sessionType MagicSessionType) *atomic.Int64 {
 	key := string(sessionType)
-	if counter, ok := s.connCounts.Load(key); ok {
+	if counter, ok := s.sessionCounts.Load(key); ok {
 		return counter
 	}
-	var size int
-	s.connCounts.Range(func(string, *atomic.Int64) bool {
-		size++
-		return true
-	})
-	// Racing first-uses can slightly overshoot the cap.
-	if size >= maxSessionTypes {
-		key = idemetadata.AppNameUnknown
+	if idemetadata.Family(key) == idemetadata.AppNameUnknown {
+		var size int
+		s.sessionCounts.Range(func(string, *atomic.Int64) bool {
+			size++
+			return true
+		})
+		// Racing first-uses can slightly overshoot the cap.
+		if size >= idemetadata.MaxSessionCountEntries {
+			s.logger.Debug(context.Background(), "session type counter cap reached, counting under unknown",
+				slog.F("session_type", key),
+			)
+			key = idemetadata.AppNameUnknown
+		}
 	}
-	counter, _ := s.connCounts.LoadOrStore(key, &atomic.Int64{})
+	counter, _ := s.sessionCounts.LoadOrStore(key, &atomic.Int64{})
 	return counter
 }
 
@@ -353,7 +357,7 @@ func (s *Server) getOrCreateConnCounter(sessionType MagicSessionType) *atomic.In
 // omitting idle types.
 func (s *Server) SessionCounts() map[string]int64 {
 	stats := make(map[string]int64)
-	s.connCounts.Range(func(key string, value *atomic.Int64) bool {
+	s.sessionCounts.Range(func(key string, value *atomic.Int64) bool {
 		if count := value.Load(); count > 0 {
 			stats[key] = count
 		}
@@ -483,7 +487,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		// channel.
 		reportSession = false
 	} else {
-		counter := s.getOrCreateConnCounter(magicType)
+		counter := s.getOrCreateSessionCounter(magicType)
 		counter.Add(1)
 		defer counter.Add(-1)
 	}

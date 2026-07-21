@@ -27,7 +27,7 @@ func TestBatchStats(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	store, ps := dbtestutil.NewDB(t)
+	store, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 
 	// Set up some test dependencies.
 	deps1 := setupDeps(t, store, ps)
@@ -93,6 +93,19 @@ func TestBatchStats(t *testing.T) {
 	require.EqualValues(t, 4, byAgent[deps2.Agent.ID].SessionCountJetBrains)
 	require.EqualValues(t, 2, byAgent[deps2.Agent.ID].SessionCountReconnectingPTY)
 	require.EqualValues(t, 0, byAgent[deps2.Agent.ID].SessionCountVSCode)
+
+	// And: child rows copy the parent's created_at exactly; windowed
+	// reads join on it, so a divergent copy silently drops rows.
+	var children, mismatched int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT
+			COUNT(*),
+			COUNT(*) FILTER (WHERE sc.created_at <> s.created_at)
+		FROM workspace_agent_session_counts sc
+		JOIN workspace_agent_stats s ON s.id = sc.workspace_agent_stats_id
+	`).Scan(&children, &mismatched))
+	require.EqualValues(t, 4, children, "expected one child row per positive session count")
+	require.Zero(t, mismatched, "child rows must copy the parent created_at")
 
 	// Given: a lot of data points are added for both workspaces
 	// (equal to batch size)

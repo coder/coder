@@ -1668,8 +1668,8 @@ func TestSSH(t *testing.T) {
 				expectedCounts: map[string]int64{"vscode": 1},
 			},
 			{
-				// Arbitrary app names pass through to the server and are
-				// stored raw, so new IDEs are tracked without CLI changes.
+				// Arbitrary app names pass through raw (normalized at
+				// ingestion), so new IDEs need no CLI changes.
 				name:           "ArbitraryNamePassthrough",
 				experiment:     true,
 				usageAppName:   "SomeFutureIDE",
