@@ -154,6 +154,14 @@ const rootOrder = (manifest.routes || [])
 	.filter((x) => x !== null);
 childOrderByDir.set("", rootOrder);
 
+// Restrict output to pages referenced by the manifest so the generated sidebar
+// matches docs/manifest.json exactly. Files that exist under docs/ but are not
+// in the manifest (orphans) are intentionally excluded; the previous
+// offlinedocs renderer likewise only rendered manifest routes.
+const manifestMd = allMd.filter((rel) =>
+	routeOrder.has(fileMap.get(rel).route),
+);
+
 // pass 3: rewrite + write content
 const copiedAssets = new Set();
 let unmappedMdLinks = 0;
@@ -195,7 +203,7 @@ function yamlString(s) {
 }
 
 let written = 0;
-for (const rel of allMd) {
+for (const rel of manifestMd) {
 	const { outRel, route } = fileMap.get(rel);
 	const raw = readFileSync(join(DOCS, rel), "utf8");
 
@@ -244,7 +252,8 @@ function ensureDir(d) {
 	return dirModel.get(d);
 }
 ensureDir("");
-for (const { outRel } of fileMap.values()) {
+for (const rel of manifestMd) {
+	const { outRel } = fileMap.get(rel);
 	const parts = outRel.split("/");
 	const base = parts.pop();
 	let prev = "";
@@ -296,7 +305,6 @@ for (const [dir, model] of dirModel) {
 
 	const pages = items.map((i) => i.name);
 	if (dir === "") pages.unshift("index");
-	pages.push("...");
 
 	const metaObj = {};
 	if (dir !== "") {
@@ -312,7 +320,9 @@ for (const [dir, model] of dirModel) {
 }
 
 console.log(
-	`[sync-docs] pages=${written}, meta.json=${metaFilesWritten}, ` +
+	`[sync-docs] pages=${written} ` +
+		`(skipped ${allMd.length - manifestMd.length} non-manifest), ` +
+		`meta.json=${metaFilesWritten}, ` +
 		`images=${copiedAssets.size} referenced (+ full images/ tree), ` +
 		`unmapped .md links=${unmappedMdLinks}`,
 );

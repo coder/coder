@@ -1,5 +1,6 @@
 import defaultMdxComponents from "fumadocs-ui/mdx";
 import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
+import { ImageZoom } from "fumadocs-ui/components/image-zoom";
 import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 import { OSTab } from "./os-tab";
 import type { MDXComponents } from "mdx/types";
@@ -37,9 +38,18 @@ const stubComponents: MDXComponents = {
 // root-absolute paths (/images/...). Render a plain <img>: next/image needs a
 // running server to optimize, which a static export does not have, and the
 // bundle is meant to work fully offline.
+//
+// ImageZoom makes every image click-to-zoom. Passing the plain <img> as its
+// children renders that <img> directly and skips ImageZoom's internal
+// next/image code path, so the static, unoptimized image keeps working while
+// the zoomed-in overlay still loads the same local source.
 function LocalImg({ src, alt, ...props }: ImgHTMLAttributes<HTMLImageElement>) {
 	const url = typeof src === "string" ? src : undefined;
-	return <img {...props} src={url} alt={alt ?? ""} loading="lazy" />;
+	return (
+		<ImageZoom src={url}>
+			<img {...props} src={url} alt={alt ?? ""} loading="lazy" />
+		</ImageZoom>
+	);
 }
 
 export function getMDXComponents(components?: MDXComponents) {
