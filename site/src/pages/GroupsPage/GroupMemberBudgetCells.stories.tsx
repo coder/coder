@@ -242,10 +242,22 @@ export const NotAttributedUnknownGroup: Story = {
 		const cell = await canvas.findByTestId(testId);
 		await expect(cell).toHaveTextContent("\u2014");
 		await expect(cell).not.toHaveTextContent("$456");
-		await expect(canvas.getByText("Another org")).toBeInTheDocument();
+		// The group cell shows an em-dash + info instead of naming the group.
+		const groupCell = canvas.getAllByRole("cell")[1];
+		await expect(groupCell).toHaveTextContent("\u2014");
+		await userEvent.click(
+			within(groupCell).getByRole("button", { name: "More info" }),
+		);
+		await expect(
+			await within(document.body).findByText(
+				/managed by a group in another organization/,
+			),
+		).toBeInTheDocument();
+		// Close this popover so the shared message only matches once.
+		await userEvent.keyboard("{Escape}");
 		const body = await openInfo(canvasElement);
 		await expect(
-			await body.findByText(/managed by another org and isn't visible here/),
+			await body.findByText(/managed by a group in another organization/),
 		).toBeInTheDocument();
 	},
 };

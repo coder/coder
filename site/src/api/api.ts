@@ -407,6 +407,25 @@ export type DeploymentConfig = Readonly<{
 	options: TypesGen.SerpentOption[];
 }>;
 
+/**
+ * Fetches `items` in concurrent batches of at most `batchSize`, resolving
+ * with one response per batch, in input order.
+ */
+async function fetchInBatches<Item, Response>(
+	items: readonly Item[],
+	batchSize: number,
+	fetchBatch: (batch: readonly Item[]) => Promise<Response>,
+): Promise<Response[]> {
+	const batches: Promise<Response>[] = [];
+	for (let i = 0; i < items.length; i += batchSize) {
+		batches.push(fetchBatch(items.slice(i, i + batchSize)));
+	}
+	return Promise.all(batches);
+}
+
+/** The AI spend endpoints reject requests with more than 100 IDs. */
+const aiSpendBatchSize = 100;
+
 const aiProviderConfigsPath = "/api/v2/ai/providers";
 const aiGatewayPath = "/api/v2/ai-gateway";
 const chatModelConfigsPath = "/api/experimental/chats/model-configs";
@@ -2217,38 +2236,69 @@ class ApiMethods {
 	};
 
 	/**
-	 * AI spend for the given groups in the active budget period. The backend
-	 * caps groupIds at 100 per call.
+	 * AI spend for the given groups in the active budget period. Fetched in
+	 * batches of 100 (the backend cap) and merged. Requires at least one ID;
+	 * the period window comes from the backend, so an empty request has no
+	 * meaningful response.
 	 * @param organization Can be the organization's ID or name
 	 */
 	getOrganizationGroupsAISpend = async (
 		organization: string,
 		groupIds: readonly string[],
 	): Promise<TypesGen.OrganizationGroupsAISpend> => {
-		const url = getURLWithSearchParams(
-			`/api/v2/organizations/${organization}/groups/ai/spend`,
-			{ group_ids: groupIds.join(",") },
+		if (groupIds.length === 0) {
+			throw new Error("groupIds must not be empty");
+		}
+		const responses = await fetchInBatches(
+			groupIds,
+			aiSpendBatchSize,
+			async (ids) => {
+				const url = getURLWithSearchParams(
+					`/api/v2/organizations/${organization}/groups/ai/spend`,
+					{ group_ids: ids.join(",") },
+				);
+				const response =
+					await this.axios.get<TypesGen.OrganizationGroupsAISpend>(url);
+				return response.data;
+			},
 		);
-		const response =
-			await this.axios.get<TypesGen.OrganizationGroupsAISpend>(url);
-		return response.data;
+		// Every batch reports the same active period window.
+		return {
+			...responses[0],
+			groups: responses.flatMap((r) => r.groups),
+		};
 	};
 
 	/**
 	 * Per-member AI spend attributed to a group in the active budget period.
-	 * Members without read access or not in the group are omitted. The backend
-	 * caps userIds at 100 per call.
+	 * Users not in the group, or whose spend the caller can't read, are
+	 * omitted. Fetched in batches of 100 (the backend cap) and merged.
+	 * Requires at least one ID.
 	 */
 	getGroupMembersAISpend = async (
 		groupId: string,
 		userIds: readonly string[],
 	): Promise<TypesGen.GroupMembersAISpend> => {
-		const url = getURLWithSearchParams(
-			`/api/v2/groups/${groupId}/members/ai/spend`,
-			{ user_ids: userIds.join(",") },
+		if (userIds.length === 0) {
+			throw new Error("userIds must not be empty");
+		}
+		const responses = await fetchInBatches(
+			userIds,
+			aiSpendBatchSize,
+			async (ids) => {
+				const url = getURLWithSearchParams(
+					`/api/v2/groups/${groupId}/members/ai/spend`,
+					{ user_ids: ids.join(",") },
+				);
+				const response =
+					await this.axios.get<TypesGen.GroupMembersAISpend>(url);
+				return response.data;
+			},
 		);
-		const response = await this.axios.get<TypesGen.GroupMembersAISpend>(url);
-		return response.data;
+		return {
+			...responses[0],
+			members: responses.flatMap((r) => r.members),
+		};
 	};
 
 	/**

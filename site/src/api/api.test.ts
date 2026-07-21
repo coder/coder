@@ -167,6 +167,62 @@ describe("api.ts", () => {
 		});
 	});
 
+	describe("AI spend requests", () => {
+		it("rejects an empty ID list without sending a request", async () => {
+			const getSpy = vi
+				.spyOn(axiosInstance, "get")
+				.mockResolvedValue({ data: {} });
+			try {
+				await expect(
+					API.getOrganizationGroupsAISpend("my-org", []),
+				).rejects.toThrow(/must not be empty/);
+				await expect(API.getGroupMembersAISpend("group-1", [])).rejects.toThrow(
+					/must not be empty/,
+				);
+				expect(getSpy).not.toHaveBeenCalled();
+			} finally {
+				// The suite doesn't auto-restore mocks; don't leak the stub.
+				getSpy.mockRestore();
+			}
+		});
+
+		it("batches requests of 100 group IDs and merges the results", async () => {
+			const groupIds = Array.from({ length: 150 }, (_, i) => `group-${i}`);
+			const window = {
+				period_start: "2026-07-01T00:00:00Z",
+				period_end: "2026-08-01T00:00:00Z",
+			};
+			const spendFor = (ids: string[]) =>
+				ids.map((id) => ({
+					group_id: id,
+					spend_micros: 0,
+					budget: null,
+				}));
+			const getSpy = vi
+				.spyOn(axiosInstance, "get")
+				.mockResolvedValueOnce({
+					data: { ...window, groups: spendFor(groupIds.slice(0, 100)) },
+				})
+				.mockResolvedValueOnce({
+					data: { ...window, groups: spendFor(groupIds.slice(100)) },
+				});
+
+			const result = await API.getOrganizationGroupsAISpend("my-org", groupIds);
+
+			expect(getSpy).toHaveBeenCalledTimes(2);
+			expect(getSpy.mock.calls[0][0]).toContain(
+				encodeURIComponent(groupIds.slice(0, 100).join(",")),
+			);
+			expect(getSpy.mock.calls[1][0]).toContain(
+				encodeURIComponent(groupIds.slice(100).join(",")),
+			);
+			expect(result).toStrictEqual({
+				...window,
+				groups: spendFor(groupIds),
+			});
+		});
+	});
+
 	describe("update", () => {
 		describe("given a running workspace", () => {
 			it("stops with current version before starting with the latest version", async () => {

@@ -11,6 +11,10 @@ import { StatusIconTooltip } from "./StatusIconTooltip";
 
 const EM_DASH = "\u2014";
 
+/** Shown on both cells when the governing group is in another org. */
+const OTHER_ORG_MESSAGE =
+	"This user's AI budget is managed by a group in another organization and isn't visible here.";
+
 /**
  * The AI budget and Budget group cells for a group member. Spend only counts
  * against the viewed group; another group's budget shows as unattributed.
@@ -50,16 +54,17 @@ export const GroupMemberBudgetCells: FC<{
 			budgetGroup = <Badge size="sm">{badgeName(groupName)}</Badge>;
 			break;
 		case "other": {
-			// "Another org" when the governing group can't be resolved.
-			const label = effectiveGroupName
-				? badgeName(effectiveGroupName)
-				: "Another org";
 			// Wait for the name to resolve rather than flashing the fallback.
-			budgetGroup = isResolvingGroupName ? (
-				<Spinner loading size="sm" />
-			) : (
-				<Badge size="sm">{label}</Badge>
-			);
+			if (isResolvingGroupName) {
+				budgetGroup = <Spinner loading size="sm" />;
+			} else if (effectiveGroupName) {
+				budgetGroup = <Badge size="sm">{badgeName(effectiveGroupName)}</Badge>;
+			} else {
+				// The group can't be resolved (another org), so it can't be named.
+				budgetGroup = (
+					<LabelWithInfo label={EM_DASH} message={OTHER_ORG_MESSAGE} />
+				);
+			}
 			break;
 		}
 	}
@@ -70,12 +75,7 @@ export const GroupMemberBudgetCells: FC<{
 			budget = <Spinner loading size="sm" />;
 		} else if (!effectiveGroupName) {
 			// The spend hides entirely when the governing group can't be resolved.
-			budget = (
-				<LabelWithInfo
-					label={EM_DASH}
-					message="This user's AI budget is managed by another org and isn't visible here."
-				/>
-			);
+			budget = <LabelWithInfo label={EM_DASH} message={OTHER_ORG_MESSAGE} />;
 		} else {
 			budget = (
 				<div className="flex flex-col gap-0.5">
