@@ -111,12 +111,13 @@ export const WithLongNameModule: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const moduleName =
+			"A module with a name long enough to cause the text inside the ModuleSelection component to wrap to the next line, showing that the icon on the left remains top-aligned with the first line of the module name";
 
-		const deselectModuleButton = await canvas.findByRole("button", {
-			name: "Deselect module",
-		});
-		deselectModuleButton.focus();
-		await expect(deselectModuleButton).toBeVisible();
+		expect(await canvas.findByText(moduleName)).toBeVisible();
+		expect(
+			canvas.queryByRole("button", { name: "Deselect module" }),
+		).not.toBeInTheDocument();
 	},
 };
 

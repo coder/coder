@@ -24,13 +24,18 @@ import CreateWorkspacePage from "./CreateWorkspacePage";
 function mockDynamicParameters() {
 	spyOn(API, "templateVersionDynamicParameters").mockImplementation(
 		(_versionId, _ownerId, callbacks) => {
-			// Fire asynchronously so the component mounts before the message
-			// arrives, matching real WebSocket behavior.
+			// Fire asynchronously so the component mounts before the socket opens,
+			// matching real WebSocket behavior.
 			setTimeout(() => {
+				callbacks.onOpen?.();
 				callbacks.onMessage({ id: 0, parameters: [], diagnostics: [] });
 			}, 0);
 
-			return { close: () => {} } as unknown as WebSocket;
+			return {
+				close: () => {},
+				readyState: WebSocket.OPEN,
+				send: () => {},
+			} as unknown as WebSocket;
 		},
 	);
 }

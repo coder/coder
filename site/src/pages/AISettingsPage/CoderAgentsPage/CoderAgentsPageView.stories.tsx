@@ -387,7 +387,7 @@ export const EachOverrideSetToEnabledModel: Story = {
 			generalSection,
 			canvasElement,
 			/gpt 4\.1 mini/i,
-			"Claude Sonnet 4",
+			"Claude Sonnet 4 (200K)",
 		);
 		const generalSaveButton = within(generalSection).getByRole("button", {
 			name: "Save",
@@ -407,7 +407,7 @@ export const EachOverrideSetToEnabledModel: Story = {
 			titleSection,
 			canvasElement,
 			/gpt 4o mini/i,
-			"Claude Sonnet 4",
+			"Claude Sonnet 4 (200K)",
 		);
 		const titleSaveButton = within(titleSection).getByRole("button", {
 			name: "Save",
@@ -427,7 +427,7 @@ export const EachOverrideSetToEnabledModel: Story = {
 			compactionSection,
 			canvasElement,
 			/claude sonnet 4/i,
-			"GPT 4o Mini",
+			"GPT 4o Mini (128K)",
 		);
 		const compactionSaveButton = within(compactionSection).getByRole("button", {
 			name: "Save",
