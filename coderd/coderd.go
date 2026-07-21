@@ -1378,6 +1378,22 @@ func New(options *Options) *API {
 			r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
 			r.Get("/chats/files/{file}/download", api.downloadChatFile)
 		})
+		r.Route("/mcp-servers/{mcpserverconfig}", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", api.getMCPServerConfig)
+			r.Patch("/", api.updateMCPServerConfig)
+			r.Delete("/", api.deleteMCPServerConfig)
+			r.Get("/oauth2/connect", api.mcpServerOAuth2Connect)
+			r.Delete("/oauth2/disconnect", api.mcpServerOAuth2Disconnect)
+		})
+		r.Route("/organizations/{organization}/mcp-servers", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			r.Get("/", api.listMCPServerConfigs)
+			r.Post("/", api.createMCPServerConfig)
+		})
 		r.Route("/chats", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1499,20 +1515,8 @@ func New(options *Options) *API {
 			r.Use(
 				apiKeyMiddleware,
 			)
-			// MCP server configuration endpoints.
-			r.Route("/servers", func(r chi.Router) {
-				r.Get("/", api.listMCPServerConfigs)
-				r.Post("/", api.createMCPServerConfig)
-				r.Route("/{mcpServer}", func(r chi.Router) {
-					r.Get("/", api.getMCPServerConfig)
-					r.Patch("/", api.updateMCPServerConfig)
-					r.Delete("/", api.deleteMCPServerConfig)
-					// OAuth2 user flow
-					r.Get("/oauth2/connect", api.mcpServerOAuth2Connect)
-					r.Get("/oauth2/callback", api.mcpServerOAuth2Callback)
-					r.Delete("/oauth2/disconnect", api.mcpServerOAuth2Disconnect)
-				})
-			})
+			// This callback path is frozen because it is registered with OAuth2 providers.
+			r.Get("/servers/{mcpServer}/oauth2/callback", api.mcpServerOAuth2Callback)
 			// MCP HTTP transport endpoint with mandatory authentication
 			r.Route("/http", func(r chi.Router) {
 				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP))

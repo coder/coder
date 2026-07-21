@@ -405,7 +405,7 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 	mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
 	t.Cleanup(mcpTS.Close)
 
-	mcpConfig, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+	mcpConfig, err := client.CreateMCPServerConfig(ctx, user.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 		DisplayName:     "Plan Root MCP",
 		Slug:            "plan-root-mcp",
 		Transport:       "streamable_http",

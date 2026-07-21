@@ -917,15 +917,6 @@ func latestAssistantText(messages []database.ChatMessage) string {
 // organization and are enabled. The enabled filter is applied here in Go,
 // mirroring the MCP client's connect-time skip of disabled configs
 // (mcpclient.go), so the fetch shape matches pre-org-scoping behavior.
-//
-// TODO(mafredri): remove after CODAGT-711 B3 (org-scoping cutover). Until
-// the cutover, configs fetched for a chat are valid when they belong to the
-// chat's organization OR to the default organization. All existing configs
-// were backfilled to the default organization in migration 000561 and every
-// create path still assigns it, so a strict chat-org check would detach MCP
-// servers from chats in every other organization. The cutover fans configs
-// out to every organization and switches this to a strict
-// chat-organization-only lookup.
 func enabledMCPServerConfigsForChatOrg(
 	ctx context.Context,
 	db database.Store,
@@ -936,50 +927,19 @@ func enabledMCPServerConfigsForChatOrg(
 		return []database.MCPServerConfig{}, nil
 	}
 
-	organizationIDs, err := eligibleMCPServerConfigOrganizations(ctx, db, organizationID)
-	if err != nil {
-		return nil, err
-	}
-	configs, err := db.GetMCPServerConfigsByIDsAndOrganizations(ctx, database.GetMCPServerConfigsByIDsAndOrganizationsParams{
-		IDs:             ids,
-		OrganizationIds: organizationIDs,
+	configs, err := db.GetMCPServerConfigsByOrganizationAndIDs(ctx, database.GetMCPServerConfigsByOrganizationAndIDsParams{
+		OrganizationID: organizationID,
+		IDs:            ids,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("get MCP server configs for organizations: %w", err)
+		return nil, xerrors.Errorf("get MCP server configs for organization: %w", err)
 	}
 
 	enabled := make([]database.MCPServerConfig, 0, len(configs))
 	for _, cfg := range configs {
-		if !cfg.Enabled {
-			continue
+		if cfg.Enabled {
+			enabled = append(enabled, cfg)
 		}
-		enabled = append(enabled, cfg)
 	}
 	return enabled, nil
-}
-
-// eligibleMCPServerConfigOrganizations returns the chat's organization plus
-// the default organization (deduplicated), the pair every chat MCP config
-// lookup accepts during the fallback window.
-//
-// The default organization lookup is a second failure surface that did not
-// exist before org-scoping: when it fails transiently, callers that
-// log-and-continue (generation preparation) strip all MCP tools for the
-// turn rather than just the config that would have failed. Window-limited;
-// the B3 strict scoping removes it.
-func eligibleMCPServerConfigOrganizations(
-	ctx context.Context,
-	db database.Store,
-	organizationID uuid.UUID,
-) ([]uuid.UUID, error) {
-	defaultOrg, err := db.GetDefaultOrganization(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("get default organization: %w", err)
-	}
-
-	organizationIDs := []uuid.UUID{organizationID}
-	if !slices.Contains(organizationIDs, defaultOrg.ID) {
-		organizationIDs = append(organizationIDs, defaultOrg.ID)
-	}
-	return organizationIDs, nil
 }

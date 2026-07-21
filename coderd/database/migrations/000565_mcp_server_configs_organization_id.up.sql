@@ -1,32 +1,110 @@
--- Org-scope MCP server configs: every config belongs to exactly one
--- organization. This migration backfills all existing rows to the default
--- organization; runtime behavior is preserved by a chat-org-then-default-org
--- lookup window that ends at the org-scoping cutover (CODAGT-711 B3).
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'mcp_server_config:*';
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'mcp_server_config:create';
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'mcp_server_config:read';
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'mcp_server_config:update';
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'mcp_server_config:delete';
 
--- Step 1: Add the nullable column with FK (000467 recipe).
 ALTER TABLE mcp_server_configs
     ADD COLUMN organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
 
--- Step 2: Backfill every row to the default organization. Abort loudly if
--- the deployment has no default organization; a silent partial backfill
--- would fail the NOT NULL step with an opaque error.
 DO $$
-DECLARE
-    default_org_id UUID;
 BEGIN
-    SELECT id INTO default_org_id FROM organizations WHERE is_default = true LIMIT 1;
-    IF default_org_id IS NULL THEN
-        RAISE EXCEPTION 'cannot backfill mcp_server_configs.organization_id: no default organization exists';
+    IF NOT EXISTS (SELECT 1 FROM organizations WHERE is_default = true) THEN
+        RAISE EXCEPTION 'cannot scope mcp_server_configs: no default organization exists';
     END IF;
-    UPDATE mcp_server_configs SET organization_id = default_org_id;
 END $$;
 
--- Step 3: Enforce NOT NULL going forward.
-ALTER TABLE mcp_server_configs ALTER COLUMN organization_id SET NOT NULL;
+UPDATE mcp_server_configs
+SET organization_id = (SELECT id FROM organizations WHERE is_default = true LIMIT 1);
 
--- Step 4: Slug uniqueness becomes per-organization.
-ALTER TABLE mcp_server_configs DROP CONSTRAINT mcp_server_configs_slug_key;
-ALTER TABLE mcp_server_configs ADD CONSTRAINT mcp_server_configs_organization_id_slug_key UNIQUE (organization_id, slug);
+CREATE TEMP TABLE mcp_server_config_org_map (
+    old_id UUID NOT NULL,
+    organization_id UUID NOT NULL,
+    new_id UUID NOT NULL,
+    PRIMARY KEY (old_id, organization_id),
+    UNIQUE (new_id)
+) ON COMMIT DROP;
 
--- Step 5: Index for efficient lookups by organization.
-CREATE INDEX idx_mcp_server_configs_organization_id ON mcp_server_configs (organization_id);
+INSERT INTO mcp_server_config_org_map (old_id, organization_id, new_id)
+SELECT config.id, organization.id, gen_random_uuid()
+FROM mcp_server_configs AS config
+CROSS JOIN organizations AS organization
+WHERE organization.deleted = false
+    AND organization.is_default = false;
+
+INSERT INTO mcp_server_configs (
+    id, organization_id, display_name, slug, description, icon_url, transport,
+    url, auth_type, oauth2_client_id, oauth2_client_secret,
+    oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url,
+    oauth2_revocation_url, oauth2_scopes, api_key_header, api_key_value,
+    api_key_value_key_id, custom_headers, custom_headers_key_id,
+    tool_allow_list, tool_deny_list, availability, enabled, model_intent,
+    allow_in_plan_mode, forward_coder_headers, created_by, updated_by,
+    created_at, updated_at
+)
+SELECT
+    mapping.new_id,
+    mapping.organization_id,
+    config.display_name,
+    config.slug,
+    config.description,
+    config.icon_url,
+    config.transport,
+    config.url,
+    config.auth_type,
+    CASE WHEN config.auth_type = 'oauth2' THEN '' ELSE config.oauth2_client_id END,
+    CASE WHEN config.auth_type = 'oauth2' THEN '' ELSE config.oauth2_client_secret END,
+    CASE WHEN config.auth_type = 'oauth2' THEN NULL ELSE config.oauth2_client_secret_key_id END,
+    config.oauth2_auth_url,
+    config.oauth2_token_url,
+    config.oauth2_revocation_url,
+    config.oauth2_scopes,
+    config.api_key_header,
+    config.api_key_value,
+    config.api_key_value_key_id,
+    config.custom_headers,
+    config.custom_headers_key_id,
+    config.tool_allow_list,
+    config.tool_deny_list,
+    config.availability,
+    CASE WHEN config.auth_type = 'oauth2' THEN false ELSE config.enabled END,
+    config.model_intent,
+    config.allow_in_plan_mode,
+    config.forward_coder_headers,
+    config.created_by,
+    config.updated_by,
+    config.created_at,
+    config.updated_at
+FROM mcp_server_config_org_map AS mapping
+JOIN mcp_server_configs AS config ON config.id = mapping.old_id;
+
+UPDATE chats AS chat
+SET mcp_server_ids = remapped.ids
+FROM (
+    SELECT
+        source.id,
+        COALESCE(
+            array_agg(COALESCE(mapping.new_id, item.config_id) ORDER BY item.position)
+                FILTER (WHERE item.config_id IS NOT NULL),
+            '{}'::UUID[]
+        ) AS ids
+    FROM chats AS source
+    LEFT JOIN LATERAL unnest(source.mcp_server_ids) WITH ORDINALITY
+        AS item(config_id, position) ON true
+    LEFT JOIN mcp_server_config_org_map AS mapping
+        ON mapping.old_id = item.config_id
+        AND mapping.organization_id = source.organization_id
+    WHERE source.organization_id != (
+        SELECT id FROM organizations WHERE is_default = true LIMIT 1
+    )
+    GROUP BY source.id
+) AS remapped
+WHERE remapped.id = chat.id;
+
+ALTER TABLE mcp_server_configs
+    ALTER COLUMN organization_id SET NOT NULL,
+    DROP CONSTRAINT mcp_server_configs_slug_key,
+    ADD CONSTRAINT mcp_server_configs_organization_id_slug_key UNIQUE (organization_id, slug);
+
+CREATE INDEX idx_mcp_server_configs_organization_id
+    ON mcp_server_configs (organization_id);

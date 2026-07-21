@@ -15,57 +15,37 @@ WHERE
     organization_id = @organization_id::uuid
     AND slug = @slug::text;
 
--- name: GetMCPServerConfigs :many
+-- name: GetMCPServerConfigsByOrganization :many
 SELECT
     *
 FROM
     mcp_server_configs
 WHERE
-    true
+    organization_id = @organization_id::uuid
     -- Authorize Filter clause will be injected below in GetAuthorizedMCPServerConfigs
     -- @authorize_filter
 ORDER BY
     display_name ASC;
 
--- name: GetEnabledMCPServerConfigs :many
+-- name: GetEnabledMCPServerConfigsByOrganization :many
 SELECT
     *
 FROM
     mcp_server_configs
 WHERE
-    enabled = TRUE
+    organization_id = @organization_id::uuid
+    AND enabled = TRUE
 ORDER BY
     display_name ASC;
 
--- name: GetMCPServerConfigsByIDs :many
+-- name: GetMCPServerConfigsByOrganizationAndIDs :many
 SELECT
     *
 FROM
     mcp_server_configs
 WHERE
-    id = ANY(@ids::uuid[])
-ORDER BY
-    display_name ASC;
-
--- name: GetMCPServerConfigsByIDsAndOrganizations :many
-SELECT
-    *
-FROM
-    mcp_server_configs
-WHERE
-    id = ANY(@ids::uuid[])
-    AND organization_id = ANY(@organization_ids::uuid[])
-ORDER BY
-    display_name ASC;
-
--- name: GetForcedMCPServerConfigs :many
-SELECT
-    *
-FROM
-    mcp_server_configs
-WHERE
-    enabled = TRUE
-    AND availability = 'force_on'
+    organization_id = @organization_id::uuid
+    AND id = ANY(@ids::uuid[])
 ORDER BY
     display_name ASC;
 
