@@ -104,7 +104,7 @@ jobs:
                 "repos/${REPO}/issues/comments/${existing_id}"; then
                 echo "Deleted stale docs preview comment (id=${existing_id})."
               else
-                echo "Failed to delete stale docs preview comment (id=${existing_id}); leaving in place."
+                echo "Failed to delete stale docs preview comment (id=${existing_id}); leaving in place. This is usually a transient API error, and the next push retries the cleanup." >&2
               fi
             fi
             exit 0
@@ -264,10 +264,14 @@ jobs:
             if [ -n "$old_state_b64" ]; then
               # Guard the decode: a truncated or corrupted marker must
               # degrade to "treat every page as new", not kill the run
-              # (base64 -d and jq both run under set -e). Require the
-              # result to parse as a JSON object, else keep {}.
+              # (base64 -d and jq both run under set -e). Reject an empty
+              # decode before the type check: on jq < 1.7 `jq -e` exits 0
+              # on empty input, so the type check alone would accept an
+              # empty string and `--argjson old_state ""` would abort the
+              # run. Require a non-empty result that parses as a JSON
+              # object, else keep {}.
               decoded=$(printf '%s' "$old_state_b64" | base64 -d 2>/dev/null || true)
-              if printf '%s' "$decoded" | jq -e 'type == "object"' >/dev/null 2>&1; then
+              if [ -n "$decoded" ] && printf '%s' "$decoded" | jq -e 'type == "object"' >/dev/null 2>&1; then
                 old_state_json="$decoded"
               fi
             fi

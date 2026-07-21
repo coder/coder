@@ -173,15 +173,17 @@ assert_checkbox_parses_to '## Docs preview' ""
 STATE_PREFIX='docs-preview-state:'
 
 # Recovers the {path: sha} state map from the hidden marker, a faithful
-# copy of the guarded block in docs-preview.yaml (the CRF-21 fix): decode
-# under `2>/dev/null || true` and adopt the result only if it parses as a
-# JSON object, else degrade to {} so a corrupt marker can't kill the run.
+# copy of the guarded block in docs-preview.yaml: decode under
+# `2>/dev/null || true` and adopt the result only if it is non-empty and
+# parses as a JSON object, else degrade to {} so a corrupt marker can't
+# kill the run. The non-empty check keeps the guard's outcome the same on
+# jq < 1.7, where `jq -e` exits 0 on empty input.
 recover_old_state() {
 	local body="$1" b64 decoded
 	b64=$(printf '%s\n' "$body" | grep -oE "${STATE_PREFIX}[A-Za-z0-9+/=]+" | sed "s/^${STATE_PREFIX}//") || true
 	if [ -n "$b64" ]; then
 		decoded=$(printf '%s' "$b64" | base64 -d 2>/dev/null || true)
-		if printf '%s' "$decoded" | jq -e 'type == "object"' >/dev/null 2>&1; then
+		if [ -n "$decoded" ] && printf '%s' "$decoded" | jq -e 'type == "object"' >/dev/null 2>&1; then
 			printf '%s' "$decoded"
 			return
 		fi
@@ -258,9 +260,9 @@ assert_round_trip_state() {
 
 assert_round_trip_state
 
-# CRF-43: the malformed-marker path the CRF-21 guard added must recover to
-# {} with the run surviving. Feed markers that clear the charset grep but
-# fail the decode or the object-type gate.
+# The malformed-marker path the decode guard added must recover to {} with
+# the run surviving. Feed markers that clear the charset grep but fail the
+# decode or the object-type gate.
 assert_marker_recovers() {
 	local marker="$1" expected="$2" desc="$3" body actual
 	body=$(printf '## Docs preview\n<!-- docs-preview -->\n<!-- %s%s -->' "$STATE_PREFIX" "$marker")
@@ -359,8 +361,8 @@ else
 	failures=$((failures + 1))
 fi
 
-# build_comment_body mirrors the body assembler in docs-preview.yaml
-# (CRF-15): it renders the first N pages of $final_rows into the exact
+# build_comment_body mirrors the body assembler in docs-preview.yaml:
+# it renders the first N pages of $final_rows into the exact
 # comment body the workflow posts, so the comment can be sized by
 # measuring the real bytes instead of estimating a per-page cost. Reads
 # the $final_rows, $total_pages, $url_prefix, $DOCS_PREVIEW_MARKER, and
@@ -430,6 +432,8 @@ cap_pages() {
 }
 
 budget=65000
+# GitHub's hard comment-body limit; the budget above leaves headroom under it.
+github_comment_limit=65536
 
 # Repo-scale worst case: a docs migration touching 400 pages on a long
 # ticket-prefixed branch, ~60-char paths, the shape reviewers measured
@@ -445,10 +449,10 @@ total_pages=$(printf '%s' "$final_rows" | jq 'length')
 
 keep=$(cap_pages "$budget")
 final_body_bytes=$(build_comment_body "$keep" | LC_ALL=C wc -c)
-if [ "$keep" -lt "$total_pages" ] && [ "$final_body_bytes" -le 65536 ]; then
-	echo "PASS: repo-scale cap keeps $keep/$total_pages pages, body ${final_body_bytes}B <= 65536"
+if [ "$keep" -lt "$total_pages" ] && [ "$final_body_bytes" -le "$github_comment_limit" ]; then
+	echo "PASS: repo-scale cap keeps $keep/$total_pages pages, body ${final_body_bytes}B <= ${github_comment_limit}"
 else
-	echo "FAIL: repo-scale cap keeps $keep/$total_pages pages, body ${final_body_bytes}B (want < total and <= 65536)"
+	echo "FAIL: repo-scale cap keeps $keep/$total_pages pages, body ${final_body_bytes}B (want < total and <= ${github_comment_limit})"
 	failures=$((failures + 1))
 fi
 
@@ -475,7 +479,7 @@ else
 	failures=$((failures + 1))
 fi
 
-# CRF-43: round-trip build_comment_body's *own emitted* marker back through
+# Round-trip build_comment_body's *own emitted* marker back through
 # recover_old_state, proving the producer and consumer marker formats agree
 # (a drift would silently reset every checkbox on every push).
 emitted_state=$(recover_old_state "$small_body")
