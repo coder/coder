@@ -990,11 +990,6 @@ func TestRenameChatTitle(t *testing.T) {
 	})
 }
 
-func withChatMessageAPIKeyID(message database.ChatMessage, apiKeyID string) database.ChatMessage {
-	message.APIKeyID = sqlNullString(apiKeyID)
-	return message
-}
-
 // requireOutgoingRequestModel asserts that the outgoing request body
 // requests wantModel. This is so that mock transports can still
 // verify the outgoing request asked for the expected model.
@@ -1114,12 +1109,12 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 			LimitVal: manualTitleMessageWindowLimit,
 		},
 	).Return([]database.ChatMessage{
-		withChatMessageAPIKeyID(mustChatMessage(
+		mustChatMessage(
 			t,
 			database.ChatMessageRoleUser,
 			database.ChatMessageVisibilityBoth,
 			codersdk.ChatMessageText(userPrompt),
-		), activeAPIKeyID),
+		),
 		mustChatMessage(
 			t,
 			database.ChatMessageRoleAssistant,
@@ -1266,12 +1261,12 @@ func TestRegenerateChatTitle_SkipsPersistWhenTitleChangedConcurrently(t *testing
 			LimitVal: manualTitleMessageWindowLimit,
 		},
 	).Return([]database.ChatMessage{
-		withChatMessageAPIKeyID(mustChatMessage(
+		mustChatMessage(
 			t,
 			database.ChatMessageRoleUser,
 			database.ChatMessageVisibilityBoth,
 			codersdk.ChatMessageText(userPrompt),
-		), activeAPIKeyID),
+		),
 	}, nil)
 	db.EXPECT().GetChatMessagesByChatIDDescPaginated(
 		gomock.Any(),

@@ -255,7 +255,6 @@ func textFromParts(parts []codersdk.ChatMessagePart) string {
 
 type buildCompactionMessagesInput struct {
 	modelConfigID  uuid.UUID
-	activeAPIKeyID string
 	toolCallID     string
 	toolName       string
 	compaction     compactionOutcome
@@ -319,7 +318,6 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 			Visibility:     database.ChatMessageVisibilityModel,
 			ModelConfigID:  uuid.NullUUID{UUID: input.modelConfigID, Valid: input.modelConfigID != uuid.Nil},
 			ContentVersion: contentVersion,
-			APIKeyID:       sql.NullString{String: input.activeAPIKeyID, Valid: input.activeAPIKeyID != ""},
 		},
 		baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, assistantContent),
 		baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, toolContent),

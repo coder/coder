@@ -58,7 +58,6 @@ func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
 		codersdk.ChatMessageText("hello"),
 	})
 	require.NoError(t, err)
-	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: owner.ID})
 	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 		OrganizationID:    org.ID,
 		OwnerID:           owner.ID,
@@ -73,7 +72,6 @@ func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
 				ContentVersion: chatprompt.CurrentContentVersion,
 				CreatedBy:      uuid.NullUUID{UUID: owner.ID, Valid: true},
 				ModelConfigID:  uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
-				APIKeyID:       sql.NullString{String: apiKey.ID, Valid: true},
 			},
 		},
 	})
