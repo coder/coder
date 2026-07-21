@@ -855,8 +855,6 @@ export const SidebarCollapsed: Story = {
 	},
 };
 
-export const WithToolbarEndContent: Story = {};
-
 export const EmptyStateZoom200Desktop: Story = {
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
@@ -941,52 +939,6 @@ export const CollapsedSidebarZoom200DesktopWithAgent: Story = {
 		});
 
 		await expect(expandButton).toBeVisible();
-	},
-};
-
-// Chat creation is internal to the layout and there is no mock seam
-// for forcing the pending state, so the story covers the populated
-// sidebar during normal creation flow.
-export const CreatingAgent: Story = {
-	beforeEach: () => {
-		mockChats([
-			buildChat({
-				id: "chat-1",
-				title: "Existing agent",
-				updated_at: todayTimestamp,
-			}),
-		]);
-	},
-};
-
-// Hold the archive mutation pending so the sidebar shows the agent's
-// archiving state, which the layout derives from mutation status.
-export const ArchivingAgent: Story = {
-	beforeEach: () => {
-		mockChats([
-			buildChat({
-				id: "chat-1",
-				title: "Agent being archived",
-				updated_at: todayTimestamp,
-			}),
-			buildChat({
-				id: "chat-2",
-				title: "Another agent",
-				updated_at: todayTimestamp,
-			}),
-		]);
-		spyOn(API.experimental, "updateChat").mockReturnValue(
-			new Promise(() => {}),
-		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// The layout triggers the archive mutation from the sidebar
-		// menu; the menu interaction is covered by sidebar component
-		// stories. This play function keeps the story interactive so
-		// the pending mutation state renders.
-		const chatItem = await canvas.findByText("Agent being archived");
-		await userEvent.click(chatItem);
 	},
 };
 

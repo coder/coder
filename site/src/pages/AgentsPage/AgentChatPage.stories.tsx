@@ -43,7 +43,7 @@ import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 
 // ---------------------------------------------------------------------------
-// Layout wrapper – provides outlet context for the child route.
+// Layout wrapper: provides outlet context for the child route.
 // ---------------------------------------------------------------------------
 const AgentChatPageLayout: FC = () => {
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -2177,7 +2177,7 @@ export const SidebarWithSingleRepo: Story = {
 	},
 };
 /**
- * Streaming reasoning part via WebSocket — renders inline text.
+ * Streaming reasoning part via WebSocket, renders inline text.
  */
 export const StreamedReasoning: Story = {
 	parameters: {

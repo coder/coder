@@ -29,7 +29,7 @@ function getRightPanelState(): { open: boolean; width: number } {
  * sidebar + empty main area layout so the user sees structure
  * immediately instead of a fullscreen spinner.
  */
-export const AgentsLayoutSkeleton: FC = () => {
+export const AgentsPageLayoutSkeleton: FC = () => {
 	const [leftSidebarWidth] = useState(() => loadPersistedLeftSidebarWidth());
 
 	return (

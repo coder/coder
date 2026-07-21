@@ -398,7 +398,7 @@ const AgentAnalyticsPage = lazy(
 
 import {
 	AgentChatPageSkeleton,
-	AgentsLayoutSkeleton,
+	AgentsPageLayoutSkeleton,
 } from "./pages/AgentsPage/components/AgentsSkeletons";
 
 const CoderCupPage = lazy(() => import("./pages/CoderCupPage/CoderCupPage"));
@@ -846,7 +846,7 @@ export const router = createBrowserRouter(
 				<Route
 					path="/agents"
 					element={
-						<Suspense fallback={<AgentsLayoutSkeleton />}>
+						<Suspense fallback={<AgentsPageLayoutSkeleton />}>
 							<AgentsPageLayout />
 						</Suspense>
 					}
