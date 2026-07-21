@@ -11,6 +11,7 @@ import {
 } from "react-router";
 import { GlobalErrorBoundary } from "./components/ErrorBoundary/GlobalErrorBoundary";
 import { Loader } from "./components/Loader/Loader";
+import { AIResourceOrganizationOutlet } from "./contexts/AIResourceOrganizationContext";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { useAuthenticated } from "./hooks/useAuthenticated";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
@@ -473,18 +474,22 @@ const AISettingsIndexRedirect = () => {
 	const { permissions } = useAuthenticated();
 
 	if (permissions.viewAnyAIProvider) {
-		return <Navigate to="/ai/settings/providers" replace />;
+		return <NavigateWithSearch to="/ai/settings/providers" />;
 	}
 
 	if (permissions.viewAIGatewayKeys) {
 		return <Navigate to="/ai/settings/gateway-keys" replace />;
 	}
 
-	if (permissions.editDeploymentConfig) {
-		return <Navigate to="/ai/settings/models" replace />;
+	if (permissions.viewAnyChatModelConfig || permissions.editDeploymentConfig) {
+		return <NavigateWithSearch to="/ai/settings/models" />;
 	}
 
-	return <Navigate to="/ai/settings/providers" replace />;
+	if (permissions.viewAnyMCPServerConfig) {
+		return <NavigateWithSearch to="/ai/settings/mcp-servers" />;
+	}
+
+	return <NavigateWithSearch to="/ai/settings/providers" />;
 };
 
 const GlobalLayout = () => {
@@ -765,29 +770,92 @@ export const router = createBrowserRouter(
 							element={<AISettingsGatewayKeysPage />}
 						/>
 						<Route index element={<AISettingsIndexRedirect />} />
-						<Route path="models" element={<AISettingsModelsPage />} />
+						<Route
+							element={
+								<AIResourceOrganizationOutlet
+									isOrganizationPermitted={(permissions) =>
+										permissions.viewModels
+									}
+								/>
+							}
+						>
+							<Route path="models" element={<AISettingsModelsPage />} />
+						</Route>
+						<Route
+							element={
+								<AIResourceOrganizationOutlet
+									isOrganizationPermitted={(permissions) =>
+										permissions.createModel
+									}
+								/>
+							}
+						>
+							<Route path="models/add" element={<AISettingsAddModelPage />} />
+						</Route>
+						<Route
+							element={
+								<AIResourceOrganizationOutlet
+									isOrganizationPermitted={(permissions) =>
+										permissions.editModels
+									}
+								/>
+							}
+						>
+							<Route
+								path="models/:modelId"
+								element={<AISettingsUpdateModelPage />}
+							/>
+							<Route path="coder-agents" element={<CoderAgentsPage />} />
+						</Route>
 						<Route path="spend" element={<AISettingsSpendPage />} />
 						<Route
 							path="instructions"
 							element={<AISettingsInstructionsPage />}
 						/>
 						<Route path="lifecycle" element={<AISettingsLifecyclePage />} />
-						<Route path="coder-agents" element={<CoderAgentsPage />} />
 						<Route path="templates" element={<AISettingsTemplatesPage />} />
-						<Route path="models/add" element={<AISettingsAddModelPage />} />
 						<Route
-							path="models/:modelId"
-							element={<AISettingsUpdateModelPage />}
-						/>
-						<Route path="mcp-servers" element={<AISettingsMCPServersPage />} />
+							element={
+								<AIResourceOrganizationOutlet
+									isOrganizationPermitted={(permissions) =>
+										permissions.viewMCPServers
+									}
+								/>
+							}
+						>
+							<Route
+								path="mcp-servers"
+								element={<AISettingsMCPServersPage />}
+							/>
+						</Route>
 						<Route
-							path="mcp-servers/add"
-							element={<AISettingsAddMCPServerPage />}
-						/>
+							element={
+								<AIResourceOrganizationOutlet
+									isOrganizationPermitted={(permissions) =>
+										permissions.createMCPServers
+									}
+								/>
+							}
+						>
+							<Route
+								path="mcp-servers/add"
+								element={<AISettingsAddMCPServerPage />}
+							/>
+						</Route>
 						<Route
-							path="mcp-servers/:serverId"
-							element={<AISettingsUpdateMCPServerPage />}
-						/>
+							element={
+								<AIResourceOrganizationOutlet
+									isOrganizationPermitted={(permissions) =>
+										permissions.editMCPServers
+									}
+								/>
+							}
+						>
+							<Route
+								path="mcp-servers/:serverId"
+								element={<AISettingsUpdateMCPServerPage />}
+							/>
+						</Route>
 						<Route path="providers" element={<AISettingsProvidersPage />} />
 						<Route
 							path="providers/add"
@@ -849,25 +917,46 @@ export const router = createBrowserRouter(
 						</Suspense>
 					}
 				>
-					<Route index element={<AgentCreatePage />} />
+					<Route
+						element={
+							<AIResourceOrganizationOutlet
+								isOrganizationPermitted={(permissions) =>
+									permissions.createChat
+								}
+							/>
+						}
+					>
+						<Route index element={<AgentCreatePage />} />
+					</Route>
 					<Route path="settings" element={<AgentSettingsPage />}>
 						<Route index element={<AgentSettingsGeneralPage />} />
 						<Route path="general" element={<AgentSettingsGeneralPage />} />
 						<Route
-							path="compaction"
-							element={<AgentSettingsCompactionPage />}
-						/>
+							element={
+								<AIResourceOrganizationOutlet
+									isOrganizationPermitted={(permissions) =>
+										permissions.viewModels
+									}
+								/>
+							}
+						>
+							<Route
+								path="compaction"
+								element={<AgentSettingsCompactionPage />}
+							/>
+							<Route
+								path="user-agents"
+								element={<AgentSettingsUserAgentsPage />}
+							/>
+							<Route path="api-keys" element={<AgentSettingsAPIKeysPage />} />
+						</Route>
 						<Route
 							path="instructions"
-							element={<Navigate to="/ai/settings/instructions" replace />}
+							element={<NavigateWithSearch to="/ai/settings/instructions" />}
 						/>
 						<Route
 							path="lifecycle"
-							element={<Navigate to="/ai/settings/lifecycle" replace />}
-						/>
-						<Route
-							path="user-agents"
-							element={<AgentSettingsUserAgentsPage />}
+							element={<NavigateWithSearch to="/ai/settings/lifecycle" />}
 						/>
 						<Route
 							path="personal-skills"
@@ -875,32 +964,31 @@ export const router = createBrowserRouter(
 						/>
 						<Route
 							path="admin"
-							element={<Navigate to="/ai/settings/coder-agents" replace />}
+							element={<NavigateWithSearch to="/ai/settings/coder-agents" />}
 						/>
 						<Route
 							path="agents"
-							element={<Navigate to="/ai/settings/coder-agents" replace />}
+							element={<NavigateWithSearch to="/ai/settings/coder-agents" />}
 						/>
 						<Route
 							path="coder-agents"
-							element={<Navigate to="/ai/settings/coder-agents" replace />}
+							element={<NavigateWithSearch to="/ai/settings/coder-agents" />}
 						/>
 						<Route
 							path="experiments"
-							element={<Navigate to="/ai/settings/coder-agents" replace />}
+							element={<NavigateWithSearch to="/ai/settings/coder-agents" />}
 						/>
-						<Route path="api-keys" element={<AgentSettingsAPIKeysPage />} />
 						<Route
 							path="providers"
-							element={<Navigate to="/ai/settings/providers" replace />}
+							element={<NavigateWithSearch to="/ai/settings/providers" />}
 						/>
 						<Route
 							path="models"
-							element={<Navigate to="/ai/settings/models" replace />}
+							element={<NavigateWithSearch to="/ai/settings/models" />}
 						/>
 						<Route
 							path="mcp-servers"
-							element={<Navigate to="/ai/settings/mcp-servers" replace />}
+							element={<NavigateWithSearch to="/ai/settings/mcp-servers" />}
 						/>
 						<Route
 							path="spend"
@@ -916,7 +1004,7 @@ export const router = createBrowserRouter(
 						/>
 						<Route
 							path="templates"
-							element={<Navigate to="/ai/settings/templates" replace />}
+							element={<NavigateWithSearch to="/ai/settings/templates" />}
 						/>
 					</Route>
 					<Route path="analytics" element={<AgentAnalyticsPage />} />

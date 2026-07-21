@@ -9,7 +9,8 @@ import {
 	chatProviderConfigs,
 	createChatModelConfig,
 } from "#/api/queries/chats";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { AIResourceOrganizationSelector } from "#/components/AIResourceOrganizationSelector/AIResourceOrganizationSelector";
+import { useAIResourceOrganization } from "#/contexts/AIResourceOrganizationContext";
 import {
 	canManageProviderModels,
 	deriveProviderStates,
@@ -19,7 +20,8 @@ import { pageTitle } from "#/utils/page";
 import AddModelPageView from "./AddModelPageView";
 
 const AddModelPage: FC = () => {
-	const { permissions } = useAuthenticated();
+	const { organization, permissions: organizationPermissions } =
+		useAIResourceOrganization();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const [searchParams] = useSearchParams();
@@ -27,8 +29,8 @@ const AddModelPage: FC = () => {
 	const duplicateId = searchParams.get("duplicate");
 
 	const providerConfigsQuery = useQuery(chatProviderConfigs());
-	const modelConfigsQuery = useQuery(chatModelConfigs());
-	const modelCatalogQuery = useQuery(chatModels());
+	const modelConfigsQuery = useQuery(chatModelConfigs(organization.name));
+	const modelCatalogQuery = useQuery(chatModels(organization.name));
 
 	const createMutation = useMutation(createChatModelConfig(queryClient));
 
@@ -56,8 +58,11 @@ const AddModelPage: FC = () => {
 	const currentDefaultModel = modelConfigsQuery.data?.find((m) => m.is_default);
 
 	return (
-		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
+		<RequirePermission
+			isFeatureVisible={Boolean(organizationPermissions?.createModel)}
+		>
 			<title>{pageTitle("Add model", "AI Settings")}</title>
+			<AIResourceOrganizationSelector />
 
 			<AddModelPageView
 				isLoading={isLoading}
@@ -75,11 +80,19 @@ const AddModelPage: FC = () => {
 				}}
 				onCreateModel={async (req) => {
 					try {
-						const created = await createMutation.mutateAsync(req);
+						const created = await createMutation.mutateAsync({
+							organization: organization.name,
+							req,
+						});
 						toast.success(
 							`Model "${created.display_name || created.model}" added.`,
 						);
-						await navigate(`/ai/settings/models/${created.id}`);
+						const next = new URLSearchParams(searchParams);
+						next.delete("provider");
+						next.delete("duplicate");
+						await navigate(
+							`/ai/settings/models/${created.id}?${next.toString()}`,
+						);
 					} catch (error) {
 						toast.error(getErrorMessage(error, "Failed to add model."));
 					}

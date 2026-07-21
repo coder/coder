@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { MockNoPermissions, MockPermissions } from "#/testHelpers/entities";
 import AISettingsSidebarView from "./AISettingsSidebarView";
@@ -75,6 +76,46 @@ export const NoDeploymentConfig: Story = {
 			...MockPermissions,
 			editDeploymentConfig: false,
 		},
+	},
+};
+
+export const ModelReadOnly: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			viewAnyChatModelConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("link", { name: "Models" })).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "MCP servers" }),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("link", { name: "Coder Agents" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const MCPReadOnly: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			viewAnyMCPServerConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "MCP servers" }),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Models" }),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("link", { name: "Templates" }),
+		).not.toBeInTheDocument();
 	},
 };
 

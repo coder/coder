@@ -1,9 +1,10 @@
 import { type FC, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Navigate, useNavigate, useParams } from "react-router";
+import { Navigate, useLocation, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
+	chatModelConfig,
 	chatModelConfigs,
 	chatModels,
 	chatProviderConfigs,
@@ -11,21 +12,27 @@ import {
 	updateChatModelConfig,
 } from "#/api/queries/chats";
 import { Loader } from "#/components/Loader/Loader";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useAIResourceOrganization } from "#/contexts/AIResourceOrganizationContext";
 import { deriveProviderStates } from "#/modules/aiModels/providerStates";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
 import UpdateModelPageView from "./UpdateModelPageView";
 
 const UpdateModelPage: FC = () => {
-	const { permissions } = useAuthenticated();
+	const { organization, permissions: organizationPermissions } =
+		useAIResourceOrganization();
 	const { modelId } = useParams<{ modelId: string }>();
 	const navigate = useNavigate();
+	const location = useLocation();
 	const queryClient = useQueryClient();
 
 	const providerConfigsQuery = useQuery(chatProviderConfigs());
-	const modelConfigsQuery = useQuery(chatModelConfigs());
-	const modelCatalogQuery = useQuery(chatModels());
+	const modelQuery = useQuery({
+		...chatModelConfig(modelId ?? ""),
+		enabled: Boolean(modelId),
+	});
+	const modelConfigsQuery = useQuery(chatModelConfigs(organization.name));
+	const modelCatalogQuery = useQuery(chatModels(organization.name));
 
 	const updateMutation = useMutation(updateChatModelConfig(queryClient));
 	const deleteMutation = useMutation(deleteChatModelConfig(queryClient));
@@ -42,10 +49,14 @@ const UpdateModelPage: FC = () => {
 
 	const isLoading =
 		providerConfigsQuery.isLoading ||
+		modelQuery.isLoading ||
 		modelConfigsQuery.isLoading ||
 		modelCatalogQuery.isLoading;
 
-	const model = modelConfigsQuery.data?.find((m) => m.id === modelId);
+	const model =
+		modelQuery.data?.organization_id === organization.id
+			? modelQuery.data
+			: undefined;
 	const currentDefaultModel = modelConfigsQuery.data?.find((m) => m.is_default);
 	const [providerKeyOverride, setProviderKeyOverride] = useState<string | null>(
 		null,
@@ -60,16 +71,24 @@ const UpdateModelPage: FC = () => {
 		null;
 
 	return (
-		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
+		<RequirePermission
+			isFeatureVisible={Boolean(organizationPermissions?.editModels)}
+		>
 			{!modelId ? (
-				<Navigate to="/ai/settings/models" replace />
+				<Navigate
+					to={{ pathname: "/ai/settings/models", search: location.search }}
+					replace
+				/>
 			) : isLoading ? (
 				<>
 					<title>{pageTitle("Loading...", "AI Settings")}</title>
 					<Loader fullscreen />
 				</>
 			) : !model ? (
-				<Navigate to="/ai/settings/models" replace />
+				<Navigate
+					to={{ pathname: "/ai/settings/models", search: location.search }}
+					replace
+				/>
 			) : (
 				<UpdateModelPageView
 					model={model}
@@ -82,39 +101,64 @@ const UpdateModelPage: FC = () => {
 					onUpdateModel={async (id, req) => {
 						try {
 							const updated = await updateMutation.mutateAsync({
+								organization: organization.name,
 								modelConfigId: id,
 								req,
 							});
 							toast.success(
 								`Model "${updated.display_name || updated.model}" updated.`,
 							);
-							await navigate("/ai/settings/models");
+							await navigate({
+								pathname: "/ai/settings/models",
+								search: location.search,
+							});
 						} catch (error) {
 							toast.error(getErrorMessage(error, "Failed to update model."));
 						}
 					}}
-					onDeleteModel={async (id) => {
-						try {
-							await deleteMutation.mutateAsync(id);
-							toast.success(
-								`Model "${model.display_name || model.model}" deleted.`,
-							);
-							await navigate("/ai/settings/models", { replace: true });
-						} catch (error) {
-							toast.error(getErrorMessage(error, "Failed to delete model."));
-						}
-					}}
+					onDeleteModel={
+						organizationPermissions.deleteModels
+							? async (id) => {
+									try {
+										await deleteMutation.mutateAsync({
+											organization: organization.name,
+											modelConfigId: id,
+										});
+										toast.success(
+											`Model "${model.display_name || model.model}" deleted.`,
+										);
+										await navigate(
+											{
+												pathname: "/ai/settings/models",
+												search: location.search,
+											},
+											{ replace: true },
+										);
+									} catch (error) {
+										toast.error(
+											getErrorMessage(error, "Failed to delete model."),
+										);
+									}
+								}
+							: undefined
+					}
 					onDuplicate={() => {
 						if (!selectedProviderState) return;
-						void navigate(
-							`/ai/settings/models/add?provider=${encodeURIComponent(
-								selectedProviderState.key,
-							)}&duplicate=${encodeURIComponent(model.id)}`,
-						);
+						const params = new URLSearchParams(location.search);
+						params.set("provider", selectedProviderState.key);
+						params.set("duplicate", model.id);
+						void navigate({
+							pathname: "/ai/settings/models/add",
+							search: params.toString(),
+						});
 					}}
 					onToggleEnabled={(enabled) => {
 						updateMutation.mutate(
-							{ modelConfigId: model.id, req: { enabled } },
+							{
+								organization: organization.name,
+								modelConfigId: model.id,
+								req: { enabled },
+							},
 							{
 								onSuccess: () => {
 									toast.success(

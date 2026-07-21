@@ -372,46 +372,227 @@ describe("api.ts", () => {
 		});
 	});
 
-	describe("chat configuration endpoints", () => {
+	describe("organization chat resource endpoints", () => {
+		const organization = "org/name";
+		const modelConfigId = "model/id";
+		const serverId = "server/id";
+		const organizationPath = "/api/experimental/organizations/org%2Fname";
+		const modelConfigPath = "/api/experimental/chat-model-configs/model%2Fid";
+		const serverPath = "/api/experimental/mcp-servers/server%2Fid";
+
 		it.each<[string, () => Promise<unknown>, unknown]>([
 			[
-				"/api/experimental/chats/models",
-				() => API.experimental.getChatModels(),
-				{
-					providers: [],
-				},
+				`${organizationPath}/chats/models`,
+				() => API.experimental.getChatModels(organization),
+				{ providers: [] },
 			],
 			[
-				"/api/experimental/chats/model-configs",
-				() => API.experimental.getChatModelConfigs(),
+				`${organizationPath}/chat-model-configs`,
+				() => API.experimental.getChatModelConfigs(organization),
 				[],
 			],
-		])("returns response data for %s", async (path, request, responseData) => {
-			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
-				data: responseData,
-			});
+			[
+				modelConfigPath,
+				() => API.experimental.getChatModelConfig(modelConfigId),
+				{ id: modelConfigId },
+			],
+			[
+				`${modelConfigPath}/acl`,
+				() => API.experimental.getChatModelConfigACL(modelConfigId),
+				{ users: [], groups: [] },
+			],
+			[
+				`${organizationPath}/mcp-servers`,
+				() => API.experimental.getMCPServerConfigs(organization),
+				[],
+			],
+			[
+				serverPath,
+				() => API.experimental.getMCPServerConfig(serverId),
+				{ id: serverId },
+			],
+			[
+				`${serverPath}/acl`,
+				() => API.experimental.getMCPServerConfigACL(serverId),
+				{ users: [], groups: [] },
+			],
+			[
+				`${organizationPath}/chats/config/model-override/general`,
+				() => API.experimental.getChatModelOverride(organization, "general"),
+				{},
+			],
+			[
+				`${organizationPath}/chats/config/user-personal-model-overrides`,
+				() => API.experimental.getUserChatPersonalModelOverrides(organization),
+				{},
+			],
+			[
+				`${organizationPath}/chats/config/advisor`,
+				() => API.experimental.getChatAdvisorConfig(organization),
+				{},
+			],
+			[
+				`${organizationPath}/chats/config/user-compaction-thresholds`,
+				() => API.experimental.getUserChatCompactionThresholds(organization),
+				{},
+			],
+		])("gets %s and returns response data", async (path, request, data) => {
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({ data });
 
-			const result = await request();
-
+			await expect(request()).resolves.toStrictEqual(data);
 			expect(axiosInstance.get).toHaveBeenCalledWith(path);
-			expect(result).toStrictEqual(responseData);
+		});
+
+		it("builds the item OAuth connect URL", () => {
+			expect(API.experimental.getMCPServerOAuth2ConnectURL(serverId)).toBe(
+				`${serverPath}/oauth2/connect`,
+			);
 		});
 
 		it.each<[string, () => Promise<unknown>]>([
 			[
-				"/api/experimental/chats/models",
-				() => API.experimental.getChatModels(),
+				`${organizationPath}/chats/models`,
+				() => API.experimental.getChatModels(organization),
 			],
 			[
-				"/api/experimental/chats/model-configs",
-				() => API.experimental.getChatModelConfigs(),
+				`${organizationPath}/chat-model-configs`,
+				() => API.experimental.getChatModelConfigs(organization),
 			],
+			[
+				modelConfigPath,
+				() => API.experimental.getChatModelConfig(modelConfigId),
+			],
+			[
+				`${organizationPath}/mcp-servers`,
+				() => API.experimental.getMCPServerConfigs(organization),
+			],
+			[serverPath, () => API.experimental.getMCPServerConfig(serverId)],
 		])("rethrows axios errors for %s", async (path, request) => {
 			const expectedError = new Error("request failed");
 			vi.spyOn(axiosInstance, "get").mockRejectedValueOnce(expectedError);
 
 			await expect(request()).rejects.toBe(expectedError);
 			expect(axiosInstance.get).toHaveBeenCalledWith(path);
+		});
+
+		it("creates organization model and MCP configs", async () => {
+			const modelRequest = {} as TypesGen.CreateChatModelConfigRequest;
+			const serverRequest = {} as TypesGen.CreateMCPServerConfigRequest;
+			vi.spyOn(axiosInstance, "post")
+				.mockResolvedValueOnce({ data: { id: modelConfigId } })
+				.mockResolvedValueOnce({ data: { id: serverId } });
+
+			await API.experimental.createChatModelConfig(organization, modelRequest);
+			await API.experimental.createMCPServerConfig(organization, serverRequest);
+
+			expect(axiosInstance.post).toHaveBeenNthCalledWith(
+				1,
+				`${organizationPath}/chat-model-configs`,
+				modelRequest,
+			);
+			expect(axiosInstance.post).toHaveBeenNthCalledWith(
+				2,
+				`${organizationPath}/mcp-servers`,
+				serverRequest,
+			);
+		});
+
+		it("updates item, ACL, and organization model-bearing settings routes", async () => {
+			const modelRequest = {} as TypesGen.UpdateChatModelConfigRequest;
+			const serverRequest = {} as TypesGen.UpdateMCPServerConfigRequest;
+			const modelACLRequest = {} as TypesGen.UpdateChatModelConfigACL;
+			const serverACLRequest = {} as TypesGen.UpdateMCPServerConfigACL;
+			const overrideRequest = {} as TypesGen.UpdateChatModelOverrideRequest;
+			const personalRequest =
+				{} as TypesGen.UpdateUserChatPersonalModelOverrideRequest;
+			const advisorRequest = {} as TypesGen.UpdateAdvisorConfigRequest;
+			const thresholdRequest =
+				{} as TypesGen.UpdateUserChatCompactionThresholdRequest;
+			vi.spyOn(axiosInstance, "patch").mockResolvedValue({ data: {} });
+
+			await API.experimental.updateChatModelConfig(modelConfigId, modelRequest);
+			await API.experimental.updateChatModelConfigACL(
+				modelConfigId,
+				modelACLRequest,
+			);
+			await API.experimental.updateMCPServerConfig(serverId, serverRequest);
+			await API.experimental.updateMCPServerConfigACL(
+				serverId,
+				serverACLRequest,
+			);
+			await API.experimental.updateChatModelOverride(
+				organization,
+				"general",
+				overrideRequest,
+			);
+			await API.experimental.updateUserChatPersonalModelOverride(
+				organization,
+				"root",
+				personalRequest,
+			);
+			await API.experimental.updateChatAdvisorConfig(
+				organization,
+				advisorRequest,
+			);
+			await API.experimental.updateUserChatCompactionThreshold(
+				organization,
+				modelConfigId,
+				thresholdRequest,
+			);
+
+			expect(axiosInstance.patch).toHaveBeenCalledWith(
+				modelConfigPath,
+				modelRequest,
+			);
+			expect(axiosInstance.patch).toHaveBeenCalledWith(
+				`${modelConfigPath}/acl`,
+				modelACLRequest,
+			);
+			expect(axiosInstance.patch).toHaveBeenCalledWith(
+				serverPath,
+				serverRequest,
+			);
+			expect(axiosInstance.patch).toHaveBeenCalledWith(
+				`${serverPath}/acl`,
+				serverACLRequest,
+			);
+			expect(axiosInstance.patch).toHaveBeenCalledWith(
+				`${organizationPath}/chats/config/model-override/general`,
+				overrideRequest,
+			);
+			expect(axiosInstance.patch).toHaveBeenCalledWith(
+				`${organizationPath}/chats/config/user-personal-model-overrides/root`,
+				personalRequest,
+			);
+			expect(axiosInstance.patch).toHaveBeenCalledWith(
+				`${organizationPath}/chats/config/advisor`,
+				advisorRequest,
+			);
+			expect(axiosInstance.patch).toHaveBeenCalledWith(
+				`${organizationPath}/chats/config/user-compaction-thresholds/model%2Fid`,
+				thresholdRequest,
+			);
+		});
+
+		it("deletes item, OAuth, and organization threshold routes", async () => {
+			vi.spyOn(axiosInstance, "delete").mockResolvedValue({ data: {} });
+
+			await API.experimental.deleteChatModelConfig(modelConfigId);
+			await API.experimental.deleteMCPServerConfig(serverId);
+			await API.experimental.disconnectMCPServerOAuth2(serverId);
+			await API.experimental.deleteUserChatCompactionThreshold(
+				organization,
+				modelConfigId,
+			);
+
+			expect(axiosInstance.delete).toHaveBeenCalledWith(modelConfigPath);
+			expect(axiosInstance.delete).toHaveBeenCalledWith(serverPath);
+			expect(axiosInstance.delete).toHaveBeenCalledWith(
+				`${serverPath}/oauth2/disconnect`,
+			);
+			expect(axiosInstance.delete).toHaveBeenCalledWith(
+				`${organizationPath}/chats/config/user-compaction-thresholds/model%2Fid`,
+			);
 		});
 	});
 

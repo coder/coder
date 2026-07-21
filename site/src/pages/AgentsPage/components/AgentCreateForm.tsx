@@ -1,16 +1,13 @@
-import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
-import { useQuery } from "react-query";
+import { type FC, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
-import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { docs } from "#/utils/docs";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
@@ -28,7 +25,6 @@ import {
 import { AgentChatInput } from "./AgentChatInput";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import type { ModelSelectorOption } from "./ChatElements";
-import { CompactOrgSelector } from "./ChatElements";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -39,7 +35,8 @@ import { getModelSelectorHelp } from "./ModelSelectorHelp";
 /** @internal Exported for testing. */
 export const emptyInputStorageKey = "agents.empty-input";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
-const lastModelConfigIDStorageKey = "agents.last-model-config-id";
+const lastModelConfigIDStorageKey = (organization: string) =>
+	`agents.last-model-config-id.${organization}`;
 
 type ChatModelOption = ModelSelectorOption;
 
@@ -143,6 +140,12 @@ interface AgentCreateFormProps {
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
 	isWorkspacesLoading: boolean;
+	organization: TypesGen.Organization;
+	registerOrganizationChangeGuard?: (
+		guard: (
+			nextOrganization: TypesGen.Organization,
+		) => boolean | Promise<boolean>,
+	) => () => void;
 }
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
@@ -169,8 +172,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	workspaceOptions,
 	workspacesError,
 	isWorkspacesLoading,
+	organization,
+	registerOrganizationChangeGuard,
 }) => {
-	const { organizations, showOrganizations } = useDashboard();
 	const {
 		initialInputValue,
 		initialEditorState,
@@ -179,7 +183,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		resetDraft,
 	} = useEmptyStateDraft();
 	const [initialLastModelConfigID] = useState(() => {
-		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
+		return (
+			localStorage.getItem(lastModelConfigIDStorageKey(organization.name)) ?? ""
+		);
 	});
 	/*
 	 * Model precedence: user click > root override (specific model) > root
@@ -251,44 +257,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				selectedModelOption.reasoningEffortDefault,
 			)
 		: undefined;
-	const initialOrg =
-		organizations.find((o) => o.is_default) ?? organizations[0];
+	const organizationId = organization.id;
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
-		() => {
-			const stored = localStorage.getItem(selectedWorkspaceIdStorageKey);
-			if (!stored) return null;
-
-			// The stored value is kept optimistically until workspaces
-			// load. effectiveWorkspaceId (computed after render) drops
-			// it if it doesn't match the current org's workspaces.
-			if (workspaceOptions.length === 0) return stored;
-
-			// Validate the stored workspace still exists and belongs
-			// to the initial org. Without this, a workspace from a
-			// previously selected org persists across sessions and
-			// gets submitted even though it's hidden from the picker.
-			const workspace = workspaceOptions.find((ws) => ws.id === stored);
-			if (!workspace) {
-				localStorage.removeItem(selectedWorkspaceIdStorageKey);
-				return null;
-			}
-			if (
-				showOrganizations &&
-				initialOrg &&
-				workspace.organization_id !== initialOrg.id
-			) {
-				localStorage.removeItem(selectedWorkspaceIdStorageKey);
-				return null;
-			}
-			return stored;
-		},
+		() => localStorage.getItem(selectedWorkspaceIdStorageKey),
 	);
-	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
-		initialOrg ?? null,
-	);
-	const [pendingOrgChange, setPendingOrgChange] =
-		useState<TypesGen.Organization | null>(null);
-	const organizationId = selectedOrg?.id ?? "";
 	const [planModeEnabled, setPlanModeEnabled] = useState(false);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
@@ -315,12 +287,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		if (lastUsedModelID) {
 			return;
 		}
-		localStorage.removeItem(lastModelConfigIDStorageKey);
+		localStorage.removeItem(lastModelConfigIDStorageKey(organization.name));
 	}, [
 		initialLastModelConfigID,
 		isModelCatalogLoading,
 		isModelConfigsLoading,
 		lastUsedModelID,
+		organization.name,
 	]);
 
 	const [userMCPServerIds, setUserMCPServerIds] = useState<string[] | null>(
@@ -330,7 +303,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		if (userMCPServerIds !== null) {
 			return userMCPServerIds;
 		}
-		const saved = getSavedMCPSelection(mcpServers ?? []);
+		const saved = getSavedMCPSelection(mcpServers ?? [], organization.name);
 		if (saved !== null) {
 			return saved;
 		}
@@ -361,10 +334,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// guarantees completeness. If workspace counts grow large
 	// enough to warrant pagination, this should switch to a
 	// server-side organization:<name> query filter.
-	const filteredWorkspaces =
-		showOrganizations && selectedOrg
-			? workspaceOptions.filter((ws) => ws.organization_id === selectedOrg.id)
-			: workspaceOptions;
+	const filteredWorkspaces = workspaceOptions.filter(
+		(workspace) => workspace.organization_id === organization.id,
+	);
 
 	const effectiveWorkspaceId =
 		selectedWorkspaceId !== null &&
@@ -405,6 +377,55 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		persist: true,
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
+	const attachmentsRef = useRef(attachments);
+	useEffect(() => {
+		attachmentsRef.current = attachments;
+	}, [attachments]);
+	const pendingOrganizationChangeRef = useRef<
+		| {
+				promise: Promise<boolean>;
+				resolve: (confirmed: boolean) => void;
+		  }
+		| undefined
+	>(undefined);
+	const [organizationChangePending, setOrganizationChangePending] =
+		useState(false);
+
+	useEffect(() => {
+		if (!registerOrganizationChangeGuard) {
+			return;
+		}
+		const unregister = registerOrganizationChangeGuard(() => {
+			if (attachmentsRef.current.length === 0) {
+				return true;
+			}
+			if (pendingOrganizationChangeRef.current) {
+				return pendingOrganizationChangeRef.current.promise;
+			}
+			setOrganizationChangePending(true);
+			let resolve: (confirmed: boolean) => void = () => undefined;
+			const promise = new Promise<boolean>((promiseResolve) => {
+				resolve = promiseResolve;
+			});
+			pendingOrganizationChangeRef.current = { promise, resolve };
+			return promise;
+		});
+		return () => {
+			unregister();
+			pendingOrganizationChangeRef.current?.resolve(false);
+			pendingOrganizationChangeRef.current = undefined;
+		};
+	}, [registerOrganizationChangeGuard]);
+
+	const resolveOrganizationChange = (confirmed: boolean) => {
+		if (confirmed) {
+			resetAttachments();
+			handleWorkspaceChange(null);
+		}
+		pendingOrganizationChangeRef.current?.resolve(confirmed);
+		pendingOrganizationChangeRef.current = undefined;
+		setOrganizationChangePending(false);
+	};
 
 	const handleSendWithAttachments = async (message: string) => {
 		const fileIds: string[] = [];
@@ -433,50 +454,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 	};
 
-	const permittedOrgsQuery = useQuery({
-		...permittedOrganizations({
-			object: { resource_type: "chat" },
-			action: "create",
-		}),
-		enabled: showOrganizations,
-	});
-	const permittedOrgs = permittedOrgsQuery.data ?? organizations;
-
-	// Reconcile selectedOrg when permission filtering removes it.
-	// Only pure state setters run during render; side effects
-	// (localStorage, blob URL cleanup) run in the effect below.
-	const [prevPermittedOrgs, setPrevPermittedOrgs] = useState(permittedOrgs);
-	const [orgWasAdjusted, setOrgWasAdjusted] = useState(false);
-	if (permittedOrgs !== prevPermittedOrgs) {
-		setPrevPermittedOrgs(permittedOrgs);
-		if (selectedOrg && !permittedOrgs.some((o) => o.id === selectedOrg.id)) {
-			// Fall back through: first permitted org, then the
-			// dashboard default. Never null out selectedOrg.
-			// organizationId must always be a valid UUID for the
-			// create-chat request.
-			const nextOrg = permittedOrgs[0] ?? initialOrg ?? null;
-			setSelectedOrg(nextOrg);
-			if (nextOrg?.id !== selectedOrg.id) {
-				setOrgWasAdjusted(true);
-			}
-		}
-	}
-
-	// Clean up workspace and attachment state after a programmatic
-	// org change from permission filtering. These calls have side
-	// effects (localStorage, blob URL revocation) that must not
-	// run during render.
-	const onOrgAdjusted = useEffectEvent(() => {
-		handleWorkspaceChange(null);
-		resetAttachments();
-	});
-	useEffect(() => {
-		if (orgWasAdjusted) {
-			setOrgWasAdjusted(false);
-			onOrgAdjusted();
-		}
-	}, [orgWasAdjusted]);
-
 	return (
 		<>
 			<div className="order-last flex min-h-0 flex-none items-end justify-center overflow-auto px-4 pb-4 sm:order-none sm:h-full sm:flex-1 sm:items-center">
@@ -504,26 +481,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						)
 					) : null}
 					{workspacesError != null && <ErrorAlert error={workspacesError} />}
-					{permittedOrgsQuery.error != null && (
-						<ErrorAlert error={permittedOrgsQuery.error} />
-					)}
-					{showOrganizations && permittedOrgs.length > 1 && (
-						<CompactOrgSelector
-							value={selectedOrg}
-							options={permittedOrgs}
-							onChange={(newOrg) => {
-								const orgChanged = newOrg.id !== selectedOrg?.id;
-								if (orgChanged && attachments.length > 0) {
-									setPendingOrgChange(newOrg);
-									return;
-								}
-								if (orgChanged) {
-									handleWorkspaceChange(null);
-								}
-								setSelectedOrg(newOrg);
-							}}
-						/>
-					)}
 					<AgentChatInput
 						onSend={handleSendWithAttachments}
 						sendShortcut={sendShortcut}
@@ -559,7 +516,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						selectedMCPServerIds={effectiveMCPServerIds}
 						onMCPSelectionChange={(ids) => {
 							setUserMCPServerIds(ids);
-							saveMCPSelection(ids);
+							saveMCPSelection(ids, organization.name);
 						}}
 						onMCPAuthComplete={onMCPAuthComplete}
 						workspaceOptions={filteredWorkspaces}
@@ -591,19 +548,14 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				</div>
 			</div>
 			<ConfirmDialog
-				open={pendingOrgChange !== null}
+				open={organizationChangePending}
 				title="Change organization?"
 				description="Changing organization will remove your current attachments."
 				type="info"
 				hideCancel={false}
 				confirmText="Continue"
-				onConfirm={() => {
-					resetAttachments();
-					handleWorkspaceChange(null);
-					setSelectedOrg(pendingOrgChange);
-					setPendingOrgChange(null);
-				}}
-				onClose={() => setPendingOrgChange(null)}
+				onConfirm={() => resolveOrganizationChange(true)}
+				onClose={() => resolveOrganizationChange(false)}
 			/>
 		</>
 	);

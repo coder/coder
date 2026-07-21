@@ -91,6 +91,7 @@ export const MockChatContextDirty: ChatContext = {
 
 export const MockMCPServerConfig: MCPServerConfig = {
 	id: "mcp-1",
+	organization_id: "test-org-id",
 	display_name: "MCP Server",
 	slug: "mcp-server",
 	description: "",

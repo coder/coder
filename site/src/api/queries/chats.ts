@@ -1571,6 +1571,11 @@ const chatPersonalModelOverridesAdminSettingsKey = [
 	"admin-personal-model-overrides",
 ] as const;
 
+const userChatPersonalModelOverridesKeyPrefix = [
+	...chatsKey,
+	"user-personal-model-overrides",
+] as const;
+
 export const chatPersonalModelOverridesAdminSettings = () => ({
 	queryKey: chatPersonalModelOverridesAdminSettingsKey,
 	queryFn: () => API.experimental.getChatPersonalModelOverridesAdminSettings(),
@@ -1587,26 +1592,73 @@ export const updateChatPersonalModelOverridesAdminSettings = (
 			queryKey: chatPersonalModelOverridesAdminSettingsKey,
 		});
 		await queryClient.invalidateQueries({
-			queryKey: userChatPersonalModelOverridesKey,
+			queryKey: userChatPersonalModelOverridesKeyPrefix,
 		});
 	},
 });
 
 export * from "./chatDebugLogging";
-export const chatAdvisorConfigKey = ["chat-advisor-config"] as const;
 
-export const chatAdvisorConfig = () => ({
-	queryKey: chatAdvisorConfigKey,
-	queryFn: (): Promise<TypesGen.AdvisorConfig> =>
-		API.experimental.getChatAdvisorConfig(),
+export const chatModelOverrideKey = (
+	organization: string,
+	context: TypesGen.ChatModelOverrideContext,
+) => [...chatsKey, "model-override", organization, context] as const;
+
+export const chatModelOverride = (
+	organization: string,
+	context: TypesGen.ChatModelOverrideContext,
+) => ({
+	queryKey: chatModelOverrideKey(organization, context),
+	queryFn: (): Promise<TypesGen.ChatModelOverrideResponse> =>
+		API.experimental.getChatModelOverride(organization, context),
 });
 
-export const updateChatAdvisorConfig = (queryClient: QueryClient) => ({
-	mutationFn: (req: TypesGen.UpdateAdvisorConfigRequest) =>
-		API.experimental.updateChatAdvisorConfig(req),
-	onSuccess: async () => {
+type UpdateChatModelOverrideMutationArgs = {
+	organization: string;
+	context: TypesGen.ChatModelOverrideContext;
+	req: TypesGen.UpdateChatModelOverrideRequest;
+};
+
+export const updateChatModelOverride = (queryClient: QueryClient) => ({
+	mutationFn: ({
+		organization,
+		context,
+		req,
+	}: UpdateChatModelOverrideMutationArgs) =>
+		API.experimental.updateChatModelOverride(organization, context, req),
+	onSuccess: async (
+		_data: unknown,
+		{ organization, context }: UpdateChatModelOverrideMutationArgs,
+	) => {
 		await queryClient.invalidateQueries({
-			queryKey: chatAdvisorConfigKey,
+			queryKey: chatModelOverrideKey(organization, context),
+		});
+	},
+});
+
+export const chatAdvisorConfigKey = (organization: string) =>
+	[...chatsKey, "advisor-config", organization] as const;
+
+export const chatAdvisorConfig = (organization: string) => ({
+	queryKey: chatAdvisorConfigKey(organization),
+	queryFn: (): Promise<TypesGen.AdvisorConfig> =>
+		API.experimental.getChatAdvisorConfig(organization),
+});
+
+type UpdateChatAdvisorConfigMutationArgs = {
+	organization: string;
+	req: TypesGen.UpdateAdvisorConfigRequest;
+};
+
+export const updateChatAdvisorConfig = (queryClient: QueryClient) => ({
+	mutationFn: ({ organization, req }: UpdateChatAdvisorConfigMutationArgs) =>
+		API.experimental.updateChatAdvisorConfig(organization, req),
+	onSuccess: async (
+		_data: unknown,
+		{ organization }: UpdateChatAdvisorConfigMutationArgs,
+	) => {
+		await queryClient.invalidateQueries({
+			queryKey: chatAdvisorConfigKey(organization),
 		});
 	},
 });
@@ -1723,18 +1775,17 @@ export const updateUserChatCustomPrompt = (queryClient: QueryClient) => ({
 	},
 });
 
-const userChatPersonalModelOverridesKey = [
-	...chatsKey,
-	"user-personal-model-overrides",
-] as const;
+export const userChatPersonalModelOverridesKey = (organization: string) =>
+	[...userChatPersonalModelOverridesKeyPrefix, organization] as const;
 
-export const userChatPersonalModelOverrides = () => ({
-	queryKey: userChatPersonalModelOverridesKey,
+export const userChatPersonalModelOverrides = (organization: string) => ({
+	queryKey: userChatPersonalModelOverridesKey(organization),
 	queryFn: (): Promise<TypesGen.UserChatPersonalModelOverridesResponse> =>
-		API.experimental.getUserChatPersonalModelOverrides(),
+		API.experimental.getUserChatPersonalModelOverrides(organization),
 });
 
 type UpdateUserChatPersonalModelOverrideArgs = {
+	organization: string;
 	context: TypesGen.ChatPersonalModelOverrideContext;
 	req: TypesGen.UpdateUserChatPersonalModelOverrideRequest;
 };
@@ -1742,56 +1793,94 @@ type UpdateUserChatPersonalModelOverrideArgs = {
 export const updateUserChatPersonalModelOverride = (
 	queryClient: QueryClient,
 ) => ({
-	mutationFn: ({ context, req }: UpdateUserChatPersonalModelOverrideArgs) =>
-		API.experimental.updateUserChatPersonalModelOverride(context, req),
-	onSuccess: async () => {
+	mutationFn: ({
+		organization,
+		context,
+		req,
+	}: UpdateUserChatPersonalModelOverrideArgs) =>
+		API.experimental.updateUserChatPersonalModelOverride(
+			organization,
+			context,
+			req,
+		),
+	onSuccess: async (
+		_data: unknown,
+		{ organization }: UpdateUserChatPersonalModelOverrideArgs,
+	) => {
 		await queryClient.invalidateQueries({
-			queryKey: userChatPersonalModelOverridesKey,
+			queryKey: userChatPersonalModelOverridesKey(organization),
 		});
 	},
 });
 
-const userCompactionThresholdsKey = [
-	"chat-user-compaction-thresholds",
-] as const;
+export const userCompactionThresholdsKey = (organization: string) =>
+	[...chatsKey, "user-compaction-thresholds", organization] as const;
 
-export const userCompactionThresholds = () => ({
-	queryKey: userCompactionThresholdsKey,
-	queryFn: () => API.experimental.getUserChatCompactionThresholds(),
+export const userCompactionThresholds = (organization: string) => ({
+	queryKey: userCompactionThresholdsKey(organization),
+	queryFn: () => API.experimental.getUserChatCompactionThresholds(organization),
 });
 
+type UpdateUserCompactionThresholdArgs = {
+	organization: string;
+	modelConfigId: string;
+	req: TypesGen.UpdateUserChatCompactionThresholdRequest;
+};
+
+type DeleteUserCompactionThresholdArgs = Pick<
+	UpdateUserCompactionThresholdArgs,
+	"organization" | "modelConfigId"
+>;
+
 export const updateUserCompactionThreshold = (queryClient: QueryClient) => ({
-	mutationFn: (vars: {
-		modelConfigId: string;
-		req: TypesGen.UpdateUserChatCompactionThresholdRequest;
-	}) =>
+	mutationFn: ({
+		organization,
+		modelConfigId,
+		req,
+	}: UpdateUserCompactionThresholdArgs) =>
 		API.experimental.updateUserChatCompactionThreshold(
-			vars.modelConfigId,
-			vars.req,
+			organization,
+			modelConfigId,
+			req,
 		),
-	onSuccess: async () => {
+	onSuccess: async (
+		_data: TypesGen.UserChatCompactionThreshold,
+		{ organization }: UpdateUserCompactionThresholdArgs,
+	) => {
 		await queryClient.invalidateQueries({
-			queryKey: userCompactionThresholdsKey,
+			queryKey: userCompactionThresholdsKey(organization),
 		});
 	},
 });
 
 export const deleteUserCompactionThreshold = (queryClient: QueryClient) => ({
-	mutationFn: (modelConfigId: string) =>
-		API.experimental.deleteUserChatCompactionThreshold(modelConfigId),
-	onSuccess: async () => {
+	mutationFn: ({
+		organization,
+		modelConfigId,
+	}: DeleteUserCompactionThresholdArgs) =>
+		API.experimental.deleteUserChatCompactionThreshold(
+			organization,
+			modelConfigId,
+		),
+	onSuccess: async (
+		_data: unknown,
+		{ organization }: DeleteUserCompactionThresholdArgs,
+	) => {
 		await queryClient.invalidateQueries({
-			queryKey: userCompactionThresholdsKey,
+			queryKey: userCompactionThresholdsKey(organization),
 		});
 	},
 });
 
-export const chatModelsKey = ["chat-models"] as const;
+const chatModelsKeyPrefix = [...chatsKey, "models"] as const;
 
-export const chatModels = () => ({
-	queryKey: chatModelsKey,
+export const chatModelsKey = (organization: string) =>
+	[...chatModelsKeyPrefix, organization] as const;
+
+export const chatModels = (organization: string) => ({
+	queryKey: chatModelsKey(organization),
 	queryFn: (): Promise<TypesGen.ChatModelsResponse> =>
-		API.experimental.getChatModels(),
+		API.experimental.getChatModels(organization),
 });
 
 const chatProviderConfigsKey = ["chat-provider-configs"] as const;
@@ -1822,12 +1911,33 @@ export const chatProviderConfigs = () => ({
 	},
 });
 
-const chatModelConfigsKey = ["chat-model-configs"] as const;
+const chatModelConfigsKeyPrefix = [...chatsKey, "model-configs"] as const;
 
-export const chatModelConfigs = () => ({
-	queryKey: chatModelConfigsKey,
+export const chatModelConfigsKey = (organization: string) =>
+	[...chatModelConfigsKeyPrefix, organization] as const;
+
+export const chatModelConfigKey = (modelConfigId: string) =>
+	[...chatsKey, "model-config", modelConfigId] as const;
+
+export const chatModelConfigACLKey = (modelConfigId: string) =>
+	[...chatModelConfigKey(modelConfigId), "acl"] as const;
+
+export const chatModelConfigs = (organization: string) => ({
+	queryKey: chatModelConfigsKey(organization),
 	queryFn: (): Promise<TypesGen.ChatModelConfig[]> =>
-		API.experimental.getChatModelConfigs(),
+		API.experimental.getChatModelConfigs(organization),
+});
+
+export const chatModelConfig = (modelConfigId: string) => ({
+	queryKey: chatModelConfigKey(modelConfigId),
+	queryFn: (): Promise<TypesGen.ChatModelConfig> =>
+		API.experimental.getChatModelConfig(modelConfigId),
+});
+
+export const chatModelConfigACL = (modelConfigId: string) => ({
+	queryKey: chatModelConfigACLKey(modelConfigId),
+	queryFn: (): Promise<TypesGen.ChatModelConfigACL> =>
+		API.experimental.getChatModelConfigACL(modelConfigId),
 });
 
 export const userChatProviderConfigsKey = [
@@ -1864,7 +1974,7 @@ export const upsertUserChatProviderKey = (queryClient: QueryClient) => ({
 			queryClient.invalidateQueries({
 				queryKey: userChatProviderConfigsKey,
 			}),
-			queryClient.invalidateQueries({ queryKey: chatModelsKey }),
+			queryClient.invalidateQueries({ queryKey: chatModelsKeyPrefix }),
 		]);
 	},
 });
@@ -1877,55 +1987,113 @@ export const deleteUserChatProviderKey = (queryClient: QueryClient) => ({
 			queryClient.invalidateQueries({
 				queryKey: userChatProviderConfigsKey,
 			}),
-			queryClient.invalidateQueries({ queryKey: chatModelsKey }),
+			queryClient.invalidateQueries({ queryKey: chatModelsKeyPrefix }),
 		]);
 	},
 });
 
-const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {
+const invalidateChatConfigurationQueries = async (
+	queryClient: QueryClient,
+	organization: string,
+) => {
 	await Promise.all([
-		queryClient.invalidateQueries({ queryKey: chatProviderConfigsKey }),
-		queryClient.invalidateQueries({ queryKey: chatModelConfigsKey }),
-		queryClient.invalidateQueries({ queryKey: chatModelsKey }),
+		queryClient.invalidateQueries({
+			queryKey: chatModelConfigsKey(organization),
+		}),
+		queryClient.invalidateQueries({ queryKey: chatModelsKey(organization) }),
 	]);
 };
 
-// Called after AI provider mutations so open model pickers refresh.
+// Called after AI provider mutations so model lists refresh across organizations.
 export const invalidateChatProviderDependentQueries = async (
 	queryClient: QueryClient,
 ) => {
 	await Promise.all([
-		invalidateChatConfigurationQueries(queryClient),
+		queryClient.invalidateQueries({ queryKey: chatProviderConfigsKey }),
+		queryClient.invalidateQueries({ queryKey: chatModelConfigsKeyPrefix }),
+		queryClient.invalidateQueries({ queryKey: chatModelsKeyPrefix }),
 		queryClient.invalidateQueries({ queryKey: userChatProviderConfigsKey }),
 	]);
 };
 
+type CreateChatModelConfigMutationArgs = {
+	organization: string;
+	req: TypesGen.CreateChatModelConfigRequest;
+};
+
 export const createChatModelConfig = (queryClient: QueryClient) => ({
-	mutationFn: (req: TypesGen.CreateChatModelConfigRequest) =>
-		API.experimental.createChatModelConfig(req),
-	onSuccess: async () => {
-		await invalidateChatConfigurationQueries(queryClient);
-	},
+	mutationFn: ({ organization, req }: CreateChatModelConfigMutationArgs) =>
+		API.experimental.createChatModelConfig(organization, req),
+	onSuccess: async (
+		_data: TypesGen.ChatModelConfig,
+		{ organization }: CreateChatModelConfigMutationArgs,
+	) => invalidateChatConfigurationQueries(queryClient, organization),
 });
 
 type UpdateChatModelConfigMutationArgs = {
+	organization: string;
 	modelConfigId: string;
 	req: TypesGen.UpdateChatModelConfigRequest;
 };
 
+type DeleteChatModelConfigMutationArgs = Pick<
+	UpdateChatModelConfigMutationArgs,
+	"organization" | "modelConfigId"
+>;
+
 export const updateChatModelConfig = (queryClient: QueryClient) => ({
 	mutationFn: ({ modelConfigId, req }: UpdateChatModelConfigMutationArgs) =>
 		API.experimental.updateChatModelConfig(modelConfigId, req),
-	onSuccess: async () => {
-		await invalidateChatConfigurationQueries(queryClient);
+	onSuccess: async (
+		_data: TypesGen.ChatModelConfig,
+		{ organization, modelConfigId }: UpdateChatModelConfigMutationArgs,
+	) => {
+		await Promise.all([
+			invalidateChatConfigurationQueries(queryClient, organization),
+			queryClient.invalidateQueries({
+				queryKey: chatModelConfigKey(modelConfigId),
+			}),
+		]);
 	},
 });
 
 export const deleteChatModelConfig = (queryClient: QueryClient) => ({
-	mutationFn: (modelConfigId: string) =>
+	mutationFn: ({ modelConfigId }: DeleteChatModelConfigMutationArgs) =>
 		API.experimental.deleteChatModelConfig(modelConfigId),
-	onSuccess: async () => {
-		await invalidateChatConfigurationQueries(queryClient);
+	onSuccess: async (
+		_data: unknown,
+		{ organization, modelConfigId }: DeleteChatModelConfigMutationArgs,
+	) => {
+		await Promise.all([
+			invalidateChatConfigurationQueries(queryClient, organization),
+			queryClient.invalidateQueries({
+				queryKey: chatModelConfigKey(modelConfigId),
+			}),
+		]);
+	},
+});
+
+type UpdateChatModelConfigACLMutationArgs = {
+	organization: string;
+	modelConfigId: string;
+	req: TypesGen.UpdateChatModelConfigACL;
+};
+
+export const updateChatModelConfigACL = (queryClient: QueryClient) => ({
+	mutationFn: ({ modelConfigId, req }: UpdateChatModelConfigACLMutationArgs) =>
+		API.experimental.updateChatModelConfigACL(modelConfigId, req),
+	onSuccess: async (
+		_data: unknown,
+		{ organization, modelConfigId }: UpdateChatModelConfigACLMutationArgs,
+	) => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: chatModelConfigACLKey(modelConfigId),
+			}),
+			queryClient.invalidateQueries({
+				queryKey: chatModelConfigsKey(organization),
+			}),
+		]);
 	},
 });
 
@@ -2056,52 +2224,137 @@ export const deleteChatUsageLimitGroupOverride = (
 	},
 });
 
-// ── MCP Server Configs ───────────────────────────────────────
+export const mcpServerConfigsKey = (organization: string) =>
+	[...chatsKey, "mcp-server-configs", organization] as const;
 
-export const mcpServerConfigsKey = ["mcp-server-configs"] as const;
+export const mcpServerConfigKey = (serverId: string) =>
+	[...chatsKey, "mcp-server-config", serverId] as const;
 
-export const mcpServerConfigs = () => ({
-	queryKey: mcpServerConfigsKey,
+export const mcpServerConfigACLKey = (serverId: string) =>
+	[...mcpServerConfigKey(serverId), "acl"] as const;
+
+export const mcpServerConfigs = (organization: string) => ({
+	queryKey: mcpServerConfigsKey(organization),
 	queryFn: (): Promise<TypesGen.MCPServerConfig[]> =>
-		API.experimental.getMCPServerConfigs(),
+		API.experimental.getMCPServerConfigs(organization),
 });
 
-const invalidateMCPServerConfigQueries = async (queryClient: QueryClient) => {
-	await queryClient.invalidateQueries({ queryKey: mcpServerConfigsKey });
+export const mcpServerConfig = (serverId: string) => ({
+	queryKey: mcpServerConfigKey(serverId),
+	queryFn: (): Promise<TypesGen.MCPServerConfig> =>
+		API.experimental.getMCPServerConfig(serverId),
+});
+
+export const mcpServerConfigACL = (serverId: string) => ({
+	queryKey: mcpServerConfigACLKey(serverId),
+	queryFn: (): Promise<TypesGen.MCPServerConfigACL> =>
+		API.experimental.getMCPServerConfigACL(serverId),
+});
+
+type CreateMCPServerConfigMutationArgs = {
+	organization: string;
+	req: TypesGen.CreateMCPServerConfigRequest;
 };
 
 export const createMCPServerConfig = (queryClient: QueryClient) => ({
-	mutationFn: (req: TypesGen.CreateMCPServerConfigRequest) =>
-		API.experimental.createMCPServerConfig(req),
-	onSuccess: async () => {
-		await invalidateMCPServerConfigQueries(queryClient);
+	mutationFn: ({ organization, req }: CreateMCPServerConfigMutationArgs) =>
+		API.experimental.createMCPServerConfig(organization, req),
+	onSuccess: async (
+		_data: TypesGen.MCPServerConfig,
+		{ organization }: CreateMCPServerConfigMutationArgs,
+	) => {
+		await queryClient.invalidateQueries({
+			queryKey: mcpServerConfigsKey(organization),
+		});
 	},
 });
 
 type UpdateMCPServerConfigMutationArgs = {
-	id: string;
+	organization: string;
+	serverId: string;
 	req: TypesGen.UpdateMCPServerConfigRequest;
 };
 
+type DeleteMCPServerConfigMutationArgs = Pick<
+	UpdateMCPServerConfigMutationArgs,
+	"organization" | "serverId"
+>;
+
 export const updateMCPServerConfig = (queryClient: QueryClient) => ({
-	mutationFn: ({ id, req }: UpdateMCPServerConfigMutationArgs) =>
-		API.experimental.updateMCPServerConfig(id, req),
-	onSuccess: async () => {
-		await invalidateMCPServerConfigQueries(queryClient);
+	mutationFn: ({ serverId, req }: UpdateMCPServerConfigMutationArgs) =>
+		API.experimental.updateMCPServerConfig(serverId, req),
+	onSuccess: async (
+		_data: TypesGen.MCPServerConfig,
+		{ organization, serverId }: UpdateMCPServerConfigMutationArgs,
+	) => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: mcpServerConfigKey(serverId),
+			}),
+			queryClient.invalidateQueries({
+				queryKey: mcpServerConfigsKey(organization),
+			}),
+		]);
 	},
 });
 
 export const deleteMCPServerConfig = (queryClient: QueryClient) => ({
-	mutationFn: (id: string) => API.experimental.deleteMCPServerConfig(id),
-	onSuccess: async () => {
-		await invalidateMCPServerConfigQueries(queryClient);
+	mutationFn: ({ serverId }: DeleteMCPServerConfigMutationArgs) =>
+		API.experimental.deleteMCPServerConfig(serverId),
+	onSuccess: async (
+		_data: unknown,
+		{ organization, serverId }: DeleteMCPServerConfigMutationArgs,
+	) => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: mcpServerConfigKey(serverId),
+			}),
+			queryClient.invalidateQueries({
+				queryKey: mcpServerConfigsKey(organization),
+			}),
+		]);
+	},
+});
+
+type UpdateMCPServerConfigACLMutationArgs = {
+	organization: string;
+	serverId: string;
+	req: TypesGen.UpdateMCPServerConfigACL;
+};
+
+export const updateMCPServerConfigACL = (queryClient: QueryClient) => ({
+	mutationFn: ({ serverId, req }: UpdateMCPServerConfigACLMutationArgs) =>
+		API.experimental.updateMCPServerConfigACL(serverId, req),
+	onSuccess: async (
+		_data: unknown,
+		{ organization, serverId }: UpdateMCPServerConfigACLMutationArgs,
+	) => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: mcpServerConfigACLKey(serverId),
+			}),
+			queryClient.invalidateQueries({
+				queryKey: mcpServerConfigsKey(organization),
+			}),
+		]);
 	},
 });
 
 export const disconnectMCPServerOAuth2 = (queryClient: QueryClient) => ({
-	mutationFn: (id: string) => API.experimental.disconnectMCPServerOAuth2(id),
-	onSuccess: async () => {
-		await invalidateMCPServerConfigQueries(queryClient);
+	mutationFn: ({ serverId }: DeleteMCPServerConfigMutationArgs) =>
+		API.experimental.disconnectMCPServerOAuth2(serverId),
+	onSuccess: async (
+		_data: TypesGen.MCPServerOAuth2DisconnectResponse,
+		{ organization, serverId }: DeleteMCPServerConfigMutationArgs,
+	) => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: mcpServerConfigKey(serverId),
+			}),
+			queryClient.invalidateQueries({
+				queryKey: mcpServerConfigsKey(organization),
+			}),
+		]);
 	},
 });
 

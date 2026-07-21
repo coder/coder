@@ -8,14 +8,19 @@ import {
 	userChatProviderConfigs,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { AIResourceOrganizationSelector } from "#/components/AIResourceOrganizationSelector/AIResourceOrganizationSelector";
+import { useAIResourceOrganization } from "#/contexts/AIResourceOrganizationContext";
 import { AgentSettingsUserAgentsPageView } from "./AgentSettingsUserAgentsPageView";
 import { resolveModelSelector } from "./utils/modelOptions";
 
 const AgentSettingsUserAgentsPage: FC = () => {
 	const queryClient = useQueryClient();
-	const overridesQuery = useQuery(userChatPersonalModelOverrides());
-	const chatModelsQuery = useQuery(chatModels());
-	const modelConfigsQuery = useQuery(chatModelConfigs());
+	const { organization } = useAIResourceOrganization();
+	const overridesQuery = useQuery(
+		userChatPersonalModelOverrides(organization.name),
+	);
+	const chatModelsQuery = useQuery(chatModels(organization.name));
+	const modelConfigsQuery = useQuery(chatModelConfigs(organization.name));
 	const providerConfigsQuery = useQuery(userChatProviderConfigs());
 	const saveRootModelOverrideMutation = useMutation(
 		updateUserChatPersonalModelOverride(queryClient),
@@ -41,42 +46,56 @@ const AgentSettingsUserAgentsPage: FC = () => {
 			req: TypesGen.UpdateUserChatPersonalModelOverrideRequest,
 			options?: { onSuccess?: () => void; onError?: () => void },
 		) => {
-			mutation.mutate({ context, req }, options);
+			mutation.mutate(
+				{ organization: organization.name, context, req },
+				options,
+			);
 		};
 	};
 
 	return (
-		<AgentSettingsUserAgentsPageView
-			overridesData={overridesQuery.data}
-			overridesError={overridesQuery.error}
-			onRetryOverrides={() => {
-				void overridesQuery.refetch();
-			}}
-			isRetryingOverrides={overridesQuery.isFetching}
-			isLoadingOverrides={overridesQuery.isLoading}
-			modelOptions={modelOptions}
-			modelConfigs={modelConfigsQuery.data ?? []}
-			modelConfigsError={modelConfigsError}
-			isLoadingModels={isModelCatalogLoading}
-			onSaveRootModelOverride={saveModelOverride(
-				"root",
-				saveRootModelOverrideMutation,
-			)}
-			isSavingRootModelOverride={saveRootModelOverrideMutation.isPending}
-			isSaveRootModelOverrideError={saveRootModelOverrideMutation.isError}
-			onSaveGeneralModelOverride={saveModelOverride(
-				"general",
-				saveGeneralModelOverrideMutation,
-			)}
-			isSavingGeneralModelOverride={saveGeneralModelOverrideMutation.isPending}
-			isSaveGeneralModelOverrideError={saveGeneralModelOverrideMutation.isError}
-			onSaveExploreModelOverride={saveModelOverride(
-				"explore",
-				saveExploreModelOverrideMutation,
-			)}
-			isSavingExploreModelOverride={saveExploreModelOverrideMutation.isPending}
-			isSaveExploreModelOverrideError={saveExploreModelOverrideMutation.isError}
-		/>
+		<>
+			<AIResourceOrganizationSelector />
+			<AgentSettingsUserAgentsPageView
+				overridesData={overridesQuery.data}
+				overridesError={overridesQuery.error}
+				onRetryOverrides={() => {
+					void overridesQuery.refetch();
+				}}
+				isRetryingOverrides={overridesQuery.isFetching}
+				isLoadingOverrides={overridesQuery.isLoading}
+				modelOptions={modelOptions}
+				modelConfigs={modelConfigsQuery.data ?? []}
+				modelConfigsError={modelConfigsError}
+				isLoadingModels={isModelCatalogLoading}
+				onSaveRootModelOverride={saveModelOverride(
+					"root",
+					saveRootModelOverrideMutation,
+				)}
+				isSavingRootModelOverride={saveRootModelOverrideMutation.isPending}
+				isSaveRootModelOverrideError={saveRootModelOverrideMutation.isError}
+				onSaveGeneralModelOverride={saveModelOverride(
+					"general",
+					saveGeneralModelOverrideMutation,
+				)}
+				isSavingGeneralModelOverride={
+					saveGeneralModelOverrideMutation.isPending
+				}
+				isSaveGeneralModelOverrideError={
+					saveGeneralModelOverrideMutation.isError
+				}
+				onSaveExploreModelOverride={saveModelOverride(
+					"explore",
+					saveExploreModelOverrideMutation,
+				)}
+				isSavingExploreModelOverride={
+					saveExploreModelOverrideMutation.isPending
+				}
+				isSaveExploreModelOverrideError={
+					saveExploreModelOverrideMutation.isError
+				}
+			/>
+		</>
 	);
 };
 

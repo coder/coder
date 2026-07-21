@@ -2629,6 +2629,7 @@ export interface ChatModelCallConfig {
  */
 export interface ChatModelConfig {
 	readonly id: string;
+	readonly organization_id: string;
 	readonly ai_provider_id: string;
 	readonly model: string;
 	readonly display_name: string;

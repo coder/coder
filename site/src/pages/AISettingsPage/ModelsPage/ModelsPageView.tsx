@@ -1,6 +1,6 @@
 import { ChevronDownIcon, PlusIcon, SearchIcon } from "lucide-react";
 import { type FC, useMemo, useState } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import type { ChatModelConfig } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -53,6 +53,7 @@ const AddModelDropdown: FC<{
 	align?: "start" | "end";
 }> = ({ providerStates, align = "end" }) => {
 	const navigate = useNavigate();
+	const location = useLocation();
 	const manageableProviderStates = providerStates.filter(
 		canManageProviderModels,
 	);
@@ -76,13 +77,14 @@ const AddModelDropdown: FC<{
 					manageableProviderStates.map((providerState) => (
 						<DropdownMenuItem
 							key={providerState.key}
-							onSelect={() =>
-								void navigate(
-									`/ai/settings/models/add?provider=${encodeURIComponent(
-										providerState.key,
-									)}`,
-								)
-							}
+							onSelect={() => {
+								const params = new URLSearchParams(location.search);
+								params.set("provider", providerState.key);
+								void navigate({
+									pathname: "/ai/settings/models/add",
+									search: params.toString(),
+								});
+							}}
 						>
 							<ProviderIcon provider={providerState.provider} />
 							<span>{providerState.label}</span>
@@ -100,6 +102,8 @@ interface ModelsPageViewProps {
 	models: readonly ChatModelConfig[];
 	providerStates: readonly ProviderState[];
 	providerTypeByID: ReadonlyMap<string, string>;
+	canCreateModels: boolean;
+	canEditModels: boolean;
 }
 
 const ModelsPageView: FC<ModelsPageViewProps> = ({
@@ -108,8 +112,11 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 	models,
 	providerStates,
 	providerTypeByID,
+	canCreateModels,
+	canEditModels,
 }) => {
 	const navigate = useNavigate();
+	const location = useLocation();
 	const [page, setPage] = useState(1);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [providerFilter, setProviderFilter] =
@@ -184,7 +191,11 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 	return (
 		<div>
 			<SettingsHeader
-				actions={<AddModelDropdown providerStates={providerStates} />}
+				actions={
+					canCreateModels ? (
+						<AddModelDropdown providerStates={providerStates} />
+					) : undefined
+				}
 			>
 				<SettingsHeaderTitle>Models</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
@@ -249,10 +260,12 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 							message="No models configured"
 							description="Configured models will appear here."
 							cta={
-								<AddModelDropdown
-									providerStates={providerStates}
-									align="start"
-								/>
+								canCreateModels ? (
+									<AddModelDropdown
+										providerStates={providerStates}
+										align="start"
+									/>
+								) : undefined
 							}
 						/>
 					) : filteredModels.length === 0 ? (
@@ -267,7 +280,15 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 								model={model}
 								providerLabel={providerLabelByModelId.get(model.id) ?? ""}
 								providerTypeByID={providerTypeByID}
-								onClick={() => void navigate(`/ai/settings/models/${model.id}`)}
+								onClick={
+									canEditModels
+										? () =>
+												void navigate({
+													pathname: `/ai/settings/models/${model.id}`,
+													search: location.search,
+												})
+										: undefined
+								}
 							/>
 						))
 					)}

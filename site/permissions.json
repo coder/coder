@@ -107,6 +107,14 @@
 		"object": { "resource_type": "ai_provider" },
 		"action": "read"
 	},
+	"viewAnyChatModelConfig": {
+		"object": { "resource_type": "chat_model_config", "any_org": true },
+		"action": "read"
+	},
+	"viewAnyMCPServerConfig": {
+		"object": { "resource_type": "mcp_server_config", "any_org": true },
+		"action": "read"
+	},
 	"viewAIGatewayKeys": {
 		"object": { "resource_type": "ai_gateway_key" },
 		"action": "read"

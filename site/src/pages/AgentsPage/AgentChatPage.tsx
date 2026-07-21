@@ -121,7 +121,8 @@ import {
 /** localStorage key controlling whether the right panel is visible. */
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 
-const lastModelConfigIDStorageKey = "agents.last-model-config-id";
+const lastModelConfigIDStorageKey = (organization: string) =>
+	`agents.last-model-config-id.${organization}`;
 class CompactCommandPendingError extends Error {}
 
 /** @internal Exported for testing. */
@@ -790,17 +791,30 @@ const AgentChatPage: FC = () => {
 	});
 	const workspace = workspaceQuery.data;
 
-	const chatModelsQuery = useQuery(chatModels());
-	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const chatOrganization = chatQuery.data?.organization_id ?? "";
+	const chatModelsQuery = useQuery({
+		...chatModels(chatOrganization),
+		enabled: Boolean(chatOrganization),
+	});
+	const chatModelConfigsQuery = useQuery({
+		...chatModelConfigs(chatOrganization),
+		enabled: Boolean(chatOrganization),
+	});
 	const chatProviderConfigsQuery = useQuery({
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
 	});
 	const userProviderConfigsQuery = useQuery(userChatProviderConfigs());
-	const userThresholdsQuery = useQuery(userCompactionThresholds());
+	const userThresholdsQuery = useQuery({
+		...userCompactionThresholds(chatOrganization),
+		enabled: Boolean(chatOrganization),
+	});
 	const preferencesQuery = useQuery(preferenceSettings());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
-	const mcpServersQuery = useQuery(mcpServerConfigs());
+	const mcpServersQuery = useQuery({
+		...mcpServerConfigs(chatOrganization),
+		enabled: Boolean(chatOrganization),
+	});
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const workspaceOptions = getWorkspaceOptionsWithLinkedWorkspace(
 		workspacesQuery.data?.workspaces ?? [],
@@ -819,7 +833,7 @@ const AgentChatPage: FC = () => {
 
 	const handleMCPSelectionChange = (ids: string[]) => {
 		setSelectedMCPServerIds(ids);
-		saveMCPSelection(ids);
+		saveMCPSelection(ids, chatOrganization);
 	};
 
 	const handleMCPAuthComplete = (_serverId: string) => {
@@ -971,7 +985,7 @@ const AgentChatPage: FC = () => {
 			return chatRecord.mcp_server_ids;
 		}
 		// Check for a previously saved selection in localStorage.
-		const saved = getSavedMCPSelection(mcpServers);
+		const saved = getSavedMCPSelection(mcpServers, chatOrganization);
 		if (saved !== null) {
 			return saved;
 		}
@@ -1600,7 +1614,7 @@ const AgentChatPage: FC = () => {
 			});
 			if (editSelectedModelConfigID) {
 				localStorage.setItem(
-					lastModelConfigIDStorageKey,
+					lastModelConfigIDStorageKey(chatOrganization),
 					editSelectedModelConfigID,
 				);
 			}
@@ -1659,9 +1673,12 @@ const AgentChatPage: FC = () => {
 			}
 		}
 		if (selectedModelConfigID) {
-			localStorage.setItem(lastModelConfigIDStorageKey, selectedModelConfigID);
+			localStorage.setItem(
+				lastModelConfigIDStorageKey(chatOrganization),
+				selectedModelConfigID,
+			);
 		} else {
-			localStorage.removeItem(lastModelConfigIDStorageKey);
+			localStorage.removeItem(lastModelConfigIDStorageKey(chatOrganization));
 		}
 		if (planModeSwitch !== undefined) {
 			setCachedChatPlanMode(

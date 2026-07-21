@@ -1,6 +1,6 @@
 import { ArrowLeftIcon, EllipsisVerticalIcon, TrashIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -21,8 +21,13 @@ import { cn } from "#/utils/cn";
 import { MCPServerIcon } from "./MCPServerIcon";
 
 const MCPServerFormBackLink: FC = () => {
+	const location = useLocation();
+
 	return (
-		<Link to="/ai/settings/mcp-servers" className="-ml-3">
+		<Link
+			to={{ pathname: "/ai/settings/mcp-servers", search: location.search }}
+			className="-ml-3"
+		>
 			<Button variant="subtle" type="button">
 				<ArrowLeftIcon />
 				<span>Back to MCP servers</span>

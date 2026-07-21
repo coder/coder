@@ -9,6 +9,8 @@ import {
 	upsertUserChatProviderKey,
 	userChatProviderConfigs,
 } from "#/api/queries/chats";
+import { AIResourceOrganizationSelector } from "#/components/AIResourceOrganizationSelector/AIResourceOrganizationSelector";
+import { useAIResourceOrganization } from "#/contexts/AIResourceOrganizationContext";
 import { AgentSettingsAPIKeysPageView } from "./AgentSettingsAPIKeysPageView";
 
 const incrementResetToken = (
@@ -21,12 +23,13 @@ const incrementResetToken = (
 
 const AgentSettingsAPIKeysPage: FC = () => {
 	const queryClient = useQueryClient();
+	const { organization } = useAIResourceOrganization();
 	const [providerPanelResetTokens, setProviderPanelResetTokens] = useState<
 		Record<string, number>
 	>({});
 
 	const providersQuery = useQuery(userChatProviderConfigs());
-	const modelsQuery = useQuery(chatModelConfigs());
+	const modelsQuery = useQuery(chatModelConfigs(organization.name));
 
 	const upsertMutationOptions = upsertUserChatProviderKey(queryClient);
 	const upsertMutation = useMutation({
@@ -74,23 +77,26 @@ const AgentSettingsAPIKeysPage: FC = () => {
 	}));
 
 	return (
-		<AgentSettingsAPIKeysPageView
-			error={providersQuery.error}
-			isLoading={providersQuery.isLoading}
-			providerItems={providerItems}
-			models={modelsQuery.data ?? []}
-			isModelsLoading={modelsQuery.isLoading}
-			areModelsUnavailable={Boolean(modelsQuery.error)}
-			onSave={(providerConfigId, apiKey) => {
-				upsertMutation.mutate({
-					providerConfigId,
-					req: { api_key: apiKey },
-				});
-			}}
-			onRemove={(providerConfigId) => {
-				deleteMutation.mutate(providerConfigId);
-			}}
-		/>
+		<>
+			<AIResourceOrganizationSelector />
+			<AgentSettingsAPIKeysPageView
+				error={providersQuery.error}
+				isLoading={providersQuery.isLoading}
+				providerItems={providerItems}
+				models={modelsQuery.data ?? []}
+				isModelsLoading={modelsQuery.isLoading}
+				areModelsUnavailable={Boolean(modelsQuery.error)}
+				onSave={(providerConfigId, apiKey) => {
+					upsertMutation.mutate({
+						providerConfigId,
+						req: { api_key: apiKey },
+					});
+				}}
+				onRemove={(providerConfigId) => {
+					deleteMutation.mutate(providerConfigId);
+				}}
+			/>
+		</>
 	);
 };
 

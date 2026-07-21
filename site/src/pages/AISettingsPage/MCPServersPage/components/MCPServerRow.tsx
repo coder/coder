@@ -10,15 +10,18 @@ import { AUTH_TYPE_LABELS, AVAILABILITY_LABELS } from "./mcpServerFormLogic";
 
 interface MCPServerRowProps {
 	server: TypesGen.MCPServerConfig;
-	onClick: () => void;
+	onClick?: () => void;
 }
 
 export const MCPServerRow: FC<MCPServerRowProps> = ({ server, onClick }) => {
-	const clickableProps = useClickableTableRow({ onClick });
+	const clickableProps = useClickableTableRow({
+		onClick: onClick ?? (() => {}),
+	});
+	const rowProps = onClick ? clickableProps : {};
 	const enabled = server.enabled;
 
 	return (
-		<TableRow {...clickableProps}>
+		<TableRow {...rowProps}>
 			<TableCell className="min-w-0 px-4 py-3">
 				<div className="flex min-w-0 items-center gap-3">
 					<MCPServerIcon
@@ -46,7 +49,9 @@ export const MCPServerRow: FC<MCPServerRowProps> = ({ server, onClick }) => {
 				<Badge variant="default">{enabled ? "Enabled" : "Disabled"}</Badge>
 			</TableCell>
 			<TableCell className="w-12">
-				<ChevronRightIcon className="size-5 text-content-primary" />
+				{onClick && (
+					<ChevronRightIcon className="size-5 text-content-primary" />
+				)}
 			</TableCell>
 		</TableRow>
 	);

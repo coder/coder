@@ -11,7 +11,7 @@ type ModelRowProps = {
 	model: ChatModelConfig;
 	providerLabel: string;
 	providerTypeByID: ReadonlyMap<string, string>;
-	onClick: () => void;
+	onClick?: () => void;
 };
 
 const formatContextLimit = (contextLimit: number): string => {
@@ -27,11 +27,14 @@ export const ModelRow: FC<ModelRowProps> = ({
 	providerTypeByID,
 	onClick,
 }) => {
-	const clickableProps = useClickableTableRow({ onClick });
+	const clickableProps = useClickableTableRow({
+		onClick: onClick ?? (() => {}),
+	});
+	const rowProps = onClick ? clickableProps : {};
 	const displayName = model.display_name || model.model;
 
 	return (
-		<TableRow {...clickableProps}>
+		<TableRow {...rowProps}>
 			<TableCell className="min-w-0 px-4 py-3">
 				<div className="flex min-w-0 items-center gap-4">
 					<Avatar
@@ -76,12 +79,14 @@ export const ModelRow: FC<ModelRowProps> = ({
 				</Badge>
 			</TableCell>
 			<TableCell className="w-10 text-center">
-				<div className="flex justify-end items-center gap-8 pr-4">
-					<ChevronRightIcon
-						aria-hidden
-						className="size-icon-md text-content-primary flex-shrink-0"
-					/>
-				</div>
+				{onClick && (
+					<div className="flex justify-end items-center gap-8 pr-4">
+						<ChevronRightIcon
+							aria-hidden
+							className="size-icon-md text-content-primary flex-shrink-0"
+						/>
+					</div>
+				)}
 			</TableCell>
 		</TableRow>
 	);

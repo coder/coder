@@ -1281,6 +1281,7 @@ type CreateUserChatProviderKeyRequest struct {
 // ChatModelConfig is an admin-managed model configuration.
 type ChatModelConfig struct {
 	ID                   uuid.UUID            `json:"id" format:"uuid"`
+	OrganizationID       uuid.UUID            `json:"organization_id" format:"uuid"`
 	AIProviderID         uuid.UUID            `json:"ai_provider_id" format:"uuid"`
 	Model                string               `json:"model"`
 	DisplayName          string               `json:"display_name"`

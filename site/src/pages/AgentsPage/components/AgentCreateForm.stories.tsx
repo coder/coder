@@ -1,31 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import {
-	expect,
-	fn,
-	screen,
-	spyOn,
-	userEvent,
-	waitFor,
-	within,
-} from "storybook/test";
-import { API } from "#/api/api";
+import { type ComponentProps, useRef, useState } from "react";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
-import {
-	MockDefaultOrganization,
-	MockOrganization2,
-	MockWorkspace,
-} from "#/testHelpers/entities";
+import { MockDefaultOrganization, MockWorkspace } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { AgentCreateForm } from "./AgentCreateForm";
-
-// Query key used by permittedOrganizations() in the form.
-const permittedOrgsKey = [
-	"organizations",
-	"permitted",
-	{ object: { resource_type: "chat" }, action: "create" },
-];
 
 const modelConfigID = "model-config-1";
 const claudeModelConfigID = "model-config-claude";
@@ -117,6 +98,7 @@ const meta: Meta<typeof AgentCreateForm> = {
 		workspaceOptions: [],
 		workspacesError: undefined,
 		isWorkspacesLoading: false,
+		organization: MockDefaultOrganization,
 	},
 	beforeEach: () => {
 		localStorage.clear();
@@ -127,13 +109,50 @@ export default meta;
 type Story = StoryObj<typeof AgentCreateForm>;
 
 const defaultArgs = meta.args;
+const agentCreateFormArgs = defaultArgs as ComponentProps<
+	typeof AgentCreateForm
+>;
 
-const mockPermittedOrganizations = (permissions: Record<string, boolean>) => {
-	spyOn(API, "getOrganizations").mockResolvedValue([
-		MockDefaultOrganization,
-		MockOrganization2,
-	]);
-	spyOn(API, "checkAuthorization").mockResolvedValue(permissions);
+type OrganizationChangeGuard = (
+	nextOrganization: TypesGen.Organization,
+) => boolean | Promise<boolean>;
+
+const OrganizationChangeUnmountHarness = () => {
+	const [mounted, setMounted] = useState(true);
+	const [result, setResult] = useState<string>();
+	const guardRef = useRef<OrganizationChangeGuard | undefined>(undefined);
+	const registerOrganizationChangeGuard = (guard: OrganizationChangeGuard) => {
+		guardRef.current = guard;
+		return () => {
+			if (guardRef.current === guard) {
+				guardRef.current = undefined;
+			}
+		};
+	};
+	const requestOrganizationChange = async () => {
+		const guard = guardRef.current;
+		if (!guard) {
+			throw new Error("Expected an organization change guard.");
+		}
+		const result = guard(MockDefaultOrganization);
+		setMounted(false);
+		setResult(String(await result));
+	};
+
+	return (
+		<>
+			<button type="button" onClick={requestOrganizationChange}>
+				Request organization change and unmount
+			</button>
+			{result && <output>Guard result: {result}</output>}
+			{mounted && (
+				<AgentCreateForm
+					{...agentCreateFormArgs}
+					registerOrganizationChangeGuard={registerOrganizationChangeGuard}
+				/>
+			)}
+		</>
+	);
 };
 
 export const Default: Story = {};
@@ -266,7 +285,10 @@ export const LastUsedModelFallbackWithoutRootOverride: Story = {
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		localStorage.setItem("agents.last-model-config-id", claudeModelConfigID);
+		localStorage.setItem(
+			`agents.last-model-config-id.${MockDefaultOrganization.name}`,
+			claudeModelConfigID,
+		);
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -673,63 +695,44 @@ export const ForbiddenErrorWithRole: Story = {
 	},
 };
 
-export const WithOrganizationPicker: Story = {
-	parameters: {
-		showOrganizations: true,
-		organizations: [MockDefaultOrganization, MockOrganization2],
-		queries: [
-			{
-				key: permittedOrgsKey,
-				data: [MockDefaultOrganization, MockOrganization2],
-			},
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Verify the org picker rendered (component didn't crash).
-		await waitFor(() => {
-			expect(canvas.getByTestId("compact-org-selector")).toBeInTheDocument();
-		});
-		// Type into the chat input to trigger re-renders. If the
-		// permittedOrgs fallback is referentially unstable, this
-		// causes a render cascade that hits React's update limit.
-		const input = canvas.getByTestId("chat-message-input");
-		await userEvent.click(input);
-		await userEvent.keyboard("hello world");
-		// The org picker should still be present after typing.
-		expect(canvas.getByTestId("compact-org-selector")).toBeInTheDocument();
-	},
-};
-
-export const OrgPickerTightSpacing: Story = {
-	parameters: {
-		showOrganizations: true,
-		organizations: [MockDefaultOrganization, MockOrganization2],
-		queries: [
-			{
-				key: permittedOrgsKey,
-				data: [MockDefaultOrganization, MockOrganization2],
-			},
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const orgTrigger = await canvas.findByTestId("compact-org-selector");
-		const composer = await canvas.findByTestId("chat-composer");
-
-		const orgRect = orgTrigger.getBoundingClientRect();
-		const composerRect = composer.getBoundingClientRect();
-		const gap = composerRect.top - orgRect.bottom;
-		expect(gap).toBeGreaterThanOrEqual(0);
-		expect(gap).toBeLessThan(16);
-	},
-};
-
 /**
  * Standalone story for the org-change confirmation dialog. Renders
  * the ConfirmDialog directly in its open state, following the same
  * pattern as DeleteConfirmationDialog in AgentsPageView.stories.
  */
+export const CancelsPendingOrganizationChangeOnUnmount: Story = {
+	beforeEach: () => {
+		localStorage.clear();
+		localStorage.setItem(
+			"agents.persisted-attachments",
+			JSON.stringify([
+				{
+					fileId: "persisted-file-1",
+					fileName: "photo.png",
+					fileType: "image/png",
+					lastModified: 1000,
+					organizationId: MockDefaultOrganization.id,
+				},
+			]),
+		);
+	},
+	render: () => <OrganizationChangeUnmountHarness />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByLabelText("Remove photo.png")).toBeInTheDocument();
+		});
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Request organization change and unmount",
+			}),
+		);
+		await waitFor(() => {
+			expect(canvas.getByText("Guard result: false")).toBeInTheDocument();
+		});
+	},
+};
+
 export const OrgChangeConfirmation: Story = {
 	render: () => (
 		<ConfirmDialog
@@ -782,109 +785,5 @@ export const ForbiddenNoAgentsRole: Story = {
 		// accidentally trigger the generic error.
 		const textbox = canvas.getByRole("textbox");
 		await expect(textbox).toHaveAttribute("aria-disabled", "true");
-	},
-};
-
-/**
- * Covers the reconciliation path where the permitted-organizations query
- * resolves after mount with fewer orgs than the dashboard provides.
- */
-export const PermittedOrgsResolvesToEmpty: Story = {
-	parameters: {
-		showOrganizations: true,
-		organizations: [MockDefaultOrganization, MockOrganization2],
-		// Deliberately do not pre-seed permittedOrgsKey. Let the
-		// mocked API calls drive the async permission resolution.
-	},
-	args: {
-		...defaultArgs,
-		onCreateChat: fn().mockResolvedValue(undefined),
-	},
-	beforeEach: () => {
-		mockPermittedOrganizations({
-			[MockDefaultOrganization.id]: false,
-			[MockOrganization2.id]: false,
-		});
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-
-		// Wait for the permitted orgs query to resolve. The org picker
-		// should disappear since no org is permitted.
-		await waitFor(
-			() => {
-				expect(
-					canvas.queryByTestId("compact-org-selector"),
-				).not.toBeInTheDocument();
-			},
-			{ timeout: 3000 },
-		);
-
-		// Type a message and submit the form.
-		const input = canvas.getByTestId("chat-message-input");
-		await userEvent.click(input);
-		await userEvent.keyboard("test message");
-		await userEvent.click(canvas.getByRole("button", { name: "Send" }));
-
-		// Verify onCreateChat was called with a non-empty organizationId.
-		await waitFor(() => {
-			expect(args.onCreateChat).toHaveBeenCalled();
-		});
-		const options = (args.onCreateChat as ReturnType<typeof fn>).mock
-			.calls[0]?.[0] as { organizationId: string } | undefined;
-		if (!options) {
-			throw new Error("Expected onCreateChat to receive options");
-		}
-		expect(options.organizationId).not.toBe("");
-		// It should fall back to the default org from the dashboard.
-		expect(options.organizationId).toBe(MockDefaultOrganization.id);
-	},
-};
-
-export const PermittedOrgsResolvesToSubset: Story = {
-	parameters: {
-		showOrganizations: true,
-		organizations: [MockDefaultOrganization, MockOrganization2],
-	},
-	args: {
-		...defaultArgs,
-		onCreateChat: fn().mockResolvedValue(undefined),
-	},
-	beforeEach: () => {
-		mockPermittedOrganizations({
-			[MockDefaultOrganization.id]: false,
-			[MockOrganization2.id]: true,
-		});
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-
-		// Wait for the permitted orgs query to resolve. With only one
-		// permitted org, the picker should disappear.
-		await waitFor(
-			() => {
-				expect(
-					canvas.queryByTestId("compact-org-selector"),
-				).not.toBeInTheDocument();
-			},
-			{ timeout: 3000 },
-		);
-
-		// Type a message and submit.
-		const input = canvas.getByTestId("chat-message-input");
-		await userEvent.click(input);
-		await userEvent.keyboard("test message");
-		await userEvent.click(canvas.getByRole("button", { name: "Send" }));
-
-		// Verify onCreateChat was called with the only permitted org.
-		await waitFor(() => {
-			expect(args.onCreateChat).toHaveBeenCalled();
-		});
-		const options = (args.onCreateChat as ReturnType<typeof fn>).mock
-			.calls[0]?.[0] as { organizationId: string } | undefined;
-		if (!options) {
-			throw new Error("Expected onCreateChat to receive options");
-		}
-		expect(options.organizationId).toBe(MockOrganization2.id);
 	},
 };

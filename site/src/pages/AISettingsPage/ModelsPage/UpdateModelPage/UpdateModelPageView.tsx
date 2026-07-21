@@ -16,7 +16,7 @@ interface UpdateModelPageViewProps {
 		modelConfigId: string,
 		req: TypesGen.UpdateChatModelConfigRequest,
 	) => Promise<unknown>;
-	onDeleteModel: (modelConfigId: string) => Promise<void>;
+	onDeleteModel?: (modelConfigId: string) => Promise<void>;
 	onDuplicate: () => void;
 	onToggleEnabled: (enabled: boolean) => void;
 }

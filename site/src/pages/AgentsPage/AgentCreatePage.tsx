@@ -15,6 +15,8 @@ import {
 import { preferenceSettings } from "#/api/queries/users";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { AIResourceOrganizationSelector } from "#/components/AIResourceOrganizationSelector/AIResourceOrganizationSelector";
+import { useAIResourceOrganization } from "#/contexts/AIResourceOrganizationContext";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
@@ -34,27 +36,33 @@ import {
 } from "./utils/modelOptions";
 import { buildAgentChatPath } from "./utils/navigation";
 
-const lastModelConfigIDStorageKey = "agents.last-model-config-id";
+const lastModelConfigIDStorageKey = (organization: string) =>
+	`agents.last-model-config-id.${organization}`;
 
 const AgentCreatePage: FC = () => {
 	const queryClient = useQueryClient();
 	const location = useLocation();
 	const navigate = useNavigate();
 	const { permissions } = useAuthenticated();
+	const {
+		organization,
+		permissions: organizationPermissions,
+		registerOrganizationChangeGuard,
+	} = useAIResourceOrganization();
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 
-	const chatModelsQuery = useQuery(chatModels());
-	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const chatModelsQuery = useQuery(chatModels(organization.name));
+	const chatModelConfigsQuery = useQuery(chatModelConfigs(organization.name));
 	const chatProviderConfigsQuery = useQuery({
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
 	});
 	const userProviderConfigsQuery = useQuery(userChatProviderConfigs());
 	const personalModelOverridesQuery = useQuery(
-		userChatPersonalModelOverrides(),
+		userChatPersonalModelOverrides(organization.name),
 	);
 	const preferencesQuery = useQuery(preferenceSettings());
-	const mcpServersQuery = useQuery(mcpServerConfigs());
+	const mcpServersQuery = useQuery(mcpServerConfigs(organization.name));
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
 	const webPush = useWebpushNotifications();
@@ -116,7 +124,10 @@ const AgentCreatePage: FC = () => {
 		const createdChat = await createMutation.mutateAsync(createRequest);
 
 		if (model) {
-			localStorage.setItem(lastModelConfigIDStorageKey, model);
+			localStorage.setItem(
+				lastModelConfigIDStorageKey(organization.name),
+				model,
+			);
 		}
 		navigate({
 			pathname: buildAgentChatPath({ chatId: createdChat.id }),
@@ -158,7 +169,11 @@ const AgentCreatePage: FC = () => {
 				<ChimeButton enabled={chimeEnabled} onToggle={handleChimeToggle} />
 				<WebPushButton webPush={webPush} onToggle={handleNotificationToggle} />
 			</AgentPageHeader>
+			<div className="mx-auto w-full max-w-3xl px-4 pt-3">
+				<AIResourceOrganizationSelector />
+			</div>
 			<AgentCreateForm
+				key={organization.id}
 				onCreateChat={handleCreateChat}
 				sendShortcut={getAgentChatSendShortcut(
 					preferencesQuery.data?.agent_chat_send_shortcut,
@@ -166,7 +181,7 @@ const AgentCreatePage: FC = () => {
 				)}
 				isCreating={createMutation.isPending}
 				createError={createMutation.error}
-				canCreateChat={permissions.createChat}
+				canCreateChat={organizationPermissions.createChat}
 				modelCatalog={chatModelsQuery.data}
 				modelOptions={catalogModelOptions}
 				canConfigureAgentSetup={permissions.editDeploymentConfig}
@@ -185,6 +200,8 @@ const AgentCreatePage: FC = () => {
 				workspaceOptions={workspacesQuery.data?.workspaces ?? []}
 				workspacesError={workspacesQuery.error}
 				isWorkspacesLoading={workspacesQuery.isLoading}
+				organization={organization}
+				registerOrganizationChangeGuard={registerOrganizationChangeGuard}
 			/>{" "}
 		</>
 	);

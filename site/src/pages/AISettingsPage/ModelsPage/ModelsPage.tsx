@@ -5,6 +5,8 @@ import {
 	chatModels,
 	chatProviderConfigs,
 } from "#/api/queries/chats";
+import { AIResourceOrganizationSelector } from "#/components/AIResourceOrganizationSelector/AIResourceOrganizationSelector";
+import { useAIResourceOrganization } from "#/contexts/AIResourceOrganizationContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { deriveProviderStates } from "#/modules/aiModels/providerStates";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -14,13 +16,15 @@ import ModelsPageView from "./ModelsPageView";
 
 const ModelsPage: FC = () => {
 	const { permissions } = useAuthenticated();
+	const { organization, permissions: organizationPermissions } =
+		useAIResourceOrganization();
 
 	const providerConfigsQuery = useQuery({
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
 	});
-	const modelConfigsQuery = useQuery(chatModelConfigs());
-	const modelCatalogQuery = useQuery(chatModels());
+	const modelConfigsQuery = useQuery(chatModelConfigs(organization.name));
+	const modelCatalogQuery = useQuery(chatModels(organization.name));
 
 	const providerTypeByID = providerTypeByIDFromConfigs(
 		providerConfigsQuery.data,
@@ -39,8 +43,11 @@ const ModelsPage: FC = () => {
 	);
 
 	return (
-		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
+		<RequirePermission
+			isFeatureVisible={Boolean(organizationPermissions?.viewModels)}
+		>
 			<title>{pageTitle("Models", "AI Settings")}</title>
+			<AIResourceOrganizationSelector />
 
 			<ModelsPageView
 				isLoading={
@@ -56,6 +63,8 @@ const ModelsPage: FC = () => {
 				models={models}
 				providerStates={providerStates}
 				providerTypeByID={providerTypeByID}
+				canCreateModels={organizationPermissions.createModel}
+				canEditModels={organizationPermissions.editModels}
 			/>
 		</RequirePermission>
 	);
