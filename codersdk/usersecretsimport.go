@@ -103,6 +103,27 @@ func detectDuplicateKeys(entries []secretEntry) error {
 	return nil
 }
 
+// parseEnvSecrets parses a dotenv-style file into ordered entries. It supports a
+// deliberately small subset of dotenv:
+//   - KEY=VALUE lines, an optional "export " prefix, and full-line "#" comments.
+//   - Single-quoted values are literal; double-quoted values support \n, \t,
+//     \r, \\, and \" escapes and keep unknown escapes literal.
+//
+// It intentionally does NOT:
+//   - expand $VAR or ${VAR}. Secrets frequently contain "$", and expansion would
+//     silently corrupt them.
+//   - strip inline comments, so PASS=abc#123 keeps the trailing #123.
+//   - support multiline values. Use the JSON or YAML format for PEM keys or
+//     certs.
+//
+// Duplicate keys are an error (see detectDuplicateKeys); a silent last-wins
+// would drop a secret.
+//
+// This is hand-rolled rather than using joho/godotenv or hashicorp/go-envparse
+// because those expand variables and/or strip inline comments (silent secret
+// corruption) and return unordered maps, so we lose source order, line numbers,
+// and duplicate detection. They would also add a dependency to the public
+// codersdk package.
 func parseEnvSecrets(content string) ([]secretEntry, error) {
 	content = strings.ReplaceAll(content, "\r\n", "\n")
 	content = strings.TrimPrefix(content, "\ufeff")
