@@ -209,6 +209,37 @@ func TestTemplateBuilderModules(t *testing.T) {
 		}
 	})
 
+	t.Run("BaseExcludesIncludedModules", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// The quickstart base bundles the git-clone module, so the module
+		// list for that base must omit git-clone to avoid a collision. The
+		// docker base does not bundle it, so it stays available there.
+		quickstartResp, err := client.TemplateBuilderModules(ctx, "quickstart")
+		require.NoError(t, err)
+		for _, m := range quickstartResp.Modules {
+			require.NotEqual(t, "git-clone", m.ID,
+				"git-clone should be excluded for the quickstart base")
+		}
+
+		dockerResp, err := client.TemplateBuilderModules(ctx, "docker")
+		require.NoError(t, err)
+		var dockerHasGitClone bool
+		for _, m := range dockerResp.Modules {
+			if m.ID == "git-clone" {
+				dockerHasGitClone = true
+				break
+			}
+		}
+		require.True(t, dockerHasGitClone,
+			"git-clone should remain available for bases that do not bundle it")
+	})
+
 	t.Run("ComputedVariablesExcluded", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
