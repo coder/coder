@@ -1699,6 +1699,24 @@ func scopedOrgRoleIdentifiers(names []string, orgID uuid.UUID) []rbac.RoleIdenti
 	return out
 }
 
+func (q *querier) authorizeMCPServerUserToken(ctx context.Context, userID, configID uuid.UUID) error {
+	actor, ok := ActorFromContext(ctx)
+	if !ok {
+		return ErrNoActor
+	}
+	if actor.Type == rbac.SubjectTypeSystemRestricted {
+		return nil
+	}
+	if actor.ID != userID.String() {
+		return NotAuthorizedError{Err: xerrors.New("MCP server token owner does not match actor")}
+	}
+	config, err := q.db.GetMCPServerConfigByID(ctx, configID)
+	if err != nil {
+		return err
+	}
+	return q.authorizeContext(ctx, policy.ActionRead, config)
+}
+
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -3789,10 +3807,11 @@ func (q *querier) GetEnabledChatModelConfigs(ctx context.Context, organizationID
 }
 
 func (q *querier) GetEnabledMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceMCPServerConfig.InOrg(organizationID)); err != nil {
-		return nil, err
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceMCPServerConfig.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
-	return q.db.GetEnabledMCPServerConfigs(ctx, organizationID)
+	return q.db.GetAuthorizedEnabledMCPServerConfigs(ctx, organizationID, prep)
 }
 
 // GetExternalAgentTokensByTemplateID is used for scaletesting purposes; the
@@ -4061,22 +4080,15 @@ func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	return q.db.GetLogoURL(ctx)
 }
 
-func (q *querier) authorizeMCPServerUserToken(ctx context.Context, userID, configID uuid.UUID) error {
-	actor, ok := ActorFromContext(ctx)
-	if !ok {
-		return ErrNoActor
-	}
-	if actor.Type == rbac.SubjectTypeSystemRestricted {
-		return nil
-	}
-	if actor.ID != userID.String() {
-		return NotAuthorizedError{Err: xerrors.New("MCP server token owner does not match actor")}
-	}
-	config, err := q.db.GetMCPServerConfigByID(ctx, configID)
+func (q *querier) GetMCPServerConfigACLByID(ctx context.Context, arg database.GetMCPServerConfigACLByIDParams) (database.GetMCPServerConfigACLByIDRow, error) {
+	config, err := q.GetMCPServerConfigByID(ctx, arg.ID)
 	if err != nil {
-		return err
+		return database.GetMCPServerConfigACLByIDRow{}, err
 	}
-	return q.authorizeContext(ctx, policy.ActionRead, config)
+	if config.OrganizationID != arg.OrganizationID {
+		return database.GetMCPServerConfigACLByIDRow{}, sql.ErrNoRows
+	}
+	return q.db.GetMCPServerConfigACLByID(ctx, arg)
 }
 
 func (q *querier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (database.MCPServerConfig, error) {
@@ -4088,10 +4100,11 @@ func (q *querier) GetMCPServerConfigBySlug(ctx context.Context, arg database.Get
 }
 
 func (q *querier) GetMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceMCPServerConfig.InOrg(organizationID)); err != nil {
-		return nil, err
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceMCPServerConfig.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
-	return q.db.GetMCPServerConfigs(ctx, organizationID)
+	return q.db.GetAuthorizedMCPServerConfigs(ctx, organizationID, prep)
 }
 
 func (q *querier) GetMCPServerConfigsByIDs(ctx context.Context, arg database.GetMCPServerConfigsByIDsParams) ([]database.MCPServerConfig, error) {
@@ -7673,6 +7686,20 @@ func (q *querier) UpdateMCPServerConfig(ctx context.Context, arg database.Update
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateMCPServerConfig)(ctx, arg)
 }
 
+func (q *querier) UpdateMCPServerConfigACLByID(ctx context.Context, arg database.UpdateMCPServerConfigACLByIDParams) error {
+	fetch := func(ctx context.Context, arg database.UpdateMCPServerConfigACLByIDParams) (database.MCPServerConfig, error) {
+		config, err := q.db.GetMCPServerConfigByID(ctx, arg.ID)
+		if err != nil {
+			return database.MCPServerConfig{}, err
+		}
+		if config.OrganizationID != arg.OrganizationID {
+			return database.MCPServerConfig{}, sql.ErrNoRows
+		}
+		return config, nil
+	}
+	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.UpdateMCPServerConfigACLByID)(ctx, arg)
+}
+
 func (q *querier) UpdateMCPServerUserTokenFromRefresh(ctx context.Context, arg database.UpdateMCPServerUserTokenFromRefreshParams) (database.MCPServerUserToken, error) {
 	actor, ok := ActorFromContext(ctx)
 	if !ok {
@@ -9407,6 +9434,14 @@ func (q *querier) GetAuthorizedChatModelConfigs(ctx context.Context, organizatio
 
 func (q *querier) GetAuthorizedEnabledChatModelConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.GetEnabledChatModelConfigsRow, error) {
 	return q.db.GetAuthorizedEnabledChatModelConfigs(ctx, organizationID, prepared)
+}
+
+func (q *querier) GetAuthorizedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.MCPServerConfig, error) {
+	return q.db.GetAuthorizedMCPServerConfigs(ctx, organizationID, prepared)
+}
+
+func (q *querier) GetAuthorizedEnabledMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.MCPServerConfig, error) {
+	return q.db.GetAuthorizedEnabledMCPServerConfigs(ctx, organizationID, prepared)
 }
 
 func (q *querier) GetAuthorizedChats(ctx context.Context, arg database.GetChatsParams, _ rbac.PreparedAuthorized) ([]database.GetChatsRow, error) {

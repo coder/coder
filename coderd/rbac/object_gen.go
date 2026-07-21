@@ -235,6 +235,7 @@ var (
 	//  - "ActionCreate" :: create an MCP server configuration
 	//  - "ActionDelete" :: delete an MCP server configuration
 	//  - "ActionRead" :: read MCP server configurations
+	//  - "ActionShare" :: share an MCP server configuration with users or groups
 	//  - "ActionUpdate" :: update an MCP server configuration
 	ResourceMCPServerConfig = Object{
 		Type: "mcp_server_config",

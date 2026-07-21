@@ -1169,6 +1169,23 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatModelConfigACLByID(gomock.Any(), arg).Return(database.GetChatModelConfigACLByIDRow{}, nil).AnyTimes()
 		check.Args(arg).Asserts(config, policy.ActionRead).Returns(database.GetChatModelConfigACLByIDRow{})
 	}))
+	s.Run("GetMCPServerConfigACLByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		config := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
+		arg := database.GetMCPServerConfigACLByIDParams{ID: config.ID, OrganizationID: config.OrganizationID}
+		dbm.EXPECT().GetMCPServerConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
+		dbm.EXPECT().GetMCPServerConfigACLByID(gomock.Any(), arg).Return(database.GetMCPServerConfigACLByIDRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(config, policy.ActionRead).Returns(database.GetMCPServerConfigACLByIDRow{})
+	}))
+	s.Run("GetMCPServerConfigs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		organizationID := uuid.New()
+		dbm.EXPECT().GetAuthorizedMCPServerConfigs(gomock.Any(), organizationID, gomock.Any()).Return([]database.MCPServerConfig{}, nil).AnyTimes()
+		check.Args(organizationID).Asserts().Returns([]database.MCPServerConfig{})
+	}))
+	s.Run("GetAuthorizedMCPServerConfigs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		organizationID := uuid.New()
+		dbm.EXPECT().GetAuthorizedMCPServerConfigs(gomock.Any(), organizationID, gomock.Any()).Return([]database.MCPServerConfig{}, nil).AnyTimes()
+		check.Args(organizationID, emptyPreparedAuthorized{}).Asserts().Returns([]database.MCPServerConfig{})
+	}))
 	s.Run("GetDefaultChatModelConfig", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		config := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
 		dbm.EXPECT().GetDefaultChatModelConfig(gomock.Any(), config.OrganizationID).Return(config, nil).AnyTimes()
@@ -1609,6 +1626,14 @@ func (s *MethodTestSuite) TestChats() {
 		check.Args(arg).Asserts(config, policy.ActionShare)
 	}))
 
+	s.Run("UpdateMCPServerConfigACLByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		config := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
+		arg := database.UpdateMCPServerConfigACLByIDParams{ID: config.ID, OrganizationID: config.OrganizationID}
+		dbm.EXPECT().GetMCPServerConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
+		dbm.EXPECT().UpdateMCPServerConfigACLByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(config, policy.ActionShare)
+	}))
+
 	s.Run("UpdateChatPinOrder", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpdateChatPinOrderParams{
@@ -1927,12 +1952,15 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteMCPServerUserToken(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts().Returns().WithSuccessContext(dbauthz.AsSystemRestricted)
 	}))
-	s.Run("GetEnabledMCPServerConfigs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("GetEnabledMCPServerConfigs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		organizationID := uuid.New()
-		configA := testutil.Fake(s.T(), faker, database.MCPServerConfig{OrganizationID: organizationID})
-		configB := testutil.Fake(s.T(), faker, database.MCPServerConfig{OrganizationID: organizationID})
-		dbm.EXPECT().GetEnabledMCPServerConfigs(gomock.Any(), organizationID).Return([]database.MCPServerConfig{configA, configB}, nil).AnyTimes()
-		check.Args(organizationID).Asserts(rbac.ResourceMCPServerConfig.InOrg(organizationID), policy.ActionRead).Returns([]database.MCPServerConfig{configA, configB})
+		dbm.EXPECT().GetAuthorizedEnabledMCPServerConfigs(gomock.Any(), organizationID, gomock.Any()).Return([]database.MCPServerConfig{}, nil).AnyTimes()
+		check.Args(organizationID).Asserts().Returns([]database.MCPServerConfig{})
+	}))
+	s.Run("GetAuthorizedEnabledMCPServerConfigs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		organizationID := uuid.New()
+		dbm.EXPECT().GetAuthorizedEnabledMCPServerConfigs(gomock.Any(), organizationID, gomock.Any()).Return([]database.MCPServerConfig{}, nil).AnyTimes()
+		check.Args(organizationID, emptyPreparedAuthorized{}).Asserts().Returns([]database.MCPServerConfig{})
 	}))
 	s.Run("GetForcedMCPServerConfigs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		organizationID := uuid.New()
@@ -1952,13 +1980,7 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetMCPServerConfigBySlug(gomock.Any(), arg).Return(config, nil).AnyTimes()
 		check.Args(arg).Asserts(config, policy.ActionRead).Returns(config)
 	}))
-	s.Run("GetMCPServerConfigs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		organizationID := uuid.New()
-		configA := testutil.Fake(s.T(), faker, database.MCPServerConfig{OrganizationID: organizationID})
-		configB := testutil.Fake(s.T(), faker, database.MCPServerConfig{OrganizationID: organizationID})
-		dbm.EXPECT().GetMCPServerConfigs(gomock.Any(), organizationID).Return([]database.MCPServerConfig{configA, configB}, nil).AnyTimes()
-		check.Args(organizationID).Asserts(rbac.ResourceMCPServerConfig.InOrg(organizationID), policy.ActionRead).Returns([]database.MCPServerConfig{configA, configB})
-	}))
+
 	s.Run("GetMCPServerConfigsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		organizationID := uuid.New()
 		configA := testutil.Fake(s.T(), faker, database.MCPServerConfig{OrganizationID: organizationID})
@@ -7683,14 +7705,8 @@ func TestAsChatd(t *testing.T) {
 			require.NoError(t, err, "workspace %s should be allowed", action)
 		}
 
-		// MCP server config reads are allowed for runtime loading, but writes are not.
-		err := auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceMCPServerConfig)
-		require.NoError(t, err, "MCP server config read should be allowed")
-		err = auth.Authorize(ctx, actor, policy.ActionUpdate, rbac.ResourceMCPServerConfig)
-		require.Error(t, err, "MCP server config update should not be allowed")
-
 		// DeploymentConfig reads are allowed, but writes are not.
-		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceDeploymentConfig)
+		err := auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceDeploymentConfig)
 		require.NoError(t, err, "deployment config read should be allowed")
 		err = auth.Authorize(ctx, actor, policy.ActionUpdate, rbac.ResourceDeploymentConfig)
 		require.Error(t, err, "deployment config update should not be allowed")

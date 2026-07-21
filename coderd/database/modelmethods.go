@@ -238,7 +238,9 @@ func (c ChatModelConfig) RBACObject() rbac.Object {
 func (c MCPServerConfig) RBACObject() rbac.Object {
 	return rbac.ResourceMCPServerConfig.
 		WithID(c.ID).
-		InOrg(c.OrganizationID)
+		InOrg(c.OrganizationID).
+		WithACLUserList(c.UserACL).
+		WithGroupACL(c.GroupACL)
 }
 
 func (c Chat) IsSubChat() bool {

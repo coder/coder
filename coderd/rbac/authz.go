@@ -724,6 +724,12 @@ func ConfigChats() regosql.ConvertConfig {
 	}
 }
 
+func ConfigMCPServerConfigs() regosql.ConvertConfig {
+	return regosql.ConvertConfig{
+		VariableConverter: regosql.MCPServerConfigConverter(),
+	}
+}
+
 func ConfigChatModelConfigs() regosql.ConvertConfig {
 	return regosql.ConvertConfig{
 		VariableConverter: regosql.ChatModelConfigConverter(),

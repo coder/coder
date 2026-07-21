@@ -17329,6 +17329,69 @@ func requireAIGatewayKeysViolation(
 	}
 }
 
+func TestGetAuthorizedMCPServerConfigs(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+	organization := dbgen.Organization(t, db, database.Organization{})
+	otherOrganization := dbgen.Organization(t, db, database.Organization{})
+	reader := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         reader.ID,
+		OrganizationID: organization.ID,
+	})
+
+	allowed := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID: organization.ID,
+		DisplayName:    "Allowed MCP",
+		Enabled:        true,
+		UserACL: database.TemplateACL{
+			reader.ID.String(): {policy.ActionRead},
+		},
+		GroupACL: database.TemplateACL{},
+	})
+	_ = dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID: organization.ID,
+		DisplayName:    "Denied MCP",
+		Enabled:        true,
+		UserACL:        database.TemplateACL{},
+		GroupACL:       database.TemplateACL{},
+	})
+	_ = dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID: otherOrganization.ID,
+		DisplayName:    "Other Organization MCP",
+		Enabled:        true,
+		UserACL: database.TemplateACL{
+			reader.ID.String(): {policy.ActionRead},
+		},
+		GroupACL: database.TemplateACL{},
+	})
+
+	subject, _, err := httpmw.UserRBACSubject(ctx, db, reader.ID, rbac.ExpandableScope(rbac.ScopeAll))
+	require.NoError(t, err)
+	prepared, err := authorizer.Prepare(ctx, subject, policy.ActionRead, rbac.ResourceMCPServerConfig.Type)
+	require.NoError(t, err)
+
+	configs, err := db.GetAuthorizedMCPServerConfigs(ctx, organization.ID, prepared)
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	require.Equal(t, allowed.ID, configs[0].ID)
+
+	enabledConfigs, err := db.GetAuthorizedEnabledMCPServerConfigs(ctx, organization.ID, prepared)
+	require.NoError(t, err)
+	require.Len(t, enabledConfigs, 1)
+	require.Equal(t, allowed.ID, enabledConfigs[0].ID)
+}
+
 func TestGetAuthorizedChatModelConfigs(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {

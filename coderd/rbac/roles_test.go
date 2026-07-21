@@ -67,7 +67,10 @@ func TestMCPServerConfigPermissions(t *testing.T) {
 
 	orgID := uuid.New()
 	otherOrgID := uuid.New()
-	resource := rbac.ResourceMCPServerConfig.WithID(uuid.New()).InOrg(orgID)
+	userID := uuid.NewString()
+	resource := rbac.ResourceMCPServerConfig.WithID(uuid.New()).InOrg(orgID).WithGroupACL(map[string][]policy.Action{
+		orgID.String(): {policy.ActionRead},
+	})
 	auth := rbac.NewStrictAuthorizer(prometheus.NewRegistry())
 
 	memberRole, err := rbac.RoleByName(rbac.RoleMember())
@@ -83,14 +86,18 @@ func TestMCPServerConfigPermissions(t *testing.T) {
 		},
 	}
 	orgMember := rbac.Subject{
-		ID:    uuid.NewString(),
-		Roles: rbac.Roles{memberRole, orgMemberRole},
-		Scope: rbac.ScopeAll,
+		ID:     userID,
+		Roles:  rbac.Roles{memberRole, orgMemberRole},
+		Groups: []string{orgID.String()},
+		Scope:  rbac.ScopeAll,
 	}
 
 	require.NoError(t, auth.Authorize(context.Background(), orgMember, policy.ActionRead, resource))
+	require.NoError(t, auth.Authorize(context.Background(), orgMember, policy.ActionRead, resource.WithACLUserList(map[string][]policy.Action{
+		userID: {policy.ActionRead},
+	})))
 	require.ErrorAs(t, auth.Authorize(context.Background(), orgMember, policy.ActionRead, resource.InOrg(otherOrgID)), &rbac.UnauthorizedError{})
-	for _, action := range []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete} {
+	for _, action := range []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete, policy.ActionShare} {
 		require.ErrorAs(t, auth.Authorize(context.Background(), orgMember, action, resource), &rbac.UnauthorizedError{})
 	}
 
@@ -101,12 +108,12 @@ func TestMCPServerConfigPermissions(t *testing.T) {
 		Roles: rbac.Roles{memberRole, orgAdminRole},
 		Scope: rbac.ScopeAll,
 	}
-	for _, action := range []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete} {
+	for _, action := range []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionShare} {
 		require.NoError(t, auth.Authorize(context.Background(), orgAdmin, action, resource))
 		require.ErrorAs(t, auth.Authorize(context.Background(), orgAdmin, action, resource.InOrg(otherOrgID)), &rbac.UnauthorizedError{})
 	}
 
-	require.NotContains(t, rbac.ResourceMCPServerConfig.AvailableActions(), policy.ActionShare)
+	require.Contains(t, rbac.ResourceMCPServerConfig.AvailableActions(), policy.ActionShare)
 
 	siteMember := rbac.Subject{
 		ID:    uuid.NewString(),
@@ -813,6 +820,30 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceChatModelConfig.WithID(uuid.New()).InOrg(orgID).WithACLUserList(
 				map[string][]policy.Action{
 					currentUser.String(): {policy.ActionRead},
+				}),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin},
+				false: {setOtherOrg, memberMe, agentsAccessUser, orgWorkspaceAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+			},
+		},
+		{
+			Name:    "MCPServerConfigRead",
+			Actions: []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceMCPServerConfig.WithID(uuid.New()).InOrg(orgID).WithGroupACL(
+				map[string][]policy.Action{
+					orgID.String(): {policy.ActionRead},
+				}),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgMemberMe, orgTemplateAdmin, orgUserAdmin, orgAuditor, agentsAccessUser, orgWorkspaceAccessUser},
+				false: {setOtherOrg, memberMe, userAdmin, templateAdmin},
+			},
+		},
+		{
+			Name:    "MCPServerConfigMutation",
+			Actions: []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete, policy.ActionShare},
+			Resource: rbac.ResourceMCPServerConfig.WithID(uuid.New()).InOrg(orgID).WithGroupACL(
+				map[string][]policy.Action{
+					orgID.String(): {policy.ActionRead},
 				}),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin},

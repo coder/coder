@@ -149,9 +149,15 @@ func TestMCPServerConfigRBACObject(t *testing.T) {
 	config := MCPServerConfig{
 		ID:             uuid.New(),
 		OrganizationID: uuid.New(),
+		UserACL: TemplateACL{
+			uuid.NewString(): {policy.ActionRead},
+		},
+		GroupACL: TemplateACL{
+			uuid.NewString(): {policy.ActionRead},
+		},
 	}
 
-	require.Equal(t, rbac.ResourceMCPServerConfig.WithID(config.ID).InOrg(config.OrganizationID), config.RBACObject())
+	require.Equal(t, rbac.ResourceMCPServerConfig.WithID(config.ID).InOrg(config.OrganizationID).WithACLUserList(config.UserACL).WithGroupACL(config.GroupACL), config.RBACObject())
 }
 
 //nolint:tparallel,paralleltest

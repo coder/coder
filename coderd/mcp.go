@@ -8,8 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -21,12 +23,14 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/acl"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
@@ -302,8 +306,12 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				ModelIntent:             req.ModelIntent,
 				AllowInPlanMode:         req.AllowInPlanMode,
 				ForwardCoderHeaders:     req.ForwardCoderHeaders,
-				CreatedBy:               apiKey.UserID,
-				UpdatedBy:               apiKey.UserID,
+				UserACL:                 database.TemplateACL{},
+				GroupACL: database.TemplateACL{
+					organization.ID.String(): {policy.ActionRead},
+				},
+				CreatedBy: apiKey.UserID,
+				UpdatedBy: apiKey.UserID,
 			})
 			if err != nil {
 				switch {
@@ -483,8 +491,12 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		ModelIntent:             req.ModelIntent,
 		AllowInPlanMode:         req.AllowInPlanMode,
 		ForwardCoderHeaders:     req.ForwardCoderHeaders,
-		CreatedBy:               apiKey.UserID,
-		UpdatedBy:               apiKey.UserID,
+		UserACL:                 database.TemplateACL{},
+		GroupACL: database.TemplateACL{
+			organization.ID.String(): {policy.ActionRead},
+		},
+		CreatedBy: apiKey.UserID,
+		UpdatedBy: apiKey.UserID,
 	})
 	if err != nil {
 		switch {
@@ -663,7 +675,8 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var updated database.MCPServerConfig
-	err := api.Database.InTx(func(tx database.Store) error {
+	var err error
+	err = api.Database.InTx(func(tx database.Store) error {
 		displayName := existing.DisplayName
 		if req.DisplayName != nil {
 			displayName = strings.TrimSpace(*req.DisplayName)
@@ -1387,6 +1400,157 @@ func (api *API) markMCPTokenRefreshFailure(
 		slog.Error(err),
 	)
 	return false
+}
+
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getMCPServerConfigACL(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	config, ok := api.getMCPServerConfigForMutation(rw, r, policy.ActionRead)
+	if !ok {
+		return
+	}
+	aclRow, err := api.Database.GetMCPServerConfigACLByID(ctx, database.GetMCPServerConfigACLByIDParams{
+		ID: config.ID, OrganizationID: config.OrganizationID,
+	})
+	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) || httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	users, ok := api.mcpServerConfigACLUsers(ctx, rw, config, aclRow.Users)
+	if !ok {
+		return
+	}
+	groups, ok := api.mcpServerConfigACLGroups(ctx, rw, config, aclRow.Groups)
+	if !ok {
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.MCPServerConfigACL{Users: users, Groups: groups})
+}
+
+func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Entitlements.Enabled(codersdk.FeatureTemplateRBAC) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	config, ok := api.getMCPServerConfigForMutation(rw, r, policy.ActionShare)
+	if !ok {
+		return
+	}
+	var req codersdk.UpdateMCPServerConfigACL
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	chatACLRequest := codersdk.UpdateChatACL{
+		UserRoles:  make(map[string]codersdk.ChatRole, len(req.UserRoles)),
+		GroupRoles: make(map[string]codersdk.ChatRole, len(req.GroupRoles)),
+	}
+	for id, role := range req.UserRoles {
+		chatACLRequest.UserRoles[id] = codersdk.ChatRole(role)
+	}
+	for id, role := range req.GroupRoles {
+		chatACLRequest.GroupRoles[id] = codersdk.ChatRole(role)
+	}
+	if validations := acl.Validate(ctx, api.Database, ChatACLUpdateValidator(chatACLRequest)); len(validations) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid request to update MCP server config ACL.", Validations: validations,
+		})
+		return
+	}
+	userACL := maps.Clone(config.UserACL)
+	groupACL := maps.Clone(config.GroupACL)
+	if userACL == nil {
+		userACL = database.TemplateACL{}
+	}
+	if groupACL == nil {
+		groupACL = database.TemplateACL{}
+	}
+	for id, role := range req.UserRoles {
+		if role == codersdk.MCPServerConfigRoleDeleted {
+			delete(userACL, id)
+			continue
+		}
+		userACL[id] = db2sdk.ChatRoleActions(codersdk.ChatRoleRead)
+	}
+	for id, role := range req.GroupRoles {
+		if role == codersdk.MCPServerConfigRoleDeleted {
+			delete(groupACL, id)
+			continue
+		}
+		groupACL[id] = db2sdk.ChatRoleActions(codersdk.ChatRoleRead)
+	}
+	if err := api.Database.UpdateMCPServerConfigACLByID(ctx, database.UpdateMCPServerConfigACLByIDParams{
+		ID: config.ID, OrganizationID: config.OrganizationID, UserACL: userACL, GroupACL: groupACL,
+	}); err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+func (api *API) mcpServerConfigACLUsers(ctx context.Context, rw http.ResponseWriter, config database.MCPServerConfig, entries database.TemplateACL) ([]codersdk.MCPServerConfigUser, bool) {
+	ids := make([]uuid.UUID, 0, len(entries))
+	for id := range entries {
+		parsed, err := uuid.Parse(id)
+		if err != nil {
+			api.Logger.Warn(ctx, "found invalid user UUID in MCP server config ACL", slog.Error(err), slog.F("mcp_server_config_id", config.ID))
+			continue
+		}
+		ids = append(ids, parsed)
+	}
+	//nolint:gocritic // The caller already has read access to the ACL-bearing MCP server config.
+	users, err := api.Database.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), ids)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, err)
+		return nil, false
+	}
+	result := make([]codersdk.MCPServerConfigUser, 0, len(users))
+	for _, user := range users {
+		result = append(result, codersdk.MCPServerConfigUser{
+			MinimalUser: db2sdk.MinimalUser(user), Role: convertToMCPServerConfigRole(entries[user.ID.String()]),
+		})
+	}
+	return result, true
+}
+
+func (api *API) mcpServerConfigACLGroups(ctx context.Context, rw http.ResponseWriter, config database.MCPServerConfig, entries database.TemplateACL) ([]codersdk.MCPServerConfigGroup, bool) {
+	ids := make([]uuid.UUID, 0, len(entries))
+	for id := range entries {
+		parsed, err := uuid.Parse(id)
+		if err != nil {
+			api.Logger.Warn(ctx, "found invalid group UUID in MCP server config ACL", slog.Error(err), slog.F("mcp_server_config_id", config.ID))
+			continue
+		}
+		ids = append(ids, parsed)
+	}
+	//nolint:gocritic // The caller already has read access to the ACL-bearing MCP server config.
+	groups, err := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: ids})
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, err)
+		return nil, false
+	}
+	result := make([]codersdk.MCPServerConfigGroup, 0, len(groups))
+	for _, group := range groups {
+		result = append(result, codersdk.MCPServerConfigGroup{
+			Group: db2sdk.Group(group, nil, 0), Role: convertToMCPServerConfigRole(entries[group.Group.ID.String()]),
+		})
+	}
+	return result, true
+}
+
+func convertToMCPServerConfigRole(actions []policy.Action) codersdk.MCPServerConfigRole {
+	if slices.Equal(actions, db2sdk.ChatRoleActions(codersdk.ChatRoleRead)) {
+		return codersdk.MCPServerConfigRoleRead
+	}
+	return codersdk.MCPServerConfigRoleDeleted
 }
 
 // parseMCPServerConfigID extracts the MCP server config UUID from the

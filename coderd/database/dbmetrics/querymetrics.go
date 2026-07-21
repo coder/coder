@@ -2369,6 +2369,14 @@ func (m queryMetricsStore) GetLogoURL(ctx context.Context) (string, error) {
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetMCPServerConfigACLByID(ctx context.Context, arg database.GetMCPServerConfigACLByIDParams) (database.GetMCPServerConfigACLByIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetMCPServerConfigACLByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetMCPServerConfigACLByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerConfigACLByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (database.MCPServerConfig, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetMCPServerConfigByID(ctx, id)
@@ -5449,6 +5457,14 @@ func (m queryMetricsStore) UpdateMCPServerConfig(ctx context.Context, arg databa
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateMCPServerConfigACLByID(ctx context.Context, arg database.UpdateMCPServerConfigACLByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateMCPServerConfigACLByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateMCPServerConfigACLByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateMCPServerConfigACLByID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpdateMCPServerUserTokenFromRefresh(ctx context.Context, arg database.UpdateMCPServerUserTokenFromRefreshParams) (database.MCPServerUserToken, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateMCPServerUserTokenFromRefresh(ctx, arg)
@@ -6814,6 +6830,22 @@ func (m queryMetricsStore) GetAuthorizedEnabledChatModelConfigs(ctx context.Cont
 	r0, r1 := m.s.GetAuthorizedEnabledChatModelConfigs(ctx, organizationID, prepared)
 	m.queryLatencies.WithLabelValues("GetAuthorizedEnabledChatModelConfigs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedEnabledChatModelConfigs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAuthorizedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.MCPServerConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizedMCPServerConfigs(ctx, organizationID, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedMCPServerConfigs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedMCPServerConfigs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAuthorizedEnabledMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.MCPServerConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizedEnabledMCPServerConfigs(ctx, organizationID, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedEnabledMCPServerConfigs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedEnabledMCPServerConfigs").Inc()
 	return r0, r1
 }
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rbac"
 )
 
 // testValue is the value that is stored in dbcrypt_keys.test.
@@ -724,17 +725,29 @@ func (db *dbCrypt) GetMCPServerConfigBySlug(ctx context.Context, arg database.Ge
 	return cfg, nil
 }
 
-func (db *dbCrypt) GetMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
-	cfgs, err := db.Store.GetMCPServerConfigs(ctx, organizationID)
-	if err != nil {
-		return nil, err
-	}
+func (db *dbCrypt) decryptMCPServerConfigs(cfgs []database.MCPServerConfig) ([]database.MCPServerConfig, error) {
 	for i := range cfgs {
 		if err := db.decryptMCPServerConfig(&cfgs[i]); err != nil {
 			return nil, err
 		}
 	}
 	return cfgs, nil
+}
+
+func (db *dbCrypt) GetMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
+	cfgs, err := db.Store.GetMCPServerConfigs(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	return db.decryptMCPServerConfigs(cfgs)
+}
+
+func (db *dbCrypt) GetAuthorizedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.MCPServerConfig, error) {
+	cfgs, err := db.Store.GetAuthorizedMCPServerConfigs(ctx, organizationID, prepared)
+	if err != nil {
+		return nil, err
+	}
+	return db.decryptMCPServerConfigs(cfgs)
 }
 
 func (db *dbCrypt) GetMCPServerConfigsByIDs(ctx context.Context, arg database.GetMCPServerConfigsByIDsParams) ([]database.MCPServerConfig, error) {
@@ -755,12 +768,15 @@ func (db *dbCrypt) GetEnabledMCPServerConfigs(ctx context.Context, organizationI
 	if err != nil {
 		return nil, err
 	}
-	for i := range cfgs {
-		if err := db.decryptMCPServerConfig(&cfgs[i]); err != nil {
-			return nil, err
-		}
+	return db.decryptMCPServerConfigs(cfgs)
+}
+
+func (db *dbCrypt) GetAuthorizedEnabledMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.MCPServerConfig, error) {
+	cfgs, err := db.Store.GetAuthorizedEnabledMCPServerConfigs(ctx, organizationID, prepared)
+	if err != nil {
+		return nil, err
 	}
-	return cfgs, nil
+	return db.decryptMCPServerConfigs(cfgs)
 }
 
 func (db *dbCrypt) GetForcedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
