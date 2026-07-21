@@ -337,7 +337,7 @@ export const ContextUsageIndicator: FC<{
 		<div className="text-xs text-content-primary">
 			{hasPercent
 				? `${percentLabel} - ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
-				: "Context usage unavailable"}
+				: "Context usage will appear after sending a message."}
 			{hasPercent &&
 				usage?.compressionThreshold !== undefined &&
 				usage.compressionThreshold > 0 && (
