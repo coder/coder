@@ -771,8 +771,10 @@ lint/emdash:
 
 # Fails when docs Markdown contains invalid inline HTML the docs site drops or
 # mangles: swallowed angle-bracket placeholders (e.g. <region>), void-element
-# end tags (</br>), capitalized component tags, and unclosed container tags.
+# end tags (</br>), unregistered or incorrectly capitalized component tags, and
+# unclosed container tags.
 lint/docs-html:
+	echo "--- check for invalid inline HTML in docs"
 	go run ./scripts/docshtmlcheck
 .PHONY: lint/docs-html
 

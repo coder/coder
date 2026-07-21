@@ -11,10 +11,13 @@
 //     wrapped in backticks (see docs/about/contributing/documentation.md).
 //     This also covers CLI --help strings and Swagger annotations, whose text
 //     is generated into docs/reference/**.
-//   - Structurally invalid HTML: end tags for void elements (</br>),
-//     capitalized component tags (<Image> instead of <img>), and unclosed
-//     container tags (a <div class="tabs"> that is never closed and leaks its
-//     wrapper over the rest of the page).
+//   - Structurally invalid or unregistered HTML: end tags for void elements
+//     (</br>); tag names outside the standard HTML5 set, which catches both
+//     unregistered components and incorrectly capitalized ones such as
+//     <Image> (names are compared case-insensitively, so the finding is about
+//     the unknown name, not the capitalization); and unclosed container tags
+//     (a <div class="tabs"> that is never closed and leaks its wrapper over
+//     the rest of the page).
 //
 // Detection is Markdown-aware: the file is parsed with goldmark and only raw
 // HTML nodes are inspected, so angle brackets inside fenced code blocks, inline
@@ -29,10 +32,13 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -52,9 +58,12 @@ var voidElements = map[string]bool{
 
 // allowedElements is the set of tag names permitted in docs Markdown: the
 // standard HTML5 element set plus "children", the one intentional renderer
-// component (a child-page card grid with no HTML equivalent). Any tag outside
-// this set is treated as a swallowed placeholder or an unregistered component
-// and is reported.
+// component (a child-page card grid with no HTML equivalent). Names are
+// compared in lowercase, so this validates the element name, not its
+// capitalization. Any name outside this set is treated as a swallowed
+// placeholder or an unregistered component and is reported. Inline SVG and
+// MathML are intentionally out of scope (no docs page uses them); add the
+// element here if that changes.
 var allowedElements = map[string]bool{
 	// Standard HTML5 elements.
 	"a": true, "abbr": true, "address": true, "area": true, "article": true,
@@ -73,24 +82,24 @@ var allowedElements = map[string]bool{
 	"noscript": true, "object": true, "ol": true, "optgroup": true,
 	"option": true, "output": true, "p": true, "param": true, "picture": true,
 	"pre": true, "progress": true, "q": true, "rp": true, "rt": true,
-	"ruby": true, "s": true, "samp": true, "script": true, "section": true,
-	"select": true, "slot": true, "small": true, "source": true, "span": true,
-	"strong": true, "style": true, "sub": true, "summary": true, "sup": true,
-	"table": true, "tbody": true, "td": true, "template": true, "textarea": true,
-	"tfoot": true, "th": true, "thead": true, "time": true, "title": true,
-	"tr": true, "track": true, "u": true, "ul": true, "var": true, "video": true,
-	"wbr": true,
+	"ruby": true, "s": true, "samp": true, "script": true, "search": true,
+	"section": true, "select": true, "slot": true, "small": true,
+	"source": true, "span": true, "strong": true, "style": true, "sub": true,
+	"summary": true, "sup": true, "table": true, "tbody": true, "td": true,
+	"template": true, "textarea": true, "tfoot": true, "th": true,
+	"thead": true, "time": true, "title": true, "tr": true, "track": true,
+	"u": true, "ul": true, "var": true, "video": true, "wbr": true,
 
 	// Intentional docs renderer component.
 	"children": true,
 }
 
-// optionalEndTag are elements whose end tag is optional in the HTML5 parsing
+// optionalEndTags are elements whose end tag is optional in the HTML5 parsing
 // algorithm (a following sibling or the parent's end implicitly closes them).
 // Requiring them to be explicitly balanced would produce false positives on
 // valid HTML, so they are excluded from the unclosed/mismatch balance check.
 // They are still subject to the void-end-tag and unknown-element checks.
-var optionalEndTag = map[string]bool{
+var optionalEndTags = map[string]bool{
 	"li": true, "dd": true, "dt": true, "p": true, "option": true,
 	"optgroup": true, "td": true, "th": true, "tr": true, "thead": true,
 	"tbody": true, "tfoot": true, "caption": true, "colgroup": true,
@@ -102,11 +111,17 @@ var optionalEndTag = map[string]bool{
 // source is outside this repository and therefore cannot be fixed by a source
 // edit here.
 //
+// The escape hatch is self-clearing: filterAllowed emits a stale-allowlist-entry
+// finding (failing the build) if an allowlisted tag no longer appears in its
+// file, so a dead entry cannot silently mask a future regression of the same
+// tag on that page.
+//
 // Temporary: docs/reference/cli/agent-firewall.md renders <host> and <glob>
 // from the --session-id-inject-target help text, which is defined in the
-// external github.com/coder/boundary CLI, not in this repo. Remove this entry
-// once the upstream fix and the dependency bump land and the generated page no
-// longer contains the bare placeholders.
+// external github.com/coder/boundary CLI, not in this repo. The stale-entry
+// guard removes the need to track removal by hand: once the upstream fix and
+// dependency bump land and the generated page no longer contains the bare
+// placeholders, the build fails until this entry is deleted.
 var allowedUnknownTags = map[string]map[string]bool{
 	"docs/reference/cli/agent-firewall.md": {"host": true, "glob": true},
 }
@@ -116,8 +131,9 @@ type findingKind string
 const (
 	kindUnknownElement findingKind = "unknown-element"
 	kindVoidEndTag     findingKind = "void-end-tag"
-	kindUnclosed       findingKind = "unclosed-tag"
+	kindUnclosedTag    findingKind = "unclosed-tag"
 	kindStrayEndTag    findingKind = "stray-end-tag"
+	kindStaleAllowlist findingKind = "stale-allowlist-entry"
 )
 
 type finding struct {
@@ -139,8 +155,6 @@ func main() {
 		os.Exit(2)
 	}
 
-	_, _ = fmt.Println("--- check for invalid inline HTML in docs")
-
 	total := 0
 	for _, path := range files {
 		src, err := os.ReadFile(path)
@@ -153,19 +167,26 @@ func main() {
 			_, _ = fmt.Printf("%s:%d: %s: %s\n", path, f.line, f.kind, f.msg)
 			total++
 		}
+		// Findings on a generated page can't be fixed in the page itself; point
+		// the author at the generator source instead of the throwaway output.
+		if len(findings) > 0 && isGeneratedDoc(path) {
+			_, _ = fmt.Printf("%s: note: this page is generated by `make gen`; fix the source "+
+				"(codersdk/*.go doc comments, CLI --help text, or swagger annotations) and "+
+				"regenerate; edits to this file will not persist\n", path)
+		}
 	}
 
 	if total > 0 {
 		_, _ = fmt.Fprintf(os.Stderr, "\ndocshtmlcheck: found %d invalid inline HTML issue(s).\n"+
 			"Wrap angle-bracket placeholders in backticks so they render as inline code\n"+
 			"(see docs/about/contributing/documentation.md), fix void-element end tags\n"+
-			"like </br>, lowercase component tags, and close container tags.\n", total)
+			"like </br>, use registered components for custom tags, and close container tags.\n", total)
 		os.Exit(1)
 	}
 }
 
 // collectMarkdown expands the given roots (files or directories) into a sorted
-// list of .md files.
+// list of unique .md files in canonical (repo-relative, slash) form.
 func collectMarkdown(roots []string) ([]string, error) {
 	seen := map[string]bool{}
 	for _, root := range roots {
@@ -175,7 +196,7 @@ func collectMarkdown(roots []string) ([]string, error) {
 		}
 		if !info.IsDir() {
 			if strings.HasSuffix(root, ".md") {
-				seen[filepath.ToSlash(root)] = true
+				seen[canonicalPath(root)] = true
 			}
 			continue
 		}
@@ -184,7 +205,7 @@ func collectMarkdown(roots []string) ([]string, error) {
 				return err
 			}
 			if !d.IsDir() && strings.HasSuffix(path, ".md") {
-				seen[filepath.ToSlash(path)] = true
+				seen[canonicalPath(path)] = true
 			}
 			return nil
 		})
@@ -192,26 +213,66 @@ func collectMarkdown(roots []string) ([]string, error) {
 			return nil, err
 		}
 	}
-	files := make([]string, 0, len(seen))
-	for f := range seen {
-		files = append(files, f)
-	}
-	sort.Strings(files)
-	return files, nil
+	return slices.Sorted(maps.Keys(seen)), nil
 }
 
-// filterAllowed drops findings suppressed by allowedUnknownTags for the file.
+// canonicalPath normalizes a path to a clean, slash-separated form, made
+// relative to the working directory when absolute. Running the linter from the
+// repo root (as CI and `make lint/docs-html` do) yields repo-relative keys such
+// as docs/reference/cli/agent-firewall.md regardless of whether the caller
+// passed a relative, ./-prefixed, or absolute path, so allowlist lookups and
+// reported locations stay consistent.
+func canonicalPath(p string) string {
+	p = filepath.Clean(p)
+	if filepath.IsAbs(p) {
+		if wd, err := os.Getwd(); err == nil {
+			if rel, err := filepath.Rel(wd, p); err == nil {
+				p = rel
+			}
+		}
+	}
+	return filepath.ToSlash(p)
+}
+
+// isGeneratedDoc reports whether a docs path is produced by `make gen` rather
+// than hand-written, so findings can route the author to the generator source.
+func isGeneratedDoc(path string) bool {
+	return strings.HasPrefix(canonicalPath(path), "docs/reference/")
+}
+
+// filterAllowed drops unknown-element findings suppressed by allowedUnknownTags
+// for the file. It also reports any allowlist entry that suppressed nothing, so
+// a stale escape hatch fails the build instead of silently masking a future
+// regression of the same tag on that page.
 func filterAllowed(path string, findings []finding) []finding {
-	allowed := allowedUnknownTags[filepath.ToSlash(path)]
+	allowed := allowedUnknownTags[canonicalPath(path)]
 	if allowed == nil {
 		return findings
 	}
-	out := findings[:0]
+	out := make([]finding, 0, len(findings))
+	used := make(map[string]bool, len(allowed))
 	for _, f := range findings {
 		if f.kind == kindUnknownElement && allowed[f.tag] {
+			used[f.tag] = true
 			continue
 		}
 		out = append(out, f)
+	}
+	stale := make([]string, 0, len(allowed))
+	for tag := range allowed {
+		if !used[tag] {
+			stale = append(stale, tag)
+		}
+	}
+	slices.Sort(stale)
+	for _, tag := range stale {
+		out = append(out, finding{
+			line: 1,
+			kind: kindStaleAllowlist,
+			tag:  tag,
+			msg: fmt.Sprintf("allowlist entry <%s> for %s no longer suppresses anything; "+
+				"remove it from allowedUnknownTags", tag, canonicalPath(path)),
+		})
 	}
 	return out
 }
@@ -230,20 +291,13 @@ func checkSource(src []byte) []finding {
 		}
 		switch node := n.(type) {
 		case *ast.RawHTML:
-			for i := 0; i < node.Segments.Len(); i++ {
-				seg := node.Segments.At(i)
-				c.scan(seg.Value(src), seg.Start)
-			}
+			c.scanNode(segmentsOf(node.Segments))
 		case *ast.HTMLBlock:
-			lines := node.Lines()
-			for i := 0; i < lines.Len(); i++ {
-				seg := lines.At(i)
-				c.scan(seg.Value(src), seg.Start)
-			}
+			segs := segmentsOf(node.Lines())
 			if node.HasClosure() {
-				seg := node.ClosureLine
-				c.scan(seg.Value(src), seg.Start)
+				segs = append(segs, node.ClosureLine)
 			}
+			c.scanNode(segs)
 		}
 		return ast.WalkContinue, nil
 	})
@@ -252,16 +306,25 @@ func checkSource(src []byte) []finding {
 	for _, open := range c.stack {
 		c.findings = append(c.findings, finding{
 			line: open.line,
-			kind: kindUnclosed,
+			kind: kindUnclosedTag,
 			tag:  open.tag,
 			msg:  fmt.Sprintf("unclosed <%s> tag", open.tag),
 		})
 	}
 
-	sort.SliceStable(c.findings, func(i, j int) bool {
-		return c.findings[i].line < c.findings[j].line
+	slices.SortStableFunc(c.findings, func(a, b finding) int {
+		return cmp.Compare(a.line, b.line)
 	})
 	return c.findings
+}
+
+// segmentsOf materializes a *text.Segments into a slice.
+func segmentsOf(s *text.Segments) []text.Segment {
+	out := make([]text.Segment, 0, s.Len())
+	for i := range s.Len() {
+		out = append(out, s.At(i))
+	}
+	return out
 }
 
 type openTag struct {
@@ -276,17 +339,49 @@ type checker struct {
 	findings   []finding
 }
 
-// scan tokenizes a single raw-HTML fragment and updates the checker's balance
-// stack and findings. startOffset is the byte offset of the fragment in the
-// source, used to report line numbers.
-func (c *checker) scan(fragment []byte, startOffset int) {
-	line := c.lineAt(startOffset)
-	z := html.NewTokenizer(bytes.NewReader(fragment))
+// scanNode tokenizes an entire raw-HTML node at once. It concatenates the
+// node's source segments into a single buffer, so a tag whose text wraps
+// across lines is tokenized whole instead of being torn in half. It maps each
+// token back to its source line. The balance stack persists across nodes, so a
+// container opened in one block and closed in another still balances.
+func (c *checker) scanNode(segs []text.Segment) {
+	if len(segs) == 0 {
+		return
+	}
+
+	// Concatenate the segment text into one buffer, recording where each
+	// segment lands so a buffer offset can be translated back to a source byte
+	// offset. Segments are individually contiguous in the source but may be
+	// separated by gaps (such as the line breaks a block spans).
+	type span struct {
+		bufStart, srcStart, length int
+	}
+	var buf []byte
+	spans := make([]span, 0, len(segs))
+	for _, seg := range segs {
+		v := seg.Value(c.src)
+		spans = append(spans, span{bufStart: len(buf), srcStart: seg.Start, length: len(v)})
+		buf = append(buf, v...)
+	}
+	srcOffset := func(bufPos int) int {
+		for i := len(spans) - 1; i >= 0; i-- {
+			if bufPos >= spans[i].bufStart {
+				return spans[i].srcStart + min(bufPos-spans[i].bufStart, spans[i].length)
+			}
+		}
+		return spans[0].srcStart
+	}
+
+	z := html.NewTokenizer(bytes.NewReader(buf))
+	pos := 0
 	for {
 		tt := z.Next()
 		if tt == html.ErrorToken {
 			return
 		}
+		line := c.lineAt(srcOffset(pos))
+		pos += len(z.Raw())
+
 		switch tt {
 		case html.StartTagToken, html.SelfClosingTagToken:
 			nameBytes, _ := z.TagName()
@@ -303,15 +398,16 @@ func (c *checker) scan(fragment []byte, startOffset int) {
 					line: line,
 					kind: kindUnknownElement,
 					tag:  name,
-					msg: fmt.Sprintf("<%s> is not valid inline HTML; if it is a placeholder, "+
-						"wrap it in backticks, otherwise use a registered component", name),
+					msg: fmt.Sprintf("<%s> is not a recognized HTML element or component; wrap a "+
+						"placeholder in backticks, add a standard HTML element to allowedElements, "+
+						"or use a registered component", name),
 				})
 				continue
 			}
 			// Only track balance for container elements that require an
 			// explicit end tag. Void elements and optional-end-tag elements
 			// are never pushed.
-			if tt == html.StartTagToken && !voidElements[name] && !optionalEndTag[name] {
+			if tt == html.StartTagToken && !voidElements[name] && !optionalEndTags[name] {
 				c.stack = append(c.stack, openTag{tag: name, line: line})
 			}
 		case html.EndTagToken:
@@ -329,7 +425,7 @@ func (c *checker) scan(fragment []byte, startOffset int) {
 				})
 				continue
 			}
-			if !allowedElements[name] || optionalEndTag[name] {
+			if !allowedElements[name] || optionalEndTags[name] {
 				// Unknown end tags are reported via their start tag; optional
 				// end tags are not balance-tracked.
 				continue
@@ -343,12 +439,11 @@ func (c *checker) scan(fragment []byte, startOffset int) {
 func (c *checker) pop(name string, line int) {
 	for i := len(c.stack) - 1; i >= 0; i-- {
 		if c.stack[i].tag == name {
-			// Anything above the match was left unclosed inside this element;
-			// report them, then pop through the match.
+			// Tags above the match were left unclosed inside this element.
 			for j := len(c.stack) - 1; j > i; j-- {
 				c.findings = append(c.findings, finding{
 					line: c.stack[j].line,
-					kind: kindUnclosed,
+					kind: kindUnclosedTag,
 					tag:  c.stack[j].tag,
 					msg:  fmt.Sprintf("unclosed <%s> tag", c.stack[j].tag),
 				})

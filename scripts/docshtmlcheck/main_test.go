@@ -1,6 +1,9 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -67,12 +70,12 @@ func TestCheckSource(t *testing.T) {
 		{
 			name: "unbalanced children component",
 			src:  "<children>\n\nsome text\n",
-			want: []finding{{kind: kindUnclosed, tag: "children"}},
+			want: []finding{{kind: kindUnclosedTag, tag: "children"}},
 		},
 		{
 			name: "unclosed div leaks wrapper",
 			src:  "<div class=\"tabs\">\n\n## Heading\n\ncontent\n",
-			want: []finding{{kind: kindUnclosed, tag: "div"}},
+			want: []finding{{kind: kindUnclosedTag, tag: "div"}},
 		},
 		{
 			name: "balanced div block",
@@ -83,6 +86,34 @@ func TestCheckSource(t *testing.T) {
 			name: "stray end tag",
 			src:  "text</div>\n",
 			want: []finding{{kind: kindStrayEndTag, tag: "div"}},
+		},
+		{
+			// Regression guard: a start tag whose attributes wrap across lines
+			// must be tokenized whole, not torn in half. A per-line tokenizer
+			// silently dropped this unclosed <div> (exit 0), the exact leaked
+			// wrapper the linter exists to catch.
+			name: "unclosed div with attributes wrapped across lines",
+			src:  "<div\n  class=\"tabs\">\n\n## Heading\n\ncontent\n",
+			want: []finding{{kind: kindUnclosedTag, tag: "div"}},
+		},
+		{
+			name: "unknown element with attributes wrapped across lines",
+			src:  "See <Image\n  src=\"x.png\"> here.\n",
+			want: []finding{{kind: kindUnknownElement, tag: "image"}},
+		},
+		{
+			// A valid inline tag wrapped across lines must NOT produce a
+			// spurious stray-end-tag on the closing tag.
+			name: "balanced kbd wrapped across lines",
+			src:  "Press <kbd\n  class=\"key\">Ctrl</kbd> now.\n",
+			want: nil,
+		},
+		{
+			// Interleaved nesting: the inner tag is left dangling when the outer
+			// tag closes. Exercises pop's unclosed-reporting loop.
+			name: "inner tag unclosed when outer closes",
+			src:  "<div>\n\n<span>\n\n</div>\n",
+			want: []finding{{kind: kindUnclosedTag, tag: "span"}},
 		},
 		{
 			name: "autolink is not raw html",
@@ -122,12 +153,30 @@ func TestCheckSource(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			got := checkSource([]byte(tc.src))
 			assertFindings(t, tc.want, got)
 		})
+	}
+}
+
+// TestFindingLine pins the reported line number so the line-tracking machinery
+// (lineStarts, lineAt, offset mapping) cannot silently regress to a constant.
+func TestFindingLine(t *testing.T) {
+	t.Parallel()
+
+	// 1: "intro", 2: blank, 3: the unclosed <div>.
+	src := "intro\n\n<div class=\"tabs\">\n\n## Heading\n\ncontent\n"
+	got := checkSource([]byte(src))
+	if len(got) != 1 {
+		t.Fatalf("want exactly 1 finding, got %d: %+v", len(got), got)
+	}
+	if got[0].kind != kindUnclosedTag || got[0].tag != "div" {
+		t.Fatalf("want unclosed <div>, got %+v", got[0])
+	}
+	if got[0].line != 3 {
+		t.Errorf("want unclosed <div> reported on line 3, got line %d", got[0].line)
 	}
 }
 
@@ -151,6 +200,59 @@ func TestFilterAllowed(t *testing.T) {
 	other := filterAllowed("docs/reference/cli/other.md", checkSource([]byte(src)))
 	if len(other) != 2 {
 		t.Fatalf("expected 2 findings on non-allowlisted path, got %d: %+v", len(other), other)
+	}
+}
+
+// TestFilterAllowedStaleEntry verifies the self-clearing guard: when an
+// allowlisted tag no longer appears in its file, the unused entry surfaces as a
+// stale-allowlist-entry finding so the dead escape hatch fails the build.
+func TestFilterAllowedStaleEntry(t *testing.T) {
+	t.Parallel()
+
+	// Only <host> remains; the <glob> allowlist entry now suppresses nothing.
+	src := "Format: \"domain=<host>\".\n"
+	got := filterAllowed("docs/reference/cli/agent-firewall.md", checkSource([]byte(src)))
+	if len(got) != 1 {
+		t.Fatalf("want exactly 1 stale finding, got %d: %+v", len(got), got)
+	}
+	if got[0].kind != kindStaleAllowlist || got[0].tag != "glob" {
+		t.Fatalf("want stale-allowlist-entry for <glob>, got %+v", got[0])
+	}
+}
+
+func TestCollectMarkdown(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	writeTestFile(t, filepath.Join(dir, "b.md"))
+	writeTestFile(t, filepath.Join(dir, "a.md"))
+	writeTestFile(t, filepath.Join(dir, "sub", "c.md"))
+	writeTestFile(t, filepath.Join(dir, "ignore.txt"))
+
+	got, err := collectMarkdown([]string{dir})
+	if err != nil {
+		t.Fatalf("collectMarkdown: %v", err)
+	}
+	// Expected keys go through canonicalPath just like collectMarkdown's, so
+	// the assertion holds regardless of the temp dir's absolute location.
+	want := []string{
+		canonicalPath(filepath.Join(dir, "a.md")),
+		canonicalPath(filepath.Join(dir, "b.md")),
+		canonicalPath(filepath.Join(dir, "sub", "c.md")),
+	}
+	slices.Sort(want)
+	if !slices.Equal(got, want) {
+		t.Fatalf("want %v (sorted, deduped, .md only), got %v", want, got)
+	}
+}
+
+func writeTestFile(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("# doc\n"), 0o600); err != nil {
+		t.Fatal(err)
 	}
 }
 
