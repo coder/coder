@@ -23233,7 +23233,7 @@ const docTemplate = `{
                 "ResourceIdpsyncSettings",
                 "ResourceInboxNotification",
                 "ResourceLicense",
-                "ResourceMcpServerConfig",
+                "ResourceMCPServerConfig",
                 "ResourceNotificationMessage",
                 "ResourceNotificationPreference",
                 "ResourceNotificationTemplate",
