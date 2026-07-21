@@ -470,6 +470,10 @@ func (gm GetGroupMembersByGroupIDPaginatedRow) RBACObject() rbac.Object {
 	return rbac.ResourceGroupMember.WithID(gm.UserID).InOrg(gm.OrganizationID).WithOwner(gm.UserID.String())
 }
 
+func (r GetGroupMembersAISpendRow) RBACObject() rbac.Object {
+	return rbac.ResourceGroupMember.WithID(r.UserID).InOrg(r.OrganizationID).WithOwner(r.UserID.String())
+}
+
 // PrebuiltWorkspaceResource defines the interface for types that can be identified as prebuilt workspaces
 // and converted to their corresponding prebuilt workspace RBAC object.
 type PrebuiltWorkspaceResource interface {

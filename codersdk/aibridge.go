@@ -27,6 +27,13 @@ const (
 	AIBudgetLimitSourceGroup AIBudgetLimitSource = "group"
 )
 
+// AIGroupBudget is an AI spend limit and the tier that produced it. Both
+// fields are always populated together.
+type AIGroupBudget struct {
+	SpendLimitMicros int64               `json:"spend_limit_micros"`
+	LimitSource      AIBudgetLimitSource `json:"limit_source"`
+}
+
 // UserAIBudgetSummary is the effective AI budget for a user. When no
 // budget applies, all fields except UserID are null.
 type UserAIBudgetSummary struct {
@@ -82,6 +89,31 @@ type OrganizationGroupAISpend struct {
 	CurrentSpendMicros int64 `json:"current_spend_micros"`
 }
 
+// GroupMembersAISpend reports per-member AI spend attributed to a specific
+// group in the active budget period.
+type GroupMembersAISpend struct {
+	AISpendPeriodWindow
+	Members []GroupMemberAISpend `json:"members"`
+}
+
+// GroupMemberAISpend is a single member's AI spend attributed to the queried
+// group in the current budget period.
+type GroupMemberAISpend struct {
+	UserID uuid.UUID `json:"user_id" format:"uuid"`
+	// EffectiveGroupID is the user's effective budget group within the queried
+	// group's organization. Null when no effective budget group is visible in
+	// this organization, including when the user's budget resolves to a group
+	// in another organization.
+	EffectiveGroupID *uuid.UUID `json:"effective_group_id" format:"uuid"`
+	// GroupBudget is the budget when the queried group is this user's
+	// effective budget source. Null when the user's budget resolves to another
+	// group or no budget applies to the user.
+	GroupBudget *AIGroupBudget `json:"group_budget"`
+	// GroupSpendMicros is the user's spend attributed to the queried group
+	// over the current budget period.
+	GroupSpendMicros int64 `json:"group_spend_micros"`
+}
+
 type AIBridgeSession struct {
 	ID                string                           `json:"id"`
 	Initiator         MinimalUser                      `json:"initiator"`
@@ -93,8 +125,13 @@ type AIBridgeSession struct {
 	EndedAt           *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	Threads           int64                            `json:"threads"`
 	TokenUsageSummary AIBridgeSessionTokenUsageSummary `json:"token_usage_summary"`
-	LastPrompt        *string                          `json:"last_prompt,omitempty"`
-	LastActiveAt      time.Time                        `json:"last_active_at" format:"date-time"`
+	// NetworkCalls summarizes the Agent Firewall network calls made during the
+	// session. A nil value means the session did not pass through Agent
+	// Firewall, so network call monitoring was not active, which the UI
+	// surfaces as "Disabled".
+	NetworkCalls *AIBridgeSessionNetworkCallSummary `json:"network_calls,omitempty"`
+	LastPrompt   *string                            `json:"last_prompt,omitempty"`
+	LastActiveAt time.Time                          `json:"last_active_at" format:"date-time"`
 }
 
 type AIBridgeSessionTokenUsageSummary struct {
@@ -102,6 +139,14 @@ type AIBridgeSessionTokenUsageSummary struct {
 	OutputTokens          int64 `json:"output_tokens"`
 	CacheReadInputTokens  int64 `json:"cache_read_input_tokens"`
 	CacheWriteInputTokens int64 `json:"cache_write_input_tokens"`
+}
+
+// AIBridgeSessionNetworkCallSummary aggregates the Agent Firewall network
+// calls made during a session. Blocked counts calls denied by the firewall
+// allow-list.
+type AIBridgeSessionNetworkCallSummary struct {
+	Total   int64 `json:"total"`
+	Blocked int64 `json:"blocked"`
 }
 
 type AIBridgeListSessionsResponse struct {
@@ -496,5 +541,32 @@ func (c *Client) OrganizationGroupsAISpend(ctx context.Context, organization uui
 		return OrganizationGroupsAISpend{}, ReadBodyAsError(res)
 	}
 	var resp OrganizationGroupsAISpend
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GroupMembersAISpend returns AI spend attributed to the given group for the
+// specified users within the active budget period. At most 100 user IDs may be
+// requested per call, and callers with more members are expected to batch
+// across multiple requests.
+func (c *Client) GroupMembersAISpend(ctx context.Context, group uuid.UUID, userIDs []uuid.UUID) (GroupMembersAISpend, error) {
+	ids := slice.List(userIDs, func(id uuid.UUID) string { return id.String() })
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/groups/%s/members/ai/spend", group.String()),
+		nil,
+		func(r *http.Request) {
+			q := r.URL.Query()
+			q.Set("user_ids", strings.Join(ids, ","))
+			r.URL.RawQuery = q.Encode()
+		},
+	)
+	if err != nil {
+		return GroupMembersAISpend{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return GroupMembersAISpend{}, ReadBodyAsError(res)
+	}
+	var resp GroupMembersAISpend
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }

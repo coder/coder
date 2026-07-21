@@ -483,6 +483,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"generation_attempt":          ActionIgnore, // Internal retry counter.
 		"runner_id":                   ActionIgnore, // Internal ownership identifier.
 		"requires_action_deadline_at": ActionIgnore, // Internal pending-action deadline.
+		"compaction_requested_at":     ActionIgnore, // Internal one-shot manual compaction signal.
 	},
 	&database.UserSkill{}: {
 		"id":          ActionTrack,

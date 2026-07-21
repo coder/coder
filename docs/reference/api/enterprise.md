@@ -1092,6 +1092,60 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group}/members \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get group members AI spend
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/groups/{group}/members/ai/spend?user_ids=string \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/groups/{group}/members/ai/spend`
+
+Returns aggregate AI spend attributed to the group per requested user.
+A maximum of 100 user IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.
+User IDs that are not members of the group, or that the caller has no read access to, are silently omitted.
+
+### Parameters
+
+| Name       | In    | Type         | Required | Description                                    |
+|------------|-------|--------------|----------|------------------------------------------------|
+| `group`    | path  | string(uuid) | true     | Group ID                                       |
+| `user_ids` | query | string       | true     | Comma-separated list of user IDs (maximum 100) |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "members": [
+    {
+      "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+      "group_budget": {
+        "limit_source": "user_override",
+        "spend_limit_micros": 0
+      },
+      "group_spend_micros": 0,
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+    }
+  ],
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                 |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupMembersAISpend](schemas.md#codersdkgroupmembersaispend) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get licenses
 
 ### Code samples
@@ -2007,6 +2061,61 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
 | Status | Meaning                                                 | Description | Schema                                                                   |
 |--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupMembersResponse](schemas.md#codersdkgroupmembersresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get group members AI spend by organization
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/{groupName}/members/ai/spend?user_ids=string \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/groups/{groupName}/members/ai/spend`
+
+Returns aggregate AI spend attributed to the group per requested user.
+A maximum of 100 user IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.
+User IDs that are not members of the group, or that the caller has no read access to, are silently omitted.
+
+### Parameters
+
+| Name           | In    | Type         | Required | Description                                    |
+|----------------|-------|--------------|----------|------------------------------------------------|
+| `organization` | path  | string(uuid) | true     | Organization ID                                |
+| `groupName`    | path  | string       | true     | Group name                                     |
+| `user_ids`     | query | string       | true     | Comma-separated list of user IDs (maximum 100) |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "members": [
+    {
+      "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+      "group_budget": {
+        "limit_source": "user_override",
+        "spend_limit_micros": 0
+      },
+      "group_spend_micros": 0,
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+    }
+  ],
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                 |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupMembersAISpend](schemas.md#codersdkgroupmembersaispend) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

@@ -505,6 +505,45 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/chats/{chat}/compact": {
+            "post": {
+                "description": "Experimental: this endpoint is subject to change.\nRequests a manual context compaction on an idle chat. The\ncompaction runs asynchronously through the chat worker and\nbypasses the automatic usage threshold.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Compact chat",
+                "operationId": "compact-chat",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/{chat}/context": {
             "put": {
                 "description": "Experimental: this endpoint is subject to change.",
@@ -3384,6 +3423,49 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/groups/{group}/members/ai/spend": {
+            "get": {
+                "description": "Returns aggregate AI spend attributed to the group per requested user.\nA maximum of 100 user IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.\nUser IDs that are not members of the group, or that the caller has no read access to, are silently omitted.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get group members AI spend",
+                "operationId": "get-group-members-ai-spend",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Group ID",
+                        "name": "group",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated list of user IDs (maximum 100)",
+                        "name": "user_ids",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GroupMembersAISpend"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/init-script/{os}/{arch}": {
             "get": {
                 "produces": [
@@ -4894,6 +4976,56 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.GroupMembersResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/groups/{groupName}/members/ai/spend": {
+            "get": {
+                "description": "Returns aggregate AI spend attributed to the group per requested user.\nA maximum of 100 user IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.\nUser IDs that are not members of the group, or that the caller has no read access to, are silently omitted.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get group members AI spend by organization",
+                "operationId": "get-group-members-ai-spend-by-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Group name",
+                        "name": "groupName",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated list of user IDs (maximum 100)",
+                        "name": "user_ids",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GroupMembersAISpend"
                         }
                     }
                 },
@@ -15140,6 +15272,14 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "network_calls": {
+                    "description": "NetworkCalls summarizes the Agent Firewall network calls made during the\nsession. A nil value means the session did not pass through Agent\nFirewall, so network call monitoring was not active, which the UI\nsurfaces as \"Disabled\".",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgeSessionNetworkCallSummary"
+                        }
+                    ]
+                },
                 "providers": {
                     "type": "array",
                     "items": {
@@ -15155,6 +15295,17 @@ const docTemplate = `{
                 },
                 "token_usage_summary": {
                     "$ref": "#/definitions/codersdk.AIBridgeSessionTokenUsageSummary"
+                }
+            }
+        },
+        "codersdk.AIBridgeSessionNetworkCallSummary": {
+            "type": "object",
+            "properties": {
+                "blocked": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },
@@ -15390,6 +15541,17 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.AIGroupBudget": {
+            "type": "object",
+            "properties": {
+                "limit_source": {
+                    "$ref": "#/definitions/codersdk.AIBudgetLimitSource"
+                },
+                "spend_limit_micros": {
+                    "type": "integer"
                 }
             }
         },
@@ -20253,6 +20415,53 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.GroupMemberAISpend": {
+            "type": "object",
+            "properties": {
+                "effective_group_id": {
+                    "description": "EffectiveGroupID is the user's effective budget group within the queried\ngroup's organization. Null when no effective budget group is visible in\nthis organization, including when the user's budget resolves to a group\nin another organization.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "group_budget": {
+                    "description": "GroupBudget is the budget when the queried group is this user's\neffective budget source. Null when the user's budget resolves to another\ngroup or no budget applies to the user.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIGroupBudget"
+                        }
+                    ]
+                },
+                "group_spend_micros": {
+                    "description": "GroupSpendMicros is the user's spend attributed to the queried group\nover the current budget period.",
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.GroupMembersAISpend": {
+            "type": "object",
+            "properties": {
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.GroupMemberAISpend"
+                    }
+                },
+                "period_end": {
+                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "period_start": {
+                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
                     "type": "string",
                     "format": "date-time"
                 }

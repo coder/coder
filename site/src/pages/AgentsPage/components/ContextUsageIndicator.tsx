@@ -229,6 +229,17 @@ export const ContextUsageIndicator: FC<{
 			? (usedTokens / contextLimitTokens) * 100
 			: null;
 	const hasPercent = percentUsed !== null;
+	// Providers may report usage without token counts. Only a chat with no
+	// reported usage at all should promise numbers after the next message.
+	const hasReportedUsage = [
+		usage?.usedTokens,
+		usage?.contextLimitTokens,
+		usage?.inputTokens,
+		usage?.outputTokens,
+		usage?.cacheReadTokens,
+		usage?.cacheCreationTokens,
+		usage?.reasoningTokens,
+	].some(hasFiniteTokenValue);
 	const percentLabel =
 		percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
 	const clampedPercent = hasPercent
@@ -337,7 +348,9 @@ export const ContextUsageIndicator: FC<{
 		<div className="text-xs text-content-primary">
 			{hasPercent
 				? `${percentLabel} - ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
-				: "Context usage unavailable"}
+				: hasReportedUsage
+					? "Context usage unavailable"
+					: "Context usage will appear after sending a message."}
 			{hasPercent &&
 				usage?.compressionThreshold !== undefined &&
 				usage.compressionThreshold > 0 && (
@@ -346,12 +359,7 @@ export const ContextUsageIndicator: FC<{
 					</div>
 				)}
 			{hasContextList && (
-				<div
-					className={cn(
-						"flex flex-col gap-2 text-content-secondary",
-						hasPercent && "mt-2",
-					)}
-				>
+				<div className="mt-2 flex flex-col gap-2 text-content-secondary">
 					{fileItems.length > 0 && (
 						<div className="flex flex-col gap-1">
 							<span className="font-medium text-content-primary">

@@ -365,10 +365,6 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 	})
 }
 
-func sqlNullString(value string) sql.NullString {
-	return sql.NullString{String: value, Valid: value != ""}
-}
-
 func TestAIBridgeRoutingFailClosed(t *testing.T) {
 	t.Parallel()
 

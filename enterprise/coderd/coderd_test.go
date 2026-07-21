@@ -212,7 +212,7 @@ func TestEntitlements(t *testing.T) {
 			}),
 		})
 		require.NoError(t, err)
-		err = api.Pubsub.Publish(coderd.PubsubEventLicenses, []byte{})
+		err = api.ReplicaSyncPubsub.Publish(coderd.PubsubEventLicenses, []byte{})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
 			entitlements, err := anotherClient.Entitlements(context.Background())
