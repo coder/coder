@@ -89,6 +89,22 @@ func main() {
 	cmd := &serpent.Command{
 		Use:   "develop-local-cluster",
 		Short: "Run Coder, AI Gateway, and a provisioner in an isolated kind cluster.",
+		Long: `Quick start:
+  ./scripts/develop-local-cluster.sh up
+
+The first run deploys Coder and offers to add a license when Premium
+entitlements are unavailable. If the prompt is skipped, run:
+  ./scripts/develop-local-cluster.sh coder licenses add -f <path>
+  ./scripts/develop-local-cluster.sh up
+
+Common commands:
+  reload                 Build a fresh Coder image and upgrade workloads.
+  reload --charts-only   Apply source chart changes without building an image.
+  info                   Print connection details and bootstrap state.
+  down                   Delete the complete local cluster.
+
+Read scripts/develop-local-cluster/README.md for prerequisites,
+configuration, cleanup behavior, and the full workflow.`,
 		Options: serpent.OptionSet{
 			{
 				Flag:        "cluster-name",
