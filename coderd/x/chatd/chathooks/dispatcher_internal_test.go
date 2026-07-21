@@ -388,6 +388,37 @@ func TestDispatcherOverCapacity(t *testing.T) {
 	require.True(t, row.FinishedAt.Valid)
 }
 
+func TestDispatcherInvalidToolInputFinalizesProtocolError(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	toolUseID := "call_" + uuid.NewString()
+	event := newTestEvent(t, db, agenthooks.EventPreToolUse, agenthooks.PreToolUseData{
+		ToolUseID: toolUseID,
+		ToolName:  "edit",
+		ToolInput: json.RawMessage(`{"path":`),
+	})
+	event.ToolUseID = &toolUseID
+
+	var hookRequests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hookRequests.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+
+	_, err := newTestDispatcher(t, db, server.Client(), server.URL, time.Second).Dispatch(
+		testutil.Context(t, testutil.WaitLong), event,
+	)
+	require.Error(t, err)
+	require.Zero(t, hookRequests.Load())
+
+	row := singleDispatch(t, db, event.ChatID)
+	require.Equal(t, resultProtocolError, row.Result)
+	require.True(t, row.FinishedAt.Valid, "dispatch must finalize instead of staying pending")
+	require.False(t, row.OriginalInput.Valid, "malformed input must not persist as jsonb")
+}
+
 func newTestDispatcher(
 	t *testing.T,
 	db database.Store,

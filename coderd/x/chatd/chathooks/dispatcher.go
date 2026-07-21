@@ -461,7 +461,12 @@ func marshalEventData(event Event) (data json.RawMessage, original pqtype.NullRa
 		if !ok {
 			return nil, original, xerrors.New("pre_tool_use data has the wrong type")
 		}
-		original = pqtype.NullRawMessage{RawMessage: bytes.Clone(value.ToolInput), Valid: true}
+		// original_input is a jsonb column, so malformed model output
+		// cannot be persisted there. Leave it NULL so the dispatch can
+		// still finalize as a protocol error instead of staying pending.
+		if json.Valid(value.ToolInput) {
+			original = pqtype.NullRawMessage{RawMessage: bytes.Clone(value.ToolInput), Valid: true}
+		}
 	case agenthooks.EventPostToolUse:
 		if !isData[agenthooks.PostToolUseData](event.Data) {
 			return nil, original, xerrors.New("post_tool_use data has the wrong type")
