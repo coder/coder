@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -24,9 +25,11 @@ import (
 
 type config struct {
 	listen          string
+	hookURL         string
 	secret          string
 	tlsCert         string
 	tlsKey          string
+	insecureHTTP    bool
 	logOnly         bool
 	denyToolPattern string
 	redactPrompt    string
@@ -61,8 +64,24 @@ func run() error {
 	if cfg.secret == "" {
 		return xerrors.New("secret is required through --secret or CODER_AGENTHOOKS_SECRET")
 	}
+	if cfg.hookURL == "" {
+		return xerrors.New("hook URL is required through --hook-url or CODER_AGENTHOOKS_HOOK_URL; it must equal the deployment's CODER_CHAT_HOOK_URL")
+	}
 	if (cfg.tlsCert == "") != (cfg.tlsKey == "") {
 		return xerrors.New("TLS certificate and key must be configured together")
+	}
+	// The shared secret authenticates requests but does not encrypt them, and
+	// hook payloads carry full prompts and tool inputs. Refuse to expose a
+	// plaintext listener beyond loopback unless the operator explicitly opts
+	// in (for example behind a TLS-terminating proxy on a trusted hop).
+	if cfg.tlsCert == "" && !cfg.insecureHTTP && !loopbackListen(cfg.listen) {
+		return xerrors.New("refusing to listen for plaintext HTTP on a non-loopback address; configure --tls-cert/--tls-key or pass --insecure-http to accept unencrypted transport")
+	}
+	// Deny and redact patterns are inert while log-only mode is enabled.
+	// Fail loudly instead of silently skipping enforcement the operator
+	// configured.
+	if cfg.logOnly && (cfg.denyToolPattern != "" || cfg.redactPrompt != "") {
+		return xerrors.New("deny/redact patterns have no effect in log-only mode; set CODER_AGENTHOOKS_LOG_ONLY=false (or --log-only=false) to enforce them, or remove the patterns")
 	}
 
 	var denyTool *regexp.Regexp
@@ -165,7 +184,10 @@ func run() error {
 		},
 	}
 
-	handler := agenthooks.NewHTTPHandler([]byte(cfg.secret), hooks)
+	handler, err := agenthooks.NewHTTPHandler([]byte(cfg.secret), cfg.hookURL, hooks)
+	if err != nil {
+		return xerrors.Errorf("create hook handler: %w", err)
+	}
 	server := &http.Server{
 		Addr:              cfg.listen,
 		Handler:           handler,
@@ -197,15 +219,35 @@ func parseFlags() (config, error) {
 	}
 	var cfg config
 	cfg.logOnly = logOnly
+	insecureHTTP, err := envBool("CODER_AGENTHOOKS_INSECURE_HTTP", false)
+	if err != nil {
+		return config{}, err
+	}
+	cfg.insecureHTTP = insecureHTTP
 	flag.StringVar(&cfg.listen, "listen", envOrDefault("CODER_AGENTHOOKS_LISTEN", "127.0.0.1:8081"), "Listen address (CODER_AGENTHOOKS_LISTEN)")
+	flag.StringVar(&cfg.hookURL, "hook-url", os.Getenv("CODER_AGENTHOOKS_HOOK_URL"), "Hook URL configured on the deployment, used as the expected JWT audience, required (CODER_AGENTHOOKS_HOOK_URL)")
 	flag.StringVar(&cfg.secret, "secret", os.Getenv("CODER_AGENTHOOKS_SECRET"), "Shared HS256 secret, required (CODER_AGENTHOOKS_SECRET)")
 	flag.StringVar(&cfg.tlsCert, "tls-cert", os.Getenv("CODER_AGENTHOOKS_TLS_CERT"), "TLS certificate path (CODER_AGENTHOOKS_TLS_CERT)")
 	flag.StringVar(&cfg.tlsKey, "tls-key", os.Getenv("CODER_AGENTHOOKS_TLS_KEY"), "TLS private key path (CODER_AGENTHOOKS_TLS_KEY)")
-	flag.BoolVar(&cfg.logOnly, "log-only", cfg.logOnly, "Return an empty response for every event (CODER_AGENTHOOKS_LOG_ONLY)")
+	flag.BoolVar(&cfg.insecureHTTP, "insecure-http", cfg.insecureHTTP, "Allow plaintext HTTP on non-loopback addresses (CODER_AGENTHOOKS_INSECURE_HTTP)")
+	flag.BoolVar(&cfg.logOnly, "log-only", cfg.logOnly, "Return an empty response for every event; incompatible with deny/redact patterns (CODER_AGENTHOOKS_LOG_ONLY)")
 	flag.StringVar(&cfg.denyToolPattern, "deny-tool-pattern", os.Getenv("CODER_AGENTHOOKS_DENY_TOOL_PATTERN"), "Example regexp for denied tool names (CODER_AGENTHOOKS_DENY_TOOL_PATTERN)")
 	flag.StringVar(&cfg.redactPrompt, "redact-prompt-pattern", os.Getenv("CODER_AGENTHOOKS_REDACT_PROMPT_PATTERN"), "Example regexp to redact in prompts (CODER_AGENTHOOKS_REDACT_PROMPT_PATTERN)")
 	flag.Parse()
 	return cfg, nil
+}
+
+// loopbackListen reports whether the listen address binds only loopback.
+func loopbackListen(listen string) bool {
+	host, _, err := net.SplitHostPort(listen)
+	if err != nil {
+		host = listen
+	}
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func envOrDefault(name, fallback string) string {

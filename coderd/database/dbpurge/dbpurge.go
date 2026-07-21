@@ -53,6 +53,10 @@ const (
 	chatDebugRunsBatchSize      = 1000
 	chatHookDispatchRetention   = 90 * 24 * time.Hour
 	chatHookDispatchesBatchSize = 10000
+	// chatHookDispatchOrphanGrace delays the orphaned-dispatch sweep long
+	// enough that create-time dispatch rows, which are inserted before their
+	// chat row exists, are never swept mid-creation.
+	chatHookDispatchOrphanGrace = time.Hour
 	// Chat search tsvector backfill is capped at 5 batches of 10k
 	// rows per tick. Benchmarks on a dogfood-class machine (EPYC 9454P)
 	// with containerized Postgres were measured to take ~800ms per batch.
@@ -324,6 +328,19 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		if err != nil {
 			return xerrors.Errorf("failed to delete old chat hook dispatches: %w", err)
 		}
+
+		// Dispatch rows record verbatim prompts and tool inputs, so they
+		// must not outlive their chat. The grace period keeps create-time
+		// dispatches (which precede the chat row) out of the sweep.
+		deleteOrphanedChatHookDispatchesBefore := start.Add(-chatHookDispatchOrphanGrace)
+		purgedOrphanedChatHookDispatches, err := tx.DeleteOrphanedChatHookDispatches(ctx, database.DeleteOrphanedChatHookDispatchesParams{
+			BeforeTime: deleteOrphanedChatHookDispatchesBefore,
+			LimitCount: chatHookDispatchesBatchSize,
+		})
+		if err != nil {
+			return xerrors.Errorf("failed to delete orphaned chat hook dispatches: %w", err)
+		}
+		purgedChatHookDispatches += purgedOrphanedChatHookDispatches
 
 		var purgedChats, purgedChatFiles, purgedChatDebugRuns int64
 		if purgeChats {

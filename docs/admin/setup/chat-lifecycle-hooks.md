@@ -42,8 +42,7 @@ Rotation is a hard cutover: Coder signs with exactly one secret, so dispatches f
 Rotate during a maintenance window, or temporarily set `CODER_CHAT_HOOK_ENABLED=false` for the cutover if blocked chats are worse than unreviewed ones for your deployment.
 Coder requires the configured URL to use HTTPS.
 A TLS terminator can forward the request to a consumer over plain HTTP on a trusted local network.
-It must set `X-Forwarded-Proto: https` and either preserve the original `Host` header or carry it in `X-Forwarded-Host` for the SDK handler's audience check.
-The SDK trusts those forwarded headers, so the audience check is only as strong as that proxy boundary: the proxy must strip or overwrite client-supplied forwarded headers, and the consumer must not be reachable except through the proxy.
+The SDK handler compares the JWT audience against the hook URL you pass to `agenthooks.NewHTTPHandler`, never against request headers, so the proxy doesn't need to preserve `Host` or set `X-Forwarded-*` headers for verification to succeed.
 
 ## Handle lifecycle events
 
@@ -84,6 +83,9 @@ A consumer must apply all of the following checks before it uses the body:
 
 The Go consumer SDK in `codersdk/agenthooks` implements the wire types, JWT verification, body binding, audience checks, and event routing.
 Use `agenthooks.NewHTTPHandler` to build an `http.Handler` from callbacks for the events your consumer handles.
+`NewHTTPHandler` takes the expected audience as an argument: pass the exact `CODER_CHAT_HOOK_URL` value, and the handler rejects tokens whose `aud` claim differs from it.
+The comparison never derives the expected audience from the incoming request, so `Host` or `X-Forwarded-*` headers cannot influence it; a consumer behind a TLS-terminating proxy still passes the public hook URL.
+`NewHTTPHandler` also deduplicates `jti` in process: a repeated `dispatch_id` receives the recorded response of its first delivery instead of invoking hooks again, which satisfies Coder's connection-failure retry without duplicating consumer side effects. Consumers that run multiple replicas behind one URL, or that must deduplicate across restarts, still need the durable `dispatch_id` deduplication described under delivery semantics below.
 `NewHTTPHandler` does not enforce a configured issuer: it accepts any non-empty `iss` signed with the shared secret.
 Use a secret dedicated to one deployment, and add your own `iss` check against `meta` or the verified claims if the same secret can reach consumers for more than one deployment.
 
@@ -158,6 +160,7 @@ Keep the break-glass procedure available throughout the rollout.
 The reference consumer at `scripts/agenthooks-server` uses `agenthooks.NewHTTPHandler` and logs 1 JSON object for each event.
 Log-only mode returns an empty response for every verified event.
 With log-only mode disabled, the optional example flags can deny tool names by regular expression or replace matching prompt text before the agent loop uses it.
+The server refuses to start when a deny or redact pattern is configured while log-only mode is still enabled, so a configured policy cannot silently stay inert.
 Coder retains the original prompt in the dispatch audit row.
 
 Run the consumer from a Coder source checkout:
@@ -166,10 +169,13 @@ Run the consumer from a Coder source checkout:
 CODER_AGENTHOOKS_SECRET='<shared-secret>' \
   go run ./scripts/agenthooks-server \
   --listen 127.0.0.1:8081 \
+  --hook-url 'https://hooks.example.com/coder' \
   --log-only=true
 ```
 
+The `--hook-url` value must equal the deployment's `CODER_CHAT_HOOK_URL`; the server uses it as the expected JWT audience.
 The reference server accepts optional TLS certificate and key paths.
+Without TLS it listens only on loopback addresses; pass `--insecure-http` to accept unencrypted transport on other addresses, for example on a trusted hop behind a TLS-terminating proxy.
 For local testing with plain HTTP, place an HTTPS reverse proxy in front of it because `CODER_CHAT_HOOK_URL` accepts only HTTPS URLs.
 Run `go run ./scripts/agenthooks-server --help` for all flags and environment variable names.
 
@@ -181,6 +187,6 @@ Use the `dispatch_id` from the request or chat error as the row ID when correlat
 
 The table can contain prompts, tool input, response context, and user messages.
 When a response rewrites a prompt or tool input, the row keeps the original value alongside the override, so rewriting doesn't remove the original content from the deployment.
-Rows have no foreign key to chats: they can outlive deleted chats, and denied create attempts leave rows for chats that never existed.
+Rows have no foreign key to chats, so chat deletion doesn't cascade to them, and denied create attempts leave rows for chats that never existed.
 Apply the same access controls and database protection that you use for other sensitive chat data.
-The `dbpurge` service removes dispatch rows after 90 days to bound table growth; the retention period isn't configurable.
+The `dbpurge` service removes dispatch rows after 90 days to bound table growth, and removes rows whose chat no longer exists after a 1-hour grace period, so dispatch payloads don't outlive chat deletion or a shorter chat retention setting. Neither period is configurable.

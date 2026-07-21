@@ -178,7 +178,8 @@ func TestChatLifecycleHooksWorkedExample(t *testing.T) {
 	recordHook := func(event agenthooks.EventType) {
 		hookEvents <- event
 	}
-	consumer := httptest.NewServer(agenthooks.NewHTTPHandler([]byte(secret), agenthooks.Hooks{
+	consumer, setHooks := newHookConsumer(t, secret)
+	setHooks(agenthooks.Hooks{
 		SessionStart: func(context.Context, agenthooks.Meta, agenthooks.SessionStartData) (agenthooks.Response, error) {
 			recordHook(agenthooks.EventSessionStart)
 			return agenthooks.Response{}, nil
@@ -215,7 +216,7 @@ func TestChatLifecycleHooksWorkedExample(t *testing.T) {
 			recordHook(agenthooks.EventStop)
 			return agenthooks.Response{}, nil
 		},
-	}))
+	})
 	t.Cleanup(consumer.Close)
 
 	client, db := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
@@ -341,7 +342,8 @@ func TestChatHooksFileLinksAfterPromptOverride(t *testing.T) {
 		}
 		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
 	})
-	consumer := httptest.NewServer(agenthooks.NewHTTPHandler([]byte(secret), agenthooks.Hooks{
+	consumer, setHooks := newHookConsumer(t, secret)
+	setHooks(agenthooks.Hooks{
 		UserPromptSubmit: func(_ context.Context, _ agenthooks.Meta, data agenthooks.UserPromptSubmitData) (agenthooks.Response, error) {
 			if strings.Contains(data.Prompt, "REDACTME") {
 				return agenthooks.Response{Permission: &agenthooks.Permission{
@@ -351,7 +353,7 @@ func TestChatHooksFileLinksAfterPromptOverride(t *testing.T) {
 			}
 			return agenthooks.Response{}, nil
 		},
-	}))
+	})
 	t.Cleanup(consumer.Close)
 
 	client, api := newChatClientWithAPI(t, func(opts *coderdtest.Options) {
@@ -414,4 +416,23 @@ func TestChatHooksFileLinksAfterPromptOverride(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, afterOverride.Files, 1, "overridden send must not link dropped attachments")
 	require.Equal(t, keptFile, afterOverride.Files[0].ID)
+}
+
+// newHookConsumer starts a hook consumer whose expected JWT audience is its
+// own base URL, matching the HookURL the test sets on the deployment. Hooks
+// are installed after the server starts because the audience must be known
+// at handler construction time.
+func newHookConsumer(t *testing.T, secret string) (*httptest.Server, func(agenthooks.Hooks)) {
+	t.Helper()
+
+	var handler http.Handler
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		handler.ServeHTTP(rw, r)
+	}))
+	t.Cleanup(server.Close)
+	return server, func(hooks agenthooks.Hooks) {
+		built, err := agenthooks.NewHTTPHandler([]byte(secret), server.URL, hooks)
+		require.NoError(t, err)
+		handler = built
+	}
 }

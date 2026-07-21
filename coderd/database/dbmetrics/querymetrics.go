@@ -825,6 +825,14 @@ func (m queryMetricsStore) DeleteOrganizationMember(ctx context.Context, arg dat
 	return r0
 }
 
+func (m queryMetricsStore) DeleteOrphanedChatHookDispatches(ctx context.Context, arg database.DeleteOrphanedChatHookDispatchesParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteOrphanedChatHookDispatches(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteOrphanedChatHookDispatches").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOrphanedChatHookDispatches").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteProvisionerKey(ctx, id)

@@ -5452,6 +5452,39 @@ func (q *sqlQuerier) DeleteOldChatHookDispatches(ctx context.Context, arg Delete
 	return result.RowsAffected()
 }
 
+const deleteOrphanedChatHookDispatches = `-- name: DeleteOrphanedChatHookDispatches :execrows
+WITH deletable AS (
+	SELECT chat_hook_dispatches.id
+	FROM chat_hook_dispatches
+	LEFT JOIN chats ON chats.id = chat_hook_dispatches.chat_id
+	WHERE chats.id IS NULL
+		AND chat_hook_dispatches.started_at < $1::timestamptz
+	ORDER BY chat_hook_dispatches.started_at ASC
+	LIMIT $2::int
+)
+DELETE FROM chat_hook_dispatches
+USING deletable
+WHERE chat_hook_dispatches.id = deletable.id
+`
+
+type DeleteOrphanedChatHookDispatchesParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+// Dispatch rows have no foreign key on chat_id because create-time prompt
+// dispatches precede the chat row, so deleting or purging a chat leaves its
+// dispatch payloads behind. This sweep removes rows whose chat no longer
+// exists; before_time must trail NOW() by a grace period so in-flight
+// create-time dispatches are not swept before their chat row appears.
+func (q *sqlQuerier) DeleteOrphanedChatHookDispatches(ctx context.Context, arg DeleteOrphanedChatHookDispatchesParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOrphanedChatHookDispatches, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const finalizeChatHookDispatch = `-- name: FinalizeChatHookDispatch :one
 UPDATE chat_hook_dispatches
 SET

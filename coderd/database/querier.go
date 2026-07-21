@@ -223,6 +223,12 @@ type sqlcQuerier interface {
 	DeleteOldWorkspaceAgentStats(ctx context.Context) error
 	DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg DeleteOldWorkspaceBuildOrchestrationsParams) (int64, error)
 	DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error
+	// Dispatch rows have no foreign key on chat_id because create-time prompt
+	// dispatches precede the chat row, so deleting or purging a chat leaves its
+	// dispatch payloads behind. This sweep removes rows whose chat no longer
+	// exists; before_time must trail NOW() by a grace period so in-flight
+	// create-time dispatches are not swept before their chat row appears.
+	DeleteOrphanedChatHookDispatches(ctx context.Context, arg DeleteOrphanedChatHookDispatchesParams) (int64, error)
 	DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error
 	DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error
 	DeleteRuntimeConfig(ctx context.Context, key string) error

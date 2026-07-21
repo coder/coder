@@ -13,6 +13,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"sync"
 	"syscall"
 	"time"
 
@@ -29,11 +30,16 @@ import (
 
 const (
 	maxConcurrentDispatches = 256
-	maxResponseBodyBytes    = 1 << 20
-	maxModelContextBytes    = 16 << 10
-	capacityWaitLimit       = 250 * time.Millisecond
-	retryBackoff            = 250 * time.Millisecond
-	finalizeTimeout         = 2 * time.Second
+	// maxConcurrentDispatchesPerOwner keeps one owner's in-flight hook
+	// round-trips from monopolizing the shared dispatch capacity, so a
+	// single user cannot starve every other tenant's gated chat actions.
+	maxConcurrentDispatchesPerOwner = 32
+	maxResponseBodyBytes            = 1 << 20
+	maxModelContextBytes            = 16 << 10
+	maxUserMessageBytes             = 16 << 10
+	capacityWaitLimit               = 250 * time.Millisecond
+	retryBackoff                    = 250 * time.Millisecond
+	finalizeTimeout                 = 2 * time.Second
 	// clockSkewLeeway tolerates small clock differences with hook consumers.
 	clockSkewLeeway = 30 * time.Second
 )
@@ -101,7 +107,42 @@ type Dispatcher struct {
 	deploymentID string
 	userAgent    string
 	semaphore    chan struct{}
+	ownerSlots   *ownerSlots
 	metrics      *metrics
+}
+
+// ownerSlots bounds in-flight dispatches per owner so one user's slow hook
+// round-trips cannot occupy the whole shared semaphore.
+type ownerSlots struct {
+	mu    sync.Mutex
+	slots map[uuid.UUID]*ownerSlot
+}
+
+type ownerSlot struct {
+	sem  chan struct{}
+	refs int
+}
+
+// acquireRef returns the owner's semaphore and a release function. The
+// release function must be called exactly once, after any held semaphore
+// slot has been returned, so empty entries can be dropped from the map.
+func (o *ownerSlots) acquireRef(owner uuid.UUID) (chan struct{}, func()) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	slot, ok := o.slots[owner]
+	if !ok {
+		slot = &ownerSlot{sem: make(chan struct{}, maxConcurrentDispatchesPerOwner)}
+		o.slots[owner] = slot
+	}
+	slot.refs++
+	return slot.sem, func() {
+		o.mu.Lock()
+		defer o.mu.Unlock()
+		slot.refs--
+		if slot.refs == 0 {
+			delete(o.slots, owner)
+		}
+	}
 }
 
 // New copies the HTTP client and disables redirects for signed requests.
@@ -135,6 +176,7 @@ func New(
 		deploymentID: deploymentID,
 		userAgent:    "coderd/" + coderVersion,
 		semaphore:    make(chan struct{}, maxConcurrentDispatches),
+		ownerSlots:   &ownerSlots{slots: make(map[uuid.UUID]*ownerSlot)},
 		metrics:      newMetrics(reg),
 	}
 }
@@ -168,6 +210,22 @@ func (d *Dispatcher) dispatchEvent(ctx context.Context, event Event) (agenthooks
 	}
 	capacityTimer := time.NewTimer(wait)
 	defer capacityTimer.Stop()
+
+	// The per-owner bound is taken before the shared semaphore so an owner
+	// saturating their own budget waits without holding shared capacity.
+	// Both waits share one timer, keeping the total capacity wait bounded.
+	ownerSem, releaseRef := d.ownerSlots.acquireRef(event.OwnerID)
+	defer releaseRef()
+	select {
+	case ownerSem <- struct{}{}:
+		defer func() { <-ownerSem }()
+	case <-ctx.Done():
+		response, err := d.finishWithoutPost(ctx, event, dispatchID, startedAt, resultTimeout, ctx.Err())
+		return response, dispatchID, err
+	case <-capacityTimer.C:
+		response, err := d.finishWithoutPost(ctx, event, dispatchID, startedAt, resultOverCapacity, context.DeadlineExceeded)
+		return response, dispatchID, err
+	}
 
 	select {
 	case d.semaphore <- struct{}{}:
@@ -393,6 +451,11 @@ func (d *Dispatcher) post(
 func validateResponse(eventType agenthooks.EventType, response agenthooks.Response) error {
 	if len(response.ModelContext) > maxModelContextBytes {
 		return xerrors.New("model_context exceeds 16 KiB")
+	}
+	// user_message is persisted verbatim and rendered as a user-visible
+	// notice, so it gets the same bound as model_context.
+	if len(response.UserMessage) > maxUserMessageBytes {
+		return xerrors.New("user_message exceeds 16 KiB")
 	}
 	if response.Permission == nil {
 		return nil

@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -195,8 +194,7 @@ func TestHTTPHandlerRoutesEvents(t *testing.T) {
 			called := false
 			var hooks agenthooks.Hooks
 			test.install(&hooks, &called)
-			server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, hooks))
-			t.Cleanup(server.Close)
+			server := newHandlerServer(t, hooks)
 
 			response := postEvent(t, server.URL, test.event, test.data, nil, nil)
 			defer response.Body.Close()
@@ -212,8 +210,7 @@ func TestHTTPHandlerRoutesEvents(t *testing.T) {
 func TestHTTPHandlerNoOpHookDoesNotDecodeData(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
-	t.Cleanup(server.Close)
+	server := newHandlerServer(t, agenthooks.Hooks{})
 	response := postEvent(t, server.URL, agenthooks.EventStop, "unused", nil, nil)
 	defer response.Body.Close()
 	require.Equal(t, http.StatusOK, response.StatusCode)
@@ -265,8 +262,7 @@ func TestHTTPHandlerRejectsMismatches(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
-			t.Cleanup(server.Close)
+			server := newHandlerServer(t, agenthooks.Hooks{})
 			response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, test.updateRequest, test.updateClaims)
 			defer response.Body.Close()
 			require.Equal(t, http.StatusBadRequest, response.StatusCode)
@@ -296,8 +292,7 @@ func TestResponseAllowedToolsWireShape(t *testing.T) {
 func TestHTTPHandlerAcceptsTrailingSlashAudience(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
-	t.Cleanup(server.Close)
+	server := newHandlerServer(t, agenthooks.Hooks{})
 	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
 		claims.Audience = server.URL + "/"
 	})
@@ -305,26 +300,13 @@ func TestHTTPHandlerAcceptsTrailingSlashAudience(t *testing.T) {
 	require.Equal(t, http.StatusOK, response.StatusCode)
 }
 
-func TestHTTPHandlerHonorsForwardedProto(t *testing.T) {
+func TestHTTPHandlerIgnoresForwardedHeaders(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
-	t.Cleanup(server.Close)
-	httpsAudience := "https" + strings.TrimPrefix(server.URL, "http")
-	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
-		claims.Audience = httpsAudience
-	}, func(r *http.Request) {
-		r.Header.Set("X-Forwarded-Proto", "https, http")
-	})
-	defer response.Body.Close()
-	require.Equal(t, http.StatusOK, response.StatusCode)
-}
-
-func TestHTTPHandlerHonorsForwardedHost(t *testing.T) {
-	t.Parallel()
-
-	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
-	t.Cleanup(server.Close)
+	// The audience comparison is pinned to the configured hook URL. A token
+	// signed for a different endpoint must be rejected even when the sender
+	// spoofs X-Forwarded-* headers to match its aud claim.
+	server := newHandlerServer(t, agenthooks.Hooks{})
 	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
 		claims.Audience = "https://hooks.example.com"
 	}, func(r *http.Request) {
@@ -332,7 +314,107 @@ func TestHTTPHandlerHonorsForwardedHost(t *testing.T) {
 		r.Header.Set("X-Forwarded-Host", "hooks.example.com, internal-lb")
 	})
 	defer response.Body.Close()
+	require.Equal(t, http.StatusBadRequest, response.StatusCode)
+}
+
+func TestHTTPHandlerProxiedAudience(t *testing.T) {
+	t.Parallel()
+
+	// A consumer behind a TLS-terminating proxy configures the public hook
+	// URL as the expected audience; requests reaching the plain listener
+	// verify against that configured value, not the local request URL.
+	const publicURL = "https://hooks.example.com/coder"
+	handler, err := agenthooks.NewHTTPHandler(testSecret, publicURL, agenthooks.Hooks{})
+	require.NoError(t, err)
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
+		claims.Audience = publicURL
+	})
+	defer response.Body.Close()
 	require.Equal(t, http.StatusOK, response.StatusCode)
+}
+
+func TestNewHTTPHandlerRejectsInvalidAudience(t *testing.T) {
+	t.Parallel()
+
+	for _, audience := range []string{"", "not a url", "/relative/path", "hooks.example.com"} {
+		_, err := agenthooks.NewHTTPHandler(testSecret, audience, agenthooks.Hooks{})
+		require.Error(t, err, "audience %q", audience)
+	}
+}
+
+func TestHTTPHandlerDeduplicatesDispatchID(t *testing.T) {
+	t.Parallel()
+
+	invocations := 0
+	server := newHandlerServer(t, agenthooks.Hooks{
+		Stop: func(context.Context, agenthooks.Meta, agenthooks.StopData) (agenthooks.Response, error) {
+			invocations++
+			return agenthooks.Response{UserMessage: "first delivery"}, nil
+		},
+	})
+
+	dataJSON, err := json.Marshal(agenthooks.StopData{})
+	require.NoError(t, err)
+	request := agenthooks.Request{
+		Type: agenthooks.EventStop,
+		Meta: agenthooks.Meta{
+			DispatchID:    uuid.New(),
+			SchemaVersion: agenthooks.SchemaVersion,
+			ChatID:        uuid.New(),
+			OwnerID:       uuid.New(),
+		},
+		Data: dataJSON,
+	}
+	claims := validClaims(t, server.URL, agenthooks.EventStop, &request)
+	body, err := json.Marshal(request)
+	require.NoError(t, err)
+	digest := sha256.Sum256(body)
+	claims.BodySHA256 = hex.EncodeToString(digest[:])
+	token, err := agenthooks.SignClaims(testSecret, claims)
+	require.NoError(t, err)
+
+	send := func() (int, agenthooks.Response) {
+		httpRequest, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL, bytes.NewReader(body))
+		require.NoError(t, err)
+		httpRequest.Header.Set("Authorization", "Bearer "+token)
+		response, err := http.DefaultClient.Do(httpRequest)
+		require.NoError(t, err)
+		defer response.Body.Close()
+		var decoded agenthooks.Response
+		require.NoError(t, json.NewDecoder(response.Body).Decode(&decoded))
+		return response.StatusCode, decoded
+	}
+
+	firstStatus, firstResponse := send()
+	require.Equal(t, http.StatusOK, firstStatus)
+	require.Equal(t, "first delivery", firstResponse.UserMessage)
+
+	// A replay of the identical request (coderd's connection-error retry, or
+	// an attacker resending captured bytes) receives the recorded response
+	// without invoking the hook again.
+	replayStatus, replayResponse := send()
+	require.Equal(t, http.StatusOK, replayStatus)
+	require.Equal(t, firstResponse, replayResponse)
+	require.Equal(t, 1, invocations)
+}
+
+// newHandlerServer starts a hook consumer whose expected audience is its
+// own base URL, mirroring a deployment where CODER_CHAT_HOOK_URL points at
+// the consumer directly.
+func newHandlerServer(t *testing.T, hooks agenthooks.Hooks) *httptest.Server {
+	t.Helper()
+
+	var handler http.Handler
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		handler.ServeHTTP(rw, r)
+	}))
+	t.Cleanup(server.Close)
+	built, err := agenthooks.NewHTTPHandler(testSecret, server.URL, hooks)
+	require.NoError(t, err)
+	handler = built
+	return server
 }
 
 func postEvent(t *testing.T, target string, eventType agenthooks.EventType, data any, updateRequest func(*agenthooks.Request), updateClaims func(*agenthooks.Claims), updateHTTPRequest ...func(*http.Request)) *http.Response {

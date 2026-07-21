@@ -54,6 +54,25 @@ DELETE FROM chat_hook_dispatches
 USING deletable
 WHERE chat_hook_dispatches.id = deletable.id;
 
+-- name: DeleteOrphanedChatHookDispatches :execrows
+-- Dispatch rows have no foreign key on chat_id because create-time prompt
+-- dispatches precede the chat row, so deleting or purging a chat leaves its
+-- dispatch payloads behind. This sweep removes rows whose chat no longer
+-- exists; before_time must trail NOW() by a grace period so in-flight
+-- create-time dispatches are not swept before their chat row appears.
+WITH deletable AS (
+	SELECT chat_hook_dispatches.id
+	FROM chat_hook_dispatches
+	LEFT JOIN chats ON chats.id = chat_hook_dispatches.chat_id
+	WHERE chats.id IS NULL
+		AND chat_hook_dispatches.started_at < @before_time::timestamptz
+	ORDER BY chat_hook_dispatches.started_at ASC
+	LIMIT @limit_count::int
+)
+DELETE FROM chat_hook_dispatches
+USING deletable
+WHERE chat_hook_dispatches.id = deletable.id;
+
 -- name: UpdateChatHookAllowedTools :exec
 UPDATE chats
 SET

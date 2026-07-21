@@ -2221,17 +2221,25 @@ func TestPurgeChatHookDispatches(t *testing.T) {
 	clk.Set(now).MustWait(ctx)
 	db, _ := dbtestutil.NewDB(t)
 	reg := prometheus.NewRegistry()
-	chatID := uuid.New()
-	ownerID := uuid.New()
+	// The chat row must exist: rows for missing chats are removed by the
+	// separate orphan sweep regardless of age.
+	user := dbgen.User(t, db, database.User{})
+	organization := dbgen.Organization(t, db, database.Organization{})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    organization.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
 
 	insertDispatch := func(startedAt time.Time) database.ChatHookDispatch {
 		dispatch, err := db.InsertChatHookDispatch(ctx, database.InsertChatHookDispatchParams{
 			ID:          uuid.New(),
-			ChatID:      chatID,
+			ChatID:      chat.ID,
 			Event:       "stop",
 			TurnID:      uuid.NullUUID{},
 			ToolUseID:   sql.NullString{},
-			OwnerID:     ownerID,
+			OwnerID:     user.ID,
 			WorkspaceID: uuid.NullUUID{},
 			StartedAt:   startedAt,
 		})
@@ -2247,10 +2255,75 @@ func TestPurgeChatHookDispatches(t *testing.T) {
 	defer closer.Close()
 	testutil.TryReceive(ctx, t, done)
 
-	rows, err := db.ListChatHookDispatchesByChatID(ctx, chatID)
+	rows, err := db.ListChatHookDispatchesByChatID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	require.Equal(t, recentDispatch.ID, rows[0].ID)
+
+	purged := promhelp.CounterValue(t, reg, "coderd_dbpurge_records_purged_total", prometheus.Labels{
+		"record_type": "chat_hook_dispatches",
+	})
+	require.EqualValues(t, 1, purged)
+}
+
+//nolint:paralleltest // It uses LockIDDBPurge.
+func TestPurgeOrphanedChatHookDispatches(t *testing.T) {
+	ctx := testutil.Context(t, testutil.WaitLong)
+	now := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
+	clk := quartz.NewMock(t)
+	clk.Set(now).MustWait(ctx)
+	db, _ := dbtestutil.NewDB(t)
+	reg := prometheus.NewRegistry()
+	user := dbgen.User(t, db, database.User{})
+	organization := dbgen.Organization(t, db, database.Organization{})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    organization.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	deletedChatID := uuid.New()
+
+	insertDispatch := func(chatID uuid.UUID, startedAt time.Time) database.ChatHookDispatch {
+		dispatch, err := db.InsertChatHookDispatch(ctx, database.InsertChatHookDispatchParams{
+			ID:          uuid.New(),
+			ChatID:      chatID,
+			Event:       "stop",
+			TurnID:      uuid.NullUUID{},
+			ToolUseID:   sql.NullString{},
+			OwnerID:     user.ID,
+			WorkspaceID: uuid.NullUUID{},
+			StartedAt:   startedAt,
+		})
+		require.NoError(t, err)
+		return dispatch
+	}
+	// Anchored to an existing chat: kept regardless of the orphan grace.
+	anchoredDispatch := insertDispatch(chat.ID, now.Add(-2*time.Hour))
+	// The chat is gone and the grace period has passed: purged.
+	_ = insertDispatch(deletedChatID, now.Add(-2*time.Hour))
+	// The chat row does not exist yet (create-time dispatch): kept while
+	// inside the grace period.
+	creatingDispatch := insertDispatch(uuid.New(), now.Add(-time.Minute))
+
+	done := awaitDoTick(ctx, t, clk)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, reg, dbpurge.WithClock(clk))
+	defer closer.Close()
+	testutil.TryReceive(ctx, t, done)
+
+	rows, err := db.ListChatHookDispatchesByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, anchoredDispatch.ID, rows[0].ID)
+
+	rows, err = db.ListChatHookDispatchesByChatID(ctx, deletedChatID)
+	require.NoError(t, err)
+	require.Empty(t, rows, "orphaned dispatch rows past the grace period must be purged")
+
+	rows, err = db.ListChatHookDispatchesByChatID(ctx, creatingDispatch.ChatID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1, "create-time dispatch rows inside the grace period must survive")
 
 	purged := promhelp.CounterValue(t, reg, "coderd_dbpurge_records_purged_total", prometheus.Labels{
 		"record_type": "chat_hook_dispatches",

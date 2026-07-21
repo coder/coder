@@ -307,6 +307,12 @@ func TestDispatcherProtocolErrors(t *testing.T) {
 			},
 		},
 		{
+			name:         "oversized user message",
+			eventType:    agenthooks.EventStop,
+			data:         agenthooks.StopData{},
+			responseBody: mustJSON(t, agenthooks.Response{UserMessage: string(bytes.Repeat([]byte("x"), maxUserMessageBytes+1))}),
+		},
+		{
 			name:      "invalid user prompt override shape",
 			eventType: agenthooks.EventUserPromptSubmit,
 			data:      agenthooks.UserPromptSubmitData{Prompt: "question"},
@@ -386,6 +392,67 @@ func TestDispatcherOverCapacity(t *testing.T) {
 	require.Equal(t, resultOverCapacity, row.Result)
 	require.False(t, row.HttpStatus.Valid)
 	require.True(t, row.FinishedAt.Valid)
+}
+
+func TestDispatcherPerOwnerCapacity(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	saturatedEvent := newTestEvent(t, db, agenthooks.EventStop, agenthooks.StopData{})
+	otherEvent := newTestEvent(t, db, agenthooks.EventStop, agenthooks.StopData{})
+	require.NotEqual(t, saturatedEvent.OwnerID, otherEvent.OwnerID)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+	dispatcher := newTestDispatcher(t, db, server.Client(), server.URL, time.Second)
+
+	// Saturate one owner's budget without touching the shared semaphore,
+	// simulating that owner keeping their maximum dispatches in flight.
+	ownerSem, releaseRef := dispatcher.ownerSlots.acquireRef(saturatedEvent.OwnerID)
+	for range maxConcurrentDispatchesPerOwner {
+		ownerSem <- struct{}{}
+	}
+	defer func() {
+		for range maxConcurrentDispatchesPerOwner {
+			<-ownerSem
+		}
+		releaseRef()
+	}()
+
+	// The saturating owner fails closed with over-capacity.
+	_, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitLong), saturatedEvent)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	row := singleDispatch(t, db, saturatedEvent.ChatID)
+	require.Equal(t, resultOverCapacity, row.Result)
+
+	// A different owner is unaffected by the saturated budget.
+	_, err = dispatcher.Dispatch(testutil.Context(t, testutil.WaitLong), otherEvent)
+	require.NoError(t, err)
+	row = singleDispatch(t, db, otherEvent.ChatID)
+	require.Equal(t, resultOK, row.Result)
+}
+
+func TestDispatcherOwnerSlotsCleanup(t *testing.T) {
+	t.Parallel()
+
+	slots := &ownerSlots{slots: make(map[uuid.UUID]*ownerSlot)}
+	owner := uuid.New()
+	semA, releaseA := slots.acquireRef(owner)
+	semB, releaseB := slots.acquireRef(owner)
+	require.Equal(t, semA, semB, "same owner must share one semaphore")
+	require.Len(t, slots.slots, 1)
+
+	releaseA()
+	require.Len(t, slots.slots, 1, "entry stays while a reference is held")
+	releaseB()
+	require.Empty(t, slots.slots, "entry is dropped with the last reference")
+
+	semC, releaseC := slots.acquireRef(owner)
+	require.NotNil(t, semC)
+	releaseC()
+	require.Empty(t, slots.slots)
 }
 
 func TestDispatcherInvalidToolInputFinalizesProtocolError(t *testing.T) {

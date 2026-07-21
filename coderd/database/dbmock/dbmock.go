@@ -1396,6 +1396,21 @@ func (mr *MockStoreMockRecorder) DeleteOrganizationMember(ctx, arg any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOrganizationMember", reflect.TypeOf((*MockStore)(nil).DeleteOrganizationMember), ctx, arg)
 }
 
+// DeleteOrphanedChatHookDispatches mocks base method.
+func (m *MockStore) DeleteOrphanedChatHookDispatches(ctx context.Context, arg database.DeleteOrphanedChatHookDispatchesParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOrphanedChatHookDispatches", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteOrphanedChatHookDispatches indicates an expected call of DeleteOrphanedChatHookDispatches.
+func (mr *MockStoreMockRecorder) DeleteOrphanedChatHookDispatches(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOrphanedChatHookDispatches", reflect.TypeOf((*MockStore)(nil).DeleteOrphanedChatHookDispatches), ctx, arg)
+}
+
 // DeleteProvisionerKey mocks base method.
 func (m *MockStore) DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
