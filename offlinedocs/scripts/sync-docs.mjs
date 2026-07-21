@@ -208,7 +208,18 @@ for (const rel of manifestMd) {
 	const raw = readFileSync(join(DOCS, rel), "utf8");
 
 	const meta = manifestMeta.get(route);
-	const { title, h1Line } = extractTitle(raw, route, manifestMeta);
+	const { title: manifestTitle, h1Line } = extractTitle(
+		raw,
+		route,
+		manifestMeta,
+	);
+	// The manifest's first route (the README homepage, route "") is titled
+	// "About" so coder.com's static landing page keeps working, but coder.com
+	// itself renders that root entry as "Home" in the sidebar and derives a
+	// separate "About" section from its children. Mirror that here so the offline
+	// sidebar shows a single "Home" landing instead of a second "About" entry that
+	// collides with the About folder (screenshots, support, contributing).
+	const title = route === "" ? "Home" : manifestTitle;
 	let body = raw;
 	if (h1Line >= 0) {
 		const lines = raw.split("\n");
