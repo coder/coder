@@ -13431,6 +13431,45 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		require.Equal(t, int64(0), got[0].GroupSpendMicros)
 	})
 
+	t.Run("FallbackToEveryoneGroup", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: an unbudgeted member of the queried group whose org has an
+		// Everyone group but no override or budgeted group.
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		queried := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: queried.ID, UserID: user.ID})
+		// The Everyone group (id == org id) must exist for the effective group
+		// join to resolve the fallback.
+		//nolint:gocritic // Requires system context.
+		_, err := db.InsertAllUsersGroup(dbauthz.AsSystemRestricted(ctx), org.ID)
+		require.NoError(t, err)
+		_, err = db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+			UserID: user.ID, EffectiveGroupID: queried.ID, Day: now, CostMicros: 250,
+		})
+		require.NoError(t, err)
+
+		// When: querying spend for the user.
+		got, err := db.GetGroupMembersAISpend(ctx, database.GetGroupMembersAISpendParams{
+			GroupID:     queried.ID,
+			UserIds:     []uuid.UUID{user.ID},
+			PeriodStart: monthStart,
+		})
+		require.NoError(t, err)
+
+		// Then: with no budget, the effective group falls back to the Everyone
+		// group. The limit and source are null, and queried-group spend is returned.
+		require.Len(t, got, 1)
+		require.Equal(t, uuid.NullUUID{UUID: org.ID, Valid: true}, got[0].EffectiveGroupID)
+		require.False(t, got[0].SpendLimitMicros.Valid)
+		require.False(t, got[0].LimitSource.Valid)
+		require.Equal(t, int64(250), got[0].GroupSpendMicros)
+	})
+
 	t.Run("SpendWithDifferentEffectiveGroup", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
@@ -13684,6 +13723,95 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		require.Equal(t, int64(25), got[0].GroupSpendMicros,
 			"sum must exclude prevMonthLastDay row after normalization")
 	})
+}
+
+func TestGetUserEveryoneFallbackGroup(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		setup   func(t *testing.T, ctx context.Context, db database.Store) (userID uuid.UUID, wantGroupID uuid.UUID)
+		wantErr error
+	}{
+		{
+			// A single-org member falls back to that org's Everyone group.
+			name: "SingleOrg",
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, uuid.UUID) {
+				org := dbgen.Organization(t, db, database.Organization{})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+				return user.ID, org.ID
+			},
+		},
+		{
+			// The default org is preferred even when another org's name sorts first.
+			name: "PrefersDefaultOrg",
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, uuid.UUID) {
+				defaultOrg, err := db.GetDefaultOrganization(ctx)
+				require.NoError(t, err)
+				otherOrg := dbgen.Organization(t, db, database.Organization{Name: "0-sorts-first"})
+				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: defaultOrg.ID, UserID: user.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: otherOrg.ID, UserID: user.ID})
+				return user.ID, defaultOrg.ID
+			},
+		},
+		{
+			// Among non-default orgs, ties break by org name ascending.
+			name: "TieByOrgName",
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, uuid.UUID) {
+				user := dbgen.User(t, db, database.User{})
+				orgA := dbgen.Organization(t, db, database.Organization{Name: "org-a"})
+				orgB := dbgen.Organization(t, db, database.Organization{Name: "org-b"})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA.ID, UserID: user.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
+				return user.ID, orgA.ID
+			},
+		},
+		{
+			// A soft-deleted org is excluded even when its name sorts first.
+			name: "ExcludesDeletedOrg",
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, uuid.UUID) {
+				user := dbgen.User(t, db, database.User{})
+				liveOrg := dbgen.Organization(t, db, database.Organization{Name: "live-org"})
+				deletedOrg := dbgen.Organization(t, db, database.Organization{Name: "0-deleted-org"})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: liveOrg.ID, UserID: user.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: deletedOrg.ID, UserID: user.ID})
+				err := db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+					ID:        deletedOrg.ID,
+					UpdatedAt: dbtime.Now(),
+				})
+				require.NoError(t, err)
+				return user.ID, liveOrg.ID
+			},
+		},
+		{
+			// A user with no org membership has no fallback group.
+			name:    "NoOrgMembership",
+			wantErr: sql.ErrNoRows,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, uuid.UUID) {
+				user := dbgen.User(t, db, database.User{})
+				return user.ID, uuid.Nil
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			db, _ := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			userID, wantGroupID := tt.setup(t, ctx, db)
+			got, err := db.GetUserEveryoneFallbackGroup(ctx, userID)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, wantGroupID, got)
+		})
+	}
 }
 
 func TestChatPinOrderQueries(t *testing.T) {

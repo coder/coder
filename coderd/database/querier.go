@@ -580,9 +580,9 @@ type sqlcQuerier interface {
 	// Returns each user's AI spend attributed to the queried group, on or after
 	// period_start until NOW. Only current members of the queried group are
 	// returned. spend_limit_micros and limit_source are populated only when the
-	// queried group is the user's effective budget source. The effective_group_id
-	// is null when the user has no configured budget or when the effective group
-	// belongs to a different organization than the queried group.
+	// queried group is the user's effective budget source. The effective group
+	// falls back to the Everyone group, and effective_group_id is null only when
+	// that group belongs to a different organization than the queried group.
 	// The period_start parameter is normalized to its UTC calendar day.
 	// TODO(AIGOV-527): unify effective group resolution in a single place.
 	// Spend is aggregated for the queried group, not the user's effective group.
@@ -604,11 +604,11 @@ type sqlcQuerier interface {
 	GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error)
 	GetHealthSettings(ctx context.Context) (string, error)
 	// Returns the highest group AI budget across the groups the user belongs to,
-	// breaking ties by group name ascending. Implements the "highest" budget policy.
-	// group_members_expanded is a UNION of group_members and organization_members,
-	// so the implicit "Everyone" group (group_id == organization_id) is included.
-	// Returns no rows when the user has no budgeted groups; callers should treat
-	// sql.ErrNoRows as "no group budget".
+	// breaking ties by organization name then group name ascending. Implements the
+	// "highest" budget policy. group_members_expanded is a UNION of group_members
+	// and organization_members, so the implicit "Everyone" group
+	// (group_id == organization_id) is included. Returns no rows when the user has
+	// no budgeted groups. Callers should treat sql.ErrNoRows as "no group budget".
 	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (GetHighestGroupAIBudgetByUserRow, error)
 	GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (InboxNotification, error)
 	// Fetches inbox notifications for a user filtered by templates and targets
@@ -875,6 +875,11 @@ type sqlcQuerier interface {
 	GetUserChatSpendInPeriod(ctx context.Context, arg GetUserChatSpendInPeriodParams) (int64, error)
 	GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserCount(ctx context.Context, includeSystem bool) (int64, error)
+	// Returns the "Everyone" group (id == organization_id) to attribute a user's
+	// spend to when no override or budgeted group applies. Prefers the default org,
+	// then organization name ascending. Returns no rows when the user has no
+	// organization membership.
+	GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
 	GetUserForChatSyntheticAPIKeyByID(ctx context.Context, id uuid.UUID) (User, error)
 	// Returns the minimum (most restrictive) group limit for a user.
 	// Returns -1 if no group limits match the specified scope.

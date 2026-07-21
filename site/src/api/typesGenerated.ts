@@ -5213,9 +5213,9 @@ export interface GroupMemberAISpend {
 	readonly user_id: string;
 	/**
 	 * EffectiveGroupID is the user's effective budget group within the queried
-	 * group's organization. Null when no effective budget group is visible in
-	 * this organization, including when the user's budget resolves to a group
-	 * in another organization.
+	 * group's organization, falling back to the Everyone group when no budget
+	 * applies. Null when the effective group belongs to a different organization
+	 * than the queried group.
 	 */
 	readonly effective_group_id: string | null;
 	/**
@@ -9907,14 +9907,16 @@ export interface UserAIBudgetOverride {
 
 // From codersdk/aibridge.go
 /**
- * UserAIBudgetSummary is the effective AI budget for a user. When no
- * budget applies, all fields except UserID are null.
+ * UserAIBudgetSummary is the effective AI budget for a user. When no budget
+ * applies, the effective group falls back to the Everyone group with a null
+ * limit and source.
  */
 export interface UserAIBudgetSummary {
 	readonly user_id: string;
 	/**
-	 * EffectiveGroupID is the group the spend is attributed to. Null when
-	 * no budget applies.
+	 * EffectiveGroupID is the group the spend is attributed to, falling back to
+	 * the Everyone group when no budget applies. Null only when the user has no
+	 * organization.
 	 */
 	readonly effective_group_id: string | null;
 	/**

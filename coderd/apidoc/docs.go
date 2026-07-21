@@ -20424,7 +20424,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "effective_group_id": {
-                    "description": "EffectiveGroupID is the user's effective budget group within the queried\ngroup's organization. Null when no effective budget group is visible in\nthis organization, including when the user's budget resolves to a group\nin another organization.",
+                    "description": "EffectiveGroupID is the user's effective budget group within the queried\ngroup's organization, falling back to the Everyone group when no budget\napplies. Null when the effective group belongs to a different organization\nthan the queried group.",
                     "type": "string",
                     "format": "uuid"
                 },
@@ -26027,7 +26027,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "effective_group_id": {
-                    "description": "EffectiveGroupID is the group the spend is attributed to. Null when\nno budget applies.",
+                    "description": "EffectiveGroupID is the group the spend is attributed to, falling back to\nthe Everyone group when no budget applies. Null only when the user has no\norganization.",
                     "type": "string",
                     "format": "uuid"
                 },

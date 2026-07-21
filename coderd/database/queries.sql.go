@@ -2594,15 +2594,29 @@ user_highest_group AS (
 		budget.spend_limit_micros
 	FROM group_ai_budgets budget
 	JOIN group_members_expanded member ON member.group_id = budget.group_id
+	JOIN organizations ON organizations.id = member.organization_id
 	WHERE member.user_id IN (SELECT user_id FROM filtered_users)
-	ORDER BY member.user_id, budget.spend_limit_micros DESC, member.group_name ASC, budget.group_id ASC
+	ORDER BY member.user_id, budget.spend_limit_micros DESC, organizations.name ASC, member.group_name ASC
+),
+user_fallback_group AS (
+	-- Per user, the Everyone group to fall back to when no override or budgeted
+	-- group applies. The Everyone group has id == organization_id. Prefers the
+	-- default org, then organization name ascending.
+	SELECT DISTINCT ON (organization_members.user_id)
+		organization_members.user_id,
+		organizations.id AS group_id
+	FROM organization_members
+	JOIN organizations ON organizations.id = organization_members.organization_id
+	WHERE organization_members.user_id IN (SELECT user_id FROM filtered_users)
+		AND organizations.deleted = false
+	ORDER BY organization_members.user_id, organizations.is_default DESC, organizations.name ASC
 ),
 effective AS (
-	-- Effective budget per user: a per-user override wins over the
-	-- highest-limit group.
+	-- Effective budget per user: a per-user override wins over the highest-limit
+	-- group, which wins over the Everyone group fallback.
 	SELECT
 		filtered_users.user_id,
-		COALESCE(override.group_id, user_highest_group.group_id) AS raw_effective_group_id,
+		COALESCE(override.group_id, user_highest_group.group_id, user_fallback_group.group_id) AS raw_effective_group_id,
 		COALESCE(override.spend_limit_micros, user_highest_group.spend_limit_micros) AS spend_limit_micros,
 		(CASE
 			WHEN override.group_id IS NOT NULL THEN 'user_override'
@@ -2611,6 +2625,7 @@ effective AS (
 	FROM filtered_users
 	LEFT JOIN user_ai_budget_overrides override ON override.user_id = filtered_users.user_id
 	LEFT JOIN user_highest_group ON user_highest_group.user_id = filtered_users.user_id
+	LEFT JOIN user_fallback_group ON user_fallback_group.user_id = filtered_users.user_id
 ),
 applied_budget AS (
 	-- The limit and source only for users whose effective budget source is the
@@ -2663,9 +2678,9 @@ type GetGroupMembersAISpendRow struct {
 // Returns each user's AI spend attributed to the queried group, on or after
 // period_start until NOW. Only current members of the queried group are
 // returned. spend_limit_micros and limit_source are populated only when the
-// queried group is the user's effective budget source. The effective_group_id
-// is null when the user has no configured budget or when the effective group
-// belongs to a different organization than the queried group.
+// queried group is the user's effective budget source. The effective group
+// falls back to the Everyone group, and effective_group_id is null only when
+// that group belongs to a different organization than the queried group.
 // The period_start parameter is normalized to its UTC calendar day.
 // TODO(AIGOV-527): unify effective group resolution in a single place.
 // Spend is aggregated for the queried group, not the user's effective group.
@@ -2703,18 +2718,16 @@ func (q *sqlQuerier) GetGroupMembersAISpend(ctx context.Context, arg GetGroupMem
 
 const getHighestGroupAIBudgetByUser = `-- name: GetHighestGroupAIBudgetByUser :one
 SELECT
-	gaib.group_id,
-	gaib.spend_limit_micros
-FROM group_ai_budgets gaib
-JOIN group_members_expanded gme ON gme.group_id = gaib.group_id
-WHERE gme.user_id = $1
+	budget.group_id,
+	budget.spend_limit_micros
+FROM group_ai_budgets budget
+JOIN group_members_expanded member ON member.group_id = budget.group_id
+JOIN organizations ON organizations.id = member.organization_id
+WHERE member.user_id = $1
 ORDER BY
-	gaib.spend_limit_micros DESC, -- highest wins
-	gme.group_name ASC,           -- alphabetical tiebreak
-	-- Final tiebreak on the group id makes the result deterministic when two
-	-- groups share both name and limit, which is possible across organizations
-	-- (groups are unique on (organization_id, name), not name alone).
-	gaib.group_id ASC
+	budget.spend_limit_micros DESC, -- highest wins
+	organizations.name ASC,         -- organization name tiebreak
+	member.group_name ASC           -- group name tiebreak
 LIMIT 1
 `
 
@@ -2724,11 +2737,11 @@ type GetHighestGroupAIBudgetByUserRow struct {
 }
 
 // Returns the highest group AI budget across the groups the user belongs to,
-// breaking ties by group name ascending. Implements the "highest" budget policy.
-// group_members_expanded is a UNION of group_members and organization_members,
-// so the implicit "Everyone" group (group_id == organization_id) is included.
-// Returns no rows when the user has no budgeted groups; callers should treat
-// sql.ErrNoRows as "no group budget".
+// breaking ties by organization name then group name ascending. Implements the
+// "highest" budget policy. group_members_expanded is a UNION of group_members
+// and organization_members, so the implicit "Everyone" group
+// (group_id == organization_id) is included. Returns no rows when the user has
+// no budgeted groups. Callers should treat sql.ErrNoRows as "no group budget".
 func (q *sqlQuerier) GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (GetHighestGroupAIBudgetByUserRow, error) {
 	row := q.db.QueryRowContext(ctx, getHighestGroupAIBudgetByUser, userID)
 	var i GetHighestGroupAIBudgetByUserRow
@@ -2854,6 +2867,29 @@ func (q *sqlQuerier) GetUserAISpendSince(ctx context.Context, arg GetUserAISpend
 		&i.SpendMicros,
 	)
 	return i, err
+}
+
+const getUserEveryoneFallbackGroup = `-- name: GetUserEveryoneFallbackGroup :one
+SELECT organizations.id AS group_id
+FROM organization_members
+JOIN organizations ON organizations.id = organization_members.organization_id
+WHERE organization_members.user_id = $1
+	AND organizations.deleted = false
+ORDER BY
+	organizations.is_default DESC, -- prefer the default org
+	organizations.name ASC         -- organization name tiebreak
+LIMIT 1
+`
+
+// Returns the "Everyone" group (id == organization_id) to attribute a user's
+// spend to when no override or budgeted group applies. Prefers the default org,
+// then organization name ascending. Returns no rows when the user has no
+// organization membership.
+func (q *sqlQuerier) GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, getUserEveryoneFallbackGroup, userID)
+	var group_id uuid.UUID
+	err := row.Scan(&group_id)
+	return group_id, err
 }
 
 const incrementUserAIDailySpend = `-- name: IncrementUserAIDailySpend :one

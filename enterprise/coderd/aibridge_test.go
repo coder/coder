@@ -3160,13 +3160,6 @@ func TestUserAISpendStatus(t *testing.T) {
 		wantCurrentSpendMicros int64
 	}{
 		{
-			name:                   "NoEffectiveGroup",
-			wantHasEffectiveGroup:  false,
-			wantSpendLimitMicros:   nil,
-			wantLimitSource:        nil,
-			wantCurrentSpendMicros: 0,
-		},
-		{
 			name:                  "GroupBudget/ZeroSpend",
 			groupBudget:           ptr.Ref(int64(1_000_000_000)),
 			wantHasEffectiveGroup: true,
@@ -3279,6 +3272,65 @@ func TestUserAISpendStatus(t *testing.T) {
 			require.Equal(t, tt.wantLimitSource, got.LimitSource)
 		})
 	}
+
+	t.Run("UnbudgetedFallsBackToEveryone", func(t *testing.T) {
+		t.Parallel()
+
+		clock := quartz.NewMock(t)
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "spend-test-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clock.Set(time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC))
+
+		// With no override or group budget, the effective group is the org's
+		// Everyone group (id == org id) with no limit. The reported current
+		// spend is the amount attributed to that Everyone group.
+		everyoneGroupID := group.OrganizationID
+		_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+			UserID:           targetUser.ID,
+			EffectiveGroupID: everyoneGroupID,
+			Day:              clock.Now(),
+			CostMicros:       100_000_000,
+		})
+		require.NoError(t, err)
+
+		got, err := adminClient.UserAISpendStatus(ctx, targetUser.ID)
+		require.NoError(t, err)
+		require.Equal(t, &everyoneGroupID, got.EffectiveGroupID)
+		require.Nil(t, got.SpendLimitMicros)
+		require.Nil(t, got.LimitSource)
+		require.Equal(t, int64(100_000_000), got.CurrentSpendMicros)
+	})
+
+	t.Run("NoOrgReturnsNull", func(t *testing.T) {
+		t.Parallel()
+
+		clock := quartz.NewMock(t)
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, _, _ := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "spend-test-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clock.Set(time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC))
+
+		// A user with no organization membership resolves to no effective group.
+		orglessUser := dbgen.User(t, db, database.User{})
+
+		got, err := adminClient.UserAISpendStatus(ctx, orglessUser.ID)
+		require.NoError(t, err)
+		require.Nil(t, got.EffectiveGroupID)
+		require.Nil(t, got.SpendLimitMicros)
+		require.Nil(t, got.LimitSource)
+		require.Equal(t, int64(0), got.CurrentSpendMicros)
+	})
 }
 
 func TestUserAISpendStatusRoleAccess(t *testing.T) {
@@ -3798,23 +3850,21 @@ func TestGroupMembersAISpend(t *testing.T) {
 		// Then: only the primary-org user is returned.
 		require.Len(t, resp.Members, 1)
 		require.Equal(t, targetUser.ID, resp.Members[0].UserID)
-		require.Nil(t, resp.Members[0].EffectiveGroupID)
+		require.Equal(t, &group.OrganizationID, resp.Members[0].EffectiveGroupID)
 		require.Nil(t, resp.Members[0].GroupBudget)
 		require.Equal(t, int64(0), resp.Members[0].GroupSpendMicros)
 	})
 
 	tests := []struct {
-		name               string
-		groupLimit         int64
-		overrideLimit      int64
-		spent              int64
-		wantEffectiveGroup bool
-		wantGroupBudget    *codersdk.AIGroupBudget
-		wantSpendMicros    int64
+		name                  string
+		groupLimit            int64
+		overrideLimit         int64
+		spent                 int64
+		wantEffectiveGroup    bool
+		wantEffectiveEveryone bool
+		wantGroupBudget       *codersdk.AIGroupBudget
+		wantSpendMicros       int64
 	}{
-		{
-			name: "NoBudgetNoSpend",
-		},
 		{
 			name:               "BudgetZeroSpend",
 			groupLimit:         1_000_000_000,
@@ -3836,11 +3886,6 @@ func TestGroupMembersAISpend(t *testing.T) {
 			wantSpendMicros: 250_000_000,
 		},
 		{
-			name:            "NoBudgetWithSpend",
-			spent:           100_000_000,
-			wantSpendMicros: 100_000_000,
-		},
-		{
 			name:               "OverrideBudget",
 			overrideLimit:      500_000_000,
 			wantEffectiveGroup: true,
@@ -3848,6 +3893,19 @@ func TestGroupMembersAISpend(t *testing.T) {
 				SpendLimitMicros: 500_000_000,
 				LimitSource:      codersdk.AIBudgetLimitSourceUserOverride,
 			},
+		},
+		{
+			// With no budget, an in-org member falls back to the Everyone group.
+			name:                  "FallbackToEveryoneNoSpend",
+			wantEffectiveEveryone: true,
+		},
+		{
+			// The fallback effective group is the Everyone group, while spend is
+			// still attributed to the queried group.
+			name:                  "FallbackToEveryoneWithSpend",
+			spent:                 100_000_000,
+			wantEffectiveEveryone: true,
+			wantSpendMicros:       100_000_000,
 		},
 	}
 
@@ -3902,10 +3960,14 @@ func TestGroupMembersAISpend(t *testing.T) {
 			require.Equal(t, wantPeriodEnd, got.PeriodEnd)
 			require.Len(t, got.Members, 1)
 			require.Equal(t, targetUser.ID, got.Members[0].UserID)
-			if tt.wantEffectiveGroup {
+			switch {
+			case tt.wantEffectiveGroup:
 				require.NotNil(t, got.Members[0].EffectiveGroupID)
 				require.Equal(t, group.ID, *got.Members[0].EffectiveGroupID)
-			} else {
+			case tt.wantEffectiveEveryone:
+				require.NotNil(t, got.Members[0].EffectiveGroupID)
+				require.Equal(t, group.OrganizationID, *got.Members[0].EffectiveGroupID)
+			default:
 				require.Nil(t, got.Members[0].EffectiveGroupID)
 			}
 			require.Equal(t, tt.wantGroupBudget, got.Members[0].GroupBudget)
@@ -3997,7 +4059,7 @@ func TestGroupMembersAISpend(t *testing.T) {
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&got))
 		require.Len(t, got.Members, 1)
 		require.Equal(t, targetUser.ID, got.Members[0].UserID)
-		require.Nil(t, got.Members[0].EffectiveGroupID)
+		require.Equal(t, &group.OrganizationID, got.Members[0].EffectiveGroupID)
 		require.Nil(t, got.Members[0].GroupBudget)
 		require.Equal(t, int64(0), got.Members[0].GroupSpendMicros)
 	})
