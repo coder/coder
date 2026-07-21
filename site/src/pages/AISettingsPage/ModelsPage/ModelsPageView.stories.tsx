@@ -73,6 +73,13 @@ export const Default: Story = {
 		await expect(canvas.getAllByText("Enabled").length).toBeGreaterThan(0);
 		await expect(canvas.getByText("Default")).toBeInTheDocument();
 		await expect(canvas.getByText("Disabled")).toBeInTheDocument();
+
+		// The Add model menu lists each provider by exact accessible name; a
+		// regressed icon would turn a name into "Anthropic Anthropic".
+		await userEvent.click(canvas.getByRole("button", { name: /add model/i }));
+		const menu = await within(document.body).findByRole("menu");
+		await within(menu).findByRole("menuitem", { name: "Anthropic" });
+		await userEvent.keyboard("{Escape}");
 	},
 };
 
@@ -95,8 +102,6 @@ export const FilterByProvider: Story = {
 		});
 		await userEvent.click(providerFilter);
 		const listbox = await within(document.body).findByRole("listbox");
-		// The provider icon is decorative (aria-hidden), so the option's
-		// accessible name is just the label, matching the Add model select.
 		const anthropicOption = await within(listbox).findByRole("option", {
 			name: "Anthropic",
 		});

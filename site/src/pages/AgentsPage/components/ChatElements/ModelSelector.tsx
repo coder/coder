@@ -251,11 +251,13 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 									key={providerKey}
 									heading={
 										<span className="flex items-center gap-1.5">
-											<ProviderIcon
-												provider={firstOption.provider}
-												icon={firstOption.providerIcon}
-												className="size-3.5"
-											/>
+											<span aria-hidden className="flex items-center">
+												<ProviderIcon
+													provider={firstOption.provider}
+													icon={firstOption.providerIcon}
+													className="size-3.5"
+												/>
+											</span>
 											<span>{providerLabel}</span>
 										</span>
 									}

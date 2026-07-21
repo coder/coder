@@ -84,6 +84,8 @@ type ProviderEntry = {
 	provider: string;
 };
 
+// Returns provider states ordered alphabetically by display label. Callers
+// rely on this order for dropdowns and for picking a default provider.
 export const deriveProviderStates = (
 	modelConfigs: readonly TypesGen.ChatModelConfig[],
 	providerConfigs: TypesGen.ChatProviderConfig[] | null | undefined,
@@ -189,7 +191,6 @@ export const deriveProviderStates = (
 		};
 	});
 
-	// Providers surface in dropdowns ordered by their display label.
 	return states.toSorted((a, b) => a.label.localeCompare(b.label));
 };
 
