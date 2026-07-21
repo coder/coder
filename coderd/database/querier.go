@@ -164,7 +164,7 @@ type sqlcQuerier interface {
 	DeleteGroupByID(ctx context.Context, id uuid.UUID) error
 	DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteGroupMemberFromGroupParams) error
 	DeleteLicense(ctx context.Context, id int32) (int32, error)
-	DeleteMCPServerConfigByID(ctx context.Context, id uuid.UUID) error
+	DeleteMCPServerConfigByID(ctx context.Context, arg DeleteMCPServerConfigByIDParams) error
 	DeleteMCPServerUserToken(ctx context.Context, arg DeleteMCPServerUserTokenParams) error
 	DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error
 	DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) error
@@ -546,7 +546,7 @@ type sqlcQuerier interface {
 	// Check both to ensure the selected config is actually usable.
 	GetEnabledChatModelConfigByID(ctx context.Context, arg GetEnabledChatModelConfigByIDParams) (ChatModelConfig, error)
 	GetEnabledChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]GetEnabledChatModelConfigsRow, error)
-	GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error)
+	GetEnabledMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error)
 	// GetExternalAgentTokensByTemplateID returns the auth tokens for all
 	// non-deleted external agents on the latest build of every running workspace
 	// of the given template. "Running" means the latest build has
@@ -571,7 +571,7 @@ type sqlcQuerier interface {
 	// param created_at_opt: The created_at timestamp to filter by. This parameter is usd for pagination - it fetches notifications created before the specified timestamp if it is not the zero value
 	// param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
 	GetFilteredInboxNotificationsByUserID(ctx context.Context, arg GetFilteredInboxNotificationsByUserIDParams) ([]InboxNotification, error)
-	GetForcedMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error)
+	GetForcedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error)
 	GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error)
 	GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (GroupAIBudget, error)
 	GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error)
@@ -634,11 +634,11 @@ type sqlcQuerier interface {
 	GetLicenses(ctx context.Context) ([]License, error)
 	GetLogoURL(ctx context.Context) (string, error)
 	GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (MCPServerConfig, error)
-	GetMCPServerConfigBySlug(ctx context.Context, slug string) (MCPServerConfig, error)
-	GetMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error)
-	GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID) ([]MCPServerConfig, error)
+	GetMCPServerConfigBySlug(ctx context.Context, arg GetMCPServerConfigBySlugParams) (MCPServerConfig, error)
+	GetMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error)
+	GetMCPServerConfigsByIDs(ctx context.Context, arg GetMCPServerConfigsByIDsParams) ([]MCPServerConfig, error)
 	GetMCPServerUserToken(ctx context.Context, arg GetMCPServerUserTokenParams) (MCPServerUserToken, error)
-	GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]MCPServerUserToken, error)
+	GetMCPServerUserTokensByUserID(ctx context.Context, arg GetMCPServerUserTokensByUserIDParams) ([]MCPServerUserToken, error)
 	// Must be called from within a transaction. The row lock is released
 	// when the transaction ends.
 	GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx context.Context) (WorkspaceBuildOrchestration, error)

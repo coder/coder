@@ -12,13 +12,16 @@ SELECT
 FROM
     mcp_server_configs
 WHERE
-    slug = @slug::text;
+    organization_id = @organization_id::uuid
+    AND slug = @slug::text;
 
 -- name: GetMCPServerConfigs :many
 SELECT
     *
 FROM
     mcp_server_configs
+WHERE
+    organization_id = @organization_id::uuid
 ORDER BY
     display_name ASC;
 
@@ -28,7 +31,8 @@ SELECT
 FROM
     mcp_server_configs
 WHERE
-    enabled = TRUE
+    organization_id = @organization_id::uuid
+    AND enabled = TRUE
 ORDER BY
     display_name ASC;
 
@@ -38,7 +42,8 @@ SELECT
 FROM
     mcp_server_configs
 WHERE
-    id = ANY(@ids::uuid[])
+    organization_id = @organization_id::uuid
+    AND id = ANY(@ids::uuid[])
 ORDER BY
     display_name ASC;
 
@@ -48,13 +53,15 @@ SELECT
 FROM
     mcp_server_configs
 WHERE
-    enabled = TRUE
+    organization_id = @organization_id::uuid
+    AND enabled = TRUE
     AND availability = 'force_on'
 ORDER BY
     display_name ASC;
 
 -- name: InsertMCPServerConfig :one
 INSERT INTO mcp_server_configs (
+    organization_id,
     display_name,
     slug,
     description,
@@ -84,6 +91,7 @@ INSERT INTO mcp_server_configs (
     created_by,
     updated_by
 ) VALUES (
+    @organization_id::uuid,
     @display_name::text,
     @slug::text,
     @description::text,
@@ -150,6 +158,7 @@ SET
     updated_at = NOW()
 WHERE
     id = @id::uuid
+    AND organization_id = @organization_id::uuid
 RETURNING
     *;
 
@@ -157,7 +166,8 @@ RETURNING
 DELETE FROM
     mcp_server_configs
 WHERE
-    id = @id::uuid;
+    id = @id::uuid
+    AND organization_id = @organization_id::uuid;
 
 -- name: GetMCPServerUserToken :one
 SELECT
@@ -169,12 +179,12 @@ WHERE
     AND user_id = @user_id::uuid;
 
 -- name: GetMCPServerUserTokensByUserID :many
-SELECT
-    *
-FROM
-    mcp_server_user_tokens
-WHERE
-    user_id = @user_id::uuid;
+SELECT tok.*
+FROM mcp_server_user_tokens tok
+JOIN mcp_server_configs cfg ON cfg.id = tok.mcp_server_config_id
+WHERE tok.user_id = @user_id::uuid
+    AND cfg.organization_id = @organization_id::uuid
+    AND tok.mcp_server_config_id = ANY(@mcp_server_config_ids::uuid[]);
 
 -- name: UpsertMCPServerUserToken :one
 INSERT INTO mcp_server_user_tokens (

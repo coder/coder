@@ -471,6 +471,11 @@ const (
 	ApiKeyScopeChatModelConfigDelete               APIKeyScope = "chat_model_config:delete"
 	ApiKeyScopeChatModelConfigShare                APIKeyScope = "chat_model_config:share"
 	ApiKeyScopeChatModelConfig                     APIKeyScope = "chat_model_config:*"
+	ApiKeyScopeMcpServerConfigCreate               APIKeyScope = "mcp_server_config:create"
+	ApiKeyScopeMcpServerConfigRead                 APIKeyScope = "mcp_server_config:read"
+	ApiKeyScopeMcpServerConfigUpdate               APIKeyScope = "mcp_server_config:update"
+	ApiKeyScopeMcpServerConfigDelete               APIKeyScope = "mcp_server_config:delete"
+	ApiKeyScopeMcpServerConfig                     APIKeyScope = "mcp_server_config:*"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -751,7 +756,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatModelConfigUpdate,
 		ApiKeyScopeChatModelConfigDelete,
 		ApiKeyScopeChatModelConfigShare,
-		ApiKeyScopeChatModelConfig:
+		ApiKeyScopeChatModelConfig,
+		ApiKeyScopeMcpServerConfigCreate,
+		ApiKeyScopeMcpServerConfigRead,
+		ApiKeyScopeMcpServerConfigUpdate,
+		ApiKeyScopeMcpServerConfigDelete,
+		ApiKeyScopeMcpServerConfig:
 		return true
 	}
 	return false
@@ -1001,6 +1011,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatModelConfigDelete,
 		ApiKeyScopeChatModelConfigShare,
 		ApiKeyScopeChatModelConfig,
+		ApiKeyScopeMcpServerConfigCreate,
+		ApiKeyScopeMcpServerConfigRead,
+		ApiKeyScopeMcpServerConfigUpdate,
+		ApiKeyScopeMcpServerConfigDelete,
+		ApiKeyScopeMcpServerConfig,
 	}
 }
 
@@ -5462,6 +5477,7 @@ type MCPServerConfig struct {
 	AllowInPlanMode         bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
 	ForwardCoderHeaders     bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
 	OAuth2RevocationURL     string         `db:"oauth2_revocation_url" json:"oauth2_revocation_url"`
+	OrganizationID          uuid.UUID      `db:"organization_id" json:"organization_id"`
 }
 
 type MCPServerUserToken struct {

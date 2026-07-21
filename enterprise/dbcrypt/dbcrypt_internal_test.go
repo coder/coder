@@ -966,7 +966,10 @@ func TestMCPServerConfigs(t *testing.T) {
 		db, crypt, ciphers := setup(t)
 		cfg := insertConfig(t, crypt, ciphers)
 
-		got, err := crypt.GetMCPServerConfigBySlug(ctx, cfg.Slug)
+		got, err := crypt.GetMCPServerConfigBySlug(ctx, database.GetMCPServerConfigBySlugParams{
+			OrganizationID: cfg.OrganizationID,
+			Slug:           cfg.Slug,
+		})
 		require.NoError(t, err)
 		requireMCPServerConfigDecrypted(t, got, ciphers, oauthSecret, apiKeyValue, customHeaders)
 		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
@@ -977,7 +980,7 @@ func TestMCPServerConfigs(t *testing.T) {
 		db, crypt, ciphers := setup(t)
 		cfg := insertConfig(t, crypt, ciphers)
 
-		cfgs, err := crypt.GetMCPServerConfigs(ctx)
+		cfgs, err := crypt.GetMCPServerConfigs(ctx, cfg.OrganizationID)
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
 		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
@@ -989,7 +992,10 @@ func TestMCPServerConfigs(t *testing.T) {
 		db, crypt, ciphers := setup(t)
 		cfg := insertConfig(t, crypt, ciphers)
 
-		cfgs, err := crypt.GetMCPServerConfigsByIDs(ctx, []uuid.UUID{cfg.ID})
+		cfgs, err := crypt.GetMCPServerConfigsByIDs(ctx, database.GetMCPServerConfigsByIDsParams{
+			OrganizationID: cfg.OrganizationID,
+			IDs:            []uuid.UUID{cfg.ID},
+		})
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
 		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
@@ -1001,7 +1007,7 @@ func TestMCPServerConfigs(t *testing.T) {
 		db, crypt, ciphers := setup(t)
 		cfg := insertConfig(t, crypt, ciphers)
 
-		cfgs, err := crypt.GetEnabledMCPServerConfigs(ctx)
+		cfgs, err := crypt.GetEnabledMCPServerConfigs(ctx, cfg.OrganizationID)
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
 		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
@@ -1013,7 +1019,7 @@ func TestMCPServerConfigs(t *testing.T) {
 		db, crypt, ciphers := setup(t)
 		cfg := insertConfig(t, crypt, ciphers)
 
-		cfgs, err := crypt.GetForcedMCPServerConfigs(ctx)
+		cfgs, err := crypt.GetForcedMCPServerConfigs(ctx, cfg.OrganizationID)
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
 		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
@@ -1033,6 +1039,7 @@ func TestMCPServerConfigs(t *testing.T) {
 		)
 		updated, err := crypt.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
 			ID:                 cfg.ID,
+			OrganizationID:     cfg.OrganizationID,
 			DisplayName:        cfg.DisplayName,
 			Slug:               cfg.Slug,
 			Description:        cfg.Description,
@@ -1595,7 +1602,11 @@ func TestMCPServerUserTokens(t *testing.T) {
 		db, crypt, ciphers := setup(t)
 		cfg, tok := insertConfigAndToken(t, crypt, ciphers)
 
-		toks, err := crypt.GetMCPServerUserTokensByUserID(ctx, tok.UserID)
+		toks, err := crypt.GetMCPServerUserTokensByUserID(ctx, database.GetMCPServerUserTokensByUserIDParams{
+			UserID:             tok.UserID,
+			OrganizationID:     cfg.OrganizationID,
+			McpServerConfigIds: []uuid.UUID{cfg.ID},
+		})
 		require.NoError(t, err)
 		require.Len(t, toks, 1)
 		require.Equal(t, accessToken, toks[0].AccessToken)

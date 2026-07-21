@@ -1036,17 +1036,17 @@ func (mr *MockStoreMockRecorder) DeleteLicense(ctx, id any) *gomock.Call {
 }
 
 // DeleteMCPServerConfigByID mocks base method.
-func (m *MockStore) DeleteMCPServerConfigByID(ctx context.Context, id uuid.UUID) error {
+func (m *MockStore) DeleteMCPServerConfigByID(ctx context.Context, arg database.DeleteMCPServerConfigByIDParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteMCPServerConfigByID", ctx, id)
+	ret := m.ctrl.Call(m, "DeleteMCPServerConfigByID", ctx, arg)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteMCPServerConfigByID indicates an expected call of DeleteMCPServerConfigByID.
-func (mr *MockStoreMockRecorder) DeleteMCPServerConfigByID(ctx, id any) *gomock.Call {
+func (mr *MockStoreMockRecorder) DeleteMCPServerConfigByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteMCPServerConfigByID", reflect.TypeOf((*MockStore)(nil).DeleteMCPServerConfigByID), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteMCPServerConfigByID", reflect.TypeOf((*MockStore)(nil).DeleteMCPServerConfigByID), ctx, arg)
 }
 
 // DeleteMCPServerUserToken mocks base method.
@@ -3868,18 +3868,18 @@ func (mr *MockStoreMockRecorder) GetEnabledChatModelConfigs(ctx, organizationID 
 }
 
 // GetEnabledMCPServerConfigs mocks base method.
-func (m *MockStore) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
+func (m *MockStore) GetEnabledMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetEnabledMCPServerConfigs", ctx)
+	ret := m.ctrl.Call(m, "GetEnabledMCPServerConfigs", ctx, organizationID)
 	ret0, _ := ret[0].([]database.MCPServerConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetEnabledMCPServerConfigs indicates an expected call of GetEnabledMCPServerConfigs.
-func (mr *MockStoreMockRecorder) GetEnabledMCPServerConfigs(ctx any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetEnabledMCPServerConfigs(ctx, organizationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledMCPServerConfigs", reflect.TypeOf((*MockStore)(nil).GetEnabledMCPServerConfigs), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledMCPServerConfigs", reflect.TypeOf((*MockStore)(nil).GetEnabledMCPServerConfigs), ctx, organizationID)
 }
 
 // GetExternalAgentTokensByTemplateID mocks base method.
@@ -4003,18 +4003,18 @@ func (mr *MockStoreMockRecorder) GetFilteredInboxNotificationsByUserID(ctx, arg 
 }
 
 // GetForcedMCPServerConfigs mocks base method.
-func (m *MockStore) GetForcedMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
+func (m *MockStore) GetForcedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetForcedMCPServerConfigs", ctx)
+	ret := m.ctrl.Call(m, "GetForcedMCPServerConfigs", ctx, organizationID)
 	ret0, _ := ret[0].([]database.MCPServerConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetForcedMCPServerConfigs indicates an expected call of GetForcedMCPServerConfigs.
-func (mr *MockStoreMockRecorder) GetForcedMCPServerConfigs(ctx any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetForcedMCPServerConfigs(ctx, organizationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetForcedMCPServerConfigs", reflect.TypeOf((*MockStore)(nil).GetForcedMCPServerConfigs), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetForcedMCPServerConfigs", reflect.TypeOf((*MockStore)(nil).GetForcedMCPServerConfigs), ctx, organizationID)
 }
 
 // GetGitSSHKey mocks base method.
@@ -4438,48 +4438,48 @@ func (mr *MockStoreMockRecorder) GetMCPServerConfigByID(ctx, id any) *gomock.Cal
 }
 
 // GetMCPServerConfigBySlug mocks base method.
-func (m *MockStore) GetMCPServerConfigBySlug(ctx context.Context, slug string) (database.MCPServerConfig, error) {
+func (m *MockStore) GetMCPServerConfigBySlug(ctx context.Context, arg database.GetMCPServerConfigBySlugParams) (database.MCPServerConfig, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMCPServerConfigBySlug", ctx, slug)
+	ret := m.ctrl.Call(m, "GetMCPServerConfigBySlug", ctx, arg)
 	ret0, _ := ret[0].(database.MCPServerConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetMCPServerConfigBySlug indicates an expected call of GetMCPServerConfigBySlug.
-func (mr *MockStoreMockRecorder) GetMCPServerConfigBySlug(ctx, slug any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetMCPServerConfigBySlug(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerConfigBySlug", reflect.TypeOf((*MockStore)(nil).GetMCPServerConfigBySlug), ctx, slug)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerConfigBySlug", reflect.TypeOf((*MockStore)(nil).GetMCPServerConfigBySlug), ctx, arg)
 }
 
 // GetMCPServerConfigs mocks base method.
-func (m *MockStore) GetMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
+func (m *MockStore) GetMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMCPServerConfigs", ctx)
+	ret := m.ctrl.Call(m, "GetMCPServerConfigs", ctx, organizationID)
 	ret0, _ := ret[0].([]database.MCPServerConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetMCPServerConfigs indicates an expected call of GetMCPServerConfigs.
-func (mr *MockStoreMockRecorder) GetMCPServerConfigs(ctx any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetMCPServerConfigs(ctx, organizationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerConfigs", reflect.TypeOf((*MockStore)(nil).GetMCPServerConfigs), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerConfigs", reflect.TypeOf((*MockStore)(nil).GetMCPServerConfigs), ctx, organizationID)
 }
 
 // GetMCPServerConfigsByIDs mocks base method.
-func (m *MockStore) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.MCPServerConfig, error) {
+func (m *MockStore) GetMCPServerConfigsByIDs(ctx context.Context, arg database.GetMCPServerConfigsByIDsParams) ([]database.MCPServerConfig, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMCPServerConfigsByIDs", ctx, ids)
+	ret := m.ctrl.Call(m, "GetMCPServerConfigsByIDs", ctx, arg)
 	ret0, _ := ret[0].([]database.MCPServerConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetMCPServerConfigsByIDs indicates an expected call of GetMCPServerConfigsByIDs.
-func (mr *MockStoreMockRecorder) GetMCPServerConfigsByIDs(ctx, ids any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetMCPServerConfigsByIDs(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerConfigsByIDs", reflect.TypeOf((*MockStore)(nil).GetMCPServerConfigsByIDs), ctx, ids)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerConfigsByIDs", reflect.TypeOf((*MockStore)(nil).GetMCPServerConfigsByIDs), ctx, arg)
 }
 
 // GetMCPServerUserToken mocks base method.
@@ -4498,18 +4498,18 @@ func (mr *MockStoreMockRecorder) GetMCPServerUserToken(ctx, arg any) *gomock.Cal
 }
 
 // GetMCPServerUserTokensByUserID mocks base method.
-func (m *MockStore) GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]database.MCPServerUserToken, error) {
+func (m *MockStore) GetMCPServerUserTokensByUserID(ctx context.Context, arg database.GetMCPServerUserTokensByUserIDParams) ([]database.MCPServerUserToken, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMCPServerUserTokensByUserID", ctx, userID)
+	ret := m.ctrl.Call(m, "GetMCPServerUserTokensByUserID", ctx, arg)
 	ret0, _ := ret[0].([]database.MCPServerUserToken)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetMCPServerUserTokensByUserID indicates an expected call of GetMCPServerUserTokensByUserID.
-func (mr *MockStoreMockRecorder) GetMCPServerUserTokensByUserID(ctx, userID any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetMCPServerUserTokensByUserID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerUserTokensByUserID", reflect.TypeOf((*MockStore)(nil).GetMCPServerUserTokensByUserID), ctx, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerUserTokensByUserID", reflect.TypeOf((*MockStore)(nil).GetMCPServerUserTokensByUserID), ctx, arg)
 }
 
 // GetNextPendingWorkspaceBuildOrchestrationForUpdate mocks base method.

@@ -2,7 +2,11 @@ package migrations_test
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -2043,6 +2047,173 @@ func TestMigration000543ChatSearchSchemaIndexes(t *testing.T) {
 	}
 }
 
+func TestMigration000552OrganizationScopedMCPServerConfigs(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	const (
+		migrationVersion = 552
+		legacyConfigID   = "94f7df20-0d04-4dd7-97e9-7c276c337a11"
+		fixtureOrgID     = "94f7df20-0d04-4dd7-97e9-7c276c337a01"
+		deletedOrgID     = "94f7df20-0d04-4dd7-97e9-7c276c337a02"
+		fixtureChatID    = "72c0438a-18eb-4688-ab80-e4c6a126ef96"
+		deletedOrgChatID = "72c0438a-18eb-4688-ab80-e4c6a126ef98"
+		fixtureUserID    = "0ed9befc-4911-4ccf-a8e2-559bf72daa94"
+		keyDigest        = "6a193b3"
+	)
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Down(sqlDB))
+
+	fixtureDriver, fixtureMigrate := setupMigrate(t, sqlDB, "org_scope_mcp_server_configs", filepath.Join("testdata", "fixtures"))
+	nextFixtureVersion, err := fixtureDriver.First()
+	require.NoError(t, err)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		require.True(t, more, "migration %d not found", migrationVersion)
+
+		if version == migrationVersion {
+			break
+		}
+		if nextFixtureVersion == version {
+			require.NoError(t, fixtureMigrate.Steps(1))
+			nextVersion, nextErr := fixtureDriver.Next(nextFixtureVersion)
+			if nextErr == nil {
+				nextFixtureVersion = nextVersion
+			}
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	var organizationCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT count(*) FROM organizations`).Scan(&organizationCount))
+
+	var clonedConfigCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*) FROM mcp_server_configs WHERE slug = 'mcp-fixture'
+	`).Scan(&clonedConfigCount))
+	require.Equal(t, organizationCount, clonedConfigCount)
+
+	var legacyConfigCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*) FROM mcp_server_configs WHERE id = $1
+	`, legacyConfigID).Scan(&legacyConfigCount))
+	require.Zero(t, legacyConfigCount)
+
+	var activeChatOrganizationID uuid.UUID
+	var activeChatIDs []uuid.UUID
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT organization_id, mcp_server_ids FROM chats WHERE id = $1
+	`, fixtureChatID).Scan(&activeChatOrganizationID, pq.Array(&activeChatIDs)))
+
+	var activeCloneID uuid.UUID
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT id FROM mcp_server_configs
+		WHERE organization_id = $1 AND slug = 'mcp-fixture'
+	`, activeChatOrganizationID).Scan(&activeCloneID))
+	require.Equal(t, []uuid.UUID{activeCloneID, activeCloneID}, activeChatIDs)
+
+	var deletedCloneID uuid.UUID
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT id FROM mcp_server_configs
+		WHERE organization_id = $1 AND slug = 'mcp-fixture'
+	`, deletedOrgID).Scan(&deletedCloneID))
+	var deletedChatIDs []uuid.UUID
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT mcp_server_ids FROM chats WHERE id = $1
+	`, deletedOrgChatID).Scan(pq.Array(&deletedChatIDs)))
+	require.Equal(t, []uuid.UUID{deletedCloneID}, deletedChatIDs)
+
+	var oauthSecret, oauthSecretKeyID, apiKey, apiKeyID, customHeaders, customHeadersKeyID string
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT oauth2_client_secret, oauth2_client_secret_key_id,
+			api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id
+		FROM mcp_server_configs WHERE id = $1
+	`, activeCloneID).Scan(
+		&oauthSecret, &oauthSecretKeyID, &apiKey, &apiKeyID,
+		&customHeaders, &customHeadersKeyID,
+	))
+	require.Equal(t, keyDigest, oauthSecretKeyID)
+	require.Equal(t, keyDigest, apiKeyID)
+	require.Equal(t, keyDigest, customHeadersKeyID)
+
+	key := []byte("0123456789abcdef0123456789abcdef")
+	digestInput := append([]byte("aes256gcm"), key...)
+	require.Equal(t, keyDigest, fmt.Sprintf("%x", sha256.Sum256(digestInput))[:7])
+	block, err := aes.NewCipher(key)
+	require.NoError(t, err)
+	aead, err := cipher.NewGCM(block)
+	require.NoError(t, err)
+	decrypt := func(ciphertext string) string {
+		decoded, decodeErr := base64.StdEncoding.DecodeString(ciphertext)
+		require.NoError(t, decodeErr)
+		require.GreaterOrEqual(t, len(decoded), aead.NonceSize())
+		plaintext, decryptErr := aead.Open(nil, decoded[:aead.NonceSize()], decoded[aead.NonceSize():], nil)
+		require.NoError(t, decryptErr)
+		return string(plaintext)
+	}
+	require.Equal(t, "oauth-secret", decrypt(oauthSecret))
+	require.Equal(t, "api-key", decrypt(apiKey))
+	require.Equal(t, `{"X-Test":"header-secret"}`, decrypt(customHeaders))
+
+	var tokenCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*)
+		FROM mcp_server_user_tokens tok
+		JOIN mcp_server_configs cfg ON cfg.id = tok.mcp_server_config_id
+		WHERE tok.user_id = $1 AND cfg.organization_id = $2
+	`, fixtureUserID, fixtureOrgID).Scan(&tokenCount))
+	require.Equal(t, 1, tokenCount)
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*)
+		FROM mcp_server_user_tokens tok
+		JOIN mcp_server_configs cfg ON cfg.id = tok.mcp_server_config_id
+		WHERE tok.user_id = $1 AND cfg.organization_id = $2
+	`, fixtureUserID, deletedOrgID).Scan(&tokenCount))
+	require.Zero(t, tokenCount)
+
+	var accessToken, accessTokenKeyID, refreshToken, refreshTokenKeyID, failureReason string
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT access_token, access_token_key_id, refresh_token,
+			refresh_token_key_id, oauth_refresh_failure_reason
+		FROM mcp_server_user_tokens
+		WHERE mcp_server_config_id = $1 AND user_id = $2
+	`, activeCloneID, fixtureUserID).Scan(
+		&accessToken, &accessTokenKeyID, &refreshToken, &refreshTokenKeyID, &failureReason,
+	))
+	require.Equal(t, keyDigest, accessTokenKeyID)
+	require.Equal(t, keyDigest, refreshTokenKeyID)
+	require.Equal(t, "access-token", decrypt(accessToken))
+	require.Equal(t, "refresh-token", decrypt(refreshToken))
+	require.Equal(t, "invalid_grant", failureReason)
+
+	downSQL, err := os.ReadFile("000552_org_scope_mcp_server_configs.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+
+	var organizationColumnCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*) FROM information_schema.columns
+		WHERE table_schema = current_schema()
+			AND table_name = 'mcp_server_configs'
+			AND column_name = 'organization_id'
+	`).Scan(&organizationColumnCount))
+	require.Zero(t, organizationColumnCount)
+
+	var retainedConfigCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*) FROM mcp_server_configs WHERE slug = 'mcp-fixture'
+	`).Scan(&retainedConfigCount))
+	require.Equal(t, 1, retainedConfigCount)
+}
+
 func TestMigration000551OrganizationScopedChatModelConfigs(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -2072,6 +2243,9 @@ func TestMigration000551OrganizationScopedChatModelConfigs(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, more, "migration %d not found", migrationVersion)
 
+		if version == migrationVersion {
+			break
+		}
 		if nextFixtureVersion == version {
 			require.NoError(t, fixtureMigrate.Steps(1))
 			nextVersion, nextErr := fixtureDriver.Next(nextFixtureVersion)
@@ -2079,14 +2253,7 @@ func TestMigration000551OrganizationScopedChatModelConfigs(t *testing.T) {
 				nextFixtureVersion = nextVersion
 			}
 		}
-		if version == migrationVersion {
-			break
-		}
 	}
-	_, more, err := next()
-	require.NoError(t, err)
-	require.False(t, more)
-
 	ctx := testutil.Context(t, testutil.WaitLong)
 	var organizationCount, activeOrganizationCount int
 	require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT count(*) FROM organizations`).Scan(&organizationCount))
