@@ -80,10 +80,12 @@ func (server *Server) prepareGeneration(
 		return generationPrepared{}, err
 	}
 
-	modelOpts = modelBuildOptionsFromMessages(promptRows)
-	ctx = withActiveTurnAPIKeyID(ctx, modelOpts)
+	apiKeyID, err := server.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
+	if err != nil {
+		return generationPrepared{}, xerrors.Errorf("ensure synthetic API key: %w", err)
+	}
+	modelOpts = modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 
-	var err error
 	model, modelConfig, modelRoute, debugEnabled, resolvedProvider, debugModel, err = server.resolveChatModel(ctx, chat, modelOpts)
 	if err != nil {
 		return generationPrepared{}, err
@@ -760,8 +762,12 @@ func (server *Server) deriveFinalTurnRunResult(
 
 	// resolvedProvider/resolvedModel describe the model the fallback handle was
 	// built from; they only feed the status-label fallback candidate's labels.
-	modelOpts := modelBuildOptionsFromMessages(promptRows)
-	ctx = withActiveTurnAPIKeyID(ctx, modelOpts)
+	apiKeyID, err := server.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
+	if err != nil {
+		logger.Warn(ctx, "derive final turn status label: ensure synthetic API key", slog.Error(err))
+		return runChatResult{FinalAssistantText: finalAssistantText, TriggerMessageID: triggerMessageID, HistoryTipMessageID: historyTipMessageID}
+	}
+	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 	model, _, modelRoute, _, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat, modelOpts)
 	if err != nil {
 		// Return what we have; generateFinalTurnStatusLabel falls back to a

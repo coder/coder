@@ -1658,6 +1658,65 @@ func TestMigration000542ChatReasoningEffortBackfill(t *testing.T) {
 	require.Equal(t, sql.NullString{}, got["bedrock:anthropic.invalid-effort"])
 }
 
+func TestMigration000546ChatHistoryAPIKeyConstraints(t *testing.T) {
+	t.Parallel()
+
+	const priorMigrationVersion = 545
+
+	sqlDB := testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more || version == priorMigrationVersion {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	constraintNames := []string{
+		"chat_messages_api_key_id_fkey",
+		"chat_queued_messages_api_key_id_fkey",
+	}
+	assertConstraintCount := func(t *testing.T, want int) {
+		t.Helper()
+		for _, name := range constraintNames {
+			var got int
+			err := sqlDB.QueryRowContext(ctx, `
+				SELECT COUNT(*)
+				FROM pg_constraint
+				WHERE conname = $1
+			`, name).Scan(&got)
+			require.NoError(t, err)
+			require.Equal(t, want, got, name)
+		}
+	}
+
+	upSQL, err := os.ReadFile("000546_drop_chat_history_api_key_fks.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+	assertConstraintCount(t, 0)
+
+	downSQL, err := os.ReadFile("000546_drop_chat_history_api_key_fks.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+	assertConstraintCount(t, 1)
+
+	for _, name := range constraintNames {
+		var count int
+		err := sqlDB.QueryRowContext(ctx, `
+			SELECT COUNT(*)
+			FROM pg_constraint
+			WHERE conname = $1 AND confdeltype = 'n'
+		`, name).Scan(&count)
+		require.NoError(t, err)
+		require.Equal(t, 1, count, name)
+	}
+}
+
 func TestMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T) {
 	t.Parallel()
 

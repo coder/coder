@@ -1,6 +1,7 @@
 package chatprovider_test
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"io"
@@ -1373,6 +1374,140 @@ func TestModelFromConfig_ExtraHeaders(t *testing.T) {
 		require.NoError(t, err)
 		_ = testutil.TryReceive(ctx, t, called)
 	})
+}
+
+func TestBetaHeadersFromCallConfig(t *testing.T) {
+	t.Parallel()
+
+	configWith1M := func(enabled *bool) *codersdk.ChatModelCallConfig {
+		return &codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
+					Context1MEnabled: enabled,
+				},
+			},
+		}
+	}
+	beta := map[string]string{
+		chatprovider.HeaderAnthropicBeta: chatprovider.AnthropicBetaContext1M,
+	}
+
+	tests := []struct {
+		name     string
+		provider string
+		config   *codersdk.ChatModelCallConfig
+		want     map[string]string
+	}{
+		{name: "NilConfig", provider: fantasyanthropic.Name, config: nil, want: nil},
+		{name: "NilProviderOptions", provider: fantasyanthropic.Name, config: &codersdk.ChatModelCallConfig{}, want: nil},
+		{name: "NilAnthropicOptions", provider: fantasyanthropic.Name, config: &codersdk.ChatModelCallConfig{ProviderOptions: &codersdk.ChatModelProviderOptions{}}, want: nil},
+		{name: "Unset", provider: fantasyanthropic.Name, config: configWith1M(nil), want: nil},
+		{name: "Disabled", provider: fantasyanthropic.Name, config: configWith1M(ptr.Ref(false)), want: nil},
+		{name: "EnabledAnthropic", provider: fantasyanthropic.Name, config: configWith1M(ptr.Ref(true)), want: beta},
+		{name: "EnabledBedrock", provider: fantasybedrock.Name, config: configWith1M(ptr.Ref(true)), want: beta},
+		{name: "EnabledOpenAI", provider: fantasyopenai.Name, config: configWith1M(ptr.Ref(true)), want: nil},
+		{name: "EnabledUnknownProvider", provider: "does-not-exist", config: configWith1M(ptr.Ref(true)), want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, chatprovider.BetaHeadersFromCallConfig(tt.provider, tt.config))
+		})
+	}
+}
+
+func generateHello(ctx context.Context, model fantasy.LanguageModel) error {
+	_, err := model.Generate(ctx, fantasy.Call{
+		Prompt: []fantasy.Message{
+			{
+				Role:    fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+			},
+		},
+	})
+	return err
+}
+
+func TestModelFromConfig_AnthropicBetaExtraHeader(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	called := make(chan struct{})
+	serverURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		assert.Equal(t, chatprovider.AnthropicBetaContext1M, req.Header.Get(chatprovider.HeaderAnthropicBeta))
+		close(called)
+		return chattest.AnthropicNonStreamingResponse("hello")
+	})
+
+	keys := chatprovider.ProviderAPIKeys{
+		ByProvider:        map[string]string{fantasyanthropic.Name: "test-key"},
+		BaseURLByProvider: map[string]string{fantasyanthropic.Name: serverURL},
+	}
+	betaHeaders := map[string]string{
+		chatprovider.HeaderAnthropicBeta: chatprovider.AnthropicBetaContext1M,
+	}
+	model, err := chatprovider.ModelFromConfig(fantasyanthropic.Name, "claude-sonnet-4-20250514", keys, chatprovider.UserAgent(), betaHeaders, nil)
+	require.NoError(t, err)
+
+	require.NoError(t, generateHello(ctx, model))
+	_ = testutil.TryReceive(ctx, t, called)
+}
+
+// The Anthropic SDK's Bedrock middleware moves Anthropic-Beta into the
+// request body before SigV4 signing.
+func TestModelFromConfig_BedrockBetaExtraHeader(t *testing.T) {
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	t.Setenv("AWS_ACCESS_KEY_ID", "test-access-key")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret-key")
+	t.Setenv("AWS_SESSION_TOKEN", "test-session-token")
+
+	type requestCapture struct {
+		AnthropicBeta string
+		Authorization string
+		Body          string
+		ReadError     error
+	}
+
+	requests := make(chan requestCapture, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+
+		requests <- requestCapture{
+			AnthropicBeta: r.Header.Get(chatprovider.HeaderAnthropicBeta),
+			Authorization: r.Header.Get("Authorization"),
+			Body:          string(body),
+			ReadError:     err,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(bedrockNonStreamingResponse())
+	}))
+	defer server.Close()
+
+	model, err := chatprovider.ModelFromConfig(
+		fantasybedrock.Name,
+		"anthropic.claude-opus-4-6-v1",
+		chatprovider.ProviderAPIKeys{
+			ByProvider:        map[string]string{fantasybedrock.Name: ""},
+			BaseURLByProvider: map[string]string{fantasybedrock.Name: server.URL},
+			RegionByProvider:  map[string]string{fantasybedrock.Name: "us-east-2"},
+		},
+		chatprovider.UserAgent(),
+		map[string]string{
+			chatprovider.HeaderAnthropicBeta: chatprovider.AnthropicBetaContext1M,
+		},
+		nil,
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, generateHello(ctx, model))
+
+	got := testutil.TryReceive(ctx, t, requests)
+	require.NoError(t, got.ReadError)
+	require.Empty(t, got.AnthropicBeta)
+	require.Contains(t, got.Authorization, "AWS4-HMAC-SHA256")
+	require.Contains(t, got.Body, `"anthropic_beta":["context-1m-2025-08-07"]`)
 }
 
 // TestModelFromConfig_AnthropicPDFFilePartReachesProvider pins the end-to-end
