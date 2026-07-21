@@ -5119,7 +5119,6 @@ type ChatMessage struct {
 	RuntimeMs           sql.NullInt64         `db:"runtime_ms" json:"runtime_ms"`
 	Deleted             bool                  `db:"deleted" json:"deleted"`
 	ProviderResponseID  sql.NullString        `db:"provider_response_id" json:"provider_response_id"`
-	APIKeyID            sql.NullString        `db:"api_key_id" json:"api_key_id"`
 	Revision            int64                 `db:"revision" json:"revision"`
 	// Stores the selected effort for the turn triggered by this message.
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
@@ -5151,7 +5150,6 @@ type ChatQueuedMessage struct {
 	Content       json.RawMessage `db:"content" json:"content"`
 	CreatedAt     time.Time       `db:"created_at" json:"created_at"`
 	ModelConfigID uuid.NullUUID   `db:"model_config_id" json:"model_config_id"`
-	APIKeyID      sql.NullString  `db:"api_key_id" json:"api_key_id"`
 	Position      int64           `db:"position" json:"position"`
 	CreatedBy     uuid.UUID       `db:"created_by" json:"created_by"`
 	// Stores the selected effort until the queued row is promoted.

@@ -202,7 +202,6 @@ func userTextMessage(t *testing.T, text string, createdBy uuid.UUID, modelConfig
 		ContentVersion: chatprompt.CurrentContentVersion,
 		CreatedBy:      uuid.NullUUID{UUID: createdBy, Valid: true},
 		ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: true},
-		APIKeyID:       sql.NullString{String: apiKeyID, Valid: apiKeyID != ""},
 	}
 }
 

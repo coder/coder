@@ -292,6 +292,16 @@ export interface AIGatewayKey {
  */
 export const AIGatewayKeyHeader = "X-Coder-AI-Governance-Gateway-Key";
 
+// From codersdk/aibridge.go
+/**
+ * AIGroupBudget is an AI spend limit and the tier that produced it. Both
+ * fields are always populated together.
+ */
+export interface AIGroupBudget {
+	readonly spend_limit_micros: number;
+	readonly limit_source: AIBudgetLimitSource;
+}
+
 // From codersdk/aiproviders.go
 /**
  * AIProvider represents an AI provider configuration row as returned
@@ -503,6 +513,24 @@ export const AIProviderTypes: AIProviderType[] = [
 	"openrouter",
 	"vercel",
 ];
+
+// From codersdk/aibridge.go
+/**
+ * AISpendPeriodWindow is the [Start, End) window over which AI spend is
+ * aggregated.
+ */
+export interface AISpendPeriodWindow {
+	/**
+	 * PeriodStart is the inclusive lower bound of the current budget
+	 * period.
+	 */
+	readonly period_start: string;
+	/**
+	 * PeriodEnd is the exclusive upper bound of the current budget
+	 * period.
+	 */
+	readonly period_end: string;
+}
 
 // From codersdk/allowlist.go
 /**
@@ -5158,6 +5186,42 @@ export interface GroupArguments {
 	readonly GroupIDs: readonly string[];
 }
 
+// From codersdk/aibridge.go
+/**
+ * GroupMemberAISpend is a single member's AI spend attributed to the queried
+ * group in the current budget period.
+ */
+export interface GroupMemberAISpend {
+	readonly user_id: string;
+	/**
+	 * EffectiveGroupID is the user's effective budget group within the queried
+	 * group's organization. Null when no effective budget group is visible in
+	 * this organization, including when the user's budget resolves to a group
+	 * in another organization.
+	 */
+	readonly effective_group_id: string | null;
+	/**
+	 * GroupBudget is the budget when the queried group is this user's
+	 * effective budget source. Null when the user's budget resolves to another
+	 * group or no budget applies to the user.
+	 */
+	readonly group_budget: AIGroupBudget | null;
+	/**
+	 * GroupSpendMicros is the user's spend attributed to the queried group
+	 * over the current budget period.
+	 */
+	readonly group_spend_micros: number;
+}
+
+// From codersdk/aibridge.go
+/**
+ * GroupMembersAISpend reports per-member AI spend attributed to a specific
+ * group in the active budget period.
+ */
+export interface GroupMembersAISpend extends AISpendPeriodWindow {
+	readonly members: readonly GroupMemberAISpend[];
+}
+
 // From codersdk/groups.go
 export interface GroupMembersResponse {
 	readonly users: readonly ReducedUser[];
@@ -6534,6 +6598,34 @@ export interface Organization extends MinimalOrganization {
 	 * next request.
 	 */
 	readonly default_org_member_roles: readonly string[];
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationGroupAISpend is the current AI spend snapshot for a group
+ * within the active budget period.
+ */
+export interface OrganizationGroupAISpend {
+	readonly group_id: string;
+	/**
+	 * SpendLimitMicros is the group's configured AI spend limit. Null when
+	 * the group has no configured budget.
+	 */
+	readonly spend_limit_micros: number | null;
+	/**
+	 * CurrentSpendMicros is the group's spend over the current budget
+	 * period.
+	 */
+	readonly current_spend_micros: number;
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationGroupsAISpend reports AI spend for a set of groups in the
+ * active budget period.
+ */
+export interface OrganizationGroupsAISpend extends AISpendPeriodWindow {
+	readonly groups: readonly OrganizationGroupAISpend[];
 }
 
 // From codersdk/organizations.go
@@ -9825,22 +9917,14 @@ export interface UserAIProviderKeyConfig {
  * UserAISpendStatus is the current AI spend snapshot for a user within
  * the active budget period.
  */
-export interface UserAISpendStatus extends UserAIBudgetSummary {
+export interface UserAISpendStatus
+	extends UserAIBudgetSummary,
+		AISpendPeriodWindow {
 	/**
 	 * CurrentSpendMicros is the user's spend on their effective group over
 	 * the current budget period.
 	 */
 	readonly current_spend_micros: number;
-	/**
-	 * PeriodStart is the inclusive lower bound of the current budget
-	 * period.
-	 */
-	readonly period_start: string;
-	/**
-	 * PeriodEnd is the exclusive upper bound of the current budget
-	 * period.
-	 */
-	readonly period_end: string;
 }
 
 // From codersdk/insights.go
