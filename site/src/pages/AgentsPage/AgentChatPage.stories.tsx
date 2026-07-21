@@ -40,7 +40,7 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
-import type { AgentsOutletContext } from "./AgentsPage";
+import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 
 // ---------------------------------------------------------------------------
 // Layout wrapper – provides outlet context for the child route.
@@ -71,7 +71,7 @@ const AgentChatPageLayout: FC = () => {
 							onExpandSidebar: () => {},
 							onChatReady: () => {},
 							scrollContainerRef,
-						} satisfies AgentsOutletContext
+						} satisfies AgentsPageOutletContext
 					}
 				/>
 			</div>

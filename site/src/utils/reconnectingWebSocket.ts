@@ -1,6 +1,6 @@
 /**
  * @file Shared WebSocket reconnection utility with capped exponential
- * backoff. Both the chat-list watcher (AgentsPage) and the per-chat
+ * backoff. Both the chat-list watcher (AgentsPageLayout) and the per-chat
  * stream watcher (ChatContext) use the same reconnect-on-disconnect
  * pattern. This module extracts that logic into a single reusable
  * function so the two call sites stay in sync and the backoff math

@@ -79,7 +79,7 @@ import {
 	chatDetailErrorsEqual,
 } from "./utils/usageLimitMessage";
 
-export type { AgentsOutletContext } from "./AgentsPageView";
+export type { AgentsPageOutletContext } from "./AgentsPageView";
 
 const FILTER_MEMBERSHIP_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
 	"diff_status_change",
@@ -92,7 +92,7 @@ export const shouldInvalidateFilteredChatList = (
 ): boolean =>
 	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
 
-const AgentsPage: FC = () => {
+const AgentsPageLayout: FC = () => {
 	useAgentsPWA();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
@@ -729,4 +729,4 @@ const AgentsPage: FC = () => {
 		</>
 	);
 };
-export default AgentsPage;
+export default AgentsPageLayout;

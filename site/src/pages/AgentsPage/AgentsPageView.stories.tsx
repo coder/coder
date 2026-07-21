@@ -32,8 +32,8 @@ import AgentAnalyticsPage from "./AgentAnalyticsPage";
 import AgentCreatePage from "./AgentCreatePage";
 import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
 import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
-import AgentSettingsPage from "./AgentSettingsPage";
-import { type AgentsOutletContext, AgentsPageView } from "./AgentsPageView";
+import AgentSettingsLayout from "./AgentSettingsLayout";
+import { type AgentsPageOutletContext, AgentsPageView } from "./AgentsPageView";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import {
 	AGENTS_MAIN_PANEL_MIN_WIDTH,
@@ -217,7 +217,7 @@ const agentsRouting = {
 	children: [
 		{
 			path: "settings",
-			element: <AgentSettingsPage />,
+			element: <AgentSettingsLayout />,
 			children: [
 				{ index: true, element: <AgentSettingsGeneralPage /> },
 				{ path: "general", element: <AgentSettingsGeneralPage /> },
@@ -285,7 +285,7 @@ const setInnerWidthForStory = (width: number) => {
 
 const AgentTopBarRouteElement = () => {
 	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
-		useOutletContext<AgentsOutletContext>();
+		useOutletContext<AgentsPageOutletContext>();
 	return (
 		<ChatTopBar
 			chatTitle="Collapsed sidebar agent"

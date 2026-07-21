@@ -13,7 +13,7 @@ import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableC
 import type { AgentSidebarFilters } from "./utils/agentSidebarFilters";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
-export interface AgentsOutletContext {
+export interface AgentsPageOutletContext {
 	chatErrorReasons: Record<string, ChatDetailError>;
 	setChatErrorReason: (chatId: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatId: string) => void;
@@ -145,7 +145,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	const [chatPendingRename, setChatPendingRename] =
 		useState<TypesGen.Chat | null>(null);
 
-	const outletContextValue: AgentsOutletContext = {
+	const outletContextValue: AgentsPageOutletContext = {
 		chatErrorReasons,
 		setChatErrorReason,
 		clearChatErrorReason,
