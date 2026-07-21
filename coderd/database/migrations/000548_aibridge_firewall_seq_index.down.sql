@@ -1,3 +1,8 @@
+DROP INDEX IF EXISTS idx_boundary_logs_session_seq;
+
+CREATE INDEX idx_boundary_logs_session_seq
+    ON boundary_logs (session_id, sequence_number);
+
 DROP INDEX IF EXISTS idx_aibridge_interceptions_agent_firewall_session_seq;
 
 CREATE INDEX idx_aibridge_interceptions_agent_firewall_session_id

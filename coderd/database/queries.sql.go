@@ -2165,8 +2165,8 @@ LEFT JOIN LATERAL (
 	-- egress. next_seq considers all interceptions in the firewall session so
 	-- windows never bleed across AI sessions that share one firewall session.
 	SELECT
-		COUNT(bl.id)::bigint AS total,
-		COUNT(bl.id) FILTER (WHERE bl.matched_rule IS NULL)::bigint AS blocked
+		COUNT(*)::bigint AS total,
+		COUNT(*) FILTER (WHERE bl.matched_rule IS NULL)::bigint AS blocked
 	FROM aibridge_interceptions afi
 	LEFT JOIN LATERAL (
 		SELECT MIN(nxt.agent_firewall_sequence_number) AS next_seq

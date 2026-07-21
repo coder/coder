@@ -311,9 +311,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 		fw1, fw2, fw3, fw4 := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 
 		// Sessions A and B share firewall session fw1. A is marked at seq 0, B at
-		// seq 3, so A's window is (0,3) and B's is (3, +inf). The logs at seq 0
-		// and 3 are the interceptions' own LLM-provider calls and must be
-		// excluded by the exclusive lower bound.
+		// seq 3, so A's window is (0,3) and B's is (3, +inf).
 		makeInterception("sess-A", -time.Minute, &fw1, 0)
 		makeInterception("sess-B", -2*time.Minute, &fw1, 3)
 		insertLogs(fw1, []logSeed{
