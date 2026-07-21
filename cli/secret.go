@@ -10,6 +10,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
@@ -48,6 +49,8 @@ func (r *RootCmd) secrets() *serpent.Command {
 		Children: []*serpent.Command{
 			r.secretCreate(),
 			r.secretUpdate(),
+			r.secretEnable(),
+			r.secretDisable(),
 			r.secretList(),
 			r.secretDelete(),
 		},
@@ -308,6 +311,77 @@ func secretListRowFromSecret(secret codersdk.UserSecret) secretListRow {
 		File:        secret.FilePath,
 		Description: secret.Description,
 	}
+}
+
+func (r *RootCmd) secretEnable() *serpent.Command {
+	return r.secretEnabledSetter(secretEnabledStateEnabled)
+}
+
+func (r *RootCmd) secretDisable() *serpent.Command {
+	return r.secretEnabledSetter(secretEnabledStateDisabled)
+}
+
+// secretEnabledState distinguishes the two `coder secret enable` and
+// `coder secret disable` subcommands without using a bare bool, which
+// revive's flag-parameter rule treats as a control coupling.
+type secretEnabledState int
+
+const (
+	secretEnabledStateEnabled secretEnabledState = iota
+	secretEnabledStateDisabled
+)
+
+// secretEnabledSetter builds the `coder secret enable` and `coder secret
+// disable` subcommands. Both are a one-field PATCH that flips the enabled
+// state. Disabling stops injection for new sessions but leaves the secret
+// in place so it can be re-enabled later; existing sessions keep injected
+// values until the workspace's agent manifest is refetched.
+func (r *RootCmd) secretEnabledSetter(state secretEnabledState) *serpent.Command {
+	var (
+		verb       string
+		participle string
+		short      string
+		enabled    bool
+	)
+	switch state {
+	case secretEnabledStateEnabled:
+		verb = "enable"
+		participle = "Enabled"
+		short = "Enable a secret so it is injected into workspaces"
+		enabled = true
+	case secretEnabledStateDisabled:
+		verb = "disable"
+		participle = "Disabled"
+		short = "Disable a secret without removing it"
+		enabled = false
+	}
+
+	cmd := &serpent.Command{
+		Use:   fmt.Sprintf("%s <name>", verb),
+		Short: short,
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
+		),
+		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
+			name := inv.Args[0]
+			secret, err := client.UpdateUserSecret(inv.Context(), codersdk.Me, name, codersdk.UpdateUserSecretRequest{
+				Enabled: ptr.Ref(enabled),
+			})
+			if err != nil {
+				return xerrors.Errorf("%s secret %q: %w", verb, name, err)
+			}
+
+			_, _ = fmt.Fprintf(inv.Stdout, "%s secret %s.\n", participle, cliui.Keyword(secret.Name))
+			return nil
+		},
+	}
+
+	return cmd
 }
 
 func (r *RootCmd) secretList() *serpent.Command {
