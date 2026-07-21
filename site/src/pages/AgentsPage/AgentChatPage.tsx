@@ -1190,7 +1190,9 @@ const AgentChatPage: FC = () => {
 	const effectiveReasoningEffort = effectiveModelOption
 		? pickReasoningEffort(
 				selectedReasoningEfforts[effectiveSelectedModel] ??
-					chatRecord?.last_reasoning_effort ??
+					(effectiveSelectedModel === resolvedChatModel
+						? chatRecord?.last_reasoning_effort
+						: undefined) ??
 					getReasoningEffortForModel(effectiveSelectedModel),
 				effectiveModelOption.reasoningEfforts ?? [],
 				effectiveModelOption.reasoningEffortDefault,

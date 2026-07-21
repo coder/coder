@@ -1283,6 +1283,7 @@ export const RemembersReasoningEffortAcrossModels: Story = {
 					...baseChatFields,
 					title: "Cross-model effort restore",
 					status: "waiting",
+					last_reasoning_effort: "high",
 				},
 				{
 					messages: [
@@ -1335,8 +1336,15 @@ export const RemembersReasoningEffortAcrossModels: Story = {
 
 		expect(await canvas.findByText("Cross-model effort restore")).toBeVisible();
 
-		// CRF-1: switching models restores the persisted effort.
+		// The chat's own effort shows for the chat's model.
 		await user.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
+		expect(await body.findByRole("slider")).toHaveAttribute(
+			"aria-valuenow",
+			"2",
+		);
+
+		// Switching models restores that model's persisted effort rather
+		// than leaking the chat's effort.
 		await user.click(
 			await body.findByRole("option", { name: /Claude Sonnet 4/i }),
 		);
@@ -1347,9 +1355,21 @@ export const RemembersReasoningEffortAcrossModels: Story = {
 		);
 		await user.keyboard("{Escape}");
 
-		// CRF-2: editing after switching models sends the new model's
-		// effective effort even without touching the slider.
+		// Editing after switching models sends the new model's effective
+		// effort even without touching the slider.
 		await user.click(canvas.getByRole("button", { name: "Edit message" }));
+
+		// Changing the slider during a history edit is scoped to that
+		// edit and does not overwrite the remembered default. Close the
+		// popover with the trigger; Escape would cancel the edit.
+		await user.click(canvas.getByRole("combobox", { name: "Claude Sonnet 4" }));
+		const editSlider = await body.findByRole("slider");
+		editSlider.focus();
+		await user.keyboard("{ArrowLeft}");
+		await waitFor(() => {
+			expect(editSlider).toHaveAttribute("aria-valuenow", "0");
+		});
+		await user.click(canvas.getByRole("combobox", { name: "Claude Sonnet 4" }));
 		await user.click(canvas.getByRole("button", { name: "Save Edit" }));
 		await waitFor(() => {
 			expect(API.experimental.editChatMessage).toHaveBeenCalledTimes(1);
@@ -1359,9 +1379,27 @@ export const RemembersReasoningEffortAcrossModels: Story = {
 			1,
 			expect.objectContaining({
 				model_config_id: SECOND_MODEL_CONFIG_ID,
-				reasoning_effort: "medium",
+				reasoning_effort: "low",
 			}),
 		);
+		expect(getReasoningEffortForModel(SECOND_MODEL_CONFIG_ID)).toBe("medium");
+
+		// Outside an edit, changing the slider persists the new default.
+		// Wait for edit mode to exit first so the save is not gated.
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("textbox", { name: "Chat message" }),
+			).toBeEnabled();
+		});
+		await user.click(canvas.getByRole("combobox", { name: "Claude Sonnet 4" }));
+		const slider = await body.findByRole("slider");
+		slider.focus();
+		await user.keyboard("{ArrowRight}");
+		await user.keyboard("{ArrowLeft}");
+		await waitFor(() => {
+			expect(getReasoningEffortForModel(SECOND_MODEL_CONFIG_ID)).toBe("low");
+		});
+		await user.keyboard("{Escape}");
 	},
 };
 
