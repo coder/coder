@@ -34,9 +34,9 @@ export type SpawnModelDisplay = {
  * spawn tool call that explicitly selected them. Effort resolution
  * mirrors the backend (chatprovider.ResolveReasoningEffort): the
  * requested value wins over the config's default and is clamped to the
- * config's max; models without effort settings run without thinking.
- * When the selected config is unknown (effort-only spawn or a config
- * removed since the spawn), the requested effort is shown unclamped.
+ * config's max. When the selected config is unknown (effort-only spawn
+ * or a config removed since the spawn), the requested effort is shown
+ * unclamped.
  */
 export const resolveSpawnModelDisplay = ({
 	configs,
