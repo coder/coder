@@ -10,16 +10,12 @@ import {
 } from "#/components/Tooltip/Tooltip";
 
 interface NetworkCallBadgesProps {
-	size?: "xs" | "sm" | "md";
 	// summary is undefined when network call monitoring was not active for the
 	// session, which renders as "Disabled".
 	summary: AIBridgeSessionNetworkCallSummary | undefined;
 }
 
-export const NetworkCallBadges: FC<NetworkCallBadgesProps> = ({
-	size = "sm",
-	summary,
-}) => {
+export const NetworkCallBadges: FC<NetworkCallBadgesProps> = ({ summary }) => {
 	if (!summary) {
 		return (
 			<TooltipProvider>
@@ -27,7 +23,8 @@ export const NetworkCallBadges: FC<NetworkCallBadgesProps> = ({
 					<TooltipTrigger asChild>
 						<span className="inline-flex items-center gap-1 whitespace-nowrap text-content-secondary">
 							Disabled
-							<InfoIcon className="size-icon-xs" />
+							<span className="sr-only">More info</span>
+							<InfoIcon tabIndex={0} className="cursor-pointer size-icon-xs" />
 						</span>
 					</TooltipTrigger>
 					<TooltipContent
@@ -54,9 +51,20 @@ export const NetworkCallBadges: FC<NetworkCallBadgesProps> = ({
 		<TooltipProvider>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<span className="flex items-center gap-1 whitespace-nowrap">
-						<Badge size={size}>{summary.total.toLocaleString("en-US")}</Badge>
-						<Badge size={size} svgSize="sm">
+					<span
+						tabIndex={0}
+						role="button"
+						className="flex items-center whitespace-nowrap"
+					>
+						<span className="sr-only">More info</span>
+						<Badge size="sm" className="rounded-e-none">
+							{summary.total.toLocaleString("en-US")}
+						</Badge>
+						<Badge
+							size="sm"
+							svgSize="xs"
+							className="gap-0 bg-surface-tertiary rounded-s-none text-content-warning"
+						>
 							<BanIcon className="flex-shrink-0" />
 							{summary.blocked.toLocaleString("en-US")}
 						</Badge>
