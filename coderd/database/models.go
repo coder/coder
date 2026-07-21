@@ -4986,6 +4986,7 @@ type Chat struct {
 	ContextDirtySince        sql.NullTime            `db:"context_dirty_since" json:"context_dirty_since"`
 	ContextDirtyResources    pqtype.NullRawMessage   `db:"context_dirty_resources" json:"context_dirty_resources"`
 	ContextError             string                  `db:"context_error" json:"context_error"`
+	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
@@ -5207,6 +5208,8 @@ type ChatTable struct {
 	ContextError string `db:"context_error" json:"context_error"`
 	// Stores the most recent message effort once per-turn selection is wired.
 	LastReasoningEffort NullChatReasoningEffort `db:"last_reasoning_effort" json:"last_reasoning_effort"`
+	// Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.
+	CompactionRequestedAt sql.NullTime `db:"compaction_requested_at" json:"compaction_requested_at"`
 }
 
 type ChatUsageLimitConfig struct {

@@ -140,8 +140,26 @@ export interface AIBridgeSession {
 	readonly ended_at?: string;
 	readonly threads: number;
 	readonly token_usage_summary: AIBridgeSessionTokenUsageSummary;
+	/**
+	 * NetworkCalls summarizes the Agent Firewall network calls made during the
+	 * session. A nil value means the session did not pass through Agent
+	 * Firewall, so network call monitoring was not active, which the UI
+	 * surfaces as "Disabled".
+	 */
+	readonly network_calls?: AIBridgeSessionNetworkCallSummary;
 	readonly last_prompt?: string;
 	readonly last_active_at: string;
+}
+
+// From codersdk/aibridge.go
+/**
+ * AIBridgeSessionNetworkCallSummary aggregates the Agent Firewall network
+ * calls made during a session. Blocked counts calls denied by the firewall
+ * allow-list.
+ */
+export interface AIBridgeSessionNetworkCallSummary {
+	readonly total: number;
+	readonly blocked: number;
 }
 
 // From codersdk/aibridge.go

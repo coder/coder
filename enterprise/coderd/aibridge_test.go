@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -252,6 +253,132 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.EqualValues(t, 2, s4.Threads)
 		require.ElementsMatch(t, []string{"anthropic", "openai"}, s4.Providers)
 		require.ElementsMatch(t, []string{"claude-4", "gpt-4"}, s4.Models)
+	})
+
+	t.Run("NetworkCalls", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		opts := aibridgeOpts(t)
+		opts.Options.Database = db
+		opts.Options.Pubsub = ps
+		client, _, firstUser := coderdenttest.NewWithDatabase(t, opts)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+
+		makeInterception := func(clientSessionID string, startOffset time.Duration, fw *uuid.UUID, seq int32) {
+			endedAt := now.Add(startOffset + time.Minute)
+			params := database.InsertAIBridgeInterceptionParams{
+				InitiatorID:     firstUser.UserID,
+				StartedAt:       now.Add(startOffset),
+				ClientSessionID: sql.NullString{String: clientSessionID, Valid: true},
+			}
+			if fw != nil {
+				params.AgentFirewallSessionID = uuid.NullUUID{UUID: *fw, Valid: true}
+				params.AgentFirewallSequenceNumber = sql.NullInt32{Int32: seq, Valid: true}
+			}
+			dbgen.AIBridgeInterception(t, db, params, &endedAt)
+		}
+
+		type logSeed struct {
+			seq     int32
+			allowed bool
+		}
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+		insertLogs := func(fw uuid.UUID, seeds []logSeed) {
+			params := database.InsertBoundaryLogsParams{
+				SessionID: fw,
+				OwnerID:   firstUser.UserID,
+			}
+			for _, s := range seeds {
+				rule := ""
+				if s.allowed {
+					rule = "allow example.com"
+				}
+				params.ID = append(params.ID, uuid.New())
+				params.SequenceNumber = append(params.SequenceNumber, s.seq)
+				params.CapturedAt = append(params.CapturedAt, now)
+				params.CreatedAt = append(params.CreatedAt, now)
+				params.Proto = append(params.Proto, "http")
+				params.Method = append(params.Method, "GET")
+				params.Detail = append(params.Detail, "https://example.com")
+				params.MatchedRule = append(params.MatchedRule, rule)
+			}
+			_, err := db.InsertBoundaryLogs(sysCtx, params)
+			require.NoError(t, err, "insert boundary logs")
+		}
+
+		fw1, fw2, fw3, fw4 := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+
+		// Sessions A and B share firewall session fw1. A is marked at seq 0, B at
+		// seq 3, so A's window is (0,3) and B's is (3, +inf).
+		makeInterception("sess-A", -time.Minute, &fw1, 0)
+		makeInterception("sess-B", -2*time.Minute, &fw1, 3)
+		insertLogs(fw1, []logSeed{
+			{0, true},  // LLM call for A, excluded
+			{1, true},  // A egress
+			{2, false}, // A egress, blocked
+			{3, true},  // LLM call for B, excluded
+			{4, true},  // B egress
+			{5, true},  // B egress
+		})
+
+		// Session C spans two firewall sessions (agent restarted): fw2 and fw3.
+		// Its counts sum across both windows.
+		makeInterception("sess-C", -3*time.Minute, &fw2, 0)
+		makeInterception("sess-C", -4*time.Minute, &fw3, 0)
+		insertLogs(fw2, []logSeed{
+			{0, true}, // LLM call, excluded
+			{1, true},
+			{2, true},
+		})
+		insertLogs(fw3, []logSeed{
+			{0, true},  // LLM call, excluded
+			{1, false}, // blocked
+		})
+
+		// Session D never passed through the firewall: NetworkCalls stays nil.
+		makeInterception("sess-D", -5*time.Minute, nil, 0)
+
+		// Session E is firewall-active but has no logs in range: counts are zero.
+		makeInterception("sess-E", -6*time.Minute, &fw4, 0)
+
+		//nolint:gocritic // Owner role is irrelevant here.
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+
+		byID := make(map[string]codersdk.AIBridgeSession, len(res.Sessions))
+		for _, s := range res.Sessions {
+			byID[s.ID] = s
+		}
+
+		// A: seq 1,2 in (0,3); seq 2 blocked. LLM calls at 0 and 3 excluded.
+		a := byID["sess-A"]
+		require.NotNil(t, a.NetworkCalls)
+		require.EqualValues(t, 2, a.NetworkCalls.Total)
+		require.EqualValues(t, 1, a.NetworkCalls.Blocked)
+
+		// B: seq 4,5 in (3, +inf); none blocked. No bleed from A's window.
+		b := byID["sess-B"]
+		require.NotNil(t, b.NetworkCalls)
+		require.EqualValues(t, 2, b.NetworkCalls.Total)
+		require.EqualValues(t, 0, b.NetworkCalls.Blocked)
+
+		// C: fw2 contributes seq 1,2; fw3 contributes seq 1 (blocked).
+		c := byID["sess-C"]
+		require.NotNil(t, c.NetworkCalls)
+		require.EqualValues(t, 3, c.NetworkCalls.Total)
+		require.EqualValues(t, 1, c.NetworkCalls.Blocked)
+
+		// D: no firewall session, so monitoring was not active.
+		d := byID["sess-D"]
+		require.Nil(t, d.NetworkCalls)
+
+		// E: firewall-active but no logs in range.
+		e := byID["sess-E"]
+		require.NotNil(t, e.NetworkCalls)
+		require.EqualValues(t, 0, e.NetworkCalls.Total)
+		require.EqualValues(t, 0, e.NetworkCalls.Blocked)
 	})
 
 	t.Run("Pagination", func(t *testing.T) {

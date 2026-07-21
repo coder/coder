@@ -31,6 +31,7 @@ import {
 	chatModelConfigs,
 	chatModels,
 	chatProviderConfigs,
+	compactChat,
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
@@ -45,6 +46,7 @@ import {
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
+import { userSkills } from "#/api/queries/userSkills";
 import { preferenceSettings } from "#/api/queries/users";
 import {
 	workspaceById,
@@ -106,6 +108,11 @@ import {
 import { parsePullRequestUrl } from "./utils/pullRequest";
 import { pickReasoningEffort } from "./utils/reasoningEffort";
 import {
+	COMPACT_SLASH_COMMAND,
+	chatSlashCommandTriggerText,
+	resolveChatSlashCommandAvailability,
+} from "./utils/slashCommands";
+import {
 	type ChatDetailError,
 	formatUsageLimitMessage,
 	isChatUsageLimitExceededResponse,
@@ -115,6 +122,8 @@ import {
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
+class CompactCommandPendingError extends Error {}
+
 /** @internal Exported for testing. */
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
 
@@ -542,6 +551,9 @@ export function useConversationEditingState(deps: {
 		try {
 			await sendPromise;
 		} catch (error) {
+			if (error instanceof CompactCommandPendingError) {
+				return;
+			}
 			rollback?.();
 			throw error;
 		}
@@ -1015,6 +1027,21 @@ const AgentChatPage: FC = () => {
 	const { isPending: isInterruptPending, mutateAsync: interrupt } = useMutation(
 		interruptChat(queryClient, agentId ?? ""),
 	);
+	const { isPending: isCompactPending, mutateAsync: compact } = useMutation(
+		compactChat(queryClient, agentId ?? ""),
+	);
+	// A skill named "compact" takes precedence over built-in /compact. Until
+	// both skill sources resolve, exact submissions wait to avoid shadowing it.
+	const personalSkillsQuery = useQuery({
+		...userSkills(),
+		staleTime: 60_000,
+	});
+	const chatWorkspaceSkills = workspaceSkillsFromChat(chatQuery.data);
+	const compactCommandResolution = resolveChatSlashCommandAvailability(
+		COMPACT_SLASH_COMMAND,
+		personalSkillsQuery.isSuccess ? personalSkillsQuery.data : undefined,
+		chatWorkspaceSkills,
+	);
 	const { mutateAsync: deleteQueuedMessage } = useMutation(
 		deleteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
@@ -1182,7 +1209,7 @@ const AgentChatPage: FC = () => {
 		hasUserFixableModelProviders,
 	});
 	const isSubmissionPending =
-		isSendPending || isEditPending || isInterruptPending;
+		isSendPending || isEditPending || isInterruptPending || isCompactPending;
 	const isChatSettingsPending =
 		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
 	const isInputDisabled =
@@ -1468,6 +1495,53 @@ const AgentChatPage: FC = () => {
 			pendingPlanModeSyncRef.current,
 			pendingWorkspaceSyncRef.current,
 		]);
+
+		// "/compact" on its own (no attachments or file references)
+		// requests a manual context compaction instead of sending a
+		// message. Only new sends are intercepted; history and queued
+		// edits keep their original meaning, and a personal or workspace
+		// skill named "compact" takes precedence so the command cannot shadow it.
+		const isExactCompactSubmission =
+			editedMessageID === undefined &&
+			editing.editingQueuedMessageID === null &&
+			content.length === 1 &&
+			content[0].type === "text" &&
+			content[0].text?.trim() ===
+				chatSlashCommandTriggerText(COMPACT_SLASH_COMMAND);
+		if (isExactCompactSubmission && compactCommandResolution === "pending") {
+			toast.info(
+				"Checking whether /compact is available. Try again in a moment.",
+			);
+			throw new CompactCommandPendingError();
+		}
+		if (isExactCompactSubmission && compactCommandResolution === "available") {
+			// Optimistically show the running state before awaiting so
+			// a fast compaction cannot race this write: the worker's
+			// authoritative waiting status may arrive over the stream
+			// before the POST resolves and must not be overwritten.
+			const previousSnapshot = store.getSnapshot();
+			clearChatErrorReason(agentId);
+			clearStreamError();
+			store.clearStreamState();
+			store.setChatStatus("running");
+			scrollToBottomRef.current?.();
+			try {
+				await compact();
+			} catch (error) {
+				restoreOptimisticRequestSnapshot(store, previousSnapshot);
+				if (
+					isApiError(error) &&
+					error.response?.status === 409 &&
+					isChatUsageLimitExceededResponse(error.response.data)
+				) {
+					handleUsageLimitError(error);
+				} else {
+					toast.error(getErrorMessage(error, "Failed to compact chat."));
+				}
+				throw error;
+			}
+			return;
+		}
 
 		if (editedMessageID !== undefined) {
 			const originalEditedMessage = chatMessagesList?.find(

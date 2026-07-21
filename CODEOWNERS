@@ -29,3 +29,12 @@ coderd/usage/ @deansheather @spikecurtis
 enterprise/coderd/usage/ @deansheather @spikecurtis
 
 .github/ 	@jdomeracki-coder
+
+# Shared contract between chatd and aibridge: AI provider configuration and
+# model pricing, read by both. Note aicostcontrol.sql also carries group/user
+# AI budget and spend queries alongside the ai_model_prices queries.
+coderd/database/queries/ai_providers.sql @ibetitsmike @johnstcn
+coderd/database/queries/ai_provider_keys.sql @ibetitsmike @johnstcn
+coderd/database/queries/aicostcontrol.sql @ibetitsmike @johnstcn
+codersdk/aiproviders.go @ibetitsmike @johnstcn
+codersdk/aiproviders_bedrock.go @ibetitsmike @johnstcn

@@ -335,7 +335,7 @@ module "personalize" {
 module "mux" {
   count                = data.coder_workspace.me.start_count
   source               = "registry.coder.com/coder/mux/coder"
-  version              = "1.4.3"
+  version              = "1.5.0"
   agent_id             = coder_agent.dev.id
   subdomain            = true
   display_name         = "Mux"
@@ -349,7 +349,7 @@ module "mux" {
 module "code-server" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.5.1"
+  version                 = "1.5.2"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -359,7 +359,7 @@ module "code-server" {
 module "vscode-web" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode-web") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/vscode-web/coder"
-  version                 = "1.6.0"
+  version                 = "1.6.1"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   extensions              = ["github.copilot"]

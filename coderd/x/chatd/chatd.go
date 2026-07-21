@@ -1135,6 +1135,10 @@ var (
 	// ErrNoDefaultChatModelConfig indicates no default chat model config
 	// is configured, so chatd cannot resolve a model for the request.
 	ErrNoDefaultChatModelConfig = xerrors.New("no default chat model config is configured")
+	// ErrNothingToCompact indicates a manual compaction request found
+	// no uncompressed conversation after the latest compaction
+	// boundary, so running a compaction would produce nothing.
+	ErrNothingToCompact = xerrors.New("nothing to compact")
 )
 
 // UsageLimitExceededError indicates the user has exceeded their chat spend
@@ -2115,6 +2119,73 @@ func (p *Server) InterruptChat(
 			return xerrors.Errorf("reload chat after interrupt: %w", err)
 		}
 		refreshed = latest
+		return nil
+	})
+	if err != nil {
+		return chat, err
+	}
+
+	p.publishChatPubsubEvent(refreshed, codersdk.ChatWatchEventKindStatusChange, nil)
+	return refreshed, nil
+}
+
+// CompactChat records a manual compaction request through the
+// chatstate.RequestCompaction transition and wakes workers. The chat
+// must be idle (waiting); the worker then generates and commits the
+// compaction summary through the normal generation loop, bypassing
+// the usage threshold, and the chat returns to waiting with no
+// assistant follow-up.
+//
+// Returns the post-transition chat and an error so callers can map
+// state conflicts deliberately: archived chats return ErrChatArchived,
+// non-idle chats return a chatstate.ErrTransitionNotAllowed wrapper,
+// and chats with no compactable conversation return
+// ErrNothingToCompact.
+func (p *Server) CompactChat(
+	ctx context.Context,
+	chat database.Chat,
+) (database.Chat, error) {
+	if chat.ID == uuid.Nil {
+		return chat, xerrors.New("chat_id is required")
+	}
+
+	var refreshed database.Chat
+	machine := p.newChatMachine(chat.ID)
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		lockedChat, err := store.GetChatByID(ctx, chat.ID)
+		if err != nil {
+			return xerrors.Errorf("load chat: %w", err)
+		}
+		if lockedChat.Archived {
+			return ErrChatArchived
+		}
+		// Run the transition before content and usage validation so busy
+		// chats surface the state conflict first.
+		result, err := tx.RequestCompaction(chatstate.RequestCompactionInput{})
+		if err != nil {
+			return err
+		}
+		// Reject requests with nothing to compact inside the same
+		// transaction (rolling back the transition) so no LLM call
+		// is ever started for an empty or already-compacted chat.
+		// This also covers a double-/compact.
+		messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  chat.ID,
+			AfterID: 0,
+		})
+		if err != nil {
+			return xerrors.Errorf("load chat messages: %w", err)
+		}
+		boundary := latestCompactionBoundaryIndex(messages)
+		if _, ok := firstUncompressedAssistantAfter(messages, boundary); !ok {
+			return ErrNothingToCompact
+		}
+		// Usage validation runs last so rejected requests report the more
+		// specific state or content conflict. Its failure rolls back the marker.
+		if limitErr := p.checkUsageLimit(ctx, store, lockedChat.OwnerID, uuid.NullUUID{UUID: lockedChat.OrganizationID, Valid: true}); limitErr != nil {
+			return limitErr
+		}
+		refreshed = result.Chat
 		return nil
 	})
 	if err != nil {

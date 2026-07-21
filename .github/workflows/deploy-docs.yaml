@@ -429,9 +429,9 @@ jobs:
           # recordsByType) that may reflect upstream error strings. This
           # repository is public, so the step summary is visible to
           # anyone with read access; filter those fields out before the
-          # summary is written. The full response remains in the curl
-          # output captured in the workflow logs, which are restricted
-          # to repo collaborators.
+          # summary is written. The full response stays in a temp file and
+          # is never printed: run logs are public for this repository, so
+          # the raw body must not reach them either.
           #
           # Keep this allowlist in sync with SyncResponseBody in
           # coder/coder.com/src/pages/api/algolia-docs-sync.ts; add a
@@ -475,10 +475,19 @@ jobs:
               echo
               echo "### Error"
               echo
-              echo "The request failed. See the workflow logs for the full handler response; the step summary suppresses free-form error strings because this repository is public."
+              echo "The request failed. The raw response body is not shown because this repository is public; only the allowlisted fields above and the bounded error code (in the run log) are surfaced."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
           if [ "$RC" -ne 0 ]; then
+            # This repository is public: run logs and the step summary are
+            # both world-readable, so surface only the bounded error code,
+            # never the raw response body. Sanitize the extracted code so the
+            # "bounded" claim holds literally: `tr -cd` drops anything outside
+            # [A-Za-z0-9_.-] (removing newlines and `::` so a hostile response
+            # body can't inject a runner workflow command) and `head -c 64`
+            # caps the length.
+            ERR_CODE=$(jq -r '(.error | objects | .code) // empty' "$RESPONSE" 2>/dev/null | tr -cd 'A-Za-z0-9_.-' | head -c 64 || true)
+            echo "Algolia docs sync request failed: HTTP ${HTTP_STATUS:-n/a}, error code: ${ERR_CODE:-unknown}."
             exit "$RC"
           fi
 
@@ -540,9 +549,18 @@ jobs:
               echo
               echo "### Error"
               echo
-              echo "The request failed. See the workflow logs for the full hook response; the step summary suppresses free-form error strings because this repository is public."
+              echo "The request failed. The raw response body is not shown because this repository is public; only the allowlisted fields above and the bounded error code (in the run log) are surfaced."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
           if [ "$RC" -ne 0 ]; then
+            # This repository is public: run logs and the step summary are
+            # both world-readable, so surface only the bounded error code,
+            # never the raw response body. Sanitize the extracted code so the
+            # "bounded" claim holds literally: `tr -cd` drops anything outside
+            # [A-Za-z0-9_.-] (removing newlines and `::` so a hostile response
+            # body can't inject a runner workflow command) and `head -c 64`
+            # caps the length.
+            ERR_CODE=$(jq -r '(.error | objects | .code) // empty' "$RESPONSE" 2>/dev/null | tr -cd 'A-Za-z0-9_.-' | head -c 64 || true)
+            echo "Vercel deploy hook request failed: HTTP ${HTTP_STATUS:-n/a}, error code: ${ERR_CODE:-unknown}."
             exit "$RC"
           fi
