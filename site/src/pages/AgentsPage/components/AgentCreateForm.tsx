@@ -20,7 +20,11 @@ import {
 	hasConfiguredModelsInCatalog,
 	hasUserFixableProviders,
 } from "../utils/modelOptions";
-import { pickReasoningEffort } from "../utils/reasoningEffort";
+import {
+	getReasoningEffortForModel,
+	pickReasoningEffort,
+	saveReasoningEffortForModel,
+} from "../utils/reasoningEffort";
 import {
 	formatUsageLimitMessage,
 	isChatUsageLimitExceededResponse,
@@ -240,13 +244,21 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 		return selectedModel || undefined;
 	})();
-	const [selectedReasoningEffort, setSelectedReasoningEffort] = useState("");
+	const [selectedReasoningEfforts, setSelectedReasoningEfforts] = useState<
+		Record<string, string>
+	>({});
 	const selectedModelOption = modelOptions.find(
 		(option) => option.id === selectedModel,
 	);
+	const rootOverrideReasoningEffort =
+		!hasValidUserSelectedModel && selectedModel === rootOverrideModelID
+			? rootPersonalModelOverride?.reasoning_effort
+			: undefined;
 	const effectiveReasoningEffort = selectedModelOption
 		? pickReasoningEffort(
-				selectedReasoningEffort,
+				selectedReasoningEfforts[selectedModel] ??
+					rootOverrideReasoningEffort ??
+					getReasoningEffortForModel(selectedModel),
 				selectedModelOption.reasoningEfforts ?? [],
 				selectedModelOption.reasoningEffortDefault,
 			)
@@ -349,6 +361,14 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const handleModelChange = (value: string) => {
 		setHasUserSelectedModel(true);
 		setUserSelectedModel(value);
+	};
+
+	const handleReasoningEffortChange = (value: string) => {
+		setSelectedReasoningEfforts((current) => ({
+			...current,
+			[selectedModel]: value,
+		}));
+		saveReasoningEffortForModel(selectedModel, value);
 	};
 
 	const isForbidden = !canCreateChat;
@@ -544,7 +564,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						modelOptions={modelOptions}
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
 						reasoningEffort={effectiveReasoningEffort}
-						onReasoningEffortChange={setSelectedReasoningEffort}
+						onReasoningEffortChange={handleReasoningEffortChange}
 						isModelCatalogLoading={isModelCatalogLoading}
 						hasModelOptions={hasModelOptions}
 						planModeEnabled={planModeEnabled}

@@ -106,7 +106,11 @@ import {
 	resolveModelSelector,
 } from "./utils/modelOptions";
 import { parsePullRequestUrl } from "./utils/pullRequest";
-import { pickReasoningEffort } from "./utils/reasoningEffort";
+import {
+	getReasoningEffortForModel,
+	pickReasoningEffort,
+	saveReasoningEffortForModel,
+} from "./utils/reasoningEffort";
 import {
 	COMPACT_SLASH_COMMAND,
 	chatSlashCommandTriggerText,
@@ -741,7 +745,9 @@ const AgentChatPage: FC = () => {
 	const { organizations, experiments } = useDashboard();
 	const organizationName = getDefaultOrganizationName(organizations);
 	const [selectedModel, setSelectedModel] = useState("");
-	const [selectedReasoningEffort, setSelectedReasoningEffort] = useState("");
+	const [selectedReasoningEfforts, setSelectedReasoningEfforts] = useState<
+		Record<string, string>
+	>({});
 	const isEditReasoningEffortDirtyRef = useRef(false);
 	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
@@ -1158,6 +1164,10 @@ const AgentChatPage: FC = () => {
 	// Compute an effective selected model by validating the user's
 	// explicit choice against the current model options, falling
 	// back to the chat's last model or the first available option.
+	const resolvedChatModel = resolveModelOptionId(
+		chatLastModelConfigID,
+		modelOptions,
+	);
 	const effectiveSelectedModel = (() => {
 		const resolvedSelectedModel = resolveModelOptionId(
 			selectedModel,
@@ -1167,10 +1177,6 @@ const AgentChatPage: FC = () => {
 			return resolvedSelectedModel;
 		}
 
-		const resolvedChatModel = resolveModelOptionId(
-			chatLastModelConfigID,
-			modelOptions,
-		);
 		if (resolvedChatModel) {
 			return resolvedChatModel;
 		}
@@ -1183,7 +1189,10 @@ const AgentChatPage: FC = () => {
 	);
 	const effectiveReasoningEffort = effectiveModelOption
 		? pickReasoningEffort(
-				selectedReasoningEffort || chatRecord?.last_reasoning_effort,
+				selectedReasoningEfforts[effectiveSelectedModel] ??
+					(effectiveSelectedModel === resolvedChatModel
+						? chatRecord?.last_reasoning_effort
+						: getReasoningEffortForModel(effectiveSelectedModel)),
 				effectiveModelOption.reasoningEfforts ?? [],
 				effectiveModelOption.reasoningEffortDefault,
 			)
@@ -1566,9 +1575,10 @@ const AgentChatPage: FC = () => {
 			const request: TypesGen.EditChatMessageRequest = {
 				content,
 				model_config_id: editSelectedModelConfigID,
-				reasoning_effort: isEditReasoningEffortDirtyRef.current
-					? effectiveReasoningEffort
-					: undefined,
+				reasoning_effort:
+					isEditReasoningEffortDirtyRef.current || editSelectedModelConfigID
+						? effectiveReasoningEffort
+						: undefined,
 			};
 			const optimisticMessage = originalEditedMessage
 				? buildOptimisticEditedMessage({
@@ -1765,7 +1775,14 @@ const AgentChatPage: FC = () => {
 			modelSelectorHelp={modelSelectorHelp}
 			reasoningEffort={effectiveReasoningEffort}
 			onReasoningEffortChange={(value) => {
-				setSelectedReasoningEffort(value);
+				if (!effectiveSelectedModel) {
+					return;
+				}
+				setSelectedReasoningEfforts((current) => ({
+					...current,
+					[effectiveSelectedModel]: value,
+				}));
+				saveReasoningEffortForModel(effectiveSelectedModel, value);
 				if (editing.editingMessageId !== null) {
 					isEditReasoningEffortDirtyRef.current = true;
 				}
