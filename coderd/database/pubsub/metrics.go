@@ -2,6 +2,7 @@ package pubsub
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -142,9 +143,13 @@ type BackendMetrics struct {
 	m               *Metrics
 	latencyMeasurer *LatencyMeasurer
 
-	// latencyCancel stops the background latency loop and latencyDone is
-	// closed once it exits. They are nil until StartLatencyLoop runs.
+	// latencyCtx/latencyCancel drive the background latency loop and are
+	// created up front so StopLatencyLoop can cancel even when it races ahead
+	// of StartLatencyLoop. latencyMu guards latencyDone, which the loop closes
+	// on exit (nil until the loop starts).
+	latencyCtx    context.Context
 	latencyCancel context.CancelFunc
+	latencyMu     sync.Mutex
 	latencyDone   chan struct{}
 }
 
@@ -165,17 +170,20 @@ func (m *Metrics) ForBackend(logger slog.Logger, backend string) *BackendMetrics
 	m.latencyMeasures.WithLabelValues(backend)
 	m.latencyErrs.WithLabelValues(backend)
 
+	latencyCtx, latencyCancel := context.WithCancel(context.Background())
 	return &BackendMetrics{
 		logger:          logger,
 		backend:         backend,
 		m:               m,
 		latencyMeasurer: NewLatencyMeasurer(logger.Named("latency-measurer")),
+		latencyCtx:      latencyCtx,
+		latencyCancel:   latencyCancel,
 	}
 }
 
 // RecordPublishSuccess records a successful Publish of n bytes.
 func (b *BackendMetrics) RecordPublishSuccess(event string, n int) {
-	if b.isMeasurementChannel(event) {
+	if b.latencyMeasurer.isMeasurementChannel(event) {
 		return
 	}
 	b.m.publishesTotal.WithLabelValues(b.backend, "true").Inc()
@@ -184,7 +192,7 @@ func (b *BackendMetrics) RecordPublishSuccess(event string, n int) {
 
 // RecordPublishFailure records a failed Publish.
 func (b *BackendMetrics) RecordPublishFailure(event string) {
-	if b.isMeasurementChannel(event) {
+	if b.latencyMeasurer.isMeasurementChannel(event) {
 		return
 	}
 	b.m.publishesTotal.WithLabelValues(b.backend, "false").Inc()
@@ -192,7 +200,7 @@ func (b *BackendMetrics) RecordPublishFailure(event string) {
 
 // RecordSubscribeSuccess records a successful Subscribe/SubscribeWithErr.
 func (b *BackendMetrics) RecordSubscribeSuccess(event string) {
-	if b.isMeasurementChannel(event) {
+	if b.latencyMeasurer.isMeasurementChannel(event) {
 		return
 	}
 	b.m.subscribesTotal.WithLabelValues(b.backend, "true").Inc()
@@ -200,7 +208,7 @@ func (b *BackendMetrics) RecordSubscribeSuccess(event string) {
 
 // RecordSubscribeFailure records a failed Subscribe/SubscribeWithErr.
 func (b *BackendMetrics) RecordSubscribeFailure(event string) {
-	if b.isMeasurementChannel(event) {
+	if b.latencyMeasurer.isMeasurementChannel(event) {
 		return
 	}
 	b.m.subscribesTotal.WithLabelValues(b.backend, "false").Inc()
@@ -210,7 +218,7 @@ func (b *BackendMetrics) RecordSubscribeFailure(event string) {
 // classified using the shared thresholds so the messages_total "size" label
 // is consistent across backends.
 func (b *BackendMetrics) RecordReceived(event string, data []byte) {
-	if b.isMeasurementChannel(event) {
+	if b.latencyMeasurer.isMeasurementChannel(event) {
 		return
 	}
 	sizeLabel := MessageSizeNormal
@@ -239,51 +247,50 @@ func (b *BackendMetrics) MarkDisconnected() {
 // AddEvent, RemoveEvent, AddSubscriber, and RemoveSubscriber maintain the
 // current_events and current_subscribers gauges.
 func (b *BackendMetrics) AddEvent(event string) {
-	if !b.isMeasurementChannel(event) {
+	if !b.latencyMeasurer.isMeasurementChannel(event) {
 		b.m.currentEvents.WithLabelValues(b.backend).Inc()
 	}
 }
 
 func (b *BackendMetrics) RemoveEvent(event string) {
-	if !b.isMeasurementChannel(event) {
+	if !b.latencyMeasurer.isMeasurementChannel(event) {
 		b.m.currentEvents.WithLabelValues(b.backend).Dec()
 	}
 }
 
 func (b *BackendMetrics) AddSubscriber(event string) {
-	if !b.isMeasurementChannel(event) {
+	if !b.latencyMeasurer.isMeasurementChannel(event) {
 		b.m.currentSubscribers.WithLabelValues(b.backend).Inc()
 	}
 }
 
 func (b *BackendMetrics) RemoveSubscriber(event string) {
-	if !b.isMeasurementChannel(event) {
+	if !b.latencyMeasurer.isMeasurementChannel(event) {
 		b.m.currentSubscribers.WithLabelValues(b.backend).Dec()
 	}
 }
 
-// isMeasurementChannel reports whether event belongs to the internal latency
-// probe. Probe traffic is excluded from every metric so an operator sees only
-// real pubsub activity, not the noise the measurement itself generates.
-func (b *BackendMetrics) isMeasurementChannel(event string) bool {
-	return b.latencyMeasurer.isMeasurementChannel(event)
-}
-
-// StartLatencyLoop spawns the background latency measurement goroutine. The
-// first measurement runs immediately so a fresh observation exists before the
-// first interval elapses. Call StopLatencyLoop to cancel it and wait for exit.
-func (b *BackendMetrics) StartLatencyLoop(interval time.Duration, p Pubsub) {
-	ctx, cancel := context.WithCancel(context.Background())
-	b.latencyCancel = cancel
-	b.latencyDone = make(chan struct{})
+// StartLatencyLoop spawns the background latency measurement goroutine against
+// p. The first measurement runs immediately so a fresh observation exists
+// before the first interval elapses. Call StopLatencyLoop to cancel it and
+// wait for exit. If StopLatencyLoop already ran, the loop is not started.
+func (b *BackendMetrics) StartLatencyLoop(p Pubsub) {
+	b.latencyMu.Lock()
+	defer b.latencyMu.Unlock()
+	if b.latencyCtx.Err() != nil {
+		// Already stopped; don't start a loop that nothing would cancel.
+		return
+	}
+	done := make(chan struct{})
+	b.latencyDone = done
 	go func() {
-		defer close(b.latencyDone)
-		ticker := time.NewTicker(interval)
+		defer close(done)
+		ticker := time.NewTicker(LatencyMeasureInterval)
 		defer ticker.Stop()
-		for {
-			b.measureOnce(ctx, p)
+		for b.latencyCtx.Err() == nil {
+			b.measureOnce(b.latencyCtx, p)
 			select {
-			case <-ctx.Done():
+			case <-b.latencyCtx.Done():
 				return
 			case <-ticker.C:
 			}
@@ -292,13 +299,16 @@ func (b *BackendMetrics) StartLatencyLoop(interval time.Duration, p Pubsub) {
 }
 
 // StopLatencyLoop cancels the background latency loop and waits for it to
-// exit. It is a no-op if the loop was never started.
+// exit. It is safe to call before StartLatencyLoop (which then does not start
+// the loop) and safe to call more than once.
 func (b *BackendMetrics) StopLatencyLoop() {
-	if b.latencyCancel == nil {
-		return
-	}
 	b.latencyCancel()
-	<-b.latencyDone
+	b.latencyMu.Lock()
+	done := b.latencyDone
+	b.latencyMu.Unlock()
+	if done != nil {
+		<-done
+	}
 }
 
 // measureOnce performs a single latency measurement and records it.

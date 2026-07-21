@@ -598,7 +598,7 @@ func New(startCtx context.Context, logger slog.Logger, db *sql.DB, connectURL st
 	// Only probe latency when metrics are collected; a nil metrics means
 	// Prometheus is disabled, so the probe traffic would have nowhere to go.
 	if metrics != nil {
-		p.metrics.StartLatencyLoop(LatencyMeasureInterval, p)
+		p.metrics.StartLatencyLoop(p)
 	}
 	logger.Debug(startCtx, "pubsub has started")
 	return p, nil

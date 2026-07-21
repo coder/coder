@@ -95,8 +95,9 @@ func (lm *LatencyMeasurer) nextChannelName() string {
 // isMeasurementChannel reports whether event is one of this measurer's
 // internal probe channels. Because each measurement uses a unique
 // sequence-suffixed name, this matches on the shared per-measurer prefix.
-// Callers use it to keep the latency probe's transient subscriptions out
-// of the current_events/current_subscribers gauges.
+// Callers use it to exclude the latency probe's traffic from every metric so
+// an operator sees only real pubsub activity, not the noise the measurement
+// itself generates.
 func (lm *LatencyMeasurer) isMeasurementChannel(event string) bool {
 	return strings.HasPrefix(event, lm.channelPrefix())
 }

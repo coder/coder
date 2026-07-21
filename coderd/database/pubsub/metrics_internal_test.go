@@ -1,6 +1,7 @@
 package pubsub
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -156,4 +157,56 @@ func TestMetrics_MeasureOnceError(t *testing.T) {
 	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_latency_measures_total", backend))
 	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_latency_measure_errs_total", backend))
 	require.Equal(t, uint64(0), testutil.PromHistogramSampleCount(t, metrics, "coder_pubsub_send_latency_seconds", backend))
+}
+
+func TestMetrics_StopLatencyLoopWithoutStart(t *testing.T) {
+	t.Parallel()
+
+	m := NewMetrics(nil).ForBackend(slog.Make(), BackendPostgres)
+	// Stop must be safe and return immediately when the loop never started.
+	m.StopLatencyLoop()
+}
+
+func TestMetrics_StopBeforeStartDoesNotRunLoop(t *testing.T) {
+	t.Parallel()
+
+	m := NewMetrics(nil).ForBackend(slog.Make(), BackendPostgres)
+	mem := NewInMemory()
+	defer mem.Close()
+
+	// Stopping before starting must cancel the loop's context so a later
+	// StartLatencyLoop does not launch a goroutine nothing would stop.
+	m.StopLatencyLoop()
+	m.StartLatencyLoop(mem)
+
+	m.latencyMu.Lock()
+	started := m.latencyDone != nil
+	m.latencyMu.Unlock()
+	require.False(t, started, "loop must not start after StopLatencyLoop")
+}
+
+func TestMetrics_StartStopLatencyLoopConcurrent(t *testing.T) {
+	t.Parallel()
+
+	// Exercise the Start/Stop race that arises because the NATS pubsub can
+	// call Close (StopLatencyLoop) concurrently with New (StartLatencyLoop).
+	// Run under -race to catch regressions.
+	m := NewMetrics(nil).ForBackend(slog.Make(), BackendNATS)
+	mem := NewInMemory()
+	defer mem.Close()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		m.StartLatencyLoop(mem)
+	}()
+	go func() {
+		defer wg.Done()
+		m.StopLatencyLoop()
+	}()
+	wg.Wait()
+
+	// Whichever order won, the loop must be stopped afterward.
+	m.StopLatencyLoop()
 }
