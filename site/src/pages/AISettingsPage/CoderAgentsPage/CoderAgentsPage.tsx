@@ -26,6 +26,7 @@ import { CoderAgentsPageView } from "./CoderAgentsPageView";
 
 const generalOverrideContext: TypesGen.ChatModelOverrideContext = "general";
 const exploreOverrideContext: TypesGen.ChatModelOverrideContext = "explore";
+const historianOverrideContext: TypesGen.ChatModelOverrideContext = "historian";
 const titleGenerationOverrideContext: TypesGen.ChatModelOverrideContext =
 	"title_generation";
 
@@ -75,6 +76,10 @@ const CoderAgentsPage: FC = () => {
 		...chatModelOverrideQuery(exploreOverrideContext),
 		enabled: canEditDeploymentConfig,
 	});
+	const historianModelOverrideQuery = useQuery({
+		...chatModelOverrideQuery(historianOverrideContext),
+		enabled: canEditDeploymentConfig,
+	});
 	const titleGenerationModelQuery = useQuery({
 		...chatModelOverrideQuery(titleGenerationOverrideContext),
 		enabled: canEditDeploymentConfig,
@@ -106,6 +111,9 @@ const CoderAgentsPage: FC = () => {
 	);
 	const saveExploreModelOverrideMutation = useMutation(
 		updateChatModelOverrideMutation(queryClient, exploreOverrideContext),
+	);
+	const saveHistorianModelOverrideMutation = useMutation(
+		updateChatModelOverrideMutation(queryClient, historianOverrideContext),
 	);
 	const saveAdvisorConfigMutation = useMutation(
 		updateChatAdvisorConfig(queryClient),
@@ -142,6 +150,7 @@ const CoderAgentsPage: FC = () => {
 				generalModelOverrideData={generalModelOverrideQuery.data}
 				titleGenerationModelOverrideData={titleGenerationModelQuery.data}
 				exploreModelOverrideData={exploreModelOverrideQuery.data}
+				historianModelOverrideData={historianModelOverrideQuery.data}
 				modelConfigsData={modelConfigsQuery.data}
 				providerInfoByID={providerInfoByID}
 				modelConfigsError={modelConfigsQuery.error}
@@ -167,6 +176,13 @@ const CoderAgentsPage: FC = () => {
 				}
 				isSaveExploreModelOverrideError={
 					saveExploreModelOverrideMutation.isError
+				}
+				onSaveHistorianModelOverride={saveHistorianModelOverrideMutation.mutate}
+				isSavingHistorianModelOverride={
+					saveHistorianModelOverrideMutation.isPending
+				}
+				isSaveHistorianModelOverrideError={
+					saveHistorianModelOverrideMutation.isError
 				}
 				showAdvisorSettings={showAdvisorSettings}
 				advisorConfigData={advisorConfigQuery.data}

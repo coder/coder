@@ -24,6 +24,9 @@ const (
 	CheckAibridgeTokenUsagesOutputPriceMicrosCheck           CheckConstraint = "aibridge_token_usages_output_price_micros_check"           // aibridge_token_usages
 	CheckAPIKeysAllowListNotEmpty                            CheckConstraint = "api_keys_allow_list_not_empty"                             // api_keys
 	CheckBoundaryLogsSequenceNumberCheck                     CheckConstraint = "boundary_logs_sequence_number_check"                       // boundary_logs
+	CheckChatHistorianStatesLastProcessedNonnegative         CheckConstraint = "chat_historian_states_last_processed_nonnegative"          // chat_historian_states
+	CheckChatHistorianStatesProcessingFields                 CheckConstraint = "chat_historian_states_processing_fields"                   // chat_historian_states
+	CheckChatHistorianStatesProcessingNonnegative            CheckConstraint = "chat_historian_states_processing_nonnegative"              // chat_historian_states
 	CheckChatModelConfigsAIProviderRequiredWhenActive        CheckConstraint = "chat_model_configs_ai_provider_required_when_active"       // chat_model_configs
 	CheckChatModelConfigsCompressionThresholdCheck           CheckConstraint = "chat_model_configs_compression_threshold_check"            // chat_model_configs
 	CheckChatModelConfigsContextLimitCheck                   CheckConstraint = "chat_model_configs_context_limit_check"                    // chat_model_configs

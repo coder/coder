@@ -425,10 +425,35 @@ func TestHandleMentionCreatesChatForNewThread(t *testing.T) {
 	assert.True(t, strings.HasPrefix(block.Text, "<slack-message>\n"))
 	assert.True(t, strings.HasSuffix(block.Text, "</slack-message>\n"))
 	assert.Contains(t, block.Text, "<timestamp-raw>100.1</timestamp-raw>\n")
+	assert.Contains(t, block.Text, "<timestamp>1970-01-01T00:01:40.1Z</timestamp>\n")
 	assert.Contains(t, block.Text, "<from-user>sender (<@USENDER>) (Sender Name)</from-user>\n")
 	// Mentions are rendered inline the way Slack displays them.
 	assert.Contains(t, block.Text, "<content>\n@bot hello @sender\n</content>\n")
 	assert.NotContains(t, block.Text, "<@UBOT>")
+}
+
+func TestFormatSlackTimestamp(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  string
+		want string
+		ok   bool
+	}{
+		{name: "Seconds", raw: "1721651696", want: "2024-07-22T12:34:56Z", ok: true},
+		{name: "Microseconds", raw: "1721651696.123456", want: "2024-07-22T12:34:56.123456Z", ok: true},
+		{name: "Malformed", raw: "not-a-timestamp"},
+		{name: "ExcessPrecision", raw: "1721651696.1234567890"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := formatSlackTimestamp(tt.raw)
+			assert.Equal(t, tt.ok, ok)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 func TestHandleMentionSendsToExistingChat(t *testing.T) {

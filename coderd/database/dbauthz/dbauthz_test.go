@@ -546,6 +546,65 @@ func (s *MethodTestSuite) TestConnectionLogs() {
 }
 
 func (s *MethodTestSuite) TestChats() {
+	s.Run("ClaimChatHistorianHistory", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		state := testutil.Fake(s.T(), faker, database.ChatHistorianState{})
+		arg := testutil.Fake(s.T(), faker, database.ClaimChatHistorianHistoryParams{})
+		dbm.EXPECT().ClaimChatHistorianHistory(gomock.Any(), arg).Return(state, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(state)
+	}))
+	s.Run("ClearChatHistorianClaim", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		state := testutil.Fake(s.T(), faker, database.ChatHistorianState{})
+		arg := testutil.Fake(s.T(), faker, database.ClearChatHistorianClaimParams{})
+		dbm.EXPECT().ClearChatHistorianClaim(gomock.Any(), arg).Return(state, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(state)
+	}))
+	s.Run("CompleteChatHistorianHistory", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		state := testutil.Fake(s.T(), faker, database.ChatHistorianState{})
+		arg := testutil.Fake(s.T(), faker, database.CompleteChatHistorianHistoryParams{})
+		dbm.EXPECT().CompleteChatHistorianHistory(gomock.Any(), arg).Return(state, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(state)
+	}))
+	s.Run("AdvanceChatHistorianHistory", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		state := testutil.Fake(s.T(), faker, database.ChatHistorianState{})
+		arg := testutil.Fake(s.T(), faker, database.AdvanceChatHistorianHistoryParams{})
+		dbm.EXPECT().AdvanceChatHistorianHistory(gomock.Any(), arg).Return(state, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(state)
+	}))
+	s.Run("SetChatHistorianChild", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		state := testutil.Fake(s.T(), faker, database.ChatHistorianState{})
+		arg := testutil.Fake(s.T(), faker, database.SetChatHistorianChildParams{})
+		dbm.EXPECT().SetChatHistorianChild(gomock.Any(), arg).Return(state, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(state)
+	}))
+	s.Run("MarkChatHistorianDispatched", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		state := testutil.Fake(s.T(), faker, database.ChatHistorianState{})
+		arg := testutil.Fake(s.T(), faker, database.MarkChatHistorianDispatchedParams{})
+		dbm.EXPECT().MarkChatHistorianDispatched(gomock.Any(), arg).Return(state, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(state)
+	}))
+	s.Run("GetChatHistorianCandidates", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.GetChatHistorianCandidatesParams{LimitCount: 10, IdleSeconds: 60}
+		candidate := testutil.Fake(s.T(), faker, database.GetChatHistorianCandidatesRow{})
+		dbm.EXPECT().GetChatHistorianCandidates(gomock.Any(), arg).Return([]database.GetChatHistorianCandidatesRow{candidate}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionRead).Returns([]database.GetChatHistorianCandidatesRow{candidate})
+	}))
+	s.Run("GetChatHistorianClaims", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		claim := testutil.Fake(s.T(), faker, database.GetChatHistorianClaimsRow{})
+		dbm.EXPECT().GetChatHistorianClaims(gomock.Any()).Return([]database.GetChatHistorianClaimsRow{claim}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceChat, policy.ActionRead).Returns([]database.GetChatHistorianClaimsRow{claim})
+	}))
+	s.Run("GetChatMessagesForHistorian", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.GetChatMessagesForHistorianParams{})
+		message := testutil.Fake(s.T(), faker, database.ChatMessage{})
+		dbm.EXPECT().GetChatMessagesForHistorian(gomock.Any(), arg).Return([]database.ChatMessage{message}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionRead).Returns([]database.ChatMessage{message})
+	}))
+	s.Run("GetLatestChatUserAPIKeyForHistorian", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.GetLatestChatUserAPIKeyForHistorianParams{})
+		apiKey := sql.NullString{String: "key", Valid: true}
+		dbm.EXPECT().GetLatestChatUserAPIKeyForHistorian(gomock.Any(), arg).Return(apiKey, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(apiKey)
+	}))
 	s.Run("AcquireChats", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.AcquireChatsParams{
 			StartedAt: dbtime.Now(),
@@ -1240,6 +1299,10 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatExploreModelOverride(gomock.Any()).Return("", nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead)
 	}))
+	s.Run("GetChatHistorianModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetChatHistorianModelOverride(gomock.Any()).Return("", nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead)
+	}))
 	s.Run("GetChatTitleGenerationModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead)
@@ -1669,6 +1732,10 @@ func (s *MethodTestSuite) TestChats() {
 	}))
 	s.Run("UpsertChatExploreModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().UpsertChatExploreModelOverride(gomock.Any(), "").Return(nil).AnyTimes()
+		check.Args("").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	}))
+	s.Run("UpsertChatHistorianModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().UpsertChatHistorianModelOverride(gomock.Any(), "").Return(nil).AnyTimes()
 		check.Args("").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 	s.Run("UpsertChatTitleGenerationModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {

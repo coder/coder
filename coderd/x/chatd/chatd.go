@@ -1170,6 +1170,9 @@ type CreateOptions struct {
 	MCPServerIDs       []uuid.UUID
 	Labels             database.StringMap
 	DynamicTools       json.RawMessage
+	// SkipPromptInjections is reserved for internal chat modes whose prompt
+	// policy is assembled during generation preparation.
+	SkipPromptInjections bool
 	// DedupLabels, when non-empty, serializes chat creation across
 	// coderd replicas. Inside the creation transaction chatd acquires
 	// a Postgres advisory transaction lock derived from the owner and
@@ -1310,7 +1313,10 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	// Resolve the deployment prompt before opening the transaction so
 	// chat creation does not hold one DB connection while waiting for
 	// another pool checkout.
-	deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
+	deploymentPrompt := ""
+	if !opts.SkipPromptInjections {
+		deploymentPrompt = p.resolveDeploymentSystemPrompt(ctx)
+	}
 
 	// Usage limits gate the create before we touch the state machine.
 	if limitErr := p.checkUsageLimit(ctx, p.db, opts.OwnerID, uuid.NullUUID{UUID: opts.OrganizationID, Valid: true}); limitErr != nil {
@@ -1352,16 +1358,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	}
 
 	userPrompt := SanitizePromptText(opts.SystemPrompt)
-	workspaceAwareness := workspaceDetachedAwareness
-	if opts.WorkspaceID.Valid {
-		workspaceAwareness = workspaceAttachedAwareness
-	}
-	workspaceAwarenessContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageText(workspaceAwareness),
-	})
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("marshal workspace awareness: %w", err)
-	}
 	userContent, err := chatprompt.MarshalParts(opts.InitialUserContent)
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal initial user content: %w", err)
@@ -1386,7 +1382,19 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		}
 		initialMessages = append(initialMessages, systemMessage(userPromptContent, opts.ModelConfigID))
 	}
-	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, opts.ModelConfigID))
+	if !opts.SkipPromptInjections {
+		workspaceAwareness := workspaceDetachedAwareness
+		if opts.WorkspaceID.Valid {
+			workspaceAwareness = workspaceAttachedAwareness
+		}
+		workspaceAwarenessContent, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(workspaceAwareness),
+		})
+		if marshalErr != nil {
+			return database.Chat{}, xerrors.Errorf("marshal workspace awareness: %w", marshalErr)
+		}
+		initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, opts.ModelConfigID))
+	}
 	initialMessages = append(initialMessages, userMessageWithAPIKeyID(userContent, opts.ModelConfigID, opts.OwnerID, opts.APIKeyID, opts.ReasoningEffort))
 
 	result, err := chatstate.CreateChat(ctx, p.db, p.pubsub, chatstate.CreateChatInput{

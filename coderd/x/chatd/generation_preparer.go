@@ -31,6 +31,9 @@ func (server *Server) prepareGeneration(
 	input generationPrepareInput,
 ) (generationPrepared, error) {
 	chat := input.Chat
+	if isHistorianMode(chat.Mode) {
+		return server.prepareHistorianGeneration(ctx, input)
+	}
 	logger := server.logger.With(
 		slog.F("chat_id", chat.ID),
 		slog.F("owner_id", chat.OwnerID),

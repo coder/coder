@@ -72,6 +72,13 @@ func TestHandleMentionLinkedSenderOwnsChat(t *testing.T) {
 	linkedOrg := dbgen.Organization(t, db, database.Organization{})
 	linked := seedMember(t, db, linkedOrg)
 	linkSlackIdentity(t, db, testProviderID, linked.ID, "ULINKED")
+	_, err := db.InsertAgentMemory(ctx, database.InsertAgentMemoryParams{
+		ID:      uuid.New(),
+		UserID:  linked.ID,
+		Path:    "/memory.md",
+		Content: "The user prefers concise Slack replies.",
+	})
+	require.NoError(t, err)
 
 	chat := newFakeChatSubmitter()
 	chat.createChat = database.Chat{ID: uuid.New(), OwnerID: linked.ID}
@@ -98,6 +105,9 @@ func TestHandleMentionLinkedSenderOwnsChat(t *testing.T) {
 	assert.Contains(t, create.SystemPrompt, `"streamable_http" over "sse"`)
 	assert.Contains(t, create.SystemPrompt, "Every auth field accepts either a value or user_input wrapper")
 	assert.Contains(t, create.SystemPrompt, "Never ask users to")
+	assert.Contains(t, create.SystemPrompt, "# Memory")
+	assert.Contains(t, create.SystemPrompt, "Daily notes: /daily/YYYY-MM-DD.md")
+	assert.Contains(t, create.SystemPrompt, "The user prefers concise Slack replies.")
 	assert.NotContains(t, create.SystemPrompt, "you're running in shared mode")
 }
 
@@ -124,6 +134,7 @@ func TestHandleMentionUnlinkedSenderUsesFallback(t *testing.T) {
 	assert.Contains(t, creates[0].SystemPrompt, "you're running in shared mode")
 	assert.Contains(t, creates[0].SystemPrompt, "https://coder.example.com/settings/external-auth")
 	assert.NotContains(t, creates[0].SystemPrompt, "propose_mcp_server")
+	assert.NotContains(t, creates[0].SystemPrompt, "# Memory")
 }
 
 func TestHandleMentionNoProviderIgnoresLinks(t *testing.T) {

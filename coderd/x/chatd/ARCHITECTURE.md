@@ -577,6 +577,7 @@ The chat worker is responsible for:
 - acquiring chats when the chat is in a runnable state and no worker owns it, by listening to `chat:ownership` notifications and doing periodical checks via database queries;
 - spawning a chat runner for each acquired chat: the chat runner is scoped to a single chat and is responsible for driving a chat forward by calling the LLM API and executing tools;
 - upserting heartbeat rows in `chat_heartbeats` for runners owned by the worker;
+- scheduling historian children that maintain durable user memories from completed root chats;
 - maintaining in-memory buffers of in-flight message parts for each chat;
 - cleaning up runners when a chat is no longer owned by the runner, which it detects by inspecting `chat:update:{chat_id}` notifications and database sync results.
 
@@ -683,6 +684,22 @@ WHERE heartbeat_at < now() - interval '30 seconds';
 ```
 
 Heartbeat rows are also removed automatically when their chat is deleted via the `chat_heartbeats.chat_id` foreign key.
+
+### Historian loop
+
+The historian loop runs once at worker startup and every 10 seconds. It selects unarchived root chats in `waiting` or `error` status that have been idle for at least one minute, whose latest message is no more than 24 hours old, and whose `history_version` is newer than the last version processed by a historian. Every message kind counts when determining the latest message. Roots shared through Slack, group ACLs, or non-owner user ACLs are excluded under the same privacy policy used by memory tools.
+
+`chat_historian_states` stores one row per root chat. The row records the persistent historian child, the last processed root `history_version`, and a durable in-progress claim containing the captured history version, dispatch UUID, start time, and dispatch time. Root deletion cascades to this state. Historian child deletion sets the child reference to null so the next pass can create a replacement. Child creation also uses the normal advisory-lock deduplication path with a root-specific internal label.
+
+Each pass reconciles claims before selecting new work. A historian child that reaches `waiting` advances the processed version. A child in `error` clears the claim so the same root delta can be retried. A dispatch UUID is stored as stripped metadata on the historian user message. After a process interruption, the loop uses this metadata to distinguish a message that was already submitted from a claim that still needs dispatch.
+
+Selection returns at most one oldest eligible root per owner. The worker also reserves owners with active or claimed historians, so only one historian runs for a user within one coderd process. This serialization is intentionally process-local and does not coordinate across replicas.
+
+The loop reads only undeleted, uncompressed messages in the claimed revision interval. It copies user text and assistant text from messages that contain no tool call. For assistant messages containing tool calls, it copies the serialized input of each `slack_send_message` call as assistant text. It excludes all other tool calls, system and tool messages, reasoning, files, attachments, hidden content, deleted content, compressed summaries, and all other non-text parts. If filtering leaves no transcript entries, the loop advances the processed version without invoking the model.
+
+A root has one persistent `historian` child, created with the root as both its parent and root reference. The child inherits ownership, organization, client type, and the latest source user API key attribution. Its model comes from the deployment-wide historian model override when that override is usable, otherwise it inherits the root model. The model is resolved for every dispatch, including later deltas sent to the existing child through the normal send-message transition. The child does not inherit workspace bindings, workspace context, plan mode, MCP servers, or dynamic tools. Daily memory paths use the dispatch date in UTC and have the form `/daily/YYYY-MM-DD.md`.
+
+Historian mode cannot be requested through `spawn_agent`, but existing historian children are reported with type `historian`. Its generation preparation uses a dedicated system prompt and exposes exactly `read_memory`, `search_memories`, `list_memories`, `write_memory`, and `edit_memory`. It does not load deployment or user prompt injections, workspace tools, skills, subagent tools, MCP tools, dynamic tools, provider tools, web search, computer use, or advisor behavior. Preparation fails if the root's current sharing state no longer permits memory access.
 
 ## Message part buffer
 

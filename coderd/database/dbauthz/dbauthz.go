@@ -1760,6 +1760,13 @@ func (q *querier) ActivityBumpWorkspace(ctx context.Context, arg database.Activi
 	return update(q.log, q.auth, fetch, q.db.ActivityBumpWorkspace)(ctx, arg)
 }
 
+func (q *querier) AdvanceChatHistorianHistory(ctx context.Context, arg database.AdvanceChatHistorianHistoryParams) (database.ChatHistorianState, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return database.ChatHistorianState{}, err
+	}
+	return q.db.AdvanceChatHistorianHistory(ctx, arg)
+}
+
 func (q *querier) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error) {
 	// Although this technically only reads users, only system-related functions
 	// should be allowed to call this.
@@ -1883,6 +1890,13 @@ func (q *querier) ChatMessageExistsWithContentMetadata(ctx context.Context, arg 
 	return q.db.ChatMessageExistsWithContentMetadata(ctx, arg)
 }
 
+func (q *querier) ClaimChatHistorianHistory(ctx context.Context, arg database.ClaimChatHistorianHistoryParams) (database.ChatHistorianState, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return database.ChatHistorianState{}, err
+	}
+	return q.db.ClaimChatHistorianHistory(ctx, arg)
+}
+
 func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	empty := database.ClaimPrebuiltWorkspaceRow{}
 
@@ -1934,6 +1948,20 @@ func (q *querier) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 		return err
 	}
 	return q.db.CleanupDeletedMCPServerIDsFromChats(ctx)
+}
+
+func (q *querier) ClearChatHistorianClaim(ctx context.Context, arg database.ClearChatHistorianClaimParams) (database.ChatHistorianState, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return database.ChatHistorianState{}, err
+	}
+	return q.db.ClearChatHistorianClaim(ctx, arg)
+}
+
+func (q *querier) CompleteChatHistorianHistory(ctx context.Context, arg database.CompleteChatHistorianHistoryParams) (database.ChatHistorianState, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return database.ChatHistorianState{}, err
+	}
+	return q.db.CompleteChatHistorianHistory(ctx, arg)
 }
 
 func (q *querier) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
@@ -3412,6 +3440,27 @@ func (q *querier) GetChatHeartbeat(ctx context.Context, arg database.GetChatHear
 	return q.db.GetChatHeartbeat(ctx, arg)
 }
 
+func (q *querier) GetChatHistorianCandidates(ctx context.Context, arg database.GetChatHistorianCandidatesParams) ([]database.GetChatHistorianCandidatesRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatHistorianCandidates(ctx, arg)
+}
+
+func (q *querier) GetChatHistorianClaims(ctx context.Context) ([]database.GetChatHistorianClaimsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatHistorianClaims(ctx)
+}
+
+func (q *querier) GetChatHistorianModelOverride(ctx context.Context) (string, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return "", err
+	}
+	return q.db.GetChatHistorianModelOverride(ctx)
+}
+
 func (q *querier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
 	// The include-default-system-prompt flag is a deployment-wide setting read
 	// during chat creation by every authenticated user, so no RBAC policy
@@ -3478,6 +3527,13 @@ func (q *querier) GetChatMessagesByRevisionForStream(ctx context.Context, arg da
 		return nil, err
 	}
 	return q.db.GetChatMessagesByRevisionForStream(ctx, arg)
+}
+
+func (q *querier) GetChatMessagesForHistorian(ctx context.Context, arg database.GetChatMessagesForHistorianParams) ([]database.ChatMessage, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatMessagesForHistorian(ctx, arg)
 }
 
 func (q *querier) GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
@@ -4016,6 +4072,13 @@ func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return q.db.GetLastUpdateCheck(ctx)
+}
+
+func (q *querier) GetLatestChatUserAPIKeyForHistorian(ctx context.Context, arg database.GetLatestChatUserAPIKeyForHistorianParams) (sql.NullString, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return sql.NullString{}, err
+	}
+	return q.db.GetLatestChatUserAPIKeyForHistorian(ctx, arg)
 }
 
 func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
@@ -7027,6 +7090,13 @@ func (q *querier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg datab
 	return q.db.MarkAllInboxNotificationsAsRead(ctx, arg)
 }
 
+func (q *querier) MarkChatHistorianDispatched(ctx context.Context, arg database.MarkChatHistorianDispatchedParams) (database.ChatHistorianState, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return database.ChatHistorianState{}, err
+	}
+	return q.db.MarkChatHistorianDispatched(ctx, arg)
+}
+
 func (q *querier) MarkChatsContextDirtyByAgent(ctx context.Context, arg database.MarkChatsContextDirtyByAgentParams) ([]database.MarkChatsContextDirtyByAgentRow, error) {
 	// System-level operation: the dirty fan-out runs across every active
 	// chat for the agent in response to a context push.
@@ -7183,6 +7253,13 @@ func (q *querier) SetChatContextSnapshot(ctx context.Context, arg database.SetCh
 		return err
 	}
 	return q.db.SetChatContextSnapshot(ctx, arg)
+}
+
+func (q *querier) SetChatHistorianChild(ctx context.Context, arg database.SetChatHistorianChildParams) (database.ChatHistorianState, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return database.ChatHistorianState{}, err
+	}
+	return q.db.SetChatHistorianChild(ctx, arg)
 }
 
 func (q *querier) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
@@ -8985,6 +9062,13 @@ func (q *querier) UpsertChatHeartbeat(ctx context.Context, arg database.UpsertCh
 	}
 	_ = chat
 	return q.db.UpsertChatHeartbeat(ctx, arg)
+}
+
+func (q *querier) UpsertChatHistorianModelOverride(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertChatHistorianModelOverride(ctx, value)
 }
 
 func (q *querier) UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefaultSystemPrompt bool) error {

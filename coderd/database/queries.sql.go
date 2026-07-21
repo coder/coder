@@ -4501,6 +4501,561 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 	return new_period, err
 }
 
+const advanceChatHistorianHistory = `-- name: AdvanceChatHistorianHistory :one
+INSERT INTO chat_historian_states (
+    root_chat_id,
+    last_processed_history_version
+) VALUES (
+    $1::uuid,
+    $2::bigint
+)
+ON CONFLICT (root_chat_id) DO UPDATE
+SET last_processed_history_version = EXCLUDED.last_processed_history_version,
+    updated_at = now()
+WHERE chat_historian_states.processing_history_version IS NULL
+  AND chat_historian_states.last_processed_history_version
+      < EXCLUDED.last_processed_history_version
+RETURNING root_chat_id, historian_chat_id, last_processed_history_version, processing_history_version, processing_started_at, dispatch_id, dispatched_at, created_at, updated_at
+`
+
+type AdvanceChatHistorianHistoryParams struct {
+	RootChatID     uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	HistoryVersion int64     `db:"history_version" json:"history_version"`
+}
+
+func (q *sqlQuerier) AdvanceChatHistorianHistory(ctx context.Context, arg AdvanceChatHistorianHistoryParams) (ChatHistorianState, error) {
+	row := q.db.QueryRowContext(ctx, advanceChatHistorianHistory, arg.RootChatID, arg.HistoryVersion)
+	var i ChatHistorianState
+	err := row.Scan(
+		&i.RootChatID,
+		&i.HistorianChatID,
+		&i.LastProcessedHistoryVersion,
+		&i.ProcessingHistoryVersion,
+		&i.ProcessingStartedAt,
+		&i.DispatchID,
+		&i.DispatchedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const claimChatHistorianHistory = `-- name: ClaimChatHistorianHistory :one
+INSERT INTO chat_historian_states (
+    root_chat_id,
+    processing_history_version,
+    processing_started_at,
+    dispatch_id
+) VALUES (
+    $1::uuid,
+    $2::bigint,
+    $3::timestamptz,
+    $4::uuid
+)
+ON CONFLICT (root_chat_id) DO UPDATE
+SET processing_history_version = EXCLUDED.processing_history_version,
+    processing_started_at = EXCLUDED.processing_started_at,
+    dispatch_id = EXCLUDED.dispatch_id,
+    dispatched_at = NULL,
+    updated_at = now()
+WHERE chat_historian_states.processing_history_version IS NULL
+  AND chat_historian_states.last_processed_history_version
+      < EXCLUDED.processing_history_version
+RETURNING root_chat_id, historian_chat_id, last_processed_history_version, processing_history_version, processing_started_at, dispatch_id, dispatched_at, created_at, updated_at
+`
+
+type ClaimChatHistorianHistoryParams struct {
+	RootChatID               uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	ProcessingHistoryVersion int64     `db:"processing_history_version" json:"processing_history_version"`
+	ProcessingStartedAt      time.Time `db:"processing_started_at" json:"processing_started_at"`
+	DispatchID               uuid.UUID `db:"dispatch_id" json:"dispatch_id"`
+}
+
+func (q *sqlQuerier) ClaimChatHistorianHistory(ctx context.Context, arg ClaimChatHistorianHistoryParams) (ChatHistorianState, error) {
+	row := q.db.QueryRowContext(ctx, claimChatHistorianHistory,
+		arg.RootChatID,
+		arg.ProcessingHistoryVersion,
+		arg.ProcessingStartedAt,
+		arg.DispatchID,
+	)
+	var i ChatHistorianState
+	err := row.Scan(
+		&i.RootChatID,
+		&i.HistorianChatID,
+		&i.LastProcessedHistoryVersion,
+		&i.ProcessingHistoryVersion,
+		&i.ProcessingStartedAt,
+		&i.DispatchID,
+		&i.DispatchedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const clearChatHistorianClaim = `-- name: ClearChatHistorianClaim :one
+UPDATE chat_historian_states
+SET processing_history_version = NULL,
+    processing_started_at = NULL,
+    dispatch_id = NULL,
+    dispatched_at = NULL,
+    updated_at = now()
+WHERE root_chat_id = $1::uuid
+  AND dispatch_id = $2::uuid
+RETURNING root_chat_id, historian_chat_id, last_processed_history_version, processing_history_version, processing_started_at, dispatch_id, dispatched_at, created_at, updated_at
+`
+
+type ClearChatHistorianClaimParams struct {
+	RootChatID uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	DispatchID uuid.UUID `db:"dispatch_id" json:"dispatch_id"`
+}
+
+func (q *sqlQuerier) ClearChatHistorianClaim(ctx context.Context, arg ClearChatHistorianClaimParams) (ChatHistorianState, error) {
+	row := q.db.QueryRowContext(ctx, clearChatHistorianClaim, arg.RootChatID, arg.DispatchID)
+	var i ChatHistorianState
+	err := row.Scan(
+		&i.RootChatID,
+		&i.HistorianChatID,
+		&i.LastProcessedHistoryVersion,
+		&i.ProcessingHistoryVersion,
+		&i.ProcessingStartedAt,
+		&i.DispatchID,
+		&i.DispatchedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const completeChatHistorianHistory = `-- name: CompleteChatHistorianHistory :one
+UPDATE chat_historian_states
+SET last_processed_history_version = processing_history_version,
+    processing_history_version = NULL,
+    processing_started_at = NULL,
+    dispatch_id = NULL,
+    dispatched_at = NULL,
+    updated_at = now()
+WHERE root_chat_id = $1::uuid
+  AND dispatch_id = $2::uuid
+  AND dispatched_at IS NOT NULL
+RETURNING root_chat_id, historian_chat_id, last_processed_history_version, processing_history_version, processing_started_at, dispatch_id, dispatched_at, created_at, updated_at
+`
+
+type CompleteChatHistorianHistoryParams struct {
+	RootChatID uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	DispatchID uuid.UUID `db:"dispatch_id" json:"dispatch_id"`
+}
+
+func (q *sqlQuerier) CompleteChatHistorianHistory(ctx context.Context, arg CompleteChatHistorianHistoryParams) (ChatHistorianState, error) {
+	row := q.db.QueryRowContext(ctx, completeChatHistorianHistory, arg.RootChatID, arg.DispatchID)
+	var i ChatHistorianState
+	err := row.Scan(
+		&i.RootChatID,
+		&i.HistorianChatID,
+		&i.LastProcessedHistoryVersion,
+		&i.ProcessingHistoryVersion,
+		&i.ProcessingStartedAt,
+		&i.DispatchID,
+		&i.DispatchedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getChatHistorianCandidates = `-- name: GetChatHistorianCandidates :many
+WITH candidates AS (
+    SELECT DISTINCT ON (chat.owner_id)
+        chat.id, chat.owner_id, chat.workspace_id, chat.title, chat.status, chat.worker_id, chat.started_at, chat.heartbeat_at, chat.created_at, chat.updated_at, chat.parent_chat_id, chat.root_chat_id, chat.last_model_config_id, chat.last_reasoning_effort, chat.archived, chat.last_error, chat.mode, chat.mcp_server_ids, chat.labels, chat.build_id, chat.agent_id, chat.pin_order, chat.last_read_message_id, chat.dynamic_tools, chat.organization_id, chat.plan_mode, chat.client_type, chat.last_turn_summary, chat.snapshot_version, chat.history_version, chat.queue_version, chat.generation_attempt, chat.retry_state, chat.retry_state_version, chat.runner_id, chat.requires_action_deadline_at, chat.user_acl, chat.group_acl, chat.owner_username, chat.owner_name, chat.context_aggregate_hash, chat.context_dirty_since, chat.context_dirty_resources, chat.context_error,
+        COALESCE(hs.last_processed_history_version, 0)::bigint
+            AS last_processed_history_version
+    FROM chats_expanded chat
+    LEFT JOIN chat_historian_states hs ON hs.root_chat_id = chat.id
+    WHERE chat.parent_chat_id IS NULL
+      AND chat.archived = false
+      AND chat.status IN ('waiting'::chat_status, 'error'::chat_status)
+      AND chat.updated_at <= NOW() - (INTERVAL '1 second' * $2::int)
+      AND EXISTS (
+          SELECT 1
+          FROM chat_messages message
+          WHERE message.chat_id = chat.id
+            AND message.created_at >= NOW() - INTERVAL '24 hours'
+      )
+      AND chat.history_version > COALESCE(hs.last_processed_history_version, 0)
+      AND hs.processing_history_version IS NULL
+      AND COALESCE(chat.labels->>'slack_shared', 'false') <> 'true'
+      AND chat.group_acl = '{}'::jsonb
+      AND NOT EXISTS (
+          SELECT 1
+          FROM jsonb_object_keys(chat.user_acl) acl_user_id
+          WHERE acl_user_id <> chat.owner_id::text
+      )
+    ORDER BY chat.owner_id, chat.updated_at ASC, chat.id ASC
+)
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_processed_history_version
+FROM candidates
+ORDER BY updated_at ASC, id ASC
+LIMIT $1::int
+`
+
+type GetChatHistorianCandidatesParams struct {
+	LimitCount  int32 `db:"limit_count" json:"limit_count"`
+	IdleSeconds int32 `db:"idle_seconds" json:"idle_seconds"`
+}
+
+type GetChatHistorianCandidatesRow struct {
+	ID                          uuid.UUID               `db:"id" json:"id"`
+	OwnerID                     uuid.UUID               `db:"owner_id" json:"owner_id"`
+	WorkspaceID                 uuid.NullUUID           `db:"workspace_id" json:"workspace_id"`
+	Title                       string                  `db:"title" json:"title"`
+	Status                      ChatStatus              `db:"status" json:"status"`
+	WorkerID                    uuid.NullUUID           `db:"worker_id" json:"worker_id"`
+	StartedAt                   sql.NullTime            `db:"started_at" json:"started_at"`
+	HeartbeatAt                 sql.NullTime            `db:"heartbeat_at" json:"heartbeat_at"`
+	CreatedAt                   time.Time               `db:"created_at" json:"created_at"`
+	UpdatedAt                   time.Time               `db:"updated_at" json:"updated_at"`
+	ParentChatID                uuid.NullUUID           `db:"parent_chat_id" json:"parent_chat_id"`
+	RootChatID                  uuid.NullUUID           `db:"root_chat_id" json:"root_chat_id"`
+	LastModelConfigID           uuid.UUID               `db:"last_model_config_id" json:"last_model_config_id"`
+	LastReasoningEffort         NullChatReasoningEffort `db:"last_reasoning_effort" json:"last_reasoning_effort"`
+	Archived                    bool                    `db:"archived" json:"archived"`
+	LastError                   pqtype.NullRawMessage   `db:"last_error" json:"last_error"`
+	Mode                        NullChatMode            `db:"mode" json:"mode"`
+	MCPServerIDs                []uuid.UUID             `db:"mcp_server_ids" json:"mcp_server_ids"`
+	Labels                      json.RawMessage         `db:"labels" json:"labels"`
+	BuildID                     uuid.NullUUID           `db:"build_id" json:"build_id"`
+	AgentID                     uuid.NullUUID           `db:"agent_id" json:"agent_id"`
+	PinOrder                    int32                   `db:"pin_order" json:"pin_order"`
+	LastReadMessageID           sql.NullInt64           `db:"last_read_message_id" json:"last_read_message_id"`
+	DynamicTools                pqtype.NullRawMessage   `db:"dynamic_tools" json:"dynamic_tools"`
+	OrganizationID              uuid.UUID               `db:"organization_id" json:"organization_id"`
+	PlanMode                    NullChatPlanMode        `db:"plan_mode" json:"plan_mode"`
+	ClientType                  ChatClientType          `db:"client_type" json:"client_type"`
+	LastTurnSummary             sql.NullString          `db:"last_turn_summary" json:"last_turn_summary"`
+	SnapshotVersion             int64                   `db:"snapshot_version" json:"snapshot_version"`
+	HistoryVersion              int64                   `db:"history_version" json:"history_version"`
+	QueueVersion                int64                   `db:"queue_version" json:"queue_version"`
+	GenerationAttempt           int64                   `db:"generation_attempt" json:"generation_attempt"`
+	RetryState                  pqtype.NullRawMessage   `db:"retry_state" json:"retry_state"`
+	RetryStateVersion           int64                   `db:"retry_state_version" json:"retry_state_version"`
+	RunnerID                    uuid.NullUUID           `db:"runner_id" json:"runner_id"`
+	RequiresActionDeadlineAt    sql.NullTime            `db:"requires_action_deadline_at" json:"requires_action_deadline_at"`
+	UserACL                     json.RawMessage         `db:"user_acl" json:"user_acl"`
+	GroupACL                    json.RawMessage         `db:"group_acl" json:"group_acl"`
+	OwnerUsername               string                  `db:"owner_username" json:"owner_username"`
+	OwnerName                   string                  `db:"owner_name" json:"owner_name"`
+	ContextAggregateHash        []byte                  `db:"context_aggregate_hash" json:"context_aggregate_hash"`
+	ContextDirtySince           sql.NullTime            `db:"context_dirty_since" json:"context_dirty_since"`
+	ContextDirtyResources       pqtype.NullRawMessage   `db:"context_dirty_resources" json:"context_dirty_resources"`
+	ContextError                string                  `db:"context_error" json:"context_error"`
+	LastProcessedHistoryVersion int64                   `db:"last_processed_history_version" json:"last_processed_history_version"`
+}
+
+func (q *sqlQuerier) GetChatHistorianCandidates(ctx context.Context, arg GetChatHistorianCandidatesParams) ([]GetChatHistorianCandidatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatHistorianCandidates, arg.LimitCount, arg.IdleSeconds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatHistorianCandidatesRow
+	for rows.Next() {
+		var i GetChatHistorianCandidatesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.LastReasoningEffort,
+			&i.Archived,
+			&i.LastError,
+			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
+			&i.Labels,
+			&i.BuildID,
+			&i.AgentID,
+			&i.PinOrder,
+			&i.LastReadMessageID,
+			&i.DynamicTools,
+			&i.OrganizationID,
+			&i.PlanMode,
+			&i.ClientType,
+			&i.LastTurnSummary,
+			&i.SnapshotVersion,
+			&i.HistoryVersion,
+			&i.QueueVersion,
+			&i.GenerationAttempt,
+			&i.RetryState,
+			&i.RetryStateVersion,
+			&i.RunnerID,
+			&i.RequiresActionDeadlineAt,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.OwnerUsername,
+			&i.OwnerName,
+			&i.ContextAggregateHash,
+			&i.ContextDirtySince,
+			&i.ContextDirtyResources,
+			&i.ContextError,
+			&i.LastProcessedHistoryVersion,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatHistorianClaims = `-- name: GetChatHistorianClaims :many
+SELECT
+    hs.root_chat_id, hs.historian_chat_id, hs.last_processed_history_version, hs.processing_history_version, hs.processing_started_at, hs.dispatch_id, hs.dispatched_at, hs.created_at, hs.updated_at,
+    root.owner_id,
+    EXISTS (
+        SELECT 1
+        FROM chat_messages message
+        WHERE message.chat_id = root.id
+          AND message.created_at >= NOW() - INTERVAL '24 hours'
+    ) AS root_recent,
+    historian.status AS historian_status,
+    historian.archived AS historian_archived
+FROM chat_historian_states hs
+JOIN chats root ON root.id = hs.root_chat_id
+LEFT JOIN chats historian ON historian.id = hs.historian_chat_id
+WHERE hs.processing_history_version IS NOT NULL
+   OR (
+       historian.id IS NOT NULL
+       AND historian.archived = false
+       AND historian.status NOT IN (
+           'waiting'::chat_status,
+           'completed'::chat_status,
+           'error'::chat_status
+       )
+   )
+ORDER BY hs.processing_started_at ASC, hs.root_chat_id ASC
+`
+
+type GetChatHistorianClaimsRow struct {
+	RootChatID                  uuid.UUID      `db:"root_chat_id" json:"root_chat_id"`
+	HistorianChatID             uuid.NullUUID  `db:"historian_chat_id" json:"historian_chat_id"`
+	LastProcessedHistoryVersion int64          `db:"last_processed_history_version" json:"last_processed_history_version"`
+	ProcessingHistoryVersion    sql.NullInt64  `db:"processing_history_version" json:"processing_history_version"`
+	ProcessingStartedAt         sql.NullTime   `db:"processing_started_at" json:"processing_started_at"`
+	DispatchID                  uuid.NullUUID  `db:"dispatch_id" json:"dispatch_id"`
+	DispatchedAt                sql.NullTime   `db:"dispatched_at" json:"dispatched_at"`
+	CreatedAt                   time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt                   time.Time      `db:"updated_at" json:"updated_at"`
+	OwnerID                     uuid.UUID      `db:"owner_id" json:"owner_id"`
+	RootRecent                  bool           `db:"root_recent" json:"root_recent"`
+	HistorianStatus             NullChatStatus `db:"historian_status" json:"historian_status"`
+	HistorianArchived           sql.NullBool   `db:"historian_archived" json:"historian_archived"`
+}
+
+func (q *sqlQuerier) GetChatHistorianClaims(ctx context.Context) ([]GetChatHistorianClaimsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatHistorianClaims)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatHistorianClaimsRow
+	for rows.Next() {
+		var i GetChatHistorianClaimsRow
+		if err := rows.Scan(
+			&i.RootChatID,
+			&i.HistorianChatID,
+			&i.LastProcessedHistoryVersion,
+			&i.ProcessingHistoryVersion,
+			&i.ProcessingStartedAt,
+			&i.DispatchID,
+			&i.DispatchedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OwnerID,
+			&i.RootRecent,
+			&i.HistorianStatus,
+			&i.HistorianArchived,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatMessagesForHistorian = `-- name: GetChatMessagesForHistorian :many
+SELECT id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision, reasoning_effort
+FROM chat_messages
+WHERE chat_id = $1::uuid
+  AND revision > $2::bigint
+  AND revision <= $3::bigint
+  AND deleted = false
+  AND compressed = false
+  AND visibility IN ('user'::chat_message_visibility, 'both'::chat_message_visibility)
+  AND role IN ('user'::chat_message_role, 'assistant'::chat_message_role)
+ORDER BY revision ASC, id ASC
+`
+
+type GetChatMessagesForHistorianParams struct {
+	ChatID                uuid.UUID `db:"chat_id" json:"chat_id"`
+	AfterHistoryVersion   int64     `db:"after_history_version" json:"after_history_version"`
+	ThroughHistoryVersion int64     `db:"through_history_version" json:"through_history_version"`
+}
+
+func (q *sqlQuerier) GetChatMessagesForHistorian(ctx context.Context, arg GetChatMessagesForHistorianParams) ([]ChatMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getChatMessagesForHistorian, arg.ChatID, arg.AfterHistoryVersion, arg.ThroughHistoryVersion)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMessage
+	for rows.Next() {
+		var i ChatMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.ModelConfigID,
+			&i.CreatedAt,
+			&i.Role,
+			&i.Content,
+			&i.Visibility,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.TotalTokens,
+			&i.ReasoningTokens,
+			&i.CacheCreationTokens,
+			&i.CacheReadTokens,
+			&i.ContextLimit,
+			&i.Compressed,
+			&i.CreatedBy,
+			&i.ContentVersion,
+			&i.TotalCostMicros,
+			&i.RuntimeMs,
+			&i.Deleted,
+			&i.ProviderResponseID,
+			&i.APIKeyID,
+			&i.Revision,
+			&i.ReasoningEffort,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getLatestChatUserAPIKeyForHistorian = `-- name: GetLatestChatUserAPIKeyForHistorian :one
+SELECT api_key_id
+FROM chat_messages
+WHERE chat_id = $1::uuid
+  AND revision <= $2::bigint
+  AND deleted = false
+  AND role = 'user'::chat_message_role
+  AND api_key_id IS NOT NULL
+  AND api_key_id <> ''
+ORDER BY revision DESC, id DESC
+LIMIT 1
+`
+
+type GetLatestChatUserAPIKeyForHistorianParams struct {
+	ChatID                uuid.UUID `db:"chat_id" json:"chat_id"`
+	ThroughHistoryVersion int64     `db:"through_history_version" json:"through_history_version"`
+}
+
+func (q *sqlQuerier) GetLatestChatUserAPIKeyForHistorian(ctx context.Context, arg GetLatestChatUserAPIKeyForHistorianParams) (sql.NullString, error) {
+	row := q.db.QueryRowContext(ctx, getLatestChatUserAPIKeyForHistorian, arg.ChatID, arg.ThroughHistoryVersion)
+	var api_key_id sql.NullString
+	err := row.Scan(&api_key_id)
+	return api_key_id, err
+}
+
+const markChatHistorianDispatched = `-- name: MarkChatHistorianDispatched :one
+UPDATE chat_historian_states
+SET dispatched_at = now(),
+    updated_at = now()
+WHERE root_chat_id = $1::uuid
+  AND dispatch_id = $2::uuid
+  AND processing_history_version = $3::bigint
+RETURNING root_chat_id, historian_chat_id, last_processed_history_version, processing_history_version, processing_started_at, dispatch_id, dispatched_at, created_at, updated_at
+`
+
+type MarkChatHistorianDispatchedParams struct {
+	RootChatID               uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	DispatchID               uuid.UUID `db:"dispatch_id" json:"dispatch_id"`
+	ProcessingHistoryVersion int64     `db:"processing_history_version" json:"processing_history_version"`
+}
+
+func (q *sqlQuerier) MarkChatHistorianDispatched(ctx context.Context, arg MarkChatHistorianDispatchedParams) (ChatHistorianState, error) {
+	row := q.db.QueryRowContext(ctx, markChatHistorianDispatched, arg.RootChatID, arg.DispatchID, arg.ProcessingHistoryVersion)
+	var i ChatHistorianState
+	err := row.Scan(
+		&i.RootChatID,
+		&i.HistorianChatID,
+		&i.LastProcessedHistoryVersion,
+		&i.ProcessingHistoryVersion,
+		&i.ProcessingStartedAt,
+		&i.DispatchID,
+		&i.DispatchedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const setChatHistorianChild = `-- name: SetChatHistorianChild :one
+UPDATE chat_historian_states
+SET historian_chat_id = $1::uuid,
+    updated_at = now()
+WHERE root_chat_id = $2::uuid
+RETURNING root_chat_id, historian_chat_id, last_processed_history_version, processing_history_version, processing_started_at, dispatch_id, dispatched_at, created_at, updated_at
+`
+
+type SetChatHistorianChildParams struct {
+	HistorianChatID uuid.UUID `db:"historian_chat_id" json:"historian_chat_id"`
+	RootChatID      uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+}
+
+func (q *sqlQuerier) SetChatHistorianChild(ctx context.Context, arg SetChatHistorianChildParams) (ChatHistorianState, error) {
+	row := q.db.QueryRowContext(ctx, setChatHistorianChild, arg.HistorianChatID, arg.RootChatID)
+	var i ChatHistorianState
+	err := row.Scan(
+		&i.RootChatID,
+		&i.HistorianChatID,
+		&i.LastProcessedHistoryVersion,
+		&i.ProcessingHistoryVersion,
+		&i.ProcessingStartedAt,
+		&i.DispatchID,
+		&i.DispatchedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const deleteChatDebugDataAfterMessageID = `-- name: DeleteChatDebugDataAfterMessageID :execrows
 WITH affected_runs AS (
     SELECT DISTINCT run.id
@@ -25145,6 +25700,18 @@ func (q *sqlQuerier) GetChatGeneralModelOverride(ctx context.Context) (string, e
 	return model_config_id, err
 }
 
+const getChatHistorianModelOverride = `-- name: GetChatHistorianModelOverride :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_historian_model_override'), '') :: text AS model_config_id
+`
+
+func (q *sqlQuerier) GetChatHistorianModelOverride(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatHistorianModelOverride)
+	var model_config_id string
+	err := row.Scan(&model_config_id)
+	return model_config_id, err
+}
+
 const getChatIncludeDefaultSystemPrompt = `-- name: GetChatIncludeDefaultSystemPrompt :one
 SELECT
     COALESCE(
@@ -25592,6 +26159,16 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat
 
 func (q *sqlQuerier) UpsertChatGeneralModelOverride(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertChatGeneralModelOverride, value)
+	return err
+}
+
+const upsertChatHistorianModelOverride = `-- name: UpsertChatHistorianModelOverride :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_chat_historian_model_override', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_historian_model_override'
+`
+
+func (q *sqlQuerier) UpsertChatHistorianModelOverride(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatHistorianModelOverride, value)
 	return err
 }
 

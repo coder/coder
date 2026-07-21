@@ -2689,11 +2689,13 @@ export interface ChatModelOpenRouterProviderOptions {
 export type ChatModelOverrideContext =
 	| "explore"
 	| "general"
+	| "historian"
 	| "title_generation";
 
 export const ChatModelOverrideContexts: ChatModelOverrideContext[] = [
 	"explore",
 	"general",
+	"historian",
 	"title_generation",
 ];
 

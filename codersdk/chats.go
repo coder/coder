@@ -759,6 +759,7 @@ type ChatModelOverrideContext string
 const (
 	ChatModelOverrideContextGeneral         ChatModelOverrideContext = "general"
 	ChatModelOverrideContextExplore         ChatModelOverrideContext = "explore"
+	ChatModelOverrideContextHistorian       ChatModelOverrideContext = "historian"
 	ChatModelOverrideContextTitleGeneration ChatModelOverrideContext = "title_generation"
 )
 
@@ -767,6 +768,7 @@ func (c ChatModelOverrideContext) Valid() bool {
 	switch c {
 	case ChatModelOverrideContextGeneral,
 		ChatModelOverrideContextExplore,
+		ChatModelOverrideContextHistorian,
 		ChatModelOverrideContextTitleGeneration:
 		return true
 	default:
@@ -779,6 +781,7 @@ func AllChatModelOverrideContexts() []ChatModelOverrideContext {
 	return []ChatModelOverrideContext{
 		ChatModelOverrideContextGeneral,
 		ChatModelOverrideContextExplore,
+		ChatModelOverrideContextHistorian,
 		ChatModelOverrideContextTitleGeneration,
 	}
 }

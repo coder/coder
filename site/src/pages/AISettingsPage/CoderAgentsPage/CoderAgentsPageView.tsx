@@ -34,6 +34,7 @@ export interface CoderAgentsPageViewProps {
 	generalModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	titleGenerationModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	exploreModelOverrideData?: TypesGen.ChatModelOverrideResponse;
+	historianModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	modelConfigsData: TypesGen.ChatModelConfig[] | undefined;
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
 	modelConfigsError: unknown;
@@ -48,6 +49,9 @@ export interface CoderAgentsPageViewProps {
 	onSaveExploreModelOverride: SaveModelOverride;
 	isSavingExploreModelOverride: boolean;
 	isSaveExploreModelOverrideError: boolean;
+	onSaveHistorianModelOverride: SaveModelOverride;
+	isSavingHistorianModelOverride: boolean;
+	isSaveHistorianModelOverrideError: boolean;
 	showAdvisorSettings: boolean;
 	advisorConfigData: TypesGen.AdvisorConfig | undefined;
 	isAdvisorConfigLoading: boolean;
@@ -84,6 +88,7 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	generalModelOverrideData,
 	titleGenerationModelOverrideData,
 	exploreModelOverrideData,
+	historianModelOverrideData,
 	modelConfigsData,
 	providerInfoByID,
 	modelConfigsError,
@@ -98,6 +103,9 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	onSaveExploreModelOverride,
 	isSavingExploreModelOverride,
 	isSaveExploreModelOverrideError,
+	onSaveHistorianModelOverride,
+	isSavingHistorianModelOverride,
+	isSaveHistorianModelOverrideError,
 	showAdvisorSettings,
 	advisorConfigData,
 	isAdvisorConfigLoading,
@@ -184,6 +192,19 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 					isSaving={isSavingExploreModelOverride}
 					isSaveError={isSaveExploreModelOverrideError}
 					saveErrorMessage="Failed to save Explore model override."
+				/>
+				<SubagentModelOverrideSettings
+					title="Historian model"
+					description="Used to identify durable memories from completed conversations."
+					modelOverrideData={historianModelOverrideData}
+					enabledModelConfigs={enabledModelConfigs}
+					providerInfoByID={providerInfoByID}
+					modelConfigsError={modelConfigsError}
+					isLoading={isLoadingModelConfigs}
+					onSaveModelOverride={onSaveHistorianModelOverride}
+					isSaving={isSavingHistorianModelOverride}
+					isSaveError={isSaveHistorianModelOverrideError}
+					saveErrorMessage="Failed to save historian model override."
 				/>
 				{showVirtualDesktopSettings && (
 					<VirtualDesktopSettings

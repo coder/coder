@@ -1555,6 +1555,7 @@ type ChatMode string
 const (
 	ChatModeComputerUse ChatMode = "computer_use"
 	ChatModeExplore     ChatMode = "explore"
+	ChatModeHistorian   ChatMode = "historian"
 )
 
 func (e *ChatMode) Scan(src interface{}) error {
@@ -1595,7 +1596,8 @@ func (ns NullChatMode) Value() (driver.Value, error) {
 func (e ChatMode) Valid() bool {
 	switch e {
 	case ChatModeComputerUse,
-		ChatModeExplore:
+		ChatModeExplore,
+		ChatModeHistorian:
 		return true
 	}
 	return false
@@ -1605,6 +1607,7 @@ func AllChatModeValues() []ChatMode {
 	return []ChatMode{
 		ChatModeComputerUse,
 		ChatModeExplore,
+		ChatModeHistorian,
 	}
 }
 
@@ -5129,6 +5132,18 @@ type ChatHeartbeat struct {
 	ChatID      uuid.UUID `db:"chat_id" json:"chat_id"`
 	RunnerID    uuid.UUID `db:"runner_id" json:"runner_id"`
 	HeartbeatAt time.Time `db:"heartbeat_at" json:"heartbeat_at"`
+}
+
+type ChatHistorianState struct {
+	RootChatID                  uuid.UUID     `db:"root_chat_id" json:"root_chat_id"`
+	HistorianChatID             uuid.NullUUID `db:"historian_chat_id" json:"historian_chat_id"`
+	LastProcessedHistoryVersion int64         `db:"last_processed_history_version" json:"last_processed_history_version"`
+	ProcessingHistoryVersion    sql.NullInt64 `db:"processing_history_version" json:"processing_history_version"`
+	ProcessingStartedAt         sql.NullTime  `db:"processing_started_at" json:"processing_started_at"`
+	DispatchID                  uuid.NullUUID `db:"dispatch_id" json:"dispatch_id"`
+	DispatchedAt                sql.NullTime  `db:"dispatched_at" json:"dispatched_at"`
+	CreatedAt                   time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt                   time.Time     `db:"updated_at" json:"updated_at"`
 }
 
 type ChatMessage struct {

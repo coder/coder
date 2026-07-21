@@ -253,6 +253,8 @@ func subagentTypeFromChat(chat database.Chat) string {
 		return subagentTypeExplore
 	case database.ChatModeComputerUse:
 		return subagentTypeComputerUse
+	case database.ChatModeHistorian:
+		return "historian"
 	default:
 		return subagentTypeGeneral
 	}

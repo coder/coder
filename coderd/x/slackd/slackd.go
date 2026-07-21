@@ -64,6 +64,7 @@ import (
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
@@ -116,7 +117,7 @@ Coder's built-in Slack integration. Each user message starts with Slack
 thread metadata (channel, thread timestamp) followed by one or more
 <slack-message></slack-message> blocks. Each block is one Slack message
 from the thread, in chronological order, carrying nested
-<timestamp-raw>, <from-user>, and <content> tags. User mentions in the
+<timestamp-raw>, <timestamp>, <from-user>, and <content> tags. User mentions in the
 content are rendered inline as @name, the way Slack displays them; use
 slack_get_user_info or the <from-user> tags when you need a user's id.
 A single user message may catch you up on several Slack messages at
@@ -231,6 +232,40 @@ You have access to the resources of the user you're talking to on Slack: user id
 Any integrations that you have access to are scoped to that user. You're acting on their behalf.
 Be responsible with that power. If you're about to do something potentially destructive, or
 something that may share their data with others, ask them for confirmation first.`
+
+const memorySystemPrompt = `# Memory
+
+You wake up fresh each session. These memories are your continuity:
+
+Daily notes: /daily/YYYY-MM-DD.md - raw logs of what happened
+Long-term: /memory.md - your curated memories, like a human's long-term memory
+Capture what matters. Decisions, context, things to remember. Skip the secrets unless asked to keep them.
+
+If you don't look at your memories, conversation with the user will be disjointed.
+
+## memory.md - Your Long-Term Memory
+
+Write significant events, thoughts, decisions, opinions, lessons learned
+This is your curated memory - the distilled essence, not raw logs
+
+## Write It Down - No "Mental Notes"!
+
+Memory is limited - if you want to remember something, WRITE IT TO A MEMORY
+"Mental notes" don't survive session restarts. Files do.
+When someone says "remember this" -> update /daily/YYYY-MM-DD.md or relevant memory
+When you make a mistake -> document it so future-you doesn't repeat it
+Text > Brain
+
+## Use your memory
+
+Before answering any factual question, recommendation, or request involving prior work, users, organizations, projects, integrations, or recent activity:
+1. Search relevant user memories first using "search_memories".
+2. Use the memory result as context, then verify externally only when freshness or accuracy requires it.
+3. Do not browse the web or begin a new investigation until the memory search is complete.
+4. Skip memory search only for simple computation, rewriting/translation, casual conversation, or when the user explicitly requests a clean-slate answer.
+If memory and external sources differ, identify the discrepancy and prefer the source appropriate to the question.
+
+The default place you should keep your memories is in "/memory.md".`
 
 // ChatSubmitter is the subset of *chatd.Server used by slackd.
 type ChatSubmitter interface {
@@ -625,7 +660,7 @@ func (s *Server) handleMention(ctx context.Context, eventID string, ev *slackeve
 				APIKeyID:           apiKeyID,
 				ModelConfigID:      modelConfig.ID,
 				Title:              "Slack thread " + threadKey,
-				SystemPrompt:       s.buildSystemPrompt(ctx, kind, ev.User),
+				SystemPrompt:       s.buildSystemPrompt(ctx, kind, owner.ID, ev.User),
 				InitialUserContent: content,
 				Labels:             database.StringMap(createLabels),
 				// Dedup is scoped per owner: each (owner, thread) pair
@@ -987,11 +1022,12 @@ func (s *Server) resolveBotUserID(ctx context.Context) (string, error) {
 
 // buildSystemPrompt selects the shared or individual identity suffix
 // from the sender's owner resolution, interpolates deployment and
-// Slack identity placeholders, then appends the bot's own Slack
-// identity so the model can recognize inline @bot-name mentions as
-// referring to itself. When the bot identity cannot be resolved the
-// rest of the prompt is returned unchanged.
-func (s *Server) buildSystemPrompt(ctx context.Context, kind ownerResolution, slackUserID string) string {
+// Slack identity placeholders, and loads long-term memory for linked
+// users. It then appends the bot's own Slack identity so the model can
+// recognize inline @bot-name mentions as referring to itself. When
+// the bot identity cannot be resolved the rest of the prompt is
+// returned unchanged.
+func (s *Server) buildSystemPrompt(ctx context.Context, kind ownerResolution, ownerID uuid.UUID, slackUserID string) string {
 	suffix := systemPromptSuffixShared
 	if kind == ownerResolutionLinked {
 		suffix = systemPromptSuffixIndividual
@@ -1005,6 +1041,18 @@ func (s *Server) buildSystemPrompt(ctx context.Context, kind ownerResolution, sl
 		"{{ SlackUserID }}", slackUserID,
 	).Replace(suffix)
 	prompt := strings.ReplaceAll(systemPrompt, "{{ SystemPromptSuffix }}", suffix)
+	if kind == ownerResolutionLinked {
+		prompt += "\n\n" + memorySystemPrompt
+		memory, err := s.db.GetAgentMemoryByUserIDAndPath(slackMemoryContext(ctx, ownerID), database.GetAgentMemoryByUserIDAndPathParams{
+			UserID: ownerID,
+			Path:   "/memory.md",
+		})
+		if err == nil {
+			prompt += "\n\n## Current memory.md\n\n<memory.md>\n" + memory.Content + "\n</memory.md>"
+		} else if !xerrors.Is(err, sql.ErrNoRows) {
+			s.logger.Warn(ctx, "load slack user long-term memory", slog.Error(err), slog.F("owner_id", ownerID))
+		}
+	}
 
 	botUID, err := s.resolveBotUserID(ctx)
 	if err != nil {
@@ -1022,6 +1070,20 @@ func (s *Server) buildSystemPrompt(ctx context.Context, kind ownerResolution, sl
 	return prompt + fmt.Sprintf("\n\nYou appear in Slack as @%s (user id <@%s>). "+
 		"When @%s shows up in a message's content, the sender is addressing you.",
 		botName, botUID, botName)
+}
+
+func slackMemoryContext(ctx context.Context, userID uuid.UUID) context.Context {
+	actor := rbac.Subject{
+		Type:  rbac.SubjectTypeUser,
+		ID:    userID.String(),
+		Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+	// Slack turns run asynchronously, so the linked user's request actor is
+	// unavailable when slackd creates the chat. Memory authorization remains
+	// restricted to the linked owner by the user-scoped resource check.
+	//nolint:gocritic // The synthetic actor is required for asynchronous turns.
+	return dbauthz.As(ctx, actor)
 }
 
 // resolveOrganizationID selects the organization for a chat created
@@ -1067,7 +1129,7 @@ func (s *Server) lookupUser(ctx context.Context, id string) *slack.User {
 }
 
 // buildMessageBody renders the body of a <slack-message> block:
-// nested <timestamp-raw>, <from-user>, and <content> tags. User
+// nested <timestamp-raw>, <timestamp>, <from-user>, and <content> tags. User
 // mentions in the content are rendered inline as @name, the way Slack
 // displays them.
 func (s *Server) buildMessageBody(ctx context.Context, msg slack.Message) string {
@@ -1082,12 +1144,35 @@ func (s *Server) buildMessageBody(ctx context.Context, msg slack.Message) string
 	}
 
 	var sb strings.Builder
-	_, _ = fmt.Fprintf(&sb, "<timestamp-raw>%s</timestamp-raw>\n"+
+	_, _ = fmt.Fprintf(&sb, "<timestamp-raw>%s</timestamp-raw>\n", msg.Timestamp)
+	if timestamp, ok := formatSlackTimestamp(msg.Timestamp); ok {
+		_, _ = fmt.Fprintf(&sb, "<timestamp>%s</timestamp>\n", timestamp)
+	}
+	_, _ = fmt.Fprintf(&sb,
 		"<from-user>%s (<@%s>) (%s)</from-user>\n"+
-		"<content>\n%s\n</content>\n",
-		msg.Timestamp, senderName, msg.User, senderRealName,
+			"<content>\n%s\n</content>\n",
+		senderName, msg.User, senderRealName,
 		strings.TrimRight(s.renderMentionsInline(ctx, msg.Text), "\n"))
 	return sb.String()
+}
+
+func formatSlackTimestamp(raw string) (string, bool) {
+	secondsRaw, fractionRaw, _ := strings.Cut(raw, ".")
+	seconds, err := strconv.ParseInt(secondsRaw, 10, 64)
+	if err != nil || seconds < 0 || len(fractionRaw) > 9 {
+		return "", false
+	}
+	for _, r := range fractionRaw {
+		if r < '0' || r > '9' {
+			return "", false
+		}
+	}
+	fractionRaw += strings.Repeat("0", 9-len(fractionRaw))
+	nanoseconds, err := strconv.ParseInt(fractionRaw, 10, 64)
+	if err != nil {
+		return "", false
+	}
+	return time.Unix(seconds, nanoseconds).UTC().Format(time.RFC3339Nano), true
 }
 
 // renderMentionsInline replaces <@ID> mention tokens with @name, the

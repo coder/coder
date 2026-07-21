@@ -397,6 +397,21 @@ func TestMemoryToolsIntegration(t *testing.T) {
 	require.Equal(t, len("first\nupdated\n"), listResult.Memories[0].SizeBytes)
 }
 
+func TestMemorySearchKeywordsQuery(t *testing.T) {
+	t.Parallel()
+
+	query, err := memorySearchKeywordsQuery("  postgres   postgresql database  ")
+	require.NoError(t, err)
+	require.Equal(t, "postgres OR postgresql OR database", query)
+
+	query, err = memorySearchKeywordsQuery("needle")
+	require.NoError(t, err)
+	require.Equal(t, "needle", query)
+
+	_, err = memorySearchKeywordsQuery("   ")
+	require.EqualError(t, err, "keywords is required")
+}
+
 func TestMemorySearchExcerptsPreserveSourceLines(t *testing.T) {
 	t.Parallel()
 
@@ -431,6 +446,39 @@ func TestMemorySearchExcerptsPreserveSourceLines(t *testing.T) {
 	require.Equal(t, 71, result.Matches[0].Excerpts[0].EndLine)
 	require.Contains(t, result.Matches[0].Excerpts[0].Content,
 		fmt.Sprintf("70:%s|%s", memoryLineHash(lines[69]), lines[69]))
+}
+
+func TestMemorySearchORsSpaceSeparatedKeywords(t *testing.T) {
+	t.Parallel()
+
+	opts := newMemoryToolTestOptions(t)
+	for _, memory := range []struct {
+		path    string
+		content string
+	}{
+		{"/alpha.md", "PostgreSQL keeps durable memory."},
+		{"/beta.md", "Templates keep searchable memory."},
+		{"/gamma.md", "Unrelated networking notes."},
+	} {
+		response := runMemoryTool(t, writeMemoryTool(opts), map[string]any{
+			"path": memory.path, "content": memory.content,
+		})
+		require.False(t, response.IsError)
+	}
+
+	response := runMemoryTool(t, searchMemoriesTool(opts), map[string]any{
+		"keywords": "durable templates", "paths": []string{},
+	})
+	require.False(t, response.IsError)
+	var result struct {
+		Matches []memorySearchMatch `json:"matches"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(response.Content), &result))
+	paths := make([]string, 0, len(result.Matches))
+	for _, match := range result.Matches {
+		paths = append(paths, match.Path)
+	}
+	require.Equal(t, []string{"/alpha.md", "/beta.md"}, paths)
 }
 
 func TestMemoryToolsConcurrentEdits(t *testing.T) {

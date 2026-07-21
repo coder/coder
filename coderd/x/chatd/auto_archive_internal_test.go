@@ -279,6 +279,7 @@ func (f *workerTestFixture) archiveWorkerOptions() chatWorkerOptions {
 		HeartbeatInterval:          time.Hour,
 		HeartbeatCleanupInterval:   time.Hour,
 		HeartbeatStaleSeconds:      30,
+		HistorianInterval:          time.Hour,
 		StateChannelSize:           16,
 		RunnerManagerChannelSize:   16,
 		AcquisitionWakeChannelSize: 1,

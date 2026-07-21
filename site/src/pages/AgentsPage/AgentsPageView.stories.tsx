@@ -174,6 +174,11 @@ const AgentsRouteElement = () => (
 			model_config_id: "",
 			is_malformed: false,
 		}}
+		historianModelOverrideData={{
+			context: "historian",
+			model_config_id: "",
+			is_malformed: false,
+		}}
 		titleGenerationModelOverrideData={{
 			context: "title_generation",
 			model_config_id: "",
@@ -190,6 +195,9 @@ const AgentsRouteElement = () => (
 		onSaveExploreModelOverride={fn()}
 		isSavingExploreModelOverride={false}
 		isSaveExploreModelOverrideError={false}
+		onSaveHistorianModelOverride={fn()}
+		isSavingHistorianModelOverride={false}
+		isSaveHistorianModelOverrideError={false}
 		showAdvisorSettings={false}
 		advisorConfigData={undefined}
 		isAdvisorConfigLoading={false}

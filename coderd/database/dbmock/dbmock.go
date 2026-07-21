@@ -11,6 +11,7 @@ package dbmock
 
 import (
 	context "context"
+	sql "database/sql"
 	json "encoding/json"
 	reflect "reflect"
 	time "time"
@@ -131,6 +132,21 @@ func (m *MockStore) ActivityBumpWorkspace(ctx context.Context, arg database.Acti
 func (mr *MockStoreMockRecorder) ActivityBumpWorkspace(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActivityBumpWorkspace", reflect.TypeOf((*MockStore)(nil).ActivityBumpWorkspace), ctx, arg)
+}
+
+// AdvanceChatHistorianHistory mocks base method.
+func (m *MockStore) AdvanceChatHistorianHistory(ctx context.Context, arg database.AdvanceChatHistorianHistoryParams) (database.ChatHistorianState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AdvanceChatHistorianHistory", ctx, arg)
+	ret0, _ := ret[0].(database.ChatHistorianState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AdvanceChatHistorianHistory indicates an expected call of AdvanceChatHistorianHistory.
+func (mr *MockStoreMockRecorder) AdvanceChatHistorianHistory(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AdvanceChatHistorianHistory", reflect.TypeOf((*MockStore)(nil).AdvanceChatHistorianHistory), ctx, arg)
 }
 
 // AllUserIDs mocks base method.
@@ -352,6 +368,21 @@ func (mr *MockStoreMockRecorder) ChatMessageExistsWithContentMetadata(ctx, arg a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ChatMessageExistsWithContentMetadata", reflect.TypeOf((*MockStore)(nil).ChatMessageExistsWithContentMetadata), ctx, arg)
 }
 
+// ClaimChatHistorianHistory mocks base method.
+func (m *MockStore) ClaimChatHistorianHistory(ctx context.Context, arg database.ClaimChatHistorianHistoryParams) (database.ChatHistorianState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClaimChatHistorianHistory", ctx, arg)
+	ret0, _ := ret[0].(database.ChatHistorianState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClaimChatHistorianHistory indicates an expected call of ClaimChatHistorianHistory.
+func (mr *MockStoreMockRecorder) ClaimChatHistorianHistory(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimChatHistorianHistory", reflect.TypeOf((*MockStore)(nil).ClaimChatHistorianHistory), ctx, arg)
+}
+
 // ClaimPrebuiltWorkspace mocks base method.
 func (m *MockStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	m.ctrl.T.Helper()
@@ -421,6 +452,36 @@ func (m *MockStore) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) err
 func (mr *MockStoreMockRecorder) CleanupDeletedMCPServerIDsFromChats(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupDeletedMCPServerIDsFromChats", reflect.TypeOf((*MockStore)(nil).CleanupDeletedMCPServerIDsFromChats), ctx)
+}
+
+// ClearChatHistorianClaim mocks base method.
+func (m *MockStore) ClearChatHistorianClaim(ctx context.Context, arg database.ClearChatHistorianClaimParams) (database.ChatHistorianState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClearChatHistorianClaim", ctx, arg)
+	ret0, _ := ret[0].(database.ChatHistorianState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClearChatHistorianClaim indicates an expected call of ClearChatHistorianClaim.
+func (mr *MockStoreMockRecorder) ClearChatHistorianClaim(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearChatHistorianClaim", reflect.TypeOf((*MockStore)(nil).ClearChatHistorianClaim), ctx, arg)
+}
+
+// CompleteChatHistorianHistory mocks base method.
+func (m *MockStore) CompleteChatHistorianHistory(ctx context.Context, arg database.CompleteChatHistorianHistoryParams) (database.ChatHistorianState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CompleteChatHistorianHistory", ctx, arg)
+	ret0, _ := ret[0].(database.ChatHistorianState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CompleteChatHistorianHistory indicates an expected call of CompleteChatHistorianHistory.
+func (mr *MockStoreMockRecorder) CompleteChatHistorianHistory(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteChatHistorianHistory", reflect.TypeOf((*MockStore)(nil).CompleteChatHistorianHistory), ctx, arg)
 }
 
 // CountAIBridgeSessions mocks base method.
@@ -3042,6 +3103,51 @@ func (mr *MockStoreMockRecorder) GetChatHeartbeat(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatHeartbeat", reflect.TypeOf((*MockStore)(nil).GetChatHeartbeat), ctx, arg)
 }
 
+// GetChatHistorianCandidates mocks base method.
+func (m *MockStore) GetChatHistorianCandidates(ctx context.Context, arg database.GetChatHistorianCandidatesParams) ([]database.GetChatHistorianCandidatesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatHistorianCandidates", ctx, arg)
+	ret0, _ := ret[0].([]database.GetChatHistorianCandidatesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatHistorianCandidates indicates an expected call of GetChatHistorianCandidates.
+func (mr *MockStoreMockRecorder) GetChatHistorianCandidates(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatHistorianCandidates", reflect.TypeOf((*MockStore)(nil).GetChatHistorianCandidates), ctx, arg)
+}
+
+// GetChatHistorianClaims mocks base method.
+func (m *MockStore) GetChatHistorianClaims(ctx context.Context) ([]database.GetChatHistorianClaimsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatHistorianClaims", ctx)
+	ret0, _ := ret[0].([]database.GetChatHistorianClaimsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatHistorianClaims indicates an expected call of GetChatHistorianClaims.
+func (mr *MockStoreMockRecorder) GetChatHistorianClaims(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatHistorianClaims", reflect.TypeOf((*MockStore)(nil).GetChatHistorianClaims), ctx)
+}
+
+// GetChatHistorianModelOverride mocks base method.
+func (m *MockStore) GetChatHistorianModelOverride(ctx context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatHistorianModelOverride", ctx)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatHistorianModelOverride indicates an expected call of GetChatHistorianModelOverride.
+func (mr *MockStoreMockRecorder) GetChatHistorianModelOverride(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatHistorianModelOverride", reflect.TypeOf((*MockStore)(nil).GetChatHistorianModelOverride), ctx)
+}
+
 // GetChatIncludeDefaultSystemPrompt mocks base method.
 func (m *MockStore) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
 	m.ctrl.T.Helper()
@@ -3145,6 +3251,21 @@ func (m *MockStore) GetChatMessagesByRevisionForStream(ctx context.Context, arg 
 func (mr *MockStoreMockRecorder) GetChatMessagesByRevisionForStream(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesByRevisionForStream", reflect.TypeOf((*MockStore)(nil).GetChatMessagesByRevisionForStream), ctx, arg)
+}
+
+// GetChatMessagesForHistorian mocks base method.
+func (m *MockStore) GetChatMessagesForHistorian(ctx context.Context, arg database.GetChatMessagesForHistorianParams) ([]database.ChatMessage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatMessagesForHistorian", ctx, arg)
+	ret0, _ := ret[0].([]database.ChatMessage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatMessagesForHistorian indicates an expected call of GetChatMessagesForHistorian.
+func (mr *MockStoreMockRecorder) GetChatMessagesForHistorian(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesForHistorian", reflect.TypeOf((*MockStore)(nil).GetChatMessagesForHistorian), ctx, arg)
 }
 
 // GetChatMessagesForPromptByChatID mocks base method.
@@ -4240,6 +4361,21 @@ func (m *MockStore) GetLastUpdateCheck(ctx context.Context) (string, error) {
 func (mr *MockStoreMockRecorder) GetLastUpdateCheck(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastUpdateCheck", reflect.TypeOf((*MockStore)(nil).GetLastUpdateCheck), ctx)
+}
+
+// GetLatestChatUserAPIKeyForHistorian mocks base method.
+func (m *MockStore) GetLatestChatUserAPIKeyForHistorian(ctx context.Context, arg database.GetLatestChatUserAPIKeyForHistorianParams) (sql.NullString, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLatestChatUserAPIKeyForHistorian", ctx, arg)
+	ret0, _ := ret[0].(sql.NullString)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLatestChatUserAPIKeyForHistorian indicates an expected call of GetLatestChatUserAPIKeyForHistorian.
+func (mr *MockStoreMockRecorder) GetLatestChatUserAPIKeyForHistorian(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestChatUserAPIKeyForHistorian", reflect.TypeOf((*MockStore)(nil).GetLatestChatUserAPIKeyForHistorian), ctx, arg)
 }
 
 // GetLatestCryptoKeyByFeature mocks base method.
@@ -9293,6 +9429,21 @@ func (mr *MockStoreMockRecorder) MarkAllInboxNotificationsAsRead(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkAllInboxNotificationsAsRead", reflect.TypeOf((*MockStore)(nil).MarkAllInboxNotificationsAsRead), ctx, arg)
 }
 
+// MarkChatHistorianDispatched mocks base method.
+func (m *MockStore) MarkChatHistorianDispatched(ctx context.Context, arg database.MarkChatHistorianDispatchedParams) (database.ChatHistorianState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkChatHistorianDispatched", ctx, arg)
+	ret0, _ := ret[0].(database.ChatHistorianState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkChatHistorianDispatched indicates an expected call of MarkChatHistorianDispatched.
+func (mr *MockStoreMockRecorder) MarkChatHistorianDispatched(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkChatHistorianDispatched", reflect.TypeOf((*MockStore)(nil).MarkChatHistorianDispatched), ctx, arg)
+}
+
 // MarkChatsContextDirtyByAgent mocks base method.
 func (m *MockStore) MarkChatsContextDirtyByAgent(ctx context.Context, arg database.MarkChatsContextDirtyByAgentParams) ([]database.MarkChatsContextDirtyByAgentRow, error) {
 	m.ctrl.T.Helper()
@@ -9572,6 +9723,21 @@ func (m *MockStore) SetChatContextSnapshot(ctx context.Context, arg database.Set
 func (mr *MockStoreMockRecorder) SetChatContextSnapshot(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetChatContextSnapshot", reflect.TypeOf((*MockStore)(nil).SetChatContextSnapshot), ctx, arg)
+}
+
+// SetChatHistorianChild mocks base method.
+func (m *MockStore) SetChatHistorianChild(ctx context.Context, arg database.SetChatHistorianChildParams) (database.ChatHistorianState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetChatHistorianChild", ctx, arg)
+	ret0, _ := ret[0].(database.ChatHistorianState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SetChatHistorianChild indicates an expected call of SetChatHistorianChild.
+func (mr *MockStoreMockRecorder) SetChatHistorianChild(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetChatHistorianChild", reflect.TypeOf((*MockStore)(nil).SetChatHistorianChild), ctx, arg)
 }
 
 // SoftDeleteChatMessageByID mocks base method.
@@ -11894,6 +12060,20 @@ func (m *MockStore) UpsertChatHeartbeat(ctx context.Context, arg database.Upsert
 func (mr *MockStoreMockRecorder) UpsertChatHeartbeat(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatHeartbeat", reflect.TypeOf((*MockStore)(nil).UpsertChatHeartbeat), ctx, arg)
+}
+
+// UpsertChatHistorianModelOverride mocks base method.
+func (m *MockStore) UpsertChatHistorianModelOverride(ctx context.Context, value string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertChatHistorianModelOverride", ctx, value)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertChatHistorianModelOverride indicates an expected call of UpsertChatHistorianModelOverride.
+func (mr *MockStoreMockRecorder) UpsertChatHistorianModelOverride(ctx, value any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatHistorianModelOverride", reflect.TypeOf((*MockStore)(nil).UpsertChatHistorianModelOverride), ctx, value)
 }
 
 // UpsertChatIncludeDefaultSystemPrompt mocks base method.

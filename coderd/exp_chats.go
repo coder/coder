@@ -703,6 +703,12 @@ func (api *API) chatModelOverrideSiteConfig(
 			getter: api.Database.GetChatExploreModelOverride,
 			upsert: api.Database.UpsertChatExploreModelOverride,
 		}, nil
+	case codersdk.ChatModelOverrideContextHistorian:
+		return chatModelOverrideSiteConfig{
+			label:  "historian",
+			getter: api.Database.GetChatHistorianModelOverride,
+			upsert: api.Database.UpsertChatHistorianModelOverride,
+		}, nil
 	case codersdk.ChatModelOverrideContextTitleGeneration:
 		return chatModelOverrideSiteConfig{
 			label:  "title generation",

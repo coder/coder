@@ -12382,6 +12382,16 @@ func TestChatModelOverrides(t *testing.T) {
 			},
 		},
 		{
+			name:    "Historian",
+			context: codersdk.ChatModelOverrideContextHistorian,
+			dbGet: func(ctx context.Context, db database.Store) (string, error) {
+				return db.GetChatHistorianModelOverride(dbauthz.AsSystemRestricted(ctx))
+			},
+			dbUpsert: func(ctx context.Context, db database.Store, value string) error {
+				return db.UpsertChatHistorianModelOverride(dbauthz.AsSystemRestricted(ctx), value)
+			},
+		},
+		{
 			name:    "TitleGeneration",
 			context: codersdk.ChatModelOverrideContextTitleGeneration,
 			dbGet: func(ctx context.Context, db database.Store) (string, error) {
@@ -12600,7 +12610,7 @@ func TestChatModelOverrides(t *testing.T) {
 		require.Equal(t, "Invalid chat model override context.", sdkErr.Message)
 		require.Equal(
 			t,
-			`Expected one of general, explore, title_generation. Got "not-a-context".`,
+			`Expected one of general, explore, historian, title_generation. Got "not-a-context".`,
 			sdkErr.Detail,
 		)
 
@@ -12609,7 +12619,7 @@ func TestChatModelOverrides(t *testing.T) {
 		require.Equal(t, "Invalid chat model override context.", sdkErr.Message)
 		require.Equal(
 			t,
-			`Expected one of general, explore, title_generation. Got "not-a-context".`,
+			`Expected one of general, explore, historian, title_generation. Got "not-a-context".`,
 			sdkErr.Detail,
 		)
 	})

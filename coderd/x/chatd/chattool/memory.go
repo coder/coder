@@ -83,7 +83,7 @@ type memoryEdit struct {
 }
 
 type searchMemoriesArgs struct {
-	Keywords string   `json:"keywords" description:"PostgreSQL web-search query"`
+	Keywords string   `json:"keywords" description:"Space-separated keywords. Example: postgres postgresql database workspace"`
 	Paths    []string `json:"paths" description:"Optional absolute path globs; an empty array searches all paths"`
 	Offset   *int32   `json:"offset,omitempty" description:"Zero-based result offset"`
 }
@@ -224,10 +224,19 @@ func editMemoryTool(opts MemoryToolsOptions) fantasy.AgentTool {
 func searchMemoriesTool(opts MemoryToolsOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"search_memories",
-		"Search path names and Markdown content with PostgreSQL web-search syntax. Paths are optional case-sensitive filesystem globs.",
+		`Search path names and Markdown content.
+
+keywords are space-separated words. They are matched with OR, so any keyword may hit.
+Prefer many individual related keywords over sentences.
+
+Good example: "postgres postgresql database workspace pg db pgsql"
+Bad example: "has the user ever mentioned using postgres"
+
+paths are optional case-sensitive filesystem globs; an empty array searches all paths.`,
 		func(ctx context.Context, args searchMemoriesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			if strings.TrimSpace(args.Keywords) == "" {
-				return fantasy.NewTextErrorResponse("keywords is required"), nil
+			query, err := memorySearchKeywordsQuery(args.Keywords)
+			if err != nil {
+				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
 			offset, err := memoryOffset(args.Offset)
 			if err != nil {
@@ -245,7 +254,7 @@ func searchMemoriesTool(opts MemoryToolsOptions) fantasy.AgentTool {
 				UserID:      opts.UserID,
 				PathRegexes: regexes,
 				OffsetValue: offset,
-				Keywords:    args.Keywords,
+				Keywords:    query,
 			})
 			if err != nil {
 				return fantasy.NewTextErrorResponse("search memories: " + err.Error()), nil
@@ -336,6 +345,16 @@ func memoryOffset(offset *int32) (int32, error) {
 		return 0, xerrors.New("offset must not be negative")
 	}
 	return *offset, nil
+}
+
+// memorySearchKeywordsQuery turns space-separated keywords into a
+// websearch_to_tsquery string where any keyword may match.
+func memorySearchKeywordsQuery(keywords string) (string, error) {
+	tokens := strings.Fields(keywords)
+	if len(tokens) == 0 {
+		return "", xerrors.New("keywords is required")
+	}
+	return strings.Join(tokens, " OR "), nil
 }
 
 func validateMemoryPath(memoryPath string) error {

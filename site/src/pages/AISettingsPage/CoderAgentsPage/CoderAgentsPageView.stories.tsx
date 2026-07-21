@@ -125,6 +125,7 @@ const buildArgs = (
 	generalModelOverrideData: buildOverrideData("general"),
 	titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData(),
 	exploreModelOverrideData: buildOverrideData("explore"),
+	historianModelOverrideData: buildOverrideData("historian"),
 	modelConfigsData: allModelConfigs,
 	providerInfoByID,
 	modelConfigsError: undefined,
@@ -139,6 +140,9 @@ const buildArgs = (
 	onSaveExploreModelOverride: fn(),
 	isSavingExploreModelOverride: false,
 	isSaveExploreModelOverrideError: false,
+	onSaveHistorianModelOverride: fn(),
+	isSavingHistorianModelOverride: false,
+	isSaveHistorianModelOverrideError: false,
 	showAdvisorSettings: false,
 	advisorConfigData: undefined,
 	isAdvisorConfigLoading: false,
@@ -212,6 +216,7 @@ export const AllOverridesUnset: Story = {
 			"General model",
 			"Title generation model",
 			"Explore subagent model",
+			"Historian model",
 		]);
 		await canvas.findByText(
 			"Leave unset to use Coder's title default, which prefers fast models from configured providers.",
@@ -227,6 +232,7 @@ export const AllOverridesUnset: Story = {
 				headingName: "Explore subagent model",
 				placeholder: "Use chat default",
 			},
+			{ headingName: "Historian model", placeholder: "Use chat default" },
 		];
 		for (const { headingName, placeholder } of unsetSections) {
 			const section = await getSection(canvasElement, headingName);

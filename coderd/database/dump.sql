@@ -348,7 +348,8 @@ CREATE TYPE chat_message_visibility AS ENUM (
 
 CREATE TYPE chat_mode AS ENUM (
     'computer_use',
-    'explore'
+    'explore',
+    'historian'
 );
 
 CREATE TYPE chat_plan_mode AS ENUM (
@@ -1965,6 +1966,21 @@ CREATE UNLOGGED TABLE chat_heartbeats (
 );
 
 COMMENT ON TABLE chat_heartbeats IS 'Ephemeral runner ownership leases for runnable chats. The table is unlogged because losing heartbeat rows after a crash is safe: missing heartbeats are treated as stale ownership and cause workers to reacquire runnable chats.';
+
+CREATE TABLE chat_historian_states (
+    root_chat_id uuid NOT NULL,
+    historian_chat_id uuid,
+    last_processed_history_version bigint DEFAULT 0 NOT NULL,
+    processing_history_version bigint,
+    processing_started_at timestamp with time zone,
+    dispatch_id uuid,
+    dispatched_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_historian_states_last_processed_nonnegative CHECK ((last_processed_history_version >= 0)),
+    CONSTRAINT chat_historian_states_processing_fields CHECK ((((processing_history_version IS NULL) AND (processing_started_at IS NULL) AND (dispatch_id IS NULL) AND (dispatched_at IS NULL)) OR ((processing_history_version IS NOT NULL) AND (processing_started_at IS NOT NULL) AND (dispatch_id IS NOT NULL)))),
+    CONSTRAINT chat_historian_states_processing_nonnegative CHECK (((processing_history_version IS NULL) OR (processing_history_version > last_processed_history_version)))
+);
 
 CREATE TABLE chat_messages (
     id bigint NOT NULL,
@@ -4342,6 +4358,12 @@ ALTER TABLE ONLY chat_files
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_pkey PRIMARY KEY (chat_id, runner_id);
 
+ALTER TABLE ONLY chat_historian_states
+    ADD CONSTRAINT chat_historian_states_historian_chat_id_key UNIQUE (historian_chat_id);
+
+ALTER TABLE ONLY chat_historian_states
+    ADD CONSTRAINT chat_historian_states_pkey PRIMARY KEY (root_chat_id);
+
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
 
@@ -4710,6 +4732,8 @@ CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
 
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
+
+CREATE INDEX chats_historian_candidates_idx ON chats USING btree (updated_at, owner_id, id) WHERE ((parent_chat_id IS NULL) AND (archived = false) AND (status = ANY (ARRAY['waiting'::chat_status, 'error'::chat_status])));
 
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
@@ -5195,6 +5219,12 @@ ALTER TABLE ONLY chat_files
 
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_historian_states
+    ADD CONSTRAINT chat_historian_states_historian_chat_id_fkey FOREIGN KEY (historian_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_historian_states
+    ADD CONSTRAINT chat_historian_states_root_chat_id_fkey FOREIGN KEY (root_chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE SET NULL;
