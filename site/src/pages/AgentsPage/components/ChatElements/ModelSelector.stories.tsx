@@ -473,7 +473,9 @@ export const MobileEffortRow: Story = {
 		// The interaction runner defaults to a desktop width where the
 		// mobile dropdown CSS never applies, so pin a mobile viewport.
 		viewport: { defaultViewport: "mobile1" },
-		chromatic: { viewports: [390] },
+		// Capture the visual snapshot at a mobile width so the pinned
+		// effort row and scrollable list render in the CI visual gate.
+		lostpixel: { breakpoints: [320] },
 	},
 	decorators: [
 		(Story) => {
