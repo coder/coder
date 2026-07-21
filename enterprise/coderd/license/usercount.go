@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -77,9 +76,8 @@ func CountWorkspaceCapableUsers(ctx context.Context, logger slog.Logger, db data
 }
 
 // canCreateWorkspace reports whether the RBAC engine authorizes the user
-// to create a workspace they own, checked against every organization the
-// user is a member of plus the any-organization form that site-wide roles
-// satisfy regardless of org membership.
+// to create a workspace they own in any organization: via membership
+// grants or via a site-wide role that applies regardless of membership.
 func canCreateWorkspace(ctx context.Context, logger slog.Logger, db database.Store, authorizer rbac.Authorizer, row database.GetActiveUsersAuthorizationRolesRow) (bool, error) {
 	roleNames, err := row.RoleNames()
 	if err != nil {
@@ -112,30 +110,14 @@ func canCreateWorkspace(ctx context.Context, logger slog.Logger, db database.Sto
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
-	// Site-wide grants (e.g. the owner role) authorize workspace creation
-	// in any organization, independent of org membership. This also covers
-	// users who belong to zero organizations.
-	if authorizer.Authorize(ctx, subject, policy.ActionCreate,
-		rbac.ResourceWorkspace.AnyOrganization().WithOwner(subject.ID)) == nil {
-		return true, nil
-	}
-
-	seen := make(map[uuid.UUID]struct{})
-	for _, role := range roleNames {
-		orgID := role.OrganizationID
-		if orgID == uuid.Nil {
-			continue
-		}
-		if _, ok := seen[orgID]; ok {
-			continue
-		}
-		seen[orgID] = struct{}{}
-		if authorizer.Authorize(ctx, subject, policy.ActionCreate,
-			rbac.ResourceWorkspace.InOrg(orgID).WithOwner(subject.ID)) == nil {
-			return true, nil
-		}
-	}
-	return false, nil
+	// A site-wide grant (e.g. the owner role) authorizes creation in any
+	// organization, and the any-organization policy form resolves to the
+	// maximum per-org vote across the subject's memberships, so it also
+	// subsumes per-organization checks: it allows exactly when some
+	// InOrg(id) check would. This also covers users who belong to zero
+	// organizations.
+	return authorizer.Authorize(ctx, subject, policy.ActionCreate,
+		rbac.ResourceWorkspace.AnyOrganization().WithOwner(subject.ID)) == nil, nil
 }
 
 // authorizationSignature returns a canonical key for the user's role set.
