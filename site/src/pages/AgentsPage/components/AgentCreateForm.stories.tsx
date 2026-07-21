@@ -430,7 +430,13 @@ export const SubmitsReasoningEffort: Story = {
 		expect(slider).toHaveAttribute("aria-valuenow", "3");
 
 		// Bump the effort to "high" with the keyboard, then close.
-		slider.focus();
+		// The info button precedes the slider in tab order.
+		await userEvent.tab();
+		expect(
+			body.getByRole("button", { name: "About reasoning effort" }),
+		).toHaveFocus();
+		await userEvent.tab();
+		expect(slider).toHaveFocus();
 		await userEvent.keyboard("{ArrowRight}");
 		await waitFor(() => {
 			expect(slider).toHaveAttribute("aria-valuenow", "4");

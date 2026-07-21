@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	formatReasoningEffort,
 	getReasoningEffortForModel,
@@ -9,6 +9,9 @@ import {
 describe("reasoning effort storage", () => {
 	beforeEach(() => {
 		localStorage.clear();
+	});
+
+	afterEach(() => {
 		vi.restoreAllMocks();
 	});
 

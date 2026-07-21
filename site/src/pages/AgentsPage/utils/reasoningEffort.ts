@@ -3,6 +3,7 @@ const reasoningEffortStorageKeyPrefix = "agents.reasoning-effort.";
 const reasoningEffortStorageKey = (modelID: string) =>
 	`${reasoningEffortStorageKeyPrefix}${modelID}`;
 
+/** Reads the persisted effort for a model, or undefined when none is stored or storage is unavailable. */
 export const getReasoningEffortForModel = (
 	modelID: string,
 ): string | undefined => {
@@ -15,6 +16,7 @@ export const getReasoningEffortForModel = (
 	}
 };
 
+/** Persists the effort for a model. Silently keeps only the in-memory selection when storage is unavailable (private mode, quota). */
 export const saveReasoningEffortForModel = (
 	modelID: string,
 	reasoningEffort: string,

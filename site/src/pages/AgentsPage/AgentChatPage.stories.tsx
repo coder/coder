@@ -41,6 +41,10 @@ import {
 } from "#/testHelpers/storybook";
 import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
+import {
+	getReasoningEffortForModel,
+	saveReasoningEffortForModel,
+} from "./utils/reasoningEffort";
 
 // ---------------------------------------------------------------------------
 // Layout wrapper: provides outlet context for the child route.
@@ -84,6 +88,7 @@ const AgentChatPageLayout: FC = () => {
 // ---------------------------------------------------------------------------
 const CHAT_ID = "chat-1";
 const MODEL_CONFIG_ID = "model-config-1";
+const SECOND_MODEL_CONFIG_ID = "model-config-2";
 
 const mockWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
@@ -1265,6 +1270,97 @@ export const WithMessageHistory: Story = {
 			CHAT_ID,
 			5,
 			expect.objectContaining({ reasoning_effort: "medium" }),
+		);
+	},
+};
+
+export const RemembersReasoningEffortAcrossModels: Story = {
+	parameters: {
+		queries: [
+			...buildQueries(
+				{
+					id: CHAT_ID,
+					...baseChatFields,
+					title: "Cross-model effort restore",
+					status: "waiting",
+				},
+				{
+					messages: [
+						{
+							...MockChatMessage,
+							id: 1,
+							chat_id: CHAT_ID,
+							role: "user",
+							model_config_id: MODEL_CONFIG_ID,
+							content: [{ type: "text", text: "Restore effort per model." }],
+						},
+					],
+					queued_messages: [],
+					has_more: false,
+				},
+				{ diffUrl: undefined },
+			),
+			{
+				key: chatModelConfigs().queryKey,
+				data: [
+					...mockModelConfigs,
+					{
+						...MockChatModelConfig,
+						id: SECOND_MODEL_CONFIG_ID,
+						model: "claude-sonnet-4",
+						display_name: "Claude Sonnet 4",
+						model_config: {
+							reasoning_effort: { default: "low", max: "medium" },
+						},
+						reasoning_efforts: ["low", "medium"],
+					},
+				],
+			},
+		],
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		saveReasoningEffortForModel(SECOND_MODEL_CONFIG_ID, "medium");
+		spyOn(API.experimental, "editChatMessage").mockResolvedValue({
+			message: {
+				...MockChatMessage,
+				id: 1,
+			},
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const user = userEvent.setup();
+
+		expect(await canvas.findByText("Cross-model effort restore")).toBeVisible();
+
+		// CRF-1: switching models restores the persisted effort.
+		await user.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
+		await user.click(
+			await body.findByRole("option", { name: /Claude Sonnet 4/i }),
+		);
+		await user.click(canvas.getByRole("combobox", { name: "Claude Sonnet 4" }));
+		expect(await body.findByRole("slider")).toHaveAttribute(
+			"aria-valuenow",
+			"1",
+		);
+		await user.keyboard("{Escape}");
+
+		// CRF-2: editing after switching models sends the new model's
+		// effective effort even without touching the slider.
+		await user.click(canvas.getByRole("button", { name: "Edit message" }));
+		await user.click(canvas.getByRole("button", { name: "Save Edit" }));
+		await waitFor(() => {
+			expect(API.experimental.editChatMessage).toHaveBeenCalledTimes(1);
+		});
+		expect(API.experimental.editChatMessage).toHaveBeenCalledWith(
+			CHAT_ID,
+			1,
+			expect.objectContaining({
+				model_config_id: SECOND_MODEL_CONFIG_ID,
+				reasoning_effort: "medium",
+			}),
 		);
 	},
 };

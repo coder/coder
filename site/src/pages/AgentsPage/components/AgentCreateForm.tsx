@@ -250,6 +250,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const selectedModelOption = modelOptions.find(
 		(option) => option.id === selectedModel,
 	);
+	// A root personal model override intentionally outranks the persisted
+	// per-model value while it supplies the selected model.
 	const rootOverrideReasoningEffort =
 		!hasValidUserSelectedModel && selectedModel === rootOverrideModelID
 			? rootPersonalModelOverride?.reasoning_effort
@@ -364,6 +366,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	};
 
 	const handleReasoningEffortChange = (value: string) => {
+		if (!selectedModel) {
+			return;
+		}
 		setSelectedReasoningEfforts((current) => ({
 			...current,
 			[selectedModel]: value,

@@ -1190,9 +1190,8 @@ const AgentChatPage: FC = () => {
 	const effectiveReasoningEffort = effectiveModelOption
 		? pickReasoningEffort(
 				selectedReasoningEfforts[effectiveSelectedModel] ??
-					(effectiveSelectedModel === resolvedChatModel
-						? chatRecord?.last_reasoning_effort
-						: getReasoningEffortForModel(effectiveSelectedModel)),
+					chatRecord?.last_reasoning_effort ??
+					getReasoningEffortForModel(effectiveSelectedModel),
 				effectiveModelOption.reasoningEfforts ?? [],
 				effectiveModelOption.reasoningEffortDefault,
 			)
@@ -1571,7 +1570,10 @@ const AgentChatPage: FC = () => {
 				pickerModelConfigID !== originalModelConfigID
 					? pickerModelConfigID
 					: undefined;
-			// Omit so the backend preserves the original effort.
+			// Omit both so the backend preserves the original model and
+			// effort; send the effective effort when the user changed it or
+			// the model changed, so the old model's effort is not carried
+			// onto a different model.
 			const request: TypesGen.EditChatMessageRequest = {
 				content,
 				model_config_id: editSelectedModelConfigID,
@@ -1782,8 +1784,11 @@ const AgentChatPage: FC = () => {
 					...current,
 					[effectiveSelectedModel]: value,
 				}));
-				saveReasoningEffortForModel(effectiveSelectedModel, value);
-				if (editing.editingMessageId !== null) {
+				// Editing a historical message scopes the effort to that
+				// edit; do not make it the remembered default.
+				if (editing.editingMessageId === null) {
+					saveReasoningEffortForModel(effectiveSelectedModel, value);
+				} else {
 					isEditReasoningEffortDirtyRef.current = true;
 				}
 			}}
