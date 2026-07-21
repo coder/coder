@@ -625,7 +625,7 @@ func (m queryMetricsStore) DeleteLicense(ctx context.Context, id int32) (int32, 
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteMCPServerConfigByID(ctx context.Context, id uuid.UUID) error {
+func (m queryMetricsStore) DeleteMCPServerConfigByID(ctx context.Context, id database.DeleteMCPServerConfigByIDParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteMCPServerConfigByID(ctx, id)
 	m.queryLatencies.WithLabelValues("DeleteMCPServerConfigByID").Observe(time.Since(start).Seconds())
@@ -2073,9 +2073,9 @@ func (m queryMetricsStore) GetEnabledChatModelConfigs(ctx context.Context, organ
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
+func (m queryMetricsStore) GetEnabledMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetEnabledMCPServerConfigs(ctx)
+	r0, r1 := m.s.GetEnabledMCPServerConfigs(ctx, organizationID)
 	m.queryLatencies.WithLabelValues("GetEnabledMCPServerConfigs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEnabledMCPServerConfigs").Inc()
 	return r0, r1
@@ -2145,9 +2145,9 @@ func (m queryMetricsStore) GetFilteredInboxNotificationsByUserID(ctx context.Con
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetForcedMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
+func (m queryMetricsStore) GetForcedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetForcedMCPServerConfigs(ctx)
+	r0, r1 := m.s.GetForcedMCPServerConfigs(ctx, organizationID)
 	m.queryLatencies.WithLabelValues("GetForcedMCPServerConfigs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetForcedMCPServerConfigs").Inc()
 	return r0, r1
@@ -2377,7 +2377,7 @@ func (m queryMetricsStore) GetMCPServerConfigByID(ctx context.Context, id uuid.U
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetMCPServerConfigBySlug(ctx context.Context, slug string) (database.MCPServerConfig, error) {
+func (m queryMetricsStore) GetMCPServerConfigBySlug(ctx context.Context, slug database.GetMCPServerConfigBySlugParams) (database.MCPServerConfig, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetMCPServerConfigBySlug(ctx, slug)
 	m.queryLatencies.WithLabelValues("GetMCPServerConfigBySlug").Observe(time.Since(start).Seconds())
@@ -2385,15 +2385,15 @@ func (m queryMetricsStore) GetMCPServerConfigBySlug(ctx context.Context, slug st
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
+func (m queryMetricsStore) GetMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetMCPServerConfigs(ctx)
+	r0, r1 := m.s.GetMCPServerConfigs(ctx, organizationID)
 	m.queryLatencies.WithLabelValues("GetMCPServerConfigs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerConfigs").Inc()
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.MCPServerConfig, error) {
+func (m queryMetricsStore) GetMCPServerConfigsByIDs(ctx context.Context, ids database.GetMCPServerConfigsByIDsParams) ([]database.MCPServerConfig, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetMCPServerConfigsByIDs(ctx, ids)
 	m.queryLatencies.WithLabelValues("GetMCPServerConfigsByIDs").Observe(time.Since(start).Seconds())
@@ -2409,7 +2409,7 @@ func (m queryMetricsStore) GetMCPServerUserToken(ctx context.Context, arg databa
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]database.MCPServerUserToken, error) {
+func (m queryMetricsStore) GetMCPServerUserTokensByUserID(ctx context.Context, userID database.GetMCPServerUserTokensByUserIDParams) ([]database.MCPServerUserToken, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetMCPServerUserTokensByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetMCPServerUserTokensByUserID").Observe(time.Since(start).Seconds())

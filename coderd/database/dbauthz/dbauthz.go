@@ -2263,7 +2263,7 @@ func (q *querier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
 	return id, nil
 }
 
-func (q *querier) DeleteMCPServerConfigByID(ctx context.Context, id uuid.UUID) error {
+func (q *querier) DeleteMCPServerConfigByID(ctx context.Context, id database.DeleteMCPServerConfigByIDParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
 	}
@@ -3787,11 +3787,11 @@ func (q *querier) GetEnabledChatModelConfigs(ctx context.Context, organizationID
 	return q.db.GetAuthorizedEnabledChatModelConfigs(ctx, organizationID, prep)
 }
 
-func (q *querier) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
+func (q *querier) GetEnabledMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return nil, err
 	}
-	return q.db.GetEnabledMCPServerConfigs(ctx)
+	return q.db.GetEnabledMCPServerConfigs(ctx, organizationID)
 }
 
 // GetExternalAgentTokensByTemplateID is used for scaletesting purposes; the
@@ -3866,11 +3866,11 @@ func (q *querier) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetFilteredInboxNotificationsByUserID)(ctx, arg)
 }
 
-func (q *querier) GetForcedMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
+func (q *querier) GetForcedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return nil, err
 	}
-	return q.db.GetForcedMCPServerConfigs(ctx)
+	return q.db.GetForcedMCPServerConfigs(ctx, organizationID)
 }
 
 func (q *querier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
@@ -4067,21 +4067,21 @@ func (q *querier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (dat
 	return q.db.GetMCPServerConfigByID(ctx, id)
 }
 
-func (q *querier) GetMCPServerConfigBySlug(ctx context.Context, slug string) (database.MCPServerConfig, error) {
+func (q *querier) GetMCPServerConfigBySlug(ctx context.Context, slug database.GetMCPServerConfigBySlugParams) (database.MCPServerConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return database.MCPServerConfig{}, err
 	}
 	return q.db.GetMCPServerConfigBySlug(ctx, slug)
 }
 
-func (q *querier) GetMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
+func (q *querier) GetMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return nil, err
 	}
-	return q.db.GetMCPServerConfigs(ctx)
+	return q.db.GetMCPServerConfigs(ctx, organizationID)
 }
 
-func (q *querier) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.MCPServerConfig, error) {
+func (q *querier) GetMCPServerConfigsByIDs(ctx context.Context, ids database.GetMCPServerConfigsByIDsParams) ([]database.MCPServerConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return nil, err
 	}
@@ -4095,7 +4095,7 @@ func (q *querier) GetMCPServerUserToken(ctx context.Context, arg database.GetMCP
 	return q.db.GetMCPServerUserToken(ctx, arg)
 }
 
-func (q *querier) GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]database.MCPServerUserToken, error) {
+func (q *querier) GetMCPServerUserTokensByUserID(ctx context.Context, userID database.GetMCPServerUserTokensByUserIDParams) ([]database.MCPServerUserToken, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return nil, err
 	}

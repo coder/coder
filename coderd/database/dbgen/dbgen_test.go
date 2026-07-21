@@ -420,6 +420,7 @@ func TestGenerator(t *testing.T) {
 		// Defaults.
 		cfg := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{})
 		require.NotEqual(t, uuid.Nil, cfg.ID)
+		require.NotEqual(t, uuid.Nil, cfg.OrganizationID)
 		require.Equal(t, "streamable_http", cfg.Transport)
 		require.Equal(t, "none", cfg.AuthType)
 		require.Equal(t, "default_off", cfg.Availability)
@@ -430,13 +431,16 @@ func TestGenerator(t *testing.T) {
 		require.NotEmpty(t, cfg.Url)
 
 		// Overrides.
+		organization := dbgen.Organization(t, db, database.Organization{})
 		cfg2 := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID:  organization.ID,
 			DisplayName:     "Custom MCP",
 			Slug:            "custom-mcp",
 			Url:             "https://custom.example.com",
 			AuthType:        "oauth2",
 			AllowInPlanMode: true,
 		})
+		require.Equal(t, organization.ID, cfg2.OrganizationID)
 		require.Equal(t, "Custom MCP", cfg2.DisplayName)
 		require.Equal(t, "custom-mcp", cfg2.Slug)
 		require.Equal(t, "https://custom.example.com", cfg2.Url)

@@ -387,6 +387,11 @@ func ChatProvider(t testing.TB, db database.Store, seed database.ChatProvider, m
 func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerConfig) database.MCPServerConfig {
 	t.Helper()
 
+	organizationID := seed.OrganizationID
+	if organizationID == uuid.Nil {
+		organizationID = Organization(t, db, database.Organization{}).ID
+	}
+
 	// CreatedBy and UpdatedBy are user FKs, so default fixtures create a user.
 	createdBy := seed.CreatedBy.UUID
 	if createdBy == uuid.Nil {
@@ -398,6 +403,7 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 	}
 
 	cfg, err := db.InsertMCPServerConfig(genCtx, database.InsertMCPServerConfigParams{
+		OrganizationID:          organizationID,
 		DisplayName:             takeFirst(seed.DisplayName, "Test MCP Server"),
 		Slug:                    takeFirst(seed.Slug, testutil.GetRandomName(t)),
 		Description:             seed.Description,

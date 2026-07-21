@@ -713,8 +713,8 @@ func (db *dbCrypt) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (da
 	return cfg, nil
 }
 
-func (db *dbCrypt) GetMCPServerConfigBySlug(ctx context.Context, slug string) (database.MCPServerConfig, error) {
-	cfg, err := db.Store.GetMCPServerConfigBySlug(ctx, slug)
+func (db *dbCrypt) GetMCPServerConfigBySlug(ctx context.Context, arg database.GetMCPServerConfigBySlugParams) (database.MCPServerConfig, error) {
+	cfg, err := db.Store.GetMCPServerConfigBySlug(ctx, arg)
 	if err != nil {
 		return database.MCPServerConfig{}, err
 	}
@@ -724,8 +724,8 @@ func (db *dbCrypt) GetMCPServerConfigBySlug(ctx context.Context, slug string) (d
 	return cfg, nil
 }
 
-func (db *dbCrypt) GetMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
-	cfgs, err := db.Store.GetMCPServerConfigs(ctx)
+func (db *dbCrypt) GetMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
+	cfgs, err := db.Store.GetMCPServerConfigs(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -737,8 +737,8 @@ func (db *dbCrypt) GetMCPServerConfigs(ctx context.Context) ([]database.MCPServe
 	return cfgs, nil
 }
 
-func (db *dbCrypt) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.MCPServerConfig, error) {
-	cfgs, err := db.Store.GetMCPServerConfigsByIDs(ctx, ids)
+func (db *dbCrypt) GetMCPServerConfigsByIDs(ctx context.Context, arg database.GetMCPServerConfigsByIDsParams) ([]database.MCPServerConfig, error) {
+	cfgs, err := db.Store.GetMCPServerConfigsByIDs(ctx, arg)
 	if err != nil {
 		return nil, err
 	}
@@ -750,8 +750,8 @@ func (db *dbCrypt) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID
 	return cfgs, nil
 }
 
-func (db *dbCrypt) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
-	cfgs, err := db.Store.GetEnabledMCPServerConfigs(ctx)
+func (db *dbCrypt) GetEnabledMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
+	cfgs, err := db.Store.GetEnabledMCPServerConfigs(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -763,8 +763,8 @@ func (db *dbCrypt) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.M
 	return cfgs, nil
 }
 
-func (db *dbCrypt) GetForcedMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
-	cfgs, err := db.Store.GetForcedMCPServerConfigs(ctx)
+func (db *dbCrypt) GetForcedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
+	cfgs, err := db.Store.GetForcedMCPServerConfigs(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -801,8 +801,8 @@ func (db *dbCrypt) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, par
 	return tok, nil
 }
 
-func (db *dbCrypt) GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]database.MCPServerUserToken, error) {
-	toks, err := db.Store.GetMCPServerUserTokensByUserID(ctx, userID)
+func (db *dbCrypt) GetMCPServerUserTokensByUserID(ctx context.Context, arg database.GetMCPServerUserTokensByUserIDParams) ([]database.MCPServerUserToken, error) {
+	toks, err := db.Store.GetMCPServerUserTokensByUserID(ctx, arg)
 	if err != nil {
 		return nil, err
 	}

@@ -279,7 +279,12 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat_model_config:update',
     'chat_model_config:delete',
     'chat_model_config:share',
-    'chat_model_config:*'
+    'chat_model_config:*',
+    'mcp_server_config:create',
+    'mcp_server_config:read',
+    'mcp_server_config:update',
+    'mcp_server_config:delete',
+    'mcp_server_config:*'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -2510,6 +2515,7 @@ CREATE TABLE mcp_server_configs (
     allow_in_plan_mode boolean DEFAULT false NOT NULL,
     forward_coder_headers boolean DEFAULT false NOT NULL,
     oauth2_revocation_url text DEFAULT ''::text NOT NULL,
+    organization_id uuid NOT NULL,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text])))
@@ -4385,10 +4391,13 @@ ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY mcp_server_configs
-    ADD CONSTRAINT mcp_server_configs_pkey PRIMARY KEY (id);
+    ADD CONSTRAINT mcp_server_configs_id_organization_id_key UNIQUE (id, organization_id);
 
 ALTER TABLE ONLY mcp_server_configs
-    ADD CONSTRAINT mcp_server_configs_slug_key UNIQUE (slug);
+    ADD CONSTRAINT mcp_server_configs_organization_id_slug_key UNIQUE (organization_id, slug);
+
+ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY mcp_server_user_tokens
     ADD CONSTRAINT mcp_server_user_tokens_mcp_server_config_id_user_id_key UNIQUE (mcp_server_config_id, user_id);
@@ -4843,9 +4852,11 @@ CREATE INDEX idx_inbox_notifications_user_id_read_at ON inbox_notifications USIN
 
 CREATE INDEX idx_inbox_notifications_user_id_template_id_targets ON inbox_notifications USING btree (user_id, template_id, targets);
 
-CREATE INDEX idx_mcp_server_configs_enabled ON mcp_server_configs USING btree (enabled) WHERE (enabled = true);
+CREATE INDEX idx_mcp_server_configs_enabled ON mcp_server_configs USING btree (organization_id, enabled) WHERE (enabled = true);
 
-CREATE INDEX idx_mcp_server_configs_forced ON mcp_server_configs USING btree (enabled, availability) WHERE ((enabled = true) AND (availability = 'force_on'::text));
+CREATE INDEX idx_mcp_server_configs_forced ON mcp_server_configs USING btree (organization_id, enabled, availability) WHERE ((enabled = true) AND (availability = 'force_on'::text));
+
+CREATE INDEX idx_mcp_server_configs_organization_id ON mcp_server_configs USING btree (organization_id);
 
 CREATE INDEX idx_mcp_server_user_tokens_user_id ON mcp_server_user_tokens USING btree (user_id);
 
@@ -5274,6 +5285,9 @@ ALTER TABLE ONLY mcp_server_configs
 
 ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_oauth2_client_secret_key_id_fkey FOREIGN KEY (oauth2_client_secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;
