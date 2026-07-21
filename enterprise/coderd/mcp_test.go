@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -212,4 +213,87 @@ func TestMCPServerConfigACLRequiresTemplateRBAC(t *testing.T) {
 	var sdkErr *codersdk.Error
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+}
+
+func TestChatMCPServerSelection(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureMultipleOrganizations: 1,
+				codersdk.FeatureTemplateRBAC:          1,
+			},
+		},
+	})
+	expClient := codersdk.NewExperimentalClient(client)
+	provider := createOpenAIProviderForTest(ctx, t, expClient, "test-key", "https://example.com")
+	_ = createChatModelConfigForOrganization(ctx, t, expClient, firstUser.OrganizationID, provider.ID, "mcp-selection-model", true)
+
+	allowed := createMCPServerConfigForOrganization(t, client, firstUser.OrganizationID, "selection-allowed")
+	disabled := createMCPServerConfigForOrganization(t, client, firstUser.OrganizationID, "selection-disabled")
+	//nolint:gocritic // The owner prepares a disabled configuration for selection validation.
+	_, err := client.UpdateMCPServerConfig(ctx, disabled.ID, codersdk.UpdateMCPServerConfigRequest{Enabled: ptr.Ref(false)})
+	require.NoError(t, err)
+	denied := createMCPServerConfigForOrganization(t, client, firstUser.OrganizationID, "selection-denied")
+	err = client.UpdateMCPServerConfigACL(ctx, denied.ID, codersdk.UpdateMCPServerConfigACL{
+		GroupRoles: map[string]codersdk.MCPServerConfigRole{
+			firstUser.OrganizationID.String(): codersdk.MCPServerConfigRoleDeleted,
+		},
+	})
+	require.NoError(t, err)
+	secondOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+	otherOrganization := createMCPServerConfigForOrganization(t, client, secondOrg.ID, "selection-other-org")
+
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(
+		t, client, firstUser.OrganizationID,
+		rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID),
+	)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+	create := func(ids []uuid.UUID) (codersdk.Chat, error) {
+		return memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "MCP selection",
+			}},
+			MCPServerIDs: ids,
+		})
+	}
+
+	wantIDs := []uuid.UUID{allowed.ID, allowed.ID}
+	chat, err := create(wantIDs)
+	require.NoError(t, err)
+	require.Equal(t, wantIDs, chat.MCPServerIDs)
+
+	for _, test := range []struct {
+		name string
+		id   uuid.UUID
+	}{
+		{name: "Disabled", id: disabled.ID},
+		{name: "NoACL", id: denied.ID},
+		{name: "OtherOrganization", id: otherOrganization.ID},
+		{name: "Unknown", id: uuid.New()},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := create([]uuid.UUID{test.id})
+			sdkErr := requireSDKErrorStatus(t, err, http.StatusBadRequest)
+			require.Equal(t, "One or more MCP server IDs are invalid.", sdkErr.Message)
+			require.Empty(t, sdkErr.Detail)
+		})
+	}
+
+	invalidReplacement := []uuid.UUID{denied.ID}
+	_, err = memberClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "Replace MCP selection",
+		}},
+		MCPServerIDs: &invalidReplacement,
+	})
+	sdkErr := requireSDKErrorStatus(t, err, http.StatusBadRequest)
+	require.Equal(t, "One or more MCP server IDs are invalid.", sdkErr.Message)
+	require.Empty(t, sdkErr.Detail)
 }

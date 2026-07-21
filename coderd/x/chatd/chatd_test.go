@@ -736,18 +736,20 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 		},
 	)
 	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName: "External Snapshot MCP",
-		Slug:        "external-snapshot-mcp",
-		Url:         externalMCPServer.URL,
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		DisplayName:    "External Snapshot MCP",
+		OrganizationID: org.ID,
+		Slug:           "external-snapshot-mcp",
+		Url:            externalMCPServer.URL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 	dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName: "Second MCP",
-		Slug:        "second-mcp",
-		Url:         secondMCPServer.URL,
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		DisplayName:    "Second MCP",
+		OrganizationID: org.ID,
+		Slug:           "second-mcp",
+		Url:            secondMCPServer.URL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
@@ -881,11 +883,12 @@ func TestRootExploreChatStaysBuiltinOnlyAtRuntime(t *testing.T) {
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName: "Root Explore Runtime MCP",
-		Slug:        "root-explore-runtime-mcp",
-		Url:         externalMCPServer.URL,
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		DisplayName:    "Root Explore Runtime MCP",
+		OrganizationID: org.ID,
+		Slug:           "root-explore-runtime-mcp",
+		Url:            externalMCPServer.URL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 
 	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
@@ -1089,18 +1092,20 @@ func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	parentConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName: "Runtime Parent MCP",
-		Slug:        "runtime-parent-mcp",
-		Url:         parentTS.URL,
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		DisplayName:    "Runtime Parent MCP",
+		OrganizationID: org.ID,
+		Slug:           "runtime-parent-mcp",
+		Url:            parentTS.URL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 	injectedConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName: "Runtime Injected MCP",
-		Slug:        "runtime-injected-mcp",
-		Url:         injectedTS.URL,
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		DisplayName:    "Runtime Injected MCP",
+		OrganizationID: org.ID,
+		Slug:           "runtime-injected-mcp",
+		Url:            injectedTS.URL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 
 	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
@@ -1257,6 +1262,7 @@ func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 
 	approvedConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 		DisplayName:     "Plan Approved MCP",
+		OrganizationID:  org.ID,
 		Slug:            "plan-approved-mcp",
 		Url:             echoTS.URL,
 		AllowInPlanMode: true,
@@ -1265,15 +1271,17 @@ func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 	})
 
 	blockedConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName: "Plan Blocked MCP",
-		Slug:        "plan-blocked-mcp",
-		Url:         echoTS.URL,
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		DisplayName:    "Plan Blocked MCP",
+		OrganizationID: org.ID,
+		Slug:           "plan-blocked-mcp",
+		Url:            echoTS.URL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 
 	filteredConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 		DisplayName:     "Plan Filtered MCP",
+		OrganizationID:  org.ID,
 		Slug:            "plan-filtered-mcp",
 		Url:             filteredTS.URL,
 		AllowInPlanMode: true,
@@ -10690,11 +10698,12 @@ func TestMCPServerToolInvocation(t *testing.T) {
 	// happen after seedChatDependencies so user.ID exists for
 	// the foreign key.
 	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName: "Test MCP",
-		Slug:        "test-mcp",
-		Url:         mcpTS.URL,
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		DisplayName:    "Test MCP",
+		OrganizationID: org.ID,
+		Slug:           "test-mcp",
+		Url:            mcpTS.URL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
@@ -10864,6 +10873,7 @@ func TestPlanModeRootChatApprovedExternalMCPToolInvocation(t *testing.T) {
 
 	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 		DisplayName:     "Plan Mode MCP",
+		OrganizationID:  org.ID,
 		Slug:            "plan-mode-mcp",
 		Url:             mcpTS.URL,
 		AllowInPlanMode: true,
@@ -10974,6 +10984,7 @@ func TestPlanModeRootChatApprovedExternalMCPWorkflowCanReachProposePlan(t *testi
 
 	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 		DisplayName:     "Plan Workflow MCP",
+		OrganizationID:  org.ID,
 		Slug:            "plan-workflow-mcp",
 		Url:             mcpTS.URL,
 		AllowInPlanMode: true,
@@ -11185,6 +11196,7 @@ func TestMCPServerOAuth2TokenRefresh(t *testing.T) {
 	// mock token endpoint.
 	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 		DisplayName:    "Authed MCP",
+		OrganizationID: org.ID,
 		Slug:           "authed-mcp",
 		Url:            mcpTS.URL,
 		AuthType:       "oauth2",
@@ -11312,6 +11324,7 @@ func TestMCPServerOAuth2TokenRefreshFailureGraceful(t *testing.T) {
 
 	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 		DisplayName:    "Broken MCP",
+		OrganizationID: org.ID,
 		Slug:           "broken-mcp",
 		Url:            "http://127.0.0.1:0/does-not-exist",
 		AuthType:       "oauth2",

@@ -61,15 +61,23 @@ func (server *Server) prepareGeneration(
 	if len(chat.MCPServerIDs) > 0 {
 		g.Go(func() error {
 			var err error
-			mcpConfigs, err = server.db.GetMCPServerConfigsByIDs(ctx, chat.MCPServerIDs)
+			mcpConfigs, err = server.db.GetMCPServerConfigsByIDs(ctx, database.GetMCPServerConfigsByIDsParams{
+				OrganizationID: chat.OrganizationID,
+				IDs:            chat.MCPServerIDs,
+			})
 			if err != nil {
 				logger.Warn(ctx, "failed to load MCP server configs", slog.Error(err))
+				return nil
 			}
-			return nil
-		})
-		g.Go(func() error {
-			var err error
-			mcpTokens, err = server.db.GetMCPServerUserTokensByUserID(ctx, chat.OwnerID)
+			configIDs := make([]uuid.UUID, 0, len(mcpConfigs))
+			for _, config := range mcpConfigs {
+				configIDs = append(configIDs, config.ID)
+			}
+			mcpTokens, err = server.db.GetMCPServerUserTokensByUserID(ctx, database.GetMCPServerUserTokensByUserIDParams{
+				UserID:             chat.OwnerID,
+				OrganizationID:     chat.OrganizationID,
+				McpServerConfigIds: configIDs,
+			})
 			if err != nil {
 				logger.Warn(ctx, "failed to load MCP user tokens", slog.Error(err))
 			}
