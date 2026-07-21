@@ -2258,7 +2258,7 @@ func getGithubOAuth2ConfigParams(ctx context.Context, logger slog.Logger, db dat
 		logger.Warn(ctx, "the default GitHub OAuth provider can only see memberships in organizations that have installed the Coder GitHub app; "+
 			"users cannot log in until the app is installed in each allowed organization, or a custom GitHub OAuth app is configured",
 			slog.F("allowed_orgs", params.allowOrgs),
-			slog.F("install_url", "https://github.com/apps/coder/installations/select_target"),
+			slog.F("install_url", coderd.GithubOAuth2DefaultProviderInstallURL),
 		)
 	}
 

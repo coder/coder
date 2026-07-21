@@ -45,11 +45,9 @@ To use the default configuration:
    ```
 
    > [!IMPORTANT]
-   > The default GitHub app can only see memberships in organizations where it
-   > is installed. If you set `CODER_OAUTH2_GITHUB_ALLOWED_ORGS` without
-   > installing the app in each allowed organization, all logins fail with
-   > "You aren't a member of the authorized Github organizations!", including
-   > the first admin login on a fresh deployment.
+   > The default GitHub app can only see memberships in organizations where it is installed.
+   > If you set `CODER_OAUTH2_GITHUB_ALLOWED_ORGS` without installing the app in each allowed organization, all logins fail with "You aren't a member of the authorized Github organizations!", including the first admin login on a fresh deployment.
+   > Install the app for each organization at the [Coder app on GitHub](https://github.com/apps/coder/installations/select_target).
 
 ## Disable the Default GitHub App
 
