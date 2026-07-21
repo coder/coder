@@ -371,12 +371,9 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIBridgeInterception, cost tokenUsageCost, in *proto.RecordTokenUsageRequest, metadataJSON []byte) error {
 	createdAt := in.GetCreatedAt().AsTime()
 
-	// Populated inside the transaction when this interception crosses a budget
-	// threshold.
-	var (
-		crossing budgetThresholdCrossing
-		crossed  bool
-	)
+	// Populated inside the transaction with any budget thresholds this
+	// interception crossed.
+	var crossings []budgetThresholdCrossing
 	err := s.store.InTx(func(tx database.Store) error {
 		if _, err := tx.InsertAIBridgeTokenUsage(ctx, database.InsertAIBridgeTokenUsageParams{
 			ID:                    uuid.New(),
@@ -424,10 +421,9 @@ func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIB
 		// Threshold detection is best-effort: a failed read must not roll back
 		// the committed spend, so the error is logged rather than propagated.
 		var detectErr error
-		crossing, crossed, detectErr = s.detectBudgetThresholdCrossing(ctx, tx, intc, cost)
+		crossings, detectErr = s.detectBudgetThresholdCrossings(ctx, tx, intc, cost)
 		if detectErr != nil {
-			// crossed is false on error; log and continue so a failed read does
-			// not roll back the committed spend.
+			// log and continue so a failed read does not roll back the committed spend.
 			s.logger.Warn(ctx, "failed to detect AI budget threshold crossing",
 				slog.F("interception_id", intc.ID),
 				slog.F("initiator_id", intc.InitiatorID),
@@ -439,11 +435,12 @@ func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIB
 		return err
 	}
 
-	if crossed {
+	for _, crossing := range crossings {
 		if err := s.notifyBudgetThresholdCrossing(ctx, crossing); err != nil {
-			s.logger.Warn(ctx, "failed to send AI budget warning notification",
+			s.logger.Warn(ctx, "failed to send AI budget notification",
 				slog.F("user_id", crossing.userID),
 				slog.F("group_id", crossing.groupID),
+				slog.F("threshold_percent", crossing.thresholdPercent),
 				slog.Error(err))
 		}
 	}

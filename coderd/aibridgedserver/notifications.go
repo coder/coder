@@ -14,12 +14,29 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 )
 
-// warningThresholdPercent is the percentage of the spend limit that triggers a
-// warning notification.
-const warningThresholdPercent = 90
+// warningThresholdPercent triggers a warning notification; limitThresholdPercent
+// triggers the limit-reached notification (after which requests are blocked).
+const (
+	warningThresholdPercent = 85
+	limitThresholdPercent   = 100
+)
 
 // budgetNotificationsCreatedBy records what enqueued AI budget notifications.
 const budgetNotificationsCreatedBy = "aigateway"
+
+// budgetThreshold pairs a percentage of the spend limit with the notification
+// template sent when a user's spend crosses it.
+type budgetThreshold struct {
+	percent  int
+	template uuid.UUID
+}
+
+// budgetThresholds are the thresholds evaluated on every priced interception,
+// ordered ascending. A single interception can cross more than one.
+var budgetThresholds = []budgetThreshold{
+	{percent: warningThresholdPercent, template: notifications.TemplateAIBudgetWarningUser},
+	{percent: limitThresholdPercent, template: notifications.TemplateAIBudgetLimitReachedUser},
+}
 
 // budgetThresholdCrossing describes a user crossing a budget threshold on a
 // single interception. It carries only stable values so that if the same
@@ -30,18 +47,21 @@ type budgetThresholdCrossing struct {
 	groupID          uuid.UUID
 	spendLimitMicros int64
 	thresholdPercent int
+	template         uuid.UUID
 }
 
-// detectBudgetThresholdCrossing reports whether recording this interception's
-// cost pushed the user's period spend across the warning threshold.
-func (s *Server) detectBudgetThresholdCrossing(ctx context.Context, tx database.Store, intc database.AIBridgeInterception, cost tokenUsageCost) (budgetThresholdCrossing, bool, error) {
+// detectBudgetThresholdCrossings checks whether this interception's cost pushed
+// the user's period spend across any budget thresholds, returning each one
+// crossed. A single interception can cross several at once (e.g. straight past
+// both the warning and limit thresholds).
+func (s *Server) detectBudgetThresholdCrossings(ctx context.Context, tx database.Store, intc database.AIBridgeInterception, cost tokenUsageCost) ([]budgetThresholdCrossing, error) {
 	if !cost.effectiveGroupID.Valid || !cost.spendLimitMicros.Valid || cost.spendLimitMicros.Int64 <= 0 {
-		return budgetThresholdCrossing{}, false, nil
+		return nil, nil
 	}
 
 	period, err := budget.CurrentPeriod(s.clock.Now(), s.budgetPeriod)
 	if err != nil {
-		return budgetThresholdCrossing{}, false, xerrors.Errorf("compute AI budget period: %w", err)
+		return nil, xerrors.Errorf("compute AI budget period: %w", err)
 	}
 
 	spend, err := tx.GetUserAISpendSince(ctx, database.GetUserAISpendSinceParams{
@@ -50,7 +70,7 @@ func (s *Server) detectBudgetThresholdCrossing(ctx context.Context, tx database.
 		PeriodStart:      period.Start,
 	})
 	if err != nil {
-		return budgetThresholdCrossing{}, false, xerrors.Errorf("get user AI spend for user %q in group %q: %w", intc.InitiatorID, cost.effectiveGroupID.UUID, err)
+		return nil, xerrors.Errorf("get user AI spend for user %q in group %q: %w", intc.InitiatorID, cost.effectiveGroupID.UUID, err)
 	}
 
 	limit := cost.spendLimitMicros.Int64
@@ -58,20 +78,24 @@ func (s *Server) detectBudgetThresholdCrossing(ctx context.Context, tx database.
 	// Pre-interception total is the current total minus this interception's cost.
 	oldSpend := newSpend - cost.costMicros.Int64
 
-	warnAt := limit * warningThresholdPercent / 100
-	if oldSpend < warnAt && newSpend >= warnAt {
-		return budgetThresholdCrossing{
-			userID:           intc.InitiatorID,
-			groupID:          cost.effectiveGroupID.UUID,
-			spendLimitMicros: limit,
-			thresholdPercent: warningThresholdPercent,
-		}, true, nil
+	var crossings []budgetThresholdCrossing
+	for _, t := range budgetThresholds {
+		at := limit * int64(t.percent) / 100
+		if oldSpend < at && newSpend >= at {
+			crossings = append(crossings, budgetThresholdCrossing{
+				userID:           intc.InitiatorID,
+				groupID:          cost.effectiveGroupID.UUID,
+				spendLimitMicros: limit,
+				thresholdPercent: t.percent,
+				template:         t.template,
+			})
+		}
 	}
-	return budgetThresholdCrossing{}, false, nil
+	return crossings, nil
 }
 
-// notifyBudgetThresholdCrossing enqueues the warning notification for the user
-// who crossed the threshold.
+// notifyBudgetThresholdCrossing enqueues the notification for the user who
+// crossed the threshold.
 func (s *Server) notifyBudgetThresholdCrossing(ctx context.Context, crossing budgetThresholdCrossing) error {
 	//nolint:gocritic // The interception context is scoped to AI Bridge; reading the group and enqueuing need system access.
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
@@ -87,7 +111,7 @@ func (s *Server) notifyBudgetThresholdCrossing(ctx context.Context, crossing bud
 		"group_name": group.Name,
 	}
 
-	if _, err := s.notifEnqueuer.EnqueueWithData(sysCtx, crossing.userID, notifications.TemplateAIBudgetWarningUser,
+	if _, err := s.notifEnqueuer.EnqueueWithData(sysCtx, crossing.userID, crossing.template,
 		labels, nil, budgetNotificationsCreatedBy,
 		crossing.groupID,
 	); err != nil {

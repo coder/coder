@@ -2210,7 +2210,7 @@ func TestRecordTokenUsageAuthorized(t *testing.T) {
 }
 
 // TestRecordTokenUsageBudgetWarningNotification verifies that recording token
-// usage that pushes the user's period spend across the 90% warning threshold
+// usage that pushes the user's period spend across the 85% warning threshold
 // enqueues a warning notification to the user, and that staying below the
 // threshold does not.
 func TestRecordTokenUsageBudgetWarningNotification(t *testing.T) {
@@ -2218,7 +2218,7 @@ func TestRecordTokenUsageBudgetWarningNotification(t *testing.T) {
 
 	const (
 		spendLimitMicros int64 = 1_000_000 // $1 limit
-		warnAtMicros     int64 = 900_000   // 90% of the limit
+		warnAtMicros     int64 = 850_000   // 85% of the limit
 		inputTokens      int64 = 1000
 		inputPriceMicros int64 = 1_000_000 // $1 per million tokens
 	)
@@ -2241,40 +2241,40 @@ func TestRecordTokenUsageBudgetWarningNotification(t *testing.T) {
 	}{
 		{
 			name: "crosses warning threshold",
-			// pre  = 900_500 - 1000 = 899_500 (< 900_000)
-			// post = 900_500                  (>= 900_000) -> crosses.
+			// pre  = 850_500 - 1000 = 849_500 (< 850_000)
+			// post = 850_500                  (>= 850_000) -> crosses.
 			newSpend:      warnAtMicros + 500,
 			wantNotified:  true,
-			wantThreshold: "90",
+			wantThreshold: "85",
 			wantLimit:     "$1.00",
 		},
 		{
 			name: "crosses when post lands exactly on threshold",
-			// pre  = 900_000 - 1000 = 899_000 (< 900_000)
-			// post = 900_000                  (>= 900_000) -> crosses.
+			// pre  = 850_000 - 1000 = 849_000 (< 850_000)
+			// post = 850_000                  (>= 850_000) -> crosses.
 			newSpend:      warnAtMicros,
 			wantNotified:  true,
-			wantThreshold: "90",
+			wantThreshold: "85",
 			wantLimit:     "$1.00",
 		},
 		{
 			name: "stays below warning threshold",
-			// pre  = 899_999 - 1000 = 898_999 (< 900_000)
-			// post = 899_999                  (< 900_000) -> no crossing.
+			// pre  = 849_999 - 1000 = 848_999 (< 850_000)
+			// post = 849_999                  (< 850_000) -> no crossing.
 			newSpend:     warnAtMicros - 1,
 			wantNotified: false,
 		},
 		{
 			name: "already at warning threshold",
-			// pre  = 901_000 - 1000 = 900_000 (not < 900_000)
-			// post = 901_000                  -> no fresh crossing.
+			// pre  = 851_000 - 1000 = 850_000 (not < 850_000)
+			// post = 851_000                  -> no fresh crossing.
 			newSpend:     warnAtMicros + 1000,
 			wantNotified: false,
 		},
 		{
 			name: "already above warning threshold",
-			// pre  = 910_000 - 1000 = 909_000 (>= 900_000)
-			// post = 910_000                  -> no fresh crossing.
+			// pre  = 860_000 - 1000 = 859_000 (>= 850_000)
+			// post = 860_000                  -> no fresh crossing.
 			newSpend:     warnAtMicros + 10000,
 			wantNotified: false,
 		},
@@ -2339,6 +2339,116 @@ func TestRecordTokenUsageBudgetWarningNotification(t *testing.T) {
 			require.Equal(t, tc.wantThreshold, sent[0].Labels["threshold"])
 			require.Equal(t, tc.wantLimit, sent[0].Labels["limit"])
 			require.Equal(t, "Engineering", sent[0].Labels["group_name"])
+		})
+	}
+}
+
+// TestRecordTokenUsageBudgetLimitReachedNotification verifies that crossing the
+// 100% limit enqueues the limit-reached notification, and that a single
+// interception crossing both the warning and limit thresholds enqueues both.
+func TestRecordTokenUsageBudgetLimitReachedNotification(t *testing.T) {
+	t.Parallel()
+
+	const spendLimitMicros int64 = 1_000_000 // $1 limit (100% threshold)
+	now := time.Date(2026, 6, 25, 14, 30, 0, 0, time.UTC)
+
+	// $1 per million tokens means the interception cost in micros equals the
+	// input token count, so each case sets its cost via inputTokens.
+	price := &database.AIModelPrice{
+		InputPrice: sql.NullInt64{Int64: 1_000_000, Valid: true},
+	}
+
+	testCases := []struct {
+		name          string
+		inputTokens   int64 // also the interception cost in micros
+		newSpend      int64 // post-increment period total
+		wantTemplates []uuid.UUID
+	}{
+		{
+			name: "crosses limit",
+			// pre = 999_500 (>= 850_000, so no warning; < 1_000_000)
+			// post = 1_000_500 (>= 1_000_000) -> limit only.
+			inputTokens:   1000,
+			newSpend:      spendLimitMicros + 500,
+			wantTemplates: []uuid.UUID{notifications.TemplateAIBudgetLimitReachedUser},
+		},
+		{
+			name: "crosses warning and limit in one interception",
+			// pre = 1_000_000 - 200_000 = 800_000 (< 850_000)
+			// post = 1_000_000 (>= 850_000 and >= 1_000_000) -> warning + limit.
+			inputTokens: 200_000,
+			newSpend:    spendLimitMicros,
+			wantTemplates: []uuid.UUID{
+				notifications.TemplateAIBudgetWarningUser,
+				notifications.TemplateAIBudgetLimitReachedUser,
+			},
+		},
+		{
+			name: "already above limit",
+			// pre = 1_009_000 (>= 1_000_000) -> no fresh crossing.
+			inputTokens:   1000,
+			newSpend:      spendLimitMicros + 10_000,
+			wantTemplates: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			enq := &notificationstest.FakeEnqueuer{}
+
+			intc := newTestInterception(uuid.New())
+			groupID := uuid.New()
+			group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: spendLimitMicros}
+
+			expectTokenUsageCostLookups(db, intc, nil, group, price)
+
+			db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+				func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
+			)
+			db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).
+				Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: intc.ID}, nil)
+			db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
+				Return(database.AIUserDailySpend{}, nil)
+			db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
+				Return(database.GetUserAISpendSinceRow{SpendMicros: tc.newSpend}, nil)
+			// The group is looked up once per crossing that notifies.
+			db.EXPECT().GetGroupByID(gomock.Any(), groupID).
+				Return(database.Group{ID: groupID, Name: "Engineering"}, nil).
+				Times(len(tc.wantTemplates))
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+				Store:         db,
+				AISeatTracker: agplaiseats.Noop{},
+				AccessURL:     "/",
+				GatewayCfg:    codersdk.AIBridgeConfig{},
+				Experiments:   requiredExperiments,
+				Enqueuer:      enq,
+				Logger:        testutil.Logger(t),
+				Clock:         quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+				InterceptionId: intc.ID.String(),
+				MsgId:          "msg_123",
+				InputTokens:    tc.inputTokens,
+				CreatedAt:      timestamppb.New(now),
+			})
+			require.NoError(t, err)
+
+			require.Len(t, enq.Sent(), len(tc.wantTemplates), "unexpected number of notifications")
+			for _, tmpl := range tc.wantTemplates {
+				sent := enq.Sent(notificationstest.WithTemplateID(tmpl))
+				require.Len(t, sent, 1, "expected one notification for template %s", tmpl)
+				require.Equal(t, intc.InitiatorID, sent[0].UserID)
+				require.Equal(t, "$1.00", sent[0].Labels["limit"])
+				require.Equal(t, "Engineering", sent[0].Labels["group_name"])
+			}
 		})
 	}
 }
