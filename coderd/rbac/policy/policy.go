@@ -98,6 +98,7 @@ var mcpServerConfigActions = map[Action]ActionDefinition{
 	ActionRead:   "read MCP server configurations",
 	ActionUpdate: "update an MCP server configuration",
 	ActionDelete: "delete an MCP server configuration",
+	ActionShare:  "share an MCP server configuration with users or groups",
 }
 
 // RBACPermissions is indexed by the type

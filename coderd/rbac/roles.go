@@ -1153,8 +1153,6 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceOrganization.Type: {policy.ActionRead},
 		// Can read available roles.
 		ResourceAssignOrgRole.Type: {policy.ActionRead},
-		// ACL filtering replaces this blanket grant when MCP sharing lands.
-		ResourceMCPServerConfig.Type: {policy.ActionRead},
 	}
 
 	// In all modes of workspace sharing but `none`, members need to

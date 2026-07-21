@@ -17,24 +17,28 @@ WHERE
 
 -- name: GetMCPServerConfigs :many
 SELECT
-    *
+    msc.*
 FROM
-    mcp_server_configs
+    mcp_server_configs msc
 WHERE
-    organization_id = @organization_id::uuid
+    msc.organization_id = @organization_id::uuid
+    -- Authorize Filter clause will be injected below in GetAuthorizedMCPServerConfigs
+    -- @authorize_filter
 ORDER BY
-    display_name ASC;
+    msc.display_name ASC;
 
 -- name: GetEnabledMCPServerConfigs :many
 SELECT
-    *
+    msc.*
 FROM
-    mcp_server_configs
+    mcp_server_configs msc
 WHERE
-    organization_id = @organization_id::uuid
-    AND enabled = TRUE
+    msc.organization_id = @organization_id::uuid
+    AND msc.enabled = TRUE
+    -- Authorize Filter clause will be injected below in GetAuthorizedEnabledMCPServerConfigs
+    -- @authorize_filter
 ORDER BY
-    display_name ASC;
+    msc.display_name ASC;
 
 -- name: GetMCPServerConfigsByIDs :many
 SELECT
@@ -59,9 +63,26 @@ WHERE
 ORDER BY
     display_name ASC;
 
+-- name: GetMCPServerConfigACLByID :one
+SELECT
+    user_acl AS users,
+    group_acl AS groups
+FROM mcp_server_configs
+WHERE id = @id::uuid
+    AND organization_id = @organization_id::uuid;
+
+-- name: UpdateMCPServerConfigACLByID :exec
+UPDATE mcp_server_configs
+SET user_acl = @user_acl,
+    group_acl = @group_acl
+WHERE id = @id::uuid
+    AND organization_id = @organization_id::uuid;
+
 -- name: InsertMCPServerConfig :one
 INSERT INTO mcp_server_configs (
     organization_id,
+    user_acl,
+    group_acl,
     display_name,
     slug,
     description,
@@ -92,6 +113,8 @@ INSERT INTO mcp_server_configs (
     updated_by
 ) VALUES (
     @organization_id::uuid,
+    @user_acl,
+    @group_acl,
     @display_name::text,
     @slug::text,
     @description::text,

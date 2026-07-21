@@ -79,6 +79,7 @@ func TestMCPServerConfigCollectionOrganizationIsolation(t *testing.T) {
 	firstConfig := createMCPServerConfigForOrganization(t, client, firstUser.OrganizationID, "org-one-mcp")
 	secondConfig := createMCPServerConfigForOrganization(t, client, secondOrg.ID, "org-two-mcp")
 
+	//nolint:gocritic // The owner verifies organization-scoped collection behavior.
 	firstConfigs, err := client.MCPServerConfigs(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
 	require.Len(t, firstConfigs, 1)
@@ -115,6 +116,8 @@ func TestMCPServerConfigItemCrossOrganizationConcealment(t *testing.T) {
 		{name: "Get", method: http.MethodGet},
 		{name: "Patch", method: http.MethodPatch, body: codersdk.UpdateMCPServerConfigRequest{DisplayName: ptr.Ref("cross-org")}},
 		{name: "Delete", method: http.MethodDelete},
+		{name: "GetACL", method: http.MethodGet, pathSuffix: "/acl"},
+		{name: "PatchACL", method: http.MethodPatch, pathSuffix: "/acl", body: codersdk.UpdateMCPServerConfigACL{}},
 		{name: "OAuthConnect", method: http.MethodGet, pathSuffix: "/oauth2/connect"},
 		{name: "OAuthCallback", method: http.MethodGet, pathSuffix: "/oauth2/callback"},
 		{name: "OAuthDisconnect", method: http.MethodDelete, pathSuffix: "/oauth2/disconnect"},
@@ -124,4 +127,89 @@ func TestMCPServerConfigItemCrossOrganizationConcealment(t *testing.T) {
 			requireMCPServerConfigRequestStatus(t, otherClient, test.method, config.ID, test.pathSuffix, test.body, http.StatusNotFound)
 		})
 	}
+}
+
+func TestMCPServerConfigACL(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		},
+	})
+	config := createMCPServerConfigForOrganization(t, client, firstUser.OrganizationID, "acl-mcp")
+	userClient, user := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	groupMemberClient, groupMember := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	group := coderdtest.CreateGroup(t, client, firstUser.OrganizationID, "mcp-readers", groupMember)
+
+	//nolint:gocritic // The owner configures ACLs under test.
+	err := client.UpdateMCPServerConfigACL(ctx, config.ID, codersdk.UpdateMCPServerConfigACL{
+		GroupRoles: map[string]codersdk.MCPServerConfigRole{
+			firstUser.OrganizationID.String(): codersdk.MCPServerConfigRoleDeleted,
+		},
+	})
+	require.NoError(t, err)
+
+	for _, reader := range []*codersdk.Client{userClient, groupMemberClient} {
+		requireMCPServerConfigRequestStatus(t, reader, http.MethodGet, config.ID, "", nil, http.StatusNotFound)
+		requireMCPServerConfigRequestStatus(t, reader, http.MethodGet, config.ID, "/acl", nil, http.StatusNotFound)
+	}
+
+	err = client.UpdateMCPServerConfigACL(ctx, config.ID, codersdk.UpdateMCPServerConfigACL{
+		UserRoles: map[string]codersdk.MCPServerConfigRole{
+			user.ID.String(): codersdk.MCPServerConfigRoleRead,
+		},
+		GroupRoles: map[string]codersdk.MCPServerConfigRole{
+			group.ID.String(): codersdk.MCPServerConfigRoleRead,
+		},
+	})
+	require.NoError(t, err)
+
+	//nolint:gocritic // The owner verifies the complete ACL response.
+	acl, err := client.GetMCPServerConfigACL(ctx, config.ID)
+	require.NoError(t, err)
+	require.Len(t, acl.Users, 1)
+	require.Equal(t, user.ID, acl.Users[0].ID)
+	require.Equal(t, codersdk.MCPServerConfigRoleRead, acl.Users[0].Role)
+	require.Len(t, acl.Groups, 1)
+	require.Equal(t, group.ID, acl.Groups[0].ID)
+	require.Equal(t, codersdk.MCPServerConfigRoleRead, acl.Groups[0].Role)
+
+	for _, reader := range []*codersdk.Client{userClient, groupMemberClient} {
+		configs, err := reader.MCPServerConfigs(ctx, firstUser.OrganizationID)
+		require.NoError(t, err)
+		require.Len(t, configs, 1)
+		require.Equal(t, config.ID, configs[0].ID)
+		requireMCPServerConfigRequestStatus(t, reader, http.MethodGet, config.ID, "", nil, http.StatusOK)
+		requireMCPServerConfigRequestStatus(t, reader, http.MethodGet, config.ID, "/acl", nil, http.StatusOK)
+		requireMCPServerConfigRequestStatus(t, reader, http.MethodPatch, config.ID, "", codersdk.UpdateMCPServerConfigRequest{DisplayName: ptr.Ref("reader")}, http.StatusNotFound)
+		requireMCPServerConfigRequestStatus(t, reader, http.MethodDelete, config.ID, "", nil, http.StatusNotFound)
+		requireMCPServerConfigRequestStatus(t, reader, http.MethodPatch, config.ID, "/acl", codersdk.UpdateMCPServerConfigACL{}, http.StatusNotFound)
+	}
+
+	err = client.UpdateMCPServerConfigACL(ctx, config.ID, codersdk.UpdateMCPServerConfigACL{
+		UserRoles: map[string]codersdk.MCPServerConfigRole{
+			user.ID.String(): codersdk.MCPServerConfigRole("write"),
+		},
+	})
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+}
+
+func TestMCPServerConfigACLRequiresTemplateRBAC(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, firstUser := coderdenttest.New(t, nil)
+	config := createMCPServerConfigForOrganization(t, client, firstUser.OrganizationID, "unlicensed-acl-mcp")
+
+	//nolint:gocritic // The owner verifies the entitlement gate.
+	err := client.UpdateMCPServerConfigACL(ctx, config.ID, codersdk.UpdateMCPServerConfigACL{})
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 }

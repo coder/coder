@@ -476,6 +476,7 @@ const (
 	ApiKeyScopeMcpServerConfigUpdate               APIKeyScope = "mcp_server_config:update"
 	ApiKeyScopeMcpServerConfigDelete               APIKeyScope = "mcp_server_config:delete"
 	ApiKeyScopeMcpServerConfig                     APIKeyScope = "mcp_server_config:*"
+	ApiKeyScopeMcpServerConfigShare                APIKeyScope = "mcp_server_config:share"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -761,7 +762,8 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeMcpServerConfigRead,
 		ApiKeyScopeMcpServerConfigUpdate,
 		ApiKeyScopeMcpServerConfigDelete,
-		ApiKeyScopeMcpServerConfig:
+		ApiKeyScopeMcpServerConfig,
+		ApiKeyScopeMcpServerConfigShare:
 		return true
 	}
 	return false
@@ -1016,6 +1018,7 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeMcpServerConfigUpdate,
 		ApiKeyScopeMcpServerConfigDelete,
 		ApiKeyScopeMcpServerConfig,
+		ApiKeyScopeMcpServerConfigShare,
 	}
 }
 
@@ -5478,6 +5481,8 @@ type MCPServerConfig struct {
 	ForwardCoderHeaders     bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
 	OAuth2RevocationURL     string         `db:"oauth2_revocation_url" json:"oauth2_revocation_url"`
 	OrganizationID          uuid.UUID      `db:"organization_id" json:"organization_id"`
+	UserACL                 TemplateACL    `db:"user_acl" json:"user_acl"`
+	GroupACL                TemplateACL    `db:"group_acl" json:"group_acl"`
 }
 
 type MCPServerUserToken struct {

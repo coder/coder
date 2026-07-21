@@ -1325,6 +1325,8 @@ func New(options *Options) *API {
 			r.Get("/", api.getMCPServerConfig)
 			r.Patch("/", api.updateMCPServerConfig)
 			r.Delete("/", api.deleteMCPServerConfig)
+			r.Get("/acl", api.getMCPServerConfigACL)
+			r.Patch("/acl", api.patchMCPServerConfigACL)
 			r.Get("/oauth2/connect", api.mcpServerOAuth2Connect)
 			r.Get("/oauth2/callback", api.mcpServerOAuth2Callback)
 			r.Delete("/oauth2/disconnect", api.mcpServerOAuth2Disconnect)

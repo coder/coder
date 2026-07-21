@@ -53,6 +53,7 @@ type customQuerier interface {
 	connectionLogQuerier
 	aibridgeQuerier
 	chatModelConfigQuerier
+	mcpServerConfigQuerier
 	chatQuerier
 }
 
@@ -744,6 +745,94 @@ func (q *sqlQuerier) CountAuthorizedConnectionLogs(ctx context.Context, arg Coun
 		return 0, err
 	}
 	return count, nil
+}
+
+type mcpServerConfigQuerier interface {
+	GetAuthorizedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]MCPServerConfig, error)
+	GetAuthorizedEnabledMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]MCPServerConfig, error)
+}
+
+func (q *sqlQuerier) GetAuthorizedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]MCPServerConfig, error) {
+	return q.queryAuthorizedMCPServerConfigs(ctx, getMCPServerConfigs, "GetAuthorizedMCPServerConfigs", organizationID, prepared)
+}
+
+func (q *sqlQuerier) GetAuthorizedEnabledMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]MCPServerConfig, error) {
+	return q.queryAuthorizedMCPServerConfigs(ctx, getEnabledMCPServerConfigs, "GetAuthorizedEnabledMCPServerConfigs", organizationID, prepared)
+}
+
+func (q *sqlQuerier) queryAuthorizedMCPServerConfigs(
+	ctx context.Context,
+	baseQuery string,
+	queryName string,
+	organizationID uuid.UUID,
+	prepared rbac.PreparedAuthorized,
+) ([]MCPServerConfig, error) {
+	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigMCPServerConfigs())
+	if err != nil {
+		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+	}
+
+	filtered, err := insertAuthorizedFilter(baseQuery, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
+	rows, err := q.db.QueryContext(ctx, fmt.Sprintf("-- name: %s :many\n%s", queryName, filtered), organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []MCPServerConfig
+	for rows.Next() {
+		var item MCPServerConfig
+		if err := rows.Scan(
+			&item.ID,
+			&item.DisplayName,
+			&item.Slug,
+			&item.Description,
+			&item.IconURL,
+			&item.Transport,
+			&item.Url,
+			&item.AuthType,
+			&item.OAuth2ClientID,
+			&item.OAuth2ClientSecret,
+			&item.OAuth2ClientSecretKeyID,
+			&item.OAuth2AuthURL,
+			&item.OAuth2TokenURL,
+			&item.OAuth2Scopes,
+			&item.APIKeyHeader,
+			&item.APIKeyValue,
+			&item.APIKeyValueKeyID,
+			&item.CustomHeaders,
+			&item.CustomHeadersKeyID,
+			pq.Array(&item.ToolAllowList),
+			pq.Array(&item.ToolDenyList),
+			&item.Availability,
+			&item.Enabled,
+			&item.CreatedBy,
+			&item.UpdatedBy,
+			&item.CreatedAt,
+			&item.UpdatedAt,
+			&item.ModelIntent,
+			&item.AllowInPlanMode,
+			&item.ForwardCoderHeaders,
+			&item.OAuth2RevocationURL,
+			&item.OrganizationID,
+			&item.UserACL,
+			&item.GroupACL,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 type chatModelConfigQuerier interface {

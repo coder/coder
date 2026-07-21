@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/migrations"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -2045,6 +2046,64 @@ func TestMigration000543ChatSearchSchemaIndexes(t *testing.T) {
 			require.Equal(t, tc.partial, partial, "index %s partial", tc.name)
 		})
 	}
+}
+
+func TestMigration000553MCPServerConfigACL(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	const migrationVersion = 553
+	sqlDB := testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		require.True(t, more, "migration %d not found", migrationVersion)
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	var organizationID, userID uuid.UUID
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT id FROM organizations LIMIT 1`).Scan(&organizationID))
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT id FROM users LIMIT 1`).Scan(&userID))
+	configID := uuid.New()
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO mcp_server_configs (
+			id, organization_id, display_name, slug, transport, url, auth_type,
+			api_key_header, custom_headers, tool_allow_list, tool_deny_list,
+			availability, created_by, updated_by
+		) VALUES ($1, $2, 'ACL fixture', $3, 'streamable_http',
+			'https://mcp.example.com', 'none', 'Authorization', '{}', '{}', '{}',
+			'default_off', $4, $4)
+	`, configID, organizationID, "acl-fixture-"+configID.String(), userID)
+	require.NoError(t, err)
+
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.EqualValues(t, migrationVersion, version)
+
+	var userACL, groupACL database.TemplateACL
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT user_acl, group_acl FROM mcp_server_configs WHERE id = $1
+	`, configID).Scan(&userACL, &groupACL))
+	require.Empty(t, userACL)
+	require.Equal(t, database.TemplateACL{
+		organizationID.String(): {policy.ActionRead},
+	}, groupACL)
+
+	var shareScopeCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT count(*) FROM pg_enum e
+		JOIN pg_type t ON t.oid = e.enumtypid
+		WHERE t.typname = 'api_key_scope' AND e.enumlabel = 'mcp_server_config:share'
+	`).Scan(&shareScopeCount))
+	require.Equal(t, 1, shareScopeCount)
 }
 
 func TestMigration000552OrganizationScopedMCPServerConfigs(t *testing.T) {

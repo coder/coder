@@ -227,6 +227,65 @@ func (c *Client) UpdateMCPServerConfig(ctx context.Context, id uuid.UUID, req Up
 	return config, json.NewDecoder(res.Body).Decode(&config)
 }
 
+// MCPServerConfigRole is the only role that may be granted on an MCP server configuration.
+type MCPServerConfigRole string
+
+const (
+	MCPServerConfigRoleRead    MCPServerConfigRole = "read"
+	MCPServerConfigRoleDeleted MCPServerConfigRole = ""
+)
+
+// MCPServerConfigUser is a user granted access to an MCP server configuration.
+type MCPServerConfigUser struct {
+	MinimalUser
+	Role MCPServerConfigRole `json:"role"`
+}
+
+// MCPServerConfigGroup is a group granted access to an MCP server configuration.
+type MCPServerConfigGroup struct {
+	Group
+	Role MCPServerConfigRole `json:"role"`
+}
+
+// MCPServerConfigACL describes the users and groups granted access to an MCP server configuration.
+type MCPServerConfigACL struct {
+	Users  []MCPServerConfigUser  `json:"users"`
+	Groups []MCPServerConfigGroup `json:"groups"`
+}
+
+// UpdateMCPServerConfigACL replaces or removes individual MCP server configuration ACL entries.
+type UpdateMCPServerConfigACL struct {
+	UserRoles  map[string]MCPServerConfigRole `json:"user_roles,omitempty"`
+	GroupRoles map[string]MCPServerConfigRole `json:"group_roles,omitempty"`
+}
+
+// GetMCPServerConfigACL returns the access control list for an MCP server configuration.
+func (c *Client) GetMCPServerConfigACL(ctx context.Context, id uuid.UUID) (MCPServerConfigACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/mcp-servers/%s/acl", id), nil)
+	if err != nil {
+		return MCPServerConfigACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return MCPServerConfigACL{}, ReadBodyAsError(res)
+	}
+	var result MCPServerConfigACL
+	return result, json.NewDecoder(res.Body).Decode(&result)
+}
+
+// UpdateMCPServerConfigACL updates the access control list for an MCP server configuration.
+func (c *Client) UpdateMCPServerConfigACL(ctx context.Context, id uuid.UUID, req UpdateMCPServerConfigACL) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/mcp-servers/%s/acl", id), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 func (c *Client) DeleteMCPServerConfig(ctx context.Context, id uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/mcp-servers/%s", id), nil)
 	if err != nil {

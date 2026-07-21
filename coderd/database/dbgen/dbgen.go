@@ -401,9 +401,19 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 	if updatedBy == uuid.Nil {
 		updatedBy = createdBy
 	}
+	if seed.UserACL == nil {
+		seed.UserACL = database.TemplateACL{}
+	}
+	if seed.GroupACL == nil {
+		seed.GroupACL = database.TemplateACL{
+			organizationID.String(): {policy.ActionRead},
+		}
+	}
 
 	cfg, err := db.InsertMCPServerConfig(genCtx, database.InsertMCPServerConfigParams{
 		OrganizationID:          organizationID,
+		UserACL:                 seed.UserACL,
+		GroupACL:                seed.GroupACL,
 		DisplayName:             takeFirst(seed.DisplayName, "Test MCP Server"),
 		Slug:                    takeFirst(seed.Slug, testutil.GetRandomName(t)),
 		Description:             seed.Description,

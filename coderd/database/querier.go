@@ -633,6 +633,7 @@ type sqlcQuerier interface {
 	GetLicenseByID(ctx context.Context, id int32) (License, error)
 	GetLicenses(ctx context.Context) ([]License, error)
 	GetLogoURL(ctx context.Context) (string, error)
+	GetMCPServerConfigACLByID(ctx context.Context, arg GetMCPServerConfigACLByIDParams) (GetMCPServerConfigACLByIDRow, error)
 	GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (MCPServerConfig, error)
 	GetMCPServerConfigBySlug(ctx context.Context, arg GetMCPServerConfigBySlugParams) (MCPServerConfig, error)
 	GetMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error)
@@ -1447,6 +1448,7 @@ type sqlcQuerier interface {
 	UpdateInactiveUsersToDormant(ctx context.Context, arg UpdateInactiveUsersToDormantParams) ([]UpdateInactiveUsersToDormantRow, error)
 	UpdateInboxNotificationReadStatus(ctx context.Context, arg UpdateInboxNotificationReadStatusParams) error
 	UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPServerConfigParams) (MCPServerConfig, error)
+	UpdateMCPServerConfigACLByID(ctx context.Context, arg UpdateMCPServerConfigACLByIDParams) error
 	// Refresh persistence must not recreate a token deleted by disconnect.
 	// The optimistic lock also prevents stale refreshes from replacing newer tokens.
 	UpdateMCPServerUserTokenFromRefresh(ctx context.Context, arg UpdateMCPServerUserTokenFromRefreshParams) (MCPServerUserToken, error)
