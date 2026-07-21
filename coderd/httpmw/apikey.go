@@ -894,16 +894,9 @@ func extractExpectedAudience(accessURL *url.URL, r *http.Request) string {
 	return normalizeAudienceURI(audience)
 }
 
-// UserRBACSubjectStore is the subset of database.Store required to build
-// a user's rbac.Subject.
-type UserRBACSubjectStore interface {
-	rolestore.Store
-	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error)
-}
-
 // UserRBACSubject fetches a user's rbac.Subject from the database. It pulls all roles from both
 // site and organization scopes. It also pulls the groups, and the user's status.
-func UserRBACSubject(ctx context.Context, db UserRBACSubjectStore, userID uuid.UUID, scope rbac.ExpandableScope) (rbac.Subject, database.UserStatus, error) {
+func UserRBACSubject(ctx context.Context, db database.Store, userID uuid.UUID, scope rbac.ExpandableScope) (rbac.Subject, database.UserStatus, error) {
 	//nolint:gocritic // system needs to update user roles
 	roles, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), userID)
 	if err != nil {

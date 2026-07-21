@@ -33,6 +33,7 @@ import (
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
@@ -769,11 +770,32 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 
 	// The initiator must hold permission to create AI Bridge
 	// interceptions.
-	subject, _, err := httpmw.UserRBACSubject(ctx, s.store, key.UserID, key.ScopeSet())
+	//nolint:gocritic // Expanding the initiator's roles requires system access.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	roleRow, err := s.store.GetAuthorizationUserRoles(sysCtx, key.UserID)
 	if err != nil {
-		s.logger.Error(ctx, "failed to build authorization subject", slog.F("user_id", key.UserID), slog.Error(err))
+		s.logger.Error(ctx, "failed to retrieve authorization roles", slog.F("user_id", key.UserID), slog.Error(err))
 		return nil, ErrAuthorizationInternal
 	}
+	roleNames, err := roleRow.RoleNames()
+	if err != nil {
+		s.logger.Error(ctx, "failed to parse authorization roles", slog.F("user_id", key.UserID), slog.Error(err))
+		return nil, ErrAuthorizationInternal
+	}
+	rbacRoles, err := rolestore.Expand(sysCtx, s.store, roleNames)
+	if err != nil {
+		s.logger.Error(ctx, "failed to expand authorization roles", slog.F("user_id", key.UserID), slog.Error(err))
+		return nil, ErrAuthorizationInternal
+	}
+	subject := rbac.Subject{
+		Type:         rbac.SubjectTypeUser,
+		FriendlyName: roleRow.Username,
+		Email:        roleRow.Email,
+		ID:           key.UserID.String(),
+		Roles:        rbacRoles,
+		Groups:       roleRow.Groups,
+		Scope:        key.ScopeSet(),
+	}.WithCachedASTValue()
 	if err := s.authorizer.Authorize(ctx, subject, policy.ActionCreate,
 		rbac.ResourceAibridgeInterception.WithOwner(subject.ID)); err != nil {
 		s.logger.Warn(ctx, "user lacks AI Gateway access", slog.F("user_id", key.UserID), slog.Error(err))
