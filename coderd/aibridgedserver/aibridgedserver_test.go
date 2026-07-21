@@ -1535,7 +1535,7 @@ func (c *countingSeatTracker) RecordUsage(context.Context, uuid.UUID, agplaiseat
 }
 
 // TestRecordInterceptionAISeat verifies that bridge usage claims an AI
-// Governance seat only when permission-based licensing is disabled.
+// Governance seat only when the seat exclusion experiment is disabled.
 func TestRecordInterceptionAISeat(t *testing.T) {
 	t.Parallel()
 
@@ -1561,8 +1561,8 @@ func TestRecordInterceptionAISeat(t *testing.T) {
 			expectedCalls: 1,
 		},
 		{
-			name:          "permission-based licensing skips the seat",
-			experiments:   append([]codersdk.Experiment{codersdk.ExperimentPermissionBasedLicensing}, requiredExperiments...),
+			name:          "seat exclusion skips the seat",
+			experiments:   append([]codersdk.Experiment{codersdk.ExperimentAIGatewaySeatExclusion}, requiredExperiments...),
 			expectedCalls: 0,
 		},
 	}

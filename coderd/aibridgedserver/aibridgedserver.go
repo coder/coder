@@ -260,9 +260,9 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		return nil, xerrors.Errorf("start interception: %w", err)
 	}
 
-	// Bridge usage claims an AI Governance seat only when
-	// permission-based licensing is disabled.
-	if !s.experiments.Enabled(codersdk.ExperimentPermissionBasedLicensing) {
+	// Bridge usage claims an AI Governance seat unless the seat
+	// exclusion experiment is enabled.
+	if !s.experiments.Enabled(codersdk.ExperimentAIGatewaySeatExclusion) {
 		reason := aiseats.ReasonAIBridge("provider=" + in.Provider + ", model=" + in.Model)
 		s.aiSeatTracker.RecordUsage(ctx, initID, reason)
 	}
