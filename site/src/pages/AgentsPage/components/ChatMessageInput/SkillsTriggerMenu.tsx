@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
 	Command,
 	CommandEmpty,
@@ -30,13 +30,26 @@ export type SkillMetadata = {
 };
 
 export type SkillMenuItem = SkillMetadata & {
-	source: SkillSource;
+	source: SkillSource | "command";
 	triggerText: string;
 	// The qualified alias stays searchable even when the displayed
 	// trigger is bare, so a typed qualified query keeps matching after
 	// collision state changes mid-trigger.
 	altTriggerText: string;
 };
+
+// Built-in commands (e.g. /compact) share the menu item shape so the
+// combined keyboard-selection list and trigger replacement work
+// unchanged; their trigger text is never source-qualified.
+export const createCommandMenuItem = (
+	command: SkillMetadata,
+): SkillMenuItem => ({
+	name: command.name,
+	description: command.description,
+	source: "command",
+	triggerText: `/${command.name}`,
+	altTriggerText: `/${command.name}`,
+});
 
 export const createSkillMenuItem = (
 	source: SkillSource,
@@ -56,6 +69,7 @@ type SkillsTriggerMenuProps = {
 	open: boolean;
 	anchorRect: CaretAnchorRect | null;
 	query: string;
+	commands?: readonly SkillMenuItem[];
 	personalSkills: readonly SkillMenuItem[];
 	workspaceSkills: readonly SkillMenuItem[];
 	workspaceSkillsEnabled?: boolean;
@@ -84,16 +98,44 @@ const SkillCommandItem = ({
 	value,
 	selected,
 	onSelect,
+	consumePointerHighlight,
 }: {
 	skill: SkillMenuItem;
 	value: string;
 	selected: boolean;
 	onSelect: (skill: SkillMenuItem) => void;
+	consumePointerHighlight: () => boolean;
 }) => {
 	const handleSelect = () => onSelect(skill);
+	const itemRef = useRef<HTMLDivElement>(null);
+
+	// cmdk only auto-scrolls for its own key handling; arrow keys here are
+	// consumed by the Lexical trigger plugin and arrive as a controlled value
+	// change, so the item scrolls itself when it becomes the highlight.
+	// Pointer highlights skip scrolling, like cmdk, to avoid hover/scroll loops.
+	useLayoutEffect(() => {
+		if (!selected || consumePointerHighlight()) {
+			return;
+		}
+		const item = itemRef.current;
+		if (!item) {
+			return;
+		}
+		if (item.parentElement?.firstElementChild === item) {
+			// First item in a group: reveal the group heading as well. cmdk
+			// renders headings internally without exposing a ref, so locate
+			// it through the DOM the same way cmdk does.
+			item
+				.closest("[cmdk-group]")
+				?.querySelector("[cmdk-group-heading]")
+				?.scrollIntoView({ block: "nearest" });
+		}
+		item.scrollIntoView({ block: "nearest" });
+	}, [selected, consumePointerHighlight]);
 
 	return (
 		<CommandItem
+			ref={itemRef}
 			value={value}
 			aria-selected={selected}
 			className={cn(
@@ -120,6 +162,7 @@ export const SkillsTriggerMenu = ({
 	open,
 	anchorRect,
 	query,
+	commands = [],
 	personalSkills,
 	workspaceSkills,
 	workspaceSkillsEnabled,
@@ -131,7 +174,7 @@ export const SkillsTriggerMenu = ({
 	onSelect,
 	onClose,
 }: SkillsTriggerMenuProps) => {
-	const allSkills = [...personalSkills, ...workspaceSkills];
+	const allSkills = [...commands, ...personalSkills, ...workspaceSkills];
 	const statusItems = [
 		isPersonalLoading && personalSkills.length === 0
 			? "Loading personal skills..."
@@ -155,13 +198,23 @@ export const SkillsTriggerMenu = ({
 	const shouldShowEmpty = allSkills.length === 0 && statusItems.length === 0;
 	const selectedValue = selectedIndex >= 0 ? String(selectedIndex) : "";
 
+	const pointerHighlightRef = useRef(false);
+
+	const consumePointerHighlight = () => {
+		const fromPointer = pointerHighlightRef.current;
+		pointerHighlightRef.current = false;
+		return fromPointer;
+	};
+
 	const handleHighlightedValueChange = (value: string) => {
 		const nextIndex = Number(value);
 		if (
 			Number.isInteger(nextIndex) &&
 			nextIndex >= 0 &&
-			nextIndex < allSkills.length
+			nextIndex < allSkills.length &&
+			nextIndex !== selectedIndex
 		) {
+			pointerHighlightRef.current = true;
 			onSelectedIndexChange(nextIndex);
 		}
 	};
@@ -173,6 +226,7 @@ export const SkillsTriggerMenu = ({
 			value={String(index)}
 			selected={index === selectedIndex}
 			onSelect={onSelect}
+			consumePointerHighlight={consumePointerHighlight}
 		/>
 	);
 
@@ -215,17 +269,25 @@ export const SkillsTriggerMenu = ({
 					value={selectedValue}
 				>
 					<CommandList className="max-h-72 border-t-0 mobile-full-width-dropdown-scroll-area">
+						{commands.length > 0 && (
+							<CommandGroup heading="Commands">
+								{commands.map((skill, index) => renderSkill(skill, index))}
+							</CommandGroup>
+						)}
 						{personalSkills.length > 0 && (
 							<CommandGroup heading="Personal skills">
 								{personalSkills.map((skill, index) =>
-									renderSkill(skill, index),
+									renderSkill(skill, commands.length + index),
 								)}
 							</CommandGroup>
 						)}
 						{workspaceSkills.length > 0 && (
 							<CommandGroup heading="Workspace skills">
 								{workspaceSkills.map((skill, index) =>
-									renderSkill(skill, personalSkills.length + index),
+									renderSkill(
+										skill,
+										commands.length + personalSkills.length + index,
+									),
 								)}
 							</CommandGroup>
 						)}

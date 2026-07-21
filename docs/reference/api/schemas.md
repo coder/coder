@@ -483,6 +483,10 @@
       "models": [
         "string"
       ],
+      "network_calls": {
+        "blocked": 0,
+        "total": 0
+      },
       "providers": [
         "string"
       ],
@@ -598,6 +602,10 @@
   "models": [
     "string"
   ],
+  "network_calls": {
+    "blocked": 0,
+    "total": 0
+  },
   "providers": [
     "string"
   ],
@@ -614,21 +622,38 @@
 
 ### Properties
 
-| Name                  | Type                                                                                   | Required | Restrictions | Description |
-|-----------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `client`              | string                                                                                 | false    |              |             |
-| `ended_at`            | string                                                                                 | false    |              |             |
-| `id`                  | string                                                                                 | false    |              |             |
-| `initiator`           | [codersdk.MinimalUser](#codersdkminimaluser)                                           | false    |              |             |
-| `last_active_at`      | string                                                                                 | false    |              |             |
-| `last_prompt`         | string                                                                                 | false    |              |             |
-| `metadata`            | object                                                                                 | false    |              |             |
-| » `[any property]`    | any                                                                                    | false    |              |             |
-| `models`              | array of string                                                                        | false    |              |             |
-| `providers`           | array of string                                                                        | false    |              |             |
-| `started_at`          | string                                                                                 | false    |              |             |
-| `threads`             | integer                                                                                | false    |              |             |
-| `token_usage_summary` | [codersdk.AIBridgeSessionTokenUsageSummary](#codersdkaibridgesessiontokenusagesummary) | false    |              |             |
+| Name                  | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                           |
+|-----------------------|------------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client`              | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `ended_at`            | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `id`                  | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `initiator`           | [codersdk.MinimalUser](#codersdkminimaluser)                                             | false    |              |                                                                                                                                                                                                                                       |
+| `last_active_at`      | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `last_prompt`         | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `metadata`            | object                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| » `[any property]`    | any                                                                                      | false    |              |                                                                                                                                                                                                                                       |
+| `models`              | array of string                                                                          | false    |              |                                                                                                                                                                                                                                       |
+| `network_calls`       | [codersdk.AIBridgeSessionNetworkCallSummary](#codersdkaibridgesessionnetworkcallsummary) | false    |              | Network calls summarizes the Agent Firewall network calls made during the session. A nil value means the session did not pass through Agent Firewall, so network call monitoring was not active, which the UI surfaces as "Disabled". |
+| `providers`           | array of string                                                                          | false    |              |                                                                                                                                                                                                                                       |
+| `started_at`          | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `threads`             | integer                                                                                  | false    |              |                                                                                                                                                                                                                                       |
+| `token_usage_summary` | [codersdk.AIBridgeSessionTokenUsageSummary](#codersdkaibridgesessiontokenusagesummary)   | false    |              |                                                                                                                                                                                                                                       |
+
+## codersdk.AIBridgeSessionNetworkCallSummary
+
+```json
+{
+  "blocked": 0,
+  "total": 0
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description |
+|-----------|---------|----------|--------------|-------------|
+| `blocked` | integer | false    |              |             |
+| `total`   | integer | false    |              |             |
 
 ## codersdk.AIBridgeSessionThreadsResponse
 
