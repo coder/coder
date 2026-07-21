@@ -1417,8 +1417,13 @@ func (api *API) logTunnelConnection(ctx context.Context, r *http.Request, waws d
 	// noise. Deduplicate through the same audit session mechanism used
 	// by workspace apps: only log when there is no active session for
 	// this (agent, user, IP, client) key. Tunnel sessions use uuid.Nil
-	// for app_id and an empty slug like port forwarding does; status
-	// code 101 keeps them from colliding with app sessions.
+	// for app_id and an empty slug like port forwarding does. The
+	// status code is part of the session unique key: app and port
+	// forwarding sessions record the HTTP status of the token
+	// authorization (200, 4xx, ...), never 101, while tunnel sessions
+	// always record 101 (the WebSocket upgrade), so a tunnel session
+	// can never upsert into an app session row even when the agent,
+	// user, IP, and user agent all match.
 	staleInterval := api.Options.WorkspaceAppAuditSessionTimeout
 	if staleInterval == 0 {
 		staleInterval = time.Hour
@@ -1442,7 +1447,7 @@ func (api *API) logTunnelConnection(ctx context.Context, r *http.Request, waws d
 		UpdatedAt:  now,
 	})
 	if err != nil {
-		api.Logger.Error(ctx, "upsert tunnel audit session failed",
+		api.Logger.Error(ctx, "upsert tunnel audit session",
 			slog.F("workspace_id", waws.WorkspaceTable.ID),
 			slog.F("user_id", apiKey.UserID),
 			slog.Error(err),
@@ -1486,7 +1491,7 @@ func (api *API) logTunnelConnection(ctx context.Context, r *http.Request, waws d
 		DisconnectReason: sql.NullString{},
 	})
 	if err != nil {
-		api.Logger.Error(ctx, "upsert tunnel connection log failed",
+		api.Logger.Error(ctx, "upsert tunnel connection log",
 			slog.F("workspace_id", waws.WorkspaceTable.ID),
 			slog.F("user_id", apiKey.UserID),
 			slog.Error(err),
