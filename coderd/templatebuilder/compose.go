@@ -79,7 +79,8 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 	}
 
 	baseOS := BaseTemplateOS(req.BaseTemplateID)
-	if err := validateModules(req.Modules, catalog, baseOS); err != nil {
+	baseModules := BaseIncludedModules(req.BaseTemplateID)
+	if err := validateModules(req.Modules, catalog, baseOS, baseModules); err != nil {
 		return nil, err
 	}
 
@@ -199,10 +200,25 @@ func loadCatalogMap() (map[string]ModuleManifest, error) {
 }
 
 // validateModules checks that all requested modules exist, are
-// OS-compatible, have no duplicates, and have no conflicts.
-func validateModules(requested []ComposeModule, catalog map[string]ModuleManifest, baseOS BaseOS) error {
-	seen := make(map[string]bool, len(requested))
+// OS-compatible, have no duplicates, do not collide with a module the
+// base template already includes, and have no conflicts. baseModules
+// lists the catalog module IDs the base declares in its own Terraform;
+// requesting one of them would render a duplicate module block, so it is
+// rejected here.
+func validateModules(requested []ComposeModule, catalog map[string]ModuleManifest, baseOS BaseOS, baseModules []string) error {
+	// Seed the seen-set with the modules the base already declares so the
+	// base and wizard-selected modules occupy a disjoint namespace.
+	seen := make(map[string]bool, len(requested)+len(baseModules))
+	baseIncluded := make(map[string]bool, len(baseModules))
+	for _, id := range baseModules {
+		seen[id] = true
+		baseIncluded[id] = true
+	}
+
 	for _, cm := range requested {
+		if baseIncluded[cm.ID] {
+			return xerrors.Errorf("module %q is already included by this base template", cm.ID)
+		}
 		if seen[cm.ID] {
 			return xerrors.Errorf("duplicate module %q", cm.ID)
 		}

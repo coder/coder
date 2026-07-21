@@ -195,6 +195,37 @@ func TestCompose(t *testing.T) {
 		require.Contains(t, err.Error(), `duplicate module "code-server"`)
 	})
 
+	t.Run("BaseIncludedModuleCollisionError", func(t *testing.T) {
+		t.Parallel()
+		// The quickstart base already declares module "git-clone"; selecting
+		// the catalog git-clone module in the wizard would render a duplicate
+		// module block, so compose must reject it.
+		_, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "quickstart",
+			RegistryURL:    "https://registry.coder.com",
+			Modules: []templatebuilder.ComposeModule{
+				{ID: "git-clone"},
+			},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), `module "git-clone" is already included by this base template`)
+	})
+
+	t.Run("BaseAllowsNonIncludedModule", func(t *testing.T) {
+		t.Parallel()
+		// Quickstart only includes git-clone; other catalog modules such as
+		// code-server compose normally on top of it.
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "quickstart",
+			RegistryURL:    "https://registry.coder.com",
+			Modules: []templatebuilder.ComposeModule{
+				{ID: "code-server"},
+			},
+		})
+		require.NoError(t, err)
+		require.Contains(t, string(result.ModulesTF), `module "code-server"`)
+	})
+
 	t.Run("ConflictingModuleError", func(t *testing.T) {
 		t.Parallel()
 		_, err := templatebuilder.Compose(templatebuilder.ComposeRequest{

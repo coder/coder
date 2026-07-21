@@ -44,6 +44,11 @@ type BaseManifest struct {
 	OS             string             `json:"os"`
 	DefaultContext BaseDefaultContext `json:"default_context"`
 	Variables      []ModuleVariable   `json:"variables"`
+	// IncludedModules lists the catalog module IDs this base already
+	// declares in its own Terraform (e.g. "git-clone"). Compose treats
+	// these names as occupied so a wizard-selected module cannot collide
+	// with one the base already renders.
+	IncludedModules []string `json:"included_modules,omitempty"`
 }
 
 // BaseDefaultContext holds default render values stored in base.json.
@@ -258,6 +263,19 @@ func BaseVariables(exampleID string) []ModuleVariable {
 		return nil
 	}
 	return bases[exampleID].Manifest.Variables
+}
+
+// BaseIncludedModules returns the catalog module IDs that the given base
+// template already declares in its own Terraform. Compose uses these to
+// reject a wizard-selected module that would collide with a module the
+// base already renders. Returns nil if the base is unknown or declares
+// none.
+func BaseIncludedModules(exampleID string) []string {
+	bases, err := loadBases()
+	if err != nil || bases[exampleID] == nil {
+		return nil
+	}
+	return bases[exampleID].Manifest.IncludedModules
 }
 
 // BaseTemplateFS returns a filesystem rooted at the given base template

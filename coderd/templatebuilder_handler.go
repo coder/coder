@@ -195,8 +195,11 @@ func (api *API) templateBuilderModules(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Resolve OS filter from the base query param.
-	var filterOS templatebuilder.BaseOS
+	// Resolve OS filter and base-included modules from the base query param.
+	var (
+		filterOS    templatebuilder.BaseOS
+		baseModules map[string]bool
+	)
 	if base := r.URL.Query().Get("base"); base != "" {
 		filterOS = templatebuilder.BaseTemplateOS(base)
 		if filterOS == "" {
@@ -206,11 +209,21 @@ func (api *API) templateBuilderModules(rw http.ResponseWriter, r *http.Request) 
 			})
 			return
 		}
+		included := templatebuilder.BaseIncludedModules(base)
+		baseModules = make(map[string]bool, len(included))
+		for _, id := range included {
+			baseModules[id] = true
+		}
 	}
 
 	modules := make([]codersdk.TemplateBuilderModule, 0, len(manifests))
 	for _, m := range manifests {
 		if filterOS != "" && !m.CompatibleWithOS(string(filterOS)) {
+			continue
+		}
+		// Skip modules the base template already includes; selecting one
+		// would collide with the base's own module block.
+		if baseModules[m.ID] {
 			continue
 		}
 		modules = append(modules, m.ToSDK())
