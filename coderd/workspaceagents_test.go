@@ -936,8 +936,7 @@ func TestWorkspaceAgentClientCoordinate_ConnectionLog(t *testing.T) {
 	_ = agenttest.New(t, client.URL, r.AgentToken)
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	ctx := testutil.Context(t, testutil.WaitLong)
 
 	conn, err := workspacesdk.New(client).
 		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
@@ -945,7 +944,7 @@ func TestWorkspaceAgentClientCoordinate_ConnectionLog(t *testing.T) {
 		})
 	require.NoError(t, err)
 	defer conn.Close()
-	conn.AwaitReachable(ctx)
+	require.True(t, conn.AwaitReachable(ctx))
 
 	require.Eventually(t, func() bool {
 		return connLogger.Contains(t, database.UpsertConnectionLogParams{
@@ -954,12 +953,39 @@ func TestWorkspaceAgentClientCoordinate_ConnectionLog(t *testing.T) {
 			WorkspaceID:      r.Workspace.ID,
 			WorkspaceName:    r.Workspace.Name,
 			AgentName:        resources[0].Agents[0].Name,
-			Type:             database.ConnectionTypeTailnet,
+			Type:             database.ConnectionTypeTunnel,
+			Code: sql.NullInt32{
+				Int32: http.StatusSwitchingProtocols,
+				Valid: true,
+			},
+			ConnectionStatus: database.ConnectionStatusConnected,
 			UserID: uuid.NullUUID{
 				UUID:  user.UserID,
 				Valid: true,
 			},
 		})
+	}, testutil.WaitShort, testutil.IntervalFast)
+	err = conn.Close()
+	require.NoError(t, err)
+
+	// A second handshake must produce its own row rather than
+	// upserting into the first one.
+	conn2, err := workspacesdk.New(client).
+		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
+			Logger: testutil.Logger(t).Named("client2"),
+		})
+	require.NoError(t, err)
+	defer conn2.Close()
+	require.True(t, conn2.AwaitReachable(ctx))
+
+	require.Eventually(t, func() bool {
+		ids := make(map[uuid.UUID]struct{})
+		for _, cl := range connLogger.ConnectionLogs() {
+			if cl.Type == database.ConnectionTypeTunnel {
+				ids[cl.ID] = struct{}{}
+			}
+		}
+		return len(ids) >= 2
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 

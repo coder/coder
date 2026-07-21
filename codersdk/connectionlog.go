@@ -26,7 +26,7 @@ type ConnectionLog struct {
 	// WebInfo is only set when `type` is one of:
 	// - `ConnectionTypePortForwarding`
 	// - `ConnectionTypeWorkspaceApp`
-	// - `ConnectionTypeTailnet`
+	// - `ConnectionTypeTunnel`
 	WebInfo *ConnectionLogWebInfo `json:"web_info,omitempty"`
 
 	// SSHInfo is only set when `type` is one of:
@@ -47,12 +47,15 @@ const (
 	ConnectionTypeReconnectingPTY ConnectionType = "reconnecting_pty"
 	ConnectionTypeWorkspaceApp    ConnectionType = "workspace_app"
 	ConnectionTypePortForwarding  ConnectionType = "port_forwarding"
-	// ConnectionTypeTailnet is recorded when a client establishes a
-	// tailnet tunnel to a workspace agent via the coordinate endpoint.
-	// Unlike the SSH-family types above (which are reported by the
-	// agent and cannot identify the connecting user), this event is
-	// written by coderd and carries the authenticated user's identity.
-	ConnectionTypeTailnet ConnectionType = "tailnet"
+	// ConnectionTypeTunnel is recorded when a client establishes a
+	// tailnet tunnel to a workspace agent via the workspace agent
+	// coordinate endpoint. Unlike the agent-reported types (ssh,
+	// vscode, jetbrains, reconnecting_pty), which cannot identify the
+	// connecting user, this event is written by coderd and carries the
+	// authenticated user's identity. Tunnels established through the
+	// user-scoped tailnet API (e.g. Coder Desktop) are not currently
+	// recorded.
+	ConnectionTypeTunnel ConnectionType = "tunnel"
 )
 
 // ConnectionLogStatus is the status of a connection log entry.

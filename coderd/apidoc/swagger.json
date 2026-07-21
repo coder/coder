@@ -16667,7 +16667,7 @@
 					"$ref": "#/definitions/codersdk.ConnectionType"
 				},
 				"web_info": {
-					"description": "WebInfo is only set when `type` is one of:\n- `ConnectionTypePortForwarding`\n- `ConnectionTypeWorkspaceApp`\n- `ConnectionTypeTailnet`",
+					"description": "WebInfo is only set when `type` is one of:\n- `ConnectionTypePortForwarding`\n- `ConnectionTypeWorkspaceApp`\n- `ConnectionTypeTunnel`",
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.ConnectionLogWebInfo"
@@ -16761,7 +16761,7 @@
 				"reconnecting_pty",
 				"workspace_app",
 				"port_forwarding",
-				"tailnet"
+				"tunnel"
 			],
 			"x-enum-varnames": [
 				"ConnectionTypeSSH",
@@ -16770,7 +16770,7 @@
 				"ConnectionTypeReconnectingPTY",
 				"ConnectionTypeWorkspaceApp",
 				"ConnectionTypePortForwarding",
-				"ConnectionTypeTailnet"
+				"ConnectionTypeTunnel"
 			]
 		},
 		"codersdk.ConvertLoginRequest": {

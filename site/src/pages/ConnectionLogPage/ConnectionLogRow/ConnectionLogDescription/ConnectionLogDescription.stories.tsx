@@ -95,11 +95,23 @@ export const JetBrains: Story = {
 	},
 };
 
-export const Tailnet: Story = {
+export const Tunnel: Story = {
 	args: {
 		connectionLog: {
 			...MockWebConnectionLog,
-			type: "tailnet",
+			type: "tunnel",
+		},
+	},
+};
+
+// An admin tunneling into another user's workspace, which is the
+// primary audit scenario for tunnel events.
+export const TunnelOtherUser: Story = {
+	args: {
+		connectionLog: {
+			...MockWebConnectionLog,
+			type: "tunnel",
+			workspace_owner_username: "some-other-user",
 		},
 	},
 };

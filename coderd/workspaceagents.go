@@ -1368,50 +1368,7 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Record a connection log entry for this tunnel so that enterprise
-	// auditors can attribute subsequent SSH/IDE activity inside the
-	// workspace back to the Coder user and client that established it.
-	// The agent-reported SSH connection log rows do not have this
-	// information (see coderd/agentapi/connectionlog.go). We only log
-	// when the caller is an authenticated user; requests proxied by a
-	// workspace proxy carry no API key on this route.
-	if apiKey, ok := httpmw.APIKeyOptional(r); ok {
-		userAgent := r.UserAgent()
-		connLogger := *api.ConnectionLogger.Load()
-		err := connLogger.Upsert(ctx, database.UpsertConnectionLogParams{
-			ID:               uuid.New(),
-			Time:             dbtime.Now(),
-			OrganizationID:   waws.WorkspaceTable.OrganizationID,
-			WorkspaceOwnerID: waws.WorkspaceTable.OwnerID,
-			WorkspaceID:      waws.WorkspaceTable.ID,
-			WorkspaceName:    waws.WorkspaceTable.Name,
-			AgentName:        waws.WorkspaceAgent.Name,
-			Type:             database.ConnectionTypeTailnet,
-			IP:               database.ParseIP(r.RemoteAddr),
-			Code: sql.NullInt32{
-				Int32: http.StatusSwitchingProtocols,
-				Valid: true,
-			},
-			UserAgent: sql.NullString{String: userAgent, Valid: userAgent != ""},
-			UserID:    uuid.NullUUID{UUID: apiKey.UserID, Valid: true},
-			// ConnectionID is intentionally left unset so that each
-			// handshake produces its own row. Reusing peerID here
-			// would cause resume_token reconnects to upsert into the
-			// existing row without updating ip/user_agent.
-			ConnectionID:     uuid.NullUUID{},
-			ConnectionStatus: database.ConnectionStatusConnected,
-			// N/A
-			SlugOrPort:       sql.NullString{},
-			DisconnectReason: sql.NullString{},
-		})
-		if err != nil {
-			api.Logger.Error(ctx, "upsert tailnet connection log failed",
-				slog.F("workspace_id", waws.WorkspaceTable.ID),
-				slog.F("user_id", apiKey.UserID),
-				slog.Error(err),
-			)
-		}
-	}
+	api.logTunnelConnection(ctx, r, waws)
 
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close()
@@ -1429,6 +1386,62 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
+	}
+}
+
+// logTunnelConnection records a connection log entry for a tunnel to a
+// workspace agent so that enterprise auditors can attribute subsequent
+// SSH/IDE activity inside the workspace back to the Coder user and
+// client that established it. The agent-reported SSH connection log
+// rows do not have this information (see
+// coderd/agentapi/connectionlog.go). We only log when the caller is an
+// authenticated user; requests proxied by a workspace proxy carry no
+// API key on this route.
+func (api *API) logTunnelConnection(ctx context.Context, r *http.Request, waws database.GetWorkspaceAgentAndWorkspaceByIDRow) {
+	apiKey, ok := httpmw.APIKeyOptional(r)
+	if !ok {
+		return
+	}
+	// Bound the write so that connection log backpressure (e.g. a
+	// wedged database write) cannot stall tunnel establishment. Losing
+	// a log row under extreme backpressure is preferable to refusing
+	// tunnels; the error below records the loss.
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	userAgent := r.UserAgent()
+	connLogger := *api.ConnectionLogger.Load()
+	err := connLogger.Upsert(ctx, database.UpsertConnectionLogParams{
+		ID:               uuid.New(),
+		Time:             dbtime.Now(),
+		OrganizationID:   waws.WorkspaceTable.OrganizationID,
+		WorkspaceOwnerID: waws.WorkspaceTable.OwnerID,
+		WorkspaceID:      waws.WorkspaceTable.ID,
+		WorkspaceName:    waws.WorkspaceTable.Name,
+		AgentName:        waws.WorkspaceAgent.Name,
+		Type:             database.ConnectionTypeTunnel,
+		IP:               database.ParseIP(r.RemoteAddr),
+		Code: sql.NullInt32{
+			Int32: http.StatusSwitchingProtocols,
+			Valid: true,
+		},
+		UserAgent: sql.NullString{String: userAgent, Valid: userAgent != ""},
+		UserID:    uuid.NullUUID{UUID: apiKey.UserID, Valid: true},
+		// ConnectionID is intentionally left unset so that each
+		// handshake produces its own row. Reusing peerID here
+		// would cause resume_token reconnects to upsert into the
+		// existing row without updating ip/user_agent.
+		ConnectionID:     uuid.NullUUID{},
+		ConnectionStatus: database.ConnectionStatusConnected,
+		// N/A
+		SlugOrPort:       sql.NullString{},
+		DisconnectReason: sql.NullString{},
+	})
+	if err != nil {
+		api.Logger.Error(ctx, "upsert tunnel connection log failed",
+			slog.F("workspace_id", waws.WorkspaceTable.ID),
+			slog.F("user_id", apiKey.UserID),
+			slog.Error(err),
+		)
 	}
 }
 

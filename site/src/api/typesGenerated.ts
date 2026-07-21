@@ -3740,6 +3740,7 @@ export interface ConnectionLog {
 	 * WebInfo is only set when `type` is one of:
 	 * - `ConnectionTypePortForwarding`
 	 * - `ConnectionTypeWorkspaceApp`
+	 * - `ConnectionTypeTunnel`
 	 */
 	readonly web_info?: ConnectionLogWebInfo;
 	/**
@@ -3817,7 +3818,7 @@ export type ConnectionType =
 	| "port_forwarding"
 	| "reconnecting_pty"
 	| "ssh"
-	| "tailnet"
+	| "tunnel"
 	| "vscode"
 	| "workspace_app";
 
@@ -3826,7 +3827,7 @@ export const ConnectionTypes: ConnectionType[] = [
 	"port_forwarding",
 	"reconnecting_pty",
 	"ssh",
-	"tailnet",
+	"tunnel",
 	"vscode",
 	"workspace_app",
 ];
