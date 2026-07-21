@@ -42,6 +42,25 @@ Use the cluster-scoped `coder` command for all Coder CLI administration. It neve
 ./scripts/develop-local-cluster.sh coder users list
 ```
 
+## Inspect the cluster
+
+`info` prints the exact kind context for the current worktree:
+
+```console
+./scripts/develop-local-cluster.sh info
+```
+
+Use that context with kubectl or k9s. For a predictable context name, set the cluster name when creating the cluster:
+
+```console
+./scripts/develop-local-cluster.sh --cluster-name coder-local up
+
+kubectl --context kind-coder-local get pods --all-namespaces
+k9s --context kind-coder-local
+```
+
+The command never changes the current kubectl context. Always pass `--context` when working from another terminal or worktree.
+
 ## Daily workflow
 
 ```console
@@ -71,13 +90,13 @@ There is no restart command. Use k9s or kubectl to delete a pod, scale a Deploym
 
 Defaults are suitable for one worktree:
 
-| Setting | Default |
-| --- | --- |
-| kind cluster | `coder-dev-<worktree-hash>` |
-| control-plane namespace | `coder` |
-| workspace namespace | `coder-workspaces` |
-| Coder URL | `http://127.0.0.1:3000` |
-| AI Gateway URL | `http://127.0.0.1:4001` |
+| Setting                 | Default                     |
+|-------------------------|-----------------------------|
+| kind cluster            | `coder-dev-<worktree-hash>` |
+| control-plane namespace | `coder`                     |
+| workspace namespace     | `coder-workspaces`          |
+| Coder URL               | `http://127.0.0.1:3000`     |
+| AI Gateway URL          | `http://127.0.0.1:4001`     |
 
 Use flags or `CODER_DEV_CLUSTER_*` environment variables to override cluster name, namespaces, ports, password, starter template, and other settings. Flags take precedence over environment variables.
 
