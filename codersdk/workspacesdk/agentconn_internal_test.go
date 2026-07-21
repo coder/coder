@@ -1,12 +1,62 @@
 package workspacesdk
 
 import (
+	"io"
+	"net/http"
 	neturl "net/url"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestReadProcessConflictError(t *testing.T) {
+	t.Parallel()
+
+	response := func(body string) *http.Response {
+		return &http.Response{
+			StatusCode: http.StatusConflict,
+			Body:       io.NopCloser(strings.NewReader(body)),
+		}
+	}
+
+	t.Run("decodes coded conflict", func(t *testing.T) {
+		t.Parallel()
+
+		res := response(`{"code":"start_pending","message":"Timed out.","detail":"owner pending"}`)
+		defer res.Body.Close()
+		err := readProcessConflictError(res)
+		var conflict *ProcessConflictError
+		require.ErrorAs(t, err, &conflict)
+		require.Equal(t, ProcessConflictStartPending, conflict.Code)
+		require.Equal(t, "Timed out.: owner pending", conflict.Error())
+	})
+
+	t.Run("treats uncoded conflict as permanent", func(t *testing.T) {
+		t.Parallel()
+
+		// Reporting an unrecognized conflict as permanent costs an
+		// error result; the reverse risks running the command twice.
+		res := response(`{"message":"Conflict."}`)
+		defer res.Body.Close()
+		err := readProcessConflictError(res)
+		var conflict *ProcessConflictError
+		require.ErrorAs(t, err, &conflict)
+		require.Equal(t, ProcessConflictInputMismatch, conflict.Code)
+	})
+
+	t.Run("falls back when body is not a conflict", func(t *testing.T) {
+		t.Parallel()
+
+		res := response(`not json`)
+		defer res.Body.Close()
+		err := readProcessConflictError(res)
+		var conflict *ProcessConflictError
+		require.NotErrorAs(t, err, &conflict)
+		require.Error(t, err)
+	})
+}
 
 func TestAgentAPIPath(t *testing.T) {
 	t.Parallel()
