@@ -31,7 +31,7 @@ import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBa
 import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
-import type { AgentsPageOutletContext } from "../AgentsPageView";
+import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 
 interface AgentPageHeaderProps {
