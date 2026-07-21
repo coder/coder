@@ -222,6 +222,25 @@ export const NoUsage: Story = {
 	},
 };
 
+// Some providers report usage without token counts, so no percentage can be
+// computed even though a message was sent. The popover must say the usage is
+// unavailable instead of promising numbers after the next message.
+export const UsageWithoutTokenCounts: Story = {
+	args: {
+		usage: {
+			contextLimitTokens: 200_000,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+		const body = within(document.body);
+		await waitFor(() =>
+			expect(body.getByText("Context usage unavailable")).toBeVisible(),
+		);
+	},
+};
+
 // A fresh chat has pinned context before any assistant message reports token
 // usage, so the popover pairs the empty-usage copy with the resource list.
 export const NoUsageWithContext: Story = {
