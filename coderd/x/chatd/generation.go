@@ -318,6 +318,39 @@ func unresolvedToolCallsFromHistory(
 	return localCalls, dynamicCalls, nil
 }
 
+// priorToolCallIDsInTurn returns the tool call IDs that appear in
+// assistant steps before the latest one within the same turn. Recorded
+// pre_tool_use decisions for these IDs belong to those earlier
+// occurrences and must not be replayed for a repeated call.
+func priorToolCallIDsInTurn(messages []database.ChatMessage) (map[string]bool, error) {
+	assistantIndex := lastMessageIndex(messages, func(msg database.ChatMessage) bool {
+		return msg.Role == database.ChatMessageRoleAssistant
+	})
+	prior := make(map[string]bool)
+	if assistantIndex == -1 {
+		return prior, nil
+	}
+	turnID := messages[assistantIndex].TurnID
+	for _, msg := range messages[:assistantIndex] {
+		if msg.Deleted || msg.Compressed || msg.Role != database.ChatMessageRoleAssistant {
+			continue
+		}
+		if msg.TurnID != turnID {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(msg)
+		if err != nil {
+			return nil, xerrors.Errorf("parse assistant message: %w", err)
+		}
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolCallID != "" {
+				prior[part.ToolCallID] = true
+			}
+		}
+	}
+	return prior, nil
+}
+
 func hasExclusiveToolCall(toolCalls []fantasy.ToolCallContent, exclusiveToolNames map[string]bool) bool {
 	if len(exclusiveToolNames) == 0 {
 		return false
@@ -449,7 +482,12 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 					Input:      toolCall.Args,
 				})
 			}
-			preflight, err := s.server.preflightPendingToolCalls(ctx, prepared.Chat, activeTurnID(prepared.Messages), toolCalls)
+			priorToolCallIDs, err := priorToolCallIDsInTurn(prepared.Messages)
+			if err != nil {
+				cleanup()
+				return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
+			}
+			preflight, err := s.server.preflightPendingToolCalls(ctx, prepared.Chat, activeTurnID(prepared.Messages), toolCalls, priorToolCallIDs)
 			if err != nil {
 				cleanup()
 				return s.finishGenerationError(ctx, machine, input, generationHookDispatchError(agenthooks.EventPreToolUse, err), generationAttemptNotRequired)
@@ -784,7 +822,11 @@ func (s *taskStarter) executeLocalTools(
 	decision generationDecision,
 ) error {
 	turnID := activeTurnID(prepared.Messages)
-	preflight, err := s.server.preflightPendingToolCalls(ctx, prepared.Chat, turnID, decision.localToolCalls)
+	priorToolCallIDs, err := priorToolCallIDsInTurn(prepared.Messages)
+	if err != nil {
+		return err
+	}
+	preflight, err := s.server.preflightPendingToolCalls(ctx, prepared.Chat, turnID, decision.localToolCalls, priorToolCallIDs)
 	if err != nil {
 		return generationHookDispatchError(agenthooks.EventPreToolUse, err)
 	}

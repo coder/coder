@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -578,6 +579,123 @@ func TestPreToolUseHookEndChatShortCircuitsLaterDispatches(t *testing.T) {
 		"call_end_chat_first":   true,
 		"call_never_dispatched": true,
 	}, results, "both never-executed calls must persist as synthetic cancellations")
+}
+
+func TestPreToolUseHookRepeatedToolCallIDDispatchesFresh(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	// A later assistant step reuses the tool call ID, name, and input of
+	// an already-resolved call from an earlier step in the same turn.
+	const toolUseID = "call_repeated"
+	toolInput := `{"path":"/tmp/dup.txt"}`
+	userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("resume")})
+	require.NoError(t, err)
+	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:           uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		LastModelConfigID: model.ID,
+		Title:             "repeated-tool-call-id",
+		ClientType:        database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			{
+				Role:           database.ChatMessageRoleUser,
+				Content:        userContent,
+				Visibility:     database.ChatMessageVisibilityBoth,
+				TurnID:         uuid.NullUUID{UUID: uuid.New(), Valid: true},
+				ContentVersion: chatprompt.CurrentContentVersion,
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+			},
+		},
+	})
+	require.NoError(t, err)
+	chatID := created.Chat.ID
+	turnID := created.InitialMessages[0].TurnID
+	toolCallContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+		Type:       codersdk.ChatMessagePartTypeToolCall,
+		ToolCallID: toolUseID,
+		ToolName:   "read_file",
+		Args:       json.RawMessage(toolInput),
+	}})
+	require.NoError(t, err)
+	toolResultContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+		Type:       codersdk.ChatMessagePartTypeToolResult,
+		ToolCallID: toolUseID,
+		ToolName:   "read_file",
+		Result:     json.RawMessage(`{"output":"data"}`),
+	}})
+	require.NoError(t, err)
+	machine := chatstate.NewChatMachine(db, ps, chatID)
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{
+			{
+				Role:           database.ChatMessageRoleAssistant,
+				Content:        toolCallContent,
+				Visibility:     database.ChatMessageVisibilityBoth,
+				TurnID:         turnID,
+				ContentVersion: chatprompt.CurrentContentVersion,
+				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+			},
+			{
+				Role:           database.ChatMessageRoleTool,
+				Content:        toolResultContent,
+				Visibility:     database.ChatMessageVisibilityBoth,
+				TurnID:         turnID,
+				ContentVersion: chatprompt.CurrentContentVersion,
+				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+			},
+			{
+				Role:           database.ChatMessageRoleAssistant,
+				Content:        toolCallContent,
+				Visibility:     database.ChatMessageVisibilityBoth,
+				TurnID:         turnID,
+				ContentVersion: chatprompt.CurrentContentVersion,
+				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+			},
+		}})
+		return err
+	}))
+
+	// The earlier occurrence's recorded allow must not authorize the
+	// repeated call; the live consumer denies it.
+	recordPreToolUseDecision(ctx, t, db, chatID, user.ID, turnID.UUID, toolUseID, "read_file", json.RawMessage(toolInput), agenthooks.PermissionAllow, "", nil)
+
+	var hookCalls atomic.Int32
+	consumer := preToolUseConsumer(t, func(data agenthooks.PreToolUseData) string {
+		hookCalls.Add(1)
+		require.Equal(t, toolUseID, data.ToolUseID)
+		return `{"permission":{"decision":"deny","reason":"repeated call"}}`
+	})
+
+	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+	})
+	server.Start()
+	waitForChatStatus(ctx, t, db, chatID, database.ChatStatusWaiting)
+
+	require.Equal(t, int32(1), hookCalls.Load(), "the repeated occurrence must dispatch fresh")
+	denied := 0
+	for _, part := range chatToolParts(ctx, t, db, chatID) {
+		if part.Type == codersdk.ChatMessagePartTypeToolResult && part.IsError &&
+			strings.Contains(string(part.Result), "repeated call") {
+			denied++
+		}
+	}
+	require.Equal(t, 1, denied, "the repeated call must persist the fresh deny result")
 }
 
 func TestPreToolUseHookRecordedEndChatSkipsExecution(t *testing.T) {

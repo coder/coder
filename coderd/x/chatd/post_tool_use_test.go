@@ -478,3 +478,91 @@ func TestPostToolUseHookFailureCommitsResultThenErrors(t *testing.T) {
 	require.Contains(t, lastError, "hook dispatch failed: post_tool_use: http_error")
 	require.Contains(t, lastError, postDispatch.ID.String())
 }
+
+func TestPostToolUseHookFailureDispatchesRemainingResults(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		first := chattest.OpenAIToolCallChunk("read_file", `{"path":"/tmp/first.txt"}`)
+		first.Choices[0].ToolCalls[0].ID = "call_first"
+		second := chattest.OpenAIToolCallChunk("read_file", `{"path":"/tmp/second.txt"}`).Choices[0].ToolCalls[0]
+		second.ID = "call_second"
+		second.Index = 1
+		first.Choices[0].ToolCalls = append(first.Choices[0].ToolCalls, second)
+		return chattest.OpenAIStreamingResponse(first)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	// Fail the first result's dispatch; the second executed result must
+	// still be dispatched before the turn fails closed.
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request agenthooks.Request
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		if request.Type != agenthooks.EventPostToolUse {
+			_, err := w.Write([]byte(`{}`))
+			require.NoError(t, err)
+			return
+		}
+		decoded, err := request.Decode()
+		require.NoError(t, err)
+		data := decoded.(*agenthooks.PostToolUseData)
+		if data.ToolUseID == "call_first" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		_, err = w.Write([]byte(`{}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), gomock.Any(), int64(1), int64(0), gomock.Any()).
+		Return(workspacesdk.ReadFileLinesResponse{
+			Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data",
+		}, nil).
+		Times(2)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "post-tool-use-continue",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("read both files"),
+		},
+	})
+	require.NoError(t, err)
+	failed := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+
+	rows, err := db.ListChatHookDispatchesByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	results := map[string]string{}
+	for _, row := range rows {
+		if row.Event == string(agenthooks.EventPostToolUse) {
+			results[row.ToolUseID.String] = row.Result
+		}
+	}
+	require.Equal(t, map[string]string{
+		"call_first":  "http_error",
+		"call_second": "ok",
+	}, results, "every executed result must have a dispatch row")
+	require.Contains(t, chatLastErrorMessage(failed.LastError), "hook dispatch failed: post_tool_use: http_error")
+}

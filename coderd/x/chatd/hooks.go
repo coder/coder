@@ -191,6 +191,11 @@ func (p *Server) dispatchPostToolUseResults(
 		return nil, nil
 	}
 	responses := make([]agenthooks.Response, 0, len(content))
+	// Every executed result must be dispatched even after a failure:
+	// the whole batch already ran and its results are committed, so
+	// stopping early would leave later side effects unaudited. The
+	// first error is preserved for the fail-closed transition.
+	var firstErr error
 	for _, block := range content {
 		toolResult, ok := asToolResultContent(block)
 		if !ok || toolResult.ProviderExecuted {
@@ -198,11 +203,14 @@ func (p *Server) dispatchPostToolUseResults(
 		}
 		response, err := p.dispatchPostToolUse(ctx, chat, turnID, toolResult)
 		if err != nil {
-			return responses, err
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
 		}
 		responses = append(responses, response)
 	}
-	return responses, nil
+	return responses, firstErr
 }
 
 func (p *Server) preflightToolCalls(
@@ -266,6 +274,7 @@ func (p *Server) preflightPendingToolCalls(
 	chat database.Chat,
 	turnID *uuid.UUID,
 	toolCalls []fantasy.ToolCallContent,
+	priorToolCallIDs map[string]bool,
 ) (preToolUseExecutionResult, error) {
 	result := preToolUseExecutionResult{
 		Allowed:   make([]fantasy.ToolCallContent, 0, len(toolCalls)),
@@ -281,8 +290,11 @@ func (p *Server) preflightPendingToolCalls(
 
 	for _, toolCall := range toolCalls {
 		// Invalid JSON cannot be compared as jsonb, so it dispatches again.
+		// A tool call ID reused from an earlier step in the same turn also
+		// dispatches fresh: the recorded decision belongs to the earlier
+		// occurrence and must not authorize a repeated call unreviewed.
 		row, err := database.ChatHookDispatch{}, sql.ErrNoRows
-		if json.Valid([]byte(toolCall.Input)) {
+		if json.Valid([]byte(toolCall.Input)) && !priorToolCallIDs[toolCall.ToolCallID] {
 			row, err = p.db.GetChatHookDispatchDecision(ctx, database.GetChatHookDispatchDecisionParams{
 				ChatID:    chat.ID,
 				ToolUseID: toolCall.ToolCallID,
