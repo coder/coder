@@ -1,10 +1,16 @@
 import defaultMdxComponents from "fumadocs-ui/mdx";
 import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
+import { ArrowSquareOut } from "@phosphor-icons/react/ssr";
 import { ImageZoom } from "fumadocs-ui/components/image-zoom";
 import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 import { OSTab } from "./os-tab";
 import type { MDXComponents } from "mdx/types";
-import type { ImgHTMLAttributes, ReactNode } from "react";
+import type {
+	AnchorHTMLAttributes,
+	ElementType,
+	ImgHTMLAttributes,
+	ReactNode,
+} from "react";
 
 /**
  * Render children inline and ignore unknown attributes. Used as a stub for
@@ -52,7 +58,45 @@ function LocalImg({ src, alt, ...props }: ImgHTMLAttributes<HTMLImageElement>) {
 	);
 }
 
+// External links open in a new tab, flagged with an icon so it is clear the
+// link leaves the docs. Internal links delegate to `InternalLink` (the page
+// passes Fumadocs' relative-link resolver as `a`), preserving client-side
+// navigation and relative-path resolution. Fumadocs already opens external
+// links in a new tab; this adds the trailing icon affordance.
+function createDocsLink(InternalLink: ElementType) {
+	return function DocsLink({
+		href,
+		children,
+		...props
+	}: AnchorHTMLAttributes<HTMLAnchorElement>) {
+		const isExternal = typeof href === "string" && /^https?:\/\//i.test(href);
+		if (!isExternal) {
+			return (
+				<InternalLink href={href} {...props}>
+					{children}
+				</InternalLink>
+			);
+		}
+		return (
+			<a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+				{children}
+				<ArrowSquareOut
+					aria-hidden
+					className="ml-0.5 inline size-3.5 align-text-top"
+				/>
+			</a>
+		);
+	};
+}
+
 export function getMDXComponents(components?: MDXComponents) {
+	// The docs page passes `a` as Fumadocs' relative-link resolver. Pull it out
+	// and wrap it so external links get the new-tab + icon treatment while
+	// internal links keep that resolver; set `a` last so the wrapper wins.
+	const { a: providedLink, ...rest } = components ?? {};
+	const InternalLink = (providedLink ??
+		defaultMdxComponents.a ??
+		"a") as ElementType;
 	return {
 		...defaultMdxComponents,
 		...stubComponents,
@@ -62,7 +106,8 @@ export function getMDXComponents(components?: MDXComponents) {
 		Tab,
 		OSTab,
 		img: LocalImg,
-		...components,
+		...rest,
+		a: createDocsLink(InternalLink),
 	} satisfies MDXComponents;
 }
 
