@@ -2,7 +2,7 @@ package httpmw
 
 import "testing"
 
-func TestUriFromURL(t *testing.T) {
+func TestURIFromURL(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -28,8 +28,8 @@ func TestUriFromURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := uriFromURL(tt.in); got != tt.want {
-				t.Errorf("uriFromURL(%q) = %q, want %q", tt.in, got, tt.want)
+			if got := URIFromURL(tt.in); got != tt.want {
+				t.Errorf("URIFromURL(%q) = %q, want %q", tt.in, got, tt.want)
 			}
 		})
 	}
