@@ -20,6 +20,6 @@
   },
   "title": "You're approaching your monthly AI budget limit",
   "title_markdown": "You're approaching your monthly AI budget limit",
-  "body": "You have used more than 90% of your monthly AI budget ($1000.00), set by Engineering.",
-  "body_markdown": "You have used more than 90% of your monthly AI budget ($1000.00), set by **Engineering**."
+  "body": "You have used more than 90% of your monthly AI budget ($1000.00). Effective group: Engineering.",
+  "body_markdown": "You have used more than 90% of your monthly AI budget ($1000.00). Effective group: **Engineering**."
 }
