@@ -84,7 +84,7 @@ jobs:
           AWS_DOGFOOD_DEPLOY_REGION: ${{ vars.AWS_DOGFOOD_DEPLOY_REGION }}
 
       - name: Set up Flux CLI
-        uses: fluxcd/flux2/action@f05a280b876a3a1d35a76a91f701e605777853aa # v2.9.1
+        uses: fluxcd/flux2/action@6a650dba1b4ae9945185c4bb3cc3f386aaf71b3d # v2.9.2
         with:
           # Keep this and the github action up to date with the version of flux installed in dogfood cluster
           version: "2.8.2"
