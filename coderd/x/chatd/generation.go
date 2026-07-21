@@ -148,10 +148,13 @@ var errCompactionStillOverLimit = chaterror.WithClassification(
 )
 
 type generationDecision struct {
-	kind              generationActionKind
-	localToolCalls    []fantasy.ToolCallContent
-	finishReason      generationFinishReason
-	promotedMessageID int64
+	kind           generationActionKind
+	localToolCalls []fantasy.ToolCallContent
+	// assistantMessageID is the message that issued localToolCalls
+	// and is part of each call's identity.
+	assistantMessageID int64
+	finishReason       generationFinishReason
+	promotedMessageID  int64
 	// forced marks a compact action triggered by a manual
 	// compaction request rather than the usage threshold.
 	forced bool
@@ -204,7 +207,7 @@ type generationDecisionInput struct {
 }
 
 func decideGenerationAction(input generationDecisionInput) (generationDecision, error) {
-	localCalls, dynamicCalls, err := unresolvedToolCallsFromHistory(input.messages, input.dynamicToolNames)
+	assistantMessageID, localCalls, dynamicCalls, err := unresolvedToolCallsFromHistory(input.messages, input.dynamicToolNames)
 	if err != nil {
 		return generationDecision{}, err
 	}
@@ -218,7 +221,11 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 				})
 			}
 		}
-		return generationDecision{kind: generationActionExecuteLocalTools, localToolCalls: localCalls}, nil
+		return generationDecision{
+			kind:               generationActionExecuteLocalTools,
+			localToolCalls:     localCalls,
+			assistantMessageID: assistantMessageID,
+		}, nil
 	}
 	if len(dynamicCalls) > 0 {
 		return generationDecision{kind: generationActionEnterRequiresAction}, nil
@@ -292,23 +299,26 @@ func generationCompactionContextLimit(compaction *generationCompaction) int64 {
 	return compaction.Options.ContextLimit
 }
 
+// unresolvedToolCallsFromHistory returns the ID of the latest
+// assistant message together with its tool calls that have no
+// result yet, split into locally executed and dynamic calls.
 func unresolvedToolCallsFromHistory(
 	messages []database.ChatMessage,
 	dynamicToolNames map[string]bool,
-) ([]fantasy.ToolCallContent, []pendingDynamicToolCall, error) {
+) (int64, []fantasy.ToolCallContent, []pendingDynamicToolCall, error) {
 	assistantIndex := lastMessageIndex(messages, func(msg database.ChatMessage) bool {
 		return msg.Role == database.ChatMessageRoleAssistant
 	})
 	if assistantIndex == -1 {
-		return nil, nil, nil
+		return 0, nil, nil, nil
 	}
 	assistantParts, err := chatprompt.ParseContent(messages[assistantIndex])
 	if err != nil {
-		return nil, nil, xerrors.Errorf("parse assistant message: %w", err)
+		return 0, nil, nil, xerrors.Errorf("parse assistant message: %w", err)
 	}
 	handled, err := handledToolCallIDs(messages[assistantIndex+1:])
 	if err != nil {
-		return nil, nil, err
+		return 0, nil, nil, err
 	}
 	localCalls := make([]fantasy.ToolCallContent, 0)
 	dynamicCalls := make([]pendingDynamicToolCall, 0)
@@ -331,7 +341,7 @@ func unresolvedToolCallsFromHistory(
 			ProviderExecuted: part.ProviderExecuted,
 		})
 	}
-	return localCalls, dynamicCalls, nil
+	return messages[assistantIndex].ID, localCalls, dynamicCalls, nil
 }
 
 // exclusiveBatchRejected reports whether the exclusive-tool policy will
@@ -919,6 +929,8 @@ func (s *taskStarter) executeLocalTools(
 			BuiltinToolNames:   prepared.BuiltinToolNames,
 			ModelProvider:      provider,
 			ModelName:          modelName,
+			ChatID:             input.ChatID,
+			AssistantMessageID: decision.assistantMessageID,
 			ContextLimit:       prepared.ContextLimitFallback,
 			ToolNameAliases:    subagentToolNameAliases,
 			UnbilledToolNames:  unbilledSubagentToolNames,

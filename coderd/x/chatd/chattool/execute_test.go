@@ -4,14 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/testutil"
@@ -839,6 +842,394 @@ func TestDetectFileDump(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestExecuteToolIdempotencyKey(t *testing.T) {
+	t.Parallel()
+
+	chatID := uuid.New()
+	identityCtx := func(t *testing.T) context.Context {
+		return chattool.WithDispatchIdentity(testutil.Context(t, testutil.WaitMedium), chatID, 42)
+	}
+	exitedOutput := func(code int, output string) workspacesdk.ProcessOutputResponse {
+		return workspacesdk.ProcessOutputResponse{
+			Running:  false,
+			ExitCode: &code,
+			Output:   output,
+		}
+	}
+	runExecute := func(t *testing.T, ctx context.Context, tool fantasy.AgentTool, callID string, input string) chattool.ExecuteResult {
+		t.Helper()
+		resp, err := tool.Run(chattool.WithToolCallID(ctx, callID), fantasy.ToolCall{
+			ID:    callID,
+			Name:  "execute",
+			Input: input,
+		})
+		require.NoError(t, err)
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		return result
+	}
+
+	t.Run("KeyDerivedFromIdentity", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		var keys []string
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				keys = append(keys, req.IdempotencyKey)
+				return workspacesdk.StartProcessResponse{ID: "proc-1", Started: true, IdempotencyKey: req.IdempotencyKey}, nil
+			}).
+			Times(3)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(exitedOutput(0, "ok"), nil).
+			AnyTimes()
+
+		tool := newExecuteTool(t, mockConn)
+		runExecute(t, identityCtx(t), tool, "call-1", `{"command":"echo hi"}`)
+		runExecute(t, identityCtx(t), tool, "call-1", `{"command":"echo hi"}`)
+		runExecute(t, identityCtx(t), tool, "call-2", `{"command":"echo hi"}`)
+
+		require.Len(t, keys, 3)
+		assert.Equal(t, "42-call-1", keys[0])
+		assert.Equal(t, keys[0], keys[1], "same identity and call ID must derive the same key")
+		assert.Equal(t, "42-call-2", keys[2])
+	})
+
+	t.Run("NoIdentityMeansNoKey", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				assert.Empty(t, req.IdempotencyKey)
+				return workspacesdk.StartProcessResponse{ID: "proc-1", Started: true}, nil
+			})
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(exitedOutput(0, "ok"), nil).
+			AnyTimes()
+
+		tool := newExecuteTool(t, mockConn)
+		result := runExecute(t, testutil.Context(t, testutil.WaitMedium), tool, "call-1", `{"command":"echo hi"}`)
+		assert.True(t, result.Success)
+	})
+
+	t.Run("NoCallIDMeansNoKey", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				assert.Empty(t, req.IdempotencyKey)
+				return workspacesdk.StartProcessResponse{ID: "proc-1", Started: true}, nil
+			})
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(exitedOutput(0, "ok"), nil).
+			AnyTimes()
+
+		tool := newExecuteTool(t, mockConn)
+		result := runExecute(t, identityCtx(t), tool, "", `{"command":"echo hi"}`)
+		assert.True(t, result.Success)
+	})
+
+	t.Run("ConflictNeverStartsASecondProcess", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{}, &workspacesdk.ProcessConflictError{
+				Code: workspacesdk.ProcessConflictInputMismatch,
+				Response: codersdk.Response{
+					Message: "Client token was already used to start a process with different parameters.",
+				},
+			})
+
+		tool := newExecuteTool(t, mockConn)
+		result := runExecute(t, identityCtx(t), tool, "call-1", `{"command":"echo hi"}`)
+		assert.False(t, result.Success)
+		assert.Contains(t, result.Error, "no new process was started")
+	})
+
+	t.Run("TokenWaitAbortedRetriesAndAttaches", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		startPending := &workspacesdk.ProcessConflictError{
+			Code: workspacesdk.ProcessConflictStartPending,
+			Response: codersdk.Response{
+				Message: "Timed out waiting for the concurrent start that holds this idempotency key.",
+			},
+		}
+		gomock.InOrder(
+			mockConn.EXPECT().
+				StartProcess(gomock.Any(), gomock.Any()).
+				Return(workspacesdk.StartProcessResponse{}, startPending),
+			mockConn.EXPECT().
+				StartProcess(gomock.Any(), gomock.Any()).
+				Return(workspacesdk.StartProcessResponse{
+					ID:        "proc-1",
+					Attached:  true,
+					StartedAt: time.Now().Unix(),
+				}, nil),
+		)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(exitedOutput(0, "resolved by retry"), nil)
+
+		tool := newExecuteTool(t, mockConn)
+		result := runExecute(t, identityCtx(t), tool, "call-1", `{"command":"echo hi","timeout":"30s"}`)
+		assert.True(t, result.Success)
+		assert.Equal(t, "resolved by retry", result.Output)
+	})
+
+	t.Run("TokenWaitAbortedBudgetExpiresUnresolved", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{}, &workspacesdk.ProcessConflictError{
+				Code: workspacesdk.ProcessConflictStartPending,
+				Response: codersdk.Response{
+					Message: "Timed out waiting for the concurrent start that holds this idempotency key.",
+					Detail:  "manager is closed",
+				},
+			})
+
+		tool := newExecuteTool(t, mockConn)
+		result := runExecute(t, identityCtx(t), tool, "call-1", `{"command":"echo hi","timeout":"100ms"}`)
+		assert.False(t, result.Success)
+		assert.Contains(t, result.Error, "outcome is unresolved")
+		assert.NotContains(t, result.Error, "no new process was started")
+	})
+
+	t.Run("AttachedWithFutureStartClampsWallDuration", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		// An agent clock ahead of coderd reports a start time in
+		// the future; the wall duration must not go negative.
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{
+				ID:        "proc-1",
+				Attached:  true,
+				StartedAt: time.Now().Add(time.Hour).Unix(),
+			}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(exitedOutput(0, "ok"), nil)
+
+		tool := newExecuteTool(t, mockConn)
+		result := runExecute(t, identityCtx(t), tool, "call-1", `{"command":"echo hi","timeout":"30s"}`)
+		assert.True(t, result.Success)
+		assert.GreaterOrEqual(t, result.WallDurationMs, int64(0))
+	})
+
+	t.Run("AttachedWithinBudgetWaitsForResult", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{
+				ID:        "proc-1",
+				Attached:  true,
+				StartedAt: time.Now().Unix(),
+			}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(exitedOutput(0, "replayed result"), nil)
+
+		tool := newExecuteTool(t, mockConn)
+		result := runExecute(t, identityCtx(t), tool, "call-1", `{"command":"echo hi","timeout":"30s"}`)
+		assert.True(t, result.Success)
+		assert.Equal(t, "replayed result", result.Output)
+		assert.Empty(t, result.BackgroundProcessID)
+	})
+
+	t.Run("AttachedWithAgentClockAheadBoundsWait", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		// The agent-reported start time is an hour ahead of the
+		// local clock; the replay wait must still be bounded by
+		// the requested timeout.
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{
+				ID:        "proc-1",
+				Attached:  true,
+				StartedAt: time.Now().Add(time.Hour).Unix(),
+			}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Not(gomock.Nil())).
+			DoAndReturn(func(ctx context.Context, _ string, _ *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+				<-ctx.Done()
+				return workspacesdk.ProcessOutputResponse{}, ctx.Err()
+			})
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", nil).
+			Return(workspacesdk.ProcessOutputResponse{Running: true, Output: "partial"}, nil)
+
+		tool := newExecuteTool(t, mockConn)
+		start := time.Now()
+		result := runExecute(t, identityCtx(t), tool, "call-1", `{"command":"echo hi","timeout":"250ms"}`)
+		require.Less(t, time.Since(start), testutil.WaitMedium)
+		assert.False(t, result.Success)
+		assert.Contains(t, result.Error, "timed out")
+		assert.Equal(t, "proc-1", result.BackgroundProcessID)
+	})
+
+	t.Run("AttachedAfterSlowStartDoesNotGetFreshBudget", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		// The start request consumes the whole command budget
+		// before attaching (slow token wait), and the agent clock
+		// runs ahead so the reported remaining budget is large.
+		// The attach wait must inherit the exhausted command
+		// deadline instead of a fresh window.
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, _ workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				<-ctx.Done()
+				return workspacesdk.StartProcessResponse{
+					ID:        "proc-1",
+					Attached:  true,
+					StartedAt: time.Now().Add(time.Hour).Unix(),
+				}, nil
+			})
+		waitCtxErr := make(chan error, 1)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Not(gomock.Nil())).
+			DoAndReturn(func(ctx context.Context, _ string, _ *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+				select {
+				case waitCtxErr <- ctx.Err():
+				default:
+				}
+				<-ctx.Done()
+				return workspacesdk.ProcessOutputResponse{}, ctx.Err()
+			})
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", nil).
+			Return(workspacesdk.ProcessOutputResponse{Running: true, Output: "partial"}, nil)
+
+		tool := newExecuteTool(t, mockConn)
+		result := runExecute(t, identityCtx(t), tool, "call-1", `{"command":"echo hi","timeout":"250ms"}`)
+		assert.Error(t, <-waitCtxErr, "attach wait was granted a fresh budget after the command deadline expired")
+		assert.False(t, result.Success)
+		assert.Contains(t, result.Error, "timed out")
+		assert.Equal(t, "proc-1", result.BackgroundProcessID)
+	})
+
+	t.Run("AttachedPastDeadlineExitedCommitsResult", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{
+				ID:        "proc-1",
+				Attached:  true,
+				StartedAt: time.Now().Add(-time.Hour).Unix(),
+			}, nil)
+		// Past the deadline the tool resolves from a non-blocking
+		// snapshot instead of waiting.
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", nil).
+			Return(exitedOutput(3, "late result"), nil)
+
+		tool := newExecuteTool(t, mockConn)
+		result := runExecute(t, identityCtx(t), tool, "call-1", `{"command":"echo hi"}`)
+		assert.False(t, result.Success)
+		assert.Equal(t, 3, result.ExitCode)
+		assert.Equal(t, "late result", result.Output)
+		assert.Empty(t, result.BackgroundProcessID)
+	})
+
+	t.Run("AttachedPastDeadlineRunningTimesOut", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{
+				ID:        "proc-1",
+				Attached:  true,
+				StartedAt: time.Now().Add(-time.Hour).Unix(),
+			}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", nil).
+			Return(workspacesdk.ProcessOutputResponse{Running: true, Output: "partial"}, nil)
+
+		tool := newExecuteTool(t, mockConn)
+		result := runExecute(t, identityCtx(t), tool, "call-1", `{"command":"echo hi"}`)
+		assert.False(t, result.Success)
+		assert.Contains(t, result.Error, "timed out")
+		assert.Equal(t, "partial", result.Output)
+		assert.Equal(t, "proc-1", result.BackgroundProcessID)
+	})
+
+	t.Run("AttachedWithoutStartTimeResolvesFromSnapshot", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{
+				ID:       "proc-1",
+				Attached: true,
+			}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", nil).
+			Return(exitedOutput(0, "ok"), nil)
+
+		tool := newExecuteTool(t, mockConn)
+		result := runExecute(t, identityCtx(t), tool, "call-1", `{"command":"echo hi"}`)
+		assert.True(t, result.Success)
+		assert.Equal(t, "ok", result.Output)
+	})
+
+	t.Run("BackgroundAttachReturnsSameHandle", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				assert.True(t, req.Background)
+				assert.NotEmpty(t, req.IdempotencyKey)
+				return workspacesdk.StartProcessResponse{ID: "proc-bg", Attached: true, IdempotencyKey: req.IdempotencyKey}, nil
+			})
+
+		tool := newExecuteTool(t, mockConn)
+		result := runExecute(t, identityCtx(t), tool, "call-1", `{"command":"sleep 100","run_in_background":true}`)
+		assert.True(t, result.Success)
+		assert.Equal(t, "proc-bg", result.BackgroundProcessID)
+	})
 }
 
 // newExecuteTool creates an Execute tool wired to the given mock.
