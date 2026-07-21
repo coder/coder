@@ -931,6 +931,14 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		if len(selectedMemberships) == 0 {
 			status := http.StatusUnauthorized
 			msg := "You aren't a member of the authorized Github organizations!"
+			if api.GithubOAuth2Config.DefaultProviderConfigured {
+				// The default provider is a GitHub App, so it can only report
+				// memberships in organizations that have installed it. Without
+				// this hint, users in an allowed organization see a confusing
+				// rejection with no way to discover the missing installation.
+				msg += " The default GitHub OAuth provider can only see memberships in organizations that have installed the Coder GitHub app." +
+					" Install it from https://github.com/apps/coder for each authorized organization, or configure a custom GitHub OAuth app."
+			}
 			if api.GithubOAuth2Config.DeviceFlowEnabled {
 				// In the device flow, the error is rendered client-side.
 				httpapi.Write(ctx, rw, status, codersdk.Response{

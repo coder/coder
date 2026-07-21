@@ -221,6 +221,33 @@ func TestUserOAuth2Github(t *testing.T) {
 
 		resp := oauth2Callback(t, client)
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		location, err := resp.Location()
+		require.NoError(t, err)
+		require.NotContains(t, location.Query().Get("message"), "Coder GitHub app")
+	})
+	t.Run("NotInAllowedOrganizationDefaultProvider", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			GithubOAuth2Config: &coderd.GithubOAuth2Config{
+				OAuth2Config:              &testutil.OAuth2Config{},
+				DefaultProviderConfigured: true,
+				AllowOrganizations:        []string{"coder"},
+				ListOrganizationMemberships: func(ctx context.Context, client *http.Client) ([]*github.Membership, error) {
+					// The default provider is a GitHub App, so it reports no
+					// memberships for organizations it isn't installed in.
+					return []*github.Membership{}, nil
+				},
+			},
+		})
+
+		resp := oauth2Callback(t, client)
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		// The error must tell the user how to fix the likely cause: the Coder
+		// GitHub app isn't installed in the allowed organization.
+		location, err := resp.Location()
+		require.NoError(t, err)
+		require.Contains(t, location.Query().Get("message"), "Coder GitHub app")
+		require.Contains(t, location.Query().Get("message"), "https://github.com/apps/coder")
 	})
 	t.Run("NotInAllowedTeam", func(t *testing.T) {
 		t.Parallel()
