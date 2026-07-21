@@ -330,7 +330,7 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 			// FE know not to enter the authentication loop again, and instead display an error.
 			redirect = fmt.Sprintf("/external-auth/%s?redirected=true", externalAuthConfig.ID)
 		}
-		redirect = httpmw.URIFromURL(redirect)
+		redirect = httpapi.SafeRedirectPath(redirect)
 		http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
 	}
 }

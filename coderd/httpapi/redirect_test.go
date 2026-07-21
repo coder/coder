@@ -1,8 +1,12 @@
-package httpmw
+package httpapi_test
 
-import "testing"
+import (
+	"testing"
 
-func TestURIFromURL(t *testing.T) {
+	"github.com/coder/coder/v2/coderd/httpapi"
+)
+
+func TestSafeRedirectPath(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -28,8 +32,8 @@ func TestURIFromURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := URIFromURL(tt.in); got != tt.want {
-				t.Errorf("URIFromURL(%q) = %q, want %q", tt.in, got, tt.want)
+			if got := httpapi.SafeRedirectPath(tt.in); got != tt.want {
+				t.Errorf("SafeRedirectPath(%q) = %q, want %q", tt.in, got, tt.want)
 			}
 		})
 	}
