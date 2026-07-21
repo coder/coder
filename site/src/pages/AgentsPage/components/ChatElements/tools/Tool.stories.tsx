@@ -9,6 +9,7 @@ import {
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { chatModelConfigsKey } from "#/api/queries/chats";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { BlockList } from "../../ChatConversation/ConversationTimeline";
@@ -689,19 +690,14 @@ export const SubagentMalformedChatIdLinksToRecoverableChatId: Story = {
 	},
 };
 
-const spawnModelConfigsQuery = {
-	key: ["chat-model-configs"],
-	data: [
-		{
-			...MockChatModelConfig,
-			id: "8b29eba2-53a9-4c9a-95bb-b0326ac0a2fe",
-			model: "claude-sonnet-4-6",
-			display_name: "Claude Sonnet 4.6",
-			model_config: {
-				reasoning_effort: { default: "medium", max: "high" },
-			},
-		},
-	],
+const mockChatModelConfig = {
+	...MockChatModelConfig,
+	id: "8b29eba2-53a9-4c9a-95bb-b0326ac0a2fe",
+	model: "claude-sonnet-4-6",
+	display_name: "Claude Sonnet 4.6",
+	model_config: {
+		reasoning_effort: { default: "medium", max: "high" },
+	},
 };
 
 export const SubagentSpawnWithModelAndEffort: Story = {
@@ -721,7 +717,7 @@ export const SubagentSpawnWithModelAndEffort: Story = {
 		},
 	},
 	parameters: {
-		queries: [spawnModelConfigsQuery],
+		queries: [{ key: chatModelConfigsKey, data: [mockChatModelConfig] }],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -751,7 +747,7 @@ export const SubagentSpawnWithModelDefaultEffort: Story = {
 		},
 	},
 	parameters: {
-		queries: [spawnModelConfigsQuery],
+		queries: [{ key: chatModelConfigsKey, data: [mockChatModelConfig] }],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -783,7 +779,7 @@ export const SubagentSpawnWithEffortOnly: Story = {
 		},
 	},
 	parameters: {
-		queries: [spawnModelConfigsQuery],
+		queries: [{ key: chatModelConfigsKey, data: [mockChatModelConfig] }],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -811,7 +807,7 @@ export const SubagentSpawnWithUnknownModelConfig: Story = {
 		},
 	},
 	parameters: {
-		queries: [spawnModelConfigsQuery],
+		queries: [{ key: chatModelConfigsKey, data: [mockChatModelConfig] }],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
