@@ -1,6 +1,6 @@
 import { ArrowLeftIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
@@ -31,6 +31,8 @@ const AddModelPageView: FC<AddModelPageViewProps> = ({
 	onProviderChange,
 	onCreateModel,
 }) => {
+	const location = useLocation();
+
 	if (isLoading) {
 		return <Loader fullscreen />;
 	}
@@ -38,7 +40,10 @@ const AddModelPageView: FC<AddModelPageViewProps> = ({
 	if (!selectedProviderState) {
 		return (
 			<div className="flex flex-col items-start gap-4">
-				<Link to="/ai/settings/models" className="-ml-3">
+				<Link
+					to={{ pathname: "/ai/settings/models", search: location.search }}
+					className="-ml-3"
+				>
 					<Button variant="subtle">
 						<ArrowLeftIcon />
 						<span>Back to models</span>

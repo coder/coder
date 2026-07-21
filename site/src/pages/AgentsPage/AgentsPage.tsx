@@ -2,6 +2,7 @@ import { type FC, useEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
+	useQueries,
 	useQuery,
 	useQueryClient,
 } from "react-query";
@@ -49,10 +50,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import {
-	getDefaultOrganizationName,
-	useDashboard,
-} from "#/modules/dashboard/useDashboard";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
@@ -101,7 +99,6 @@ const AgentsPage: FC = () => {
 	const { agentId } = useParams();
 	const { permissions, user } = useAuthenticated();
 	const { organizations } = useDashboard();
-	const organizationName = getDefaultOrganizationName(organizations);
 	const isAgentsAdmin = permissions.editDeploymentConfig;
 
 	const [sidebarFilters, setSidebarFilters] = getAgentSidebarFilters(
@@ -166,16 +163,33 @@ const AgentsPage: FC = () => {
 			sources: sidebarFilters.sources,
 		}),
 	);
-	// Model queries are kept here for the sidebar, which displays
-	// model info alongside each chat. Child routes that need models
-	// subscribe to the same queries independently, and react-query
-	// deduplicates the requests.
-	const chatModelsQuery = useQuery(chatModels());
-	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const chatList = chatsQuery.data?.pages.flat() ?? [];
+	const organizationNames = [
+		...new Set(chatList.map((chat) => chat.organization_id)),
+	]
+		.map((organizationId) =>
+			organizations.find((organization) => organization.id === organizationId),
+		)
+		.filter((organization): organization is TypesGen.Organization =>
+			Boolean(organization),
+		)
+		.map((organization) => organization.name);
+	// Sidebar resources are fetched for every organization represented by a
+	// visible chat. IDs remain paired with organization-bearing configs.
+	const chatModelsQueries = useQueries({
+		queries: organizationNames.map((organization) => chatModels(organization)),
+	});
+	const chatModelConfigsQueries = useQueries({
+		queries: organizationNames.map((organization) =>
+			chatModelConfigs(organization),
+		),
+	});
+	const personalModelOverridesQueries = useQueries({
+		queries: organizationNames.map((organization) =>
+			userChatPersonalModelOverrides(organization),
+		),
+	});
 	const chatProviderConfigsQuery = useQuery(userChatProviderConfigs());
-	const personalModelOverridesQuery = useQuery(
-		userChatPersonalModelOverrides(),
-	);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, ChatDetailError>
 	>({});
@@ -254,10 +268,18 @@ const AgentsPage: FC = () => {
 			void queryClient.invalidateQueries({
 				queryKey: chatsByWorkspaceKeyPrefix,
 			});
-			void invalidateWorkspaceMutationQueries(queryClient, {
-				organizationName,
-				username: user.username,
-			});
+			const workspace = queryClient.getQueryData<TypesGen.Workspace>(
+				workspaceByIdKey(workspaceId),
+			);
+			const organization = organizations.find(
+				(item) => item.id === workspace?.organization_id,
+			);
+			if (organization) {
+				void invalidateWorkspaceMutationQueries(queryClient, {
+					organizationName: organization.name,
+					username: user.username,
+				});
+			}
 			notifyDeleteQueueState(
 				queryClient.getQueryData<TypesGen.Workspace>(
 					workspaceByIdKey(workspaceId),
@@ -276,10 +298,18 @@ const AgentsPage: FC = () => {
 			// Archive failed after the delete already ran; refresh
 			// workspace state so consumers see the deletion.
 			if (error instanceof ArchiveAndDeleteError && error.step === "archive") {
-				void invalidateWorkspaceMutationQueries(queryClient, {
-					organizationName,
-					username: user.username,
-				});
+				const workspace = queryClient.getQueryData<TypesGen.Workspace>(
+					workspaceByIdKey(workspaceId),
+				);
+				const organization = organizations.find(
+					(item) => item.id === workspace?.organization_id,
+				);
+				if (organization) {
+					void invalidateWorkspaceMutationQueries(queryClient, {
+						organizationName: organization.name,
+						username: user.username,
+					});
+				}
 			}
 		},
 	});
@@ -328,12 +358,19 @@ const AgentsPage: FC = () => {
 		},
 	});
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-	const catalogModelOptions = getModelOptionsFromConfigs(
-		chatModelConfigsQuery.data,
-		chatModelsQuery.data,
-		providerInfoByIDFromUserConfigs(chatProviderConfigsQuery.data),
+	const providerInfoByID = providerInfoByIDFromUserConfigs(
+		chatProviderConfigsQuery.data,
 	);
-	const chatList = chatsQuery.data?.pages.flat() ?? [];
+	const modelConfigs = chatModelConfigsQueries.flatMap(
+		(query) => query.data ?? [],
+	);
+	const catalogModelOptions = chatModelConfigsQueries.flatMap((query, index) =>
+		getModelOptionsFromConfigs(
+			query.data,
+			chatModelsQueries[index]?.data,
+			providerInfoByID,
+		),
+	);
 	const isArchiving =
 		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
 	const archivingChatId =
@@ -669,7 +706,7 @@ const AgentsPage: FC = () => {
 				chatList={chatList}
 				currentUserId={user.id}
 				catalogModelOptions={catalogModelOptions}
-				modelConfigs={chatModelConfigsQuery.data ?? []}
+				modelConfigs={modelConfigs}
 				handleNewAgent={handleNewAgent}
 				isSearchDialogOpen={isSearchDialogOpen}
 				onSearchDialogOpenChange={setIsSearchDialogOpen}
@@ -694,9 +731,9 @@ const AgentsPage: FC = () => {
 				onProposeTitle={requestProposeTitle}
 				onRenameTitle={requestRenameTitle}
 				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
-				isPersonalModelOverridesEnabled={
-					personalModelOverridesQuery.data?.enabled
-				}
+				isPersonalModelOverridesEnabled={personalModelOverridesQueries.some(
+					(query) => query.data?.enabled,
+				)}
 				isAgentsAdmin={isAgentsAdmin}
 				hasNextPage={chatsQuery.hasNextPage}
 				onLoadMore={() => void chatsQuery.fetchNextPage()}

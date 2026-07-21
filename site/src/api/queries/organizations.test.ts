@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type { AuthorizationCheck, Organization } from "#/api/typesGenerated";
-import { permittedOrganizations } from "./organizations";
+import {
+	aiResourceOrganizationPermissions,
+	permittedOrganizations,
+} from "./organizations";
 
 // Mock the API module
 vi.mock("#/api/api", () => ({
@@ -39,6 +42,51 @@ const templateCreateCheck: AuthorizationCheck = {
 	object: { resource_type: "template" },
 	action: "create",
 };
+
+describe("aiResourceOrganizationPermissions", () => {
+	it("checks every AI resource permission for each organization", async () => {
+		const checkAuthMock = vi.mocked(API.checkAuthorization);
+		checkAuthMock.mockResolvedValue({
+			"org-1.createChat": true,
+			"org-2.createChat": false,
+		});
+
+		const config = aiResourceOrganizationPermissions(["org-2", "org-1"]);
+		const result = await config.queryFn!();
+
+		expect(config.queryKey).toEqual([
+			"organizations",
+			["org-1", "org-2"],
+			"ai-resource-permissions",
+		]);
+		expect(checkAuthMock).toHaveBeenCalledWith({
+			checks: expect.objectContaining({
+				"org-1.createChat": {
+					object: { resource_type: "chat", organization_id: "org-1" },
+					action: "create",
+				},
+				"org-2.viewModels": {
+					object: {
+						resource_type: "chat_model_config",
+						organization_id: "org-2",
+					},
+					action: "read",
+				},
+				"org-2.viewMCPServers": {
+					object: {
+						resource_type: "mcp_server_config",
+						organization_id: "org-2",
+					},
+					action: "read",
+				},
+			}),
+		});
+		expect(result).toEqual({
+			"org-1": { createChat: true },
+			"org-2": { createChat: false },
+		});
+	});
+});
 
 describe("permittedOrganizations", () => {
 	it("returns query config with correct queryKey", () => {

@@ -1,5 +1,82 @@
 import type { AuthorizationCheck } from "#/api/typesGenerated";
 
+export type AIResourceOrganizationPermissions = {
+	[k in AIResourceOrganizationPermissionName]: boolean;
+};
+
+export type AIResourceOrganizationPermissionName = keyof ReturnType<
+	typeof aiResourceOrganizationPermissionChecks
+>;
+
+export const aiResourceOrganizationPermissionChecks = (
+	organizationId: string,
+) =>
+	({
+		createChat: {
+			object: {
+				resource_type: "chat",
+				organization_id: organizationId,
+			},
+			action: "create",
+		},
+		createModel: {
+			object: {
+				resource_type: "chat_model_config",
+				organization_id: organizationId,
+			},
+			action: "create",
+		},
+		viewModels: {
+			object: {
+				resource_type: "chat_model_config",
+				organization_id: organizationId,
+			},
+			action: "read",
+		},
+		editModels: {
+			object: {
+				resource_type: "chat_model_config",
+				organization_id: organizationId,
+			},
+			action: "update",
+		},
+		deleteModels: {
+			object: {
+				resource_type: "chat_model_config",
+				organization_id: organizationId,
+			},
+			action: "delete",
+		},
+		createMCPServers: {
+			object: {
+				resource_type: "mcp_server_config",
+				organization_id: organizationId,
+			},
+			action: "create",
+		},
+		viewMCPServers: {
+			object: {
+				resource_type: "mcp_server_config",
+				organization_id: organizationId,
+			},
+			action: "read",
+		},
+		editMCPServers: {
+			object: {
+				resource_type: "mcp_server_config",
+				organization_id: organizationId,
+			},
+			action: "update",
+		},
+		deleteMCPServers: {
+			object: {
+				resource_type: "mcp_server_config",
+				organization_id: organizationId,
+			},
+			action: "delete",
+		},
+	}) as const satisfies Record<string, AuthorizationCheck>;
+
 export type OrganizationPermissions = {
 	[k in OrganizationPermissionName]: boolean;
 };

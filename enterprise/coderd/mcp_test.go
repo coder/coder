@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -251,7 +252,7 @@ func TestChatMCPServerSelection(t *testing.T) {
 		rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID),
 	)
 	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-	create := func(ids []uuid.UUID) (codersdk.Chat, error) {
+	create := func(ctx context.Context, ids []uuid.UUID) (codersdk.Chat, error) {
 		return memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{{
@@ -263,7 +264,7 @@ func TestChatMCPServerSelection(t *testing.T) {
 	}
 
 	wantIDs := []uuid.UUID{allowed.ID, allowed.ID}
-	chat, err := create(wantIDs)
+	chat, err := create(ctx, wantIDs)
 	require.NoError(t, err)
 	require.Equal(t, wantIDs, chat.MCPServerIDs)
 
@@ -278,7 +279,8 @@ func TestChatMCPServerSelection(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := create([]uuid.UUID{test.id})
+			ctx := testutil.Context(t, testutil.WaitLong)
+			_, err := create(ctx, []uuid.UUID{test.id})
 			sdkErr := requireSDKErrorStatus(t, err, http.StatusBadRequest)
 			require.Equal(t, "One or more MCP server IDs are invalid.", sdkErr.Message)
 			require.Empty(t, sdkErr.Detail)

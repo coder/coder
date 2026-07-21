@@ -27,6 +27,7 @@ const MockAnthropicProviderConfig: ChatProviderConfig = {
 };
 
 export const mockGPT5: ChatModelConfig = {
+	organization_id: "test-org-id",
 	id: "model-gpt5",
 	ai_provider_id: "prov-openai",
 	model: "gpt-5",

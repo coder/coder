@@ -1,7 +1,7 @@
 import type { FormikContextType } from "formik";
 import { ChevronDownIcon, ChevronRightIcon, InfoIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import { getVisibleProviderFields } from "#/api/chatModelOptions";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -134,6 +134,7 @@ export const ModelFormFields: FC<{
 	showAdvanced,
 	setShowAdvanced,
 }) => {
+	const location = useLocation();
 	const hasProviderConfigFields =
 		getVisibleProviderFields(selectedProviderState.provider).length > 0;
 
@@ -344,7 +345,9 @@ export const ModelFormFields: FC<{
 				</div>
 
 				<div className="flex items-center justify-end gap-3">
-					<Link to="/ai/settings/models">
+					<Link
+						to={{ pathname: "/ai/settings/models", search: location.search }}
+					>
 						<Button variant="outline" type="button">
 							Cancel
 						</Button>

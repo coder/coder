@@ -1,6 +1,6 @@
 import { PlusIcon } from "lucide-react";
 import type { FC } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -24,24 +24,35 @@ interface MCPServersPageViewProps {
 	isLoading: boolean;
 	error: unknown;
 	servers: readonly TypesGen.MCPServerConfig[];
+	canCreateMCPServers: boolean;
+	canEditMCPServers: boolean;
 }
 
 const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 	isLoading,
 	error,
 	servers,
+	canCreateMCPServers,
+	canEditMCPServers,
 }) => {
 	const navigate = useNavigate();
-	const goToAddServer = () => void navigate("/ai/settings/mcp-servers/add");
+	const location = useLocation();
+	const goToAddServer = () =>
+		void navigate({
+			pathname: "/ai/settings/mcp-servers/add",
+			search: location.search,
+		});
 
 	return (
 		<div>
 			<SettingsHeader
 				actions={
-					<Button variant="outline" onClick={goToAddServer}>
-						<PlusIcon />
-						<span>Add server</span>
-					</Button>
+					canCreateMCPServers ? (
+						<Button variant="outline" onClick={goToAddServer}>
+							<PlusIcon />
+							<span>Add server</span>
+						</Button>
+					) : undefined
 				}
 			>
 				<SettingsHeaderTitle>MCP servers</SettingsHeaderTitle>
@@ -75,10 +86,12 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 							message="No MCP servers configured"
 							description="Add a server to give agents access to external tools."
 							cta={
-								<Button variant="outline" onClick={goToAddServer}>
-									<PlusIcon />
-									<span>Add server</span>
-								</Button>
+								canCreateMCPServers ? (
+									<Button variant="outline" onClick={goToAddServer}>
+										<PlusIcon />
+										<span>Add server</span>
+									</Button>
+								) : undefined
 							}
 						/>
 					) : (
@@ -86,8 +99,14 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 							<MCPServerRow
 								key={server.id}
 								server={server}
-								onClick={() =>
-									void navigate(`/ai/settings/mcp-servers/${server.id}`)
+								onClick={
+									canEditMCPServers
+										? () =>
+												void navigate({
+													pathname: `/ai/settings/mcp-servers/${server.id}`,
+													search: location.search,
+												})
+										: undefined
 								}
 							/>
 						))

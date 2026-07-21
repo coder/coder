@@ -18,6 +18,9 @@ import type {
 import type { MetadataState } from "#/hooks/useEmbeddedMetadata";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 import {
+	type AIResourceOrganizationPermissionName,
+	type AIResourceOrganizationPermissions,
+	aiResourceOrganizationPermissionChecks,
 	type OrganizationPermissionName,
 	type OrganizationPermissions,
 	organizationPermissionChecks,
@@ -368,6 +371,47 @@ export const organizationsPermissions = (
 			) as Record<string, OrganizationPermissions>;
 		},
 	};
+};
+
+export const aiResourceOrganizationPermissions = (
+	organizationIds: readonly string[],
+) => {
+	const sortedOrganizationIds = [...organizationIds].sort();
+	return {
+		enabled: sortedOrganizationIds.length > 0,
+		queryKey: [
+			"organizations",
+			sortedOrganizationIds,
+			"ai-resource-permissions",
+		] as const,
+		queryFn: async () => {
+			const prefixedChecks = sortedOrganizationIds.flatMap((organizationId) =>
+				Object.entries(
+					aiResourceOrganizationPermissionChecks(organizationId),
+				).map(([name, check]) => [`${organizationId}.${name}`, check]),
+			);
+			const response = await API.checkAuthorization({
+				checks: Object.fromEntries(prefixedChecks),
+			});
+			return Object.entries(response).reduce(
+				(acc, [key, value]) => {
+					const separator = key.indexOf(".");
+					const organizationId = key.substring(0, separator);
+					const permission = key.substring(separator + 1);
+					if (!acc[organizationId]) {
+						acc[organizationId] = {};
+					}
+					acc[organizationId][
+						permission as AIResourceOrganizationPermissionName
+					] = value;
+					return acc;
+				},
+				{} as Record<string, Partial<AIResourceOrganizationPermissions>>,
+			) as Record<string, AIResourceOrganizationPermissions>;
+		},
+	} satisfies UseQueryOptions<
+		Record<string, AIResourceOrganizationPermissions>
+	>;
 };
 
 export const workspacePermissionsByOrganization = (

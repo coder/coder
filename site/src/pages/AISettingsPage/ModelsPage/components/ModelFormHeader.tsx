@@ -5,7 +5,7 @@ import {
 	TrashIcon,
 } from "lucide-react";
 import type { FC } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
@@ -29,8 +29,13 @@ import { getProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components
 import { cn } from "#/utils/cn";
 
 export const ModelFormBackLink: FC = () => {
+	const location = useLocation();
+
 	return (
-		<Link to="/ai/settings/models" className="-ml-3">
+		<Link
+			to={{ pathname: "/ai/settings/models", search: location.search }}
+			className="-ml-3"
+		>
 			<Button variant="subtle" type="button">
 				<ArrowLeftIcon />
 				<span>Back to models</span>

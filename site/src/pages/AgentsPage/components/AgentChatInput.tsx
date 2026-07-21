@@ -24,6 +24,7 @@ import {
 import { useMutation, useQueryClient } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
+import { API } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import { disconnectMCPServerOAuth2 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -566,9 +567,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 
 	const handleMcpConnect = (server: TypesGen.MCPServerConfig) => {
 		setMcpConnectingId(server.id);
-		const connectUrl = `/api/experimental/mcp/servers/${encodeURIComponent(server.id)}/oauth2/connect`;
 		mcpPopupRef.current = window.open(
-			connectUrl,
+			API.experimental.getMCPServerOAuth2ConnectURL(server.id),
 			"_blank",
 			"width=900,height=600",
 		);
@@ -579,21 +579,27 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			return;
 		}
 		const name = mcpDisconnectTarget.display_name;
-		mcpDisconnectMutation.mutate(mcpDisconnectTarget.id, {
-			onSuccess: (response) => {
-				setMcpDisconnectTarget(null);
-				if (response.token_revocation_error) {
-					toast.warning(`Disconnected ${name}.`, {
-						description: response.token_revocation_error,
-					});
-				} else {
-					toast.success(`Disconnected ${name}.`);
-				}
+		mcpDisconnectMutation.mutate(
+			{
+				organization: mcpDisconnectTarget.organization_id,
+				serverId: mcpDisconnectTarget.id,
 			},
-			onError: (error) => {
-				toast.error(getErrorMessage(error, `Failed to disconnect ${name}.`));
+			{
+				onSuccess: (response) => {
+					setMcpDisconnectTarget(null);
+					if (response.token_revocation_error) {
+						toast.warning(`Disconnected ${name}.`, {
+							description: response.token_revocation_error,
+						});
+					} else {
+						toast.success(`Disconnected ${name}.`);
+					}
+				},
+				onError: (error) => {
+					toast.error(getErrorMessage(error, `Failed to disconnect ${name}.`));
+				},
 			},
-		});
+		);
 	};
 
 	// Only a chat-bound workspace counts: an unbound selection (new chat

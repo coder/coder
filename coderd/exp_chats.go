@@ -7975,6 +7975,7 @@ func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModelC
 	// chat_model_configs_ai_provider_required_when_active).
 	return codersdk.ChatModelConfig{
 		ID:                   config.ID,
+		OrganizationID:       config.OrganizationID,
 		AIProviderID:         config.AIProviderID.UUID,
 		Model:                config.Model,
 		DisplayName:          config.DisplayName,

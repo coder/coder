@@ -17,8 +17,10 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { AIResourceOrganizationOutlet } from "#/contexts/AIResourceOrganizationContext";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
+	MockDefaultOrganization,
 	MockNoPermissions,
 	MockPermissions,
 	MockUserOwner,
@@ -69,6 +71,7 @@ const defaultModelOptions: ModelSelectorOption[] = [
 const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	{
 		id: defaultModelConfigID,
+		organization_id: "test-org-id",
 		ai_provider_id: "provider-openai",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
@@ -254,7 +257,14 @@ const agentsRouting = {
 		},
 		{ path: "analytics", element: <AgentAnalyticsPage now={fixedNow} /> },
 		{ path: ":agentId", element: <div /> },
-		{ index: true, element: <AgentCreatePage /> },
+		{
+			element: (
+				<AIResourceOrganizationOutlet
+					isOrganizationPermitted={(permissions) => permissions.createChat}
+				/>
+			),
+			children: [{ index: true, element: <AgentCreatePage /> }],
+		},
 	],
 };
 
@@ -388,13 +398,19 @@ const meta: Meta<typeof AgentsPageView> = {
 		user: MockUserOwner,
 		permissions: MockPermissions,
 		reactRouter: reactRouterParameters({
-			location: { path: "/agents" },
+			location: {
+				path: "/agents",
+				searchParams: { organization: MockDefaultOrganization.name },
+			},
 			routing: [agentsRouting, aiSettingsRouting],
 		}),
 	},
 	args: defaultArgs,
 	beforeEach: () => {
 		localStorage.removeItem(LEFT_SIDEBAR_STORAGE_KEY);
+		spyOn(API, "checkAuthorization").mockResolvedValue({
+			[`${MockDefaultOrganization.id}.createChat`]: true,
+		});
 		spyOn(API, "getWorkspaces").mockResolvedValue({
 			workspaces: [],
 			count: 0,
@@ -438,6 +454,7 @@ const meta: Meta<typeof AgentsPageView> = {
 		spyOn(API.experimental, "getChatModelConfigs").mockResolvedValue([
 			{
 				id: defaultModelConfigID,
+				organization_id: "test-org-id",
 				ai_provider_id: "provider-openai",
 				model: "gpt-4o",
 				display_name: "GPT-4o",

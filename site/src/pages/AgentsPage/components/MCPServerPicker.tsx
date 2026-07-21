@@ -1,5 +1,6 @@
 import { ChevronDownIcon, LockIcon, ServerIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
+import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
@@ -91,8 +92,8 @@ export const getDefaultMCPSelection = (
 	return ids;
 };
 
-/** localStorage key for persisting the user's MCP server selection. */
-export const mcpSelectionStorageKey = "agents.selected-mcp-server-ids";
+export const mcpSelectionStorageKey = (organization: string) =>
+	`agents.selected-mcp-server-ids.${organization}`;
 
 /**
  * Read the persisted MCP selection from localStorage, filtered to only
@@ -100,8 +101,9 @@ export const mcpSelectionStorageKey = "agents.selected-mcp-server-ids";
  * Returns `null` when nothing is stored (caller should fall back to defaults).
  */ export const getSavedMCPSelection = (
 	servers: readonly TypesGen.MCPServerConfig[],
+	organization: string,
 ): string[] | null => {
-	const raw = localStorage.getItem(mcpSelectionStorageKey);
+	const raw = localStorage.getItem(mcpSelectionStorageKey(organization));
 	if (raw === null) {
 		return null;
 	}
@@ -143,8 +145,14 @@ export const mcpSelectionStorageKey = "agents.selected-mcp-server-ids";
 
 /**
  * Persist the current MCP selection to localStorage.
- */ export const saveMCPSelection = (ids: readonly string[]): void => {
-	localStorage.setItem(mcpSelectionStorageKey, JSON.stringify(ids));
+ */ export const saveMCPSelection = (
+	ids: readonly string[],
+	organization: string,
+): void => {
+	localStorage.setItem(
+		mcpSelectionStorageKey(organization),
+		JSON.stringify(ids),
+	);
 };
 
 // ── Overlapping icon stack for the trigger ─────────────────────
@@ -254,9 +262,8 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 
 	const handleConnect = (server: TypesGen.MCPServerConfig) => {
 		setConnectingServerId(server.id);
-		const connectUrl = `/api/experimental/mcp/servers/${encodeURIComponent(server.id)}/oauth2/connect`;
 		popupRef.current = window.open(
-			connectUrl,
+			API.experimental.getMCPServerOAuth2ConnectURL(server.id),
 			"_blank",
 			"width=900,height=600",
 		);

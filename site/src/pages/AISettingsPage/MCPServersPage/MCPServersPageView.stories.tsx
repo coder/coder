@@ -21,6 +21,8 @@ const meta: Meta<typeof MCPServersPageView> = {
 			MockImageMCPServer,
 			MockMemoryMCPServer,
 		],
+		canCreateMCPServers: true,
+		canEditMCPServers: true,
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -49,6 +51,58 @@ export const Default: Story = {
 		await expect(canvas.getByText("API key")).toBeInTheDocument();
 		await expect(canvas.getAllByText("Enabled").length).toBeGreaterThan(0);
 		await expect(canvas.getByText("Disabled")).toBeInTheDocument();
+	},
+};
+
+export const ReadOnly: Story = {
+	args: {
+		canCreateMCPServers: false,
+		canEditMCPServers: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.queryByRole("button", { name: /add server/i }),
+		).not.toBeInTheDocument();
+		await expect(canvas.getByText("Coder")).toBeInTheDocument();
+		await expect(canvas.getByText("Coder").closest("tr")).not.toHaveAttribute(
+			"role",
+			"button",
+		);
+	},
+};
+
+export const CreateOnlyControls: Story = {
+	args: {
+		canCreateMCPServers: true,
+		canEditMCPServers: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("button", { name: /add server/i }),
+		).toBeVisible();
+		await expect(canvas.getByText("Coder").closest("tr")).not.toHaveAttribute(
+			"role",
+			"button",
+		);
+	},
+};
+
+export const UpdateOnlyControls: Story = {
+	args: {
+		canCreateMCPServers: false,
+		canEditMCPServers: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.queryByRole("button", { name: /add server/i }),
+		).not.toBeInTheDocument();
+		await expect(canvas.getByText("Coder").closest("tr")).toHaveAttribute(
+			"role",
+			"button",
+		);
 	},
 };
 

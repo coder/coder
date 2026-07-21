@@ -21,16 +21,39 @@ import {
 	chatDiffContentsKey,
 	chatKey,
 	chatMessagesKey,
+	chatModelConfig,
+	chatModelConfigACL,
+	chatModelConfigACLKey,
+	chatModelConfigKey,
+	chatModelConfigs,
+	chatModelConfigsKey,
+	chatModelOverride,
+	chatModelOverrideKey,
+	chatModels,
+	chatModelsKey,
 	chatSearch,
 	chatsKey,
 	createChat,
 	createChatMessage,
+	createChatModelConfig,
+	createMCPServerConfig,
+	deleteChatModelConfig,
 	deleteChatQueuedMessage,
+	deleteMCPServerConfig,
+	deleteUserCompactionThreshold,
+	disconnectMCPServerOAuth2,
 	editChatMessage,
 	infiniteChats,
 	infiniteChatsKey,
 	interruptChat,
 	invalidateChatListQueries,
+	invalidateChatProviderDependentQueries,
+	mcpServerConfig,
+	mcpServerConfigACL,
+	mcpServerConfigACLKey,
+	mcpServerConfigKey,
+	mcpServerConfigs,
+	mcpServerConfigsKey,
 	mergeWatchedChatIntoCaches,
 	mergeWatchedChatSummary,
 	paginatedChatCostUsers,
@@ -46,10 +69,21 @@ import {
 	unarchiveChat,
 	unpinChat,
 	updateChatAdvisorConfig,
+	updateChatModelConfig,
+	updateChatModelConfigACL,
+	updateChatModelOverride,
 	updateChatPlanMode,
 	updateChatTitle,
 	updateChildInParentCache,
 	updateInfiniteChatsCache,
+	updateMCPServerConfig,
+	updateMCPServerConfigACL,
+	updateUserChatPersonalModelOverride,
+	updateUserCompactionThreshold,
+	userChatPersonalModelOverrides,
+	userChatPersonalModelOverridesKey,
+	userCompactionThresholds,
+	userCompactionThresholdsKey,
 } from "./chats";
 
 vi.mock("#/api/api", () => ({
@@ -68,6 +102,29 @@ vi.mock("#/api/api", () => ({
 			proposeChatTitle: vi.fn(),
 			getChatAdvisorConfig: vi.fn(),
 			updateChatAdvisorConfig: vi.fn(),
+			getChatModels: vi.fn(),
+			getChatModelConfigs: vi.fn(),
+			getChatModelConfig: vi.fn(),
+			getChatModelConfigACL: vi.fn(),
+			createChatModelConfig: vi.fn(),
+			updateChatModelConfig: vi.fn(),
+			deleteChatModelConfig: vi.fn(),
+			updateChatModelConfigACL: vi.fn(),
+			getChatModelOverride: vi.fn(),
+			updateChatModelOverride: vi.fn(),
+			getMCPServerConfigs: vi.fn(),
+			getMCPServerConfig: vi.fn(),
+			getMCPServerConfigACL: vi.fn(),
+			createMCPServerConfig: vi.fn(),
+			updateMCPServerConfig: vi.fn(),
+			deleteMCPServerConfig: vi.fn(),
+			updateMCPServerConfigACL: vi.fn(),
+			disconnectMCPServerOAuth2: vi.fn(),
+			getUserChatPersonalModelOverrides: vi.fn(),
+			updateUserChatPersonalModelOverride: vi.fn(),
+			getUserChatCompactionThresholds: vi.fn(),
+			updateUserChatCompactionThreshold: vi.fn(),
+			deleteUserChatCompactionThreshold: vi.fn(),
 			getChatACL: vi.fn(),
 			updateChatACL: vi.fn(),
 		},
@@ -142,6 +199,8 @@ const createTestQueryClient = (): QueryClient =>
 	});
 
 describe("advisor config query factories", () => {
+	const organization = "test-org";
+
 	it("builds the advisor config query and delegates to the API", async () => {
 		const advisorConfig: TypesGen.AdvisorConfig = {
 			enabled: true,
@@ -153,16 +212,18 @@ describe("advisor config query factories", () => {
 			advisorConfig,
 		);
 
-		const query = chatAdvisorConfig();
+		const query = chatAdvisorConfig(organization);
 
-		expect(query.queryKey).toEqual(chatAdvisorConfigKey);
+		expect(query.queryKey).toEqual(chatAdvisorConfigKey(organization));
 		await expect(query.queryFn()).resolves.toEqual(advisorConfig);
-		expect(API.experimental.getChatAdvisorConfig).toHaveBeenCalled();
+		expect(API.experimental.getChatAdvisorConfig).toHaveBeenCalledWith(
+			organization,
+		);
 	});
 
 	it("sends the update request and invalidates the advisor config cache", async () => {
 		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(chatAdvisorConfigKey, {
+		queryClient.setQueryData(chatAdvisorConfigKey(organization), {
 			enabled: false,
 			max_uses_per_run: 0,
 			max_output_tokens: 0,
@@ -178,13 +239,486 @@ describe("advisor config query factories", () => {
 		vi.mocked(API.experimental.updateChatAdvisorConfig).mockResolvedValue();
 
 		const mutation = updateChatAdvisorConfig(queryClient);
-		await mutation.mutationFn(req);
-		expect(API.experimental.updateChatAdvisorConfig).toHaveBeenCalledWith(req);
-
-		await mutation.onSuccess?.();
-		expect(queryClient.getQueryState(chatAdvisorConfigKey)?.isInvalidated).toBe(
-			true,
+		const variables = { organization, req };
+		await mutation.mutationFn(variables);
+		expect(API.experimental.updateChatAdvisorConfig).toHaveBeenCalledWith(
+			organization,
+			req,
 		);
+
+		await mutation.onSuccess?.(undefined, variables);
+		expect(
+			queryClient.getQueryState(chatAdvisorConfigKey(organization))
+				?.isInvalidated,
+		).toBe(true);
+	});
+});
+
+describe("organization resource query factories", () => {
+	const organization = "test-org";
+	const otherOrganization = "other-org";
+	const modelConfigId = "model-config-id";
+	const serverId = "server-id";
+
+	it("keys list and model-bearing settings queries by organization", async () => {
+		vi.mocked(API.experimental.getChatModels).mockResolvedValue({
+			providers: [],
+			unsupported_providers: [],
+		});
+		vi.mocked(API.experimental.getChatModelConfigs).mockResolvedValue([]);
+		vi.mocked(API.experimental.getChatModelOverride).mockResolvedValue(
+			{} as TypesGen.ChatModelOverrideResponse,
+		);
+		vi.mocked(API.experimental.getMCPServerConfigs).mockResolvedValue([]);
+
+		const modelsQuery = chatModels(organization);
+		const modelConfigsQuery = chatModelConfigs(organization);
+		const overrideQuery = chatModelOverride(organization, "general");
+		const mcpConfigsQuery = mcpServerConfigs(organization);
+
+		expect(modelsQuery.queryKey).toEqual(chatModelsKey(organization));
+		expect(modelConfigsQuery.queryKey).toEqual(
+			chatModelConfigsKey(organization),
+		);
+		expect(overrideQuery.queryKey).toEqual(
+			chatModelOverrideKey(organization, "general"),
+		);
+		expect(mcpConfigsQuery.queryKey).toEqual(mcpServerConfigsKey(organization));
+		await modelsQuery.queryFn();
+		await modelConfigsQuery.queryFn();
+		await overrideQuery.queryFn();
+		await mcpConfigsQuery.queryFn();
+		expect(API.experimental.getChatModels).toHaveBeenCalledWith(organization);
+		expect(API.experimental.getChatModelConfigs).toHaveBeenCalledWith(
+			organization,
+		);
+		expect(API.experimental.getChatModelOverride).toHaveBeenCalledWith(
+			organization,
+			"general",
+		);
+		expect(API.experimental.getMCPServerConfigs).toHaveBeenCalledWith(
+			organization,
+		);
+	});
+
+	it("keys model and MCP item and ACL queries by ID", async () => {
+		vi.mocked(API.experimental.getChatModelConfig).mockResolvedValue(
+			{} as TypesGen.ChatModelConfig,
+		);
+		vi.mocked(API.experimental.getChatModelConfigACL).mockResolvedValue({
+			users: [],
+			groups: [],
+		});
+		vi.mocked(API.experimental.getMCPServerConfig).mockResolvedValue(
+			{} as TypesGen.MCPServerConfig,
+		);
+		vi.mocked(API.experimental.getMCPServerConfigACL).mockResolvedValue({
+			users: [],
+			groups: [],
+		});
+
+		const modelQuery = chatModelConfig(modelConfigId);
+		const modelACLQuery = chatModelConfigACL(modelConfigId);
+		const serverQuery = mcpServerConfig(serverId);
+		const serverACLQuery = mcpServerConfigACL(serverId);
+
+		expect(modelQuery.queryKey).toEqual(chatModelConfigKey(modelConfigId));
+		expect(modelACLQuery.queryKey).toEqual(
+			chatModelConfigACLKey(modelConfigId),
+		);
+		expect(serverQuery.queryKey).toEqual(mcpServerConfigKey(serverId));
+		expect(serverACLQuery.queryKey).toEqual(mcpServerConfigACLKey(serverId));
+		await modelQuery.queryFn();
+		await modelACLQuery.queryFn();
+		await serverQuery.queryFn();
+		await serverACLQuery.queryFn();
+		expect(API.experimental.getChatModelConfig).toHaveBeenCalledWith(
+			modelConfigId,
+		);
+		expect(API.experimental.getChatModelConfigACL).toHaveBeenCalledWith(
+			modelConfigId,
+		);
+		expect(API.experimental.getMCPServerConfig).toHaveBeenCalledWith(serverId);
+		expect(API.experimental.getMCPServerConfigACL).toHaveBeenCalledWith(
+			serverId,
+		);
+	});
+
+	it("invalidates only the selected organization after model creation", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatModelConfigsKey(organization), []);
+		queryClient.setQueryData(chatModelsKey(organization), { providers: [] });
+		queryClient.setQueryData(chatModelConfigsKey(otherOrganization), []);
+		queryClient.setQueryData(chatModelsKey(otherOrganization), {
+			providers: [],
+		});
+		vi.mocked(API.experimental.createChatModelConfig).mockResolvedValue(
+			{} as TypesGen.ChatModelConfig,
+		);
+		const req = {} as TypesGen.CreateChatModelConfigRequest;
+		const variables = { organization, req };
+		const mutation = createChatModelConfig(queryClient);
+
+		await mutation.mutationFn(variables);
+		await mutation.onSuccess?.({} as TypesGen.ChatModelConfig, variables);
+
+		expect(API.experimental.createChatModelConfig).toHaveBeenCalledWith(
+			organization,
+			req,
+		);
+		expect(
+			queryClient.getQueryState(chatModelConfigsKey(organization))
+				?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatModelsKey(organization))?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatModelConfigsKey(otherOrganization))
+				?.isInvalidated,
+		).not.toBe(true);
+		expect(
+			queryClient.getQueryState(chatModelsKey(otherOrganization))
+				?.isInvalidated,
+		).not.toBe(true);
+	});
+
+	it("uses ID APIs and invalidates model item, organization list, and discovery", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatModelConfigKey(modelConfigId), {});
+		queryClient.setQueryData(chatModelConfigsKey(organization), []);
+		queryClient.setQueryData(chatModelsKey(organization), { providers: [] });
+		const req = {} as TypesGen.UpdateChatModelConfigRequest;
+		const updateVariables = { organization, modelConfigId, req };
+		vi.mocked(API.experimental.updateChatModelConfig).mockResolvedValue(
+			{} as TypesGen.ChatModelConfig,
+		);
+
+		const updateMutation = updateChatModelConfig(queryClient);
+		await updateMutation.mutationFn(updateVariables);
+		await updateMutation.onSuccess?.(
+			{} as TypesGen.ChatModelConfig,
+			updateVariables,
+		);
+
+		expect(API.experimental.updateChatModelConfig).toHaveBeenCalledWith(
+			modelConfigId,
+			req,
+		);
+		expect(
+			queryClient.getQueryState(chatModelConfigKey(modelConfigId))
+				?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatModelConfigsKey(organization))
+				?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatModelsKey(organization))?.isInvalidated,
+		).toBe(true);
+
+		const deleteVariables = { organization, modelConfigId };
+		vi.mocked(API.experimental.deleteChatModelConfig).mockResolvedValue();
+		const deleteMutation = deleteChatModelConfig(queryClient);
+		await deleteMutation.mutationFn(deleteVariables);
+		expect(API.experimental.deleteChatModelConfig).toHaveBeenCalledWith(
+			modelConfigId,
+		);
+	});
+
+	it("invalidates ACL item and organization list after model ACL update", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatModelConfigACLKey(modelConfigId), {});
+		queryClient.setQueryData(chatModelConfigsKey(organization), []);
+		const req: TypesGen.UpdateChatModelConfigACL = {
+			user_roles: { "user-id": "read" },
+		};
+		const variables = { organization, modelConfigId, req };
+		vi.mocked(API.experimental.updateChatModelConfigACL).mockResolvedValue();
+		const mutation = updateChatModelConfigACL(queryClient);
+
+		await mutation.mutationFn(variables);
+		await mutation.onSuccess?.(undefined, variables);
+
+		expect(API.experimental.updateChatModelConfigACL).toHaveBeenCalledWith(
+			modelConfigId,
+			req,
+		);
+		expect(
+			queryClient.getQueryState(chatModelConfigACLKey(modelConfigId))
+				?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatModelConfigsKey(organization))
+				?.isInvalidated,
+		).toBe(true);
+	});
+
+	it("uses ID APIs and invalidates MCP item and organization list", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(mcpServerConfigKey(serverId), {});
+		queryClient.setQueryData(mcpServerConfigsKey(organization), []);
+		const req = {} as TypesGen.UpdateMCPServerConfigRequest;
+		const variables = { organization, serverId, req };
+		vi.mocked(API.experimental.updateMCPServerConfig).mockResolvedValue(
+			{} as TypesGen.MCPServerConfig,
+		);
+		const mutation = updateMCPServerConfig(queryClient);
+
+		await mutation.mutationFn(variables);
+		await mutation.onSuccess?.({} as TypesGen.MCPServerConfig, variables);
+
+		expect(API.experimental.updateMCPServerConfig).toHaveBeenCalledWith(
+			serverId,
+			req,
+		);
+		expect(
+			queryClient.getQueryState(mcpServerConfigKey(serverId))?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(mcpServerConfigsKey(organization))
+				?.isInvalidated,
+		).toBe(true);
+
+		const deleteVariables = { organization, serverId };
+		vi.mocked(API.experimental.deleteMCPServerConfig).mockResolvedValue();
+		const deleteMutation = deleteMCPServerConfig(queryClient);
+		await deleteMutation.mutationFn(deleteVariables);
+		expect(API.experimental.deleteMCPServerConfig).toHaveBeenCalledWith(
+			serverId,
+		);
+	});
+
+	it("invalidates ACL item and organization list after MCP ACL update", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(mcpServerConfigACLKey(serverId), {});
+		queryClient.setQueryData(mcpServerConfigsKey(organization), []);
+		const req: TypesGen.UpdateMCPServerConfigACL = {
+			group_roles: { "group-id": "read" },
+		};
+		const variables = { organization, serverId, req };
+		vi.mocked(API.experimental.updateMCPServerConfigACL).mockResolvedValue();
+		const mutation = updateMCPServerConfigACL(queryClient);
+
+		await mutation.mutationFn(variables);
+		await mutation.onSuccess?.(undefined, variables);
+
+		expect(API.experimental.updateMCPServerConfigACL).toHaveBeenCalledWith(
+			serverId,
+			req,
+		);
+		expect(
+			queryClient.getQueryState(mcpServerConfigACLKey(serverId))?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(mcpServerConfigsKey(organization))
+				?.isInvalidated,
+		).toBe(true);
+	});
+
+	it("invalidates only the selected organization after MCP creation", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(mcpServerConfigsKey(organization), []);
+		queryClient.setQueryData(mcpServerConfigsKey(otherOrganization), []);
+		vi.mocked(API.experimental.createMCPServerConfig).mockResolvedValue(
+			{} as TypesGen.MCPServerConfig,
+		);
+		const req = {} as TypesGen.CreateMCPServerConfigRequest;
+		const variables = { organization, req };
+		const mutation = createMCPServerConfig(queryClient);
+
+		await mutation.mutationFn(variables);
+		await mutation.onSuccess?.({} as TypesGen.MCPServerConfig, variables);
+
+		expect(API.experimental.createMCPServerConfig).toHaveBeenCalledWith(
+			organization,
+			req,
+		);
+		expect(
+			queryClient.getQueryState(mcpServerConfigsKey(organization))
+				?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(mcpServerConfigsKey(otherOrganization))
+				?.isInvalidated,
+		).not.toBe(true);
+	});
+
+	it("invalidates every organization model descendant after provider changes", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatModelConfigsKey(organization), []);
+		queryClient.setQueryData(chatModelsKey(organization), { providers: [] });
+		queryClient.setQueryData(chatModelConfigsKey(otherOrganization), []);
+		queryClient.setQueryData(chatModelsKey(otherOrganization), {
+			providers: [],
+		});
+
+		await invalidateChatProviderDependentQueries(queryClient);
+
+		for (const queryKey of [
+			chatModelConfigsKey(organization),
+			chatModelsKey(organization),
+			chatModelConfigsKey(otherOrganization),
+			chatModelsKey(otherOrganization),
+		]) {
+			expect(queryClient.getQueryState(queryKey)?.isInvalidated).toBe(true);
+		}
+	});
+
+	it("keys and updates personal model overrides by organization", async () => {
+		const queryClient = createTestQueryClient();
+		vi.mocked(
+			API.experimental.getUserChatPersonalModelOverrides,
+		).mockResolvedValue({} as TypesGen.UserChatPersonalModelOverridesResponse);
+		const query = userChatPersonalModelOverrides(organization);
+		expect(query.queryKey).toEqual(
+			userChatPersonalModelOverridesKey(organization),
+		);
+		await query.queryFn();
+		expect(
+			API.experimental.getUserChatPersonalModelOverrides,
+		).toHaveBeenCalledWith(organization);
+
+		queryClient.setQueryData(
+			userChatPersonalModelOverridesKey(organization),
+			{},
+		);
+		queryClient.setQueryData(
+			userChatPersonalModelOverridesKey(otherOrganization),
+			{},
+		);
+		const req = {} as TypesGen.UpdateUserChatPersonalModelOverrideRequest;
+		const variables = { organization, context: "root" as const, req };
+		vi.mocked(
+			API.experimental.updateUserChatPersonalModelOverride,
+		).mockResolvedValue();
+		const mutation = updateUserChatPersonalModelOverride(queryClient);
+		await mutation.mutationFn(variables);
+		await mutation.onSuccess?.(undefined, variables);
+
+		expect(
+			API.experimental.updateUserChatPersonalModelOverride,
+		).toHaveBeenCalledWith(organization, "root", req);
+		expect(
+			queryClient.getQueryState(userChatPersonalModelOverridesKey(organization))
+				?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(
+				userChatPersonalModelOverridesKey(otherOrganization),
+			)?.isInvalidated,
+		).not.toBe(true);
+	});
+
+	it("keys and mutates compaction thresholds by organization", async () => {
+		const queryClient = createTestQueryClient();
+		vi.mocked(
+			API.experimental.getUserChatCompactionThresholds,
+		).mockResolvedValue({} as TypesGen.UserChatCompactionThresholds);
+		const query = userCompactionThresholds(organization);
+		expect(query.queryKey).toEqual(userCompactionThresholdsKey(organization));
+		await query.queryFn();
+		expect(
+			API.experimental.getUserChatCompactionThresholds,
+		).toHaveBeenCalledWith(organization);
+
+		queryClient.setQueryData(userCompactionThresholdsKey(organization), {});
+		queryClient.setQueryData(
+			userCompactionThresholdsKey(otherOrganization),
+			{},
+		);
+		const req = {} as TypesGen.UpdateUserChatCompactionThresholdRequest;
+		const updateVariables = { organization, modelConfigId, req };
+		vi.mocked(
+			API.experimental.updateUserChatCompactionThreshold,
+		).mockResolvedValue({} as TypesGen.UserChatCompactionThreshold);
+		const updateMutation = updateUserCompactionThreshold(queryClient);
+		await updateMutation.mutationFn(updateVariables);
+		await updateMutation.onSuccess?.(
+			{} as TypesGen.UserChatCompactionThreshold,
+			updateVariables,
+		);
+		expect(
+			API.experimental.updateUserChatCompactionThreshold,
+		).toHaveBeenCalledWith(organization, modelConfigId, req);
+
+		const deleteVariables = { organization, modelConfigId };
+		vi.mocked(
+			API.experimental.deleteUserChatCompactionThreshold,
+		).mockResolvedValue();
+		const deleteMutation = deleteUserCompactionThreshold(queryClient);
+		await deleteMutation.mutationFn(deleteVariables);
+		await deleteMutation.onSuccess?.(undefined, deleteVariables);
+		expect(
+			API.experimental.deleteUserChatCompactionThreshold,
+		).toHaveBeenCalledWith(organization, modelConfigId);
+		expect(
+			queryClient.getQueryState(userCompactionThresholdsKey(organization))
+				?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(userCompactionThresholdsKey(otherOrganization))
+				?.isInvalidated,
+		).not.toBe(true);
+	});
+
+	it("disconnects MCP OAuth by ID and invalidates the item and organization list", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(mcpServerConfigKey(serverId), {});
+		queryClient.setQueryData(mcpServerConfigsKey(organization), []);
+		const variables = { organization, serverId };
+		vi.mocked(API.experimental.disconnectMCPServerOAuth2).mockResolvedValue(
+			{} as TypesGen.MCPServerOAuth2DisconnectResponse,
+		);
+		const mutation = disconnectMCPServerOAuth2(queryClient);
+
+		await mutation.mutationFn(variables);
+		await mutation.onSuccess?.(
+			{} as TypesGen.MCPServerOAuth2DisconnectResponse,
+			variables,
+		);
+
+		expect(API.experimental.disconnectMCPServerOAuth2).toHaveBeenCalledWith(
+			serverId,
+		);
+		expect(
+			queryClient.getQueryState(mcpServerConfigKey(serverId))?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(mcpServerConfigsKey(organization))
+				?.isInvalidated,
+		).toBe(true);
+	});
+
+	it("updates and invalidates one organization model override", async () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatModelOverrideKey(organization, "general"), {});
+		queryClient.setQueryData(
+			chatModelOverrideKey(otherOrganization, "general"),
+			{},
+		);
+		const req = {} as TypesGen.UpdateChatModelOverrideRequest;
+		const variables = { organization, context: "general" as const, req };
+		vi.mocked(API.experimental.updateChatModelOverride).mockResolvedValue();
+		const mutation = updateChatModelOverride(queryClient);
+
+		await mutation.mutationFn(variables);
+		await mutation.onSuccess?.(undefined, variables);
+
+		expect(API.experimental.updateChatModelOverride).toHaveBeenCalledWith(
+			organization,
+			"general",
+			req,
+		);
+		expect(
+			queryClient.getQueryState(chatModelOverrideKey(organization, "general"))
+				?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(
+				chatModelOverrideKey(otherOrganization, "general"),
+			)?.isInvalidated,
+		).not.toBe(true);
 	});
 });
 

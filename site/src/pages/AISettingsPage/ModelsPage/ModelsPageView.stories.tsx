@@ -32,6 +32,8 @@ const meta: Meta<typeof ModelsPageView> = {
 			["prov-anthropic", "anthropic"],
 			["prov-bedrock", "bedrock"],
 		]),
+		canCreateModels: true,
+		canEditModels: true,
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -128,6 +130,56 @@ export const DisabledProviderModelsStillListed: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("GPT-4o Secondary")).toBeInTheDocument();
 		await expect(canvas.getByText("OpenAI Secondary")).toBeInTheDocument();
+	},
+};
+
+export const ReadOnly: Story = {
+	args: {
+		canCreateModels: false,
+		canEditModels: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.queryByRole("button", { name: /add model/i }),
+		).not.toBeInTheDocument();
+		await expect(canvas.getByText("GPT-5")).toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("button", { name: /GPT-5/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const CreateOnlyControls: Story = {
+	args: {
+		canCreateModels: true,
+		canEditModels: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("button", { name: /add model/i }),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("button", { name: /GPT-5/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const UpdateOnlyControls: Story = {
+	args: {
+		canCreateModels: false,
+		canEditModels: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.queryByRole("button", { name: /add model/i }),
+		).not.toBeInTheDocument();
+		await expect(canvas.getByText("GPT-5").closest("tr")).toHaveAttribute(
+			"role",
+			"button",
+		);
 	},
 };
 

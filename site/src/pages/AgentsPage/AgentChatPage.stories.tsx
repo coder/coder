@@ -13,7 +13,7 @@ import {
 	chatDiffContentsKey,
 	chatKey,
 	chatMessagesKey,
-	chatModelConfigs,
+	chatModelConfigsKey,
 	chatModelsKey,
 	chatPromptsKey,
 	chatsKey,
@@ -84,6 +84,7 @@ const AgentChatPageLayout: FC = () => {
 // ---------------------------------------------------------------------------
 const CHAT_ID = "chat-1";
 const MODEL_CONFIG_ID = "model-config-1";
+const ORGANIZATION_ID = "test-org-id";
 
 const mockWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
@@ -276,9 +277,9 @@ const buildQueries = (
 			key: workspaceByIdKey(mockWorkspace.id),
 			data: mockWorkspace,
 		},
-		{ key: chatModelsKey, data: mockModelCatalog },
-		{ key: chatModelConfigs().queryKey, data: mockModelConfigs },
-		{ key: mcpServerConfigsKey, data: [] },
+		{ key: chatModelsKey(ORGANIZATION_ID), data: mockModelCatalog },
+		{ key: chatModelConfigsKey(ORGANIZATION_ID), data: mockModelConfigs },
+		{ key: mcpServerConfigsKey(ORGANIZATION_ID), data: [] },
 		buildChatAuthorizationQuery(chat, {
 			canShareChat: {
 				action: "share",

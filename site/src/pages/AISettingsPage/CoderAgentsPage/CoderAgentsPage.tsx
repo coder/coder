@@ -1,22 +1,20 @@
 import type { FC } from "react";
-import {
-	type QueryClient,
-	useMutation,
-	useQuery,
-	useQueryClient,
-} from "react-query";
-import { API } from "#/api/api";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatAdvisorConfig,
 	chatComputerUseProvider,
 	chatModelConfigs,
+	chatModelOverride,
 	chatPersonalModelOverridesAdminSettings,
 	chatProviderConfigs,
 	updateChatAdvisorConfig,
 	updateChatComputerUseProvider,
+	updateChatModelOverride,
 	updateChatPersonalModelOverridesAdminSettings,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { AIResourceOrganizationSelector } from "#/components/AIResourceOrganizationSelector/AIResourceOrganizationSelector";
+import { useAIResourceOrganization } from "#/contexts/AIResourceOrganizationContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -31,33 +29,10 @@ const titleGenerationOverrideContext: TypesGen.ChatModelOverrideContext =
 const compactionOverrideContext: TypesGen.ChatModelOverrideContext =
 	"compaction";
 
-const chatModelOverrideKey = (context: TypesGen.ChatModelOverrideContext) =>
-	["chat-model-override", context] as const;
-
-const chatModelOverrideQuery = (
-	context: TypesGen.ChatModelOverrideContext,
-) => ({
-	queryKey: chatModelOverrideKey(context),
-	queryFn: () => API.experimental.getChatModelOverride(context),
-});
-
-const updateChatModelOverrideMutation = (
-	queryClient: QueryClient,
-	context: TypesGen.ChatModelOverrideContext,
-) => ({
-	mutationFn: (req: TypesGen.UpdateChatModelOverrideRequest) =>
-		API.experimental.updateChatModelOverride(context, req),
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatModelOverrideKey(context),
-			exact: true,
-		});
-	},
-});
-
 const CoderAgentsPage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const { experiments } = useDashboard();
+	const { organization } = useAIResourceOrganization();
 	const queryClient = useQueryClient();
 	const canEditDeploymentConfig = permissions.editDeploymentConfig;
 	const showAdvisorSettings = experiments.includes("chat-advisor");
@@ -70,24 +45,24 @@ const CoderAgentsPage: FC = () => {
 		enabled: canEditDeploymentConfig,
 	});
 	const generalModelOverrideQuery = useQuery({
-		...chatModelOverrideQuery(generalOverrideContext),
+		...chatModelOverride(organization.name, generalOverrideContext),
 		enabled: canEditDeploymentConfig,
 	});
 	const exploreModelOverrideQuery = useQuery({
-		...chatModelOverrideQuery(exploreOverrideContext),
+		...chatModelOverride(organization.name, exploreOverrideContext),
 		enabled: canEditDeploymentConfig,
 	});
 	const titleGenerationModelQuery = useQuery({
-		...chatModelOverrideQuery(titleGenerationOverrideContext),
+		...chatModelOverride(organization.name, titleGenerationOverrideContext),
 		enabled: canEditDeploymentConfig,
 	});
 	const compactionModelQuery = useQuery({
-		...chatModelOverrideQuery(compactionOverrideContext),
+		...chatModelOverride(organization.name, compactionOverrideContext),
 		enabled: canEditDeploymentConfig,
 	});
-	const modelConfigsQuery = useQuery(chatModelConfigs());
+	const modelConfigsQuery = useQuery(chatModelConfigs(organization.name));
 	const advisorConfigQuery = useQuery({
-		...chatAdvisorConfig(),
+		...chatAdvisorConfig(organization.name),
 		enabled: canEditDeploymentConfig && showAdvisorSettings,
 	});
 	const computerUseProviderQuery = useQuery({
@@ -102,19 +77,16 @@ const CoderAgentsPage: FC = () => {
 		updateChatPersonalModelOverridesAdminSettings(queryClient),
 	);
 	const saveGeneralModelOverrideMutation = useMutation(
-		updateChatModelOverrideMutation(queryClient, generalOverrideContext),
+		updateChatModelOverride(queryClient),
 	);
 	const saveTitleGenerationModelMutation = useMutation(
-		updateChatModelOverrideMutation(
-			queryClient,
-			titleGenerationOverrideContext,
-		),
+		updateChatModelOverride(queryClient),
 	);
 	const saveCompactionModelMutation = useMutation(
-		updateChatModelOverrideMutation(queryClient, compactionOverrideContext),
+		updateChatModelOverride(queryClient),
 	);
 	const saveExploreModelOverrideMutation = useMutation(
-		updateChatModelOverrideMutation(queryClient, exploreOverrideContext),
+		updateChatModelOverride(queryClient),
 	);
 	const saveAdvisorConfigMutation = useMutation(
 		updateChatAdvisorConfig(queryClient),
@@ -130,6 +102,7 @@ const CoderAgentsPage: FC = () => {
 	return (
 		<RequirePermission isFeatureVisible={canEditDeploymentConfig}>
 			<title>{pageTitle("Coder Agents", "AI Settings")}</title>
+			<AIResourceOrganizationSelector />
 			<CoderAgentsPageView
 				adminOverridesData={personalModelOverridesAdminSettingsQuery.data}
 				adminOverridesError={personalModelOverridesAdminSettingsQuery.error}
@@ -163,24 +136,60 @@ const CoderAgentsPage: FC = () => {
 				isFetchingModelConfigs={
 					modelConfigsQuery.isFetching || providerConfigsQuery.isFetching
 				}
-				onSaveGeneralModelOverride={saveGeneralModelOverrideMutation.mutate}
+				onSaveGeneralModelOverride={(req, options) =>
+					saveGeneralModelOverrideMutation.mutate(
+						{
+							organization: organization.name,
+							context: generalOverrideContext,
+							req,
+						},
+						options,
+					)
+				}
 				isSavingGeneralModelOverride={
 					saveGeneralModelOverrideMutation.isPending
 				}
 				isSaveGeneralModelOverrideError={
 					saveGeneralModelOverrideMutation.isError
 				}
-				onSaveTitleGenerationModel={saveTitleGenerationModelMutation.mutate}
+				onSaveTitleGenerationModel={(req, options) =>
+					saveTitleGenerationModelMutation.mutate(
+						{
+							organization: organization.name,
+							context: titleGenerationOverrideContext,
+							req,
+						},
+						options,
+					)
+				}
 				isSavingTitleGenerationModel={
 					saveTitleGenerationModelMutation.isPending
 				}
 				isSaveTitleGenerationModelError={
 					saveTitleGenerationModelMutation.isError
 				}
-				onSaveCompactionModel={saveCompactionModelMutation.mutate}
+				onSaveCompactionModel={(req, options) =>
+					saveCompactionModelMutation.mutate(
+						{
+							organization: organization.name,
+							context: compactionOverrideContext,
+							req,
+						},
+						options,
+					)
+				}
 				isSavingCompactionModel={saveCompactionModelMutation.isPending}
 				isSaveCompactionModelError={saveCompactionModelMutation.isError}
-				onSaveExploreModelOverride={saveExploreModelOverrideMutation.mutate}
+				onSaveExploreModelOverride={(req, options) =>
+					saveExploreModelOverrideMutation.mutate(
+						{
+							organization: organization.name,
+							context: exploreOverrideContext,
+							req,
+						},
+						options,
+					)
+				}
 				isSavingExploreModelOverride={
 					saveExploreModelOverrideMutation.isPending
 				}
@@ -192,7 +201,12 @@ const CoderAgentsPage: FC = () => {
 				isAdvisorConfigLoading={advisorConfigQuery.isLoading}
 				isAdvisorConfigFetching={advisorConfigQuery.isFetching}
 				isAdvisorConfigLoadError={advisorConfigQuery.isError}
-				onSaveAdvisorConfig={saveAdvisorConfigMutation.mutate}
+				onSaveAdvisorConfig={(req, options) =>
+					saveAdvisorConfigMutation.mutate(
+						{ organization: organization.name, req },
+						options,
+					)
+				}
 				isSavingAdvisorConfig={saveAdvisorConfigMutation.isPending}
 				isSaveAdvisorConfigError={saveAdvisorConfigMutation.isError}
 				saveAdvisorConfigError={saveAdvisorConfigMutation.error}
