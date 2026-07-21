@@ -16,7 +16,7 @@ import (
 
 // warningThresholdPercent is the percentage of the spend limit that triggers a
 // warning notification.
-const warningThresholdPercent = 90
+const warningThresholdPercent = 85
 
 // budgetNotificationsCreatedBy records what enqueued AI budget notifications.
 const budgetNotificationsCreatedBy = "aigateway"

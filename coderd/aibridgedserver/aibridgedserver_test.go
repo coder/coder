@@ -2210,7 +2210,7 @@ func TestRecordTokenUsageAuthorized(t *testing.T) {
 }
 
 // TestRecordTokenUsageBudgetWarningNotification verifies that recording token
-// usage that pushes the user's period spend across the 90% warning threshold
+// usage that pushes the user's period spend across the 85% warning threshold
 // enqueues a warning notification to the user, and that staying below the
 // threshold does not.
 func TestRecordTokenUsageBudgetWarningNotification(t *testing.T) {
@@ -2218,7 +2218,7 @@ func TestRecordTokenUsageBudgetWarningNotification(t *testing.T) {
 
 	const (
 		spendLimitMicros int64 = 1_000_000 // $1 limit
-		warnAtMicros     int64 = 900_000   // 90% of the limit
+		warnAtMicros     int64 = 850_000   // 85% of the limit
 		inputTokens      int64 = 1000
 		inputPriceMicros int64 = 1_000_000 // $1 per million tokens
 	)
@@ -2241,40 +2241,40 @@ func TestRecordTokenUsageBudgetWarningNotification(t *testing.T) {
 	}{
 		{
 			name: "crosses warning threshold",
-			// pre  = 900_500 - 1000 = 899_500 (< 900_000)
-			// post = 900_500                  (>= 900_000) -> crosses.
+			// pre  = 850_500 - 1000 = 849_500 (< 850_000)
+			// post = 850_500                  (>= 850_000) -> crosses.
 			newSpend:      warnAtMicros + 500,
 			wantNotified:  true,
-			wantThreshold: "90",
+			wantThreshold: "85",
 			wantLimit:     "$1.00",
 		},
 		{
 			name: "crosses when post lands exactly on threshold",
-			// pre  = 900_000 - 1000 = 899_000 (< 900_000)
-			// post = 900_000                  (>= 900_000) -> crosses.
+			// pre  = 850_000 - 1000 = 849_000 (< 850_000)
+			// post = 850_000                  (>= 850_000) -> crosses.
 			newSpend:      warnAtMicros,
 			wantNotified:  true,
-			wantThreshold: "90",
+			wantThreshold: "85",
 			wantLimit:     "$1.00",
 		},
 		{
 			name: "stays below warning threshold",
-			// pre  = 899_999 - 1000 = 898_999 (< 900_000)
-			// post = 899_999                  (< 900_000) -> no crossing.
+			// pre  = 849_999 - 1000 = 848_999 (< 850_000)
+			// post = 849_999                  (< 850_000) -> no crossing.
 			newSpend:     warnAtMicros - 1,
 			wantNotified: false,
 		},
 		{
 			name: "already at warning threshold",
-			// pre  = 901_000 - 1000 = 900_000 (not < 900_000)
-			// post = 901_000                  -> no fresh crossing.
+			// pre  = 851_000 - 1000 = 850_000 (not < 850_000)
+			// post = 851_000                  -> no fresh crossing.
 			newSpend:     warnAtMicros + 1000,
 			wantNotified: false,
 		},
 		{
 			name: "already above warning threshold",
-			// pre  = 910_000 - 1000 = 909_000 (>= 900_000)
-			// post = 910_000                  -> no fresh crossing.
+			// pre  = 860_000 - 1000 = 859_000 (>= 850_000)
+			// post = 860_000                  -> no fresh crossing.
 			newSpend:     warnAtMicros + 10000,
 			wantNotified: false,
 		},

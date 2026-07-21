@@ -1469,7 +1469,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
 				Labels: map[string]string{
-					"threshold":  "90",
+					"threshold":  "85",
 					"limit":      "$1000.00",
 					"group_name": "Engineering",
 				},
