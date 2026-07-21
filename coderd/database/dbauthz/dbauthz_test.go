@@ -6684,6 +6684,65 @@ func (s *MethodTestSuite) TestUserSkills() {
 	}))
 }
 
+func (s *MethodTestSuite) TestAgentMemories() {
+	s.Run("GetAgentMemoryByUserIDAndPath", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		memory := testutil.Fake(s.T(), faker, database.AgentMemory{})
+		arg := database.GetAgentMemoryByUserIDAndPathParams{UserID: memory.UserID, Path: memory.Path}
+		dbm.EXPECT().GetAgentMemoryByUserIDAndPath(gomock.Any(), arg).Return(memory, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceAgentMemory.WithOwner(memory.UserID.String()), policy.ActionRead).
+			Returns(memory)
+	}))
+	s.Run("GetAgentMemoryByUserIDAndPathForUpdate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		memory := testutil.Fake(s.T(), faker, database.AgentMemory{})
+		arg := database.GetAgentMemoryByUserIDAndPathForUpdateParams{UserID: memory.UserID, Path: memory.Path}
+		dbm.EXPECT().GetAgentMemoryByUserIDAndPathForUpdate(gomock.Any(), arg).Return(memory, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceAgentMemory.WithOwner(memory.UserID.String()), policy.ActionUpdate).
+			Returns(memory)
+	}))
+	s.Run("InsertAgentMemory", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.InsertAgentMemoryParams{})
+		memory := testutil.Fake(s.T(), faker, database.AgentMemory{ID: arg.ID, UserID: arg.UserID, Path: arg.Path})
+		dbm.EXPECT().InsertAgentMemory(gomock.Any(), arg).Return(memory, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceAgentMemory.WithOwner(arg.UserID.String()), policy.ActionCreate).
+			Returns(memory)
+	}))
+	s.Run("UpdateAgentMemoryContent", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.UpdateAgentMemoryContentParams{})
+		memory := testutil.Fake(s.T(), faker, database.AgentMemory{UserID: arg.UserID, Path: arg.Path})
+		dbm.EXPECT().UpdateAgentMemoryContent(gomock.Any(), arg).Return(memory, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceAgentMemory.WithOwner(arg.UserID.String()), policy.ActionUpdate).
+			Returns(memory)
+	}))
+	s.Run("DeleteAgentMemoryByUserIDAndPath", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		memory := testutil.Fake(s.T(), faker, database.AgentMemory{})
+		arg := database.DeleteAgentMemoryByUserIDAndPathParams{UserID: memory.UserID, Path: memory.Path}
+		dbm.EXPECT().DeleteAgentMemoryByUserIDAndPath(gomock.Any(), arg).Return(memory, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceAgentMemory.WithOwner(memory.UserID.String()), policy.ActionDelete).
+			Returns(memory)
+	}))
+	s.Run("ListAgentMemories", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.ListAgentMemoriesParams{})
+		rows := []database.ListAgentMemoriesRow{testutil.Fake(s.T(), faker, database.ListAgentMemoriesRow{UserID: arg.UserID})}
+		dbm.EXPECT().ListAgentMemories(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceAgentMemory.WithOwner(arg.UserID.String()), policy.ActionRead).
+			Returns(rows)
+	}))
+	s.Run("SearchAgentMemories", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.SearchAgentMemoriesParams{})
+		rows := []database.SearchAgentMemoriesRow{testutil.Fake(s.T(), faker, database.SearchAgentMemoriesRow{UserID: arg.UserID})}
+		dbm.EXPECT().SearchAgentMemories(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceAgentMemory.WithOwner(arg.UserID.String()), policy.ActionRead).
+			Returns(rows)
+	}))
+}
+
 func (s *MethodTestSuite) TestUsageEvents() {
 	s.Run("InsertUsageEvent", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		params := database.InsertUsageEventParams{

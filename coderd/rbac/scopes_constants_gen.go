@@ -7,6 +7,10 @@ package rbac
 // declared in code, not here, to avoid duplication.
 
 const (
+	ScopeAgentMemoryCreate                   ScopeName = "agent_memory:create"
+	ScopeAgentMemoryDelete                   ScopeName = "agent_memory:delete"
+	ScopeAgentMemoryRead                     ScopeName = "agent_memory:read"
+	ScopeAgentMemoryUpdate                   ScopeName = "agent_memory:update"
 	ScopeAiGatewayKeyCreate                  ScopeName = "ai_gateway_key:create"
 	ScopeAiGatewayKeyDelete                  ScopeName = "ai_gateway_key:delete"
 	ScopeAiGatewayKeyRead                    ScopeName = "ai_gateway_key:read"
@@ -195,6 +199,10 @@ func (e ScopeName) Valid() bool {
 	case ScopeName("coder:all"),
 		ScopeName("coder:application_connect"),
 		ScopeName("no_user_data"),
+		ScopeAgentMemoryCreate,
+		ScopeAgentMemoryDelete,
+		ScopeAgentMemoryRead,
+		ScopeAgentMemoryUpdate,
 		ScopeAiGatewayKeyCreate,
 		ScopeAiGatewayKeyDelete,
 		ScopeAiGatewayKeyRead,
@@ -384,6 +392,10 @@ func AllScopeNameValues() []ScopeName {
 		ScopeName("coder:all"),
 		ScopeName("coder:application_connect"),
 		ScopeName("no_user_data"),
+		ScopeAgentMemoryCreate,
+		ScopeAgentMemoryDelete,
+		ScopeAgentMemoryRead,
+		ScopeAgentMemoryUpdate,
 		ScopeAiGatewayKeyCreate,
 		ScopeAiGatewayKeyDelete,
 		ScopeAiGatewayKeyRead,

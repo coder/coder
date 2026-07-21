@@ -273,7 +273,12 @@ CREATE TYPE api_key_scope AS ENUM (
     'workspace_build_orchestration:create',
     'workspace_build_orchestration:delete',
     'workspace_build_orchestration:read',
-    'workspace_build_orchestration:update'
+    'workspace_build_orchestration:update',
+    'agent_memory:create',
+    'agent_memory:read',
+    'agent_memory:update',
+    'agent_memory:delete',
+    'agent_memory:*'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -893,6 +898,12 @@ BEGIN
         -- does not remove the users row so the FK cascade never fires.
         DELETE FROM user_skills
         WHERE user_id = OLD.id;
+
+        -- Remove their agent_memories.
+        -- agent_memories.user_id has ON DELETE CASCADE, but soft-delete
+        -- does not remove the users row so the FK cascade never fires.
+        DELETE FROM agent_memories
+        WHERE user_id = OLD.id;
     END IF;
     RETURN NEW;
 END;
@@ -1459,6 +1470,36 @@ BEGIN
     RETURN NULL;
 END;
 $$;
+
+CREATE FUNCTION upsert_agent_memory_fail_if_user_deleted() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    PERFORM 1
+    FROM users
+    WHERE id = NEW.user_id
+      AND deleted = true
+    LIMIT 1;
+    IF FOUND THEN
+        RAISE EXCEPTION 'Cannot create or update agent memory for deleted user'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'agent_memory_user_deleted';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TABLE agent_memories (
+    id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    path text NOT NULL,
+    content text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    search_vector tsvector GENERATED ALWAYS AS (to_tsvector('simple'::regconfig, ((translate(path, '/._-'::text, '    '::text) || ' '::text) || content))) STORED,
+    CONSTRAINT agent_memories_content_size CHECK ((octet_length(content) <= 65536)),
+    CONSTRAINT agent_memories_path_size CHECK ((octet_length(path) <= 1024))
+);
 
 CREATE TABLE ai_gateway_keys (
     id uuid NOT NULL,
@@ -4229,6 +4270,9 @@ ALTER TABLE ONLY workspace_proxies ALTER COLUMN region_id SET DEFAULT nextval('w
 
 ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval('workspace_resource_metadata_id_seq'::regclass);
 
+ALTER TABLE ONLY agent_memories
+    ADD CONSTRAINT agent_memories_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
@@ -4648,6 +4692,10 @@ ALTER TABLE ONLY workspace_resources
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
+
+CREATE INDEX agent_memories_search_vector_idx ON agent_memories USING gin (search_vector);
+
+CREATE UNIQUE INDEX agent_memories_user_id_path_idx ON agent_memories USING btree (user_id, path);
 
 CREATE UNIQUE INDEX ai_gateway_keys_hashed_secret_idx ON ai_gateway_keys USING btree (hashed_secret);
 
@@ -5069,6 +5117,8 @@ CREATE TRIGGER trigger_update_chat_history_after_message_update AFTER UPDATE ON 
 
 CREATE TRIGGER trigger_update_users AFTER INSERT OR UPDATE ON users FOR EACH ROW WHEN ((new.deleted = true)) EXECUTE FUNCTION delete_deleted_user_resources();
 
+CREATE TRIGGER trigger_upsert_agent_memories BEFORE INSERT OR UPDATE ON agent_memories FOR EACH ROW EXECUTE FUNCTION upsert_agent_memory_fail_if_user_deleted();
+
 CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links FOR EACH ROW EXECUTE FUNCTION insert_user_links_fail_if_user_deleted();
 
 CREATE TRIGGER trigger_upsert_user_secrets BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION insert_user_secret_fail_if_user_deleted();
@@ -5088,6 +5138,9 @@ CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF na
 COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'Use a trigger instead of a unique constraint because existing data may violate
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
+
+ALTER TABLE ONLY agent_memories
+    ADD CONSTRAINT agent_memories_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY ai_provider_keys
     ADD CONSTRAINT ai_provider_keys_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);

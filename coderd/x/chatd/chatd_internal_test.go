@@ -391,6 +391,9 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 
 		got := activeToolNamesForTurn(makeTools(
 			"read_file",
+			"read_memory",
+			"search_memories",
+			"list_memories",
 			"write_file",
 			"edit_files",
 			"execute",
@@ -415,6 +418,9 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 
 		require.Equal(t, []string{
 			"read_file",
+			"read_memory",
+			"search_memories",
+			"list_memories",
 			"write_file",
 			"edit_files",
 			"execute",
@@ -439,6 +445,11 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 
 		got := activeToolNamesForTurn(makeTools(
 			"read_file",
+			"read_memory",
+			"search_memories",
+			"list_memories",
+			"write_memory",
+			"edit_memory",
 			"write_file",
 			"edit_files",
 			"execute",
@@ -458,6 +469,9 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 
 		require.Equal(t, []string{
 			"read_file",
+			"read_memory",
+			"search_memories",
+			"list_memories",
 			"execute",
 			"process_output",
 			"read_skill",
@@ -465,6 +479,8 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 		}, got)
 		require.NotContains(t, got, "write_file")
 		require.NotContains(t, got, "edit_files")
+		require.NotContains(t, got, "write_memory")
+		require.NotContains(t, got, "edit_memory")
 		require.NotContains(t, got, "ask_user_question")
 		require.NotContains(t, got, "propose_plan")
 		require.NotContains(t, got, "start_workspace")
@@ -535,6 +551,11 @@ func TestAllowedExploreToolNames(t *testing.T) {
 	externalConfigID := uuid.New()
 	got := allowedExploreToolNames([]fantasy.AgentTool{
 		newTestAgentTool("read_file"),
+		newTestAgentTool("read_memory"),
+		newTestAgentTool("search_memories"),
+		newTestAgentTool("list_memories"),
+		newTestAgentTool("write_memory"),
+		newTestAgentTool("edit_memory"),
 		newTestAgentTool("write_file"),
 		newTestMCPAgentTool("external-mcp__echo", externalConfigID),
 		newTestAgentTool("workspace-mcp__echo"),
@@ -553,6 +574,9 @@ func TestAllowedExploreToolNames(t *testing.T) {
 
 	require.Equal(t, []string{
 		"read_file",
+		"read_memory",
+		"search_memories",
+		"list_memories",
 		"external-mcp__echo",
 		"execute",
 		"process_output",
@@ -560,9 +584,95 @@ func TestAllowedExploreToolNames(t *testing.T) {
 		"read_skill_file",
 	}, got)
 	require.NotContains(t, got, "workspace-mcp__echo")
+	require.NotContains(t, got, "write_memory")
+	require.NotContains(t, got, "edit_memory")
 	require.NotContains(t, got, "start_workspace")
 	require.NotContains(t, got, "stop_workspace")
 	require.NotContains(t, got, "ask_user_question")
+}
+
+func TestMemoryToolsAllowed(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.New()
+	root := database.Chat{
+		OwnerID:  ownerID,
+		Labels:   database.StringMap{},
+		UserACL:  database.ChatACL{},
+		GroupACL: database.ChatACL{},
+	}
+	require.True(t, memoryToolsAllowed(root))
+
+	root.UserACL[ownerID.String()] = database.ChatACLEntry{}
+	require.True(t, memoryToolsAllowed(root))
+
+	root.UserACL[uuid.NewString()] = database.ChatACLEntry{}
+	require.False(t, memoryToolsAllowed(root))
+	root.UserACL = database.ChatACL{}
+
+	root.GroupACL[uuid.NewString()] = database.ChatACLEntry{}
+	require.False(t, memoryToolsAllowed(root))
+	root.GroupACL = database.ChatACL{}
+
+	root.Labels[LabelSlackShared] = "true"
+	require.False(t, memoryToolsAllowed(root))
+}
+
+func TestMemoryRootChat(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.New()
+	rootID := uuid.New()
+	root := database.Chat{ID: rootID, OwnerID: ownerID}
+
+	t.Run("root uses loaded snapshot", func(t *testing.T) {
+		t.Parallel()
+		server := &Server{}
+		got, err := server.memoryRootChat(context.Background(), root)
+		require.NoError(t, err)
+		require.Equal(t, root, got)
+	})
+
+	t.Run("child resolves root", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db}
+		child := database.Chat{
+			OwnerID:      ownerID,
+			ParentChatID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			RootChatID:   uuid.NullUUID{UUID: rootID, Valid: true},
+		}
+		db.EXPECT().GetChatByID(gomock.Any(), rootID).Return(root, nil)
+		got, err := server.memoryRootChat(context.Background(), child)
+		require.NoError(t, err)
+		require.Equal(t, root, got)
+	})
+
+	t.Run("child without root fails closed", func(t *testing.T) {
+		t.Parallel()
+		server := &Server{}
+		_, err := server.memoryRootChat(context.Background(), database.Chat{
+			OwnerID:      ownerID,
+			ParentChatID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		})
+		require.ErrorContains(t, err, "no root chat ID")
+	})
+
+	t.Run("lookup error fails closed", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db}
+		child := database.Chat{
+			OwnerID:      ownerID,
+			ParentChatID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			RootChatID:   uuid.NullUUID{UUID: rootID, Valid: true},
+		}
+		db.EXPECT().GetChatByID(gomock.Any(), rootID).Return(database.Chat{}, sql.ErrConnDone)
+		_, err := server.memoryRootChat(context.Background(), child)
+		require.ErrorContains(t, err, "get root chat")
+	})
 }
 
 func TestAllowedBehaviorToolNames(t *testing.T) {

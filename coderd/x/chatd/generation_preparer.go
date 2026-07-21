@@ -14,6 +14,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -386,6 +387,22 @@ func (server *Server) prepareGeneration(
 		chattool.ProcessList(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessSignal(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 	}
+	rootChat, memoryErr := server.memoryRootChat(ctx, chat)
+	if memoryErr != nil {
+		logger.Warn(ctx, "memory tools disabled: failed to load root chat", slog.Error(memoryErr))
+	} else if memoryToolsAllowed(rootChat) {
+		memoryOpts := chattool.MemoryToolsOptions{
+			DB:     server.db,
+			UserID: rootChat.OwnerID,
+			Context: func(ctx context.Context) context.Context {
+				return userScopedChatContext(ctx, rootChat.OwnerID)
+			},
+		}
+		tools = append(tools, chattool.MemoryReadTools(memoryOpts)...)
+		if isRootChat && !isPlanModeTurn {
+			tools = append(tools, chattool.MemoryWriteTools(memoryOpts)...)
+		}
+	}
 	if isPlanModeTurn && isRootChat {
 		tools = append(tools, chattool.NewAskUserQuestionTool())
 	}
@@ -637,6 +654,41 @@ func (server *Server) prepareGeneration(
 		Cleanup: cleanup,
 		Debug:   debug,
 	}, nil
+}
+
+func (server *Server) memoryRootChat(ctx context.Context, chat database.Chat) (database.Chat, error) {
+	if !chat.ParentChatID.Valid {
+		return chat, nil
+	}
+	if !chat.RootChatID.Valid {
+		return database.Chat{}, xerrors.New("child chat has no root chat ID")
+	}
+	// The worker needs the root's current ACL and labels. Child rows retain
+	// their own labels, and a root can become shared after the child starts.
+	//nolint:gocritic // AsChatd is limited to chat daemon operations.
+	root, err := server.db.GetChatByID(dbauthz.AsChatd(ctx), chat.RootChatID.UUID)
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("get root chat: %w", err)
+	}
+	if root.ParentChatID.Valid {
+		return database.Chat{}, xerrors.New("resolved root chat is a child")
+	}
+	if root.OwnerID != chat.OwnerID {
+		return database.Chat{}, xerrors.New("root and child chat owners differ")
+	}
+	return root, nil
+}
+
+func memoryToolsAllowed(root database.Chat) bool {
+	if root.Labels[LabelSlackShared] == "true" {
+		return false
+	}
+	for userID := range root.UserACL {
+		if userID != root.OwnerID.String() {
+			return false
+		}
+	}
+	return len(root.GroupACL) == 0
 }
 
 func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {

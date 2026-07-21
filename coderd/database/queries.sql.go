@@ -111,6 +111,302 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 	return err
 }
 
+const deleteAgentMemoryByUserIDAndPath = `-- name: DeleteAgentMemoryByUserIDAndPath :one
+DELETE FROM agent_memories
+WHERE user_id = $1::uuid
+  AND path = $2::text
+RETURNING id, user_id, path, content, created_at, updated_at, search_vector
+`
+
+type DeleteAgentMemoryByUserIDAndPathParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Path   string    `db:"path" json:"path"`
+}
+
+func (q *sqlQuerier) DeleteAgentMemoryByUserIDAndPath(ctx context.Context, arg DeleteAgentMemoryByUserIDAndPathParams) (AgentMemory, error) {
+	row := q.db.QueryRowContext(ctx, deleteAgentMemoryByUserIDAndPath, arg.UserID, arg.Path)
+	var i AgentMemory
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SearchVector,
+	)
+	return i, err
+}
+
+const getAgentMemoryByUserIDAndPath = `-- name: GetAgentMemoryByUserIDAndPath :one
+SELECT id, user_id, path, content, created_at, updated_at, search_vector
+FROM agent_memories
+WHERE user_id = $1::uuid
+  AND path = $2::text
+`
+
+type GetAgentMemoryByUserIDAndPathParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Path   string    `db:"path" json:"path"`
+}
+
+func (q *sqlQuerier) GetAgentMemoryByUserIDAndPath(ctx context.Context, arg GetAgentMemoryByUserIDAndPathParams) (AgentMemory, error) {
+	row := q.db.QueryRowContext(ctx, getAgentMemoryByUserIDAndPath, arg.UserID, arg.Path)
+	var i AgentMemory
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SearchVector,
+	)
+	return i, err
+}
+
+const getAgentMemoryByUserIDAndPathForUpdate = `-- name: GetAgentMemoryByUserIDAndPathForUpdate :one
+SELECT id, user_id, path, content, created_at, updated_at, search_vector
+FROM agent_memories
+WHERE user_id = $1::uuid
+  AND path = $2::text
+FOR UPDATE
+`
+
+type GetAgentMemoryByUserIDAndPathForUpdateParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Path   string    `db:"path" json:"path"`
+}
+
+func (q *sqlQuerier) GetAgentMemoryByUserIDAndPathForUpdate(ctx context.Context, arg GetAgentMemoryByUserIDAndPathForUpdateParams) (AgentMemory, error) {
+	row := q.db.QueryRowContext(ctx, getAgentMemoryByUserIDAndPathForUpdate, arg.UserID, arg.Path)
+	var i AgentMemory
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SearchVector,
+	)
+	return i, err
+}
+
+const insertAgentMemory = `-- name: InsertAgentMemory :one
+INSERT INTO agent_memories (id, user_id, path, content)
+VALUES ($1::uuid, $2::uuid, $3::text, $4::text)
+RETURNING id, user_id, path, content, created_at, updated_at, search_vector
+`
+
+type InsertAgentMemoryParams struct {
+	ID      uuid.UUID `db:"id" json:"id"`
+	UserID  uuid.UUID `db:"user_id" json:"user_id"`
+	Path    string    `db:"path" json:"path"`
+	Content string    `db:"content" json:"content"`
+}
+
+func (q *sqlQuerier) InsertAgentMemory(ctx context.Context, arg InsertAgentMemoryParams) (AgentMemory, error) {
+	row := q.db.QueryRowContext(ctx, insertAgentMemory,
+		arg.ID,
+		arg.UserID,
+		arg.Path,
+		arg.Content,
+	)
+	var i AgentMemory
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SearchVector,
+	)
+	return i, err
+}
+
+const listAgentMemories = `-- name: ListAgentMemories :many
+SELECT
+    id,
+    user_id,
+    path,
+    octet_length(content)::bigint AS size_bytes,
+    created_at,
+    updated_at
+FROM agent_memories
+WHERE user_id = $1::uuid
+  AND COALESCE(
+      NULLIF(regexp_replace(path, '/[^/]+$', ''), ''),
+      '/'
+  ) ~ $2::text
+ORDER BY path ASC
+LIMIT 26
+OFFSET $3::int
+`
+
+type ListAgentMemoriesParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	DirectoryRegex string    `db:"directory_regex" json:"directory_regex"`
+	OffsetValue    int32     `db:"offset_value" json:"offset_value"`
+}
+
+type ListAgentMemoriesRow struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	Path      string    `db:"path" json:"path"`
+	SizeBytes int64     `db:"size_bytes" json:"size_bytes"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) ListAgentMemories(ctx context.Context, arg ListAgentMemoriesParams) ([]ListAgentMemoriesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAgentMemories, arg.UserID, arg.DirectoryRegex, arg.OffsetValue)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAgentMemoriesRow
+	for rows.Next() {
+		var i ListAgentMemoriesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Path,
+			&i.SizeBytes,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchAgentMemories = `-- name: SearchAgentMemories :many
+WITH search_query AS (
+    SELECT websearch_to_tsquery('simple'::regconfig, $4::text) AS query
+)
+SELECT
+    agent_memories.id, agent_memories.user_id, agent_memories.path, agent_memories.content, agent_memories.created_at, agent_memories.updated_at, agent_memories.search_vector,
+    ts_rank_cd(agent_memories.search_vector, search_query.query)::real AS rank,
+    CAST(ts_headline(
+        'simple'::regconfig,
+        replace(
+            replace(agent_memories.content, '<memory-hit>', '&lt;memory-hit&gt;'),
+            '</memory-hit>',
+            '&lt;/memory-hit&gt;'
+        ),
+        search_query.query,
+        'StartSel=<memory-hit>, StopSel=</memory-hit>, HighlightAll=true'
+    ) AS varchar) AS headline
+FROM agent_memories
+CROSS JOIN search_query
+WHERE agent_memories.user_id = $1::uuid
+  AND agent_memories.search_vector @@ search_query.query
+  AND (
+      cardinality($2::text[]) = 0
+      OR agent_memories.path ~ ANY($2::text[])
+  )
+ORDER BY rank DESC, agent_memories.path ASC
+LIMIT 26
+OFFSET $3::int
+`
+
+type SearchAgentMemoriesParams struct {
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	PathRegexes []string  `db:"path_regexes" json:"path_regexes"`
+	OffsetValue int32     `db:"offset_value" json:"offset_value"`
+	Keywords    string    `db:"keywords" json:"keywords"`
+}
+
+type SearchAgentMemoriesRow struct {
+	ID           uuid.UUID   `db:"id" json:"id"`
+	UserID       uuid.UUID   `db:"user_id" json:"user_id"`
+	Path         string      `db:"path" json:"path"`
+	Content      string      `db:"content" json:"content"`
+	CreatedAt    time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt    time.Time   `db:"updated_at" json:"updated_at"`
+	SearchVector interface{} `db:"search_vector" json:"search_vector"`
+	Rank         float32     `db:"rank" json:"rank"`
+	Headline     string      `db:"headline" json:"headline"`
+}
+
+func (q *sqlQuerier) SearchAgentMemories(ctx context.Context, arg SearchAgentMemoriesParams) ([]SearchAgentMemoriesRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchAgentMemories,
+		arg.UserID,
+		pq.Array(arg.PathRegexes),
+		arg.OffsetValue,
+		arg.Keywords,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchAgentMemoriesRow
+	for rows.Next() {
+		var i SearchAgentMemoriesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Path,
+			&i.Content,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.SearchVector,
+			&i.Rank,
+			&i.Headline,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateAgentMemoryContent = `-- name: UpdateAgentMemoryContent :one
+UPDATE agent_memories
+SET content = $1::text,
+    updated_at = now()
+WHERE user_id = $2::uuid
+  AND path = $3::text
+RETURNING id, user_id, path, content, created_at, updated_at, search_vector
+`
+
+type UpdateAgentMemoryContentParams struct {
+	Content string    `db:"content" json:"content"`
+	UserID  uuid.UUID `db:"user_id" json:"user_id"`
+	Path    string    `db:"path" json:"path"`
+}
+
+func (q *sqlQuerier) UpdateAgentMemoryContent(ctx context.Context, arg UpdateAgentMemoryContentParams) (AgentMemory, error) {
+	row := q.db.QueryRowContext(ctx, updateAgentMemoryContent, arg.Content, arg.UserID, arg.Path)
+	var i AgentMemory
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SearchVector,
+	)
+	return i, err
+}
+
 const deleteAIGatewayKey = `-- name: DeleteAIGatewayKey :one
 DELETE FROM ai_gateway_keys WHERE id = $1
 RETURNING id, name, secret_prefix, created_at, last_heartbeat_at

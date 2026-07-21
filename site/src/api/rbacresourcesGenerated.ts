@@ -8,6 +8,12 @@ import type { RBACAction, RBACResource } from "./typesGenerated";
 export const RBACResourceActions: Partial<
 	Record<RBACResource, Partial<Record<RBACAction, string>>>
 > = {
+	agent_memory: {
+		create: "create an agent memory",
+		delete: "delete an agent memory",
+		read: "read agent memory metadata and content",
+		update: "update agent memory content",
+	},
 	ai_gateway_key: {
 		create: "create an AI Gateway key",
 		delete: "delete an AI Gateway key",

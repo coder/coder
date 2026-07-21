@@ -122,6 +122,7 @@ type sqlcQuerier interface {
 	DeleteAIProviderKey(ctx context.Context, id uuid.UUID) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
+	DeleteAgentMemoryByUserIDAndPath(ctx context.Context, arg DeleteAgentMemoryByUserIDAndPathParams) (AgentMemory, error)
 	// Deletes all heartbeat rows for the chat. Used during ownership
 	// transitions that abandon a lease.
 	DeleteAllChatHeartbeats(ctx context.Context, chatID uuid.UUID) error
@@ -344,6 +345,8 @@ type sqlcQuerier interface {
 	GetActivePresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error)
 	GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
+	GetAgentMemoryByUserIDAndPath(ctx context.Context, arg GetAgentMemoryByUserIDAndPathParams) (AgentMemory, error)
+	GetAgentMemoryByUserIDAndPathForUpdate(ctx context.Context, arg GetAgentMemoryByUserIDAndPathForUpdateParams) (AgentMemory, error)
 	// For PG Coordinator HTMLDebug
 	GetAllTailnetCoordinators(ctx context.Context) ([]TailnetCoordinator, error)
 	GetAllTailnetPeers(ctx context.Context) ([]TailnetPeer, error)
@@ -1058,6 +1061,7 @@ type sqlcQuerier interface {
 	// transaction) to re-pin a chat to its agent's latest snapshot from the
 	// refresh endpoint and on agent rebinding.
 	InsertAgentContextResourcesIntoChat(ctx context.Context, arg InsertAgentContextResourcesIntoChatParams) error
+	InsertAgentMemory(ctx context.Context, arg InsertAgentMemoryParams) (AgentMemory, error)
 	// We use the organization_id as the id
 	// for simplicity since all users is
 	// every member of the org.
@@ -1203,6 +1207,7 @@ type sqlcQuerier interface {
 	ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeToolUsage, error)
 	ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeUserPrompt, error)
 	ListAIGatewayKeys(ctx context.Context) ([]ListAIGatewayKeysRow, error)
+	ListAgentMemories(ctx context.Context, arg ListAgentMemoriesParams) ([]ListAgentMemoriesRow, error)
 	// Lists boundary logs for a session, sorted by sequence number ascending.
 	// Supports an inclusive lower bound (seq_after) and an exclusive upper bound
 	// (seq_before) for fetching events between two known interceptions.
@@ -1278,6 +1283,7 @@ type sqlcQuerier interface {
 	// or 'disabled'.
 	ResolveUserChatSpendLimit(ctx context.Context, arg ResolveUserChatSpendLimitParams) (ResolveUserChatSpendLimitRow, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
+	SearchAgentMemories(ctx context.Context, arg SearchAgentMemoriesParams) ([]SearchAgentMemoriesRow, error)
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
 	// for the table.
@@ -1362,6 +1368,7 @@ type sqlcQuerier interface {
 	UpdateAIGatewayKeyLastHeartbeatAt(ctx context.Context, id uuid.UUID) (int64, error)
 	UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AIProvider, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
+	UpdateAgentMemoryContent(ctx context.Context, arg UpdateAgentMemoryContentParams) (AgentMemory, error)
 	UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)

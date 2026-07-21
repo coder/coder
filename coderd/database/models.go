@@ -465,6 +465,11 @@ const (
 	ApiKeyScopeWorkspaceBuildOrchestrationDelete   APIKeyScope = "workspace_build_orchestration:delete"
 	ApiKeyScopeWorkspaceBuildOrchestrationRead     APIKeyScope = "workspace_build_orchestration:read"
 	ApiKeyScopeWorkspaceBuildOrchestrationUpdate   APIKeyScope = "workspace_build_orchestration:update"
+	ApiKeyScopeAgentMemoryCreate                   APIKeyScope = "agent_memory:create"
+	ApiKeyScopeAgentMemoryRead                     APIKeyScope = "agent_memory:read"
+	ApiKeyScopeAgentMemoryUpdate                   APIKeyScope = "agent_memory:update"
+	ApiKeyScopeAgentMemoryDelete                   APIKeyScope = "agent_memory:delete"
+	ApiKeyScopeAgentMemory                         APIKeyScope = "agent_memory:*"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -739,7 +744,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeWorkspaceBuildOrchestrationCreate,
 		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
 		ApiKeyScopeWorkspaceBuildOrchestrationRead,
-		ApiKeyScopeWorkspaceBuildOrchestrationUpdate:
+		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
+		ApiKeyScopeAgentMemoryCreate,
+		ApiKeyScopeAgentMemoryRead,
+		ApiKeyScopeAgentMemoryUpdate,
+		ApiKeyScopeAgentMemoryDelete,
+		ApiKeyScopeAgentMemory:
 		return true
 	}
 	return false
@@ -983,6 +993,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
 		ApiKeyScopeWorkspaceBuildOrchestrationRead,
 		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
+		ApiKeyScopeAgentMemoryCreate,
+		ApiKeyScopeAgentMemoryRead,
+		ApiKeyScopeAgentMemoryUpdate,
+		ApiKeyScopeAgentMemoryDelete,
+		ApiKeyScopeAgentMemory,
 	}
 }
 
@@ -4873,6 +4888,16 @@ type APIKey struct {
 	TokenName       string       `db:"token_name" json:"token_name"`
 	Scopes          APIKeyScopes `db:"scopes" json:"scopes"`
 	AllowList       AllowList    `db:"allow_list" json:"allow_list"`
+}
+
+type AgentMemory struct {
+	ID           uuid.UUID   `db:"id" json:"id"`
+	UserID       uuid.UUID   `db:"user_id" json:"user_id"`
+	Path         string      `db:"path" json:"path"`
+	Content      string      `db:"content" json:"content"`
+	CreatedAt    time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt    time.Time   `db:"updated_at" json:"updated_at"`
+	SearchVector interface{} `db:"search_vector" json:"search_vector"`
 }
 
 type AuditLog struct {

@@ -15568,6 +15568,11 @@ const docTemplate = `{
             "enum": [
                 "all",
                 "application_connect",
+                "agent_memory:*",
+                "agent_memory:create",
+                "agent_memory:delete",
+                "agent_memory:read",
+                "agent_memory:update",
                 "ai_gateway_key:*",
                 "ai_gateway_key:create",
                 "ai_gateway_key:delete",
@@ -15808,6 +15813,11 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "APIKeyScopeAll",
                 "APIKeyScopeApplicationConnect",
+                "APIKeyScopeAgentMemoryAll",
+                "APIKeyScopeAgentMemoryCreate",
+                "APIKeyScopeAgentMemoryDelete",
+                "APIKeyScopeAgentMemoryRead",
+                "APIKeyScopeAgentMemoryUpdate",
                 "APIKeyScopeAiGatewayKeyAll",
                 "APIKeyScopeAiGatewayKeyCreate",
                 "APIKeyScopeAiGatewayKeyDelete",
@@ -22845,6 +22855,7 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "*",
+                "agent_memory",
                 "ai_gateway_key",
                 "ai_model_price",
                 "ai_provider",
@@ -22898,6 +22909,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "ResourceWildcard",
+                "ResourceAgentMemory",
                 "ResourceAIGatewayKey",
                 "ResourceAiModelPrice",
                 "ResourceAIProvider",

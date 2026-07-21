@@ -522,6 +522,11 @@ export interface APIKey {
 
 // From codersdk/apikey.go
 export type APIKeyScope =
+	| "agent_memory:*"
+	| "agent_memory:create"
+	| "agent_memory:delete"
+	| "agent_memory:read"
+	| "agent_memory:update"
 	| "ai_gateway_key:*"
 	| "ai_gateway_key:create"
 	| "ai_gateway_key:delete"
@@ -762,6 +767,11 @@ export type APIKeyScope =
 	| "workspace:update_agent";
 
 export const APIKeyScopes: APIKeyScope[] = [
+	"agent_memory:*",
+	"agent_memory:create",
+	"agent_memory:delete",
+	"agent_memory:read",
+	"agent_memory:update",
 	"ai_gateway_key:*",
 	"ai_gateway_key:create",
 	"ai_gateway_key:delete",
@@ -7359,6 +7369,7 @@ export const RBACActions: RBACAction[] = [
 export type RBACResource =
 	| "ai_gateway_key"
 	| "ai_provider"
+	| "agent_memory"
 	| "ai_model_price"
 	| "ai_seat"
 	| "aibridge_interception"
@@ -7412,6 +7423,7 @@ export type RBACResource =
 export const RBACResources: RBACResource[] = [
 	"ai_gateway_key",
 	"ai_provider",
+	"agent_memory",
 	"ai_model_price",
 	"ai_seat",
 	"aibridge_interception",

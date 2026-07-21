@@ -414,6 +414,10 @@ var (
 		Type: "user_skill",
 	}
 
+	ResourceAgentMemory = Object{
+		Type: "agent_memory",
+	}
+
 	// ResourceWebpushSubscription
 	// Valid Actions
 	//  - "ActionCreate" :: create webpush subscriptions
@@ -542,6 +546,7 @@ func AllResources() []Objecter {
 		ResourceUser,
 		ResourceUserSecret,
 		ResourceUserSkill,
+		ResourceAgentMemory,
 		ResourceWebpushSubscription,
 		ResourceWorkspace,
 		ResourceWorkspaceAgentDevcontainers,

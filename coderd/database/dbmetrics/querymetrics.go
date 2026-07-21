@@ -441,6 +441,14 @@ func (m queryMetricsStore) DeleteAPIKeysByUserID(ctx context.Context, userID uui
 	return r0
 }
 
+func (m queryMetricsStore) DeleteAgentMemoryByUserIDAndPath(ctx context.Context, arg database.DeleteAgentMemoryByUserIDAndPathParams) (database.AgentMemory, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteAgentMemoryByUserIDAndPath(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteAgentMemoryByUserIDAndPath").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAgentMemoryByUserIDAndPath").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteAllChatHeartbeats(ctx context.Context, chatID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteAllChatHeartbeats(ctx, chatID)
@@ -1294,6 +1302,22 @@ func (m queryMetricsStore) GetActiveWorkspaceBuildsByTemplateID(ctx context.Cont
 	r0, r1 := m.s.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
 	m.queryLatencies.WithLabelValues("GetActiveWorkspaceBuildsByTemplateID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetActiveWorkspaceBuildsByTemplateID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAgentMemoryByUserIDAndPath(ctx context.Context, arg database.GetAgentMemoryByUserIDAndPathParams) (database.AgentMemory, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAgentMemoryByUserIDAndPath(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAgentMemoryByUserIDAndPath").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAgentMemoryByUserIDAndPath").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAgentMemoryByUserIDAndPathForUpdate(ctx context.Context, arg database.GetAgentMemoryByUserIDAndPathForUpdateParams) (database.AgentMemory, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAgentMemoryByUserIDAndPathForUpdate(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAgentMemoryByUserIDAndPathForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAgentMemoryByUserIDAndPathForUpdate").Inc()
 	return r0, r1
 }
 
@@ -4065,6 +4089,14 @@ func (m queryMetricsStore) InsertAgentContextResourcesIntoChat(ctx context.Conte
 	return r0
 }
 
+func (m queryMetricsStore) InsertAgentMemory(ctx context.Context, arg database.InsertAgentMemoryParams) (database.AgentMemory, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAgentMemory(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAgentMemory").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAgentMemory").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (database.Group, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertAllUsersGroup(ctx, organizationID)
@@ -4769,6 +4801,14 @@ func (m queryMetricsStore) ListAIGatewayKeys(ctx context.Context) ([]database.Li
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListAgentMemories(ctx context.Context, arg database.ListAgentMemoriesParams) ([]database.ListAgentMemoriesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAgentMemories(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAgentMemories").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAgentMemories").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListBoundaryLogsBySessionID(ctx context.Context, arg database.ListBoundaryLogsBySessionIDParams) ([]database.BoundaryLog, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListBoundaryLogsBySessionID(ctx, arg)
@@ -5009,6 +5049,14 @@ func (m queryMetricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest
 	return r0
 }
 
+func (m queryMetricsStore) SearchAgentMemories(ctx context.Context, arg database.SearchAgentMemoriesParams) ([]database.SearchAgentMemoriesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.SearchAgentMemories(ctx, arg)
+	m.queryLatencies.WithLabelValues("SearchAgentMemories").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SearchAgentMemories").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) SelectUsageEventsForPublishing(ctx context.Context, now time.Time) ([]database.UsageEvent, error) {
 	start := time.Now()
 	r0, r1 := m.s.SelectUsageEventsForPublishing(ctx, now)
@@ -5167,6 +5215,14 @@ func (m queryMetricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.Up
 	m.queryLatencies.WithLabelValues("UpdateAPIKeyByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAPIKeyByID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpdateAgentMemoryContent(ctx context.Context, arg database.UpdateAgentMemoryContentParams) (database.AgentMemory, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateAgentMemoryContent(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateAgentMemoryContent").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAgentMemoryContent").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateChatACLByID(ctx context.Context, arg database.UpdateChatACLByIDParams) error {

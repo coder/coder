@@ -3545,7 +3545,8 @@ func filterExternalMCPConfigsForTurn(
 
 func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 	switch name {
-	case "read_file", "execute", "process_output", "read_skill", "read_skill_file":
+	case "read_file", "execute", "process_output", "read_skill", "read_skill_file",
+		"read_memory", "search_memories", "list_memories":
 		return true
 	case "write_file", "edit_files", "list_templates", "read_template",
 		"create_workspace", "start_workspace", "stop_workspace", "propose_plan", "spawn_agent",
@@ -3638,6 +3639,9 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 		"list_agents":       false,
 		"read_skill":        true,
 		"read_skill_file":   true,
+		"read_memory":       true,
+		"search_memories":   true,
+		"list_memories":     true,
 		"ask_user_question": false,
 	}
 
@@ -3840,7 +3844,7 @@ func (p *Server) loadPlanModeInstructions(
 	return fetched
 }
 
-func userSkillContext(ctx context.Context, userID uuid.UUID) context.Context {
+func userScopedChatContext(ctx context.Context, userID uuid.UUID) context.Context {
 	actor := rbac.Subject{
 		Type:  rbac.SubjectTypeUser,
 		ID:    userID.String(),
@@ -3848,12 +3852,12 @@ func userSkillContext(ctx context.Context, userID uuid.UUID) context.Context {
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 	// Chat turns run asynchronously after admission, so the original request
-	// actor may no longer be available when a worker loads personal skills.
+	// actor may no longer be available when a worker loads user-scoped data.
 	// We synthesize the chat owner as a member instead of reusing that actor.
-	// Hardcoding RoleMember is safe because dbauthz enforces
-	// ResourceUserSkill.WithOwner(userID), so this actor cannot read any other
-	// user's skills regardless of role. Org scoping is not needed because
-	// personal skills are user-scoped, not org-scoped.
+	// Hardcoding RoleMember is safe because dbauthz enforces the owner on each
+	// user-scoped resource, so this actor cannot read another user's data.
+	// Org scoping is not needed because
+	// personal skills and memories are user-scoped, not org-scoped.
 	//nolint:gocritic // The synthetic actor is intentional for the reasons above.
 	return dbauthz.As(ctx, actor)
 }
@@ -3863,7 +3867,7 @@ func (p *Server) fetchPersonalSkillMetadata(
 	userID uuid.UUID,
 	logger slog.Logger,
 ) []skillspkg.Skill {
-	rows, err := p.db.ListUserSkillMetadataByUserID(userSkillContext(ctx, userID), userID)
+	rows, err := p.db.ListUserSkillMetadataByUserID(userScopedChatContext(ctx, userID), userID)
 	// See package coderd/x/skills (doc.go) for why metadata fetch failures
 	// intentionally degrade to an empty personal-skill list instead of
 	// failing the chat turn.
@@ -3892,7 +3896,7 @@ func (p *Server) loadPersonalSkillBody(
 	name string,
 ) (skillspkg.ParsedSkill, error) {
 	row, err := p.db.GetUserSkillByUserIDAndName(
-		userSkillContext(ctx, userID),
+		userScopedChatContext(ctx, userID),
 		database.GetUserSkillByUserIDAndNameParams{
 			UserID: userID,
 			Name:   name,

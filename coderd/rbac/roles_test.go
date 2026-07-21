@@ -1235,6 +1235,34 @@ func TestRolePermissions(t *testing.T) {
 				},
 			},
 		},
+		// Memories contain user-authored durable context. Owners can inspect
+		// and delete them, but only the user can create or update them.
+		{
+			Name:     "AgentMemoriesReadDelete",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionDelete},
+			Resource: rbac.ResourceAgentMemory.WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, memberMe, agentsAccessUser, orgWorkspaceAccessUser},
+				false: {
+					orgAdmin,
+					otherOrgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin,
+					templateAdmin, userAdmin, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
+		{
+			Name:     "AgentMemoriesCreateUpdate",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate},
+			Resource: rbac.ResourceAgentMemory.WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {memberMe, agentsAccessUser, orgWorkspaceAccessUser},
+				false: {
+					owner, orgAdmin,
+					otherOrgAdmin, orgAuditor, orgUserAdmin, orgTemplateAdmin,
+					templateAdmin, userAdmin, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
 		{
 			Name:     "UsageEvents",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},

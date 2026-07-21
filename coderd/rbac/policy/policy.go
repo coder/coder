@@ -395,6 +395,14 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionDelete: "delete a user skill",
 		},
 	},
+	"agent_memory": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create an agent memory",
+			ActionRead:   "read agent memory metadata and content",
+			ActionUpdate: "update agent memory content",
+			ActionDelete: "delete an agent memory",
+		},
+	},
 	"usage_event": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: "create a usage event",

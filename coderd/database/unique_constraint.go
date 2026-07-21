@@ -6,6 +6,7 @@ type UniqueConstraint string
 
 // UniqueConstraint enums.
 const (
+	UniqueAgentMemoriesPkey                                   UniqueConstraint = "agent_memories_pkey"                                             // ALTER TABLE ONLY agent_memories ADD CONSTRAINT agent_memories_pkey PRIMARY KEY (id);
 	UniqueAgentStatsPkey                                      UniqueConstraint = "agent_stats_pkey"                                                // ALTER TABLE ONLY workspace_agent_stats ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 	UniqueAIGatewayKeysPkey                                   UniqueConstraint = "ai_gateway_keys_pkey"                                            // ALTER TABLE ONLY ai_gateway_keys ADD CONSTRAINT ai_gateway_keys_pkey PRIMARY KEY (id);
 	UniqueAIModelPricesPkey                                   UniqueConstraint = "ai_model_prices_pkey"                                            // ALTER TABLE ONLY ai_model_prices ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model);
@@ -146,6 +147,7 @@ const (
 	UniqueWorkspaceResourceMetadataPkey                       UniqueConstraint = "workspace_resource_metadata_pkey"                                // ALTER TABLE ONLY workspace_resource_metadata ADD CONSTRAINT workspace_resource_metadata_pkey PRIMARY KEY (id);
 	UniqueWorkspaceResourcesPkey                              UniqueConstraint = "workspace_resources_pkey"                                        // ALTER TABLE ONLY workspace_resources ADD CONSTRAINT workspace_resources_pkey PRIMARY KEY (id);
 	UniqueWorkspacesPkey                                      UniqueConstraint = "workspaces_pkey"                                                 // ALTER TABLE ONLY workspaces ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
+	UniqueAgentMemoriesUserIDPathIndex                        UniqueConstraint = "agent_memories_user_id_path_idx"                                 // CREATE UNIQUE INDEX agent_memories_user_id_path_idx ON agent_memories USING btree (user_id, path);
 	UniqueAIGatewayKeysHashedSecretIndex                      UniqueConstraint = "ai_gateway_keys_hashed_secret_idx"                               // CREATE UNIQUE INDEX ai_gateway_keys_hashed_secret_idx ON ai_gateway_keys USING btree (hashed_secret);
 	UniqueAIGatewayKeysNameIndex                              UniqueConstraint = "ai_gateway_keys_name_idx"                                        // CREATE UNIQUE INDEX ai_gateway_keys_name_idx ON ai_gateway_keys USING btree (lower(name));
 	UniqueAIGatewayKeysSecretPrefixIndex                      UniqueConstraint = "ai_gateway_keys_secret_prefix_idx"                               // CREATE UNIQUE INDEX ai_gateway_keys_secret_prefix_idx ON ai_gateway_keys USING btree (secret_prefix);

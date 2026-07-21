@@ -6,6 +6,8 @@ type CheckConstraint string
 
 // CheckConstraint enums.
 const (
+	CheckAgentMemoriesContentSize                            CheckConstraint = "agent_memories_content_size"                               // agent_memories
+	CheckAgentMemoriesPathSize                               CheckConstraint = "agent_memories_path_size"                                  // agent_memories
 	CheckAIGatewayKeysHashedSecretCheck                      CheckConstraint = "ai_gateway_keys_hashed_secret_check"                       // ai_gateway_keys
 	CheckAIGatewayKeysNameCheck                              CheckConstraint = "ai_gateway_keys_name_check"                                // ai_gateway_keys
 	CheckAIGatewayKeysSecretPrefixCheck                      CheckConstraint = "ai_gateway_keys_secret_prefix_check"                       // ai_gateway_keys

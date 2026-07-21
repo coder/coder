@@ -825,6 +825,18 @@ The generation goroutine supports:
 - turn limit after a user message (the LLM shouldn't be able to spin forever in loop)
 - and other things
 
+##### User-scoped agent memories
+
+Agent memories are durable Markdown documents stored in `agent_memories`. They use absolute POSIX paths as a virtual directory hierarchy, but no files or directories are created on a workspace filesystem. A memory belongs to one user, and the chat worker executes memory queries as the root chat owner through the normal owner-aware database authorization checks. Memories are durable user metadata and are not part of chat execution state, message history, compaction, or snapshots.
+
+Generation preparation resolves the root chat for both root and child agents. It omits every memory tool when the root chat has a non-owner ACL entry, when the root has the Slack fallback-owner label, or when the root's current sharing state cannot be loaded. This decision applies to the full agent family so a child cannot expose memories that its shared root cannot access.
+
+Eligible root and child agents receive `read_memory`, `search_memories`, and `list_memories`. These read tools remain available in root plan mode, child plan mode, and explore mode. Only root execution turns receive `write_memory` and `edit_memory`. Tool omission, rather than prompt guidance, enforces these availability boundaries.
+
+Search and recursive listing remain database operations. PostgreSQL applies the user predicate, full-text query, path regular expressions, ranking, ordering, and offset pagination before returning a bounded page. Go validates paths and globs, compiles globs into parameterized PostgreSQL regular expressions, and formats search excerpts with hashline anchors.
+
+`edit_memory` performs one transaction against the transactional store handle. It locks the memory row, validates every line-number-and-hash anchor against one pre-edit snapshot, validates range interactions, constructs the complete replacement, enforces the content limit, and updates the row. Any validation or database error rolls back the full edit batch. Hashline hashes cover each logical line's UTF-8 bytes without its LF or CRLF delimiter, while the editor preserves separators attached to untouched lines and the document's final-newline state.
+
 ##### Reasoning effort
 
 Model configs may carry a `reasoning_effort` config (`{default, max}`) inside `chat_model_configs.options`. Users select a per-turn effort when sending or editing a message; the value is stored on `chat_messages.reasoning_effort` and on `chat_queued_messages.reasoning_effort` for queued messages. Queued messages carry the value through promotion, and `chats.last_reasoning_effort` tracks the most recent message that set one, mirroring `last_model_config_id`.

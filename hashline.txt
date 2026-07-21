@@ -1,0 +1,28 @@
+Implement a Hashline-style file editing tool for coding agents.
+
+When reading a text file, return each line prefixed with a stable anchor in the form:
+
+`LINE_NUMBER:SHORT_HASH|LINE_CONTENT`
+
+Example:
+
+`45:4bf|export function createUser() {`
+
+The short hash should be derived from the current contents of that line.
+
+The edit tool should accept operations that reference these anchors, for example:
+
+`set_line(anchor="45:4bf", new_text="export function buildUser() {")`
+
+Before applying an edit, re-read the file and verify that the referenced line still has the same hash. If the hash does not match, reject the edit with a clear stale-anchor error instead of modifying the wrong line.
+
+Support at least:
+
+* replace one anchored line
+* replace an anchored line range
+* insert before or after an anchor
+* delete an anchored line or range
+
+Apply edits atomically, preserve the file’s existing newline style and permissions, and return the updated file with fresh anchors after a successful edit.
+
+The main goal is to give the agent compact, verifiable edit targets that are safer than raw line numbers and easier to generate reliably than unified diffs.
