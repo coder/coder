@@ -1,60 +1,42 @@
 {
 	"name": "coder-docs-generator",
 	"private": true,
+	"description": "Generates the self-contained, offline Coder documentation bundle from the coder/coder docs corpus using Fumadocs.",
 	"scripts": {
-		"dev": "pnpm copy-images && next dev",
+		"sync": "node scripts/sync-docs.mjs",
+		"dev": "pnpm sync && next dev",
 		"build": "next build",
+		"export": "pnpm sync && next build",
 		"start": "next start",
-		"export": "pnpm copy-images && next build",
-		"copy-images": "sh ./scripts/copyImages.sh",
+		"postinstall": "fumadocs-mdx",
 		"lint": "pnpm run lint:types",
-		"lint:types": "tsc --noEmit",
-		"format": "prettier --cache --write './**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
-		"format:check": "prettier --cache --check './**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'"
+		"lint:types": "pnpm sync && fumadocs-mdx && next typegen && tsc --noEmit",
+		"format": "prettier --cache --write './**/*.{css,js,jsx,json,mjs,ts,tsx,yaml,yml}'",
+		"format:check": "prettier --cache --check './**/*.{css,js,jsx,json,mjs,ts,tsx,yaml,yml}'"
 	},
 	"dependencies": {
-		"@chakra-ui/react": "2.10.10",
-		"@emotion/react": "11.14.0",
-		"@emotion/styled": "11.14.1",
-		"archiver": "8.0.0",
-		"framer-motion": "^10.18.0",
-		"front-matter": "4.0.2",
-		"lodash": "4.18.1",
-		"next": "15.5.23",
-		"react": "18.3.1",
-		"react-dom": "18.3.1",
-		"react-icons": "5.7.0",
-		"react-markdown": "10.1.0",
+		"fumadocs-core": "16.10.5",
+		"fumadocs-mdx": "15.0.12",
+		"fumadocs-ui": "16.10.5",
+		"lucide-react": "1.21.0",
+		"next": "16.2.9",
+		"react": "19.2.7",
+		"react-dom": "19.2.7",
 		"rehype-raw": "7.0.0",
-		"remark-gfm": "4.0.1",
-		"sanitize-html": "2.17.6"
+		"tailwind-merge": "3.6.0"
 	},
 	"devDependencies": {
-		"@types/lodash": "4.17.25",
-		"@types/node": "22.20.1",
-		"@types/react": "18.3.12",
-		"@types/react-dom": "18.3.1",
-		"@types/sanitize-html": "2.16.1",
-		"eslint": "8.57.1",
-		"eslint-config-next": "14.2.35",
-		"prettier": "3.9.6",
+		"@tailwindcss/postcss": "4.3.1",
+		"@types/mdx": "2.0.14",
+		"@types/node": "22.20.0",
+		"@types/react": "19.2.17",
+		"@types/react-dom": "19.2.3",
+		"postcss": "8.5.15",
+		"prettier": "3.9.4",
+		"tailwindcss": "4.3.1",
 		"typescript": "6.0.3"
 	},
 	"engines": {
-		"npm": ">=9.0.0 <10.0.0",
 		"node": ">=22.0.0 <25.0.0"
-	},
-	"pnpm": {
-		"overrides": {
-			"@babel/runtime": "7.26.10",
-			"brace-expansion": "1.1.13",
-			"minimatch": "5.1.8",
-			"glob@>=10": "10.5.0",
-			"postcss": "8.5.10",
-			"js-yaml": "3.14.2",
-			"yaml": "1.10.3",
-			"flatted": "3.4.2",
-			"mdast-util-to-hast": "13.2.1"
-		}
 	}
 }

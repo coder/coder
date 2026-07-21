@@ -1,0 +1,84 @@
+/*
+ * Coder brand theme for Fumadocs.
+ *
+ * This file is the only theming surface: it overrides Fumadocs's documented
+ * CSS custom properties (the --color-fd-* tokens from
+ * fumadocs-ui/css/preset.css) and the font stack. No Fumadocs component is
+ * forked or patched.
+ *
+ * Tokens come from the Coder design system: a near-black surface
+ * (#0a0a0b ~ hsl(240 6% 4%)), near-white content, and the Coder accent
+ * family (violet #7511E2, magenta #F08DFF, light violet #C9ACFF). Accent
+ * *text* is lightened on dark / darkened on light so it stays readable
+ * (WCAG AA+).
+ *
+ * Must be imported AFTER fumadocs-ui/css/preset.css so these win.
+ */
+
+:root {
+	/* Brand typography. The proprietary brand faces (LayGrotesk, FT System
+	   Mono) are not bundled offline; declare the same stack and fall back to
+	   the open alternatives (Geist) then system fonts. */
+	--font-sans:
+		"LayGrotesk", "Geist", system-ui, -apple-system, BlinkMacSystemFont,
+		"Segoe UI", Roboto, sans-serif;
+	--font-mono:
+		"FT System Mono", "Geist Mono", ui-monospace, SFMono-Regular, "Courier New",
+		monospace;
+
+	/* ----- Light theme ----- */
+	--color-fd-background: hsl(0 0% 100%);
+	--color-fd-foreground: hsl(260 6% 9%);
+	--color-fd-muted: hsl(255 30% 97%);
+	--color-fd-muted-foreground: hsl(228 8% 32%);
+	--color-fd-popover: hsl(0 0% 100%);
+	--color-fd-popover-foreground: hsl(260 6% 9%);
+	--color-fd-card: hsl(260 24% 98%);
+	--color-fd-card-foreground: hsl(260 6% 9%);
+	--color-fd-border: hsl(228 11% 90%);
+	--color-fd-primary: hsl(267 86% 37%); /* darkened violet, AA+ on white */
+	--color-fd-primary-foreground: hsl(0 0% 100%);
+	--color-fd-secondary: hsl(260 24% 96%);
+	--color-fd-secondary-foreground: hsl(260 6% 12%);
+	--color-fd-accent: hsl(263 100% 95%); /* violet-tinted hover */
+	--color-fd-accent-foreground: hsl(267 86% 30%);
+	--color-fd-ring: hsl(267 86% 37%);
+}
+
+.dark {
+	/* ----- Dark theme (Coder near-black) ----- */
+	--color-fd-background: hsl(240 6% 4%); /* #0a0a0b */
+	--color-fd-foreground: hsl(228 9% 92%); /* #e9eaed */
+	--color-fd-muted: hsl(240 6% 10%);
+	--color-fd-muted-foreground: hsl(230 6% 65%);
+	--color-fd-popover: hsl(240 6% 6%);
+	--color-fd-popover-foreground: hsl(228 9% 92%);
+	--color-fd-card: hsl(240 6% 7%);
+	--color-fd-card-foreground: hsl(228 9% 92%);
+	--color-fd-border: hsl(240 5% 16%);
+	--color-fd-primary: hsl(262 100% 83%); /* lightened violet ~#c4a7ff */
+	--color-fd-primary-foreground: hsl(240 6% 6%);
+	--color-fd-secondary: hsl(240 6% 12%);
+	--color-fd-secondary-foreground: hsl(228 9% 90%);
+	--color-fd-accent: hsl(258 45% 17%); /* violet-tinted hover (~#241247) */
+	--color-fd-accent-foreground: hsl(228 9% 92%);
+	--color-fd-ring: hsl(258 100% 84%); /* #c9acff */
+}
+
+body {
+	font-family: var(--font-sans);
+}
+
+code,
+kbd,
+pre,
+samp {
+	font-family: var(--font-mono);
+}
+
+/* Clearly visible focus indicators (WCAG 2.4.7). */
+:where(a, button, input, summary, [tabindex]):focus-visible {
+	outline: 2px solid var(--color-fd-ring);
+	outline-offset: 2px;
+	border-radius: 2px;
+}
