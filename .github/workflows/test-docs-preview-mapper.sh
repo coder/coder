@@ -281,6 +281,8 @@ assert_marker_recovers "$(printf '{"docs/a.md":"sha1"}' | base64 -w0)" '{"docs/a
 assert_marker_recovers "A" "{}" "undecodable base64"
 # Valid base64 of a non-object (a JSON string) fails the type gate -> {}.
 assert_marker_recovers "$(printf '"hello"' | base64 -w0)" "{}" "valid base64 non-object"
+# Valid base64 that decodes to non-JSON bytes fails the parse gate -> {}.
+assert_marker_recovers "$(printf '\xff\xfe\xfd' | base64 -w0)" "{}" "valid base64 non-JSON bytes"
 
 # extract_manifest_paths runs the real jq + sed pipeline from
 # docs-preview.yaml against manifest JSON on stdin, emitting one
