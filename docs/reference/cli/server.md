@@ -1753,7 +1753,7 @@ Force chat debug logging on for every chat, bypassing the runtime admin and user
 | Environment | <code>$CODER_CHAT_HOOK_URL</code> |
 | YAML        | <code>chat.hookURL</code>         |
 
-HTTPS URL to receive chat agent lifecycle hook events. Hooks are disabled when unset.
+HTTPS URL to receive chat agent lifecycle hook events. Hooks are disabled when unset. Requires the agent-lifecycle-hooks experiment.
 
 ### --chat-hook-secret
 
@@ -1784,7 +1784,7 @@ Maximum time to wait for a chat agent lifecycle hook response.
 | YAML        | <code>chat.hookEnabled</code>         |
 | Default     | <code>true</code>                     |
 
-Whether to dispatch chat agent lifecycle hooks when a hook URL is configured.
+Whether to dispatch chat agent lifecycle hooks when a hook URL is configured. Requires the agent-lifecycle-hooks experiment.
 
 ### --ai-gateway-enabled
 

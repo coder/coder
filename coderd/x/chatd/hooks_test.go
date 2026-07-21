@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -221,6 +222,47 @@ func newHookTestServer(t *testing.T, db database.Store, ps dbpubsub.Pubsub, cons
 	return newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
 		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
 	})
+}
+
+func TestHookDispatcherRequiresExperiment(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+
+	var hookRequests atomic.Int32
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hookRequests.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(consumer.Close)
+
+	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+		cfg.Experiments = slices.DeleteFunc(
+			slices.Clone(codersdk.ExperimentsKnown),
+			func(e codersdk.Experiment) bool { return e == codersdk.ExperimentAgentLifecycleHooks },
+		)
+	})
+	result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+	parts, err := chatprompt.ParseContent(result.Message)
+	require.NoError(t, err)
+	require.Equal(t, []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")}, parts)
+
+	require.Zero(t, hookRequests.Load())
+	rows, err := db.ListChatHookDispatchesByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Empty(t, rows)
 }
 
 func lifecycleDispatch(t *testing.T, db database.Store, chatID uuid.UUID, event agenthooks.EventType) database.ChatHookDispatch {

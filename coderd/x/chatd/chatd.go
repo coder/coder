@@ -3380,6 +3380,15 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 	if cfg.AllowBYOKSet {
 		allowBYOK = cfg.AllowBYOK
 	}
+
+	// Lifecycle hooks are experimental. Refuse an injected dispatcher
+	// unless the experiment is enabled so hooks can never run without
+	// explicit opt-in, regardless of how the config was assembled.
+	hookDispatcher := cfg.HookDispatcher
+	if hookDispatcher != nil && !cfg.Experiments.Enabled(codersdk.ExperimentAgentLifecycleHooks) {
+		cfg.Logger.Warn(ctx, "ignoring chat lifecycle hook dispatcher; the agent-lifecycle-hooks experiment is not enabled")
+		hookDispatcher = nil
+	}
 	p := &Server{
 		cancel:                         cancel,
 		db:                             cfg.Database,
@@ -3394,7 +3403,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		stopWorkspaceFn:                cfg.StopWorkspace,
 		pubsub:                         ps,
 		webpushDispatcher:              cfg.WebpushDispatcher,
-		hookDispatcher:                 cfg.HookDispatcher,
+		hookDispatcher:                 hookDispatcher,
 		providerAPIKeys:                cfg.ProviderAPIKeys,
 		allowBYOK:                      allowBYOK,
 		oidcTokenSource:                cfg.OIDCTokenSource,

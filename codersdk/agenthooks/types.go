@@ -1,4 +1,9 @@
 // Package agenthooks defines the wire protocol for Coder agent lifecycle hooks.
+//
+// The hook feature is experimental and requires the agent-lifecycle-hooks
+// experiment on the deployment. The wire contract, including SchemaVersion 1,
+// is not covered by any backward-compatibility promise and may change or be
+// removed in any release.
 package agenthooks
 
 import (

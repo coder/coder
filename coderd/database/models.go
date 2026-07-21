@@ -4986,6 +4986,7 @@ type Chat struct {
 	ContextDirtySince        sql.NullTime            `db:"context_dirty_since" json:"context_dirty_since"`
 	ContextDirtyResources    pqtype.NullRawMessage   `db:"context_dirty_resources" json:"context_dirty_resources"`
 	ContextError             string                  `db:"context_error" json:"context_error"`
+	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
 	HookAllowedTools         pqtype.NullRawMessage   `db:"hook_allowed_tools" json:"hook_allowed_tools"`
 }
 
@@ -5239,6 +5240,8 @@ type ChatTable struct {
 	ContextError string `db:"context_error" json:"context_error"`
 	// Stores the most recent message effort once per-turn selection is wired.
 	LastReasoningEffort NullChatReasoningEffort `db:"last_reasoning_effort" json:"last_reasoning_effort"`
+	// Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.
+	CompactionRequestedAt sql.NullTime `db:"compaction_requested_at" json:"compaction_requested_at"`
 	// Hook-enforced tool names; NULL means unrestricted. Later policies only narrow.
 	HookAllowedTools pqtype.NullRawMessage `db:"hook_allowed_tools" json:"hook_allowed_tools"`
 }

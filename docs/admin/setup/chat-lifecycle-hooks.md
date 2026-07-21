@@ -1,5 +1,9 @@
 # Configure chat lifecycle hooks
 
+> [!NOTE]
+> Chat lifecycle hooks are an experimental feature.
+> The feature requires the `agent-lifecycle-hooks` experiment, and the consumer contract (including the request schema and JWT claims) may change or be removed in any release without a compatibility guarantee.
+
 This reference is for Coder deployment administrators who need to apply an external policy service to the agent loop.
 It covers deployment configuration, the consumer contract, failure behavior, rollout, and dispatch auditing.
 
@@ -11,6 +15,15 @@ The configured consumer can observe all 7 lifecycle events, add model or user co
 > Start with an observe-only consumer and test failure recovery before enforcing policy.
 
 ## Configure the deployment
+
+Enable the experiment first:
+
+```env
+CODER_EXPERIMENTS=agent-lifecycle-hooks
+```
+
+Without the experiment, hook configuration is accepted but inactive: `coder server` logs a warning at startup and dispatches no hook events.
+The experiment list is read at startup, so enabling or disabling it requires a `coder server` restart.
 
 Set the following deployment options on `coder server`.
 

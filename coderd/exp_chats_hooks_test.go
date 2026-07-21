@@ -97,6 +97,49 @@ func TestPostChatsInitialPromptHookErrors(t *testing.T) {
 	}
 }
 
+func TestChatLifecycleHooksExperimentDisabled(t *testing.T) {
+	t.Parallel()
+
+	var hookRequests atomic.Int32
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hookRequests.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(consumer.Close)
+
+	client, db := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+		opts.ChatWorkerDisabled = true
+		// Valid hook configuration without the agent-lifecycle-hooks
+		// experiment: hooks must stay inert.
+		opts.DeploymentValues.Experiments = serpent.StringArray{
+			string(codersdk.ExperimentChatAdvisor),
+			string(codersdk.ExperimentChatVirtualDesktop),
+		}
+		require.NoError(t, opts.DeploymentValues.AI.Chat.HookURL.Set(consumer.URL))
+		opts.DeploymentValues.AI.Chat.HookSecret = serpent.String("test-hook-secret-32-bytes-minimum!!")
+		opts.DeploymentValues.AI.Chat.HookTimeout = serpent.Duration(time.Second)
+		opts.DeploymentValues.AI.Chat.HookEnabled = serpent.Bool(true)
+	})
+	user := coderdtest.CreateFirstUser(t, client.Client)
+	model := createAdditionalChatModelConfig(t, client, "openai", "gpt-4.1")
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: user.OrganizationID,
+		ModelConfigID:  &model.ID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "prompt with hooks disabled",
+		}},
+	})
+	require.NoError(t, err)
+
+	require.Zero(t, hookRequests.Load())
+	rows, err := db.ListChatHookDispatchesByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+	require.NoError(t, err)
+	require.Empty(t, rows)
+}
+
 func TestChatLifecycleHooksWorkedExample(t *testing.T) {
 	t.Parallel()
 

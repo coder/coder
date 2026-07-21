@@ -284,7 +284,7 @@ Configure the background chat processing daemon.
 
       --chat-hook-enabled bool, $CODER_CHAT_HOOK_ENABLED (default: true)
           Whether to dispatch chat agent lifecycle hooks when a hook URL is
-          configured.
+          configured. Requires the agent-lifecycle-hooks experiment.
 
       --chat-hook-secret string, $CODER_CHAT_HOOK_SECRET
           Shared secret used to sign chat agent lifecycle hook JWTs.
@@ -294,7 +294,7 @@ Configure the background chat processing daemon.
 
       --chat-hook-url url, $CODER_CHAT_HOOK_URL
           HTTPS URL to receive chat agent lifecycle hook events. Hooks are
-          disabled when unset.
+          disabled when unset. Requires the agent-lifecycle-hooks experiment.
 
 CLIENT OPTIONS: 
 These options change the behavior of how clients interact with the Coder.

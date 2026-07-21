@@ -4295,7 +4295,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: Hook URL",
-			Description: "HTTPS URL to receive chat agent lifecycle hook events. Hooks are disabled when unset.",
+			Description: "HTTPS URL to receive chat agent lifecycle hook events. Hooks are disabled when unset. Requires the agent-lifecycle-hooks experiment.",
 			Flag:        "chat-hook-url",
 			Env:         "CODER_CHAT_HOOK_URL",
 			Value:       &c.AI.Chat.HookURL,
@@ -4326,7 +4326,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: Hook Enabled",
-			Description: "Whether to dispatch chat agent lifecycle hooks when a hook URL is configured.",
+			Description: "Whether to dispatch chat agent lifecycle hooks when a hook URL is configured. Requires the agent-lifecycle-hooks experiment.",
 			Flag:        "chat-hook-enabled",
 			Env:         "CODER_CHAT_HOOK_ENABLED",
 			Value:       &c.AI.Chat.HookEnabled,
@@ -5313,6 +5313,7 @@ const (
 	ExperimentAIGatewayCostControl  Experiment = "ai-gateway-cost-control" // Enables AI Gateway cost control functionality.
 	ExperimentChatAdvisor           Experiment = "chat-advisor"            // Enables the advisor tool for root agent chats.
 	ExperimentChatVirtualDesktop    Experiment = "chat-virtual-desktop"    // Enables virtual desktop and computer use provider for agents.
+	ExperimentAgentLifecycleHooks   Experiment = "agent-lifecycle-hooks"   // Enables chat lifecycle hook webhooks for agent chats.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5341,6 +5342,8 @@ func (e Experiment) DisplayName() string {
 		return "Chat Advisor"
 	case ExperimentChatVirtualDesktop:
 		return "Chat Virtual Desktop"
+	case ExperimentAgentLifecycleHooks:
+		return "Agent Lifecycle Hooks"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5363,6 +5366,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentAIGatewayCostControl,
 	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,
+	ExperimentAgentLifecycleHooks,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

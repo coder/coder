@@ -881,7 +881,14 @@ func New(options *Options) *API {
 		if options.DeploymentValues.AI.BridgeConfig.Enabled.Value() {
 			var hookDispatcher *chathooks.Dispatcher
 			chatConfig := options.DeploymentValues.AI.Chat
-			if chatConfig.HookURL.String() != "" && chatConfig.HookEnabled.Value() {
+			hooksConfigured := chatConfig.HookURL.String() != "" && chatConfig.HookEnabled.Value()
+			hooksExperimentEnabled := experiments.Enabled(codersdk.ExperimentAgentLifecycleHooks)
+			if hooksConfigured && !hooksExperimentEnabled {
+				options.Logger.Warn(ctx, "chat lifecycle hooks are configured but inactive; enable the agent-lifecycle-hooks experiment to activate them",
+					slog.F("experiment", codersdk.ExperimentAgentLifecycleHooks),
+				)
+			}
+			if hooksConfigured && hooksExperimentEnabled {
 				hookDispatcher = chathooks.New(
 					options.Logger,
 					options.Database,
