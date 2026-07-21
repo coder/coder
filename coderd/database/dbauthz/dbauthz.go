@@ -787,6 +787,7 @@ var (
 					rbac.ResourceAIProvider.Type:       {policy.ActionRead},
 					rbac.ResourceChat.Type:             {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceChatModelConfig.Type:  {policy.ActionRead},
+					rbac.ResourceMCPServerConfig.Type:  {policy.ActionRead},
 					rbac.ResourceWorkspace.Type:        {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceDeploymentConfig.Type: {policy.ActionRead},
 					rbac.ResourceUser.Type:             {policy.ActionReadPersonal},
@@ -2263,15 +2264,15 @@ func (q *querier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
 	return id, nil
 }
 
-func (q *querier) DeleteMCPServerConfigByID(ctx context.Context, id database.DeleteMCPServerConfigByIDParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
+func (q *querier) DeleteMCPServerConfigByID(ctx context.Context, arg database.DeleteMCPServerConfigByIDParams) error {
+	fetch := func(ctx context.Context, arg database.DeleteMCPServerConfigByIDParams) (database.MCPServerConfig, error) {
+		return q.db.GetMCPServerConfigByID(ctx, arg.ID)
 	}
-	return q.db.DeleteMCPServerConfigByID(ctx, id)
+	return fetchAndExec(q.log, q.auth, policy.ActionDelete, fetch, q.db.DeleteMCPServerConfigByID)(ctx, arg)
 }
 
 func (q *querier) DeleteMCPServerUserToken(ctx context.Context, arg database.DeleteMCPServerUserTokenParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+	if err := q.authorizeMCPServerUserToken(ctx, arg.UserID, arg.MCPServerConfigID); err != nil {
 		return err
 	}
 	return q.db.DeleteMCPServerUserToken(ctx, arg)
@@ -3788,7 +3789,7 @@ func (q *querier) GetEnabledChatModelConfigs(ctx context.Context, organizationID
 }
 
 func (q *querier) GetEnabledMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceMCPServerConfig.InOrg(organizationID)); err != nil {
 		return nil, err
 	}
 	return q.db.GetEnabledMCPServerConfigs(ctx, organizationID)
@@ -3867,7 +3868,7 @@ func (q *querier) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg
 }
 
 func (q *querier) GetForcedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceMCPServerConfig.InOrg(organizationID)); err != nil {
 		return nil, err
 	}
 	return q.db.GetForcedMCPServerConfigs(ctx, organizationID)
@@ -4060,46 +4061,79 @@ func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	return q.db.GetLogoURL(ctx)
 }
 
-func (q *querier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (database.MCPServerConfig, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return database.MCPServerConfig{}, err
+func (q *querier) authorizeMCPServerUserToken(ctx context.Context, userID, configID uuid.UUID) error {
+	actor, ok := ActorFromContext(ctx)
+	if !ok {
+		return ErrNoActor
 	}
-	return q.db.GetMCPServerConfigByID(ctx, id)
+	if actor.Type == rbac.SubjectTypeSystemRestricted {
+		return nil
+	}
+	if actor.ID != userID.String() {
+		return NotAuthorizedError{Err: xerrors.New("MCP server token owner does not match actor")}
+	}
+	config, err := q.db.GetMCPServerConfigByID(ctx, configID)
+	if err != nil {
+		return err
+	}
+	return q.authorizeContext(ctx, policy.ActionRead, config)
 }
 
-func (q *querier) GetMCPServerConfigBySlug(ctx context.Context, slug database.GetMCPServerConfigBySlugParams) (database.MCPServerConfig, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return database.MCPServerConfig{}, err
-	}
-	return q.db.GetMCPServerConfigBySlug(ctx, slug)
+func (q *querier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (database.MCPServerConfig, error) {
+	return fetch(q.log, q.auth, q.db.GetMCPServerConfigByID)(ctx, id)
+}
+
+func (q *querier) GetMCPServerConfigBySlug(ctx context.Context, arg database.GetMCPServerConfigBySlugParams) (database.MCPServerConfig, error) {
+	return fetch(q.log, q.auth, q.db.GetMCPServerConfigBySlug)(ctx, arg)
 }
 
 func (q *querier) GetMCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceMCPServerConfig.InOrg(organizationID)); err != nil {
 		return nil, err
 	}
 	return q.db.GetMCPServerConfigs(ctx, organizationID)
 }
 
-func (q *querier) GetMCPServerConfigsByIDs(ctx context.Context, ids database.GetMCPServerConfigsByIDsParams) ([]database.MCPServerConfig, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+func (q *querier) GetMCPServerConfigsByIDs(ctx context.Context, arg database.GetMCPServerConfigsByIDsParams) ([]database.MCPServerConfig, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceMCPServerConfig.InOrg(arg.OrganizationID)); err != nil {
 		return nil, err
 	}
-	return q.db.GetMCPServerConfigsByIDs(ctx, ids)
+	return q.db.GetMCPServerConfigsByIDs(ctx, arg)
 }
 
 func (q *querier) GetMCPServerUserToken(ctx context.Context, arg database.GetMCPServerUserTokenParams) (database.MCPServerUserToken, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+	if err := q.authorizeMCPServerUserToken(ctx, arg.UserID, arg.MCPServerConfigID); err != nil {
 		return database.MCPServerUserToken{}, err
 	}
 	return q.db.GetMCPServerUserToken(ctx, arg)
 }
 
-func (q *querier) GetMCPServerUserTokensByUserID(ctx context.Context, userID database.GetMCPServerUserTokensByUserIDParams) ([]database.MCPServerUserToken, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+func (q *querier) GetMCPServerUserTokensByUserID(ctx context.Context, arg database.GetMCPServerUserTokensByUserIDParams) ([]database.MCPServerUserToken, error) {
+	actor, ok := ActorFromContext(ctx)
+	if !ok {
+		return nil, ErrNoActor
+	}
+	if actor.Type == rbac.SubjectTypeSystemRestricted {
+		return q.db.GetMCPServerUserTokensByUserID(ctx, arg)
+	}
+	if actor.ID != arg.UserID.String() {
+		return nil, NotAuthorizedError{Err: xerrors.New("MCP server token owner does not match actor")}
+	}
+
+	configs, err := q.db.GetMCPServerConfigsByIDs(ctx, database.GetMCPServerConfigsByIDsParams{
+		OrganizationID: arg.OrganizationID,
+		IDs:            arg.McpServerConfigIds,
+	})
+	if err != nil {
 		return nil, err
 	}
-	return q.db.GetMCPServerUserTokensByUserID(ctx, userID)
+	for _, config := range configs {
+		if err := q.authorizeContext(ctx, policy.ActionRead, config); err != nil {
+			return nil, err
+		}
+	}
+
+	return q.db.GetMCPServerUserTokensByUserID(ctx, arg)
 }
 
 func (q *querier) GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx context.Context) (database.WorkspaceBuildOrchestration, error) {
@@ -6172,10 +6206,7 @@ func (q *querier) InsertLicense(ctx context.Context, arg database.InsertLicenseP
 }
 
 func (q *querier) InsertMCPServerConfig(ctx context.Context, arg database.InsertMCPServerConfigParams) (database.MCPServerConfig, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return database.MCPServerConfig{}, err
-	}
-	return q.db.InsertMCPServerConfig(ctx, arg)
+	return insert(q.log, q.auth, rbac.ResourceMCPServerConfig.InOrg(arg.OrganizationID), q.db.InsertMCPServerConfig)(ctx, arg)
 }
 
 func (q *querier) InsertMemoryResourceMonitor(ctx context.Context, arg database.InsertMemoryResourceMonitorParams) (database.WorkspaceAgentMemoryResourceMonitor, error) {
@@ -6946,8 +6977,12 @@ func (q *querier) MarkChatsContextDirtyByAgent(ctx context.Context, arg database
 }
 
 func (q *querier) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, arg database.MarkMCPServerUserTokenRefreshFailureParams) (database.MCPServerUserToken, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return database.MCPServerUserToken{}, err
+	actor, ok := ActorFromContext(ctx)
+	if !ok {
+		return database.MCPServerUserToken{}, ErrNoActor
+	}
+	if actor.Type != rbac.SubjectTypeSystemRestricted {
+		return database.MCPServerUserToken{}, NotAuthorizedError{Err: xerrors.New("MCP server token refresh requires system-restricted context")}
 	}
 	return q.db.MarkMCPServerUserTokenRefreshFailure(ctx, arg)
 }
@@ -7632,15 +7667,19 @@ func (q *querier) UpdateInboxNotificationReadStatus(ctx context.Context, args da
 }
 
 func (q *querier) UpdateMCPServerConfig(ctx context.Context, arg database.UpdateMCPServerConfigParams) (database.MCPServerConfig, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return database.MCPServerConfig{}, err
+	fetch := func(ctx context.Context, arg database.UpdateMCPServerConfigParams) (database.MCPServerConfig, error) {
+		return q.db.GetMCPServerConfigByID(ctx, arg.ID)
 	}
-	return q.db.UpdateMCPServerConfig(ctx, arg)
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateMCPServerConfig)(ctx, arg)
 }
 
 func (q *querier) UpdateMCPServerUserTokenFromRefresh(ctx context.Context, arg database.UpdateMCPServerUserTokenFromRefreshParams) (database.MCPServerUserToken, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return database.MCPServerUserToken{}, err
+	actor, ok := ActorFromContext(ctx)
+	if !ok {
+		return database.MCPServerUserToken{}, ErrNoActor
+	}
+	if actor.Type != rbac.SubjectTypeSystemRestricted {
+		return database.MCPServerUserToken{}, NotAuthorizedError{Err: xerrors.New("MCP server token refresh requires system-restricted context")}
 	}
 	return q.db.UpdateMCPServerUserTokenFromRefresh(ctx, arg)
 }
@@ -9011,7 +9050,7 @@ func (q *querier) UpsertLogoURL(ctx context.Context, value string) error {
 }
 
 func (q *querier) UpsertMCPServerUserToken(ctx context.Context, arg database.UpsertMCPServerUserTokenParams) (database.MCPServerUserToken, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+	if err := q.authorizeMCPServerUserToken(ctx, arg.UserID, arg.MCPServerConfigID); err != nil {
 		return database.MCPServerUserToken{}, err
 	}
 	return q.db.UpsertMCPServerUserToken(ctx, arg)

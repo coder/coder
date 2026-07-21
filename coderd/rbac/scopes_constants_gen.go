@@ -78,6 +78,10 @@ const (
 	ScopeLicenseCreate                       ScopeName = "license:create"
 	ScopeLicenseDelete                       ScopeName = "license:delete"
 	ScopeLicenseRead                         ScopeName = "license:read"
+	ScopeMcpServerConfigCreate               ScopeName = "mcp_server_config:create"
+	ScopeMcpServerConfigDelete               ScopeName = "mcp_server_config:delete"
+	ScopeMcpServerConfigRead                 ScopeName = "mcp_server_config:read"
+	ScopeMcpServerConfigUpdate               ScopeName = "mcp_server_config:update"
 	ScopeNotificationMessageCreate           ScopeName = "notification_message:create"
 	ScopeNotificationMessageDelete           ScopeName = "notification_message:delete"
 	ScopeNotificationMessageRead             ScopeName = "notification_message:read"
@@ -271,6 +275,10 @@ func (e ScopeName) Valid() bool {
 		ScopeLicenseCreate,
 		ScopeLicenseDelete,
 		ScopeLicenseRead,
+		ScopeMcpServerConfigCreate,
+		ScopeMcpServerConfigDelete,
+		ScopeMcpServerConfigRead,
+		ScopeMcpServerConfigUpdate,
 		ScopeNotificationMessageCreate,
 		ScopeNotificationMessageDelete,
 		ScopeNotificationMessageRead,
@@ -465,6 +473,10 @@ func AllScopeNameValues() []ScopeName {
 		ScopeLicenseCreate,
 		ScopeLicenseDelete,
 		ScopeLicenseRead,
+		ScopeMcpServerConfigCreate,
+		ScopeMcpServerConfigDelete,
+		ScopeMcpServerConfigRead,
+		ScopeMcpServerConfigUpdate,
 		ScopeNotificationMessageCreate,
 		ScopeNotificationMessageDelete,
 		ScopeNotificationMessageRead,

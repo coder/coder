@@ -62,6 +62,60 @@ func permissionGranted(perms []rbac.Permission, target rbac.Permission) bool {
 	})
 }
 
+func TestMCPServerConfigPermissions(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.New()
+	otherOrgID := uuid.New()
+	resource := rbac.ResourceMCPServerConfig.WithID(uuid.New()).InOrg(orgID)
+	auth := rbac.NewStrictAuthorizer(prometheus.NewRegistry())
+
+	memberRole, err := rbac.RoleByName(rbac.RoleMember())
+	require.NoError(t, err)
+	memberPerms := rbac.OrgMemberPermissions(rbac.OrgSettings{})
+	orgMemberRole := rbac.Role{
+		Identifier: rbac.ScopedRoleOrgMember(orgID),
+		ByOrgID: map[string]rbac.OrgPermissions{
+			orgID.String(): {
+				Org:    memberPerms.Org,
+				Member: memberPerms.Member,
+			},
+		},
+	}
+	orgMember := rbac.Subject{
+		ID:    uuid.NewString(),
+		Roles: rbac.Roles{memberRole, orgMemberRole},
+		Scope: rbac.ScopeAll,
+	}
+
+	require.NoError(t, auth.Authorize(context.Background(), orgMember, policy.ActionRead, resource))
+	require.ErrorAs(t, auth.Authorize(context.Background(), orgMember, policy.ActionRead, resource.InOrg(otherOrgID)), &rbac.UnauthorizedError{})
+	for _, action := range []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete} {
+		require.ErrorAs(t, auth.Authorize(context.Background(), orgMember, action, resource), &rbac.UnauthorizedError{})
+	}
+
+	orgAdminRole, err := rbac.RoleByName(rbac.ScopedRoleOrgAdmin(orgID))
+	require.NoError(t, err)
+	orgAdmin := rbac.Subject{
+		ID:    uuid.NewString(),
+		Roles: rbac.Roles{memberRole, orgAdminRole},
+		Scope: rbac.ScopeAll,
+	}
+	for _, action := range []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete} {
+		require.NoError(t, auth.Authorize(context.Background(), orgAdmin, action, resource))
+		require.ErrorAs(t, auth.Authorize(context.Background(), orgAdmin, action, resource.InOrg(otherOrgID)), &rbac.UnauthorizedError{})
+	}
+
+	require.NotContains(t, rbac.ResourceMCPServerConfig.AvailableActions(), policy.ActionShare)
+
+	siteMember := rbac.Subject{
+		ID:    uuid.NewString(),
+		Roles: rbac.Roles{memberRole},
+		Scope: rbac.ScopeAll,
+	}
+	require.ErrorAs(t, auth.Authorize(context.Background(), siteMember, policy.ActionRead, resource), &rbac.UnauthorizedError{})
+}
+
 func TestOrgSharingPermissions(t *testing.T) {
 	t.Parallel()
 

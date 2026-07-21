@@ -143,6 +143,17 @@ func TestAPIKeyScopesExpand(t *testing.T) {
 	})
 }
 
+func TestMCPServerConfigRBACObject(t *testing.T) {
+	t.Parallel()
+
+	config := MCPServerConfig{
+		ID:             uuid.New(),
+		OrganizationID: uuid.New(),
+	}
+
+	require.Equal(t, rbac.ResourceMCPServerConfig.WithID(config.ID).InOrg(config.OrganizationID), config.RBACObject())
+}
+
 //nolint:tparallel,paralleltest
 func TestChatACLDisabled(t *testing.T) {
 	uid := uuid.NewString()

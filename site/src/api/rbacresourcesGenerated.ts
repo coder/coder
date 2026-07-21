@@ -127,6 +127,12 @@ export const RBACResourceActions: Partial<
 		delete: "delete license",
 		read: "read licenses",
 	},
+	mcp_server_config: {
+		create: "create an MCP server configuration",
+		delete: "delete an MCP server configuration",
+		read: "read MCP server configurations",
+		update: "update an MCP server configuration",
+	},
 	notification_message: {
 		create: "create notification messages",
 		delete: "delete notification messages",
