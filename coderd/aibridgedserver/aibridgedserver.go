@@ -58,13 +58,7 @@ var (
 
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
 
-	// ErrNoAIGatewayAccess is returned when the initiator lacks permission
-	// to create AI Bridge interceptions.
-	ErrNoAIGatewayAccess = xerrors.New("no AI Gateway access")
-
-	// ErrAuthorizationInternal is returned when authorization cannot be
-	// evaluated due to a server-side fault (e.g. a failed role lookup),
-	// as opposed to a policy denial.
+	ErrNoAIGatewayAccess     = xerrors.New("no AI Gateway access")
 	ErrAuthorizationInternal = xerrors.New("internal error during authorization")
 )
 
