@@ -527,6 +527,7 @@ require (
 	github.com/linkdata/deadlock v0.5.5 // indirect
 	github.com/minio/simdjson-go v0.4.5 // indirect
 	github.com/petermattis/goid v0.0.0-20260226131333-17d1149c6ac6 // indirect
+	github.com/q-uint/parser v0.3.1 // indirect
 	github.com/trailofbits/go-mutexasserts v0.0.0-20250514102930-c1f3d2e37561 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.opentelemetry.io/collector/featuregate v1.51.1-0.20260205185216-81bc641f26c0 // indirect
@@ -553,7 +554,7 @@ require (
 	github.com/nats-io/nats-server/v2 v2.14.2
 	github.com/nats-io/nats.go v1.52.0
 	github.com/openai/openai-go/v3 v3.28.0
-	github.com/scim2/filter-parser/v2 v2.2.0
+	github.com/scim2/filter-parser/v2 v2.3.1
 	github.com/shopspring/decimal v1.4.0
 	github.com/smallstep/pkcs7 v0.2.1
 	github.com/sony/gobreaker/v2 v2.4.0
@@ -609,7 +610,6 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/daixiang0/gci v0.13.7 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1 // indirect
-	github.com/di-wu/parser v0.2.2 // indirect
 	github.com/di-wu/xsd-datetime v1.0.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0 // indirect
