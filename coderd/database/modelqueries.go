@@ -1196,27 +1196,31 @@ func (q *sqlQuerier) UpdateUserLinkRawJSON(ctx context.Context, userID uuid.UUID
 	return err
 }
 
-type mcpServerConfigQuerier interface {
-	GetAuthorizedMCPServerConfigs(ctx context.Context, prepared rbac.PreparedAuthorized) ([]MCPServerConfig, error)
-	GetMCPServerConfigManagementList(ctx context.Context) ([]MCPServerConfig, error)
+type GetAuthorizedMCPServerConfigsParams struct {
+	OrganizationID uuid.UUID
+	Prepared       rbac.PreparedAuthorized
 }
 
-func (q *sqlQuerier) GetAuthorizedMCPServerConfigs(ctx context.Context, prepared rbac.PreparedAuthorized) ([]MCPServerConfig, error) {
-	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+type mcpServerConfigQuerier interface {
+	GetAuthorizedMCPServerConfigs(ctx context.Context, arg GetAuthorizedMCPServerConfigsParams) ([]MCPServerConfig, error)
+}
+
+func (q *sqlQuerier) GetAuthorizedMCPServerConfigs(ctx context.Context, arg GetAuthorizedMCPServerConfigsParams) ([]MCPServerConfig, error) {
+	authorizedFilter, err := arg.Prepared.CompileToSQL(ctx, regosql.ConvertConfig{
 		VariableConverter: regosql.MCPServerConfigNoACLConverter(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("compile authorized filter: %w", err)
 	}
 
-	filtered, err := insertAuthorizedFilter(getMCPServerConfigs, fmt.Sprintf(" AND %s", authorizedFilter))
+	filtered, err := insertAuthorizedFilter(getMCPServerConfigsByOrganization, fmt.Sprintf(" AND %s", authorizedFilter))
 	if err != nil {
 		return nil, xerrors.Errorf("insert authorized filter: %w", err)
 	}
 
 	// The name comment is for metric tracking
 	query := fmt.Sprintf("-- name: GetAuthorizedMCPServerConfigs :many\n%s", filtered)
-	rows, err := q.db.QueryContext(ctx, query)
+	rows, err := q.db.QueryContext(ctx, query, arg.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -1266,14 +1270,4 @@ func (q *sqlQuerier) GetAuthorizedMCPServerConfigs(ctx context.Context, prepared
 		return nil, err
 	}
 	return items, nil
-}
-
-// GetMCPServerConfigManagementList returns every MCP server config
-// unfiltered. It backs the interim HTTP management list, whose gate is
-// deployment_config read; the query behind that gate must carry the gate's
-// contract until the B3 cutover swaps both to the authorized list.
-//
-// TODO(mafredri): remove after CODAGT-711 B3 (org-scoping cutover).
-func (q *sqlQuerier) GetMCPServerConfigManagementList(ctx context.Context) ([]MCPServerConfig, error) {
-	return q.GetMCPServerConfigs(ctx)
 }

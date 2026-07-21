@@ -1985,11 +1985,11 @@ func (m queryMetricsStore) GetEnabledChatModelConfigs(ctx context.Context) ([]da
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
+func (m queryMetricsStore) GetEnabledMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetEnabledMCPServerConfigs(ctx)
-	m.queryLatencies.WithLabelValues("GetEnabledMCPServerConfigs").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEnabledMCPServerConfigs").Inc()
+	r0, r1 := m.s.GetEnabledMCPServerConfigsByOrganization(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("GetEnabledMCPServerConfigsByOrganization").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEnabledMCPServerConfigsByOrganization").Inc()
 	return r0, r1
 }
 
@@ -2054,14 +2054,6 @@ func (m queryMetricsStore) GetFilteredInboxNotificationsByUserID(ctx context.Con
 	r0, r1 := m.s.GetFilteredInboxNotificationsByUserID(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetFilteredInboxNotificationsByUserID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetFilteredInboxNotificationsByUserID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetForcedMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetForcedMCPServerConfigs(ctx)
-	m.queryLatencies.WithLabelValues("GetForcedMCPServerConfigs").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetForcedMCPServerConfigs").Inc()
 	return r0, r1
 }
 
@@ -2305,27 +2297,19 @@ func (m queryMetricsStore) GetMCPServerConfigByOrganizationAndSlug(ctx context.C
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
+func (m queryMetricsStore) GetMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetMCPServerConfigs(ctx)
-	m.queryLatencies.WithLabelValues("GetMCPServerConfigs").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerConfigs").Inc()
+	r0, r1 := m.s.GetMCPServerConfigsByOrganization(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("GetMCPServerConfigsByOrganization").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerConfigsByOrganization").Inc()
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.MCPServerConfig, error) {
+func (m queryMetricsStore) GetMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg database.GetMCPServerConfigsByOrganizationAndIDsParams) ([]database.MCPServerConfig, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetMCPServerConfigsByIDs(ctx, ids)
-	m.queryLatencies.WithLabelValues("GetMCPServerConfigsByIDs").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerConfigsByIDs").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetMCPServerConfigsByIDsAndOrganizations(ctx context.Context, arg database.GetMCPServerConfigsByIDsAndOrganizationsParams) ([]database.MCPServerConfig, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetMCPServerConfigsByIDsAndOrganizations(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetMCPServerConfigsByIDsAndOrganizations").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerConfigsByIDsAndOrganizations").Inc()
+	r0, r1 := m.s.GetMCPServerConfigsByOrganizationAndIDs(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetMCPServerConfigsByOrganizationAndIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerConfigsByOrganizationAndIDs").Inc()
 	return r0, r1
 }
 
@@ -6729,18 +6713,10 @@ func (m queryMetricsStore) GetAuthorizedChatsByChatFileID(ctx context.Context, f
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAuthorizedMCPServerConfigs(ctx context.Context, prepared rbac.PreparedAuthorized) ([]database.MCPServerConfig, error) {
+func (m queryMetricsStore) GetAuthorizedMCPServerConfigs(ctx context.Context, arg database.GetAuthorizedMCPServerConfigsParams) ([]database.MCPServerConfig, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetAuthorizedMCPServerConfigs(ctx, prepared)
+	r0, r1 := m.s.GetAuthorizedMCPServerConfigs(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetAuthorizedMCPServerConfigs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedMCPServerConfigs").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetMCPServerConfigManagementList(ctx context.Context) ([]database.MCPServerConfig, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetMCPServerConfigManagementList(ctx)
-	m.queryLatencies.WithLabelValues("GetMCPServerConfigManagementList").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerConfigManagementList").Inc()
 	return r0, r1
 }
