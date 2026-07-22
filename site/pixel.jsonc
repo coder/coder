@@ -5,7 +5,7 @@
 		"buildCommand": "pnpm exec storybook build --test --disable-telemetry --stats-json storybook-static/",
 		"outputDirectory": "storybook-static/"
 	},
-	"shotConcurrency": 32,
+	"shotConcurrency": 16,
 	"matrix": {
 		"browsers": ["chrome"],
 		// TODO: Add "phone" and "tablet" when upgrading to pixel-storybook 0.3.
