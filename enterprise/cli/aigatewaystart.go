@@ -235,25 +235,6 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 	return cmd
 }
 
-// resolveAIGatewayKey resolves key from --key or --key-file flags.
-// If both are set, an error is returned. If neither is set, an empty string is returned.
-func resolveAIGatewayKey(key string, keyFile string) (string, error) {
-	if key != "" && keyFile != "" {
-		return "", xerrors.New(keyFlagsExclusiveErr)
-	}
-	if key == "" && keyFile == "" {
-		return "", xerrors.New(keyFlagsMissingErr)
-	}
-	if keyFile == "" {
-		return key, nil
-	}
-	data, err := os.ReadFile(keyFile)
-	if err != nil {
-		return "", xerrors.Errorf("read AI Gateway key file %q: %w", keyFile, err)
-	}
-	return strings.TrimSpace(string(data)), nil
-}
-
 type standaloneGatewayParams struct {
 	// Configuration.
 	bridgeConfig codersdk.AIBridgeConfig
@@ -508,4 +489,23 @@ func newGatewayMux(aibridgedHandler http.Handler, aibridgedReady func() bool, mi
 	})
 
 	return mux
+}
+
+// resolveAIGatewayKey resolves key from --key or --key-file flags.
+// If both are set, an error is returned. If neither is set, an empty string is returned.
+func resolveAIGatewayKey(key string, keyFile string) (string, error) {
+	if key != "" && keyFile != "" {
+		return "", xerrors.New(keyFlagsExclusiveErr)
+	}
+	if key == "" && keyFile == "" {
+		return "", xerrors.New(keyFlagsMissingErr)
+	}
+	if keyFile == "" {
+		return key, nil
+	}
+	data, err := os.ReadFile(keyFile)
+	if err != nil {
+		return "", xerrors.Errorf("read AI Gateway key file %q: %w", keyFile, err)
+	}
+	return strings.TrimSpace(string(data)), nil
 }
