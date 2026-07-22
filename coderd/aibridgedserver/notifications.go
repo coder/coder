@@ -104,10 +104,7 @@ func (s *Server) detectBudgetThresholdCrossings(ctx context.Context, tx database
 // notifyBudgetThresholdCrossing enqueues the notification for the user who
 // crossed the threshold.
 func (s *Server) notifyBudgetThresholdCrossing(ctx context.Context, crossing budgetThresholdCrossing) error {
-	//nolint:gocritic // The interception context is scoped to AI Bridge; reading the group and enqueuing need system access.
-	sysCtx := dbauthz.AsSystemRestricted(ctx)
-
-	group, err := s.store.GetGroupByID(sysCtx, crossing.groupID)
+	group, err := s.store.GetGroupByID(ctx, crossing.groupID)
 	if err != nil {
 		return xerrors.Errorf("look up group %q: %w", crossing.groupID, err)
 	}
@@ -118,7 +115,8 @@ func (s *Server) notifyBudgetThresholdCrossing(ctx context.Context, crossing bud
 		"group_name": group.Name,
 	}
 
-	if _, err := s.notifEnqueuer.EnqueueWithData(sysCtx, crossing.userID, crossing.template,
+	//nolint:gocritic // Enqueuing notifications requires the notifier actor.
+	if _, err := s.notifEnqueuer.EnqueueWithData(dbauthz.AsNotifier(ctx), crossing.userID, crossing.template,
 		labels, nil, budgetNotificationsCreatedBy,
 		crossing.groupID,
 	); err != nil {
