@@ -15,10 +15,11 @@ as `make lint/docs-html` (part of `make lint`).
   generated into `docs/reference/**`.
 - **Void-element end tags** such as `</br>`. Void elements like `<br>`, `<img>`,
   and `<hr>` have no end tag.
-- **Unregistered or incorrectly capitalized component tags** such as `<Image>`.
-  Tag names are validated case-insensitively against the standard HTML5 element
-  set (plus the `<children>` renderer component), so `<Image>` is reported
-  because `image` is not a real element, not because it is capitalized.
+- **Capitalized or unregistered component tags** such as `<Image>` or `<Table>`.
+  The docs renderer reads a capitalized tag as a component reference and drops
+  it unless the component is registered (only the lowercase `<children>`
+  directive is). Any name outside the standard HTML5 element set is reported the
+  same way.
 - **Unclosed container tags**, for example a `<div class="tabs">` that is never
   closed and leaks its wrapper over the rest of the page.
 
@@ -29,7 +30,8 @@ raw-HTML nodes are inspected, so angle brackets inside fenced code blocks,
 inline code spans, HTML comments, and `<https://…>` / `<user@host>` autolinks
 are ignored. Each raw-HTML node is tokenized as a whole with
 `golang.org/x/net/html`, so a tag whose attributes wrap across lines is not
-torn in half. Any tag outside the standard HTML5 element set (plus the
+torn in half. A tag whose raw name is capitalized is reported as a component
+reference; otherwise any name outside the standard HTML5 element set (plus the
 intentional `<children>` renderer component, which is still balance-checked) is
 reported. Inline SVG and MathML are intentionally **not** in the allowed set (no
 docs page uses them); add the element to `allowedElements` in `main.go` if that

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -150,6 +151,54 @@ func TestCheckSource(t *testing.T) {
 			src:  "If a < b and b > c then done.\n",
 			want: nil,
 		},
+		{
+			// CRF-1 regression: a self-closing flag on a non-void container is
+			// ignored by the HTML5 parser, so <div class="tabs"/> leaks its
+			// wrapper exactly like the open spelling and must still be caught.
+			// One character used to defeat the headline leaked-wrapper check.
+			name: "self-closing div still leaks wrapper",
+			src:  "<div class=\"tabs\"/>\n\n## Heading\n\ncontent\n",
+			want: []finding{{kind: kindUnclosedTag, tag: "div"}},
+		},
+		{
+			// CRF-2: a capitalized tag whose lowercase name is a real element
+			// (<Table>, <Section>) is a component reference, not that element,
+			// and is reported rather than passing on the accidental lookup.
+			name: "capitalized real-element name is a component",
+			src:  "<Table>\n",
+			want: []finding{{kind: kindUnknownElement, tag: "table"}},
+		},
+		{
+			name: "another capitalized real-element name is a component",
+			src:  "<Section>\n\ncontent\n",
+			want: []finding{{kind: kindUnknownElement, tag: "section"}},
+		},
+		{
+			// The capitalized closing tag must not add a spurious stray-end-tag;
+			// the opening tag already produced the finding.
+			name: "capitalized component with close tag reports once",
+			src:  "<Table>\n\ncontent\n\n</Table>\n",
+			want: []finding{{kind: kindUnknownElement, tag: "table"}},
+		},
+		{
+			// CRF-3: a colon-shaped placeholder is not a real autolink, so it is
+			// checked (and reported) inside a raw-HTML block.
+			name: "colon-shaped placeholder in raw block is caught",
+			src:  "<div>\n<region:id>\n</div>\n",
+			want: []finding{{kind: kindUnknownElement, tag: "region:id"}},
+		},
+		{
+			name: "at-shaped placeholder without a domain dot is caught",
+			src:  "<div>\n<user@host>\n</div>\n",
+			want: []finding{{kind: kindUnknownElement, tag: "user@host"}},
+		},
+		{
+			// A real dotted email is a genuine autolink and stays ignored, even
+			// inside a raw-HTML block.
+			name: "email autolink inside raw block is ignored",
+			src:  "<div>\n<ops@coder.com>\n</div>\n",
+			want: nil,
+		},
 	}
 
 	for _, tc := range cases {
@@ -177,6 +226,42 @@ func TestFindingLine(t *testing.T) {
 	}
 	if got[0].line != 3 {
 		t.Errorf("want unclosed <div> reported on line 3, got line %d", got[0].line)
+	}
+}
+
+// TestFindingLineWrapped pins the source line of a finding that is not the
+// first token in its raw-HTML block, so the buffer-offset -> source-line
+// mapping (srcOffset/spans added by the multi-line tokenization fix) is
+// actually exercised. A mapping that collapsed every token to the block start
+// would report line 1 here instead of line 2.
+func TestFindingLineWrapped(t *testing.T) {
+	t.Parallel()
+
+	// 1: <section> opens, 2: <Foo> is the finding, 3: </section> closes.
+	src := "<section>\n<Foo>\n</section>\n"
+	got := checkSource([]byte(src))
+	if len(got) != 1 {
+		t.Fatalf("want exactly 1 finding, got %d: %+v", len(got), got)
+	}
+	if got[0].kind != kindUnknownElement || got[0].tag != "foo" {
+		t.Fatalf("want unknown-element <Foo>, got %+v", got[0])
+	}
+	if got[0].line != 2 {
+		t.Errorf("want <Foo> reported on line 2, got line %d", got[0].line)
+	}
+}
+
+// TestIsGeneratedDoc covers the generated-doc routing branch, which no current
+// docs page triggers (every placeholder was fixed at its source), so only a
+// test exercises it.
+func TestIsGeneratedDoc(t *testing.T) {
+	t.Parallel()
+
+	if !isGeneratedDoc("docs/reference/cli/server.md") {
+		t.Error("want docs/reference/** treated as generated")
+	}
+	if isGeneratedDoc("docs/admin/security/audit-logs.md") {
+		t.Error("want a hand-written docs path treated as not generated")
 	}
 }
 
@@ -217,6 +302,14 @@ func TestFilterAllowedStaleEntry(t *testing.T) {
 	}
 	if got[0].kind != kindStaleAllowlist || got[0].tag != "glob" {
 		t.Fatalf("want stale-allowlist-entry for <glob>, got %+v", got[0])
+	}
+	// The fix lives in the linter's allowlist, not at any doc line, so the
+	// finding carries no line (main reports it against the linter source).
+	if got[0].line != 0 {
+		t.Errorf("want stale finding to carry no doc line, got line %d", got[0].line)
+	}
+	if !strings.Contains(got[0].msg, "allowedUnknownTags") {
+		t.Errorf("want stale message to name allowedUnknownTags, got %q", got[0].msg)
 	}
 }
 

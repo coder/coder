@@ -12,12 +12,11 @@
 //     This also covers CLI --help strings and Swagger annotations, whose text
 //     is generated into docs/reference/**.
 //   - Structurally invalid or unregistered HTML: end tags for void elements
-//     (</br>); tag names outside the standard HTML5 set, which catches both
-//     unregistered components and incorrectly capitalized ones such as
-//     <Image> (names are compared case-insensitively, so the finding is about
-//     the unknown name, not the capitalization); and unclosed container tags
-//     (a <div class="tabs"> that is never closed and leaks its wrapper over
-//     the rest of the page).
+//     (</br>); tag names outside the standard HTML5 element set; capitalized
+//     tags such as <Image> or <Table>, which the docs renderer reads as
+//     component references and drops when unregistered (only <children> is
+//     registered); and unclosed container tags (a <div class="tabs"> that is
+//     never closed and leaks its wrapper over the rest of the page).
 //
 // Detection is Markdown-aware: the file is parsed with goldmark and only raw
 // HTML nodes are inspected, so angle brackets inside fenced code blocks, inline
@@ -38,6 +37,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -58,12 +58,24 @@ var voidElements = map[string]bool{
 
 // allowedElements is the set of tag names permitted in docs Markdown: the
 // standard HTML5 element set plus "children", the one intentional renderer
-// component (a child-page card grid with no HTML equivalent). Names are
-// compared in lowercase, so this validates the element name, not its
-// capitalization. Any name outside this set is treated as a swallowed
-// placeholder or an unregistered component and is reported. Inline SVG and
-// MathML are intentionally out of scope (no docs page uses them); add the
-// element here if that changes.
+// component (a child-page card grid with no HTML equivalent). Lookups are
+// lowercase; a tag whose raw name is capitalized is treated as a component
+// reference and reported by scanNode before this set is consulted, so only
+// lowercase element names belong here. Any name outside the set is treated as
+// a swallowed placeholder or an unregistered component and is reported. Inline
+// SVG and MathML are intentionally out of scope (no docs page uses them); add
+// the element here if that changes.
+//
+// Maintenance: this set is hand-maintained to mirror the tags the docs
+// renderer actually accepts. It is not generated from the renderer, so a
+// renderer change that adds or removes an accepted tag is not reflected here
+// automatically and the two can drift until this map is updated by hand. Keep
+// them in sync whenever the renderer's accepted set changes.
+//
+// Known gap: a placeholder whose name is itself a real element (<input>,
+// <output>, <time>) is indistinguishable from intended markup and passes.
+// Such placeholders almost always live in fenced code blocks, which are
+// ignored, so the gap is narrow in practice.
 var allowedElements = map[string]bool{
 	// Standard HTML5 elements.
 	"a": true, "abbr": true, "address": true, "area": true, "article": true,
@@ -114,7 +126,9 @@ var optionalEndTags = map[string]bool{
 // The escape hatch is self-clearing: filterAllowed emits a stale-allowlist-entry
 // finding (failing the build) if an allowlisted tag no longer appears in its
 // file, so a dead entry cannot silently mask a future regression of the same
-// tag on that page.
+// tag on that page. The guard is per-tag on a scanned file; an entry whose
+// file is deleted outright is never rescanned and lingers as harmless dead
+// config (a missing file yields no findings, so nothing hides behind it).
 //
 // Temporary: docs/reference/cli/agent-firewall.md renders <host> and <glob>
 // from the --session-id-inject-target help text, which is defined in the
@@ -125,6 +139,11 @@ var optionalEndTags = map[string]bool{
 var allowedUnknownTags = map[string]map[string]bool{
 	"docs/reference/cli/agent-firewall.md": {"host": true, "glob": true},
 }
+
+// docshtmlcheckSource is where allowlist-maintenance findings are reported: the
+// fix for a stale entry lives in this file's allowedUnknownTags, not in the
+// scanned doc, so pointing at the doc would send the reader to the wrong file.
+const docshtmlcheckSource = "scripts/docshtmlcheck/main.go"
 
 type findingKind string
 
@@ -155,7 +174,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	total := 0
+	var htmlIssues, staleIssues int
 	for _, path := range files {
 		src, err := os.ReadFile(path)
 		if err != nil {
@@ -163,24 +182,49 @@ func main() {
 			os.Exit(2)
 		}
 		findings := filterAllowed(path, checkSource(src))
+		realFinding := false
 		for _, f := range findings {
-			_, _ = fmt.Printf("%s:%d: %s: %s\n", path, f.line, f.kind, f.msg)
-			total++
+			loc := path
+			if f.kind == kindStaleAllowlist {
+				// The fix is in this tool's allowlist, not the scanned doc, so
+				// report the linter source rather than a misleading docs:1.
+				loc = docshtmlcheckSource
+			}
+			if f.line > 0 {
+				_, _ = fmt.Printf("%s:%d: %s: %s\n", loc, f.line, f.kind, f.msg)
+			} else {
+				_, _ = fmt.Printf("%s: %s: %s\n", loc, f.kind, f.msg)
+			}
+			if f.kind == kindStaleAllowlist {
+				staleIssues++
+			} else {
+				htmlIssues++
+				realFinding = true
+			}
 		}
-		// Findings on a generated page can't be fixed in the page itself; point
-		// the author at the generator source instead of the throwaway output.
-		if len(findings) > 0 && isGeneratedDoc(path) {
+		// A finding on a generated page can't be fixed in the page itself, so
+		// point the author at the generator source. Skip it when the only
+		// findings are stale-allowlist entries (a tool-config issue, not
+		// swallowed content) and when the page is allowlisted (its placeholders
+		// come from an external CLI, so the codersdk/swagger note misdirects).
+		if realFinding && isGeneratedDoc(path) && allowedUnknownTags[canonicalPath(path)] == nil {
 			_, _ = fmt.Printf("%s: note: this page is generated by `make gen`; fix the source "+
 				"(codersdk/*.go doc comments, CLI --help text, or swagger annotations) and "+
 				"regenerate; edits to this file will not persist\n", path)
 		}
 	}
 
-	if total > 0 {
+	if htmlIssues > 0 {
 		_, _ = fmt.Fprintf(os.Stderr, "\ndocshtmlcheck: found %d invalid inline HTML issue(s).\n"+
 			"Wrap angle-bracket placeholders in backticks so they render as inline code\n"+
 			"(see docs/about/contributing/documentation.md), fix void-element end tags\n"+
-			"like </br>, use registered components for custom tags, and close container tags.\n", total)
+			"like </br>, use registered components for custom tags, and close container tags.\n", htmlIssues)
+	}
+	if staleIssues > 0 {
+		_, _ = fmt.Fprintf(os.Stderr, "\ndocshtmlcheck: found %d stale allowlist entry(ies); "+
+			"remove them from allowedUnknownTags in %s.\n", staleIssues, docshtmlcheckSource)
+	}
+	if htmlIssues+staleIssues > 0 {
 		os.Exit(1)
 	}
 }
@@ -266,8 +310,9 @@ func filterAllowed(path string, findings []finding) []finding {
 	}
 	slices.Sort(stale)
 	for _, tag := range stale {
+		// No line: the fix is in allowedUnknownTags, not at any line of the
+		// scanned doc. main reports these against the linter source.
 		out = append(out, finding{
-			line: 1,
 			kind: kindStaleAllowlist,
 			tag:  tag,
 			msg: fmt.Sprintf("allowlist entry <%s> for %s no longer suppresses anything; "+
@@ -304,12 +349,7 @@ func checkSource(src []byte) []finding {
 
 	// Anything left open at end of file is unclosed.
 	for _, open := range c.stack {
-		c.findings = append(c.findings, finding{
-			line: open.line,
-			kind: kindUnclosedTag,
-			tag:  open.tag,
-			msg:  fmt.Sprintf("unclosed <%s> tag", open.tag),
-		})
+		c.findings = append(c.findings, unclosedFinding(open))
 	}
 
 	slices.SortStableFunc(c.findings, func(a, b finding) int {
@@ -327,9 +367,41 @@ func segmentsOf(s *text.Segments) []text.Segment {
 	return out
 }
 
+// rawTagName extracts the original-case tag name from a raw token. The
+// tokenizer's TagName lowercases, which hides whether a tag was capitalized, so
+// scanNode reads the name straight from the raw bytes: skip the leading < and
+// the / of an end tag, then take everything up to the first whitespace, / or >.
+func rawTagName(raw []byte) string {
+	i := 0
+	for i < len(raw) && (raw[i] == '<' || raw[i] == '/') {
+		i++
+	}
+	start := i
+	for i < len(raw) {
+		switch raw[i] {
+		case ' ', '\t', '\n', '\r', '\f', '/', '>':
+			return string(raw[start:i])
+		}
+		i++
+	}
+	return string(raw[start:i])
+}
+
 type openTag struct {
 	tag  string
 	line int
+}
+
+// unclosedFinding builds the finding for a container tag left open. It is the
+// single source for the unclosed-tag message, shared by the end-of-file drain
+// in checkSource and the dangling-inner-tag loop in matchEndTag.
+func unclosedFinding(o openTag) finding {
+	return finding{
+		line: o.line,
+		kind: kindUnclosedTag,
+		tag:  o.tag,
+		msg:  fmt.Sprintf("unclosed <%s> tag", o.tag),
+	}
 }
 
 type checker struct {
@@ -379,18 +451,37 @@ func (c *checker) scanNode(segs []text.Segment) {
 		if tt == html.ErrorToken {
 			return
 		}
+		raw := z.Raw()
 		line := c.lineAt(srcOffset(pos))
-		pos += len(z.Raw())
+		pos += len(raw)
 
 		switch tt {
 		case html.StartTagToken, html.SelfClosingTagToken:
-			nameBytes, _ := z.TagName()
-			name := strings.ToLower(string(nameBytes))
+			rawName := rawTagName(raw)
+			name := strings.ToLower(rawName)
 			if autolinkShaped(name) {
-				// e.g. <https://...> or <user@host>: valid Markdown autolink
-				// syntax, never a real HTML element. goldmark only classifies
-				// these as autolinks in inline context, not inside a raw HTML
-				// block, so skip them explicitly to avoid false positives.
+				// e.g. <https://coder.com> or <user@coder.com>: valid Markdown
+				// autolink syntax, never a real HTML element. goldmark only
+				// classifies these as autolinks in inline context, not inside a
+				// raw HTML block, so skip them explicitly to avoid false
+				// positives.
+				continue
+			}
+			if rawName != name {
+				// A capitalized tag is an MDX/JSX component reference, not an
+				// HTML element (element names are case-insensitive but
+				// conventionally lowercase; the docs renderer treats a
+				// capitalized tag as a component). Report it regardless of
+				// whether the lowercased name collides with a real element, so
+				// <Table>, <Section>, and <Image> are all caught.
+				c.findings = append(c.findings, finding{
+					line: line,
+					kind: kindUnknownElement,
+					tag:  name,
+					msg: fmt.Sprintf("<%s> is a capitalized tag; the docs renderer reads it as a "+
+						"component reference and drops it unless registered. Use a lowercase HTML "+
+						"element or a registered component", rawName),
+				})
 				continue
 			}
 			if !allowedElements[name] {
@@ -404,16 +495,23 @@ func (c *checker) scanNode(segs []text.Segment) {
 				})
 				continue
 			}
-			// Only track balance for container elements that require an
-			// explicit end tag. Void elements and optional-end-tag elements
-			// are never pushed.
-			if tt == html.StartTagToken && !voidElements[name] && !optionalEndTags[name] {
+			// Track balance for container elements that need an explicit end
+			// tag. A self-closing flag on a non-void element (<div/>) is
+			// ignored by the HTML5 parser and the docs renderer, so it opens a
+			// container that leaks exactly like <div>; track both token kinds.
+			// Void and optional-end-tag elements are never pushed.
+			if !voidElements[name] && !optionalEndTags[name] {
 				c.stack = append(c.stack, openTag{tag: name, line: line})
 			}
 		case html.EndTagToken:
-			nameBytes, _ := z.TagName()
-			name := strings.ToLower(string(nameBytes))
+			rawName := rawTagName(raw)
+			name := strings.ToLower(rawName)
 			if autolinkShaped(name) {
+				continue
+			}
+			if rawName != name {
+				// Closing tag of a capitalized component; its opening tag was
+				// already reported, and component tags are not balance-tracked.
 				continue
 			}
 			if voidElements[name] {
@@ -430,23 +528,20 @@ func (c *checker) scanNode(segs []text.Segment) {
 				// end tags are not balance-tracked.
 				continue
 			}
-			c.pop(name, line)
+			c.matchEndTag(name, line)
 		}
 	}
 }
 
-// pop matches an end tag against the balance stack.
-func (c *checker) pop(name string, line int) {
+// matchEndTag resolves an end tag against the balance stack: it pops to the
+// matching open tag, emits kindUnclosedTag for any tags left dangling above the
+// match, and emits kindStrayEndTag when nothing matches.
+func (c *checker) matchEndTag(name string, line int) {
 	for i := len(c.stack) - 1; i >= 0; i-- {
 		if c.stack[i].tag == name {
 			// Tags above the match were left unclosed inside this element.
 			for j := len(c.stack) - 1; j > i; j-- {
-				c.findings = append(c.findings, finding{
-					line: c.stack[j].line,
-					kind: kindUnclosedTag,
-					tag:  c.stack[j].tag,
-					msg:  fmt.Sprintf("unclosed <%s> tag", c.stack[j].tag),
-				})
+				c.findings = append(c.findings, unclosedFinding(c.stack[j]))
 			}
 			c.stack = c.stack[:i]
 			return
@@ -460,13 +555,28 @@ func (c *checker) pop(name string, line int) {
 	})
 }
 
-// autolinkShaped reports whether a tokenized tag name looks like a Markdown
-// autolink rather than an HTML element. Autolinks such as <https://coder.com>
-// or <user@coder.com> tokenize as tags whose "name" contains a scheme colon or
-// an at sign; real HTML element names contain neither. Placeholders the linter
-// targets (<region>, <host>, <organization-name>) never match this.
+// schemeRe matches a URI scheme ending in a colon (e.g. "https:", "mailto:").
+// A Markdown autolink inside a raw-HTML block tokenizes with such a name.
+var schemeRe = regexp.MustCompile(`^[a-z][a-z0-9+.-]*:$`)
+
+// autolinkShaped reports whether a tokenized tag name is a real Markdown
+// autolink rather than an HTML element or a placeholder. goldmark only
+// classifies autolinks as such in inline context; inside a raw-HTML block one
+// tokenizes as a tag whose name is either a URI scheme ending in a colon
+// (<https://coder.com> tokenizes as "https:") or a mail-shaped local@domain
+// with a real, dotted domain (<user@coder.com>). A bare colon or at sign is
+// not enough, so placeholders the linter targets (<region:id>, <user@host>)
+// stay checked.
 func autolinkShaped(name string) bool {
-	return strings.ContainsAny(name, ":@")
+	if schemeRe.MatchString(name) {
+		return true
+	}
+	at := strings.IndexByte(name, '@')
+	if at <= 0 || at >= len(name)-1 {
+		return false
+	}
+	domain := name[at+1:]
+	return !strings.Contains(domain, "@") && strings.Contains(domain, ".")
 }
 
 // lineStarts returns the byte offset of the start of each line.
