@@ -14,9 +14,8 @@ func SafeRedirectPath(u string) string {
 		return "/"
 	}
 
-	// A path with two or more leading slashes (e.g. "///evil.com") is
-	// interpreted by some browsers as protocol-relative, so collapse any
-	// leading slashes down to exactly one.
+	// A path with 2 or more leading slashes (e.g. "//evil.com") is interpreted as
+	// protocol-relative, so make sure there is exactly one.
 	path := "/" + strings.TrimLeft(uri.EscapedPath(), "/")
 	if uri.RawQuery != "" {
 		return path + "?" + uri.RawQuery
