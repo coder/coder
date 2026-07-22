@@ -100,14 +100,19 @@ export const initialWizardState: TemplateBuilderWizardState = {
 	sessionId: "",
 };
 
+/** Arguments for building a fresh wizard state on mount. */
+type WizardInit = {
+	/** Optional base template to preselect (from the ?base= param). */
+	preselectedBase?: SelectedBaseMeta;
+	/** Stable session ID shared across telemetry events for this mount. */
+	sessionId: string;
+};
+
 /**
  * Builds the initial wizard state with a fresh telemetry session,
  * optionally preselecting a base template.
  */
-export function initWizardState(init: {
-	sessionId: string;
-	preselectedBase?: SelectedBaseMeta;
-}): TemplateBuilderWizardState {
+export function initWizardState(init: WizardInit): TemplateBuilderWizardState {
 	const state: TemplateBuilderWizardState = {
 		...initialWizardState,
 		enteredAt: Date.now(),
