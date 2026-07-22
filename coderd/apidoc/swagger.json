@@ -13891,6 +13891,17 @@
 				}
 			}
 		},
+		"codersdk.AIBridgeSessionNetworkDomain": {
+			"type": "object",
+			"properties": {
+				"count": {
+					"type": "integer"
+				},
+				"domain": {
+					"type": "string"
+				}
+			}
+		},
 		"codersdk.AIBridgeSessionThreadsResponse": {
 			"type": "object",
 			"properties": {
@@ -13915,6 +13926,24 @@
 					"type": "array",
 					"items": {
 						"type": "string"
+					}
+				},
+				"network_calls": {
+					"description": "NetworkCalls summarizes the Agent Firewall network calls made during the\nsession. A nil value means the session did not pass through Agent\nFirewall, so network call monitoring was not active, which the UI\nsurfaces as \"Disabled\".",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.AIBridgeSessionNetworkCallSummary"
+						}
+					]
+				},
+				"network_domain_count": {
+					"type": "integer"
+				},
+				"network_top_domains": {
+					"description": "NetworkTopDomains lists the most contacted destination hosts, ordered by\ncall count descending. NetworkDomainCount is the total number of distinct\ndomains, used to render a \"+N more\" overflow beyond the listed domains.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.AIBridgeSessionNetworkDomain"
 					}
 				},
 				"page_ended_at": {
