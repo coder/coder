@@ -113,6 +113,34 @@ func TestDispatcherDeny(t *testing.T) {
 	require.JSONEq(t, `"delete everything"`, string(row.OriginalInput.RawMessage))
 }
 
+func TestDispatcherDenyNullOverrideNotPersisted(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	event := newTestEvent(t, db, agenthooks.EventPreToolUse, agenthooks.PreToolUseData{
+		ToolUseID: "tool-use-1",
+		ToolName:  "execute",
+		ToolInput: json.RawMessage(`{"cmd":"rm"}`),
+	})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte(`{"permission":{"decision":"deny","input_override":null}}`))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	response, _, err := newTestDispatcher(t, db, server.Client(), server.URL, time.Second).Dispatch(
+		testutil.Context(t, testutil.WaitLong), event,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, response.Permission)
+	require.Equal(t, agenthooks.PermissionDeny, response.Permission.Decision)
+
+	row := singleDispatch(t, db, event.ChatID)
+	require.Equal(t, string(ResultDenied), row.Result)
+	require.Equal(t, string(agenthooks.PermissionDeny), row.Decision.String)
+	require.False(t, row.InputOverride.Valid)
+}
+
 func TestDispatcherAllowInputOverride(t *testing.T) {
 	t.Parallel()
 

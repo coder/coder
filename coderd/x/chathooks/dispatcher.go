@@ -553,7 +553,10 @@ func (d *Dispatcher) finalize(ctx context.Context, event Event, dispatchID uuid.
 	var inputOverride pqtype.NullRawMessage
 	if response.Permission != nil && accepted {
 		decision = sql.NullString{String: string(response.Permission.Decision), Valid: true}
-		if response.Permission.InputOverride != nil {
+		// A deny override is at most JSON null (validateResponse rejects the
+		// rest), and persisting that null would let decision reuse match
+		// future null tool inputs against it. Persist allow overrides only.
+		if response.Permission.Decision == agenthooks.PermissionAllow && response.Permission.InputOverride != nil {
 			inputOverride = pqtype.NullRawMessage{RawMessage: bytes.Clone(response.Permission.InputOverride), Valid: true}
 		}
 	} else if event.Type == agenthooks.EventPreToolUse && outcome.result == ResultOK {
