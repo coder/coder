@@ -2,8 +2,6 @@ coder:
   image:
     tag: v2.36.0
 aigateway:
-  coderService:
-    scheme: http
   keySecret:
     name: key
 ingress:

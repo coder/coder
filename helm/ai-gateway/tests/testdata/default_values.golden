@@ -87,14 +87,17 @@ spec:
         env:
         - name: CODER_AI_GATEWAY_HTTP_ADDRESS
           value: 0.0.0.0:4001
-        - name: CODER_AI_GATEWAY_KEY_FILE
-          value: /etc/coder/ai-gateway-auth/key
-        - name: CODER_URL
-          value: https://coder.example.com
         - name: CODER_PROMETHEUS_ENABLE
           value: "true"
         - name: CODER_PROMETHEUS_ADDRESS
           value: 0.0.0.0:2112
+        - name: CODER_URL
+          value: https://coder.example.com
+        - name: CODER_AI_GATEWAY_KEY
+          valueFrom:
+            secretKeyRef:
+              key: key
+              name: ai-gateway-key
         image: ghcr.io/coder/coder:v2.36.0
         imagePullPolicy: IfNotPresent
         lifecycle: {}
@@ -123,17 +126,8 @@ spec:
           runAsUser: 1000
           seccompProfile:
             type: RuntimeDefault
-        volumeMounts:
-        - mountPath: /etc/coder/ai-gateway-auth
-          name: ai-gateway-auth
-          readOnly: true
+        volumeMounts: []
       restartPolicy: Always
       serviceAccountName: coder-ai-gateway
       terminationGracePeriodSeconds: 330
-      volumes:
-      - name: ai-gateway-auth
-        secret:
-          items:
-          - key: key
-            path: key
-          secretName: ai-gateway-key
+      volumes: []

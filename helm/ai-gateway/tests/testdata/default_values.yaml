@@ -2,7 +2,12 @@ coder:
   replicaCount: 3
   image:
     tag: v2.36.0
-aigateway:
-  coderURL: https://coder.example.com
-  keySecret:
-    name: ai-gateway-key
+  env:
+    - name: CODER_URL
+      value: https://coder.example.com
+    - name: CODER_AI_GATEWAY_KEY
+      valueFrom:
+        secretKeyRef:
+          name: ai-gateway-key
+          key: key
+aigateway: {}

@@ -91,12 +91,12 @@ spec:
           value: 0.0.0.0:4001
         - name: CODER_AI_GATEWAY_KEY_FILE
           value: /etc/coder/ai-gateway-auth/key
-        - name: CODER_URL
-          value: http://coder.default.svc.cluster.local:80
         - name: CODER_PROMETHEUS_ENABLE
           value: "true"
         - name: CODER_PROMETHEUS_ADDRESS
           value: 0.0.0.0:2112
+        - name: CODER_URL
+          value: http://coder.default.svc.cluster.local:80
         image: ghcr.io/coder/coder:v2.36.0
         imagePullPolicy: IfNotPresent
         lifecycle: {}

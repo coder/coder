@@ -62,19 +62,8 @@
     },
     "aigateway": {
       "type": "object", "additionalProperties": false,
-      "required": ["coderURL", "coderService", "keySecret", "coderTLS", "listenerTLS", "terminationGracePeriodSeconds"],
+      "required": ["keySecret", "coderTLS", "listenerTLS", "terminationGracePeriodSeconds"],
       "properties": {
-        "coderURL": {"type": "string"},
-        "coderService": {
-          "type": "object", "additionalProperties": false,
-          "required": ["name", "namespace", "scheme", "port"],
-          "properties": {
-            "name": {"type": "string", "minLength": 1},
-            "namespace": {"type": "string"},
-            "scheme": {"enum": ["", "http", "https"]},
-            "port": {"type": "integer", "minimum": 1, "maximum": 65535}
-          }
-        },
         "keySecret": {
           "type": "object", "additionalProperties": false,
           "required": ["name", "key"],

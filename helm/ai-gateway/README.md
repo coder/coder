@@ -1,74 +1,68 @@
 # Coder AI Gateway Helm chart
 
-This chart runs the Coder AI Gateway as an independent Kubernetes Deployment.
-It references an existing AI Gateway key Secret.
-It does not create credentials or TLS Secrets.
+This chart deploys the Coder AI Gateway as a standalone Kubernetes Deployment.
+The Gateway connects to Coder using `CODER_URL` and an AI Gateway key. The Coder
+AI Gateway Proxy (`aibridgeproxyd`) forwards proxied AI traffic to the standalone
+Gateway.
+
+The chart does not create credentials or TLS Secrets.
 
 ## Install
 
 ### Prerequisites
 
-1. An AI Gateway key created in Coder.
-2. A Kubernetes Secret containing that key in the chart namespace:
-
-   ```console
-   kubectl create secret generic coder-ai-gateway-key \
-     --namespace <release-namespace> \
-     --from-literal=key='<AI gateway key>'
-   ```
+- An AI Gateway key created in Coder.
+- A Coder image that includes the `coder ai-gateway start` command. The official
+  Coder v2.36.0 image is the first version to include this command.
 
 ### Configure the chart
 
-Create a `values.yaml` file with the required Gateway key Secret and Coder
-connection:
+Create a `values.yaml` file with the Coder URL and an AI Gateway key source. The
+following example uses a Kubernetes Secret in the Helm release namespace:
+
+```console
+kubectl create secret generic coder-ai-gateway-key \
+  --namespace <release-namespace> \
+  --from-literal=key='<AI gateway key>'
+```
 
 ```yaml
 coder:
   image:
     # Required when installing the chart directly from Git.
     tag: "<coder version>"
+  env:
+    - name: CODER_URL
+      value: https://coder.example.com
 
 aigateway:
-  # Existing Secret created in the chart namespace.
   keySecret:
     name: coder-ai-gateway-key
-
-  # URL used by the Gateway to connect to Coder.
-  coderURL: https://coder.example.com
 ```
 
-Alternatively, the Gateway can connect to Coder through an in-cluster Service.
-Replace `coderURL` with:
+The Gateway can also connect to Coder through an in-cluster Service, for
+example:
 
 ```yaml
-aigateway:
-  coderService:
-    # Defaults to coder.
-    name: coder
-    # Defaults to the Helm release namespace.
-    namespace: coder
-    # Required: http or https.
-    scheme: http
-    # Defaults to 80.
-    port: 80
+coder:
+  env:
+    - name: CODER_URL
+      value: http://coder.coder.svc.cluster.local:80
 ```
 
-The chart constructs
-`<scheme>://<name>.<namespace>.svc.cluster.local:<port>`. For HTTPS, the Coder
-certificate must cover the internal Service hostname and the Gateway must trust
-its issuing CA.
+For HTTPS, the Coder certificate must cover the internal Service hostname and
+the Gateway must trust its issuing CA.
+
+Instead of `aigateway.keySecret`, set `CODER_AI_GATEWAY_KEY` or
+`CODER_AI_GATEWAY_KEY_FILE` through `coder.env`. Environment variables can also
+be supplied through `coder.envFrom`. The chart does not check for variable
+conflicts, regardless of whether values come from Helm options, `coder.env`, or
+`coder.envFrom`.
 
 When installing a released chart package, the chart automatically uses the
 matching Coder image version. Set `coder.image.tag` only when installing
-directly from Git or overriding the image version.
-
-The official Coder image must be v2.36.0 or newer. Earlier versions do not include
-`coder ai-gateway start` command. Custom images must provide that command.
-
-The chart rejects chart-owned variable names in `coder.env`. Helm cannot inspect
-keys supplied by `coder.envFrom`, do not include chart-owned variables there.
-In particular, `CODER_AI_GATEWAY_KEY` conflicts with the chart-managed
-`CODER_AI_GATEWAY_KEY_FILE` variable and prevents startup.
+directly from Git or overriding the image version. Custom images must provide
+the `coder ai-gateway start` command.
 
 ### Install the chart
 
@@ -78,16 +72,22 @@ helm install ai-gateway ./helm/ai-gateway \
   --values values.yaml
 ```
 
-If AI Gateway Proxy is enabled and should forward intercepted requests to
-this standalone Gateway instead of the embedded one, point coderd at the
-Gateway Service created by this chart. The exact target, including the scheme
-selected by `aigateway.listenerTLS`, is shown after installation and can be
-retrieved with `helm get notes ai-gateway --namespace <release-namespace>`.
-When listener TLS uses a private CA, the AI Gateway Proxy must trust that CA to
-forward requests to the Service over HTTPS.
+## Connect Coder to the standalone Gateway
 
-When `service.enable` is false, configure `CODER_AI_GATEWAY_PROXY_TARGET` with
-the URL of your user-managed route to the deployment.
+To route proxied AI requests through the standalone Gateway, configure the Coder
+AI Gateway Proxy to use the Service created by this chart. The target URL,
+including the scheme selected by `aigateway.listenerTLS`, is shown after
+installation. Retrieve it with:
+
+```console
+helm get notes ai-gateway --namespace <release-namespace>
+```
+
+When listener TLS uses a private CA, the AI Gateway Proxy must trust that CA to
+connect to the Service over HTTPS.
+
+When `service.enable` is false, set `CODER_AI_GATEWAY_PROXY_TARGET` to the URL of
+your user-managed route to the Deployment.
 
 ## TLS
 
@@ -97,37 +97,39 @@ For Gateway-to-Coder HTTPS with a private CA, set
 
 Prefer terminating client-facing TLS at a Kubernetes Ingress or a `Gateway`
 resource from the Kubernetes Gateway API. To terminate TLS in the AI Gateway
-process, configure `aigateway.listenerTLS.name`.
+process, set `aigateway.listenerTLS.name` to an existing TLS Secret.
 
 Client-facing TLS and backend TLS are independent. The `ingress.tls` settings
-configure TLS between clients and the Ingress. For HTTPRoute, the Gateway
+configure TLS between clients and the Ingress. For `HTTPRoute`, the Gateway
 listener that accepts client connections is configured outside this chart.
-These client-facing settings do not configure whether the Ingress or Gateway
-connects to the AI Gateway Service using HTTP or HTTPS.
+These settings do not configure whether the Ingress or Gateway connects to the
+AI Gateway Service using HTTP or HTTPS.
 
-When `aigateway.listenerTLS` is enabled behind an Ingress or HTTPRoute, configure
-the entry point to connect to the Service using HTTPS and to trust the AI
+When `aigateway.listenerTLS` is enabled behind an Ingress or `HTTPRoute`,
+configure the entry point to connect to the Service using HTTPS and trust the AI
 Gateway certificate. Ingress backend TLS is controller-specific and can usually
-be configured with `ingress.annotations`. Gateway API backend TLS is configured
-with a separate `BackendTLSPolicy`, which can be managed outside this chart or
-rendered with `extraTemplates`. The chart does not infer or validate this
-controller-specific backend configuration. Without backend TLS, the entry point
-sends plaintext HTTP to the HTTPS listener which typically results in a
-TLS handshake error reported as HTTP 502.
+be configured with `ingress.annotations`. Gateway API backend TLS uses a
+separate `BackendTLSPolicy`, which can be managed outside this chart or rendered
+with `extraTemplates`. The chart does not infer or validate this
+controller-specific configuration. Without backend TLS, the entry point sends
+plaintext HTTP to the HTTPS listener, which typically results in a TLS handshake
+error reported as HTTP 502.
 
 All referenced TLS Secrets must exist in the Helm release namespace.
 
-## Networking and scaling
+## Networking
 
-The data-plane Service, which carries LLM traffic, is a `ClusterIP` by
-default. `NodePort` and `LoadBalancer` are explicit alternatives. Ingress and
-HTTPRoute are optional and both route to the data-plane Service. If you enable
-Ingress or HTTPRoute, use a `ClusterIP` Service unless you intentionally need a
-second external entry point through a `LoadBalancer` Service.
+The data-plane Service, which carries LLM traffic, is a `ClusterIP` by default.
+`NodePort` and `LoadBalancer` are explicit alternatives. Ingress and `HTTPRoute`
+are optional and both route to the data-plane Service. If you enable Ingress or
+`HTTPRoute`, use a `ClusterIP` Service unless you intentionally need a second
+external entry point through a `LoadBalancer` Service.
+
+## Scaling and resources
 
 Set `coder.replicaCount` to run multiple AI Gateway replicas. The default
 resource requests are 1 CPU and 1 GiB of memory per replica. These requests are
-a starting point, not a capacity guarantee. CPU and Memory usage depends heavily
+a starting point, not a capacity guarantee. CPU and memory usage depend heavily
 on concurrent requests and payload size.
 
 Adjust `coder.resources` after observing production traffic. Consider setting
@@ -158,10 +160,18 @@ your monitoring stack or `extraTemplates`.
 ## Key rotation
 
 1. Create a new AI Gateway key in Coder.
-2. Update the Kubernetes Secret.
-3. Restart the Deployment, for example with
-   `kubectl rollout restart deployment/coder-ai-gateway \
-     --namespace <release-namespace>`.
+2. Update the configured key source:
+   - For `aigateway.keySecret`, update the referenced Secret or set `name` to a
+     new Secret.
+   - For a key supplied through `coder.env`, update the environment variable or
+     the file it references.
+3. If the update did not trigger a rollout, restart the Deployment, for example:
+
+   ```console
+   kubectl rollout restart deployment/coder-ai-gateway \
+     --namespace <release-namespace>
+   ```
+
 4. Verify every replica is ready and serving with the new key.
 5. Revoke the old key.
 

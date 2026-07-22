@@ -39,24 +39,9 @@ var testCases = []testCase{
 		fixture: "nodeport",
 	},
 	{
-		name:          "missing_key",
-		fixture:       "fails_missing_key",
-		expectedError: "aigateway.keySecret.name is required.",
-	},
-	{
 		name:          "missing_key_field",
 		fixture:       "fails_missing_key_field",
-		expectedError: "aigateway.keySecret.key is required.",
-	},
-	{
-		name:          "invalid_url",
-		fixture:       "fails_invalid_url",
-		expectedError: "aigateway.coderURL must begin with http:// or https://.",
-	},
-	{
-		name:          "missing_coder_scheme",
-		fixture:       "fails_missing_coder_scheme",
-		expectedError: "aigateway.coderService.scheme must be set to http or https when aigateway.coderURL is empty.",
+		expectedError: "aigateway.keySecret.key is required when name is set.",
 	},
 	{
 		name:          "partial_listener_tls",
@@ -110,16 +95,6 @@ var testCases = []testCase{
 		name:          "nodeport_with_clusterip",
 		fixture:       "fails_nodeport_with_clusterip",
 		expectedError: "service.nodePort requires service.type to be NodePort or LoadBalancer.",
-	},
-	{
-		name:          "chart_owned_env",
-		fixture:       "fails_chart_owned_env",
-		expectedError: "coder.env cannot override chart-owned variable CODER_URL.",
-	},
-	{
-		name:          "env_key_conflict",
-		fixture:       "fails_env_key_conflict",
-		expectedError: "coder.env cannot override chart-owned variable CODER_AI_GATEWAY_KEY.",
 	},
 }
 

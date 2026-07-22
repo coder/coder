@@ -47,12 +47,14 @@ spec:
       -
 {{ include "libcoder.containerspec" (list . "coder-ai-gateway.containerspec") | indent 8 }}
       volumes:
+        {{- if .Values.aigateway.keySecret.name }}
         - name: ai-gateway-auth
           secret:
             secretName: {{ .Values.aigateway.keySecret.name }}
             items:
               - key: {{ .Values.aigateway.keySecret.key }}
                 path: key
+        {{- end }}
         {{- if .Values.aigateway.listenerTLS.name }}
         - name: ai-gateway-listener
           secret:
@@ -96,10 +98,9 @@ envFrom:
 {{ toYaml . }}
 {{- end }}
 env:
-{{ include "coder-ai-gateway.ownedEnv" . }}
+{{ include "coder-ai-gateway.defaultEnv" . }}
 {{/*
-User additions follow the chart-owned variables so they may reference
-them via $(VAR). Overriding chart-owned names is rejected by validation.
+User additions follow chart defaults so they may reference or override them.
 */}}
 {{- with .Values.coder.env }}
 {{ toYaml . }}
@@ -125,9 +126,11 @@ readinessProbe:
 {{ include "coder-ai-gateway.probe" (dict "probe" .Values.coder.readinessProbe "path" "/readyz" "scheme" $scheme) | indent 2 }}
 {{- end }}
 volumeMounts:
+{{- if .Values.aigateway.keySecret.name }}
 - name: ai-gateway-auth
   mountPath: /etc/coder/ai-gateway-auth
   readOnly: true
+{{- end }}
 {{- if .Values.aigateway.listenerTLS.name }}
 - name: ai-gateway-listener
   mountPath: /etc/coder/ai-gateway-listener

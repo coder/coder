@@ -92,8 +92,6 @@ spec:
           value: 0.0.0.0:4001
         - name: CODER_AI_GATEWAY_KEY_FILE
           value: /etc/coder/ai-gateway-auth/key
-        - name: CODER_URL
-          value: https://coder-primary.coder-system.svc.cluster.local:8443
         - name: CODER_PROMETHEUS_ENABLE
           value: "true"
         - name: CODER_PROMETHEUS_ADDRESS
@@ -108,6 +106,10 @@ spec:
           value: /etc/coder/coder-client-tls/tls.crt
         - name: CODER_CLIENT_TLS_KEY_FILE
           value: /etc/coder/coder-client-tls/tls.key
+        - name: CODER_URL
+          value: https://coder-primary.coder-system.svc.cluster.local:8443
+        - name: CODER_AI_GATEWAY_HTTP_ADDRESS
+          value: 127.0.0.1:4444
         - name: CODER_VERBOSE
           value: "true"
         envFrom:

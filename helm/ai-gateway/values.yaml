@@ -1,15 +1,13 @@
 # coder -- Common workload configuration options.
 coder:
   # coder.env -- Additional environment variables for the AI Gateway
-  # container. Chart-owned variables cannot be overridden through this list.
+  # container. These are rendered after chart-configured variables, including
+  # when a variable name is duplicated.
   env: []
   # - name: "CODER_VERBOSE"
   #   value: "true"
 
   # coder.envFrom -- Additional envFrom sources for the AI Gateway container.
-  # Keys in these sources cannot be validated by Helm. Do not include
-  # chart-owned variables. CODER_AI_GATEWAY_KEY conflicts with the key file
-  # configured by the chart and prevents the Gateway from starting.
   envFrom: []
 
   # coder.image -- The image to use for the AI Gateway.
@@ -172,17 +170,10 @@ coder:
   command:
     - /opt/coder
 
-# Connection and listener settings for the standalone gateway.
+# Authentication and listener settings for the standalone gateway.
 aigateway:
-  # Explicit Coder URL. Takes precedence over coderService.
-  coderURL: ""
-  coderService:
-    name: coder
-    namespace: ""
-    # Set to http or https when coderURL is empty.
-    scheme: ""
-    port: 80
-  # Existing Secret containing an AI Gateway key.
+  # Optional existing Secret containing an AI Gateway key. When unset, provide
+  # CODER_AI_GATEWAY_KEY or CODER_AI_GATEWAY_KEY_FILE through coder.env.
   keySecret:
     name: ""
     key: key
@@ -199,7 +190,7 @@ aigateway:
     name: ""
     certKey: tls.crt
     keyKey: tls.key
-  # Allow the binary's 300-second shutdown timeout plus termination headroom.
+  # This must exceed the application's 300-second shutdown timeout.
   terminationGracePeriodSeconds: 330
 
 # Stable data-plane Service fronting the container's port 4001 listener.

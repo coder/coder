@@ -26,17 +26,16 @@ coder:
     name: workload-identity
     disableCreate: true
   env:
+    - name: CODER_URL
+      value: https://coder-primary.coder-system.svc.cluster.local:8443
+    - name: CODER_AI_GATEWAY_HTTP_ADDRESS
+      value: 127.0.0.1:4444
     - name: CODER_VERBOSE
       value: "true"
   envFrom:
     - configMapRef:
         name: gateway-config
 aigateway:
-  coderService:
-    name: coder-primary
-    namespace: coder-system
-    scheme: https
-    port: 8443
   keySecret:
     name: ai-gateway-key
     key: token

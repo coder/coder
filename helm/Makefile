@@ -31,6 +31,5 @@ lint/helm/ai-gateway:
 	helm lint --strict \
 		--set coder.image.tag=v0.0.1 \
 		--set aigateway.keySecret.name=test \
-		--set aigateway.coderService.scheme=http \
 		ai-gateway/
 .PHONY: lint/helm/ai-gateway
