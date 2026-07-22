@@ -1,5 +1,31 @@
 # Frontend Development Guidelines
 
+## Frontend Non-Negotiables (FE rules)
+
+Read [Frontend Patterns](../.claude/docs/FRONTEND_PATTERNS.md) before changing
+anything under `site/src/`. It is the canonical contract behind these rule
+IDs; reviewers cite them as FE1 to FE10.
+
+- **FE1**: UI behavior changes ship with Storybook stories whose `play`
+  function exercises the real interaction. Jest/RTL is for pure logic only.
+- **FE2**: No `any`, no `as unknown as`, no avoidable `as` casts. Use
+  generated types from `api/typesGenerated.ts`.
+- **FE3**: Search for an existing component or helper before writing one.
+  Keep PRs single-purpose.
+- **FE4**: No comments that restate identifiers, assertions, or control flow.
+- **FE5**: Every view handles loading, error, empty, and refetch states
+  without clobbering user state.
+- **FE6**: Interactive elements stay keyboard-reachable with correct
+  accessible names.
+- **FE7**: All server data through react-query. Import query key constants,
+  never re-type them as string literals.
+- **FE8**: `useEffect` only to synchronize with external systems. Never
+  derive state or chain fetches in effects.
+- **FE9**: Share entity fixtures as `Mock*` constants; compose story query
+  wiring inline per story.
+- **FE10**: Tests query semantic roles and names. No `querySelector` or
+  class-name assertions.
+
 ## TypeScript LSP Navigation (USE FIRST)
 
 When investigating or editing TypeScript/React code, always use the TypeScript language server tools for accurate navigation:
