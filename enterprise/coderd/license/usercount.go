@@ -65,7 +65,8 @@ func CountWorkspaceCapableUsers(ctx context.Context, logger slog.Logger, db data
 	}
 
 	// Emitted only when permission-based counting runs, so the line's
-	// presence identifies the counting mode.
+	// presence identifies the counting mode (permission-based vs. all
+	// active users).
 	logger.Info(ctx, "counted workspace-capable users for license seats",
 		slog.F("workspace_capable_users", count),
 		slog.F("active_users", len(rows)),

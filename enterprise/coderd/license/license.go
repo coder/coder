@@ -145,7 +145,8 @@ type WorkspaceCapableUserCountFn func(ctx context.Context) (int64, error)
 
 // userLimitCandidate is one license's FeatureUserLimit terms: its seat limit,
 // its entitlement, and the counting mode implied by whether the license
-// carries the AI Governance addon.
+// carries the AI Governance addon (permission-based counting of
+// workspace-capable users vs. counting all active users).
 type userLimitCandidate struct {
 	limit             int64
 	entitlement       codersdk.Entitlement
@@ -189,9 +190,11 @@ type userLimitSelection struct {
 
 // selectUserLimit picks the most favorable FeatureUserLimit candidate and
 // applies its terms to the entitlements. Every candidate is evaluated
-// against the count its own license's mode implies, so one license's
-// limit is never combined with another license's counting mode. A
-// candidate satisfied by its count wins over any unsatisfied one.
+// against the count its own license's mode implies (the workspace-capable
+// count for permission-based candidates, the active user count
+// otherwise), so one license's limit is never combined with another
+// license's counting mode. A candidate satisfied by its count wins over
+// any unsatisfied one.
 //
 // When an addon candidate is selected, the capable count overwrites
 // featureArguments.ActiveUserCount, which the FeatureUserLimit feature's
