@@ -1,6 +1,9 @@
 # Setup
 
-AI Gateway runs inside the Coder control plane (`coderd`), requiring no separate compute to deploy or scale. Once enabled, `coderd` runs the `aibridged` in-memory and brokers traffic to your configured AI providers on behalf of authenticated users.
+By default, AI Gateway runs inside the Coder control plane (`coderd`) and requires no separate compute.
+In embedded mode, `coderd` runs the Gateway in memory and brokers traffic to your configured AI providers on behalf of authenticated users.
+
+If AI traffic needs dedicated compute, independent scaling, or a separate network endpoint, you can [deploy AI Gateway as a standalone service](./standalone.md).
 
 > [!NOTE]
 > Since v2.34, provider environment variables and flags are deprecated.
@@ -11,8 +14,10 @@ AI Gateway runs inside the Coder control plane (`coderd`), requiring no separate
 
 ## Activation
 
-AI Gateway must be enabled in deployment config before users can authenticate
-to it.
+AI Gateway feature must be enabled in the Coder deployment configuration before
+embedded or standalone Gateway instances can serve authenticated traffic.
+
+_AI Gateway is enabled by default as of v2.34._
 
 ```sh
 export CODER_AI_GATEWAY_ENABLED=true
@@ -21,7 +26,9 @@ coder server
 coder server --ai-gateway-enabled=true
 ```
 
-_AI Gateway is enabled by default as of v2.34._
+A standalone process does not read `CODER_AI_GATEWAY_ENABLED` from its own environment.
+However, this setting must remain enabled on `coderd`. It is required for Gateway keys management
+endpoints to work and for standalone replicas to connect to the control plane.
 
 ## Configure Providers
 
