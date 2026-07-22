@@ -273,6 +273,11 @@ Debug logs and pprof dumps use the same job name and commit SHA convention.
 3. `pnpm format` - Format code consistently
 4. `pnpm test` - Run affected unit tests
 5. Visual check in Storybook if component changes
+6. If the diff touches `site/src/`, run the `frontend-review` skill
+   (discovered from `.agents/skills/`; canonical copy at
+   [.claude/skills/frontend-review](../.claude/skills/frontend-review/SKILL.md)):
+   audit the diff against FE1 to FE10 and fix every FAIL before creating
+   the PR
 
 ## Migration (MUI → shadcn) (Emotion → Tailwind)
 
