@@ -336,7 +336,8 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 				Features: license.Features{codersdk.FeatureUserLimit: 100},
 			}).Valid(now))}
 			entitlements, err := license.LicensesEntitlements(ctx, now, licenses, enablements, coderdenttest.Keys, license.FeatureArguments{
-				ActiveUserCount: 7,
+				ActiveUserCount:  7,
+				UserCountingMode: license.UserCountingModePermissionBased,
 				WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 					t.Fatal("count fn must not be called without the addon")
 					return 0, nil
@@ -355,7 +356,8 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			}).Valid(now)
 			opts.Addons = append(opts.Addons, codersdk.AddonAIGovernance)
 			entitlements, err := license.LicensesEntitlements(ctx, now, []database.License{dbLicense(*opts)}, enablements, coderdenttest.Keys, license.FeatureArguments{
-				ActiveUserCount: 7,
+				ActiveUserCount:  7,
+				UserCountingMode: license.UserCountingModePermissionBased,
 				WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 					t.Fatal("count fn must not be called when addon dependencies are unmet")
 					return 0, nil
@@ -366,9 +368,26 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			require.Equal(t, int64(7), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
 		})
 
-		t.Run("AddonUsesFn", func(t *testing.T) {
+		t.Run("ActiveModeIgnoresFn", func(t *testing.T) {
+			// UserCountingMode is authoritative: with the mode left at its
+			// active-users zero value, the counting function must not be
+			// called even though it is set and the addon is present.
 			entitlements, err := license.LicensesEntitlements(ctx, now, []database.License{addonLicense()}, enablements, coderdenttest.Keys, license.FeatureArguments{
 				ActiveUserCount: 7,
+				WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
+					t.Fatal("count fn must not be called in active counting mode")
+					return 0, nil
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, int64(7), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
+			require.Equal(t, int64(100), *entitlements.Features[codersdk.FeatureUserLimit].Limit)
+		})
+
+		t.Run("AddonUsesFn", func(t *testing.T) {
+			entitlements, err := license.LicensesEntitlements(ctx, now, []database.License{addonLicense()}, enablements, coderdenttest.Keys, license.FeatureArguments{
+				ActiveUserCount:  7,
+				UserCountingMode: license.UserCountingModePermissionBased,
 				WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 					return 3, nil
 				},
@@ -400,7 +419,8 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			}
 			run := func(t *testing.T, activeUsers, capableUsers int64) codersdk.Entitlements {
 				entitlements, err := license.LicensesEntitlements(ctx, now, licenses, enablements, coderdenttest.Keys, license.FeatureArguments{
-					ActiveUserCount: activeUsers,
+					ActiveUserCount:  activeUsers,
+					UserCountingMode: license.UserCountingModePermissionBased,
 					WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 						return capableUsers, nil
 					},
@@ -454,7 +474,8 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 					}).GracePeriod(now).AIGovernanceAddon(10)),
 				}
 				entitlements, err := license.LicensesEntitlements(ctx, now, licenses, enablements, coderdenttest.Keys, license.FeatureArguments{
-					ActiveUserCount: 250,
+					ActiveUserCount:  250,
+					UserCountingMode: license.UserCountingModePermissionBased,
 					WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 						return 90, nil
 					},
@@ -480,7 +501,8 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 					addonLicense(),
 				}
 				entitlements, err := license.LicensesEntitlements(ctx, now, licenses, enablements, coderdenttest.Keys, license.FeatureArguments{
-					ActiveUserCount: 80,
+					ActiveUserCount:  80,
+					UserCountingMode: license.UserCountingModePermissionBased,
 					WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 						return 30, nil
 					},
@@ -496,7 +518,8 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			// count it was compared against, and say so, rather than
 			// claiming that many "active users" exist.
 			entitlements, err := license.LicensesEntitlements(ctx, now, []database.License{addonLicense()}, enablements, coderdenttest.Keys, license.FeatureArguments{
-				ActiveUserCount: 7,
+				ActiveUserCount:  7,
+				UserCountingMode: license.UserCountingModePermissionBased,
 				WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 					return 150, nil
 				},
@@ -514,7 +537,8 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 				Features: license.Features{codersdk.FeatureUserLimit: 100},
 			}).GracePeriod(now).AIGovernanceAddon(10))}
 			entitlements, err := license.LicensesEntitlements(ctx, now, licenses, enablements, coderdenttest.Keys, license.FeatureArguments{
-				ActiveUserCount: 7,
+				ActiveUserCount:  7,
+				UserCountingMode: license.UserCountingModePermissionBased,
 				WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 					return 3, nil
 				},
@@ -535,7 +559,8 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			// the previous entitlements rather than seeing a silently
 			// different count.
 			_, err := license.LicensesEntitlements(ctx, now, []database.License{addonLicense()}, enablements, coderdenttest.Keys, license.FeatureArguments{
-				ActiveUserCount: 7,
+				ActiveUserCount:  7,
+				UserCountingMode: license.UserCountingModePermissionBased,
 				WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 					return 0, xerrors.New("boom")
 				},
@@ -546,7 +571,8 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 
 		t.Run("ContextCanceledBails", func(t *testing.T) {
 			_, err := license.LicensesEntitlements(ctx, now, []database.License{addonLicense()}, enablements, coderdenttest.Keys, license.FeatureArguments{
-				ActiveUserCount: 7,
+				ActiveUserCount:  7,
+				UserCountingMode: license.UserCountingModePermissionBased,
 				WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 					return 0, context.Canceled
 				},

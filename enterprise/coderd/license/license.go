@@ -58,17 +58,20 @@ func Entitlements(
 	}
 
 	// Permission-based licensing counts only users the RBAC engine
-	// authorizes to create workspaces. The count is resolved lazily by
-	// LicensesEntitlements, and only when a valid license carries the AI
-	// Governance addon; deployments without the addon always use the
-	// plain active user count.
-	var workspaceCapableUserCountFn WorkspaceCapableUserCountFn
+	// authorizes to create workspaces. The counting function is always
+	// provided; UserCountingMode decides whether LicensesEntitlements
+	// uses it, and only for licenses carrying the AI Governance addon.
+	countingMode := UserCountingModeActive
 	if experiments.Enabled(codersdk.ExperimentPermissionBasedLicensing) && authorizer != nil {
-		workspaceCapableUserCountFn = func(ctx context.Context) (int64, error) {
-			ctx, cancel := context.WithTimeout(ctx, workspaceCapableUserCountTimeout)
-			defer cancel()
-			return CountWorkspaceCapableUsers(ctx, logger, db, authorizer)
+		countingMode = UserCountingModePermissionBased
+	}
+	workspaceCapableUserCountFn := func(ctx context.Context) (int64, error) {
+		if authorizer == nil {
+			return 0, xerrors.New("dev error: an authorizer is required to count workspace-capable users")
 		}
+		ctx, cancel := context.WithTimeout(ctx, workspaceCapableUserCountTimeout)
+		defer cancel()
+		return CountWorkspaceCapableUsers(ctx, logger, db, authorizer)
 	}
 
 	// nolint:gocritic // Getting active AI seat count is a system function.
@@ -94,6 +97,7 @@ func Entitlements(
 		ReplicaCount:                replicaCount,
 		ExternalAuthCount:           externalAuthCount,
 		ExternalTemplateCount:       int64(len(externalTemplates)),
+		UserCountingMode:            countingMode,
 		WorkspaceCapableUserCountFn: workspaceCapableUserCountFn,
 		ManagedAgentCountFn: func(ctx context.Context, startTime time.Time, endTime time.Time) (int64, error) {
 			// This is not super accurate, as the start and end times will be
@@ -129,15 +133,34 @@ type FeatureArguments struct {
 	// state of the world, but a count between two points in time determined by
 	// the licenses.
 	ManagedAgentCountFn ManagedAgentCountFn
+	// UserCountingMode selects the count that FeatureUserLimit candidates
+	// from AI Governance addon licenses are evaluated against. Under
+	// UserCountingModePermissionBased they use WorkspaceCapableUserCountFn's
+	// count; under UserCountingModeActive (the zero value) every candidate
+	// uses ActiveUserCount.
+	UserCountingMode UserCountingMode
 	// WorkspaceCapableUserCountFn returns the number of active users the
-	// RBAC engine authorizes to create workspaces. It is invoked only when
-	// a valid license carries both the AI Governance addon and a
-	// FeatureUserLimit claim; the result then applies to that license's
-	// FeatureUserLimit candidate, and replaces ActiveUserCount when such a
-	// candidate is selected for enforcement. May be nil, in which case
-	// ActiveUserCount is always used.
+	// RBAC engine authorizes to create workspaces. It is invoked only
+	// under UserCountingModePermissionBased, and only when a valid
+	// license carries both the AI Governance addon and a FeatureUserLimit
+	// claim; the result then applies to that license's FeatureUserLimit
+	// candidate, and replaces ActiveUserCount when such a candidate is
+	// selected for enforcement.
 	WorkspaceCapableUserCountFn WorkspaceCapableUserCountFn
 }
+
+// UserCountingMode selects how license seats are counted for
+// FeatureUserLimit candidates from AI Governance addon licenses.
+type UserCountingMode string
+
+const (
+	// UserCountingModeActive evaluates every FeatureUserLimit candidate
+	// against the active user count.
+	UserCountingModeActive UserCountingMode = ""
+	// UserCountingModePermissionBased evaluates addon-carrying candidates
+	// against the workspace-capable user count.
+	UserCountingModePermissionBased UserCountingMode = "permission_based"
+)
 
 type ManagedAgentCountFn func(ctx context.Context, from time.Time, to time.Time) (int64, error)
 
@@ -229,7 +252,10 @@ func selectUserLimit(
 
 	var capableCount int64
 	capableCountValid := false
-	if hasAddonCandidate && featureArguments.WorkspaceCapableUserCountFn != nil {
+	if hasAddonCandidate && featureArguments.UserCountingMode == UserCountingModePermissionBased {
+		if featureArguments.WorkspaceCapableUserCountFn == nil {
+			return sel, xerrors.New("dev error: workspace-capable user count function is not set")
+		}
 		count, err := featureArguments.WorkspaceCapableUserCountFn(ctx)
 		if err != nil {
 			// A failed seat count is deliberately a hard failure rather
