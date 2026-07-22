@@ -809,6 +809,13 @@ func TestDeploymentValues_Validate_ChatHooks(t *testing.T) {
 			wantErr: "chat hook URL must use HTTPS",
 		},
 		{
+			name:    "HostlessURL",
+			url:     "https:///hook",
+			secret:  "0123456789abcdef0123456789abcdef",
+			timeout: 1500 * time.Millisecond,
+			wantErr: "must include a host",
+		},
+		{
 			name:    "FragmentURL",
 			url:     "https://hooks.example.com/agent#frag",
 			secret:  "0123456789abcdef0123456789abcdef",

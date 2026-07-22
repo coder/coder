@@ -5079,6 +5079,9 @@ func (c *DeploymentValues) Validate() error {
 			if hookURL.Scheme != "https" {
 				return xerrors.New("chat hook URL must use HTTPS; set --chat-hook-url to an HTTPS URL")
 			}
+			if hookURL.Host == "" {
+				return xerrors.New("chat hook URL must include a host; set --chat-hook-url to a complete HTTPS URL")
+			}
 			// The configured string is signed verbatim as the JWT audience,
 			// but fragments and userinfo never reach the consumer, so its
 			// reconstructed audience would mismatch on every dispatch.
