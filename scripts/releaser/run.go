@@ -1,4 +1,4 @@
-package v1
+package main
 
 import (
 	"fmt"
@@ -15,10 +15,9 @@ const (
 	repo  = "coder"
 )
 
-// Run executes the legacy interactive release wizard.
+// Run executes the interactive release wizard.
 //
-// It mirrors the behavior of the original standalone releaser tool: it
-// verifies dependencies, warns when GPG signing or the gh CLI are not
+// It verifies dependencies, warns when GPG signing or the gh CLI are not
 // configured, wires up a live or dry-run executor, and then walks the
 // operator through tagging, pushing, and triggering the release
 // workflow.
