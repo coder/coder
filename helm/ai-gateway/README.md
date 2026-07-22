@@ -1,9 +1,9 @@
 # Coder AI Gateway Helm chart
 
 This chart deploys the Coder AI Gateway as a standalone Kubernetes Deployment.
-The Gateway connects to Coder using `CODER_URL` and an AI Gateway key. The Coder
-AI Gateway Proxy (`aibridgeproxyd`) forwards proxied AI traffic to the standalone
-Gateway.
+The Gateway connects to Coder using `CODER_URL` and an AI Gateway key. To forward
+proxied AI traffic to the standalone Gateway, configure the Coder AI Gateway
+Proxy (`aibridgeproxyd`) after installing the chart.
 
 The chart does not create credentials or TLS Secrets.
 
@@ -75,19 +75,21 @@ helm install ai-gateway ./helm/ai-gateway \
 ## Connect Coder to the standalone Gateway
 
 To route proxied AI requests through the standalone Gateway, configure the Coder
-AI Gateway Proxy to use the Service created by this chart. The target URL,
-including the scheme selected by `aigateway.listenerTLS`, is shown after
-installation. Retrieve it with:
+AI Gateway Proxy with a target URL. When `service.enable` is true, the chart
+notes show the direct in-cluster Service URL, including the scheme selected by
+`aigateway.listenerTLS`. Retrieve it with:
 
 ```console
 helm get notes ai-gateway --namespace <release-namespace>
 ```
 
-When listener TLS uses a private CA, the AI Gateway Proxy must trust that CA to
-connect to the Service over HTTPS.
+The chart notes do not show an Ingress or `HTTPRoute` URL. To route through one
+of these entry points, set `CODER_AI_GATEWAY_PROXY_TARGET` to its URL instead.
+When `service.enable` is false, set the target to the URL of your user-managed
+route to the Deployment.
 
-When `service.enable` is false, set `CODER_AI_GATEWAY_PROXY_TARGET` to the URL of
-your user-managed route to the Deployment.
+When listener TLS uses a private CA, the AI Gateway Proxy must trust that CA to
+connect directly to the Service over HTTPS.
 
 ## TLS
 
