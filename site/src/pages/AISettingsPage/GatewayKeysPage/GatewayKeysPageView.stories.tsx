@@ -6,6 +6,7 @@ import { GatewayKeysPageView } from "./GatewayKeysPageView";
 const meta: Meta<typeof GatewayKeysPageView> = {
 	title: "pages/AISettingsPage/GatewayKeysPageView",
 	component: GatewayKeysPageView,
+	parameters: { pixel: { exclude: true } },
 	args: {
 		keys: MockAIGatewayKeys,
 		isLoading: false,

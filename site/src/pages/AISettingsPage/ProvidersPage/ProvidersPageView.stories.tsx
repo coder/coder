@@ -14,6 +14,7 @@ const meta: Meta<typeof ProvidersPageView> = {
 		providers: MockAIProviders,
 	},
 	parameters: {
+		pixel: { exclude: true },
 		reactRouter: reactRouterParameters({
 			location: { path: "/ai/settings/providers" },
 			routing: [

@@ -11,6 +11,7 @@ import { CreateGatewayKeyDialog } from "./CreateGatewayKeyDialog";
 const meta: Meta<typeof CreateGatewayKeyDialog> = {
 	title: "pages/AISettingsPage/CreateGatewayKeyDialog",
 	component: CreateGatewayKeyDialog,
+	parameters: { pixel: { exclude: true } },
 	args: {
 		open: true,
 		onClose: fn(),
@@ -70,7 +71,6 @@ export const InvalidName: Story = {
 };
 
 export const CreateError: Story = {
-	parameters: { pixel: { exclude: true } },
 	render: (args) => {
 		const [submitError, setSubmitError] = useState<unknown>(undefined);
 		const error = mockApiError({

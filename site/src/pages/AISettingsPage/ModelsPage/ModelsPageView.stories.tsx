@@ -34,6 +34,7 @@ const meta: Meta<typeof ModelsPageView> = {
 		]),
 	},
 	parameters: {
+		pixel: { exclude: true },
 		reactRouter: reactRouterParameters({
 			location: { path: "/ai/settings/models" },
 			routing: [

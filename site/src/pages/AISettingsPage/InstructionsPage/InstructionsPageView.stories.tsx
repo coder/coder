@@ -31,6 +31,7 @@ const baseArgs: InstructionsPageViewProps = {
 const meta = {
 	title: "pages/AISettingsPage/InstructionsPage/InstructionsPageView",
 	component: InstructionsPageView,
+	parameters: { pixel: { exclude: true } },
 	args: baseArgs,
 } satisfies Meta<typeof InstructionsPageView>;
 

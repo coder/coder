@@ -252,6 +252,7 @@ const baseProps = {
 const meta = {
 	title: "pages/AISettingsPage/SpendPage/SpendPageView",
 	component: SpendPageView,
+	parameters: { pixel: { exclude: true } },
 	render: (args) => {
 		const [activeTab, setActiveTab] = useState(args.activeTab);
 		return (

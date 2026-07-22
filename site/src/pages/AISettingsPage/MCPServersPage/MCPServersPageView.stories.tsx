@@ -23,6 +23,7 @@ const meta: Meta<typeof MCPServersPageView> = {
 		],
 	},
 	parameters: {
+		pixel: { exclude: true },
 		reactRouter: reactRouterParameters({
 			location: { path: "/ai/settings/mcp-servers" },
 			routing: [

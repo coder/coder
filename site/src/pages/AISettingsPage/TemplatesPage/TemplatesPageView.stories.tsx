@@ -61,6 +61,7 @@ const templates: TypesGen.Template[] = [
 const meta = {
 	title: "pages/AISettingsPage/TemplatesPage/TemplatesPageView",
 	component: TemplatesPageView,
+	parameters: { pixel: { exclude: true } },
 	args: {
 		templatesData: templates,
 		allowlistData: { template_ids: [templateIDs[0], templateIDs[1]] },

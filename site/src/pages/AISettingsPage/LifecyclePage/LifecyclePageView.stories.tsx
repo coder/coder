@@ -40,6 +40,7 @@ const baseArgs: LifecyclePageViewProps = {
 const meta = {
 	title: "pages/AISettingsPage/LifecyclePage/LifecyclePageView",
 	component: LifecyclePageView,
+	parameters: { pixel: { exclude: true } },
 	args: baseArgs,
 } satisfies Meta<typeof LifecyclePageView>;
 
