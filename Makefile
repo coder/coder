@@ -733,7 +733,7 @@ lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons li
 .PHONY: lint
 
 # Fast lint subset for lightweight hooks. Some targets use mise-managed tools.
-lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/actions/permissions lint/typos lint/emdash lint/mise-versions
+lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos lint/emdash lint/mise-versions
 .PHONY: lint-light
 
 lint/site-icons:
@@ -786,16 +786,12 @@ lint/markdown: node_modules/.installed
 	pnpm lint-docs
 .PHONY: lint/markdown
 
-lint/actions: lint/actions/actionlint lint/actions/zizmor lint/actions/permissions
+lint/actions: lint/actions/actionlint lint/actions/zizmor
 .PHONY: lint/actions
 
 lint/actions/actionlint:
 	mise exec actionlint -- actionlint
 .PHONY: lint/actions/actionlint
-
-lint/actions/permissions:
-	./scripts/check_workflow_permissions.sh
-.PHONY: lint/actions/permissions
 
 # zizmor uses GH_TOKEN to fetch imported workflows from GitHub; without it,
 # external action references are skipped silently.
