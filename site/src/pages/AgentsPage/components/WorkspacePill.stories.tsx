@@ -521,6 +521,10 @@ const openMobilePortsPanel = async (canvasElement: HTMLElement) => {
 
 export const MobilePortsInlinePanel: Story = {
 	...mobilePortsStoryConfig,
+	parameters: {
+		...mobilePortsStoryConfig.parameters,
+		pixel: { exclude: true },
+	},
 	play: async ({ canvasElement }) => {
 		const { body, pill } = await openMobilePortsPanel(canvasElement);
 

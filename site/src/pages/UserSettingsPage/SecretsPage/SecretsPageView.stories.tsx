@@ -363,6 +363,7 @@ export const EditSecretSubmit: Story = {
 };
 
 export const EditSecretClearValue: Story = {
+	parameters: { pixel: { exclude: true } },
 	args: {
 		onUpdateSecret: fn<
 			(name: string, request: UpdateUserSecretRequest) => Promise<UserSecret>
@@ -514,6 +515,7 @@ export const DeleteConfirmSubmit: Story = {
 };
 
 export const DeleteSecretMutationErrorDisplay: Story = {
+	parameters: { pixel: { exclude: true } },
 	args: {
 		onDeleteSecret: fn<(secret: UserSecret) => Promise<void>>(async () => {
 			throw mockApiError({ message: "Failed to delete secret." });
@@ -566,6 +568,7 @@ export const DeleteAndCancel: Story = {
 };
 
 export const CreateMutationErrorDisplay: Story = {
+	parameters: { pixel: { exclude: true } },
 	args: {
 		onCreateSecret: async () => {
 			throw mockApiError({

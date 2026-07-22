@@ -95,6 +95,7 @@ export const WithModules: Story = {
 };
 
 export const WithLongNameModule: Story = {
+	parameters: { pixel: { exclude: true } },
 	args: {
 		currentStep: 2,
 		selectedTemplate: {

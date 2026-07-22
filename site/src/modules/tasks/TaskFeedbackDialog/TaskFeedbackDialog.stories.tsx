@@ -48,6 +48,7 @@ export const Submitting: Story = {
 };
 
 export const Success: Story = {
+	parameters: { pixel: { exclude: true } },
 	args: {
 		open: true,
 	},

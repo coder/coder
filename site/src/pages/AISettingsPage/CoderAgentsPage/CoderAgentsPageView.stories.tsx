@@ -342,6 +342,7 @@ export const PersonalOverridesLoadError: Story = {
 };
 
 export const EachOverrideSetToEnabledModel: Story = {
+	parameters: { pixel: { exclude: true } },
 	args: buildArgs({
 		generalModelOverrideData: buildOverrideData("general", {
 			model_config_id: generalModelConfig.id,

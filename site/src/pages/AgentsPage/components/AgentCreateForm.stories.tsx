@@ -330,6 +330,7 @@ const effortModelOptions = [
 ] as const;
 
 export const SubmitsReasoningEffort: Story = {
+	parameters: { pixel: { exclude: true } },
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),

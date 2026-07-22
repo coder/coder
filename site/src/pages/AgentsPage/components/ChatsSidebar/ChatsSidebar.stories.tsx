@@ -746,6 +746,7 @@ export const MobileHeaderActions: Story = {
 		chats: sectionHeaderChats,
 	},
 	parameters: {
+		pixel: { exclude: true },
 		viewport: { defaultViewport: "mobile1" },
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents" },

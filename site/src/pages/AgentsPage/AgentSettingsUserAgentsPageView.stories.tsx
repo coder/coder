@@ -314,6 +314,7 @@ export const EnabledWithSavedValues: Story = {
 };
 
 export const SavedReasoningModel: Story = {
+	parameters: { pixel: { exclude: true } },
 	args: buildArgs({
 		modelOptions: [
 			{
