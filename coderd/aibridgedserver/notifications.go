@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -54,12 +55,18 @@ type budgetThresholdCrossing struct {
 // the user's period spend across any budget thresholds, returning each one
 // crossed. A single interception can cross several at once (e.g. straight past
 // both the warning and limit thresholds).
-func (s *Server) detectBudgetThresholdCrossings(ctx context.Context, tx database.Store, intc database.AIBridgeInterception, cost tokenUsageCost) ([]budgetThresholdCrossing, error) {
+//
+// The period is derived from createdAt, the same timestamp the spend row is
+// bucketed by. Using it (rather than the current wall clock) keeps the summed
+// window and the incremented row in the same period, so an interception whose
+// createdAt and processing time span across a period boundary is evaluated
+// against the period it was recorded in.
+func (s *Server) detectBudgetThresholdCrossings(ctx context.Context, tx database.Store, intc database.AIBridgeInterception, cost tokenUsageCost, createdAt time.Time) ([]budgetThresholdCrossing, error) {
 	if !cost.effectiveGroupID.Valid || !cost.spendLimitMicros.Valid || cost.spendLimitMicros.Int64 <= 0 {
 		return nil, nil
 	}
 
-	period, err := budget.CurrentPeriod(s.clock.Now(), s.budgetPeriod)
+	period, err := budget.CurrentPeriod(createdAt, s.budgetPeriod)
 	if err != nil {
 		return nil, xerrors.Errorf("compute AI budget period: %w", err)
 	}
