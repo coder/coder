@@ -22,6 +22,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import { isExternalImageSource } from "#/utils/externalImageSources";
 import {
 	isSubagentToolName,
 	type SubagentIconKind,
@@ -45,11 +46,15 @@ export const ToolIcon: React.FC<{
 	);
 
 	// If an MCP icon URL is provided and hasn't failed, render it.
-	// Strip colour so external icons match the monochrome lucide
+	// Externally hosted icons are skipped in favour of the generic
+	// fallbacks below: tool icons render in shared chats, so fetching
+	// an external icon would disclose the viewer's IP to the icon
+	// host (Cure53 CDM-02-006).
+	// Strip colour so custom icons match the monochrome lucide
 	// style. brightness-0 forces every pixel to black, then in dark
 	// mode we invert to white and tune opacity to approximate
 	// content-secondary (light ≈ 34% lightness, dark ≈ 65%).
-	if (iconUrl && !imgError) {
+	if (iconUrl && !imgError && !isExternalImageSource(iconUrl)) {
 		const img = (
 			<div className="size-4 shrink-0 overflow-hidden">
 				<ExternalImage
