@@ -1387,6 +1387,530 @@ func TestCreateChildSubagentChat_OverrideWorksWhenParentHasNoModel(t *testing.T)
 	require.Equal(t, overrideModel.ID, childChat.LastModelConfigID)
 }
 
+func TestSpawnAgent_ExplicitModelConfigID(t *testing.T) {
+	t.Parallel()
+
+	for _, subagentType := range []string{subagentTypeGeneral, subagentTypeExplore} {
+		t.Run(subagentType, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+			ctx := chatdTestContext(t)
+			user, org, parentModel := seedInternalChatDeps(t, db)
+			selectedModel := insertInternalChatModelConfig(
+				t, db, "spawn-explicit-"+uuid.NewString(), true,
+			)
+			parentChat := createInternalParentChat(
+				ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-explicit-model",
+			)
+
+			resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+				Type:          subagentType,
+				Prompt:        "delegate work",
+				ModelConfigID: selectedModel.ID.String(),
+			})
+			result := requireSpawnAgentResponse(t, resp)
+			require.Equal(t, subagentType, result.SubagentType)
+			childID, err := uuid.Parse(result.ChatID)
+			require.NoError(t, err)
+
+			childChat, err := db.GetChatByID(ctx, childID)
+			require.NoError(t, err)
+			require.Equal(t, selectedModel.ID, childChat.LastModelConfigID)
+			require.False(t, childChat.LastReasoningEffort.Valid)
+
+			parentAfter, err := db.GetChatByID(ctx, parentChat.ID)
+			require.NoError(t, err)
+			require.Equal(t, parentModel.ID, parentAfter.LastModelConfigID)
+		})
+	}
+}
+
+type personalOverrideErrorStore struct {
+	database.Store
+}
+
+func (*personalOverrideErrorStore) GetUserChatPersonalModelOverride(
+	context.Context,
+	database.GetUserChatPersonalModelOverrideParams,
+) (string, error) {
+	return "", xerrors.New("unexpected personal override lookup")
+}
+
+func TestSpawnAgent_ExplicitModelSkipsConfiguredOverrides(t *testing.T) {
+	t.Parallel()
+
+	for _, subagentType := range []string{subagentTypeGeneral, subagentTypeExplore} {
+		t.Run(subagentType, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			store := &personalOverrideErrorStore{Store: db}
+			server := newInternalTestServer(t, store, ps, chatprovider.ProviderAPIKeys{})
+
+			ctx := chatdTestContext(t)
+			user, org, parentModel := seedInternalChatDeps(t, db)
+			enableInternalChatPersonalModelOverrides(t, db)
+			selectedModel := insertInternalChatModelConfig(
+				t, db, "selected-skip-overrides-"+uuid.NewString(), true,
+			)
+			parentChat := createInternalParentChat(
+				ctx, t, server, store, org.ID, user.ID, parentModel.ID, "parent-skip-overrides",
+			)
+
+			resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+				Type:          subagentType,
+				Prompt:        "delegate work",
+				ModelConfigID: selectedModel.ID.String(),
+			})
+			childChat, err := db.GetChatByID(ctx, requireSpawnAgentChildChatID(t, resp))
+			require.NoError(t, err)
+			require.Equal(t, selectedModel.ID, childChat.LastModelConfigID)
+		})
+	}
+}
+
+func TestSpawnAgent_ExplicitModelBeatsConfiguredOverrides(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, parentModel := seedInternalChatDeps(t, db)
+	deploymentModel := insertInternalChatModelConfig(
+		t, db, "general-deployment-"+uuid.NewString(), true,
+	)
+	personalModel := insertInternalChatModelConfig(
+		t, db, "general-personal-"+uuid.NewString(), true,
+	)
+	selectedModel := insertInternalChatModelConfig(
+		t, db, "general-selected-"+uuid.NewString(), true,
+	)
+	require.NoError(t, db.UpsertChatGeneralModelOverride(
+		ctx, deploymentModel.ID.String()+":medium",
+	))
+	enableInternalChatPersonalModelOverrides(t, db)
+	upsertInternalUserChatPersonalModelOverride(
+		t,
+		db,
+		user.ID,
+		codersdk.ChatPersonalModelOverrideContextGeneral,
+		string(codersdk.ChatPersonalModelOverrideModeModel)+":"+personalModel.ID.String()+":low",
+	)
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-explicit-beats-overrides",
+	)
+
+	baselineResp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+		Type:   subagentTypeGeneral,
+		Prompt: "delegate baseline work",
+	})
+	baselineChild, err := db.GetChatByID(ctx, requireSpawnAgentChildChatID(t, baselineResp))
+	require.NoError(t, err)
+	require.Equal(t, personalModel.ID, baselineChild.LastModelConfigID)
+	require.Equal(
+		t,
+		database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortLow, Valid: true},
+		baselineChild.LastReasoningEffort,
+	)
+
+	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+		Type:          subagentTypeGeneral,
+		Prompt:        "delegate explicit work",
+		ModelConfigID: selectedModel.ID.String(),
+	})
+	childChat, err := db.GetChatByID(ctx, requireSpawnAgentChildChatID(t, resp))
+	require.NoError(t, err)
+	require.Equal(t, selectedModel.ID, childChat.LastModelConfigID)
+	require.False(t, childChat.LastReasoningEffort.Valid)
+}
+
+func TestSpawnAgent_ExplicitReasoningEffort(t *testing.T) {
+	t.Parallel()
+
+	t.Run("EffortOnlyKeepsModelChain", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+		ctx := chatdTestContext(t)
+		user, org, parentModel := seedInternalChatDeps(t, db)
+		parentChat := createInternalParentChat(
+			ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-effort-only",
+		)
+
+		resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+			Type:            subagentTypeGeneral,
+			Prompt:          "delegate work",
+			ReasoningEffort: "high",
+		})
+		childChat, err := db.GetChatByID(ctx, requireSpawnAgentChildChatID(t, resp))
+		require.NoError(t, err)
+		require.Equal(t, parentModel.ID, childChat.LastModelConfigID)
+		require.Equal(
+			t,
+			database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true},
+			childChat.LastReasoningEffort,
+		)
+	})
+
+	t.Run("CombinedModelAndEffort", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+		ctx := chatdTestContext(t)
+		user, org, parentModel := seedInternalChatDeps(t, db)
+		selectedModel := insertInternalChatModelConfig(
+			t, db, "combined-"+uuid.NewString(), true,
+		)
+		parentChat := createInternalParentChat(
+			ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-combined",
+		)
+
+		resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+			Type:            subagentTypeGeneral,
+			Prompt:          "delegate work",
+			ModelConfigID:   selectedModel.ID.String(),
+			ReasoningEffort: "low",
+		})
+		childChat, err := db.GetChatByID(ctx, requireSpawnAgentChildChatID(t, resp))
+		require.NoError(t, err)
+		require.Equal(t, selectedModel.ID, childChat.LastModelConfigID)
+		require.Equal(
+			t,
+			database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortLow, Valid: true},
+			childChat.LastReasoningEffort,
+		)
+	})
+
+	t.Run("BeatsOverrideCarriedEffort", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+		ctx := chatdTestContext(t)
+		user, org, parentModel := seedInternalChatDeps(t, db)
+		deploymentModel := insertInternalChatModelConfig(
+			t, db, "general-deployment-"+uuid.NewString(), true,
+		)
+		require.NoError(t, db.UpsertChatGeneralModelOverride(
+			ctx, deploymentModel.ID.String()+":low",
+		))
+		parentChat := createInternalParentChat(
+			ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-effort-beats-override",
+		)
+
+		resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
+			Type:            subagentTypeGeneral,
+			Prompt:          "delegate work",
+			ReasoningEffort: "high",
+		})
+		childChat, err := db.GetChatByID(ctx, requireSpawnAgentChildChatID(t, resp))
+		require.NoError(t, err)
+		require.Equal(t, deploymentModel.ID, childChat.LastModelConfigID)
+		require.Equal(
+			t,
+			database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true},
+			childChat.LastReasoningEffort,
+		)
+	})
+}
+
+func TestSpawnAgent_ModelArgsRejections(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		args      func(ctx context.Context, t *testing.T, db database.Store, user database.User) spawnAgentArgs
+		wantError string
+	}{
+		{
+			name: "MalformedModelConfigID",
+			args: func(context.Context, *testing.T, database.Store, database.User) spawnAgentArgs {
+				return spawnAgentArgs{ModelConfigID: "not-a-uuid"}
+			},
+			wantError: "invalid model_config_id: must be a valid UUID",
+		},
+		{
+			name: "UnknownModelConfigID",
+			args: func(context.Context, *testing.T, database.Store, database.User) spawnAgentArgs {
+				return spawnAgentArgs{ModelConfigID: uuid.NewString()}
+			},
+			wantError: "model_config_id not found or is disabled",
+		},
+		{
+			name: "DisabledModelConfig",
+			args: func(_ context.Context, t *testing.T, db database.Store, _ database.User) spawnAgentArgs {
+				disabled := insertInternalChatModelConfig(
+					t, db, "reject-disabled-"+uuid.NewString(), false,
+				)
+				return spawnAgentArgs{ModelConfigID: disabled.ID.String()}
+			},
+			wantError: "model_config_id not found or is disabled",
+		},
+		{
+			name: "DisabledProvider",
+			args: func(_ context.Context, t *testing.T, db database.Store, user database.User) spawnAgentArgs {
+				dbgen.ChatProvider(t, db, database.ChatProvider{
+					Provider:  "openai-compat",
+					CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
+				}, func(p *database.InsertChatProviderParams) {
+					p.Enabled = false
+				})
+				config := insertInternalChatModelConfigForProvider(
+					t, db, "openai-compat", "gpt-4o-mini", true,
+				)
+				return spawnAgentArgs{ModelConfigID: config.ID.String()}
+			},
+			wantError: "model_config_id not found or is disabled",
+		},
+		{
+			name: "DeletedProvider",
+			args: func(_ context.Context, t *testing.T, db database.Store, user database.User) spawnAgentArgs {
+				provider := dbgen.ChatProvider(t, db, database.ChatProvider{
+					Provider:  "openai-compat",
+					CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
+				})
+				config := insertInternalChatModelConfigForProvider(
+					t, db, "openai-compat", "gpt-4o-mini", true,
+				)
+				require.NoError(t, db.DeleteAIProviderByID(
+					systemRestrictedTestContext(t), provider.ID,
+				))
+				return spawnAgentArgs{ModelConfigID: config.ID.String()}
+			},
+			wantError: "model_config_id not found or is disabled",
+		},
+		{
+			name: "MissingCredentials",
+			args: func(_ context.Context, t *testing.T, db database.Store, user database.User) spawnAgentArgs {
+				insertInternalChatProvider(
+					t, db, user.ID, "openai-compat", "", false, true, false,
+				)
+				config := insertInternalChatModelConfigForProvider(
+					t, db, "openai-compat", "gpt-4o-mini", true,
+				)
+				return spawnAgentArgs{ModelConfigID: config.ID.String()}
+			},
+			wantError: `credentials are unavailable for provider "openai-compat"`,
+		},
+		{
+			name: "InvalidReasoningEffort",
+			args: func(context.Context, *testing.T, database.Store, database.User) spawnAgentArgs {
+				return spawnAgentArgs{ReasoningEffort: "ultra"}
+			},
+			wantError: "invalid reasoning_effort: must be one of",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+			ctx := chatdTestContext(t)
+			user, org, model := seedInternalChatDeps(t, db)
+			parentChat := createInternalParentChat(
+				ctx, t, server, db, org.ID, user.ID, model.ID, "parent-rejection",
+			)
+
+			args := tt.args(ctx, t, db, user)
+			args.Type = subagentTypeGeneral
+			args.Prompt = "delegate work"
+
+			resp := runSpawnAgentTool(ctx, t, server, parentChat, args)
+			require.True(t, resp.IsError, "expected tool error but got: %s", resp.Content)
+			require.Contains(t, resp.Content, tt.wantError)
+
+			children, err := db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
+				ParentIds: []uuid.UUID{parentChat.ID},
+				Archived:  sql.NullBool{},
+			})
+			require.NoError(t, err)
+			require.Empty(t, children, "no child chat may be created on rejection")
+		})
+	}
+}
+
+func TestSpawnAgent_ComputerUseRejectsModelArgs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		muter func(*spawnAgentArgs, database.ChatModelConfig)
+	}{
+		{
+			name: "ModelConfigID",
+			muter: func(args *spawnAgentArgs, model database.ChatModelConfig) {
+				args.ModelConfigID = model.ID.String()
+			},
+		},
+		{
+			name: "ReasoningEffort",
+			muter: func(args *spawnAgentArgs, _ database.ChatModelConfig) {
+				args.ReasoningEffort = "high"
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+			ctx := chatdTestContext(t)
+			user, org, model := seedInternalChatDeps(t, db)
+			insertEnabledAnthropicProvider(t, db, user.ID)
+			parentChat := createInternalParentChat(
+				ctx, t, server, db, org.ID, user.ID, model.ID, "parent-computer-use-args",
+			)
+
+			args := spawnAgentArgs{
+				Type:   subagentTypeComputerUse,
+				Prompt: "take a screenshot",
+			}
+			tt.muter(&args, model)
+
+			resp := runSpawnAgentTool(ctx, t, server, parentChat, args)
+			require.True(t, resp.IsError, "expected tool error but got: %s", resp.Content)
+			require.Contains(t, resp.Content, `not supported for type "computer_use"`)
+
+			children, err := db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
+				ParentIds: []uuid.UUID{parentChat.ID},
+				Archived:  sql.NullBool{},
+			})
+			require.NoError(t, err)
+			require.Empty(t, children, "no child chat may be created on rejection")
+		})
+	}
+}
+
+func TestListSubagentModels(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, defaultModel := seedInternalChatDeps(t, db)
+	effortModel := insertInternalChatModelConfigWithOptions(
+		t,
+		db,
+		"openai",
+		"gpt-effort-"+uuid.NewString(),
+		true,
+		json.RawMessage(`{"reasoning_effort":{"default":"medium","max":"high"}}`),
+	)
+	disabledModel := insertInternalChatModelConfig(
+		t, db, "list-disabled-"+uuid.NewString(), false,
+	)
+	insertInternalChatProvider(t, db, user.ID, "anthropic", "", false, true, false)
+	noCredsModel := insertInternalChatModelConfigForProvider(
+		t, db, "anthropic", "claude-sonnet-4-5", true,
+	)
+	dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:  "openai-compat",
+		CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
+	}, func(p *database.InsertChatProviderParams) {
+		p.Enabled = false
+	})
+	disabledProviderModel := insertInternalChatModelConfigForProvider(
+		t, db, "openai-compat", "gpt-4o-mini", true,
+	)
+
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, defaultModel.ID, "parent-list-models",
+	)
+
+	resp := runSubagentTool(
+		ctx,
+		t,
+		server,
+		parentChat,
+		parentChat.LastModelConfigID,
+		listSubagentModelsToolName,
+		struct{}{},
+	)
+	require.False(t, resp.IsError, "expected success but got: %s", resp.Content)
+
+	type listedModel struct {
+		ModelConfigID    string   `json:"model_config_id"`
+		DisplayName      string   `json:"display_name"`
+		Model            string   `json:"model"`
+		Provider         string   `json:"provider"`
+		ContextLimit     int64    `json:"context_limit"`
+		IsDefault        bool     `json:"is_default"`
+		ReasoningEfforts []string `json:"reasoning_efforts"`
+	}
+	var result struct {
+		Models []listedModel `json:"models"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+
+	byID := make(map[string]listedModel, len(result.Models))
+	for _, m := range result.Models {
+		byID[m.ModelConfigID] = m
+	}
+	require.Contains(t, byID, defaultModel.ID.String())
+	require.Contains(t, byID, effortModel.ID.String())
+	require.NotContains(t, byID, disabledModel.ID.String())
+	require.NotContains(t, byID, noCredsModel.ID.String())
+	require.NotContains(t, byID, disabledProviderModel.ID.String())
+
+	defaultEntry := byID[defaultModel.ID.String()]
+	require.Equal(t, defaultModel.DisplayName, defaultEntry.DisplayName)
+	require.Equal(t, defaultModel.Model, defaultEntry.Model)
+	require.Equal(t, "openai", defaultEntry.Provider)
+	require.Equal(t, defaultModel.ContextLimit, defaultEntry.ContextLimit)
+	require.True(t, defaultEntry.IsDefault)
+
+	effortEntry := byID[effortModel.ID.String()]
+	require.False(t, effortEntry.IsDefault)
+	require.Equal(
+		t,
+		[]string{"none", "minimal", "low", "medium", "high"},
+		effortEntry.ReasoningEfforts,
+	)
+}
+
+func TestListSubagentModels_NotAvailableForChildChats(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	_, child := createParentChildChats(ctx, t, server, user, org, model)
+
+	childChat, err := db.GetChatByID(ctx, child.ID)
+	require.NoError(t, err)
+	require.True(t, childChat.ParentChatID.Valid, "child chat must have a parent")
+
+	resp := runSubagentTool(
+		ctx,
+		t,
+		server,
+		childChat,
+		childChat.LastModelConfigID,
+		listSubagentModelsToolName,
+		struct{}{},
+	)
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, "delegated chats cannot create child subagents")
+}
+
 func TestSpawnAgent_ExploreUsesConfiguredModelOverride(t *testing.T) {
 	t.Parallel()
 
