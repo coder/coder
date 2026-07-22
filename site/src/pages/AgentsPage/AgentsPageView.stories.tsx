@@ -715,7 +715,6 @@ export const WideSidebarPreservesChatPaneWidth: Story = {
 	],
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
-		chromatic: { viewports: [720] },
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents/chat-wide-sidebar" },
 			routing: agentsWithChatPaneMinimumRouting,
@@ -866,7 +865,6 @@ export const WithToolbarEndContent: Story = {
 export const EmptyStateZoom200Desktop: Story = {
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
-		chromatic: { viewports: [720] },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -907,7 +905,6 @@ export const CollapsedSidebarZoom200Desktop: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
-		chromatic: { viewports: [720] },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -933,7 +930,6 @@ export const CollapsedSidebarZoom200DesktopWithAgent: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
-		chromatic: { viewports: [720] },
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents/chat-1" },
 			routing: agentsWithChatTopBarRouting,

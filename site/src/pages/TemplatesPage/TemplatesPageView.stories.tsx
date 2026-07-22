@@ -3,7 +3,6 @@ import {
 	getDefaultFilterProps,
 	MockMenu,
 } from "#/components/Filter/storyHelpers";
-import { chromaticWithTablet } from "#/testHelpers/chromatic";
 import {
 	MockTemplate,
 	MockTemplateExample,
@@ -27,7 +26,6 @@ const defaultFilterProps = getDefaultFilterProps<TemplateFilterState>({
 const meta: Meta<typeof TemplatesPageView> = {
 	title: "pages/TemplatesPage",
 	decorators: [withDashboardProvider],
-	parameters: { chromatic: chromaticWithTablet },
 	component: TemplatesPageView,
 	args: {
 		filterState: defaultFilterProps,

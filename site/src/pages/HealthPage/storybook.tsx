@@ -8,7 +8,6 @@ import {
 	HEALTH_QUERY_KEY,
 	HEALTH_QUERY_SETTINGS_KEY,
 } from "#/api/queries/debug";
-import { chromatic } from "#/testHelpers/chromatic";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
@@ -30,7 +29,6 @@ export const generateMeta = ({ element, path, params }: MetaOptions) => {
 	return {
 		component: HealthLayout,
 		parameters: {
-			chromatic,
 			layout: "fullscreen",
 			reactRouter: reactRouterParameters({
 				location: { pathParams: params },
