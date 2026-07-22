@@ -668,6 +668,9 @@ resource "coder_script" "install-deps" {
     trusted_config_paths = [
       "/home/coder/coder",
       "/etc/mise",
+      # Mux worktrees carry the repo's mise.toml; untrusted configs make
+      # mise shims hang on an interactive trust prompt in fresh worktrees.
+      "/home/coder/.mux/src",
     ]
     TRUST
     fi
