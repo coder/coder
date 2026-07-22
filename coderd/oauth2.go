@@ -259,20 +259,24 @@ func (api *API) putOAuth2ProviderSettings(rw http.ResponseWriter, r *http.Reques
 	})
 	defer commitAudit()
 
-	oldEnabled, err := api.Database.GetOAuth2DCREnabled(ctx)
-	if err != nil {
-		if rbac.IsUnauthorizedError(err) {
-			httpapi.Forbidden(rw)
-			return
+	err := api.Database.InTx(func(tx database.Store) error {
+		oldEnabled, err := tx.GetOAuth2DCREnabled(ctx)
+		if err != nil {
+			return err
 		}
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-	aReq.Old = database.OAuth2ProviderSettings{
-		DynamicClientRegistrationEnabled: oldEnabled,
-	}
+		aReq.Old = database.OAuth2ProviderSettings{
+			DynamicClientRegistrationEnabled: oldEnabled,
+		}
 
-	err = api.Database.UpsertOAuth2DCREnabled(ctx, req.DynamicClientRegistrationEnabled)
+		if err := tx.UpsertOAuth2DCREnabled(ctx, req.DynamicClientRegistrationEnabled); err != nil {
+			return err
+		}
+		aReq.New = database.OAuth2ProviderSettings{
+			ID:                               uuid.New(),
+			DynamicClientRegistrationEnabled: req.DynamicClientRegistrationEnabled,
+		}
+		return nil
+	}, &database.TxOptions{TxIdentifier: "update_oauth2_provider_settings"})
 	if err != nil {
 		if rbac.IsUnauthorizedError(err) {
 			httpapi.Forbidden(rw)
@@ -280,10 +284,6 @@ func (api *API) putOAuth2ProviderSettings(rw http.ResponseWriter, r *http.Reques
 		}
 		httpapi.InternalServerError(rw, err)
 		return
-	}
-	aReq.New = database.OAuth2ProviderSettings{
-		ID:                               uuid.New(),
-		DynamicClientRegistrationEnabled: req.DynamicClientRegistrationEnabled,
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, req)
 }
