@@ -468,10 +468,6 @@ export const WithMemberAIBudgetInAnotherOrg: Story = {
 			{ key: meAISpendKey, data: mockUserAISpend },
 			{ key: getUserAIBudgetOverrideQueryKey(MockUserOwner.id), data: null },
 			{
-				key: getGroupByIdQueryKey("", { exclude_members: true }),
-				data: null,
-			},
-			{
 				key: getGroupsForUserQueryKey(
 					MockUserOwner.id,
 					MockGroupWithoutMembers.organization_id,
@@ -493,7 +489,7 @@ export const WithMemberAIBudgetInAnotherOrg: Story = {
 			within(cell).getByRole("button", { name: "More info" }),
 		);
 		await expect(
-			await body.findByText(/managed by another org and isn't visible here/),
+			await body.findByText(/managed by a group in another organization/),
 		).toBeInTheDocument();
 		await userEvent.keyboard("{Escape}");
 

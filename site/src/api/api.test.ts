@@ -168,57 +168,91 @@ describe("api.ts", () => {
 	});
 
 	describe("AI spend requests", () => {
-		it("rejects an empty ID list without sending a request", async () => {
-			const getSpy = vi
-				.spyOn(axiosInstance, "get")
-				.mockResolvedValue({ data: {} });
-			try {
-				await expect(
-					API.getOrganizationGroupsAISpend("my-org", []),
-				).rejects.toThrow(/must not be empty/);
-				await expect(API.getGroupMembersAISpend("group-1", [])).rejects.toThrow(
-					/must not be empty/,
-				);
-				expect(getSpy).not.toHaveBeenCalled();
-			} finally {
-				// The suite doesn't auto-restore mocks; don't leak the stub.
-				getSpy.mockRestore();
-			}
+		const window = {
+			period_start: "2026-07-01T00:00:00Z",
+			period_end: "2026-08-01T00:00:00Z",
+		};
+
+		// Each endpoint's request, URL path, and response for the given IDs.
+		const endpoints = [
+			{
+				name: "getOrganizationGroupsAISpend",
+				path: "/api/v2/organizations/my-org/groups/ai/spend",
+				request: (ids: string[]) =>
+					API.getOrganizationGroupsAISpend("my-org", ids),
+				response: (ids: string[]) => ({
+					...window,
+					groups: ids.map((id) => ({
+						group_id: id,
+						spend_micros: 0,
+						budget: null,
+					})),
+				}),
+			},
+			{
+				name: "getGroupMembersAISpend",
+				path: "/api/v2/groups/group-1/members/ai/spend",
+				request: (ids: string[]) => API.getGroupMembersAISpend("group-1", ids),
+				response: (ids: string[]) => ({
+					...window,
+					members: ids.map((id) => ({
+						user_id: id,
+						effective_group_id: null,
+						group_budget: null,
+						group_spend_micros: 0,
+					})),
+				}),
+			},
+		];
+
+		afterEach(() => {
+			// The suite doesn't auto-restore mocks; don't leak the stubs.
+			vi.restoreAllMocks();
 		});
 
-		it("batches requests of 100 group IDs and merges the results", async () => {
-			const groupIds = Array.from({ length: 150 }, (_, i) => `group-${i}`);
-			const window = {
-				period_start: "2026-07-01T00:00:00Z",
-				period_end: "2026-08-01T00:00:00Z",
-			};
-			const spendFor = (ids: string[]) =>
-				ids.map((id) => ({
-					group_id: id,
-					spend_micros: 0,
-					budget: null,
-				}));
-			const getSpy = vi
-				.spyOn(axiosInstance, "get")
-				.mockResolvedValueOnce({
-					data: { ...window, groups: spendFor(groupIds.slice(0, 100)) },
-				})
-				.mockResolvedValueOnce({
-					data: { ...window, groups: spendFor(groupIds.slice(100)) },
-				});
+		describe.each(endpoints)("$name", ({ path, request, response }) => {
+			it("rejects an empty ID list without sending a request", async () => {
+				const getSpy = vi
+					.spyOn(axiosInstance, "get")
+					.mockResolvedValue({ data: {} });
 
-			const result = await API.getOrganizationGroupsAISpend("my-org", groupIds);
+				await expect(request([])).rejects.toThrow(/must not be empty/);
+				expect(getSpy).not.toHaveBeenCalled();
+			});
 
-			expect(getSpy).toHaveBeenCalledTimes(2);
-			expect(getSpy.mock.calls[0][0]).toContain(
-				encodeURIComponent(groupIds.slice(0, 100).join(",")),
-			);
-			expect(getSpy.mock.calls[1][0]).toContain(
-				encodeURIComponent(groupIds.slice(100).join(",")),
-			);
-			expect(result).toStrictEqual({
-				...window,
-				groups: spendFor(groupIds),
+			it("sends a single request for up to 100 IDs", async () => {
+				const ids = Array.from({ length: 25 }, (_, i) => `id-${i}`);
+				const getSpy = vi
+					.spyOn(axiosInstance, "get")
+					.mockResolvedValueOnce({ data: response(ids) });
+
+				const result = await request(ids);
+
+				expect(getSpy).toHaveBeenCalledTimes(1);
+				expect(getSpy.mock.calls[0][0]).toContain(path);
+				expect(getSpy.mock.calls[0][0]).toContain(
+					encodeURIComponent(ids.join(",")),
+				);
+				expect(result).toStrictEqual(response(ids));
+			});
+
+			it("batches requests of 100 IDs and merges the results", async () => {
+				const ids = Array.from({ length: 150 }, (_, i) => `id-${i}`);
+				const getSpy = vi
+					.spyOn(axiosInstance, "get")
+					.mockResolvedValueOnce({ data: response(ids.slice(0, 100)) })
+					.mockResolvedValueOnce({ data: response(ids.slice(100)) });
+
+				const result = await request(ids);
+
+				expect(getSpy).toHaveBeenCalledTimes(2);
+				expect(getSpy.mock.calls[0][0]).toContain(
+					encodeURIComponent(ids.slice(0, 100).join(",")),
+				);
+				expect(getSpy.mock.calls[1][0]).toContain(
+					encodeURIComponent(ids.slice(100).join(",")),
+				);
+				expect(result).toStrictEqual(response(ids));
 			});
 		});
 	});

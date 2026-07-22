@@ -27,11 +27,13 @@ export const GroupMemberBudgetCells: FC<{
 	const effective = effectiveBudgetGroup(spend, group);
 	const fromOtherGroup = effective.kind === "other";
 
+	// A null effective_group_id is a group in another org that can't be
+	// fetched, so only resolve the name when an ID exists.
 	const { data: effectiveGroup, isLoading: isResolvingGroupName } = useQuery({
 		...groupById(spend?.effective_group_id ?? "", {
 			exclude_members: true,
 		}),
-		enabled: fromOtherGroup,
+		enabled: fromOtherGroup && Boolean(spend?.effective_group_id),
 	});
 	const effectiveGroupName =
 		effectiveGroup?.display_name || effectiveGroup?.name;
