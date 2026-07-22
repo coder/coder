@@ -23,11 +23,18 @@ export const getProviderIcon = (provider: string): string | undefined => {
 			return "/icon/google.svg";
 		case "vercel":
 			return "/icon/vercel.svg";
+		case "gemini":
+			return "/icon/gemini.svg";
 		default:
 			return undefined;
 	}
 };
 
+/**
+ * Renders a decorative provider logo with no accessible name. Callers MUST
+ * render the provider name as adjacent visible text; the icon alone does not
+ * convey it to assistive technology.
+ */
 export const ProviderIcon: React.FC<ProviderIconProps> = ({
 	provider,
 	icon,
@@ -38,9 +45,6 @@ export const ProviderIcon: React.FC<ProviderIconProps> = ({
 		// Lucide icons are aria-hidden by default when given no a11y prop.
 		return <Building2Icon className={`${className} flex-shrink-0`} />;
 	}
-	// Decorative: callers render the provider name as visible text beside the
-	// icon, so exposing it here too would double-announce it.
-	return (
-		<ExternalImage src={iconSrc} alt="" aria-hidden className={className} />
-	);
+	// alt="" removes the image from the accessibility tree.
+	return <ExternalImage src={iconSrc} alt="" className={className} />;
 };

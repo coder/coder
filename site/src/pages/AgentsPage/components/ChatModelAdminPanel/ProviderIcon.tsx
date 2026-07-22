@@ -2,16 +2,8 @@ import { ServerIcon } from "lucide-react";
 import type { FC } from "react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { normalizeProvider } from "#/modules/aiModels/helpers";
+import { getProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 import { cn } from "#/utils/cn";
-
-const providerIconMap: Record<string, string> = {
-	openai: "/icon/openai.svg",
-	anthropic: "/icon/anthropic.svg",
-	azure: "/icon/azure.svg",
-	bedrock: "/icon/aws.svg",
-	google: "/icon/google.svg",
-	gemini: "/icon/gemini.svg",
-};
 
 interface ProviderIconProps {
 	provider: string;
@@ -22,20 +14,7 @@ export const ProviderIcon: FC<ProviderIconProps> = ({
 	provider,
 	className,
 }) => {
-	const normalized = normalizeProvider(provider);
-	const iconPath = providerIconMap[normalized];
-	if (iconPath) {
-		return (
-			<div
-				className={cn(
-					"flex shrink-0 items-center justify-center rounded-full bg-surface-secondary",
-					className,
-				)}
-			>
-				<ExternalImage src={iconPath} alt="" className="size-3/5" />
-			</div>
-		);
-	}
+	const iconPath = getProviderIcon(normalizeProvider(provider));
 	return (
 		<div
 			className={cn(
@@ -43,7 +22,11 @@ export const ProviderIcon: FC<ProviderIconProps> = ({
 				className,
 			)}
 		>
-			<ServerIcon className="size-3/5 text-content-secondary" />
+			{iconPath ? (
+				<ExternalImage src={iconPath} alt="" className="size-3/5" />
+			) : (
+				<ServerIcon className="size-3/5 text-content-secondary" />
+			)}
 		</div>
 	);
 };
