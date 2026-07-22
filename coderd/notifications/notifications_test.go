@@ -1472,6 +1472,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					"threshold":  "85",
 					"limit":      "$1000.00",
 					"group_name": "Engineering",
+					"period":     "monthly",
 				},
 				Data: map[string]any{},
 			},
@@ -1486,6 +1487,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				Labels: map[string]string{
 					"limit":      "$1000.00",
 					"group_name": "Engineering",
+					"period":     "monthly",
 				},
 				Data: map[string]any{},
 			},

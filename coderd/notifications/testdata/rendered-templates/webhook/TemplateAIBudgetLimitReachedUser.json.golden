@@ -12,7 +12,8 @@
     "actions": [],
     "labels": {
       "group_name": "Engineering",
-      "limit": "$1000.00"
+      "limit": "$1000.00",
+      "period": "monthly"
     },
     "data": {},
     "targets": null

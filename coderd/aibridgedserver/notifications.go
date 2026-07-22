@@ -113,6 +113,7 @@ func (s *Server) notifyBudgetThresholdCrossing(ctx context.Context, crossing bud
 		"threshold":  strconv.Itoa(crossing.thresholdPercent),
 		"limit":      formatSpendLimit(crossing.spendLimitMicros),
 		"group_name": group.Name,
+		"period":     s.budgetPeriod.Adjective(),
 	}
 
 	//nolint:gocritic // Enqueuing notifications requires the notifier actor.
