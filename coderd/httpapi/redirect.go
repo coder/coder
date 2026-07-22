@@ -5,12 +5,9 @@ import (
 	"strings"
 )
 
-// SafeRedirectPath reduces a redirect URL down to a safe, relative path plus
-// query string local to this application. Any scheme and host are dropped,
-// since preserving them would allow an open redirect to another site. Opaque
-// URLs (e.g. "javascript:..." or "data:...") are rejected outright and
-// collapse to "/", since their content isn't a hierarchical path we can
-// safely reduce.
+// SafeRedirectPath reduces a redirect URL down to a safe, relative path. The
+// scheme and host are dropped to prevent redirecting to another origin. Opaque
+// URLs (e.g. `javascript:`, `data:`) are rejected outright and default to /.
 func SafeRedirectPath(u string) string {
 	uri, err := url.Parse(u)
 	if err != nil || uri.Opaque != "" {
