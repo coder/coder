@@ -114,6 +114,42 @@ func TestNewAnthropic_KeyResolution(t *testing.T) {
 	}
 }
 
+// NOTE: no t.Parallel() because the subtests use t.Setenv.
+func TestNewAnthropic_BedrockRegionResolution(t *testing.T) {
+	t.Run("mantle_region_from_env", func(t *testing.T) {
+		t.Setenv("AWS_REGION", "us-west-2")
+
+		p, err := NewAnthropic(context.Background(), config.Anthropic{}, &config.AWSBedrock{
+			BaseURL:         "https://bedrock-mantle.us-west-2.api.aws/anthropic",
+			Protocol:        config.BedrockProtocolMantle,
+			AccessKey:       "test-key",
+			AccessKeySecret: "test-secret",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, p.bedrock)
+		require.Equal(t, "us-west-2", p.bedrock.Cfg.Region)
+	})
+
+	t.Run("mantle_no_region_anywhere", func(t *testing.T) {
+		// Clear every source the AWS SDK consults for a region so none
+		// resolves, then confirm construction rejects the mantle provider.
+		t.Setenv("AWS_REGION", "")
+		t.Setenv("AWS_DEFAULT_REGION", "")
+		t.Setenv("AWS_PROFILE", "")
+		t.Setenv("AWS_CONFIG_FILE", "/dev/null")
+		t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/dev/null")
+		t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+
+		_, err := NewAnthropic(context.Background(), config.Anthropic{}, &config.AWSBedrock{
+			BaseURL:         "https://proxy.internal",
+			Protocol:        config.BedrockProtocolMantle,
+			AccessKey:       "test-key",
+			AccessKeySecret: "test-secret",
+		})
+		require.ErrorContains(t, err, "region required")
+	})
+}
+
 func TestAnthropic_CreateInterceptor(t *testing.T) {
 	t.Parallel()
 

@@ -59,7 +59,7 @@ func TestAIGatewayKeys(t *testing.T) {
 		require.Equal(t, created.ID, keys[0].ID)
 		require.Equal(t, created.Name, keys[0].Name)
 		require.Equal(t, created.KeyPrefix, keys[0].KeyPrefix)
-		require.Nil(t, keys[0].LastUsedAt)
+		require.Nil(t, keys[0].LastHeartbeatAt)
 
 		require.NoError(t, ownerClient.DeleteAIGatewayKey(ctx, created.ID))
 

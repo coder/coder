@@ -56,7 +56,7 @@ func allSubagentDefinitions() []subagentDefinition {
 			id:          subagentTypeGeneral,
 			description: "substantial delegated research, analysis, reasoning, review, planning support, and implementation",
 			buildOptions: func(ctx context.Context, p *Server, parent database.Chat, _ database.Chat, _ uuid.UUID, _ string) (childSubagentChatOptions, error) {
-				modelConfigID, err := p.resolveSubagentModelConfigID(
+				modelConfigID, reasoningEffort, err := p.resolveSubagentModelConfigID(
 					ctx,
 					parent.OwnerID,
 					codersdk.ChatModelOverrideContextGeneral,
@@ -67,6 +67,7 @@ func allSubagentDefinitions() []subagentDefinition {
 				options := childSubagentChatOptions{}
 				if modelConfigID != uuid.Nil {
 					options.modelConfigIDOverride = &modelConfigID
+					options.reasoningEffortOverride = reasoningEffort
 				}
 				return options, nil
 			},
@@ -75,7 +76,7 @@ func allSubagentDefinitions() []subagentDefinition {
 			id:          subagentTypeExplore,
 			description: "narrow repository-local read-only code discovery and code tracing",
 			buildOptions: func(ctx context.Context, p *Server, _ database.Chat, turnParent database.Chat, currentModelConfigID uuid.UUID, _ string) (childSubagentChatOptions, error) {
-				modelConfigID, err := p.resolveSubagentModelConfigID(
+				modelConfigID, reasoningEffort, err := p.resolveSubagentModelConfigID(
 					ctx,
 					turnParent.OwnerID,
 					codersdk.ChatModelOverrideContextExplore,
@@ -101,9 +102,10 @@ func allSubagentDefinitions() []subagentDefinition {
 						ChatMode: database.ChatModeExplore,
 						Valid:    true,
 					},
-					modelConfigIDOverride: &modelConfigID,
-					planModeOverride:      &clearPlanMode,
-					inheritedMCPServerIDs: inheritedMCPServerIDs,
+					modelConfigIDOverride:   &modelConfigID,
+					reasoningEffortOverride: reasoningEffort,
+					planModeOverride:        &clearPlanMode,
+					inheritedMCPServerIDs:   inheritedMCPServerIDs,
 				}, nil
 			},
 		},
@@ -114,8 +116,8 @@ func allSubagentDefinitions() []subagentDefinition {
 				if currentChat.PlanMode.Valid && currentChat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
 					return `type "computer_use" is unavailable in plan mode`
 				}
-				if !p.isDesktopEnabled(ctx) {
-					return `type "computer_use" is unavailable because desktop access is not enabled`
+				if !p.experiments.Enabled(codersdk.ExperimentChatVirtualDesktop) {
+					return `type "computer_use" is unavailable because the chat-virtual-desktop experiment is not enabled`
 				}
 				_, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)
 				if err != nil {
@@ -132,11 +134,11 @@ func allSubagentDefinitions() []subagentDefinition {
 				if err != nil {
 					return childSubagentChatOptions{}, err
 				}
-				providerKeys, err := p.resolveUserProviderAPIKeysForProviderType(ctx, currentChat.OwnerID, provider)
+				providerKeys, err := p.resolveUserProviderAPIKeysForProviderType(ctx, currentChat.OwnerID, string(provider))
 				if err != nil {
 					return childSubagentChatOptions{}, err
 				}
-				if !userCanUseProviderKeys(providerKeys, provider) {
+				if !userCanUseProviderKeys(providerKeys, string(provider)) {
 					return childSubagentChatOptions{}, xerrors.Errorf(
 						`API key for computer-use provider %q is not configured`,
 						provider,
@@ -299,7 +301,12 @@ func buildSpawnAgentDescription(
 		"subagents modify the same files they will conflict with each other, " +
 		"so ensure parallel subagent tasks are independent. The child agent " +
 		"receives the same workspace tools but cannot spawn its own subagents. " +
-		"After spawning, use wait_agent to collect the result."
+		"After spawning, use wait_agent to retrieve the result. Agents persist " +
+		"after completion; reuse an agent via message_agent for follow-up work " +
+		"when it already has relevant context. Spawned agents are your " +
+		"responsibility: do not abandon one in a working state (running); " +
+		"retrieve its result, redirect it with message_agent, or stop " +
+		"it with interrupt_agent."
 	if currentChat.PlanMode.Valid && currentChat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
 		description += " During plan mode, type=\"" + subagentTypeGeneral +
 			"\" is for non-mutating substantial investigation and planning support, " +
@@ -340,7 +347,7 @@ func planningOverlaySubagentGuidance() string {
 
 	return "Use read_file, execute, process_output, list_templates, read_template, " +
 		spawnAgentToolName + ", and approved external MCP tools when available to gather context. " +
-		"Workspace MCP tools are not available in root plan mode, and side-effecting built-in tools such as process_list, process_signal, message_agent, close_agent, and computer-use actions remain unavailable. In Plan Mode, " +
+		"Workspace MCP tools are not available in root plan mode, and side-effecting built-in tools such as process_list, process_signal, message_agent, interrupt_agent, and computer-use actions remain unavailable. In Plan Mode, " +
 		spawnAgentToolName + " delegation is for investigation and planning " +
 		"support, not code writing or implementation. Use type=\"" + subagentTypeGeneral +
 		"\" for substantial investigation, reasoning, and planning support. " +

@@ -19,6 +19,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/singleflight"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agenttest"
@@ -52,6 +53,50 @@ import (
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/terraform-provider-coder/v2/provider"
 )
+
+// TestWorkspacesListSingleAuthorizePrepare guards against reintroducing the
+// redundant OPA partial evaluation the GET /api/v2/workspaces handler used to
+// perform. The handler called AuthorizeSQLFilter to build a prepared
+// ResourceWorkspace authorizer, but the dbauthz GetAuthorizedWorkspaces wrapper
+// ignored it and re-prepared inside GetWorkspaces, so every request ran partial
+// evaluation twice. Partial-evaluation cost scales with the number of
+// organization-scoped roles the subject carries (see #21890), so the duplicate
+// prepare doubled an already expensive operation. A single list request must
+// prepare the ResourceWorkspace authorizer exactly once.
+func TestWorkspacesListSingleAuthorizePrepare(t *testing.T) {
+	t.Parallel()
+
+	authz := &coderdtest.RecordingAuthorizer{Wrapped: rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())}
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		Authorizer: authz,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	// Seed one workspace directly in the database. The authorization path the
+	// handler takes does not depend on how the workspace was built, so dbfake
+	// avoids the cost of a provisioner and real build.
+	dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:        owner.UserID,
+		OrganizationID: owner.OrganizationID,
+	}).Do()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Reset immediately before the measured request so setup prepares are
+	// excluded. Counts are keyed by subject ID, so background work under system
+	// subjects is ignored.
+	authz.Reset()
+	res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.Len(t, res.Workspaces, 1)
+
+	// The exact count of 1 relies on this being the only request issued under the
+	// owner subject between the reset and this assertion, which holds because the
+	// test makes a single serial call.
+	count := authz.PrepareCount(owner.UserID.String(), policy.ActionRead, rbac.ResourceWorkspace.Type)
+	require.Equal(t, 1, count,
+		"GET /workspaces must prepare the ResourceWorkspace authorizer exactly once; a higher count means a redundant partial evaluation was reintroduced")
+}
 
 func TestWorkspace(t *testing.T) {
 	t.Parallel()
@@ -1501,6 +1546,7 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -1553,6 +1599,7 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -1601,6 +1648,7 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -1640,6 +1688,7 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				DisplayName:              "GitHub",
 				ValidateURL:              validateSrv.URL,
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -1680,6 +1729,7 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 				ID:                       "fallback-provider",
 				Regex:                    regexp.MustCompile(`fallback\.example\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		first := coderdtest.CreateFirstUser(t, client)
@@ -4077,6 +4127,49 @@ func TestWatchAllWorkspaceBuilds(t *testing.T) {
 	_ = coderdtest.CreateWorkspaceBuild(t, client, workspace2, database.WorkspaceTransitionStart)
 	update = waitForUpdate("workspace2 start", workspace2.ID, "start", "succeeded")
 	require.Equal(t, workspace2.ID, update.WorkspaceID)
+}
+
+func TestWatchAllWorkspaceBuildsAuthorization(t *testing.T) {
+	t.Parallel()
+
+	// Enable the workspace build updates experiment.
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+			dv.Experiments = []string{string(codersdk.ExperimentWorkspaceBuildUpdates)}
+		}),
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	t.Run("MemberForbidden", func(t *testing.T) {
+		t.Parallel()
+
+		// A plain member has no deployment-wide workspace read permission and
+		// must not be able to open the all-builds stream.
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		_, err := memberClient.WatchAllWorkspaceBuilds(ctx)
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+	})
+
+	t.Run("TemplateAdminAllowed", func(t *testing.T) {
+		t.Parallel()
+
+		// Template admins have site-wide workspace read and may open the stream.
+		taClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		decoder, err := taClient.WatchAllWorkspaceBuilds(ctx)
+		require.NoError(t, err)
+		defer decoder.Close()
+	})
 }
 
 func mustLocation(t *testing.T, location string) *time.Location {

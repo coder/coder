@@ -83,7 +83,4 @@ export const WithSpinner: Story = {
 	args: {
 		icon: <PillSpinner />,
 	},
-	parameters: {
-		chromatic: { delay: 700 },
-	},
 };

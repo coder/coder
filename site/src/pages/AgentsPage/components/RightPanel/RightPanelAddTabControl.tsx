@@ -59,7 +59,6 @@ const AgentPortsSubMenu: FC<{
 };
 
 export const RightPanelAddTabControl: FC<{
-	appExperimentEnabled: boolean;
 	workspace?: Workspace;
 	agent?: WorkspaceAgent;
 	host?: string;
@@ -69,7 +68,6 @@ export const RightPanelAddTabControl: FC<{
 	onOpenCommandApp?: (app: WorkspaceApp) => void;
 	onOpenPort?: (selection: PortSelection) => void;
 }> = ({
-	appExperimentEnabled,
 	workspace,
 	agent,
 	host = "",
@@ -93,119 +91,114 @@ export const RightPanelAddTabControl: FC<{
 				disabled={!canCreateTerminal}
 				aria-label="New terminal tab"
 				title="New terminal tab"
-				className={cn(
-					"size-6 rounded-none border-0 bg-transparent p-0 text-content-secondary hover:bg-surface-secondary hover:text-content-primary",
-					appExperimentEnabled && "border-r border-solid border-border-default",
-				)}
+				className="size-6 rounded-none border-0 bg-transparent p-0 text-content-secondary hover:bg-surface-secondary hover:text-content-primary border-r border-solid border-border-default"
 			>
 				<PlusIcon className="size-3.5" />
 			</Button>
-			{appExperimentEnabled && (
-				<DropdownMenu open={open} onOpenChange={setOpen}>
-					<DropdownMenuTrigger asChild>
-						<Button
-							variant="subtle"
-							size="icon"
-							aria-label="Add panel"
-							className="size-6 rounded-none border-0 bg-transparent p-0 text-content-secondary hover:bg-surface-secondary hover:text-content-primary"
-						>
-							<ChevronDownIcon
-								className={cn(
-									"size-3 transition-transform",
-									open && "rotate-180",
-								)}
-							/>
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent
-						align="end"
-						side="bottom"
-						className="w-52 p-1 [&_[role=menuitem]]:py-1 [&_[role=menuitem]]:text-xs [&_img]:!size-3.5 [&_svg]:!size-3.5"
+			<DropdownMenu open={open} onOpenChange={setOpen}>
+				<DropdownMenuTrigger asChild>
+					<Button
+						variant="subtle"
+						size="icon"
+						aria-label="Add panel"
+						className="size-6 rounded-none border-0 bg-transparent p-0 text-content-secondary hover:bg-surface-secondary hover:text-content-primary"
 					>
-						<DropdownMenuItem
-							onSelect={onNewTerminal}
-							disabled={!canCreateTerminal}
-						>
-							<SquareTerminalIcon />
-							New Terminal
-						</DropdownMenuItem>
+						<ChevronDownIcon
+							className={cn(
+								"size-3 transition-transform",
+								open && "rotate-180",
+							)}
+						/>
+					</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent
+					align="end"
+					side="bottom"
+					className="w-52 p-1 [&_[role=menuitem]]:py-1 [&_[role=menuitem]]:text-xs [&_img]:!size-3.5 [&_svg]:!size-3.5"
+				>
+					<DropdownMenuItem
+						onSelect={onNewTerminal}
+						disabled={!canCreateTerminal}
+					>
+						<SquareTerminalIcon />
+						New Terminal
+					</DropdownMenuItem>
 
-						{workspace && agent && userApps.length > 0 && (
-							<>
-								<DropdownMenuSeparator className="my-1" />
-								{userApps.map((app) => {
-									if (app.command && onOpenCommandApp) {
-										return (
-											<DropdownMenuItem
-												key={app.id}
-												onSelect={() => onOpenCommandApp(app)}
-												disabled={!isRunning}
-											>
-												{app.icon ? (
-													<ExternalImage
-														src={app.icon}
-														alt=""
-														className="rounded-sm"
-													/>
-												) : (
-													<SquareTerminalIcon />
-												)}
-												{app.display_name ?? app.slug}
-											</DropdownMenuItem>
-										);
-									}
-									if (isWorkspaceAppEmbeddable(app) && onOpenWorkspaceApp) {
-										return (
-											<DropdownMenuItem
-												key={app.id}
-												onSelect={() => onOpenWorkspaceApp(app)}
-												disabled={!isRunning}
-											>
-												{app.icon ? (
-													<ExternalImage
-														src={app.icon}
-														alt=""
-														className="rounded-sm"
-													/>
-												) : (
-													<LayoutGridIcon />
-												)}
-												{app.display_name ?? app.slug}
-											</DropdownMenuItem>
-										);
-									}
+					{workspace && agent && userApps.length > 0 && (
+						<>
+							<DropdownMenuSeparator className="my-1" />
+							{userApps.map((app) => {
+								if (app.command && onOpenCommandApp) {
 									return (
-										<AppLink
+										<DropdownMenuItem
 											key={app.id}
-											workspace={workspace}
-											agent={agent}
-											app={app}
-											grouped
-										/>
+											onSelect={() => onOpenCommandApp(app)}
+											disabled={!isRunning}
+										>
+											{app.icon ? (
+												<ExternalImage
+													src={app.icon}
+													alt=""
+													className="rounded-sm"
+												/>
+											) : (
+												<SquareTerminalIcon />
+											)}
+											{app.display_name ?? app.slug}
+										</DropdownMenuItem>
 									);
-								})}
-							</>
-						)}
-
-						{workspace &&
-							agent &&
-							onOpenPort &&
-							canShowPortForwarding(agent, host) && (
-								<>
-									<DropdownMenuSeparator className="my-1" />
-									<AgentPortsSubMenu
+								}
+								if (isWorkspaceAppEmbeddable(app) && onOpenWorkspaceApp) {
+									return (
+										<DropdownMenuItem
+											key={app.id}
+											onSelect={() => onOpenWorkspaceApp(app)}
+											disabled={!isRunning}
+										>
+											{app.icon ? (
+												<ExternalImage
+													src={app.icon}
+													alt=""
+													className="rounded-sm"
+												/>
+											) : (
+												<LayoutGridIcon />
+											)}
+											{app.display_name ?? app.slug}
+										</DropdownMenuItem>
+									);
+								}
+								return (
+									<AppLink
+										key={app.id}
 										workspace={workspace}
 										agent={agent}
-										host={host}
-										isOpen={open}
-										isRunning={isRunning}
-										onPortSelect={onOpenPort}
+										app={app}
+										grouped
 									/>
-								</>
-							)}
-					</DropdownMenuContent>
-				</DropdownMenu>
-			)}
+								);
+							})}
+						</>
+					)}
+
+					{workspace &&
+						agent &&
+						onOpenPort &&
+						canShowPortForwarding(agent, host) && (
+							<>
+								<DropdownMenuSeparator className="my-1" />
+								<AgentPortsSubMenu
+									workspace={workspace}
+									agent={agent}
+									host={host}
+									isOpen={open}
+									isRunning={isRunning}
+									onPortSelect={onOpenPort}
+								/>
+							</>
+						)}
+				</DropdownMenuContent>
+			</DropdownMenu>
 		</div>
 	);
 };

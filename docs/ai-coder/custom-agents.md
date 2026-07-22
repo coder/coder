@@ -47,7 +47,7 @@ persistence on the agentapi module. Set `enable_state_persistence = true`
 so that AgentAPI saves and restores conversation history across pause and
 resume cycles:
 
-```hcl
+```tf
 module "agentapi" {
   source                   = "registry.coder.com/coder/agentapi/coder"
   version                  = ">= 2.2.0"

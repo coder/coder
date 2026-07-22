@@ -25,7 +25,7 @@
     {
       "name": "agent_name",
       "type": "string",
-      "description": "The name of the coder_agent resource. Required when `subdomain` is `false` so the path-based base URL matches the URL Coder serves.",
+      "description": "The name of the coder_agent resource.",
       "required": false,
       "sensitive": false,
       "computed": false

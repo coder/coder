@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/files"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -131,19 +132,28 @@ func TestClaimPrebuild(t *testing.T) {
 
 				// Setup
 				clock := quartz.NewMock(t)
+				acquirerClock := quartz.NewMock(t)
 				clock.Set(dbtime.Now())
 				ctx := testutil.Context(t, testutil.WaitSuperLong)
 				db, pubsub := dbtestutil.NewDB(t)
+				logger := testutil.Logger(t)
+				acquirer := provisionerdserver.NewAcquirer(
+					ctx,
+					logger.Named("acquirer"),
+					db,
+					pubsub,
+					provisionerdserver.WithClock(acquirerClock),
+				)
 
 				spy := newStoreSpy(db, tc.claimingErr)
 				expectedPrebuildsCount := desiredInstances * presetCount
 
-				logger := testutil.Logger(t)
 				client, _, api, owner := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 					Options: &coderdtest.Options{
 						Database: spy,
 						Pubsub:   pubsub,
 						Clock:    clock,
+						Acquirer: acquirer,
 					},
 					LicenseOptions: &coderdenttest.LicenseOptions{
 						Features: license.Features{
@@ -160,10 +170,18 @@ func TestClaimPrebuild(t *testing.T) {
 					orgID = secondOrg.ID
 				}
 
+				acquirerTickerTrap := acquirerClock.Trap().NewTicker("acquirer", "backup_poll")
+				defer acquirerTickerTrap.Close()
 				provisionerCloser := coderdenttest.NewExternalProvisionerDaemon(t, client, orgID, map[string]string{
 					provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 				})
 				defer provisionerCloser.Close()
+				acquirerTickerTrap.MustWait(ctx).MustRelease(ctx)
+				secondAcquirerTickerReady := make(chan struct{})
+				go func() {
+					acquirerTickerTrap.MustWait(ctx).MustRelease(ctx)
+					close(secondAcquirerTickerReady)
+				}()
 
 				cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 				reconciler := prebuilds.NewStoreReconciler(
@@ -201,12 +219,12 @@ func TestClaimPrebuild(t *testing.T) {
 					actions, err := reconciler.CalculateActions(ctx, *ps)
 					require.NoError(t, err)
 					require.NotNil(t, actions)
-
 					require.NoError(t, reconciler.ReconcilePreset(ctx, *ps))
 				}
 
 				// Given: a set of running, eligible prebuilds eventually starts up.
 				runningPrebuilds := make(map[uuid.UUID]database.GetRunningPrebuiltWorkspacesRow, desiredInstances*presetCount)
+				advancedAcquirerClock := false
 				require.Eventually(t, func() bool {
 					rows, err := spy.GetRunningPrebuiltWorkspaces(ctx)
 					if err != nil {
@@ -236,6 +254,15 @@ func TestClaimPrebuild(t *testing.T) {
 							if err != nil {
 								return false
 							}
+						}
+					}
+
+					if !advancedAcquirerClock {
+						select {
+						case <-secondAcquirerTickerReady:
+							acquirerClock.Advance(30 * time.Second).MustWait(ctx)
+							advancedAcquirerClock = true
+						default:
 						}
 					}
 

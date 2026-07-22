@@ -19,6 +19,7 @@ import type {
 	UpsertUserAIBudgetOverrideRequest,
 	User,
 	UserAIBudgetOverride,
+	UserAISpendStatus,
 	UserAppearanceSettings,
 	UserPreferenceSettings,
 	UsersRequest,
@@ -155,6 +156,17 @@ export const me = (metadata: MetadataState<User>) => {
 		queryKey: meKey,
 		queryFn: API.getAuthenticatedUser,
 	});
+};
+
+export const meAISpendKey = [...meKey, "aiSpend"] as const;
+
+export const meAISpend = (): UseQueryOptions<UserAISpendStatus> => {
+	return {
+		queryKey: meAISpendKey,
+		queryFn: () => API.getUserAISpend(),
+		// Polled so the avatar border reflects spend without opening the dropdown.
+		refetchInterval: 60_000,
+	};
 };
 
 const userKey = (usernameOrId: string) => ["user", usernameOrId];

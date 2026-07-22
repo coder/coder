@@ -172,15 +172,6 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		filter.OwnerUsername = ""
 	}
 
-	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceWorkspace.Type)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error preparing sql filter.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	// To show the requester's favorite workspaces first, we pass their userID and compare it to
 	// the workspace owner_id when ordering the rows.
 	filter.RequesterID = apiKey.UserID
@@ -188,7 +179,9 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	// We need the technical row to present the correct count on every page.
 	filter.WithSummary = true
 
-	workspaceRows, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, prepared)
+	// GetWorkspaces authorizes the query itself, so we don't prepare a SQL
+	// filter here.
+	workspaceRows, err := api.Database.GetWorkspaces(ctx, filter)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspaces.",
@@ -548,53 +541,13 @@ func createWorkspace(
 		opts = &createWorkspaceOptions{}
 	}
 
-	template, err := requestTemplate(ctx, req, api.Database)
+	template, err := api.preflightWorkspaceCreate(ctx, owner.ID, req)
 	if err != nil {
 		return codersdk.Workspace{}, err
 	}
 
-	// This is a premature auth check to avoid doing unnecessary work if the user
-	// doesn't have permission to create a workspace.
-	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionCreate,
-		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(owner.ID.String())) {
-		// If this check fails, return a proper unauthorized error to the user to indicate
-		// what is going on.
-		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
-			Message: "Unauthorized to create workspace.",
-			Detail: "You are unable to create a workspace in this organization. " +
-				"It is possible to have access to the template, but not be able to create a workspace. " +
-				"Please contact an administrator about your permissions if you feel this is an error.",
-		})
-	}
-
 	// Update audit log's organization
 	auditReq.UpdateOrganizationID(template.OrganizationID)
-
-	// Do this upfront to save work. If this fails, the rest of the work
-	// would be wasted.
-	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionCreate,
-		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(owner.ID.String())) {
-		return codersdk.Workspace{}, httperror.ErrResourceNotFound
-	}
-	// The user also needs permission to use the template. At this point they have
-	// read perms, but not necessarily "use". This is also checked in `db.InsertWorkspace`.
-	// Doing this up front can save some work below if the user doesn't have permission.
-	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionUse, template) {
-		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
-			Message: fmt.Sprintf("Unauthorized access to use the template %q.", template.Name),
-			Detail: "Although you are able to view the template, you are unable to create a workspace using it. " +
-				"Please contact an administrator about your permissions if you feel this is an error.",
-		})
-	}
-
-	templateAccessControl := (*(api.AccessControlStore.Load())).GetTemplateAccessControl(template)
-	if templateAccessControl.IsDeprecated() {
-		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Template %q has been deprecated, and cannot be used to create a new workspace.", template.Name),
-			// Pass the deprecated message to the user.
-			Detail: templateAccessControl.Deprecated,
-		})
-	}
 
 	// Required external auth is otherwise only enforced by client-side preflight
 	// checks in the CLI and UI, so API-created workspaces must be validated here
@@ -956,6 +909,64 @@ func (api *API) requireWorkspaceOwnerExternalAuth(ctx context.Context, templateV
 		),
 		Validations: validations,
 	})
+}
+
+// preflightWorkspaceCreate resolves the template targeted by req and verifies
+// that the caller may create a workspace owned by ownerID using it. It performs
+// only side-effect-free authorization, so it is safe to call as an early gate:
+//
+//   - resolve the template (requestTemplate)
+//   - ActionCreate on a workspace in the template's organization for the owner
+//   - ActionUse on the template
+//   - reject deprecated templates
+//
+// It deliberately does not validate required external auth (that mutates the
+// owner's external auth links and is enforced separately) and does not touch
+// the audit request, so callers retain control over audit-organization
+// assignment and external-auth ordering. Both createWorkspace and tasksCreate
+// call it so these authorization gates cannot diverge.
+func (api *API) preflightWorkspaceCreate(ctx context.Context, ownerID uuid.UUID, req codersdk.CreateWorkspaceRequest) (database.Template, error) {
+	template, err := requestTemplate(ctx, req, api.Database)
+	if err != nil {
+		return database.Template{}, err
+	}
+
+	// This is a premature auth check to avoid doing unnecessary work if the
+	// user doesn't have permission to create a workspace.
+	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionCreate,
+		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(ownerID.String())) {
+		// If this check fails, return a proper unauthorized error to the user
+		// to indicate what is going on.
+		return database.Template{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+			Message: "Unauthorized to create workspace.",
+			Detail: "You are unable to create a workspace in this organization. " +
+				"It is possible to have access to the template, but not be able to create a workspace. " +
+				"Please contact an administrator about your permissions if you feel this is an error.",
+		})
+	}
+
+	// The user also needs permission to use the template. At this point they
+	// have read perms, but not necessarily "use". This is also checked in
+	// `db.InsertWorkspace`. Doing this up front can save some work below if the
+	// user doesn't have permission.
+	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionUse, template) {
+		return database.Template{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+			Message: fmt.Sprintf("Unauthorized access to use the template %q.", template.Name),
+			Detail: "Although you are able to view the template, you are unable to create a workspace using it. " +
+				"Please contact an administrator about your permissions if you feel this is an error.",
+		})
+	}
+
+	templateAccessControl := (*(api.AccessControlStore.Load())).GetTemplateAccessControl(template)
+	if templateAccessControl.IsDeprecated() {
+		return database.Template{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Template %q has been deprecated, and cannot be used to create a new workspace.", template.Name),
+			// Pass the deprecated message to the user.
+			Detail: templateAccessControl.Deprecated,
+		})
+	}
+
+	return template, nil
 }
 
 func requestTemplate(ctx context.Context, req codersdk.CreateWorkspaceRequest, db database.Store) (database.Template, error) {
@@ -2249,6 +2260,20 @@ func (api *API) watchWorkspace(
 func (api *API) watchAllWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// This endpoint streams build events for every workspace in the deployment
+	// with no per-item filtering, so require deployment-wide read on workspaces.
+	// Without this, any authenticated user could enumerate all workspace names
+	// and observe build activity across organizations they do not belong to.
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceWorkspace.All()) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "You are not authorized to watch all workspace builds.",
+			Detail: "This requires permission to read all workspaces, which is granted by the " +
+				"Owner or Template Admin role. Please contact an administrator about your " +
+				"permissions if you feel this is an error.",
+		})
+		return
+	}
+
 	// Buffer enough updates to avoid blocking the pubsub callback while we're
 	// accepting the WebSocket connection. Accepting the connection signals to
 	// the client that the server is subscribed and ready to forward events.
@@ -3016,20 +3041,7 @@ func validWorkspaceSchedule(s *string) (sql.NullString, error) {
 }
 
 func (api *API) publishWorkspaceUpdate(ctx context.Context, ownerID uuid.UUID, event wspubsub.WorkspaceEvent) {
-	err := event.Validate()
-	if err != nil {
-		api.Logger.Warn(ctx, "invalid workspace update event",
-			slog.F("workspace_id", event.WorkspaceID),
-			slog.F("event_kind", event.Kind), slog.Error(err))
-		return
-	}
-	msg, err := json.Marshal(event)
-	if err != nil {
-		api.Logger.Warn(ctx, "failed to marshal workspace update",
-			slog.F("workspace_id", event.WorkspaceID), slog.Error(err))
-		return
-	}
-	err = api.Pubsub.Publish(wspubsub.WorkspaceEventChannel(ownerID), msg)
+	err := wspubsub.PublishWorkspaceEvent(ctx, api.Pubsub, ownerID, event)
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to publish workspace update",
 			slog.F("workspace_id", event.WorkspaceID), slog.Error(err))

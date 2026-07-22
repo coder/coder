@@ -851,8 +851,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
 				Labels: map[string]string{
-					"workspace": "bobby-workspace",
-					"deadline":  "2024-03-15 14:00 UTC",
+					"workspace":       "bobby-workspace",
+					"timeTilShutdown": "1 hour from now",
 				},
 			},
 		},
@@ -1359,6 +1359,21 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					"task":      "my-task",
 					"task_id":   "00000000-0000-0000-0000-000000000001",
 					"workspace": "my-workspace",
+				},
+				Data: map[string]any{},
+			},
+		},
+		{
+			name: "TemplateChatShared",
+			id:   notifications.TemplateChatShared,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"chat_id":    "00000000-0000-0000-0000-000000000001",
+					"chat_title": "Onboarding kickoff",
+					"initiator":  "alice",
 				},
 				Data: map[string]any{},
 			},

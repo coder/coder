@@ -577,15 +577,6 @@ func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTem
 			return
 		}
 
-		prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceTemplate.Type)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error preparing sql filter.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-
 		args := filter
 		if mutate != nil {
 			mutate(r, &args)
@@ -599,8 +590,9 @@ func (api *API) fetchTemplates(mutate func(r *http.Request, arg *database.GetTem
 			}
 		}
 
-		// Filter templates based on rbac permissions
-		templates, err := api.Database.GetAuthorizedTemplates(ctx, args, prepared)
+		// GetTemplatesWithFilter authorizes the query itself, so we don't
+		// prepare a SQL filter here.
+		templates, err := api.Database.GetTemplatesWithFilter(ctx, args)
 		if errors.Is(err, sql.ErrNoRows) {
 			err = nil
 		}

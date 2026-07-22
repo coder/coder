@@ -105,7 +105,7 @@ export const UserCombobox: FC<UserComboboxProps> = ({
 									<UserItem option={option} />
 									<CheckIcon
 										className={cn(
-											"ml-2 h-4 w-4",
+											"ml-2 size-4",
 											option.value === selectedOption?.value
 												? "opacity-100"
 												: "opacity-0",

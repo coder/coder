@@ -88,10 +88,10 @@ const WorkspaceSchedulePage = lazy(
 			"./pages/WorkspaceSettingsPage/WorkspaceSchedulePage/WorkspaceSchedulePage"
 		),
 );
-const WorkspaceParametersExperimentRouter = lazy(
+const WorkspaceParametersPage = lazy(
 	() =>
 		import(
-			"./pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersExperimentRouter"
+			"./pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersPage"
 		),
 );
 const WorkspaceSharingPage = lazy(
@@ -353,7 +353,9 @@ const ProvisionerJobsPage = lazy(
 			"./pages/OrganizationSettingsPage/OrganizationProvisionerJobsPage/OrganizationProvisionerJobsPage"
 		),
 );
-const AgentsPage = lazy(() => import("./pages/AgentsPage/AgentsPage"));
+const AgentsPageLayout = lazy(
+	() => import("./pages/AgentsPage/AgentsPageLayout"),
+);
 const AgentChatPage = lazy(() => import("./pages/AgentsPage/AgentChatPage"));
 const AgentEmbedPage = lazy(() => import("./pages/AgentsPage/AgentEmbedPage"));
 const DesktopPopoutPage = lazy(
@@ -362,8 +364,8 @@ const DesktopPopoutPage = lazy(
 const AgentCreatePage = lazy(
 	() => import("./pages/AgentsPage/AgentCreatePage"),
 );
-const AgentSettingsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsPage"),
+const AgentSettingsLayout = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsLayout"),
 );
 const AgentSettingsGeneralPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsGeneralPage"),
@@ -372,14 +374,11 @@ const AgentSettingsCompactionPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsCompactionPage"),
 );
 
-const AgentSettingsExperimentsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsExperimentsPage"),
-);
 const AISettingsLifecyclePage = lazy(
 	() => import("./pages/AISettingsPage/LifecyclePage/LifecyclePage"),
 );
-const AgentSettingsAgentsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsAgentsPage"),
+const CoderAgentsPage = lazy(
+	() => import("./pages/AISettingsPage/CoderAgentsPage/CoderAgentsPage"),
 );
 const AgentSettingsUserAgentsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsUserAgentsPage"),
@@ -390,8 +389,8 @@ const AgentSettingsPersonalSkillsPage = lazy(
 const AgentSettingsAPIKeysPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsAPIKeysPage"),
 );
-const AgentSettingsSpendPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsSpendPage"),
+const AISettingsSpendPage = lazy(
+	() => import("./pages/AISettingsPage/SpendPage/SpendPage"),
 );
 const AgentAnalyticsPage = lazy(
 	() => import("./pages/AgentsPage/AgentAnalyticsPage"),
@@ -399,7 +398,7 @@ const AgentAnalyticsPage = lazy(
 
 import {
 	AgentChatPageSkeleton,
-	AgentsPageSkeleton,
+	AgentsPageLayoutSkeleton,
 } from "./pages/AgentsPage/components/AgentsSkeletons";
 
 const CoderCupPage = lazy(() => import("./pages/CoderCupPage/CoderCupPage"));
@@ -724,10 +723,7 @@ export const router = createBrowserRouter(
 						/>
 						<Route path="settings" element={<WorkspaceSettingsLayout />}>
 							<Route index element={<WorkspaceSettingsPage />} />
-							<Route
-								path="parameters"
-								element={<WorkspaceParametersExperimentRouter />}
-							/>
+							<Route path="parameters" element={<WorkspaceParametersPage />} />
 							<Route path="schedule" element={<WorkspaceSchedulePage />} />
 							<Route path="sharing" element={<WorkspaceSharingPage />} />
 						</Route>
@@ -772,11 +768,13 @@ export const router = createBrowserRouter(
 						/>
 						<Route index element={<AISettingsIndexRedirect />} />
 						<Route path="models" element={<AISettingsModelsPage />} />
+						<Route path="spend" element={<AISettingsSpendPage />} />
 						<Route
 							path="instructions"
 							element={<AISettingsInstructionsPage />}
 						/>
 						<Route path="lifecycle" element={<AISettingsLifecyclePage />} />
+						<Route path="coder-agents" element={<CoderAgentsPage />} />
 						<Route path="templates" element={<AISettingsTemplatesPage />} />
 						<Route path="models/add" element={<AISettingsAddModelPage />} />
 						<Route
@@ -848,13 +846,13 @@ export const router = createBrowserRouter(
 				<Route
 					path="/agents"
 					element={
-						<Suspense fallback={<AgentsPageSkeleton />}>
-							<AgentsPage />
+						<Suspense fallback={<AgentsPageLayoutSkeleton />}>
+							<AgentsPageLayout />
 						</Suspense>
 					}
 				>
 					<Route index element={<AgentCreatePage />} />
-					<Route path="settings" element={<AgentSettingsPage />}>
+					<Route path="settings" element={<AgentSettingsLayout />}>
 						<Route index element={<AgentSettingsGeneralPage />} />
 						<Route path="general" element={<AgentSettingsGeneralPage />} />
 						<Route
@@ -864,10 +862,6 @@ export const router = createBrowserRouter(
 						<Route
 							path="instructions"
 							element={<Navigate to="/ai/settings/instructions" replace />}
-						/>
-						<Route
-							path="experiments"
-							element={<AgentSettingsExperimentsPage />}
 						/>
 						<Route
 							path="lifecycle"
@@ -881,8 +875,22 @@ export const router = createBrowserRouter(
 							path="personal-skills"
 							element={<AgentSettingsPersonalSkillsPage />}
 						/>
-						<Route path="admin" element={<AgentSettingsAgentsPage />} />
-						<Route path="agents" element={<AgentSettingsAgentsPage />} />
+						<Route
+							path="admin"
+							element={<Navigate to="/ai/settings/coder-agents" replace />}
+						/>
+						<Route
+							path="agents"
+							element={<Navigate to="/ai/settings/coder-agents" replace />}
+						/>
+						<Route
+							path="coder-agents"
+							element={<Navigate to="/ai/settings/coder-agents" replace />}
+						/>
+						<Route
+							path="experiments"
+							element={<Navigate to="/ai/settings/coder-agents" replace />}
+						/>
 						<Route path="api-keys" element={<AgentSettingsAPIKeysPage />} />
 						<Route
 							path="providers"
@@ -896,9 +904,18 @@ export const router = createBrowserRouter(
 							path="mcp-servers"
 							element={<Navigate to="/ai/settings/mcp-servers" replace />}
 						/>
-						<Route path="spend" element={<AgentSettingsSpendPage />} />
-						<Route path="limits" element={<Navigate to="spend" replace />} />
-						<Route path="usage" element={<NavigateWithSearch to="spend" />} />
+						<Route
+							path="spend"
+							element={<NavigateWithSearch to="/ai/settings/spend" />}
+						/>
+						<Route
+							path="limits"
+							element={<NavigateWithSearch to="/ai/settings/spend" />}
+						/>
+						<Route
+							path="usage"
+							element={<NavigateWithSearch to="/ai/settings/spend" />}
+						/>
 						<Route
 							path="templates"
 							element={<Navigate to="/ai/settings/templates" replace />}

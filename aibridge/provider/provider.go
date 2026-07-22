@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/recorder"
 )
 
 var ErrUnknownRoute = xerrors.New("unknown route")
@@ -94,6 +95,12 @@ type Provider interface {
 
 	// CircuitBreakerConfig returns the circuit breaker configuration for the provider.
 	CircuitBreakerConfig() *config.CircuitBreaker
+
+	// CategorizeError maps a terminal upstream error produced by this provider
+	// (its SDK errors and response envelopes) to a recorder.ErrorType. It
+	// returns nil when the error is not recognized as one of this provider's,
+	// so the caller can fall back to provider-agnostic handling.
+	CategorizeError(err error) *recorder.ErrorType
 
 	// APIDumpDir returns the directory path for dumping API requests and responses.
 	// Empty string is returned when API dumping is not enabled.

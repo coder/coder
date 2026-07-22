@@ -20,6 +20,7 @@ func (r *RootCmd) aiGateway() *serpent.Command {
 			return inv.Command.HelpHandler(inv)
 		},
 		Children: []*serpent.Command{
+			r.aiGatewayStart(),
 			r.aiGatewayKeys(),
 		},
 	}
@@ -75,7 +76,7 @@ func (r *RootCmd) aiGatewayKeysCreate() *serpent.Command {
 
 func (r *RootCmd) aiGatewayKeysList() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]codersdk.AIGatewayKey{}, []string{"id", "name", "key prefix", "last used at", "created at"}),
+		cliui.TableFormat([]codersdk.AIGatewayKey{}, []string{"id", "name", "key prefix", "last heartbeat at", "created at"}),
 		cliui.JSONFormat(),
 	)
 

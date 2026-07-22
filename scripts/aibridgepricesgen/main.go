@@ -1,35 +1,28 @@
-// aibridgepricesgen fetches model pricing from models.dev and writes a JSON
-// seed file consumable by the AI Bridge cost-control loader. Output is sorted
-// by (provider, model) so regenerations produce minimal diffs.
+// aibridgepricesgen converts a models.dev api.json snapshot into generated
+// artifacts, selected by -format:
 //
-// Run via the gen/aibridge-prices Make target. Kept out of `make gen` because
-// the output depends on live upstream data; refreshing prices should land in
-// dedicated, reviewable commits rather than appearing as drift on unrelated
-// gen runs.
+//   - "prices": a JSON seed file consumable by the AI Gateway cost-control
+//     loader, sorted by (provider, model) so regenerations produce minimal
+//     diffs.
+//   - "catalog": the frontend known-models JSON, joining the snapshot with
+//     the editorial curation in curation.json and preserving its entry order.
+//
+// Run via the gen/aibridge-prices Make target, which fetches and patches the
+// snapshot (_gen/models-dev.json). Kept out of `make gen` because the output
+// depends on live upstream data; refreshing prices should land in dedicated,
+// reviewable commits rather than appearing as drift on unrelated gen runs.
 package main
 
 import (
-	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"math"
-	"net/http"
 	"os"
 	"sort"
-	"time"
 
 	"golang.org/x/xerrors"
-)
-
-const (
-	sourceURL    = "https://models.dev/api.json"
-	fetchTimeout = 30 * time.Second
-	// Cap the upstream body read. The current api.json is ~2 MiB, so 100
-	// MiB is pure defense-in-depth against a misbehaving upstream eating
-	// arbitrary memory on developer or CI machines. An overflow surfaces
-	// as a JSON parse error (LimitReader truncates silently at the cap).
-	maxBodyBytes = 100 << 20
 )
 
 // supportedProviders lists the providers we ship prices for. Adding a
@@ -42,10 +35,18 @@ type upstreamProvider struct {
 }
 
 type upstreamModel struct {
-	Cost *upstreamCost `json:"cost"`
+	Name  string        `json:"name"`
+	Limit upstreamLimit `json:"limit"`
+	Cost  *upstreamCost `json:"cost"`
 }
 
-// Pointers distinguish "key absent" (nil) from "key present and zero" (0).
+// Pointer fields in upstreamLimit and upstreamCost distinguish "key absent"
+// (nil) from "key present and zero" (0).
+type upstreamLimit struct {
+	Context *int64 `json:"context"`
+	Output  *int64 `json:"output"`
+}
+
 type upstreamCost struct {
 	Input      *float64 `json:"input"`
 	Output     *float64 `json:"output"`
@@ -80,17 +81,51 @@ type priceRow struct {
 }
 
 func main() {
-	if err := run(); err != nil {
+	format := flag.String("format", "prices", `output format: "prices" (cost-control seed) or "catalog" (frontend known-models JSON)`)
+	upstreamPath := flag.String("upstream", "", "path to a models.dev api.json snapshot (required)")
+	flag.Parse()
+	if err := run(*format, *upstreamPath); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "aibridgepricesgen: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
-	upstream, err := fetch()
-	if err != nil {
-		return xerrors.Errorf("fetch %s: %w", sourceURL, err)
+func run(format, upstreamPath string) error {
+	// Validate flags before touching the filesystem so a typo fails fast.
+	switch format {
+	case "prices", "catalog":
+	default:
+		return xerrors.Errorf(`unknown -format %q (want "prices" or "catalog")`, format)
 	}
+	if upstreamPath == "" {
+		return xerrors.New("-upstream is required; run via `make gen/aibridge-prices`, which fetches and patches the snapshot")
+	}
+
+	upstream, err := readUpstream(upstreamPath)
+	if err != nil {
+		return xerrors.Errorf("read %s: %w", upstreamPath, err)
+	}
+	if format == "catalog" {
+		return runCatalog(upstream)
+	}
+	return runPrices(upstream)
+}
+
+// readUpstream loads a models.dev api.json snapshot from disk, typically the
+// Makefile's _gen/models-dev.json (fetched once and patched by overrides.jq).
+func readUpstream(path string) (map[string]upstreamProvider, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var upstream map[string]upstreamProvider
+	if err := json.Unmarshal(data, &upstream); err != nil {
+		return nil, xerrors.Errorf("parse: %w", err)
+	}
+	return upstream, nil
+}
+
+func runPrices(upstream map[string]upstreamProvider) error {
 	rows, err := convert(upstream, supportedProviders)
 	if err != nil {
 		return err
@@ -105,28 +140,20 @@ func run() error {
 	return nil
 }
 
-func fetch() (map[string]upstreamProvider, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), fetchTimeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sourceURL, nil)
+func runCatalog(upstream map[string]upstreamProvider) error {
+	var curation map[string][]curatedModel
+	if err := json.Unmarshal(curationJSON, &curation); err != nil {
+		return xerrors.Errorf("parse embedded curation.json: %w", err)
+	}
+	catalog, err := buildCatalog(upstream, curation)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
+	if err := writeCatalog(os.Stdout, catalog); err != nil {
+		return err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, xerrors.Errorf("status %d", resp.StatusCode)
-	}
-
-	var data map[string]upstreamProvider
-	if err := json.NewDecoder(io.LimitReader(resp.Body, maxBodyBytes)).Decode(&data); err != nil {
-		return nil, xerrors.Errorf("parse: %w", err)
-	}
-	return data, nil
+	_, _ = fmt.Fprintf(os.Stderr, "aibridgepricesgen: wrote catalog for %d provider(s)\n", len(catalog))
+	return nil
 }
 
 // convert flattens the upstream map into table-shaped rows for the configured

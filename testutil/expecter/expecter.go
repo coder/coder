@@ -22,15 +22,54 @@ import (
 	"github.com/coder/serpent"
 )
 
-func New(t *testing.T, r io.Reader, name string) *Expecter {
-	// Use pipe for logging.
-	logDone := make(chan struct{})
-	logr, logw := io.Pipe()
+// logTee forwards a best-effort copy of each write to lines for
+// line-oriented debug logging, in addition to the real write to out.
+// See PLAT-251 for more details.
+type logTee struct {
+	out   io.Writer
+	lines chan<- []byte
+}
 
-	// Write to log and output buffer.
+func (t logTee) Write(p []byte) (int, error) {
+	n, err := t.out.Write(p)
+	if n > 0 {
+		select {
+		case t.lines <- append([]byte(nil), p[:n]...):
+		default:
+		}
+	}
+	return n, err
+}
+
+// chanReader adapts a channel of byte chunks to an io.Reader so a
+// bufio.Scanner can split it into lines, without needing a pipe.
+type chanReader struct {
+	ch  <-chan []byte
+	buf []byte
+}
+
+func (r *chanReader) Read(p []byte) (int, error) {
+	for len(r.buf) == 0 {
+		chunk, ok := <-r.ch
+		if !ok {
+			return 0, io.EOF
+		}
+		r.buf = chunk
+	}
+	n := copy(p, r.buf)
+	r.buf = r.buf[n:]
+	return n, nil
+}
+
+func New(t *testing.T, r io.Reader, name string) *Expecter {
 	copyDone := make(chan struct{})
+	logDone := make(chan struct{})
 	out := newStdbuf()
-	w := io.MultiWriter(logw, out)
+	logLines := make(chan []byte, 256)
+	// Wait for drain goroutine to reach its receive loop first,
+	// so a burst of output at startup can't fill the buffer and
+	// get silently dropped before anything is listening.
+	logReady := make(chan struct{})
 
 	ex := &Expecter{
 		t:    t,
@@ -40,14 +79,26 @@ func New(t *testing.T, r io.Reader, name string) *Expecter {
 		runeReader: bufio.NewReaderSize(out, utf8.UTFMax),
 		logDone:    logDone,
 		copyDone:   copyDone,
-		logr:       logr,
-		logw:       logw,
 	}
 
 	go func() {
 		defer close(copyDone)
-		_, err := io.Copy(w, r)
+		defer close(logLines)
+		<-logReady
+		_, err := io.Copy(logTee{out: out, lines: logLines}, r)
 		ex.Logf("copy done: %v", err)
+		if err != nil {
+			// out rejected a write (e.g. doMatchWithDeadline closed it
+			// after giving up on a match) while the command may still
+			// be running and writing. io.Copy stops on any destination
+			// error, so without this the command's next write blocks
+			// forever: nobody would be left reading r. Keep draining
+			// and discarding until the command's pipe actually closes,
+			// so its writes can never block on us.
+			ex.Logf("out closed early, draining remainder: %v", err)
+			_, err = io.Copy(io.Discard, r)
+			ex.Logf("drain done: %v", err)
+		}
 		ex.Logf("closing out")
 		err = out.closeErr(err)
 		ex.Logf("closed out: %v", err)
@@ -56,7 +107,8 @@ func New(t *testing.T, r io.Reader, name string) *Expecter {
 	// Log all output as part of test for easier debugging on errors.
 	go func() {
 		defer close(logDone)
-		s := bufio.NewScanner(logr)
+		close(logReady)
+		s := bufio.NewScanner(&chanReader{ch: logLines})
 		for s.Scan() {
 			ex.Logf("%q", stripansi.Strip(s.Text()))
 		}
@@ -104,7 +156,6 @@ type Expecter struct {
 
 	runeReader        *bufio.Reader
 	copyDone, logDone chan struct{}
-	logr, logw        io.Closer
 }
 
 // Rename the expecter. Make sure you set this before anything starts writing to the
@@ -127,22 +178,14 @@ func (e *Expecter) Close(reason string) {
 	case <-e.copyDone:
 	}
 
-	e.logClose("logw", e.logw)
-	e.logClose("logr", e.logr)
 	select {
 	case <-ctx.Done():
-		e.fatalf("close", "log pipe did not close in time")
+		e.fatalf("close", "log drain did not finish in time")
 		return
 	case <-e.logDone:
 	}
 
 	e.Logf("closed expecter")
-}
-
-func (e *Expecter) logClose(name string, c io.Closer) {
-	e.Logf("closing %s", name)
-	err := c.Close()
-	e.Logf("closed %s: %v", name, err)
 }
 
 func (e *Expecter) ExpectMatch(ctx context.Context, str string) string {

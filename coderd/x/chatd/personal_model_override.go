@@ -26,9 +26,10 @@ func ChatPersonalModelOverrideKey(
 // When Malformed is true, Mode is the provided default and ModelConfigID is
 // uuid.Nil.
 type ParsedChatPersonalModelOverride struct {
-	Mode          codersdk.ChatPersonalModelOverrideMode
-	ModelConfigID uuid.UUID
-	Malformed     bool
+	Mode            codersdk.ChatPersonalModelOverrideMode
+	ModelConfigID   uuid.UUID
+	ReasoningEffort *string
+	Malformed       bool
 }
 
 // ParseChatPersonalModelOverride parses a stored personal model override.
@@ -61,15 +62,20 @@ func ParseChatPersonalModelOverride(
 			Malformed: true,
 		}
 	}
-	modelConfigID, err := uuid.Parse(rawModelConfigID)
-	if err != nil {
+	rawID, rawEffort, hasEffort := strings.Cut(rawModelConfigID, ":")
+	modelConfigID, err := uuid.Parse(rawID)
+	if err != nil || (hasEffort && rawEffort == "") {
 		return ParsedChatPersonalModelOverride{
 			Mode:      defaultMode,
 			Malformed: true,
 		}
 	}
-	return ParsedChatPersonalModelOverride{
+	parsed := ParsedChatPersonalModelOverride{
 		Mode:          codersdk.ChatPersonalModelOverrideModeModel,
 		ModelConfigID: modelConfigID,
 	}
+	if hasEffort {
+		parsed.ReasoningEffort = &rawEffort
+	}
+	return parsed
 }

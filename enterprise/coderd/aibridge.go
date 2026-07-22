@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/aibridge/budget"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -35,7 +36,9 @@ const (
 	defaultListClientsLimit  = 100
 	// aiBridgeRateLimitWindow is the fixed duration for rate limiting AI Bridge
 	// requests. This is hardcoded to keep configuration simple.
-	aiBridgeRateLimitWindow = time.Second
+	aiBridgeRateLimitWindow              = time.Second
+	maxOrganizationGroupsAISpendGroupIDs = 100
+	maxGroupMembersAISpendUserIDs        = 100
 )
 
 // errInvalidCursor is returned when a pagination cursor does not
@@ -72,12 +75,6 @@ func aiGatewayHTTPHandler(api *API, middlewares ...func(http.Handler) http.Handl
 // under /aibridge. The stripPrefix parameter selects which URL prefix
 // to strip before forwarding to the in-memory aibridged handler.
 func aiBridgeRoutes(api *API, stripPrefix string, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
-	// Build the overload protection middleware chain for the aibridged handler.
-	// These limits are applied per-replica.
-	bridgeCfg := api.DeploymentValues.AI.BridgeConfig
-	concurrencyLimiter := httpmw.ConcurrencyLimit(bridgeCfg.MaxConcurrency.Value(), "AI Gateway")
-	rateLimiter := httpmw.RateLimitByAuthToken(int(bridgeCfg.RateLimit.Value()), aiBridgeRateLimitWindow)
-
 	return func(r chi.Router) {
 		r.Use(api.RequireFeatureMW(codersdk.FeatureAIBridge))
 		r.Group(func(r chi.Router) {
@@ -88,10 +85,10 @@ func aiBridgeRoutes(api *API, stripPrefix string, middlewares ...func(http.Handl
 			r.Get("/clients", api.aiBridgeListClients)
 		})
 
-		// Apply overload protection middleware to the aibridged handler.
-		// Concurrency limit is checked first for faster rejection under load.
+		// Apply the shared per-request data-plane middleware (per-replica
+		// overload protection plus BYOK gating) to the aibridged handler.
 		r.Group(func(r chi.Router) {
-			r.Use(concurrencyLimiter, rateLimiter)
+			r.Use(AIGatewayDataPlaneMiddleware(api.DeploymentValues.AI.BridgeConfig))
 			// This is a bit funky but since aibridge only exposes a HTTP
 			// handler, this is how it has to be.
 			r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
@@ -103,19 +100,36 @@ func aiBridgeRoutes(api *API, stripPrefix string, middlewares ...func(http.Handl
 					return
 				}
 
-				// Reject BYOK requests when the deployment has not
-				// enabled bring-your-own-key mode.
-				if agplaibridge.IsBYOK(r.Header) && !bridgeCfg.AllowBYOK.Value() {
-					httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
-						Message: "Bring Your Own Key (BYOK) mode is not enabled.",
-						Detail:  "Contact your administrator to enable it with --aibridge-allow-byok.",
-					})
-					return
-				}
-
 				// Strip the prefix and relay to the aibridged handler.
 				http.StripPrefix(stripPrefix, handler).ServeHTTP(rw, r)
 			})
+		})
+	}
+}
+
+// AIGatewayDataPlaneMiddleware returns the per-request middleware chain that
+// guards the AI Gateway data-plane handler. It is the single source of truth
+// shared by the embedded route and the standalone gateway.
+func AIGatewayDataPlaneMiddleware(cfg codersdk.AIBridgeConfig) func(http.Handler) http.Handler {
+	concurrencyLimiter := httpmw.ConcurrencyLimit(cfg.MaxConcurrency.Value(), "AI Gateway")
+	rateLimiter := httpmw.RateLimitByAuthToken(int(cfg.RateLimit.Value()), aiBridgeRateLimitWindow)
+	byokGuard := aiGatewayBYOKGuard(cfg)
+	return func(next http.Handler) http.Handler {
+		return concurrencyLimiter(rateLimiter(byokGuard(next)))
+	}
+}
+
+func aiGatewayBYOKGuard(cfg codersdk.AIBridgeConfig) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			if agplaibridge.IsBYOK(r.Header) && !cfg.AllowBYOK.Value() {
+				httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
+					Message: "Bring Your Own Key (BYOK) mode is not enabled.",
+					Detail:  "Contact your administrator to enable it with --ai-gateway-allow-byok.",
+				})
+				return
+			}
+			next.ServeHTTP(rw, r)
 		})
 	}
 }
@@ -575,7 +589,7 @@ func (api *API) groupAIBudget(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	group := httpmw.GroupParam(r)
 
-	budget, err := api.Database.GetGroupAIBudget(ctx, group.ID)
+	groupBudget, err := api.Database.GetGroupAIBudget(ctx, group.ID)
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -586,7 +600,7 @@ func (api *API) groupAIBudget(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.GroupAIBudget(budget))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.GroupAIBudget(groupBudget))
 }
 
 // @Summary Upsert group AI budget
@@ -863,4 +877,240 @@ func (api *API) deleteUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 	aReq.Old = userOverride.Auditable(user.Username, group.Name)
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// currentAIBudgetWindow returns the current AI budget period window based on
+// the configured budget period.
+func (api *API) currentAIBudgetWindow() (budget.PeriodWindow, error) {
+	period := codersdk.NewAIBudgetPeriodFromString(api.DeploymentValues.AI.BridgeConfig.BudgetPeriod)
+	return budget.CurrentPeriod(api.Clock.Now(), period)
+}
+
+// @Summary Get user AI spend
+// @ID get-user-ai-spend
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param user path string true "User ID, username, or me"
+// @Success 200 {object} codersdk.UserAISpendStatus
+// @Router /api/v2/users/{user}/ai/spend [get]
+func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := httpmw.UserParam(r)
+	logger := api.Logger.With(slog.F("user_id", user.ID))
+
+	periodWindow, err := api.currentAIBudgetWindow()
+	if err != nil {
+		logger.Error(ctx, "failed to compute AI budget period", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	logger = logger.With(
+		slog.F("period_start", periodWindow.Start),
+		slog.F("period_end", periodWindow.End),
+	)
+
+	policy := codersdk.NewAIBudgetPolicyFromString(api.DeploymentValues.AI.BridgeConfig.BudgetPolicy)
+	effectiveBudget, ok, err := budget.ResolveUserAIBudget(ctx, api.Database, user.ID, policy)
+	if err != nil {
+		logger.Error(ctx, "failed to resolve user AI budget", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	resp := codersdk.UserAISpendStatus{
+		UserAIBudgetSummary: codersdk.UserAIBudgetSummary{
+			UserID: user.ID,
+		},
+		AISpendPeriodWindow: codersdk.AISpendPeriodWindow{
+			PeriodStart: periodWindow.Start,
+			PeriodEnd:   periodWindow.End,
+		},
+	}
+
+	if ok {
+		resp.EffectiveGroupID = &effectiveBudget.GroupID
+		resp.SpendLimitMicros = &effectiveBudget.SpendLimitMicros
+		resp.LimitSource = &effectiveBudget.Source
+		logger = logger.With(slog.F("effective_group_id", effectiveBudget.GroupID))
+
+		spend, err := api.Database.GetUserAISpendSince(ctx, database.GetUserAISpendSinceParams{
+			UserID:           user.ID,
+			EffectiveGroupID: effectiveBudget.GroupID,
+			PeriodStart:      periodWindow.Start,
+		})
+		if err != nil {
+			logger.Error(ctx, "failed to get user AI spend", slog.Error(err))
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		resp.CurrentSpendMicros = spend.SpendMicros
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// @Summary Get organization groups AI spend
+// @Description Returns AI spend limits and aggregate spend for the requested groups.
+// @Description A maximum of 100 group IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.
+// @Description Unknown or unreadable group IDs are silently omitted.
+// @ID get-organization-groups-ai-spend
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param group_ids query string true "Comma-separated list of group IDs (maximum 100)"
+// @Success 200 {object} codersdk.OrganizationGroupsAISpend
+// @Router /api/v2/organizations/{organization}/groups/ai/spend [get]
+func (api *API) organizationGroupsAISpend(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	org := httpmw.OrganizationParam(r)
+	logger := api.Logger.With(slog.F("organization_id", org.ID))
+
+	parser := httpapi.NewQueryParamParser()
+	parser.RequiredNotEmpty("group_ids")
+	groupIDs := parser.UUIDs(r.URL.Query(), nil, "group_ids")
+	parser.ErrorExcessParams(r.URL.Query())
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.Errors,
+		})
+		return
+	}
+	if len(groupIDs) > maxOrganizationGroupsAISpendGroupIDs {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf(
+				"group_ids has %d entries, maximum is %d.",
+				len(groupIDs), maxOrganizationGroupsAISpendGroupIDs,
+			),
+		})
+		return
+	}
+
+	periodWindow, err := api.currentAIBudgetWindow()
+	if err != nil {
+		logger.Error(ctx, "failed to compute AI budget period", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	logger = logger.With(
+		slog.F("period_start", periodWindow.Start),
+		slog.F("period_end", periodWindow.End),
+	)
+
+	rows, err := api.Database.GetOrganizationGroupsAISpend(ctx, database.GetOrganizationGroupsAISpendParams{
+		OrganizationID: org.ID,
+		GroupIds:       groupIDs,
+		PeriodStart:    periodWindow.Start,
+	})
+	if err != nil {
+		logger.Error(ctx, "failed to get organization groups AI spend", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	resp := codersdk.OrganizationGroupsAISpend{
+		AISpendPeriodWindow: codersdk.AISpendPeriodWindow{
+			PeriodStart: periodWindow.Start,
+			PeriodEnd:   periodWindow.End,
+		},
+		Groups: make([]codersdk.OrganizationGroupAISpend, 0, len(rows)),
+	}
+	for _, row := range rows {
+		resp.Groups = append(resp.Groups, db2sdk.OrganizationGroupAISpend(row))
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// @Summary Get group members AI spend by organization
+// @Description Returns aggregate AI spend attributed to the group per requested user.
+// @Description A maximum of 100 user IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.
+// @Description User IDs that are not members of the group, or that the caller has no read access to, are silently omitted.
+// @ID get-group-members-ai-spend-by-organization
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param groupName path string true "Group name"
+// @Param user_ids query string true "Comma-separated list of user IDs (maximum 100)"
+// @Success 200 {object} codersdk.GroupMembersAISpend
+// @Router /api/v2/organizations/{organization}/groups/{groupName}/members/ai/spend [get]
+func (api *API) groupMembersAISpendByOrganization(rw http.ResponseWriter, r *http.Request) {
+	api.groupMembersAISpend(rw, r)
+}
+
+// @Summary Get group members AI spend
+// @Description Returns aggregate AI spend attributed to the group per requested user.
+// @Description A maximum of 100 user IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.
+// @Description User IDs that are not members of the group, or that the caller has no read access to, are silently omitted.
+// @ID get-group-members-ai-spend
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param group path string true "Group ID" format(uuid)
+// @Param user_ids query string true "Comma-separated list of user IDs (maximum 100)"
+// @Success 200 {object} codersdk.GroupMembersAISpend
+// @Router /api/v2/groups/{group}/members/ai/spend [get]
+func (api *API) groupMembersAISpend(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	group := httpmw.GroupParam(r)
+	logger := api.Logger.With(slog.F("group_id", group.ID))
+
+	parser := httpapi.NewQueryParamParser()
+	parser.RequiredNotEmpty("user_ids")
+	userIDs := parser.UUIDs(r.URL.Query(), nil, "user_ids")
+	parser.ErrorExcessParams(r.URL.Query())
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.Errors,
+		})
+		return
+	}
+	if len(userIDs) > maxGroupMembersAISpendUserIDs {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf(
+				"user_ids has %d entries, maximum is %d.",
+				len(userIDs), maxGroupMembersAISpendUserIDs,
+			),
+		})
+		return
+	}
+
+	periodWindow, err := api.currentAIBudgetWindow()
+	if err != nil {
+		logger.Error(ctx, "failed to compute AI budget period", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	logger = logger.With(
+		slog.F("period_start", periodWindow.Start),
+		slog.F("period_end", periodWindow.End),
+	)
+
+	rows, err := api.Database.GetGroupMembersAISpend(ctx, database.GetGroupMembersAISpendParams{
+		GroupID:     group.ID,
+		UserIds:     userIDs,
+		PeriodStart: periodWindow.Start,
+	})
+	if err != nil {
+		logger.Error(ctx, "failed to get group members AI spend", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	resp := codersdk.GroupMembersAISpend{
+		AISpendPeriodWindow: codersdk.AISpendPeriodWindow{
+			PeriodStart: periodWindow.Start,
+			PeriodEnd:   periodWindow.End,
+		},
+		Members: make([]codersdk.GroupMemberAISpend, 0, len(rows)),
+	}
+	for _, row := range rows {
+		resp.Members = append(resp.Members, db2sdk.GroupMemberAISpend(row))
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }

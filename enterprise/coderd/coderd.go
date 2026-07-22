@@ -29,6 +29,7 @@ import (
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
 	agplconnectionlog "github.com/coder/coder/v2/coderd/connectionlog"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	agpldbauthz "github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -322,6 +323,17 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		})
 	})
 
+	// /ai-gateway/serve provides the DRPC-over-WebSocket that standalone AI Gateway
+	// replicas connect to. It authenticates with a gateway key instead of a user session.
+	api.AGPL.APIHandler.Group(func(r chi.Router) {
+		r.Route("/ai-gateway/serve", func(r chi.Router) {
+			r.Use(
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+			)
+			r.Get("/", api.aiGatewayServe)
+		})
+	})
+
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Get("/entitlements", api.serveEntitlements)
 		// /regions overrides the AGPL /regions endpoint
@@ -491,6 +503,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			)
 			r.Post("/", api.postGroupByOrganization)
 			r.Get("/", api.groupsByOrganization)
+			r.Route("/ai/spend", func(r chi.Router) {
+				// AI cost controls are a paid feature (AI Governance add-on).
+				r.Use(
+					// TODO(AIGOV-443): remove once AI Gateway cost control functionality is stable.
+					httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentAIGatewayCostControl),
+					api.RequireFeatureMW(codersdk.FeatureAIBridge),
+				)
+				r.Get("/", api.organizationGroupsAISpend)
+			})
 			r.Route("/{groupName}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractGroupByNameParam(api.Database),
@@ -498,6 +519,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 				r.Get("/", api.groupByOrganization)
 				r.Get("/members", api.groupMembersByOrganization)
+				r.Route("/members/ai/spend", func(r chi.Router) {
+					// AI cost controls are a paid feature (AI Governance add-on).
+					r.Use(
+						// TODO(AIGOV-443): remove once AI Gateway cost control functionality is stable.
+						httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentAIGatewayCostControl),
+						api.RequireFeatureMW(codersdk.FeatureAIBridge),
+					)
+					r.Get("/", api.groupMembersAISpendByOrganization)
+				})
 			})
 		})
 		r.Route("/provisionerkeys", func(r chi.Router) {
@@ -583,6 +613,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Patch("/", api.patchGroup)
 				r.Delete("/", api.deleteGroup)
 				r.Get("/members", api.groupMembers)
+				r.Route("/members/ai/spend", func(r chi.Router) {
+					// AI cost controls are a paid feature (AI Governance add-on).
+					r.Use(
+						// TODO(AIGOV-443): remove once AI Gateway cost control functionality is stable.
+						httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentAIGatewayCostControl),
+						api.RequireFeatureMW(codersdk.FeatureAIBridge),
+					)
+					r.Get("/", api.groupMembersAISpend)
+				})
 				r.Route("/ai/budget", func(r chi.Router) {
 					// AI cost controls are a paid feature (AI Governance add-on).
 					r.Use(api.RequireFeatureMW(codersdk.FeatureAIBridge))
@@ -630,7 +669,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.userQuietHoursSchedule)
 			r.Put("/", api.putUserQuietHoursSchedule)
 		})
-		r.Route("/users/{user}/ai/budget", func(r chi.Router) {
+		r.Route("/users/{user}/ai", func(r chi.Router) {
 			// AI cost controls are a paid feature (AI Governance add-on).
 			r.Use(
 				// TODO(AIGOV-443): remove once AI Gateway cost control functionality is stable.
@@ -639,9 +678,14 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				apiKeyMiddleware,
 				httpmw.ExtractUserParam(options.Database),
 			)
-			r.Get("/", api.userAIBudgetOverride)
-			r.Put("/", api.upsertUserAIBudgetOverride)
-			r.Delete("/", api.deleteUserAIBudgetOverride)
+			r.Route("/budget", func(r chi.Router) {
+				r.Get("/", api.userAIBudgetOverride)
+				r.Put("/", api.upsertUserAIBudgetOverride)
+				r.Delete("/", api.deleteUserAIBudgetOverride)
+			})
+			r.Route("/spend", func(r chi.Router) {
+				r.Get("/", api.userAISpendStatus)
+			})
 		})
 		r.Route("/prebuilds", func(r chi.Router) {
 			r.Use(
@@ -677,8 +721,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return nil, xerrors.Errorf("mount scim routes: %w", mountScimError)
 	}
 
+	// The NATS pubsub, if enabled, used the Replica Manager for clustering. It's a layering violation if the pubsub
+	// for the Replica Manager *is* the NATS pubsub, because then we have a dependency loop.
+	if _, isNats := options.ReplicaSyncPubsub.(*nats.Pubsub); isNats {
+		return nil, xerrors.Errorf("replica sync pubsub cannot be the NATS pubsub")
+	}
+
 	// We always want to run the replica manager even if we don't have DERP
-	// enabled, since it's used to detect other coder servers for licensing.
+	// enabled, since it's used to detect other coder servers for licensing,
+	// and NATS clustering for HA pubsub.
 	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.ReplicaSyncPubsub, &replicasync.Options{
 		ID:           api.AGPL.ID,
 		RelayAddress: options.DERPServerRelayAddress,
@@ -686,6 +737,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		RegionID:       int32(options.DERPServerRegionID),
 		TLSConfig:      meshTLSConfig,
 		UpdateInterval: options.ReplicaSyncUpdateInterval,
+		ClusterHost:    options.ClusterHost,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("initialize replica: %w", err)
@@ -994,6 +1046,9 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				}
 
 				if natsPubsub, ok := api.Pubsub.(*nats.Pubsub); ok {
+					// Swap the real nats_ca CA cache and the replica peer fetcher
+					// in so the first route handshake can negotiate mTLS.
+					natsPubsub.SetCACache(api.AGPL.NATSCACache)
 					natsPubsub.SetPeerFetcher(api.replicaManager)
 					api.replicaManager.SetCallback("nats", natsPubsub.RefreshPeers)
 				}
@@ -1002,7 +1057,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 					// Only update DERP mesh if the built-in server is enabled.
 					if api.Options.DeploymentValues.DERP.Server.Enable {
 						addresses := make([]string, 0)
-						for _, replica := range api.replicaManager.Regional() {
+						for _, replica := range api.replicaManager.DERPReplicasThisRegion() {
 							// Don't add replicas with an empty relay address.
 							if replica.RelayAddress == "" {
 								continue
@@ -1026,6 +1081,9 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 				if natsPubsub, ok := api.Pubsub.(*nats.Pubsub); ok {
 					natsPubsub.SetPeerFetcher(nats.NopPeerFetcher{})
+					// Revert to the noop CA cache: new route handshakes can no
+					// longer mint a leaf, so the cluster mesh stops forming.
+					natsPubsub.SetCACache(cryptokeys.NoopSigningKeycache{})
 					api.replicaManager.SetCallback("nats", nil)
 				}
 			}

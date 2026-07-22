@@ -30,6 +30,11 @@ const baseArgs: LifecyclePageViewProps = {
 	onSaveAutoArchiveDays: fn(),
 	isSavingAutoArchiveDays: false,
 	isSaveAutoArchiveDaysError: false,
+	debugLoggingData: undefined,
+	isDebugLoggingLoading: false,
+	onSaveDebugLogging: fn(),
+	isSavingDebugLogging: false,
+	isSaveDebugLoggingError: false,
 };
 
 const meta = {
@@ -631,5 +636,59 @@ export const DebugRetentionInputDisabledWhenToggleOff: Story = {
 			"Chat debug data retention period in days",
 		);
 		expect(input).toBeDisabled();
+	},
+};
+
+export const DirtyDebugLoggingToggle: Story = {
+	args: {
+		debugLoggingData: { allow_users: false, forced_by_deployment: false },
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Allow users to enable chat debug logging",
+		});
+
+		await userEvent.click(toggle);
+
+		await waitFor(() => {
+			expect(args.onSaveDebugLogging).toHaveBeenCalledWith({
+				allow_users: true,
+			});
+		});
+	},
+};
+
+export const DebugLoggingForcedByDeployment: Story = {
+	args: {
+		debugLoggingData: { allow_users: false, forced_by_deployment: true },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Allow users to enable chat debug logging",
+		});
+		expect(toggle).toBeDisabled();
+
+		expect(
+			canvas.getByText(
+				"Debug logging is already enabled deployment-wide, so this per-user setting has no effect right now.",
+			),
+		).toBeInTheDocument();
+	},
+};
+
+export const DebugLoggingSaveError: Story = {
+	args: {
+		debugLoggingData: { allow_users: false, forced_by_deployment: false },
+		isSaveDebugLoggingError: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText(
+				"Failed to save the admin debug logging setting.",
+			),
+		).toBeInTheDocument();
 	},
 };

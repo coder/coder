@@ -41,9 +41,12 @@ const meta: Meta<typeof MobileMenu> = {
 		onSignOut: fn(),
 		isDefaultOpen: true,
 		canViewAuditLog: true,
+		canViewConnectionLog: true,
 		canViewDeployment: true,
 		canViewHealth: true,
 		canViewOrganizations: true,
+		canViewAIBridge: true,
+		canViewAISettings: true,
 	},
 	decorators: [withNavbarMock],
 };
@@ -65,9 +68,12 @@ export const Auditor: Story = {
 	args: {
 		user: MockUserMember,
 		canViewAuditLog: true,
+		canViewConnectionLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,
 		canViewOrganizations: false,
+		canViewAIBridge: false,
+		canViewAISettings: false,
 	},
 	play: openAdminSettings,
 };
@@ -76,9 +82,12 @@ export const OrgAdmin: Story = {
 	args: {
 		user: MockUserMember,
 		canViewAuditLog: true,
+		canViewConnectionLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,
 		canViewOrganizations: true,
+		canViewAIBridge: false,
+		canViewAISettings: false,
 	},
 	play: openAdminSettings,
 };
@@ -87,9 +96,12 @@ export const Member: Story = {
 	args: {
 		user: MockUserMember,
 		canViewAuditLog: false,
+		canViewConnectionLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,
 		canViewOrganizations: false,
+		canViewAIBridge: false,
+		canViewAISettings: false,
 	},
 };
 

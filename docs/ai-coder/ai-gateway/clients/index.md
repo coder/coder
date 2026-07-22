@@ -68,7 +68,7 @@ While users can manually configure these tools with a long-lived API key, templa
 
 In this example, Claude Code respects these environment variables and will route all requests via AI Gateway.
 
-```hcl
+```tf
 data "coder_workspace_owner" "me" {}
 
 data "coder_workspace" "me" {}

@@ -1,16 +1,23 @@
 import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
-import { permittedOrganizations } from "#/api/queries/organizations";
+import {
+	permittedOrganizations,
+	provisionerDaemons,
+} from "#/api/queries/organizations";
 import type { Organization } from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { Avatar } from "#/components/Avatar/Avatar";
 import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { Textarea } from "#/components/Textarea/Textarea";
 import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
+import { docs } from "#/utils/docs";
 import type {
 	SelectedBaseMeta,
 	TemplateBuilderWizardState,
@@ -22,11 +29,12 @@ interface TemplateCustomizationsStepProps {
 		field: "organizationId" | "name" | "displayName" | "description" | "icon",
 		value: string,
 	) => void;
+	onProvisionerStatusChange: (hasProvisioners: boolean | undefined) => void;
 }
 
 export const TemplateCustomizationsStep: FC<
 	TemplateCustomizationsStepProps
-> = ({ state, onChangeField }) => {
+> = ({ state, onChangeField, onProvisionerStatusChange }) => {
 	const permittedOrgsQuery = useQuery(
 		permittedOrganizations({
 			object: { resource_type: "template" },
@@ -36,6 +44,19 @@ export const TemplateCustomizationsStep: FC<
 	const orgOptions = permittedOrgsQuery.data ?? [];
 
 	const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
+
+	const { data: provisioners } = useQuery({
+		...provisionerDaemons(selectedOrg?.id ?? ""),
+		enabled: Boolean(selectedOrg),
+	});
+	const hasProvisioners = provisioners ? provisioners.length > 0 : undefined;
+	const showProvisionerWarning = hasProvisioners === false;
+
+	// Notify parent when provisioner status changes so the wizard can
+	// disable the create button when no provisioners are available.
+	useEffect(() => {
+		onProvisionerStatusChange(hasProvisioners);
+	}, [hasProvisioners, onProvisionerStatusChange]);
 
 	// Auto-select when exactly one org is available.
 	useEffect(() => {
@@ -51,11 +72,13 @@ export const TemplateCustomizationsStep: FC<
 	};
 
 	return (
-		<div className="border border-border border-solid p-6 rounded-lg">
+		<div className="min-w-[654px]">
 			<TemplateBuilderTitle>Customizations</TemplateBuilderTitle>
 			<TemplateBuilderSubtitle>
 				Add additional configurations.
 			</TemplateBuilderSubtitle>
+
+			{showProvisionerWarning && <ProvisionerWarning />}
 
 			<div className="flex gap-8">
 				{/* Base template card */}
@@ -142,14 +165,22 @@ export const TemplateCustomizationsStep: FC<
 	);
 };
 
+const ProvisionerWarning: FC = () => {
+	return (
+		<Alert severity="warning" prominent className="my-4">
+			This organization does not have any provisioners. Before you create a
+			template, you&apos;ll need to configure a provisioner.{" "}
+			<Link href={docs("/admin/provisioners#organization-scoped-provisioners")}>
+				See our documentation
+			</Link>
+		</Alert>
+	);
+};
+
 const BaseTemplateCard: FC<{ base: SelectedBaseMeta }> = ({ base }) => {
 	return (
 		<div className="w-56 shrink-0 rounded-lg bg-surface-secondary p-4 self-start">
-			{base.iconUrl && (
-				<div className="w-10 h-10 rounded-md bg-surface-tertiary flex items-center justify-center mb-3">
-					<img src={base.iconUrl} alt="" className="w-6 h-6" />
-				</div>
-			)}
+			{base.iconUrl && <Avatar src={base.iconUrl} size="lg" variant="icon" />}
 			<p className="text-sm font-medium text-content-primary">{base.name}</p>
 			<p className="text-xs text-content-secondary mt-1">
 				Preset based on base template

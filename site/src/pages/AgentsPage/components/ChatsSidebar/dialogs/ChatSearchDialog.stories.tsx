@@ -24,7 +24,7 @@ const mockChat: Chat = {
 	owner_id: "owner-1",
 	owner_username: "jaayden",
 	title: "Fix race condition in auth middleware",
-	status: "completed",
+	status: "waiting",
 	last_model_config_id: "model-1",
 	mcp_server_ids: [],
 	labels: {},

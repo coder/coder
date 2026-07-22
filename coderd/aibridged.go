@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 
-	"golang.org/x/xerrors"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
@@ -66,22 +65,22 @@ func (api *API) CreateInMemoryAIBridgeServer(dialCtx context.Context) (client ai
 	}()
 
 	mux := drpcmux.New()
-	srv, err := aibridgedserver.NewServer(api.ctx, api.Database, api.Logger.Named("aibridgedserver"),
-		api.AccessURL.String(), api.DeploymentValues.AI.BridgeConfig, api.ExternalAuthConfigs, api.Experiments, api.AISeatTracker)
+	srv, err := aibridgedserver.NewServer(api.ctx, aibridgedserver.Options{
+		Store:               api.Database,
+		Pubsub:              api.Pubsub,
+		AISeatTracker:       api.AISeatTracker,
+		AccessURL:           api.AccessURL.String(),
+		GatewayCfg:          api.DeploymentValues.AI.BridgeConfig,
+		ExternalAuthConfigs: api.ExternalAuthConfigs,
+		Experiments:         api.Experiments,
+		Logger:              api.Logger.Named("aibridgedserver"),
+		Clock:               api.Clock,
+	})
 	if err != nil {
 		return nil, err
 	}
-	err = aibridgedproto.DRPCRegisterRecorder(mux, srv)
-	if err != nil {
-		return nil, xerrors.Errorf("register recorder service: %w", err)
-	}
-	err = aibridgedproto.DRPCRegisterMCPConfigurator(mux, srv)
-	if err != nil {
-		return nil, xerrors.Errorf("register MCP configurator service: %w", err)
-	}
-	err = aibridgedproto.DRPCRegisterAuthorizer(mux, srv)
-	if err != nil {
-		return nil, xerrors.Errorf("register key validator service: %w", err)
+	if err := aibridgedserver.Register(mux, srv); err != nil {
+		return nil, err
 	}
 	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
@@ -113,9 +112,10 @@ func (api *API) CreateInMemoryAIBridgeServer(dialCtx context.Context) (client ai
 	}()
 
 	return &aibridged.Client{
-		Conn:                      clientSession,
-		DRPCRecorderClient:        aibridgedproto.NewDRPCRecorderClient(clientSession),
-		DRPCMCPConfiguratorClient: aibridgedproto.NewDRPCMCPConfiguratorClient(clientSession),
-		DRPCAuthorizerClient:      aibridgedproto.NewDRPCAuthorizerClient(clientSession),
+		Conn:                           clientSession,
+		DRPCRecorderClient:             aibridgedproto.NewDRPCRecorderClient(clientSession),
+		DRPCMCPConfiguratorClient:      aibridgedproto.NewDRPCMCPConfiguratorClient(clientSession),
+		DRPCAuthorizerClient:           aibridgedproto.NewDRPCAuthorizerClient(clientSession),
+		DRPCProviderConfiguratorClient: aibridgedproto.NewDRPCProviderConfiguratorClient(clientSession),
 	}, nil
 }

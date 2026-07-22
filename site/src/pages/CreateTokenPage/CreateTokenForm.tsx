@@ -87,7 +87,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 					form.values.lifetime ? (
 						<>
 							The token will expire on{" "}
-							<span data-chromatic="ignore">
+							<span data-pixel="ignore">
 								{currentTime
 									.add(form.values.lifetime, "days")
 									.utc()
@@ -137,7 +137,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 									setExpDays(lt);
 								}}
 								inputProps={{
-									"data-chromatic": "ignore",
+									"data-pixel": "ignore",
 									min: dayjs().add(1, "day").format("YYYY-MM-DD"),
 									max: maxTokenLifetime
 										? dayjs()

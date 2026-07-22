@@ -134,9 +134,7 @@ export const Submitting: Story = {
 		await userEvent.click(submitButton);
 	},
 	parameters: {
-		chromatic: {
-			disableSnapshot: true,
-		},
+		pixel: { exclude: true },
 	},
 };
 
@@ -356,9 +354,7 @@ export const AuthenticatedExternalAuth: Story = {
 		});
 	},
 	parameters: {
-		chromatic: {
-			disableSnapshot: true,
-		},
+		pixel: { exclude: true },
 	},
 };
 

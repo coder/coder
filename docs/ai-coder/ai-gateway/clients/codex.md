@@ -23,7 +23,7 @@ wire_api = "responses"
 
 To authenticate with AI Gateway, get your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** and set it in your environment:
 
-```bash
+```sh
 export OPENAI_API_KEY="<your-coder-api-token>"
 ```
 
@@ -46,7 +46,7 @@ env_http_headers = { "X-Coder-AI-Governance-Token" = "CODER_API_TOKEN" }
 
 Set both environment variables:
 
-```bash
+```sh
 # Your personal OpenAI API key, forwarded to OpenAI.
 export OPENAI_API_KEY="<your-openai-api-key>"
 
@@ -79,7 +79,7 @@ env_http_headers = { "X-Coder-AI-Governance-Token" = "CODER_API_TOKEN" }
 
 Set your Coder API token and ensure `OPENAI_API_KEY` is not set:
 
-```bash
+```sh
 # Your Coder API token, used for authentication with AI Gateway.
 export CODER_API_TOKEN="<your-coder-api-token>"
 
@@ -150,7 +150,7 @@ Responses API. AI Gateway does not support WebSocket transport, so each
 request attempts a WebSocket connection and retries up to 5 times before
 falling back to HTTPS. When this happens you will see:
 
-```text
+```txt
 Falling back from WebSockets to HTTPS transport.
 ```
 
