@@ -2453,6 +2453,87 @@ func TestRecordTokenUsageBudgetLimitReachedNotification(t *testing.T) {
 	}
 }
 
+// TestRecordTokenUsageBudgetNotificationAcrossPeriodBoundary verifies that an
+// interception created in one budget period but processed after the period has
+// rolled over is still evaluated against the period it belongs to, so a genuine
+// threshold crossing is detected rather than lost across the boundary.
+func TestRecordTokenUsageBudgetNotificationAcrossPeriodBoundary(t *testing.T) {
+	t.Parallel()
+
+	const (
+		spendLimitMicros int64 = 1_000_000 // $1 limit
+		warnAtMicros     int64 = 850_000   // 85% of the limit
+		inputPriceMicros int64 = 1_000_000 // $1 per million tokens
+	)
+
+	// The interception was created in the final second of January but is
+	// processed just after the rollover into February. The spend is bucketed
+	// into January, so detection must sum against January's period.
+	createdAt := time.Date(2026, 1, 31, 23, 59, 59, 0, time.UTC)
+	processedAt := time.Date(2026, 2, 1, 0, 0, 1, 0, time.UTC)
+	januaryStart := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	enq := &notificationstest.FakeEnqueuer{}
+
+	intc := newTestInterception(uuid.New())
+	groupID := uuid.New()
+	group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: spendLimitMicros}
+	price := &database.AIModelPrice{InputPrice: sql.NullInt64{Int64: inputPriceMicros, Valid: true}}
+
+	expectTokenUsageCostLookups(db, intc, nil, group, price)
+
+	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
+	)
+	db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).
+		Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: intc.ID}, nil)
+	db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
+		Return(database.AIUserDailySpend{}, nil)
+
+	// The spend query must run against the period the interception belongs to
+	// (January), not the period it was processed in (February).
+	var gotPeriodStart time.Time
+	db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, p database.GetUserAISpendSinceParams) (database.GetUserAISpendSinceRow, error) {
+			gotPeriodStart = p.PeriodStart
+			return database.GetUserAISpendSinceRow{SpendMicros: warnAtMicros}, nil
+		})
+	db.EXPECT().GetGroupByID(gomock.Any(), groupID).
+		Return(database.Group{ID: groupID, Name: "Engineering"}, nil)
+
+	clock := quartz.NewMock(t)
+	clock.Set(processedAt)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+		Store:         db,
+		AISeatTracker: agplaiseats.Noop{},
+		AccessURL:     "/",
+		GatewayCfg:    codersdk.AIBridgeConfig{},
+		Experiments:   requiredExperiments,
+		Enqueuer:      enq,
+		Logger:        testutil.Logger(t),
+		Clock:         clock,
+	})
+	require.NoError(t, err)
+
+	_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+		InterceptionId: intc.ID.String(),
+		MsgId:          "msg_boundary",
+		InputTokens:    1000,
+		CreatedAt:      timestamppb.New(createdAt),
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, januaryStart, gotPeriodStart,
+		"spend must be summed against the period the interception belongs to, not the processing period")
+
+	sent := enq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIBudgetWarningUser))
+	require.Len(t, sent, 1, "expected the crossing to be detected against the interception's period")
+}
+
 // newTestInterception returns an interception with a fixed initiator, provider,
 // and model for cost-attribution test setup.
 func newTestInterception(id uuid.UUID) database.AIBridgeInterception {
