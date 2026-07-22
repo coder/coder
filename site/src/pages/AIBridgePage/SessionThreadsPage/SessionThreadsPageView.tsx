@@ -115,6 +115,9 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 							threadCount={threads.length}
 							toolCallCount={toolCallCount}
 							tokenUsageMetadata={session.token_usage_summary.metadata}
+							networkCalls={session.network_calls}
+							topDomains={session.network_top_domains}
+							domainCount={session.network_domain_count}
 						/>
 					)}
 				</aside>

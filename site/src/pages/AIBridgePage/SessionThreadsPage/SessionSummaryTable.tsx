@@ -1,6 +1,13 @@
-import type { MinimalUser } from "#/api/typesGenerated";
+import { BanIcon } from "lucide-react";
+import type { ReactNode } from "react";
+import type {
+	AIBridgeSessionNetworkCallSummary,
+	AIBridgeSessionNetworkDomain,
+	MinimalUser,
+} from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { AIBridgeClientIcon } from "#/pages/AIBridgePage/icons/AIBridgeClientIcon";
 import { AIBridgeProviderIcon } from "#/pages/AIBridgePage/icons/AIBridgeProviderIcon";
 import { formatDateTime } from "#/utils/time";
@@ -21,6 +28,11 @@ interface SessionSummaryTableProps {
 	threadCount: number;
 	toolCallCount: number;
 	tokenUsageMetadata?: Record<string, unknown>;
+	// networkCalls is undefined when the session did not pass through Agent
+	// Firewall, which renders as "Disabled".
+	networkCalls?: AIBridgeSessionNetworkCallSummary;
+	topDomains?: readonly AIBridgeSessionNetworkDomain[];
+	domainCount?: number;
 }
 
 export const SessionSummaryTable = ({
@@ -35,11 +47,34 @@ export const SessionSummaryTable = ({
 	threadCount,
 	toolCallCount,
 	tokenUsageMetadata,
+	networkCalls,
+	topDomains,
+	domainCount,
 }: SessionSummaryTableProps) => {
 	const durationInMs =
 		endTime !== undefined
 			? new Date(endTime).getTime() - new Date(startTime).getTime()
 			: undefined;
+
+	let networkCallsValue: ReactNode;
+	if (networkCalls === undefined) {
+		networkCallsValue = (
+			<span className="inline-flex items-center gap-1 whitespace-nowrap text-content-secondary">
+				Disabled
+				<InfoTooltip message="Network call monitoring was not active for this session." />
+			</span>
+		);
+	} else if (networkCalls.total === 0) {
+		networkCallsValue = (
+			<span className="whitespace-nowrap text-content-secondary">
+				No activity
+			</span>
+		);
+	} else {
+		networkCallsValue = (
+			<Badge>{networkCalls.total.toLocaleString("en-US")}</Badge>
+		);
+	}
 
 	return (
 		<dl className="text-sm text-content-secondary m-0 flex flex-col gap-y-2">
@@ -163,6 +198,53 @@ export const SessionSummaryTable = ({
 					<Badge>{toolCallCount}</Badge>
 				</dd>
 			</div>
+
+			<Separator />
+
+			<div className="flex items-center justify-between">
+				<dt className="shrink-0 font-normal whitespace-nowrap">
+					Network calls
+				</dt>
+				<dd className="ml-4 min-w-0 truncate text-content-primary">
+					{networkCallsValue}
+				</dd>
+			</div>
+
+			{networkCalls !== undefined && networkCalls.total > 0 && (
+				<div className="flex items-center justify-between">
+					<dt className="shrink-0 font-normal whitespace-nowrap">
+						Blocked network requests
+					</dt>
+					<dd className="ml-4 min-w-0 truncate text-content-primary">
+						{networkCalls.blocked > 0 ? (
+							<Badge svgSize="xs" className="gap-1 text-content-warning">
+								<BanIcon className="flex-shrink-0" />
+								{networkCalls.blocked.toLocaleString("en-US")}
+							</Badge>
+						) : (
+							<Badge>{networkCalls.blocked.toLocaleString("en-US")}</Badge>
+						)}
+					</dd>
+				</div>
+			)}
+
+			{topDomains !== undefined && topDomains.length > 0 && (
+				<div className="flex items-start justify-between">
+					<dt className="shrink-0 font-normal whitespace-nowrap mt-px">
+						Top domains
+					</dt>
+					<dd className="ml-4 min-w-0 text-content-primary text-right">
+						<div className="truncate" title={topDomains[0].domain}>
+							{topDomains[0].domain}
+						</div>
+						{domainCount !== undefined && domainCount > 1 && (
+							<div className="text-content-secondary text-xs">
+								+{(domainCount - 1).toLocaleString("en-US")} more
+							</div>
+						)}
+					</dd>
+				</div>
+			)}
 		</dl>
 	);
 };

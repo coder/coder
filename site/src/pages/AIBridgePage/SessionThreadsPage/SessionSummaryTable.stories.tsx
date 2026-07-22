@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect } from "storybook/test";
 import { MockSession } from "#/testHelpers/entities";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 
@@ -54,5 +55,67 @@ export const LargeTokenCounts: Story = {
 		...Default.args,
 		inputTokens: 198_000,
 		outputTokens: 32_000,
+	},
+};
+
+// Session did not pass through Agent Firewall: monitoring was not active.
+export const NetworkDisabled: Story = {
+	args: {
+		...Default.args,
+		networkCalls: undefined,
+	},
+	play: async ({ canvas }) => {
+		await expect(canvas.getByText("Disabled")).toBeInTheDocument();
+		await expect(canvas.queryByText("Blocked network requests")).toBeNull();
+		await expect(canvas.queryByText("Top domains")).toBeNull();
+	},
+};
+
+// Firewall active but no egress recorded.
+export const NetworkNoActivity: Story = {
+	args: {
+		...Default.args,
+		networkCalls: { total: 0, blocked: 0 },
+	},
+	play: async ({ canvas }) => {
+		await expect(canvas.getByText("No activity")).toBeInTheDocument();
+		await expect(canvas.queryByText("Blocked network requests")).toBeNull();
+	},
+};
+
+// Egress recorded, some blocked, across several domains.
+export const NetworkActivity: Story = {
+	args: {
+		...Default.args,
+		networkCalls: { total: 7, blocked: 2 },
+		topDomains: [
+			{ domain: "api.github.com", count: 4 },
+			{ domain: "registry.npmjs.org", count: 2 },
+			{ domain: "hooks.slack.com", count: 1 },
+		],
+		domainCount: 14,
+	},
+	play: async ({ canvas }) => {
+		await expect(canvas.getByText("Network calls")).toBeInTheDocument();
+		await expect(canvas.getByText("7")).toBeInTheDocument();
+		await expect(
+			canvas.getByText("Blocked network requests"),
+		).toBeInTheDocument();
+		await expect(canvas.getByText("api.github.com")).toBeInTheDocument();
+		await expect(canvas.getByText("+13 more")).toBeInTheDocument();
+	},
+};
+
+// A single domain contacted: no "+N more" overflow.
+export const NetworkSingleDomain: Story = {
+	args: {
+		...Default.args,
+		networkCalls: { total: 3, blocked: 0 },
+		topDomains: [{ domain: "api.github.com", count: 3 }],
+		domainCount: 1,
+	},
+	play: async ({ canvas }) => {
+		await expect(canvas.getByText("api.github.com")).toBeInTheDocument();
+		await expect(canvas.queryByText(/more$/)).toBeNull();
 	},
 };
