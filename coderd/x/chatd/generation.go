@@ -381,7 +381,7 @@ func (s *taskStarter) startGenerationSession(
 	// can replay session_start effects.
 	defer func() { complete(completed) }()
 	turnID := activeTurnID(messages)
-	response, err := s.server.dispatchSessionStart(ctx, chat, turnID, sessionStartSource(messages))
+	response, err := s.server.dispatchLifecycleHook(ctx, chat, turnID, agenthooks.EventSessionStart, agenthooks.SessionStartData{Source: sessionStartSource(messages)})
 	if err != nil {
 		return sessionStartResult{}, true, sessionStartDispatchError(err)
 	}
@@ -969,7 +969,7 @@ func (s *taskStarter) generateCompaction(
 		)
 	}
 	turnID := activeTurnID(prepared.Messages)
-	preResponse, err := s.server.dispatchPreCompact(ctx, prepared.Chat, turnID)
+	preResponse, err := s.server.dispatchLifecycleHook(ctx, prepared.Chat, turnID, agenthooks.EventPreCompact, agenthooks.PreCompactData{})
 	if err != nil {
 		return generationHookDispatchError(agenthooks.EventPreCompact, err)
 	}
@@ -1019,7 +1019,7 @@ func (s *taskStarter) generateCompaction(
 	// whose new history lets the runner start another model step before
 	// the response applies, and a crash between the commits would drop
 	// the response entirely.
-	postResponse, postDispatchErr := s.server.dispatchPostCompact(ctx, prepared.Chat, turnID)
+	postResponse, postDispatchErr := s.server.dispatchLifecycleHook(ctx, prepared.Chat, turnID, agenthooks.EventPostCompact, agenthooks.PostCompactData{})
 	responses := []agenthooks.Response{preResponse}
 	endChat := preEndChat
 	var postCommitErr error
@@ -1465,7 +1465,7 @@ func (s *taskStarter) finishGenerationTurn(
 		return normalizeTaskTransitionError(err, "load stop hook state")
 	}
 	turnID := activeTurnID(messages)
-	response, err := s.server.dispatchStop(ctx, chat, turnID)
+	response, err := s.server.dispatchLifecycleHook(ctx, chat, turnID, agenthooks.EventStop, agenthooks.StopData{})
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, generationHookDispatchError(agenthooks.EventStop, err), fence)
 	}

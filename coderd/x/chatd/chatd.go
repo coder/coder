@@ -1858,7 +1858,7 @@ func (p *Server) EditMessage(
 		if _, err := validateModelConfigOverride(ctx, p.db, opts.ModelConfigID); err != nil {
 			return EditMessageResult{}, err
 		}
-		sessionStartResponse, err = p.dispatchSessionStart(ctx, chat, &turnID, sessionStartSourceClear)
+		sessionStartResponse, err = p.dispatchLifecycleHook(ctx, chat, &turnID, agenthooks.EventSessionStart, agenthooks.SessionStartData{Source: sessionStartSourceClear})
 		if err != nil {
 			return EditMessageResult{}, p.handleAPIDispatchError(ctx, opts.ChatID, agenthooks.EventSessionStart, err)
 		}

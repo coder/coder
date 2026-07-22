@@ -72,9 +72,9 @@ func TestSessionStartDispatchSources(t *testing.T) {
 	turnID := uuid.New()
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	_, err := server.dispatchSessionStart(ctx, chat, &turnID, sessionStartSource(nil))
+	_, err := server.dispatchLifecycleHook(ctx, chat, &turnID, agenthooks.EventSessionStart, agenthooks.SessionStartData{Source: sessionStartSource(nil)})
 	require.NoError(t, err)
-	_, err = server.dispatchSessionStart(ctx, chat, &turnID, sessionStartSource([]database.ChatMessage{{Role: database.ChatMessageRoleAssistant}}))
+	_, err = server.dispatchLifecycleHook(ctx, chat, &turnID, agenthooks.EventSessionStart, agenthooks.SessionStartData{Source: sessionStartSource([]database.ChatMessage{{Role: database.ChatMessageRoleAssistant}})})
 	require.NoError(t, err)
 
 	startup := <-receivedCh

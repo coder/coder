@@ -26,25 +26,6 @@ import (
 	"github.com/coder/coder/v2/codersdk/agenthooks"
 )
 
-// UserPromptDeniedError reports that a lifecycle hook rejected a prompt.
-type UserPromptDeniedError struct {
-	UserMessage string
-}
-
-func (*UserPromptDeniedError) Error() string {
-	return "user prompt denied by lifecycle hook"
-}
-
-func promptText(parts []codersdk.ChatMessagePart) string {
-	var prompt strings.Builder
-	for _, part := range parts {
-		if part.Type == codersdk.ChatMessagePartTypeText {
-			_, _ = prompt.WriteString(part.Text)
-		}
-	}
-	return prompt.String()
-}
-
 const (
 	sessionStartSourceStartup = "startup"
 	sessionStartSourceResume  = "resume"
@@ -95,27 +76,6 @@ func (p *Server) dispatchLifecycleHook(
 	}
 	resp, _, err := p.hookDispatcher.Dispatch(ctx, lifecycleHookEvent(chat, turnID, eventType, data))
 	return resp, err
-}
-
-func (p *Server) dispatchSessionStart(
-	ctx context.Context,
-	chat database.Chat,
-	turnID *uuid.UUID,
-	source string,
-) (agenthooks.Response, error) {
-	return p.dispatchLifecycleHook(ctx, chat, turnID, agenthooks.EventSessionStart, agenthooks.SessionStartData{Source: source})
-}
-
-func (p *Server) dispatchPreCompact(ctx context.Context, chat database.Chat, turnID *uuid.UUID) (agenthooks.Response, error) {
-	return p.dispatchLifecycleHook(ctx, chat, turnID, agenthooks.EventPreCompact, agenthooks.PreCompactData{})
-}
-
-func (p *Server) dispatchPostCompact(ctx context.Context, chat database.Chat, turnID *uuid.UUID) (agenthooks.Response, error) {
-	return p.dispatchLifecycleHook(ctx, chat, turnID, agenthooks.EventPostCompact, agenthooks.PostCompactData{})
-}
-
-func (p *Server) dispatchStop(ctx context.Context, chat database.Chat, turnID *uuid.UUID) (agenthooks.Response, error) {
-	return p.dispatchLifecycleHook(ctx, chat, turnID, agenthooks.EventStop, agenthooks.StopData{})
 }
 
 type preToolUseResult struct {
@@ -188,8 +148,9 @@ func (p *Server) dispatchPostToolUseResults(
 		return nil, nil
 	}
 	responses := make([]agenthooks.Response, 0, len(content))
-	// Dispatch every completed result so later side effects are audited.
-	// Preserve only the first failure before an accepted end_chat.
+	// Dispatch every completed result so each outcome is recorded in
+	// chat_hook_dispatches. Preserve only the first failure before an
+	// accepted end_chat.
 	var firstErr error
 	endChatSeen := false
 	for _, block := range content {
@@ -527,6 +488,15 @@ func activeTurnID(messages []database.ChatMessage) *uuid.UUID {
 	return nil
 }
 
+// UserPromptDeniedError reports that a lifecycle hook rejected a prompt.
+type UserPromptDeniedError struct {
+	UserMessage string
+}
+
+func (*UserPromptDeniedError) Error() string {
+	return "user prompt denied by lifecycle hook"
+}
+
 func (p *Server) dispatchUserPromptSubmit(
 	ctx context.Context,
 	chat database.Chat,
@@ -538,7 +508,7 @@ func (p *Server) dispatchUserPromptSubmit(
 		return agenthooks.Response{}, xerrors.Errorf("marshal prompt parts for hook: %w", err)
 	}
 	response, err := p.dispatchLifecycleHook(ctx, chat, &turnID, agenthooks.EventUserPromptSubmit, agenthooks.UserPromptSubmitData{
-		Prompt: promptText(parts),
+		Prompt: textFromParts(parts),
 		Parts:  encodedParts.RawMessage,
 	})
 	if err != nil {

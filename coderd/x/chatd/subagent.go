@@ -1053,10 +1053,6 @@ func (p *Server) createChildSubagentChatWithOptions(
 	}
 
 	title = strings.TrimSpace(title)
-	titleDerivedFromPrompt := title == ""
-	if titleDerivedFromPrompt {
-		title = subagentFallbackChatTitle(prompt)
-	}
 
 	rootChatID := parent.ID
 	if parent.RootChatID.Valid {
@@ -1117,7 +1113,8 @@ func (p *Server) createChildSubagentChatWithOptions(
 		if err != nil {
 			return database.Chat{}, err
 		}
-		// With no child to archive, end_chat refuses the spawn.
+		// The child chat does not exist yet, so an end_chat response
+		// denies the spawn instead of archiving.
 		if hookResponse.EndChat {
 			return database.Chat{}, &UserPromptDeniedError{UserMessage: hookResponse.UserMessage}
 		}
@@ -1127,11 +1124,11 @@ func (p *Server) createChildSubagentChatWithOptions(
 		}
 		if overridden {
 			prompt = override
-			// Avoid deriving titles from the prompt that policy replaced.
-			if titleDerivedFromPrompt {
-				title = subagentFallbackChatTitle(prompt)
-			}
 		}
+	}
+	// Derive the fallback title only after hooks settle the final prompt.
+	if title == "" {
+		title = subagentFallbackChatTitle(prompt)
 	}
 
 	workspaceAwareness := workspaceDetachedNoCreateAwareness
