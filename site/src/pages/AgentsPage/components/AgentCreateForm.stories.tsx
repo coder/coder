@@ -728,7 +728,7 @@ export const OrgPickerTightSpacing: Story = {
 /**
  * Standalone story for the org-change confirmation dialog. Renders
  * the ConfirmDialog directly in its open state, following the same
- * pattern as DeleteConfirmationDialog in AgentsPageView.stories.
+ * pattern as DeleteConfirmationDialog in AgentsPageLayout.stories.
  */
 export const OrgChangeConfirmation: Story = {
 	render: () => (
