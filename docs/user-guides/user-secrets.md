@@ -238,3 +238,70 @@ for what happens to running workspaces when you delete a secret.
 
 For full command details, see [`coder secret`](../reference/cli/secret.md) and
 the [Secrets API reference](../reference/api/secrets.md).
+
+## Bulk import
+
+Import many secrets at once by uploading a file to the batch API endpoint. This
+is useful when you want to move an existing `.env`, JSON, or YAML file of values
+into Coder in a single request.
+
+The endpoint is `POST /api/v2/users/{user}/secrets/batch`. The request body is
+JSON with two fields:
+
+- `format`: one of `env`, `json`, or `yaml`.
+- `content`: the raw file contents, as a string.
+
+The supported formats are:
+
+- `env`: dotenv-style `KEY=VALUE` lines.
+- `json`: a flat JSON object of string values, for example
+  `{"API_KEY":"...","DB_URL":"..."}`.
+- `yaml`: a flat YAML mapping of string values. Multi-document YAML is
+  supported.
+
+The following example imports two secrets from an inline env-format file:
+
+```sh
+curl -X POST http://coder-server:8080/api/v2/users/me/secrets/batch \
+  -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"format":"env","content":"API_KEY=abc123\nDB_URL=postgres://localhost/db\n"}'
+```
+
+The same operation is available in the Go SDK as
+`codersdk.Client.ImportUserSecrets`. For the full request and response schema,
+refer to the "Import user secrets from a file" operation in the
+[Secrets API reference](../reference/api/secrets.md).
+
+### How keys become secrets
+
+Each key in the file becomes a secret whose name is the key. When the key is a
+valid environment variable name, Coder also sets it as the secret's environment
+variable target so the value is injected into your workspaces, exactly like a
+secret created individually. Refer to
+[How your secrets reach a workspace](#how-your-secrets-reach-a-workspace) for
+the injection details.
+
+Keys that are not valid environment variable names (for example `MY-TOKEN`) or
+reserved names (for example `PATH`) are still imported, but with an empty
+environment variable target. Like any secret without an environment variable or
+file target, these are stored but not injected.
+
+### All-or-nothing
+
+Imports are atomic. If any entry fails validation, reuses a name that is already
+in use, or would exceed a per-user limit, Coder rolls back the whole batch and
+creates nothing. Fix the reported entry and retry the full file.
+
+Secret values are never returned in the response and are omitted from audit
+logs. On success, the response is an array of secret metadata (`id`, `name`,
+`description`, `env_name`, `file_path`, `created_at`, and `updated_at`), the
+same shape returned when you create a single secret.
+
+### Import limits
+
+A single file may contain at most 50 secrets, and the file itself must be no
+larger than 1 MiB. Requests whose raw body exceeds the endpoint cap return
+HTTP 413. Imported secrets also count against the same per-user budgets
+described in [Limits](#limits), so a batch that would push you over those
+limits is rejected and nothing is created.
