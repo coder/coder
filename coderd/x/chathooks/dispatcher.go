@@ -193,8 +193,14 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (agenthooks.Resp
 		return response, dispatchID, err
 	}
 
-	if err := d.insert(ctx, event, dispatchID, startedAt); err != nil {
-		return agenthooks.Response{}, dispatchID, newDispatchError(ResultInternalError, dispatchID, xerrors.Errorf("insert chat hook dispatch: %w", err))
+	// Insert with a detached context so a caller canceled right after
+	// acquiring capacity still leaves an audit row, matching finishWithoutPost.
+	insertCtx, cancelInsert := context.WithTimeout(context.WithoutCancel(ctx), finalizeTimeout)
+	insertErr := d.insert(insertCtx, event, dispatchID, startedAt)
+	cancelInsert()
+	if insertErr != nil {
+		d.metrics.observe(event.Type, ResultInternalError, agenthooks.Response{}, time.Since(startedAt))
+		return agenthooks.Response{}, dispatchID, newDispatchError(ResultInternalError, dispatchID, xerrors.Errorf("insert chat hook dispatch: %w", insertErr))
 	}
 
 	response, outcome := d.prepareAndPost(ctx, event, dispatchID)

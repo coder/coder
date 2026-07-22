@@ -441,6 +441,28 @@ func TestDispatcherOverCapacity(t *testing.T) {
 	require.True(t, row.FinishedAt.Valid)
 }
 
+func TestDispatcherCanceledContextPersistsTimeout(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	event := newTestEvent(t, db, agenthooks.EventStop, agenthooks.StopData{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+
+	// Whichever select branch wins with an already-canceled context, a
+	// timeout row must be persisted.
+	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
+	cancel()
+	_, _, err := newTestDispatcher(t, db, server.Client(), server.URL, time.Second).Dispatch(ctx, event)
+	require.Error(t, err)
+
+	row := singleDispatch(t, db, event.ChatID)
+	require.Equal(t, string(ResultTimeout), row.Result)
+	require.True(t, row.FinishedAt.Valid)
+}
+
 func TestDispatcherInvalidToolInputFinalizesProtocolError(t *testing.T) {
 	t.Parallel()
 
