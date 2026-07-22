@@ -1,7 +1,8 @@
-import { BanIcon, InfoIcon } from "lucide-react";
+import { BanIcon } from "lucide-react";
 import type { FC } from "react";
 import type { AIBridgeSessionNetworkCallSummary } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import {
 	Tooltip,
 	TooltipContent,
@@ -18,24 +19,10 @@ interface NetworkCallBadgesProps {
 export const NetworkCallBadges: FC<NetworkCallBadgesProps> = ({ summary }) => {
 	if (!summary) {
 		return (
-			<TooltipProvider>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<span className="inline-flex items-center gap-1 whitespace-nowrap text-content-secondary">
-							Disabled
-							<span className="sr-only">More info</span>
-							<InfoIcon tabIndex={0} className="cursor-pointer size-icon-xs" />
-						</span>
-					</TooltipTrigger>
-					<TooltipContent
-						side="top"
-						align="start"
-						className="max-w-xs text-sm font-normal"
-					>
-						Network call monitoring was not active for this session.
-					</TooltipContent>
-				</Tooltip>
-			</TooltipProvider>
+			<span className="inline-flex items-center gap-1 whitespace-nowrap text-content-secondary">
+				Disabled
+				<InfoTooltip message="Network call monitoring was not active for this session." />
+			</span>
 		);
 	}
 
@@ -51,12 +38,11 @@ export const NetworkCallBadges: FC<NetworkCallBadgesProps> = ({ summary }) => {
 		<TooltipProvider>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<span
-						tabIndex={0}
-						role="button"
-						className="flex items-center whitespace-nowrap"
+					<button
+						type="button"
+						aria-label="More info"
+						className="flex items-center whitespace-nowrap border-0 bg-transparent p-0 text-inherit"
 					>
-						<span className="sr-only">More info</span>
 						<Badge size="sm" className="rounded-e-none">
 							{summary.total.toLocaleString("en-US")}
 						</Badge>
@@ -68,7 +54,7 @@ export const NetworkCallBadges: FC<NetworkCallBadgesProps> = ({ summary }) => {
 							<BanIcon className="flex-shrink-0" />
 							{summary.blocked.toLocaleString("en-US")}
 						</Badge>
-					</span>
+					</button>
 				</TooltipTrigger>
 				<TooltipContent
 					side="top"

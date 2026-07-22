@@ -55,15 +55,17 @@ export const TotalAndBlockedKeyboard: Story = {
 	},
 };
 
-// Tabbing to the disabled indicator reveals the reason tooltip without a mouse.
+// Tabbing to the disabled indicator's info button and pressing Enter reveals
+// the reason popover without a mouse.
 export const DisabledKeyboard: Story = {
 	args: {
 		summary: undefined,
 	},
 	play: async () => {
 		await userEvent.tab();
+		await userEvent.keyboard("{Enter}");
 		await waitFor(() =>
-			expect(screen.getByRole("tooltip")).toHaveTextContent(
+			expect(screen.getByRole("dialog")).toHaveTextContent(
 				"Network call monitoring was not active for this session.",
 			),
 		);
