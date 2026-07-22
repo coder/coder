@@ -523,6 +523,7 @@ export const MobilePortsInlinePanel: Story = {
 	...mobilePortsStoryConfig,
 	parameters: {
 		...mobilePortsStoryConfig.parameters,
+		// TODO: This story fails when pixel runs its play function. Fix it and remove the exclude.
 		pixel: { exclude: true },
 	},
 	play: async ({ canvasElement }) => {

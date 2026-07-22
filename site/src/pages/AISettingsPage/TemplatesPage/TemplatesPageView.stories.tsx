@@ -61,6 +61,7 @@ const templates: TypesGen.Template[] = [
 const meta = {
 	title: "pages/AISettingsPage/TemplatesPage/TemplatesPageView",
 	component: TemplatesPageView,
+	// TODO: Stories in this file fail when pixel runs their play functions. Fix them and remove the exclude.
 	parameters: { pixel: { exclude: true } },
 	args: {
 		templatesData: templates,
