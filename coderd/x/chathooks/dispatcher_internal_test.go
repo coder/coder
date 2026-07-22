@@ -75,7 +75,7 @@ func TestDispatcherSuccess(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	dispatcher := newTestDispatcher(t, db, server.Client(), server.URL, 2*time.Second)
-	response, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitLong), event)
+	response, _, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitLong), event)
 	require.NoError(t, err)
 	require.Equal(t, agenthooks.Response{}, response)
 
@@ -97,7 +97,7 @@ func TestDispatcherDeny(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	response, err := newTestDispatcher(t, db, server.Client(), server.URL, time.Second).Dispatch(
+	response, _, err := newTestDispatcher(t, db, server.Client(), server.URL, time.Second).Dispatch(
 		testutil.Context(t, testutil.WaitLong), event,
 	)
 	require.NoError(t, err)
@@ -130,7 +130,7 @@ func TestDispatcherAllowInputOverride(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	response, err := newTestDispatcher(t, db, server.Client(), server.URL, time.Second).Dispatch(
+	response, _, err := newTestDispatcher(t, db, server.Client(), server.URL, time.Second).Dispatch(
 		testutil.Context(t, testutil.WaitLong), event,
 	)
 	require.NoError(t, err)
@@ -160,7 +160,7 @@ func TestDispatcherTimeoutNoRetry(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	_, err := newTestDispatcher(t, db, server.Client(), server.URL, 50*time.Millisecond).Dispatch(
+	_, _, err := newTestDispatcher(t, db, server.Client(), server.URL, 50*time.Millisecond).Dispatch(
 		testutil.Context(t, testutil.WaitLong), event,
 	)
 	close(release)
@@ -205,7 +205,7 @@ func TestDispatcherRetriesConnectionErrorWithSameJTI(t *testing.T) {
 		return baseTransport.RoundTrip(req)
 	})}
 
-	_, err := newTestDispatcher(t, db, client, server.URL, time.Second).Dispatch(
+	_, _, err := newTestDispatcher(t, db, client, server.URL, time.Second).Dispatch(
 		testutil.Context(t, testutil.WaitLong), event,
 	)
 	require.NoError(t, err)
@@ -251,7 +251,7 @@ func TestDispatcherRetriesMidBodyConnectionError(t *testing.T) {
 		return baseTransport.RoundTrip(req)
 	})}
 
-	_, err := newTestDispatcher(t, db, client, server.URL, time.Second).Dispatch(
+	_, _, err := newTestDispatcher(t, db, client, server.URL, time.Second).Dispatch(
 		testutil.Context(t, testutil.WaitLong), event,
 	)
 	require.NoError(t, err)
@@ -283,7 +283,7 @@ func TestDispatcherTLSFailureNoRetry(t *testing.T) {
 		return transport.RoundTrip(req)
 	})}
 
-	_, err := newTestDispatcher(t, db, client, server.URL, time.Second).Dispatch(
+	_, _, err := newTestDispatcher(t, db, client, server.URL, time.Second).Dispatch(
 		testutil.Context(t, testutil.WaitLong), event,
 	)
 	require.Error(t, err)
@@ -308,7 +308,7 @@ func TestDispatcherNon2xxNoRetry(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	_, err := newTestDispatcher(t, db, server.Client(), server.URL, time.Second).Dispatch(
+	_, _, err := newTestDispatcher(t, db, server.Client(), server.URL, time.Second).Dispatch(
 		testutil.Context(t, testutil.WaitLong), event,
 	)
 	close(release)
@@ -404,7 +404,7 @@ func TestDispatcherProtocolErrors(t *testing.T) {
 			}))
 			t.Cleanup(server.Close)
 
-			_, err := newTestDispatcher(t, db, server.Client(), server.URL, time.Second).Dispatch(
+			_, _, err := newTestDispatcher(t, db, server.Client(), server.URL, time.Second).Dispatch(
 				testutil.Context(t, testutil.WaitLong), event,
 			)
 			require.Error(t, err)
@@ -433,7 +433,7 @@ func TestDispatcherOverCapacity(t *testing.T) {
 		}
 	}()
 
-	_, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitLong), event)
+	_, _, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitLong), event)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	row := singleDispatch(t, db, event.ChatID)
 	require.Equal(t, string(ResultOverCapacity), row.Result)
@@ -459,7 +459,7 @@ func TestDispatcherInvalidToolInputFinalizesProtocolError(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	_, err := newTestDispatcher(t, db, server.Client(), server.URL, time.Second).Dispatch(
+	_, _, err := newTestDispatcher(t, db, server.Client(), server.URL, time.Second).Dispatch(
 		testutil.Context(t, testutil.WaitLong), event,
 	)
 	require.Error(t, err)

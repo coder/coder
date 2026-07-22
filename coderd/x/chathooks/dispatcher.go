@@ -166,18 +166,9 @@ func (d *Dispatcher) Enabled() bool {
 	return d != nil && d.hookURL != ""
 }
 
-// Dispatch persists and delivers one event.
-func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (agenthooks.Response, error) {
-	response, _, err := d.dispatchEvent(ctx, event)
-	return response, err
-}
-
-// DispatchWithID exposes the generated ID so effects bind to one dispatch.
-func (d *Dispatcher) DispatchWithID(ctx context.Context, event Event) (agenthooks.Response, uuid.UUID, error) {
-	return d.dispatchEvent(ctx, event)
-}
-
-func (d *Dispatcher) dispatchEvent(ctx context.Context, event Event) (agenthooks.Response, uuid.UUID, error) {
+// Dispatch persists and delivers one event. The returned ID identifies the
+// dispatch so effects can bind to a single attempt.
+func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (agenthooks.Response, uuid.UUID, error) {
 	if !d.Enabled() {
 		return agenthooks.Response{}, uuid.Nil, xerrors.New("chat hook dispatcher is not enabled")
 	}
