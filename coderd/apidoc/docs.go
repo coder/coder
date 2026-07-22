@@ -11067,6 +11067,12 @@ const docTemplate = `{
                                 "$ref": "#/definitions/codersdk.UserSecret"
                             }
                         }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -20623,6 +20629,10 @@ const docTemplate = `{
         },
         "codersdk.ImportUserSecretsRequest": {
             "type": "object",
+            "required": [
+                "content",
+                "format"
+            ],
             "properties": {
                 "content": {
                     "type": "string"

@@ -167,9 +167,10 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/secrets/batch \
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                                        |
-|--------|--------------------------------------------------------------|-------------|---------------------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | array of [codersdk.UserSecret](schemas.md#codersdkusersecret) |
+| Status | Meaning                                                                 | Description              | Schema                                                        |
+|--------|-------------------------------------------------------------------------|--------------------------|---------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                  | array of [codersdk.UserSecret](schemas.md#codersdkusersecret) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)              |
 
 <h3 id="import-user-secrets-from-a-file-responseschema">Response Schema</h3>
 

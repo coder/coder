@@ -73,8 +73,8 @@ func (c *Client) UserSecrets(ctx context.Context, user string) ([]UserSecret, er
 // ImportUserSecretsRequest is the payload for the bulk secret import
 // endpoint. Content is the raw file bytes and Format selects the parser.
 type ImportUserSecretsRequest struct {
-	Format  SecretsFileFormat `json:"format"`
-	Content string            `json:"content"`
+	Format  SecretsFileFormat `json:"format" validate:"required"`
+	Content string            `json:"content" validate:"required"`
 }
 
 // ImportUserSecrets parses the supplied file content and creates the

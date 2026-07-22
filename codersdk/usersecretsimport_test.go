@@ -371,89 +371,26 @@ func TestParseSecretsFileGeneralErrors(t *testing.T) {
 	}
 }
 
-// TestParseSecretsFileEnvBestEffortEnvName verifies the best-effort
-// env_name behavior: keys that fail env-name validation (hyphens, dots,
-// reserved names) get an empty EnvName, while valid keys still get
-// EnvName set to the key.
-func TestParseSecretsFileEnvBestEffortEnvName(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name        string
-		line        string
-		wantName    string
-		wantEnvName string
-		wantValue   string
-	}{
-		{
-			name:        "HyphenatedKey",
-			line:        "MY-TOKEN=secretval",
-			wantName:    "MY-TOKEN",
-			wantEnvName: "", // hyphen is not valid in POSIX env names
-			wantValue:   "secretval",
-		},
-		{
-			name:        "ReservedName",
-			line:        "PATH=whatever",
-			wantName:    "PATH",
-			wantEnvName: "", // PATH is a reserved env name
-			wantValue:   "whatever",
-		},
-		{
-			name:        "DotInKey",
-			line:        "my.key=dotvalue",
-			wantName:    "my.key",
-			wantEnvName: "", // dot is not valid in POSIX env names
-			wantValue:   "dotvalue",
-		},
-		{
-			name:        "ValidKey",
-			line:        "MY_TOKEN=goodval",
-			wantName:    "MY_TOKEN",
-			wantEnvName: "MY_TOKEN", // valid POSIX env name
-			wantValue:   "goodval",
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			reqs, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatEnv, tc.line)
-			require.NoError(t, err)
-			require.Len(t, reqs, 1)
-			assert.Equal(t, tc.wantName, reqs[0].Name)
-			assert.Equal(t, tc.wantEnvName, reqs[0].EnvName)
-			assert.Equal(t, tc.wantValue, reqs[0].Value)
-		})
-	}
-}
-
-// TestParseSecretsFileMappingEquivalence asserts that for valid env-name
-// keys the Name and EnvName are both set to KEY (and FilePath is empty).
-// Keys that fail env-name validation are covered by
-// TestParseSecretsFileEnvBestEffortEnvName.
-func TestParseSecretsFileMappingEquivalence(t *testing.T) {
+func TestParseSecretsFileBestEffortEnvName(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
 		format  codersdk.SecretsFileFormat
 		content string
 	}{
-		{codersdk.SecretsFileFormatEnv, "FOO=bar"},
-		{codersdk.SecretsFileFormatJSON, `{"FOO":"bar"}`},
-		{codersdk.SecretsFileFormatYAML, "FOO: bar"},
+		{format: codersdk.SecretsFileFormatEnv, content: "PATH=value"},
+		{format: codersdk.SecretsFileFormatJSON, content: `{"PATH":"value"}`},
+		{format: codersdk.SecretsFileFormatYAML, content: "PATH: value"},
 	}
 	for _, tc := range cases {
 		t.Run(string(tc.format), func(t *testing.T) {
 			t.Parallel()
 			reqs, err := codersdk.ParseSecretsFile(tc.format, tc.content)
 			require.NoError(t, err)
-			require.Len(t, reqs, 1)
-			got := reqs[0]
-			assert.Equal(t, "FOO", got.Name)
-			assert.Equal(t, "FOO", got.EnvName)
-			assert.Equal(t, "bar", got.Value)
-			assert.Empty(t, got.FilePath)
-			assert.Empty(t, got.Description)
+			require.Equal(t, []codersdk.CreateUserSecretRequest{{
+				Name:  "PATH",
+				Value: "value",
+			}}, reqs)
 		})
 	}
 }

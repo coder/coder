@@ -81,6 +81,10 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, resp)
 			return
 		}
+		if httpapi.IsUnauthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error creating secret.",
 			Detail:  err.Error(),
@@ -101,6 +105,7 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, username, or me"
 // @Param request body codersdk.ImportUserSecretsRequest true "Import secrets request"
 // @Success 201 {array} codersdk.UserSecret
+// @Failure 413 {object} codersdk.Response
 // @Router /api/v2/users/{user}/secrets/batch [post]
 func (api *API) postUserSecretsBatch(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -185,6 +190,10 @@ func (api *API) postUserSecretsBatch(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, resp)
 			return
 		}
+		if httpapi.IsUnauthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error importing secrets.",
 			Detail:  err.Error(),
@@ -197,8 +206,9 @@ func (api *API) postUserSecretsBatch(rw http.ResponseWriter, r *http.Request) {
 	// because database.UserSecret is registered as auditable.
 	auditor := api.Auditor.Load()
 	requestID := httpmw.RequestID(r)
+	auditCtx := context.WithoutCancel(ctx)
 	for _, secret := range created {
-		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.UserSecret]{
+		audit.BackgroundAudit(auditCtx, &audit.BackgroundAuditParams[database.UserSecret]{
 			Audit:     *auditor,
 			Log:       api.Logger,
 			UserID:    user.ID,

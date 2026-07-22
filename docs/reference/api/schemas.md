@@ -7921,8 +7921,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 | Name      | Type                                                     | Required | Restrictions | Description |
 |-----------|----------------------------------------------------------|----------|--------------|-------------|
-| `content` | string                                                   | false    |              |             |
-| `format`  | [codersdk.SecretsFileFormat](#codersdksecretsfileformat) | false    |              |             |
+| `content` | string                                                   | true     |              |             |
+| `format`  | [codersdk.SecretsFileFormat](#codersdksecretsfileformat) | true     |              |             |
 
 ## codersdk.InboxNotification
 

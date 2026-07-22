@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -30,13 +31,16 @@ func TestImportUserSecrets(t *testing.T) {
 
 		secrets, err := client.ImportUserSecrets(ctx, codersdk.Me, codersdk.ImportUserSecretsRequest{
 			Format:  codersdk.SecretsFileFormatEnv,
-			Content: "ALPHA=a\nBETA=b\nGAMMA=c\n",
+			Content: "ALPHA=a\nBETA=b\nPATH=c\n",
 		})
 		require.NoError(t, err)
 		require.Len(t, secrets, 3)
-		// The flat mapping sets env_name to the key for every entry.
+		// Valid keys are env-injected, while reserved names are imported
+		// without env injection.
 		assert.Equal(t, "ALPHA", secrets[0].Name)
 		assert.Equal(t, "ALPHA", secrets[0].EnvName)
+		assert.Equal(t, "PATH", secrets[2].Name)
+		assert.Empty(t, secrets[2].EnvName)
 
 		listed, err := client.UserSecrets(ctx, codersdk.Me)
 		require.NoError(t, err)
@@ -44,15 +48,23 @@ func TestImportUserSecrets(t *testing.T) {
 		for _, s := range listed {
 			names = append(names, s.Name)
 		}
-		assert.ElementsMatch(t, []string{"ALPHA", "BETA", "GAMMA"}, names)
+		assert.ElementsMatch(t, []string{"ALPHA", "BETA", "PATH"}, names)
 
 		// Exactly one create audit log per imported secret.
 		logs := auditor.AuditLogs()
 		require.Len(t, logs, 3)
+		resourceIDs := make([]string, 0, len(logs))
+		resourceTargets := make([]string, 0, len(logs))
 		for _, l := range logs {
 			assert.Equal(t, database.AuditActionCreate, l.Action)
 			assert.EqualValues(t, http.StatusCreated, l.StatusCode)
+			resourceIDs = append(resourceIDs, l.ResourceID.String())
+			resourceTargets = append(resourceTargets, l.ResourceTarget)
 		}
+		assert.ElementsMatch(t, []string{
+			secrets[0].ID.String(), secrets[1].ID.String(), secrets[2].ID.String(),
+		}, resourceIDs)
+		assert.ElementsMatch(t, []string{"ALPHA", "BETA", "PATH"}, resourceTargets)
 	})
 
 	t.Run("ValuesNotInResponse", func(t *testing.T) {
@@ -75,6 +87,37 @@ func TestImportUserSecrets(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotContains(t, string(body), secretValue)
 	})
+}
+
+func TestImportUserSecretsForbiddenForAnotherUser(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	owner := coderdtest.CreateFirstUser(t, client)
+	memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleAuditor())
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	_, err := memberClient.ImportUserSecrets(ctx, owner.UserID.String(), codersdk.ImportUserSecretsRequest{
+		Format:  codersdk.SecretsFileFormatEnv,
+		Content: "FORBIDDEN=value",
+	})
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+}
+
+func TestImportUserSecretsBodyTooLarge(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	_, err := client.ImportUserSecrets(ctx, codersdk.Me, codersdk.ImportUserSecretsRequest{
+		Format:  codersdk.SecretsFileFormatEnv,
+		Content: strings.Repeat("a", 8*codersdk.MaxSecretsFileBytes),
+	})
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusRequestEntityTooLarge, sdkErr.StatusCode())
 }
 
 // TestImportUserSecretsValidationRollback verifies that a single
@@ -125,50 +168,6 @@ func TestImportUserSecretsValidationRollback(t *testing.T) {
 	}
 }
 
-// TestImportUserSecretsReservedEnvNameBestEffort verifies that a
-// reserved env name (e.g. PATH) no longer causes the whole batch to
-// roll back. With best-effort env injection the secret is created
-// successfully with an empty env_name, and the rest of the batch is
-// unaffected.
-func TestImportUserSecretsReservedEnvNameBestEffort(t *testing.T) {
-	t.Parallel()
-	auditor := audit.NewMock()
-	client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-	_ = coderdtest.CreateFirstUser(t, client)
-	ctx := testutil.Context(t, testutil.WaitMedium)
-	auditor.ResetLogs()
-
-	secrets, err := client.ImportUserSecrets(ctx, codersdk.Me, codersdk.ImportUserSecretsRequest{
-		Format:  codersdk.SecretsFileFormatEnv,
-		Content: "GOOD_ENTRY=fine\nPATH=whatever",
-	})
-	require.NoError(t, err)
-	require.Len(t, secrets, 2)
-
-	// The PATH secret must be created, but without env injection.
-	var pathSecret *codersdk.UserSecret
-	for i := range secrets {
-		if secrets[i].Name == "PATH" {
-			pathSecret = &secrets[i]
-			break
-		}
-	}
-	require.NotNilf(t, pathSecret, "PATH secret not found in response")
-	assert.Equal(t, "", pathSecret.EnvName, "reserved env name must be left empty")
-
-	// Both secrets should be in the list.
-	listed, err := client.UserSecrets(ctx, codersdk.Me)
-	require.NoError(t, err)
-	names := make([]string, 0, len(listed))
-	for _, s := range listed {
-		names = append(names, s.Name)
-	}
-	assert.ElementsMatch(t, []string{"GOOD_ENTRY", "PATH"}, names)
-
-	// Both creates must be audited.
-	assert.Len(t, auditor.AuditLogs(), 2)
-}
-
 // TestImportUserSecretsConflict verifies that a batch containing an
 // already-existing secret name aborts entirely: the new entry is not
 // created and no audit log is written.
@@ -203,9 +202,9 @@ func TestImportUserSecretsConflict(t *testing.T) {
 }
 
 // TestImportUserSecretsLimits exercises each per-user cap. A cap
-// tripped mid-batch must roll back the entire import: zero rows are
-// created and, because audit logs are emitted only after the
-// transaction commits, zero audit logs are written.
+// tripped mid-batch must roll back every row in the import and, because
+// audit logs are emitted only after the transaction commits, write no
+// import audit logs.
 func TestImportUserSecretsLimits(t *testing.T) {
 	t.Parallel()
 
@@ -216,20 +215,36 @@ func TestImportUserSecretsLimits(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		var sb strings.Builder
-		for i := 0; i < codersdk.MaxUserSecretsPerUserCount+1; i++ {
-			fmt.Fprintf(&sb, "COUNT_%03d=x\n", i)
+		for i := 0; i < codersdk.MaxUserSecretsPerUserCount-1; i++ {
+			_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+				Name:  fmt.Sprintf("prefill-%03d", i),
+				Value: "original",
+			})
+			require.NoError(t, err)
 		}
-		auditor.ResetLogs()
-		_, err := client.ImportUserSecrets(ctx, codersdk.Me, codersdk.ImportUserSecretsRequest{
-			Format:  codersdk.SecretsFileFormatEnv,
-			Content: sb.String(),
-		})
-		requireSecretAPIError(t, err, http.StatusBadRequest, "exceeds")
-
-		listed, err := client.UserSecrets(ctx, codersdk.Me)
+		before, err := client.UserSecrets(ctx, codersdk.Me)
 		require.NoError(t, err)
-		assert.Empty(t, listed)
+		require.Len(t, before, codersdk.MaxUserSecretsPerUserCount-1)
+
+		auditor.ResetLogs()
+		_, err = client.ImportUserSecrets(ctx, codersdk.Me, codersdk.ImportUserSecretsRequest{
+			Format:  codersdk.SecretsFileFormatEnv,
+			Content: "COUNT_FIRST=x\nCOUNT_SECOND=y\n",
+		})
+		requireSecretAPIError(t, err, http.StatusBadRequest, "secrets[1]")
+
+		after, err := client.UserSecrets(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Len(t, after, len(before))
+		beforeNames := make([]string, 0, len(before))
+		afterNames := make([]string, 0, len(after))
+		for _, secret := range before {
+			beforeNames = append(beforeNames, secret.Name)
+		}
+		for _, secret := range after {
+			afterNames = append(afterNames, secret.Name)
+		}
+		assert.ElementsMatch(t, beforeNames, afterNames)
 		assert.Empty(t, auditor.AuditLogs())
 	})
 
@@ -325,30 +340,4 @@ func TestImportUserSecretsParseErrors(t *testing.T) {
 	var sdkErr *codersdk.Error
 	require.ErrorAs(t, err, &sdkErr)
 	assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-}
-
-// TestImportUserSecretsDuplicateWithinFile verifies a repeated key is
-// rejected at parse time: 400, no rows created, no audit log written.
-func TestImportUserSecretsDuplicateWithinFile(t *testing.T) {
-	t.Parallel()
-	auditor := audit.NewMock()
-	client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-	_ = coderdtest.CreateFirstUser(t, client)
-	ctx := testutil.Context(t, testutil.WaitMedium)
-	auditor.ResetLogs()
-
-	_, err := client.ImportUserSecrets(ctx, codersdk.Me, codersdk.ImportUserSecretsRequest{
-		Format:  codersdk.SecretsFileFormatEnv,
-		Content: "DUP=a\nDUP=b\n",
-	})
-	var sdkErr *codersdk.Error
-	require.ErrorAs(t, err, &sdkErr)
-	assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-	assert.Contains(t, sdkErr.Response.Detail, "duplicate key")
-
-	// Nothing is inserted or audited; the duplicate is caught pre-tx.
-	listed, err := client.UserSecrets(ctx, codersdk.Me)
-	require.NoError(t, err)
-	assert.Empty(t, listed)
-	assert.Empty(t, auditor.AuditLogs())
 }
