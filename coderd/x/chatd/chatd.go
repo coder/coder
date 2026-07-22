@@ -3346,7 +3346,8 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 		return true
 	case "write_file", "edit_files", "list_templates", "read_template",
 		"create_workspace", "start_workspace", "stop_workspace", "propose_plan", "spawn_agent",
-		"spawn_explore_agent", "wait_agent", "list_agents", "ask_user_question", "attach_file":
+		"spawn_explore_agent", "wait_agent", "list_agents", "list_subagent_models",
+		"ask_user_question", "attach_file":
 		return isRootChat
 	case "process_list", "process_signal", "message_agent", "interrupt_agent", "close_agent",
 		"spawn_computer_use_agent":
@@ -3414,28 +3415,29 @@ func activeToolNamesForTurn(
 
 func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 	builtinExplorePolicy := map[string]bool{
-		"read_file":         true,
-		"write_file":        false,
-		"edit_files":        false,
-		"execute":           true,
-		"process_output":    true,
-		"process_list":      false,
-		"process_signal":    false,
-		"list_templates":    false,
-		"read_template":     false,
-		"create_workspace":  false,
-		"start_workspace":   false,
-		"stop_workspace":    false,
-		"propose_plan":      false,
-		"spawn_agent":       false,
-		"wait_agent":        false,
-		"message_agent":     false,
-		"interrupt_agent":   false,
-		"close_agent":       false,
-		"list_agents":       false,
-		"read_skill":        true,
-		"read_skill_file":   true,
-		"ask_user_question": false,
+		"read_file":            true,
+		"write_file":           false,
+		"edit_files":           false,
+		"execute":              true,
+		"process_output":       true,
+		"process_list":         false,
+		"process_signal":       false,
+		"list_templates":       false,
+		"read_template":        false,
+		"create_workspace":     false,
+		"start_workspace":      false,
+		"stop_workspace":       false,
+		"propose_plan":         false,
+		"spawn_agent":          false,
+		"wait_agent":           false,
+		"message_agent":        false,
+		"interrupt_agent":      false,
+		"close_agent":          false,
+		"list_agents":          false,
+		"list_subagent_models": false,
+		"read_skill":           true,
+		"read_skill_file":      true,
+		"ask_user_question":    false,
 	}
 
 	toolNames := make([]string, 0, len(allTools))

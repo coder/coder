@@ -1,0 +1,228 @@
+# coder -- Common workload configuration options.
+coder:
+  # coder.env -- Additional environment variables for the AI Gateway
+  # container. These are rendered after chart-configured variables, including
+  # when a variable name is duplicated.
+  env: []
+  # - name: "CODER_VERBOSE"
+  #   value: "true"
+
+  # coder.envFrom -- Additional envFrom sources for the AI Gateway container.
+  envFrom: []
+
+  # coder.image -- The image to use for the AI Gateway.
+  image:
+    # coder.image.repo -- The repository of the image.
+    repo: "ghcr.io/coder/coder"
+    # coder.image.tag -- The tag of the image, defaults to {{.Chart.AppVersion}}
+    # if not set. If you're using the chart directly from git, the default
+    # app version will not work and you'll need to set this value. The helm
+    # chart helpfully fails quickly in this case.
+    tag: ""
+    # coder.image.pullPolicy -- The pull policy to use for the image. See:
+    # https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy
+    pullPolicy: IfNotPresent
+    # coder.image.pullSecrets -- The secrets used for pulling the Coder image
+    # from a private registry.
+    pullSecrets: []
+    #  - name: "pull-secret"
+
+  # coder.initContainers -- Init containers for the deployment. See:
+  # https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+  initContainers:
+    []
+    # - name: init-container
+    #   image: busybox:1.28
+    #   command: ['sh', '-c', "sleep 2"]
+
+  # coder.annotations -- The Deployment annotations. See:
+  # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+  annotations: {}
+
+  # coder.labels -- The Deployment labels. See:
+  # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+  labels: {}
+
+  # coder.podAnnotations -- The pod annotations. See:
+  # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+  # The annotation `app.kubernetes.io/component: ai-gateway` is added
+  # automatically.
+  podAnnotations: {}
+
+  # coder.podLabels -- The pod labels. See:
+  # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+  podLabels: {}
+
+  # coder.serviceAccount -- Configuration for the automatically created
+  # service account.
+  serviceAccount:
+    # coder.serviceAccount.annotations -- The service account annotations.
+    annotations: {}
+    # coder.serviceAccount.name -- The service account name.
+    name: coder-ai-gateway
+    # coder.serviceAccount.disableCreate -- Whether to create the service
+    # account or use an existing service account.
+    disableCreate: false
+
+  # coder.securityContext -- Fields related to the container's security
+  # context (as opposed to the pod). Some fields are also present in the pod
+  # security context, in which case these values will take precedence.
+  securityContext:
+    # coder.securityContext.runAsNonRoot -- Requires that the container
+    # runs as an unprivileged user.
+    runAsNonRoot: true
+    # coder.securityContext.runAsUser -- Sets the user id of the container.
+    runAsUser: 1000
+    # coder.securityContext.runAsGroup -- Sets the group id of the container.
+    runAsGroup: 1000
+    # coder.securityContext.seccompProfile -- Sets the seccomp profile for
+    # the container.
+    seccompProfile:
+      type: RuntimeDefault
+    # coder.securityContext.allowPrivilegeEscalation -- Controls whether
+    # the container can gain additional privileges.
+    allowPrivilegeEscalation: false
+
+  # coder.podSecurityContext -- Pod-level security context settings. See:
+  # https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+  podSecurityContext: {}
+
+  # coder.volumes -- A list of extra volumes to add to the AI Gateway pod.
+  volumes: []
+  # - name: "my-volume"
+  #   emptyDir: {}
+
+  # coder.volumeMounts -- A list of extra volume mounts to add to the AI
+  # Gateway container.
+  volumeMounts: []
+  # - name: "my-volume"
+  #   mountPath: "/mnt/my-volume"
+
+  # coder.replicaCount -- The number of AI Gateway pods.
+  replicaCount: 1
+
+  # coder.lifecycle -- Container lifecycle handlers, allowing for lifecycle
+  # events such as postStart and preStop. See:
+  # https://kubernetes.io/docs/tasks/configure-pod-container/attach-handler-lifecycle-event/
+  lifecycle:
+    {}
+    # postStart:
+    #   exec:
+    #     command: ["/bin/sh", "-c", "echo postStart"]
+
+  # coder.resources -- The resources to request for the AI Gateway container.
+  resources:
+    requests:
+      cpu: "1"
+      memory: 1Gi
+
+  # coder.startupProbe -- Startup probe configuration for the AI Gateway.
+  # Enable this with a failure threshold long enough for initial provider load
+  # before enabling the liveness probe.
+  startupProbe:
+    enabled: false
+    initialDelaySeconds: 0
+
+  # coder.livenessProbe -- Liveness probe configuration for the AI Gateway.
+  # Without this probe, Kubernetes does not restart a running but unresponsive
+  # Gateway. Enable and tune the startup probe before enabling this probe.
+  livenessProbe:
+    enabled: false
+    initialDelaySeconds: 0
+
+  # coder.readinessProbe -- Readiness probe configuration for the AI Gateway.
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 0
+
+  # coder.certs -- CA bundles to mount inside the AI Gateway pod.
+  certs:
+    # coder.certs.secrets -- A list of CA bundle secrets to mount into the
+    # pod. The secrets should exist in the same namespace as the Helm
+    # deployment. The given key in each secret is mounted at
+    # `/etc/ssl/certs/{secret_name}.crt`.
+    secrets:
+      []
+      # - name: "my-ca-bundle"
+      #   key: "ca-bundle.crt"
+
+  # coder.affinity -- Allows specifying an affinity rule for the deployment.
+  affinity: {}
+
+  # coder.tolerations -- Tolerations for tainted nodes. See:
+  # https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+  tolerations: []
+
+  # coder.nodeSelector -- Node labels for constraining pods to nodes. See:
+  # https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+  nodeSelector: {}
+
+  # coder.topologySpreadConstraints -- Topology spread constraints for the
+  # pods. See:
+  # https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/
+  topologySpreadConstraints: []
+
+  # coder.priorityClassName -- The priority class name for the pods.
+  priorityClassName: ""
+
+  # coder.command -- The command to use when running the container. Used
+  # for customizing the location of the `coder` binary in your image.
+  command:
+    - /opt/coder
+
+# Authentication and listener settings for the standalone gateway.
+aigateway:
+  # Optional existing Secret containing an AI Gateway key. When unset, provide
+  # CODER_AI_GATEWAY_KEY or CODER_AI_GATEWAY_KEY_FILE through coder.env.
+  keySecret:
+    name: ""
+    key: key
+  coderTLS:
+    caSecret:
+      name: ""
+      key: ca.crt
+    clientSecret:
+      name: ""
+      certKey: tls.crt
+      keyKey: tls.key
+  # The certificate must cover every hostname clients use.
+  listenerTLS:
+    name: ""
+    certKey: tls.crt
+    keyKey: tls.key
+  # This must exceed the application's 300-second shutdown timeout.
+  terminationGracePeriodSeconds: 330
+
+# Stable data-plane Service fronting the container's port 4001 listener.
+service:
+  enable: true
+  type: ClusterIP
+  port: 80
+  annotations: {}
+  sessionAffinity: None
+  externalTrafficPolicy: Cluster
+  loadBalancerClass: ""
+  loadBalancerIP: ""
+  nodePort: null
+
+# Optional networking.k8s.io/v1 Ingress.
+ingress:
+  enable: false
+  className: ""
+  annotations: {}
+  host: ""
+  path: /
+  pathType: Prefix
+  tls:
+    enable: false
+    secretName: ""
+
+# Optional Gateway API HTTPRoute. Requires the v1 HTTPRoute CRD.
+httproute:
+  enable: false
+  parentRefs: []
+  hostnames: []
+  annotations: {}
+
+# Additional templated Kubernetes manifests.
+extraTemplates: []

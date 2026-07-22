@@ -40,10 +40,10 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
-import type { AgentsOutletContext } from "./AgentsPage";
+import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 
 // ---------------------------------------------------------------------------
-// Layout wrapper – provides outlet context for the child route.
+// Layout wrapper: provides outlet context for the child route.
 // ---------------------------------------------------------------------------
 const AgentChatPageLayout: FC = () => {
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -71,7 +71,7 @@ const AgentChatPageLayout: FC = () => {
 							onExpandSidebar: () => {},
 							onChatReady: () => {},
 							scrollContainerRef,
-						} satisfies AgentsOutletContext
+						} satisfies AgentsPageOutletContext
 					}
 				/>
 			</div>
@@ -2177,7 +2177,7 @@ export const SidebarWithSingleRepo: Story = {
 	},
 };
 /**
- * Streaming reasoning part via WebSocket — renders inline text.
+ * Streaming reasoning part via WebSocket, renders inline text.
  */
 export const StreamedReasoning: Story = {
 	parameters: {

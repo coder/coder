@@ -68,11 +68,18 @@ export const Default: Story = {
 			canvas.getByText("Claude Sonnet 4.5 (Bedrock)"),
 		).toBeInTheDocument();
 		await expect(canvas.getByText("AWS Bedrock")).toBeInTheDocument();
-		// The Bedrock model config should render the Bedrock provider icon.
-		await expect(canvas.getByAltText("AWS Bedrock")).toBeInTheDocument();
+		// The provider icon is decorative (alt=""), so its name comes from the
+		// visible label asserted above rather than the image alt text.
 		await expect(canvas.getAllByText("Enabled").length).toBeGreaterThan(0);
 		await expect(canvas.getByText("Default")).toBeInTheDocument();
 		await expect(canvas.getByText("Disabled")).toBeInTheDocument();
+
+		// The Add model menu lists each provider by exact accessible name; a
+		// regressed icon would turn a name into "Anthropic Anthropic".
+		await userEvent.click(canvas.getByRole("button", { name: /add model/i }));
+		const menu = await within(document.body).findByRole("menu");
+		await within(menu).findByRole("menuitem", { name: "Anthropic" });
+		await userEvent.keyboard("{Escape}");
 	},
 };
 
@@ -94,7 +101,8 @@ export const FilterByProvider: Story = {
 			name: /filter by provider/i,
 		});
 		await userEvent.click(providerFilter);
-		const anthropicOption = await within(document.body).findByRole("option", {
+		const listbox = await within(document.body).findByRole("listbox");
+		const anthropicOption = await within(listbox).findByRole("option", {
 			name: "Anthropic",
 		});
 		await userEvent.click(anthropicOption);

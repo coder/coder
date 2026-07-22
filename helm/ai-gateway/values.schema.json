@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "libcoder": {"type": "object"},
+    "nameOverride": {"type": "string"},
+    "coder": {
+      "type": "object", "additionalProperties": false,
+      "required": ["env", "envFrom", "image", "initContainers", "annotations", "labels", "podAnnotations", "podLabels", "serviceAccount", "securityContext", "podSecurityContext", "volumes", "volumeMounts", "replicaCount", "lifecycle", "resources", "startupProbe", "livenessProbe", "readinessProbe", "certs", "affinity", "tolerations", "nodeSelector", "topologySpreadConstraints", "priorityClassName", "command"],
+      "properties": {
+        "env": {"type": "array", "items": {"type": "object", "required": ["name"]}},
+        "envFrom": {"type": "array", "items": {"type": "object"}},
+        "image": {
+          "type": "object", "additionalProperties": false,
+          "required": ["repo", "tag", "pullPolicy", "pullSecrets"],
+          "properties": {
+            "repo": {"type": "string", "minLength": 1},
+            "tag": {"type": "string"},
+            "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]},
+            "pullSecrets": {"type": "array", "items": {"type": "object"}}
+          }
+        },
+        "initContainers": {"type": "array"},
+        "annotations": {"type": "object"},
+        "labels": {"type": "object"},
+        "podAnnotations": {"type": "object"},
+        "podLabels": {"type": "object"},
+        "serviceAccount": {
+          "type": "object", "additionalProperties": false,
+          "required": ["annotations", "name", "disableCreate"],
+          "properties": {
+            "annotations": {"type": "object"},
+            "name": {"type": "string", "minLength": 1},
+            "disableCreate": {"type": "boolean"},
+            "labels": {"type": "object"}
+          }
+        },
+        "securityContext": {"type": "object"},
+        "podSecurityContext": {"type": "object"},
+        "volumes": {"type": "array"},
+        "volumeMounts": {"type": "array"},
+        "replicaCount": {"type": "integer", "minimum": 0},
+        "lifecycle": {"type": "object"},
+        "resources": {"type": "object"},
+        "startupProbe": {"$ref": "#/definitions/healthProbe"},
+        "livenessProbe": {"$ref": "#/definitions/healthProbe"},
+        "readinessProbe": {"$ref": "#/definitions/probe"},
+        "certs": {
+          "type": "object", "additionalProperties": false, "required": ["secrets"],
+          "properties": {
+            "secrets": {"type": "array", "items": {"type": "object", "required": ["name", "key"]}}
+          }
+        },
+        "affinity": {"type": "object"},
+        "tolerations": {"type": "array"},
+        "nodeSelector": {"type": "object"},
+        "topologySpreadConstraints": {"type": "array"},
+        "priorityClassName": {"type": "string"},
+        "command": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+      }
+    },
+    "aigateway": {
+      "type": "object", "additionalProperties": false,
+      "required": ["keySecret", "coderTLS", "listenerTLS", "terminationGracePeriodSeconds"],
+      "properties": {
+        "keySecret": {
+          "type": "object", "additionalProperties": false,
+          "required": ["name", "key"],
+          "properties": {"name": {"type": "string"}, "key": {"type": "string"}}
+        },
+        "coderTLS": {
+          "type": "object", "additionalProperties": false,
+          "required": ["caSecret", "clientSecret"],
+          "properties": {
+            "caSecret": {
+              "type": "object", "additionalProperties": false, "required": ["name", "key"],
+              "properties": {"name": {"type": "string"}, "key": {"type": "string"}}
+            },
+            "clientSecret": {
+              "type": "object", "additionalProperties": false, "required": ["name", "certKey", "keyKey"],
+              "properties": {"name": {"type": "string"}, "certKey": {"type": "string"}, "keyKey": {"type": "string"}}
+            }
+          }
+        },
+        "listenerTLS": {
+          "type": "object", "additionalProperties": false, "required": ["name", "certKey", "keyKey"],
+          "properties": {"name": {"type": "string"}, "certKey": {"type": "string"}, "keyKey": {"type": "string"}}
+        },
+        "terminationGracePeriodSeconds": {"type": "integer", "minimum": 0}
+      }
+    },
+    "service": {
+      "type": "object", "additionalProperties": false,
+      "required": ["enable", "type", "port", "annotations", "sessionAffinity", "externalTrafficPolicy", "loadBalancerClass", "loadBalancerIP", "nodePort"],
+      "properties": {
+        "enable": {"type": "boolean"},
+        "type": {"enum": ["ClusterIP", "NodePort", "LoadBalancer"]},
+        "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "annotations": {"type": "object"},
+        "sessionAffinity": {"enum": ["None", "ClientIP"]},
+        "externalTrafficPolicy": {"enum": ["Cluster", "Local"]},
+        "loadBalancerClass": {"type": "string"},
+        "loadBalancerIP": {"type": "string"},
+        "nodePort": {"type": ["integer", "null"], "minimum": 30000, "maximum": 32767}
+      }
+    },
+    "ingress": {
+      "type": "object", "additionalProperties": false,
+      "required": ["enable", "className", "annotations", "host", "path", "pathType", "tls"],
+      "properties": {
+        "enable": {"type": "boolean"}, "className": {"type": "string"}, "annotations": {"type": "object"},
+        "host": {"type": "string"}, "path": {"type": "string"}, "pathType": {"enum": ["Exact", "Prefix", "ImplementationSpecific"]},
+        "tls": {"type": "object", "additionalProperties": false, "required": ["enable", "secretName"], "properties": {"enable": {"type": "boolean"}, "secretName": {"type": "string"}}}
+      }
+    },
+    "httproute": {
+      "type": "object", "additionalProperties": false, "required": ["enable", "parentRefs", "hostnames", "annotations"],
+      "properties": {"enable": {"type": "boolean"}, "parentRefs": {"type": "array"}, "hostnames": {"type": "array", "items": {"type": "string"}}, "annotations": {"type": "object"}}
+    },
+    "extraTemplates": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object"}]}}
+  },
+  "required": ["coder", "aigateway", "service", "ingress", "httproute", "extraTemplates"],
+  "definitions": {
+    "healthProbe": {
+      "allOf": [
+        {"$ref": "#/definitions/probe"},
+        {"properties": {"successThreshold": {"type": "integer", "const": 1}}}
+      ]
+    },
+    "probe": {
+      "type": "object", "additionalProperties": false, "required": ["enabled", "initialDelaySeconds"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "initialDelaySeconds": {"type": "integer", "minimum": 0},
+        "periodSeconds": {"type": "integer", "minimum": 1},
+        "timeoutSeconds": {"type": "integer", "minimum": 1},
+        "successThreshold": {"type": "integer", "minimum": 1},
+        "failureThreshold": {"type": "integer", "minimum": 1}
+      }
+    }
+  }
+}

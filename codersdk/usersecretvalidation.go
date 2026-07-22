@@ -209,6 +209,36 @@ var (
 	}
 )
 
+// UserSecret*Field constants are the canonical ValidationError.Field values
+// for user secret fields. UserSecretNameField is also the chi URL parameter
+// name used in coderd route segments.
+const (
+	UserSecretNameField     = "name"
+	UserSecretValueField    = "value"
+	UserSecretEnvNameField  = "env_name"
+	UserSecretFilePathField = "file_path"
+)
+
+// ValidateCreateUserSecretRequest validates a single create-secret request.
+func ValidateCreateUserSecretRequest(req CreateUserSecretRequest) []ValidationError {
+	var validations []ValidationError
+	if err := UserSecretNameValid(req.Name); err != nil {
+		validations = append(validations, ValidationError{Field: UserSecretNameField, Detail: err.Error()})
+	}
+	if req.Value == "" {
+		validations = append(validations, ValidationError{Field: UserSecretValueField, Detail: "Value is required."})
+	} else if err := UserSecretValueValid(req.Value); err != nil {
+		validations = append(validations, ValidationError{Field: UserSecretValueField, Detail: err.Error()})
+	}
+	if err := UserSecretEnvNameValid(req.EnvName); err != nil {
+		validations = append(validations, ValidationError{Field: UserSecretEnvNameField, Detail: err.Error()})
+	}
+	if err := UserSecretFilePathValid(req.FilePath); err != nil {
+		validations = append(validations, ValidationError{Field: UserSecretFilePathField, Detail: err.Error()})
+	}
+	return validations
+}
+
 // UserSecretNameValid validates a user secret name. Names are used in
 // API route path segments, so they must not include route separators.
 func UserSecretNameValid(s string) error {
