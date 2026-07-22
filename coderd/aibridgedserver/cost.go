@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridge/budget"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // tokensPerMillion is the divisor for prices, which are quoted per million
@@ -24,6 +25,7 @@ const tokensPerMillion = 1_000_000
 type tokenUsageCost struct {
 	effectiveGroupID      uuid.NullUUID
 	spendLimitMicros      sql.NullInt64
+	limitSource           codersdk.AIBudgetLimitSource
 	inputPriceMicros      sql.NullInt64
 	outputPriceMicros     sql.NullInt64
 	cacheReadPriceMicros  sql.NullInt64
@@ -54,9 +56,10 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 	} else {
 		result.effectiveGroupID = uuid.NullUUID{UUID: effectiveGroup.GroupID, Valid: true}
 		// Limit is nil for the unlimited Everyone fallback; only a budgeted
-		// group carries the spend limit.
+		// group carries the spend limit and its source.
 		if effectiveGroup.Limit != nil {
 			result.spendLimitMicros = sql.NullInt64{Int64: effectiveGroup.Limit.SpendLimitMicros, Valid: true}
+			result.limitSource = effectiveGroup.Limit.Source
 		}
 	}
 
