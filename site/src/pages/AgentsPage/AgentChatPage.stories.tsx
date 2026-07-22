@@ -1359,9 +1359,10 @@ export const RemembersReasoningEffortAcrossModels: Story = {
 		// effort even without touching the slider.
 		await user.click(canvas.getByRole("button", { name: "Edit message" }));
 
-		// Changing the slider during a history edit is scoped to that
-		// edit and does not overwrite the remembered default. Close the
-		// popover with the trigger; Escape would cancel the edit.
+		// Changing the slider during a history edit does not overwrite
+		// the persisted per-model default; it does update the shared
+		// session value. Close the popover with the trigger; Escape
+		// would cancel the edit.
 		await user.click(canvas.getByRole("combobox", { name: "Claude Sonnet 4" }));
 		const editSlider = await body.findByRole("slider");
 		editSlider.focus();
