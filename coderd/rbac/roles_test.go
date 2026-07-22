@@ -203,14 +203,14 @@ func TestOwnerExec(t *testing.T) {
 	})
 }
 
-// TestMinimumImplicitMember verifies the floor/elevation gate on
-// organization-member and organization-service-account. When the option
-// is off (default), both roles carry the workspace-ops elevation. When
-// on, both roles carry only the floor and the elevation must be
-// granted explicitly via organization-workspace-access.
+// TestMemberWorkspaceElevation verifies that organization-member and
+// organization-service-account carry only the floor: the workspace-ops
+// elevation is never bundled in and must be granted explicitly via
+// organization-workspace-access (typically attached through
+// default_org_member_roles).
 //
 //nolint:tparallel,paralleltest
-func TestMinimumImplicitMember(t *testing.T) {
+func TestMemberWorkspaceElevation(t *testing.T) {
 	orgSettings := rbac.OrgSettings{
 		ShareableWorkspaceOwners: rbac.ShareableWorkspaceOwnersEveryone,
 	}
@@ -228,35 +228,23 @@ func TestMinimumImplicitMember(t *testing.T) {
 	// (OrgWorkspaceAccessMemberPerms) and not by the floor, so it acts as
 	// a witness for whether the elevation is bundled in.
 	elevationWitness := rbac.ResourceWorkspace.Type
-	// ResourceOrganizationMember is part of the floor; floor must remain
-	// regardless of the option.
+	// ResourceOrganizationMember is part of the floor; floor must always
+	// be present.
 	floorWitness := rbac.ResourceOrganizationMember.Type
 
-	t.Run("Off", func(t *testing.T) {
-		rbac.ReloadBuiltinRoles(nil)
-		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
+	rbac.ReloadBuiltinRoles(nil)
+	t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
 
-		member := rbac.OrgMemberPermissions(orgSettings).Member
-		require.True(t, hasResource(member, elevationWitness), "organization-member should include the elevation when MinimumImplicitMember is off")
-		require.True(t, hasResource(member, floorWitness), "organization-member should include the floor")
+	member := rbac.OrgMemberPermissions(orgSettings).Member
+	require.False(t, hasResource(member, elevationWitness), "organization-member must not include the elevation")
+	require.True(t, hasResource(member, floorWitness), "organization-member should include the floor")
 
-		sa := rbac.OrgServiceAccountPermissions(orgSettings).Member
-		require.True(t, hasResource(sa, elevationWitness), "organization-service-account should include the elevation when MinimumImplicitMember is off")
-		require.True(t, hasResource(sa, floorWitness), "organization-service-account should include the floor")
-	})
+	sa := rbac.OrgServiceAccountPermissions(orgSettings).Member
+	require.False(t, hasResource(sa, elevationWitness), "organization-service-account must not include the elevation")
+	require.True(t, hasResource(sa, floorWitness), "organization-service-account should include the floor")
 
-	t.Run("On", func(t *testing.T) {
-		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{MinimumImplicitMember: true})
-		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
-
-		member := rbac.OrgMemberPermissions(orgSettings).Member
-		require.False(t, hasResource(member, elevationWitness), "organization-member should drop the elevation when MinimumImplicitMember is on")
-		require.True(t, hasResource(member, floorWitness), "organization-member should still include the floor")
-
-		sa := rbac.OrgServiceAccountPermissions(orgSettings).Member
-		require.False(t, hasResource(sa, elevationWitness), "organization-service-account should drop the elevation when MinimumImplicitMember is on")
-		require.True(t, hasResource(sa, floorWitness), "organization-service-account should still include the floor")
-	})
+	// The elevation is available via organization-workspace-access.
+	require.True(t, hasResource(rbac.OrgWorkspaceAccessMemberPerms(), elevationWitness), "organization-workspace-access should carry the elevation")
 }
 
 // These were "pared down" in https://github.com/coder/coder/pull/21359 to avoid

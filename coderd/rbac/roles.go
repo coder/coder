@@ -3,7 +3,6 @@ package rbac
 import (
 	"encoding/json"
 	"errors"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -340,14 +339,6 @@ type RoleOptions struct {
 	NoOwnerWorkspaceExec bool
 	NoWorkspaceSharing   bool
 	NoChatSharing        bool
-
-	// MinimumImplicitMember removes the workspace-ops elevation
-	// (OrgWorkspaceAccessMemberPerms) from organization-member and
-	// organization-service-account. With it set, those two roles carry
-	// only the floor, and the elevation must be granted explicitly via
-	// the organization-workspace-access role (typically attached
-	// through default_org_member_roles).
-	MinimumImplicitMember bool
 }
 
 // ReservedRoleName exists because the database should only allow unique role
@@ -368,8 +359,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	if opts == nil {
 		opts = &RoleOptions{}
 	}
-
-	minimumImplicitMember.Store(opts.MinimumImplicitMember)
 
 	denyPermissions := []Permission{}
 	if opts.NoWorkspaceSharing {
@@ -1207,18 +1196,13 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceInboxNotification.Type:      ResourceInboxNotification.AvailableActions(),
 	})
 
-	// Workspace-ops elevation. When MinimumImplicitMember is off, the
-	// elevation is bundled into organization-member here. When on, the
-	// elevation lives exclusively on organization-workspace-access; a
-	// user without that role then has only the floor. See
-	// OrgWorkspaceAccessMemberPerms for the perm set and the
+	// The workspace-ops elevation is intentionally NOT bundled into
+	// organization-member. It lives exclusively on
+	// organization-workspace-access (typically attached through
+	// default_org_member_roles); a user without that role has only the
+	// floor. See OrgWorkspaceAccessMemberPerms for the perm set and the
 	// "Intentionally omitted" rationale.
-	var elevation []Permission
-	if !MinimumImplicitMember() {
-		elevation = OrgWorkspaceAccessMemberPerms()
-	}
-
-	memberPerms := slices.Concat(elevation, floor)
+	memberPerms := floor
 
 	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersEveryone {
 		memberPerms = append(memberPerms, Permission{
@@ -1289,12 +1273,8 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceInboxNotification.Type:      ResourceInboxNotification.AvailableActions(),
 	})
 
-	var elevation []Permission
-	if !MinimumImplicitMember() {
-		elevation = OrgWorkspaceAccessMemberPerms()
-	}
-
-	memberPerms := slices.Concat(elevation, floor)
-
-	return OrgRolePermissions{Org: orgPerms, Member: memberPerms}
+	// Like organization-member, the workspace-ops elevation is not
+	// bundled in; it must be granted explicitly via
+	// organization-workspace-access.
+	return OrgRolePermissions{Org: orgPerms, Member: floor}
 }

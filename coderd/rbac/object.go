@@ -268,15 +268,3 @@ func ChatACLDisabled() bool {
 	return chatACLDisabled.Load()
 }
 
-// minimumImplicitMember mirrors RoleOptions.MinimumImplicitMember.
-// Stored as a global because OrgMemberPermissions and
-// OrgServiceAccountPermissions are called from rolestore without
-// access to api instance state.
-var minimumImplicitMember atomic.Bool
-
-// MinimumImplicitMember reports whether the workspace-ops elevation
-// has been stripped from organization-member and
-// organization-service-account. See RoleOptions.MinimumImplicitMember.
-func MinimumImplicitMember() bool {
-	return minimumImplicitMember.Load()
-}

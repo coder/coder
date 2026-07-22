@@ -109,23 +109,8 @@ export const EmptyTableUserWithPermission: Story = {
 	},
 };
 
-export const DefaultRolesHidden: Story = {
-	args: {
-		defaultRolesEnabled: false,
-		availableOrgRoles: mockOrgRoles,
-		onUpdateDefaultRoles: async () => {
-			action("onUpdateDefaultRoles")();
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		expect(body.queryByText("Default Roles")).toBeNull();
-	},
-};
-
 export const DefaultRolesEnabled: Story = {
 	args: {
-		defaultRolesEnabled: true,
 		defaultRolesEntitled: true,
 		availableOrgRoles: mockOrgRoles,
 		onUpdateDefaultRoles: async () => {
@@ -136,7 +121,6 @@ export const DefaultRolesEnabled: Story = {
 
 export const DefaultRolesNotEntitled: Story = {
 	args: {
-		defaultRolesEnabled: true,
 		defaultRolesEntitled: false,
 		availableOrgRoles: mockOrgRoles,
 		onUpdateDefaultRoles: async () => {
@@ -159,7 +143,6 @@ export const DefaultRolesEmpty: Story = {
 			...MockOrganization,
 			default_org_member_roles: [],
 		},
-		defaultRolesEnabled: true,
 		defaultRolesEntitled: true,
 		availableOrgRoles: mockOrgRoles,
 		onUpdateDefaultRoles: async () => {
@@ -170,7 +153,6 @@ export const DefaultRolesEmpty: Story = {
 
 export const DefaultRolesHiddenWithoutEditPermission: Story = {
 	args: {
-		defaultRolesEnabled: true,
 		defaultRolesEntitled: true,
 		canEditDefaultRoles: false,
 		availableOrgRoles: mockOrgRoles,
@@ -186,7 +168,6 @@ export const DefaultRolesHiddenWithoutEditPermission: Story = {
 
 export const DefaultRolesEditDialog: Story = {
 	args: {
-		defaultRolesEnabled: true,
 		defaultRolesEntitled: true,
 		availableOrgRoles: mockOrgRoles,
 		onUpdateDefaultRoles: async () => {

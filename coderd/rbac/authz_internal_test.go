@@ -1505,10 +1505,13 @@ func testAuthorize(t *testing.T, name string, subject Subject, sets ...[]authTes
 //
 // organization-member is now a DB-backed system role (not a built-in role), so
 // RoleByName won't resolve it here. Assume the default behavior: workspace
-// sharing enabled.
+// sharing enabled, and the workspace-ops elevation granted through the
+// default_org_member_roles (organization-workspace-access), which dbauthz
+// implies for every org member at request time.
 func orgMemberRole(orgID uuid.UUID) Role {
 	settings := OrgSettings{ShareableWorkspaceOwners: ShareableWorkspaceOwnersEveryone}
 	perms := OrgMemberPermissions(settings)
+	memberPerms := append(OrgWorkspaceAccessMemberPerms(), perms.Member...)
 	return Role{
 		Identifier:  ScopedRoleOrgMember(orgID),
 		DisplayName: "",
@@ -1517,7 +1520,7 @@ func orgMemberRole(orgID uuid.UUID) Role {
 		ByOrgID: map[string]OrgPermissions{
 			orgID.String(): {
 				Org:    perms.Org,
-				Member: perms.Member,
+				Member: memberPerms,
 			},
 		},
 	}

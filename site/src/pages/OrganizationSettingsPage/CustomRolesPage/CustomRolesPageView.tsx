@@ -39,7 +39,6 @@ interface CustomRolesPageViewProps {
 	canDeleteOrgRole: boolean;
 	canEditDefaultRoles: boolean;
 	isCustomRolesEnabled: boolean;
-	defaultRolesEnabled?: boolean;
 	defaultRolesEntitled?: boolean;
 	availableOrgRoles?: AssignableRoles[];
 	onUpdateDefaultRoles?: (roles: string[]) => Promise<void>;
@@ -56,14 +55,13 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	canDeleteOrgRole,
 	canEditDefaultRoles,
 	isCustomRolesEnabled,
-	defaultRolesEnabled,
 	defaultRolesEntitled,
 	availableOrgRoles,
 	onUpdateDefaultRoles,
 	isUpdatingDefaultRoles,
 }) => {
 	const showDefaultRoles =
-		defaultRolesEnabled && canEditDefaultRoles && Boolean(onUpdateDefaultRoles);
+		canEditDefaultRoles && Boolean(onUpdateDefaultRoles);
 
 	return (
 		<div className="flex flex-col gap-8">
