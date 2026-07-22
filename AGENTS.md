@@ -104,6 +104,11 @@ instructions focused on guardrails that agents should see immediately.
 - **Frontend**: Read [Frontend Development Guidelines](site/AGENTS.md)
   before changing anything under `site/`. Reuse shared UI primitives when
   possible and prefer Storybook stories for component and page testing.
+- **GitHub Actions permissions**: Follow least privilege as recommended by
+  OpenSSF Scorecard. Do not set write permissions at the workflow
+  (top) level. Default every workflow to `permissions: {}` at the top level
+  and grant only the specific permissions each job needs under
+  `jobs.<id>.permissions`.
 
 ## Quick Reference
 
