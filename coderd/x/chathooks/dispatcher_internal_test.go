@@ -222,6 +222,49 @@ func TestDispatcherRetriesConnectionErrorWithSameJTI(t *testing.T) {
 	require.Equal(t, first.JTI, row.ID)
 }
 
+func TestDispatcherRetriesMidBodyConnectionError(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	event := newTestEvent(t, db, agenthooks.EventPostCompact, agenthooks.PostCompactData{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	var attempts atomic.Int32
+	baseTransport := server.Client().Transport
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if attempts.Add(1) == 1 {
+			_, err := io.Copy(io.Discard, req.Body)
+			if err != nil {
+				return nil, err
+			}
+			// A response whose body errors mid-read simulates the
+			// connection dropping after headers were received.
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(errReader{err: io.ErrUnexpectedEOF}),
+				Header:     http.Header{},
+			}, nil
+		}
+		return baseTransport.RoundTrip(req)
+	})}
+
+	_, err := newTestDispatcher(t, db, client, server.URL, time.Second).Dispatch(
+		testutil.Context(t, testutil.WaitLong), event,
+	)
+	require.NoError(t, err)
+	require.Equal(t, int32(2), attempts.Load())
+
+	row := singleDispatch(t, db, event.ChatID)
+	require.Equal(t, resultOK, row.Result)
+}
+
+type errReader struct{ err error }
+
+func (r errReader) Read([]byte) (int, error) { return 0, r.err }
+
 func TestDispatcherTLSFailureNoRetry(t *testing.T) {
 	t.Parallel()
 

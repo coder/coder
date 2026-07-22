@@ -390,10 +390,22 @@ func (d *Dispatcher) post(
 			case isTimeoutError(attemptErr), isTimeoutError(readErr), errors.Is(readErr, context.Canceled):
 				return agenthooks.Response{}, status, resultTimeout, xerrors.Errorf("read lifecycle hook response: %w", readErr)
 			case isConnectionError(readErr):
-				return agenthooks.Response{}, status, resultConnectionError, xerrors.Errorf("read lifecycle hook response: %w", readErr)
+				if attempt == 1 {
+					return agenthooks.Response{}, status, resultConnectionError, xerrors.Errorf("read lifecycle hook response: %w", readErr)
+				}
 			default:
 				return agenthooks.Response{}, status, resultProtocolError, xerrors.Errorf("read lifecycle hook response: %w", readErr)
 			}
+			// Mid-body connection drops get the same single retry as dial
+			// failures, reusing the dispatch ID.
+			backoff := time.NewTimer(retryBackoff)
+			select {
+			case <-ctx.Done():
+				backoff.Stop()
+				return agenthooks.Response{}, status, resultTimeout, xerrors.Errorf("read lifecycle hook response: %w", ctx.Err())
+			case <-backoff.C:
+			}
+			continue
 		}
 		if len(responseBody) > maxResponseBodyBytes {
 			return agenthooks.Response{}, status, resultProtocolError, xerrors.New("lifecycle hook response exceeds 1 MiB")
