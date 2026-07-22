@@ -1941,6 +1941,32 @@ CREATE UNLOGGED TABLE chat_heartbeats (
 
 COMMENT ON TABLE chat_heartbeats IS 'Ephemeral runner ownership leases for runnable chats. The table is unlogged because losing heartbeat rows after a crash is safe: missing heartbeats are treated as stale ownership and cause workers to reacquire runnable chats.';
 
+CREATE TABLE chat_hook_dispatches (
+    id uuid NOT NULL,
+    chat_id uuid NOT NULL,
+    event text NOT NULL,
+    turn_id uuid,
+    tool_use_id text,
+    owner_id uuid NOT NULL,
+    workspace_id uuid,
+    started_at timestamp with time zone NOT NULL,
+    finished_at timestamp with time zone,
+    result text DEFAULT 'pending'::text NOT NULL,
+    http_status integer,
+    decision text,
+    input_override jsonb,
+    original_input jsonb,
+    model_context text,
+    user_message text,
+    allowed_tools jsonb,
+    error text,
+    decision_reason text,
+    effects_applied_at timestamp with time zone,
+    tool_name text
+);
+
+COMMENT ON TABLE chat_hook_dispatches IS 'Lifecycle hook attempts keyed by dispatch_id (JWT jti).';
+
 CREATE TABLE chat_messages (
     id bigint NOT NULL,
     chat_id uuid NOT NULL,
@@ -1965,7 +1991,8 @@ CREATE TABLE chat_messages (
     provider_response_id text,
     revision bigint NOT NULL,
     reasoning_effort chat_reasoning_effort,
-    search_tsv tsvector
+    search_tsv tsvector,
+    turn_id uuid
 );
 
 COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
@@ -2017,10 +2044,15 @@ CREATE TABLE chat_queued_messages (
     model_config_id uuid,
     "position" bigint DEFAULT nextval('chat_queued_messages_position_seq'::regclass) NOT NULL,
     created_by uuid NOT NULL,
-    reasoning_effort chat_reasoning_effort
+    reasoning_effort chat_reasoning_effort,
+    turn_id uuid,
+    hook_prefix jsonb,
+    hook_allowed_tools jsonb
 );
 
 COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'Stores the selected effort until the queued row is promoted.';
+
+COMMENT ON COLUMN chat_queued_messages.hook_allowed_tools IS 'Queued prompt hook policy; NULL means no policy.';
 
 CREATE SEQUENCE chat_queued_messages_id_seq
     START WITH 1
@@ -2097,6 +2129,7 @@ CREATE TABLE chats (
     context_error text DEFAULT ''::text NOT NULL,
     last_reasoning_effort chat_reasoning_effort,
     compaction_requested_at timestamp with time zone,
+    hook_allowed_tools jsonb,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
@@ -2121,6 +2154,8 @@ COMMENT ON COLUMN chats.context_error IS 'Snapshot-level error copied from the p
 COMMENT ON COLUMN chats.last_reasoning_effort IS 'Stores the most recent message effort once per-turn selection is wired.';
 
 COMMENT ON COLUMN chats.compaction_requested_at IS 'Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.';
+
+COMMENT ON COLUMN chats.hook_allowed_tools IS 'Hook-enforced tool names; NULL means unrestricted. Later policies only narrow.';
 
 CREATE TABLE users (
     id uuid NOT NULL,
@@ -2218,7 +2253,8 @@ CREATE VIEW chats_expanded AS
     c.context_dirty_since,
     c.context_dirty_resources,
     c.context_error,
-    c.compaction_requested_at
+    c.compaction_requested_at,
+    c.hook_allowed_tools
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));
@@ -4295,6 +4331,9 @@ ALTER TABLE ONLY chat_files
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_pkey PRIMARY KEY (chat_id, runner_id);
 
+ALTER TABLE ONLY chat_hook_dispatches
+    ADD CONSTRAINT chat_hook_dispatches_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
 
@@ -4753,6 +4792,10 @@ CREATE INDEX idx_chat_file_links_chat_id ON chat_file_links USING btree (chat_id
 CREATE INDEX idx_chat_files_org ON chat_files USING btree (organization_id);
 
 CREATE INDEX idx_chat_files_owner ON chat_files USING btree (owner_id);
+
+CREATE INDEX idx_chat_hook_dispatches_chat_id ON chat_hook_dispatches USING btree (chat_id);
+
+CREATE INDEX idx_chat_hook_dispatches_started_at ON chat_hook_dispatches USING btree (started_at);
 
 CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);
 

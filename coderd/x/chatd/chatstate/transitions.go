@@ -78,6 +78,8 @@ func CreateChat(
 	defer buffer.Discard()
 	err := store.InTx(func(store database.Store) error {
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
+			ID:                uuid.NullUUID{},
+			HookAllowedTools:  pqtype.NullRawMessage{},
 			OrganizationID:    input.OrganizationID,
 			OwnerID:           input.OwnerID,
 			WorkspaceID:       input.WorkspaceID,
@@ -240,11 +242,14 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.
 		return database.ChatQueuedMessage{}, err
 	}
 	return tx.store.InsertChatQueuedMessageWithCreator(tx.ctx, database.InsertChatQueuedMessageWithCreatorParams{
-		ChatID:          tx.chatID,
-		Content:         rawContent,
-		ModelConfigID:   m.ModelConfigID,
-		ReasoningEffort: m.ReasoningEffort,
-		CreatedBy:       createdBy,
+		ChatID:           tx.chatID,
+		TurnID:           uuid.NullUUID{},
+		Content:          rawContent,
+		ModelConfigID:    m.ModelConfigID,
+		ReasoningEffort:  m.ReasoningEffort,
+		CreatedBy:        createdBy,
+		HookPrefix:       pqtype.NullRawMessage{},
+		HookAllowedTools: pqtype.NullRawMessage{},
 	})
 }
 

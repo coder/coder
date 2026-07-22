@@ -1251,6 +1251,21 @@ func (mr *MockStoreMockRecorder) DeleteOldChatFiles(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldChatFiles", reflect.TypeOf((*MockStore)(nil).DeleteOldChatFiles), ctx, arg)
 }
 
+// DeleteOldChatHookDispatches mocks base method.
+func (m *MockStore) DeleteOldChatHookDispatches(ctx context.Context, arg database.DeleteOldChatHookDispatchesParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOldChatHookDispatches", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteOldChatHookDispatches indicates an expected call of DeleteOldChatHookDispatches.
+func (mr *MockStoreMockRecorder) DeleteOldChatHookDispatches(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldChatHookDispatches", reflect.TypeOf((*MockStore)(nil).DeleteOldChatHookDispatches), ctx, arg)
+}
+
 // DeleteOldChats mocks base method.
 func (m *MockStore) DeleteOldChats(ctx context.Context, arg database.DeleteOldChatsParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -1811,6 +1826,21 @@ func (m *MockStore) FetchVolumesResourceMonitorsUpdatedAfter(ctx context.Context
 func (mr *MockStoreMockRecorder) FetchVolumesResourceMonitorsUpdatedAfter(ctx, updatedAt any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchVolumesResourceMonitorsUpdatedAfter", reflect.TypeOf((*MockStore)(nil).FetchVolumesResourceMonitorsUpdatedAfter), ctx, updatedAt)
+}
+
+// FinalizeChatHookDispatch mocks base method.
+func (m *MockStore) FinalizeChatHookDispatch(ctx context.Context, arg database.FinalizeChatHookDispatchParams) (database.ChatHookDispatch, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FinalizeChatHookDispatch", ctx, arg)
+	ret0, _ := ret[0].(database.ChatHookDispatch)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FinalizeChatHookDispatch indicates an expected call of FinalizeChatHookDispatch.
+func (mr *MockStoreMockRecorder) FinalizeChatHookDispatch(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FinalizeChatHookDispatch", reflect.TypeOf((*MockStore)(nil).FinalizeChatHookDispatch), ctx, arg)
 }
 
 // FinalizeStaleChatDebugRows mocks base method.
@@ -2996,6 +3026,21 @@ func (m *MockStore) GetChatHeartbeat(ctx context.Context, arg database.GetChatHe
 func (mr *MockStoreMockRecorder) GetChatHeartbeat(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatHeartbeat", reflect.TypeOf((*MockStore)(nil).GetChatHeartbeat), ctx, arg)
+}
+
+// GetChatHookDispatchDecision mocks base method.
+func (m *MockStore) GetChatHookDispatchDecision(ctx context.Context, arg database.GetChatHookDispatchDecisionParams) (database.ChatHookDispatch, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatHookDispatchDecision", ctx, arg)
+	ret0, _ := ret[0].(database.ChatHookDispatch)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatHookDispatchDecision indicates an expected call of GetChatHookDispatchDecision.
+func (mr *MockStoreMockRecorder) GetChatHookDispatchDecision(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatHookDispatchDecision", reflect.TypeOf((*MockStore)(nil).GetChatHookDispatchDecision), ctx, arg)
 }
 
 // GetChatIncludeDefaultSystemPrompt mocks base method.
@@ -7721,6 +7766,21 @@ func (mr *MockStoreMockRecorder) InsertChatFile(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatFile", reflect.TypeOf((*MockStore)(nil).InsertChatFile), ctx, arg)
 }
 
+// InsertChatHookDispatch mocks base method.
+func (m *MockStore) InsertChatHookDispatch(ctx context.Context, arg database.InsertChatHookDispatchParams) (database.ChatHookDispatch, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatHookDispatch", ctx, arg)
+	ret0, _ := ret[0].(database.ChatHookDispatch)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertChatHookDispatch indicates an expected call of InsertChatHookDispatch.
+func (mr *MockStoreMockRecorder) InsertChatHookDispatch(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatHookDispatch", reflect.TypeOf((*MockStore)(nil).InsertChatHookDispatch), ctx, arg)
+}
+
 // InsertChatMessages mocks base method.
 func (m *MockStore) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
 	m.ctrl.T.Helper()
@@ -8981,6 +9041,21 @@ func (mr *MockStoreMockRecorder) ListChatContextResourcesByChatID(ctx, chatID an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListChatContextResourcesByChatID", reflect.TypeOf((*MockStore)(nil).ListChatContextResourcesByChatID), ctx, chatID)
 }
 
+// ListChatHookDispatchesByChatID mocks base method.
+func (m *MockStore) ListChatHookDispatchesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatHookDispatch, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListChatHookDispatchesByChatID", ctx, chatID)
+	ret0, _ := ret[0].([]database.ChatHookDispatch)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListChatHookDispatchesByChatID indicates an expected call of ListChatHookDispatchesByChatID.
+func (mr *MockStoreMockRecorder) ListChatHookDispatchesByChatID(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListChatHookDispatchesByChatID", reflect.TypeOf((*MockStore)(nil).ListChatHookDispatchesByChatID), ctx, chatID)
+}
+
 // ListChatUsageLimitGroupOverrides mocks base method.
 func (m *MockStore) ListChatUsageLimitGroupOverrides(ctx context.Context) ([]database.ListChatUsageLimitGroupOverridesRow, error) {
 	m.ctrl.T.Helper()
@@ -9188,6 +9263,20 @@ func (m *MockStore) MarkAllInboxNotificationsAsRead(ctx context.Context, arg dat
 func (mr *MockStoreMockRecorder) MarkAllInboxNotificationsAsRead(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkAllInboxNotificationsAsRead", reflect.TypeOf((*MockStore)(nil).MarkAllInboxNotificationsAsRead), ctx, arg)
+}
+
+// MarkChatHookDispatchEffectsApplied mocks base method.
+func (m *MockStore) MarkChatHookDispatchEffectsApplied(ctx context.Context, arg database.MarkChatHookDispatchEffectsAppliedParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkChatHookDispatchEffectsApplied", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// MarkChatHookDispatchEffectsApplied indicates an expected call of MarkChatHookDispatchEffectsApplied.
+func (mr *MockStoreMockRecorder) MarkChatHookDispatchEffectsApplied(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkChatHookDispatchEffectsApplied", reflect.TypeOf((*MockStore)(nil).MarkChatHookDispatchEffectsApplied), ctx, arg)
 }
 
 // MarkChatsContextDirtyByAgent mocks base method.
@@ -9833,6 +9922,20 @@ func (mr *MockStoreMockRecorder) UpdateChatHeartbeats(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatHeartbeats", reflect.TypeOf((*MockStore)(nil).UpdateChatHeartbeats), ctx, arg)
 }
 
+// UpdateChatHookAllowedTools mocks base method.
+func (m *MockStore) UpdateChatHookAllowedTools(ctx context.Context, arg database.UpdateChatHookAllowedToolsParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatHookAllowedTools", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateChatHookAllowedTools indicates an expected call of UpdateChatHookAllowedTools.
+func (mr *MockStoreMockRecorder) UpdateChatHookAllowedTools(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatHookAllowedTools", reflect.TypeOf((*MockStore)(nil).UpdateChatHookAllowedTools), ctx, arg)
+}
+
 // UpdateChatLabelsByID mocks base method.
 func (m *MockStore) UpdateChatLabelsByID(ctx context.Context, arg database.UpdateChatLabelsByIDParams) (database.Chat, error) {
 	m.ctrl.T.Helper()
@@ -9905,6 +10008,20 @@ func (m *MockStore) UpdateChatMCPServerIDs(ctx context.Context, arg database.Upd
 func (mr *MockStoreMockRecorder) UpdateChatMCPServerIDs(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatMCPServerIDs", reflect.TypeOf((*MockStore)(nil).UpdateChatMCPServerIDs), ctx, arg)
+}
+
+// UpdateChatMessageContentByID mocks base method.
+func (m *MockStore) UpdateChatMessageContentByID(ctx context.Context, arg database.UpdateChatMessageContentByIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatMessageContentByID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateChatMessageContentByID indicates an expected call of UpdateChatMessageContentByID.
+func (mr *MockStoreMockRecorder) UpdateChatMessageContentByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatMessageContentByID", reflect.TypeOf((*MockStore)(nil).UpdateChatMessageContentByID), ctx, arg)
 }
 
 // UpdateChatModelConfig mocks base method.

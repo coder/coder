@@ -47,6 +47,7 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 	n := len(messages)
 	params := database.InsertChatMessagesParams{
 		ChatID:              chatID,
+		TurnID:              make([]uuid.UUID, n),
 		CreatedBy:           make([]uuid.UUID, n),
 		ModelConfigID:       make([]uuid.UUID, n),
 		ReasoningEffort:     make([]string, n),

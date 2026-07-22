@@ -50,7 +50,9 @@ const (
 	chatFilesBatchSize = 1000
 	// Chat debug run deletions can cascade into steps with large JSONB
 	// payloads, so they use the same conservative batch size.
-	chatDebugRunsBatchSize = 1000
+	chatDebugRunsBatchSize      = 1000
+	chatHookDispatchRetention   = 90 * 24 * time.Hour
+	chatHookDispatchesBatchSize = 10000
 	// Chat search tsvector backfill is capped at 5 batches of 10k
 	// rows per tick. Benchmarks on a dogfood-class machine (EPYC 9454P)
 	// with containerized Postgres were measured to take ~800ms per batch.
@@ -314,6 +316,15 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			return xerrors.Errorf("failed to delete old workspace build orchestrations: %w", err)
 		}
 
+		deleteChatHookDispatchesBefore := start.Add(-chatHookDispatchRetention)
+		purgedChatHookDispatches, err := tx.DeleteOldChatHookDispatches(ctx, database.DeleteOldChatHookDispatchesParams{
+			BeforeTime: deleteChatHookDispatchesBefore,
+			LimitCount: chatHookDispatchesBatchSize,
+		})
+		if err != nil {
+			return xerrors.Errorf("failed to delete old chat hook dispatches: %w", err)
+		}
+
 		var purgedChats, purgedChatFiles, purgedChatDebugRuns int64
 		if purgeChats {
 			purgedChats, purgedChatFiles, err = i.purgeChatsInTx(ctx, tx, start, chatRetentionDays)
@@ -338,7 +349,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		// Backfill search_tsv tsvector on chat_messages in batches. Doing this here because it's
 		// potentially too much for a regular migration, especially on larger deployments:
 		// - Each row with search_tsv = NULL is present in idx_chat_messages_search_tsv_pending.
-		// - Content of chat_messages is not changed after insert.
+		// - Indexed rows refresh search_tsv during content rewrites.
 		// - Rows that are soft-deleted are no longer part of the index.
 		// NOTE: This should not remain in dbpurge and should be adjusted when the "DBOps" gets
 		//   implemented.
@@ -363,6 +374,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			slog.F("boundary_logs", purgedBoundaryLogs),
 			slog.F("boundary_sessions", purgedBoundarySessions),
 			slog.F("workspace_build_orchestrations", purgedWorkspaceBuildOrchestrations),
+			slog.F("chat_hook_dispatches", purgedChatHookDispatches),
 			slog.F("chats", purgedChats),
 			slog.F("chat_files", purgedChatFiles),
 			slog.F("chat_debug_runs", purgedChatDebugRuns),
@@ -379,6 +391,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			i.recordsPurged.WithLabelValues("boundary_logs").Add(float64(purgedBoundaryLogs))
 			i.recordsPurged.WithLabelValues("boundary_sessions").Add(float64(purgedBoundarySessions))
 			i.recordsPurged.WithLabelValues("workspace_build_orchestrations").Add(float64(purgedWorkspaceBuildOrchestrations))
+			i.recordsPurged.WithLabelValues("chat_hook_dispatches").Add(float64(purgedChatHookDispatches))
 			i.recordsPurged.WithLabelValues("chats").Add(float64(purgedChats))
 			i.recordsPurged.WithLabelValues("chat_debug_runs").Add(float64(purgedChatDebugRuns))
 			i.recordsPurged.WithLabelValues("chat_files").Add(float64(purgedChatFiles))

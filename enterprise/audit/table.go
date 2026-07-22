@@ -472,6 +472,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"context_dirty_since":         ActionIgnore, // Agent-pushed context snapshot state.
 		"context_dirty_resources":     ActionIgnore, // Agent-pushed context snapshot state.
 		"context_error":               ActionIgnore, // Agent-pushed context snapshot state.
+		"hook_allowed_tools":          ActionIgnore, // System-managed hook output.
 		"dynamic_tools":               ActionIgnore, // Internal lifecycle.
 		"plan_mode":                   ActionIgnore, // Can flip back and forth during a session.
 		"client_type":                 ActionIgnore, // Set at creation.

@@ -254,6 +254,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldTelemetryLocks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldWorkspaceBuildOrchestrations(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
+		mDB.EXPECT().DeleteOldChatHookDispatches(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().BackfillChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldChatDebugRuns(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatDebugRunsParams{})).Return(int64(0), nil).MinTimes(1)
@@ -306,6 +307,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldTelemetryLocks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldWorkspaceBuildOrchestrations(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
+		mDB.EXPECT().DeleteOldChatHookDispatches(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().BackfillChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldChats(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatsParams{})).Return(int64(0), nil).MinTimes(1)
@@ -2212,6 +2214,51 @@ func ptr[T any](v T) *T {
 }
 
 //nolint:paralleltest // It uses LockIDDBPurge.
+func TestPurgeChatHookDispatches(t *testing.T) {
+	ctx := testutil.Context(t, testutil.WaitLong)
+	now := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
+	clk := quartz.NewMock(t)
+	clk.Set(now).MustWait(ctx)
+	db, _ := dbtestutil.NewDB(t)
+	reg := prometheus.NewRegistry()
+	chatID := uuid.New()
+	ownerID := uuid.New()
+
+	insertDispatch := func(startedAt time.Time) database.ChatHookDispatch {
+		dispatch, err := db.InsertChatHookDispatch(ctx, database.InsertChatHookDispatchParams{
+			ID:          uuid.New(),
+			ChatID:      chatID,
+			Event:       "stop",
+			TurnID:      uuid.NullUUID{},
+			ToolUseID:   sql.NullString{},
+			OwnerID:     ownerID,
+			WorkspaceID: uuid.NullUUID{},
+			StartedAt:   startedAt,
+		})
+		require.NoError(t, err)
+		return dispatch
+	}
+	_ = insertDispatch(now.Add(-90*24*time.Hour - time.Second))
+	recentDispatch := insertDispatch(now.Add(-89 * 24 * time.Hour))
+
+	done := awaitDoTick(ctx, t, clk)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, reg, dbpurge.WithClock(clk))
+	defer closer.Close()
+	testutil.TryReceive(ctx, t, done)
+
+	rows, err := db.ListChatHookDispatchesByChatID(ctx, chatID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, recentDispatch.ID, rows[0].ID)
+
+	purged := promhelp.CounterValue(t, reg, "coderd_dbpurge_records_purged_total", prometheus.Labels{
+		"record_type": "chat_hook_dispatches",
+	})
+	require.EqualValues(t, 1, purged)
+}
+
+//nolint:paralleltest // It uses LockIDDBPurge.
 func TestPurgeChatDebugRuns(t *testing.T) {
 	now := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
 
@@ -2531,6 +2578,24 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				// Active chat — should be retained.
 				activeChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, false, now)
 
+				// Fresh dispatches prove chat purging is independent of dispatch retention.
+				insertDispatch := func(chatID uuid.UUID) database.ChatHookDispatch {
+					dispatch, err := db.InsertChatHookDispatch(ctx, database.InsertChatHookDispatchParams{
+						ID:        uuid.New(),
+						ChatID:    chatID,
+						Event:     "stop",
+						OwnerID:   deps.user.ID,
+						StartedAt: now.Add(-time.Hour),
+					})
+					require.NoError(t, err)
+					return dispatch
+				}
+				_ = insertDispatch(oldChat.ID)
+				recentChatDispatch := insertDispatch(recentChat.ID)
+				// Denied creates can leave dispatches without a chat;
+				// only retention removes them.
+				orphanDispatch := insertDispatch(uuid.New())
+
 				done := awaitDoTick(ctx, t, clk)
 				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 				defer closer.Close()
@@ -2539,6 +2604,19 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				// Old archived chat should be gone.
 				_, err = db.GetChatByID(ctx, oldChat.ID)
 				require.ErrorIs(t, err, sql.ErrNoRows, "old archived chat should be deleted")
+
+				oldChatDispatches, err := db.ListChatHookDispatchesByChatID(ctx, oldChat.ID)
+				require.NoError(t, err)
+				require.Empty(t, oldChatDispatches, "dispatches should be deleted with their purged chat")
+
+				recentChatDispatches, err := db.ListChatHookDispatchesByChatID(ctx, recentChat.ID)
+				require.NoError(t, err)
+				require.Len(t, recentChatDispatches, 1)
+				require.Equal(t, recentChatDispatch.ID, recentChatDispatches[0].ID)
+
+				orphanDispatches, err := db.ListChatHookDispatchesByChatID(ctx, orphanDispatch.ChatID)
+				require.NoError(t, err)
+				require.Len(t, orphanDispatches, 1, "pre-create dispatch rows are only removed by the time sweep")
 
 				// Its messages should be gone too (CASCADE).
 				msgs, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{

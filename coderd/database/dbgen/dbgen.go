@@ -93,6 +93,8 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 	}
 
 	chat, err := db.InsertChat(genCtx, database.InsertChatParams{
+		ID:                uuid.NullUUID{},
+		HookAllowedTools:  seed.HookAllowedTools,
 		OrganizationID:    takeFirst(seed.OrganizationID, uuid.New()),
 		OwnerID:           takeFirst(seed.OwnerID, uuid.New()),
 		WorkspaceID:       seed.WorkspaceID,
@@ -125,6 +127,7 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 
 	msgs, err := db.InsertChatMessages(genCtx, database.InsertChatMessagesParams{
 		ChatID:              seed.ChatID,
+		TurnID:              []uuid.UUID{seed.TurnID.UUID},
 		CreatedBy:           []uuid.UUID{seed.CreatedBy.UUID},
 		ModelConfigID:       []uuid.UUID{seed.ModelConfigID.UUID},
 		ReasoningEffort:     []string{string(seed.ReasoningEffort.ChatReasoningEffort)},
