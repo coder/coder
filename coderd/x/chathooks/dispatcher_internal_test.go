@@ -537,10 +537,12 @@ func newTestEvent(t *testing.T, db database.Store, eventType agenthooks.EventTyp
 		LastModelConfigID: model.ID,
 	})
 	return Event{
-		Type:    eventType,
-		ChatID:  chat.ID,
-		OwnerID: user.ID,
-		Data:    data,
+		Type: eventType,
+		ChatRef: agenthooks.ChatRef{
+			ChatID:  chat.ID,
+			OwnerID: user.ID,
+		},
+		Data: data,
 	}
 }
 

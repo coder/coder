@@ -368,8 +368,10 @@ func postEvent(t *testing.T, target string, eventType agenthooks.EventType, data
 		Meta: agenthooks.Meta{
 			DispatchID:    uuid.New(),
 			SchemaVersion: agenthooks.SchemaVersion,
-			ChatID:        uuid.New(),
-			OwnerID:       uuid.New(),
+			ChatRef: agenthooks.ChatRef{
+				ChatID:  uuid.New(),
+				OwnerID: uuid.New(),
+			},
 		},
 		Data: dataJSON,
 	}

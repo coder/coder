@@ -59,14 +59,9 @@ type store interface {
 
 // Event carries the identities persisted with each delivery attempt.
 type Event struct {
-	Type         agenthooks.EventType
-	ChatID       uuid.UUID
-	OwnerID      uuid.UUID
-	WorkspaceID  *uuid.UUID
-	TurnID       *uuid.UUID
-	ParentChatID *uuid.UUID
-	RootChatID   *uuid.UUID
-	Data         any
+	Type agenthooks.EventType
+	agenthooks.ChatRef
+	Data any
 }
 
 func (e Event) toolMetadata() (toolUseID, toolName *string) {
@@ -265,12 +260,7 @@ func (d *Dispatcher) prepareAndPost(ctx context.Context, event Event, dispatchID
 		Meta: agenthooks.Meta{
 			DispatchID:    dispatchID,
 			SchemaVersion: agenthooks.SchemaVersion,
-			ChatID:        event.ChatID,
-			OwnerID:       event.OwnerID,
-			WorkspaceID:   event.WorkspaceID,
-			TurnID:        event.TurnID,
-			ParentChatID:  event.ParentChatID,
-			RootChatID:    event.RootChatID,
+			ChatRef:       event.ChatRef,
 		},
 		Data: data,
 	}

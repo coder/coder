@@ -61,13 +61,19 @@ func (r Request) Decode() (any, error) {
 }
 
 type Meta struct {
-	DispatchID    uuid.UUID  `json:"dispatch_id"`
-	SchemaVersion int        `json:"schema_version"`
-	ChatID        uuid.UUID  `json:"chat_id"`
-	OwnerID       uuid.UUID  `json:"owner_id"`
-	WorkspaceID   *uuid.UUID `json:"workspace_id,omitempty"`
-	TurnID        *uuid.UUID `json:"turn_id,omitempty"`
-	ParentChatID  *uuid.UUID `json:"parent_chat_id,omitempty"`
+	DispatchID    uuid.UUID `json:"dispatch_id"`
+	SchemaVersion int       `json:"schema_version"`
+	ChatRef
+}
+
+// ChatRef identifies the chat a lifecycle hook event refers to. Embedded
+// structs flatten in JSON, so it adds no nesting on the wire.
+type ChatRef struct {
+	ChatID       uuid.UUID  `json:"chat_id"`
+	OwnerID      uuid.UUID  `json:"owner_id"`
+	WorkspaceID  *uuid.UUID `json:"workspace_id,omitempty"`
+	TurnID       *uuid.UUID `json:"turn_id,omitempty"`
+	ParentChatID *uuid.UUID `json:"parent_chat_id,omitempty"`
 	// RootChatID groups a subagent subtree with its user-facing conversation.
 	// Unset for top-level chats.
 	RootChatID *uuid.UUID `json:"root_chat_id,omitempty"`

@@ -1219,6 +1219,24 @@ export interface AgentFirewallSessionLogsResponse {
 
 // From agenthooks/types.go
 /**
+ * ChatRef identifies the chat a lifecycle hook event refers to. Embedded
+ * structs flatten in JSON, so it adds no nesting on the wire.
+ */
+export interface AgentHookChatRef {
+	readonly chat_id: string;
+	readonly owner_id: string;
+	readonly workspace_id?: string;
+	readonly turn_id?: string;
+	readonly parent_chat_id?: string;
+	/**
+	 * RootChatID groups a subagent subtree with its user-facing conversation.
+	 * Unset for top-level chats.
+	 */
+	readonly root_chat_id?: string;
+}
+
+// From agenthooks/types.go
+/**
  * Claims describes the JWT minted by coderd for a lifecycle hook dispatch.
  */
 export interface AgentHookClaims {
@@ -1275,19 +1293,9 @@ export interface AgentHookHooks {
 }
 
 // From agenthooks/types.go
-export interface AgentHookMeta {
+export interface AgentHookMeta extends AgentHookChatRef {
 	readonly dispatch_id: string;
 	readonly schema_version: number;
-	readonly chat_id: string;
-	readonly owner_id: string;
-	readonly workspace_id?: string;
-	readonly turn_id?: string;
-	readonly parent_chat_id?: string;
-	/**
-	 * RootChatID groups a subagent subtree with its user-facing conversation.
-	 * Unset for top-level chats.
-	 */
-	readonly root_chat_id?: string;
 }
 
 // From agenthooks/types.go
