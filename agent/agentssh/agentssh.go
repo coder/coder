@@ -330,8 +330,8 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 // given session type, creating it on first use. Known-family types always
 // get their own counter; unrecognized types past the cap share the unknown
 // counter, mirroring the server-side cap.
-func (s *Server) getOrCreateSessionCounter(sessionType MagicSessionType) *atomic.Int64 {
-	key := string(sessionType)
+func (s *Server) getOrCreateSessionCounter(magicType MagicSessionType) *atomic.Int64 {
+	key := string(magicType)
 	if counter, ok := s.sessionCounts.Load(key); ok {
 		return counter
 	}
@@ -366,7 +366,7 @@ func (s *Server) SessionCounts() map[string]int64 {
 	return stats
 }
 
-func extractMagicSessionType(env []string) (sessionType MagicSessionType, rawType string, filteredEnv []string) {
+func extractMagicSessionType(env []string) (magicType MagicSessionType, rawType string, filteredEnv []string) {
 	for _, kv := range env {
 		if !strings.HasPrefix(kv, MagicSessionTypeEnvironmentVariable) {
 			continue
@@ -378,14 +378,14 @@ func extractMagicSessionType(env []string) (sessionType MagicSessionType, rawTyp
 
 	if rawType == "" {
 		// No magic session type set: this is a plain SSH session.
-		sessionType = MagicSessionTypeSSH
+		magicType = MagicSessionTypeSSH
 	} else {
 		// Canonicalize, do not classify: unknown names flow through so new
 		// IDEs need no code changes.
-		sessionType = MagicSessionType(idemetadata.Normalize(rawType))
+		magicType = MagicSessionType(idemetadata.Normalize(rawType))
 	}
 
-	return sessionType, rawType, slices.DeleteFunc(env, func(kv string) bool {
+	return magicType, rawType, slices.DeleteFunc(env, func(kv string) bool {
 		return strings.HasPrefix(kv, MagicSessionTypeEnvironmentVariable+"=")
 	})
 }

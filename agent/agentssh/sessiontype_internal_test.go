@@ -45,6 +45,16 @@ func TestExtractMagicSessionType(t *testing.T) {
 	}
 }
 
+func TestMagicTypeMetricLabel(t *testing.T) {
+	t.Parallel()
+
+	// The label carries the family, not the raw type, so a divergent type
+	// like cursor maps to vscode.
+	require.Equal(t, "vscode", magicTypeMetricLabel(MagicSessionType("cursor")))
+	require.Equal(t, "ssh", magicTypeMetricLabel(MagicSessionTypeSSH))
+	require.Equal(t, idemetadata.AppNameUnknown, magicTypeMetricLabel(MagicSessionType("some-new-ide")))
+}
+
 func TestSessionCounts(t *testing.T) {
 	t.Parallel()
 
