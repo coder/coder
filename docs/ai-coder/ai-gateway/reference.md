@@ -2,21 +2,67 @@
 
 > [!NOTE]
 > AI Gateway requires the [AI Governance Add-On](../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access AI Gateway.
+> As of Coder v2.32, deployments without the add-on cannot access AI Gateway.
 
-## Implementation Details
+## Deployment topologies
 
-`coderd` runs an in-memory instance of `aibridged`, whose logic is mostly contained in ../../../aibridge. In future releases we will support running external instances for higher throughput and complete memory isolation from `coderd`.
+AI Gateway can run inside `coderd` or as a standalone data-plane service.
+Both topologies use the same Gateway request handling and keep `coderd` as the source of truth for Coder API key validation, provider configuration, and AI session records.
+
+### Embedded Gateway
+
+By default, `coder server` runs an in-memory Gateway instance in the `coderd` process.
+AI clients send requests to the Coder access URL.
+The embedded Gateway uses the same control RPC as a standalone deployment, over an in-process transport rather than a network connection.
+It does not use an AI Gateway key and does not negotiate an API version.
+
+The following diagram shows the embedded topology:
 
 ![AI Gateway implementation details](../../images/aibridge/aibridge-implementation-details.png)
 
+### Standalone Gateway
+
+A [standalone deployment](./standalone.md) runs the AI traffic data plane outside the `coderd` process.
+Each replica accepts client traffic, sends AI requests directly to upstream providers, and maintains a control connection to `coderd` using a [Gateway key](./standalone.md#create-a-gateway-key).
+
+The control connection carries:
+
+- Coder API key validation, which resolves each request to an active Coder user.
+- Provider configuration, plus a change signal when the provider set changes.
+- AI session records.
+- (deprecated) The configuration and access tokens used by [injected MCP](./mcp.md).
+
+Standalone replicas do not own authoritative database state.
+They keep ephemeral provider snapshots, request caches, provider key pools, and metrics in memory, and emit their own logs and traces.
+Each replica writes its own [API dumps](./setup.md#api-dumps) to its own local disk when dumps are enabled.
+
+`coderd` remains required for standalone operation.
+A replica becomes unready when its control connection is unavailable, even if its HTTP listener remains healthy.
+AI Gateway Proxy remains part of `coder server` and can forward its intercepted traffic to either the embedded Gateway or a standalone endpoint.
+
+## Version compatibility
+
+The control connection between a standalone replica and `coderd` is versioned.
+The current version is defined in [`coderd/aibridged/proto/version.go`](https://github.com/coder/coder/blob/main/coderd/aibridged/proto/version.go).
+
+`coderd` validates the version that a standalone replica advertises before it accepts the control connection.
+Compatibility follows these rules:
+
+- The Gateway and `coderd` major versions must match.
+- The Gateway minor version must be less than or equal to the `coderd` minor version.
+- `coderd` rejects a standalone Gateway that advertises a newer minor version.
+
+A rejected replica receives an HTTP 400 response that reports the `client_api_version` and `server_api_version` values.
+Coder build versions are not the compatibility criterion.
+
+For upgrade and rollback ordering, refer to [Version compatibility](./standalone.md#version-compatibility) in the standalone deployment guide.
+
 ## Supported APIs
 
-API support is broken down into two categories:
+API support is divided into two categories:
 
-- **Intercepted**: requests are intercepted, audited, and augmented - full AI Gateway functionality
-- **Passthrough**: requests are proxied directly to the upstream, no auditing or augmentation takes place
+- **Intercepted**: Requests are intercepted, audited, and augmented.
+- **Passthrough**: Requests are proxied directly to the upstream provider without auditing or augmentation.
 
 Where relevant, both streaming and non-streaming requests are supported.
 
@@ -43,4 +89,5 @@ Where relevant, both streaming and non-streaming requests are supported.
 
 ## Troubleshooting
 
-To report a bug, file a feature request, or view a list of known issues, please visit our [GitHub repository](https://github.com/coder/coder/issues). If you encounter issues with AI Gateway, please reach out to us via [Discord](https://discord.gg/coder).
+To report a bug, file a feature request, or review known issues, visit the [Coder GitHub repository](https://github.com/coder/coder/issues).
+For help with AI Gateway, visit the [Coder Discord](https://discord.gg/coder).
