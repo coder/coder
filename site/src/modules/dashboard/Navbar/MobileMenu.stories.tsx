@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { fn, userEvent, within } from "storybook/test";
 import {
 	MockPrimaryWorkspaceProxy,
 	MockProxyLatencies,
@@ -102,38 +102,6 @@ export const Member: Story = {
 		canViewOrganizations: false,
 		canViewAIBridge: false,
 		canViewAISettings: false,
-	},
-};
-
-// A member who can view organizations but has no admin permissions must not
-// see the Admin settings menu; Organizations moves under User settings.
-export const OrganizationMember: Story = {
-	args: {
-		user: MockUserMember,
-		canViewAuditLog: false,
-		canViewConnectionLog: false,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewOrganizations: true,
-		canViewAIBridge: false,
-		canViewAISettings: false,
-	},
-	play: async ({ canvasElement }) => {
-		const user = userEvent.setup();
-		const body = within(canvasElement.ownerDocument.body);
-
-		expect(
-			body.queryByRole("menuitem", { name: /admin settings/i }),
-		).not.toBeInTheDocument();
-
-		const userSettings = await body.findByRole("menuitem", {
-			name: /user settings/i,
-		});
-		await user.click(userSettings);
-
-		expect(
-			await body.findByRole("menuitem", { name: "Organizations" }),
-		).toBeInTheDocument();
 	},
 };
 

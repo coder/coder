@@ -14,7 +14,12 @@ test.beforeEach(async ({ page }) => {
 
 type AdminSetting = (typeof adminSettings)[number];
 
-const adminSettings = ["Deployment", "Healthcheck", "Audit Logs"] as const;
+const adminSettings = [
+	"Deployment",
+	"Organizations",
+	"Healthcheck",
+	"Audit Logs",
+] as const;
 
 async function hasAccessToAdminSettings(page: Page, settings: AdminSetting[]) {
 	// Audit Logs requires a license to be visible
@@ -56,21 +61,25 @@ test.describe("roles admin settings access", () => {
 		await login(page, users.templateAdmin);
 		await page.goto("/", { waitUntil: "domcontentloaded" });
 
-		await hasAccessToAdminSettings(page, ["Deployment"]);
+		await hasAccessToAdminSettings(page, ["Deployment", "Organizations"]);
 	});
 
 	test("user admin can see admin settings", async ({ page }) => {
 		await login(page, users.userAdmin);
 		await page.goto("/", { waitUntil: "domcontentloaded" });
 
-		await hasAccessToAdminSettings(page, ["Deployment"]);
+		await hasAccessToAdminSettings(page, ["Deployment", "Organizations"]);
 	});
 
 	test("auditor can see admin settings", async ({ page }) => {
 		await login(page, users.auditor);
 		await page.goto("/", { waitUntil: "domcontentloaded" });
 
-		await hasAccessToAdminSettings(page, ["Deployment", "Audit Logs"]);
+		await hasAccessToAdminSettings(page, [
+			"Deployment",
+			"Organizations",
+			"Audit Logs",
+		]);
 	});
 
 	test("owner can see admin settings", async ({ page }) => {
@@ -79,6 +88,7 @@ test.describe("roles admin settings access", () => {
 
 		await hasAccessToAdminSettings(page, [
 			"Deployment",
+			"Organizations",
 			"Healthcheck",
 			"Audit Logs",
 		]);
@@ -104,7 +114,7 @@ test.describe("org-scoped roles admin settings access", () => {
 		await login(page, orgTemplateAdmin);
 		await page.goto("/", { waitUntil: "domcontentloaded" });
 
-		await hasAccessToAdminSettings(page, []);
+		await hasAccessToAdminSettings(page, ["Organizations"]);
 	});
 
 	test("org user admin can see admin settings", async ({ page }) => {
@@ -118,7 +128,7 @@ test.describe("org-scoped roles admin settings access", () => {
 		await login(page, orgUserAdmin);
 		await page.goto("/", { waitUntil: "domcontentloaded" });
 
-		await hasAccessToAdminSettings(page, ["Deployment"]);
+		await hasAccessToAdminSettings(page, ["Deployment", "Organizations"]);
 	});
 
 	test("org auditor can see admin settings", async ({ page }) => {
@@ -132,7 +142,7 @@ test.describe("org-scoped roles admin settings access", () => {
 		await login(page, orgAuditor);
 		await page.goto("/", { waitUntil: "domcontentloaded" });
 
-		await hasAccessToAdminSettings(page, ["Audit Logs"]);
+		await hasAccessToAdminSettings(page, ["Organizations", "Audit Logs"]);
 	});
 
 	test("org admin can see admin settings", async ({ page }) => {
@@ -146,6 +156,10 @@ test.describe("org-scoped roles admin settings access", () => {
 		await login(page, orgAdmin);
 		await page.goto("/", { waitUntil: "domcontentloaded" });
 
-		await hasAccessToAdminSettings(page, ["Deployment", "Audit Logs"]);
+		await hasAccessToAdminSettings(page, [
+			"Deployment",
+			"Organizations",
+			"Audit Logs",
+		]);
 	});
 });

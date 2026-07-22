@@ -7,6 +7,7 @@ import { linkToAuditing } from "#/modules/navigation";
  */
 export type AdminSettingsPermissions = {
 	canViewDeployment: boolean;
+	canViewOrganizations: boolean;
 	canViewAuditLog: boolean;
 	canViewConnectionLog: boolean;
 	canViewAIBridge: boolean;
@@ -21,7 +22,8 @@ type AdminSettingsItem = {
 
 /**
  * Builds the ordered list of Admin settings menu items for the given
- * permissions. Every item is gated behind its respective permission.
+ * permissions. Organizations is always available; the rest are gated behind
+ * their respective permissions.
  */
 export const getAdminSettingsItems = ({
 	canViewDeployment,
@@ -32,6 +34,7 @@ export const getAdminSettingsItems = ({
 	canViewHealth,
 }: AdminSettingsPermissions): AdminSettingsItem[] => [
 	...(canViewDeployment ? [{ label: "Deployment", to: "/deployment" }] : []),
+	{ label: "Organizations", to: "/organizations" },
 	...(canViewAISettings ? [{ label: "AI", to: "/ai/settings" }] : []),
 	...(canViewAuditLog ? [{ label: "Audit logs", to: linkToAuditing }] : []),
 	...(canViewConnectionLog
@@ -44,10 +47,23 @@ export const getAdminSettingsItems = ({
 ];
 
 /**
- * Whether the user has any permission that should surface the Admin settings
- * menu. Organizations is intentionally excluded: it is not an admin setting,
- * so it lives in the user menu instead and must not surface this menu.
+ * Whether the user has any admin permission that should surface the Admin
+ * settings menu. Organizations is intentionally excluded: it is available to
+ * non-admins (e.g. organization members), so it must not surface this menu on
+ * its own. When the menu is shown, Organizations is still listed by
+ * getAdminSettingsItems.
  */
-export const canViewAdminSettings = (
-	permissions: AdminSettingsPermissions,
-): boolean => Object.values(permissions).some((canView) => canView);
+export const canViewAdminSettings = ({
+	canViewDeployment,
+	canViewAuditLog,
+	canViewConnectionLog,
+	canViewAIBridge,
+	canViewAISettings,
+	canViewHealth,
+}: AdminSettingsPermissions): boolean =>
+	canViewDeployment ||
+	canViewAuditLog ||
+	canViewConnectionLog ||
+	canViewAIBridge ||
+	canViewAISettings ||
+	canViewHealth;

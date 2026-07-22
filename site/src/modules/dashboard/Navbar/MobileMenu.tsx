@@ -28,6 +28,7 @@ import type { ProxyContextValue } from "#/contexts/ProxyContext";
 import { cn } from "#/utils/cn";
 import {
 	type AdminSettingsPermissions,
+	canViewAdminSettings,
 	getAdminSettingsItems,
 } from "./adminSettings";
 import { sortProxiesByLatency } from "./proxyUtils";
@@ -39,7 +40,6 @@ const itemStyles = {
 };
 
 type MobileMenuProps = AdminSettingsPermissions & {
-	canViewOrganizations: boolean;
 	proxyContextValue?: ProxyContextValue;
 	user?: TypesGen.User;
 	supportLinks?: readonly TypesGen.LinkConfig[];
@@ -52,12 +52,11 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 	proxyContextValue,
 	user,
 	supportLinks,
-	canViewOrganizations,
 	onSignOut,
 	...permissions
 }) => {
 	const [open, setOpen] = useState(isDefaultOpen);
-	const hasSomePermission = Object.values(permissions).some((p) => p);
+	const hasAdminSettings = canViewAdminSettings(permissions);
 
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
@@ -89,7 +88,7 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 				<DropdownMenuSeparator />
 				<ProxySettingsSub proxyContextValue={proxyContextValue} />
 
-				{hasSomePermission && (
+				{hasAdminSettings && (
 					<>
 						<DropdownMenuSeparator />
 						<AdminSettingsSub {...permissions} />
@@ -99,7 +98,6 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 				<UserSettingsSub
 					user={user}
 					supportLinks={supportLinks}
-					canViewOrganizations={canViewOrganizations}
 					onSignOut={onSignOut}
 				/>
 			</DropdownMenuContent>
@@ -243,14 +241,12 @@ const AdminSettingsSub: FC<AdminSettingsPermissions> = (permissions) => {
 type UserSettingsSubProps = {
 	user?: TypesGen.User;
 	supportLinks?: readonly TypesGen.LinkConfig[];
-	canViewOrganizations: boolean;
 	onSignOut: () => void;
 };
 
 const UserSettingsSub: FC<UserSettingsSubProps> = ({
 	user,
 	supportLinks,
-	canViewOrganizations,
 	onSignOut,
 }) => {
 	const [open, setOpen] = useState(false);
@@ -282,14 +278,6 @@ const UserSettingsSub: FC<UserSettingsSubProps> = ({
 				>
 					<Link to="/settings/account">Account</Link>
 				</DropdownMenuItem>
-				{canViewOrganizations && (
-					<DropdownMenuItem
-						asChild
-						className={cn(itemStyles.default, itemStyles.sub)}
-					>
-						<Link to="/organizations">Organizations</Link>
-					</DropdownMenuItem>
-				)}
 				<DropdownMenuItem
 					className={cn(itemStyles.default, itemStyles.sub)}
 					onClick={onSignOut}

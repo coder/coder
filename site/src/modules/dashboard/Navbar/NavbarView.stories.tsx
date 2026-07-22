@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, within } from "storybook/test";
+import { userEvent, within } from "storybook/test";
 import type { TasksFilter } from "#/api/typesGenerated";
 import { chromaticWithTablet } from "#/testHelpers/chromatic";
 import {
@@ -124,38 +124,6 @@ export const ForMemberWithAgentsAccess: Story = {
 		canViewAISettings: false,
 		canViewOrganizations: false,
 		canCreateChat: true,
-	},
-};
-
-// A member who can view organizations but has no admin permissions must not
-// see the Admin settings dropdown; Organizations moves to the user menu.
-export const ForOrganizationMember: Story = {
-	args: {
-		user: MockUserMember,
-		canViewAuditLog: false,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewAISettings: false,
-		canViewOrganizations: true,
-		canCreateChat: false,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(
-			canvas.queryByRole("button", { name: "Admin settings" }),
-		).not.toBeInTheDocument();
-
-		const buttons = canvas.getAllByRole("button");
-		const userMenuButton = buttons[buttons.length - 1];
-		if (!userMenuButton) {
-			throw new Error("User menu button not found");
-		}
-
-		await userEvent.click(userMenuButton);
-		expect(
-			await screen.findByRole("menuitem", { name: "Organizations" }),
-		).toBeInTheDocument();
 	},
 };
 
