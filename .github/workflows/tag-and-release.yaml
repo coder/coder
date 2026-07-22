@@ -347,7 +347,8 @@ jobs:
             build/coder_"$version"_{darwin,windows}_{amd64,arm64}.zip \
             build/coder_"$version"_windows_amd64_installer.exe \
             build/coder_helm_"$version".tgz \
-            build/provisioner_helm_"$version".tgz
+            build/provisioner_helm_"$version".tgz \
+            build/ai-gateway_helm_"$version".tgz
         env:
           CODER_SIGN_WINDOWS: "1"
           CODER_SIGN_DARWIN: "1"
@@ -697,14 +698,17 @@ jobs:
           mkdir -p build/helm
           cp "build/coder_helm_${version}.tgz" build/helm
           cp "build/provisioner_helm_${version}.tgz" build/helm
+          cp "build/ai-gateway_helm_${version}.tgz" build/helm
           gsutil cp gs://helm.coder.com/v2/index.yaml build/helm/index.yaml
           helm repo index build/helm --url https://helm.coder.com/v2 --merge build/helm/index.yaml
           gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/coder_helm_${version}.tgz" gs://helm.coder.com/v2
           gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/provisioner_helm_${version}.tgz" gs://helm.coder.com/v2
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/ai-gateway_helm_${version}.tgz" gs://helm.coder.com/v2
           gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/index.yaml" gs://helm.coder.com/v2
           gsutil -h "Cache-Control:no-cache,max-age=0" cp "helm/artifacthub-repo.yml" gs://helm.coder.com/v2
           helm push "build/coder_helm_${version}.tgz" oci://ghcr.io/coder/chart
           helm push "build/provisioner_helm_${version}.tgz" oci://ghcr.io/coder/chart
+          helm push "build/ai-gateway_helm_${version}.tgz" oci://ghcr.io/coder/chart
 
       - name: Send repository-dispatch event
         if: ${{ inputs.release_type != 'rc' && inputs.release_type != 'create-release-branch' }}

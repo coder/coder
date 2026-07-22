@@ -269,12 +269,20 @@ The configurable contexts:
 
 Resolution order, evaluated per chat or subagent:
 
+1. Explicit `model_config_id` on the `spawn_agent` tool call (general and
+   explore subagents only).
 1. Personal override (when the admin gate is on and a model is set).
 1. Admin subagent override.
 1. The chat's selected model (or the deployment default for new chats).
 
 If a referenced model is later disabled or deleted, that layer is skipped
-and resolution falls through to the next.
+and resolution falls through to the next. Explicit `spawn_agent` selection
+is different: an unusable `model_config_id` fails the tool call instead of
+falling through. Agents discover selectable models (and their reasoning
+effort ranges) with the `list_subagent_models` tool, which only returns
+enabled models usable with the chat owner's credentials. Computer-use
+subagents always run on the administrator-configured computer-use model and
+reject explicit model selection.
 
 > [!NOTE]
 > Both override layers are experimental and may change between releases.
