@@ -877,6 +877,7 @@ export const SearchDialogKeyboardShortcutHandlesRenameInput: Story = {
 		onRenameTitle: fn(() => Promise.resolve()),
 	},
 	parameters: {
+		pixel: { exclude: true },
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents" },
 			routing: agentsRouting,

@@ -70,6 +70,7 @@ export const InvalidName: Story = {
 };
 
 export const CreateError: Story = {
+	parameters: { pixel: { exclude: true } },
 	render: (args) => {
 		const [submitError, setSubmitError] = useState<unknown>(undefined);
 		const error = mockApiError({

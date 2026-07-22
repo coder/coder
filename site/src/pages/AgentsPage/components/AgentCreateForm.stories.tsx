@@ -452,6 +452,7 @@ export const SearchWorkspaces: Story = {
 };
 
 export const SelectWorkspaceViaSearch: Story = {
+	parameters: { pixel: { exclude: true } },
 	args: {
 		workspaceOptions: mockWorkspaces,
 		workspaceCount: mockWorkspaces.length,
