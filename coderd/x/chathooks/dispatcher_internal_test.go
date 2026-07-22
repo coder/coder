@@ -382,13 +382,25 @@ func TestDispatcherProtocolErrors(t *testing.T) {
 		{
 			name:      "pre_tool_use allow without input_override",
 			eventType: agenthooks.EventPreToolUse,
-			data:      agenthooks.PreToolUseData{ToolName: "run_command", ToolInput: json.RawMessage(`{"cmd":"ls"}`)},
+			data:      agenthooks.PreToolUseData{ToolUseID: "call_no_override", ToolName: "run_command", ToolInput: json.RawMessage(`{"cmd":"ls"}`)},
 			responseBody: mustJSON(t, agenthooks.Response{Permission: &agenthooks.Permission{
 				Decision: agenthooks.PermissionAllow,
 			}}),
 			assertRow: func(t *testing.T, row database.ChatHookDispatch) {
 				require.False(t, row.Decision.Valid, "rejected responses must not persist a reusable decision")
 			},
+		},
+		{
+			name:         "pre_tool_use without tool_use_id",
+			eventType:    agenthooks.EventPreToolUse,
+			data:         agenthooks.PreToolUseData{ToolName: "run_command", ToolInput: json.RawMessage(`{"cmd":"ls"}`)},
+			responseBody: []byte(`{}`),
+		},
+		{
+			name:         "post_tool_use without tool_name",
+			eventType:    agenthooks.EventPostToolUse,
+			data:         agenthooks.PostToolUseData{ToolUseID: "call_no_name"},
+			responseBody: []byte(`{}`),
 		},
 	}
 

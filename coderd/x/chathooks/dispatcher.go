@@ -73,21 +73,14 @@ func (e Event) toolMetadata() (toolUseID, toolName *string) {
 	switch e.Type {
 	case agenthooks.EventPreToolUse:
 		if data, ok := dataValue[agenthooks.PreToolUseData](e.Data); ok {
-			return nonEmptyPtr(data.ToolUseID), nonEmptyPtr(data.ToolName)
+			return &data.ToolUseID, &data.ToolName
 		}
 	case agenthooks.EventPostToolUse:
 		if data, ok := dataValue[agenthooks.PostToolUseData](e.Data); ok {
-			return nonEmptyPtr(data.ToolUseID), nonEmptyPtr(data.ToolName)
+			return &data.ToolUseID, &data.ToolName
 		}
 	}
 	return nil, nil
-}
-
-func nonEmptyPtr(value string) *string {
-	if value == "" {
-		return nil
-	}
-	return &value
 }
 
 // DispatchError preserves the attempt ID and failure class.
@@ -498,6 +491,9 @@ func marshalEventData(event Event) (data json.RawMessage, original pqtype.NullRa
 		if !ok {
 			return nil, original, xerrors.New("pre_tool_use data has the wrong type")
 		}
+		if value.ToolUseID == "" || value.ToolName == "" {
+			return nil, original, xerrors.New("pre_tool_use data requires tool_use_id and tool_name")
+		}
 		// original_input is a jsonb column, so malformed model output
 		// cannot be persisted there. Leave it NULL so the dispatch can
 		// still finalize as a protocol error instead of staying pending.
@@ -505,8 +501,12 @@ func marshalEventData(event Event) (data json.RawMessage, original pqtype.NullRa
 			original = pqtype.NullRawMessage{RawMessage: bytes.Clone(value.ToolInput), Valid: true}
 		}
 	case agenthooks.EventPostToolUse:
-		if !isData[agenthooks.PostToolUseData](event.Data) {
+		value, ok := dataValue[agenthooks.PostToolUseData](event.Data)
+		if !ok {
 			return nil, original, xerrors.New("post_tool_use data has the wrong type")
+		}
+		if value.ToolUseID == "" || value.ToolName == "" {
+			return nil, original, xerrors.New("post_tool_use data requires tool_use_id and tool_name")
 		}
 	case agenthooks.EventPreCompact:
 		if !isData[agenthooks.PreCompactData](event.Data) {
