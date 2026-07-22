@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { ModelSelector, type ModelSelectorOption } from "./ModelSelector";
 import { MockModelSelectorOption } from "./modelSelectorFixtures";
@@ -448,5 +448,56 @@ export const EffortRowClampedToMax: Story = {
 		await waitFor(() => {
 			expect(body.getByText("Low")).toBeVisible();
 		});
+	},
+};
+
+// The pinned effort row must stay inside the mobile dropdown's capped
+// height above the composer while the model list scrolls.
+export const MobileEffortRow: Story = {
+	args: {
+		options: [
+			...Array.from({ length: 30 }, (_, index) => ({
+				...MockModelSelectorOption,
+				id: `openai/model-${index}`,
+				model: `model-${index}`,
+				displayName: `Model ${index}`,
+			})),
+			effortModel,
+		],
+		value: "openai/gpt-5",
+		reasoningEffort: "medium",
+		onReasoningEffortChange: fn(),
+		enableMobileFullWidthDropdown: true,
+	},
+	parameters: {
+		// The interaction runner defaults to a desktop width where the
+		// mobile dropdown CSS never applies, so pin a mobile viewport.
+		viewport: { defaultViewport: "mobile1" },
+		// Capture the visual snapshot at a mobile width so the pinned
+		// effort row and scrollable list render in the CI visual gate.
+		lostpixel: { breakpoints: [320] },
+	},
+	decorators: [
+		(Story) => {
+			useEffect(() => {
+				// Tight enough that the model list plus the pinned effort row
+				// overflow the dropdown, forcing the layout under test.
+				const root = document.documentElement.style;
+				root.setProperty(
+					"--mobile-dropdown-above-composer-max-height",
+					"260px",
+				);
+				return () => {
+					root.removeProperty("--mobile-dropdown-above-composer-max-height");
+				};
+			}, []);
+			return <Story />;
+		},
+	],
+	play: async ({ canvasElement }) => {
+		// Open the picker so the snapshot captures the dropdown, the pinned
+		// effort row, and the scrollable list.
+		await userEvent.click(within(canvasElement).getByRole("combobox"));
+		await within(document.body).findByRole("listbox");
 	},
 };

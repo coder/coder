@@ -3,6 +3,7 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -166,14 +167,46 @@ func (p *Server) newModel(
 	}
 
 	config := fantasyConfigForAIBridge(route.Provider.Type)
+	extraHeaders, err := mergeConfigBetaHeaders(req.ExtraHeaders, config.ProviderHint, req.ConfigOptions)
+	if err != nil {
+		return nil, err
+	}
 	return newLanguageModel(
 		config.ProviderHint,
 		req.ModelName,
 		config.Keys,
 		req.UserAgent,
-		req.ExtraHeaders,
+		extraHeaders,
 		&http.Client{Transport: baseRT},
 	)
+}
+
+// mergeConfigBetaHeaders never mutates extraHeaders; existing entries win
+// over config-derived ones.
+func mergeConfigBetaHeaders(
+	extraHeaders map[string]string,
+	providerHint string,
+	configOptions json.RawMessage,
+) (map[string]string, error) {
+	if len(configOptions) == 0 {
+		return extraHeaders, nil
+	}
+	var callConfig codersdk.ChatModelCallConfig
+	if err := json.Unmarshal(configOptions, &callConfig); err != nil {
+		return nil, xerrors.Errorf("parse model config options: %w", err)
+	}
+	betaHeaders := chatprovider.BetaHeadersFromCallConfig(providerHint, &callConfig)
+	if len(betaHeaders) == 0 {
+		return extraHeaders, nil
+	}
+	merged := make(map[string]string, len(extraHeaders)+len(betaHeaders))
+	for name, value := range betaHeaders {
+		merged[name] = value
+	}
+	for name, value := range extraHeaders {
+		merged[name] = value
+	}
+	return merged, nil
 }
 
 type aibridgeFantasyConfig struct {

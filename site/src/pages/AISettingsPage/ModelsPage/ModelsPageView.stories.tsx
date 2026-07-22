@@ -6,11 +6,13 @@ import ModelsPageView from "./ModelsPageView";
 import {
 	MockAnthropicProviderState,
 	MockBedrockProviderState,
+	MockDisabledProviderState,
 	MockOpenAIProviderState,
 	mockBedrockClaude,
 	mockClaude,
 	mockDisabledModel,
 	mockGPT5,
+	mockProviderDisabledModel,
 } from "./testFixtures";
 
 const meta: Meta<typeof ModelsPageView> = {
@@ -110,6 +112,22 @@ export const NoMatchingModels: Story = {
 		await expect(
 			canvas.getByText("No models match your filters"),
 		).toBeInTheDocument();
+	},
+};
+
+export const DisabledProviderModelsStillListed: Story = {
+	args: {
+		models: [mockGPT5, mockProviderDisabledModel],
+		providerStates: [MockOpenAIProviderState, MockDisabledProviderState],
+		providerTypeByID: new Map<string, string>([
+			["prov-openai", "openai"],
+			["prov-openai-disabled", "openai"],
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("GPT-4o Secondary")).toBeInTheDocument();
+		await expect(canvas.getByText("OpenAI Secondary")).toBeInTheDocument();
 	},
 };
 

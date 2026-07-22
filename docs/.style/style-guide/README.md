@@ -87,6 +87,8 @@ Severity is a deliberate per-rule choice from the three-tier ladder:
   Use for soft guidance where the right fix is contextual.
 
 The full doctrine, including the false-positive policy, lives in [`README.md`](../README.md).
+This guide is itself exempt from the Coder rules: it demonstrates the violations those rules ban, so the repo-root `.vale.ini` clears `BasedOnStyles` for `docs/.style/style-guide/**`.
+Zero baseline is measured over `docs/` excluding `docs/.style/style-guide/`.
 Run `make lint/prose` to reproduce the baseline locally.
 
 ## Relationship to `docs/about/contributing/documentation.md`
