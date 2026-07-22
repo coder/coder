@@ -1,6 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { AIBridgeThread } from "#/api/typesGenerated";
-import { MockSession } from "#/testHelpers/entities";
+import {
+	MockAIBridgeSessionNetworkCalls,
+	MockSession,
+} from "#/testHelpers/entities";
 import { SessionTimeline } from "./SessionTimeline";
 
 // A thread with one thinking block and one tool call.
@@ -124,6 +127,7 @@ const meta: Meta<typeof SessionTimeline> = {
 	args: {
 		initiator: MockSession.initiator,
 		threads: [mockThread],
+		networkCalls: [],
 		hasNextPage: false,
 		isFetchingNextPage: false,
 		onFetchNextPage: noop,
@@ -134,6 +138,15 @@ export default meta;
 type Story = StoryObj<typeof SessionTimeline>;
 
 export const OneThread: Story = {};
+
+// The network calls panel is rendered above the threads when the session
+// passed through Agent Firewall.
+export const WithNetworkCalls: Story = {
+	args: {
+		networkCallSummary: { total: 4, blocked: 2 },
+		networkCalls: MockAIBridgeSessionNetworkCalls,
+	},
+};
 
 export const MultipleThreads: Story = {
 	args: { threads: [mockThread, mockThreadLong] },

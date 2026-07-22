@@ -2,6 +2,8 @@ import { ChevronRightIcon, InfoIcon, LoaderIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import type {
 	AIBridgeAgenticAction,
+	AIBridgeSessionNetworkCall,
+	AIBridgeSessionNetworkCallSummary,
 	AIBridgeThread,
 	MinimalUser,
 } from "#/api/typesGenerated";
@@ -21,6 +23,7 @@ import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import { JsonPrettyPrinter } from "../../JsonPrettyPrinter";
 import { AgenticLoopTable } from "./AgenticLoopTable";
+import { NetworkCallsTable } from "./NetworkCallsTable";
 import { PromptTable } from "./PromptTable";
 import { ToolCallTable } from "./ToolCallTable";
 
@@ -408,6 +411,10 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 interface SessionTimelineProps {
 	initiator: MinimalUser;
 	threads: readonly AIBridgeThread[];
+	// networkCallSummary is nil when the session did not pass through Agent
+	// Firewall, in which case the network calls panel is not rendered.
+	networkCallSummary?: AIBridgeSessionNetworkCallSummary;
+	networkCalls: readonly AIBridgeSessionNetworkCall[];
 	hasNextPage: boolean;
 	isFetchingNextPage: boolean;
 	onFetchNextPage: () => void;
@@ -416,6 +423,8 @@ interface SessionTimelineProps {
 export const SessionTimeline: FC<SessionTimelineProps> = ({
 	initiator,
 	threads,
+	networkCallSummary,
+	networkCalls,
 	hasNextPage,
 	isFetchingNextPage,
 	onFetchNextPage,
@@ -524,6 +533,15 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 					{/* left vertical line */}
 				</div>
 				<div className="row-start-5 col-start-2 col-span-4">
+					{/* network calls panel, session-scoped, above the threads */}
+					{networkCallSummary && (
+						<div className="mb-4">
+							<NetworkCallsTable
+								summary={networkCallSummary}
+								calls={networkCalls}
+							/>
+						</div>
+					)}
 					{/* threads */}
 					<div className="[&>.thread-gap:last-child]:hidden">
 						{threads.map((thread) => (
