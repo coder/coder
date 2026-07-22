@@ -3212,6 +3212,14 @@ func (q *querier) GetChatDebugStepsByRunID(ctx context.Context, runID uuid.UUID)
 	return q.db.GetChatDebugStepsByRunID(ctx, runID)
 }
 
+func (q *querier) GetChatDescendantIDsByChatID(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+	// Callers authorize descendant mutations separately.
+	if _, err := q.GetChatByID(ctx, id); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatDescendantIDsByChatID(ctx, id)
+}
+
 func (q *querier) GetChatDesktopEnabled(ctx context.Context) (bool, error) {
 	// The desktop-enabled flag is a deployment-wide setting read by any
 	// authenticated chat user and by chatd when deciding whether to expose
@@ -7410,6 +7418,17 @@ func (q *querier) UpdateChatHeartbeats(ctx context.Context, arg database.UpdateC
 	return q.db.UpdateChatHeartbeats(ctx, arg)
 }
 
+func (q *querier) UpdateChatHookAllowedTools(ctx context.Context, arg database.UpdateChatHookAllowedToolsParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.UpdateChatHookAllowedTools(ctx, arg)
+}
+
 func (q *querier) UpdateChatLabelsByID(ctx context.Context, arg database.UpdateChatLabelsByIDParams) (database.Chat, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ID)
 	if err != nil {
@@ -7463,6 +7482,21 @@ func (q *querier) UpdateChatMCPServerIDs(ctx context.Context, arg database.Updat
 		return database.Chat{}, err
 	}
 	return q.db.UpdateChatMCPServerIDs(ctx, arg)
+}
+
+func (q *querier) UpdateChatMessageContentByID(ctx context.Context, arg database.UpdateChatMessageContentByIDParams) error {
+	message, err := q.db.GetChatMessageByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+	chat, err := q.db.GetChatByID(ctx, message.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.UpdateChatMessageContentByID(ctx, arg)
 }
 
 func (q *querier) UpdateChatModelConfig(ctx context.Context, arg database.UpdateChatModelConfigParams) (database.ChatModelConfig, error) {

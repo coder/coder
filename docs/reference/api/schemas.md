@@ -2658,9 +2658,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                          |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `auth`, `config`, `content_filter`, `generic`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit` |
+| Value(s)                                                                                                                                                                                  |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `auth`, `config`, `content_filter`, `generic`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit` |
 
 ## codersdk.ChatFileMetadata
 
@@ -4501,6 +4501,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "ended": true,
   "message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
@@ -4582,6 +4583,89 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "total_tokens": 0
     }
   },
+  "messages": [
+    {
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "content": [
+        {
+          "args": [
+            0
+          ],
+          "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
+          "content": "string",
+          "context_file_agent_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "context_file_content": "string",
+          "context_file_directory": "string",
+          "context_file_os": "string",
+          "context_file_path": "string",
+          "context_file_skill_meta_file": "string",
+          "context_file_truncated": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "data": [
+            0
+          ],
+          "end_line": 0,
+          "file_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "file_name": "string",
+          "is_error": true,
+          "is_media": true,
+          "mcp_server_config_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "media_type": "string",
+          "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
+          "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
+          "result": [
+            0
+          ],
+          "result_delta": "string",
+          "result_reset": true,
+          "signature": "string",
+          "skill_description": "string",
+          "skill_dir": "string",
+          "skill_name": "string",
+          "source_id": "string",
+          "start_line": 0,
+          "text": "string",
+          "title": "string",
+          "tool_call_id": "string",
+          "tool_name": "string",
+          "type": "text",
+          "url": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+      "id": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "role": "system",
+      "usage": {
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 0,
+        "context_limit": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "total_tokens": 0
+      }
+    }
+  ],
   "queued": true,
   "queued_message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
@@ -4661,12 +4745,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name             | Type                                                     | Required | Restrictions | Description |
-|------------------|----------------------------------------------------------|----------|--------------|-------------|
-| `message`        | [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |             |
-| `queued`         | boolean                                                  | false    |              |             |
-| `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |             |
-| `warnings`       | array of string                                          | false    |              |             |
+| Name             | Type                                                     | Required | Restrictions | Description                                                                                                                                                                                                                          |
+|------------------|----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ended`          | boolean                                                  | false    |              |                                                                                                                                                                                                                                      |
+| `message`        | [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                                                                      |
+| `messages`       | array of [codersdk.ChatMessage](#codersdkchatmessage)    | false    |              | Messages contains all user-visible messages inserted by an immediate send, in insertion order with the user's message last. Clients should upsert the full batch because hooks may prepend notices. Empty for queued or ended sends. |
+| `queued`         | boolean                                                  | false    |              |                                                                                                                                                                                                                                      |
+| `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                                                                      |
+| `warnings`       | array of string                                          | false    |              |                                                                                                                                                                                                                                      |
 
 ## codersdk.CreateChatRequest
 
@@ -7114,6 +7200,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
+  "ended": true,
   "message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
@@ -7195,6 +7282,89 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "total_tokens": 0
     }
   },
+  "messages": [
+    {
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "content": [
+        {
+          "args": [
+            0
+          ],
+          "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
+          "content": "string",
+          "context_file_agent_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "context_file_content": "string",
+          "context_file_directory": "string",
+          "context_file_os": "string",
+          "context_file_path": "string",
+          "context_file_skill_meta_file": "string",
+          "context_file_truncated": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "data": [
+            0
+          ],
+          "end_line": 0,
+          "file_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "file_name": "string",
+          "is_error": true,
+          "is_media": true,
+          "mcp_server_config_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "media_type": "string",
+          "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
+          "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
+          "result": [
+            0
+          ],
+          "result_delta": "string",
+          "result_reset": true,
+          "signature": "string",
+          "skill_description": "string",
+          "skill_dir": "string",
+          "skill_name": "string",
+          "source_id": "string",
+          "start_line": 0,
+          "text": "string",
+          "title": "string",
+          "tool_call_id": "string",
+          "tool_name": "string",
+          "type": "text",
+          "url": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+      "id": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "role": "system",
+      "usage": {
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 0,
+        "context_limit": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "total_tokens": 0
+      }
+    }
+  ],
   "warnings": [
     "string"
   ]
@@ -7203,10 +7373,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name       | Type                                         | Required | Restrictions | Description |
-|------------|----------------------------------------------|----------|--------------|-------------|
-| `message`  | [codersdk.ChatMessage](#codersdkchatmessage) | false    |              |             |
-| `warnings` | array of string                              | false    |              |             |
+| Name       | Type                                                  | Required | Restrictions | Description                                                                                                                                                                                                                                 |
+|------------|-------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ended`    | boolean                                               | false    |              |                                                                                                                                                                                                                                             |
+| `message`  | [codersdk.ChatMessage](#codersdkchatmessage)          | false    |              |                                                                                                                                                                                                                                             |
+| `messages` | array of [codersdk.ChatMessage](#codersdkchatmessage) | false    |              | Messages holds every user-visible message the edit inserted, in insertion order with the replacement message last. Lifecycle hooks may prepend notices, so clients must upsert all of them rather than only Message. Empty for ended edits. |
+| `warnings` | array of string                                       | false    |              |                                                                                                                                                                                                                                             |
 
 ## codersdk.Entitlement
 

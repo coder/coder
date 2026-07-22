@@ -1406,18 +1406,47 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 			queryKey: chatMessagesKey(chatId),
 			exact: true,
 		});
+		// Hook denial may archive the chat even though the edit fails.
+		// Refresh lists in case the chat-watch delete event is missed.
+		void invalidateChatListQueries(queryClient);
+		void queryClient.invalidateQueries({
+			queryKey: chatsByWorkspaceKeyPrefix,
+		});
 	},
 	onSuccess: (
 		response: TypesGen.EditChatMessageResponse,
 		variables: EditChatMessageMutationArgs,
+		context: EditChatMessageMutationContext | undefined,
 	) => {
+		// A hook-ended edit has no committed message, so restore and refresh the transcript.
+		const responseMessage = response.message;
+		if (!responseMessage) {
+			if (context?.previousData) {
+				queryClient.setQueryData(chatMessagesKey(chatId), context.previousData);
+			}
+			void queryClient.invalidateQueries({
+				queryKey: chatMessagesKey(chatId),
+				exact: true,
+			});
+			// Refresh the chat detail and lists in case the WebSocket
+			// delete event was missed.
+			void queryClient.invalidateQueries({
+				queryKey: chatKey(chatId),
+				exact: true,
+			});
+			void invalidateChatListQueries(queryClient);
+			void queryClient.invalidateQueries({
+				queryKey: chatsByWorkspaceKeyPrefix,
+			});
+			return;
+		}
 		queryClient.setQueryData<
 			InfiniteData<TypesGen.ChatMessagesResponse> | undefined
 		>(chatMessagesKey(chatId), (current) =>
 			reconcileEditedMessageInCache({
 				currentData: current,
 				optimisticMessageId: variables.messageId,
-				responseMessage: response.message,
+				responseMessages: response.messages ?? [responseMessage],
 			}),
 		);
 	},

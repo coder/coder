@@ -2423,6 +2423,7 @@ export type ChatErrorKind =
 	| "config"
 	| "content_filter"
 	| "generic"
+	| "hook_dispatch_failed"
 	| "missing_key"
 	| "overloaded"
 	| "provider_disabled"
@@ -2436,6 +2437,7 @@ export const ChatErrorKinds: ChatErrorKind[] = [
 	"config",
 	"content_filter",
 	"generic",
+	"hook_dispatch_failed",
 	"missing_key",
 	"overloaded",
 	"provider_disabled",
@@ -3853,8 +3855,15 @@ export interface CreateChatMessageRequest {
  */
 export interface CreateChatMessageResponse {
 	readonly message?: ChatMessage;
+	/**
+	 * Messages contains all user-visible messages inserted by an immediate send,
+	 * in insertion order with the user's message last. Clients should upsert the
+	 * full batch because hooks may prepend notices. Empty for queued or ended sends.
+	 */
+	readonly messages?: readonly ChatMessage[];
 	readonly queued_message?: ChatQueuedMessage;
 	readonly queued: boolean;
+	readonly ended: boolean;
 	readonly warnings?: readonly string[];
 }
 
@@ -4927,11 +4936,17 @@ export interface EditChatMessageRequest {
 // From codersdk/chats.go
 /**
  * EditChatMessageResponse is the response from editing a message in a chat.
- * Edits are always synchronous (no queueing), so the message is returned
- * directly.
  */
 export interface EditChatMessageResponse {
-	readonly message: ChatMessage;
+	readonly message?: ChatMessage;
+	/**
+	 * Messages holds every user-visible message the edit inserted, in
+	 * insertion order with the replacement message last. Lifecycle
+	 * hooks may prepend notices, so clients must upsert all of them
+	 * rather than only Message. Empty for ended edits.
+	 */
+	readonly messages?: readonly ChatMessage[];
+	readonly ended: boolean;
 	readonly warnings?: readonly string[];
 }
 

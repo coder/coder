@@ -17340,7 +17340,8 @@ const docTemplate = `{
                 "usage_limit",
                 "missing_key",
                 "provider_disabled",
-                "content_filter"
+                "content_filter",
+                "hook_dispatch_failed"
             ],
             "x-enum-varnames": [
                 "ChatErrorKindGeneric",
@@ -17353,7 +17354,8 @@ const docTemplate = `{
                 "ChatErrorKindUsageLimit",
                 "ChatErrorKindMissingKey",
                 "ChatErrorKindProviderDisabled",
-                "ChatErrorKindContentFilter"
+                "ChatErrorKindContentFilter",
+                "ChatErrorKindHookDispatchFailed"
             ]
         },
         "codersdk.ChatFileMetadata": {
@@ -18462,8 +18464,18 @@ const docTemplate = `{
         "codersdk.CreateChatMessageResponse": {
             "type": "object",
             "properties": {
+                "ended": {
+                    "type": "boolean"
+                },
                 "message": {
                     "$ref": "#/definitions/codersdk.ChatMessage"
+                },
+                "messages": {
+                    "description": "Messages contains all user-visible messages inserted by an immediate send,\nin insertion order with the user's message last. Clients should upsert the\nfull batch because hooks may prepend notices. Empty for queued or ended sends.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatMessage"
+                    }
                 },
                 "queued": {
                     "type": "boolean"
@@ -19898,8 +19910,18 @@ const docTemplate = `{
         "codersdk.EditChatMessageResponse": {
             "type": "object",
             "properties": {
+                "ended": {
+                    "type": "boolean"
+                },
                 "message": {
                     "$ref": "#/definitions/codersdk.ChatMessage"
+                },
+                "messages": {
+                    "description": "Messages holds every user-visible message the edit inserted, in\ninsertion order with the replacement message last. Lifecycle\nhooks may prepend notices, so clients must upsert all of them\nrather than only Message. Empty for ended edits.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatMessage"
+                    }
                 },
                 "warnings": {
                     "type": "array",

@@ -631,18 +631,27 @@ type EditChatMessageRequest struct {
 
 // CreateChatMessageResponse is the response from adding a message to a chat.
 type CreateChatMessageResponse struct {
-	Message       *ChatMessage       `json:"message,omitempty"`
+	Message *ChatMessage `json:"message,omitempty"`
+	// Messages contains all user-visible messages inserted by an immediate send,
+	// in insertion order with the user's message last. Clients should upsert the
+	// full batch because hooks may prepend notices. Empty for queued or ended sends.
+	Messages      []ChatMessage      `json:"messages,omitempty"`
 	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
 	Queued        bool               `json:"queued"`
+	Ended         bool               `json:"ended"`
 	Warnings      []string           `json:"warnings,omitempty"`
 }
 
 // EditChatMessageResponse is the response from editing a message in a chat.
-// Edits are always synchronous (no queueing), so the message is returned
-// directly.
 type EditChatMessageResponse struct {
-	Message  ChatMessage `json:"message"`
-	Warnings []string    `json:"warnings,omitempty"`
+	Message *ChatMessage `json:"message,omitempty"`
+	// Messages holds every user-visible message the edit inserted, in
+	// insertion order with the replacement message last. Lifecycle
+	// hooks may prepend notices, so clients must upsert all of them
+	// rather than only Message. Empty for ended edits.
+	Messages []ChatMessage `json:"messages,omitempty"`
+	Ended    bool          `json:"ended"`
+	Warnings []string      `json:"warnings,omitempty"`
 }
 
 // UploadChatFileResponse is the response from uploading a chat file.
@@ -1718,6 +1727,7 @@ const (
 	ChatErrorKindMissingKey           ChatErrorKind = "missing_key"
 	ChatErrorKindProviderDisabled     ChatErrorKind = "provider_disabled"
 	ChatErrorKindContentFilter        ChatErrorKind = "content_filter"
+	ChatErrorKindHookDispatchFailed   ChatErrorKind = "hook_dispatch_failed"
 )
 
 // AllChatErrorKinds contains every ChatErrorKind value.
@@ -1734,6 +1744,7 @@ var AllChatErrorKinds = []ChatErrorKind{
 	ChatErrorKindMissingKey,
 	ChatErrorKindProviderDisabled,
 	ChatErrorKindContentFilter,
+	ChatErrorKindHookDispatchFailed,
 }
 
 // ChatError represents a terminal chat error in persisted chat state or the

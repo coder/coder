@@ -204,6 +204,8 @@ type sqlcQuerier interface {
 	// Deletes chats that have been archived for longer than the given
 	// threshold. Active (non-archived) chats are never deleted.
 	// All chat-scoped child tables are removed via ON DELETE CASCADE.
+	// Dispatches have no chat FK because they can precede chat creation.
+	// Delete them explicitly so their payloads respect chat retention.
 	// Parent/root references on child chats are SET NULL.
 	DeleteOldChats(ctx context.Context, arg DeleteOldChatsParams) (int64, error)
 	DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldConnectionLogsParams) (int64, error)
@@ -410,6 +412,7 @@ type sqlcQuerier interface {
 	// Callers must supply an explicit limit to avoid unbounded result sets.
 	GetChatDebugRunsByChatID(ctx context.Context, arg GetChatDebugRunsByChatIDParams) ([]ChatDebugRun, error)
 	GetChatDebugStepsByRunID(ctx context.Context, runID uuid.UUID) ([]ChatDebugStep, error)
+	GetChatDescendantIDsByChatID(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error)
 	GetChatDesktopEnabled(ctx context.Context) (bool, error)
 	GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (ChatDiffStatus, error)
 	// Returns aggregate PR counts across all agent chats for telemetry.
@@ -1406,6 +1409,7 @@ type sqlcQuerier interface {
 	// worker. Returns the IDs that were actually updated so the
 	// caller can detect stolen or completed chats via set-difference.
 	UpdateChatHeartbeats(ctx context.Context, arg UpdateChatHeartbeatsParams) ([]uuid.UUID, error)
+	UpdateChatHookAllowedTools(ctx context.Context, arg UpdateChatHookAllowedToolsParams) error
 	UpdateChatLabelsByID(ctx context.Context, arg UpdateChatLabelsByIDParams) (Chat, error)
 	UpdateChatLastModelConfigByID(ctx context.Context, arg UpdateChatLastModelConfigByIDParams) (Chat, error)
 	// Updates the last read message ID for a chat. This is used to track
@@ -1420,6 +1424,9 @@ type sqlcQuerier interface {
 	// Two summary workers using the same freshness marker are last-write-wins.
 	UpdateChatLastTurnSummary(ctx context.Context, arg UpdateChatLastTurnSummaryParams) (int64, error)
 	UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatMCPServerIDsParams) (Chat, error)
+	// Preserve NULL as the backfill marker; otherwise refresh search_tsv
+	// from the new content.
+	UpdateChatMessageContentByID(ctx context.Context, arg UpdateChatMessageContentByIDParams) error
 	UpdateChatModelConfig(ctx context.Context, arg UpdateChatModelConfigParams) (ChatModelConfig, error)
 	UpdateChatPinOrder(ctx context.Context, arg UpdateChatPinOrderParams) error
 	UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatPlanModeByIDParams) (Chat, error)

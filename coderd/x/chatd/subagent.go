@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agenthooks"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -608,6 +609,11 @@ func (p *Server) subagentTools(
 					options,
 				)
 				if err != nil {
+					// Surface the consumer reason so the model can adjust its prompt.
+					var denied *UserPromptDeniedError
+					if errors.As(err, &denied) && denied.UserMessage != "" {
+						return fantasy.NewTextErrorResponse(err.Error() + ": " + denied.UserMessage), nil
+					}
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
@@ -948,6 +954,13 @@ func (p *Server) loadSubagentSpawnParentChat(
 	if err := validateSubagentSpawnParent(parent); err != nil {
 		return database.Chat{}, err
 	}
+	if pendingPolicy, ok := pendingHookAllowedToolsFromContext(ctx, parent.ID); ok {
+		narrowed, err := chatstate.NarrowHookAllowedTools(parent.HookAllowedTools, pendingPolicy)
+		if err != nil {
+			return database.Chat{}, xerrors.Errorf("narrow pending parent hook allowed tools: %w", err)
+		}
+		parent.HookAllowedTools = narrowed
+	}
 
 	return parent, nil
 }
@@ -1040,7 +1053,8 @@ func (p *Server) createChildSubagentChatWithOptions(
 	}
 
 	title = strings.TrimSpace(title)
-	if title == "" {
+	titleDerivedFromPrompt := title == ""
+	if titleDerivedFromPrompt {
 		title = subagentFallbackChatTitle(prompt)
 	}
 
@@ -1086,6 +1100,40 @@ func (p *Server) createChildSubagentChatWithOptions(
 		return database.Chat{}, limitErr
 	}
 
+	// Review before persistence so spawned chats cannot bypass prompt policy.
+	childChatID := uuid.New()
+	var childTurnID *uuid.UUID
+	var hookResponse agenthooks.Response
+	if p.hookDispatcher != nil && p.hookDispatcher.Enabled() {
+		mintedTurnID := uuid.New()
+		childTurnID = &mintedTurnID
+		hookChat := database.Chat{}
+		hookChat.ID = childChatID
+		hookChat.OwnerID = parent.OwnerID
+		hookChat.WorkspaceID = parent.WorkspaceID
+		hookChat.ParentChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
+		hookChat.RootChatID = uuid.NullUUID{UUID: rootChatID, Valid: true}
+		hookResponse, err = p.dispatchUserPromptSubmit(ctx, hookChat, mintedTurnID, []codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)})
+		if err != nil {
+			return database.Chat{}, err
+		}
+		// With no child to archive, end_chat refuses the spawn.
+		if hookResponse.EndChat {
+			return database.Chat{}, &UserPromptDeniedError{UserMessage: hookResponse.UserMessage}
+		}
+		override, overridden, overrideErr := userPromptOverride(hookResponse)
+		if overrideErr != nil {
+			return database.Chat{}, overrideErr
+		}
+		if overridden {
+			prompt = override
+			// Avoid deriving titles from the prompt that policy replaced.
+			if titleDerivedFromPrompt {
+				title = subagentFallbackChatTitle(prompt)
+			}
+		}
+	}
+
 	workspaceAwareness := workspaceDetachedNoCreateAwareness
 	if parent.WorkspaceID.Valid {
 		workspaceAwareness = workspaceAttachedAwareness
@@ -1122,17 +1170,37 @@ func (p *Server) createChildSubagentChatWithOptions(
 	}
 	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, modelConfigID))
 
+	prefixMessages, err := hookPrefixMessages(hookResponse, modelConfigID, childTurnID)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	initialMessages = append(initialMessages, prefixMessages...)
+
 	// The child shares the parent's workspace and agent, so it inherits
 	// workspace context the same way a top-level chat does: pinned from the
 	// agent's latest snapshot (see hydrateChatContextOnCreate below). The
 	// parent's context is not copied into child history.
-	initialMessages = append(initialMessages, userMessage(userContent, modelConfigID, parent.OwnerID, opts.reasoningEffortOverride))
+	childUserMessage := userMessage(userContent, modelConfigID, parent.OwnerID, opts.reasoningEffortOverride)
+	if childTurnID != nil {
+		childUserMessage.TurnID = uuid.NullUUID{UUID: *childTurnID, Valid: true}
+	}
+	initialMessages = append(initialMessages, childUserMessage)
+
+	// Child policy may narrow the parent policy but cannot widen it.
+	responseTools, err := hookAllowedTools(hookResponse)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	childPolicy, err := chatstate.NarrowHookAllowedTools(parent.HookAllowedTools, responseTools)
+	if err != nil {
+		return database.Chat{}, err
+	}
 
 	publisher := p.pubsub
 	if publisher == nil {
 		publisher = dbpubsub.NewInMemory()
 	}
-	result, err := chatstate.CreateChat(ctx, p.db, publisher, chatstate.CreateChatInput{
+	result, err := chatstate.CreateChatWithID(ctx, p.db, publisher, childChatID, childPolicy, chatstate.CreateChatInput{
 		OrganizationID:    parent.OrganizationID,
 		OwnerID:           parent.OwnerID,
 		WorkspaceID:       parent.WorkspaceID,

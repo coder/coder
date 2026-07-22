@@ -1,0 +1,978 @@
+package chatd_test
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"slices"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/require"
+
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/coderd/x/chathooks"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agenthooks"
+	"github.com/coder/coder/v2/testutil"
+)
+
+func TestSendMessageUserPromptSubmitHook(t *testing.T) {
+	t.Parallel()
+
+	t.Run("override", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+		})
+
+		submitted := []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("before"),
+			codersdk.ChatMessageFileReference("main.go", 1, 3, "package main"),
+		}
+		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var request agenthooks.Request
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+			decoded, err := request.Decode()
+			require.NoError(t, err)
+			data, ok := decoded.(*agenthooks.UserPromptSubmitData)
+			require.True(t, ok)
+			require.Equal(t, "before", data.Prompt)
+			var hookParts []codersdk.ChatMessagePart
+			require.NoError(t, json.Unmarshal(data.Parts, &hookParts))
+			require.Equal(t, submitted, hookParts, "hook payload must carry non-text parts")
+			require.NotNil(t, request.Meta.TurnID)
+			_, err = w.Write([]byte(`{"permission":{"decision":"allow","input_override":{"prompt":"after"}},"model_context":"model only","user_message":"user only","allowed_tools":["read","write"]}`))
+			require.NoError(t, err)
+		}))
+		t.Cleanup(consumer.Close)
+
+		server := newHookTestServer(t, db, ps, consumer)
+		result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:    chat.ID,
+			CreatedBy: user.ID,
+			Content:   submitted,
+		})
+		require.NoError(t, err)
+		require.True(t, result.Message.TurnID.Valid)
+		parts, err := chatprompt.ParseContent(result.Message)
+		require.NoError(t, err)
+		require.Equal(t, []codersdk.ChatMessagePart{codersdk.ChatMessageText("after")}, parts)
+		// Prefix messages let clients seed their transcript cache.
+		require.Len(t, result.InsertedMessages, 3)
+		require.Equal(t, database.ChatMessageRoleUser, result.InsertedMessages[0].Role)
+		require.Equal(t, database.ChatMessageVisibilityModel, result.InsertedMessages[0].Visibility)
+		require.Equal(t, database.ChatMessageRoleSystem, result.InsertedMessages[1].Role)
+		require.Equal(t, database.ChatMessageVisibilityUser, result.InsertedMessages[1].Visibility)
+		require.Equal(t, result.Message.ID, result.InsertedMessages[2].ID)
+		updated, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.True(t, updated.HookAllowedTools.Valid)
+		require.JSONEq(t, `["read","write"]`, string(updated.HookAllowedTools.RawMessage))
+	})
+
+	t.Run("deny", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+		})
+
+		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, err := w.Write([]byte(`{"permission":{"decision":"deny"},"user_message":"blocked"}`))
+			require.NoError(t, err)
+		}))
+		t.Cleanup(consumer.Close)
+
+		server := newHookTestServer(t, db, ps, consumer)
+		_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:    chat.ID,
+			CreatedBy: user.ID,
+			Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("blocked prompt")},
+		})
+		var denied *chatd.UserPromptDeniedError
+		require.ErrorAs(t, err, &denied)
+		require.Equal(t, "blocked", denied.UserMessage)
+
+		messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+		require.NoError(t, err)
+		require.Empty(t, messages)
+	})
+}
+
+func TestUserPromptSubmitDenyEndChat(t *testing.T) {
+	t.Parallel()
+
+	consumerResponse := `{"permission":{"decision":"deny"},"user_message":"blocked","end_chat":true}`
+
+	t.Run("send", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+		})
+		server := newHookTestServer(t, db, ps, hookConsumer(t, consumerResponse))
+
+		_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:    chat.ID,
+			CreatedBy: user.ID,
+			Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("blocked prompt")},
+		})
+		var denied *chatd.UserPromptDeniedError
+		require.ErrorAs(t, err, &denied)
+		require.Equal(t, "blocked", denied.UserMessage)
+
+		updated, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.True(t, updated.Archived, "denied end_chat must archive the chat")
+		require.Equal(t, database.ChatStatusWaiting, updated.Status)
+		messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+		require.NoError(t, err)
+		require.Empty(t, messages, "denied prompt must not persist")
+	})
+
+	t.Run("edit", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+		})
+		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("original")})
+		require.NoError(t, err)
+		inserted, err := db.InsertChatMessages(ctx, chatd.BuildSingleChatMessageInsertParams(
+			chat.ID, database.ChatMessageRoleUser, content, database.ChatMessageVisibilityBoth, model.ID, chatprompt.CurrentContentVersion, user.ID,
+		))
+		require.NoError(t, err)
+		require.Len(t, inserted, 1)
+		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var request agenthooks.Request
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+			response := `{}`
+			if request.Type == agenthooks.EventUserPromptSubmit {
+				response = consumerResponse
+			}
+			_, err := w.Write([]byte(response))
+			require.NoError(t, err)
+		}))
+		t.Cleanup(consumer.Close)
+		server := newHookTestServer(t, db, ps, consumer)
+
+		_, err = server.EditMessage(ctx, chatd.EditMessageOptions{
+			ChatID:          chat.ID,
+			CreatedBy:       user.ID,
+			EditedMessageID: inserted[0].ID,
+			Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
+		})
+		var denied *chatd.UserPromptDeniedError
+		require.ErrorAs(t, err, &denied)
+
+		updated, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.True(t, updated.Archived, "denied end_chat must archive the chat")
+		lastUser, err := db.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
+			ChatID: chat.ID,
+			Role:   database.ChatMessageRoleUser,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "original", hookMessageText(t, lastUser),
+			"denied edit must keep the original message")
+	})
+}
+
+func TestHookAllowedToolsPolicyNotice(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		hookResponse string
+		wantTools    bool
+		wantNotice   string
+	}{
+		{
+			name:         "no policy",
+			hookResponse: `{}`,
+			wantTools:    true,
+		},
+		{
+			name:         "subset",
+			hookResponse: `{"allowed_tools":["read_file"]}`,
+			wantTools:    true,
+			wantNotice:   "restricted by an external policy",
+		},
+		{
+			name:         "all tools removed",
+			hookResponse: `{"allowed_tools":["no_such_tool"]}`,
+			wantNotice:   "removed all tool access",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, ps := dbtestutil.NewDB(t)
+			var (
+				requestMu    sync.Mutex
+				requestTools []string
+				requestMsgs  []chattest.OpenAIMessage
+			)
+			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				if !req.Stream {
+					return chattest.OpenAINonStreamingResponse("title")
+				}
+				requestMu.Lock()
+				requestTools = requestTools[:0]
+				for _, tool := range req.Tools {
+					requestTools = append(requestTools, tool.Function.Name)
+				}
+				requestMsgs = append([]chattest.OpenAIMessage(nil), req.Messages...)
+				requestMu.Unlock()
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("ok")...)
+			})
+			user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+
+			consumer := hookConsumer(t, tt.hookResponse)
+			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+				cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+			})
+			chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID:     org.ID,
+				OwnerID:            user.ID,
+				Title:              "allowed tools notice",
+				ModelConfigID:      model.ID,
+				InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+			})
+			require.NoError(t, err)
+			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+			requestMu.Lock()
+			defer requestMu.Unlock()
+			if tt.wantTools {
+				require.NotEmpty(t, requestTools)
+			} else {
+				require.Empty(t, requestTools)
+			}
+			var notice string
+			for _, msg := range requestMsgs {
+				if msg.Role == "system" && strings.Contains(msg.Content, "external policy") {
+					notice = msg.Content
+				}
+			}
+			if tt.wantNotice == "" {
+				require.Empty(t, notice, "chat without a tool policy must not receive the policy notice")
+			} else {
+				require.Contains(t, notice, tt.wantNotice)
+			}
+		})
+	}
+}
+
+func newHookDispatcher(t *testing.T, db database.Store, consumer *httptest.Server) *chathooks.Dispatcher {
+	t.Helper()
+	return chathooks.New(
+		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		db,
+		consumer.Client(),
+		consumer.URL,
+		"test-hook-secret-32-bytes-minimum!!",
+		time.Second,
+		"test-deployment",
+		"test-version",
+		prometheus.NewRegistry(),
+	)
+}
+
+func newHookTestServer(t *testing.T, db database.Store, ps dbpubsub.Pubsub, consumer *httptest.Server) *chatd.Server {
+	t.Helper()
+	return newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+	})
+}
+
+func TestHookDispatcherRequiresExperiment(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+
+	var hookRequests atomic.Int32
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hookRequests.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(consumer.Close)
+
+	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+		cfg.Experiments = slices.DeleteFunc(
+			slices.Clone(codersdk.ExperimentsKnown),
+			func(e codersdk.Experiment) bool { return e == codersdk.ExperimentAgentLifecycleHooks },
+		)
+	})
+	result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+	parts, err := chatprompt.ParseContent(result.Message)
+	require.NoError(t, err)
+	require.Equal(t, []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")}, parts)
+
+	require.Zero(t, hookRequests.Load())
+	rows, err := db.ListChatHookDispatchesByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Empty(t, rows)
+}
+
+func lifecycleDispatch(t *testing.T, db database.Store, chatID uuid.UUID, event agenthooks.EventType) database.ChatHookDispatch {
+	t.Helper()
+	rows, err := db.ListChatHookDispatchesByChatID(t.Context(), chatID)
+	require.NoError(t, err)
+	for _, row := range rows {
+		if row.Event == string(event) {
+			return row
+		}
+	}
+	require.FailNow(t, "lifecycle dispatch not found", "event: %s", event)
+	return database.ChatHookDispatch{}
+}
+
+func TestSendMessageUserPromptSubmitPassthrough(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	server := newHookTestServer(t, db, ps, hookConsumer(t, `{}`))
+	result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:  chat.ID,
+		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("passthrough")},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "passthrough", hookMessageText(t, result.Message))
+}
+
+func TestSendMessageUserPromptSubmitEndChat(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	consumer := hookConsumer(t, `{"end_chat":true}`)
+	server := newHookTestServer(t, db, ps, consumer)
+
+	result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:  chat.ID,
+		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("do not persist")},
+	})
+	require.NoError(t, err)
+	require.True(t, result.Ended)
+	require.True(t, result.Chat.Archived)
+	require.Equal(t, database.ChatStatusWaiting, result.Chat.Status)
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	require.Empty(t, messages)
+}
+
+func TestSendMessageUserPromptSubmitQueue(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat, err := newTestServer(t, db, ps, uuid.New()).CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "queued hook",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("running")},
+	})
+	require.NoError(t, err)
+	consumer := hookConsumer(t, `{"permission":{"decision":"allow","input_override":{"prompt":"queued override"}},"model_context":"queued context","allowed_tools":["read_file"]}`)
+	server := newHookTestServer(t, db, ps, consumer)
+
+	result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:       chat.ID,
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued original")},
+		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+	})
+	require.NoError(t, err)
+	require.True(t, result.Queued)
+	require.NotNil(t, result.QueuedMessage)
+	require.True(t, result.QueuedMessage.TurnID.Valid)
+	queuedParts, err := chatprompt.ParseContent(database.ChatMessage{
+		Role:           database.ChatMessageRoleUser,
+		Content:        pqtype.NullRawMessage{RawMessage: result.QueuedMessage.Content, Valid: true},
+		ContentVersion: chatprompt.CurrentContentVersion,
+	})
+	require.NoError(t, err)
+	require.Equal(t, []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued override")}, queuedParts)
+	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	for i := range messages {
+		require.NotEqual(t, messages[i].TurnID, result.QueuedMessage.TurnID,
+			"queued prompt's turn must have no history rows before promotion")
+	}
+	require.True(t, result.QueuedMessage.HookPrefix.Valid)
+	require.Contains(t, string(result.QueuedMessage.HookPrefix.RawMessage), "queued context")
+	require.True(t, result.QueuedMessage.HookAllowedTools.Valid)
+	require.JSONEq(t, `["read_file"]`, string(result.QueuedMessage.HookAllowedTools.RawMessage))
+	queuedChat, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.False(t, queuedChat.HookAllowedTools.Valid,
+		"queued prompt's tool policy must not apply before promotion")
+}
+
+func TestSendMessageUserPromptSubmitQueuedRejections(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		statusCode int
+		response   string
+		assertErr  func(*testing.T, error)
+	}{
+		{
+			name:       "deny",
+			statusCode: http.StatusOK,
+			response:   `{"permission":{"decision":"deny"},"user_message":"blocked"}`,
+			assertErr: func(t *testing.T, err error) {
+				var denied *chatd.UserPromptDeniedError
+				require.ErrorAs(t, err, &denied)
+			},
+		},
+		{
+			name:       "dispatch failure",
+			statusCode: http.StatusInternalServerError,
+			assertErr: func(t *testing.T, err error) {
+				var dispatchErr *chathooks.DispatchError
+				require.ErrorAs(t, err, &dispatchErr)
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			db, ps := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			user, org, model := seedChatDependencies(t, db)
+			chat, err := newTestServer(t, db, ps, uuid.New()).CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID:     org.ID,
+				OwnerID:            user.ID,
+				Title:              "queued rejection",
+				ModelConfigID:      model.ID,
+				InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("running")},
+			})
+			require.NoError(t, err)
+			consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(test.statusCode)
+				if test.response != "" {
+					_, err := w.Write([]byte(test.response))
+					require.NoError(t, err)
+				}
+			}))
+			t.Cleanup(consumer.Close)
+			server := newHookTestServer(t, db, ps, consumer)
+			_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+				ChatID:       chat.ID,
+				Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")},
+				BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+			})
+			test.assertErr(t, err)
+			queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
+			require.NoError(t, err)
+			require.Empty(t, queued)
+			updated, err := db.GetChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+			require.Equal(t, database.ChatStatusRunning, updated.Status)
+			require.False(t, updated.LastError.Valid)
+		})
+	}
+}
+
+func TestSendMessageUserPromptSubmitDispatchFailure(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(consumer.Close)
+	server := newHookTestServer(t, db, ps, consumer)
+
+	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:  chat.ID,
+		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("fails")},
+	})
+	var dispatchErr *chathooks.DispatchError
+	require.ErrorAs(t, err, &dispatchErr)
+	require.Equal(t, chathooks.ResultHTTPError, dispatchErr.Class)
+	updated, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusError, updated.Status)
+	var chatErr codersdk.ChatError
+	require.NoError(t, json.Unmarshal(updated.LastError.RawMessage, &chatErr))
+	require.Equal(t, "hook dispatch failed: user_prompt_submit: http_error (dispatch "+dispatchErr.DispatchID.String()+")", chatErr.Message)
+}
+
+func TestEditMessageUserPromptSubmitHook(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("original")})
+	require.NoError(t, err)
+	inserted, err := db.InsertChatMessages(ctx, chatd.BuildSingleChatMessageInsertParams(
+		chat.ID, database.ChatMessageRoleUser, content, database.ChatMessageVisibilityBoth, model.ID, chatprompt.CurrentContentVersion, user.ID,
+	))
+	require.NoError(t, err)
+	require.Len(t, inserted, 1)
+	type receivedHook struct {
+		request agenthooks.Request
+		claims  agenthooks.Claims
+	}
+	received := make([]receivedHook, 0, 2)
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request agenthooks.Request
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		claims, err := agenthooks.Verify(r.Header.Get("Authorization"), []byte("test-hook-secret-32-bytes-minimum!!"))
+		require.NoError(t, err)
+		received = append(received, receivedHook{request: request, claims: claims})
+		response := `{"model_context":"clear context","user_message":"clear notice","allowed_tools":["read_file"]}`
+		if request.Type == agenthooks.EventUserPromptSubmit {
+			response = `{"permission":{"decision":"allow","input_override":{"prompt":"edited override"}}}`
+		}
+		_, err = w.Write([]byte(response))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+	server := newHookTestServer(t, db, ps, consumer)
+
+	result, err := server.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: inserted[0].ID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited original")},
+	})
+	require.NoError(t, err)
+	require.True(t, result.Message.TurnID.Valid)
+	require.NotEqual(t, inserted[0].TurnID, result.Message.TurnID)
+	require.Equal(t, "edited override", hookMessageText(t, result.Message))
+	require.Len(t, received, 2)
+	require.Equal(t, agenthooks.EventSessionStart, received[0].request.Type)
+	data, err := received[0].request.Decode()
+	require.NoError(t, err)
+	require.Equal(t, &agenthooks.SessionStartData{Source: "clear"}, data)
+	require.Equal(t, received[0].request.Meta.DispatchID, received[0].claims.JTI)
+	require.Equal(t, agenthooks.EventUserPromptSubmit, received[1].request.Type)
+	require.Equal(t, received[1].request.Meta.DispatchID, received[1].claims.JTI)
+	require.NotEqual(t, received[0].claims.JTI, received[1].claims.JTI)
+	rows, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	var foundNotice bool
+	for _, row := range rows {
+		if row.Role == database.ChatMessageRoleSystem && row.Visibility == database.ChatMessageVisibilityUser && hookMessageText(t, row) == "clear notice" {
+			foundNotice = true
+		}
+	}
+	require.True(t, foundNotice)
+	promptRows, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	var foundContext bool
+	for _, row := range promptRows {
+		if row.Visibility == database.ChatMessageVisibilityModel && hookMessageText(t, row) == "clear context" {
+			foundContext = true
+		}
+	}
+	require.True(t, foundContext)
+	updated, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.JSONEq(t, `["read_file"]`, string(updated.HookAllowedTools.RawMessage))
+}
+
+func TestEditMessageSessionStartEndChatSkipsPromptDispatch(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("original")})
+	require.NoError(t, err)
+	inserted, err := db.InsertChatMessages(ctx, chatd.BuildSingleChatMessageInsertParams(
+		chat.ID, database.ChatMessageRoleUser, content, database.ChatMessageVisibilityBoth, model.ID, chatprompt.CurrentContentVersion, user.ID,
+	))
+	require.NoError(t, err)
+	require.Len(t, inserted, 1)
+	var promptDispatches atomic.Int32
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request agenthooks.Request
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		if request.Type == agenthooks.EventUserPromptSubmit {
+			promptDispatches.Add(1)
+			_, err := w.Write([]byte(`{}`))
+			require.NoError(t, err)
+			return
+		}
+		_, err := w.Write([]byte(`{"end_chat":true,"user_message":"ended by session policy","model_context":"session context note"}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+	server := newHookTestServer(t, db, ps, consumer)
+
+	result, err := server.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: inserted[0].ID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited original")},
+	})
+	require.NoError(t, err)
+	require.True(t, result.Ended, "session end_chat must return an ended edit result")
+	require.True(t, result.Chat.Archived)
+	require.Zero(t, promptDispatches.Load(), "edited prompt must not be dispatched after session end_chat")
+
+	updated, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.True(t, updated.Archived, "accepted session end_chat must archive the chat")
+	require.Equal(t, database.ChatStatusWaiting, updated.Status)
+	require.False(t, updated.LastError.Valid)
+	original, err := db.GetChatMessageByID(ctx, inserted[0].ID)
+	require.NoError(t, err)
+	require.Equal(t, "original", hookMessageText(t, original))
+	require.False(t, original.Deleted)
+
+	assertSessionEndMessagesPersisted(ctx, t, db, chat.ID)
+}
+
+func TestEditMessagePromptDenialEndChatPersistsSessionMessages(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("original")})
+	require.NoError(t, err)
+	inserted, err := db.InsertChatMessages(ctx, chatd.BuildSingleChatMessageInsertParams(
+		chat.ID, database.ChatMessageRoleUser, content, database.ChatMessageVisibilityBoth, model.ID, chatprompt.CurrentContentVersion, user.ID,
+	))
+	require.NoError(t, err)
+	require.Len(t, inserted, 1)
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request agenthooks.Request
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		if request.Type == agenthooks.EventUserPromptSubmit {
+			_, err := w.Write([]byte(`{"permission":{"decision":"deny"},"end_chat":true}`))
+			require.NoError(t, err)
+			return
+		}
+		_, err := w.Write([]byte(`{"user_message":"ended by session policy","model_context":"session context note"}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+	server := newHookTestServer(t, db, ps, consumer)
+
+	_, err = server.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: inserted[0].ID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited original")},
+	})
+	var denied *chatd.UserPromptDeniedError
+	require.ErrorAs(t, err, &denied)
+
+	updated, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.True(t, updated.Archived, "accepted denial end_chat must archive the chat")
+	require.Equal(t, database.ChatStatusWaiting, updated.Status)
+	require.False(t, updated.LastError.Valid)
+	original, err := db.GetChatMessageByID(ctx, inserted[0].ID)
+	require.NoError(t, err)
+	require.Equal(t, "original", hookMessageText(t, original))
+	require.False(t, original.Deleted)
+
+	assertSessionEndMessagesPersisted(ctx, t, db, chat.ID)
+}
+
+func assertSessionEndMessagesPersisted(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID) {
+	t.Helper()
+	rows, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chatID})
+	require.NoError(t, err)
+	noticePersisted := false
+	for _, row := range rows {
+		if row.Role == database.ChatMessageRoleSystem && row.Visibility == database.ChatMessageVisibilityUser && hookMessageText(t, row) == "ended by session policy" {
+			noticePersisted = true
+		}
+	}
+	require.True(t, noticePersisted, "accepted session user_message must persist with the archive")
+	promptRows, err := db.GetChatMessagesForPromptByChatID(ctx, chatID)
+	require.NoError(t, err)
+	contextPersisted := false
+	for _, row := range promptRows {
+		if row.Visibility == database.ChatMessageVisibilityModel && hookMessageText(t, row) == "session context note" {
+			contextPersisted = true
+		}
+	}
+	require.True(t, contextPersisted, "accepted session model_context must persist with the archive")
+}
+
+func TestEditMessageInvalidTargetSkipsHooks(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	var dispatched atomic.Int32
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		dispatched.Add(1)
+		_, err := w.Write([]byte(`{}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+	server := newHookTestServer(t, db, ps, consumer)
+
+	_, err := server.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: 999999,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edit of nothing")},
+	})
+	require.ErrorIs(t, err, chatd.ErrEditedMessageNotFound)
+
+	// dbgen.Chat ignores seed.Archived; archive explicitly.
+	archived := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	_, err = db.ArchiveChatByID(ctx, archived.ID)
+	require.NoError(t, err)
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:  archived.ID,
+		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("send to archived")},
+	})
+	require.ErrorIs(t, err, chatd.ErrChatArchived)
+	_, err = server.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          archived.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: 1,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edit archived")},
+	})
+	require.ErrorIs(t, err, chatd.ErrChatArchived)
+
+	require.Zero(t, dispatched.Load(), "invalid targets must not dispatch hooks")
+	for _, chatID := range []uuid.UUID{chat.ID, archived.ID} {
+		dispatches, err := db.ListChatHookDispatchesByChatID(ctx, chatID)
+		require.NoError(t, err)
+		require.Empty(t, dispatches)
+	}
+}
+
+func TestPromptHooksAdmissionPreflight(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	var dispatched atomic.Int32
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		dispatched.Add(1)
+		_, err := w.Write([]byte(`{}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+	server := newHookTestServer(t, db, ps, consumer)
+
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("bad model")},
+		ModelConfigID: uuid.New(),
+	})
+	require.ErrorIs(t, err, chatd.ErrInvalidModelConfigID)
+
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("original")})
+	require.NoError(t, err)
+	inserted, err := db.InsertChatMessages(ctx, chatd.BuildSingleChatMessageInsertParams(
+		chat.ID, database.ChatMessageRoleUser, content, database.ChatMessageVisibilityBoth, model.ID, chatprompt.CurrentContentVersion, user.ID,
+	))
+	require.NoError(t, err)
+	require.Len(t, inserted, 1)
+	_, err = server.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: inserted[0].ID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("bad model edit")},
+		ModelConfigID:   uuid.New(),
+	})
+	require.ErrorIs(t, err, chatd.ErrInvalidModelConfigID)
+
+	busy := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Status:            database.ChatStatusRunning,
+	})
+	queuedContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")})
+	require.NoError(t, err)
+	for range chatstate.MaxQueueSize {
+		_, err = db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+			ChatID:        busy.ID,
+			Content:       queuedContent.RawMessage,
+			ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+			CreatedBy:     user.ID,
+		})
+		require.NoError(t, err)
+	}
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:  busy.ID,
+		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("queue full")},
+	})
+	require.ErrorIs(t, err, chatstate.ErrMessageQueueFull)
+
+	// Usage limits are deployment-wide, so these cases run last.
+	_, err = db.UpsertChatUsageLimitConfig(ctx, database.UpsertChatUsageLimitConfigParams{
+		Enabled:            true,
+		DefaultLimitMicros: 100,
+		Period:             string(codersdk.ChatUsageLimitPeriodDay),
+	})
+	require.NoError(t, err)
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("assistant")})
+	require.NoError(t, err)
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:          chat.ID,
+		ModelConfigID:   uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:            database.ChatMessageRoleAssistant,
+		ContentVersion:  chatprompt.CurrentContentVersion,
+		Content:         assistantContent,
+		TotalCostMicros: sql.NullInt64{Int64: 100, Valid: true},
+	})
+	var limitErr *chatd.UsageLimitExceededError
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:  chat.ID,
+		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("over limit")},
+	})
+	require.ErrorAs(t, err, &limitErr)
+	_, err = server.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: inserted[0].ID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("over limit edit")},
+	})
+	require.ErrorAs(t, err, &limitErr)
+
+	require.Zero(t, dispatched.Load(), "admission-rejected prompts must not dispatch hooks")
+	for _, chatID := range []uuid.UUID{chat.ID, busy.ID} {
+		dispatches, err := db.ListChatHookDispatchesByChatID(ctx, chatID)
+		require.NoError(t, err)
+		require.Empty(t, dispatches)
+	}
+}
+
+func TestSendMessageHooksDisabled(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	server := newTestServer(t, db, ps, uuid.New())
+	result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:  chat.ID,
+		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("unchanged")},
+	})
+	require.NoError(t, err)
+	require.True(t, result.Message.TurnID.Valid)
+	require.Equal(t, "unchanged", hookMessageText(t, result.Message))
+}
+
+func hookConsumer(t *testing.T, response string) *httptest.Server {
+	t.Helper()
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte(response))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+	return consumer
+}
+
+func hookMessageText(t *testing.T, message database.ChatMessage) string {
+	t.Helper()
+	parts, err := chatprompt.ParseContent(message)
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	return parts[0].Text
+}

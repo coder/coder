@@ -54,6 +54,13 @@ DELETE FROM chat_hook_dispatches
 USING deletable
 WHERE chat_hook_dispatches.id = deletable.id;
 
+-- name: UpdateChatHookAllowedTools :exec
+UPDATE chats
+SET
+	hook_allowed_tools = sqlc.narg('hook_allowed_tools')::jsonb,
+	updated_at = NOW()
+WHERE id = @id::uuid;
+
 -- name: ListChatHookDispatchesByChatID :many
 SELECT
 	*

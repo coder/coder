@@ -9,6 +9,7 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -24,6 +25,56 @@ import (
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+func filterHookAllowedTools(
+	hookAllowedTools pqtype.NullRawMessage,
+	tools []fantasy.AgentTool,
+	providerTools []chatloop.ProviderTool,
+) ([]fantasy.AgentTool, []chatloop.ProviderTool, map[string]struct{}, error) {
+	if !hookAllowedTools.Valid {
+		return tools, providerTools, nil, nil
+	}
+	var names []string
+	if err := json.Unmarshal(hookAllowedTools.RawMessage, &names); err != nil {
+		return nil, nil, nil, xerrors.Errorf("decode hook allowed tools: %w", err)
+	}
+	allowed := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		allowed[name] = struct{}{}
+	}
+	tools = slices.DeleteFunc(tools, func(tool fantasy.AgentTool) bool {
+		_, ok := allowed[tool.Info().Name]
+		return !ok
+	})
+	providerTools = slices.DeleteFunc(providerTools, func(tool chatloop.ProviderTool) bool {
+		_, ok := allowed[tool.Definition.GetName()]
+		return !ok
+	})
+	return tools, providerTools, allowed, nil
+}
+
+func filterToolNameMap(names map[string]bool, allowed map[string]struct{}) {
+	for name := range names {
+		if _, ok := allowed[name]; !ok {
+			delete(names, name)
+		}
+	}
+}
+
+// hookAllowedToolsNotice prevents the model from fabricating tools removed
+// from the request schema by hook policy.
+func hookAllowedToolsNotice(toolCount int) string {
+	if toolCount == 0 {
+		return "An external policy has removed all tool access for this chat. " +
+			"Respond in plain text only. Do not write tool-call syntax in your " +
+			"reply and do not claim any tool action completed."
+	}
+	return "Tool access for this chat is restricted by an external policy. " +
+		"Use only the tools available in this request. If a tool you need is " +
+		"unavailable, tell the user that policy prevents the action. Do not " +
+		"write tool-call syntax in your reply for unavailable tools and do " +
+		"not claim an unexecuted tool action completed."
+}
 
 func (server *Server) prepareGeneration(
 	ctx context.Context,
@@ -532,6 +583,19 @@ func (server *Server) prepareGeneration(
 			cleanup()
 			return generationPrepared{}, err
 		}
+	}
+
+	tools, providerTools, hookAllowedNames, err := filterHookAllowedTools(chat.HookAllowedTools, tools, providerTools)
+	if err != nil {
+		cleanup()
+		return generationPrepared{}, err
+	}
+	if chat.HookAllowedTools.Valid {
+		filterToolNameMap(builtinToolNames, hookAllowedNames)
+		filterToolNameMap(exclusiveToolNames, hookAllowedNames)
+		// Excluded dynamic tools must resolve as inactive instead of requiring action.
+		filterToolNameMap(dynamicToolNames, hookAllowedNames)
+		prompt = chatprompt.InsertSystem(prompt, hookAllowedToolsNotice(len(tools)+len(providerTools)))
 	}
 
 	var requestedEffort *string

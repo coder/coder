@@ -853,6 +853,13 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatFamilyIDsByRootID(gomock.Any(), chat.ID).Return(ids, nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(ids)
 	}))
+	s.Run("GetChatDescendantIDsByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		ids := []uuid.UUID{uuid.New()}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().GetChatDescendantIDsByChatID(gomock.Any(), chat.ID).Return(ids, nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(ids)
+	}))
 	s.Run("GetChatsByWorkspaceIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chatA := testutil.Fake(s.T(), faker, database.Chat{})
 		chatB := testutil.Fake(s.T(), faker, database.Chat{})
@@ -1299,6 +1306,13 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().FinalizeChatHookDispatch(gomock.Any(), arg).Return(dispatch, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(dispatch)
 	}))
+	s.Run("UpdateChatHookAllowedTools", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := testutil.Fake(s.T(), faker, database.UpdateChatHookAllowedToolsParams{ID: chat.ID})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatHookAllowedTools(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns()
+	}))
 	s.Run("MarkChatHookDispatchEffectsApplied", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := testutil.Fake(s.T(), faker, database.MarkChatHookDispatchEffectsAppliedParams{ChatID: chat.ID})
@@ -1320,6 +1334,16 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().GetChatHookDispatchDecision(gomock.Any(), arg).Return(dispatch, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(dispatch)
+	}))
+
+	s.Run("UpdateChatMessageContentByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		message := testutil.Fake(s.T(), faker, database.ChatMessage{ChatID: chat.ID})
+		arg := testutil.Fake(s.T(), faker, database.UpdateChatMessageContentByIDParams{ID: message.ID})
+		dbm.EXPECT().GetChatMessageByID(gomock.Any(), message.ID).Return(message, nil).AnyTimes()
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatMessageContentByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns()
 	}))
 
 	s.Run("InsertChatQueuedMessage", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

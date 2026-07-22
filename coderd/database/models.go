@@ -4987,6 +4987,7 @@ type Chat struct {
 	ContextDirtyResources    pqtype.NullRawMessage   `db:"context_dirty_resources" json:"context_dirty_resources"`
 	ContextError             string                  `db:"context_error" json:"context_error"`
 	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
+	HookAllowedTools         pqtype.NullRawMessage   `db:"hook_allowed_tools" json:"hook_allowed_tools"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
@@ -5150,7 +5151,8 @@ type ChatMessage struct {
 	// Stores the selected effort for the turn triggered by this message.
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 	// Used for full text search. NULL initially, populated async via background job.
-	SearchTsv interface{} `db:"search_tsv" json:"search_tsv"`
+	SearchTsv interface{}   `db:"search_tsv" json:"search_tsv"`
+	TurnID    uuid.NullUUID `db:"turn_id" json:"turn_id"`
 }
 
 type ChatModelConfig struct {
@@ -5181,6 +5183,10 @@ type ChatQueuedMessage struct {
 	CreatedBy     uuid.UUID       `db:"created_by" json:"created_by"`
 	// Stores the selected effort until the queued row is promoted.
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
+	TurnID          uuid.NullUUID           `db:"turn_id" json:"turn_id"`
+	HookPrefix      pqtype.NullRawMessage   `db:"hook_prefix" json:"hook_prefix"`
+	// Queued prompt hook policy; NULL means no policy.
+	HookAllowedTools pqtype.NullRawMessage `db:"hook_allowed_tools" json:"hook_allowed_tools"`
 }
 
 type ChatTable struct {
@@ -5236,6 +5242,8 @@ type ChatTable struct {
 	LastReasoningEffort NullChatReasoningEffort `db:"last_reasoning_effort" json:"last_reasoning_effort"`
 	// Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.
 	CompactionRequestedAt sql.NullTime `db:"compaction_requested_at" json:"compaction_requested_at"`
+	// Hook-enforced tool names; NULL means unrestricted. Later policies only narrow.
+	HookAllowedTools pqtype.NullRawMessage `db:"hook_allowed_tools" json:"hook_allowed_tools"`
 }
 
 type ChatUsageLimitConfig struct {

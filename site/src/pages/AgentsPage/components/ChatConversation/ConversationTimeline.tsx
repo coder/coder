@@ -14,6 +14,7 @@ import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ThinkingDisplayMode } from "#/api/typesGenerated";
 
+import { Alert, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import {
@@ -591,6 +592,25 @@ const ChatMessageItem = memo<{
 		if (displayState.shouldHide) {
 			return null;
 		}
+		if (message.role === "system") {
+			return (
+				<div
+					className={cn(
+						isAfterEditingMessage && "opacity-40 pointer-events-none",
+						"transition-opacity duration-200",
+					)}
+					// Keep links in dimmed notices out of accessibility navigation.
+					inert={isAfterEditingMessage ? true : undefined}
+				>
+					<Alert className="my-1">
+						<div className="flex flex-col gap-1">
+							<AlertTitle>Lifecycle hook</AlertTitle>
+							<Response urlTransform={urlTransform}>{parsed.markdown}</Response>
+						</div>
+					</Alert>
+				</div>
+			);
+		}
 
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
@@ -1091,6 +1111,10 @@ function computeLastInChainFlags(
 	let nextVisibleIsUser = true;
 	for (let i = displayMessages.length - 1; i >= 0; i--) {
 		const entry = displayMessages[i];
+		if (entry.message.role === "system") {
+			nextVisibleIsUser = true;
+			continue;
+		}
 		if (entry.message.role !== "user") {
 			flags[i] = nextVisibleIsUser;
 		}

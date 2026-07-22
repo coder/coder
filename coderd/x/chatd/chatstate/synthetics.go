@@ -31,6 +31,8 @@ import (
 // The synthetic results use the supplied chat's last_model_config_id.
 // Returns (nil, nil) when there is nothing to synthesize.
 //
+// pendingInserts count as handled to avoid canceling calls resolved in the same transaction.
+//
 //nolint:revive // dynamicOnly is a domain flag, not a control flag.
 func synthesizePendingToolCancellations(
 	ctx context.Context,
@@ -38,6 +40,7 @@ func synthesizePendingToolCancellations(
 	chat database.Chat,
 	reason string,
 	dynamicOnly bool,
+	pendingInserts ...Message,
 ) ([]Message, error) {
 	var dynamicToolNames map[string]bool
 	if dynamicOnly {
@@ -99,6 +102,24 @@ func synthesizePendingToolCancellations(
 			}
 		}
 	}
+	for _, msg := range pendingInserts {
+		if msg.Role != database.ChatMessageRoleTool {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(database.ChatMessage{
+			Role:           msg.Role,
+			ContentVersion: msg.ContentVersion,
+			Content:        msg.Content,
+		})
+		if err != nil {
+			continue
+		}
+		for _, p := range parts {
+			if p.Type == codersdk.ChatMessagePartTypeToolResult {
+				handled[p.ToolCallID] = true
+			}
+		}
+	}
 	out := make([]Message, 0)
 	for _, part := range assistantParts {
 		if part.Type != codersdk.ChatMessagePartTypeToolCall {
@@ -114,6 +135,62 @@ func synthesizePendingToolCancellations(
 		if dynamicOnly && !dynamicToolNames[part.ToolName] {
 			continue
 		}
+		if handled[part.ToolCallID] {
+			continue
+		}
+		resultPart := codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolResult,
+			ToolCallID: part.ToolCallID,
+			ToolName:   part.ToolName,
+			Result:     json.RawMessage(fmt.Sprintf("%q", reason)),
+			IsError:    true,
+		}
+		raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{resultPart})
+		if err != nil {
+			return nil, xerrors.Errorf("marshal synthetic tool result: %w", err)
+		}
+		out = append(out, Message{
+			Role:           database.ChatMessageRoleTool,
+			Content:        raw,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			ContentVersion: chatprompt.CurrentContentVersion,
+			ModelConfigID:  uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: true},
+		})
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
+}
+
+// synthesizeBatchToolCancellations returns cancellations that must be
+// inserted after the batch so every result follows its call.
+func synthesizeBatchToolCancellations(chat database.Chat, reason string, batch []Message) ([]Message, error) {
+	handled := make(map[string]bool)
+	var calls []codersdk.ChatMessagePart
+	for _, msg := range batch {
+		parts, err := chatprompt.ParseContent(database.ChatMessage{
+			Role:           msg.Role,
+			ContentVersion: msg.ContentVersion,
+			Content:        msg.Content,
+		})
+		if err != nil {
+			continue
+		}
+		for _, part := range parts {
+			switch part.Type {
+			case codersdk.ChatMessagePartTypeToolCall:
+				if msg.Role == database.ChatMessageRoleAssistant && !part.ProviderExecuted {
+					calls = append(calls, part)
+				}
+			case codersdk.ChatMessagePartTypeToolResult:
+				handled[part.ToolCallID] = true
+			default:
+			}
+		}
+	}
+	out := make([]Message, 0)
+	for _, part := range calls {
 		if handled[part.ToolCallID] {
 			continue
 		}

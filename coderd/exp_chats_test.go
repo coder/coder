@@ -75,6 +75,7 @@ func newChatTestOptions(
 		values.Experiments = serpent.StringArray{
 			string(codersdk.ExperimentChatAdvisor),
 			string(codersdk.ExperimentChatVirtualDesktop),
+			string(codersdk.ExperimentAgentLifecycleHooks),
 		}
 	}
 

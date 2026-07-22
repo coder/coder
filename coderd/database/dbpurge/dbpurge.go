@@ -349,7 +349,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		// Backfill search_tsv tsvector on chat_messages in batches. Doing this here because it's
 		// potentially too much for a regular migration, especially on larger deployments:
 		// - Each row with search_tsv = NULL is present in idx_chat_messages_search_tsv_pending.
-		// - Content of chat_messages is not changed after insert.
+		// - Indexed rows refresh search_tsv during content rewrites.
 		// - Rows that are soft-deleted are no longer part of the index.
 		// NOTE: This should not remain in dbpurge and should be adjusted when the "DBOps" gets
 		//   implemented.

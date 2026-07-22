@@ -1210,6 +1210,7 @@ export const WithMessageHistory: Story = {
 				id: 5,
 				created_at: "2026-02-18T00:03:00.000Z",
 			},
+			ended: false,
 		});
 	},
 	play: async ({ canvasElement }) => {
@@ -2744,6 +2745,7 @@ export const SlashCompactQueuedEditSaves: Story = {
 			"createChatMessage",
 		).mockResolvedValue({
 			queued: true,
+			ended: false,
 			queued_message: {
 				...MockChatQueuedMessage,
 				id: 4,
@@ -2816,6 +2818,7 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 			"createChatMessage",
 		).mockResolvedValue({
 			queued: false,
+			ended: false,
 			message: {
 				id: 3,
 				chat_id: CHAT_ID,
