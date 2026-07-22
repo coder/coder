@@ -84,8 +84,7 @@ type ProviderEntry = {
 	provider: string;
 };
 
-// Returns provider states ordered alphabetically by display label. Callers
-// rely on this order for dropdowns and for picking a default provider.
+// Returns provider states ordered alphabetically by display label.
 export const deriveProviderStates = (
 	modelConfigs: readonly TypesGen.ChatModelConfig[],
 	providerConfigs: TypesGen.ChatProviderConfig[] | null | undefined,

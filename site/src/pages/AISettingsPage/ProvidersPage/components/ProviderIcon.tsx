@@ -30,11 +30,6 @@ export const getProviderIcon = (provider: string): string | undefined => {
 	}
 };
 
-/**
- * Renders a decorative provider logo with no accessible name. Callers MUST
- * render the provider name as adjacent visible text; the icon alone does not
- * convey it to assistive technology.
- */
 export const ProviderIcon: React.FC<ProviderIconProps> = ({
 	provider,
 	icon,
@@ -42,7 +37,6 @@ export const ProviderIcon: React.FC<ProviderIconProps> = ({
 }) => {
 	const iconSrc = icon || getProviderIcon(provider);
 	if (iconSrc === undefined) {
-		// Lucide icons are aria-hidden by default when given no a11y prop.
 		return <Building2Icon className={`${className} flex-shrink-0`} />;
 	}
 	return <ExternalImage src={iconSrc} alt="" className={className} />;
