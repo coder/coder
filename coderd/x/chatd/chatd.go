@@ -1572,7 +1572,7 @@ func (p *Server) SendMessage(
 			return err
 		}
 		if hookResponse.EndChat {
-			endResult, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages})
+			endResult, err := tx.EndChatFamily(chatstate.EndChatInput{PrefixMessages: prefixMessages})
 			if err != nil {
 				return err
 			}
@@ -1968,7 +1968,7 @@ func (p *Server) EditMessage(
 			return err
 		}
 		if hookEndChat {
-			endResult, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages})
+			endResult, err := tx.EndChatFamily(chatstate.EndChatInput{PrefixMessages: prefixMessages})
 			if err != nil {
 				return err
 			}
@@ -2443,7 +2443,7 @@ func (p *Server) SubmitToolResults(
 			return xerrors.Errorf("complete requires action: %w", err)
 		}
 		if hookEndChat {
-			endResult, err := tx.EndChat(chatstate.EndChatInput{})
+			endResult, err := tx.EndChatFamily(chatstate.EndChatInput{})
 			if err != nil {
 				return xerrors.Errorf("end chat from post_tool_use: %w", err)
 			}

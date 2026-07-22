@@ -245,7 +245,7 @@ func TestEndChatArchivesChildren(t *testing.T) {
 	var endResult chatstate.EndChatResult
 	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		var err error
-		endResult, err = tx.EndChat(chatstate.EndChatInput{})
+		endResult, err = tx.EndChatFamily(chatstate.EndChatInput{})
 		return err
 	}))
 
@@ -319,7 +319,7 @@ func TestEndChatOnChildArchivesSubtreeOnly(t *testing.T) {
 	var endResult chatstate.EndChatResult
 	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		var err error
-		endResult, err = tx.EndChat(chatstate.EndChatInput{})
+		endResult, err = tx.EndChatFamily(chatstate.EndChatInput{})
 		return err
 	}))
 

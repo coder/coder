@@ -111,7 +111,7 @@ func applySetArchived(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededCh
 func applyEndChat(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
 	t.Helper()
 	var err error
-	result.endChat, err = tx.EndChat(chatstate.EndChatInput{})
+	result.endChat, err = tx.EndChatFamily(chatstate.EndChatInput{})
 	return err
 }
 

@@ -63,8 +63,9 @@ type Tx struct {
 	ctx    context.Context
 	store  database.Store
 	chatID uuid.UUID
-	// Cascading transitions share this buffer so child publications flush
-	// with the outer transaction.
+	// publisher holds the active [PublishBuffer], not the live pubsub.
+	// Nested machines reuse it so their publications flush only after the
+	// outer transaction commits.
 	publisher Publisher
 }
 

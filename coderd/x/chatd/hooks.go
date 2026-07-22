@@ -529,7 +529,7 @@ func (p *Server) endChatAfterPromptDenial(ctx context.Context, chatID uuid.UUID,
 	)
 	machine := p.newChatMachine(chatID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		endResult, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages})
+		endResult, err := tx.EndChatFamily(chatstate.EndChatInput{PrefixMessages: prefixMessages})
 		if err != nil {
 			return err
 		}
@@ -567,7 +567,7 @@ func (p *Server) endChatFromEditSessionStart(
 	)
 	machine := p.newChatMachine(chat.ID)
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		endResult, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages})
+		endResult, err := tx.EndChatFamily(chatstate.EndChatInput{PrefixMessages: prefixMessages})
 		if err != nil {
 			return xerrors.Errorf("end chat from session_start: %w", err)
 		}
@@ -598,7 +598,7 @@ func (p *Server) endChatAfterToolHookFailure(
 		descendants []database.Chat
 	)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		endResult, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: suffixMessages})
+		endResult, err := tx.EndChatFamily(chatstate.EndChatInput{PrefixMessages: suffixMessages})
 		if err != nil {
 			return err
 		}
@@ -716,7 +716,7 @@ func applySessionStartResponse(
 			return err
 		}
 		if response.EndChat {
-			endResult, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages})
+			endResult, err := tx.EndChatFamily(chatstate.EndChatInput{PrefixMessages: prefixMessages})
 			if err != nil {
 				return xerrors.Errorf("end chat from session_start: %w", err)
 			}

@@ -1191,9 +1191,9 @@ func (s *taskStarter) commitGenerationStep(
 		}
 		var inserted []database.ChatMessage
 		if hooks.EndChat {
-			endResult, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: messages.Messages})
+			endResult, err := tx.EndChatFamily(chatstate.EndChatInput{PrefixMessages: messages.Messages})
 			if err != nil {
-				return xerrors.Errorf("tx.EndChat: %w", err)
+				return xerrors.Errorf("tx.EndChatFamily: %w", err)
 			}
 			inserted = endResult.InsertedMessages
 			endedDescendants = endResult.EndedDescendants
@@ -1287,9 +1287,9 @@ func (s *taskStarter) enterRequiresAction(
 		}
 		var inserted []database.ChatMessage
 		if endChat {
-			result, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: messages.Messages})
+			result, err := tx.EndChatFamily(chatstate.EndChatInput{PrefixMessages: messages.Messages})
 			if err != nil {
-				return xerrors.Errorf("tx.EndChat: %w", err)
+				return xerrors.Errorf("tx.EndChatFamily: %w", err)
 			}
 			inserted = result.InsertedMessages
 			endedDescendants = result.EndedDescendants
@@ -1486,9 +1486,9 @@ func (s *taskStarter) finishGenerationTurn(
 			return err
 		}
 		if response.EndChat {
-			endResult, err := tx.EndChat(chatstate.EndChatInput{PrefixMessages: prefixMessages})
+			endResult, err := tx.EndChatFamily(chatstate.EndChatInput{PrefixMessages: prefixMessages})
 			if err != nil {
-				return xerrors.Errorf("tx.EndChat: %w", err)
+				return xerrors.Errorf("tx.EndChatFamily: %w", err)
 			}
 			endedDescendants = endResult.EndedDescendants
 			ended = true
