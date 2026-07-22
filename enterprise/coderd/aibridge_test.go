@@ -1666,6 +1666,110 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.Nil(t, res.Threads[1].AgentFirewallSequenceNumber)
 	})
 
+	t.Run("NetworkSummary", func(t *testing.T) {
+		t.Parallel()
+		// Use the raw store so boundary logs can be seeded directly. No RBAC
+		// role grants boundary_log:create; they are written by the agent path.
+		db, ps := dbtestutil.NewDB(t)
+		opts := aibridgeOpts(t)
+		opts.Options.Database = db
+		opts.Options.Pubsub = ps
+		client, _, firstUser := coderdenttest.NewWithDatabase(t, opts)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		fw := uuid.New()
+
+		// One interception marked at firewall seq 0, so its window is (0, +inf)
+		// and the LLM-provider call logged at seq 0 is excluded.
+		endedAt := now.Add(time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:                 firstUser.UserID,
+			Provider:                    "anthropic",
+			Model:                       "claude-sonnet-4-20250514",
+			StartedAt:                   now,
+			ClientSessionID:             sql.NullString{String: "net-session", Valid: true},
+			AgentFirewallSessionID:      uuid.NullUUID{UUID: fw, Valid: true},
+			AgentFirewallSequenceNumber: sql.NullInt32{Int32: 0, Valid: true},
+		}, &endedAt)
+
+		type logSeed struct {
+			seq     int32
+			proto   string
+			detail  string
+			allowed bool
+		}
+		seeds := []logSeed{
+			{0, "http", "https://api.github.com/llm", true},         // LLM call, excluded
+			{1, "http", "https://api.github.com/repos/coder", true}, // github egress
+			{2, "http", "https://api.github.com/repos/other", true}, // github egress
+			{3, "http", "https://registry.npmjs.org/lodash", false}, // npm egress, blocked
+			{4, "http", "https://api.github.com/repos/more", true},  // github egress
+			{5, "dns", "example.com", true},                         // non-http, ignored by top domains
+		}
+		logs := make([]database.BoundaryLog, 0, len(seeds))
+		for _, s := range seeds {
+			// A non-empty matched_rule marks the call as allowed; an empty rule
+			// is stored as NULL, which counts as blocked.
+			rule := ""
+			if s.allowed {
+				rule = "allow " + s.detail
+			}
+			logs = append(logs, database.BoundaryLog{
+				SessionID:      fw,
+				OwnerID:        uuid.NullUUID{UUID: firstUser.UserID, Valid: true},
+				SequenceNumber: s.seq,
+				CapturedAt:     now,
+				CreatedAt:      now,
+				Proto:          s.proto,
+				Method:         "GET",
+				Detail:         s.detail,
+				MatchedRule:    sql.NullString{String: rule, Valid: rule != ""},
+			})
+		}
+		dbgen.BoundaryLogs(t, db, logs)
+
+		res, err := client.AIBridgeGetSessionThreads(ctx, "net-session", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+
+		// total counts seq 1-5 (LLM call at seq 0 excluded); one blocked.
+		require.NotNil(t, res.NetworkCalls)
+		require.EqualValues(t, 5, res.NetworkCalls.Total)
+		require.EqualValues(t, 1, res.NetworkCalls.Blocked)
+
+		// Top domains covers HTTP egress only: github x3, npm x1. The dns log is
+		// excluded. Two distinct domains, ordered by count descending.
+		require.Len(t, res.NetworkTopDomains, 2)
+		require.Equal(t, "api.github.com", res.NetworkTopDomains[0].Domain)
+		require.EqualValues(t, 3, res.NetworkTopDomains[0].Count)
+		require.Equal(t, "registry.npmjs.org", res.NetworkTopDomains[1].Domain)
+		require.EqualValues(t, 1, res.NetworkTopDomains[1].Count)
+		require.EqualValues(t, 2, res.NetworkDomainCount)
+	})
+
+	t.Run("NetworkSummaryDisabled", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		endedAt := now.Add(time.Minute)
+		// No firewall correlation: network monitoring was not active.
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			Provider:        "anthropic",
+			Model:           "claude-sonnet-4-20250514",
+			StartedAt:       now,
+			ClientSessionID: sql.NullString{String: "no-fw-session", Valid: true},
+		}, &endedAt)
+
+		res, err := client.AIBridgeGetSessionThreads(ctx, "no-fw-session", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.Nil(t, res.NetworkCalls)
+		require.Empty(t, res.NetworkTopDomains)
+		require.EqualValues(t, 0, res.NetworkDomainCount)
+	})
+
 	t.Run("ThreadsWithAgenticActions", func(t *testing.T) {
 		t.Parallel()
 		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))

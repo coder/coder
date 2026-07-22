@@ -1097,6 +1097,14 @@ func (m queryMetricsStore) GetAIBridgeInterceptions(ctx context.Context) ([]data
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIBridgeSessionTopDomains(ctx context.Context, arg database.GetAIBridgeSessionTopDomainsParams) ([]database.GetAIBridgeSessionTopDomainsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIBridgeSessionTopDomains(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAIBridgeSessionTopDomains").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIBridgeSessionTopDomains").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIBridgeTokenUsagesByInterceptionID(ctx, interceptionID)

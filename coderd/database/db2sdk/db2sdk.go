@@ -1153,6 +1153,7 @@ func AIBridgeSessionThreads(
 	toolUsages []database.AIBridgeToolUsage,
 	userPrompts []database.AIBridgeUserPrompt,
 	modelThoughts []database.AIBridgeModelThought,
+	topDomains []database.GetAIBridgeSessionTopDomainsRow,
 ) codersdk.AIBridgeSessionThreadsResponse {
 	// Index subresources by interception ID.
 	tokensByInterception := make(map[uuid.UUID][]database.AIBridgeTokenUsage, len(interceptions))
@@ -1242,6 +1243,24 @@ func AIBridgeSessionThreads(
 	}
 	if !session.EndedAt.IsZero() {
 		resp.EndedAt = &session.EndedAt
+	}
+	// NetworkCalls is only meaningful when the session passed through Agent
+	// Firewall. When it did not, leave it nil so the UI renders "Disabled"
+	// rather than a misleading zero count.
+	if session.FirewallActive {
+		resp.NetworkCalls = &codersdk.AIBridgeSessionNetworkCallSummary{
+			Total:   session.NetworkCallsTotal,
+			Blocked: session.NetworkCallsBlocked,
+		}
+	}
+	for _, d := range topDomains {
+		resp.NetworkTopDomains = append(resp.NetworkTopDomains, codersdk.AIBridgeSessionNetworkDomain{
+			Domain: d.Domain,
+			Count:  d.Count,
+		})
+		// TotalDomains is the same on every row (a window aggregate); take it
+		// from the last row processed.
+		resp.NetworkDomainCount = d.TotalDomains
 	}
 	return resp
 }

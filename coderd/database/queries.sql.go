@@ -1272,6 +1272,95 @@ func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeIn
 	return items, nil
 }
 
+const getAIBridgeSessionTopDomains = `-- name: GetAIBridgeSessionTopDomains :many
+WITH session_boundary_logs AS (
+	SELECT bl.detail
+	FROM aibridge_interceptions afi
+	LEFT JOIN LATERAL (
+		SELECT MIN(nxt.agent_firewall_sequence_number) AS next_seq
+		FROM aibridge_interceptions nxt
+		WHERE nxt.agent_firewall_session_id = afi.agent_firewall_session_id
+			AND nxt.agent_firewall_sequence_number > afi.agent_firewall_sequence_number
+	) w ON true
+	JOIN boundary_logs bl
+		ON bl.session_id = afi.agent_firewall_session_id
+		AND bl.sequence_number > afi.agent_firewall_sequence_number
+		AND (w.next_seq IS NULL OR bl.sequence_number < w.next_seq)
+	WHERE afi.session_id = $2::text
+		AND afi.ended_at IS NOT NULL
+		AND afi.agent_firewall_session_id IS NOT NULL
+		AND afi.agent_firewall_sequence_number IS NOT NULL
+		AND bl.proto = 'http'
+),
+extracted AS (
+	-- Strip an optional scheme, then keep the host up to the first port, path,
+	-- query, or fragment delimiter.
+	SELECT substring(detail from '^(?:[A-Za-z][A-Za-z0-9+.-]*://)?([^/:?#]+)') AS domain
+	FROM session_boundary_logs
+),
+domains AS (
+	SELECT domain, COUNT(*)::bigint AS count
+	FROM extracted
+	WHERE domain IS NOT NULL AND domain != ''
+	GROUP BY domain
+)
+SELECT
+	-- COALESCE keeps sqlc from typing the grouped column as nullable; the
+	-- domains CTE already filters out NULL/empty hosts.
+	COALESCE(domain, '')::text AS domain,
+	count,
+	COUNT(*) OVER ()::bigint AS total_domains
+FROM domains
+ORDER BY count DESC, domain ASC
+LIMIT COALESCE(NULLIF($1::integer, 0), 5)
+`
+
+type GetAIBridgeSessionTopDomainsParams struct {
+	Limit     int32  `db:"limit_" json:"limit_"`
+	SessionID string `db:"session_id" json:"session_id"`
+}
+
+type GetAIBridgeSessionTopDomainsRow struct {
+	Domain       string `db:"domain" json:"domain"`
+	Count        int64  `db:"count" json:"count"`
+	TotalDomains int64  `db:"total_domains" json:"total_domains"`
+}
+
+// Returns the most contacted destination hosts for an AI session, ordered by
+// call count descending and limited to the top @limit_ rows. total_domains is
+// the number of distinct domains across the whole session, used to render a
+// "+N more" overflow beyond the returned rows. Only HTTP egress is considered;
+// dns/git/fs boundary logs do not carry a domain in the same shape.
+//
+// Windowing mirrors the network_calls aggregation in ListAIBridgeSessions:
+// each interception's boundary logs fall in the open interval (this seq, next
+// interception's seq) within the same firewall session. The exclusive lower
+// bound drops the interception's own LLM-provider call. next_seq considers all
+// interceptions in the firewall session so windows never bleed across AI
+// sessions that share one firewall session.
+func (q *sqlQuerier) GetAIBridgeSessionTopDomains(ctx context.Context, arg GetAIBridgeSessionTopDomainsParams) ([]GetAIBridgeSessionTopDomainsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAIBridgeSessionTopDomains, arg.Limit, arg.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAIBridgeSessionTopDomainsRow
+	for rows.Next() {
+		var i GetAIBridgeSessionTopDomainsRow
+		if err := rows.Scan(&i.Domain, &i.Count, &i.TotalDomains); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAIBridgeTokenUsagesByInterceptionID = `-- name: GetAIBridgeTokenUsagesByInterceptionID :many
 SELECT
 	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros
