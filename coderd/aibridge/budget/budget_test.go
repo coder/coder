@@ -1,8 +1,10 @@
 package budget_test
 
 import (
+	"bytes"
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -80,6 +82,7 @@ func TestResolveUserAIBudget(t *testing.T) {
 			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
 				org := dbgen.Organization(t, db, database.Organization{})
 				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
 				gid := budgetedGroup(t, ctx, db, org.ID, user.ID, "only", 8_000_000)
 				return user.ID, budget.EffectiveGroup{GroupID: gid, Limit: &budget.Limit{SpendLimitMicros: 8_000_000, Source: codersdk.AIBudgetLimitSourceGroup}}, true
 			},
@@ -90,6 +93,7 @@ func TestResolveUserAIBudget(t *testing.T) {
 			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
 				org := dbgen.Organization(t, db, database.Organization{})
 				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
 				budgetedGroup(t, ctx, db, org.ID, user.ID, "low", 5_000_000)
 				budgetedGroup(t, ctx, db, org.ID, user.ID, "mid", 20_000_000)
 				high := budgetedGroup(t, ctx, db, org.ID, user.ID, "high", 50_000_000)
@@ -97,29 +101,36 @@ func TestResolveUserAIBudget(t *testing.T) {
 			},
 		},
 		{
-			name:   "TieBrokenByGroupName",
+			name:   "TieBrokenByEarliestOrgMembership",
+			policy: codersdk.AIBudgetPolicyHighest,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
+				user := dbgen.User(t, db, database.User{})
+				// Two groups in different orgs share the same limit. The earlier
+				// organization membership breaks the tie.
+				earlyOrg := dbgen.Organization(t, db, database.Organization{})
+				lateOrg := dbgen.Organization(t, db, database.Organization{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: earlyOrg.ID, UserID: user.ID, CreatedAt: time.Now().Add(-time.Hour)})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: lateOrg.ID, UserID: user.ID})
+				winner := budgetedGroup(t, ctx, db, earlyOrg.ID, user.ID, "dup", 10_000_000)
+				budgetedGroup(t, ctx, db, lateOrg.ID, user.ID, "dup", 10_000_000)
+				return user.ID, budget.EffectiveGroup{GroupID: winner, Limit: &budget.Limit{SpendLimitMicros: 10_000_000, Source: codersdk.AIBudgetLimitSourceGroup}}, true
+			},
+		},
+		{
+			name:   "TieBrokenByGroupID",
 			policy: codersdk.AIBudgetPolicyHighest,
 			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
 				org := dbgen.Organization(t, db, database.Organization{})
 				user := dbgen.User(t, db, database.User{})
-				// Equal limits in the same org, so "alpha" wins over "beta" by group
-				// name ascending.
-				alpha := budgetedGroup(t, ctx, db, org.ID, user.ID, "alpha", 10_000_000)
-				budgetedGroup(t, ctx, db, org.ID, user.ID, "beta", 10_000_000)
-				return user.ID, budget.EffectiveGroup{GroupID: alpha, Limit: &budget.Limit{SpendLimitMicros: 10_000_000, Source: codersdk.AIBudgetLimitSourceGroup}}, true
-			},
-		},
-		{
-			name:   "TieBrokenByOrgName",
-			policy: codersdk.AIBudgetPolicyHighest,
-			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
-				user := dbgen.User(t, db, database.User{})
-				// Two groups in different orgs share both name and limit. The
-				// organization name breaks the tie ascending, so "org-a" wins.
-				orgA := dbgen.Organization(t, db, database.Organization{Name: "org-a"})
-				orgB := dbgen.Organization(t, db, database.Organization{Name: "org-b"})
-				winner := budgetedGroup(t, ctx, db, orgA.ID, user.ID, "dup", 10_000_000)
-				budgetedGroup(t, ctx, db, orgB.ID, user.ID, "dup", 10_000_000)
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+				// Both groups are in the same org, so both resolve to the same
+				// organization membership and the tie falls to the lowest group ID.
+				groupA := budgetedGroup(t, ctx, db, org.ID, user.ID, "alpha", 10_000_000)
+				groupB := budgetedGroup(t, ctx, db, org.ID, user.ID, "beta", 10_000_000)
+				winner := groupA
+				if bytes.Compare(groupB[:], groupA[:]) < 0 {
+					winner = groupB
+				}
 				return user.ID, budget.EffectiveGroup{GroupID: winner, Limit: &budget.Limit{SpendLimitMicros: 10_000_000, Source: codersdk.AIBudgetLimitSourceGroup}}, true
 			},
 		},
@@ -241,32 +252,32 @@ func TestResolveUserEffectiveGroup(t *testing.T) {
 			},
 		},
 		{
-			// The fallback prefers the default org even over an org whose name
-			// sorts first.
+			// The fallback prefers the default org even over an org joined
+			// earlier.
 			name:   "FallbackPrefersDefaultOrg",
 			policy: codersdk.AIBudgetPolicyHighest,
 			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
 				defaultOrg, err := db.GetDefaultOrganization(ctx)
 				require.NoError(t, err)
-				otherOrg := dbgen.Organization(t, db, database.Organization{Name: "0-sorts-first"})
+				otherOrg := dbgen.Organization(t, db, database.Organization{})
 				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: otherOrg.ID, UserID: user.ID, CreatedAt: time.Now().Add(-time.Hour)})
 				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: defaultOrg.ID, UserID: user.ID})
-				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: otherOrg.ID, UserID: user.ID})
 				return user.ID, budget.EffectiveGroup{GroupID: defaultOrg.ID}, true
 			},
 		},
 		{
-			// Among non-default orgs, the fallback breaks ties by org name
-			// ascending, so "org-a" wins.
-			name:   "FallbackTieByOrgName",
+			// Among non-default orgs, the fallback breaks ties by the earliest
+			// organization membership.
+			name:   "FallbackTieByEarliestOrgMembership",
 			policy: codersdk.AIBudgetPolicyHighest,
 			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
 				user := dbgen.User(t, db, database.User{})
-				orgA := dbgen.Organization(t, db, database.Organization{Name: "org-a"})
-				orgB := dbgen.Organization(t, db, database.Organization{Name: "org-b"})
-				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA.ID, UserID: user.ID})
-				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
-				return user.ID, budget.EffectiveGroup{GroupID: orgA.ID}, true
+				earlyOrg := dbgen.Organization(t, db, database.Organization{})
+				lateOrg := dbgen.Organization(t, db, database.Organization{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: earlyOrg.ID, UserID: user.ID, CreatedAt: time.Now().Add(-time.Hour)})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: lateOrg.ID, UserID: user.ID})
+				return user.ID, budget.EffectiveGroup{GroupID: earlyOrg.ID}, true
 			},
 		},
 		{

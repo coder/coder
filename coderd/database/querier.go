@@ -604,7 +604,7 @@ type sqlcQuerier interface {
 	GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error)
 	GetHealthSettings(ctx context.Context) (string, error)
 	// Returns the highest group AI budget across the groups the user belongs to,
-	// breaking ties by organization name then group name ascending. Implements the
+	// breaking ties by the earliest organization membership. Implements the
 	// "highest" budget policy. group_members_expanded is a UNION of group_members
 	// and organization_members, so the implicit "Everyone" group
 	// (group_id == organization_id) is included. Returns no rows when the user has
@@ -877,8 +877,8 @@ type sqlcQuerier interface {
 	GetUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	// Returns the "Everyone" group (id == organization_id) to attribute a user's
 	// spend to when no override or budgeted group applies. Prefers the default org,
-	// then organization name ascending. Returns no rows when the user has no
-	// organization membership.
+	// then the earliest organization membership. Returns no rows when the user has
+	// no organization membership.
 	GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
 	GetUserForChatSyntheticAPIKeyByID(ctx context.Context, id uuid.UUID) (User, error)
 	// Returns the minimum (most restrictive) group limit for a user.

@@ -13359,8 +13359,8 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		user := dbgen.User(t, db, database.User{})
 		org := dbgen.Organization(t, db, database.Organization{})
 		queried := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
-		groupA := dbgen.Group(t, db, database.Group{OrganizationID: org.ID, Name: "aaa-tie-group"})
-		groupB := dbgen.Group(t, db, database.Group{OrganizationID: org.ID, Name: "bbb-tie-group"})
+		groupA := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+		groupB := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: queried.ID, UserID: user.ID})
 		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: groupA.ID, UserID: user.ID})
@@ -13376,6 +13376,14 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		// Both groups are in the same org, so both resolve to the same
+		// organization membership and the tie falls to the lowest group ID.
+		winner := groupA.ID
+		// Postgres orders the uuid type by its bytes.
+		if bytes.Compare(groupB.ID[:], groupA.ID[:]) < 0 {
+			winner = groupB.ID
+		}
+
 		// When: querying spend for the user.
 		got, err := db.GetGroupMembersAISpend(ctx, database.GetGroupMembersAISpendParams{
 			GroupID:     queried.ID,
@@ -13384,9 +13392,9 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Then: the tie is broken by group name ascending, so groupA wins.
+		// Then: the tie falls to the lowest group ID.
 		require.Len(t, got, 1)
-		require.Equal(t, uuid.NullUUID{UUID: groupA.ID, Valid: true}, got[0].EffectiveGroupID)
+		require.Equal(t, uuid.NullUUID{UUID: winner, Valid: true}, got[0].EffectiveGroupID)
 		require.False(t, got[0].SpendLimitMicros.Valid)
 		require.False(t, got[0].LimitSource.Valid)
 		require.Equal(t, int64(0), got[0].GroupSpendMicros)
@@ -13475,15 +13483,14 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		// Given: an unbudgeted member of the queried group who also belongs to
-		// another org whose name sorts first, so the fallback prefers that org's
-		// Everyone group over the queried group's org.
+		// Given: an unbudgeted member of the queried group who joined another
+		// org earlier. The fallback picks the earlier org's Everyone group.
 		user := dbgen.User(t, db, database.User{})
-		queriedOrg := dbgen.Organization(t, db, database.Organization{Name: "z-queried-org"})
-		otherOrg := dbgen.Organization(t, db, database.Organization{Name: "a-other-org"})
+		queriedOrg := dbgen.Organization(t, db, database.Organization{})
+		otherOrg := dbgen.Organization(t, db, database.Organization{})
 		queried := dbgen.Group(t, db, database.Group{OrganizationID: queriedOrg.ID})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: otherOrg.ID, CreatedAt: dbtime.Now().Add(-time.Hour)})
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: queriedOrg.ID})
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: otherOrg.ID})
 		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: queried.ID, UserID: user.ID})
 		// Both orgs have an Everyone group (id == org id), as in production.
 		//nolint:gocritic // Requires system context.
@@ -13843,23 +13850,24 @@ func TestGetHighestGroupAIBudgetByUser(t *testing.T) {
 			},
 		},
 		{
-			// Equal limits across orgs break by org name ascending.
-			name: "TieByOrgName",
+			// Equal limits across orgs break by the earliest organization
+			// membership.
+			name: "TieByEarliestOrgMembership",
 			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, database.GetHighestGroupAIBudgetByUserRow) {
 				user := dbgen.User(t, db, database.User{})
-				orgA := dbgen.Organization(t, db, database.Organization{Name: "org-a"})
-				orgB := dbgen.Organization(t, db, database.Organization{Name: "org-b"})
-				groupA := dbgen.Group(t, db, database.Group{OrganizationID: orgA.ID})
-				groupB := dbgen.Group(t, db, database.Group{OrganizationID: orgB.ID})
-				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA.ID, UserID: user.ID})
-				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
-				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: groupA.ID, UserID: user.ID})
-				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: groupB.ID, UserID: user.ID})
-				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: groupA.ID, SpendLimitMicros: 1_000_000})
+				earlyOrg := dbgen.Organization(t, db, database.Organization{})
+				lateOrg := dbgen.Organization(t, db, database.Organization{})
+				earlyGroup := dbgen.Group(t, db, database.Group{OrganizationID: earlyOrg.ID})
+				lateGroup := dbgen.Group(t, db, database.Group{OrganizationID: lateOrg.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: earlyOrg.ID, UserID: user.ID, CreatedAt: dbtime.Now().Add(-time.Hour)})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: lateOrg.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: earlyGroup.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: lateGroup.ID, UserID: user.ID})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: earlyGroup.ID, SpendLimitMicros: 1_000_000})
 				require.NoError(t, err)
-				_, err = db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: groupB.ID, SpendLimitMicros: 1_000_000})
+				_, err = db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: lateGroup.ID, SpendLimitMicros: 1_000_000})
 				require.NoError(t, err)
-				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: groupA.ID, SpendLimitMicros: 1_000_000}
+				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: earlyGroup.ID, SpendLimitMicros: 1_000_000}
 			},
 		},
 		{
@@ -13912,39 +13920,40 @@ func TestGetUserEveryoneFallbackGroup(t *testing.T) {
 			},
 		},
 		{
-			// The default org is preferred even when another org's name sorts first.
+			// The default org is preferred even over an org joined earlier.
 			name: "PrefersDefaultOrg",
 			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, uuid.UUID) {
 				defaultOrg, err := db.GetDefaultOrganization(ctx)
 				require.NoError(t, err)
-				otherOrg := dbgen.Organization(t, db, database.Organization{Name: "0-sorts-first"})
+				otherOrg := dbgen.Organization(t, db, database.Organization{})
 				user := dbgen.User(t, db, database.User{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: otherOrg.ID, UserID: user.ID, CreatedAt: dbtime.Now().Add(-time.Hour)})
 				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: defaultOrg.ID, UserID: user.ID})
-				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: otherOrg.ID, UserID: user.ID})
 				return user.ID, defaultOrg.ID
 			},
 		},
 		{
-			// Among non-default orgs, ties break by org name ascending.
-			name: "TieByOrgName",
+			// Among non-default orgs, ties break by the earliest organization
+			// membership.
+			name: "TieByEarliestOrgMembership",
 			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, uuid.UUID) {
 				user := dbgen.User(t, db, database.User{})
-				orgA := dbgen.Organization(t, db, database.Organization{Name: "org-a"})
-				orgB := dbgen.Organization(t, db, database.Organization{Name: "org-b"})
-				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA.ID, UserID: user.ID})
-				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
-				return user.ID, orgA.ID
+				earlyOrg := dbgen.Organization(t, db, database.Organization{})
+				lateOrg := dbgen.Organization(t, db, database.Organization{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: earlyOrg.ID, UserID: user.ID, CreatedAt: dbtime.Now().Add(-time.Hour)})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: lateOrg.ID, UserID: user.ID})
+				return user.ID, earlyOrg.ID
 			},
 		},
 		{
-			// A soft-deleted org is excluded even when its name sorts first.
+			// A soft-deleted org is excluded even when it was joined earlier.
 			name: "ExcludesDeletedOrg",
 			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, uuid.UUID) {
 				user := dbgen.User(t, db, database.User{})
 				liveOrg := dbgen.Organization(t, db, database.Organization{Name: "live-org"})
-				deletedOrg := dbgen.Organization(t, db, database.Organization{Name: "0-deleted-org"})
+				deletedOrg := dbgen.Organization(t, db, database.Organization{Name: "deleted-org"})
 				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: liveOrg.ID, UserID: user.ID})
-				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: deletedOrg.ID, UserID: user.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: deletedOrg.ID, UserID: user.ID, CreatedAt: dbtime.Now().Add(-time.Hour)})
 				err := db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
 					ID:        deletedOrg.ID,
 					UpdatedAt: dbtime.Now(),

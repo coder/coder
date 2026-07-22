@@ -60,7 +60,7 @@ DELETE FROM user_ai_budget_overrides WHERE user_id = @user_id RETURNING *;
 
 -- name: GetHighestGroupAIBudgetByUser :one
 -- Returns the highest group AI budget across the groups the user belongs to,
--- breaking ties by organization name then group name ascending. Implements the
+-- breaking ties by the earliest organization membership. Implements the
 -- "highest" budget policy. group_members_expanded is a UNION of group_members
 -- and organization_members, so the implicit "Everyone" group
 -- (group_id == organization_id) is included. Returns no rows when the user has
@@ -71,27 +71,31 @@ SELECT
 FROM group_ai_budgets budget
 JOIN group_members_expanded member ON member.group_id = budget.group_id
 JOIN organizations ON organizations.id = member.organization_id
+JOIN organization_members
+	ON organization_members.user_id = member.user_id
+	AND organization_members.organization_id = member.organization_id
 WHERE member.user_id = @user_id
 	AND organizations.deleted = false
 ORDER BY
-	budget.spend_limit_micros DESC, -- highest wins
-	organizations.name ASC,         -- organization name tiebreak
-	member.group_name ASC           -- group name tiebreak
+	budget.spend_limit_micros DESC,       -- highest wins
+	organization_members.created_at ASC,  -- earliest organization membership
+	budget.group_id ASC                   -- deterministic tiebreak
 LIMIT 1;
 
 -- name: GetUserEveryoneFallbackGroup :one
 -- Returns the "Everyone" group (id == organization_id) to attribute a user's
 -- spend to when no override or budgeted group applies. Prefers the default org,
--- then organization name ascending. Returns no rows when the user has no
--- organization membership.
+-- then the earliest organization membership. Returns no rows when the user has
+-- no organization membership.
 SELECT organizations.id AS group_id
 FROM organization_members
 JOIN organizations ON organizations.id = organization_members.organization_id
 WHERE organization_members.user_id = @user_id
 	AND organizations.deleted = false
 ORDER BY
-	organizations.is_default DESC, -- prefer the default org
-	organizations.name ASC         -- organization name tiebreak
+	organizations.is_default DESC,        -- prefer the default org
+	organization_members.created_at ASC,  -- earliest organization membership
+	organizations.id ASC                  -- deterministic tiebreak
 LIMIT 1;
 
 -- name: IncrementUserAIDailySpend :one
@@ -169,14 +173,17 @@ user_highest_group AS (
 	FROM group_ai_budgets budget
 	JOIN group_members_expanded member ON member.group_id = budget.group_id
 	JOIN organizations ON organizations.id = member.organization_id
+	JOIN organization_members
+		ON organization_members.user_id = member.user_id
+		AND organization_members.organization_id = member.organization_id
 	WHERE member.user_id IN (SELECT user_id FROM filtered_users)
 		AND organizations.deleted = false
-	ORDER BY member.user_id, budget.spend_limit_micros DESC, organizations.name ASC, member.group_name ASC
+	ORDER BY member.user_id, budget.spend_limit_micros DESC, organization_members.created_at ASC, budget.group_id ASC
 ),
 user_fallback_group AS (
 	-- Per user, the Everyone group to fall back to when no override or budgeted
 	-- group applies. The Everyone group has id == organization_id. Prefers the
-	-- default org, then organization name ascending.
+	-- default org, then the earliest organization membership.
 	SELECT DISTINCT ON (organization_members.user_id)
 		organization_members.user_id,
 		organizations.id AS group_id
@@ -184,7 +191,7 @@ user_fallback_group AS (
 	JOIN organizations ON organizations.id = organization_members.organization_id
 	WHERE organization_members.user_id IN (SELECT user_id FROM filtered_users)
 		AND organizations.deleted = false
-	ORDER BY organization_members.user_id, organizations.is_default DESC, organizations.name ASC
+	ORDER BY organization_members.user_id, organizations.is_default DESC, organization_members.created_at ASC, organizations.id ASC
 ),
 effective AS (
 	-- Effective budget per user: a per-user override wins over the highest-limit
