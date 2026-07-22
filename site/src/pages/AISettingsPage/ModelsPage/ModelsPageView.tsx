@@ -214,7 +214,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 				</div>
 				<Select value={providerFilter} onValueChange={handleProviderChange}>
 					<SelectTrigger
-						className="w-full sm:w-60"
+						className="w-full shadow-none sm:w-60"
 						aria-label="Filter by provider"
 					>
 						<SelectValue placeholder="All providers" />
