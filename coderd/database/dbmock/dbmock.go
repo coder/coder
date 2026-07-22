@@ -3133,6 +3133,21 @@ func (mr *MockStoreMockRecorder) GetChatModelConfigByID(ctx, id any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatModelConfigByID", reflect.TypeOf((*MockStore)(nil).GetChatModelConfigByID), ctx, id)
 }
 
+// GetChatModelConfigByIDIncludeDeleted mocks base method.
+func (m *MockStore) GetChatModelConfigByIDIncludeDeleted(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatModelConfigByIDIncludeDeleted", ctx, id)
+	ret0, _ := ret[0].(database.ChatModelConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatModelConfigByIDIncludeDeleted indicates an expected call of GetChatModelConfigByIDIncludeDeleted.
+func (mr *MockStoreMockRecorder) GetChatModelConfigByIDIncludeDeleted(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatModelConfigByIDIncludeDeleted", reflect.TypeOf((*MockStore)(nil).GetChatModelConfigByIDIncludeDeleted), ctx, id)
+}
+
 // GetChatModelConfigs mocks base method.
 func (m *MockStore) GetChatModelConfigs(ctx context.Context) ([]database.ChatModelConfig, error) {
 	m.ctrl.T.Helper()

@@ -1184,6 +1184,27 @@ func isFantasyEnvelopeFormat(raw json.RawMessage) bool {
 	return len(trimmed) > 0 && trimmed[0] == '{'
 }
 
+// PartsHaveAnthropicSignedReasoning reports whether any reasoning part
+// carries Anthropic signed or redacted reasoning metadata. Reasoning
+// metadata that fails to decode counts as signed: callers use this to
+// guard replay-immutable content, so an undecodable part must fail
+// closed rather than lose its protection.
+func PartsHaveAnthropicSignedReasoning(logger slog.Logger, parts []codersdk.ChatMessagePart) bool {
+	for _, part := range parts {
+		if part.Type != codersdk.ChatMessagePartTypeReasoning {
+			continue
+		}
+		if len(part.ProviderMetadata) == 0 {
+			continue
+		}
+		opts := providerMetadataToOptions(logger, part.ProviderMetadata)
+		if opts == nil || chatsanitize.HasAnthropicSignedReasoningOptions(opts) {
+			return true
+		}
+	}
+	return false
+}
+
 // marshalProviderMetadata converts fantasy provider metadata to raw
 // JSON for storage in SDK parts.
 func marshalProviderMetadata(metadata fantasy.ProviderMetadata) json.RawMessage {

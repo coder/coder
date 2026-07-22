@@ -17296,3 +17296,27 @@ func requireAIGatewayKeysViolation(
 		require.FailNow(t, "test case must expect a constraint error")
 	}
 }
+
+func TestGetChatModelConfigByIDIncludeDeleted(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	cfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:   "test-model",
+		Enabled: true,
+	})
+
+	require.NoError(t, db.DeleteChatModelConfigByID(ctx, cfg.ID))
+
+	_, err := db.GetChatModelConfigByID(ctx, cfg.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	got, err := db.GetChatModelConfigByIDIncludeDeleted(ctx, cfg.ID)
+	require.NoError(t, err)
+	require.True(t, got.Deleted)
+	require.Equal(t, cfg.AIProviderID, got.AIProviderID)
+}

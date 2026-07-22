@@ -7,6 +7,17 @@ WHERE
     id = @id::uuid
     AND deleted = FALSE;
 
+-- Returns the config even when soft-deleted. Historical chat messages keep
+-- referencing configs that a model re-sync has since deleted, and replay
+-- sanitization needs the producing provider identity for those rows.
+-- name: GetChatModelConfigByIDIncludeDeleted :one
+SELECT
+    *
+FROM
+    chat_model_configs
+WHERE
+    id = @id::uuid;
+
 -- name: GetDefaultChatModelConfig :one
 SELECT
     *
