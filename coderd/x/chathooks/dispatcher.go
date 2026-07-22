@@ -69,9 +69,6 @@ type Event struct {
 	Data         any
 }
 
-// toolMetadata derives the persisted tool identity from the typed payload so
-// the audit row can never disagree with the dispatched request body.
-// GetChatHookDispatchDecision matches on these columns during decision reuse.
 func (e Event) toolMetadata() (toolUseID, toolName *string) {
 	switch e.Type {
 	case agenthooks.EventPreToolUse:
@@ -129,7 +126,8 @@ type Dispatcher struct {
 	metrics      *metrics
 }
 
-// New copies the HTTP client and disables redirects for signed requests.
+// New copies (or creates) the HTTP client and disables redirects for signed
+// requests.
 func New(
 	logger slog.Logger,
 	db database.Store,
@@ -164,7 +162,6 @@ func New(
 	}
 }
 
-// Enabled requires a non-empty hook URL.
 func (d *Dispatcher) Enabled() bool {
 	return d != nil && d.hookURL != ""
 }
