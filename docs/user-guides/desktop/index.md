@@ -169,7 +169,7 @@ You can also configure a `Updater:ForcedChannel` string value to lock users to a
 - Check system permissions for network extensions
 - Ensure only one copy of Coder Desktop is installed
 
-### Recovering from a stale tunnel
+### Recover from a stale tunnel
 
 If the menu bar or tray shows **Coder Connect** as enabled but workspaces are
 unreachable (SSH hangs, `workspace.coder` fails to resolve, or file sync cannot
@@ -180,8 +180,9 @@ Restarting the helper components in place usually clears it without a reboot.
 
 #### macOS
 
-Run the following commands in a terminal. These steps leave the app and helper
-daemon installed; they only restart the running tunnel and flush DNS caches.
+Run the following commands in a terminal.
+These steps leave the app and helper daemon installed.
+They only restart the running tunnel and flush DNS caches.
 
 1. Stop the Coder VPN configuration:
 
@@ -231,15 +232,15 @@ dig @fd60:627a:a42b::53 AAAA is.coder--connect--enabled--right--now.coder +short
 dscacheutil -q host -a name is.coder--connect--enabled--right--now.coder
 ```
 
-Both commands should return an `fd60:627a:a42b::/48` address. If `dig` returns
-nothing or `dscacheutil` reports no entries, Coder Connect is not publishing
-DNS. Collect logs (see below) and file an issue.
+Both commands should return an `fd60:627a:a42b::/48` address.
+If `dig` returns nothing or `dscacheutil` reports no entries, Coder Connect is not publishing DNS.
+[Collect logs](#collect-logs) and file an issue.
 
 #### Windows
 
-Run the following in an **elevated PowerShell** session. The service restart
-clears the embedded DNS state; the NRPT and adapter checks confirm the system
-routing policy is intact.
+Run the following in an **elevated PowerShell** session.
+The service restart clears the embedded DNS state.
+The NRPT and adapter checks confirm the system routing policy is intact.
 
 1. Stop the app and the VPN service:
 
@@ -283,7 +284,7 @@ routing policy is intact.
 
 </div>
 
-### Collecting Logs
+### Collect logs
 
 When reporting an issue, attach the relevant log files so we can diagnose it faster.
 
