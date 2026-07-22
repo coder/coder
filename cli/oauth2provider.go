@@ -41,17 +41,32 @@ func (r *RootCmd) oauth2ProviderDCR() *serpent.Command {
 			return inv.Command.HelpHandler(inv)
 		},
 		Children: []*serpent.Command{
-			r.enableOAuth2ProviderDCR(),
-			r.disableOAuth2ProviderDCR(),
+			r.oauth2ProviderDCRToggle(dcrToggleEnable),
+			r.oauth2ProviderDCRToggle(dcrToggleDisable),
 		},
 	}
 	return cmd
 }
 
-func (r *RootCmd) enableOAuth2ProviderDCR() *serpent.Command {
+// dcrToggleAction distinguishes the "enable" and "disable" subcommands of
+// `coder oauth2-provider dcr`, which are otherwise identical.
+type dcrToggleAction int
+
+const (
+	dcrToggleDisable dcrToggleAction = iota
+	dcrToggleEnable
+)
+
+func (r *RootCmd) oauth2ProviderDCRToggle(action dcrToggleAction) *serpent.Command {
+	enabled := action == dcrToggleEnable
+	use, short, verb := "disable", "Disable OAuth2 dynamic client registration", "disable"
+	if enabled {
+		use, short, verb = "enable", "Enable OAuth2 dynamic client registration", "enable"
+	}
+
 	cmd := &serpent.Command{
-		Use:   "enable",
-		Short: "Enable OAuth2 dynamic client registration",
+		Use:   use,
+		Short: short,
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
 		),
@@ -62,40 +77,17 @@ func (r *RootCmd) enableOAuth2ProviderDCR() *serpent.Command {
 			}
 
 			_, err = client.PutOAuth2ProviderSettings(inv.Context(), codersdk.OAuth2ProviderSettings{
-				DynamicClientRegistrationEnabled: true,
+				DynamicClientRegistrationEnabled: enabled,
 			})
 			if err != nil {
-				return xerrors.Errorf("unable to enable dynamic client registration: %w", err)
+				return xerrors.Errorf("unable to %s dynamic client registration: %w", verb, err)
 			}
 
-			_, _ = fmt.Fprintln(inv.Stderr, "Dynamic client registration is now enabled.")
-			return nil
-		},
-	}
-	return cmd
-}
-
-func (r *RootCmd) disableOAuth2ProviderDCR() *serpent.Command {
-	cmd := &serpent.Command{
-		Use:   "disable",
-		Short: "Disable OAuth2 dynamic client registration",
-		Middleware: serpent.Chain(
-			serpent.RequireNArgs(0),
-		),
-		Handler: func(inv *serpent.Invocation) error {
-			client, err := r.InitClient(inv)
-			if err != nil {
-				return err
+			state := "disabled"
+			if enabled {
+				state = "enabled"
 			}
-
-			_, err = client.PutOAuth2ProviderSettings(inv.Context(), codersdk.OAuth2ProviderSettings{
-				DynamicClientRegistrationEnabled: false,
-			})
-			if err != nil {
-				return xerrors.Errorf("unable to disable dynamic client registration: %w", err)
-			}
-
-			_, _ = fmt.Fprintln(inv.Stderr, "Dynamic client registration is now disabled.")
+			_, _ = fmt.Fprintf(inv.Stderr, "Dynamic client registration is now %s.\n", state)
 			return nil
 		},
 	}
