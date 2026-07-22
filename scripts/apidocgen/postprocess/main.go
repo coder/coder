@@ -239,14 +239,21 @@ func writeDocs(sections [][]byte) error {
 func extractSectionName(section []byte) (string, error) {
 	scanner := bufio.NewScanner(bytes.NewReader(section))
 	if !scanner.Scan() {
+		// Scan returns false on EOF or error. A first line past
+		// bufio.Scanner's token limit surfaces only in Err(); report it as a
+		// scanning error rather than mislabeling it a missing header.
+		if err := scanner.Err(); err != nil {
+			return "", xerrors.Errorf("scanning section: %w", err)
+		}
 		return "", xerrors.Errorf("section header was expected")
 	}
 
 	header := scanner.Text()
-	if !strings.HasPrefix(header, "# ") {
+	name, ok := strings.CutPrefix(header, "# ")
+	if !ok {
 		return "", xerrors.Errorf("section header %q must start with %q", header, "# ")
 	}
-	return strings.TrimSpace(header[2:]), nil
+	return strings.TrimSpace(name), nil
 }
 
 func toMdFilename(sectionName string) string {
