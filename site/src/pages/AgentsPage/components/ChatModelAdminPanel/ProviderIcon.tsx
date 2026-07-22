@@ -10,6 +10,11 @@ interface ProviderIconProps {
 	className?: string;
 }
 
+/**
+ * Renders a decorative provider logo with no accessible name. Callers MUST
+ * render the provider name as adjacent visible text; the icon alone does not
+ * convey it to assistive technology.
+ */
 export const ProviderIcon: FC<ProviderIconProps> = ({
 	provider,
 	className,

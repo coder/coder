@@ -45,6 +45,5 @@ export const ProviderIcon: React.FC<ProviderIconProps> = ({
 		// Lucide icons are aria-hidden by default when given no a11y prop.
 		return <Building2Icon className={`${className} flex-shrink-0`} />;
 	}
-	// alt="" removes the image from the accessibility tree.
 	return <ExternalImage src={iconSrc} alt="" className={className} />;
 };
