@@ -112,14 +112,16 @@ func run() error {
 		UserPromptSubmit: func(_ context.Context, meta agenthooks.Meta, data agenthooks.UserPromptSubmitData) (agenthooks.Response, error) {
 			entry := baseEvent(agenthooks.EventUserPromptSubmit, meta)
 			entry.Prompt = data.Prompt
-			matches := !cfg.logOnly && redactPrompt != nil && redactPrompt.MatchString(data.Prompt)
+			matches := redactPrompt != nil && redactPrompt.MatchString(data.Prompt)
 			if matches {
 				entry.Prompt = redactPrompt.ReplaceAllString(data.Prompt, "[REDACTED]")
 			}
 			if err := logEvent(entry); err != nil {
 				return agenthooks.Response{}, err
 			}
-			if !matches {
+			// Log-only mode still redacts the log entry above; it only
+			// suppresses the prompt override response.
+			if cfg.logOnly || !matches {
 				return agenthooks.Response{}, nil
 			}
 			override, err := json.Marshal(map[string]string{"prompt": entry.Prompt})

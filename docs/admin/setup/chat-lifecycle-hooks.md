@@ -111,7 +111,7 @@ Permission rules depend on the event:
 - For `pre_tool_use`, `allow` requires `input_override` containing the replacement tool input.
   Coder persists the replacement with the tool call and executes the tool with it.
   Nothing marks the call as rewritten in the chat, so the model may misattribute the changed behavior; a consumer that rewrites input should also return `user_message` explaining the change.
-- For either event, `deny` blocks the input.
+- For either event, `deny` blocks the input and must not include `input_override`.
   A denied prompt isn't persisted, and a denied tool call becomes a synthetic error result so the model can choose another action.
   A `user_prompt_submit` denial that also sets `end_chat` rejects the prompt and ends the existing chat. During chat creation there is no chat to end.
   When the `clear` `session_start` emitted for a message edit sets `end_chat`, Coder ends the chat immediately and never dispatches `user_prompt_submit` for the edited content.

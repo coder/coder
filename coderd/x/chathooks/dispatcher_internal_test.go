@@ -356,6 +356,19 @@ func TestDispatcherProtocolErrors(t *testing.T) {
 			}}),
 		},
 		{
+			name:      "deny with input override",
+			eventType: agenthooks.EventPreToolUse,
+			data: agenthooks.PreToolUseData{
+				ToolUseID: "call_deny_override",
+				ToolName:  "edit",
+				ToolInput: json.RawMessage(`{"path":"a"}`),
+			},
+			responseBody: mustJSON(t, agenthooks.Response{Permission: &agenthooks.Permission{
+				Decision:      agenthooks.PermissionDeny,
+				InputOverride: json.RawMessage(`{"path":"b"}`),
+			}}),
+		},
+		{
 			name:      "ask decision",
 			eventType: agenthooks.EventUserPromptSubmit,
 			data:      agenthooks.UserPromptSubmitData{Prompt: "question"},

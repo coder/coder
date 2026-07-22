@@ -448,7 +448,12 @@ func validateResponse(eventType agenthooks.EventType, response agenthooks.Respon
 			}
 		}
 	case agenthooks.PermissionDeny:
-		return nil
+		// A persisted deny override would poison decision reuse, which
+		// matches future inputs against original_input OR input_override.
+		inputOverride := bytes.TrimSpace(response.Permission.InputOverride)
+		if len(inputOverride) > 0 && !bytes.Equal(inputOverride, []byte("null")) {
+			return xerrors.New("deny decision must not include input_override")
+		}
 	case agenthooks.PermissionAsk:
 		return xerrors.New("ask decision is not supported")
 	default:
