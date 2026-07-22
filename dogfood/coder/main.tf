@@ -662,8 +662,8 @@ resource "coder_script" "install-deps" {
       cat > "$TRUST_FILE" <<'TRUST'
     # mise trust paths for the dogfood workspace. Edit to add your own
     # paths; this file lives on the persistent home volume so changes
-    # survive workspace restart. The install-deps coder_script only
-    # writes this file when it's absent.
+    # survive workspace restart. The install-deps coder_script seeds
+    # this file when absent and backfills new default paths in place.
     [settings]
     trusted_config_paths = [
       "/home/coder/coder",
@@ -673,6 +673,11 @@ resource "coder_script" "install-deps" {
       "/home/coder/.mux/src",
     ]
     TRUST
+    elif ! grep -qF '/home/coder/.mux/src' "$TRUST_FILE"; then
+      # Backfill the Mux path into trust files seeded before it was added.
+      # Only matches the seeded multi-line layout; users who reshaped the
+      # file keep full ownership of its contents.
+      sed -i 's|^trusted_config_paths = \[$|&\n  "/home/coder/.mux/src",|' "$TRUST_FILE"
     fi
 
     # Install playwright dependencies
