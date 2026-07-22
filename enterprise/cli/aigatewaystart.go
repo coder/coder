@@ -37,13 +37,13 @@ import (
 
 const (
 	// The sum of daemonShutdownTimeout, httpShutdownTimeout,
-	// providerSyncShutdownTimeout, and traceShutdownTimeout must stay below
+	// providerReloadShutdownTimeout, and traceShutdownTimeout must stay below
 	// terminationGracePeriodSeconds in helm/ai-gateway/values.yaml so the
 	// process can complete graceful shutdown before Kubernetes sends SIGKILL.
-	daemonShutdownTimeout       = 5 * time.Second
-	httpShutdownTimeout         = 5 * time.Minute
-	providerSyncShutdownTimeout = 5 * time.Second
-	traceShutdownTimeout        = 5 * time.Second
+	daemonShutdownTimeout         = 5 * time.Second
+	httpShutdownTimeout           = 5 * time.Minute
+	providerReloadShutdownTimeout = 5 * time.Second
+	traceShutdownTimeout          = 5 * time.Second
 
 	healthzPath = "/healthz"
 	readyzPath  = "/readyz"
@@ -297,8 +297,9 @@ type standaloneGateway struct {
 	providerLogger slog.Logger
 }
 
-// runStandaloneGateway establishes a DRPC connection to coderd (aibridged daemon)
-// and starts the standalone AI Gateway. It manages the daemon life cycle.
+// runStandaloneGateway starts the aibridged daemon and serves the standalone
+// AI Gateway. The daemon dials coderd asynchronously, so HTTP serving does not
+// wait for the DRPC connection. It manages the daemon life cycle.
 func runStandaloneGateway(ctx context.Context, params standaloneGatewayParams) error {
 	// The aibridged daemon must outlive ctx so in-flight HTTP requests
 	// retain their DRPC connection during graceful HTTP shutdown.
@@ -358,31 +359,38 @@ func (s *standaloneGateway) serve(ctx context.Context) error {
 
 	provReloadCtx, provReloadCancel := context.WithCancel(ctx)
 	provReloadDone := make(chan struct{})
-	initialProviderLoadErr := make(chan error, 1)
 	go func() {
 		defer close(provReloadDone)
 		if err := s.loadProviders(provReloadCtx); err != nil {
-			select {
-			case <-provReloadCtx.Done():
-			case <-s.daemon.Done():
-			default:
-				initialProviderLoadErr <- xerrors.Errorf("initialize ai providers: %w", err)
+			if provReloadCtx.Err() == nil {
+				s.providerLogger.Error(provReloadCtx, "initial ai provider load stopped", slog.Error(err))
 			}
 			return
 		}
-		// WatchProviderReload reconnects internally and returns only when canceled.
-		_ = aibridged.WatchProviderReload(provReloadCtx, s.daemon.ClientContext, s.reloader, s.providerLogger)
+		// WatchProviderReload reconnects internally and normally returns only when canceled.
+		err := aibridged.WatchProviderReload(provReloadCtx, s.daemon.ClientContext, s.reloader, s.providerLogger)
+		if err != nil && provReloadCtx.Err() == nil {
+			s.providerLogger.Error(provReloadCtx, "ai provider reload watch stopped", slog.Error(err))
+		}
 	}()
 
 	var runErr error
 	select {
 	case <-ctx.Done():
 	case <-s.daemon.Done():
+		// daemon uses context.Background() so no race with ctx.Done() is possible, ctx.Err() check is not needed.
+		runErr = xerrors.Errorf("AI Gateway daemon exited: %w", s.daemon.Err())
+	case <-provReloadDone:
 		if ctx.Err() == nil {
-			runErr = xerrors.Errorf("AI Gateway daemon exited: %w", s.daemon.Err())
+			select {
+			// reload can exit due to daemon failure
+			// covering race with previous daemon.Done() case.
+			case <-s.daemon.Done():
+				runErr = xerrors.Errorf("AI Gateway daemon exited: %w", s.daemon.Err())
+			default:
+				runErr = xerrors.New("provider reload stopped unexpectedly")
+			}
 		}
-	case err := <-initialProviderLoadErr:
-		runErr = err
 	case err := <-serveErr:
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			runErr = xerrors.Errorf("serve: %w", err)
@@ -391,19 +399,19 @@ func (s *standaloneGateway) serve(ctx context.Context) error {
 	s.logger.Info(ctx, "shutting down standalone AI Gateway")
 
 	provReloadCancel()
-	providerSyncCtx, providerSyncCancel := context.WithTimeout(context.Background(), providerSyncShutdownTimeout)
-	defer providerSyncCancel()
+	provReloadShutdownCtx, provReloadShutdownCancel := context.WithTimeout(context.Background(), providerReloadShutdownTimeout)
+	defer provReloadShutdownCancel()
 
-	var providerSyncStopErr error
+	var provReloadStopErr error
 	select {
 	case <-provReloadDone:
-	case <-providerSyncCtx.Done():
-		providerSyncStopErr = xerrors.Errorf("provider synchronization did not stop within %s, continuing gateway shutdown", providerSyncShutdownTimeout)
+	case <-provReloadShutdownCtx.Done():
+		provReloadStopErr = xerrors.Errorf("provider reload did not stop within %s, continuing gateway shutdown", providerReloadShutdownTimeout)
 	}
 
-	// Provider synchronization normally stops before HTTP draining so it cannot
-	// clear the bridge cache while requests are draining. If it does not stop
-	// within its timeout, continue with best-effort graceful HTTP shutdown.
+	// Provider reload normally stops before HTTP draining so it cannot clear the
+	// bridge cache while requests are draining. If it does not stop within its
+	// timeout, continue with best-effort graceful HTTP shutdown.
 	// The daemon remains connected so in-flight requests retain their DRPC connection.
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), httpShutdownTimeout)
 	defer shutdownCancel()
@@ -415,7 +423,7 @@ func (s *standaloneGateway) serve(ctx context.Context) error {
 		}
 	}
 	serveWG.Wait()
-	return errors.Join(runErr, providerSyncStopErr, httpShutdownErr)
+	return errors.Join(runErr, provReloadStopErr, httpShutdownErr)
 }
 
 // loadProviders retries the initial provider load until it succeeds or the

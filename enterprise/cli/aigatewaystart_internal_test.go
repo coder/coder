@@ -28,29 +28,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// blockingReloader blocks in Reload until the context is canceled, then
-// returns its error. It models the standalone gateway's initial reload
-// waiting on a daemon connection to an unreachable coderd.
-type blockingReloader struct {
-	canceled chan struct{}
-	started  chan struct{}
-}
-
-func (r *blockingReloader) Reload(ctx context.Context) error {
-	select {
-	case r.started <- struct{}{}:
-	default:
-	}
-	<-ctx.Done()
-	if r.canceled != nil {
-		select {
-		case r.canceled <- struct{}{}:
-		default:
-		}
-	}
-	return ctx.Err()
-}
-
 // failThenSucceedReloader fails the first failUntil reloads, then succeeds,
 // modeling a coderd connection or provider fetch that recovers after a few
 // transient failures.
@@ -152,46 +129,76 @@ func newStandaloneGatewayTestParams(t *testing.T) *standaloneGatewayTestParams {
 	}
 }
 
-// Provider loading must retry transient failures and mark providers as loaded
-// after a successful reload.
-func TestStandaloneGatewayLoadProviders_RetrySucceeds(t *testing.T) {
+func TestStandaloneGatewayLoadProviders(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	reloader := &failThenSucceedReloader{failUntil: 2}
-	logger := slog.Make()
-	gateway := &standaloneGateway{
-		daemon:         newTestStandaloneDaemon(t, logger),
-		providerLogger: logger,
-		reloader:       reloader,
-	}
-
-	require.NoError(t, gateway.loadProviders(ctx))
-	require.True(t, gateway.providersLoaded.Load())
-	require.Equal(t, int32(3), reloader.calls.Load())
-}
-
-func TestStandaloneGatewayLoadProviders_DaemonDoneStopsRetry(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slog.Make()
-	daemon := newTestStandaloneDaemon(t, logger)
 	reloadErr := xerrors.New("reload failed")
-	reloader := &failingReloader{
-		after: func() {
-			require.NoError(t, daemon.Close())
+	tests := []struct {
+		name       string
+		setup      func(*testing.T, *aibridged.Server, context.CancelFunc) (aibridged.ProviderReloader, *atomic.Int32)
+		wantErr    error
+		wantCalls  int32
+		wantLoaded bool
+	}{
+		{
+			name: "Retry succeeds",
+			setup: func(_ *testing.T, _ *aibridged.Server, _ context.CancelFunc) (aibridged.ProviderReloader, *atomic.Int32) {
+				reloader := &failThenSucceedReloader{failUntil: 2}
+				return reloader, &reloader.calls
+			},
+			wantCalls:  3,
+			wantLoaded: true,
 		},
-		err: reloadErr,
-	}
-	gateway := &standaloneGateway{
-		daemon:         daemon,
-		providerLogger: logger,
-		reloader:       reloader,
+		{
+			name: "Daemon stops retry",
+			setup: func(t *testing.T, daemon *aibridged.Server, _ context.CancelFunc) (aibridged.ProviderReloader, *atomic.Int32) {
+				reloader := &failingReloader{
+					after: func() {
+						require.NoError(t, daemon.Close())
+					},
+					err: reloadErr,
+				}
+				return reloader, &reloader.calls
+			},
+			wantErr:   reloadErr,
+			wantCalls: 1,
+		},
+		{
+			name: "Context cancellation stops retry",
+			setup: func(_ *testing.T, _ *aibridged.Server, cancel context.CancelFunc) (aibridged.ProviderReloader, *atomic.Int32) {
+				reloader := &failingReloader{after: cancel, err: reloadErr}
+				return reloader, &reloader.calls
+			},
+			wantErr:   context.Canceled,
+			wantCalls: 1,
+		},
 	}
 
-	require.ErrorIs(t, gateway.loadProviders(ctx), reloadErr)
-	require.Equal(t, int32(1), reloader.calls.Load())
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+			defer cancel()
+			logger := slog.Make()
+			daemon := newTestStandaloneDaemon(t, logger)
+			reloader, calls := tc.setup(t, daemon, cancel)
+			gateway := &standaloneGateway{
+				daemon:         daemon,
+				providerLogger: logger,
+				reloader:       reloader,
+			}
+
+			err := gateway.loadProviders(ctx)
+			if tc.wantErr == nil {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, tc.wantErr)
+			}
+			require.Equal(t, tc.wantCalls, calls.Load())
+			require.Equal(t, tc.wantLoaded, gateway.providersLoaded.Load())
+		})
+	}
 }
 
 func TestStandaloneGatewayHealthAndReadiness(t *testing.T) {
@@ -414,11 +421,9 @@ func TestStandaloneGatewayServe_ShutdownOrder(t *testing.T) {
 	require.NoError(t, err)
 
 	httpAddress := fmt.Sprintf("127.0.0.1:%d", testutil.RandomPort(t))
-	reloader := &blockingReloader{
-		canceled: make(chan struct{}, 1),
-		started:  make(chan struct{}, 1),
-	}
+	reloader := &failThenSucceedReloader{}
 	handlerStarted := make(chan struct{}, 1)
+	httpShutdownStarted := make(chan struct{}, 1)
 	releaseHandler := make(chan struct{})
 	gateway := &standaloneGateway{
 		daemon: daemon,
@@ -438,6 +443,9 @@ func TestStandaloneGatewayServe_ShutdownOrder(t *testing.T) {
 		providerLogger: logger,
 		reloader:       reloader,
 	}
+	gateway.httpServer.RegisterOnShutdown(func() {
+		httpShutdownStarted <- struct{}{}
+	})
 
 	serveCtx, cancelServe := context.WithCancel(testCtx)
 	serveDone := make(chan error, 1)
@@ -446,7 +454,7 @@ func TestStandaloneGatewayServe_ShutdownOrder(t *testing.T) {
 	}()
 
 	dialCtx := testutil.RequireReceive(testCtx, t, dialCtxCh)
-	testutil.RequireReceive(testCtx, t, reloader.started)
+	require.Eventually(t, gateway.providersLoaded.Load, testutil.WaitShort, testutil.IntervalFast)
 	requireListenerReady(t, httpAddress)
 
 	requestDone := make(chan error, 1)
@@ -467,9 +475,9 @@ func TestStandaloneGatewayServe_ShutdownOrder(t *testing.T) {
 	}()
 	testutil.RequireReceive(testCtx, t, handlerStarted)
 
-	// Trigger shutdown while the HTTP request is still in flight.
+	// Trigger shutdown after the initial load enters the provider watch loop.
 	cancelServe()
-	testutil.RequireReceive(testCtx, t, reloader.canceled)
+	testutil.RequireReceive(testCtx, t, httpShutdownStarted)
 	select {
 	case <-dialCtx.Done():
 		t.Fatal("daemon context canceled before the in-flight HTTP request drained")
@@ -478,7 +486,7 @@ func TestStandaloneGatewayServe_ShutdownOrder(t *testing.T) {
 	default:
 	}
 
-	// Expect provider synchronization to stop while HTTP draining keeps the daemon alive.
+	// Expect provider reload to stop while HTTP draining keeps the daemon alive.
 	close(releaseHandler)
 	require.NoError(t, testutil.RequireReceive(testCtx, t, requestDone))
 	require.NoError(t, testutil.RequireReceive(testCtx, t, serveDone))
