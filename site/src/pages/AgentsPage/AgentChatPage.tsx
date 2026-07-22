@@ -1572,10 +1572,8 @@ const AgentChatPage: FC = () => {
 				pickerModelConfigID !== originalModelConfigID
 					? pickerModelConfigID
 					: undefined;
-			// Omit both so the backend preserves the original model and
-			// effort; send the effective effort when the user changed it or
-			// the model changed, so the old model's effort is not carried
-			// onto a different model.
+			// Omit both so the backend preserves the originals; send the
+			// effective effort when it or the model changed.
 			const request: TypesGen.EditChatMessageRequest = {
 				content,
 				model_config_id: editSelectedModelConfigID,
@@ -1786,9 +1784,8 @@ const AgentChatPage: FC = () => {
 					...current,
 					[effectiveSelectedModel]: value,
 				}));
-				// Editing a historical message does not overwrite the
-				// persisted default; the session map still tracks the
-				// latest explicit choice so the slider stays responsive.
+				// Edits do not overwrite the persisted default; the
+				// session map still tracks the latest choice.
 				if (editing.editingMessageId === null) {
 					saveReasoningEffortForModel(effectiveSelectedModel, value);
 				} else {
