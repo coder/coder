@@ -13,6 +13,7 @@
     "labels": {
       "group_name": "Engineering",
       "limit": "$1000.00",
+      "period": "monthly",
       "threshold": "85"
     },
     "data": {},
