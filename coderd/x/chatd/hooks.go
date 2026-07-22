@@ -130,11 +130,9 @@ func (p *Server) dispatchPreToolUse(
 	turnID *uuid.UUID,
 	toolCall fantasy.ToolCallContent,
 ) (agenthooks.Response, uuid.UUID, error) {
-	toolUseID := toolCall.ToolCallID
-	toolName := toolCall.ToolName
 	event := lifecycleHookEvent(chat, turnID, agenthooks.EventPreToolUse, agenthooks.PreToolUseData{
-		ToolUseID: toolUseID,
-		ToolName:  toolName,
+		ToolUseID: toolCall.ToolCallID,
+		ToolName:  toolCall.ToolName,
 		ToolInput: json.RawMessage(toolCall.Input),
 	})
 	return p.hookDispatcher.Dispatch(ctx, event)
