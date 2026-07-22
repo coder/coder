@@ -11,7 +11,8 @@ coder:
   # - CODER_TLS_CERT_FILE: set if tls.secretName is not empty.
   # - CODER_TLS_KEY_FILE: set if tls.secretName is not empty.
   # - KUBE_POD_IP
-  # - CODER_DERP_SERVER_RELAY_URL
+  # - CODER_DERP_SERVER_RELAY_URL: set to http://$(KUBE_POD_IP):8080. Use
+  #   coder.singleStackIPv6 if the pod IP is IPv6.
   # - CODER_CLUSTER_HOST: set to the pod IP
   #
   # The following environment variables have defaults but CAN be overridden:
@@ -242,6 +243,15 @@ coder:
     # rollingUpdate:
     #   maxSurge: 25%
     #   maxUnavailable: 0
+
+  # coder.singleStackIPv6 -- Set to true if the cluster assigns IPv6 pod IPs.
+  # CODER_DERP_SERVER_RELAY_URL is built from the pod IP, and RFC 3986 requires
+  # IPv6 literals in a URL authority to be enclosed in square brackets. Helm
+  # cannot detect this automatically because $(KUBE_POD_IP) is expanded by the
+  # kubelet at container start, not at template time.
+  # Also set this on the workspace proxy release if it runs on the same cluster.
+  # ref: https://github.com/coder/coder/issues/27266
+  singleStackIPv6: false
 
   # coder.workspaceProxy -- Whether or not this deployment of Coder is a Coder
   # Workspace Proxy. Workspace Proxies reduce the latency between the user and
