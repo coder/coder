@@ -817,6 +817,9 @@ func (s *Server) checkUserAIBudget(ctx context.Context, userID uuid.UUID, period
 	if err != nil {
 		return userAIBudget{}, xerrors.Errorf("resolve effective AI budget for user %q with budget policy %q: %w", userID, s.budgetPolicy, err)
 	}
+	// ok is false when no budget is configured. The nil Limit check keeps
+	// enforcement failing open if a caller resolves via the unlimited
+	// Everyone fallback.
 	if !ok || effectiveGroup.Limit == nil {
 		// No enforceable spend limit for the user; return zero-valued status.
 		return userAIBudget{}, nil

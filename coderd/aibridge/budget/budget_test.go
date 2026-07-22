@@ -204,9 +204,10 @@ func TestResolveUserEffectiveGroup(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		policy codersdk.AIBudgetPolicy
-		setup  func(t *testing.T, ctx context.Context, db database.Store) (userID uuid.UUID, want budget.EffectiveGroup, wantOK bool)
+		name    string
+		policy  codersdk.AIBudgetPolicy
+		setup   func(t *testing.T, ctx context.Context, db database.Store) (userID uuid.UUID, want budget.EffectiveGroup, wantOK bool)
+		wantErr string
 	}{
 		{
 			// The Everyone group has a budget, so it resolves via the budget
@@ -277,6 +278,16 @@ func TestResolveUserEffectiveGroup(t *testing.T) {
 				return user.ID, budget.EffectiveGroup{}, false
 			},
 		},
+		{
+			// An unsupported policy surfaces the error from ResolveUserAIBudget.
+			name:   "UnsupportedPolicy",
+			policy: codersdk.AIBudgetPolicy("unsupported"),
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, budget.EffectiveGroup, bool) {
+				user := dbgen.User(t, db, database.User{})
+				return user.ID, budget.EffectiveGroup{}, false
+			},
+			wantErr: "unsupported AI budget policy",
+		},
 	}
 
 	for _, tt := range tests {
@@ -288,6 +299,10 @@ func TestResolveUserEffectiveGroup(t *testing.T) {
 
 			userID, want, wantOK := tt.setup(t, ctx, db)
 			got, ok, err := budget.ResolveUserEffectiveGroup(ctx, db, userID, tt.policy)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
 			require.NoError(t, err)
 			require.Equal(t, wantOK, ok)
 			if !wantOK {

@@ -41,7 +41,7 @@ type UserAIBudgetSummary struct {
 	UserID uuid.UUID `json:"user_id" format:"uuid"`
 	// EffectiveGroupID is the group the spend is attributed to, falling back to
 	// the Everyone group when no budget applies. Null only when the user has no
-	// organization.
+	// organization membership.
 	EffectiveGroupID *uuid.UUID `json:"effective_group_id" format:"uuid"`
 	// SpendLimitMicros is the effective spend limit in micro-units.
 	// Null when no budget applies to the user (unlimited).

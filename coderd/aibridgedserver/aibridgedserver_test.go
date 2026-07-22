@@ -744,9 +744,8 @@ func TestIsBudgetExceeded_Enforcement(t *testing.T) {
 		rawDB, _ := dbtestutil.NewDB(t)
 		authzDB := dbauthz.New(rawDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), logger, coderdtest.AccessControlStorePointer())
 
-		// An org member with no group budget and no override. Their spend is
-		// unlimited, so enforcement never blocks them regardless of accrued
-		// spend, even though attribution would fall back to the Everyone group.
+		// An org member with no group budget and no override: spend is
+		// unlimited, so enforcement never blocks them.
 		org := dbgen.Organization(t, rawDB, database.Organization{})
 		user := dbgen.User(t, rawDB, database.User{})
 		dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
@@ -2025,9 +2024,9 @@ func TestRecordTokenUsage(t *testing.T) {
 				},
 			},
 			{
-				// A user with no organization has no effective group. This is
-				// not expected in practice. Spend is still recorded, but with a
-				// NULL group, and the daily spend update is skipped.
+				// A user with no organization has no effective group. Spend is
+				// still recorded, but with a NULL group, and the daily spend
+				// update is skipped.
 				name: "valid token usage with no effective group",
 				request: &proto.RecordTokenUsageRequest{
 					InterceptionId:        uuid.NewString(),

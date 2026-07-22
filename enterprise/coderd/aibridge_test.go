@@ -4034,6 +4034,65 @@ func TestGroupMembersAISpend(t *testing.T) {
 		require.Equal(t, int64(0), resp.Members[0].GroupSpendMicros)
 	})
 
+	t.Run("CrossOrgFallbackEveryoneMasked", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
+		db, ps := dbtestutil.NewDB(t)
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{DeploymentValues: dv, Database: db, Pubsub: ps},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC:          1,
+					codersdk.FeatureAIBridge:              1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Given: a member of the default org whose queried group lives in a
+		// non-default org, with no budget or override. The fallback prefers the
+		// default org's Everyone group, which lives in a different org than the
+		// queried group.
+		queriedOrg := coderdenttest.CreateOrganization(t, ownerClient, coderdenttest.CreateOrganizationOptions{})
+		_, targetUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: targetUser.ID, OrganizationID: queriedOrg.ID})
+		queried, err := userAdminClient.CreateGroup(ctx, queriedOrg.ID, codersdk.CreateGroupRequest{
+			Name: "queried-cross-org-fallback-group",
+		})
+		require.NoError(t, err)
+		_, err = userAdminClient.PatchGroup(ctx, queried.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{targetUser.ID.String()},
+		})
+		require.NoError(t, err)
+
+		// Spend is attributed to the queried group.
+		_, err = db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+			UserID:           targetUser.ID,
+			EffectiveGroupID: queried.ID,
+			Day:              dbtime.Now(),
+			CostMicros:       100_000_000,
+		})
+		require.NoError(t, err)
+
+		// When: the owner, who can read both orgs, queries the group.
+		//nolint:gocritic // The test asserts that even an owner sees the mask.
+		resp, err := ownerClient.GroupMembersAISpend(ctx, queried.ID, []uuid.UUID{targetUser.ID})
+		require.NoError(t, err)
+
+		// Then: effective_group_id is masked because the fallback Everyone group
+		// lives in the default org, while the queried group's spend still returns.
+		require.Len(t, resp.Members, 1)
+		require.Equal(t, targetUser.ID, resp.Members[0].UserID)
+		require.Nil(t, resp.Members[0].EffectiveGroupID, "cross-org fallback effective group must be masked")
+		require.Nil(t, resp.Members[0].GroupBudget)
+		require.Equal(t, int64(100_000_000), resp.Members[0].GroupSpendMicros)
+	})
+
 	t.Run("OrgScopedRoute", func(t *testing.T) {
 		t.Parallel()
 

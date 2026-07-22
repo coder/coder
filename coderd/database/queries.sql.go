@@ -2596,6 +2596,7 @@ user_highest_group AS (
 	JOIN group_members_expanded member ON member.group_id = budget.group_id
 	JOIN organizations ON organizations.id = member.organization_id
 	WHERE member.user_id IN (SELECT user_id FROM filtered_users)
+		AND organizations.deleted = false
 	ORDER BY member.user_id, budget.spend_limit_micros DESC, organizations.name ASC, member.group_name ASC
 ),
 user_fallback_group AS (
@@ -2724,6 +2725,7 @@ FROM group_ai_budgets budget
 JOIN group_members_expanded member ON member.group_id = budget.group_id
 JOIN organizations ON organizations.id = member.organization_id
 WHERE member.user_id = $1
+	AND organizations.deleted = false
 ORDER BY
 	budget.spend_limit_micros DESC, -- highest wins
 	organizations.name ASC,         -- organization name tiebreak

@@ -31,9 +31,11 @@ type tokenUsageCost struct {
 }
 
 // resolveTokenUsageCost resolves the effective group and per-token prices for an
-// interception and computes its cost. A model absent from the price table yields
-// NULL prices and cost rather than an error (a NULL cost unambiguously means
-// "model not priced"). Any other error is returned.
+// interception and computes its cost. Two independent conditions yield a NULL
+// column rather than an error: an unresolved effective group (the user has no
+// org membership), and a model absent from the price table leaves prices and
+// cost NULL (a NULL cost unambiguously means "model not priced").
+// Any other error is returned.
 func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBridgeInterception, in *proto.RecordTokenUsageRequest) (tokenUsageCost, error) {
 	var result tokenUsageCost
 

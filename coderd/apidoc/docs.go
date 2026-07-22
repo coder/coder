@@ -26027,7 +26027,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "effective_group_id": {
-                    "description": "EffectiveGroupID is the group the spend is attributed to, falling back to\nthe Everyone group when no budget applies. Null only when the user has no\norganization.",
+                    "description": "EffectiveGroupID is the group the spend is attributed to, falling back to\nthe Everyone group when no budget applies. Null only when the user has no\norganization membership.",
                     "type": "string",
                     "format": "uuid"
                 },

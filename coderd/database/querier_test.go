@@ -13725,6 +13725,129 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 	})
 }
 
+func TestGetHighestGroupAIBudgetByUser(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		setup   func(t *testing.T, ctx context.Context, db database.Store) (userID uuid.UUID, want database.GetHighestGroupAIBudgetByUserRow)
+		wantErr error
+	}{
+		{
+			// Among the user's budgeted groups, the highest limit wins.
+			name: "HighestWins",
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, database.GetHighestGroupAIBudgetByUserRow) {
+				user := dbgen.User(t, db, database.User{})
+				org := dbgen.Organization(t, db, database.Organization{})
+				lower := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+				higher := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: lower.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: higher.ID, UserID: user.ID})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: lower.ID, SpendLimitMicros: 1_000_000})
+				require.NoError(t, err)
+				_, err = db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: higher.ID, SpendLimitMicros: 2_000_000})
+				require.NoError(t, err)
+				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: higher.ID, SpendLimitMicros: 2_000_000}
+			},
+		},
+		{
+			// The highest limit wins across the user's orgs, not just within one.
+			name: "HighestWinsAcrossOrgs",
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, database.GetHighestGroupAIBudgetByUserRow) {
+				user := dbgen.User(t, db, database.User{})
+				orgA := dbgen.Organization(t, db, database.Organization{})
+				orgB := dbgen.Organization(t, db, database.Organization{})
+				lower := dbgen.Group(t, db, database.Group{OrganizationID: orgA.ID})
+				higher := dbgen.Group(t, db, database.Group{OrganizationID: orgB.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA.ID, UserID: user.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: lower.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: higher.ID, UserID: user.ID})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: lower.ID, SpendLimitMicros: 1_000_000})
+				require.NoError(t, err)
+				_, err = db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: higher.ID, SpendLimitMicros: 2_000_000})
+				require.NoError(t, err)
+				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: higher.ID, SpendLimitMicros: 2_000_000}
+			},
+		},
+		{
+			// A budgeted group in a soft-deleted org is excluded even when its
+			// limit is higher.
+			name: "ExcludesDeletedOrg",
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, database.GetHighestGroupAIBudgetByUserRow) {
+				user := dbgen.User(t, db, database.User{})
+				liveOrg := dbgen.Organization(t, db, database.Organization{Name: "live-org"})
+				deletedOrg := dbgen.Organization(t, db, database.Organization{Name: "deleted-org"})
+				liveGroup := dbgen.Group(t, db, database.Group{OrganizationID: liveOrg.ID})
+				deletedGroup := dbgen.Group(t, db, database.Group{OrganizationID: deletedOrg.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: liveOrg.ID, UserID: user.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: deletedOrg.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: liveGroup.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: deletedGroup.ID, UserID: user.ID})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: liveGroup.ID, SpendLimitMicros: 1_000_000})
+				require.NoError(t, err)
+				_, err = db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: deletedGroup.ID, SpendLimitMicros: 5_000_000})
+				require.NoError(t, err)
+				err = db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+					ID:        deletedOrg.ID,
+					UpdatedAt: dbtime.Now(),
+				})
+				require.NoError(t, err)
+				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: liveGroup.ID, SpendLimitMicros: 1_000_000}
+			},
+		},
+		{
+			// Equal limits across orgs break by org name ascending.
+			name: "TieByOrgName",
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, database.GetHighestGroupAIBudgetByUserRow) {
+				user := dbgen.User(t, db, database.User{})
+				orgA := dbgen.Organization(t, db, database.Organization{Name: "org-a"})
+				orgB := dbgen.Organization(t, db, database.Organization{Name: "org-b"})
+				groupA := dbgen.Group(t, db, database.Group{OrganizationID: orgA.ID})
+				groupB := dbgen.Group(t, db, database.Group{OrganizationID: orgB.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgA.ID, UserID: user.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: orgB.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: groupA.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: groupB.ID, UserID: user.ID})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: groupA.ID, SpendLimitMicros: 1_000_000})
+				require.NoError(t, err)
+				_, err = db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: groupB.ID, SpendLimitMicros: 1_000_000})
+				require.NoError(t, err)
+				return user.ID, database.GetHighestGroupAIBudgetByUserRow{GroupID: groupA.ID, SpendLimitMicros: 1_000_000}
+			},
+		},
+		{
+			// A user with no budgeted group has no highest budget.
+			name:    "NoBudgetedGroup",
+			wantErr: sql.ErrNoRows,
+			setup: func(t *testing.T, ctx context.Context, db database.Store) (uuid.UUID, database.GetHighestGroupAIBudgetByUserRow) {
+				user := dbgen.User(t, db, database.User{})
+				org := dbgen.Organization(t, db, database.Organization{})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+				return user.ID, database.GetHighestGroupAIBudgetByUserRow{}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			db, _ := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			userID, want := tt.setup(t, ctx, db)
+			got, err := db.GetHighestGroupAIBudgetByUser(ctx, userID)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, want, got)
+		})
+	}
+}
+
 func TestGetUserEveryoneFallbackGroup(t *testing.T) {
 	t.Parallel()
 

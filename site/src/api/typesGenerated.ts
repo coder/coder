@@ -9916,7 +9916,7 @@ export interface UserAIBudgetSummary {
 	/**
 	 * EffectiveGroupID is the group the spend is attributed to, falling back to
 	 * the Everyone group when no budget applies. Null only when the user has no
-	 * organization.
+	 * organization membership.
 	 */
 	readonly effective_group_id: string | null;
 	/**
