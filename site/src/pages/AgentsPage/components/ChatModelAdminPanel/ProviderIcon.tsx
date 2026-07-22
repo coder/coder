@@ -1,4 +1,4 @@
-import { ServerIcon } from "lucide-react";
+import { Building2Icon } from "lucide-react";
 import type { FC } from "react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { normalizeProvider } from "#/modules/aiModels/helpers";
@@ -30,7 +30,7 @@ export const ProviderIcon: FC<ProviderIconProps> = ({
 			{iconPath ? (
 				<ExternalImage src={iconPath} alt="" className="size-3/5" />
 			) : (
-				<ServerIcon className="size-3/5 text-content-secondary" />
+				<Building2Icon className="size-3/5 text-content-secondary" />
 			)}
 		</div>
 	);
