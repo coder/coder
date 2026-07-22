@@ -1725,6 +1725,8 @@ func (tx *Tx) FinishError(input FinishErrorInput) (FinishErrorResult, error) {
 // FailIdleInput configures [Tx.FailIdle].
 type FailIdleInput struct {
 	LastError string
+	// Kind classifies the persisted error; empty means generic.
+	Kind codersdk.ChatErrorKind
 }
 
 // FailIdleResult is returned by [Tx.FailIdle].
@@ -1736,9 +1738,13 @@ func (tx *Tx) FailIdle(input FailIdleInput) (FailIdleResult, error) {
 	if err != nil {
 		return FailIdleResult{}, err
 	}
+	kind := input.Kind
+	if kind == "" {
+		kind = codersdk.ChatErrorKindGeneric
+	}
 	lastError, err := json.Marshal(codersdk.ChatError{
 		Message: input.LastError,
-		Kind:    codersdk.ChatErrorKindGeneric,
+		Kind:    kind,
 	})
 	if err != nil {
 		return FailIdleResult{}, xerrors.Errorf("encode last error: %w", err)

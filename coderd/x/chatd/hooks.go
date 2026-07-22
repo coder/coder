@@ -662,7 +662,10 @@ func (p *Server) handleAPIDispatchError(ctx context.Context, chatID uuid.UUID, e
 	var failedChat database.Chat
 	machine := p.newChatMachine(chatID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		if _, err := tx.FailIdle(chatstate.FailIdleInput{LastError: lastError}); err != nil {
+		if _, err := tx.FailIdle(chatstate.FailIdleInput{
+			LastError: lastError,
+			Kind:      codersdk.ChatErrorKindHookDispatchFailed,
+		}); err != nil {
 			return err
 		}
 		chat, err := store.GetChatByID(ctx, chatID)
