@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -56,8 +58,8 @@ func TestPrependFrontMatterKeepsBodyWithoutHeading(t *testing.T) {
 
 // TestExtractSectionName covers extractSectionName's contract, the load-bearing
 // guard prependFrontMatter relies on: the first line must be a "# {name}"
-// heading, and a section without one (or an empty section) is rejected rather
-// than mis-sliced.
+// heading, and a section without one (or an empty section) is rejected, not
+// sliced into a bogus name.
 func TestExtractSectionName(t *testing.T) {
 	t.Parallel()
 
@@ -70,4 +72,11 @@ func TestExtractSectionName(t *testing.T) {
 
 	_, err = extractSectionName(nil)
 	require.Error(t, err)
+
+	// A first line past bufio.Scanner's token limit makes Scan return false
+	// with the reason only in Err(); surface it as a scanning error instead of
+	// a missing-header error.
+	_, err = extractSectionName([]byte(strings.Repeat("a", bufio.MaxScanTokenSize+1)))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "scanning section")
 }
