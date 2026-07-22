@@ -1,3 +1,5 @@
+COMMENT ON COLUMN usage_events.created_at IS NULL;
+
 DROP INDEX IF EXISTS idx_usage_events_agent_runtime;
 
 -- Remove hb_agent_runtime_v1 rows so the previous constraint can be restored.

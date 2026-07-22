@@ -3,6 +3,11 @@ ALTER TABLE usage_events
   DROP CONSTRAINT usage_event_type_check,
   ADD CONSTRAINT usage_event_type_check CHECK (event_type IN ('dc_managed_agents_v1', 'hb_ai_seats_v1', 'hb_agent_runtime_v1'));
 
+-- Document that created_at is the event occurrence time, not the row
+-- insertion time. Backfilled events are the first case where the two
+-- diverge.
+COMMENT ON COLUMN usage_events.created_at IS 'The time the usage occurred, which is not necessarily the time the row was inserted. Backfilled heartbeat events (e.g. hb_agent_runtime_v1) set this to the start of the measured time bucket rather than the insertion time. This timestamp determines the day used by the daily rollup trigger and is sent to the usage collector service as the event timestamp.';
+
 -- Partial index for efficient lookups of agent runtime heartbeat events by
 -- time. Used by the usage generator to find missing hourly buckets.
 CREATE INDEX idx_usage_events_agent_runtime
