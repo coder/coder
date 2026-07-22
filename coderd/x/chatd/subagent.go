@@ -1126,7 +1126,6 @@ func (p *Server) createChildSubagentChatWithOptions(
 			prompt = override
 		}
 	}
-	// Derive the fallback title only after hooks settle the final prompt.
 	if title == "" {
 		title = subagentFallbackChatTitle(prompt)
 	}

@@ -478,8 +478,8 @@ type EndChatResult struct {
 }
 
 // EndChatFamily orchestrates the single-chat EndChat transition across the
-// addressed chat and each of its descendants. The stored family model is
-// recursive even though subagent spawning only creates children under roots.
+// addressed chat and each of its descendants, archiving them and clearing
+// active execution state.
 func (tx *Tx) EndChatFamily(input EndChatInput) (EndChatResult, error) {
 	chat, _, err := tx.requireFromAllowed(TransitionEndChat)
 	if err != nil {
@@ -497,8 +497,6 @@ func (tx *Tx) EndChatFamily(input EndChatInput) (EndChatResult, error) {
 	return result, nil
 }
 
-// applyEndChat performs the EndChat transition for exactly one chat: it
-// archives the chat and clears its active execution state.
 func (tx *Tx) applyEndChat(chat database.Chat, prefixMessages []Message) (EndChatResult, error) {
 	const endChatCancelReason = "Tool execution interrupted because the chat was ended"
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, endChatCancelReason, false, prefixMessages...)
@@ -536,9 +534,8 @@ func (tx *Tx) applyEndChat(chat database.Chat, prefixMessages []Message) (EndCha
 	}, nil
 }
 
-// endDescendantChats dispatches the single-chat EndChat transition for each
-// descendant through nested machines so descendant snapshots and publications
-// share the outer transaction. ID order follows the family lock order.
+// endDescendantChats uses nested machines so descendant snapshots and
+// publications share the outer transaction. IDs follow the family lock order.
 func (tx *Tx) endDescendantChats(chat database.Chat) ([]database.Chat, error) {
 	var ids []uuid.UUID
 	var err error

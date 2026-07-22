@@ -64,7 +64,7 @@ type Tx struct {
 	store  database.Store
 	chatID uuid.UUID
 	// publisher holds the active [PublishBuffer], not the live pubsub.
-	// Nested machines reuse it so their publications flush only after the
+	// Nested machines wrap it so their publications flush only after the
 	// outer transaction commits.
 	publisher Publisher
 }
