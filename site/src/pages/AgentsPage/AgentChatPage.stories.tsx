@@ -1355,8 +1355,8 @@ export const RemembersReasoningEffortAcrossModels: Story = {
 		);
 		await user.keyboard("{Escape}");
 
-		// Editing after switching models sends the new model's effective
-		// effort even without touching the slider.
+		// Editing after switching models, then moving the slider, scopes
+		// the change to the edit.
 		await user.click(canvas.getByRole("button", { name: "Edit message" }));
 
 		// Changing the slider during a history edit does not overwrite
@@ -1401,6 +1401,91 @@ export const RemembersReasoningEffortAcrossModels: Story = {
 			expect(getReasoningEffortForModel(SECOND_MODEL_CONFIG_ID)).toBe("low");
 		});
 		await user.keyboard("{Escape}");
+	},
+};
+
+export const EditWithModelSwitchSendsModelEffort: Story = {
+	parameters: {
+		queries: [
+			...buildQueries(
+				{
+					id: CHAT_ID,
+					...baseChatFields,
+					title: "Edit with model switch",
+					status: "waiting",
+				},
+				{
+					messages: [
+						{
+							...MockChatMessage,
+							id: 1,
+							chat_id: CHAT_ID,
+							role: "user",
+							model_config_id: MODEL_CONFIG_ID,
+							content: [{ type: "text", text: "Switch models and edit." }],
+						},
+					],
+					queued_messages: [],
+					has_more: false,
+				},
+				{ diffUrl: undefined },
+			),
+			{
+				key: chatModelConfigs().queryKey,
+				data: [
+					...mockModelConfigs,
+					{
+						...MockChatModelConfig,
+						id: SECOND_MODEL_CONFIG_ID,
+						model: "claude-sonnet-4",
+						display_name: "Claude Sonnet 4",
+						model_config: {
+							reasoning_effort: { default: "low", max: "medium" },
+						},
+						reasoning_efforts: ["low", "medium"],
+					},
+				],
+			},
+		],
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		saveReasoningEffortForModel(SECOND_MODEL_CONFIG_ID, "medium");
+		spyOn(API.experimental, "editChatMessage").mockResolvedValue({
+			message: {
+				...MockChatMessage,
+				id: 1,
+			},
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const user = userEvent.setup();
+
+		expect(await canvas.findByText("Edit with model switch")).toBeVisible();
+
+		// Switch models without touching the effort slider.
+		await user.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
+		await user.click(
+			await body.findByRole("option", { name: /Claude Sonnet 4/i }),
+		);
+
+		// Saving the edit sends the new model's effective effort via the
+		// model-switch branch alone; the slider was never touched.
+		await user.click(canvas.getByRole("button", { name: "Edit message" }));
+		await user.click(canvas.getByRole("button", { name: "Save Edit" }));
+		await waitFor(() => {
+			expect(API.experimental.editChatMessage).toHaveBeenCalled();
+		});
+		expect(API.experimental.editChatMessage).toHaveBeenCalledWith(
+			CHAT_ID,
+			1,
+			expect.objectContaining({
+				model_config_id: SECOND_MODEL_CONFIG_ID,
+				reasoning_effort: "medium",
+			}),
+		);
 	},
 };
 
