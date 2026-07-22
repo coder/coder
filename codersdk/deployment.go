@@ -5075,8 +5075,15 @@ func (c *DeploymentValues) Validate() error {
 	// Disabled hooks must not validate inert settings.
 	if c.AI.Chat.HookEnabled.Value() {
 		if c.AI.Chat.HookURL.String() != "" {
-			if c.AI.Chat.HookURL.Value().Scheme != "https" {
+			hookURL := c.AI.Chat.HookURL.Value()
+			if hookURL.Scheme != "https" {
 				return xerrors.New("chat hook URL must use HTTPS; set --chat-hook-url to an HTTPS URL")
+			}
+			// The configured string is signed verbatim as the JWT audience,
+			// but fragments and userinfo never reach the consumer, so its
+			// reconstructed audience would mismatch on every dispatch.
+			if hookURL.Fragment != "" || hookURL.RawFragment != "" || hookURL.User != nil {
+				return xerrors.New("chat hook URL must not contain a fragment or userinfo; set --chat-hook-url to a plain HTTPS URL")
 			}
 			if c.AI.Chat.HookSecret.Value() == "" {
 				return xerrors.New("chat hook secret is required when chat hook URL is set; set --chat-hook-secret")
