@@ -1,5 +1,7 @@
+---
+title: schedule show
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# schedule show
 
 Show workspace schedules
 

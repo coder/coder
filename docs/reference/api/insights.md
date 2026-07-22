@@ -1,4 +1,6 @@
-# Insights
+---
+title: Insights
+---
 
 ## Get deployment DAUs
 

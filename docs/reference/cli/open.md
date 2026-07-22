@@ -1,5 +1,7 @@
+---
+title: open
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# open
 
 Open a workspace
 

@@ -1,5 +1,7 @@
+---
+title: secret update
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# secret update
 
 Update a secret
 

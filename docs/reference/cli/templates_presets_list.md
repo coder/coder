@@ -1,5 +1,7 @@
+---
+title: templates presets list
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# templates presets list
 
 List all presets of the specified template. Defaults to the active template version.
 

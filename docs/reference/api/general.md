@@ -1,4 +1,6 @@
-# General
+---
+title: General
+---
 
 ## API root handler
 

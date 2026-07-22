@@ -1,5 +1,7 @@
+---
+title: delete
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# delete
 
 Delete a workspace
 

@@ -1,5 +1,7 @@
+---
+title: task delete
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# task delete
 
 Delete tasks
 

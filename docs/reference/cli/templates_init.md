@@ -1,5 +1,7 @@
+---
+title: templates init
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# templates init
 
 Get started with a templated template.
 

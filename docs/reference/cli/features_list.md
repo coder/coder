@@ -1,5 +1,7 @@
+---
+title: features list
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# features list
 
 Aliases:
 

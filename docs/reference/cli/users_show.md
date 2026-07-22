@@ -1,5 +1,7 @@
+---
+title: users show
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# users show
 
 Show a single user. Use 'me' to indicate the currently authenticated user.
 

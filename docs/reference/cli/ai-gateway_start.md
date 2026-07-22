@@ -1,5 +1,7 @@
+---
+title: ai-gateway start
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# ai-gateway start
 
 Run a standalone AI Gateway server
 

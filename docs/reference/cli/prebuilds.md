@@ -1,5 +1,7 @@
+---
+title: prebuilds
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# prebuilds
 
 Manage Coder prebuilds
 

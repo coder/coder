@@ -1,5 +1,7 @@
+---
+title: logs
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# logs
 
 View logs for a workspace
 

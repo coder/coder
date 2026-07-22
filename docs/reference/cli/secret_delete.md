@@ -1,5 +1,7 @@
+---
+title: secret delete
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# secret delete
 
 Delete a secret
 

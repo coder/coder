@@ -1,5 +1,7 @@
+---
+title: groups
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# groups
 
 Manage groups
 

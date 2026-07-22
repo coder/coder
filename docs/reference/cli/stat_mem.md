@@ -1,5 +1,7 @@
+---
+title: stat mem
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# stat mem
 
 Show memory usage, in gigabytes.
 

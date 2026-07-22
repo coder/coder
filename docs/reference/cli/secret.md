@@ -1,5 +1,7 @@
+---
+title: secret
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# secret
 
 Manage secrets
 

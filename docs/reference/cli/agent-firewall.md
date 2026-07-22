@@ -1,5 +1,7 @@
+---
+title: agent-firewall
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# agent-firewall
 
 Network isolation tool for monitoring and restricting HTTP/HTTPS requests
 

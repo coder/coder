@@ -95,7 +95,9 @@
 {{ data.resource = data.resources[r]; }}
 
 <!-- APIDOCGEN: BEGIN SECTION -->
-{{= data.tags.section }}# {{= r}}
+---
+title: {{= r}}
+---
 
 {{? data.resource.description }}{{= data.resource.description}}{{?}}
 
@@ -114,7 +116,9 @@
 {{= data.tags.section }}
 
 <!-- APIDOCGEN: BEGIN SECTION -->
-# Schemas
+---
+title: Schemas
+---
 
 {{ for (var s in data.components.schemas) {
   var origSchema = data.components.schemas[s];

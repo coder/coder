@@ -1,5 +1,7 @@
+---
+title: templates delete
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# templates delete
 
 Delete templates
 

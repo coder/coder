@@ -1,5 +1,7 @@
+---
+title: schedule extend
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# schedule extend
 
 Extend the stop time of a currently running workspace instance.
 

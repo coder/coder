@@ -1,5 +1,7 @@
+---
+title: templates create
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# templates create
 
 DEPRECATED: Create a template from the current directory or as specified by flag
 

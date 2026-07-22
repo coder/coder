@@ -1,5 +1,7 @@
+---
+title: secret create
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# secret create
 
 Create a secret
 

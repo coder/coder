@@ -1,5 +1,7 @@
+---
+title: ai-gateway keys
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# ai-gateway keys
 
 Manage AI Gateway keys
 

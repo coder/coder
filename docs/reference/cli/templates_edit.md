@@ -1,5 +1,7 @@
+---
+title: templates edit
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# templates edit
 
 Edit the metadata of a template by name.
 

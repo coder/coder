@@ -1,5 +1,7 @@
+---
+title: external-workspaces
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# external-workspaces
 
 Create or manage external workspaces
 

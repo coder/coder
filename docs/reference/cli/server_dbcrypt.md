@@ -1,5 +1,7 @@
+---
+title: server dbcrypt
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# server dbcrypt
 
 Manage database encryption.
 

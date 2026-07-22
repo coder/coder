@@ -1,5 +1,7 @@
+---
+title: reset-password
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# reset-password
 
 Directly connect to the database to reset a user's password
 

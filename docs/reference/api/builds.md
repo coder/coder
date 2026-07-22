@@ -1,4 +1,6 @@
-# Builds
+---
+title: Builds
+---
 
 ## Get workspace build by user, workspace name, and build number
 

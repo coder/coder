@@ -1,5 +1,7 @@
+---
+title: notifications
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# notifications
 
 Manage Coder notifications
 

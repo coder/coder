@@ -21,7 +21,9 @@ import (
 const (
 	apiSubdir       = "reference/api"
 	apiIndexFile    = "index.md"
-	apiIndexContent = `# API
+	apiIndexContent = `---
+title: REST API
+---
 
 Get started with the Coder API:
 
@@ -252,12 +254,56 @@ func writeDocs(sections [][]byte) error {
 
 func extractSectionName(section []byte) (string, error) {
 	scanner := bufio.NewScanner(bytes.NewReader(section))
-	if !scanner.Scan() {
-		return "", xerrors.Errorf("section header was expected")
+
+	// Generated sections can be preceded by blank lines; capture the first
+	// non-blank line as the header.
+	var first string
+	for scanner.Scan() {
+		if line := scanner.Text(); strings.TrimSpace(line) != "" {
+			first = line
+			break
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return "", xerrors.Errorf("scanning section: %w", err)
 	}
 
-	header := scanner.Text()[2:] // Skip #<space>
-	return strings.TrimSpace(header), nil
+	// Parse front-matter block: --- ... title: <value> ... ---
+	if first == "---" {
+		for scanner.Scan() {
+			line := scanner.Text()
+			if line == "---" {
+				break // closing delimiter reached without finding a title
+			}
+			if after, ok := strings.CutPrefix(line, "title:"); ok {
+				// Strip optional surrounding YAML quotes.
+				title := strings.Trim(strings.TrimSpace(after), `"'`)
+				if title != "" {
+					return title, nil
+				}
+			}
+		}
+		return "", xerrors.Errorf("front-matter block has no non-empty %q key; section starts: %q", "title:", sectionPreview(section))
+	}
+
+	// Fallback: legacy "# Name" heading.
+	if after, ok := strings.CutPrefix(first, "# "); ok {
+		return strings.TrimSpace(after), nil
+	}
+
+	return "", xerrors.Errorf("section header not found: want a front-matter title: or a leading '# ' heading, got %q", first)
+}
+
+// sectionPreview returns a compact, single-line excerpt of a section's leading
+// content for error messages, so a malformed section is identifiable from the
+// make gen output.
+func sectionPreview(section []byte) string {
+	const maxRunes = 120
+	preview := strings.Join(strings.Fields(string(section)), " ")
+	if runes := []rune(preview); len(runes) > maxRunes {
+		return string(runes[:maxRunes]) + "..."
+	}
+	return preview
 }
 
 func toMdFilename(sectionName string) string {

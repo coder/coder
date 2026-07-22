@@ -1,5 +1,7 @@
+---
+title: ai-gateway keys delete
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# ai-gateway keys delete
 
 Delete an AI Gateway key
 

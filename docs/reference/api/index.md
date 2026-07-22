@@ -1,4 +1,6 @@
-# API
+---
+title: REST API
+---
 
 Get started with the Coder API:
 

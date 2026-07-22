@@ -1,5 +1,7 @@
+---
+title: external-auth access-token
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# external-auth access-token
 
 Print auth for an external provider
 

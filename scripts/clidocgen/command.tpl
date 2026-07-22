@@ -1,5 +1,7 @@
+---
+title: {{ if atRoot . }}Command Line{{ else }}{{ fullName . }}{{ end }}
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# {{ fullName . }}
 
 {{ with .Short }}
 {{ . }}

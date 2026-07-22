@@ -1,5 +1,7 @@
+---
+title: task logs
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# task logs
 
 Show a task's logs
 

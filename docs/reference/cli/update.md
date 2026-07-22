@@ -1,5 +1,7 @@
+---
+title: update
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# update
 
 Will update and start a given workspace if it is out of date. If the workspace is already running, it will be stopped first.
 

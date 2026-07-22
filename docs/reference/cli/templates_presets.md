@@ -1,5 +1,7 @@
+---
+title: templates presets
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# templates presets
 
 Manage presets of the specified template
 

@@ -1,5 +1,7 @@
+---
+title: organizations list
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# organizations list
 
 List all organizations
 

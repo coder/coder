@@ -1,5 +1,7 @@
+---
+title: task status
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# task status
 
 Show the status of a task.
 

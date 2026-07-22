@@ -1,5 +1,7 @@
+---
+title: server
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# server
 
 Start a Coder server
 

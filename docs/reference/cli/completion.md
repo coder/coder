@@ -1,5 +1,7 @@
+---
+title: completion
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# completion
 
 Install or update shell completion scripts for the detected or chosen shell.
 

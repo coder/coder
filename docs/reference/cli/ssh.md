@@ -1,5 +1,7 @@
+---
+title: ssh
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# ssh
 
 Start a shell into a workspace or run a command
 

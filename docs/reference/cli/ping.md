@@ -1,5 +1,7 @@
+---
+title: ping
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# ping
 
 Ping a workspace
 

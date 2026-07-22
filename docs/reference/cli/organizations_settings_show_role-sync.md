@@ -1,5 +1,7 @@
+---
+title: organizations settings show role-sync
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# organizations settings show role-sync
 
 Role sync settings to sync organization roles from an IdP.
 

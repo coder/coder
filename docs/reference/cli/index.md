@@ -1,5 +1,7 @@
+---
+title: Command Line
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# coder
 
 ## Usage
 

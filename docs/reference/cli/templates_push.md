@@ -1,5 +1,7 @@
+---
+title: templates push
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# templates push
 
 Create or update a template from the current directory or as specified by flag
 

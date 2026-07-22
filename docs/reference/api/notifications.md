@@ -1,4 +1,6 @@
-# Notifications
+---
+title: Notifications
+---
 
 ## Send a custom notification
 

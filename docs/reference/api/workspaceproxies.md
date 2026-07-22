@@ -1,4 +1,6 @@
-# WorkspaceProxies
+---
+title: WorkspaceProxies
+---
 
 ## Get site-wide regions for workspace connections
 

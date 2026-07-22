@@ -1,5 +1,7 @@
+---
+title: organizations settings show workspace-sharing
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# organizations settings show workspace-sharing
 
 Workspace sharing settings for the organization.
 

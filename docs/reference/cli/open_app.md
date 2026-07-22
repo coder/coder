@@ -1,5 +1,7 @@
+---
+title: open app
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# open app
 
 Open a workspace application.
 

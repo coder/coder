@@ -1,5 +1,7 @@
+---
+title: autoupdate
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# autoupdate
 
 Toggle auto-update policy for a workspace
 

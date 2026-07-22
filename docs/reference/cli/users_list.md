@@ -1,5 +1,7 @@
+---
+title: users list
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# users list
 
 Prints the list of users.
 

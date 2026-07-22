@@ -1,5 +1,7 @@
+---
+title: external-auth
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# external-auth
 
 Manage external authentication
 

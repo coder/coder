@@ -1,5 +1,7 @@
+---
+title: tokens view
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# tokens view
 
 Display detailed information about a token
 

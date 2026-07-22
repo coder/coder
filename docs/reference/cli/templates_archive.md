@@ -1,5 +1,7 @@
+---
+title: templates archive
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# templates archive
 
 Archive unused or failed template versions from a given template(s)
 

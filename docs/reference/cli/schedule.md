@@ -1,5 +1,7 @@
+---
+title: schedule
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# schedule
 
 Schedule automated start and stop times for workspaces
 

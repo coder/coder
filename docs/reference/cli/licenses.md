@@ -1,5 +1,7 @@
+---
+title: licenses
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# licenses
 
 Add, delete, and list licenses
 

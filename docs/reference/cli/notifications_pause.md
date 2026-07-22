@@ -1,5 +1,7 @@
+---
+title: notifications pause
+---
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-# notifications pause
 
 Pause notifications
 
