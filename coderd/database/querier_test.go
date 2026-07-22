@@ -13470,6 +13470,51 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		require.Equal(t, int64(250), got[0].GroupSpendMicros)
 	})
 
+	t.Run("CrossOrgFallbackMasked", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Given: an unbudgeted member of the queried group who also belongs to
+		// another org whose name sorts first, so the fallback prefers that org's
+		// Everyone group over the queried group's org.
+		user := dbgen.User(t, db, database.User{})
+		queriedOrg := dbgen.Organization(t, db, database.Organization{Name: "z-queried-org"})
+		otherOrg := dbgen.Organization(t, db, database.Organization{Name: "a-other-org"})
+		queried := dbgen.Group(t, db, database.Group{OrganizationID: queriedOrg.ID})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: queriedOrg.ID})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: otherOrg.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: queried.ID, UserID: user.ID})
+		// Both orgs have an Everyone group (id == org id), as in production.
+		//nolint:gocritic // Requires system context.
+		_, err := db.InsertAllUsersGroup(dbauthz.AsSystemRestricted(ctx), queriedOrg.ID)
+		require.NoError(t, err)
+		//nolint:gocritic // Requires system context.
+		_, err = db.InsertAllUsersGroup(dbauthz.AsSystemRestricted(ctx), otherOrg.ID)
+		require.NoError(t, err)
+		_, err = db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+			UserID: user.ID, EffectiveGroupID: queried.ID, Day: now, CostMicros: 250,
+		})
+		require.NoError(t, err)
+
+		// When: querying spend for the user.
+		got, err := db.GetGroupMembersAISpend(ctx, database.GetGroupMembersAISpendParams{
+			GroupID:     queried.ID,
+			UserIds:     []uuid.UUID{user.ID},
+			PeriodStart: monthStart,
+		})
+		require.NoError(t, err)
+
+		// Then: the fallback resolves to the other org's Everyone group, so
+		// effective_group_id is masked to null, while queried-group spend still
+		// returns.
+		require.Len(t, got, 1)
+		require.False(t, got[0].EffectiveGroupID.Valid, "cross-org effective group must be masked")
+		require.False(t, got[0].SpendLimitMicros.Valid)
+		require.False(t, got[0].LimitSource.Valid)
+		require.Equal(t, int64(250), got[0].GroupSpendMicros)
+	})
+
 	t.Run("SpendWithDifferentEffectiveGroup", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
