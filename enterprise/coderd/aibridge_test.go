@@ -1815,6 +1815,36 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.Equal(t, "api.github.com", res.NetworkTopDomains[0].Domain)
 		require.EqualValues(t, 3, res.NetworkTopDomains[0].Count)
 		require.EqualValues(t, 2, res.NetworkDomainCount)
+
+		// The per-call list covers the same window as the summary (all protos,
+		// LLM call at seq 0 excluded), ordered chronologically by sequence.
+		require.Len(t, res.NetworkCallLogs, 5)
+		gotSeqs := make([]int32, len(res.NetworkCallLogs))
+		blocked := 0
+		for i, c := range res.NetworkCallLogs {
+			gotSeqs[i] = c.SequenceNumber
+			if !c.Allowed {
+				blocked++
+			}
+		}
+		require.Equal(t, []int32{1, 2, 3, 4, 5}, gotSeqs)
+		// List length and blocked count agree with the summary counts.
+		require.EqualValues(t, res.NetworkCalls.Total, len(res.NetworkCallLogs))
+		require.EqualValues(t, res.NetworkCalls.Blocked, blocked)
+
+		// The blocked npm call (seq 3) has no matched rule; allowed calls do.
+		npm := res.NetworkCallLogs[2]
+		require.Equal(t, int32(3), npm.SequenceNumber)
+		require.Equal(t, "https://registry.npmjs.org/lodash", npm.Detail)
+		require.False(t, npm.Allowed)
+		require.Nil(t, npm.MatchedRule)
+
+		gh := res.NetworkCallLogs[0]
+		require.True(t, gh.Allowed)
+		require.NotNil(t, gh.MatchedRule)
+
+		// Non-http protocols are included in the list (unlike top domains).
+		require.Equal(t, "dns", res.NetworkCallLogs[4].Proto)
 	})
 
 	t.Run("NetworkSharedFirewallSessionNoBleed", func(t *testing.T) {
@@ -1895,6 +1925,7 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.Nil(t, res.NetworkCalls)
 		require.Empty(t, res.NetworkTopDomains)
 		require.EqualValues(t, 0, res.NetworkDomainCount)
+		require.Empty(t, res.NetworkCallLogs)
 	})
 
 	t.Run("ThreadsWithAgenticActions", func(t *testing.T) {

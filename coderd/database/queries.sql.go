@@ -2024,6 +2024,90 @@ func (q *sqlQuerier) ListAIBridgeModels(ctx context.Context, arg ListAIBridgeMod
 	return items, nil
 }
 
+const listAIBridgeSessionNetworkCalls = `-- name: ListAIBridgeSessionNetworkCalls :many
+SELECT
+	bl.id,
+	bl.sequence_number,
+	bl.proto,
+	bl.method,
+	bl.detail,
+	bl.matched_rule,
+	bl.created_at
+FROM aibridge_interceptions afi
+LEFT JOIN LATERAL (
+	SELECT MIN(nxt.agent_firewall_sequence_number) AS next_seq
+	FROM aibridge_interceptions nxt
+	WHERE nxt.agent_firewall_session_id = afi.agent_firewall_session_id
+		AND nxt.agent_firewall_sequence_number > afi.agent_firewall_sequence_number
+) w ON true
+JOIN boundary_logs bl
+	ON bl.session_id = afi.agent_firewall_session_id
+	AND bl.sequence_number > afi.agent_firewall_sequence_number
+	AND (w.next_seq IS NULL OR bl.sequence_number < w.next_seq)
+WHERE afi.session_id = $1::text
+	AND afi.ended_at IS NOT NULL
+	AND afi.agent_firewall_session_id IS NOT NULL
+	AND afi.agent_firewall_sequence_number IS NOT NULL
+ORDER BY bl.created_at ASC, bl.sequence_number ASC
+LIMIT COALESCE(NULLIF($2::integer, 0), 100)
+`
+
+type ListAIBridgeSessionNetworkCallsParams struct {
+	SessionID string `db:"session_id" json:"session_id"`
+	Limit     int32  `db:"limit_" json:"limit_"`
+}
+
+type ListAIBridgeSessionNetworkCallsRow struct {
+	ID             uuid.UUID      `db:"id" json:"id"`
+	SequenceNumber int32          `db:"sequence_number" json:"sequence_number"`
+	Proto          string         `db:"proto" json:"proto"`
+	Method         string         `db:"method" json:"method"`
+	Detail         string         `db:"detail" json:"detail"`
+	MatchedRule    sql.NullString `db:"matched_rule" json:"matched_rule"`
+	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
+}
+
+// Returns the individual Agent Firewall network calls made during an AI
+// session, ordered chronologically. All protocols are included so the row
+// count matches the network_calls summary in ListAIBridgeSessions.
+//
+// Windowing mirrors that summary and GetAIBridgeSessionTopDomains: each
+// interception's boundary logs fall in the open interval (this seq, next
+// interception's seq) within the same firewall session. The exclusive lower
+// bound drops the interception's own LLM-provider call. next_seq considers all
+// interceptions in the firewall session so windows never bleed across AI
+// sessions that share one firewall session.
+func (q *sqlQuerier) ListAIBridgeSessionNetworkCalls(ctx context.Context, arg ListAIBridgeSessionNetworkCallsParams) ([]ListAIBridgeSessionNetworkCallsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeSessionNetworkCalls, arg.SessionID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAIBridgeSessionNetworkCallsRow
+	for rows.Next() {
+		var i ListAIBridgeSessionNetworkCallsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SequenceNumber,
+			&i.Proto,
+			&i.Method,
+			&i.Detail,
+			&i.MatchedRule,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAIBridgeSessionThreads = `-- name: ListAIBridgeSessionThreads :many
 WITH paginated_threads AS (
 	SELECT

@@ -618,6 +618,43 @@ FROM domains
 ORDER BY count DESC, domain ASC
 LIMIT COALESCE(NULLIF(@limit_::integer, 0), 5);
 
+-- name: ListAIBridgeSessionNetworkCalls :many
+-- Returns the individual Agent Firewall network calls made during an AI
+-- session, ordered chronologically. All protocols are included so the row
+-- count matches the network_calls summary in ListAIBridgeSessions.
+--
+-- Windowing mirrors that summary and GetAIBridgeSessionTopDomains: each
+-- interception's boundary logs fall in the open interval (this seq, next
+-- interception's seq) within the same firewall session. The exclusive lower
+-- bound drops the interception's own LLM-provider call. next_seq considers all
+-- interceptions in the firewall session so windows never bleed across AI
+-- sessions that share one firewall session.
+SELECT
+	bl.id,
+	bl.sequence_number,
+	bl.proto,
+	bl.method,
+	bl.detail,
+	bl.matched_rule,
+	bl.created_at
+FROM aibridge_interceptions afi
+LEFT JOIN LATERAL (
+	SELECT MIN(nxt.agent_firewall_sequence_number) AS next_seq
+	FROM aibridge_interceptions nxt
+	WHERE nxt.agent_firewall_session_id = afi.agent_firewall_session_id
+		AND nxt.agent_firewall_sequence_number > afi.agent_firewall_sequence_number
+) w ON true
+JOIN boundary_logs bl
+	ON bl.session_id = afi.agent_firewall_session_id
+	AND bl.sequence_number > afi.agent_firewall_sequence_number
+	AND (w.next_seq IS NULL OR bl.sequence_number < w.next_seq)
+WHERE afi.session_id = @session_id::text
+	AND afi.ended_at IS NOT NULL
+	AND afi.agent_firewall_session_id IS NOT NULL
+	AND afi.agent_firewall_sequence_number IS NOT NULL
+ORDER BY bl.created_at ASC, bl.sequence_number ASC
+LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100);
+
 -- name: ListAIBridgeSessionThreads :many
 -- Returns all interceptions belonging to paginated threads within a session.
 -- Threads are paginated by (started_at, thread_id) cursor.

@@ -639,6 +639,34 @@
 | `threads`             | integer                                                                                  | false    |              |                                                                                                                                                                                                                                          |
 | `token_usage_summary` | [codersdk.AIBridgeSessionTokenUsageSummary](#codersdkaibridgesessiontokenusagesummary)   | false    |              |                                                                                                                                                                                                                                          |
 
+## codersdk.AIBridgeSessionNetworkCall
+
+```json
+{
+  "allowed": true,
+  "created_at": "2019-08-24T14:15:22Z",
+  "detail": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "matched_rule": "string",
+  "method": "string",
+  "proto": "string",
+  "sequence_number": 0
+}
+```
+
+### Properties
+
+| Name              | Type    | Required | Restrictions | Description                                                                                 |
+|-------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------|
+| `allowed`         | boolean | false    |              |                                                                                             |
+| `created_at`      | string  | false    |              |                                                                                             |
+| `detail`          | string  | false    |              | Detail is protocol-specific: the full URL for http, the hostname for dns, the path for fs.  |
+| `id`              | string  | false    |              |                                                                                             |
+| `matched_rule`    | string  | false    |              | Matched rule is the allow-list rule that permitted the call. Nil when the call was blocked. |
+| `method`          | string  | false    |              |                                                                                             |
+| `proto`           | string  | false    |              |                                                                                             |
+| `sequence_number` | integer | false    |              |                                                                                             |
+
 ## codersdk.AIBridgeSessionNetworkCallSummary
 
 ```json
@@ -690,6 +718,18 @@
   },
   "models": [
     "string"
+  ],
+  "network_call_logs": [
+    {
+      "allowed": true,
+      "created_at": "2019-08-24T14:15:22Z",
+      "detail": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "matched_rule": "string",
+      "method": "string",
+      "proto": "string",
+      "sequence_number": 0
+    }
   ],
   "network_calls": {
     "blocked": 0,
@@ -794,6 +834,7 @@
 | `metadata`             | object                                                                                   | false    |              |                                                                                                                                                                                                                                       |
 | » `[any property]`     | any                                                                                      | false    |              |                                                                                                                                                                                                                                       |
 | `models`               | array of string                                                                          | false    |              |                                                                                                                                                                                                                                       |
+| `network_call_logs`    | array of [codersdk.AIBridgeSessionNetworkCall](#codersdkaibridgesessionnetworkcall)      | false    |              | Network call logs is the chronological list of individual network calls made during the session, capped server-side. Empty when the session did not pass through Agent Firewall.                                                      |
 | `network_calls`        | [codersdk.AIBridgeSessionNetworkCallSummary](#codersdkaibridgesessionnetworkcallsummary) | false    |              | Network calls summarizes the Agent Firewall network calls made during the session. A nil value means the session did not pass through Agent Firewall, so network call monitoring was not active, which the UI surfaces as "Disabled". |
 | `network_domain_count` | integer                                                                                  | false    |              |                                                                                                                                                                                                                                       |
 | `network_top_domains`  | array of [codersdk.AIBridgeSessionNetworkDomain](#codersdkaibridgesessionnetworkdomain)  | false    |              | Network top domains lists the most contacted destination hosts, ordered by call count descending. NetworkDomainCount is the total number of distinct domains, used to render a "+N more" overflow beyond the listed domains.          |

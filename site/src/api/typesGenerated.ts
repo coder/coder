@@ -153,6 +153,31 @@ export interface AIBridgeSession {
 
 // From codersdk/aibridge.go
 /**
+ * AIBridgeSessionNetworkCall is a single Agent Firewall network call made
+ * during a session. Allowed reports whether the firewall allow-list matched;
+ * when false the call was blocked.
+ */
+export interface AIBridgeSessionNetworkCall {
+	readonly id: string;
+	readonly sequence_number: number;
+	readonly proto: string;
+	readonly method: string;
+	/**
+	 * Detail is protocol-specific: the full URL for http, the hostname for dns,
+	 * the path for fs.
+	 */
+	readonly detail: string;
+	readonly allowed: boolean;
+	/**
+	 * MatchedRule is the allow-list rule that permitted the call. Nil when the
+	 * call was blocked.
+	 */
+	readonly matched_rule?: string;
+	readonly created_at: string;
+}
+
+// From codersdk/aibridge.go
+/**
  * AIBridgeSessionNetworkCallSummary aggregates the Agent Firewall network
  * calls made during a session. Blocked counts calls denied by the firewall
  * allow-list.
@@ -205,6 +230,12 @@ export interface AIBridgeSessionThreadsResponse {
 	 */
 	readonly network_top_domains?: readonly AIBridgeSessionNetworkDomain[];
 	readonly network_domain_count?: number;
+	/**
+	 * NetworkCallLogs is the chronological list of individual network calls made
+	 * during the session, capped server-side. Empty when the session did not
+	 * pass through Agent Firewall.
+	 */
+	readonly network_call_logs?: readonly AIBridgeSessionNetworkCall[];
 	readonly threads: readonly AIBridgeThread[];
 }
 

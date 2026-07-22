@@ -15586,6 +15586,39 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIBridgeSessionNetworkCall": {
+            "type": "object",
+            "properties": {
+                "allowed": {
+                    "type": "boolean"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "detail": {
+                    "description": "Detail is protocol-specific: the full URL for http, the hostname for dns,\nthe path for fs.",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "matched_rule": {
+                    "description": "MatchedRule is the allow-list rule that permitted the call. Nil when the\ncall was blocked.",
+                    "type": "string"
+                },
+                "method": {
+                    "type": "string"
+                },
+                "proto": {
+                    "type": "string"
+                },
+                "sequence_number": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.AIBridgeSessionNetworkCallSummary": {
             "type": "object",
             "properties": {
@@ -15632,6 +15665,13 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "type": "string"
+                    }
+                },
+                "network_call_logs": {
+                    "description": "NetworkCallLogs is the chronological list of individual network calls made\nduring the session, capped server-side. Empty when the session did not\npass through Agent Firewall.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIBridgeSessionNetworkCall"
                     }
                 },
                 "network_calls": {

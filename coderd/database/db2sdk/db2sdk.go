@@ -1154,6 +1154,7 @@ func AIBridgeSessionThreads(
 	userPrompts []database.AIBridgeUserPrompt,
 	modelThoughts []database.AIBridgeModelThought,
 	topDomains []database.GetAIBridgeSessionTopDomainsRow,
+	networkCalls []database.ListAIBridgeSessionNetworkCallsRow,
 ) codersdk.AIBridgeSessionThreadsResponse {
 	// Index subresources by interception ID.
 	tokensByInterception := make(map[uuid.UUID][]database.AIBridgeTokenUsage, len(interceptions))
@@ -1261,6 +1262,23 @@ func AIBridgeSessionThreads(
 		// TotalDomains is the same on every row (a window aggregate); take it
 		// from the last row processed.
 		resp.NetworkDomainCount = d.TotalDomains
+	}
+	for _, nc := range networkCalls {
+		call := codersdk.AIBridgeSessionNetworkCall{
+			ID:             nc.ID,
+			SequenceNumber: nc.SequenceNumber,
+			Proto:          nc.Proto,
+			Method:         nc.Method,
+			Detail:         nc.Detail,
+			// A matched allow-list rule means the call was permitted.
+			Allowed:   nc.MatchedRule.Valid,
+			CreatedAt: nc.CreatedAt,
+		}
+		if nc.MatchedRule.Valid {
+			rule := nc.MatchedRule.String
+			call.MatchedRule = &rule
+		}
+		resp.NetworkCallLogs = append(resp.NetworkCallLogs, call)
 	}
 	return resp
 }
