@@ -39,6 +39,17 @@ changes. A finding on a generated page under `docs/reference/**` also prints a
 note pointing at the generator source, since edits to the generated file do not
 persist.
 
+## Limitations
+
+A few gaps are accepted because no docs page hits them today:
+
+- A placeholder whose name is itself a real HTML element (`<input>`, `<time>`)
+  is indistinguishable from intended markup and passes. Such placeholders
+  almost always live in fenced code blocks, which are ignored.
+- The interior of a raw-text element (`<script>`, `<style>`) is a single opaque
+  token to the HTML tokenizer, so a tag nested inside one is not scanned. An
+  unclosed `<script>`/`<style>` is still caught.
+
 ## Usage
 
 ```console
