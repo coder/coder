@@ -29,8 +29,8 @@ import (
 
 const (
 	maxConcurrentDispatches = 256
-	maxResponseBodyBytes    = 1 << 20
-	maxModelContextBytes    = 16 << 10
+	maxResponseBodyBytes    = 1_048_576
+	maxModelContextBytes    = 16_384
 	capacityWaitLimit       = 250 * time.Millisecond
 	retryBackoff            = 250 * time.Millisecond
 	finalizeTimeout         = 2 * time.Second
