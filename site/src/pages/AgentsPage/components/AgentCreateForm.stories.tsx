@@ -448,6 +448,49 @@ export const RootOverrideReasoningEffortAppliesWithoutPersistedValue: Story = {
 	},
 };
 
+export const StalePersistedEffortFallsThroughToRootOverride: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+		modelOptions: [
+			{
+				...modelOptions[0],
+				reasoningEffortDefault: "low",
+				reasoningEfforts: ["low", "medium"],
+			},
+		],
+		modelConfigs: defaultModelConfigs,
+		rootPersonalModelOverride: buildRootPersonalModelOverride({
+			mode: "model",
+			model_config_id: modelConfigID,
+			reasoning_effort: "medium",
+		}),
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		saveReasoningEffortForModel(modelConfigID, "max");
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		// The stored "max" is no longer valid for this model, so the
+		// root override's "medium" applies instead of the default "low".
+		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
+		expect(await body.findByRole("slider")).toHaveAttribute(
+			"aria-valuenow",
+			"1",
+		);
+		await userEvent.keyboard("{Escape}");
+
+		await submitMessage(canvasElement, "create with stale persisted effort");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		expect(getCreateOptions(args.onCreateChat).reasoningEffort).toBe("medium");
+	},
+};
+
 export const SubmitsReasoningEffort: Story = {
 	args: {
 		...defaultArgs,

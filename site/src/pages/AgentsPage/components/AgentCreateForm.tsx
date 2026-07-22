@@ -252,14 +252,21 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	);
 	// The persisted per-model value outranks a root personal model
 	// override: the user's own most recent choice wins across sessions.
+	// A stored value that is no longer valid for the model is ignored so
+	// the override still applies instead of falling to the model default.
 	const rootOverrideReasoningEffort =
 		!hasValidUserSelectedModel && selectedModel === rootOverrideModelID
 			? rootPersonalModelOverride?.reasoning_effort
 			: undefined;
+	const persistedReasoningEffort = (() => {
+		const stored = getReasoningEffortForModel(selectedModel);
+		const efforts = selectedModelOption?.reasoningEfforts;
+		return stored && efforts?.includes(stored) ? stored : undefined;
+	})();
 	const effectiveReasoningEffort = selectedModelOption
 		? pickReasoningEffort(
 				selectedReasoningEfforts[selectedModel] ??
-					getReasoningEffortForModel(selectedModel) ??
+					persistedReasoningEffort ??
 					rootOverrideReasoningEffort,
 				selectedModelOption.reasoningEfforts ?? [],
 				selectedModelOption.reasoningEffortDefault,
