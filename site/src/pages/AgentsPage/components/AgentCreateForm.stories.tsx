@@ -378,7 +378,7 @@ export const RemembersReasoningEffortByModel: Story = {
 	},
 };
 
-export const RootOverrideReasoningEffortTakesPrecedence: Story = {
+export const PersistedReasoningEffortOutranksRootOverride: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
@@ -393,6 +393,41 @@ export const RootOverrideReasoningEffortTakesPrecedence: Story = {
 	beforeEach: () => {
 		localStorage.clear();
 		saveReasoningEffortForModel(modelConfigID, "low");
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		// The persisted per-model value wins over the root override.
+		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
+		expect(await body.findByRole("slider")).toHaveAttribute(
+			"aria-valuenow",
+			"2",
+		);
+		await userEvent.keyboard("{Escape}");
+
+		await submitMessage(canvasElement, "create with persisted effort");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		expect(getCreateOptions(args.onCreateChat).reasoningEffort).toBe("low");
+	},
+};
+
+export const RootOverrideReasoningEffortAppliesWithoutPersistedValue: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+		modelOptions: [...effortModelOptions],
+		modelConfigs: defaultModelConfigs,
+		rootPersonalModelOverride: buildRootPersonalModelOverride({
+			mode: "model",
+			model_config_id: modelConfigID,
+			reasoning_effort: "high",
+		}),
+	},
+	beforeEach: () => {
+		localStorage.clear();
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
