@@ -63,9 +63,31 @@ type Event struct {
 	TurnID       *uuid.UUID
 	ParentChatID *uuid.UUID
 	RootChatID   *uuid.UUID
-	ToolUseID    *string
-	ToolName     *string
 	Data         any
+}
+
+// toolMetadata derives the persisted tool identity from the typed payload so
+// the audit row can never disagree with the dispatched request body.
+// GetChatHookDispatchDecision matches on these columns during decision reuse.
+func (e Event) toolMetadata() (toolUseID, toolName *string) {
+	switch e.Type {
+	case agenthooks.EventPreToolUse:
+		if data, ok := dataValue[agenthooks.PreToolUseData](e.Data); ok {
+			return nonEmptyPtr(data.ToolUseID), nonEmptyPtr(data.ToolName)
+		}
+	case agenthooks.EventPostToolUse:
+		if data, ok := dataValue[agenthooks.PostToolUseData](e.Data); ok {
+			return nonEmptyPtr(data.ToolUseID), nonEmptyPtr(data.ToolName)
+		}
+	}
+	return nil, nil
+}
+
+func nonEmptyPtr(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 // DispatchError preserves the attempt ID and failure class.
@@ -220,13 +242,14 @@ func (d *Dispatcher) finishWithoutPost(
 }
 
 func (d *Dispatcher) insert(ctx context.Context, event Event, dispatchID uuid.UUID, startedAt time.Time) error {
+	toolUseID, toolName := event.toolMetadata()
 	_, err := d.db.InsertChatHookDispatch(ctx, database.InsertChatHookDispatchParams{
 		ID:          dispatchID,
 		ChatID:      event.ChatID,
 		Event:       string(event.Type),
 		TurnID:      nullUUID(event.TurnID),
-		ToolUseID:   nullStringPtr(event.ToolUseID),
-		ToolName:    nullStringPtr(event.ToolName),
+		ToolUseID:   nullStringPtr(toolUseID),
+		ToolName:    nullStringPtr(toolName),
 		OwnerID:     event.OwnerID,
 		WorkspaceID: nullUUID(event.WorkspaceID),
 		StartedAt:   startedAt,

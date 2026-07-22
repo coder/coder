@@ -124,7 +124,6 @@ func TestDispatcherAllowInputOverride(t *testing.T) {
 		ToolName:  "edit",
 		ToolInput: toolInput,
 	})
-	event.ToolUseID = &toolUseID
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, err := w.Write([]byte(`{"permission":{"decision":"allow","input_override":{"path":"after"}}}`))
 		assert.NoError(t, err)
@@ -396,7 +395,6 @@ func TestDispatcherInvalidToolInputFinalizesProtocolError(t *testing.T) {
 		ToolName:  "edit",
 		ToolInput: json.RawMessage(`{"path":`),
 	})
-	event.ToolUseID = &toolUseID
 
 	var hookRequests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
