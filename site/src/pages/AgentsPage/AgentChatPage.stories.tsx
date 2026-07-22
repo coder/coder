@@ -1202,11 +1202,28 @@ export const WithMessageHistory: Story = {
 		expect(
 			await canvas.findByText("Markdown rendering showcase"),
 		).toBeVisible();
-		await waitFor(() => {
-			expect(
-				canvas.queryByText(/^This chat is owned by/),
-			).not.toBeInTheDocument();
-		});
+		expect(
+			canvas.getByRole("heading", { name: "Auth Module Refactor Plan" }),
+		).toBeVisible();
+		expect(
+			canvas.getByRole("row", {
+				name: "Token Validation High Low P0",
+			}),
+		).toBeVisible();
+		expect(
+			canvas.getByText(
+				"Now show me the middleware consolidation with the full config and some inline code references.",
+			),
+		).toBeVisible();
+		expect(
+			canvas.getByRole("heading", { name: "Middleware Consolidation" }),
+		).toBeVisible();
+		expect(
+			canvas.getByRole("row", {
+				name: "BenchmarkFullAuthFlow 102,340 48,912 -52.2%",
+			}),
+		).toBeVisible();
+		expect(canvas.getByRole("textbox", { name: "Chat message" })).toBeEnabled();
 	},
 };
 
