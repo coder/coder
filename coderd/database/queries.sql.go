@@ -6897,6 +6897,9 @@ WITH deletable AS (
       AND updated_at < $1::timestamptz
     ORDER BY updated_at ASC
     LIMIT $2
+    -- Locking keeps the candidate set stable, so hook dispatches are
+    -- only removed for chats the outer DELETE also removes.
+    FOR UPDATE
 ), purged_hook_dispatches AS (
     DELETE FROM chat_hook_dispatches
     WHERE chat_id IN (SELECT id FROM deletable)
