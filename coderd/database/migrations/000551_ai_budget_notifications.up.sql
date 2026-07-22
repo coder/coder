@@ -11,7 +11,7 @@ INSERT INTO notification_templates (
 )
 VALUES (
     'b5db9597-de2a-4dea-87e9-25cee6906b86',
-    'AI Budget Warning Threshold Reached',
+    'AI Budget Warning',
     E'You''re approaching your monthly AI budget limit',
     E'You have used more than {{.Labels.threshold}}% of your monthly AI budget ({{.Labels.limit}}). Effective group: **{{.Labels.group_name}}**.',
     '[]'::jsonb,
