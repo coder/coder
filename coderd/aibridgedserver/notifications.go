@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // warningThresholdPercent triggers a warning notification; limitThresholdPercent
@@ -49,6 +50,7 @@ type budgetThresholdCrossing struct {
 	spendLimitMicros int64
 	thresholdPercent int
 	template         uuid.UUID
+	limitSource      codersdk.AIBudgetLimitSource
 }
 
 // detectBudgetThresholdCrossings checks whether this interception's cost pushed
@@ -95,6 +97,7 @@ func (s *Server) detectBudgetThresholdCrossings(ctx context.Context, tx database
 				spendLimitMicros: limit,
 				thresholdPercent: t.percent,
 				template:         t.template,
+				limitSource:      cost.limitSource,
 			})
 		}
 	}
@@ -110,10 +113,11 @@ func (s *Server) notifyBudgetThresholdCrossing(ctx context.Context, crossing bud
 	}
 
 	labels := map[string]string{
-		"threshold":  strconv.Itoa(crossing.thresholdPercent),
-		"limit":      formatSpendLimit(crossing.spendLimitMicros),
-		"group_name": group.Name,
-		"period":     s.budgetPeriod.Adjective(),
+		"threshold":    strconv.Itoa(crossing.thresholdPercent),
+		"limit":        formatSpendLimit(crossing.spendLimitMicros),
+		"period":       s.budgetPeriod.Adjective(),
+		"limit_source": string(crossing.limitSource),
+		"group_name":   group.Name,
 	}
 
 	//nolint:gocritic // Enqueuing notifications requires the notifier actor.
