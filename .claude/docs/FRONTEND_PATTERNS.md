@@ -14,6 +14,11 @@ How to use this document:
 `site/AGENTS.md` holds the one-line summary of each rule plus general frontend
 workflow guidance. This file is the authoritative version with examples.
 
+A machine-checkable subset of these rules is enforced by `pnpm lint` via
+`site/scripts/check-frontend-patterns.mjs`. Existing violations are tracked in
+a ratchet baseline; new violations fail CI, and fixes ratchet the baseline
+down with `node scripts/check-frontend-patterns.mjs --update`.
+
 ## FE1: UI behavior ships with Storybook interaction coverage
 
 Every user-visible behavior change needs a Storybook story whose `play`

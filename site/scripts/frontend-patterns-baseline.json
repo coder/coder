@@ -1,0 +1,492 @@
+{
+	"FE10/no-queryselector-in-ui-tests": {
+		"src/components/ScrollArea/ScrollArea.stories.tsx": [
+			"const area = canvasElement.querySelector(`[data-testid='${testid}']`);",
+			"const horizontal = canvasElement.querySelector(",
+			"const vertical = canvasElement.querySelector(",
+			"return area?.querySelector(`[data-orientation=\"${orientation}\"]`)"
+		],
+		"src/hooks/useClipboard.test.tsx": [
+			"const dummyInput = document.querySelector("
+		],
+		"src/hooks/useEmbeddedMetadata.test.ts": [
+			"let userNode = document.querySelector(query);",
+			"userNode = document.querySelector(query);"
+		],
+		"src/pages/AgentsPage/AgentChatPageView.stories.tsx": [
+			"const contentMarker = scrollContainer.querySelector(",
+			"const sentinels = scrollContainer.querySelectorAll(\"[data-user-sentinel]\");",
+			"const sentinels = scrollContainer.querySelectorAll(\"[data-user-sentinel]\");",
+			"const textarea = terminalContainer.querySelector(\"textarea\");",
+			"const textarea = terminalContainer.querySelector(\"textarea\");"
+		],
+		"src/pages/AgentsPage/components/AgentChatInput.stories.tsx": [
+			"const contentEditable = element?.querySelector(",
+			"const element = container.querySelector(",
+			"const spinnerSvg = sendButton.querySelector(\"svg\");",
+			"expect(editor.querySelectorAll(\"br\").length).toBeGreaterThan(0);",
+			"expect(spinnerSvg?.querySelector(\"title\")?.textContent).toBe("
+		],
+		"src/pages/AgentsPage/components/ChatConversation/ConversationTimeline.stories.tsx": [
+			"canvasElement.querySelectorAll(\"[data-user-sentinel], [class*='sticky']\"),",
+			"const sentinels = canvasElement.querySelectorAll(\"[data-user-sentinel]\");",
+			"const userMessages = canvasElement.querySelectorAll('[data-role=\"user\"]');",
+			"expect(canvasElement.querySelectorAll(\"[data-user-sentinel]\")).toHaveLength(",
+			"for (const el of canvasElement.querySelectorAll(",
+			"for (const el of canvasElement.querySelectorAll(",
+			"for (const el of canvasElement.querySelectorAll(\"[class]\")) {",
+			"for (const el of canvasElement.querySelectorAll(\"[class]\")) {",
+			"for (const el of canvasElement.querySelectorAll(\"[class]\")) {",
+			"for (const el of canvasElement.querySelectorAll(\"[class]\")) {",
+			"for (const el of canvasElement.querySelectorAll(\"[class]\")) {",
+			"for (const el of canvasElement.querySelectorAll(\"[class]\")) {",
+			"for (const el of canvasElement.querySelectorAll(\"[class]\")) {",
+			"timeline.querySelectorAll('[data-role=\"user\"], [data-role=\"assistant\"]'),"
+		],
+		"src/pages/AgentsPage/components/ChatConversation/StreamingOutput.stories.tsx": [
+			"const editTool = canvasElement.querySelector(\"[data-transcript-row]\");"
+		],
+		"src/pages/AgentsPage/components/ChatElements/Response.stories.tsx": [
+			"canvasElement.querySelectorAll(\"diffs-container\"),",
+			"const token = shadowRoot.querySelector(\"span[style*='color']\");"
+		],
+		"src/pages/AgentsPage/components/ChatElements/tools/AdvisorTool.stories.tsx": [
+			"const viewport = scrollArea.querySelector("
+		],
+		"src/pages/AgentsPage/components/ChatElements/tools/InlineDesktopPreview.stories.tsx": [
+			"expect(canvasElement.querySelector(\".pointer-events-none\")).not.toBeNull();"
+		],
+		"src/pages/AgentsPage/components/ChatElements/tools/RecordingPreview.stories.tsx": [
+			"const img = canvasElement.querySelector(\"img\");",
+			"const placeholder = canvasElement.querySelector(",
+			"const video = doc.querySelector(\"dialog video, [role='dialog'] video\");",
+			"expect(canvasElement.querySelector(\"img\")).toBeNull();",
+			"expect(canvasElement.querySelector(\"video\")).toBeNull();",
+			"expect(canvasElement.querySelector(\"video\")).toBeNull();"
+		],
+		"src/pages/AgentsPage/components/ChatElements/tools/Tool.stories.tsx": [
+			"Array.from(element.querySelectorAll(\"diffs-container\")).some((host) =>",
+			"canvasElement.querySelector(\".lucide-triangle-alert\"),",
+			"canvasElement.querySelector(\".lucide-triangle-alert\"),",
+			"canvasElement.querySelector(\".lucide-triangle-alert\"),",
+			"canvasElement.querySelector(\".lucide-triangle-alert\"),",
+			"canvasElement.querySelector(\".lucide-triangle-alert\"),",
+			"canvasElement.querySelector(\".lucide-triangle-alert\"),",
+			"const icon = canvasElement.querySelector(\".brightness-0\");",
+			"expect(canvasElement.querySelector(\".animate-spin\")).not.toBeNull();",
+			"expect(canvasElement.querySelector(\".animate-spin\")).not.toBeNull();",
+			"expect(canvasElement.querySelector(\".animate-spin\")).not.toBeNull();",
+			"expect(canvasElement.querySelector(\".animate-spin\")).toBeNull();",
+			"expect(canvasElement.querySelector(\".animate-spin\")).toBeNull();",
+			"expect(canvasElement.querySelector(\".animate-spin\")).toBeNull();",
+			"expect(canvasElement.querySelector(\".animate-spin\")).toBeNull();",
+			"expect(canvasElement.querySelector(\".brightness-0\")).not.toBeNull();",
+			"expect(canvasElement.querySelector(\".lucide-circle-alert\")).toBeNull();",
+			"expect(canvasElement.querySelector(\".lucide-circle-alert\")).toBeNull();",
+			"expect(canvasElement.querySelector(\".lucide-circle-alert\")).toBeNull();",
+			"expect(canvasElement.querySelector(\".lucide-circle-alert\")).toBeNull();",
+			"expect(canvasElement.querySelector(\".lucide-circle-alert\")).toBeNull();",
+			"expect(canvasElement.querySelector(\".lucide-circle-x\")).not.toBeNull();",
+			"expect(canvasElement.querySelector(\".lucide-circle-x\")).not.toBeNull();",
+			"expect(canvasElement.querySelector(\".lucide-circle-x\")).not.toBeNull();",
+			"expect(canvasElement.querySelector(\".lucide-clock\")).not.toBeNull();",
+			"expect(canvasElement.querySelector(\".lucide-clock\")).not.toBeNull();",
+			"expect(canvasElement.querySelector(\".lucide-clock\")).not.toBeNull();",
+			"expect(canvasElement.querySelector(\".lucide-monitor\")).not.toBeNull();",
+			"expect(canvasElement.querySelector(\".lucide-monitor\")).not.toBeNull();",
+			"expect(canvasElement.querySelector(\".lucide-monitor\")).not.toBeNull();",
+			"expect(canvasElement.querySelector(\".text-content-destructive\")).toBeNull();",
+			"expect(canvasElement.querySelector(\".text-content-destructive\")).toBeNull();",
+			"expect(canvasElement.querySelector(\"[data-transcript-row]\")).toBeNull();"
+		],
+		"src/pages/AgentsPage/components/ChatPageContent.stories.tsx": [
+			"const rows = canvasElement.querySelectorAll("
+		],
+		"src/pages/AgentsPage/components/ChatsSidebar/ChatsSidebar.stories.tsx": [
+			"const spinner = node.querySelector(\".animate-spin\");"
+		],
+		"src/pages/AgentsPage/components/ChatsSidebar/dialogs/ChatSearchDialog.stories.tsx": [
+			"const filterIcon = toggleButton.querySelector(\"svg\");",
+			"const searchIcon = container.querySelector(\"svg\");",
+			"document.body.querySelectorAll('[data-slot=\"skeleton\"]').length,"
+		],
+		"src/pages/AgentsPage/components/ChimeButton.stories.tsx": [
+			"const initialText = button.querySelector(\"svg\")?.classList.toString();",
+			"const updatedText = button.querySelector(\"svg\")?.classList.toString();"
+		],
+		"src/pages/AgentsPage/components/DiffViewer/DiffViewer.stories.tsx": [
+			"const textarea = canvasElement.querySelector(\"textarea\");",
+			"const textarea = canvasElement.querySelector(\"textarea\");",
+			"const tree = canvasElement.querySelector(\"file-tree-container\");"
+		],
+		"src/pages/AgentsPage/components/GitPanel/GitPanel.stories.tsx": [
+			"const tabs = Array.from(canvasElement.querySelectorAll(\"button\")).filter(",
+			"const tabs = Array.from(canvasElement.querySelectorAll(\"button\")).filter(",
+			"const target = host.shadowRoot?.querySelector(",
+			"for (const host of canvasElement.querySelectorAll(\"diffs-container\")) {"
+		],
+		"src/pages/AgentsPage/components/TextPreviewDialog.stories.tsx": [
+			"const code = dialog.querySelector(\"code\");",
+			"const em = dialog.querySelector(\"em\");",
+			"const pre = dialog.querySelector(\"pre\");",
+			"const strong = dialog.querySelector('[data-streamdown=\"strong\"]');"
+		],
+		"src/pages/AgentsPage/components/VideoLightbox.stories.tsx": [
+			"const video = doc.querySelector(\"video\");",
+			"const video = doc.querySelector(\"video\");",
+			"expect(doc.querySelector(\"video\")).toBeNull();"
+		],
+		"src/pages/CreateTemplatePage/CreateTemplatePage.test.tsx": [
+			"const form = container.querySelector(\"form\") as HTMLFormElement;"
+		],
+		"src/pages/CreateTokenPage/CreateTokenPage.test.tsx": [
+			"const dummyInput = document.querySelector(",
+			"const form = container.querySelector(\"form\") as HTMLFormElement;"
+		],
+		"src/pages/DeploymentSettingsPage/IdpOrgSyncPage/IdpOrgSyncPageView.stories.tsx": [
+			"const warning = canvasElement.querySelector(\".lucide-triangle-alert\")!;"
+		],
+		"src/pages/OrganizationSettingsPage/IdpSyncPage/IdpSyncPageView.stories.tsx": [
+			"const warning = canvasElement.querySelector(\".lucide-triangle-alert\")!;",
+			"const warning = canvasElement.querySelector(\".lucide-triangle-alert\")!;"
+		],
+		"src/pages/WorkspacesPage/WorkspaceSharingIndicator.stories.tsx": [
+			"const trigger = canvasElement.querySelector(\"svg\");"
+		],
+		"src/pages/WorkspacesPage/WorkspacesPageView.stories.tsx": [
+			"const images = canvasElement.querySelectorAll(\"img\");"
+		],
+		"src/utils/docs.test.ts": [
+			"document.querySelector('meta[property=\"build-info\"]')?.remove();",
+			"document.querySelector('meta[property=\"docs-url\"]')?.remove();"
+		]
+	},
+	"FE10/no-class-substring-selectors": {
+		"src/pages/AgentsPage/components/ChatConversation/ConversationTimeline.stories.tsx": [
+			"canvasElement.querySelectorAll(\"[data-user-sentinel], [class*='sticky']\"),"
+		]
+	},
+	"FE7/no-retyped-query-keys": {
+		"src/components/PasswordField/PasswordField.tsx": [
+			"queryKey: [\"validatePassword\", debouncedValue],"
+		],
+		"src/contexts/ProxyContext.tsx": [
+			"queryKey: [\"get-proxies\"],"
+		],
+		"src/modules/dashboard/Navbar/NavbarView.stories.tsx": [
+			"key: [\"tasks\", tasksFilter],",
+			"key: [\"tasks\", tasksFilter],"
+		],
+		"src/modules/dashboard/Navbar/NavbarView.tsx": [
+			"queryKey: [\"tasks\", filter],"
+		],
+		"src/modules/dashboard/Navbar/ProxyMenu.stories.tsx": [
+			"{ key: [\"authMethods\"], data: MockAuthMethodsAll },",
+			"{ key: [\"hasFirstUser\"], data: true },",
+			"{ key: [\"me\"], data: MockUserOwner },"
+		],
+		"src/modules/resources/AgentDevcontainerCard.stories.tsx": [
+			"key: [\"portForward\", MockWorkspaceSubAgent.id],"
+		],
+		"src/modules/resources/AgentRow.stories.tsx": [
+			"key: [\"portForward\", M.MockWorkspaceAgent.id],"
+		],
+		"src/modules/resources/PortForwardButton.stories.tsx": [
+			"key: [\"portForward\", MockWorkspaceAgent.id],",
+			"key: [\"sharedPorts\", MockWorkspace.id],"
+		],
+		"src/modules/tasks/TaskDeleteDialog/TaskDeleteDialog.tsx": [
+			"await queryClient.invalidateQueries({ queryKey: [\"tasks\"] });"
+		],
+		"src/modules/tasks/TaskPrompt/TaskPrompt.tsx": [
+			"await queryClient.invalidateQueries({ queryKey: [\"tasks\"] });"
+		],
+		"src/modules/tasks/TasksSidebar/TasksSidebar.stories.tsx": [
+			"key: [\"tasks\", { owner: MockUserOwner.username }],"
+		],
+		"src/modules/tasks/TasksSidebar/TasksSidebar.tsx": [
+			"queryKey: [\"tasks\", filter],"
+		],
+		"src/modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip.stories.tsx": [
+			"key: [\"templateVersion\", MockTemplateVersion.id],"
+		],
+		"src/pages/AISettingsPage/ProvidersPage/UpdateProviderPage/UpdateProviderPageView.stories.tsx": [
+			"queries: [{ key: [\"ai\", \"providers\", provider.name], data: provider }],"
+		],
+		"src/pages/AgentsPage/AgentSettingsGeneralPageView.stories.tsx": [
+			"queries: [{ key: [\"me\", \"preferences\"], data: preferencesData }],"
+		],
+		"src/pages/AgentsPage/AgentsPage.tsx": [
+			"queryKey: [ \"workspaceBuilds\""
+		],
+		"src/pages/AgentsPage/components/ChatConversation/ConversationTimeline.stories.tsx": [
+			"key: [\"me\", \"preferences\"],",
+			"key: [\"me\", \"preferences\"],",
+			"key: [\"me\", \"preferences\"],",
+			"key: [\"me\", \"preferences\"],",
+			"key: [\"me\", \"preferences\"],",
+			"key: [\"me\", \"preferences\"],",
+			"key: [\"me\", \"preferences\"],"
+		],
+		"src/pages/AgentsPage/components/ChatConversation/useChatToolInvalidations.test.tsx": [
+			"queryKey: [\"chats\", \"chat-1\"],",
+			"queryKey: [\"chats\", \"chat-1\"],",
+			"queryKey: [\"chats\", \"chat-1\"],",
+			"queryKey: [\"chats\", \"chat-2\"],"
+		],
+		"src/pages/AgentsPage/components/ChatElements/tools/ProposePlanTool.tsx": [
+			"queryKey: [\"chatFile\", fileID],"
+		],
+		"src/pages/AgentsPage/components/ChatElements/tools/Tool.stories.tsx": [
+			"key: [ \"workspaceBuilds\"",
+			"key: [ \"workspaceBuilds\"",
+			"key: [ \"workspaceBuilds\"",
+			"key: [ \"workspaceBuilds\"",
+			"key: [ \"workspaceBuilds\"",
+			"key: [ \"workspaceBuilds\"",
+			"key: [ \"workspaceBuilds\"",
+			"key: [\"workspace\", \"test-workspace-id\"],",
+			"key: [\"workspace\", \"test-workspace-id\"],",
+			"key: [\"workspace\", \"test-workspace-id\"],"
+		],
+		"src/pages/AgentsPage/components/ChatElements/tools/WorkspaceBuildLogSection.stories.tsx": [
+			"key: [\"workspace\", TEST_WORKSPACE_ID],",
+			"key: [\"workspaceBuilds\", TEST_BUILD_ID, \"logs\"],",
+			"key: [\"workspaceBuilds\", TEST_BUILD_ID, \"logs\"],"
+		],
+		"src/pages/AgentsPage/components/RightPanel/DebugPanel/DebugPanel.stories.tsx": [
+			"key: [\"chats\", CHAT_ID, \"debug-runs\", backendShapeRunDetail.id],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\", detailProbeRunId],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\", errorRunDetail.id],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\", longPayloadRunDetail.id],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\", multiStepRunDetail.id],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\", richRunDetail.id],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\", successfulRunDetail.id],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\", successfulRunDetail.id],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\", successfulRunDetail.id],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\", toolCallRunDetail.id],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\"],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\"],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\"],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\"],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\"],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\"],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\"],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\"],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\"],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\"],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\"],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\"],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\"],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\"],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\"],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\"],",
+			"key: [\"chats\", CHAT_ID, \"debug-runs\"],"
+		],
+		"src/pages/AgentsPage/components/RightPanel/RightPanelAddTabControl.stories.tsx": [
+			"key: [\"portForward\", MockWorkspaceAgent.id],",
+			"key: [\"sharedPorts\", MockWorkspace.id],"
+		],
+		"src/pages/AgentsPage/components/TerminalPanel.stories.tsx": [
+			"key: [\"deployment\", \"config\"],",
+			"{ key: [\"me\", \"appearance\"], data: MockUserAppearanceSettings },"
+		],
+		"src/pages/AgentsPage/components/WorkspacePill.stories.tsx": [
+			"key: [\"portForward\", MockWorkspaceAgent.id],",
+			"key: [\"portForward\", MockWorkspaceAgent.id],",
+			"key: [\"portForward\", MockWorkspaceAgent.id],",
+			"key: [\"portForward\", MockWorkspaceAgent.id],",
+			"key: [\"sharedPorts\", MockWorkspace.id],",
+			"key: [\"sharedPorts\", MockWorkspace.id],",
+			"key: [\"sharedPorts\", MockWorkspace.id],",
+			"key: [\"sharedPorts\", MockWorkspace.id],",
+			"queries: [{ key: [\"me\", \"apiKey\"], data: { key: \"mock-api-key\" } }],",
+			"{ key: [\"me\", \"apiKey\"], data: { key: \"mock-api-key\" } },",
+			"{ key: [\"me\", \"apiKey\"], data: { key: \"mock-api-key\" } },",
+			"{ key: [\"me\", \"apiKey\"], data: { key: \"mock-api-key\" } },",
+			"{ key: [\"me\", \"apiKey\"], data: { key: \"mock-api-key\" } },"
+		],
+		"src/pages/CreateTokenPage/CreateTokenPage.tsx": [
+			"queryKey: [\"tokenconfig\"],"
+		],
+		"src/pages/DeploymentSettingsPage/LicensesSettingsPage/LicensesSettingsPage.stories.tsx": [
+			"key: [\"insights\", \"userStatusCounts\"],",
+			"{ key: [\"entitlements\"], data: entitlements },",
+			"{ key: [\"insights\", \"userStatusCounts\"], data: { active: [] } },"
+		],
+		"src/pages/DeploymentSettingsPage/LicensesSettingsPage/LicensesSettingsPage.tsx": [
+			"queryKey: [\"licenses\"],",
+			"void queryClient.invalidateQueries({ queryKey: [\"licenses\"] });"
+		],
+		"src/pages/EditUserPage/EditUserPage.tsx": [
+			"queryKey: [\"user\", usernameOrId],",
+			"void queryClient.invalidateQueries({ queryKey: [\"users\"] });"
+		],
+		"src/pages/HealthPage/storybook.tsx": [
+			"{ key: [\"appearance\"], data: MockAppearanceConfig },",
+			"{ key: [\"buildInfo\"], data: MockBuildInfo },",
+			"{ key: [\"entitlements\"], data: MockEntitlements },",
+			"{ key: [\"experiments\"], data: MockExperiments },"
+		],
+		"src/pages/OrganizationSettingsPage/DisableWorkspaceSharingDialog.tsx": [
+			"queryKey: [\"workspaces\", organizationId, \"shared\", \"count\"],"
+		],
+		"src/pages/TaskPage/ModifyPromptDialog.tsx": [
+			"queryKey: [\"tasks\", task.owner_name, task.id],"
+		],
+		"src/pages/TaskPage/TaskPage.stories.tsx": [
+			"key: [ \"workspace\"",
+			"key: [ \"workspace\"",
+			"key: [ \"workspace\"",
+			"key: [ \"workspace\"",
+			"key: [ \"workspaceBuilds\"",
+			"key: [\"tasks\", MockTask.owner_name, MockTask.id],",
+			"key: [\"tasks\", MockTask.owner_name, MockTask.id],",
+			"key: [\"tasks\", MockTask.owner_name, MockTask.id],",
+			"key: [\"tasks\", MockTask.owner_name, MockTask.id],",
+			"key: [\"tasks\", { owner: MockTask.owner_name }],",
+			"key: [\"tasks\", { owner: MockTask.owner_name }],"
+		],
+		"src/pages/TaskPage/TaskPage.tsx": [
+			"await queryClient.invalidateQueries({ queryKey: [\"tasks\"] });",
+			"await queryClient.invalidateQueries({ queryKey: [\"tasks\"] });",
+			"queryKey: [\"tasks\", task.owner_name, task.id],",
+			"queryKey: [\"tasks\", username, taskId],"
+		],
+		"src/pages/TasksPage/TasksPage.stories.tsx": [
+			"key: [\"me\", \"preferences\"],",
+			"key: [\"me\", \"preferences\"],",
+			"key: [\"me\", \"preferences\"],",
+			"key: [\"me\", \"preferences\"],",
+			"key: [\"notifications\", \"templates\", \"system\"],",
+			"key: [\"notifications\", \"templates\", \"system\"],",
+			"key: [\"notifications\", \"templates\", \"system\"],",
+			"key: [\"notifications\", \"templates\", \"system\"],",
+			"key: [\"tasks\", { owner: MockUserOwner.username }],",
+			"key: [\"tasks\", { owner: MockUserOwner.username }],",
+			"key: [\"tasks\", { owner: MockUserOwner.username }],",
+			"key: [\"tasks\", { owner: MockUserOwner.username }],",
+			"key: [\"tasks\", { owner: MockUserOwner.username }],",
+			"key: [\"tasks\", { owner: MockUserOwner.username }],",
+			"key: [\"tasks\", { owner: MockUserOwner.username }],",
+			"key: [\"tasks\", { owner: MockUserOwner.username }],",
+			"key: [\"tasks\", { owner: MockUserOwner.username }],",
+			"key: [\"tasks\", { owner: MockUserOwner.username }],",
+			"key: [\"tasks\", { owner: MockUserOwner.username }],",
+			"key: [\"tasks\", { owner: MockUserOwner.username }],",
+			"key: [\"tasks\", { owner: MockUserOwner.username }],",
+			"key: [\"tasks\", { owner: MockUserOwner.username }],",
+			"key: [\"templates\", { q: \"has-ai-task:true\" }],",
+			"key: [\"users\", MockUserOwner.id, \"notifications\", \"preferences\"],",
+			"key: [\"users\", MockUserOwner.id, \"notifications\", \"preferences\"],",
+			"key: [\"users\", MockUserOwner.id, \"notifications\", \"preferences\"],",
+			"key: [\"users\", MockUserOwner.id, \"notifications\", \"preferences\"],"
+		],
+		"src/pages/TasksPage/TasksPage.tsx": [
+			"queryKey: [\"tasks\", filter],"
+		],
+		"src/pages/TemplateBuilder/ModuleSelectStep.stories.tsx": [
+			"key: [\"templateBuilder\", \"modules\", baseId],"
+		],
+		"src/pages/TemplatePage/TemplateLayout.tsx": [
+			"queryKey: [\"template\", templateName],"
+		],
+		"src/pages/TemplatePage/TemplateResourcesPage/TemplateResourcesPage.tsx": [
+			"queryKey: [\"templates\", template.id, \"resources\"],"
+		],
+		"src/pages/TerminalPage/TerminalPage.stories.tsx": [
+			"key: [\"deployment\", \"config\"],",
+			"key: [\"me\", \"appearance\"],",
+			"{ key: [\"appearance\"], data: MockAppearanceConfig },",
+			"{ key: [\"authMethods\"], data: MockAuthMethodsAll },",
+			"{ key: [\"buildInfo\"], data: MockBuildInfo },",
+			"{ key: [\"entitlements\"], data: MockEntitlements },",
+			"{ key: [\"experiments\"], data: MockExperiments },",
+			"{ key: [\"hasFirstUser\"], data: true },",
+			"{ key: [\"me\", \"appearance\"], data: MockUserAppearanceSettings },",
+			"{ key: [\"me\"], data: MockUserOwner },",
+			"{ key: [\"organizations\"], data: [MockDefaultOrganization] },"
+		],
+		"src/pages/UserSettingsPage/NotificationsPage/NotificationsPage.stories.tsx": [
+			"key: [\"me\", \"preferences\"],",
+			"key: [\"notifications\", \"templates\", \"system\"],",
+			"key: [\"users\", MockUserOwner.id, \"notifications\", \"preferences\"],"
+		],
+		"src/pages/UserSettingsPage/SecurityPage/SecurityPage.tsx": [
+			"queryKey: [\"loginType\"],"
+		],
+		"src/pages/UserSettingsPage/TokensPage/ConfirmDeleteDialog.stories.tsx": [
+			"queryKey: [\"tokens\"],"
+		],
+		"src/pages/WorkspaceBuildPage/WorkspaceBuildPage.tsx": [
+			"queryKey: [\"builds\", username, build?.workspace_id],"
+		],
+		"src/pages/WorkspacePage/Workspace.stories.tsx": [
+			"key: [\"buildInfo\"],",
+			"key: [\"portForward\", Mocks.MockWorkspaceAgent.id],"
+		],
+		"src/pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersPage.stories.tsx": [
+			"key: [\"workspaces\", workspace.id, \"permissions\"],"
+		],
+		"src/pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersPage.tsx": [
+			"queryKey: [\"workspaceBuilds\", workspace.latest_build.id, \"parameters\"],"
+		],
+		"src/pages/WorkspaceSettingsPage/WorkspaceSchedulePage/WorkspaceSchedulePage.stories.tsx": [
+			"key: [\"workspaces\", workspace.id, \"permissions\"],"
+		],
+		"src/pages/WorkspacesPage/WorkspacesPageView.stories.tsx": [
+			"key: [\"buildInfo\"],"
+		]
+	},
+	"FE7/no-empty-catch": {
+		"src/modules/apps/apps.ts": [
+			"catch { // Electron can throw }"
+		],
+		"src/pages/AgentsPage/AgentChatPage.tsx": [
+			"catch { // QuotaExceededError - silently discard the draft. }"
+		],
+		"src/pages/AgentsPage/components/AgentCreateForm.tsx": [
+			"catch { // Attachments preserved for retry on failure. }",
+			"catch { // QuotaExceededError, silently discard the draft. }"
+		],
+		"src/pages/AgentsPage/components/ChatConversation/SmoothText.ts": [
+			"catch { // Fallback to null when Intl.Segmenter is unavailable. }"
+		],
+		"src/pages/AgentsPage/components/ChatConversation/useOnRenderProfiler.ts": [
+			"catch { // performance.measure can throw if startTime is invalid // (e.g. negative or before time origin). Safe to ignore. }"
+		],
+		"src/pages/AgentsPage/components/ChatMessageInput/ChatMessageInput.tsx": [
+			"catch { // Malformed state, fall through to plain-text path. }"
+		],
+		"src/pages/AgentsPage/components/ChatsSidebar/sidebarWidth.ts": [
+			"catch { // Ignore storage failures because resizing still works for this session. }"
+		],
+		"src/pages/AgentsPage/hooks/useDesktopConnection.ts": [
+			"catch { // Ignore errors during disconnect. }",
+			"catch { // permissions.query may not support // clipboard-read in all browsers. // Continue with readText anyway. }"
+		],
+		"src/pages/AgentsPage/utils/chatAttachments.ts": [
+			"catch { // Body wasn't JSON; stick with the status line. }"
+		],
+		"src/pages/AgentsPage/utils/chatDraftAttachmentStorage.ts": [
+			"catch { // Ignore storage cleanup failures. The in-memory draft remains usable. }",
+			"catch { // Ignore storage sweep failures. The active chat restore still runs below. }"
+		],
+		"src/pages/AgentsPage/utils/chime.ts": [
+			"catch { // Silently ignore playback errors (e.g. autoplay policy // blocks, missing file, etc.). }",
+			"catch { // Silently ignore storage errors (e.g. private browsing // quota exceeded). }"
+		],
+		"src/pages/AgentsPage/utils/draftStorage.ts": [
+			"catch { // Not JSON - treat as legacy plain-text draft. }"
+		],
+		"src/pages/GroupsPage/UserAIBudgetOverrideDialog.tsx": [
+			"catch { // The toast surfaces the error details. }"
+		],
+		"src/pages/LoginPage/LoginPage.tsx": [
+			"catch { // Do nothing }"
+		],
+		"src/utils/portForward.ts": [
+			"catch { // no-op, Electron can throw }"
+		]
+	}
+}
