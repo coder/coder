@@ -80,7 +80,7 @@ func TestDispatcherSuccess(t *testing.T) {
 	require.Equal(t, agenthooks.Response{}, response)
 
 	row := singleDispatch(t, db, event.ChatID)
-	require.Equal(t, resultOK, row.Result)
+	require.Equal(t, string(ResultOK), row.Result)
 	require.True(t, row.FinishedAt.Valid)
 	require.Equal(t, int32(http.StatusOK), row.HttpStatus.Int32)
 	require.False(t, row.Error.Valid)
@@ -106,7 +106,7 @@ func TestDispatcherDeny(t *testing.T) {
 	require.Equal(t, "not allowed", response.UserMessage)
 
 	row := singleDispatch(t, db, event.ChatID)
-	require.Equal(t, resultDenied, row.Result)
+	require.Equal(t, string(ResultDenied), row.Result)
 	require.Equal(t, string(agenthooks.PermissionDeny), row.Decision.String)
 	require.Equal(t, "blocked", row.DecisionReason.String)
 	require.Equal(t, "not allowed", row.UserMessage.String)
@@ -139,7 +139,7 @@ func TestDispatcherAllowInputOverride(t *testing.T) {
 	require.JSONEq(t, `{"path":"after"}`, string(response.Permission.InputOverride))
 
 	row := singleDispatch(t, db, event.ChatID)
-	require.Equal(t, resultOK, row.Result)
+	require.Equal(t, string(ResultOK), row.Result)
 	require.Equal(t, toolUseID, row.ToolUseID.String)
 	require.JSONEq(t, `{"path":"after"}`, string(row.InputOverride.RawMessage))
 	require.JSONEq(t, `{"path":"before"}`, string(row.OriginalInput.RawMessage))
@@ -168,7 +168,7 @@ func TestDispatcherTimeoutNoRetry(t *testing.T) {
 	require.Equal(t, int32(1), requests.Load())
 
 	row := singleDispatch(t, db, event.ChatID)
-	require.Equal(t, resultTimeout, row.Result)
+	require.Equal(t, string(ResultTimeout), row.Result)
 	require.Equal(t, int32(http.StatusOK), row.HttpStatus.Int32)
 	require.True(t, row.Error.Valid)
 }
@@ -218,7 +218,7 @@ func TestDispatcherRetriesConnectionErrorWithSameJTI(t *testing.T) {
 	require.Equal(t, event.ChatID, chatID)
 
 	row := singleDispatch(t, db, event.ChatID)
-	require.Equal(t, resultOK, row.Result)
+	require.Equal(t, string(ResultOK), row.Result)
 	require.Equal(t, first.JTI, row.ID)
 }
 
@@ -258,7 +258,7 @@ func TestDispatcherRetriesMidBodyConnectionError(t *testing.T) {
 	require.Equal(t, int32(2), attempts.Load())
 
 	row := singleDispatch(t, db, event.ChatID)
-	require.Equal(t, resultOK, row.Result)
+	require.Equal(t, string(ResultOK), row.Result)
 }
 
 type errReader struct{ err error }
@@ -290,7 +290,7 @@ func TestDispatcherTLSFailureNoRetry(t *testing.T) {
 	require.Equal(t, int32(1), attempts.Load())
 
 	row := singleDispatch(t, db, event.ChatID)
-	require.Equal(t, resultProtocolError, row.Result)
+	require.Equal(t, string(ResultProtocolError), row.Result)
 }
 
 func TestDispatcherNon2xxNoRetry(t *testing.T) {
@@ -316,7 +316,7 @@ func TestDispatcherNon2xxNoRetry(t *testing.T) {
 	require.Equal(t, int32(1), requests.Load())
 
 	row := singleDispatch(t, db, event.ChatID)
-	require.Equal(t, resultHTTPError, row.Result)
+	require.Equal(t, string(ResultHTTPError), row.Result)
 	require.Equal(t, int32(http.StatusServiceUnavailable), row.HttpStatus.Int32)
 }
 
@@ -409,7 +409,7 @@ func TestDispatcherProtocolErrors(t *testing.T) {
 			)
 			require.Error(t, err)
 			row := singleDispatch(t, db, event.ChatID)
-			require.Equal(t, resultProtocolError, row.Result)
+			require.Equal(t, string(ResultProtocolError), row.Result)
 			require.True(t, row.Error.Valid)
 			if test.assertRow != nil {
 				test.assertRow(t, row)
@@ -436,7 +436,7 @@ func TestDispatcherOverCapacity(t *testing.T) {
 	_, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitLong), event)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	row := singleDispatch(t, db, event.ChatID)
-	require.Equal(t, resultOverCapacity, row.Result)
+	require.Equal(t, string(ResultOverCapacity), row.Result)
 	require.False(t, row.HttpStatus.Valid)
 	require.True(t, row.FinishedAt.Valid)
 }
@@ -466,7 +466,7 @@ func TestDispatcherInvalidToolInputFinalizesProtocolError(t *testing.T) {
 	require.Zero(t, hookRequests.Load())
 
 	row := singleDispatch(t, db, event.ChatID)
-	require.Equal(t, resultProtocolError, row.Result)
+	require.Equal(t, string(ResultProtocolError), row.Result)
 	require.True(t, row.FinishedAt.Valid, "dispatch must finalize instead of staying pending")
 	require.False(t, row.OriginalInput.Valid, "malformed input must not persist as jsonb")
 }

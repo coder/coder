@@ -38,15 +38,18 @@ const (
 	clockSkewLeeway = 30 * time.Second
 )
 
+// DispatchResult classifies the terminal outcome of a dispatch attempt.
+type DispatchResult string
+
 const (
-	resultOK              = "ok"
-	resultDenied          = "denied"
-	resultHTTPError       = "http_error"
-	resultProtocolError   = "protocol_error"
-	resultTimeout         = "timeout"
-	resultConnectionError = "connection_error"
-	resultOverCapacity    = "over_capacity"
-	resultInternalError   = "internal_error"
+	ResultOK              DispatchResult = "ok"
+	ResultDenied          DispatchResult = "denied"
+	ResultHTTPError       DispatchResult = "http_error"
+	ResultProtocolError   DispatchResult = "protocol_error"
+	ResultTimeout         DispatchResult = "timeout"
+	ResultConnectionError DispatchResult = "connection_error"
+	ResultOverCapacity    DispatchResult = "over_capacity"
+	ResultInternalError   DispatchResult = "internal_error"
 )
 
 type store interface {
@@ -92,7 +95,7 @@ func nonEmptyPtr(value string) *string {
 
 // DispatchError preserves the attempt ID and failure class.
 type DispatchError struct {
-	Class      string
+	Class      DispatchResult
 	DispatchID uuid.UUID
 	Err        error
 }
@@ -105,7 +108,7 @@ func (e *DispatchError) Unwrap() error {
 	return e.Err
 }
 
-func newDispatchError(class string, dispatchID uuid.UUID, err error) error {
+func newDispatchError(class DispatchResult, dispatchID uuid.UUID, err error) error {
 	if err == nil {
 		return nil
 	}
@@ -195,15 +198,15 @@ func (d *Dispatcher) dispatchEvent(ctx context.Context, event Event) (agenthooks
 	case d.semaphore <- struct{}{}:
 		defer func() { <-d.semaphore }()
 	case <-ctx.Done():
-		response, err := d.finishWithoutPost(ctx, event, dispatchID, startedAt, resultTimeout, ctx.Err())
+		response, err := d.finishWithoutPost(ctx, event, dispatchID, startedAt, ResultTimeout, ctx.Err())
 		return response, dispatchID, err
 	case <-capacityTimer.C:
-		response, err := d.finishWithoutPost(ctx, event, dispatchID, startedAt, resultOverCapacity, context.DeadlineExceeded)
+		response, err := d.finishWithoutPost(ctx, event, dispatchID, startedAt, ResultOverCapacity, context.DeadlineExceeded)
 		return response, dispatchID, err
 	}
 
 	if err := d.insert(ctx, event, dispatchID, startedAt); err != nil {
-		return agenthooks.Response{}, dispatchID, newDispatchError(resultInternalError, dispatchID, xerrors.Errorf("insert chat hook dispatch: %w", err))
+		return agenthooks.Response{}, dispatchID, newDispatchError(ResultInternalError, dispatchID, xerrors.Errorf("insert chat hook dispatch: %w", err))
 	}
 
 	response, outcome := d.prepareAndPost(ctx, event, dispatchID)
@@ -214,7 +217,7 @@ func (d *Dispatcher) dispatchEvent(ctx context.Context, event Event) (agenthooks
 		if outcome.err != nil {
 			return agenthooks.Response{}, dispatchID, newDispatchError(outcome.result, dispatchID, errors.Join(outcome.err, finalizeErr))
 		}
-		return agenthooks.Response{}, dispatchID, newDispatchError(resultInternalError, dispatchID, finalizeErr)
+		return agenthooks.Response{}, dispatchID, newDispatchError(ResultInternalError, dispatchID, finalizeErr)
 	}
 	return response, dispatchID, newDispatchError(outcome.result, dispatchID, outcome.err)
 }
@@ -224,7 +227,7 @@ func (d *Dispatcher) finishWithoutPost(
 	event Event,
 	dispatchID uuid.UUID,
 	startedAt time.Time,
-	result string,
+	result DispatchResult,
 	dispatchErr error,
 ) (agenthooks.Response, error) {
 	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), finalizeTimeout)
@@ -258,7 +261,7 @@ func (d *Dispatcher) insert(ctx context.Context, event Event, dispatchID uuid.UU
 }
 
 type dispatchOutcome struct {
-	result     string
+	result     DispatchResult
 	httpStatus sql.NullInt32
 	response   agenthooks.Response
 	original   pqtype.NullRawMessage
@@ -268,7 +271,7 @@ type dispatchOutcome struct {
 func (d *Dispatcher) prepareAndPost(ctx context.Context, event Event, dispatchID uuid.UUID) (agenthooks.Response, dispatchOutcome) {
 	data, original, err := marshalEventData(event)
 	if err != nil {
-		return agenthooks.Response{}, dispatchOutcome{result: resultProtocolError, original: original, err: err}
+		return agenthooks.Response{}, dispatchOutcome{result: ResultProtocolError, original: original, err: err}
 	}
 	request := agenthooks.Request{
 		Type: event.Type,
@@ -286,7 +289,7 @@ func (d *Dispatcher) prepareAndPost(ctx context.Context, event Event, dispatchID
 	}
 	body, err := json.Marshal(request)
 	if err != nil {
-		return agenthooks.Response{}, dispatchOutcome{result: resultProtocolError, original: original, err: xerrors.Errorf("marshal request: %w", err)}
+		return agenthooks.Response{}, dispatchOutcome{result: ResultProtocolError, original: original, err: xerrors.Errorf("marshal request: %w", err)}
 	}
 
 	digest := sha256.Sum256(body)
@@ -304,7 +307,7 @@ func (d *Dispatcher) prepareAndPost(ctx context.Context, event Event, dispatchID
 		BodySHA256: hex.EncodeToString(digest[:]),
 	})
 	if err != nil {
-		return agenthooks.Response{}, dispatchOutcome{result: resultProtocolError, original: original, err: xerrors.Errorf("sign request: %w", err)}
+		return agenthooks.Response{}, dispatchOutcome{result: ResultProtocolError, original: original, err: xerrors.Errorf("sign request: %w", err)}
 	}
 
 	response, status, result, err := d.post(ctx, body, token)
@@ -319,12 +322,12 @@ func (d *Dispatcher) prepareAndPost(ctx context.Context, event Event, dispatchID
 		return agenthooks.Response{}, outcome
 	}
 	if err := validateResponse(event.Type, response); err != nil {
-		outcome.result = resultProtocolError
+		outcome.result = ResultProtocolError
 		outcome.err = err
 		return agenthooks.Response{}, outcome
 	}
 	if response.Permission != nil && response.Permission.Decision == agenthooks.PermissionDeny {
-		outcome.result = resultDenied
+		outcome.result = ResultDenied
 	}
 	return response, outcome
 }
@@ -333,13 +336,13 @@ func (d *Dispatcher) post(
 	ctx context.Context,
 	body []byte,
 	token string,
-) (response agenthooks.Response, status sql.NullInt32, result string, err error) {
+) (response agenthooks.Response, status sql.NullInt32, result DispatchResult, err error) {
 	for attempt := range 2 {
 		attemptCtx, cancel := context.WithTimeout(ctx, d.timeout)
 		req, reqErr := http.NewRequestWithContext(attemptCtx, http.MethodPost, d.hookURL, bytes.NewReader(body))
 		if reqErr != nil {
 			cancel()
-			return agenthooks.Response{}, sql.NullInt32{}, resultProtocolError, xerrors.Errorf("create request: %w", reqErr)
+			return agenthooks.Response{}, sql.NullInt32{}, ResultProtocolError, xerrors.Errorf("create request: %w", reqErr)
 		}
 		req.Header.Set("Authorization", "Bearer "+token)
 		req.Header.Set("Content-Type", "application/json")
@@ -350,19 +353,19 @@ func (d *Dispatcher) post(
 			attemptErr := attemptCtx.Err()
 			cancel()
 			if isTimeoutError(attemptErr) || isTimeoutError(requestErr) || errors.Is(requestErr, context.Canceled) {
-				return agenthooks.Response{}, sql.NullInt32{}, resultTimeout, xerrors.Errorf("post lifecycle hook: %w", requestErr)
+				return agenthooks.Response{}, sql.NullInt32{}, ResultTimeout, xerrors.Errorf("post lifecycle hook: %w", requestErr)
 			}
 			if !isConnectionError(requestErr) {
-				return agenthooks.Response{}, sql.NullInt32{}, resultProtocolError, xerrors.Errorf("post lifecycle hook: %w", requestErr)
+				return agenthooks.Response{}, sql.NullInt32{}, ResultProtocolError, xerrors.Errorf("post lifecycle hook: %w", requestErr)
 			}
 			if attempt == 1 {
-				return agenthooks.Response{}, sql.NullInt32{}, resultConnectionError, xerrors.Errorf("post lifecycle hook: %w", requestErr)
+				return agenthooks.Response{}, sql.NullInt32{}, ResultConnectionError, xerrors.Errorf("post lifecycle hook: %w", requestErr)
 			}
 			backoff := time.NewTimer(retryBackoff)
 			select {
 			case <-ctx.Done():
 				backoff.Stop()
-				return agenthooks.Response{}, sql.NullInt32{}, resultTimeout, xerrors.Errorf("post lifecycle hook: %w", ctx.Err())
+				return agenthooks.Response{}, sql.NullInt32{}, ResultTimeout, xerrors.Errorf("post lifecycle hook: %w", ctx.Err())
 			case <-backoff.C:
 			}
 			continue
@@ -372,13 +375,13 @@ func (d *Dispatcher) post(
 		if statusCode < math.MinInt32 || statusCode > math.MaxInt32 {
 			_ = httpResponse.Body.Close()
 			cancel()
-			return agenthooks.Response{}, sql.NullInt32{}, resultProtocolError, xerrors.Errorf("lifecycle hook returned invalid HTTP status %d", httpResponse.StatusCode)
+			return agenthooks.Response{}, sql.NullInt32{}, ResultProtocolError, xerrors.Errorf("lifecycle hook returned invalid HTTP status %d", httpResponse.StatusCode)
 		}
 		status = sql.NullInt32{Int32: int32(statusCode), Valid: true}
 		if httpResponse.StatusCode < http.StatusOK || httpResponse.StatusCode >= http.StatusMultipleChoices {
 			_ = httpResponse.Body.Close()
 			cancel()
-			return agenthooks.Response{}, status, resultHTTPError, xerrors.Errorf("lifecycle hook returned HTTP status %d", httpResponse.StatusCode)
+			return agenthooks.Response{}, status, ResultHTTPError, xerrors.Errorf("lifecycle hook returned HTTP status %d", httpResponse.StatusCode)
 		}
 
 		responseBody, readErr := io.ReadAll(io.LimitReader(httpResponse.Body, maxResponseBodyBytes+1))
@@ -388,13 +391,13 @@ func (d *Dispatcher) post(
 		if readErr != nil {
 			switch {
 			case isTimeoutError(attemptErr), isTimeoutError(readErr), errors.Is(readErr, context.Canceled):
-				return agenthooks.Response{}, status, resultTimeout, xerrors.Errorf("read lifecycle hook response: %w", readErr)
+				return agenthooks.Response{}, status, ResultTimeout, xerrors.Errorf("read lifecycle hook response: %w", readErr)
 			case isConnectionError(readErr):
 				if attempt == 1 {
-					return agenthooks.Response{}, status, resultConnectionError, xerrors.Errorf("read lifecycle hook response: %w", readErr)
+					return agenthooks.Response{}, status, ResultConnectionError, xerrors.Errorf("read lifecycle hook response: %w", readErr)
 				}
 			default:
-				return agenthooks.Response{}, status, resultProtocolError, xerrors.Errorf("read lifecycle hook response: %w", readErr)
+				return agenthooks.Response{}, status, ResultProtocolError, xerrors.Errorf("read lifecycle hook response: %w", readErr)
 			}
 			// Mid-body connection drops get the same single retry as dial
 			// failures, reusing the dispatch ID.
@@ -402,25 +405,25 @@ func (d *Dispatcher) post(
 			select {
 			case <-ctx.Done():
 				backoff.Stop()
-				return agenthooks.Response{}, status, resultTimeout, xerrors.Errorf("read lifecycle hook response: %w", ctx.Err())
+				return agenthooks.Response{}, status, ResultTimeout, xerrors.Errorf("read lifecycle hook response: %w", ctx.Err())
 			case <-backoff.C:
 			}
 			continue
 		}
 		if len(responseBody) > maxResponseBodyBytes {
-			return agenthooks.Response{}, status, resultProtocolError, xerrors.New("lifecycle hook response exceeds 1 MiB")
+			return agenthooks.Response{}, status, ResultProtocolError, xerrors.New("lifecycle hook response exceeds 1 MiB")
 		}
 		trimmed := bytes.TrimSpace(responseBody)
 		if len(trimmed) == 0 {
-			return agenthooks.Response{}, status, resultOK, nil
+			return agenthooks.Response{}, status, ResultOK, nil
 		}
 		if bytes.Equal(trimmed, []byte("null")) {
-			return agenthooks.Response{}, status, resultProtocolError, xerrors.New("lifecycle hook response must be a JSON object")
+			return agenthooks.Response{}, status, ResultProtocolError, xerrors.New("lifecycle hook response must be a JSON object")
 		}
 		if err := json.Unmarshal(trimmed, &response); err != nil {
-			return agenthooks.Response{}, status, resultProtocolError, xerrors.Errorf("decode lifecycle hook response: %w", err)
+			return agenthooks.Response{}, status, ResultProtocolError, xerrors.Errorf("decode lifecycle hook response: %w", err)
 		}
-		return response, status, resultOK, nil
+		return response, status, ResultOK, nil
 	}
 	panic("unreachable")
 }
@@ -561,7 +564,7 @@ func (d *Dispatcher) finalize(ctx context.Context, event Event, dispatchID uuid.
 		)
 	}
 	// Only accepted outcomes may persist reusable decisions.
-	accepted := outcome.result == resultOK || outcome.result == resultDenied
+	accepted := outcome.result == ResultOK || outcome.result == ResultDenied
 	var decision sql.NullString
 	var inputOverride pqtype.NullRawMessage
 	if response.Permission != nil && accepted {
@@ -569,7 +572,7 @@ func (d *Dispatcher) finalize(ctx context.Context, event Event, dispatchID uuid.
 		if response.Permission.InputOverride != nil {
 			inputOverride = pqtype.NullRawMessage{RawMessage: bytes.Clone(response.Permission.InputOverride), Valid: true}
 		}
-	} else if event.Type == agenthooks.EventPreToolUse && outcome.result == resultOK {
+	} else if event.Type == agenthooks.EventPreToolUse && outcome.result == ResultOK {
 		decision = sql.NullString{String: string(agenthooks.PermissionAllow), Valid: true}
 	}
 	allowedTools := pqtype.NullRawMessage{}
@@ -585,7 +588,7 @@ func (d *Dispatcher) finalize(ctx context.Context, event Event, dispatchID uuid.
 	defer cancel()
 	_, err := d.db.FinalizeChatHookDispatch(finalizeCtx, database.FinalizeChatHookDispatchParams{
 		FinishedAt:     time.Now(),
-		Result:         outcome.result,
+		Result:         string(outcome.result),
 		HttpStatus:     outcome.httpStatus,
 		Decision:       decision,
 		DecisionReason: nullPermissionReason(response.Permission),
@@ -707,9 +710,9 @@ func newMetrics(reg prometheus.Registerer) *metrics {
 	}
 }
 
-func (m *metrics) observe(eventType agenthooks.EventType, result string, response agenthooks.Response, duration time.Duration) {
+func (m *metrics) observe(eventType agenthooks.EventType, result DispatchResult, response agenthooks.Response, duration time.Duration) {
 	event := string(eventType)
-	m.dispatches.WithLabelValues(event, result).Inc()
+	m.dispatches.WithLabelValues(event, string(result)).Inc()
 	m.duration.WithLabelValues(event).Observe(duration.Seconds())
 	if response.ModelContext != "" {
 		m.contextSize.WithLabelValues(event).Observe(float64(len(response.ModelContext)))
