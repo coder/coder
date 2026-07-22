@@ -275,6 +275,10 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &permsWithRole)
 	require.NoError(t, err)
 	assert.True(t, permsWithRole["createChat"], "user with agents-access role should have createChat = true")
+	// THEN: createWorkspace = true because the organization-member role
+	// grants creating a workspace owned by the member, and owner_id "me"
+	// resolves to the requesting user.
+	assert.True(t, permsWithRole["createWorkspace"], "org member should have createWorkspace = true")
 
 	// GIVEN: a user without the agents-access role.
 	userWithoutRole := dbgen.User(t, db, database.User{})
@@ -296,6 +300,9 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &permsWithoutRole)
 	require.NoError(t, err)
 	assert.False(t, permsWithoutRole["createChat"], "user without agents-access role should have createChat = false")
+	// THEN: createWorkspace = false because the user belongs to no
+	// organization, so the any_org check has no memberships to satisfy it.
+	assert.False(t, permsWithoutRole["createWorkspace"], "user without an org membership should have createWorkspace = false")
 }
 
 func TestInjectionFailureProducesCleanHTML(t *testing.T) {
