@@ -1,8 +1,6 @@
 package coderd
 
 import (
-	"database/sql"
-	"errors"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -224,17 +222,13 @@ func (api *API) postOAuth2ClientRegistration() http.HandlerFunc {
 func (api *API) oauth2ProviderSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	enabled, err := api.Database.GetOAuth2DCREnabled(ctx)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err != nil {
 		if rbac.IsUnauthorizedError(err) {
 			httpapi.Forbidden(rw)
 			return
 		}
 		httpapi.InternalServerError(rw, err)
 		return
-	}
-	// If the setting was never configured, treat DCR as disabled.
-	if errors.Is(err, sql.ErrNoRows) {
-		enabled = false
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2ProviderSettings{
 		DynamicClientRegistrationEnabled: enabled,
@@ -266,17 +260,13 @@ func (api *API) putOAuth2ProviderSettings(rw http.ResponseWriter, r *http.Reques
 	defer commitAudit()
 
 	oldEnabled, err := api.Database.GetOAuth2DCREnabled(ctx)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err != nil {
 		if rbac.IsUnauthorizedError(err) {
 			httpapi.Forbidden(rw)
 			return
 		}
 		httpapi.InternalServerError(rw, err)
 		return
-	}
-	// If the setting was never configured, treat DCR as disabled.
-	if errors.Is(err, sql.ErrNoRows) {
-		oldEnabled = false
 	}
 	aReq.Old = database.OAuth2ProviderSettings{
 		DynamicClientRegistrationEnabled: oldEnabled,

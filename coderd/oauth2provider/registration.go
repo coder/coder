@@ -37,14 +37,10 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 		// level, not a reason to cache this flag.
 		//nolint:gocritic // Public registration endpoint, no authenticated actor to authorize against.
 		dcrEnabled, err := db.GetOAuth2DCREnabled(dbauthz.AsSystemOAuth2(ctx))
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		if err != nil {
 			writeOAuth2RegistrationError(ctx, rw, http.StatusInternalServerError,
 				"server_error", "Failed to check registration availability")
 			return
-		}
-		// If the setting was never configured, treat DCR as disabled.
-		if xerrors.Is(err, sql.ErrNoRows) {
-			dcrEnabled = false
 		}
 		if !dcrEnabled {
 			writeOAuth2RegistrationError(ctx, rw, http.StatusForbidden,

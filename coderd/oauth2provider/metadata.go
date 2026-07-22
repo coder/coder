@@ -1,8 +1,6 @@
 package oauth2provider
 
 import (
-	"database/sql"
-	"errors"
 	"net/http"
 	"net/url"
 
@@ -24,13 +22,9 @@ func GetAuthorizationServerMetadata(db database.Store, accessURL *url.URL) http.
 		// mitigated with rate limiting or firewalling, not a cache.
 		//nolint:gocritic // Public discovery endpoint, no authenticated actor to authorize against.
 		dcrEnabled, err := db.GetOAuth2DCREnabled(dbauthz.AsSystemOAuth2(ctx))
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
-		}
-		// If the setting was never configured, treat DCR as disabled.
-		if errors.Is(err, sql.ErrNoRows) {
-			dcrEnabled = false
 		}
 
 		metadata := codersdk.OAuth2AuthorizationServerMetadata{

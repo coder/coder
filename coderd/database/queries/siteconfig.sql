@@ -121,13 +121,10 @@ END
 WHERE site_configs.key = 'oauth2_github_default_eligible';
 
 -- name: GetOAuth2DCREnabled :one
-SELECT
-	CASE
-		WHEN value = 'true' THEN TRUE
-		ELSE FALSE
-	END
-FROM site_configs
-WHERE key = 'oauth2_dcr_enabled';
+SELECT COALESCE(
+	(SELECT value = 'true' FROM site_configs WHERE key = 'oauth2_dcr_enabled'),
+	false
+)::bool;
 
 -- name: UpsertOAuth2DCREnabled :exec
 INSERT INTO site_configs (key, value)

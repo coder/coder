@@ -25000,13 +25000,10 @@ func (q *sqlQuerier) GetNotificationsSettings(ctx context.Context) (string, erro
 }
 
 const getOAuth2DCREnabled = `-- name: GetOAuth2DCREnabled :one
-SELECT
-	CASE
-		WHEN value = 'true' THEN TRUE
-		ELSE FALSE
-	END
-FROM site_configs
-WHERE key = 'oauth2_dcr_enabled'
+SELECT COALESCE(
+	(SELECT value = 'true' FROM site_configs WHERE key = 'oauth2_dcr_enabled'),
+	false
+)::bool
 `
 
 func (q *sqlQuerier) GetOAuth2DCREnabled(ctx context.Context) (bool, error) {
