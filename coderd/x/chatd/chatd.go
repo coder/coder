@@ -1135,6 +1135,10 @@ var (
 	// ErrNoDefaultChatModelConfig indicates no default chat model config
 	// is configured, so chatd cannot resolve a model for the request.
 	ErrNoDefaultChatModelConfig = xerrors.New("no default chat model config is configured")
+	// ErrNothingToCompact indicates a manual compaction request found
+	// no uncompressed conversation after the latest compaction
+	// boundary, so running a compaction would produce nothing.
+	ErrNothingToCompact = xerrors.New("nothing to compact")
 )
 
 // UsageLimitExceededError indicates the user has exceeded their chat spend
@@ -2115,6 +2119,73 @@ func (p *Server) InterruptChat(
 			return xerrors.Errorf("reload chat after interrupt: %w", err)
 		}
 		refreshed = latest
+		return nil
+	})
+	if err != nil {
+		return chat, err
+	}
+
+	p.publishChatPubsubEvent(refreshed, codersdk.ChatWatchEventKindStatusChange, nil)
+	return refreshed, nil
+}
+
+// CompactChat records a manual compaction request through the
+// chatstate.RequestCompaction transition and wakes workers. The chat
+// must be idle (waiting); the worker then generates and commits the
+// compaction summary through the normal generation loop, bypassing
+// the usage threshold, and the chat returns to waiting with no
+// assistant follow-up.
+//
+// Returns the post-transition chat and an error so callers can map
+// state conflicts deliberately: archived chats return ErrChatArchived,
+// non-idle chats return a chatstate.ErrTransitionNotAllowed wrapper,
+// and chats with no compactable conversation return
+// ErrNothingToCompact.
+func (p *Server) CompactChat(
+	ctx context.Context,
+	chat database.Chat,
+) (database.Chat, error) {
+	if chat.ID == uuid.Nil {
+		return chat, xerrors.New("chat_id is required")
+	}
+
+	var refreshed database.Chat
+	machine := p.newChatMachine(chat.ID)
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		lockedChat, err := store.GetChatByID(ctx, chat.ID)
+		if err != nil {
+			return xerrors.Errorf("load chat: %w", err)
+		}
+		if lockedChat.Archived {
+			return ErrChatArchived
+		}
+		// Run the transition before content and usage validation so busy
+		// chats surface the state conflict first.
+		result, err := tx.RequestCompaction(chatstate.RequestCompactionInput{})
+		if err != nil {
+			return err
+		}
+		// Reject requests with nothing to compact inside the same
+		// transaction (rolling back the transition) so no LLM call
+		// is ever started for an empty or already-compacted chat.
+		// This also covers a double-/compact.
+		messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  chat.ID,
+			AfterID: 0,
+		})
+		if err != nil {
+			return xerrors.Errorf("load chat messages: %w", err)
+		}
+		boundary := latestCompactionBoundaryIndex(messages)
+		if _, ok := firstUncompressedAssistantAfter(messages, boundary); !ok {
+			return ErrNothingToCompact
+		}
+		// Usage validation runs last so rejected requests report the more
+		// specific state or content conflict. Its failure rolls back the marker.
+		if limitErr := p.checkUsageLimit(ctx, store, lockedChat.OwnerID, uuid.NullUUID{UUID: lockedChat.OrganizationID, Valid: true}); limitErr != nil {
+			return limitErr
+		}
+		refreshed = result.Chat
 		return nil
 	})
 	if err != nil {
@@ -3275,7 +3346,8 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 		return true
 	case "write_file", "edit_files", "list_templates", "read_template",
 		"create_workspace", "start_workspace", "stop_workspace", "propose_plan", "spawn_agent",
-		"spawn_explore_agent", "wait_agent", "list_agents", "ask_user_question", "attach_file":
+		"spawn_explore_agent", "wait_agent", "list_agents", "list_subagent_models",
+		"ask_user_question", "attach_file":
 		return isRootChat
 	case "process_list", "process_signal", "message_agent", "interrupt_agent", "close_agent",
 		"spawn_computer_use_agent":
@@ -3343,28 +3415,29 @@ func activeToolNamesForTurn(
 
 func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 	builtinExplorePolicy := map[string]bool{
-		"read_file":         true,
-		"write_file":        false,
-		"edit_files":        false,
-		"execute":           true,
-		"process_output":    true,
-		"process_list":      false,
-		"process_signal":    false,
-		"list_templates":    false,
-		"read_template":     false,
-		"create_workspace":  false,
-		"start_workspace":   false,
-		"stop_workspace":    false,
-		"propose_plan":      false,
-		"spawn_agent":       false,
-		"wait_agent":        false,
-		"message_agent":     false,
-		"interrupt_agent":   false,
-		"close_agent":       false,
-		"list_agents":       false,
-		"read_skill":        true,
-		"read_skill_file":   true,
-		"ask_user_question": false,
+		"read_file":            true,
+		"write_file":           false,
+		"edit_files":           false,
+		"execute":              true,
+		"process_output":       true,
+		"process_list":         false,
+		"process_signal":       false,
+		"list_templates":       false,
+		"read_template":        false,
+		"create_workspace":     false,
+		"start_workspace":      false,
+		"stop_workspace":       false,
+		"propose_plan":         false,
+		"spawn_agent":          false,
+		"wait_agent":           false,
+		"message_agent":        false,
+		"interrupt_agent":      false,
+		"close_agent":          false,
+		"list_agents":          false,
+		"list_subagent_models": false,
+		"read_skill":           true,
+		"read_skill_file":      true,
+		"ask_user_question":    false,
 	}
 
 	toolNames := make([]string, 0, len(allTools))

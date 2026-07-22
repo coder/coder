@@ -129,7 +129,7 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 				Set values for module variables.
 			</TemplateBuilderSubtitle>
 
-			<div className="flex flex-col">
+			<div className="flex flex-col gap-6">
 				{selectedModules.map((mod) => {
 					const configurableVars = mod.variables.filter((v) => !v.sensitive);
 					const sensitiveVars = mod.variables.filter((v) => v.sensitive);

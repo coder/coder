@@ -1390,9 +1390,10 @@ type sqlcQuerier interface {
 	// the injectable quartz.Clock used by FinalizeStale sweeps.
 	UpdateChatDebugStep(ctx context.Context, arg UpdateChatDebugStepParams) (ChatDebugStep, error)
 	// Atomically updates the execution-state-managed fields on a chat:
-	// status, archived, last_error, ownership identifiers, and the
-	// requires-action deadline. Callers compose this with transition
-	// mutations inside a single ChatMachine.Update transaction.
+	// status, archived, last_error, ownership identifiers, the
+	// requires-action deadline, and the manual compaction request marker.
+	// Callers compose this with transition mutations inside a single
+	// ChatMachine.Update transaction.
 	UpdateChatExecutionState(ctx context.Context, arg UpdateChatExecutionStateParams) (Chat, error)
 	// Bumps the heartbeat timestamp for the given set of chat IDs,
 	// provided they are still running and owned by the specified

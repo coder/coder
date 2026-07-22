@@ -17,6 +17,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
@@ -291,6 +292,134 @@ func TestDecisionCompactsAgainAfterPostCompactionTurn(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, generationActionCompact, decision.kind)
+}
+
+func TestBuildCompactionMessages_ManualSource(t *testing.T) {
+	t.Parallel()
+
+	got, err := buildCompactionMessages(buildCompactionMessagesInput{
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		toolCallID:     "summary-1",
+		toolName:       "chat_summarized",
+		compaction: compactionOutcome{
+			SystemSummary:    "system summary",
+			SummaryReport:    "user report",
+			Source:           chatloop.CompactionSourceManual,
+			ThresholdPercent: 70,
+			UsagePercent:     10,
+			ContextTokens:    100,
+			ContextLimit:     1000,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 3)
+
+	callPart := parseMessageParts(t, got.Messages[1].Role, got.Messages[1].Content)[0]
+	require.JSONEq(t, `{"source":"manual","threshold_percent":70}`, string(callPart.Args))
+	resultPart := parseMessageParts(t, got.Messages[2].Role, got.Messages[2].Content)[0]
+	require.JSONEq(t, `{"summary":"user report","source":"manual","threshold_percent":70,"usage_percent":10,"context_tokens":100,"context_limit_tokens":1000}`, string(resultPart.Result))
+}
+
+// TestDecisionForcedCompaction verifies the manual compaction request
+// ordering contract: a pending request beats the history-complete
+// FinishTurn decision on idle chats, loses to unresolved tool calls,
+// and is skipped when nothing after the latest boundary is
+// compactable.
+func TestDecisionForcedCompaction(t *testing.T) {
+	t.Parallel()
+
+	requestedChat := database.Chat{
+		CompactionRequestedAt: sql.NullTime{Time: time.Now(), Valid: true},
+	}
+
+	t.Run("beats history complete", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("question")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("answer")),
+		}
+		decision, err := decideGenerationAction(generationDecisionInput{
+			chat:     requestedChat,
+			messages: messages,
+		})
+		require.NoError(t, err)
+		require.Equal(t, generationActionCompact, decision.kind)
+		require.True(t, decision.forced)
+	})
+
+	t.Run("loses to unresolved tool calls", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("question")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("read-1", "read_file", json.RawMessage(`{}`))),
+		}
+		decision, err := decideGenerationAction(generationDecisionInput{
+			chat:     requestedChat,
+			messages: messages,
+		})
+		require.NoError(t, err)
+		require.Equal(t, generationActionExecuteLocalTools, decision.kind)
+		require.False(t, decision.forced)
+	})
+
+	t.Run("skipped when nothing compactable", func(t *testing.T) {
+		t.Parallel()
+
+		// Everything up to and including the latest boundary is
+		// compressed; no uncompressed assistant follows, so the
+		// forced compact is skipped and the normal decision applies
+		// (after-compaction histories continue with an assistant
+		// generation, exactly as if no request were pending).
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("summary")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageToolCall("summary-1", "chat_summarized", nil)),
+			dbMessage(t, 3, database.ChatMessageRoleTool, true, codersdk.ChatMessageToolResult("summary-1", "chat_summarized", json.RawMessage(`{}`), false, false)),
+			dbMessage(t, 4, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("follow-up question")),
+			dbMessage(t, 5, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("follow-up answer")),
+		}
+		// Only messages up to the boundary: strip the follow-up.
+		requested, err := decideGenerationAction(generationDecisionInput{
+			chat:     requestedChat,
+			messages: messages[:3],
+		})
+		require.NoError(t, err)
+		unrequested, err := decideGenerationAction(generationDecisionInput{
+			chat:     database.Chat{},
+			messages: messages[:3],
+		})
+		require.NoError(t, err)
+		require.Equal(t, unrequested.kind, requested.kind,
+			"stale request must not change the decision")
+		require.False(t, requested.forced)
+
+		// With an uncompressed assistant after the boundary the
+		// forced compact fires again.
+		decision, err := decideGenerationAction(generationDecisionInput{
+			chat:     requestedChat,
+			messages: messages,
+		})
+		require.NoError(t, err)
+		require.Equal(t, generationActionCompact, decision.kind)
+		require.True(t, decision.forced)
+	})
+
+	t.Run("no request follows normal decision", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("question")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("answer")),
+		}
+		decision, err := decideGenerationAction(generationDecisionInput{
+			chat:     database.Chat{},
+			messages: messages,
+		})
+		require.NoError(t, err)
+		require.Equal(t, generationActionFinishTurn, decision.kind)
+	})
 }
 
 func TestCompactionStatusFromHistory(t *testing.T) {

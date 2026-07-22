@@ -1449,6 +1449,19 @@ export const interruptChat = (queryClient: QueryClient, chatId: string) => ({
 	},
 });
 
+export const compactChat = (queryClient: QueryClient, chatId: string) => ({
+	mutationFn: () => API.experimental.compactChat(chatId),
+	onSuccess: () => {
+		// The compaction transitions the chat to running; the summary
+		// rows stream in over the websocket like any other turn.
+		void queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		void invalidateChatDebugRuns(queryClient, chatId);
+	},
+});
+
 /**
  * Re-pins the chat to its agent's latest context snapshot, clearing the
  * dirty marker. On success the returned chat (carrying the freshly pinned
@@ -1809,7 +1822,7 @@ export const chatProviderConfigs = () => ({
 	},
 });
 
-const chatModelConfigsKey = ["chat-model-configs"] as const;
+export const chatModelConfigsKey = ["chat-model-configs"] as const;
 
 export const chatModelConfigs = () => ({
 	queryKey: chatModelConfigsKey,

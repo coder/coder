@@ -47,7 +47,17 @@ export const getLatestContextUsage = (
 	messages: readonly TypesGen.ChatMessage[],
 ): AgentContextUsage | null => {
 	for (let index = messages.length - 1; index >= 0; index -= 1) {
-		const usage = extractContextUsageFromMessage(messages[index]);
+		const message = messages[index];
+		const isCompactionSummary = message.content?.some(
+			(part) =>
+				(part.type === "tool-call" || part.type === "tool-result") &&
+				part.tool_name === "chat_summarized",
+		);
+		if (isCompactionSummary) {
+			return null;
+		}
+
+		const usage = extractContextUsageFromMessage(message);
 		if (usage) {
 			return usage;
 		}
