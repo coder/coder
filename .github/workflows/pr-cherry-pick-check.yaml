@@ -14,7 +14,7 @@ permissions: {}
 jobs:
   check-cherry-pick:
     permissions:
-      issues: write
+      pull-requests: write
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
