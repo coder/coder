@@ -132,8 +132,8 @@ type FeatureArguments struct {
 	// WorkspaceCapableUserCountFn returns the number of active users the
 	// RBAC engine authorizes to create workspaces. It is invoked only when
 	// a valid license carries both the AI Governance addon and a
-	// user_limit claim; the result then applies to that license's
-	// user_limit candidate, and replaces ActiveUserCount when such a
+	// FeatureUserLimit claim; the result then applies to that license's
+	// FeatureUserLimit candidate, and replaces ActiveUserCount when such a
 	// candidate is selected for enforcement. May be nil, in which case
 	// ActiveUserCount is always used.
 	WorkspaceCapableUserCountFn WorkspaceCapableUserCountFn
@@ -143,7 +143,7 @@ type ManagedAgentCountFn func(ctx context.Context, from time.Time, to time.Time)
 
 type WorkspaceCapableUserCountFn func(ctx context.Context) (int64, error)
 
-// userLimitCandidate is one license's user_limit terms: its seat limit,
+// userLimitCandidate is one license's FeatureUserLimit terms: its seat limit,
 // its entitlement, and the counting mode implied by whether the license
 // carries the AI Governance addon.
 type userLimitCandidate struct {
@@ -173,7 +173,7 @@ func betterUserLimit(a, b userLimitCandidate, countA, countB int64) bool {
 	return a.aiGovernanceAddon && !b.aiGovernanceAddon
 }
 
-// userLimitSelection reports how the enforced user_limit was chosen.
+// userLimitSelection reports how the enforced FeatureUserLimit was chosen.
 type userLimitSelection struct {
 	// permissionBased is true when the selected candidate counts
 	// workspace-capable users rather than all active users.
@@ -187,14 +187,14 @@ type userLimitSelection struct {
 	addonEntitled bool
 }
 
-// selectUserLimit picks the most favorable user_limit candidate and
+// selectUserLimit picks the most favorable FeatureUserLimit candidate and
 // applies its terms to the entitlements. Every candidate is evaluated
 // against the count its own license's mode implies, so one license's
 // limit is never combined with another license's counting mode. A
 // candidate satisfied by its count wins over any unsatisfied one.
 //
 // When an addon candidate is selected, the capable count overwrites
-// featureArguments.ActiveUserCount, which the user_limit feature's
+// featureArguments.ActiveUserCount, which the FeatureUserLimit feature's
 // Actual pointer aliases: Feature values copy the pointer, not the
 // int64, so every copy of the feature observes the write, as do the
 // caller's over-limit warnings. featureArguments must therefore point
@@ -231,7 +231,7 @@ func selectUserLimit(
 		if err != nil {
 			// A failed seat count is deliberately a hard failure rather
 			// than a recorded entitlement error: continuing with
-			// ActiveUserCount would silently change what user_limit
+			// ActiveUserCount would silently change what FeatureUserLimit
 			// measures. The caller keeps the previous entitlements, so a
 			// failure yields a stale count rather than a different one.
 			return sel, xerrors.Errorf("count workspace capable users: %w", err)
@@ -294,7 +294,7 @@ func LicensesEntitlements(
 	// suppress the soft warning for AI Bridge GA.
 	hasExplicitAIBridgeEntitlement := false
 
-	// Each valid license's user_limit claim forms a candidate pairing of
+	// Each valid license's FeatureUserLimit claim forms a candidate pairing of
 	// seat limit and counting mode: licenses carrying the AI Governance
 	// addon count workspace-capable users, others count all active users.
 	// The most favorable candidate is selected once all licenses are
@@ -568,7 +568,7 @@ func LicensesEntitlements(
 		}
 	}
 
-	// The user_limit feature's final terms come from best-pair selection
+	// The FeatureUserLimit feature's final terms come from best-pair selection
 	// across the candidates rather than the AddFeature merge.
 	userLimitSel, err := selectUserLimit(ctx, &entitlements, &featureArguments, userLimitCandidates)
 	if err != nil {
