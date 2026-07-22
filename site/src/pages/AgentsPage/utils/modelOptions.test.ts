@@ -10,6 +10,7 @@ import {
 } from "#/testHelpers/chatModels";
 import {
 	countConfiguredProviderConfigs,
+	filterConfigsWithEnabledProvider,
 	formatProviderLabel,
 	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
@@ -645,6 +646,165 @@ describe("getModelOptionsFromConfigs", () => {
 			}),
 		]);
 	});
+
+	it("drops configs whose provider row is disabled", () => {
+		const configs = [
+			createConfig({
+				id: "config-enabled",
+				ai_provider_id: "prov-enabled",
+				model: "gpt-4o",
+			}),
+			createConfig({
+				id: "config-disabled",
+				ai_provider_id: "prov-disabled",
+				model: "gpt-4o-mini",
+			}),
+		];
+		const catalog = createCatalog([
+			{ provider: "openai", available: true, models: [] },
+		]);
+		const providers = new Map([
+			[
+				"prov-enabled",
+				{ provider: "openai", displayName: "OpenAI", icon: "", enabled: true },
+			],
+			[
+				"prov-disabled",
+				{
+					provider: "openai",
+					displayName: "OpenAI Disabled",
+					icon: "",
+					enabled: false,
+				},
+			],
+		]);
+
+		expect(
+			getModelOptionsFromConfigs(configs, catalog, providers).map(
+				(option) => option.id,
+			),
+		).toEqual(["config-enabled"]);
+	});
+
+	it("keeps configs when the provider enabled flag is undefined", () => {
+		const configs = [
+			createConfig({
+				id: "config-openai",
+				ai_provider_id: "prov-openai",
+				model: "gpt-4o",
+			}),
+		];
+		const catalog = createCatalog([
+			{ provider: "openai", available: true, models: [] },
+		]);
+
+		expect(
+			getModelOptionsFromConfigs(configs, catalog, providerInfoByID).map(
+				(option) => option.id,
+			),
+		).toEqual(["config-openai"]);
+	});
+
+	it("excludes only the disabled instance for same-type providers", () => {
+		// The catalog marks the type as available because of the enabled
+		// instance, so only the per-row flag can exclude the disabled one.
+		const configs = [
+			createConfig({
+				id: "config-primary",
+				ai_provider_id: "prov-anthropic-primary",
+				model: "claude-sonnet-4-20250514",
+			}),
+			createConfig({
+				id: "config-secondary",
+				ai_provider_id: "prov-anthropic-secondary",
+				model: "claude-opus-4-20250514",
+			}),
+		];
+		const catalog = createCatalog([
+			{ provider: "anthropic", available: true, models: [] },
+		]);
+		const sameTypeProviders = new Map([
+			[
+				"prov-anthropic-primary",
+				{
+					provider: "anthropic",
+					displayName: "Anthropic",
+					icon: "",
+					enabled: true,
+				},
+			],
+			[
+				"prov-anthropic-secondary",
+				{
+					provider: "anthropic",
+					displayName: "Anthropic Secondary",
+					icon: "",
+					enabled: false,
+				},
+			],
+		]);
+
+		expect(
+			getModelOptionsFromConfigs(configs, catalog, sameTypeProviders).map(
+				(option) => option.id,
+			),
+		).toEqual(["config-primary"]);
+	});
+});
+
+describe("filterConfigsWithEnabledProvider", () => {
+	const configs = [
+		createConfig({
+			id: "config-enabled",
+			ai_provider_id: "prov-enabled",
+			model: "gpt-4o",
+		}),
+		createConfig({
+			id: "config-disabled",
+			ai_provider_id: "prov-disabled",
+			model: "gpt-4o-mini",
+		}),
+		createConfig({
+			id: "config-unknown",
+			ai_provider_id: "prov-unknown",
+			model: "claude-sonnet-4-20250514",
+		}),
+	];
+	const providers = new Map([
+		[
+			"prov-enabled",
+			{ provider: "openai", displayName: "OpenAI", icon: "", enabled: true },
+		],
+		[
+			"prov-disabled",
+			{
+				provider: "openai",
+				displayName: "OpenAI Disabled",
+				icon: "",
+				enabled: false,
+			},
+		],
+	]);
+
+	it("drops configs of disabled or unknown providers", () => {
+		expect(
+			filterConfigsWithEnabledProvider(configs, providers).map(
+				(config) => config.id,
+			),
+		).toEqual(["config-enabled"]);
+	});
+
+	it("keeps configs whose provider rows lack enabled flags", () => {
+		const flaglessProviders = new Map(
+			["prov-enabled", "prov-disabled", "prov-unknown"].map((id) => [
+				id,
+				{ provider: "openai", displayName: "OpenAI", icon: "" },
+			]),
+		);
+		expect(
+			filterConfigsWithEnabledProvider(configs, flaglessProviders),
+		).toEqual(configs);
+	});
 });
 
 describe("providerInfoByIDFromConfigs", () => {
@@ -663,6 +823,7 @@ describe("providerInfoByIDFromConfigs", () => {
 			provider: "openai",
 			displayName: "Primary OpenAI",
 			icon: "/icon/openai.svg",
+			enabled: true,
 		});
 		expect(map.size).toBe(1);
 	});
@@ -676,6 +837,7 @@ describe("providerInfoByIDFromUserConfigs", () => {
 				provider: "openai",
 				display_name: "Primary OpenAI",
 				icon: "/icon/openai.svg",
+				enabled: true,
 				has_user_api_key: false,
 				has_central_api_key_fallback: true,
 				byok_enabled: true,
@@ -686,6 +848,7 @@ describe("providerInfoByIDFromUserConfigs", () => {
 			provider: "openai",
 			displayName: "Primary OpenAI",
 			icon: "/icon/openai.svg",
+			enabled: true,
 		});
 		expect(map.size).toBe(1);
 	});
@@ -721,6 +884,7 @@ describe("providerTypeByIDFromUserConfigs", () => {
 				provider: "openai",
 				display_name: "OpenAI",
 				icon: "",
+				enabled: true,
 				has_user_api_key: false,
 				has_central_api_key_fallback: true,
 				byok_enabled: true,
@@ -798,6 +962,7 @@ describe("resolveModelSelector", () => {
 			provider: "openai",
 			display_name: "OpenAI",
 			icon: "",
+			enabled: true,
 			has_user_api_key: false,
 			has_central_api_key_fallback: true,
 			byok_enabled: true,

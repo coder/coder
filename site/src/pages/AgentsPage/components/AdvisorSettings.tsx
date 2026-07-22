@@ -26,7 +26,7 @@ interface AdvisorSettingsProps {
 	isAdvisorConfigLoading: boolean;
 	isAdvisorConfigFetching: boolean;
 	isAdvisorConfigLoadError: boolean;
-	modelConfigs: readonly ChatModelConfig[];
+	enabledModelConfigs: readonly ChatModelConfig[];
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
 	modelConfigsError: unknown;
 	isLoadingModelConfigs: boolean;
@@ -120,7 +120,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 	isAdvisorConfigLoading,
 	isAdvisorConfigFetching,
 	isAdvisorConfigLoadError,
-	modelConfigs,
+	enabledModelConfigs,
 	providerInfoByID,
 	modelConfigsError,
 	isLoadingModelConfigs,
@@ -134,27 +134,25 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 	const maxOutputTokensId = useId();
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 	const hasLoadedAdvisorConfig = advisorConfigData !== undefined;
-	const enabledModelOptions = modelConfigs
-		.filter((config) => config.enabled)
-		.map((config) => {
-			const providerInfo = providerInfoByID.get(config.ai_provider_id);
-			const reasoningEffort = config.model_config?.reasoning_effort;
-			const reasoningEfforts = config.reasoning_efforts ?? [];
-			return {
-				id: config.id,
-				provider: providerInfo?.provider ?? "",
-				providerId: config.ai_provider_id,
-				providerLabel: providerInfo?.displayName,
-				providerIcon: providerInfo?.icon,
-				model: config.model,
-				displayName: config.display_name.trim() || config.model,
-				contextLimit: config.context_limit,
-				...(reasoningEffort?.default
-					? { reasoningEffortDefault: reasoningEffort.default }
-					: {}),
-				...(reasoningEfforts.length > 0 ? { reasoningEfforts } : {}),
-			};
-		});
+	const enabledModelOptions = enabledModelConfigs.map((config) => {
+		const providerInfo = providerInfoByID.get(config.ai_provider_id);
+		const reasoningEffort = config.model_config?.reasoning_effort;
+		const reasoningEfforts = config.reasoning_efforts ?? [];
+		return {
+			id: config.id,
+			provider: providerInfo?.provider ?? "",
+			providerId: config.ai_provider_id,
+			providerLabel: providerInfo?.displayName,
+			providerIcon: providerInfo?.icon,
+			model: config.model,
+			displayName: config.display_name.trim() || config.model,
+			contextLimit: config.context_limit,
+			...(reasoningEffort?.default
+				? { reasoningEffortDefault: reasoningEffort.default }
+				: {}),
+			...(reasoningEfforts.length > 0 ? { reasoningEfforts } : {}),
+		};
+	});
 
 	const form = useFormik<AdvisorSettingsFormValues>({
 		enableReinitialize: true,
@@ -163,17 +161,19 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 		validate: validateAdvisorConfig,
 		onSubmit: (values, { resetForm }) => {
 			// If the last committed model override references a model config
-			// that no longer exists, the backend rejects the stale ID with a
-			// 400. Clear the override so a save stays reliable in that edge
-			// case. Only scrub when model configs have loaded successfully and
-			// no refetch is in flight.
+			// that is no longer available, the backend rejects the stale ID
+			// with a 400. Clear the override so a save stays reliable in
+			// that edge case. Only scrub when model configs have loaded
+			// successfully and no refetch is in flight.
 			let source = values;
 			if (
 				!isUnsetModelConfigId(source.model_config_id) &&
 				!isLoadingModelConfigs &&
 				!isFetchingModelConfigs &&
 				!modelConfigsError &&
-				!modelConfigs.some((config) => config.id === source.model_config_id)
+				!enabledModelConfigs.some(
+					(config) => config.id === source.model_config_id,
+				)
 			) {
 				source = { ...source, model_config_id: "", reasoning_effort: "" };
 			}

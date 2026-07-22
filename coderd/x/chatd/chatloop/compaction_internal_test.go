@@ -263,3 +263,110 @@ func TestGenerateCompactionSummary_UsesCallerContext(t *testing.T) {
 	require.False(t, ok)
 	require.Equal(t, "value", ctxSeen.Value(contextKey("key")))
 }
+
+// TestGenerateCompaction_ForceBypassesThresholdGates verifies the
+// manual-compaction contract: Force runs the summary even when usage
+// is below threshold, when usage is zero, and when threshold=100
+// disables automatic compaction; without Force those gates return an
+// empty result without calling the model.
+func TestGenerateCompaction_ForceBypassesThresholdGates(t *testing.T) {
+	t.Parallel()
+
+	newModel := func(calls *int) *chattest.FakeModel {
+		return &chattest.FakeModel{
+			ProviderName: "fake",
+			ModelName:    "fake-model",
+			GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+				*calls++
+				return &fantasy.Response{
+					Content: []fantasy.Content{
+						fantasy.TextContent{Text: "forced summary"},
+					},
+				}, nil
+			},
+		}
+	}
+	messages := []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")}
+
+	cases := []struct {
+		name string
+		opts GenerateCompactionOptions
+	}{
+		{
+			name: "below threshold",
+			opts: GenerateCompactionOptions{
+				ThresholdPercent: 70,
+				ContextLimit:     1000,
+				StepUsage:        fantasy.Usage{InputTokens: 10},
+			},
+		},
+		{
+			name: "zero usage",
+			opts: GenerateCompactionOptions{
+				ThresholdPercent: 70,
+				ContextLimit:     1000,
+			},
+		},
+		{
+			name: "threshold disabled",
+			opts: GenerateCompactionOptions{
+				ThresholdPercent: 100,
+				ContextLimit:     1000,
+				StepUsage:        fantasy.Usage{InputTokens: 10},
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Without Force the gate returns an empty result and
+			// never calls the model.
+			calls := 0
+			opts := tc.opts
+			opts.Model = newModel(&calls)
+			opts.Messages = messages
+			result, err := GenerateCompaction(context.Background(), opts)
+			require.NoError(t, err)
+			require.Empty(t, result.SummaryReport)
+			require.Zero(t, calls, "gated run must not call the model")
+
+			// With Force the summary is generated and labeled manual.
+			opts.Force = true
+			opts.Source = CompactionSourceManual
+			result, err = GenerateCompaction(context.Background(), opts)
+			require.NoError(t, err)
+			require.Equal(t, "forced summary", result.SummaryReport)
+			require.Equal(t, CompactionSourceManual, result.Source)
+			require.Equal(t, 1, calls, "forced run calls the model once")
+		})
+	}
+}
+
+// TestGenerateCompaction_DefaultSourceAutomatic verifies an unforced
+// over-threshold run reports the automatic source by default.
+func TestGenerateCompaction_DefaultSourceAutomatic(t *testing.T) {
+	t.Parallel()
+
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		ModelName:    "fake-model",
+		GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			return &fantasy.Response{
+				Content: []fantasy.Content{
+					fantasy.TextContent{Text: "auto summary"},
+				},
+			}, nil
+		},
+	}
+	result, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
+		Model:            model,
+		Messages:         []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+		ThresholdPercent: 70,
+		ContextLimit:     100,
+		StepUsage:        fantasy.Usage{InputTokens: 90},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "auto summary", result.SummaryReport)
+	require.Equal(t, CompactionSourceAutomatic, result.Source)
+}

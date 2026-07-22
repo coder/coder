@@ -743,11 +743,6 @@ func TestRenameChatTitle(t *testing.T) {
 	})
 }
 
-func withChatMessageAPIKeyID(message database.ChatMessage, apiKeyID string) database.ChatMessage {
-	message.APIKeyID = sqlNullString(apiKeyID)
-	return message
-}
-
 // requireOutgoingRequestModel asserts that the outgoing request body
 // requests wantModel. This is so that mock transports can still
 // verify the outgoing request asked for the expected model.
@@ -858,6 +853,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), gomock.Any()).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
 	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
+	db.EXPECT().GetChatGatewayAPIKey(gomock.Any(), database.GetChatGatewayAPIKeyParams{UserID: ownerID, TokenName: GatewayTokenName(ownerID)}).Return(database.APIKey{ID: activeAPIKeyID, UserID: ownerID, ExpiresAt: time.Now().Add(48 * time.Hour)}, nil)
 	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
 		gomock.Any(),
 		database.GetChatMessagesByChatIDAscPaginatedParams{
@@ -866,12 +862,12 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 			LimitVal: manualTitleMessageWindowLimit,
 		},
 	).Return([]database.ChatMessage{
-		withChatMessageAPIKeyID(mustChatMessage(
+		mustChatMessage(
 			t,
 			database.ChatMessageRoleUser,
 			database.ChatMessageVisibilityBoth,
 			codersdk.ChatMessageText(userPrompt),
-		), activeAPIKeyID),
+		),
 		mustChatMessage(
 			t,
 			database.ChatMessageRoleAssistant,
@@ -1009,6 +1005,7 @@ func TestRegenerateChatTitle_SkipsPersistWhenTitleChangedConcurrently(t *testing
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), gomock.Any()).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
 	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
+	db.EXPECT().GetChatGatewayAPIKey(gomock.Any(), database.GetChatGatewayAPIKeyParams{UserID: ownerID, TokenName: GatewayTokenName(ownerID)}).Return(database.APIKey{ID: activeAPIKeyID, UserID: ownerID, ExpiresAt: time.Now().Add(48 * time.Hour)}, nil)
 	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
 		gomock.Any(),
 		database.GetChatMessagesByChatIDAscPaginatedParams{
@@ -1017,12 +1014,12 @@ func TestRegenerateChatTitle_SkipsPersistWhenTitleChangedConcurrently(t *testing
 			LimitVal: manualTitleMessageWindowLimit,
 		},
 	).Return([]database.ChatMessage{
-		withChatMessageAPIKeyID(mustChatMessage(
+		mustChatMessage(
 			t,
 			database.ChatMessageRoleUser,
 			database.ChatMessageVisibilityBoth,
 			codersdk.ChatMessageText(userPrompt),
-		), activeAPIKeyID),
+		),
 	}, nil)
 	db.EXPECT().GetChatMessagesByChatIDDescPaginated(
 		gomock.Any(),
@@ -3482,4 +3479,127 @@ func TestPrepareManualTitleDebugRun_RouteFailureDerivesProviderFromConfig(t *tes
 
 	require.True(t, gotProvider.Valid, "debug run provider should be populated from the linked config")
 	require.Equal(t, "anthropic", gotProvider.String)
+}
+
+// TestResolveFallbackModelConfigID verifies that admission does not reuse
+// a disabled last model and rejects a disabled default.
+func TestResolveFallbackModelConfigID(t *testing.T) {
+	t.Parallel()
+
+	newProvider := func(t *testing.T, db database.Store, enabled bool) database.AIProvider {
+		return dbgen.AIProvider(t, db, database.AIProvider{}, func(p *database.InsertAIProviderParams) {
+			p.Enabled = enabled
+		})
+	}
+	newModelConfig := func(t *testing.T, db database.Store, providerID uuid.UUID, isDefault bool) database.ChatModelConfig {
+		return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
+			IsDefault:    isDefault,
+		})
+	}
+
+	t.Run("EnabledLastModel", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		provider := newProvider(t, db, true)
+		lastModel := newModelConfig(t, db, provider.ID, false)
+
+		resolved, err := resolveFallbackModelConfigID(ctx, db, lastModel.ID)
+		require.NoError(t, err)
+		require.Equal(t, lastModel.ID, resolved)
+	})
+
+	t.Run("ProviderDisabledLastModelFallsBackToDefault", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		disabledProvider := newProvider(t, db, false)
+		lastModel := newModelConfig(t, db, disabledProvider.ID, false)
+		enabledProvider := newProvider(t, db, true)
+		defaultModel := newModelConfig(t, db, enabledProvider.ID, true)
+
+		resolved, err := resolveFallbackModelConfigID(ctx, db, lastModel.ID)
+		require.NoError(t, err)
+		require.Equal(t, defaultModel.ID, resolved)
+	})
+
+	t.Run("NilLastModelUsesDefault", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		provider := newProvider(t, db, true)
+		defaultModel := newModelConfig(t, db, provider.ID, true)
+
+		resolved, err := resolveFallbackModelConfigID(ctx, db, uuid.Nil)
+		require.NoError(t, err)
+		require.Equal(t, defaultModel.ID, resolved)
+	})
+
+	t.Run("ProviderDisabledDefaultRejected", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		disabledProvider := newProvider(t, db, false)
+		lastModel := newModelConfig(t, db, disabledProvider.ID, false)
+		newModelConfig(t, db, disabledProvider.ID, true)
+
+		_, err := resolveFallbackModelConfigID(ctx, db, lastModel.ID)
+		require.ErrorIs(t, err, ErrNoDefaultChatModelConfig)
+	})
+
+	t.Run("ExplicitEnabledModel", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		provider := newProvider(t, db, true)
+		model := newModelConfig(t, db, provider.ID, false)
+
+		resolved, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{}, model.ID)
+		require.NoError(t, err)
+		require.Equal(t, model.ID, resolved)
+	})
+
+	// An explicit model whose provider was disabled after the coderd
+	// preflight must still be rejected inside the daemon.
+	t.Run("ExplicitProviderDisabledRejected", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		disabledProvider := newProvider(t, db, false)
+		model := newModelConfig(t, db, disabledProvider.ID, false)
+
+		_, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{}, model.ID)
+		require.ErrorIs(t, err, ErrInvalidModelConfigID)
+	})
+
+	// The create path performs the same daemon-side recheck before
+	// inserting the chat and its initial messages.
+	t.Run("CreateChatProviderDisabledRejected", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		owner := dbgen.User(t, db, database.User{})
+		disabledProvider := newProvider(t, db, false)
+		model := newModelConfig(t, db, disabledProvider.ID, false)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+		_, err := server.CreateChat(ctx, CreateOptions{
+			OrganizationID: uuid.New(),
+			OwnerID:        owner.ID,
+			Title:          "provider disabled create",
+			ModelConfigID:  model.ID,
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("hello"),
+			},
+		})
+		require.ErrorIs(t, err, ErrInvalidModelConfigID)
+	})
 }

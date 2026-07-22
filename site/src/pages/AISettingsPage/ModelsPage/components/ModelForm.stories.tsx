@@ -4,8 +4,10 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { withToaster } from "#/testHelpers/storybook";
 import {
 	MockAnthropicProviderState,
+	MockDisabledProviderState,
 	MockOpenAIProviderState,
 	mockGPT5,
+	mockProviderDisabledModel,
 } from "../testFixtures";
 import { ModelForm } from "./ModelForm";
 
@@ -123,6 +125,66 @@ export const ReplaceDefaultWarning: Story = {
 		await expect(args.onCreateModel).toHaveBeenCalledWith(
 			expect.objectContaining({ is_default: true }),
 		);
+	},
+};
+
+export const AddHidesDisabledProviders: Story = {
+	args: {
+		providerStates: [
+			MockOpenAIProviderState,
+			MockAnthropicProviderState,
+			MockDisabledProviderState,
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("combobox", { name: /provider/i }));
+		// Exact accessible-name matches guard the aria-hidden icon fix: a
+		// regressed icon would turn an option's name into "OpenAI OpenAI".
+		await screen.findByRole("option", { name: "OpenAI" });
+		await screen.findByRole("option", { name: "Anthropic" });
+		await expect(screen.getAllByRole("option")).toHaveLength(2);
+		await expect(
+			screen.queryByRole("option", { name: /Secondary/ }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const AddBlocksDisabledSelectedProvider: Story = {
+	args: {
+		providerStates: [MockOpenAIProviderState, MockDisabledProviderState],
+		selectedProviderState: MockDisabledProviderState,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// A ?provider= query param can preselect a disabled provider on
+		// the add page.
+		await expect(
+			canvas.getByText(/OpenAI Secondary is disabled/),
+		).toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("button", { name: /add model/i }),
+		).not.toBeInTheDocument();
+		await userEvent.click(canvas.getByRole("combobox", { name: /provider/i }));
+		await expect(
+			screen.queryByRole("option", { name: /Secondary/ }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const EditKeepsDisabledProviderVisible: Story = {
+	args: {
+		providerStates: [MockOpenAIProviderState, MockDisabledProviderState],
+		selectedProviderState: MockDisabledProviderState,
+		editingModel: mockProviderDisabledModel,
+		onDeleteModel: fn(async () => undefined),
+		onDuplicate: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("combobox", { name: /provider/i }),
+		).toHaveTextContent("OpenAI Secondary");
 	},
 };
 

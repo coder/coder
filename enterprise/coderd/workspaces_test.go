@@ -2559,12 +2559,21 @@ func TestPrebuildsAutobuild(t *testing.T) {
 
 		// Set the clock to Monday, January 1st, 2024 at 8:00 AM UTC to keep the test deterministic
 		clock := quartz.NewMock(t)
+		acquirerClock := quartz.NewMock(t)
 		clock.Set(time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC))
+		acquirerTickerTrap := acquirerClock.Trap().NewTicker("acquirer", "backup_poll")
 
 		// Setup
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		db, pb := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 		logger := testutil.Logger(t)
+		acquirer := provisionerdserver.NewAcquirer(
+			ctx,
+			logger.Named("acquirer"),
+			db,
+			pb,
+			provisionerdserver.WithClock(acquirerClock),
+		)
 		tickCh := make(chan time.Time)
 		statsCh := make(chan autobuild.Stats)
 		notificationsNoop := notifications.NewNoopEnqueuer()
@@ -2576,6 +2585,7 @@ func TestPrebuildsAutobuild(t *testing.T) {
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statsCh,
 				Clock:                    clock,
+				Acquirer:                 acquirer,
 				TemplateScheduleStore: schedule.NewEnterpriseTemplateScheduleStore(
 					agplUserQuietHoursScheduleStore(),
 					notificationsNoop,
@@ -2589,6 +2599,10 @@ func TestPrebuildsAutobuild(t *testing.T) {
 				},
 			},
 		})
+		// The Acquirer creates a fresh backup-poll ticker for the initial idle
+		// wait and again after completing the template import job. Release both
+		// so the second ticker exists before the clock advances below.
+		acquirerTickerTrap.MustWait(ctx).MustRelease(ctx)
 
 		// Setup Prebuild reconciler
 		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
@@ -2620,8 +2634,12 @@ func TestPrebuildsAutobuild(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, presets, 1)
 
+		acquirerTickerTrap.MustWait(ctx).MustRelease(ctx)
+		acquirerTickerTrap.Close()
+
 		// Given: reconciliation loop runs and starts prebuilt workspace in failed state
 		runReconciliationLoop(t, ctx, db, reconciler, presets)
+		acquirerClock.Advance(30 * time.Second).MustWait(ctx)
 		var failedWorkspaceBuilds []database.GetFailedWorkspaceBuildsByTemplateIDRow
 		require.Eventually(t, func() bool {
 			rows, err := db.GetFailedWorkspaceBuildsByTemplateID(ctx, database.GetFailedWorkspaceBuildsByTemplateIDParams{

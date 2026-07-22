@@ -10,7 +10,7 @@ import {
 } from "#/testHelpers/chatEntities";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
-import { withProxyProvider } from "#/testHelpers/storybook";
+import { withProxyProvider, withToaster } from "#/testHelpers/storybook";
 import {
 	AgentChatInput,
 	type AgentContextUsage,
@@ -841,7 +841,9 @@ export const MCPDisconnectCancel: Story = {
 		selectedMCPServerIds: [githubMCPConnected.id],
 	},
 	beforeEach: () => {
-		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue();
+		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
+			token_revoked: true,
+		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -866,7 +868,9 @@ export const MCPDisconnectConfirm: Story = {
 		selectedMCPServerIds: [githubMCPConnected.id],
 	},
 	beforeEach: () => {
-		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue();
+		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
+			token_revoked: true,
+		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -884,6 +888,40 @@ export const MCPDisconnectConfirm: Story = {
 		expect(API.experimental.disconnectMCPServerOAuth2).toHaveBeenCalledWith(
 			githubMCPConnected.id,
 		);
+	},
+};
+
+export const MCPDisconnectRevocationWarning: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+	},
+	decorators: [withToaster],
+	beforeEach: () => {
+		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
+			token_revoked: false,
+			token_revocation_error:
+				"The OAuth provider rejected the revocation request.",
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Disconnect GitHub" }),
+		);
+		await body.findByText("Disconnect GitHub?");
+		await userEvent.click(body.getByRole("button", { name: "Disconnect" }));
+		await waitFor(() =>
+			expect(body.queryByText("Disconnect GitHub?")).not.toBeInTheDocument(),
+		);
+		expect(
+			await body.findByText(
+				"The OAuth provider rejected the revocation request.",
+			),
+		).toBeInTheDocument();
 	},
 };
 
