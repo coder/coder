@@ -131,12 +131,6 @@ spec:
           runAsUser: 1000
           seccompProfile:
             type: RuntimeDefault
-        startupProbe:
-          httpGet:
-            path: /healthz
-            port: http
-            scheme: HTTP
-          initialDelaySeconds: 0
         volumeMounts:
         - mountPath: /etc/coder/ai-gateway-auth
           name: ai-gateway-auth

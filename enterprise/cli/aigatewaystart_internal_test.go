@@ -11,12 +11,14 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/xerrors"
+	"storj.io/drpc"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/cli/clitest"
@@ -76,6 +78,23 @@ func (r *failingReloader) Reload(context.Context) error {
 		r.after()
 	}
 	return r.err
+}
+
+type connectedDRPCConn struct {
+	drpc.Conn
+	closed chan struct{}
+	once   sync.Once
+}
+
+func (c *connectedDRPCConn) Close() error {
+	c.once.Do(func() {
+		close(c.closed)
+	})
+	return nil
+}
+
+func (c *connectedDRPCConn) Closed() <-chan struct{} {
+	return c.closed
 }
 
 type controlledShutdownPool struct {
@@ -173,6 +192,85 @@ func TestStandaloneGatewayLoadProviders_DaemonDoneStopsRetry(t *testing.T) {
 
 	require.ErrorIs(t, gateway.loadProviders(ctx), reloadErr)
 	require.Equal(t, int32(1), reloader.calls.Load())
+}
+
+func TestStandaloneGatewayHealthAndReadiness(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slog.Make()
+	tracer := sdktrace.NewTracerProvider().Tracer("test")
+	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, nil, logger, nil, tracer)
+	require.NoError(t, err)
+	connections := make(chan drpc.Conn, 2)
+	dialer := func(ctx context.Context) (aibridged.DRPCClient, error) {
+		select {
+		case conn := <-connections:
+			return &aibridged.Client{Conn: conn}, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	daemon, err := aibridged.New(ctx, pool, dialer, logger, tracer)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, shutdownWithTimeout(daemon.Shutdown, testutil.WaitShort))
+	})
+
+	gateway := &standaloneGateway{
+		daemon:         daemon,
+		providerLogger: logger,
+		reloader:       &failThenSucceedReloader{},
+	}
+	gateway.httpServer = &http.Server{
+		Handler:           newGatewayMux(daemon, gateway.ready, func(next http.Handler) http.Handler { return next }),
+		ReadHeaderTimeout: testutil.WaitShort,
+	}
+
+	// The HTTP server is healthy before the daemon connects or providers load.
+	require.Equal(t, http.StatusOK, healthzStatus(t, gateway))
+	require.Equal(t, http.StatusServiceUnavailable, readyzStatus(t, gateway))
+
+	// A daemon connection alone does not make the gateway ready.
+	firstConn := &connectedDRPCConn{closed: make(chan struct{})}
+	connections <- firstConn
+	require.Eventually(t, daemon.Ready, testutil.WaitShort, testutil.IntervalFast)
+	require.Equal(t, http.StatusOK, healthzStatus(t, gateway))
+	require.Equal(t, http.StatusServiceUnavailable, readyzStatus(t, gateway))
+
+	// The gateway becomes ready after the initial provider load completes.
+	require.NoError(t, gateway.loadProviders(ctx))
+	require.Equal(t, http.StatusOK, healthzStatus(t, gateway))
+	require.Equal(t, http.StatusOK, readyzStatus(t, gateway))
+
+	// Losing the daemon connection affects readiness but not HTTP health.
+	require.NoError(t, firstConn.Close())
+	require.Eventually(t, func() bool { return !daemon.Ready() }, testutil.WaitShort, testutil.IntervalFast)
+	require.Equal(t, http.StatusOK, healthzStatus(t, gateway))
+	require.Equal(t, http.StatusServiceUnavailable, readyzStatus(t, gateway))
+
+	// Readiness recovers when the daemon reconnects; providers remain loaded.
+	connections <- &connectedDRPCConn{closed: make(chan struct{})}
+	require.Eventually(t, daemon.Ready, testutil.WaitShort, testutil.IntervalFast)
+	require.Equal(t, http.StatusOK, healthzStatus(t, gateway))
+	require.Equal(t, http.StatusOK, readyzStatus(t, gateway))
+}
+
+func healthzStatus(t *testing.T, gateway *standaloneGateway) int {
+	t.Helper()
+	return probeStatus(t, gateway, healthzPath)
+}
+
+func readyzStatus(t *testing.T, gateway *standaloneGateway) int {
+	t.Helper()
+	return probeStatus(t, gateway, readyzPath)
+}
+
+func probeStatus(t *testing.T, gateway *standaloneGateway, path string) int {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	gateway.httpServer.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+	return rec.Code
 }
 
 func TestAIGatewayStart_HealthBeforeProviders(t *testing.T) {

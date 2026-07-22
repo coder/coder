@@ -132,12 +132,6 @@ spec:
           runAsUser: 1000
           seccompProfile:
             type: RuntimeDefault
-        startupProbe:
-          httpGet:
-            path: /healthz
-            port: http
-            scheme: HTTP
-          initialDelaySeconds: 0
         volumeMounts: []
       restartPolicy: Always
       serviceAccountName: coder-ai-gateway
