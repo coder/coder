@@ -9891,6 +9891,7 @@ func (q *sqlQuerier) InsertAgentContextResourcesIntoChat(ctx context.Context, ar
 const insertChat = `-- name: InsertChat :one
 WITH inserted_chat AS (
 INSERT INTO chats (
+    id,
     organization_id,
     owner_id,
     workspace_id,
@@ -9908,7 +9909,7 @@ INSERT INTO chats (
     dynamic_tools,
     client_type
 ) VALUES (
-    $1::uuid,
+    COALESCE($1::uuid, gen_random_uuid()),
     $2::uuid,
     $3::uuid,
     $4::uuid,
@@ -9916,14 +9917,15 @@ INSERT INTO chats (
     $6::uuid,
     $7::uuid,
     $8::uuid,
-    $9::text,
-    $10::chat_mode,
-    $11::chat_plan_mode,
-    $12::chat_status,
-    COALESCE($13::uuid[], '{}'::uuid[]),
-    COALESCE($14::jsonb, '{}'::jsonb),
-    $15::jsonb,
-    $16::chat_client_type
+    $9::uuid,
+    $10::text,
+    $11::chat_mode,
+    $12::chat_plan_mode,
+    $13::chat_status,
+    COALESCE($14::uuid[], '{}'::uuid[]),
+    COALESCE($15::jsonb, '{}'::jsonb),
+    $16::jsonb,
+    $17::chat_client_type
 )
 RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at
 ),
@@ -9984,6 +9986,7 @@ FROM chats_expanded
 `
 
 type InsertChatParams struct {
+	ID                uuid.NullUUID         `db:"id" json:"id"`
 	OrganizationID    uuid.UUID             `db:"organization_id" json:"organization_id"`
 	OwnerID           uuid.UUID             `db:"owner_id" json:"owner_id"`
 	WorkspaceID       uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
@@ -10004,6 +10007,7 @@ type InsertChatParams struct {
 
 func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error) {
 	row := q.db.QueryRowContext(ctx, insertChat,
+		arg.ID,
 		arg.OrganizationID,
 		arg.OwnerID,
 		arg.WorkspaceID,
@@ -12074,6 +12078,30 @@ func (q *sqlQuerier) UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatM
 		&i.CompactionRequestedAt,
 	)
 	return i, err
+}
+
+const updateChatMessageContentByID = `-- name: UpdateChatMessageContentByID :exec
+UPDATE chat_messages
+SET content = $1::jsonb,
+    search_tsv = CASE
+        WHEN search_tsv IS NULL THEN NULL
+        ELSE COALESCE(
+            to_tsvector('simple', chat_message_search_text($1::jsonb)),
+            ''::tsvector)
+    END
+WHERE id = $2::bigint
+`
+
+type UpdateChatMessageContentByIDParams struct {
+	Content json.RawMessage `db:"content" json:"content"`
+	ID      int64           `db:"id" json:"id"`
+}
+
+// Preserve NULL as the backfill marker; otherwise refresh search_tsv
+// from the new content.
+func (q *sqlQuerier) UpdateChatMessageContentByID(ctx context.Context, arg UpdateChatMessageContentByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateChatMessageContentByID, arg.Content, arg.ID)
+	return err
 }
 
 const updateChatPinOrder = `-- name: UpdateChatPinOrder :exec

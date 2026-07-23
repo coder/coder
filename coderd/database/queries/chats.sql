@@ -381,6 +381,19 @@ WHERE
     id = @id::bigint
     AND deleted = false;
 
+-- name: UpdateChatMessageContentByID :exec
+-- Preserve NULL as the backfill marker; otherwise refresh search_tsv
+-- from the new content.
+UPDATE chat_messages
+SET content = @content::jsonb,
+    search_tsv = CASE
+        WHEN search_tsv IS NULL THEN NULL
+        ELSE COALESCE(
+            to_tsvector('simple', chat_message_search_text(@content::jsonb)),
+            ''::tsvector)
+    END
+WHERE id = @id::bigint;
+
 -- name: GetChatMessagesByChatID :many
 SELECT
     *
@@ -770,6 +783,7 @@ ORDER BY
 -- name: InsertChat :one
 WITH inserted_chat AS (
 INSERT INTO chats (
+    id,
     organization_id,
     owner_id,
     workspace_id,
@@ -787,6 +801,7 @@ INSERT INTO chats (
     dynamic_tools,
     client_type
 ) VALUES (
+    COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     @organization_id::uuid,
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,

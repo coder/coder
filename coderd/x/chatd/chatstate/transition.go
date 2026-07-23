@@ -28,6 +28,7 @@ const (
 	TransitionFinishInterruption      Transition = "FinishInterruption"
 	TransitionFinishTurn              Transition = "FinishTurn"
 	TransitionFinishError             Transition = "FinishError"
+	TransitionFailIdle                Transition = "FailIdle"
 	TransitionCancelRequiresAction    Transition = "CancelRequiresAction"
 	TransitionReconcileInvalidState   Transition = "ReconcileInvalidState"
 )
@@ -57,6 +58,7 @@ var AllExecutionTransitions = []Transition{
 	TransitionFinishInterruption,
 	TransitionFinishTurn,
 	TransitionFinishError,
+	TransitionFailIdle,
 	TransitionCancelRequiresAction,
 	TransitionReconcileInvalidState,
 }
@@ -81,6 +83,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionSendMessage:       {StateR0},
 		TransitionEditMessage:       {StateR0},
 		TransitionRequestCompaction: {StateR0},
+		TransitionFailIdle:          {StateE0},
 	},
 	StateE0: {
 		TransitionSetArchived: {StateXE0},

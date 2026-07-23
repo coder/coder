@@ -16856,6 +16856,109 @@ func TestGetChatsSearch(t *testing.T) {
 	}
 }
 
+func TestUpdateChatMessageContentByIDRefreshesSearchTsv(t *testing.T) {
+	t.Parallel()
+
+	store, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := context.Background()
+
+	org := dbgen.Organization(t, store, database.Organization{})
+	user := dbgen.User(t, store, database.User{})
+	dbgen.OrganizationMember(t, store, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+
+	provider := dbgen.AIProviderWithOptionalKey(t, store, database.AIProvider{
+		Type: database.AIProviderTypeOpenai,
+	}, "test-key")
+
+	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
+		Model:                "test-model-" + uuid.NewString(),
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "content rewrite",
+	})
+	require.NoError(t, err)
+
+	insertMsg := func(text string) database.ChatMessage {
+		t.Helper()
+		msgs, err := store.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+			ChatID:              chat.ID,
+			CreatedBy:           []uuid.UUID{user.ID},
+			ModelConfigID:       []uuid.UUID{modelCfg.ID},
+			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+			Content:             []string{`[{"type":"text","text":` + strconv.Quote(text) + `}]`},
+			ContentVersion:      []int16{1},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+			InputTokens:         []int64{0},
+			OutputTokens:        []int64{0},
+			TotalTokens:         []int64{0},
+			ReasoningTokens:     []int64{0},
+			CacheCreationTokens: []int64{0},
+			CacheReadTokens:     []int64{0},
+			ContextLimit:        []int64{0},
+			Compressed:          []bool{false},
+			TotalCostMicros:     []int64{0},
+			RuntimeMs:           []int64{0},
+		})
+		require.NoError(t, err)
+		require.Len(t, msgs, 1)
+		return msgs[0]
+	}
+
+	searchTsv := func(id int64) sql.NullString {
+		t.Helper()
+		var tsv sql.NullString
+		err := sqlDB.QueryRowContext(ctx, `SELECT search_tsv::text FROM chat_messages WHERE id = $1`, id).Scan(&tsv)
+		require.NoError(t, err)
+		return tsv
+	}
+
+	indexedMsg := insertMsg("original secret phrase")
+	_, err = store.BackfillChatMessagesSearchTsv(ctx, 1000)
+	require.NoError(t, err)
+	require.True(t, searchTsv(indexedMsg.ID).Valid)
+
+	err = store.UpdateChatMessageContentByID(ctx, database.UpdateChatMessageContentByIDParams{
+		ID:      indexedMsg.ID,
+		Content: json.RawMessage(`[{"type":"text","text":"replacement override phrase"}]`),
+	})
+	require.NoError(t, err)
+
+	tsv := searchTsv(indexedMsg.ID)
+	require.True(t, tsv.Valid)
+	require.Contains(t, tsv.String, "replacement")
+	require.NotContains(t, tsv.String, "original")
+
+	pendingMsg := insertMsg("pending secret phrase")
+	err = store.UpdateChatMessageContentByID(ctx, database.UpdateChatMessageContentByIDParams{
+		ID:      pendingMsg.ID,
+		Content: json.RawMessage(`[{"type":"text","text":"pending replacement phrase"}]`),
+	})
+	require.NoError(t, err)
+	require.False(t, searchTsv(pendingMsg.ID).Valid)
+
+	_, err = store.BackfillChatMessagesSearchTsv(ctx, 1000)
+	require.NoError(t, err)
+	tsv = searchTsv(pendingMsg.ID)
+	require.True(t, tsv.Valid)
+	require.Contains(t, tsv.String, "replacement")
+}
+
 func TestChatHasUnread(t *testing.T) {
 	t.Parallel()
 
