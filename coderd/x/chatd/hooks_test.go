@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chathooks"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agenthooks"
@@ -324,6 +325,75 @@ func TestSendMessageUserPromptSubmitQueuedRejections(t *testing.T) {
 			require.False(t, updated.LastError.Valid)
 		})
 	}
+}
+
+// A user_prompt_submit dispatch failure during subagent spawn admission
+// must fail the parent turn closed instead of committing a tool error
+// the model can ignore.
+func TestSubagentSpawnHookDispatchFailureFailsTurn(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		chunk := chattest.OpenAIToolCallChunk("spawn_agent", `{"type":"general","prompt":"child admission prompt"}`)
+		chunk.Choices[0].ToolCalls[0].ID = "call_spawn"
+		return chattest.OpenAIStreamingResponse(chunk)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request agenthooks.Request
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		if request.Type == agenthooks.EventUserPromptSubmit {
+			data := decodeHookData[agenthooks.UserPromptSubmitData](t, request)
+			if data.Prompt == "child admission prompt" {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
+		_, err := w.Write([]byte(`{}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "spawn-hook-failure",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("spawn a child"),
+		},
+	})
+	require.NoError(t, err)
+	failed := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+	require.Contains(t, chatLastErrorMessage(failed.LastError), "hook dispatch failed: user_prompt_submit: http_error")
+
+	// The assistant step with the tool call committed, but no tool
+	// result was persisted for the failed spawn.
+	messages := chatMessages(ctx, t, db, chat.ID)
+	require.Len(t, messages, 2)
+	require.Equal(t, database.ChatMessageRoleUser, messages[0].Role)
+	require.Equal(t, database.ChatMessageRoleAssistant, messages[1].Role)
+
+	// The rejected child chat must not exist.
+	chats, err := db.GetChats(ctx, database.GetChatsParams{
+		OwnedOnly: true,
+		ViewerID:  user.ID,
+		AfterID:   uuid.Nil,
+		OffsetOpt: 0,
+		LimitOpt:  100,
+	})
+	require.NoError(t, err)
+	require.Len(t, chats, 1)
 }
 
 func TestSendMessageUserPromptSubmitDispatchFailure(t *testing.T) {

@@ -801,6 +801,12 @@ func (s *taskStarter) executeLocalTools(
 		if err != nil {
 			return xerrors.Errorf("execute local tools: %w", err)
 		}
+		// Subagent spawn admission dispatches user_prompt_submit inside
+		// the tool run; its failure surfaces as a tool result error and
+		// must fail the step instead of committing.
+		if hookErr := hookDispatchFailureFromResults(outcome.Step.Content); hookErr != nil {
+			return generationHookDispatchError(agenthooks.EventUserPromptSubmit, hookErr)
+		}
 	}
 	postResponses, postDispatchErr := s.server.dispatchPostToolUseResults(ctx, prepared.Chat, input.hookTurnID(), outcome.Step.Content)
 	for _, denied := range preflight.Denied {
