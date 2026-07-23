@@ -512,13 +512,11 @@ func TestPreToolUseHookErrorRetryReusesBankedSiblingDecision(t *testing.T) {
 			require.NoError(t, err)
 			return
 		}
-		decoded, err := request.Decode()
-		require.NoError(t, err)
-		data := decoded.(*agenthooks.PreToolUseData)
+		data := decodeHookData[agenthooks.PreToolUseData](t, request)
 		switch data.ToolUseID {
 		case "call_first":
 			firstCalls.Add(1)
-			_, err = w.Write([]byte(`{"model_context":"first context","user_message":"first notice"}`))
+			_, err := w.Write([]byte(`{"model_context":"first context","user_message":"first notice"}`))
 			require.NoError(t, err)
 		case "call_second":
 			secondCalls.Add(1)
@@ -526,7 +524,7 @@ func TestPreToolUseHookErrorRetryReusesBankedSiblingDecision(t *testing.T) {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			_, err = w.Write([]byte(`{}`))
+			_, err := w.Write([]byte(`{}`))
 			require.NoError(t, err)
 		default:
 			t.Fatalf("unexpected tool use ID %q", data.ToolUseID)
@@ -853,11 +851,9 @@ func preToolUseConsumer(t *testing.T, response func(agenthooks.PreToolUseData) s
 			require.NoError(t, err)
 			return
 		}
-		decoded, err := request.Decode()
-		require.NoError(t, err)
-		data, ok := decoded.(*agenthooks.PreToolUseData)
-		require.True(t, ok)
-		_, err = w.Write([]byte(response(*data)))
+		data := decodeHookData[agenthooks.PreToolUseData](t, request)
+		var err error
+		_, err = w.Write([]byte(response(data)))
 		require.NoError(t, err)
 	}))
 	t.Cleanup(consumer.Close)
