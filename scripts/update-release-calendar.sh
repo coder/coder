@@ -20,9 +20,11 @@ ESR_VERSIONS_FILE="${SCRIPT_DIR}/release_channels/esr_versions.txt"
 CALENDAR_START_MARKER="<!-- RELEASE_CALENDAR_START -->"
 CALENDAR_END_MARKER="<!-- RELEASE_CALENDAR_END -->"
 
-# Known active ESR (Extended Support Release) minor versions, read from the
-# shared source of truth. Blank lines and '#' comments are ignored.
-mapfile -t ESR_VERSIONS < <(grep -vE '^\s*(#|$)' "$ESR_VERSIONS_FILE")
+# Known active ESR (Extended Support Release) minor versions. The shared source
+# of truth stores full major.minor versions; extract the minor component, since
+# the calendar logic below is scoped to the 2.x line. Blank lines and '#'
+# comments are ignored.
+mapfile -t ESR_VERSIONS < <(grep -vE '^\s*(#|$)' "$ESR_VERSIONS_FILE" | cut -d. -f2)
 
 # Check if a minor version is a known active ESR version.
 is_esr_version() {

@@ -72,13 +72,13 @@ jobs:
               | head -3
           )
 
-          # ESR and ESR-1: the active ESR minors from the shared source of
-          # truth. Each entry N maps to release/2.N. Skip entries whose branch
-          # does not exist.
+          # ESR and ESR-1: the active ESR versions from the shared source of
+          # truth. Each entry maps to the release/<version> branch. Skip
+          # entries whose branch does not exist.
           ESR_BRANCHES=""
           if [ -f "$ESR_VERSIONS_FILE" ]; then
-            while read -r MINOR; do
-              BRANCH="release/2.${MINOR}"
+            while read -r RELEASE; do
+              BRANCH="release/${RELEASE}"
               if git show-ref --verify --quiet "refs/remotes/origin/${BRANCH}"; then
                 ESR_BRANCHES="${ESR_BRANCHES}${BRANCH}"$'\n'
               else
