@@ -28,7 +28,6 @@ coderd/schedule/autostop.go @deansheather @DanielleMaywood
 coderd/usage/ @deansheather @spikecurtis
 enterprise/coderd/usage/ @deansheather @spikecurtis
 
-# Agents UI pages (agents list, chat, analytics, settings).
 site/src/pages/AgentsPage/ @DanielleMaywood
 
 .github/ 	@jdomeracki-coder
