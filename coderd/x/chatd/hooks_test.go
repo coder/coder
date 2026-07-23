@@ -51,16 +51,13 @@ func TestSendMessageUserPromptSubmitHook(t *testing.T) {
 		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var request agenthooks.Request
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
-			decoded, err := request.Decode()
-			require.NoError(t, err)
-			data, ok := decoded.(*agenthooks.UserPromptSubmitData)
-			require.True(t, ok)
+			data := decodeHookData[agenthooks.UserPromptSubmitData](t, request)
 			require.Equal(t, "before", data.Prompt)
 			var hookParts []codersdk.ChatMessagePart
 			require.NoError(t, json.Unmarshal(data.Parts, &hookParts))
 			require.Equal(t, submitted, hookParts, "hook payload must carry non-text parts")
 			require.NotNil(t, request.Meta.TurnID)
-			_, err = w.Write([]byte(`{"permission":{"decision":"allow","input_override":{"prompt":"after"}},"model_context":"model only","user_message":"user only"}`))
+			_, err := w.Write([]byte(`{"permission":{"decision":"allow","input_override":{"prompt":"after"}},"model_context":"model only","user_message":"user only"}`))
 			require.NoError(t, err)
 		}))
 		t.Cleanup(consumer.Close)
@@ -200,10 +197,7 @@ func TestSendMessageUserPromptSubmitPassthrough(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "passthrough", hookMessageText(t, result.Message))
 	require.Equal(t, agenthooks.EventUserPromptSubmit, received.Type)
-	data, err := received.Decode()
-	require.NoError(t, err)
-	promptData, ok := data.(*agenthooks.UserPromptSubmitData)
-	require.True(t, ok)
+	promptData := decodeHookData[agenthooks.UserPromptSubmitData](t, received)
 	require.Equal(t, "passthrough", promptData.Prompt)
 	// The persisted content is jsonb-normalized, so compare JSON
 	// semantics rather than raw bytes.
@@ -263,9 +257,7 @@ func TestSendMessageUserPromptSubmitQueue(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, wantQueuedParts, persistedParts)
 	require.Equal(t, agenthooks.EventUserPromptSubmit, received.Type)
-	data, err := received.Decode()
-	require.NoError(t, err)
-	require.Equal(t, "queued original", data.(*agenthooks.UserPromptSubmitData).Prompt)
+	require.Equal(t, "queued original", decodeHookData[agenthooks.UserPromptSubmitData](t, received).Prompt)
 }
 
 func TestSendMessageUserPromptSubmitQueuedRejections(t *testing.T) {
@@ -366,10 +358,7 @@ func TestSendMessageUserPromptSubmitDispatchFailure(t *testing.T) {
 	require.NoError(t, json.Unmarshal(updated.LastError.RawMessage, &chatErr))
 	require.Equal(t, "hook dispatch failed: user_prompt_submit: http_error (dispatch "+dispatchErr.DispatchID.String()+")", chatErr.Message)
 	require.Equal(t, agenthooks.EventUserPromptSubmit, received.Type)
-	data, err := received.Decode()
-	require.NoError(t, err)
-	prompt, ok := data.(*agenthooks.UserPromptSubmitData)
-	require.True(t, ok)
+	prompt := decodeHookData[agenthooks.UserPromptSubmitData](t, received)
 	require.Equal(t, "fails", prompt.Prompt)
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
 	require.NoError(t, err)
@@ -439,15 +428,10 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 	receivedMu.Unlock()
 	require.Len(t, received, 2)
 	require.Equal(t, agenthooks.EventSessionStart, received[0].request.Type)
-	data, err := received[0].request.Decode()
-	require.NoError(t, err)
-	require.Equal(t, &agenthooks.SessionStartData{Source: "clear"}, data)
+	require.Equal(t, agenthooks.SessionStartData{Source: "clear"}, decodeHookData[agenthooks.SessionStartData](t, received[0].request))
 	require.Equal(t, received[0].request.Meta.DispatchID, received[0].claims.JTI)
 	require.Equal(t, agenthooks.EventUserPromptSubmit, received[1].request.Type)
-	promptData, err := received[1].request.Decode()
-	require.NoError(t, err)
-	prompt, ok := promptData.(*agenthooks.UserPromptSubmitData)
-	require.True(t, ok)
+	prompt := decodeHookData[agenthooks.UserPromptSubmitData](t, received[1].request)
 	require.Equal(t, "edited original", prompt.Prompt)
 	require.NotNil(t, received[0].request.Meta.TurnID)
 	require.Equal(t, received[0].request.Meta.TurnID, received[1].request.Meta.TurnID)
@@ -654,4 +638,11 @@ func hookMessageText(t *testing.T, message database.ChatMessage) string {
 	require.NoError(t, err)
 	require.Len(t, parts, 1)
 	return parts[0].Text
+}
+
+func decodeHookData[T any](t *testing.T, request agenthooks.Request) T {
+	t.Helper()
+	var data T
+	require.NoError(t, json.Unmarshal(request.Data, &data))
+	return data
 }

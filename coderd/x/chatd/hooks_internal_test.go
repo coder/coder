@@ -32,7 +32,7 @@ func TestSessionStartDispatchSources(t *testing.T) {
 	type received struct {
 		request agenthooks.Request
 		claims  agenthooks.Claims
-		data    *agenthooks.SessionStartData
+		data    agenthooks.SessionStartData
 	}
 	receivedCh := make(chan received, 2)
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -40,10 +40,8 @@ func TestSessionStartDispatchSources(t *testing.T) {
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		claims, err := agenthooks.Verify(r.Header.Get("Authorization"), []byte(secret))
 		require.NoError(t, err)
-		decoded, err := request.Decode()
-		require.NoError(t, err)
-		data, ok := decoded.(*agenthooks.SessionStartData)
-		require.True(t, ok)
+		var data agenthooks.SessionStartData
+		require.NoError(t, json.Unmarshal(request.Data, &data))
 		receivedCh <- received{request: request, claims: claims, data: data}
 		_, err = w.Write([]byte(`{}`))
 		require.NoError(t, err)
