@@ -203,55 +203,84 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 			wantDetail: "Change the AI provider type to openrouter or openai-compat.",
 		},
 		{
-			name:  "OpenRouterTypeAndSlashModel",
+			name:  "OpenRouterHostWithOpenAITypeAndSlashModel",
 			model: "anthropic/claude-opus-4.6",
 			provider: database.AIProvider{
-				Name: "custom-router",
+				Name:    "private-relay",
+				Type:    database.AIProviderTypeOpenai,
+				BaseUrl: "https://openrouter.ai/api/v1",
+			},
+			wantErr:    true,
+			wantDetail: "Change the AI provider type to openrouter or openai-compat.",
+		},
+		{
+			name:  "OpenRouterHostWithPort",
+			model: "anthropic/claude-opus-4.6",
+			provider: database.AIProvider{
+				Name:    "private-relay",
+				Type:    database.AIProviderTypeOpenai,
+				BaseUrl: "https://openrouter.ai:443/api/v1",
+			},
+			wantErr:    true,
+			wantDetail: "Change the AI provider type to openrouter or openai-compat.",
+		},
+		{
+			name:  "OpenRouterSubdomainWithOpenAIType",
+			model: "anthropic/claude-opus-4.6",
+			provider: database.AIProvider{
+				Name:    "private-relay",
+				Type:    database.AIProviderTypeOpenai,
+				BaseUrl: "https://api.openrouter.ai/v1",
+			},
+			wantErr:    true,
+			wantDetail: "Change the AI provider type to openrouter or openai-compat.",
+		},
+		{
+			name:  "OpenRouterTypeAllowsSlashModel",
+			model: "anthropic/claude-opus-4.6",
+			provider: database.AIProvider{
+				Name: "openrouter",
 				Type: database.AIProviderTypeOpenrouter,
 			},
-			wantErr: false,
 		},
 		{
-			name:  "OpenAICompatTypeAndSlashModel",
+			name:  "OpenAICompatTypeAllowsSlashModel",
 			model: "anthropic/claude-opus-4.6",
 			provider: database.AIProvider{
-				Name: "custom-router",
+				Name: "openrouter",
 				Type: database.AIProviderTypeOpenaiCompat,
 			},
-			wantErr: false,
 		},
 		{
-			name:  "OpenAITypeWithNoSlashModel",
-			model: "gpt-4o",
+			name:  "PrivateOpenAIProxyAllowsSlashModel",
+			model: "anthropic/claude-opus-4.6",
 			provider: database.AIProvider{
-				Name: "openai",
-				Type: database.AIProviderTypeOpenai,
+				Name:    "private-relay",
+				Type:    database.AIProviderTypeOpenai,
+				BaseUrl: "https://llm-relay.internal/v1",
 			},
-			wantErr: false,
 		},
 		{
-			name:  "OpenAITypeWithSlashModelAndNonOpenRouterName",
-			model: "org/model-name",
+			name:  "OpenRouterNameWithPlainModelAllowed",
+			model: "gpt-4.1",
 			provider: database.AIProvider{
-				Name: "my-openai",
+				Name: "openrouter",
 				Type: database.AIProviderTypeOpenai,
 			},
-			wantErr: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			err := validateChatModelConfigProviderModel(tt.model, tt.provider)
+
+			got := validateChatModelConfigProviderModel(tt.provider, tt.model)
 			if tt.wantErr {
-				require.Error(t, err)
-				if tt.wantDetail != "" {
-					require.Contains(t, err.Error(), tt.wantDetail)
-				}
-			} else {
-				require.NoError(t, err)
+				require.NotNil(t, got)
+				require.Contains(t, got.Response.Detail, tt.wantDetail)
+				return
 			}
+			require.Nil(t, got)
 		})
 	}
 }
