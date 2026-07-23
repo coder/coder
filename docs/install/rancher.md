@@ -136,6 +136,8 @@ kubectl create secret generic coder-db-url -n coder \
 
    - **Mainline**: `2.35.2`
    - **Stable**: `2.34.6`
+   - **ESR**: `2.34.6`
+   - **Maintenance ESR**: `2.29.19`
 
    Learn more about release channels in the [Releases documentation](./releases/index.md).
 

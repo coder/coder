@@ -2,27 +2,38 @@
 
 set -euo pipefail
 
-# This script automatically updates the release calendar in docs/install/releases/index.md
-# It updates the status of each release (Not Supported, Security Support, Stable, Mainline,
-# Extended Support Release, Not Released) and gets the release dates from the first published
-# tag for each minor release.
+# This script updates the release documentation to reflect the current release
+# schedule across all supported channels. It is intended to run in CI after a
+# release so the resulting docs PR is authored by the CI bot (and can be
+# approved by whoever ran the release).
 #
-# ESR (Extended Support Release) versions are biannually released and receive extended
-# maintenance. The active ESR set is maintained in scripts/release_channels/esr_versions.txt,
-# which is also consumed by .github/workflows/backport.yaml. Update that file when new ESR
-# versions are designated or old ones reach end of life.
+# It updates:
+#   - docs/install/releases/index.md: the release calendar table and the
+#     "latest ESR version" prose.
+#   - docs/install/kubernetes.md: the Helm `--version` pins for each channel.
+#   - docs/install/rancher.md: the per-channel version pins.
+#
+# Channels covered: mainline (n), stable (n-1), ESR, and maintenance ESR
+# (ESR-1). The active ESR set is maintained in
+# scripts/release_channels/esr_versions.txt (also consumed by
+# .github/workflows/backport.yaml). Update that file when new ESR versions are
+# designated or old ones reach end of life.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 DOCS_FILE="docs/install/releases/index.md"
+KUBERNETES_FILE="docs/install/kubernetes.md"
+RANCHER_FILE="docs/install/rancher.md"
 ESR_VERSIONS_FILE="${SCRIPT_DIR}/release_channels/esr_versions.txt"
 
 CALENDAR_START_MARKER="<!-- RELEASE_CALENDAR_START -->"
 CALENDAR_END_MARKER="<!-- RELEASE_CALENDAR_END -->"
 
+VERSION_MAJOR=2
+
 # Known active ESR (Extended Support Release) minor versions. The shared source
 # of truth stores full major.minor versions; extract the minor component, since
-# the calendar logic below is scoped to the 2.x line. Blank lines and '#'
+# the release logic below is scoped to the 2.x line. Blank lines and '#'
 # comments are ignored.
 mapfile -t ESR_VERSIONS < <(grep -vE '^\s*(#|$)' "$ESR_VERSIONS_FILE" | cut -d. -f2)
 
@@ -159,7 +170,7 @@ generate_release_row() {
 # "Not Supported" are marked as "Extended Support Release" instead.
 generate_release_calendar() {
 	local result=""
-	local version_major=2
+	local version_major=$VERSION_MAJOR
 	local latest_version
 	local version_minor
 	local start_minor
@@ -217,6 +228,76 @@ generate_release_calendar() {
 	echo -e "$result"
 }
 
+# regex_escape prints its argument with ERE metacharacters backslash-escaped so
+# it can be embedded safely inside a bash regular expression.
+regex_escape() {
+	printf '%s' "$1" | sed 's/[][(){}.^$*+?|\\]/\\&/g'
+}
+
+# update_autoversion updates the semantic version that follows each
+#   <!-- autoversion(<channel>): "<pattern>" -->
+# pragma for the given channel. The pattern contains a literal [version]
+# placeholder; the version on one of the next few lines is replaced. This
+# mirrors the autoversion handling previously done by the release TUI.
+# Arguments: file, channel, new_version
+update_autoversion() {
+	local file=$1 channel=$2 newver=$3
+	local -a lines
+	mapfile -t lines <"$file"
+	local n=${#lines[@]}
+	local i j changed=0
+	local pragma_re='autoversion\(([^)]+)\): "([^"]*)"'
+
+	for ((i = 0; i < n; i++)); do
+		if [[ ${lines[i]} =~ $pragma_re ]]; then
+			local pragma_channel=${BASH_REMATCH[1]}
+			local pattern=${BASH_REMATCH[2]}
+			[[ $pragma_channel == "$channel" ]] || continue
+
+			local pre=${pattern%%\[version\]*}
+			local post=${pattern##*\[version\]}
+			local pre_re post_re line_re
+			pre_re=$(regex_escape "$pre")
+			post_re=$(regex_escape "$post")
+			line_re="^(.*${pre_re})[0-9]+\.[0-9]+\.[0-9]+(${post_re}.*)\$"
+
+			# Replace the version on one of the next few lines. The version can
+			# sit several lines below the pragma (blank line, code fence, and a
+			# few command lines), so search a generous window and stop at the
+			# first match.
+			for ((j = i + 1; j < n && j <= i + 10; j++)); do
+				if [[ ${lines[j]} =~ $line_re ]]; then
+					lines[j]="${BASH_REMATCH[1]}${newver}${BASH_REMATCH[2]}"
+					changed=1
+					break
+				fi
+			done
+		fi
+	done
+
+	if [[ $changed -eq 1 ]]; then
+		printf '%s\n' "${lines[@]}" >"$file"
+	fi
+}
+
+# update_rancher_pin updates a `- **<label>**: `X.Y.Z`` pin in rancher.md.
+# Arguments: file, label, new_version
+update_rancher_pin() {
+	local file=$1 label=$2 newver=$3
+	local label_re
+	label_re=$(regex_escape "$label")
+	sed -i -E "s#(\\*\\*${label_re}\\*\\*: \`)[0-9]+\.[0-9]+\.[0-9]+(\`)#\\1${newver}\\2#" "$file"
+}
+
+# update_esr_prose updates the "latest ESR version" sentence in index.md.
+# Arguments: file, display_version (e.g. 2.34), tag_version (e.g. 2.34.6)
+update_esr_prose() {
+	local file=$1 display=$2 tag=$3
+	sed -i -E \
+		"s#(The latest ESR version is \[Coder )[0-9]+\.[0-9]+(\]\(https://github.com/coder/coder/releases/tag/v)[0-9]+\.[0-9]+\.[0-9]+(\))#\\1${display}\\2${tag}\\3#" \
+		"$file"
+}
+
 # Check if the markdown comments exist in the file
 if ! grep -q "$CALENDAR_START_MARKER" "$DOCS_FILE" || ! grep -q "$CALENDAR_END_MARKER" "$DOCS_FILE"; then
 	echo "Error: Markdown comment anchors not found in $DOCS_FILE"
@@ -254,7 +335,44 @@ awk -v start_marker="$CALENDAR_START_MARKER" \
 # Replace the original file with the updated version
 mv "${DOCS_FILE}.new" "$DOCS_FILE"
 
+# --- Update per-channel version pins across the release docs ---
+
+# Mainline is the highest released minor; stable is the one before it.
+LATEST_TAG=$(cd "$(git rev-parse --show-toplevel)" && git tag | grep '^v[0-9]*\.[0-9]*\.[0-9]*$' | sort -V | tail -1)
+MAINLINE_MINOR=$(echo "$LATEST_TAG" | cut -d. -f2)
+STABLE_MINOR=$((MAINLINE_MINOR - 1))
+
+# Of the active ESR minors, the highest is the current ESR and the next highest
+# is the maintenance ESR (ESR-1).
+mapfile -t ESR_SORTED < <(printf '%s\n' "${ESR_VERSIONS[@]}" | sort -rn)
+ESR_MINOR=${ESR_SORTED[0]:-}
+ESR_MAINT_MINOR=${ESR_SORTED[1]:-}
+
+MAINLINE_VER=$(get_latest_patch "$VERSION_MAJOR" "$MAINLINE_MINOR")
+STABLE_VER=$(get_latest_patch "$VERSION_MAJOR" "$STABLE_MINOR")
+ESR_VER=""
+[ -n "$ESR_MINOR" ] && ESR_VER=$(get_latest_patch "$VERSION_MAJOR" "$ESR_MINOR")
+ESR_MAINT_VER=""
+[ -n "$ESR_MAINT_MINOR" ] && ESR_MAINT_VER=$(get_latest_patch "$VERSION_MAJOR" "$ESR_MAINT_MINOR")
+
+# index.md: latest ESR prose.
+if [ -n "$ESR_VER" ]; then
+	update_esr_prose "$DOCS_FILE" "${VERSION_MAJOR}.${ESR_MINOR}" "$ESR_VER"
+fi
+
+# kubernetes.md: Helm --version pins per channel.
+[ -n "$MAINLINE_VER" ] && update_autoversion "$KUBERNETES_FILE" "mainline" "$MAINLINE_VER"
+[ -n "$STABLE_VER" ] && update_autoversion "$KUBERNETES_FILE" "stable" "$STABLE_VER"
+[ -n "$ESR_VER" ] && update_autoversion "$KUBERNETES_FILE" "esr" "$ESR_VER"
+[ -n "$ESR_MAINT_VER" ] && update_autoversion "$KUBERNETES_FILE" "maintenance-esr" "$ESR_MAINT_VER"
+
+# rancher.md: per-channel version pins.
+[ -n "$MAINLINE_VER" ] && update_rancher_pin "$RANCHER_FILE" "Mainline" "$MAINLINE_VER"
+[ -n "$STABLE_VER" ] && update_rancher_pin "$RANCHER_FILE" "Stable" "$STABLE_VER"
+[ -n "$ESR_VER" ] && update_rancher_pin "$RANCHER_FILE" "ESR" "$ESR_VER"
+[ -n "$ESR_MAINT_VER" ] && update_rancher_pin "$RANCHER_FILE" "Maintenance ESR" "$ESR_MAINT_VER"
+
 # run make fmt/markdown
 make fmt/markdown
 
-echo "Successfully updated release calendar in $DOCS_FILE"
+echo "Successfully updated release docs (calendar, ESR prose, Kubernetes and Rancher pins)."

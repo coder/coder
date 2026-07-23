@@ -824,13 +824,16 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	}
 	successf(w, "Release workflow triggered!")
 
-	// --- Update release docs ---
-	// RC releases skip docs updates (calendar, helm versions, etc.)
-	// since they are not production releases.
+	// --- Release docs ---
+	// Release docs (calendar and per-channel version pins) are updated
+	// automatically by the `update-docs` job in
+	// .github/workflows/release.yaml, which opens a bot-authored PR after the
+	// release. This keeps the docs PR out of the release runner's name so they
+	// can review and approve it.
 	if newVersion.IsRC() {
 		infof(w, "Skipping docs update for release candidate.")
 	} else {
-		promptAndUpdateDocs(inv, newVersion, channel, dryRun)
+		infof(w, "Release docs will be updated by CI (see the update-docs job in release.yaml).")
 	}
 
 	fmt.Fprintln(w)
