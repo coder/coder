@@ -927,6 +927,50 @@ func TestInjectMissingToolUses_DropsProviderExecutedOrphans(t *testing.T) {
 	}
 }
 
+// TestInjectMissingToolResults_HookContextBetweenCallAndResult
+// verifies that a model-visible hook context row persisted between an
+// assistant tool call and its result rows does not break tool-result
+// adjacency or trigger a synthetic interrupted result.
+func TestInjectMissingToolResults_HookContextBetweenCallAndResult(t *testing.T) {
+	t.Parallel()
+
+	assistantContent := mustMarshalContent(t, []fantasy.Content{
+		fantasy.ToolCallContent{
+			ToolCallID: "toolu_gated",
+			ToolName:   "execute",
+			Input:      `{"command":"ls"}`,
+		},
+	})
+	hookContext := mustMarshalContent(t, []fantasy.Content{
+		fantasy.TextContent{Text: "hook approval context"},
+	})
+	result := mustMarshalToolResult(t,
+		"toolu_gated", "execute",
+		json.RawMessage(`{"output":"ok"}`),
+		false, false, false,
+	)
+
+	prompt := convertMessagesWithoutFiles(t, []database.ChatMessage{
+		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: assistantContent},
+		{Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Content: hookContext},
+		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: result},
+	})
+
+	// The result is hoisted next to the call and the hook context
+	// follows it.
+	require.Len(t, prompt, 3)
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[0].Role)
+	require.Equal(t, fantasy.MessageRoleTool, prompt[1].Role)
+	require.Equal(t, fantasy.MessageRoleUser, prompt[2].Role)
+	require.Equal(t, []string{"toolu_gated"}, extractToolResultIDs(t, prompt[1]))
+	for _, part := range prompt[1].Content {
+		tr, ok := asToolResultPartForTest(part)
+		require.True(t, ok)
+		_, isError := tr.Output.(fantasy.ToolResultOutputContentError)
+		require.False(t, isError, "expected no synthetic interrupted result")
+	}
+}
+
 // TestInjectMissingToolUses_DropsOnlyProviderExecutedMessage verifies
 // that a tool message containing only a provider-executed result is
 // entirely dropped.
