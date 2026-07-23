@@ -1322,11 +1322,10 @@ export interface AgentHookPermission {
 }
 
 // From agenthooks/types.go
-export type AgentHookPermissionDecision = "allow" | "ask" | "deny";
+export type AgentHookPermissionDecision = "allow" | "deny";
 
 export const AgentHookPermissionDecisions: AgentHookPermissionDecision[] = [
 	"allow",
-	"ask",
 	"deny",
 ];
 

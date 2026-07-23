@@ -70,6 +70,23 @@ func TestDispatcherSuccess(t *testing.T) {
 	require.Equal(t, agenthooks.Response{}, response)
 }
 
+func TestDispatcherRejectsCleartextURL(t *testing.T) {
+	t.Parallel()
+
+	event := newTestEvent(t, agenthooks.EventPreToolUse, agenthooks.PreToolUseData{ToolUseID: "call_1", ToolName: "execute"})
+	dispatcher := newTestDispatcher(t, nil, "http://hooks.example.com/coder", 2*time.Second)
+	_, _, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitShort), event)
+	require.ErrorContains(t, err, "must use HTTPS")
+
+	require.NoError(t, validateHookURL(""))
+	require.NoError(t, validateHookURL("https://hooks.example.com/coder"))
+	require.NoError(t, validateHookURL("http://localhost:8080/hooks"))
+	require.NoError(t, validateHookURL("http://127.0.0.1:8080/hooks"))
+	require.NoError(t, validateHookURL("http://[::1]:8080/hooks"))
+	require.Error(t, validateHookURL("http://10.0.0.5/hooks"))
+	require.Error(t, validateHookURL("ftp://hooks.example.com/coder"))
+}
+
 func TestDispatcherDeny(t *testing.T) {
 	t.Parallel()
 
@@ -333,11 +350,11 @@ func TestDispatcherProtocolErrors(t *testing.T) {
 			}}),
 		},
 		{
-			name:      "ask decision",
+			name:      "unsupported ask decision",
 			eventType: agenthooks.EventUserPromptSubmit,
 			data:      agenthooks.UserPromptSubmitData{Prompt: "question"},
 			responseBody: mustJSON(t, agenthooks.Response{Permission: &agenthooks.Permission{
-				Decision: agenthooks.PermissionAsk,
+				Decision: agenthooks.PermissionDecision("ask"),
 			}}),
 		},
 		{
@@ -385,7 +402,7 @@ func TestDispatcherOverCapacity(t *testing.T) {
 	t.Parallel()
 
 	event := newTestEvent(t, agenthooks.EventStop, agenthooks.StopData{})
-	dispatcher := newTestDispatcher(t, nil, "http://unused.test", 10*time.Millisecond)
+	dispatcher := newTestDispatcher(t, nil, "https://unused.test", 10*time.Millisecond)
 	for range maxConcurrentDispatches {
 		dispatcher.semaphore <- struct{}{}
 	}

@@ -111,7 +111,6 @@ type PermissionDecision string
 const (
 	PermissionAllow PermissionDecision = "allow"
 	PermissionDeny  PermissionDecision = "deny"
-	PermissionAsk   PermissionDecision = "ask"
 )
 
 // Claims describes the JWT minted by coderd for a lifecycle hook dispatch.

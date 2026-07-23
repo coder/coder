@@ -11,6 +11,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"syscall"
 	"time"
 
@@ -82,12 +83,43 @@ type Dispatcher struct {
 	logger       slog.Logger
 	client       *http.Client
 	hookURL      string
+	hookURLErr   error
 	secret       []byte
 	timeout      time.Duration
 	deploymentID string
 	userAgent    string
 	semaphore    chan struct{}
 	metrics      *metrics
+}
+
+// validateHookURL fails closed on cleartext hook URLs: the request
+// carries prompt and tool data plus a bearer token, and the response
+// controls allow/deny, so both need a confidential, authenticated
+// channel. Plain HTTP is allowed only for loopback development
+// consumers.
+func validateHookURL(raw string) error {
+	if raw == "" {
+		return nil
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return xerrors.Errorf("parse hook URL: %w", err)
+	}
+	switch parsed.Scheme {
+	case "https":
+		return nil
+	case "http":
+		host := parsed.Hostname()
+		if host == "localhost" {
+			return nil
+		}
+		if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+			return nil
+		}
+		return xerrors.New("chat hook URL must use HTTPS; plain HTTP is allowed only for loopback addresses")
+	default:
+		return xerrors.Errorf("chat hook URL scheme %q is not supported", parsed.Scheme)
+	}
 }
 
 // New copies (or creates) the HTTP client and disables redirects for signed
@@ -115,6 +147,7 @@ func New(
 		logger:       logger.Named("chat_hook_dispatcher"),
 		client:       client,
 		hookURL:      hookURL,
+		hookURLErr:   validateHookURL(hookURL),
 		secret:       []byte(secret),
 		timeout:      timeout,
 		deploymentID: deploymentID,
@@ -133,6 +166,9 @@ func (d *Dispatcher) Enabled() bool {
 func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (agenthooks.Response, uuid.UUID, error) {
 	if !d.Enabled() {
 		return agenthooks.Response{}, uuid.Nil, xerrors.New("chat hook dispatcher is not enabled")
+	}
+	if d.hookURLErr != nil {
+		return agenthooks.Response{}, uuid.Nil, xerrors.Errorf("chat hook URL rejected: %w", d.hookURLErr)
 	}
 
 	startedAt := time.Now()
@@ -360,14 +396,12 @@ func validateResponse(eventType agenthooks.EventType, response agenthooks.Respon
 			}
 		}
 	case agenthooks.PermissionDeny:
-		// A deny override would poison decision reuse, which matches
-		// future inputs against the original input or the override.
+		// A denied call never executes, so an override is meaningless;
+		// reject it to surface consumer bugs.
 		inputOverride := bytes.TrimSpace(response.Permission.InputOverride)
 		if len(inputOverride) > 0 && !bytes.Equal(inputOverride, []byte("null")) {
 			return xerrors.New("deny decision must not include input_override")
 		}
-	case agenthooks.PermissionAsk:
-		return xerrors.New("ask decision is not supported")
 	default:
 		return xerrors.Errorf("invalid permission decision %q", response.Permission.Decision)
 	}
@@ -537,7 +571,7 @@ func (m *metrics) observe(eventType agenthooks.EventType, result DispatchResult,
 		return
 	}
 	switch response.Permission.Decision {
-	case agenthooks.PermissionAllow, agenthooks.PermissionDeny, agenthooks.PermissionAsk:
+	case agenthooks.PermissionAllow, agenthooks.PermissionDeny:
 		m.decisions.WithLabelValues(event, string(response.Permission.Decision)).Inc()
 	}
 	if response.Permission.Decision == agenthooks.PermissionAllow && response.Permission.InputOverride != nil {
