@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
@@ -74,6 +75,32 @@ func TestPrefetchCustomRoles(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, roles, 1)
 	require.Equal(t, "prefetched", roles[0].Identifier.Name)
+}
+
+func TestPrefetchCustomRolesErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("FetchError", func(t *testing.T) {
+		t.Parallel()
+		mDB := dbmock.NewMockStore(gomock.NewController(t))
+		mDB.EXPECT().CustomRoles(gomock.Any(), gomock.Any()).Return(nil, xerrors.New("boom"))
+
+		_, err := rolestore.PrefetchCustomRoles(context.Background(), mDB)
+		require.ErrorContains(t, err, "fetch custom roles")
+	})
+
+	t.Run("ConvertError", func(t *testing.T) {
+		t.Parallel()
+		// Org permissions without an organization ID cannot be converted.
+		mDB := dbmock.NewMockStore(gomock.NewController(t))
+		mDB.EXPECT().CustomRoles(gomock.Any(), gomock.Any()).Return([]database.CustomRole{{
+			Name:           "broken",
+			OrgPermissions: []database.CustomRolePermission{{ResourceType: "workspace", Action: "create"}},
+		}}, nil)
+
+		_, err := rolestore.PrefetchCustomRoles(context.Background(), mDB)
+		require.ErrorContains(t, err, `convert db role "broken"`)
+	})
 }
 
 func TestReconcileSystemRole(t *testing.T) {
