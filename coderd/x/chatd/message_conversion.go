@@ -320,8 +320,6 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	}
 
 	assistantMsg := baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, assistantContent)
-	// Compaction is a billable model invocation; its runtime is
-	// persisted on the assistant message like a regular step's.
 	if input.compaction.Runtime > 0 {
 		assistantMsg.RuntimeMs = sql.NullInt64{Int64: input.compaction.Runtime.Milliseconds(), Valid: true}
 	}
@@ -566,13 +564,10 @@ type bufferedPartsToPartialMessagesInput struct {
 	contentVersion int16
 	logger         slog.Logger
 	interruptedAt  time.Time
-	// attemptRuntime is the wall-clock duration of the interrupted
-	// generation attempt (its message part episode's lifetime). It is
-	// persisted as runtime_ms on the first partial assistant message
-	// so interruption does not lose billable generation time. When the
-	// interrupted attempt streamed no model-generated assistant content
-	// it is dropped: tool execution batches are not billable, including
-	// ones that published assistant-role file parts for attachments.
+	// attemptRuntime is the interrupted generation attempt's wall-clock
+	// duration (its message part episode's lifetime), persisted as
+	// runtime_ms on the first partial assistant message when the attempt
+	// streamed model-generated assistant content.
 	attemptRuntime time.Duration
 }
 
@@ -625,9 +620,8 @@ func bufferedPartsToPartialMessages(input bufferedPartsToPartialMessagesInput) (
 		return nil, err
 	}
 	if input.attemptRuntime > 0 && state.modelStreamedAssistant {
-		// The whole attempt's runtime goes on the first assistant
-		// message; usage reporting sums runtime_ms across rows, so
-		// placement within the suffix does not matter.
+		// Usage reporting sums runtime_ms across rows, so placing the
+		// whole span on the first assistant message is sufficient.
 		for i := range state.messages {
 			if state.messages[i].Role != database.ChatMessageRoleAssistant {
 				continue

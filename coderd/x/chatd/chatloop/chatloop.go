@@ -311,8 +311,7 @@ type GenerateCompactionOptions struct {
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 
-	// Clock measures the summary call duration reported as
-	// CompactionResult.Runtime. Nil uses a real clock.
+	// Clock measures the summary call duration. Nil uses a real clock.
 	Clock quartz.Clock
 }
 

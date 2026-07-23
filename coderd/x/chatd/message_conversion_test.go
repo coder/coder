@@ -84,9 +84,6 @@ func TestBuildCommitStepMessages_LocalToolResultsBecomeToolMessages(t *testing.T
 	require.NoError(t, err)
 	require.Len(t, got.Messages, 2)
 	require.Equal(t, []int{0, 1}, got.VisibleIndexes)
-
-	// The step's model-invocation runtime lands on the assistant
-	// message only; tool result rows are never billed.
 	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, got.Messages[0].RuntimeMs)
 	require.False(t, got.Messages[1].RuntimeMs.Valid)
 
@@ -237,8 +234,6 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 	require.Equal(t, database.ChatMessageRoleAssistant, got.Messages[1].Role)
 	require.Equal(t, database.ChatMessageVisibilityUser, got.Messages[1].Visibility)
 	require.True(t, got.Messages[1].Compressed)
-	// The summarization call's runtime is billed on the assistant
-	// message, mirroring regular generation steps.
 	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, got.Messages[1].RuntimeMs)
 	callPart := parseMessageParts(t, got.Messages[1].Role, got.Messages[1].Content)[0]
 	require.Equal(t, codersdk.ChatMessagePartTypeToolCall, callPart.Type)
@@ -617,10 +612,6 @@ func TestBufferedPartsToPartialMessages_NormalizesToolCallDeltasBeforeFinal(t *t
 	require.Equal(t, "call-1", syntheticParts[0].ToolCallID)
 }
 
-// TestBufferedPartsToPartialMessages_AttachesAttemptRuntime verifies an
-// interrupted attempt's runtime is persisted on the first partial
-// assistant message, so interruption does not lose billable generation
-// time.
 func TestBufferedPartsToPartialMessages_AttachesAttemptRuntime(t *testing.T) {
 	t.Parallel()
 
@@ -639,15 +630,10 @@ func TestBufferedPartsToPartialMessages_AttachesAttemptRuntime(t *testing.T) {
 	require.Len(t, got, 2)
 	require.Equal(t, database.ChatMessageRoleAssistant, got[0].Role)
 	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, got[0].RuntimeMs)
-	// The synthetic interruption tool result is not billed.
 	require.Equal(t, database.ChatMessageRoleTool, got[1].Role)
 	require.False(t, got[1].RuntimeMs.Valid)
 }
 
-// TestBufferedPartsToPartialMessages_DropsRuntimeWithoutAssistantContent
-// verifies attempts that streamed no model-generated assistant content
-// (for example an interrupted tool execution batch) do not bill their
-// episode span.
 func TestBufferedPartsToPartialMessages_DropsRuntimeWithoutAssistantContent(t *testing.T) {
 	t.Parallel()
 

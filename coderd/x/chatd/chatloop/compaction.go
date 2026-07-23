@@ -131,9 +131,9 @@ type CompactionResult struct {
 	ContextTokens    int64
 	ContextLimit     int64
 	// Runtime is the wall-clock duration of the summarization model
-	// call. Compaction is a billable model invocation like a regular
-	// assistant step; see PersistedStep.Runtime. Zero when the run
-	// was gated off before calling the model.
+	// call, the compaction step's billable runtime (see
+	// PersistedStep.Runtime). Zero when the run was gated off before
+	// calling the model.
 	Runtime time.Duration
 }
 

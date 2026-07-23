@@ -274,8 +274,7 @@ func (b *Buffer) GetParts(key Key) ([]Part, error) {
 
 // EpisodeDuration returns the wall-clock span between CreateEpisode and
 // CloseEpisode. It returns 0 when the episode is unknown, was created
-// implicitly by CloseEpisode, or is not closed yet. Interruption handling
-// uses this as the runtime of the interrupted generation attempt.
+// implicitly by CloseEpisode, or is not closed yet.
 func (b *Buffer) EpisodeDuration(key Key) time.Duration {
 	b.mu.Lock()
 	defer b.mu.Unlock()

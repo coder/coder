@@ -391,10 +391,6 @@ func TestInterruptTask_BufferedPartsBecomePartialMessages(t *testing.T) {
 	require.True(t, toolParts[0].IsError)
 }
 
-// TestInterruptTask_PartialAssistantKeepsAttemptRuntime verifies an
-// interrupted generation attempt's runtime (the episode's lifetime) is
-// persisted as runtime_ms on the partial assistant message, so billable
-// generation time survives interruption.
 func TestInterruptTask_PartialAssistantKeepsAttemptRuntime(t *testing.T) {
 	t.Parallel()
 
@@ -414,7 +410,6 @@ func TestInterruptTask_PartialAssistantKeepsAttemptRuntime(t *testing.T) {
 	}
 	require.NoError(t, buffer.CreateEpisode(key))
 	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("partial answer")))
-	// The attempt ran for 1500ms before the user interrupted it.
 	clock.Advance(1500 * time.Millisecond)
 	interrupting := f.interruptChat(t, chat.ID)
 
@@ -1293,8 +1288,7 @@ func newTestTaskStarter(t *testing.T, f *taskTestFixture, recorder *taskSideEffe
 }
 
 // newTestTaskStarterWithClock shares the clock between the starter and its
-// message part buffer, mirroring production wiring so episode durations are
-// measured on the same clock the tasks use.
+// message part buffer, mirroring production wiring.
 func newTestTaskStarterWithClock(t *testing.T, f *taskTestFixture, recorder *taskSideEffectRecorder, clock quartz.Clock) *taskStarter {
 	t.Helper()
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: clock})

@@ -14,9 +14,6 @@ import (
 	"github.com/coder/quartz"
 )
 
-// TestGenerateAssistant_RecordsModelInvocationRuntime pins the billable
-// runtime definition: Step.Runtime spans the model invocation, from just
-// before the stream opens until it is fully consumed.
 func TestGenerateAssistant_RecordsModelInvocationRuntime(t *testing.T) {
 	t.Parallel()
 
@@ -52,9 +49,6 @@ func TestGenerateAssistant_RecordsModelInvocationRuntime(t *testing.T) {
 	require.Equal(t, 1500*time.Millisecond, outcome.Step.Runtime)
 }
 
-// TestGenerateAssistant_ErroredStreamReturnsNoStep pins that a failed
-// model invocation produces no step: its content is discarded, so no
-// runtime is billed for it either.
 func TestGenerateAssistant_ErroredStreamReturnsNoStep(t *testing.T) {
 	t.Parallel()
 
@@ -85,9 +79,6 @@ func TestGenerateAssistant_ErroredStreamReturnsNoStep(t *testing.T) {
 	require.Empty(t, outcome.Step.Content)
 }
 
-// TestGenerateCompaction_RecordsRuntime verifies the summarization model
-// call reports its wall-clock duration, the compaction step's billable
-// runtime.
 func TestGenerateCompaction_RecordsRuntime(t *testing.T) {
 	t.Parallel()
 
