@@ -123,7 +123,8 @@ details on the values that are available, or you can view the
 [values.yaml](../../helm/coder/values.yaml)
 file directly.
 
-We support two release channels: mainline and stable - read the
+We support four release channels: mainline, stable, and the Extended Support
+Releases (ESR and maintenance ESR) - read the
 [Releases](./releases/index.md) page to learn more about which best suits your team.
 
 - **Mainline** Coder release:
@@ -135,7 +136,7 @@ We support two release channels: mainline and stable - read the
     helm install coder coder-v2/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.34.0
+        --version 2.35.2
     ```
 
   - **OCI Registry**
@@ -146,7 +147,7 @@ We support two release channels: mainline and stable - read the
     helm install coder oci://ghcr.io/coder/chart/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.34.0
+        --version 2.35.2
     ```
 
 - **Stable** Coder release:
@@ -159,7 +160,7 @@ We support two release channels: mainline and stable - read the
     helm install coder coder-v2/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.33.6
+        --version 2.34.6
     ```
 
   - **OCI Registry**
@@ -170,7 +171,55 @@ We support two release channels: mainline and stable - read the
     helm install coder oci://ghcr.io/coder/chart/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.33.6
+        --version 2.34.6
+    ```
+
+- **ESR** (Extended Support Release) Coder release:
+
+  - **Chart Registry**
+
+    <!-- autoversion(esr): "--version [version]" -->
+
+    ```sh
+    helm install coder coder-v2/coder \
+        --namespace coder \
+        --values values.yaml \
+        --version 2.34.6
+    ```
+
+  - **OCI Registry**
+
+    <!-- autoversion(esr): "--version [version]" -->
+
+    ```sh
+    helm install coder oci://ghcr.io/coder/chart/coder \
+        --namespace coder \
+        --values values.yaml \
+        --version 2.34.6
+    ```
+
+- **Maintenance ESR** Coder release:
+
+  - **Chart Registry**
+
+    <!-- autoversion(maintenance-esr): "--version [version]" -->
+
+    ```sh
+    helm install coder coder-v2/coder \
+        --namespace coder \
+        --values values.yaml \
+        --version 2.29.19
+    ```
+
+  - **OCI Registry**
+
+    <!-- autoversion(maintenance-esr): "--version [version]" -->
+
+    ```sh
+    helm install coder oci://ghcr.io/coder/chart/coder \
+        --namespace coder \
+        --values values.yaml \
+        --version 2.29.19
     ```
 
 You can watch Coder start up by running `kubectl get pods -n coder`. Once Coder

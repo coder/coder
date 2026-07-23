@@ -843,3 +843,48 @@ jobs:
           # different repo.
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
           VERSION: ${{ needs.release.outputs.version }}
+
+  update-docs:
+    name: Update release docs
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    needs: release
+    if: ${{ !inputs.dry_run && inputs.release_channel != 'rc' }}
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch git tags
+        run: git fetch --tags --force
+
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "node pnpm"
+
+      - name: Install pnpm dependencies
+        uses: ./.github/actions/pnpm-install
+
+      - name: Update release docs
+        run: ./scripts/update-release-calendar.sh
+
+      - name: Create docs update PR
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "docs: update release docs for ${{ needs.release.outputs.version }}"
+          title: "docs: update release docs for ${{ needs.release.outputs.version }}"
+          body: "Automated docs update for release ${{ needs.release.outputs.version }} (calendar and per-channel version pins)."
+          branch: docs/release-${{ needs.release.outputs.version }}
+          base: main
