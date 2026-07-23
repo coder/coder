@@ -1431,6 +1431,8 @@ type FinishErrorInput struct {
 type FinishErrorResult struct{}
 
 // FinishError parks the chat in error with the supplied last_error.
+// Allowed from running chats by the chat worker and from waiting chats
+// when admission-time work fails; it does not require runner ownership.
 func (tx *Tx) FinishError(input FinishErrorInput) (FinishErrorResult, error) {
 	chat, _, err := tx.requireFromAllowed(TransitionFinishError)
 	if err != nil {
@@ -1447,46 +1449,6 @@ func (tx *Tx) FinishError(input FinishErrorInput) (FinishErrorResult, error) {
 		return FinishErrorResult{}, xerrors.Errorf("set error: %w", err)
 	}
 	return FinishErrorResult{}, nil
-}
-
-// FailIdleInput configures [Tx.FailIdle].
-type FailIdleInput struct {
-	LastError string
-	// Kind classifies the persisted error; empty means generic.
-	Kind codersdk.ChatErrorKind
-}
-
-// FailIdleResult is returned by [Tx.FailIdle].
-type FailIdleResult struct{}
-
-// FailIdle moves a waiting chat to error without requiring runner ownership.
-func (tx *Tx) FailIdle(input FailIdleInput) (FailIdleResult, error) {
-	chat, _, err := tx.requireFromAllowed(TransitionFailIdle)
-	if err != nil {
-		return FailIdleResult{}, err
-	}
-	kind := input.Kind
-	if kind == "" {
-		kind = codersdk.ChatErrorKindGeneric
-	}
-	lastError, err := json.Marshal(codersdk.ChatError{
-		Message: input.LastError,
-		Kind:    kind,
-	})
-	if err != nil {
-		return FailIdleResult{}, xerrors.Errorf("encode last error: %w", err)
-	}
-	if _, err := tx.applyExecutionState(executionStateUpdate{
-		Status:                   database.ChatStatusError,
-		Archived:                 false,
-		WorkerID:                 chat.WorkerID,
-		RunnerID:                 chat.RunnerID,
-		LastError:                pqtype.NullRawMessage{RawMessage: lastError, Valid: true},
-		RequiresActionDeadlineAt: sql.NullTime{},
-	}); err != nil {
-		return FailIdleResult{}, xerrors.Errorf("set error: %w", err)
-	}
-	return FailIdleResult{}, nil
 }
 
 // CancelRequiresActionInput configures [Tx.CancelRequiresAction].
