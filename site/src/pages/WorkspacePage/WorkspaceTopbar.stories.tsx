@@ -356,9 +356,9 @@ export const TemplateInfoPopoverWithoutDisplayName: Story = {
 };
 
 export const NarrowViewportWraps: Story = {
-	parameters: {
-		viewport: { defaultViewport: "mobile1" },
-	},
+	// Storybook 10 applies viewports through globals; the legacy
+	// parameters.viewport.defaultViewport is only honored by addon-vitest.
+	globals: { viewport: { value: "mobile1" } },
 	play: async () => {
 		// Horizontal overflow is the behavior under test: the topbar must
 		// wrap its controls instead of forcing the page wider than the

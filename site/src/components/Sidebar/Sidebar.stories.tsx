@@ -101,10 +101,10 @@ export const MobileFullWidth: Story = {
 			</div>
 		),
 	],
-	parameters: {
-		...Default.parameters,
-		viewport: { defaultViewport: "mobile1" },
-	},
+	parameters: Default.parameters,
+	// Storybook 10 applies viewports through globals; the legacy
+	// parameters.viewport.defaultViewport is only honored by addon-vitest.
+	globals: { viewport: { value: "mobile1" } },
 	play: async ({ canvasElement }) => {
 		// Width is the behavior under test: below lg the sidebar must span
 		// the container instead of the fixed 240px desktop column.
