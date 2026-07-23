@@ -217,13 +217,20 @@ func (tx *Tx) insertMessages(messages []Message) ([]database.ChatMessage, error)
 // surrounding [ChatMachine.Update] allocated and the enclosing
 // transition's publish delivers the rewrite. Calling the store query
 // outside a machine transaction would stamp a stale revision and break
-// the generation fence.
+// the generation fence. The rewrite is scoped to the locked chat and
+// fails when the message is missing, deleted, or owned by another
+// chat.
 func (tx *Tx) UpdateMessageContent(messageID int64, content json.RawMessage) error {
-	if err := tx.store.UpdateChatMessageContentByID(tx.ctx, database.UpdateChatMessageContentByIDParams{
+	rows, err := tx.store.UpdateChatMessageContentByID(tx.ctx, database.UpdateChatMessageContentByIDParams{
 		Content: content,
 		ID:      messageID,
-	}); err != nil {
+		ChatID:  tx.chatID,
+	})
+	if err != nil {
 		return xerrors.Errorf("update message content: %w", err)
+	}
+	if rows != 1 {
+		return xerrors.Errorf("update message content: message %d not found in chat %s", messageID, tx.chatID)
 	}
 	return nil
 }

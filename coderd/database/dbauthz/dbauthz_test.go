@@ -1283,11 +1283,11 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("UpdateChatMessageContentByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		message := testutil.Fake(s.T(), faker, database.ChatMessage{ChatID: chat.ID})
-		arg := testutil.Fake(s.T(), faker, database.UpdateChatMessageContentByIDParams{ID: message.ID})
+		arg := testutil.Fake(s.T(), faker, database.UpdateChatMessageContentByIDParams{ID: message.ID, ChatID: chat.ID})
 		dbm.EXPECT().GetChatMessageByID(gomock.Any(), message.ID).Return(message, nil).AnyTimes()
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().UpdateChatMessageContentByID(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns()
+		dbm.EXPECT().UpdateChatMessageContentByID(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
 	}))
 
 	s.Run("InsertChatQueuedMessage", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

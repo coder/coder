@@ -16933,23 +16933,36 @@ func TestUpdateChatMessageContentByIDRefreshesSearchTsv(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, searchTsv(indexedMsg.ID).Valid)
 
-	err = store.UpdateChatMessageContentByID(ctx, database.UpdateChatMessageContentByIDParams{
+	rows, err := store.UpdateChatMessageContentByID(ctx, database.UpdateChatMessageContentByIDParams{
 		ID:      indexedMsg.ID,
+		ChatID:  chat.ID,
 		Content: json.RawMessage(`[{"type":"text","text":"replacement override phrase"}]`),
 	})
 	require.NoError(t, err)
+	require.EqualValues(t, 1, rows)
 
 	tsv := searchTsv(indexedMsg.ID)
 	require.True(t, tsv.Valid)
 	require.Contains(t, tsv.String, "replacement")
 	require.NotContains(t, tsv.String, "original")
 
+	rows, err = store.UpdateChatMessageContentByID(ctx, database.UpdateChatMessageContentByIDParams{
+		ID:      indexedMsg.ID,
+		ChatID:  uuid.New(),
+		Content: json.RawMessage(`[{"type":"text","text":"wrong chat phrase"}]`),
+	})
+	require.NoError(t, err)
+	require.Zero(t, rows)
+	require.Contains(t, searchTsv(indexedMsg.ID).String, "replacement")
+
 	pendingMsg := insertMsg("pending secret phrase")
-	err = store.UpdateChatMessageContentByID(ctx, database.UpdateChatMessageContentByIDParams{
+	rows, err = store.UpdateChatMessageContentByID(ctx, database.UpdateChatMessageContentByIDParams{
 		ID:      pendingMsg.ID,
+		ChatID:  chat.ID,
 		Content: json.RawMessage(`[{"type":"text","text":"pending replacement phrase"}]`),
 	})
 	require.NoError(t, err)
+	require.EqualValues(t, 1, rows)
 	require.False(t, searchTsv(pendingMsg.ID).Valid)
 
 	_, err = store.BackfillChatMessagesSearchTsv(ctx, 1000)

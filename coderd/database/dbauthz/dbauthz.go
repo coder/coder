@@ -7397,17 +7397,17 @@ func (q *querier) UpdateChatMCPServerIDs(ctx context.Context, arg database.Updat
 	return q.db.UpdateChatMCPServerIDs(ctx, arg)
 }
 
-func (q *querier) UpdateChatMessageContentByID(ctx context.Context, arg database.UpdateChatMessageContentByIDParams) error {
+func (q *querier) UpdateChatMessageContentByID(ctx context.Context, arg database.UpdateChatMessageContentByIDParams) (int64, error) {
 	message, err := q.db.GetChatMessageByID(ctx, arg.ID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	chat, err := q.db.GetChatByID(ctx, message.ChatID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
+		return 0, err
 	}
 	return q.db.UpdateChatMessageContentByID(ctx, arg)
 }

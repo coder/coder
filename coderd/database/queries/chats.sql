@@ -381,7 +381,7 @@ WHERE
     id = @id::bigint
     AND deleted = false;
 
--- name: UpdateChatMessageContentByID :exec
+-- name: UpdateChatMessageContentByID :execrows
 -- Must run inside a chatstate.ChatMachine.Update transaction (use
 -- Tx.UpdateMessageContent) so the revision trigger stamps the
 -- allocated snapshot version; an out-of-band call breaks the
@@ -396,7 +396,9 @@ SET content = @content::jsonb,
             to_tsvector('simple', chat_message_search_text(@content::jsonb)),
             ''::tsvector)
     END
-WHERE id = @id::bigint;
+WHERE id = @id::bigint
+    AND chat_id = @chat_id::uuid
+    AND deleted = false;
 
 -- name: GetChatMessagesByChatID :many
 SELECT

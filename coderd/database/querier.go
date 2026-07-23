@@ -1425,7 +1425,7 @@ type sqlcQuerier interface {
 	// generation fence.
 	// Preserve NULL as the backfill marker; otherwise refresh search_tsv
 	// from the new content.
-	UpdateChatMessageContentByID(ctx context.Context, arg UpdateChatMessageContentByIDParams) error
+	UpdateChatMessageContentByID(ctx context.Context, arg UpdateChatMessageContentByIDParams) (int64, error)
 	UpdateChatModelConfig(ctx context.Context, arg UpdateChatModelConfigParams) (ChatModelConfig, error)
 	UpdateChatPinOrder(ctx context.Context, arg UpdateChatPinOrderParams) error
 	UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatPlanModeByIDParams) (Chat, error)

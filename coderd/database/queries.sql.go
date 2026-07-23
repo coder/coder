@@ -12080,7 +12080,7 @@ func (q *sqlQuerier) UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatM
 	return i, err
 }
 
-const updateChatMessageContentByID = `-- name: UpdateChatMessageContentByID :exec
+const updateChatMessageContentByID = `-- name: UpdateChatMessageContentByID :execrows
 UPDATE chat_messages
 SET content = $1::jsonb,
     search_tsv = CASE
@@ -12090,11 +12090,14 @@ SET content = $1::jsonb,
             ''::tsvector)
     END
 WHERE id = $2::bigint
+    AND chat_id = $3::uuid
+    AND deleted = false
 `
 
 type UpdateChatMessageContentByIDParams struct {
 	Content json.RawMessage `db:"content" json:"content"`
 	ID      int64           `db:"id" json:"id"`
+	ChatID  uuid.UUID       `db:"chat_id" json:"chat_id"`
 }
 
 // Must run inside a chatstate.ChatMachine.Update transaction (use
@@ -12103,9 +12106,12 @@ type UpdateChatMessageContentByIDParams struct {
 // generation fence.
 // Preserve NULL as the backfill marker; otherwise refresh search_tsv
 // from the new content.
-func (q *sqlQuerier) UpdateChatMessageContentByID(ctx context.Context, arg UpdateChatMessageContentByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateChatMessageContentByID, arg.Content, arg.ID)
-	return err
+func (q *sqlQuerier) UpdateChatMessageContentByID(ctx context.Context, arg UpdateChatMessageContentByIDParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateChatMessageContentByID, arg.Content, arg.ID, arg.ChatID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateChatPinOrder = `-- name: UpdateChatPinOrder :exec

@@ -9923,11 +9923,12 @@ func (mr *MockStoreMockRecorder) UpdateChatMCPServerIDs(ctx, arg any) *gomock.Ca
 }
 
 // UpdateChatMessageContentByID mocks base method.
-func (m *MockStore) UpdateChatMessageContentByID(ctx context.Context, arg database.UpdateChatMessageContentByIDParams) error {
+func (m *MockStore) UpdateChatMessageContentByID(ctx context.Context, arg database.UpdateChatMessageContentByIDParams) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateChatMessageContentByID", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // UpdateChatMessageContentByID indicates an expected call of UpdateChatMessageContentByID.
