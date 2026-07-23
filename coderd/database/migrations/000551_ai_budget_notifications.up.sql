@@ -16,7 +16,7 @@ VALUES (
     $$You have used more than {{.Labels.threshold}}% of your {{.Labels.period}} AI budget ({{.Labels.limit}}).
 {{- if eq .Labels.limit_source "group"}}
 
-This limit is set by your group **{{.Labels.group_name}}**.
+This limit is set by your group **{{.Labels.effective_group_name}}**.
 {{- else if eq .Labels.limit_source "user_override"}}
 
 This limit is set specifically for your account.
@@ -46,7 +46,7 @@ VALUES (
     $$You have reached your {{.Labels.period}} AI budget limit ({{.Labels.limit}}). Subsequent requests will be blocked.
 {{- if eq .Labels.limit_source "group"}}
 
-This limit is set by your group **{{.Labels.group_name}}**.
+This limit is set by your group **{{.Labels.effective_group_name}}**.
 {{- else if eq .Labels.limit_source "user_override"}}
 
 This limit is set specifically for your account.

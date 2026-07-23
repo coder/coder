@@ -46,7 +46,7 @@ var budgetThresholds = []budgetThreshold{
 // duplicate is dropped.
 type budgetThresholdCrossing struct {
 	userID           uuid.UUID
-	groupID          uuid.UUID
+	effectiveGroupID uuid.UUID
 	spendLimitMicros int64
 	thresholdPercent int
 	template         uuid.UUID
@@ -93,7 +93,7 @@ func (s *Server) detectBudgetThresholdCrossings(ctx context.Context, tx database
 		if oldSpend < at && newSpend >= at {
 			crossings = append(crossings, budgetThresholdCrossing{
 				userID:           intc.InitiatorID,
-				groupID:          cost.effectiveGroupID.UUID,
+				effectiveGroupID: cost.effectiveGroupID.UUID,
 				spendLimitMicros: limit,
 				thresholdPercent: t.percent,
 				template:         t.template,
@@ -107,23 +107,23 @@ func (s *Server) detectBudgetThresholdCrossings(ctx context.Context, tx database
 // notifyBudgetThresholdCrossing enqueues the notification for the user who
 // crossed the threshold.
 func (s *Server) notifyBudgetThresholdCrossing(ctx context.Context, crossing budgetThresholdCrossing) error {
-	group, err := s.store.GetGroupByID(ctx, crossing.groupID)
+	group, err := s.store.GetGroupByID(ctx, crossing.effectiveGroupID)
 	if err != nil {
-		return xerrors.Errorf("look up group %q: %w", crossing.groupID, err)
+		return xerrors.Errorf("look up group %q: %w", crossing.effectiveGroupID, err)
 	}
 
 	labels := map[string]string{
-		"threshold":    strconv.Itoa(crossing.thresholdPercent),
-		"limit":        formatSpendLimit(crossing.spendLimitMicros),
-		"period":       s.budgetPeriod.Adjective(),
-		"limit_source": string(crossing.limitSource),
-		"group_name":   group.Name,
+		"threshold":            strconv.Itoa(crossing.thresholdPercent),
+		"limit":                formatSpendLimit(crossing.spendLimitMicros),
+		"period":               s.budgetPeriod.Adjective(),
+		"limit_source":         string(crossing.limitSource),
+		"effective_group_name": group.Name,
 	}
 
 	//nolint:gocritic // Enqueuing notifications requires the notifier actor.
 	if _, err := s.notifEnqueuer.EnqueueWithData(dbauthz.AsNotifier(ctx), crossing.userID, crossing.template,
 		labels, nil, budgetNotificationsCreatedBy,
-		crossing.groupID,
+		crossing.effectiveGroupID,
 	); err != nil {
 		return xerrors.Errorf("enqueue notification: %w", err)
 	}

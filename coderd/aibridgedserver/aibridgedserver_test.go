@@ -2338,7 +2338,7 @@ func TestRecordTokenUsageBudgetWarningNotification(t *testing.T) {
 			require.Equal(t, intc.InitiatorID, sent[0].UserID)
 			require.Equal(t, tc.wantThreshold, sent[0].Labels["threshold"])
 			require.Equal(t, tc.wantLimit, sent[0].Labels["limit"])
-			require.Equal(t, "Engineering", sent[0].Labels["group_name"])
+			require.Equal(t, "Engineering", sent[0].Labels["effective_group_name"])
 		})
 	}
 }
@@ -2447,7 +2447,7 @@ func TestRecordTokenUsageBudgetLimitReachedNotification(t *testing.T) {
 				require.Len(t, sent, 1, "expected one notification for template %s", tmpl)
 				require.Equal(t, intc.InitiatorID, sent[0].UserID)
 				require.Equal(t, "$1.00", sent[0].Labels["limit"])
-				require.Equal(t, "Engineering", sent[0].Labels["group_name"])
+				require.Equal(t, "Engineering", sent[0].Labels["effective_group_name"])
 				require.Equal(t, string(codersdk.AIBudgetLimitSourceGroup), sent[0].Labels["limit_source"])
 			}
 		})
@@ -2599,7 +2599,7 @@ func TestRecordTokenUsageBudgetNotificationUserOverride(t *testing.T) {
 	require.Len(t, sent, 1, "expected one budget warning notification")
 	require.Equal(t, intc.InitiatorID, sent[0].UserID)
 	require.Equal(t, "$1.00", sent[0].Labels["limit"])
-	require.Equal(t, "Engineering", sent[0].Labels["group_name"],
+	require.Equal(t, "Engineering", sent[0].Labels["effective_group_name"],
 		"attribution group must be surfaced even for an override")
 	require.Equal(t, string(codersdk.AIBudgetLimitSourceUserOverride), sent[0].Labels["limit_source"],
 		"limit source must be recorded so the template does not attribute the limit to the group")

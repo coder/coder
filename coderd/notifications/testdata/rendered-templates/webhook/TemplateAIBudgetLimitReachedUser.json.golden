@@ -11,7 +11,7 @@
     "user_username": "bobby",
     "actions": [],
     "labels": {
-      "group_name": "Engineering",
+      "effective_group_name": "Engineering",
       "limit": "$1000.00",
       "limit_source": "user_override",
       "period": "monthly",
