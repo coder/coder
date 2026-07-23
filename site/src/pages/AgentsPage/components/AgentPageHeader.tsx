@@ -31,7 +31,7 @@ import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBa
 import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
-import type { AgentsOutletContext } from "../AgentsPageView";
+import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 
 interface AgentPageHeaderProps {
@@ -54,7 +54,7 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 	onToggleNotifications,
 }) => {
 	const { isSidebarCollapsed, onExpandSidebar } =
-		useOutletContext<AgentsOutletContext>();
+		useOutletContext<AgentsPageOutletContext>();
 	const location = useLocation();
 
 	const [internalChimeEnabled, setInternalChimeEnabled] =

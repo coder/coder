@@ -1,0 +1,8 @@
+{{- include "coder-ai-gateway.validate" . -}}
+---
+{{- if not .Values.coder.serviceAccount.disableCreate }}
+{{ include "libcoder.serviceaccount" (list . "coder-ai-gateway.serviceaccount") }}
+{{- end }}
+
+---
+{{ include "libcoder.deployment" (list . "coder-ai-gateway.deployment") }}

@@ -1338,6 +1338,10 @@ export const createChatMessage = (
 	onSuccess: () => {
 		void invalidateChatDebugRuns(queryClient, chatId);
 		void queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		void queryClient.invalidateQueries({
 			queryKey: chatPromptsKey(chatId),
 			exact: true,
 		});
@@ -1441,6 +1445,19 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 export const interruptChat = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: () => API.experimental.interruptChat(chatId),
 	onSuccess: () => {
+		void invalidateChatDebugRuns(queryClient, chatId);
+	},
+});
+
+export const compactChat = (queryClient: QueryClient, chatId: string) => ({
+	mutationFn: () => API.experimental.compactChat(chatId),
+	onSuccess: () => {
+		// The compaction transitions the chat to running; the summary
+		// rows stream in over the websocket like any other turn.
+		void queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
 		void invalidateChatDebugRuns(queryClient, chatId);
 	},
 });
@@ -1805,7 +1822,7 @@ export const chatProviderConfigs = () => ({
 	},
 });
 
-const chatModelConfigsKey = ["chat-model-configs"] as const;
+export const chatModelConfigsKey = ["chat-model-configs"] as const;
 
 export const chatModelConfigs = () => ({
 	queryKey: chatModelConfigsKey,
@@ -1826,6 +1843,7 @@ export const userChatProviderConfigs = () => ({
 			provider: config.provider.type,
 			display_name: config.provider.display_name || config.provider.type,
 			icon: config.provider.icon,
+			enabled: config.provider.enabled,
 			has_user_api_key: config.has_user_api_key,
 			byok_enabled: config.byok_enabled,
 			has_central_api_key_fallback: config.has_provider_api_key,
@@ -1869,6 +1887,16 @@ const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {
 		queryClient.invalidateQueries({ queryKey: chatProviderConfigsKey }),
 		queryClient.invalidateQueries({ queryKey: chatModelConfigsKey }),
 		queryClient.invalidateQueries({ queryKey: chatModelsKey }),
+	]);
+};
+
+// Called after AI provider mutations so open model pickers refresh.
+export const invalidateChatProviderDependentQueries = async (
+	queryClient: QueryClient,
+) => {
+	await Promise.all([
+		invalidateChatConfigurationQueries(queryClient),
+		queryClient.invalidateQueries({ queryKey: userChatProviderConfigsKey }),
 	]);
 };
 
@@ -2065,6 +2093,13 @@ export const updateMCPServerConfig = (queryClient: QueryClient) => ({
 
 export const deleteMCPServerConfig = (queryClient: QueryClient) => ({
 	mutationFn: (id: string) => API.experimental.deleteMCPServerConfig(id),
+	onSuccess: async () => {
+		await invalidateMCPServerConfigQueries(queryClient);
+	},
+});
+
+export const disconnectMCPServerOAuth2 = (queryClient: QueryClient) => ({
+	mutationFn: (id: string) => API.experimental.disconnectMCPServerOAuth2(id),
 	onSuccess: async () => {
 		await invalidateMCPServerConfigQueries(queryClient);
 	},

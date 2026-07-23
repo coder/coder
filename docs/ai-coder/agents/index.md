@@ -245,7 +245,8 @@ tasks:
 | `process_list`                              | List all tracked processes in the workspace                                                        |
 | `process_signal`                            | Send a signal (terminate/kill) to a tracked process                                                |
 | `attach_file`                               | Attach a workspace file to the chat as a durable downloadable attachment                           |
-| `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel                                                 |
+| `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel, optionally on a specific model                 |
+| `list_subagent_models`                      | List the models available for `spawn_agent`'s `model_config_id` argument                           |
 | `wait_agent`                                | Wait for a sub-agent to complete and collect its result                                            |
 | `message_agent`                             | Send a follow-up message to a running sub-agent                                                    |
 | `interrupt_agent`                           | Halt a sub-agent's current turn; it transitions to waiting or running if there are queued messages |
@@ -261,7 +262,7 @@ the workspace.
 
 Platform tools (`list_templates`, `read_template`, `create_workspace`,
 `start_workspace`, `propose_plan`, `ask_user_question`) and orchestration tools (`spawn_agent`,
-`wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`)
+`list_subagent_models`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`)
 are only available to root chats. Sub-agents do not have access to these
 tools and cannot create workspaces or spawn further sub-agents.
 

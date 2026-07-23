@@ -1272,6 +1272,7 @@ type UserChatProviderConfig struct {
 	Provider                 string    `json:"provider"`
 	DisplayName              string    `json:"display_name"`
 	Icon                     string    `json:"icon"`
+	Enabled                  bool      `json:"enabled"`
 	HasUserAPIKey            bool      `json:"has_user_api_key"`
 	HasCentralAPIKeyFallback bool      `json:"has_central_api_key_fallback"`
 	BYOKEnabled              bool      `json:"byok_enabled"`
@@ -1354,6 +1355,7 @@ type ChatModelAnthropicProviderOptions struct {
 	WebSearchEnabled       *bool                              `json:"web_search_enabled,omitempty" description:"Enable Anthropic web search tool for grounding responses with real-time information"`
 	AllowedDomains         []string                           `json:"allowed_domains,omitempty" label:"Web Search: Allowed Domains" description:"Restrict web search to these domains (cannot be used with blocked_domains)" visible_when:"web_search_enabled" conflicts_with:"blocked_domains"`
 	BlockedDomains         []string                           `json:"blocked_domains,omitempty" label:"Web Search: Blocked Domains" description:"Block web search on these domains (cannot be used with allowed_domains)" visible_when:"web_search_enabled" conflicts_with:"allowed_domains"`
+	Context1MEnabled       *bool                              `json:"context_1m_enabled,omitempty" label:"1M Context Window" description:"Send the anthropic-beta context-1m-2025-08-07 header to unlock the 1M token context window on supported Claude models. Pair with a matching Context Limit. Long-context pricing and higher latency may apply above 200K tokens."`
 }
 
 // ChatModelGoogleThinkingConfig configures Google thinking behavior.
@@ -1866,8 +1868,11 @@ const (
 	ChatWatchEventKindDiffStatusChange ChatWatchEventKind = "diff_status_change"
 	ChatWatchEventKindActionRequired   ChatWatchEventKind = "action_required"
 	// ChatWatchEventKindContextDirty signals that the chat's pinned
-	// workspace context drifted from the agent's latest pushed snapshot.
-	// The chat stays usable; a refresh re-pins it to the latest snapshot.
+	// workspace context changed: it drifted from the agent's latest
+	// pushed snapshot, or hydration first populated it (a first-turn
+	// pin or an agent push reaching a not-yet-pinned chat). The chat
+	// stays usable; a refresh re-pins a drifted chat to the latest
+	// snapshot.
 	ChatWatchEventKindContextDirty ChatWatchEventKind = "context_dirty"
 )
 
@@ -3416,6 +3421,25 @@ func (c *ExperimentalClient) InterruptChat(ctx context.Context, chatID uuid.UUID
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		return Chat{}, ReadBodyAsError(res)
+	}
+	var chat Chat
+	return chat, json.NewDecoder(res.Body).Decode(&chat)
+}
+
+// CompactChat requests a manual context compaction on an idle chat.
+// The compaction runs asynchronously through the chat worker and
+// bypasses the automatic usage threshold; the chat returns to waiting
+// once the summary is committed.
+func (c *ExperimentalClient) CompactChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/compact", chatID), nil)
+	if err != nil {
+		return Chat{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		// Compaction runs LLM inference, so spend-limit rejections
+		// carry the structured usage-limit payload.
+		return Chat{}, readBodyAsChatUsageLimitError(res)
 	}
 	var chat Chat
 	return chat, json.NewDecoder(res.Body).Decode(&chat)

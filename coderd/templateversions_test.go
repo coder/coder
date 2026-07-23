@@ -1538,17 +1538,12 @@ func TestTemplateVersionDryRun(t *testing.T) {
 
 	t.Run("ImportNotFinished", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		// No provisioner daemon is running, so the import job is never
+		// acquired and stays pending. This guarantees the job can neither
+		// complete nor fail before the dry-run request below.
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		// This import job will never finish
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
-			ProvisionPlan: []*proto.Response{{
-				Type: &proto.Response_Log{
-					Log: &proto.Log{},
-				},
-			}},
-		})
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()

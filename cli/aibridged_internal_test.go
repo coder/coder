@@ -54,7 +54,14 @@ func buildFromEnv(t *testing.T, cfg codersdk.AIBridgeConfig) ([]aibridge.Provide
 // (providers, outcomes) the embedded reloader would observe.
 func buildFromDB(ctx context.Context, t *testing.T, db database.Store, cfg codersdk.AIBridgeConfig, logger slog.Logger) ([]aibridge.Provider, []aibridged.ProviderOutcome, error) {
 	t.Helper()
-	srv, err := aibridgedserver.NewServer(ctx, db, nil, logger, "/", cfg, nil, nil, agplaiseats.Noop{}, quartz.NewReal())
+	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+		Store:         db,
+		AISeatTracker: agplaiseats.Noop{},
+		AccessURL:     "/",
+		GatewayCfg:    cfg,
+		Logger:        logger,
+		Clock:         quartz.NewReal(),
+	})
 	if err != nil {
 		return nil, nil, err
 	}

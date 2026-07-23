@@ -3560,7 +3560,7 @@ export const MockDropdownParameter: TypesGen.PreviewParameter = {
 	order: 1,
 };
 
-const MockTagSelectParameter: TypesGen.PreviewParameter = {
+export const MockTagSelectParameter: TypesGen.PreviewParameter = {
 	...MockPreviewParameter,
 	name: "tags",
 	display_name: "Tags",
@@ -3578,7 +3578,7 @@ const MockTagSelectParameter: TypesGen.PreviewParameter = {
 	order: 4,
 };
 
-const MockSwitchParameter: TypesGen.PreviewParameter = {
+export const MockSwitchParameter: TypesGen.PreviewParameter = {
 	...MockPreviewParameter,
 	name: "enable_monitoring",
 	display_name: "Enable Monitoring",
@@ -3613,7 +3613,7 @@ export const MockSliderParameter: TypesGen.PreviewParameter = {
 	order: 2,
 };
 
-const MockMultiSelectParameter: TypesGen.PreviewParameter = {
+export const MockMultiSelectParameter: TypesGen.PreviewParameter = {
 	...MockPreviewParameter,
 	name: "ides",
 	display_name: "IDEs",
@@ -3672,19 +3672,6 @@ export const MockValidationParameter: TypesGen.PreviewParameter = {
 	],
 	order: 1,
 };
-
-export const MockDynamicParametersResponse: TypesGen.DynamicParametersResponse =
-	{
-		id: 1,
-		parameters: [
-			MockDropdownParameter,
-			MockSliderParameter,
-			MockSwitchParameter,
-			MockTagSelectParameter,
-			MockMultiSelectParameter,
-		],
-		diagnostics: [],
-	};
 
 export const MockDynamicParametersResponseWithError: TypesGen.DynamicParametersResponse =
 	{
@@ -5535,6 +5522,10 @@ export const MockSession: TypesGen.AIBridgeSession = {
 		output_tokens: 4321,
 		cache_read_input_tokens: 980,
 		cache_write_input_tokens: 120,
+	},
+	network_calls: {
+		total: 23,
+		blocked: 2,
 	},
 	last_prompt: "But *can* I really fix it?",
 	last_active_at: "2026-03-09T10:28:15.03152Z",

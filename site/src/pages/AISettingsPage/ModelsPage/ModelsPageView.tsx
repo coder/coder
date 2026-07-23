@@ -214,7 +214,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 				</div>
 				<Select value={providerFilter} onValueChange={handleProviderChange}>
 					<SelectTrigger
-						className="w-full sm:w-60"
+						className="w-full shadow-none sm:w-60"
 						aria-label="Filter by provider"
 					>
 						<SelectValue placeholder="All providers" />
@@ -223,7 +223,10 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 						<SelectItem value={ALL_PROVIDERS_VALUE}>All providers</SelectItem>
 						{providerStates.map((providerState) => (
 							<SelectItem key={providerState.key} value={providerState.key}>
-								{providerState.label}
+								<span className="flex items-center gap-2">
+									<ProviderIcon provider={providerState.provider} />
+									{providerState.label}
+								</span>
 							</SelectItem>
 						))}
 					</SelectContent>

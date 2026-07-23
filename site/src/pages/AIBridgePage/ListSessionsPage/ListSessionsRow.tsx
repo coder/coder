@@ -13,6 +13,7 @@ import {
 import { AIBridgeClientIcon } from "#/pages/AIBridgePage/icons/AIBridgeClientIcon";
 import { AIBridgeProviderIcon } from "#/pages/AIBridgePage/icons/AIBridgeProviderIcon";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
+import { NetworkCallBadges } from "../NetworkCallBadges";
 import { TokenBadges } from "../TokenBadges";
 import { getProviderDisplayName } from "../utils";
 
@@ -104,6 +105,9 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 						outputTokens={session.token_usage_summary.output_tokens}
 					/>
 				</div>
+			</TableCell>
+			<TableCell className="w-40">
+				<NetworkCallBadges summary={session.network_calls} />
 			</TableCell>
 			<TableCell className="w-32">
 				<Badge className="bg-surface-secondary align-end">

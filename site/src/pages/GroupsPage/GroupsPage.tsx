@@ -3,7 +3,10 @@ import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import { paginatedGroupsByOrganization } from "#/api/queries/groups";
+import {
+	organizationGroupsAISpend,
+	paginatedGroupsByOrganization,
+} from "#/api/queries/groups";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { useFilter } from "#/components/Filter/Filter";
@@ -19,7 +22,7 @@ import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
 import { useGroupsSettings } from "./GroupsPageProvider";
-import { GroupsPageView } from "./GroupsPageView";
+import { GroupsPageView, joinGroupsSpend } from "./GroupsPageView";
 
 const GroupsPage: FC = () => {
 	const { template_rbac: groupsEnabled, aibridge } = useFeatureVisibility();
@@ -38,6 +41,15 @@ const GroupsPage: FC = () => {
 		onSearchParamsChange: setSearchParams,
 		onUpdate: groupsQuery.goToFirstPage,
 	});
+	const groupIds = groupsQuery.data?.groups.map((group) => group.id) ?? [];
+	const groupsSpendQuery = useQuery({
+		...organizationGroupsAISpend(organization?.name ?? "", groupIds),
+		enabled: aibridgeVisible && Boolean(organization) && groupIds.length > 0,
+	});
+	const groupsWithSpend = joinGroupsSpend(
+		groupsQuery.data?.groups,
+		groupsSpendQuery.data,
+	);
 	const permissionsQuery = useQuery({
 		...organizationsPermissions([organization?.id ?? ""]),
 		enabled: Boolean(organization),
@@ -53,6 +65,17 @@ const GroupsPage: FC = () => {
 			);
 		}
 	}, [groupsQuery.error]);
+
+	useEffect(() => {
+		if (groupsSpendQuery.error) {
+			toast.error(
+				getErrorMessage(groupsSpendQuery.error, "Unable to load AI spend."),
+				{
+					description: getErrorDetail(groupsSpendQuery.error),
+				},
+			);
+		}
+	}, [groupsSpendQuery.error]);
 
 	useEffect(() => {
 		if (permissionsQuery.error) {
@@ -101,7 +124,8 @@ const GroupsPage: FC = () => {
 			</div>
 
 			<GroupsPageView
-				groups={groupsQuery.data?.groups}
+				groups={groupsWithSpend}
+				spendError={groupsSpendQuery.isError}
 				canCreateGroup={permissions.createGroup}
 				groupsEnabled={groupsEnabled}
 				showAIBudget={aibridgeVisible}

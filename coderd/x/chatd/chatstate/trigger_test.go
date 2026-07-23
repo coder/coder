@@ -260,6 +260,80 @@ func TestNoopMessageUpdateDoesNotAdvanceHistoryVersion(t *testing.T) {
 		"no-op update must NOT advance message revision")
 }
 
+// TestSearchTsvBackfillDoesNotTouchChatState verifies that the
+// search_tsv backfill UPDATE leaves message revision, history_version,
+// generation_attempt, and retry_state untouched. search_tsv is a
+// system-maintained column; populating it is not a content change.
+func TestSearchTsvBackfillDoesNotTouchChatState(t *testing.T) {
+	t.Parallel()
+	tf := newTriggerFixture(t)
+	f := tf.f
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+
+	msgs, err := f.DB.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID: created.Chat.ID,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, msgs)
+	target := msgs[0]
+	require.Equal(t, database.ChatMessageRoleUser, target.Role)
+	require.False(t, target.Deleted)
+	originalRevision := target.Revision
+
+	var tsvPending bool
+	err = tf.sqlDB.QueryRowContext(ctx,
+		`SELECT search_tsv IS NULL FROM chat_messages WHERE id = $1`, target.ID,
+	).Scan(&tsvPending)
+	require.NoError(t, err)
+	require.True(t, tsvPending, "fresh message starts with search_tsv pending")
+
+	attempt, err := f.DB.IncrementChatGenerationAttempt(ctx, created.Chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), attempt)
+
+	withRetry, err := f.DB.UpdateChatRetryState(ctx, database.UpdateChatRetryStateParams{
+		ID:         created.Chat.ID,
+		RetryState: []byte(`{"attempt":1,"delay_ms":250,"error":"retry","retrying_at":"2026-05-29T00:00:00Z"}`),
+	})
+	require.NoError(t, err)
+	require.True(t, withRetry.RetryState.Valid)
+
+	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
+	require.NoError(t, err)
+	require.NotEqual(t, bumped.SnapshotVersion, bumped.HistoryVersion,
+		"snapshot bump leaves history_version trailing")
+
+	// Backfill-shaped UPDATE: only search_tsv changes.
+	_, err = tf.sqlDB.ExecContext(ctx, `
+		UPDATE chat_messages
+		SET search_tsv = COALESCE(to_tsvector('simple', chat_message_search_text(content)), ''::tsvector)
+		WHERE id = $1
+	`, target.ID)
+	require.NoError(t, err)
+
+	reloadedMsg, err := f.DB.GetChatMessageByID(ctx, target.ID)
+	require.NoError(t, err)
+	require.Equal(t, originalRevision, reloadedMsg.Revision,
+		"backfill must NOT advance message revision")
+	err = tf.sqlDB.QueryRowContext(ctx,
+		`SELECT search_tsv IS NULL FROM chat_messages WHERE id = $1`, target.ID,
+	).Scan(&tsvPending)
+	require.NoError(t, err)
+	require.False(t, tsvPending, "backfill populates search_tsv")
+
+	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, bumped.HistoryVersion, after.HistoryVersion,
+		"backfill must NOT advance history_version")
+	require.Equal(t, int64(1), after.GenerationAttempt,
+		"backfill must NOT reset generation_attempt")
+	require.True(t, after.RetryState.Valid,
+		"backfill must NOT clear retry_state")
+	require.Equal(t, withRetry.RetryStateVersion, after.RetryStateVersion,
+		"backfill must NOT change retry_state_version")
+}
+
 // Queue version triggers
 
 // TestQueueInsertUpdatesQueueVersion verifies that an INSERT into

@@ -35,6 +35,9 @@ import (
 )
 
 const (
+	// helm/ai-gateway's terminationGracePeriodSeconds must exceed
+	// shutdownTimeout so graceful shutdown completes before Kubernetes sends
+	// SIGKILL.
 	shutdownTimeout      = 5 * time.Minute
 	traceShutdownTimeout = 5 * time.Second
 

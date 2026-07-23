@@ -288,6 +288,7 @@ sql:
           oauth2_client_secret_key_id: OAuth2ClientSecretKeyID
           oauth2_auth_url: OAuth2AuthURL
           oauth2_token_url: OAuth2TokenURL
+          oauth2_revocation_url: OAuth2RevocationURL
           oauth2_scopes: OAuth2Scopes
           api_key_header: APIKeyHeader
           api_key_value: APIKeyValue

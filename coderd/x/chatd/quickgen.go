@@ -221,11 +221,16 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 	titleCtx, stopTitleCtx := p.inflightContext(ctx)
 	if err := p.goInflight(func() {
 		defer stopTitleCtx()
-		modelOpts := modelBuildOptionsFromMessages(messages)
-		turnCtx := withActiveTurnAPIKeyID(titleCtx, modelOpts)
+		apiKeyID, err := p.ensureSyntheticAPIKeyID(titleCtx, chat.OwnerID)
+		if err != nil {
+			logger.Debug(titleCtx, "failed to ensure synthetic API key for automatic title generation", slog.Error(err))
+			return
+		}
+		modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
+		turnCtx := titleCtx
 		model, modelConfig, route, _, _, _, err := p.resolveChatModel(turnCtx, chat, modelOpts)
 		if err != nil {
-			logger.Debug(turnCtx, "failed to resolve model for automatic title generation",
+			logger.Debug(titleCtx, "failed to resolve model for automatic title generation",
 				slog.Error(err),
 			)
 			return

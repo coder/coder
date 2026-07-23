@@ -89,6 +89,18 @@ describe("mcpServerFormLogic", () => {
 		expect(request.enabled).toBeUndefined();
 	});
 
+	it("sends an empty revocation URL on update so it can be cleared", () => {
+		const cleared = buildUpdateMCPServerConfigRequest(
+			validValues({ authType: "oauth2", oauth2RevocationURL: "" }),
+		);
+		expect(cleared.oauth2_revocation_url).toBe("");
+
+		const created = buildCreateMCPServerConfigRequest(
+			validValues({ authType: "oauth2", oauth2RevocationURL: "" }),
+		);
+		expect(created.oauth2_revocation_url).toBeUndefined();
+	});
+
 	it("initializes slugTouched true for edit and false for create", () => {
 		const createValues = buildInitialMCPServerFormValues();
 		expect(createValues.slugTouched).toBe(false);

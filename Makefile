@@ -542,7 +542,7 @@ push/$(CODER_MAIN_IMAGE): $(CODER_MAIN_IMAGE)
 .PHONY: push/$(CODER_MAIN_IMAGE)
 
 # Helm charts that are available
-charts = coder provisioner
+charts = coder provisioner ai-gateway
 
 # Shortcut for Helm chart package.
 $(foreach chart,$(charts),build/$(chart)_helm.tgz): build/%_helm.tgz: build/%_helm_$(VERSION).tgz
@@ -1060,6 +1060,7 @@ gen/golden-files: \
 	enterprise/tailnet/testdata/.gen-golden \
 	helm/coder/tests/testdata/.gen-golden \
 	helm/provisioner/tests/testdata/.gen-golden \
+	helm/ai-gateway/tests/testdata/.gen-golden \
 	provisioner/terraform/testdata/.gen-golden \
 	tailnet/testdata/.gen-golden
 .PHONY: gen/golden-files
@@ -1396,6 +1397,7 @@ clean/golden-files:
 		enterprise/tailnet/testdata \
 		helm/coder/tests/testdata \
 		helm/provisioner/tests/testdata \
+		helm/ai-gateway/tests/testdata \
 		provisioner/terraform/testdata \
 		tailnet/testdata \
 		-type f -name '*.golden' -delete
@@ -1435,6 +1437,10 @@ helm/provisioner/tests/testdata/.gen-golden: $(wildcard helm/provisioner/tests/t
 	else
 		echo "WARNING: helm not found; skipping helm/provisioner golden generation" >&2
 	fi
+	touch "$@"
+
+helm/ai-gateway/tests/testdata/.gen-golden: $(wildcard helm/ai-gateway/tests/testdata/*.yaml) $(wildcard helm/ai-gateway/tests/testdata/*.golden) $(GO_SRC_FILES) $(wildcard helm/ai-gateway/tests/*_test.go)
+	TZ=UTC go test ./helm/ai-gateway/tests -run=TestUpdateGoldenFiles -update
 	touch "$@"
 
 coderd/.gen-golden: $(wildcard coderd/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/*_test.go)

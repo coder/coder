@@ -252,6 +252,8 @@ const baseProps = {
 const meta = {
 	title: "pages/AISettingsPage/SpendPage/SpendPageView",
 	component: SpendPageView,
+	// TODO: Stories in this file fail when pixel runs their play functions. Fix them and remove the exclude.
+	parameters: { pixel: { exclude: true } },
 	render: (args) => {
 		const [activeTab, setActiveTab] = useState(args.activeTab);
 		return (

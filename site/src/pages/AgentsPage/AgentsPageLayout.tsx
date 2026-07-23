@@ -1,4 +1,4 @@
-import { type FC, useEffect, useRef, useState } from "react";
+import { type FC, type RefObject, useEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -6,6 +6,7 @@ import {
 	useQueryClient,
 } from "react-query";
 import {
+	Outlet,
 	useLocation,
 	useNavigate,
 	useParams,
@@ -53,9 +54,16 @@ import {
 	getDefaultOrganizationName,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
+import { cn } from "#/utils/cn";
+import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
-import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import {
+	ChatsSidebar,
+	isSettingsView,
+	sidebarViewFromPath,
+} from "./components/ChatsSidebar/ChatsSidebar";
+import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
@@ -79,7 +87,31 @@ import {
 	chatDetailErrorsEqual,
 } from "./utils/usageLimitMessage";
 
-export type { AgentsOutletContext } from "./AgentsPageView";
+export interface AgentsPageOutletContext {
+	chatErrorReasons: Record<string, ChatDetailError>;
+	setChatErrorReason: (chatId: string, reason: ChatDetailError) => void;
+	clearChatErrorReason: (chatId: string) => void;
+	requestArchiveAgent: (chatId: string) => void;
+	requestUnarchiveAgent: (chatId: string) => void;
+	requestArchiveAndDeleteWorkspace: (
+		chatId: string,
+		workspaceId: string,
+	) => void;
+	requestPinAgent: (chatId: string) => void;
+	requestUnpinAgent: (chatId: string) => void;
+	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
+	isArchiving: boolean;
+	archivingChatId: string | undefined;
+	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
+	/** Opens the shared rename dialog so both menus drive the same instance. */
+	onOpenRenameDialog?: (chat: TypesGen.Chat) => void;
+	isSidebarCollapsed: boolean;
+	onToggleSidebarCollapsed: () => void;
+	onExpandSidebar: () => void;
+	onChatReady: () => void;
+	/** Ref attached to the chat scroll container by AgentChatPage. */
+	scrollContainerRef: RefObject<HTMLDivElement | null>;
+}
 
 const FILTER_MEMBERSHIP_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
 	"diff_status_change",
@@ -92,7 +124,7 @@ export const shouldInvalidateFilteredChatList = (
 ): boolean =>
 	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
 
-const AgentsPage: FC = () => {
+const AgentsPageLayout: FC = () => {
 	useAgentsPWA();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
@@ -662,48 +694,119 @@ const AgentsPage: FC = () => {
 	const deleteDialogOpen =
 		pendingArchiveAndDelete !== null && Boolean(pendingWorkspaceName);
 
+	// Mobile can't fit the sidebar nav and content side by side,
+	// so we show one or the other depending on the route depth.
+	const sidebarView = sidebarViewFromPath(location.pathname);
+	const isSettingsPanel = isSettingsView(sidebarView);
+	const isSettingsIndex = isSettingsPanel && !sidebarView.section;
+	const isSettingsDetail = isSettingsPanel && Boolean(sidebarView.section);
+	const isAnalytics = sidebarView.panel === "analytics";
+
+	// The sidebar expects plain string error messages, but the outlet
+	// context carries structured ChatDetailError objects.
+	const sidebarChatErrorReasons = Object.fromEntries(
+		Object.entries(chatErrorReasons).map(([chatId, error]) => [
+			chatId,
+			error.message,
+		]),
+	);
+
+	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
+	// State for the shared rename-chat dialog. Lifted here so both the
+	// sidebar menu and the chat top bar open the same dialog instance.
+	const [chatPendingRename, setChatPendingRename] =
+		useState<TypesGen.Chat | null>(null);
+
+	const outletContextValue: AgentsPageOutletContext = {
+		chatErrorReasons,
+		setChatErrorReason,
+		clearChatErrorReason,
+		requestArchiveAgent,
+		requestUnarchiveAgent,
+		requestArchiveAndDeleteWorkspace,
+		requestPinAgent,
+		requestUnpinAgent,
+		requestReorderPinnedAgent,
+		isArchiving,
+		archivingChatId,
+		onOpenRenameDialog: setChatPendingRename,
+		isSidebarCollapsed,
+		onToggleSidebarCollapsed: handleToggleSidebarCollapsed,
+		onExpandSidebar: () => setIsSidebarCollapsed(false),
+		onChatReady: () => {},
+		scrollContainerRef,
+	};
+
 	return (
 		<>
-			<AgentsPageView
-				agentId={agentId}
-				chatList={chatList}
-				currentUserId={user.id}
-				catalogModelOptions={catalogModelOptions}
-				modelConfigs={chatModelConfigsQuery.data ?? []}
-				handleNewAgent={handleNewAgent}
-				isSearchDialogOpen={isSearchDialogOpen}
-				onSearchDialogOpenChange={setIsSearchDialogOpen}
-				isCreating={false}
-				isArchiving={isArchiving}
-				archivingChatId={archivingChatId}
-				isChatsLoading={chatsQuery.isLoading}
-				chatsLoadError={chatsQuery.error}
-				onRetryChatsLoad={() => void chatsQuery.refetch()}
-				onCollapseSidebar={() => setIsSidebarCollapsed(true)}
-				isSidebarCollapsed={isSidebarCollapsed}
-				onExpandSidebar={() => setIsSidebarCollapsed(false)}
-				chatErrorReasons={chatErrorReasons}
-				setChatErrorReason={setChatErrorReason}
-				clearChatErrorReason={clearChatErrorReason}
-				requestArchiveAgent={requestArchiveAgent}
-				requestUnarchiveAgent={requestUnarchiveAgent}
-				requestArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
-				requestPinAgent={requestPinAgent}
-				requestUnpinAgent={requestUnpinAgent}
-				requestReorderPinnedAgent={requestReorderPinnedAgent}
-				onProposeTitle={requestProposeTitle}
-				onRenameTitle={requestRenameTitle}
-				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
-				isPersonalModelOverridesEnabled={
-					personalModelOverridesQuery.data?.enabled
-				}
-				isAgentsAdmin={isAgentsAdmin}
-				hasNextPage={chatsQuery.hasNextPage}
-				onLoadMore={() => void chatsQuery.fetchNextPage()}
-				isFetchingNextPage={chatsQuery.isFetchingNextPage}
-				sidebarFilters={sidebarFilters}
-				onSidebarFiltersChange={setSidebarFilters}
-			/>
+			<div
+				data-testid="agents-page-layout"
+				className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row"
+			>
+				<title>{pageTitle("Agents")}</title>
+				<ResizableChatsSidebarFrame
+					className={cn(
+						"sm:h-full sm:min-h-0 sm:border-b-0",
+						agentId
+							? "hidden sm:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
+							: isSettingsDetail || isAnalytics
+								? "hidden sm:block shrink-0"
+								: "order-2 sm:order-none flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
+						isSidebarCollapsed && "sm:hidden",
+					)}
+				>
+					<ChatsSidebar
+						chats={chatList}
+						currentUserId={user.id}
+						chatErrorReasons={sidebarChatErrorReasons}
+						modelOptions={catalogModelOptions}
+						modelConfigs={chatModelConfigsQuery.data ?? []}
+						onArchiveAgent={requestArchiveAgent}
+						onUnarchiveAgent={requestUnarchiveAgent}
+						onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
+						onPinAgent={requestPinAgent}
+						onUnpinAgent={requestUnpinAgent}
+						onReorderPinnedAgent={requestReorderPinnedAgent}
+						onRenameTitle={requestRenameTitle}
+						onProposeTitle={requestProposeTitle}
+						chatPendingRename={chatPendingRename}
+						onChatPendingRenameChange={setChatPendingRename}
+						onBeforeNewAgent={handleNewAgent}
+						isSearchDialogOpen={isSearchDialogOpen}
+						onSearchDialogOpenChange={setIsSearchDialogOpen}
+						isCreating={false}
+						isArchiving={isArchiving}
+						archivingChatId={archivingChatId}
+						isLoading={chatsQuery.isLoading}
+						loadError={chatsQuery.error}
+						onRetryLoad={() => void chatsQuery.refetch()}
+						hasNextPage={chatsQuery.hasNextPage}
+						onLoadMore={() => void chatsQuery.fetchNextPage()}
+						isFetchingNextPage={chatsQuery.isFetchingNextPage}
+						sidebarFilters={sidebarFilters}
+						onSidebarFiltersChange={setSidebarFilters}
+						onCollapse={() => setIsSidebarCollapsed(true)}
+						isPersonalModelOverridesEnabled={
+							personalModelOverridesQuery.data?.enabled
+						}
+						isAdmin={isAgentsAdmin}
+					/>
+				</ResizableChatsSidebarFrame>
+				<div
+					data-testid="agents-main-panel"
+					className={cn(
+						"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
+						isSettingsIndex ? "hidden sm:flex" : "flex",
+						!agentId &&
+							!isSettingsDetail &&
+							sidebarView.panel === "chats" &&
+							"contents sm:flex sm:flex-1 sm:flex-col",
+					)}
+				>
+					<Outlet context={outletContextValue} />
+				</div>
+			</div>
 			<ConfirmDialog
 				open={pendingArchiveChatId !== null}
 				onClose={() => setPendingArchiveChatId(null)}
@@ -729,4 +832,4 @@ const AgentsPage: FC = () => {
 		</>
 	);
 };
-export default AgentsPage;
+export default AgentsPageLayout;

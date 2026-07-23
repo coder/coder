@@ -1,7 +1,7 @@
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
-import type { GroupWithAICostControl } from "#/api/api";
+import type { Group, OrganizationGroupsAISpend } from "#/api/typesGenerated";
 import { AIBudgetUsage } from "#/components/AIBudgetUsage/AIBudgetUsage";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
@@ -29,10 +29,35 @@ import {
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import type { PaginationResultInfo } from "#/hooks/usePaginatedQuery";
 import { docs } from "#/utils/docs";
-import { InfoIconTooltip } from "./InfoIconTooltip";
+import { StatusIconTooltip } from "./StatusIconTooltip";
+
+const EM_DASH = "\u2014";
+
+export type GroupWithSpend = Group & {
+	readonly spend: OrganizationGroupsAISpend["groups"][number] | undefined;
+};
+
+/** Attach each group's spend, when present, so rows get a single object. */
+export const joinGroupsSpend = (
+	groups: readonly Group[] | undefined,
+	groupsSpend: OrganizationGroupsAISpend | undefined,
+): GroupWithSpend[] | undefined => {
+	if (groups === undefined) {
+		return undefined;
+	}
+	const spendByGroupId = new Map(
+		groupsSpend?.groups.map((spend) => [spend.group_id, spend]) ?? [],
+	);
+	return groups.map((group) => ({
+		...group,
+		spend: spendByGroupId.get(group.id),
+	}));
+};
 
 type GroupsPageViewProps = {
-	groups: readonly GroupWithAICostControl[] | undefined;
+	groups: GroupWithSpend[] | undefined;
+	/** True when the spend query failed; cells then show an em dash. */
+	spendError: boolean;
 	canCreateGroup: boolean;
 	groupsEnabled: boolean;
 	showAIBudget: boolean;
@@ -44,6 +69,7 @@ type GroupsPageViewProps = {
 
 export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	groups,
+	spendError,
 	canCreateGroup,
 	groupsEnabled,
 	showAIBudget,
@@ -86,7 +112,14 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 								<TableHead className="w-2/5">
 									<div className="flex items-center gap-1">
 										AI budget
-										<InfoIconTooltip message="Current AI spend compared to the group's AI budget for the active period." />
+										{spendError ? (
+											<StatusIconTooltip
+												kind="warning"
+												message="AI spend couldn't be loaded, so budgets aren't shown."
+											/>
+										) : (
+											<StatusIconTooltip message="Current AI spend compared to the group's AI budget for the active period." />
+										)}
 									</div>
 								</TableHead>
 							)}
@@ -107,7 +140,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 };
 
 interface GroupsTableBodyProps {
-	groups: readonly GroupWithAICostControl[] | undefined;
+	groups: GroupWithSpend[] | undefined;
 	canCreateGroup: boolean;
 	showAIBudget: boolean;
 }
@@ -156,7 +189,7 @@ const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 };
 
 interface GroupRowProps {
-	group: GroupWithAICostControl;
+	group: GroupWithSpend;
 	showAIBudget: boolean;
 }
 
@@ -202,19 +235,19 @@ const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
 						)}
 					</div>
 				) : (
-					"-"
+					EM_DASH
 				)}
 			</TableCell>
 
 			{showAIBudget && (
 				<TableCell>
-					{group.ai_cost_control ? (
+					{group.spend ? (
 						<AIBudgetUsage
-							currentSpend={group.ai_cost_control.current_spend_micros}
-							spendLimit={group.ai_cost_control.spend_limit_micros}
+							currentSpend={group.spend.current_spend_micros}
+							spendLimit={group.spend.spend_limit_micros}
 						/>
 					) : (
-						"-"
+						EM_DASH
 					)}
 				</TableCell>
 			)}
