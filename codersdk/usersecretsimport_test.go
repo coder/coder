@@ -29,6 +29,11 @@ func TestParseSecretsFileEnv(t *testing.T) {
 		`DQ_CARRIAGE="a\rb"`,
 		`DQ_UNKNOWN="x\zy"`,
 		`SQUOTED='literal \n no escape'`,
+		"SQ_TRAILING_WS='abc'  \t",
+		"SQ_EMPTY=''",
+		`SQ_DOUBLE_INSIDE='a"b'`,
+		`SQ_HASH='#not a comment'`,
+		"SQ_UNICODE='héllo 世界'",
 		"EQ_IN_VALUE=a=b=c",
 		"HASH=value # kept literal",
 		"UNICODE=héllo 世界 café",
@@ -54,6 +59,11 @@ func TestParseSecretsFileEnv(t *testing.T) {
 		{Name: "DQ_CARRIAGE", EnvName: "DQ_CARRIAGE", Value: "a\rb"},
 		{Name: "DQ_UNKNOWN", EnvName: "DQ_UNKNOWN", Value: `x\zy`},
 		{Name: "SQUOTED", EnvName: "SQUOTED", Value: `literal \n no escape`},
+		{Name: "SQ_TRAILING_WS", EnvName: "SQ_TRAILING_WS", Value: "abc"},
+		{Name: "SQ_EMPTY", EnvName: "SQ_EMPTY", Value: ""},
+		{Name: "SQ_DOUBLE_INSIDE", EnvName: "SQ_DOUBLE_INSIDE", Value: `a"b`},
+		{Name: "SQ_HASH", EnvName: "SQ_HASH", Value: "#not a comment"},
+		{Name: "SQ_UNICODE", EnvName: "SQ_UNICODE", Value: "héllo 世界"},
 		{Name: "EQ_IN_VALUE", EnvName: "EQ_IN_VALUE", Value: "a=b=c"},
 		{Name: "HASH", EnvName: "HASH", Value: "value # kept literal"},
 		{Name: "UNICODE", EnvName: "UNICODE", Value: "héllo 世界 café"},
@@ -92,7 +102,15 @@ func TestParseSecretsFileEnvErrors(t *testing.T) {
 		{name: "UnterminatedDouble", content: `KEY="oops`, errMsgs: []string{"missing closing double quote"}},
 		{name: "EscapedDoubleQuoteNotClosing", content: `KEY="oops\"`, errMsgs: []string{"missing closing double quote"}},
 		{name: "DoubleQuoteTrailingData", content: `KEY="ok" # comment`, errMsgs: []string{"unexpected data after closing double quote"}},
-		{name: "UnterminatedSingle", content: `KEY='oops`, errMsgs: []string{"missing closing single quote"}},
+		{name: "UnterminatedSingle", content: `KEY='oops`, errMsgs: []string{"missing closing single quote", "line 1"}},
+		{name: "SingleQuoteOnly", content: `KEY='`, errMsgs: []string{"missing closing single quote", "line 1"}},
+		{name: "SingleQuoteTrailingComment", content: `KEY='abc' # 'note'`, errMsgs: []string{"unexpected data after closing single quote", "line 1"}},
+		{name: "SingleQuoteEmbeddedQuote", content: `KEY='a'b'`, errMsgs: []string{"unexpected data after closing single quote", "line 1"}},
+		{name: "SingleQuotePairAfterClose", content: `KEY='a' 'b'`, errMsgs: []string{"unexpected data after closing single quote", "line 1"}},
+		{name: "SingleQuoteTrailingData", content: `KEY='abc' extra`, errMsgs: []string{"unexpected data after closing single quote", "line 1"}},
+		{name: "SingleQuoteAdjacentQuoted", content: `KEY='it''s'`, errMsgs: []string{"unexpected data after closing single quote", "line 1"}},
+		{name: "SingleQuoteTrailingDataNoSpace", content: `KEY=''extra`, errMsgs: []string{"unexpected data after closing single quote", "line 1"}},
+		{name: "SingleQuoteErrorOnLaterLine", content: "OK=fine\nKEY='abc' extra", errMsgs: []string{"unexpected data after closing single quote", "line 2"}},
 		{name: "DuplicateKey", content: "DUP=a\nDUP=b", errMsgs: []string{"duplicate key", "line 2"}},
 	}
 	for _, tt := range tests {
@@ -254,6 +272,7 @@ func FuzzParseSecretsFile(f *testing.F) {
 	f.Add("env", "NOEQUALS")
 	f.Add("env", "=value")
 	f.Add("env", `KEY="ok" # trailing`)
+	f.Add("env", `KEY='ok' extra`)
 	f.Add("env", "DUP=a\nDUP=b")
 	// json - valid
 	f.Add("json", `{"A":"1","B":"two"}`)
