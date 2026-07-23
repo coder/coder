@@ -22,7 +22,7 @@ This limit is set by your group **{{.Labels.group_name}}**.
 This limit is set specifically for your account.
 {{- end}}$$,
     '[]'::jsonb,
-    'AI Budget Events',
+    'AI Cost Control Events',
     NULL,
     'system'::notification_template_kind,
     true
@@ -52,7 +52,7 @@ This limit is set by your group **{{.Labels.group_name}}**.
 This limit is set specifically for your account.
 {{- end}}$$,
     '[]'::jsonb,
-    'AI Budget Events',
+    'AI Cost Control Events',
     NULL,
     'system'::notification_template_kind,
     true

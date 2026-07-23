@@ -70,7 +70,7 @@ var (
 	TemplateChatShared            = uuid.MustParse("b789bd75-d7c6-4cab-9757-1147ab184903")
 )
 
-// AI budget-related events.
+// AI cost control related events.
 var (
 	TemplateAIBudgetWarningUser      = uuid.MustParse("b5db9597-de2a-4dea-87e9-25cee6906b86")
 	TemplateAIBudgetLimitReachedUser = uuid.MustParse("cdcf2ecd-f003-4169-9800-abb2661ea522")

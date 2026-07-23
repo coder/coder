@@ -285,7 +285,7 @@ function canSeeNotificationGroup(
 		case "Task Events":
 		case "Chat Events":
 		case "Custom Events":
-		case "AI Budget Events":
+		case "AI Cost Control Events":
 			return true;
 		default:
 			return false;
