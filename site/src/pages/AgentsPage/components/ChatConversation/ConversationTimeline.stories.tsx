@@ -405,6 +405,69 @@ const meta: Meta<typeof ConversationTimeline> = {
 export default meta;
 type Story = StoryObj<typeof ConversationTimeline>;
 
+export const LifecycleHookNotice: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "system",
+				content: [
+					{
+						type: "text",
+						text: "Your organization requires an approval before deployment.",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const notice = canvas.getByRole("note");
+		expect(notice).toBeVisible();
+		expect(within(notice).getByText("Lifecycle hook")).toBeVisible();
+		expect(
+			within(notice).getByText(
+				"Your organization requires an approval before deployment.",
+			),
+		).toBeVisible();
+		expect(
+			canvas.queryByRole("button", { name: "Copy message" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const LifecycleHookNoticeOnUserMessage: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "original prompt" },
+					{
+						type: "hook-notice",
+						text: "Deployment context was added to this prompt.",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const notice = canvas.getByRole("note");
+		expect(notice).toBeVisible();
+		expect(within(notice).getByText("Lifecycle hook")).toBeVisible();
+		expect(
+			within(notice).getByText("Deployment context was added to this prompt."),
+		).toBeVisible();
+		expect(canvas.getByText("original prompt")).toBeVisible();
+	},
+};
+
 export const DurableListTemplatesToolLifecycle: Story = {
 	args: {
 		...defaultArgs,

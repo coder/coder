@@ -58,6 +58,9 @@ export const useChatStore = (
 ): {
 	store: ChatStore;
 	clearStreamError: () => void;
+	setCacheQueuedMessages: (
+		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
+	) => void;
 	upsertCacheMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
 } => {
 	const {
@@ -126,6 +129,42 @@ export const useChatStore = (
 	// otherwise the server replays the entire message history as
 	// its snapshot, defeating pagination.
 	const initialDataLoaded = chatMessages !== undefined;
+
+	// Writes an authoritative queued-message snapshot into the
+	// messages query cache so REST re-hydration cannot replay a stale
+	// queue over the store.
+	const setCacheQueuedMessages = useCallback(
+		(queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined) => {
+			if (!chatID) {
+				return;
+			}
+			const nextQueuedMessages = queuedMessages ?? [];
+			queryClient.setQueryData<
+				InfiniteData<TypesGen.ChatMessagesResponse> | undefined
+			>(chatMessagesKey(chatID), (currentData) => {
+				if (!currentData?.pages?.length) {
+					return currentData;
+				}
+				const firstPage = currentData.pages[0];
+				if (
+					chatQueuedMessagesEqualByID(
+						firstPage.queued_messages,
+						nextQueuedMessages,
+					)
+				) {
+					return currentData;
+				}
+				return {
+					...currentData,
+					pages: [
+						{ ...firstPage, queued_messages: nextQueuedMessages },
+						...currentData.pages.slice(1),
+					],
+				};
+			});
+		},
+		[chatID, queryClient],
+	);
 
 	// Write WebSocket-delivered durable messages into the React
 	// Query infinite cache so that navigating away and back
@@ -322,38 +361,6 @@ export const useChatStore = (
 					return updated;
 				});
 				return didUpdate ? nextChats : chats;
-			});
-		};
-
-		const updateChatQueuedMessages = (
-			queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
-		) => {
-			if (!chatID) {
-				return;
-			}
-			const nextQueuedMessages = queuedMessages ?? [];
-			queryClient.setQueryData<
-				InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-			>(chatMessagesKey(chatID), (currentData) => {
-				if (!currentData?.pages?.length) {
-					return currentData;
-				}
-				const firstPage = currentData.pages[0];
-				if (
-					chatQueuedMessagesEqualByID(
-						firstPage.queued_messages,
-						nextQueuedMessages,
-					)
-				) {
-					return currentData;
-				}
-				return {
-					...currentData,
-					pages: [
-						{ ...firstPage, queued_messages: nextQueuedMessages },
-						...currentData.pages.slice(1),
-					],
-				};
 			});
 		};
 
@@ -572,7 +579,7 @@ export const useChatStore = (
 							store.applyAuthoritativeQueuedMessages(
 								streamEvent.queued_messages,
 							);
-							updateChatQueuedMessages(streamEvent.queued_messages);
+							setCacheQueuedMessages(streamEvent.queued_messages);
 							continue;
 						case "status": {
 							const nextStatus = streamEvent.status?.status;
@@ -716,6 +723,7 @@ export const useChatStore = (
 		initialDataLoaded,
 		queryClient,
 		replaceCacheMessages,
+		setCacheQueuedMessages,
 		store,
 		upsertCacheMessages,
 	]);
@@ -724,6 +732,7 @@ export const useChatStore = (
 		clearStreamError: () => {
 			store.clearStreamError();
 		},
+		setCacheQueuedMessages,
 		upsertCacheMessages,
 	};
 };

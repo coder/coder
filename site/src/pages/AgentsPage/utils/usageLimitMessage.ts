@@ -82,6 +82,19 @@ export function isChatUsageLimitExceededResponse(
 }
 
 /**
+ * Runtime guard for the structured 502 hook-dispatch-failure response.
+ */
+export function isChatHookDispatchFailedResponse(
+	value: unknown,
+): value is TypesGen.ChatHookDispatchFailedResponse {
+	if (value == null || typeof value !== "object") {
+		return false;
+	}
+	const obj = value as Record<string, unknown>;
+	return obj.kind === "hook_dispatch_failed";
+}
+
+/**
  * Build a user-friendly usage-limit message from structured 409
  * response data. Falls back to a generic message if structured
  * fields are missing or invalid.
