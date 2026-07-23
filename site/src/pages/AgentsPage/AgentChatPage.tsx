@@ -115,6 +115,7 @@ import {
 import {
 	type ChatDetailError,
 	formatUsageLimitMessage,
+	isChatHookDispatchFailedResponse,
 	isChatUsageLimitExceededResponse,
 } from "./utils/usageLimitMessage";
 
@@ -230,6 +231,37 @@ export const runPromoteQueuedMessage = async (params: {
 		handleUsageLimitError(error);
 		throw error;
 	}
+};
+
+// promotedHeadID must be the queue head captured before the send because
+// queue updates can rotate the current head before the response arrives.
+export const reconcilePromotedQueueHead = (
+	store: Pick<
+		ChatStore,
+		"batch" | "getSnapshot" | "setQueuedMessages" | "suppressQueuedMessageID"
+	>,
+	insertedMessages: readonly TypesGen.ChatMessage[],
+	promotedHeadID: number | undefined,
+	queuedTail: TypesGen.ChatQueuedMessage | undefined,
+): readonly TypesGen.ChatQueuedMessage[] | undefined => {
+	if (promotedHeadID === undefined) {
+		return undefined;
+	}
+	if (!insertedMessages.some((message) => message.role === "user")) {
+		return undefined;
+	}
+	const remaining = store
+		.getSnapshot()
+		.queuedMessages.filter((message) => message.id !== promotedHeadID);
+	const next =
+		queuedTail && !remaining.some((message) => message.id === queuedTail.id)
+			? [...remaining, queuedTail]
+			: remaining;
+	store.batch(() => {
+		store.suppressQueuedMessageID(promotedHeadID);
+		store.setQueuedMessages(next);
+	});
+	return next;
 };
 
 export async function submitEditAndScroll({
@@ -1102,7 +1134,12 @@ const AgentChatPage: FC = () => {
 	};
 
 	const aiGatewayDisabled = !useAIGatewayEnabled();
-	const { store, clearStreamError, upsertCacheMessages } = useChatStore({
+	const {
+		store,
+		clearStreamError,
+		setCacheQueuedMessages,
+		upsertCacheMessages,
+	} = useChatStore({
 		chatID: agentId,
 		chatMessages: chatMessagesList,
 		chatRecord,
@@ -1254,7 +1291,9 @@ const AgentChatPage: FC = () => {
 		} else if (isApiError(error)) {
 			const detail = error.response?.data?.detail?.trim() || undefined;
 			const reason: ChatDetailError = {
-				kind: "generic",
+				kind: isChatHookDispatchFailedResponse(error.response?.data)
+					? "hook_dispatch_failed"
+					: "generic",
 				message: getErrorMessage(error, "An unexpected error occurred."),
 				...(detail ? { detail } : {}),
 			};
@@ -1627,6 +1666,9 @@ const AgentChatPage: FC = () => {
 		clearStreamError();
 		scrollToBottomRef.current?.();
 
+		// Capture the queue head before sending because an errored chat may promote it.
+		const queueHeadIDBeforeSend = store.getSnapshot().queuedMessages[0]?.id;
+
 		// Don't clear stream state before the POST completes.
 		// For queued sends the WebSocket status events handle
 		// clearing; for non-queued sends we clear explicitly
@@ -1636,12 +1678,16 @@ const AgentChatPage: FC = () => {
 			response = await sendMessage(request);
 		} catch (error) {
 			handleUsageLimitError(error);
+			// Refresh chat details in case the failed request changed server state.
+			void queryClient.invalidateQueries({
+				queryKey: chatKey(agentId),
+				exact: true,
+			});
 			throw error;
 		}
 		// When the server accepts the message immediately (not
-		// queued), clear the stream and insert the user's message
-		// so it appears in the timeline without waiting for the
-		// WebSocket stream.
+		// queued), clear the stream so the timeline updates without
+		// waiting for the WebSocket stream.
 		if (!response.queued) {
 			store.clearStreamState();
 			// Optimistically set status to "running" so the
@@ -1653,9 +1699,26 @@ const AgentChatPage: FC = () => {
 			// to error/pending instead, the WebSocket event
 			// overrides this optimistic value.
 			store.setChatStatus("running");
-			if (response.message) {
-				store.upsertDurableMessage(response.message);
-				upsertCacheMessages([response.message]);
+		}
+		// Prefer the full inserted batch: queued sends can insert
+		// messages beyond the user row, such as a promoted queue head
+		// on an errored chat, and a stream reconnect keyed on the
+		// highest cached ID would skip them, so upsert unconditionally.
+		const insertedMessages =
+			response.messages ?? (response.message ? [response.message] : []);
+		if (insertedMessages.length > 0) {
+			store.upsertDurableMessages(insertedMessages);
+			upsertCacheMessages(insertedMessages);
+			if (response.queued) {
+				const reconciledQueue = reconcilePromotedQueueHead(
+					store,
+					insertedMessages,
+					queueHeadIDBeforeSend,
+					response.queued_message,
+				);
+				if (reconciledQueue) {
+					setCacheQueuedMessages(reconciledQueue);
+				}
 			}
 		}
 		if (selectedModelConfigID) {

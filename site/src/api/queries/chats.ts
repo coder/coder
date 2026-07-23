@@ -1417,7 +1417,8 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 			reconcileEditedMessageInCache({
 				currentData: current,
 				optimisticMessageId: variables.messageId,
-				responseMessage: response.message,
+				responseMessages: response.messages ?? [response.message],
+				deletedMessageIds: response.deleted_message_ids,
 			}),
 		);
 	},
