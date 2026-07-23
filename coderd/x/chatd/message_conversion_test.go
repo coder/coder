@@ -645,8 +645,9 @@ func TestBufferedPartsToPartialMessages_AttachesAttemptRuntime(t *testing.T) {
 }
 
 // TestBufferedPartsToPartialMessages_DropsRuntimeWithoutAssistantContent
-// verifies attempts that streamed no assistant content (for example an
-// interrupted tool execution batch) do not bill their episode span.
+// verifies attempts that streamed no model-generated assistant content
+// (for example an interrupted tool execution batch) do not bill their
+// episode span.
 func TestBufferedPartsToPartialMessages_DropsRuntimeWithoutAssistantContent(t *testing.T) {
 	t.Parallel()
 
@@ -659,6 +660,23 @@ func TestBufferedPartsToPartialMessages_DropsRuntimeWithoutAssistantContent(t *t
 	})
 	require.NoError(t, err)
 	require.Empty(t, got)
+
+	// Tool execution publishes assistant-role file parts for
+	// attachments. A suffix containing only those is a tool batch,
+	// not model generation, so its span is not billed.
+	got, err = bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
+		parts: []messagepartbuffer.Part{
+			{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageFile(uuid.New(), "image/png", "screenshot.png")},
+		},
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		attemptRuntime: 1500 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Equal(t, database.ChatMessageRoleAssistant, got[0].Role)
+	require.False(t, got[0].RuntimeMs.Valid)
 }
 
 func TestBufferedPartsToPartialMessages_MergesToolCallDeltasWithoutFinal(t *testing.T) {

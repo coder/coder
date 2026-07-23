@@ -570,8 +570,9 @@ type bufferedPartsToPartialMessagesInput struct {
 	// generation attempt (its message part episode's lifetime). It is
 	// persisted as runtime_ms on the first partial assistant message
 	// so interruption does not lose billable generation time. When the
-	// interrupted attempt streamed no assistant content (for example a
-	// tool execution batch, which is not billable), it is dropped.
+	// interrupted attempt streamed no model-generated assistant content
+	// it is dropped: tool execution batches are not billable, including
+	// ones that published assistant-role file parts for attachments.
 	attemptRuntime time.Duration
 }
 
@@ -623,7 +624,7 @@ func bufferedPartsToPartialMessages(input bufferedPartsToPartialMessagesInput) (
 	if err := state.appendSyntheticInterruptionResults(); err != nil {
 		return nil, err
 	}
-	if input.attemptRuntime > 0 {
+	if input.attemptRuntime > 0 && state.modelStreamedAssistant {
 		// The whole attempt's runtime goes on the first assistant
 		// message; usage reporting sums runtime_ms across rows, so
 		// placement within the suffix does not matter.
@@ -649,6 +650,12 @@ type partialMessageConversionState struct {
 	toolResults     map[string]*partialToolResult
 	toolResultOrder []string
 	answered        map[string]bool
+	// modelStreamedAssistant records whether any assistant part came
+	// from the model stream itself (text, reasoning, tool calls,
+	// sources). Tool execution also publishes assistant-role file
+	// parts for attachments; those alone must not attract the
+	// attempt's runtime, because tool batches are not billable.
+	modelStreamedAssistant bool
 }
 
 func (s *partialMessageConversionState) consume(buffered messagepartbuffer.Part) error {
@@ -668,6 +675,9 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 	if part.Type == "" {
 		s.logSkippedPart(buffered, "empty buffered assistant part type")
 		return
+	}
+	if part.Type != codersdk.ChatMessagePartTypeFile {
+		s.modelStreamedAssistant = true
 	}
 	if part.Type != codersdk.ChatMessagePartTypeToolCall {
 		if part.Type == codersdk.ChatMessagePartTypeReasoning &&
