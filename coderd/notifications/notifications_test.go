@@ -1486,6 +1486,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
 				Labels: map[string]string{
+					"threshold":    "100",
 					"limit":        "$1000.00",
 					"period":       "monthly",
 					"limit_source": "user_override",

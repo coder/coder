@@ -14,7 +14,8 @@
       "group_name": "Engineering",
       "limit": "$1000.00",
       "limit_source": "user_override",
-      "period": "monthly"
+      "period": "monthly",
+      "threshold": "100"
     },
     "data": {},
     "targets": null
