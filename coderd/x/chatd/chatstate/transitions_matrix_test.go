@@ -262,6 +262,13 @@ func applyFinishError(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededCh
 	return err
 }
 
+func applyFailIdle(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+	t.Helper()
+	var err error
+	result.failIdle, err = tx.FailIdle(chatstate.FailIdleInput{LastError: "hook dispatch failed"})
+	return err
+}
+
 func applyCancelRequiresAction(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
 	t.Helper()
 	var err error
@@ -313,6 +320,8 @@ func defaultApplier(tr chatstate.Transition) applierFn {
 		return applyFinishTurn
 	case chatstate.TransitionFinishError:
 		return applyFinishError
+	case chatstate.TransitionFailIdle:
+		return applyFailIdle
 	case chatstate.TransitionCancelRequiresAction:
 		return applyCancelRequiresAction
 	case chatstate.TransitionReconcileInvalidState:
@@ -354,6 +363,7 @@ type transitionCaseResult struct {
 	finishInterruption      chatstate.FinishInterruptionResult
 	finishTurn              chatstate.FinishTurnResult
 	finishError             chatstate.FinishErrorResult
+	failIdle                chatstate.FailIdleResult
 	cancelRequiresAction    chatstate.CancelRequiresActionResult
 	reconcileInvalidState   chatstate.ReconcileInvalidStateResult
 }
@@ -868,6 +878,8 @@ func matrixCases() []transitionCaseSpec {
 		// FinishError cases.
 		finishErrorCase(chatstate.StateR0, chatstate.StateE0),
 		finishErrorCase(chatstate.StateR1, chatstate.StateE1),
+
+		failIdleCase(),
 
 		// ReconcileInvalidState cases: Invalid with empty queue
 		// lands in E0; Invalid with non-empty queue lands in E1.
@@ -1842,6 +1854,27 @@ func finishErrorCase(from, want chatstate.ExecutionState) transitionCaseSpec {
 				"FinishError preserves queued messages")
 			require.Equal(t, base.historyIDs, activeHistoryIDs(ctx, t, f, seeded.chatID),
 				"FinishError preserves history messages")
+		},
+	}
+}
+
+func failIdleCase() transitionCaseSpec {
+	return transitionCaseSpec{
+		transition: chatstate.TransitionFailIdle,
+		from:       chatstate.StateW,
+		want:       chatstate.StateE0,
+		apply:      applyFailIdle,
+		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
+			_ = result
+			after, err := f.DB.GetChatByID(ctx, seeded.chatID)
+			require.NoError(t, err)
+			require.Equal(t, database.ChatStatusError, after.Status)
+			require.True(t, after.LastError.Valid)
+			require.JSONEq(t, `{"message":"hook dispatch failed","kind":"generic","retryable":false}`, string(after.LastError.RawMessage))
+			require.Equal(t, base.chat.WorkerID, after.WorkerID)
+			require.Equal(t, base.chat.RunnerID, after.RunnerID)
+			require.Equal(t, base.historyVersion, after.HistoryVersion)
+			require.Equal(t, base.queueVersion, after.QueueVersion)
 		},
 	}
 }

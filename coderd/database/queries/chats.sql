@@ -770,6 +770,7 @@ ORDER BY
 -- name: InsertChat :one
 WITH inserted_chat AS (
 INSERT INTO chats (
+    id,
     organization_id,
     owner_id,
     workspace_id,
@@ -787,6 +788,7 @@ INSERT INTO chats (
     dynamic_tools,
     client_type
 ) VALUES (
+    COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     @organization_id::uuid,
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
