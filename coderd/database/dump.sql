@@ -1968,6 +1968,8 @@ CREATE TABLE chat_messages (
     search_tsv tsvector
 );
 
+COMMENT ON COLUMN chat_messages.runtime_ms IS 'Wall-clock milliseconds of the model invocation that produced the message content: assistant steps and compaction summaries, including interrupted partials. NULL when no model invocation produced the row (user messages, tool results; local tool execution is not counted). Billing source of truth for Coder Agents runtime: usage reporting sums it over created_at ranges.';
+
 COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
 
 COMMENT ON COLUMN chat_messages.search_tsv IS 'Used for full text search. NULL initially, populated async via background job.';

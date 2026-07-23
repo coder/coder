@@ -69,18 +69,26 @@ func TestBuildCommitStepMessages_LocalToolResultsBecomeToolMessages(t *testing.T
 		modelConfigID:  modelConfigID,
 		contentVersion: chatprompt.CurrentContentVersion,
 		logger:         slog.Make(),
-		step: stepData{Content: []fantasy.Content{
-			fantasy.ToolCallContent{ToolCallID: "call-1", ToolName: "execute", Input: `{"cmd":"pwd"}`},
-			fantasy.ToolResultContent{
-				ToolCallID: "call-1",
-				ToolName:   "execute",
-				Result:     fantasy.ToolResultOutputContentText{Text: `{"stdout":"/tmp"}`},
+		step: stepData{
+			Content: []fantasy.Content{
+				fantasy.ToolCallContent{ToolCallID: "call-1", ToolName: "execute", Input: `{"cmd":"pwd"}`},
+				fantasy.ToolResultContent{
+					ToolCallID: "call-1",
+					ToolName:   "execute",
+					Result:     fantasy.ToolResultOutputContentText{Text: `{"stdout":"/tmp"}`},
+				},
 			},
-		}},
+			Runtime: 1500 * time.Millisecond,
+		},
 	})
 	require.NoError(t, err)
 	require.Len(t, got.Messages, 2)
 	require.Equal(t, []int{0, 1}, got.VisibleIndexes)
+
+	// The step's model-invocation runtime lands on the assistant
+	// message only; tool result rows are never billed.
+	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, got.Messages[0].RuntimeMs)
+	require.False(t, got.Messages[1].RuntimeMs.Valid)
 
 	assistantParts := parseMessageParts(t, got.Messages[0].Role, got.Messages[0].Content)
 	require.Len(t, assistantParts, 1)
@@ -212,6 +220,7 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 			UsagePercent:     81.5,
 			ContextTokens:    815,
 			ContextLimit:     1000,
+			Runtime:          1500 * time.Millisecond,
 		},
 	})
 	require.NoError(t, err)
@@ -223,10 +232,14 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 	require.True(t, got.Messages[0].Compressed)
 	require.Equal(t, uuid.NullUUID{UUID: modelConfigID, Valid: true}, got.Messages[0].ModelConfigID)
 	require.Equal(t, "system summary", parseMessageParts(t, got.Messages[0].Role, got.Messages[0].Content)[0].Text)
+	require.False(t, got.Messages[0].RuntimeMs.Valid)
 
 	require.Equal(t, database.ChatMessageRoleAssistant, got.Messages[1].Role)
 	require.Equal(t, database.ChatMessageVisibilityUser, got.Messages[1].Visibility)
 	require.True(t, got.Messages[1].Compressed)
+	// The summarization call's runtime is billed on the assistant
+	// message, mirroring regular generation steps.
+	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, got.Messages[1].RuntimeMs)
 	callPart := parseMessageParts(t, got.Messages[1].Role, got.Messages[1].Content)[0]
 	require.Equal(t, codersdk.ChatMessagePartTypeToolCall, callPart.Type)
 	require.Equal(t, "summary-1", callPart.ToolCallID)
@@ -235,6 +248,7 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 	require.Equal(t, database.ChatMessageRoleTool, got.Messages[2].Role)
 	require.Equal(t, database.ChatMessageVisibilityBoth, got.Messages[2].Visibility)
 	require.True(t, got.Messages[2].Compressed)
+	require.False(t, got.Messages[2].RuntimeMs.Valid)
 	resultPart := parseMessageParts(t, got.Messages[2].Role, got.Messages[2].Content)[0]
 	require.Equal(t, codersdk.ChatMessagePartTypeToolResult, resultPart.Type)
 	require.Equal(t, "summary-1", resultPart.ToolCallID)
@@ -601,6 +615,50 @@ func TestBufferedPartsToPartialMessages_NormalizesToolCallDeltasBeforeFinal(t *t
 	syntheticParts := parseMessageParts(t, got[1].Role, got[1].Content)
 	require.Len(t, syntheticParts, 1)
 	require.Equal(t, "call-1", syntheticParts[0].ToolCallID)
+}
+
+// TestBufferedPartsToPartialMessages_AttachesAttemptRuntime verifies an
+// interrupted attempt's runtime is persisted on the first partial
+// assistant message, so interruption does not lose billable generation
+// time.
+func TestBufferedPartsToPartialMessages_AttachesAttemptRuntime(t *testing.T) {
+	t.Parallel()
+
+	parts := []messagepartbuffer.Part{
+		{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("partial ")},
+		{Seq: 2, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageToolCall("call-1", "execute", json.RawMessage(`{"cmd":"pwd"}`))},
+	}
+	got, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
+		parts:          parts,
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		attemptRuntime: 1500 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	require.Equal(t, database.ChatMessageRoleAssistant, got[0].Role)
+	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, got[0].RuntimeMs)
+	// The synthetic interruption tool result is not billed.
+	require.Equal(t, database.ChatMessageRoleTool, got[1].Role)
+	require.False(t, got[1].RuntimeMs.Valid)
+}
+
+// TestBufferedPartsToPartialMessages_DropsRuntimeWithoutAssistantContent
+// verifies attempts that streamed no assistant content (for example an
+// interrupted tool execution batch) do not bill their episode span.
+func TestBufferedPartsToPartialMessages_DropsRuntimeWithoutAssistantContent(t *testing.T) {
+	t.Parallel()
+
+	got, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
+		parts:          nil,
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		attemptRuntime: 1500 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	require.Empty(t, got)
 }
 
 func TestBufferedPartsToPartialMessages_MergesToolCallDeltasWithoutFinal(t *testing.T) {

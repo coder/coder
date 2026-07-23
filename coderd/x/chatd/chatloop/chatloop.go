@@ -73,10 +73,16 @@ type PersistedStep struct {
 	Content      []fantasy.Content
 	Usage        fantasy.Usage
 	ContextLimit sql.NullInt64
-	// Runtime is the wall-clock duration of this step,
-	// covering LLM streaming, tool execution, and retries.
-	// Zero indicates the duration was not measured (e.g.
-	// interrupted steps).
+	// Runtime is the wall-clock duration of the model invocation
+	// that produced this step's content, measured from just before
+	// the provider stream is opened until the stream is fully
+	// consumed. It is persisted as chat_messages.runtime_ms, the
+	// billable "active generation" time that usage reporting sums.
+	// Steps without a model invocation (local tool execution
+	// batches) leave it zero, which persists as NULL: tool wall
+	// time includes idle waits such as wait_agent polling a
+	// sub-agent chat that already bills its own model invocations,
+	// so billing it would double count.
 	Runtime time.Duration
 	// PendingDynamicToolCalls lists tool calls that target
 	// dynamic tools. When non-empty the chatloop exits with
@@ -304,6 +310,10 @@ type GenerateCompactionOptions struct {
 	ProviderOptions fantasy.ProviderOptions
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
+
+	// Clock measures the summary call duration reported as
+	// CompactionResult.Runtime. Nil uses a real clock.
+	Clock quartz.Clock
 }
 
 // ProviderTool pairs a provider-native tool definition with an

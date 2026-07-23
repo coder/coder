@@ -391,6 +391,51 @@ func TestInterruptTask_BufferedPartsBecomePartialMessages(t *testing.T) {
 	require.True(t, toolParts[0].IsError)
 }
 
+// TestInterruptTask_PartialAssistantKeepsAttemptRuntime verifies an
+// interrupted generation attempt's runtime (the episode's lifetime) is
+// persisted as runtime_ms on the partial assistant message, so billable
+// generation time survives interruption.
+func TestInterruptTask_PartialAssistantKeepsAttemptRuntime(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	chat := f.createRunningChat(t)
+	workerID := uuid.New()
+	runnerID := uuid.New()
+	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	recorder := newTaskSideEffectRecorder()
+	clock := quartz.NewMock(t)
+	starter := newTestTaskStarterWithClock(t, f, recorder, clock)
+	buffer := starter.opts.MessagePartBuffer
+	key := messagepartbuffer.Key{
+		ChatID:            chat.ID,
+		HistoryVersion:    acquired.HistoryVersion,
+		GenerationAttempt: acquired.GenerationAttempt,
+	}
+	require.NoError(t, buffer.CreateEpisode(key))
+	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("partial answer")))
+	// The attempt ran for 1500ms before the user interrupted it.
+	clock.Advance(1500 * time.Millisecond)
+	interrupting := f.interruptChat(t, chat.ID)
+
+	err := starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
+		ChatID:            chat.ID,
+		WorkerID:          workerID,
+		RunnerID:          runnerID,
+		HistoryVersion:    interrupting.HistoryVersion,
+		GenerationAttempt: interrupting.GenerationAttempt,
+		Status:            database.ChatStatusInterrupting,
+	})
+	require.NoError(t, err)
+
+	messages, err := f.db.GetChatMessagesByChatID(testutil.Context(t, testutil.WaitShort), database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(messages), 3)
+	assistant := messages[len(messages)-2]
+	require.Equal(t, database.ChatMessageRoleAssistant, assistant.Role)
+	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, assistant.RuntimeMs)
+}
+
 func TestRequiresActionTimeout_ExpiredCancelsOnly(t *testing.T) {
 	t.Parallel()
 
@@ -1244,13 +1289,21 @@ func (r *taskSideEffectRecorder) requireInterruptionOutcome(t *testing.T, chatID
 
 func newTestTaskStarter(t *testing.T, f *taskTestFixture, recorder *taskSideEffectRecorder) *taskStarter {
 	t.Helper()
-	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	return newTestTaskStarterWithClock(t, f, recorder, quartz.NewReal())
+}
+
+// newTestTaskStarterWithClock shares the clock between the starter and its
+// message part buffer, mirroring production wiring so episode durations are
+// measured on the same clock the tasks use.
+func newTestTaskStarterWithClock(t *testing.T, f *taskTestFixture, recorder *taskSideEffectRecorder, clock quartz.Clock) *taskStarter {
+	t.Helper()
+	buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: clock})
 	t.Cleanup(buffer.Close)
 	starter, err := newTaskStarter(newUnstartedServer(t, f.rawPS, f.db), chatWorkerOptions{
 		Store:                   f.db,
 		Pubsub:                  f.pubsub,
 		Logger:                  slog.Make(),
-		Clock:                   quartz.NewReal(),
+		Clock:                   clock,
 		MessagePartBuffer:       buffer,
 		TaskRetryInitialBackoff: time.Millisecond,
 		TaskRetryMaxBackoff:     time.Millisecond,

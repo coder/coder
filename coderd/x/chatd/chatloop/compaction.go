@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -129,6 +130,11 @@ type CompactionResult struct {
 	UsagePercent     float64
 	ContextTokens    int64
 	ContextLimit     int64
+	// Runtime is the wall-clock duration of the summarization model
+	// call. Compaction is a billable model invocation like a regular
+	// assistant step; see PersistedStep.Runtime. Zero when the run
+	// was gated off before calling the model.
+	Runtime time.Duration
 }
 
 // GenerateCompaction generates one context summary and returns it without
@@ -170,11 +176,17 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		)
 	}
 
+	clock := opts.Clock
+	if clock == nil {
+		clock = quartz.NewReal()
+	}
+	summaryStart := clock.Now()
 	summary, err := generateCompactionSummary(ctx, opts.Model, opts.Messages, config)
 	if err != nil {
 		publishCompactionError(config, "failed to generate compaction summary")
 		return CompactionResult{}, err
 	}
+	runtime := clock.Since(summaryStart)
 	if summary == "" {
 		publishCompactionError(config, "compaction produced an empty summary")
 		return CompactionResult{}, xerrors.New("compaction produced an empty summary")
@@ -190,6 +202,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		UsagePercent:     usagePercent,
 		ContextTokens:    contextTokens,
 		ContextLimit:     contextLimit,
+		Runtime:          runtime,
 	}
 	if config.PublishMessagePart != nil && config.ToolCallID != "" {
 		resultJSON, _ := json.Marshal(map[string]any{

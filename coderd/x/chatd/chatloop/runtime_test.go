@@ -1,0 +1,122 @@
+package chatloop_test
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"charm.land/fantasy"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/quartz"
+)
+
+// TestGenerateAssistant_RecordsModelInvocationRuntime pins the billable
+// runtime definition: Step.Runtime spans the model invocation, from just
+// before the stream opens until it is fully consumed.
+func TestGenerateAssistant_RecordsModelInvocationRuntime(t *testing.T) {
+	t.Parallel()
+
+	clock := quartz.NewMock(t)
+	model := &chattest.FakeModel{
+		ProviderName: "test-provider",
+		ModelName:    "test-model",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return func(yield func(fantasy.StreamPart) bool) {
+				if !yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "t"}) {
+					return
+				}
+				if !yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "t", Delta: "hello"}) {
+					return
+				}
+				if !yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextEnd, ID: "t"}) {
+					return
+				}
+				clock.Advance(1500 * time.Millisecond)
+				yield(fantasy.StreamPart{
+					Type:         fantasy.StreamPartTypeFinish,
+					FinishReason: fantasy.FinishReasonStop,
+				})
+			}, nil
+		},
+	}
+
+	outcome, err := chatloop.GenerateAssistant(context.Background(), chatloop.GenerateAssistantOptions{
+		Model: model,
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1500*time.Millisecond, outcome.Step.Runtime)
+}
+
+// TestGenerateAssistant_ErroredStreamReturnsNoStep pins that a failed
+// model invocation produces no step: its content is discarded, so no
+// runtime is billed for it either.
+func TestGenerateAssistant_ErroredStreamReturnsNoStep(t *testing.T) {
+	t.Parallel()
+
+	clock := quartz.NewMock(t)
+	model := &chattest.FakeModel{
+		ProviderName: "test-provider",
+		ModelName:    "test-model",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return func(yield func(fantasy.StreamPart) bool) {
+				if !yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "t"}) {
+					return
+				}
+				clock.Advance(1500 * time.Millisecond)
+				yield(fantasy.StreamPart{
+					Type:  fantasy.StreamPartTypeError,
+					Error: xerrors.New("stream blew up"),
+				})
+			}, nil
+		},
+	}
+
+	outcome, err := chatloop.GenerateAssistant(context.Background(), chatloop.GenerateAssistantOptions{
+		Model: model,
+		Clock: clock,
+	})
+	require.Error(t, err)
+	require.Zero(t, outcome.Step.Runtime)
+	require.Empty(t, outcome.Step.Content)
+}
+
+// TestGenerateCompaction_RecordsRuntime verifies the summarization model
+// call reports its wall-clock duration, the compaction step's billable
+// runtime.
+func TestGenerateCompaction_RecordsRuntime(t *testing.T) {
+	t.Parallel()
+
+	clock := quartz.NewMock(t)
+	model := &chattest.FakeModel{
+		ProviderName: "test-provider",
+		ModelName:    "test-model",
+		GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			clock.Advance(1500 * time.Millisecond)
+			return &fantasy.Response{
+				Content: []fantasy.Content{
+					fantasy.TextContent{Text: "summary"},
+				},
+			}, nil
+		},
+	}
+
+	result, err := chatloop.GenerateCompaction(context.Background(), chatloop.GenerateCompactionOptions{
+		Model: model,
+		Messages: []fantasy.Message{{
+			Role:    fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+		}},
+		ThresholdPercent: 70,
+		ContextLimit:     100,
+		StepUsage:        fantasy.Usage{InputTokens: 90},
+		Clock:            clock,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "summary", result.SummaryReport)
+	require.Equal(t, 1500*time.Millisecond, result.Runtime)
+}

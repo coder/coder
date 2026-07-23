@@ -283,6 +283,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		contentVersion: chatprompt.CurrentContentVersion,
 		logger:         s.opts.Logger,
 		interruptedAt:  s.opts.Clock.Now("chatworker", "interrupt"),
+		attemptRuntime: s.opts.MessagePartBuffer.EpisodeDuration(key),
 	})
 	if err != nil {
 		return xerrors.Errorf("convert buffered parts: %w", err)

@@ -99,6 +99,35 @@ func TestBuffer_CloseEpisodeIdempotent(t *testing.T) {
 	require.NoError(t, buffer.CloseEpisode(key))
 }
 
+func TestBuffer_EpisodeDuration(t *testing.T) {
+	t.Parallel()
+
+	clock := quartz.NewMock(t)
+	buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: clock})
+	defer buffer.Close()
+
+	key := testEpisodeKey()
+	require.Zero(t, buffer.EpisodeDuration(key), "unknown episode has no duration")
+
+	require.NoError(t, buffer.CreateEpisode(key))
+	require.Zero(t, buffer.EpisodeDuration(key), "open episode has no duration")
+
+	clock.Advance(1500 * time.Millisecond)
+	require.NoError(t, buffer.CloseEpisode(key))
+	require.Equal(t, 1500*time.Millisecond, buffer.EpisodeDuration(key))
+
+	// A second close must not move the recorded span.
+	clock.Advance(time.Second)
+	require.NoError(t, buffer.CloseEpisode(key))
+	require.Equal(t, 1500*time.Millisecond, buffer.EpisodeDuration(key))
+
+	// Episodes created implicitly by CloseEpisode never started a
+	// generation attempt, so they report no duration.
+	implicit := testEpisodeKey()
+	require.NoError(t, buffer.CloseEpisode(implicit))
+	require.Zero(t, buffer.EpisodeDuration(implicit))
+}
+
 func TestBuffer_SubscribeExistingReplaysThenStreamsLiveParts(t *testing.T) {
 	t.Parallel()
 

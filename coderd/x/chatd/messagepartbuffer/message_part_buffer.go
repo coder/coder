@@ -96,7 +96,11 @@ type Buffer struct {
 }
 
 type episodeState struct {
-	created        bool
+	created bool
+	// createdAt is set only by CreateEpisode, not by the implicit
+	// creation in CloseEpisode or by subscriber placeholders, so it
+	// marks when the generation attempt actually started.
+	createdAt      time.Time
 	closed         bool
 	closedAt       time.Time
 	closedHeapItem *closedEpisodeItem
@@ -185,12 +189,14 @@ func (b *Buffer) CreateEpisode(key Key) error {
 	if b.closed {
 		return ErrMessagePartBufferClosed
 	}
-	b.gcClosedEpisodesLocked(b.opts.Clock.Now("message-part-buffer", "create"))
+	now := b.opts.Clock.Now("message-part-buffer", "create")
+	b.gcClosedEpisodesLocked(now)
 	episode := b.getOrCreateEpisodeLocked(key)
 	if episode.created {
 		return ErrEpisodeExists
 	}
 	episode.markCreated()
+	episode.createdAt = now
 	return nil
 }
 
@@ -264,6 +270,20 @@ func (b *Buffer) GetParts(key Key) ([]Part, error) {
 		return nil, err
 	}
 	return slices.Clone(episode.parts), nil
+}
+
+// EpisodeDuration returns the wall-clock span between CreateEpisode and
+// CloseEpisode. It returns 0 when the episode is unknown, was created
+// implicitly by CloseEpisode, or is not closed yet. Interruption handling
+// uses this as the runtime of the interrupted generation attempt.
+func (b *Buffer) EpisodeDuration(key Key) time.Duration {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	episode := b.episodes[key]
+	if episode == nil || episode.createdAt.IsZero() || !episode.closed {
+		return 0
+	}
+	return episode.closedAt.Sub(episode.createdAt)
 }
 
 // SubscribeToEpisode replays existing parts and streams new parts.

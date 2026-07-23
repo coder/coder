@@ -319,6 +319,12 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 		return compactionMessagesForCommit{}, xerrors.Errorf("marshal compaction tool result: %w", err)
 	}
 
+	assistantMsg := baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, assistantContent)
+	// Compaction is a billable model invocation; its runtime is
+	// persisted on the assistant message like a regular step's.
+	if input.compaction.Runtime > 0 {
+		assistantMsg.RuntimeMs = sql.NullInt64{Int64: input.compaction.Runtime.Milliseconds(), Valid: true}
+	}
 	messages := []chatstate.Message{
 		{
 			Role:           database.ChatMessageRoleUser,
@@ -327,7 +333,7 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 			ModelConfigID:  uuid.NullUUID{UUID: input.modelConfigID, Valid: input.modelConfigID != uuid.Nil},
 			ContentVersion: contentVersion,
 		},
-		baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, assistantContent),
+		assistantMsg,
 		baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, toolContent),
 	}
 	for i := range messages {
@@ -560,6 +566,13 @@ type bufferedPartsToPartialMessagesInput struct {
 	contentVersion int16
 	logger         slog.Logger
 	interruptedAt  time.Time
+	// attemptRuntime is the wall-clock duration of the interrupted
+	// generation attempt (its message part episode's lifetime). It is
+	// persisted as runtime_ms on the first partial assistant message
+	// so interruption does not lose billable generation time. When the
+	// interrupted attempt streamed no assistant content (for example a
+	// tool execution batch, which is not billable), it is dropped.
+	attemptRuntime time.Duration
 }
 
 type partialToolCall struct {
@@ -609,6 +622,18 @@ func bufferedPartsToPartialMessages(input bufferedPartsToPartialMessagesInput) (
 	}
 	if err := state.appendSyntheticInterruptionResults(); err != nil {
 		return nil, err
+	}
+	if input.attemptRuntime > 0 {
+		// The whole attempt's runtime goes on the first assistant
+		// message; usage reporting sums runtime_ms across rows, so
+		// placement within the suffix does not matter.
+		for i := range state.messages {
+			if state.messages[i].Role != database.ChatMessageRoleAssistant {
+				continue
+			}
+			state.messages[i].RuntimeMs = sql.NullInt64{Int64: input.attemptRuntime.Milliseconds(), Valid: true}
+			break
+		}
 	}
 	return state.messages, nil
 }

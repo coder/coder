@@ -754,6 +754,7 @@ func (s *taskStarter) generateCompaction(
 	compactionOpts.PublishMessagePart = attempt.publish
 	compactionOpts.Source = source
 	compactionOpts.Force = source == chatloop.CompactionSourceManual
+	compactionOpts.Clock = s.opts.Clock
 	// Attach the turn debug run so the compaction call records a child
 	// debug run; without it startCompactionDebugRun finds no parent and
 	// skips debug instrumentation entirely.

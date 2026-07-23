@@ -6340,6 +6340,9 @@ func TestActiveServer_BasicAssistantGenerationAndPromptPreparation(t *testing.T)
 	require.Equal(t, database.ChatMessageRoleAssistant, last.Role)
 	require.True(t, last.ContextLimit.Valid)
 	require.Equal(t, int64(4096), last.ContextLimit.Int64)
+	// Assistant steps must persist the model invocation's runtime; it is
+	// the billing source of truth for Coder Agents runtime.
+	require.True(t, last.RuntimeMs.Valid)
 	require.GreaterOrEqual(t, last.RuntimeMs.Int64, int64(0))
 	requireTextPart(t, last, "done")
 
