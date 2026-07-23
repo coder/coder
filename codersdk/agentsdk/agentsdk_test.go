@@ -17,6 +17,19 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+// newReinitTestClient returns an http.Client with a dedicated transport.
+//
+// The tests must not use &http.Client{} (which shares the process-global
+// http.DefaultTransport with every other parallel test in the binary).
+// httptest.Server.Close() calls http.DefaultTransport.CloseIdleConnections(),
+// so a server closed by an unrelated parallel test can break an in-flight
+// request here with "http: CloseIdleConnections called". A dedicated transport
+// is not shared, so those cross-test calls cannot affect it. See
+// coder/internal#1451.
+func newReinitTestClient() *http.Client {
+	return &http.Client{Transport: &http.Transport{}}
+}
+
 func TestStreamAgentReinitEvents(t *testing.T) {
 	t.Parallel()
 
@@ -43,10 +56,7 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		requestCtx := testutil.Context(t, testutil.WaitShort)
 		req, err := http.NewRequestWithContext(requestCtx, "GET", srv.URL, nil)
 		require.NoError(t, err)
-		// Use a dedicated transport so a parallel httptest.Server.Close()
-		// (which calls http.DefaultTransport.CloseIdleConnections()) cannot
-		// break this in-flight request.
-		client := &http.Client{Transport: &http.Transport{}}
+		client := newReinitTestClient()
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -82,10 +92,7 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		requestCtx := testutil.Context(t, testutil.WaitShort)
 		req, err := http.NewRequestWithContext(requestCtx, "GET", srv.URL, nil)
 		require.NoError(t, err)
-		// Use a dedicated transport so a parallel httptest.Server.Close()
-		// (which calls http.DefaultTransport.CloseIdleConnections()) cannot
-		// break this in-flight request.
-		client := &http.Client{Transport: &http.Transport{}}
+		client := newReinitTestClient()
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -119,10 +126,7 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		requestCtx := testutil.Context(t, testutil.WaitShort)
 		req, err := http.NewRequestWithContext(requestCtx, "GET", srv.URL, nil)
 		require.NoError(t, err)
-		// Use a dedicated transport so a parallel httptest.Server.Close()
-		// (which calls http.DefaultTransport.CloseIdleConnections()) cannot
-		// break this in-flight request.
-		client := &http.Client{Transport: &http.Transport{}}
+		client := newReinitTestClient()
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
