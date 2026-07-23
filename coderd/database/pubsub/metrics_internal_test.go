@@ -1,7 +1,6 @@
 package pubsub
 
 import (
-	"sync"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -108,7 +107,7 @@ func TestMetrics_CountersExcludeLatencyChannel(t *testing.T) {
 	require.False(t, testutil.PromCounterGathered(t, metrics, "coder_pubsub_subscribes_total", backend, "false"))
 }
 
-func TestMetrics_MeasureOnce(t *testing.T) {
+func TestMetrics_RecordLatency(t *testing.T) {
 	t.Parallel()
 
 	reg := prometheus.NewRegistry()
@@ -119,7 +118,7 @@ func TestMetrics_MeasureOnce(t *testing.T) {
 	mem := NewInMemory()
 	defer mem.Close()
 
-	m.measureOnce(ctx, mem)
+	m.recordLatency(ctx, mem)
 
 	metrics, err := reg.Gather()
 	require.NoError(t, err)
@@ -139,7 +138,7 @@ func (failPublishPubsub) Publish(string, []byte) error {
 	return xerrors.New("boom")
 }
 
-func TestMetrics_MeasureOnceError(t *testing.T) {
+func TestMetrics_RecordLatencyError(t *testing.T) {
 	t.Parallel()
 
 	reg := prometheus.NewRegistry()
@@ -150,7 +149,7 @@ func TestMetrics_MeasureOnceError(t *testing.T) {
 	mem := NewInMemory()
 	defer mem.Close()
 
-	m.measureOnce(ctx, failPublishPubsub{mem})
+	m.recordLatency(ctx, failPublishPubsub{mem})
 
 	metrics, err := reg.Gather()
 	require.NoError(t, err)
@@ -163,50 +162,27 @@ func TestMetrics_StopLatencyLoopWithoutStart(t *testing.T) {
 	t.Parallel()
 
 	m := NewMetrics(nil).ForBackend(slog.Make(), BackendPostgres)
-	// Stop must be safe and return immediately when the loop never started.
+
+	// A pubsub built via newWithoutListener never starts the loop but still
+	// calls StopLatencyLoop on Close, so Stop must return promptly instead of
+	// blocking on a loop that never ran.
+	m.StopLatencyLoop()
+	// Stop is idempotent.
 	m.StopLatencyLoop()
 }
 
-func TestMetrics_StopBeforeStartDoesNotRunLoop(t *testing.T) {
+func TestMetrics_StartStopLatencyLoop(t *testing.T) {
 	t.Parallel()
 
-	m := NewMetrics(nil).ForBackend(slog.Make(), BackendPostgres)
-	mem := NewInMemory()
-	defer mem.Close()
-
-	// Stopping before starting must cancel the loop's context so a later
-	// StartLatencyLoop does not launch a goroutine nothing would stop.
-	m.StopLatencyLoop()
-	m.StartLatencyLoop(mem)
-
-	m.latencyMu.Lock()
-	started := m.latencyDone != nil
-	m.latencyMu.Unlock()
-	require.False(t, started, "loop must not start after StopLatencyLoop")
-}
-
-func TestMetrics_StartStopLatencyLoopConcurrent(t *testing.T) {
-	t.Parallel()
-
-	// Exercise the Start/Stop race that arises because the NATS pubsub can
-	// call Close (StopLatencyLoop) concurrently with New (StartLatencyLoop).
-	// Run under -race to catch regressions.
+	// Start the loop, then stop it while it may be mid-measurement. Stop must
+	// cancel and wait for the loop to exit without deadlocking or racing. Run
+	// under -race to catch regressions.
 	m := NewMetrics(nil).ForBackend(slog.Make(), BackendNATS)
 	mem := NewInMemory()
 	defer mem.Close()
 
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		m.StartLatencyLoop(mem)
-	}()
-	go func() {
-		defer wg.Done()
-		m.StopLatencyLoop()
-	}()
-	wg.Wait()
-
-	// Whichever order won, the loop must be stopped afterward.
+	m.StartLatencyLoop(mem)
+	m.StopLatencyLoop()
+	// Stop is idempotent.
 	m.StopLatencyLoop()
 }

@@ -2,7 +2,6 @@ package pubsub
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -18,36 +17,30 @@ const (
 	BackendNATS = "nats"
 )
 
-// latencyBuckets covers sub-millisecond round-trips up to ~16s, which
-// comfortably brackets a healthy pubsub as well as an overloaded one.
+// latencyBuckets covers sub-millisecond round-trips up to ~16s.
 var latencyBuckets = prometheus.ExponentialBuckets(0.0005, 2, 16)
 
-// Metrics owns the Prometheus instruments shared by all pubsub backends. A
-// single instance is registered once; each backend obtains a BackendMetrics
-// handle via ForBackend that records into these instruments with its own
-// `backend` label value. The send/receive latency histograms are populated
-// out-of-band by a background loop (see BackendMetrics.StartLatencyLoop)
-// rather than during a scrape, so no backend implements prometheus.Collector.
+// Metrics owns the Prometheus instruments shared by all pubsub backends. Each
+// backend obtains a BackendMetrics handle via ForBackend that records into
+// these instruments with its own `backend` label value.
 type Metrics struct {
-	publishesTotal      *prometheus.CounterVec // labels: backend, success
-	subscribesTotal     *prometheus.CounterVec // labels: backend, success
-	messagesTotal       *prometheus.CounterVec // labels: backend, size
-	publishedBytesTotal *prometheus.CounterVec // labels: backend
-	receivedBytesTotal  *prometheus.CounterVec // labels: backend
-	disconnectionsTotal *prometheus.CounterVec // labels: backend
-	connected           *prometheus.GaugeVec   // labels: backend
-	currentSubscribers  *prometheus.GaugeVec   // labels: backend
-	currentEvents       *prometheus.GaugeVec   // labels: backend
+	publishesTotal      *prometheus.CounterVec
+	subscribesTotal     *prometheus.CounterVec
+	messagesTotal       *prometheus.CounterVec
+	publishedBytesTotal *prometheus.CounterVec
+	receivedBytesTotal  *prometheus.CounterVec
+	disconnectionsTotal *prometheus.CounterVec
+	connected           *prometheus.GaugeVec
+	currentSubscribers  *prometheus.GaugeVec
+	currentEvents       *prometheus.GaugeVec
 	sendLatency         *prometheus.HistogramVec
 	recvLatency         *prometheus.HistogramVec
-	latencyMeasures     *prometheus.CounterVec // labels: backend
-	latencyErrs         *prometheus.CounterVec // labels: backend
+	latencyMeasures     *prometheus.CounterVec
+	latencyErrs         *prometheus.CounterVec
 }
 
-// NewMetrics builds the shared pubsub instruments. If reg is non-nil every
-// instrument is registered with it; otherwise they are created unregistered
-// so callers and tests that do not scrape still get working (no-op)
-// instruments. Call ForBackend to obtain a per-backend recording handle.
+// NewMetrics builds the shared pubsub instruments, registering them with reg
+// when it is non-nil and otherwise creating them unregistered (no-op).
 func NewMetrics(reg prometheus.Registerer) *Metrics {
 	factory := promauto.With(reg)
 	return &Metrics{
@@ -143,24 +136,20 @@ type BackendMetrics struct {
 	m               *Metrics
 	latencyMeasurer *LatencyMeasurer
 
-	// latencyCtx/latencyCancel drive the background latency loop and are
-	// created up front so StopLatencyLoop can cancel even when it races ahead
-	// of StartLatencyLoop. latencyMu guards latencyDone, which the loop closes
-	// on exit (nil until the loop starts).
-	latencyCtx    context.Context
-	latencyCancel context.CancelFunc
-	latencyMu     sync.Mutex
-	latencyDone   chan struct{}
+	// latencyCtx/latencyCancel drive the background latency loop; latencyDone
+	// closes when it exits. StartLatencyLoop closes latencyStarted so
+	// StopLatencyLoop knows whether a loop exists to wait for.
+	latencyCtx     context.Context
+	latencyCancel  context.CancelFunc
+	latencyStarted chan struct{}
+	latencyDone    chan struct{}
 }
 
-// ForBackend returns a recording handle bound to the given backend
-// ("postgres" or "nats"). Each handle has its own LatencyMeasurer so probe
-// channels never clash across backends.
+// ForBackend returns a recording handle bound to the given backend. Each handle
+// has its own LatencyMeasurer so probe channels never clash across backends.
 func (m *Metrics) ForBackend(logger slog.Logger, backend string) *BackendMetrics {
-	// Instantiate the per-backend series that have no secondary label so they
-	// export a 0 value from the start, before any event increments them.
-	// Series with a secondary label (success/size) are created on first use,
-	// since their label values are not known up front.
+	// Pre-create the single-label series so they export 0 from the start.
+	// Series with a second label (success/size) are created on first use.
 	m.publishedBytesTotal.WithLabelValues(backend)
 	m.receivedBytesTotal.WithLabelValues(backend)
 	m.disconnectionsTotal.WithLabelValues(backend)
@@ -178,6 +167,8 @@ func (m *Metrics) ForBackend(logger slog.Logger, backend string) *BackendMetrics
 		latencyMeasurer: NewLatencyMeasurer(logger.Named("latency-measurer")),
 		latencyCtx:      latencyCtx,
 		latencyCancel:   latencyCancel,
+		latencyStarted:  make(chan struct{}),
+		latencyDone:     make(chan struct{}),
 	}
 }
 
@@ -270,25 +261,18 @@ func (b *BackendMetrics) RemoveSubscriber(event string) {
 	}
 }
 
-// StartLatencyLoop spawns the background latency measurement goroutine against
-// p. The first measurement runs immediately so a fresh observation exists
-// before the first interval elapses. Call StopLatencyLoop to cancel it and
-// wait for exit. If StopLatencyLoop already ran, the loop is not started.
+// StartLatencyLoop spawns the background latency loop against p. The first
+// measurement runs immediately so a fresh observation exists before the first
+// interval elapses. It must be called at most once. Call StopLatencyLoop to
+// cancel the loop and wait for it to exit.
 func (b *BackendMetrics) StartLatencyLoop(p Pubsub) {
-	b.latencyMu.Lock()
-	defer b.latencyMu.Unlock()
-	if b.latencyCtx.Err() != nil {
-		// Already stopped; don't start a loop that nothing would cancel.
-		return
-	}
-	done := make(chan struct{})
-	b.latencyDone = done
+	close(b.latencyStarted)
 	go func() {
-		defer close(done)
-		ticker := time.NewTicker(LatencyMeasureInterval)
+		defer close(b.latencyDone)
+		ticker := time.NewTicker(latencyMeasureInterval)
 		defer ticker.Stop()
-		for b.latencyCtx.Err() == nil {
-			b.measureOnce(b.latencyCtx, p)
+		for {
+			b.recordLatency(b.latencyCtx, p)
 			select {
 			case <-b.latencyCtx.Done():
 				return
@@ -298,22 +282,22 @@ func (b *BackendMetrics) StartLatencyLoop(p Pubsub) {
 	}()
 }
 
-// StopLatencyLoop cancels the background latency loop and waits for it to
-// exit. It is safe to call before StartLatencyLoop (which then does not start
-// the loop) and safe to call more than once.
+// StopLatencyLoop cancels the background latency loop and waits for it to exit.
+// When StartLatencyLoop was never called (e.g. a pubsub built via
+// newWithoutListener) there is no loop to wait for, so it returns immediately.
 func (b *BackendMetrics) StopLatencyLoop() {
 	b.latencyCancel()
-	b.latencyMu.Lock()
-	done := b.latencyDone
-	b.latencyMu.Unlock()
-	if done != nil {
-		<-done
+	select {
+	case <-b.latencyStarted:
+		<-b.latencyDone
+	default:
 	}
 }
 
-// measureOnce performs a single latency measurement and records it.
-func (b *BackendMetrics) measureOnce(ctx context.Context, p Pubsub) {
-	measureCtx, cancel := context.WithTimeout(ctx, LatencyMeasureTimeout)
+// recordLatency runs one send/receive latency measurement and records it into
+// the latency histograms and measure/error counters.
+func (b *BackendMetrics) recordLatency(ctx context.Context, p Pubsub) {
+	measureCtx, cancel := context.WithTimeout(ctx, latencyMeasureTimeout)
 	defer cancel()
 	send, recv, err := b.latencyMeasurer.Measure(measureCtx, p)
 

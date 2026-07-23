@@ -28,16 +28,16 @@ type ListenerWithErr func(ctx context.Context, message []byte, err error)
 // might have been dropped.
 var ErrDroppedMessages = xerrors.New("dropped messages")
 
-// LatencyMeasureInterval is how often the background loop runs a latency
+// latencyMeasureInterval is how often the background loop runs a latency
 // measurement. It is intentionally shorter than a typical metrics scrape
 // interval (the coder/observability stack scrapes every 15s) so every scrape
 // observes a fresh measurement.
-const LatencyMeasureInterval = time.Second * 10
+const latencyMeasureInterval = time.Second * 10
 
-// LatencyMeasureTimeout bounds a single latency measurement. It is shorter
-// than LatencyMeasureInterval so a hung probe cannot bleed into the next
+// latencyMeasureTimeout bounds a single latency measurement. It is shorter
+// than latencyMeasureInterval so a hung probe cannot bleed into the next
 // interval; a timed-out probe is recorded as a measurement error.
-const LatencyMeasureTimeout = time.Second * 5
+const latencyMeasureTimeout = time.Second * 5
 
 type Subscriber interface {
 	Subscribe(event string, listener Listener) (cancel func(), err error)
@@ -595,11 +595,10 @@ func New(startCtx context.Context, logger slog.Logger, db *sql.DB, connectURL st
 		return nil, err
 	}
 	go p.listen()
-	// Only probe latency when metrics are collected; a nil metrics means
-	// Prometheus is disabled, so the probe traffic would have nowhere to go.
-	if metrics != nil {
-		p.metrics.StartLatencyLoop(p)
-	}
+	// Probe latency out-of-band. It records into no-op instruments when
+	// Prometheus is disabled, but always runs so the loop lifecycle does not
+	// depend on whether metrics are collected.
+	p.metrics.StartLatencyLoop(p)
 	logger.Debug(startCtx, "pubsub has started")
 	return p, nil
 }

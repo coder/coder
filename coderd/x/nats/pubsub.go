@@ -417,15 +417,15 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (pubSub *Pubsub,
 		opts.PeerFetcher.SetSelfNATSPort(int32(ca.Port))
 		go p.runPeerRefresh()
 	}
+	// Probe latency out-of-band. It records into no-op instruments when
+	// Prometheus is disabled, but always runs so the loop lifecycle does not
+	// depend on whether metrics are collected. Start it before the context
+	// watcher below so it is running before that watcher can trigger Close.
+	p.metrics.StartLatencyLoop(p)
 	go func() {
 		<-p.ctx.Done()
 		_ = p.Close()
 	}()
-	// Only probe latency when metrics are collected; a nil Metrics means
-	// Prometheus is disabled, so the probe traffic would have nowhere to go.
-	if opts.Metrics != nil {
-		p.metrics.StartLatencyLoop(p)
-	}
 
 	return p, nil
 }
