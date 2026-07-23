@@ -278,7 +278,7 @@ func TestInterception_KeyFailover(t *testing.T) {
 			},
 			expectedStatus:       http.StatusBadGateway,
 			expectedRetryAfter:   "",
-			expectedBodyContains: "all configured keys failed authentication",
+			expectedBodyContains: "all configured keys failed authentication. Contact your Administrator",
 			expectedKeyStates:    []keypool.KeyState{keypool.KeyStateTemporary, keypool.KeyStateTemporary},
 			expectedSeenKeys:     []string{k0, k1},
 			expectedTransitions:  map[string]int{"unauthorized": 2},

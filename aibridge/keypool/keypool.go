@@ -50,7 +50,7 @@ func (e *Error) Error() string {
 	case ErrorKindPermanent:
 		return "all configured keys are permanently unavailable"
 	case ErrorKindUnauthorized:
-		return "all configured keys failed authentication"
+		return "all configured keys failed authentication. Contact your Administrator"
 	case ErrorKindRateLimited:
 		return fmt.Sprintf("all configured keys are rate-limited (retry after %s)", e.RetryAfter)
 	default:
