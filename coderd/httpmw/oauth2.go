@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"reflect"
 	"slices"
 
@@ -100,7 +99,7 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 				// the host of the AccessURL but ultimately as long as our redirect
 				// url omits a host we're ensuring that we're routing to a path
 				// local to the application.
-				redirect = uriFromURL(redirect)
+				redirect = httpapi.SafeRedirectPath(redirect)
 			}
 
 			if code == "" {
@@ -414,13 +413,4 @@ func ExtractOAuth2ProviderAppSecret(db database.Store) func(http.Handler) http.H
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
-}
-
-func uriFromURL(u string) string {
-	uri, err := url.Parse(u)
-	if err != nil {
-		return "/"
-	}
-
-	return uri.RequestURI()
 }
