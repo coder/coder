@@ -429,9 +429,9 @@ func TestHandleMentionCreatesChatForNewThread(t *testing.T) {
 	// shared-mode suffix, plus the bot's own Slack identity so the
 	// model can recognize inline @bot mentions as referring to itself.
 	assert.Contains(t, create.SystemPrompt, "You appear in Slack as @bot (user id <@UBOT>)")
-	assert.Contains(t, create.SystemPrompt, "you're running in shared mode")
+	assert.Contains(t, create.SystemPrompt, "you are in shared mode")
 	assert.Contains(t, create.SystemPrompt, "https://coder.example.com/settings/external-auth")
-	assert.NotContains(t, create.SystemPrompt, "propose_mcp_server")
+	assert.Contains(t, create.SystemPrompt, "propose_mcp_server")
 	assert.Equal(t, map[string]string{
 		LabelSlackd:      "true",
 		LabelSlackThread: "C1:100.1",

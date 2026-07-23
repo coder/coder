@@ -131,9 +131,9 @@ func TestHandleMentionUnlinkedSenderUsesFallback(t *testing.T) {
 	assert.Equal(t, org.ID, creates[0].OrganizationID)
 	requireAPIKeyOwnedBy(t, db, creates[0].APIKeyID, fallback.ID)
 	assert.Equal(t, "true", creates[0].Labels[LabelSlackShared])
-	assert.Contains(t, creates[0].SystemPrompt, "you're running in shared mode")
+	assert.Contains(t, creates[0].SystemPrompt, "you are in shared mode")
 	assert.Contains(t, creates[0].SystemPrompt, "https://coder.example.com/settings/external-auth")
-	assert.NotContains(t, creates[0].SystemPrompt, "propose_mcp_server")
+	assert.Contains(t, creates[0].SystemPrompt, "propose_mcp_server")
 	assert.NotContains(t, creates[0].SystemPrompt, "# Memory")
 }
 

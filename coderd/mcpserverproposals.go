@@ -12,11 +12,20 @@ import (
 // documentation annotations and degrade gracefully when the proposals
 // API failed to construct.
 
-// @Summary Get MCP server proposal
-// @x-apidocgen {"skip": true}
+// getMCPServerProposal returns an MCP server proposal for review.
+//
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
-//nolint:revive // HTTP handler writes to ResponseWriter.
+// @Summary Get MCP server proposal
+// @ID get-mcp-server-proposal
+// @Security CoderSessionToken
+// @Produce json
+// @Tags MCP
+// @Param mcpProposal path string true "MCP server proposal ID" format(uuid)
+// @Success 200 {object} codersdk.MCPServerProposal
+// @Router /api/v2/mcp-server-proposals/{mcpProposal} [get]
+// @x-apidocgen {"skip": true}
+// nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getMCPServerProposal(rw http.ResponseWriter, r *http.Request) {
 	if !api.mcpProposalsAvailable(rw, r) {
 		return
@@ -24,9 +33,21 @@ func (api *API) getMCPServerProposal(rw http.ResponseWriter, r *http.Request) {
 	api.mcpProposals.GetProposal(rw, r)
 }
 
-// @Summary Accept MCP server proposal
-// @x-apidocgen {"skip": true}
+// acceptMCPServerProposal accepts an MCP server proposal.
+//
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Accept MCP server proposal
+// @ID accept-mcp-server-proposal
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags MCP
+// @Param mcpProposal path string true "MCP server proposal ID" format(uuid)
+// @Param request body codersdk.AcceptMCPServerProposalRequest false "MCP server proposal input values"
+// @Success 200 {object} codersdk.AcceptMCPServerProposalResponse
+// @Router /api/v2/mcp-server-proposals/{mcpProposal}/accept [post]
+// @x-apidocgen {"skip": true}
 func (api *API) acceptMCPServerProposal(rw http.ResponseWriter, r *http.Request) {
 	if !api.mcpProposalsAvailable(rw, r) {
 		return
@@ -34,9 +55,18 @@ func (api *API) acceptMCPServerProposal(rw http.ResponseWriter, r *http.Request)
 	api.mcpProposals.AcceptProposal(rw, r)
 }
 
-// @Summary Reject MCP server proposal
-// @x-apidocgen {"skip": true}
+// rejectMCPServerProposal rejects an MCP server proposal.
+//
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Reject MCP server proposal
+// @ID reject-mcp-server-proposal
+// @Security CoderSessionToken
+// @Tags MCP
+// @Param mcpProposal path string true "MCP server proposal ID" format(uuid)
+// @Success 204
+// @Router /api/v2/mcp-server-proposals/{mcpProposal}/reject [post]
+// @x-apidocgen {"skip": true}
 func (api *API) rejectMCPServerProposal(rw http.ResponseWriter, r *http.Request) {
 	if !api.mcpProposalsAvailable(rw, r) {
 		return
