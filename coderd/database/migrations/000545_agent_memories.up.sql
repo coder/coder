@@ -103,3 +103,6 @@ ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'agent_memory:read';
 ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'agent_memory:update';
 ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'agent_memory:delete';
 ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'agent_memory:*';
+
+-- Agent memory mutations initiated by users are recorded in the audit log.
+ALTER TYPE resource_type ADD VALUE IF NOT EXISTS 'agent_memory';

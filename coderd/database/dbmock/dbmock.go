@@ -765,6 +765,21 @@ func (mr *MockStoreMockRecorder) DeleteAPIKeysByUserID(ctx, userID any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteAPIKeysByUserID), ctx, userID)
 }
 
+// DeleteAgentMemoryByUserIDAndID mocks base method.
+func (m *MockStore) DeleteAgentMemoryByUserIDAndID(ctx context.Context, arg database.DeleteAgentMemoryByUserIDAndIDParams) (database.AgentMemory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAgentMemoryByUserIDAndID", ctx, arg)
+	ret0, _ := ret[0].(database.AgentMemory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteAgentMemoryByUserIDAndID indicates an expected call of DeleteAgentMemoryByUserIDAndID.
+func (mr *MockStoreMockRecorder) DeleteAgentMemoryByUserIDAndID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAgentMemoryByUserIDAndID", reflect.TypeOf((*MockStore)(nil).DeleteAgentMemoryByUserIDAndID), ctx, arg)
+}
+
 // DeleteAgentMemoryByUserIDAndPath mocks base method.
 func (m *MockStore) DeleteAgentMemoryByUserIDAndPath(ctx context.Context, arg database.DeleteAgentMemoryByUserIDAndPathParams) (database.AgentMemory, error) {
 	m.ctrl.T.Helper()
@@ -2338,6 +2353,36 @@ func (mr *MockStoreMockRecorder) GetActiveWorkspaceBuildsByTemplateID(ctx, templ
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveWorkspaceBuildsByTemplateID", reflect.TypeOf((*MockStore)(nil).GetActiveWorkspaceBuildsByTemplateID), ctx, templateID)
 }
 
+// GetAgentMemoryByUserIDAndID mocks base method.
+func (m *MockStore) GetAgentMemoryByUserIDAndID(ctx context.Context, arg database.GetAgentMemoryByUserIDAndIDParams) (database.AgentMemory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAgentMemoryByUserIDAndID", ctx, arg)
+	ret0, _ := ret[0].(database.AgentMemory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAgentMemoryByUserIDAndID indicates an expected call of GetAgentMemoryByUserIDAndID.
+func (mr *MockStoreMockRecorder) GetAgentMemoryByUserIDAndID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAgentMemoryByUserIDAndID", reflect.TypeOf((*MockStore)(nil).GetAgentMemoryByUserIDAndID), ctx, arg)
+}
+
+// GetAgentMemoryByUserIDAndIDForUpdate mocks base method.
+func (m *MockStore) GetAgentMemoryByUserIDAndIDForUpdate(ctx context.Context, arg database.GetAgentMemoryByUserIDAndIDForUpdateParams) (database.AgentMemory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAgentMemoryByUserIDAndIDForUpdate", ctx, arg)
+	ret0, _ := ret[0].(database.AgentMemory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAgentMemoryByUserIDAndIDForUpdate indicates an expected call of GetAgentMemoryByUserIDAndIDForUpdate.
+func (mr *MockStoreMockRecorder) GetAgentMemoryByUserIDAndIDForUpdate(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAgentMemoryByUserIDAndIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetAgentMemoryByUserIDAndIDForUpdate), ctx, arg)
+}
+
 // GetAgentMemoryByUserIDAndPath mocks base method.
 func (m *MockStore) GetAgentMemoryByUserIDAndPath(ctx context.Context, arg database.GetAgentMemoryByUserIDAndPathParams) (database.AgentMemory, error) {
 	m.ctrl.T.Helper()
@@ -3821,6 +3866,21 @@ func (m *MockStore) GetDatabaseNow(ctx context.Context) (time.Time, error) {
 func (mr *MockStoreMockRecorder) GetDatabaseNow(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDatabaseNow", reflect.TypeOf((*MockStore)(nil).GetDatabaseNow), ctx)
+}
+
+// GetDefaultAgentMemoryByUserID mocks base method.
+func (m *MockStore) GetDefaultAgentMemoryByUserID(ctx context.Context, userID uuid.UUID) (database.AgentMemory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDefaultAgentMemoryByUserID", ctx, userID)
+	ret0, _ := ret[0].(database.AgentMemory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDefaultAgentMemoryByUserID indicates an expected call of GetDefaultAgentMemoryByUserID.
+func (mr *MockStoreMockRecorder) GetDefaultAgentMemoryByUserID(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDefaultAgentMemoryByUserID", reflect.TypeOf((*MockStore)(nil).GetDefaultAgentMemoryByUserID), ctx, userID)
 }
 
 // GetDefaultChatModelConfig mocks base method.
@@ -9128,6 +9188,21 @@ func (m *MockStore) ListAgentMemories(ctx context.Context, arg database.ListAgen
 func (mr *MockStoreMockRecorder) ListAgentMemories(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAgentMemories", reflect.TypeOf((*MockStore)(nil).ListAgentMemories), ctx, arg)
+}
+
+// ListAgentMemoryChildren mocks base method.
+func (m *MockStore) ListAgentMemoryChildren(ctx context.Context, arg database.ListAgentMemoryChildrenParams) ([]database.ListAgentMemoryChildrenRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAgentMemoryChildren", ctx, arg)
+	ret0, _ := ret[0].([]database.ListAgentMemoryChildrenRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAgentMemoryChildren indicates an expected call of ListAgentMemoryChildren.
+func (mr *MockStoreMockRecorder) ListAgentMemoryChildren(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAgentMemoryChildren", reflect.TypeOf((*MockStore)(nil).ListAgentMemoryChildren), ctx, arg)
 }
 
 // ListAuthorizedAIBridgeClients mocks base method.

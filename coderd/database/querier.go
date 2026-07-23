@@ -127,6 +127,7 @@ type sqlcQuerier interface {
 	DeleteAIProviderKey(ctx context.Context, id uuid.UUID) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
+	DeleteAgentMemoryByUserIDAndID(ctx context.Context, arg DeleteAgentMemoryByUserIDAndIDParams) (AgentMemory, error)
 	DeleteAgentMemoryByUserIDAndPath(ctx context.Context, arg DeleteAgentMemoryByUserIDAndPathParams) (AgentMemory, error)
 	// Deletes all heartbeat rows for the chat. Used during ownership
 	// transitions that abandon a lease.
@@ -350,6 +351,8 @@ type sqlcQuerier interface {
 	GetActivePresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error)
 	GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
+	GetAgentMemoryByUserIDAndID(ctx context.Context, arg GetAgentMemoryByUserIDAndIDParams) (AgentMemory, error)
+	GetAgentMemoryByUserIDAndIDForUpdate(ctx context.Context, arg GetAgentMemoryByUserIDAndIDForUpdateParams) (AgentMemory, error)
 	GetAgentMemoryByUserIDAndPath(ctx context.Context, arg GetAgentMemoryByUserIDAndPathParams) (AgentMemory, error)
 	GetAgentMemoryByUserIDAndPathForUpdate(ctx context.Context, arg GetAgentMemoryByUserIDAndPathForUpdateParams) (AgentMemory, error)
 	// For PG Coordinator HTMLDebug
@@ -564,6 +567,7 @@ type sqlcQuerier interface {
 	// record deadlines or heartbeats rely on a clock that is consistent
 	// with the database rather than the caller's local clock.
 	GetDatabaseNow(ctx context.Context) (time.Time, error)
+	GetDefaultAgentMemoryByUserID(ctx context.Context, userID uuid.UUID) (AgentMemory, error)
 	GetDefaultChatModelConfig(ctx context.Context) (ChatModelConfig, error)
 	GetDefaultOrganization(ctx context.Context) (Organization, error)
 	GetDefaultProxyConfig(ctx context.Context) (GetDefaultProxyConfigRow, error)
@@ -1218,6 +1222,7 @@ type sqlcQuerier interface {
 	ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeUserPrompt, error)
 	ListAIGatewayKeys(ctx context.Context) ([]ListAIGatewayKeysRow, error)
 	ListAgentMemories(ctx context.Context, arg ListAgentMemoriesParams) ([]ListAgentMemoriesRow, error)
+	ListAgentMemoryChildren(ctx context.Context, arg ListAgentMemoryChildrenParams) ([]ListAgentMemoryChildrenRow, error)
 	// Lists boundary logs for a session, sorted by sequence number ascending.
 	// Supports an inclusive lower bound (seq_after) and an exclusive upper bound
 	// (seq_before) for fetching events between two known interceptions.

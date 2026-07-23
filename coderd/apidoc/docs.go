@@ -1026,6 +1026,228 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/experimental/users/{user}/agent-memories": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "List agent memory children",
+                "operationId": "list-agent-memory-children",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "/",
+                        "description": "Canonical virtual directory",
+                        "name": "directory",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Zero-based offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AgentMemoryChildrenResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/users/{user}/agent-memories/default": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get default agent memory",
+                "operationId": "get-default-agent-memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AgentMemory"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/users/{user}/agent-memories/{memoryID}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get agent memory",
+                "operationId": "get-agent-memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Memory UUID",
+                        "name": "memoryID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AgentMemory"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Delete agent memory",
+                "operationId": "delete-agent-memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Memory UUID",
+                        "name": "memoryID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Update agent memory",
+                "operationId": "update-agent-memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Memory UUID",
+                        "name": "memoryID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated memory content",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateAgentMemoryRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AgentMemory"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/users/{user}/skills": {
             "get": {
                 "produces": [
@@ -3774,6 +3996,125 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ]
+            }
+        },
+        "/api/v2/mcp-server-proposals/{mcpProposal}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Get MCP server proposal",
+                "operationId": "get-mcp-server-proposal",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server proposal ID",
+                        "name": "mcpProposal",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.MCPServerProposal"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/mcp-server-proposals/{mcpProposal}/accept": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Accept MCP server proposal",
+                "operationId": "accept-mcp-server-proposal",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server proposal ID",
+                        "name": "mcpProposal",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "MCP server proposal input values",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AcceptMCPServerProposalRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AcceptMCPServerProposalResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/mcp-server-proposals/{mcpProposal}/reject": {
+            "post": {
+                "tags": [
+                    "MCP"
+                ],
+                "summary": "Reject MCP server proposal",
+                "operationId": "reject-mcp-server-proposal",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP server proposal ID",
+                        "name": "mcpProposal",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
             }
         },
         "/api/v2/notifications/custom": {
@@ -16056,6 +16397,32 @@ const docTemplate = `{
                 "APIKeyScopeWorkspaceProxyUpdate"
             ]
         },
+        "codersdk.AcceptMCPServerProposalRequest": {
+            "type": "object",
+            "properties": {
+                "values": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.AcceptMCPServerProposalResponse": {
+            "type": "object",
+            "properties": {
+                "authenticated": {
+                    "type": "boolean"
+                },
+                "connect_url": {
+                    "type": "string"
+                },
+                "mcp_server_config_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.AddLicenseRequest": {
             "type": "object",
             "required": [
@@ -16186,6 +16553,80 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "codersdk.AgentMemory": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.AgentMemoryChildrenResponse": {
+            "type": "object",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentMemoryEntry"
+                    }
+                },
+                "next_offset": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.AgentMemoryEntry": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "kind": {
+                    "$ref": "#/definitions/codersdk.AgentMemoryEntryKind"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "size_bytes": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.AgentMemoryEntryKind": {
+            "type": "string",
+            "enum": [
+                "directory",
+                "memory"
+            ],
+            "x-enum-varnames": [
+                "AgentMemoryEntryKindDirectory",
+                "AgentMemoryEntryKindMemory"
+            ]
         },
         "codersdk.AgentScriptTiming": {
             "type": "object",
@@ -20618,6 +21059,128 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.MCPServerProposal": {
+            "type": "object",
+            "properties": {
+                "auth_type": {
+                    "type": "string"
+                },
+                "authenticated": {
+                    "type": "boolean"
+                },
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "connect_url": {
+                    "type": "string"
+                },
+                "create_disabled": {
+                    "description": "CreateDisabled reports that the server would be created in a\ndisabled state.",
+                    "type": "boolean"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "has_api_key": {
+                    "type": "boolean"
+                },
+                "has_custom_headers": {
+                    "type": "boolean"
+                },
+                "has_oauth2_client_credentials": {
+                    "description": "Which auth material the proposal carries. The values themselves\nare never returned.",
+                    "type": "boolean"
+                },
+                "icon_url": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "instructions": {
+                    "type": "string"
+                },
+                "mcp_server_config_id": {
+                    "description": "Populated once the proposal is accepted.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "oauth2_redirect_uri": {
+                    "description": "OAuth2RedirectURI is the redirect URI to register with the OAuth2\nprovider when the proposal uses manual OAuth2 (not dynamic client\nregistration). Empty for discovery-based OAuth2 and non-OAuth2 auth.",
+                    "type": "string"
+                },
+                "required_inputs": {
+                    "description": "RequiredInputs describes values the requester must provide before\naccepting the proposal. Concrete auth values are never returned.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.MCPServerProposalInput"
+                    }
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.MCPServerProposalStatus"
+                },
+                "tool_allow_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "tool_deny_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "transport": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.MCPServerProposalInput": {
+            "type": "object",
+            "properties": {
+                "field": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "placeholder": {
+                    "type": "string"
+                },
+                "sensitive": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.MCPServerProposalStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "accepted",
+                "rejected"
+            ],
+            "x-enum-varnames": [
+                "MCPServerProposalStatusPending",
+                "MCPServerProposalStatusAccepted",
+                "MCPServerProposalStatusRejected"
+            ]
+        },
         "codersdk.MatchedProvisioners": {
             "type": "object",
             "properties": {
@@ -23178,7 +23741,8 @@ const docTemplate = `{
                 "user_ai_budget_override",
                 "chat",
                 "user_secret",
-                "user_skill"
+                "user_skill",
+                "agent_memory"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -23215,7 +23779,8 @@ const docTemplate = `{
                 "ResourceTypeUserAIBudgetOverride",
                 "ResourceTypeChat",
                 "ResourceTypeUserSecret",
-                "ResourceTypeUserSkill"
+                "ResourceTypeUserSkill",
+                "ResourceTypeAgentMemory"
             ]
         },
         "codersdk.Response": {
@@ -25030,6 +25595,18 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.UpdateAgentMemoryRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "expected_updated_at": {
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },

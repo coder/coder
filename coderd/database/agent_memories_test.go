@@ -208,3 +208,76 @@ func TestListAgentMemoriesPagination(t *testing.T) {
 	require.Equal(t, "/projects/a/25.md", rows[0].Path)
 	require.Equal(t, "/projects/a/29.md", rows[4].Path)
 }
+
+func TestListAgentMemoryChildren(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	other := dbgen.User(t, db, database.User{})
+
+	insertAgentMemory(t, db, user.ID, "/zeta.md", "zeta")
+	insertAgentMemory(t, db, user.ID, "/projects/beta.md", "beta")
+	insertAgentMemory(t, db, user.ID, "/projects/nested/alpha.md", "alpha")
+	insertAgentMemory(t, db, user.ID, "/notes/today.md", "today")
+	insertAgentMemory(t, db, other.ID, "/private/other.md", "other")
+
+	rows, err := db.ListAgentMemoryChildren(ctx, database.ListAgentMemoryChildrenParams{
+		UserID: user.ID, Directory: "/", OffsetValue: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 3)
+	require.Equal(t, []string{"directory", "directory", "memory"}, []string{rows[0].Kind, rows[1].Kind, rows[2].Kind})
+	require.Equal(t, []string{"/notes", "/projects", "/zeta.md"}, []string{rows[0].Path, rows[1].Path, rows[2].Path})
+	require.False(t, rows[0].ID.Valid)
+	require.True(t, rows[2].ID.Valid)
+	require.True(t, rows[2].SizeBytes.Valid)
+	require.Equal(t, int64(4), rows[2].SizeBytes.Int64)
+
+	rows, err = db.ListAgentMemoryChildren(ctx, database.ListAgentMemoryChildrenParams{
+		UserID: user.ID, Directory: "/projects", OffsetValue: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	require.Equal(t, "/projects/nested", rows[0].Path)
+	require.Equal(t, "/projects/beta.md", rows[1].Path)
+}
+
+func TestListAgentMemoryChildrenPaginationAndDefault(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	for i := range 30 {
+		insertAgentMemory(t, db, user.ID, fmt.Sprintf("/page-%02d.md", i), "content")
+	}
+	preferred := insertAgentMemory(t, db, user.ID, "/memory.md", "preferred")
+
+	rows, err := db.ListAgentMemoryChildren(ctx, database.ListAgentMemoryChildrenParams{
+		UserID: user.ID, Directory: "/", OffsetValue: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 26)
+	require.Equal(t, "/memory.md", rows[0].Path)
+	require.Equal(t, "/page-24.md", rows[25].Path)
+
+	rows, err = db.ListAgentMemoryChildren(ctx, database.ListAgentMemoryChildrenParams{
+		UserID: user.ID, Directory: "/", OffsetValue: 25,
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 6)
+	require.Equal(t, "/page-24.md", rows[0].Path)
+	require.Equal(t, "/page-29.md", rows[5].Path)
+
+	got, err := db.GetDefaultAgentMemoryByUserID(ctx, user.ID)
+	require.NoError(t, err)
+	require.Equal(t, preferred.ID, got.ID)
+
+	_, err = db.DeleteAgentMemoryByUserIDAndID(ctx, database.DeleteAgentMemoryByUserIDAndIDParams{UserID: user.ID, ID: preferred.ID})
+	require.NoError(t, err)
+	got, err = db.GetDefaultAgentMemoryByUserID(ctx, user.ID)
+	require.NoError(t, err)
+	require.Equal(t, "/page-00.md", got.Path)
+}

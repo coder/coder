@@ -2099,6 +2099,14 @@ func (q *querier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) e
 	return q.db.DeleteAPIKeysByUserID(ctx, userID)
 }
 
+func (q *querier) DeleteAgentMemoryByUserIDAndID(ctx context.Context, arg database.DeleteAgentMemoryByUserIDAndIDParams) (database.AgentMemory, error) {
+	obj := rbac.ResourceAgentMemory.WithOwner(arg.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionDelete, obj); err != nil {
+		return database.AgentMemory{}, err
+	}
+	return q.db.DeleteAgentMemoryByUserIDAndID(ctx, arg)
+}
+
 func (q *querier) DeleteAgentMemoryByUserIDAndPath(ctx context.Context, arg database.DeleteAgentMemoryByUserIDAndPathParams) (database.AgentMemory, error) {
 	obj := rbac.ResourceAgentMemory.WithOwner(arg.UserID.String())
 	if err := q.authorizeContext(ctx, policy.ActionDelete, obj); err != nil {
@@ -3000,6 +3008,22 @@ func (q *querier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, temp
 	return q.db.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
 }
 
+func (q *querier) GetAgentMemoryByUserIDAndID(ctx context.Context, arg database.GetAgentMemoryByUserIDAndIDParams) (database.AgentMemory, error) {
+	obj := rbac.ResourceAgentMemory.WithOwner(arg.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
+		return database.AgentMemory{}, err
+	}
+	return q.db.GetAgentMemoryByUserIDAndID(ctx, arg)
+}
+
+func (q *querier) GetAgentMemoryByUserIDAndIDForUpdate(ctx context.Context, arg database.GetAgentMemoryByUserIDAndIDForUpdateParams) (database.AgentMemory, error) {
+	obj := rbac.ResourceAgentMemory.WithOwner(arg.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, obj); err != nil {
+		return database.AgentMemory{}, err
+	}
+	return q.db.GetAgentMemoryByUserIDAndIDForUpdate(ctx, arg)
+}
+
 func (q *querier) GetAgentMemoryByUserIDAndPath(ctx context.Context, arg database.GetAgentMemoryByUserIDAndPathParams) (database.AgentMemory, error) {
 	obj := rbac.ResourceAgentMemory.WithOwner(arg.UserID.String())
 	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
@@ -3820,6 +3844,14 @@ func (q *querier) GetDERPMeshKey(ctx context.Context) (string, error) {
 
 func (q *querier) GetDatabaseNow(ctx context.Context) (time.Time, error) {
 	return q.db.GetDatabaseNow(ctx)
+}
+
+func (q *querier) GetDefaultAgentMemoryByUserID(ctx context.Context, userID uuid.UUID) (database.AgentMemory, error) {
+	obj := rbac.ResourceAgentMemory.WithOwner(userID.String())
+	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
+		return database.AgentMemory{}, err
+	}
+	return q.db.GetDefaultAgentMemoryByUserID(ctx, userID)
 }
 
 func (q *querier) GetDefaultChatModelConfig(ctx context.Context) (database.ChatModelConfig, error) {
@@ -6952,6 +6984,14 @@ func (q *querier) ListAgentMemories(ctx context.Context, arg database.ListAgentM
 		return nil, err
 	}
 	return q.db.ListAgentMemories(ctx, arg)
+}
+
+func (q *querier) ListAgentMemoryChildren(ctx context.Context, arg database.ListAgentMemoryChildrenParams) ([]database.ListAgentMemoryChildrenRow, error) {
+	obj := rbac.ResourceAgentMemory.WithOwner(arg.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
+		return nil, err
+	}
+	return q.db.ListAgentMemoryChildren(ctx, arg)
 }
 
 func (q *querier) ListBoundaryLogsBySessionID(ctx context.Context, arg database.ListBoundaryLogsBySessionIDParams) ([]database.BoundaryLog, error) {

@@ -111,6 +111,33 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 	return err
 }
 
+const deleteAgentMemoryByUserIDAndID = `-- name: DeleteAgentMemoryByUserIDAndID :one
+DELETE FROM agent_memories
+WHERE user_id = $1::uuid
+  AND id = $2::uuid
+RETURNING id, user_id, path, content, created_at, updated_at, search_vector
+`
+
+type DeleteAgentMemoryByUserIDAndIDParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	ID     uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) DeleteAgentMemoryByUserIDAndID(ctx context.Context, arg DeleteAgentMemoryByUserIDAndIDParams) (AgentMemory, error) {
+	row := q.db.QueryRowContext(ctx, deleteAgentMemoryByUserIDAndID, arg.UserID, arg.ID)
+	var i AgentMemory
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SearchVector,
+	)
+	return i, err
+}
+
 const deleteAgentMemoryByUserIDAndPath = `-- name: DeleteAgentMemoryByUserIDAndPath :one
 DELETE FROM agent_memories
 WHERE user_id = $1::uuid
@@ -125,6 +152,61 @@ type DeleteAgentMemoryByUserIDAndPathParams struct {
 
 func (q *sqlQuerier) DeleteAgentMemoryByUserIDAndPath(ctx context.Context, arg DeleteAgentMemoryByUserIDAndPathParams) (AgentMemory, error) {
 	row := q.db.QueryRowContext(ctx, deleteAgentMemoryByUserIDAndPath, arg.UserID, arg.Path)
+	var i AgentMemory
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SearchVector,
+	)
+	return i, err
+}
+
+const getAgentMemoryByUserIDAndID = `-- name: GetAgentMemoryByUserIDAndID :one
+SELECT id, user_id, path, content, created_at, updated_at, search_vector
+FROM agent_memories
+WHERE user_id = $1::uuid
+  AND id = $2::uuid
+`
+
+type GetAgentMemoryByUserIDAndIDParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	ID     uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) GetAgentMemoryByUserIDAndID(ctx context.Context, arg GetAgentMemoryByUserIDAndIDParams) (AgentMemory, error) {
+	row := q.db.QueryRowContext(ctx, getAgentMemoryByUserIDAndID, arg.UserID, arg.ID)
+	var i AgentMemory
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SearchVector,
+	)
+	return i, err
+}
+
+const getAgentMemoryByUserIDAndIDForUpdate = `-- name: GetAgentMemoryByUserIDAndIDForUpdate :one
+SELECT id, user_id, path, content, created_at, updated_at, search_vector
+FROM agent_memories
+WHERE user_id = $1::uuid
+  AND id = $2::uuid
+FOR UPDATE
+`
+
+type GetAgentMemoryByUserIDAndIDForUpdateParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	ID     uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) GetAgentMemoryByUserIDAndIDForUpdate(ctx context.Context, arg GetAgentMemoryByUserIDAndIDForUpdateParams) (AgentMemory, error) {
+	row := q.db.QueryRowContext(ctx, getAgentMemoryByUserIDAndIDForUpdate, arg.UserID, arg.ID)
 	var i AgentMemory
 	err := row.Scan(
 		&i.ID,
@@ -180,6 +262,29 @@ type GetAgentMemoryByUserIDAndPathForUpdateParams struct {
 
 func (q *sqlQuerier) GetAgentMemoryByUserIDAndPathForUpdate(ctx context.Context, arg GetAgentMemoryByUserIDAndPathForUpdateParams) (AgentMemory, error) {
 	row := q.db.QueryRowContext(ctx, getAgentMemoryByUserIDAndPathForUpdate, arg.UserID, arg.Path)
+	var i AgentMemory
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Path,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SearchVector,
+	)
+	return i, err
+}
+
+const getDefaultAgentMemoryByUserID = `-- name: GetDefaultAgentMemoryByUserID :one
+SELECT id, user_id, path, content, created_at, updated_at, search_vector
+FROM agent_memories
+WHERE user_id = $1::uuid
+ORDER BY (path = '/memory.md') DESC, path ASC
+LIMIT 1
+`
+
+func (q *sqlQuerier) GetDefaultAgentMemoryByUserID(ctx context.Context, userID uuid.UUID) (AgentMemory, error) {
+	row := q.db.QueryRowContext(ctx, getDefaultAgentMemoryByUserID, userID)
 	var i AgentMemory
 	err := row.Scan(
 		&i.ID,
@@ -272,6 +377,101 @@ func (q *sqlQuerier) ListAgentMemories(ctx context.Context, arg ListAgentMemorie
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
+			&i.Path,
+			&i.SizeBytes,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAgentMemoryChildren = `-- name: ListAgentMemoryChildren :many
+WITH parameters AS (
+    SELECT
+        $2::text AS directory,
+        CASE
+            WHEN $2::text = '/' THEN '/'
+            ELSE $2::text || '/'
+        END AS prefix
+), descendants AS (
+    SELECT
+        agent_memories.id, agent_memories.user_id, agent_memories.path, agent_memories.content, agent_memories.created_at, agent_memories.updated_at, agent_memories.search_vector,
+        substring(agent_memories.path FROM char_length(parameters.prefix) + 1) AS relative_path
+    FROM agent_memories
+    CROSS JOIN parameters
+    WHERE agent_memories.user_id = $3::uuid
+      AND left(agent_memories.path, char_length(parameters.prefix)) = parameters.prefix
+), entries AS (
+    SELECT DISTINCT
+        'directory'::text AS kind,
+        NULL::uuid AS id,
+        (CASE
+            WHEN parameters.directory = '/' THEN '/' || split_part(descendants.relative_path, '/', 1)
+            ELSE parameters.directory || '/' || split_part(descendants.relative_path, '/', 1)
+        END)::text AS path,
+        NULL::bigint AS size_bytes,
+        NULL::timestamptz AS created_at,
+        NULL::timestamptz AS updated_at
+    FROM descendants
+    CROSS JOIN parameters
+    WHERE strpos(descendants.relative_path, '/') > 0
+
+    UNION ALL
+
+    SELECT
+        'memory'::text AS kind,
+        descendants.id,
+        descendants.path,
+        octet_length(descendants.content)::bigint AS size_bytes,
+        descendants.created_at,
+        descendants.updated_at
+    FROM descendants
+    WHERE strpos(descendants.relative_path, '/') = 0
+)
+SELECT kind, id, path, size_bytes, created_at, updated_at
+FROM entries
+ORDER BY (kind = 'memory') ASC, path ASC
+LIMIT 26
+OFFSET $1::int
+`
+
+type ListAgentMemoryChildrenParams struct {
+	OffsetValue int32     `db:"offset_value" json:"offset_value"`
+	Directory   string    `db:"directory" json:"directory"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+type ListAgentMemoryChildrenRow struct {
+	Kind      string        `db:"kind" json:"kind"`
+	ID        uuid.NullUUID `db:"id" json:"id"`
+	Path      string        `db:"path" json:"path"`
+	SizeBytes sql.NullInt64 `db:"size_bytes" json:"size_bytes"`
+	CreatedAt sql.NullTime  `db:"created_at" json:"created_at"`
+	UpdatedAt sql.NullTime  `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) ListAgentMemoryChildren(ctx context.Context, arg ListAgentMemoryChildrenParams) ([]ListAgentMemoryChildrenRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAgentMemoryChildren, arg.OffsetValue, arg.Directory, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAgentMemoryChildrenRow
+	for rows.Next() {
+		var i ListAgentMemoryChildrenRow
+		if err := rows.Scan(
+			&i.Kind,
+			&i.ID,
 			&i.Path,
 			&i.SizeBytes,
 			&i.CreatedAt,

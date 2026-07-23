@@ -16,13 +16,12 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/agentmemory"
 	"github.com/coder/coder/v2/coderd/database"
 )
 
 const (
-	memoryPageSize       = 25
-	maxMemoryPathBytes   = 1024
-	maxMemoryContentSize = 65536
+	memoryPageSize = 25
 	// memoryHeadlineStartMarker is injected by PostgreSQL ts_headline around
 	// matching terms. It is not part of the stored memory content.
 	memoryHeadlineStartMarker = "<memory-hit>"
@@ -155,7 +154,7 @@ func writeMemoryTool(opts MemoryToolsOptions) fantasy.AgentTool {
 			if err := validateMemoryPath(args.Path); err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			if len(args.Content) > maxMemoryContentSize {
+			if len(args.Content) > agentmemory.MaxContentBytes {
 				return fantasy.NewTextErrorResponse("memory content exceeds 65536 bytes"), nil
 			}
 			memory, err := opts.DB.InsertAgentMemory(opts.queryContext(ctx), database.InsertAgentMemoryParams{
@@ -200,7 +199,7 @@ func editMemoryTool(opts MemoryToolsOptions) fantasy.AgentTool {
 				if err != nil {
 					return err
 				}
-				if len(content) > maxMemoryContentSize {
+				if len(content) > agentmemory.MaxContentBytes {
 					return xerrors.New("memory content exceeds 65536 bytes")
 				}
 				updated, err = tx.UpdateAgentMemoryContent(opts.queryContext(ctx), database.UpdateAgentMemoryContentParams{
@@ -358,30 +357,7 @@ func memorySearchKeywordsQuery(keywords string) (string, error) {
 }
 
 func validateMemoryPath(memoryPath string) error {
-	if memoryPath == "" {
-		return xerrors.New("path is required")
-	}
-	if !utf8.ValidString(memoryPath) {
-		return xerrors.New("path must be valid UTF-8")
-	}
-	if len(memoryPath) > maxMemoryPathBytes {
-		return xerrors.New("path exceeds 1024 bytes")
-	}
-	if !strings.HasPrefix(memoryPath, "/") || memoryPath == "/" {
-		return xerrors.New("path must be an absolute memory path")
-	}
-	if pathpkg.Clean(memoryPath) != memoryPath {
-		return xerrors.New("path must be canonical")
-	}
-	for _, r := range memoryPath {
-		if unicode.IsControl(r) {
-			return xerrors.New("path must not contain control characters")
-		}
-	}
-	if !strings.HasSuffix(memoryPath, ".md") || pathpkg.Base(memoryPath) == ".md" {
-		return xerrors.New("path must end in a named .md file")
-	}
-	return nil
+	return agentmemory.ValidatePath(memoryPath)
 }
 
 func compileMemoryGlob(pattern string) (string, error) {
@@ -391,7 +367,7 @@ func compileMemoryGlob(pattern string) (string, error) {
 	if !utf8.ValidString(pattern) {
 		return "", xerrors.New("path glob must be valid UTF-8")
 	}
-	if len(pattern) > maxMemoryPathBytes {
+	if len(pattern) > agentmemory.MaxPathBytes {
 		return "", xerrors.New("path glob exceeds 1024 bytes")
 	}
 	if !strings.HasPrefix(pattern, "/") || (len(pattern) > 1 && strings.HasSuffix(pattern, "/")) {

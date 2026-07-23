@@ -156,6 +156,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.UserSkill:
 		return typed.Name
+	case database.AgentMemory:
+		return typed.Path
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
 	}
@@ -238,6 +240,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.UserSkill:
 		return typed.ID
+	case database.AgentMemory:
+		return typed.ID
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceID", tgt))
 	}
@@ -311,6 +315,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeUserSecret
 	case database.UserSkill:
 		return database.ResourceTypeUserSkill
+	case database.AgentMemory:
+		return database.ResourceTypeAgentMemory
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceType", typed))
 	}
@@ -397,6 +403,9 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		return false
 	case database.UserSkill:
 		// User skills are global to the user across organizations.
+		return false
+	case database.AgentMemory:
+		// Agent memories are global to the user across organizations.
 		return false
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceRequiresOrgID", tgt))

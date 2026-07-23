@@ -2120,3 +2120,39 @@ func UserSkillMetadataList(rows []database.ListUserSkillMetadataByUserIDRow) []c
 	}
 	return metadata
 }
+
+// AgentMemory converts a database memory without exposing search metadata.
+func AgentMemory(memory database.AgentMemory) codersdk.AgentMemory {
+	return codersdk.AgentMemory{
+		ID:        memory.ID,
+		Path:      memory.Path,
+		Content:   memory.Content,
+		CreatedAt: memory.CreatedAt,
+		UpdatedAt: memory.UpdatedAt,
+	}
+}
+
+// AgentMemoryEntries converts direct child rows into SDK entries.
+func AgentMemoryEntries(rows []database.ListAgentMemoryChildrenRow) []codersdk.AgentMemoryEntry {
+	entries := make([]codersdk.AgentMemoryEntry, 0, len(rows))
+	for _, row := range rows {
+		entry := codersdk.AgentMemoryEntry{
+			Kind: codersdk.AgentMemoryEntryKind(row.Kind),
+			Path: row.Path,
+		}
+		if row.ID.Valid {
+			entry.ID = &row.ID.UUID
+		}
+		if row.SizeBytes.Valid {
+			entry.SizeBytes = &row.SizeBytes.Int64
+		}
+		if row.CreatedAt.Valid {
+			entry.CreatedAt = &row.CreatedAt.Time
+		}
+		if row.UpdatedAt.Valid {
+			entry.UpdatedAt = &row.UpdatedAt.Time
+		}
+		entries = append(entries, entry)
+	}
+	return entries
+}

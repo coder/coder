@@ -37,6 +37,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"Chat":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
 	"UserSecret":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSkill":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"AgentMemory":                   {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 }
 
 type Action string
@@ -492,6 +493,15 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"content":     ActionTrack,
 		"created_at":  ActionIgnore,
 		"updated_at":  ActionIgnore,
+	},
+	&database.AgentMemory{}: {
+		"id":            ActionTrack,
+		"user_id":       ActionTrack,
+		"path":          ActionTrack,
+		"content":       ActionSecret,
+		"created_at":    ActionIgnore,
+		"updated_at":    ActionIgnore,
+		"search_vector": ActionIgnore,
 	},
 	&database.UserSecret{}: {
 		"id":          ActionTrack,

@@ -2,6 +2,7 @@ import {
 	ArrowLeftIcon,
 	ArrowUpRightIcon,
 	BotIcon,
+	BrainIcon,
 	KeyIcon,
 	PanelLeftCloseIcon,
 	ReceiptTextIcon,
@@ -96,6 +97,13 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					label="Personal skills"
 					active={settingsSection === "personal-skills"}
 					to="/agents/settings/personal-skills"
+					state={location.state}
+				/>
+				<SettingsNavItem
+					icon={BrainIcon}
+					label="Memories"
+					active={settingsSection === "memories"}
+					to="/agents/settings/memories"
 					state={location.state}
 				/>
 				<SettingsNavItem

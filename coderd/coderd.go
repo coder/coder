@@ -1331,6 +1331,19 @@ func New(options *Options) *API {
 				r.Delete("/", api.deleteUserSkill)
 			})
 		})
+		r.Route("/users/{user}/agent-memories", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractUserParam(options.Database),
+			)
+			r.Get("/", api.agentMemoryChildren)
+			r.Get("/default", api.defaultAgentMemory)
+			r.Route("/{memoryID}", func(r chi.Router) {
+				r.Get("/", api.agentMemoryByID)
+				r.Patch("/", api.patchAgentMemory)
+				r.Delete("/", api.deleteAgentMemory)
+			})
+		})
 		r.Route("/users/{user}/ai-provider-keys", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,

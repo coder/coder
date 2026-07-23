@@ -392,6 +392,25 @@ func Test_diff(t *testing.T) {
 
 	runDiffTests(t, []diffTest{
 		{
+			name: "AgentMemoryContentMasked",
+			left: audit.Empty[database.AgentMemory](),
+			right: database.AgentMemory{
+				ID:      uuid.UUID{1},
+				UserID:  uuid.UUID{2},
+				Path:    "/memory.md",
+				Content: "private memory",
+			},
+			exp: audit.Map{
+				"id":      audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"user_id": audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"path":    audit.OldNew{Old: "", New: "/memory.md"},
+				"content": audit.OldNew{Old: "", New: "", Secret: true},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
 			// User skill content is user-authored instruction text, not secret
 			// material, so audit diffs can include the content change.
 			name: "UserSkillContentTracked",

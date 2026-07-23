@@ -604,7 +604,8 @@ CREATE TYPE resource_type AS ENUM (
     'group_ai_budget',
     'user_skill',
     'ai_gateway_key',
-    'user_ai_budget_override'
+    'user_ai_budget_override',
+    'agent_memory'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (

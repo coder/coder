@@ -446,6 +446,10 @@ const userSkillsPath = (user: string) =>
 	`/api/experimental/users/${encodeURIComponent(user)}/skills`;
 const userSkillPath = (user: string, name: string) =>
 	`${userSkillsPath(user)}/${encodeURIComponent(name)}`;
+const agentMemoriesPath = (user: string) =>
+	`/api/experimental/users/${encodeURIComponent(user)}/agent-memories`;
+const agentMemoryPath = (user: string, memoryID: string) =>
+	`${agentMemoriesPath(user)}/${encodeURIComponent(memoryID)}`;
 const userAIProviderKeysPath = (user = "me") =>
 	`/api/experimental/users/${encodeURIComponent(user)}/ai-provider-keys`;
 const mcpServerConfigsPath = "/api/experimental/mcp/servers";
@@ -3919,6 +3923,53 @@ class ExperimentalApiMethods {
 
 	deleteUserSkill = async (user: string, name: string): Promise<void> => {
 		await this.axios.delete(userSkillPath(user, name));
+	};
+
+	getAgentMemoryChildren = async (
+		user: string,
+		directory: string,
+		offset: number,
+	): Promise<TypesGen.AgentMemoryChildrenResponse> => {
+		const response = await this.axios.get<TypesGen.AgentMemoryChildrenResponse>(
+			agentMemoriesPath(user),
+			{ params: { directory, offset } },
+		);
+		return response.data;
+	};
+
+	getDefaultAgentMemory = async (
+		user: string,
+	): Promise<TypesGen.AgentMemory> => {
+		const response = await this.axios.get<TypesGen.AgentMemory>(
+			`${agentMemoriesPath(user)}/default`,
+		);
+		return response.data;
+	};
+
+	getAgentMemory = async (
+		user: string,
+		memoryID: string,
+	): Promise<TypesGen.AgentMemory> => {
+		const response = await this.axios.get<TypesGen.AgentMemory>(
+			agentMemoryPath(user, memoryID),
+		);
+		return response.data;
+	};
+
+	updateAgentMemory = async (
+		user: string,
+		memoryID: string,
+		req: TypesGen.UpdateAgentMemoryRequest,
+	): Promise<TypesGen.AgentMemory> => {
+		const response = await this.axios.patch<TypesGen.AgentMemory>(
+			agentMemoryPath(user, memoryID),
+			req,
+		);
+		return response.data;
+	};
+
+	deleteAgentMemory = async (user: string, memoryID: string): Promise<void> => {
+		await this.axios.delete(agentMemoryPath(user, memoryID));
 	};
 
 	getUserChatCompactionThresholds =

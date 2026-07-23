@@ -1183,6 +1183,42 @@ export interface AgentFirewallSessionLogsResponse {
 	readonly results: readonly AgentFirewallLog[];
 }
 
+// From codersdk/agentmemories.go
+export interface AgentMemory {
+	readonly id: string;
+	readonly path: string;
+	readonly content: string;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/agentmemories.go
+export interface AgentMemoryChildrenResponse {
+	readonly entries: readonly AgentMemoryEntry[];
+	readonly next_offset?: number;
+}
+
+// From codersdk/agentmemories.go
+/**
+ * AgentMemoryEntry is a direct child in the virtual memory hierarchy.
+ */
+export interface AgentMemoryEntry {
+	readonly kind: AgentMemoryEntryKind;
+	readonly path: string;
+	readonly id?: string;
+	readonly size_bytes?: number;
+	readonly created_at?: string;
+	readonly updated_at?: string;
+}
+
+// From codersdk/agentmemories.go
+export type AgentMemoryEntryKind = "directory" | "memory";
+
+export const AgentMemoryEntryKinds: AgentMemoryEntryKind[] = [
+	"directory",
+	"memory",
+];
+
 // From codersdk/workspacebuilds.go
 export interface AgentScriptTiming {
 	readonly started_at: string;
@@ -7587,6 +7623,7 @@ export type ResourceType =
 	| "ai_provider_key"
 	| "ai_seat"
 	| "api_key"
+	| "agent_memory"
 	| "chat"
 	| "convert_login"
 	| "custom_role"
@@ -7624,6 +7661,7 @@ export const ResourceTypes: ResourceType[] = [
 	"ai_provider_key",
 	"ai_seat",
 	"api_key",
+	"agent_memory",
 	"chat",
 	"convert_login",
 	"custom_role",
@@ -9176,6 +9214,12 @@ export interface UpdateAdvisorConfigRequest {
 	 * its provider was disabled after the admin saved this config).
 	 */
 	readonly model_config_id: string;
+}
+
+// From codersdk/agentmemories.go
+export interface UpdateAgentMemoryRequest {
+	readonly content: string;
+	readonly expected_updated_at: string;
 }
 
 // From codersdk/deployment.go
