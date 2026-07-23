@@ -80,6 +80,7 @@ type store interface {
 	GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error)
 	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error)
 	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error)
+	GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
 	GetUserAISpendSince(ctx context.Context, arg database.GetUserAISpendSinceParams) (database.GetUserAISpendSinceRow, error)
 
 	// MCPConfigurator-related queries.
@@ -812,32 +813,35 @@ type userAIBudget struct {
 //     overages, not build an accounting system.
 //   - Fail-open is acceptable for this case.
 func (s *Server) checkUserAIBudget(ctx context.Context, userID uuid.UUID, periodStart time.Time) (userAIBudget, error) {
-	effectiveBudget, ok, err := budget.ResolveUserAIBudget(ctx, s.store, userID, s.budgetPolicy)
+	effectiveGroup, ok, err := budget.ResolveUserAIBudget(ctx, s.store, userID, s.budgetPolicy)
 	if err != nil {
 		return userAIBudget{}, xerrors.Errorf("resolve effective AI budget for user %q with budget policy %q: %w", userID, s.budgetPolicy, err)
 	}
-	if !ok {
-		// No budget configured for the user; return zero-valued status.
+	// ok is false when no budget is configured. The nil Limit check keeps
+	// enforcement failing open if a caller resolves via the unlimited
+	// Everyone fallback.
+	if !ok || effectiveGroup.Limit == nil {
+		// No enforceable spend limit for the user; return zero-valued status.
 		return userAIBudget{}, nil
 	}
 
 	spend, err := s.store.GetUserAISpendSince(ctx, database.GetUserAISpendSinceParams{
 		UserID:           userID,
-		EffectiveGroupID: effectiveBudget.GroupID,
+		EffectiveGroupID: effectiveGroup.GroupID,
 		PeriodStart:      periodStart,
 	})
 	if err != nil {
-		return userAIBudget{}, xerrors.Errorf("get user AI spend for user %q in group %q: %w", userID, effectiveBudget.GroupID, err)
+		return userAIBudget{}, xerrors.Errorf("get user AI spend for user %q in group %q: %w", userID, effectiveGroup.GroupID, err)
 	}
 
-	exceeded := spend.SpendMicros >= effectiveBudget.SpendLimitMicros
+	exceeded := spend.SpendMicros >= effectiveGroup.Limit.SpendLimitMicros
 
 	logger := s.logger.With(
 		slog.F("user_id", userID),
-		slog.F("effective_group_id", effectiveBudget.GroupID),
+		slog.F("effective_group_id", effectiveGroup.GroupID),
 		slog.F("period_start", periodStart),
 		slog.F("current_spend_micros", spend.SpendMicros),
-		slog.F("spend_limit_micros", effectiveBudget.SpendLimitMicros),
+		slog.F("spend_limit_micros", effectiveGroup.Limit.SpendLimitMicros),
 		slog.F("exceeded", exceeded),
 	)
 	logger.Debug(ctx, "user AI spend status")
@@ -847,7 +851,7 @@ func (s *Server) checkUserAIBudget(ctx context.Context, userID uuid.UUID, period
 
 	return userAIBudget{
 		Exceeded:         exceeded,
-		SpendLimitMicros: ptr.Ref(effectiveBudget.SpendLimitMicros),
+		SpendLimitMicros: ptr.Ref(effectiveGroup.Limit.SpendLimitMicros),
 	}, nil
 }
 

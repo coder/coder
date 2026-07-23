@@ -20,7 +20,11 @@ import {
 	hasConfiguredModelsInCatalog,
 	hasUserFixableProviders,
 } from "../utils/modelOptions";
-import { pickReasoningEffort } from "../utils/reasoningEffort";
+import {
+	getReasoningEffortForModel,
+	pickReasoningEffort,
+	saveReasoningEffortForModel,
+} from "../utils/reasoningEffort";
 import {
 	formatUsageLimitMessage,
 	isChatUsageLimitExceededResponse,
@@ -240,13 +244,29 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 		return selectedModel || undefined;
 	})();
-	const [selectedReasoningEffort, setSelectedReasoningEffort] = useState("");
+	const [selectedReasoningEfforts, setSelectedReasoningEfforts] = useState<
+		Record<string, string>
+	>({});
 	const selectedModelOption = modelOptions.find(
 		(option) => option.id === selectedModel,
 	);
+	// Persisted per-model choice wins over a root override; a stale
+	// stored value is ignored so the override still applies. The
+	// override applies to its own model even after a manual re-select.
+	const rootOverrideReasoningEffort =
+		selectedModel === rootOverrideModelID
+			? rootPersonalModelOverride?.reasoning_effort
+			: undefined;
+	const persistedReasoningEffort = (() => {
+		const stored = getReasoningEffortForModel(selectedModel);
+		const efforts = selectedModelOption?.reasoningEfforts;
+		return stored && efforts?.includes(stored) ? stored : undefined;
+	})();
 	const effectiveReasoningEffort = selectedModelOption
 		? pickReasoningEffort(
-				selectedReasoningEffort,
+				selectedReasoningEfforts[selectedModel] ??
+					persistedReasoningEffort ??
+					rootOverrideReasoningEffort,
 				selectedModelOption.reasoningEfforts ?? [],
 				selectedModelOption.reasoningEffortDefault,
 			)
@@ -349,6 +369,14 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const handleModelChange = (value: string) => {
 		setHasUserSelectedModel(true);
 		setUserSelectedModel(value);
+	};
+
+	const handleReasoningEffortChange = (value: string) => {
+		setSelectedReasoningEfforts((current) => ({
+			...current,
+			[selectedModel]: value,
+		}));
+		saveReasoningEffortForModel(selectedModel, value);
 	};
 
 	const isForbidden = !canCreateChat;
@@ -544,7 +572,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						modelOptions={modelOptions}
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
 						reasoningEffort={effectiveReasoningEffort}
-						onReasoningEffortChange={setSelectedReasoningEffort}
+						onReasoningEffortChange={handleReasoningEffortChange}
 						isModelCatalogLoading={isModelCatalogLoading}
 						hasModelOptions={hasModelOptions}
 						planModeEnabled={planModeEnabled}

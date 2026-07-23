@@ -2164,6 +2164,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
+      "summary": "string",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
@@ -2257,6 +2258,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
+  "summary": "string",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
@@ -2298,6 +2300,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `root_chat_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `shared`                | boolean                                                         | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
 | `status`                | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
+| `summary`               | string                                                          | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
 | `title`                 | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `updated_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `warnings`              | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
@@ -4042,6 +4045,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
     "status": "waiting",
+    "summary": "string",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
     "warnings": [
@@ -4078,9 +4082,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                          |
-|-----------------------------------------------------------------------------------------------------------------------------------|
-| `action_required`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
+| Value(s)                                                                                                                                                 |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `chat_summary_change`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
 
 ## codersdk.ClusterConfig
 
@@ -7742,12 +7746,12 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                 | Type                                             | Required | Restrictions | Description                                                                                                                                                                                                                                         |
-|----------------------|--------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `effective_group_id` | string                                           | false    |              | Effective group ID is the user's effective budget group within the queried group's organization. Null when no effective budget group is visible in this organization, including when the user's budget resolves to a group in another organization. |
-| `group_budget`       | [codersdk.AIGroupBudget](#codersdkaigroupbudget) | false    |              | Group budget is the budget when the queried group is this user's effective budget source. Null when the user's budget resolves to another group or no budget applies to the user.                                                                   |
-| `group_spend_micros` | integer                                          | false    |              | Group spend micros is the user's spend attributed to the queried group over the current budget period.                                                                                                                                              |
-| `user_id`            | string                                           | false    |              |                                                                                                                                                                                                                                                     |
+| Name                 | Type                                             | Required | Restrictions | Description                                                                                                                                                                                                                                           |
+|----------------------|--------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `effective_group_id` | string                                           | false    |              | Effective group ID is the user's effective budget group within the queried group's organization, falling back to the Everyone group when no budget applies. Null when the effective group belongs to a different organization than the queried group. |
+| `group_budget`       | [codersdk.AIGroupBudget](#codersdkaigroupbudget) | false    |              | Group budget is the budget when the queried group is this user's effective budget source. Null when the user's budget resolves to another group or no budget applies to the user.                                                                     |
+| `group_spend_micros` | integer                                          | false    |              | Group spend micros is the user's spend attributed to the queried group over the current budget period.                                                                                                                                                |
+| `user_id`            | string                                           | false    |              |                                                                                                                                                                                                                                                       |
 
 ## codersdk.GroupMembersAISpend
 
@@ -14140,15 +14144,15 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                   | Type                                                         | Required | Restrictions | Description                                                                                                          |
-|------------------------|--------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------|
-| `current_spend_micros` | integer                                                      | false    |              | Current spend micros is the user's spend on their effective group over the current budget period.                    |
-| `effective_group_id`   | string                                                       | false    |              | Effective group ID is the group the spend is attributed to. Null when no budget applies.                             |
-| `limit_source`         | [codersdk.AIBudgetLimitSource](#codersdkaibudgetlimitsource) | false    |              | Limit source identifies which tier produced the limit. Null when no budget applies.                                  |
-| `period_end`           | string                                                       | false    |              | Period end is the exclusive upper bound of the current budget period.                                                |
-| `period_start`         | string                                                       | false    |              | Period start is the inclusive lower bound of the current budget period.                                              |
-| `spend_limit_micros`   | integer                                                      | false    |              | Spend limit micros is the effective spend limit in micro-units. Null when no budget applies to the user (unlimited). |
-| `user_id`              | string                                                       | false    |              |                                                                                                                      |
+| Name                   | Type                                                         | Required | Restrictions | Description                                                                                                                                                                    |
+|------------------------|--------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros` | integer                                                      | false    |              | Current spend micros is the user's spend on their effective group over the current budget period.                                                                              |
+| `effective_group_id`   | string                                                       | false    |              | Effective group ID is the group the spend is attributed to, falling back to the Everyone group when no budget applies. Null only when the user has no organization membership. |
+| `limit_source`         | [codersdk.AIBudgetLimitSource](#codersdkaibudgetlimitsource) | false    |              | Limit source identifies which tier produced the limit. Null when no budget applies.                                                                                            |
+| `period_end`           | string                                                       | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                          |
+| `period_start`         | string                                                       | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                        |
+| `spend_limit_micros`   | integer                                                      | false    |              | Spend limit micros is the effective spend limit in micro-units. Null when no budget applies to the user (unlimited).                                                           |
+| `user_id`              | string                                                       | false    |              |                                                                                                                                                                                |
 
 ## codersdk.UserActivity
 

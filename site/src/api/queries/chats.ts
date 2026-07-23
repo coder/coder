@@ -420,6 +420,7 @@ export const mergeWatchedChatSummary = (
 	const isTitleEvent = eventKind === "title_change";
 	const isStatusEvent = eventKind === "status_change";
 	const isSummaryEvent = eventKind === "summary_change";
+	const isChatSummaryEvent = eventKind === "chat_summary_change";
 	const isDiffStatusEvent = eventKind === "diff_status_change";
 	const isContextDirtyEvent = eventKind === "context_dirty";
 	const updatedAtComparison = compareUpdatedAtInstants(
@@ -456,10 +457,17 @@ export const mergeWatchedChatSummary = (
 	const nextLastModelConfigId = isFreshEnough
 		? watchedChat.last_model_config_id
 		: cachedChat.last_model_config_id;
-	const nextLastTurnSummary =
-		isFreshEnough || isSummaryEvent
-			? watchedChat.last_turn_summary
-			: cachedChat.last_turn_summary;
+	// The summary writes (UpdateChatLastTurnSummary, UpdateChatSummary) never
+	// bump chats.updated_at, and both events publish pre-write chat snapshots,
+	// so updated_at cannot order summary_change against chat_summary_change and
+	// isFreshEnough cannot guard these fields. Scope each field to its own
+	// event, else one event's stale snapshot clobbers the other field's value.
+	const nextLastTurnSummary = isSummaryEvent
+		? watchedChat.last_turn_summary
+		: cachedChat.last_turn_summary;
+	const nextSummary = isChatSummaryEvent
+		? watchedChat.summary
+		: cachedChat.summary;
 	const nextHasUnread =
 		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
 			? true
@@ -478,6 +486,7 @@ export const mergeWatchedChatSummary = (
 		nextBuildId === cachedChat.build_id &&
 		nextLastModelConfigId === cachedChat.last_model_config_id &&
 		nextLastTurnSummary === cachedChat.last_turn_summary &&
+		nextSummary === cachedChat.summary &&
 		nextHasUnread === cachedChat.has_unread &&
 		nextUpdatedAt === cachedChat.updated_at &&
 		nextContext === cachedChat.context
@@ -494,6 +503,7 @@ export const mergeWatchedChatSummary = (
 		build_id: nextBuildId,
 		last_model_config_id: nextLastModelConfigId,
 		last_turn_summary: nextLastTurnSummary,
+		summary: nextSummary,
 		has_unread: nextHasUnread,
 		updated_at: nextUpdatedAt,
 		context: nextContext,

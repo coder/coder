@@ -713,6 +713,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		ClientType:          database.ChatClientTypeUi,
 		LastError:           pqtype.NullRawMessage{RawMessage: lastErrorRaw, Valid: true},
 		LastTurnSummary:     sql.NullString{String: "turn completed", Valid: true},
+		Summary:             sql.NullString{String: "summarized the whole chat", Valid: true},
 		CreatedAt:           now,
 		UpdatedAt:           now,
 		Archived:            true,

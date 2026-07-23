@@ -3297,6 +3297,14 @@ func (m queryMetricsStore) GetUserCount(ctx context.Context, includeSystem bool)
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserEveryoneFallbackGroup(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserEveryoneFallbackGroup").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserEveryoneFallbackGroup").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserForChatSyntheticAPIKeyByID(ctx context.Context, id uuid.UUID) (database.User, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserForChatSyntheticAPIKeyByID(ctx, id)
@@ -5294,6 +5302,14 @@ func (m queryMetricsStore) UpdateChatStatus(ctx context.Context, arg database.Up
 	r0, r1 := m.s.UpdateChatStatus(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateChatStatus").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatStatus").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatSummary(ctx context.Context, arg database.UpdateChatSummaryParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatSummary(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatSummary").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatSummary").Inc()
 	return r0, r1
 }
 

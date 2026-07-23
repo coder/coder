@@ -1063,6 +1063,7 @@ jobs:
         name: Snapshot
         env:
           PIXEL_KEY: ${{ secrets.PIXEL_KEY }}
+          PIXEL_AUTO_REVIEW: ${{ github.repository_owner == 'coder' && github.ref_name == 'main' }}
 
   offlinedocs:
     name: offlinedocs

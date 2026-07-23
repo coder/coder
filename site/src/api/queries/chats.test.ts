@@ -125,6 +125,7 @@ const makeChat = (
 	has_unread: false,
 	client_type: "ui",
 	last_turn_summary: null,
+	summary: null,
 	children: [],
 	...overrides,
 });
@@ -2292,6 +2293,71 @@ describe("mergeWatchedChatSummary", () => {
 				eventKind: "summary_change",
 			}).last_turn_summary,
 		).toBe("Fixed the issue");
+	});
+
+	it("applies chat_summary_change even when event updated_at is older", () => {
+		const cachedChat = makeChat("chat-1", {
+			summary: null,
+			last_turn_summary: "Latest turn",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			summary: "Implemented the whole-chat summary feature.",
+			// chat_summary_change preserves updated_at, so the event carries an
+			// equal-or-older timestamp than the cached chat.
+			last_turn_summary: "Stale turn",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "chat_summary_change",
+		});
+		expect(merged.summary).toBe("Implemented the whole-chat summary feature.");
+		// A chat_summary_change event must not clobber last_turn_summary with the
+		// event's stale snapshot.
+		expect(merged.last_turn_summary).toBe("Latest turn");
+	});
+
+	it("does not clobber the whole-chat summary on a summary_change with equal updated_at", () => {
+		const cachedChat = makeChat("chat-1", {
+			summary: "Whole-chat summary.",
+			last_turn_summary: "Old turn",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		// Neither summary write bumps chats.updated_at, so both events replay
+		// the triggering turn's timestamp and arrive with equal updated_at. The
+		// summary_change snapshot still carries a stale whole-chat summary from
+		// when the turn finished.
+		const watchedChat = makeChat("chat-1", {
+			summary: null,
+			last_turn_summary: "New turn",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "summary_change",
+		});
+		expect(merged.last_turn_summary).toBe("New turn");
+		expect(merged.summary).toBe("Whole-chat summary.");
+	});
+
+	it("does not clobber last_turn_summary on a chat_summary_change with equal updated_at", () => {
+		const cachedChat = makeChat("chat-1", {
+			summary: null,
+			last_turn_summary: "Latest turn",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			summary: "Implemented the whole-chat summary feature.",
+			last_turn_summary: "Stale turn",
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "chat_summary_change",
+		});
+		expect(merged.summary).toBe("Implemented the whole-chat summary feature.");
+		expect(merged.last_turn_summary).toBe("Latest turn");
 	});
 
 	it("clears last_turn_summary on summary updates with matching updated_at", () => {
