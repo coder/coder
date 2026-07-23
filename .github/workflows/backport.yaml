@@ -1,16 +1,24 @@
-# Automatically backport merged PRs to the last N release branches when the
-# "backport" label is applied. Works whether the label is added before or
-# after the PR is merged.
+# Automatically backport merged PRs to every actively supported release branch
+# when the "backport" label is applied. Works whether the label is added before
+# or after the PR is merged.
+#
+# Target branches are the union of:
+#   - the latest 3 release/2.X branches (mainline, stable, security), and
+#   - the active ESR / ESR-1 branches listed in
+#     scripts/release_channels/esr_versions.txt.
+# The set is de-duplicated, so a branch that is both stable and ESR is
+# backported once.
 #
 # Usage:
 #   1. Add the "backport" label to a PR targeting main.
 #   2. When the PR merges (or if already merged), the workflow detects the
-#      latest release/* branches and opens one cherry-pick PR per branch.
+#      target release/* branches and opens one cherry-pick PR per branch.
 #
 # The created backport PRs follow existing repo conventions:
 #   - Branch:  backport/<pr>-to-<version>
 #   - Title:   <original PR title> (#<pr>)
 #   - Body:    links back to the original PR and merge commit
+#   - Label:   backport/v<version> to identify the target release
 
 name: Backport
 on:
@@ -46,19 +54,43 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Find latest release branches
+      - name: Find target release branches
         id: find
+        env:
+          ESR_VERSIONS_FILE: scripts/release_channels/esr_versions.txt
         run: |
-          # List remote release branches matching the exact release/2.X
-          # pattern (no suffixes like release/2.31_hotfix), sort by minor
-          # version descending, and take the top 3.
-          BRANCHES=$(
+          set -euo pipefail
+
+          # Mainline, stable, security: the latest 3 release/2.X branches
+          # (exact pattern, no suffixes like release/2.31_hotfix), sorted by
+          # minor version descending.
+          TOP3=$(
             git branch -r \
               | grep -E '^\s*origin/release/2\.[0-9]+$' \
               | sed 's|.*origin/||' \
               | sort -t. -k2 -n -r \
               | head -3
           )
+
+          # ESR and ESR-1: the active ESR minors from the shared source of
+          # truth. Each entry N maps to release/2.N. Skip entries whose branch
+          # does not exist.
+          ESR_BRANCHES=""
+          if [ -f "$ESR_VERSIONS_FILE" ]; then
+            while read -r MINOR; do
+              BRANCH="release/2.${MINOR}"
+              if git show-ref --verify --quiet "refs/remotes/origin/${BRANCH}"; then
+                ESR_BRANCHES="${ESR_BRANCHES}${BRANCH}"$'\n'
+              else
+                echo "::warning::ESR branch ${BRANCH} not found, skipping."
+              fi
+            done < <(grep -vE '^\s*(#|$)' "$ESR_VERSIONS_FILE")
+          else
+            echo "::warning::${ESR_VERSIONS_FILE} not found, backporting to latest 3 only."
+          fi
+
+          # Union the two sets and de-duplicate.
+          BRANCHES=$(printf '%s\n%s\n' "$TOP3" "$ESR_BRANCHES" | sed '/^$/d' | sort -u)
 
           if [ -z "$BRANCHES" ]; then
             echo "No release branches found."
@@ -77,6 +109,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      # Required to create the release-specific backport label if missing.
+      issues: write
     if: needs.detect.outputs.branches != '[]'
     runs-on: ubuntu-latest
     strategy:
@@ -111,6 +145,10 @@ jobs:
           # Strip the release/ prefix for naming.
           VERSION="${RELEASE_VERSION#release/}"
           BACKPORT_BRANCH="backport/${PR_NUMBER}-to-${VERSION}"
+
+          # Label applied to the backport PR so PRs for a specific release can
+          # be filtered easily (e.g. backport/v2.34).
+          BACKPORT_LABEL="backport/v${VERSION}"
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -179,10 +217,19 @@ jobs:
             exit 0
           fi
 
+          # Ensure the release-specific label exists before applying it.
+          # --force updates the label in place if it already exists, so
+          # re-runs and concurrent runs stay idempotent.
+          gh label create "$BACKPORT_LABEL" \
+            --description "Backport PR targeting ${RELEASE_VERSION}" \
+            --color "D93F0B" \
+            --force
+
           gh pr create \
             --base "$RELEASE_VERSION" \
             --head "$BACKPORT_BRANCH" \
             --title "$TITLE" \
             --body "$BODY" \
+            --label "$BACKPORT_LABEL" \
             --assignee "$SENDER" \
             --reviewer "$SENDER"

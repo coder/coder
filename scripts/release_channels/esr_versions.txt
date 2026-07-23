@@ -1,0 +1,19 @@
+# Active ESR (Extended Support Release) minor versions for the 2.x line.
+#
+# ESR versions are designated biannually and receive extended maintenance
+# (critical bugfixes and security patches) after they age out of the standard
+# mainline/stable/security window.
+#
+# This file is the single source of truth for the active ESR set. It is
+# consumed by:
+#   - scripts/update-release-calendar.sh (release calendar in
+#     docs/install/releases/index.md)
+#   - .github/workflows/backport.yaml (backport target branches)
+#
+# Format: one minor version per line. Blank lines and lines starting with '#'
+# are ignored. Each entry N maps to the release/2.N branch.
+#
+# Update this list when a new ESR version is designated or an old one reaches
+# end of life.
+29
+34
