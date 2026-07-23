@@ -15,10 +15,12 @@ import { docs } from "#/utils/docs";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
+	filterAnthropicModelOptions,
 	getModelSelectorPlaceholder,
 	getProviderForModelOption,
 	hasConfiguredModelsInCatalog,
 	hasUserFixableProviders,
+	resolveModelOptionId,
 } from "../utils/modelOptions";
 import {
 	formatUsageLimitMessage,
@@ -52,7 +54,8 @@ export type CreateChatOptions = {
 	planMode?: TypesGen.ChatPlanMode;
 	// runtime selects an external generation runtime. The server
 	// creates and binds a workspace from the admin-configured template,
-	// so workspace, model, MCP, and plan options do not apply.
+	// so workspace, MCP, and plan options do not apply; model is an
+	// optional explicit Anthropic pick (absent means runtime default).
 	runtime?: TypesGen.ChatRuntime;
 };
 
@@ -295,6 +298,15 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	);
 	const claudeCodeEnabled =
 		claudeCodeAvailable && claudeCodeSelectedOrgId === organizationId;
+	// Claude Code chats only honor Anthropic models. The pick starts on
+	// Default (no localStorage restore): absent means the runtime
+	// default chain.
+	const claudeModelOptions = filterAnthropicModelOptions(modelOptions);
+	const [claudeSelectedModel, setClaudeSelectedModel] = useState("");
+	const effectiveClaudeModel = resolveModelOptionId(
+		claudeSelectedModel,
+		claudeModelOptions,
+	);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
@@ -380,14 +392,16 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 
 	const handleSend = async (message: string, fileIDs?: string[]) => {
 		submitDraft();
-		// Runtime chats carry only the message: the server binds a
-		// workspace and the runtime manages its own model, so the
-		// picker-driven options and file attachments are not sent.
+		// Runtime chats: the server binds a workspace, so workspace,
+		// MCP, plan, and file attachments are not sent. The model is
+		// an optional explicit Anthropic pick (absent means the
+		// runtime default).
 		const options: CreateChatOptions = claudeCodeEnabled
 			? {
 					message,
 					organizationId,
 					runtime: "claude_code",
+					model: effectiveClaudeModel || undefined,
 				}
 			: {
 					message,
@@ -556,9 +570,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						initialValue={initialInputValue}
 						initialEditorState={initialEditorState}
 						onContentChange={handleContentChange}
-						selectedModel={selectedModel}
-						onModelChange={handleModelChange}
-						modelOptions={modelOptions}
+						selectedModel={
+							claudeCodeEnabled ? effectiveClaudeModel : selectedModel
+						}
+						onModelChange={
+							claudeCodeEnabled ? setClaudeSelectedModel : handleModelChange
+						}
+						modelOptions={claudeCodeEnabled ? claudeModelOptions : modelOptions}
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
 						isModelCatalogLoading={isModelCatalogLoading}
 						hasModelOptions={hasModelOptions}

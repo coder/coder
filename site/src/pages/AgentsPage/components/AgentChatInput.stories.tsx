@@ -1266,9 +1266,25 @@ export const LongWorkspaceNameMobile: Story = {
 	},
 };
 
+const claudeModelOptions = [
+	{
+		id: "model-config-claude-sonnet",
+		provider: "anthropic",
+		model: "claude-sonnet-4-5",
+		displayName: "Claude Sonnet 4.5",
+	},
+	{
+		id: "model-config-claude-haiku",
+		provider: "anthropic",
+		model: "claude-haiku-4-5",
+		displayName: "Claude Haiku 4.5",
+	},
+] as const;
+
 /**
- * Claude Code runtime pinned: the model selector is replaced by a
- * "Claude Code" badge and sending works without model options.
+ * Claude Code runtime pinned with no Anthropic model options: the
+ * composer shows only the "Claude Code" badge and sending works
+ * without model options.
  */
 export const ClaudeCodePinned: Story = {
 	args: {
@@ -1330,11 +1346,71 @@ export const ClaudeCodeMenuItem: Story = {
 	},
 };
 
+/**
+ * Claude Code chats with Anthropic model options render a picker with
+ * an explicit Default row next to the badge; picking a model reports
+ * its config id.
+ */
+export const ClaudeCodeModelPicker: Story = {
+	args: {
+		claudeCodeEnabled: true,
+		onClaudeCodeToggle: fn(),
+		hasModelOptions: false,
+		modelOptions: [...claudeModelOptions],
+		selectedModel: "",
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByTestId("claude-code-badge")).toBeVisible();
+		const trigger = canvas.getByRole("combobox", { name: "Default" });
+		await userEvent.click(trigger);
+		const body = within(document.body);
+		const defaultOption = await body.findByRole("option", {
+			name: /Default/,
+		});
+		// The popover fades in; wait out the enter animation.
+		await waitFor(() => expect(defaultOption).toBeVisible());
+		await userEvent.click(
+			await body.findByRole("option", { name: /Claude Haiku 4.5/ }),
+		);
+		await waitFor(() => {
+			expect(args.onModelChange).toHaveBeenCalledWith(
+				"model-config-claude-haiku",
+			);
+		});
+	},
+};
+
+/** Picking the Default row clears an active Claude Code model pick. */
+export const ClaudeCodeModelPickerClearsToDefault: Story = {
+	args: {
+		claudeCodeEnabled: true,
+		onClaudeCodeToggle: fn(),
+		hasModelOptions: false,
+		modelOptions: [...claudeModelOptions],
+		selectedModel: "model-config-claude-sonnet",
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByRole("combobox", {
+			name: "Claude Sonnet 4.5",
+		});
+		await userEvent.click(trigger);
+		const body = within(document.body);
+		await userEvent.click(await body.findByRole("option", { name: /Default/ }));
+		await waitFor(() => {
+			expect(args.onModelChange).toHaveBeenCalledWith("");
+		});
+	},
+};
+
 /** Dismissing the pinned badge exits Claude Code mode. */
 export const ClaudeCodeBadgeDismiss: Story = {
 	args: {
 		claudeCodeEnabled: true,
 		onClaudeCodeToggle: fn(),
+		modelOptions: [],
+		selectedModel: "",
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);

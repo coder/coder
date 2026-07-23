@@ -126,8 +126,9 @@ type ChatRuntimeConfig struct {
 	// claude-agent-acp adapter for the claude_code runtime).
 	TemplateID uuid.UUID `json:"template_id" format:"uuid"`
 	Enabled    bool      `json:"enabled"`
-	// Model optionally pins the model the runtime agent uses. Empty
-	// means the runtime default.
+	// Model optionally pins the default model the runtime agent uses.
+	// A per-message model selection on the chat overrides this pin;
+	// empty falls through to the runtime agent's own default.
 	Model string `json:"model,omitempty"`
 	// PermissionMode optionally sets the permission mode the runtime
 	// agent runs with (e.g. acceptEdits). Empty means the runtime
@@ -173,8 +174,10 @@ type Chat struct {
 	AgentID        *uuid.UUID `json:"agent_id,omitempty" format:"uuid"`
 	ParentChatID   *uuid.UUID `json:"parent_chat_id,omitempty" format:"uuid"`
 	RootChatID     *uuid.UUID `json:"root_chat_id,omitempty" format:"uuid"`
-	// LastModelConfigID is nil for chats on external runtimes, which
-	// are not backed by a chat model config.
+	// LastModelConfigID records the most recent explicit model
+	// selection. On external runtimes it is nil until a model is
+	// picked and serves only as a client restore hint: the runtime
+	// default applies whenever a message carries no selection.
 	LastModelConfigID *uuid.UUID      `json:"last_model_config_id,omitempty" format:"uuid"`
 	Runtime           ChatRuntime     `json:"runtime"`
 	Title             string          `json:"title"`

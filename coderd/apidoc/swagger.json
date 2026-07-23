@@ -15151,7 +15151,7 @@
 					"$ref": "#/definitions/codersdk.ChatError"
 				},
 				"last_model_config_id": {
-					"description": "LastModelConfigID is nil for chats on external runtimes, which\nare not backed by a chat model config.",
+					"description": "LastModelConfigID records the most recent explicit model\nselection. On external runtimes it is nil until a model is\npicked and serves only as a client restore hint: the runtime\ndefault applies whenever a message carries no selection.",
 					"type": "string",
 					"format": "uuid"
 				},
@@ -16076,7 +16076,7 @@
 					"type": "boolean"
 				},
 				"model": {
-					"description": "Model optionally pins the model the runtime agent uses. Empty\nmeans the runtime default.",
+					"description": "Model optionally pins the default model the runtime agent uses.\nA per-message model selection on the chat overrides this pin;\nempty falls through to the runtime agent's own default.",
 					"type": "string"
 				},
 				"organization_id": {

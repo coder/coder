@@ -154,3 +154,33 @@ capabilities grew (`close`, `delete`, `additionalDirectories`), `authMethods`
 is now empty (API-key env remains sufficient), and the same five session
 modes are advertised (`default`, `acceptEdits`, `plan`, `dontAsk`,
 `bypassPermissions`).
+
+## Addendum: per-turn model switching over env (gate G1, 2026-07-10)
+
+Per-message model selection rides the existing per-spawn `ANTHROPIC_MODEL`
+injection, so the open question was whether the env pin also wins when the
+turn *resumes* a prior session (every turn after the first). Probe design:
+local adapter (latest `@agentclientprotocol/claude-agent-acp` via npm,
+node v22.19.0, acp-go-sdk v0.13.5), a tee proxy in front of the live
+gateway recording the `model` field of every request, and per-phase marker
+strings in the prompt to attribute main-turn requests.
+
+| Phase | Env | Session | Main-turn model requested |
+|---|---|---|---|
+| 1 | `ANTHROPIC_MODEL=claude-haiku-4-5` | session/new | `claude-haiku-4-5` |
+| 2 | `ANTHROPIC_MODEL=claude-sonnet-4-5` | session/resume of phase 1 | `claude-sonnet-4-5` |
+| 3 | unset | session/resume of phase 1 | `claude-sonnet-4-5-20250929` |
+
+Verdict: **G1 passes**. The env pin wins over the resumed session's stored
+model, so the env carrier supports per-chat and mid-chat switching with no
+new protocol surface; the ACP `session/set_config_option` contingency stays
+unused.
+
+Known limitation (phase 3): with *no* env pin, a resumed session sticks to
+the model it last used (in dated form) instead of reverting to the adapter
+default. Consequence for model selection: after a user clears their pick
+back to "Default" on an org with an *empty* admin model pin, subsequent
+turns keep using the previously picked model until a new pick or an admin
+pin injects `ANTHROPIC_MODEL` again. With a non-empty admin pin the pin is
+injected on every unselected turn, so "Default" behaves as expected.
+

@@ -89,6 +89,7 @@ import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
 	countConfiguredProviderConfigs,
+	filterAnthropicModelOptions,
 	getModelSelectorPlaceholder,
 	getUnsupportedProviderNames,
 	hasUserFixableProviders,
@@ -720,6 +721,13 @@ const AgentChatPage: FC = () => {
 	const { organizations, experiments } = useDashboard();
 	const organizationName = getDefaultOrganizationName(organizations);
 	const [selectedModel, setSelectedModel] = useState("");
+	// Claude Code chats distinguish an untouched picker from an explicit
+	// clear back to Default; both leave selectedModel empty.
+	const [clearedModelToDefault, setClearedModelToDefault] = useState(false);
+	const handleModelChange = (value: string) => {
+		setSelectedModel(value);
+		setClearedModelToDefault(value === "");
+	};
 	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
@@ -1118,10 +1126,36 @@ const AgentChatPage: FC = () => {
 	);
 	const prNumber =
 		chatQuery.data?.diff_status?.pr_number ?? (parsedPrNumber || undefined);
+	// Claude Code chats only honor Anthropic models (the runtime
+	// injects Anthropic credentials into the adapter).
+	const selectableModelOptions = isClaudeCodeChat
+		? filterAnthropicModelOptions(modelOptions)
+		: modelOptions;
 	// Compute an effective selected model by validating the user's
 	// explicit choice against the current model options, falling
 	// back to the chat's last model or the first available option.
 	const effectiveSelectedModel = (() => {
+		if (isClaudeCodeChat) {
+			// No first-option fallback: empty means the runtime
+			// default chain (admin pin, then adapter default). Known
+			// quirk: clearing does not null last_model_config_id, so a
+			// fresh window preselects the old pick again.
+			const resolvedSelectedModel = resolveModelOptionId(
+				selectedModel,
+				selectableModelOptions,
+			);
+			if (resolvedSelectedModel) {
+				return resolvedSelectedModel;
+			}
+			if (clearedModelToDefault) {
+				return "";
+			}
+			return resolveModelOptionId(
+				chatLastModelConfigID,
+				selectableModelOptions,
+			);
+		}
+
 		const resolvedSelectedModel = resolveModelOptionId(
 			selectedModel,
 			modelOptions,
@@ -1458,7 +1492,7 @@ const AgentChatPage: FC = () => {
 			const pickerModelConfigID = effectiveSelectedModel || undefined;
 			const originalIsSelectable =
 				originalModelConfigID !== undefined &&
-				modelOptions.some((opt) => opt.id === originalModelConfigID);
+				selectableModelOptions.some((opt) => opt.id === originalModelConfigID);
 			// Only override the original model when the user has switched to
 			// a different selectable option. If the original is no longer
 			// selectable, the picker is showing a fallback we should not
@@ -1471,10 +1505,7 @@ const AgentChatPage: FC = () => {
 					: undefined;
 			const request: TypesGen.EditChatMessageRequest = {
 				content,
-				// Runtime chats have no model config to override.
-				model_config_id: isClaudeCodeChat
-					? undefined
-					: editSelectedModelConfigID,
+				model_config_id: editSelectedModelConfigID,
 			};
 			const optimisticMessage = originalEditedMessage
 				? buildOptimisticEditedMessage({
@@ -1504,7 +1535,8 @@ const AgentChatPage: FC = () => {
 					handleUsageLimitError(error);
 				},
 			});
-			if (editSelectedModelConfigID) {
+			// Claude picks stay out of the coder-runtime last-used hint.
+			if (editSelectedModelConfigID && !isClaudeCodeChat) {
 				localStorage.setItem(
 					lastModelConfigIDStorageKey,
 					editSelectedModelConfigID,
@@ -1514,11 +1546,11 @@ const AgentChatPage: FC = () => {
 		}
 
 		const selectedModelConfigID = effectiveSelectedModel || undefined;
-		// Runtime chats reject model, MCP, and plan options; they only
-		// carry message content.
+		// Runtime chats reject MCP and plan options; the model pick is
+		// explicit per send, omitted means the runtime default.
 		const request: CreateChatMessageRequestWithClearablePlanMode =
 			isClaudeCodeChat
-				? { content }
+				? { content, model_config_id: selectedModelConfigID }
 				: {
 						content,
 						model_config_id: selectedModelConfigID,
@@ -1570,10 +1602,16 @@ const AgentChatPage: FC = () => {
 				upsertCacheMessages([response.message]);
 			}
 		}
-		if (selectedModelConfigID) {
-			localStorage.setItem(lastModelConfigIDStorageKey, selectedModelConfigID);
-		} else {
-			localStorage.removeItem(lastModelConfigIDStorageKey);
+		// Claude picks stay out of the coder-runtime last-used hint.
+		if (!isClaudeCodeChat) {
+			if (selectedModelConfigID) {
+				localStorage.setItem(
+					lastModelConfigIDStorageKey,
+					selectedModelConfigID,
+				);
+			} else {
+				localStorage.removeItem(lastModelConfigIDStorageKey);
+			}
 		}
 		if (planModeSwitch !== undefined) {
 			setCachedChatPlanMode(
@@ -1625,8 +1663,8 @@ const AgentChatPage: FC = () => {
 				onContentChange={editing.handleLoadingDraftChange}
 				isInputDisabled={isInputDisabled}
 				effectiveSelectedModel={effectiveSelectedModel}
-				setSelectedModel={setSelectedModel}
-				modelOptions={modelOptions}
+				setSelectedModel={handleModelChange}
+				modelOptions={selectableModelOptions}
 				modelSelectorPlaceholder={modelSelectorPlaceholder}
 				hasModelOptions={hasModelOptions}
 				isModelCatalogLoading={isModelCatalogLoading}
@@ -1671,8 +1709,8 @@ const AgentChatPage: FC = () => {
 			store={store}
 			editing={editing}
 			effectiveSelectedModel={effectiveSelectedModel}
-			setSelectedModel={setSelectedModel}
-			modelOptions={modelOptions}
+			setSelectedModel={handleModelChange}
+			modelOptions={selectableModelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			modelSelectorHelp={modelSelectorHelp}
 			canConfigureAgentSetup={permissions.editDeploymentConfig}

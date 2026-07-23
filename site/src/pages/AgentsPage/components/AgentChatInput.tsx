@@ -123,8 +123,9 @@ interface AgentChatInputProps {
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	// Claude Code runtime. When enabled the composer is pinned to the
-	// runtime: the model selector is hidden and model options are not
-	// required to send. The toggle only renders on the landing composer;
+	// runtime and model options are not required to send; callers pass
+	// Anthropic-only modelOptions (the runtime injects Anthropic
+	// credentials). The toggle only renders on the landing composer;
 	// existing runtime chats pass claudeCodeEnabled without a toggle.
 	claudeCodeEnabled?: boolean;
 	onClaudeCodeToggle?: (enabled: boolean) => void;
@@ -1457,20 +1458,35 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							</PopoverContent>
 						</Popover>
 						{claudeCodeEnabled ? (
-							<span
-								data-testid="claude-code-badge"
-								className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary"
-							>
-								<BotIcon className="size-3" />
-								Claude Code
-								{onClaudeCodeToggle && (
-									<BadgeDismissButton
-										onClick={handleDisableClaudeCode}
-										ariaLabel="Disable Claude Code"
-										isDisabled={isDisabled}
+							<>
+								<span
+									data-testid="claude-code-badge"
+									className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary"
+								>
+									<BotIcon className="size-3" />
+									Claude Code
+									{onClaudeCodeToggle && (
+										<BadgeDismissButton
+											onClick={handleDisableClaudeCode}
+											ariaLabel="Disable Claude Code"
+											isDisabled={isDisabled}
+										/>
+									)}
+								</span>
+								{modelOptions.length > 0 && (
+									<ModelSelector
+										value={selectedModel}
+										onValueChange={onModelChange}
+										options={modelOptions}
+										disabled={isDisabled}
+										defaultOptionLabel="Default"
+										className="md:shrink"
+										dropdownSide="top"
+										dropdownAlign="start"
+										enableMobileFullWidthDropdown
 									/>
 								)}
-							</span>
+							</>
 						) : isModelCatalogLoading ? (
 							<Skeleton className="h-6 w-24 rounded" />
 						) : (

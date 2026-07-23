@@ -1537,18 +1537,27 @@ func resolveSendMessageModelConfigID(
 	chat database.Chat,
 	requested uuid.UUID,
 ) (uuid.UUID, error) {
-	// External runtimes manage their own model; their messages carry
-	// no model config. The API layer rejects explicit overrides before
-	// this point, so a requested ID here is a caller bug.
 	if chat.Runtime != database.ChatRuntimeCoder {
-		if requested != uuid.Nil {
+		// Absent means the runtime default chain (admin pin, then
+		// adapter default). Never fall back to last_model_config_id
+		// here: a sticky server fallback would make the default
+		// unreachable once any model was ever picked.
+		if requested == uuid.Nil {
+			return uuid.Nil, nil
+		}
+		if chat.Runtime != database.ChatRuntimeClaudeCode {
 			return uuid.Nil, xerrors.Errorf(
 				"%w: model config cannot be set on %s runtime chats",
 				ErrInvalidModelConfigID,
 				chat.Runtime,
 			)
 		}
-		return uuid.Nil, nil
+		if _, _, err := fetchClaudeCodeModelConfig(
+			chatdModelConfigLookupContext(ctx), store, requested,
+		); err != nil {
+			return uuid.Nil, err
+		}
+		return requested, nil
 	}
 	if requested == uuid.Nil {
 		return resolveFallbackModelConfigID(ctx, store, chat.LastModelConfigID.UUID)
@@ -1570,6 +1579,61 @@ func resolveSendMessageModelConfigID(
 		)
 	}
 	return requested, nil
+}
+
+// fetchClaudeCodeModelConfig loads an explicitly selected model config
+// for a claude_code chat together with its provider. Only enabled,
+// non-deleted configs on an enabled Anthropic provider are selectable:
+// the runtime injects Anthropic credentials into the adapter, so other
+// provider types cannot be honored. Failures wrap
+// ErrInvalidModelConfigID unless the lookup itself errored.
+func fetchClaudeCodeModelConfig(
+	ctx context.Context,
+	store database.Store,
+	id uuid.UUID,
+) (database.ChatModelConfig, database.AIProvider, error) {
+	config, err := store.GetEnabledChatModelConfigByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
+				"%w: %s", ErrInvalidModelConfigID, id,
+			)
+		}
+		return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
+			"get model config %s: %w", id, err,
+		)
+	}
+	if !config.AIProviderID.Valid {
+		return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
+			"%w: model config %s has no provider", ErrInvalidModelConfigID, id,
+		)
+	}
+	provider, err := store.GetAIProviderByID(ctx, config.AIProviderID.UUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
+				"%w: %s", ErrInvalidModelConfigID, id,
+			)
+		}
+		return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
+			"get ai provider for model config %s: %w", id, err,
+		)
+	}
+	if provider.Type != database.AIProviderTypeAnthropic {
+		return database.ChatModelConfig{}, database.AIProvider{}, xerrors.Errorf(
+			"%w: model config %s is not an Anthropic model", ErrInvalidModelConfigID, id,
+		)
+	}
+	return config, provider, nil
+}
+
+// ValidateClaudeCodeModelConfigID checks that an explicit model
+// selection for a claude_code chat references an enabled Anthropic
+// model config. It returns an error wrapping ErrInvalidModelConfigID
+// when the selection is not usable.
+func (p *Server) ValidateClaudeCodeModelConfigID(ctx context.Context, id uuid.UUID) error {
+	_, _, err := fetchClaudeCodeModelConfig(chatdModelConfigLookupContext(ctx), p.db, id)
+	return err
 }
 
 func resolveFallbackModelConfigID(
@@ -1664,31 +1728,10 @@ func (p *Server) EditMessage(
 		// foreign-key error from the message-insert path.
 		var modelOverride uuid.NullUUID
 		if opts.ModelConfigID != uuid.Nil {
-			// External runtimes manage their own model; edits
-			// cannot override it. Mirrors the send-message path.
-			if lockedChat.Runtime != database.ChatRuntimeCoder {
-				return xerrors.Errorf(
-					"%w: model config cannot be set on %s runtime chats",
-					ErrInvalidModelConfigID,
-					lockedChat.Runtime,
-				)
-			}
-			if _, err := store.GetChatModelConfigByID(
-				chatdModelConfigLookupContext(ctx),
-				opts.ModelConfigID,
+			if _, err := resolveSendMessageModelConfigID(
+				ctx, store, lockedChat, opts.ModelConfigID,
 			); err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					return xerrors.Errorf(
-						"%w: %s",
-						ErrInvalidModelConfigID,
-						opts.ModelConfigID,
-					)
-				}
-				return xerrors.Errorf(
-					"get requested model config %s: %w",
-					opts.ModelConfigID,
-					err,
-				)
+				return err
 			}
 			modelOverride = uuid.NullUUID{UUID: opts.ModelConfigID, Valid: true}
 		}

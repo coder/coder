@@ -66,7 +66,7 @@ func (s *taskStarter) startClaudeCodeGeneration(
 		}, generationAttemptNotRequired)
 	}
 
-	cfg, err := s.server.claudeCodeTurnConfig(ctx, chat)
+	cfg, err := s.server.claudeCodeTurnConfig(ctx, chat, turn.modelConfigID)
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 	}
@@ -178,6 +178,10 @@ func (s *taskStarter) startClaudeCodeGeneration(
 			Usage:   turnUsage,
 			Runtime: elapsed,
 		},
+		// The applied selection groups per-model token analytics.
+		// modelCallConfig stays zero, so these turns intentionally
+		// carry no cost.
+		modelConfigID:  cfg.modelConfigID,
 		logger:         s.opts.Logger,
 		contentVersion: chatprompt.CurrentContentVersion,
 	})
@@ -191,6 +195,10 @@ type claudeCodeTurn struct {
 	generate bool
 	prompt   string
 	reseed   []claudecode.ReseedTurn
+	// modelConfigID is the explicit model selection carried by the
+	// newest triggering user message. Zero means the runtime default
+	// chain (admin pin, then adapter default).
+	modelConfigID uuid.UUID
 }
 
 // claudeCodeTurnFromHistory derives the ACP prompt for this turn from
@@ -260,10 +268,18 @@ func claudeCodeTurnFromHistory(ctx context.Context, logger slog.Logger, history 
 		reseed = append(reseed, claudecode.ReseedTurn{Role: role, Text: text})
 	}
 
+	// The newest trailing user message carries the model selection for
+	// this turn; picks on earlier queued messages are superseded.
+	var modelConfigID uuid.UUID
+	if last := history[len(history)-1]; last.ModelConfigID.Valid {
+		modelConfigID = last.ModelConfigID.UUID
+	}
+
 	return claudeCodeTurn{
-		generate: true,
-		prompt:   prompt.String(),
-		reseed:   reseed,
+		generate:      true,
+		prompt:        prompt.String(),
+		reseed:        reseed,
+		modelConfigID: modelConfigID,
 	}, nil
 }
 
@@ -291,12 +307,19 @@ type claudeCodeTurnConfig struct {
 	permissionMode string
 	apiKey         string
 	baseURL        string
+	// modelConfigID is the applied explicit selection, stamped on the
+	// turn's assistant messages. Zero when the runtime default chain
+	// (admin pin, then adapter default) applied.
+	modelConfigID uuid.UUID
 }
 
 // claudeCodeTurnConfig loads the organization's runtime config and the
 // deployment Anthropic key for one turn. The key is injected into the
 // adapter's process environment and never written to workspace disk.
-func (p *Server) claudeCodeTurnConfig(ctx context.Context, chat database.Chat) (claudeCodeTurnConfig, error) {
+// A non-zero selection (the triggering user message's model config)
+// overrides the admin model pin and sources credentials from the
+// selected config's provider.
+func (p *Server) claudeCodeTurnConfig(ctx context.Context, chat database.Chat, selection uuid.UUID) (claudeCodeTurnConfig, error) {
 	cfg, err := p.db.GetChatRuntimeConfig(ctx, database.GetChatRuntimeConfigParams{
 		OrganizationID: chat.OrganizationID,
 		Runtime:        chat.Runtime,
@@ -323,10 +346,33 @@ func (p *Server) claudeCodeTurnConfig(ctx context.Context, chat database.Chat) (
 		)
 	}
 
+	out := claudeCodeTurnConfig{
+		model:          cfg.Model,
+		permissionMode: cfg.PermissionMode,
+	}
+
+	var selectedProviderID uuid.UUID
+	if selection != uuid.Nil {
+		modelConfig, provider, err := fetchClaudeCodeModelConfig(ctx, p.db, selection)
+		if err != nil {
+			// The selection was valid at send time; losing it mid-flight
+			// (config deleted or disabled, provider changed) falls back
+			// to the runtime default chain and leaves the assistant
+			// messages unstamped.
+			p.logger.Warn(ctx, "claude code turn: selected model config unavailable, using runtime default",
+				slog.F("chat_id", chat.ID), slog.F("model_config_id", selection), slog.Error(err))
+		} else {
+			out.model = modelConfig.Model
+			out.modelConfigID = selection
+			selectedProviderID = provider.ID
+		}
+	}
+
 	providers, err := p.db.GetAIProviders(ctx, database.GetAIProvidersParams{})
 	if err != nil {
 		return claudeCodeTurnConfig{}, xerrors.Errorf("get ai providers: %w", err)
 	}
+	var fallbackKey, fallbackBaseURL string
 	for _, provider := range providers {
 		if provider.Type != database.AIProviderTypeAnthropic {
 			continue
@@ -340,20 +386,35 @@ func (p *Server) claudeCodeTurnConfig(ctx context.Context, chat database.Chat) (
 		if configured.APIKey == "" {
 			continue
 		}
-		return claudeCodeTurnConfig{
-			model:          cfg.Model,
-			permissionMode: cfg.PermissionMode,
-			apiKey:         configured.APIKey,
-			baseURL:        configured.BaseURL,
-		}, nil
+		if provider.ID == selectedProviderID {
+			out.apiKey = configured.APIKey
+			out.baseURL = configured.BaseURL
+			return out, nil
+		}
+		if fallbackKey == "" {
+			fallbackKey = configured.APIKey
+			fallbackBaseURL = configured.BaseURL
+		}
 	}
-	return claudeCodeTurnConfig{}, chaterror.WithClassification(
-		xerrors.New("no anthropic provider key configured"),
-		chaterror.ClassifiedError{
-			Kind:    codersdk.ChatErrorKindMissingKey,
-			Message: "Claude Code requires a deployment Anthropic API key. An administrator must configure the Anthropic AI provider.",
-		},
-	)
+	if fallbackKey == "" {
+		return claudeCodeTurnConfig{}, chaterror.WithClassification(
+			xerrors.New("no anthropic provider key configured"),
+			chaterror.ClassifiedError{
+				Kind:    codersdk.ChatErrorKindMissingKey,
+				Message: "Claude Code requires a deployment Anthropic API key. An administrator must configure the Anthropic AI provider.",
+			},
+		)
+	}
+	if selectedProviderID != uuid.Nil {
+		// The selected provider yielded no usable key; keep the model
+		// but borrow another Anthropic provider's credentials. A
+		// visible auth failure beats silently ignoring the selection.
+		p.logger.Warn(ctx, "claude code turn: selected model's provider has no usable key, using fallback anthropic credentials",
+			slog.F("chat_id", chat.ID), slog.F("model_config_id", selection))
+	}
+	out.apiKey = fallbackKey
+	out.baseURL = fallbackBaseURL
+	return out, nil
 }
 
 // ensureClaudeCodeWorkspaceRunning makes sure the chat's bound

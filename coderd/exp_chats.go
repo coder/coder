@@ -1131,11 +1131,20 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if req.ModelConfigID != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "model_config_id cannot be set for runtime chats.",
-				Detail:  "External runtimes manage their own model selection.",
-			})
-			return
+			if err := api.chatDaemon.ValidateClaudeCodeModelConfigID(ctx, *req.ModelConfigID); err != nil {
+				if xerrors.Is(err, chatd.ErrInvalidModelConfigID) {
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: "Invalid model config ID.",
+						Detail:  "Claude Code chats accept enabled Anthropic model configs only.",
+					})
+					return
+				}
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to validate model config.",
+					Detail:  err.Error(),
+				})
+				return
+			}
 		}
 		if req.WorkspaceID != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -1178,6 +1187,11 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, modelConfigStatus, *modelConfigError)
 			return
 		}
+	} else if req.ModelConfigID != nil {
+		// Runtime chats take the explicit selection only, validated
+		// above. Absent stays zero: the deployment default may be a
+		// non-Anthropic model the runtime cannot honor.
+		modelConfigID = *req.ModelConfigID
 	}
 
 	if !validateChatPlanMode(req.PlanMode) {
@@ -3179,13 +3193,8 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if chat.Runtime != database.ChatRuntimeCoder {
-		if req.ModelConfigID != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "model_config_id cannot be set on runtime chats.",
-				Detail:  "External runtimes manage their own model selection.",
-			})
-			return
-		}
+		// An explicit model_config_id is validated by the send path
+		// via resolveSendMessageModelConfigID.
 		if req.PlanMode != nil || (req.MCPServerIDs != nil && len(*req.MCPServerIDs) > 0) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "plan_mode and mcp_server_ids are not supported on runtime chats.",

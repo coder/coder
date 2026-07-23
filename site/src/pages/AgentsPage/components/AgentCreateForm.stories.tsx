@@ -833,9 +833,9 @@ export const PermittedOrgsResolvesToSubset: Story = {
 };
 
 /**
- * Selecting "Run with Claude Code" pins the composer to the runtime
- * and the submission carries runtime instead of workspace/model/plan
- * options.
+ * Selecting "Run with Claude Code" pins the composer to the runtime.
+ * The submission carries runtime without workspace/plan options and,
+ * with the picker on its preselected Default, no model either.
  */
 export const ClaudeCodeRuntimeSubmission: Story = {
 	args: {
@@ -851,9 +851,11 @@ export const ClaudeCodeRuntimeSubmission: Story = {
 		});
 		await userEvent.click(item);
 
-		// The composer is pinned: badge visible, model selector gone.
+		// The composer is pinned: badge visible, and the Anthropic-only
+		// picker preselects Default (ignoring any last-used model).
 		const badge = await canvas.findByTestId("claude-code-badge");
 		expect(badge).toBeVisible();
+		expect(canvas.getByRole("combobox", { name: "Default" })).toBeVisible();
 
 		await submitMessage(canvasElement, "build me a server");
 		await waitFor(() => {
@@ -863,6 +865,46 @@ export const ClaudeCodeRuntimeSubmission: Story = {
 		expect(options.runtime).toBe("claude_code");
 		expect(options.model).toBeUndefined();
 		expect(options.workspaceId).toBeUndefined();
+	},
+};
+
+/**
+ * Picking an Anthropic model on a Claude Code create submits its
+ * config id; non-Anthropic options are filtered out of the picker.
+ */
+export const ClaudeCodeRuntimeModelPick: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+		claudeCodeOrgIds: new Set([MockDefaultOrganization.id]),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await screen.findByRole("menuitemcheckbox", {
+				name: /Run with Claude Code/,
+			}),
+		);
+
+		await userEvent.click(
+			await canvas.findByRole("combobox", { name: "Default" }),
+		);
+		const body = within(document.body);
+		expect(
+			body.queryByRole("option", { name: /GPT-4o/ }),
+		).not.toBeInTheDocument();
+		await userEvent.click(
+			await body.findByRole("option", { name: /Claude Sonnet 4/ }),
+		);
+
+		await submitMessage(canvasElement, "build me a server");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		const options = getCreateOptions(args.onCreateChat);
+		expect(options.runtime).toBe("claude_code");
+		expect(options.model).toBe(claudeModelConfigID);
 	},
 };
 

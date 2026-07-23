@@ -1596,8 +1596,10 @@ export interface Chat {
 	readonly parent_chat_id?: string;
 	readonly root_chat_id?: string;
 	/**
-	 * LastModelConfigID is nil for chats on external runtimes, which
-	 * are not backed by a chat model config.
+	 * LastModelConfigID records the most recent explicit model
+	 * selection. On external runtimes it is nil until a model is
+	 * picked and serves only as a client restore hint: the runtime
+	 * default applies whenever a message carries no selection.
 	 */
 	readonly last_model_config_id?: string;
 	readonly runtime: ChatRuntime;
@@ -2950,8 +2952,9 @@ export interface ChatRuntimeConfig {
 	readonly template_id: string;
 	readonly enabled: boolean;
 	/**
-	 * Model optionally pins the model the runtime agent uses. Empty
-	 * means the runtime default.
+	 * Model optionally pins the default model the runtime agent uses.
+	 * A per-message model selection on the chat overrides this pin;
+	 * empty falls through to the runtime agent's own default.
 	 */
 	readonly model?: string;
 	/**

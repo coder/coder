@@ -44,6 +44,10 @@ interface ModelSelectorProps {
 	contentClassName?: string;
 	onTriggerTouchStart?: () => void;
 	enableMobileFullWidthDropdown?: boolean;
+	// defaultOptionLabel, when set, prepends an explicit row mapping to
+	// the empty value so an active pick can be cleared back to the
+	// runtime default.
+	defaultOptionLabel?: string;
 }
 
 const formatContextLimit = (tokens: number): string => {
@@ -85,6 +89,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	contentClassName,
 	onTriggerTouchStart,
 	enableMobileFullWidthDropdown = false,
+	defaultOptionLabel,
 }) => {
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
@@ -97,6 +102,9 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	const selectedModel = options.find((option) => option.id === value);
 	const isDisabled = disabled || options.length === 0;
 	const query = search.trim().toLowerCase();
+	const showDefaultOption =
+		defaultOptionLabel !== undefined &&
+		(!query || defaultOptionLabel.toLowerCase().includes(query));
 	const optionsByProvider = (() => {
 		const grouped = new Map<string, ModelSelectorOption[]>();
 
@@ -117,12 +125,15 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 
 		return Array.from(grouped.entries());
 	})();
+	const triggerLabel = selectedModel
+		? selectedModel.displayName
+		: (defaultOptionLabel ?? placeholder);
 
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild disabled={isDisabled}>
 				<Button
-					aria-label={selectedModel ? selectedModel.displayName : placeholder}
+					aria-label={triggerLabel}
 					aria-expanded={open}
 					aria-haspopup="listbox"
 					disabled={isDisabled}
@@ -135,9 +146,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					)}
 					onTouchStart={onTriggerTouchStart}
 				>
-					<span className="truncate">
-						{selectedModel ? selectedModel.displayName : placeholder}
-					</span>
+					<span className="truncate">{triggerLabel}</span>
 					<ChevronDownIcon open={open} className="size-icon-sm" />
 				</Button>
 			</PopoverTrigger>
@@ -183,6 +192,31 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 						<CommandEmpty className="py-3 text-xs font-normal leading-[18px] text-content-secondary">
 							{emptyMessage}
 						</CommandEmpty>
+						{showDefaultOption && (
+							<CommandGroup className="p-1">
+								<CommandItem
+									value="__default__"
+									onSelect={() => {
+										onValueChange("");
+										handleOpenChange(false);
+									}}
+									className={cn(
+										"gap-2 px-2 py-1 font-medium text-content-secondary data-[selected=true]:bg-surface-tertiary",
+										!selectedModel && "bg-surface-secondary",
+									)}
+								>
+									<span className="min-w-0 truncate text-left text-xs font-medium leading-[18px] text-content-secondary">
+										{defaultOptionLabel}
+									</span>
+									<CheckIcon
+										className={cn(
+											"ml-auto size-4 shrink-0",
+											selectedModel && "opacity-0",
+										)}
+									/>
+								</CommandItem>
+							</CommandGroup>
+						)}
 						{optionsByProvider.map(([providerKey, providerOptions], index) => {
 							const firstOption = providerOptions[0];
 							const providerLabel = getProviderLabel(

@@ -115,14 +115,16 @@ const AgentCreatePage: FC = () => {
 				content.push({ type: "file", file_id: fileID });
 			}
 		}
-		// Runtime chats: the server rejects workspace, model, plan, and
-		// MCP options because the runtime manages them.
+		// Runtime chats: the server rejects workspace, plan, and MCP
+		// options because the runtime manages them. The model is an
+		// optional explicit pick (absent means the runtime default).
 		const createRequest: TypesGen.CreateChatRequest = runtime
 			? {
 					organization_id: organizationId,
 					content,
 					client_type: "ui",
 					runtime,
+					...(model ? { model_config_id: model } : {}),
 				}
 			: {
 					organization_id: organizationId,
@@ -136,7 +138,8 @@ const AgentCreatePage: FC = () => {
 				};
 		const createdChat = await createMutation.mutateAsync(createRequest);
 
-		if (model) {
+		// Claude picks stay out of the coder-runtime last-used hint.
+		if (model && !runtime) {
 			localStorage.setItem(lastModelConfigIDStorageKey, model);
 		}
 		navigate({
