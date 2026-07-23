@@ -594,7 +594,7 @@ export const WaitForExternalAuthRunning: Story = {
 			canvas.getByText("Waiting for GitHub authentication..."),
 		).toBeInTheDocument();
 		expect(
-			canvas.getByRole("img", { name: "Authentication in progress" }),
+			canvas.getByRole("img", { name: "Tool call running" }),
 		).toBeVisible();
 	},
 };
@@ -661,6 +661,11 @@ export const SubagentRunning: Story = {
 			"href",
 			"/agents/child-chat-id",
 		);
+		// Running state shows the spinner in the standard right-side
+		// status slot, not as the leading icon.
+		expect(
+			canvas.getByRole("img", { name: "Tool call running" }),
+		).toBeVisible();
 	},
 };
 
