@@ -238,37 +238,3 @@ for what happens to running workspaces when you delete a secret.
 
 For full command details, see [`coder secret`](../reference/cli/secret.md) and
 the [Secrets API reference](../reference/api/secrets.md).
-
-## Bulk import
-
-If you already keep secrets in a dotenv file, a flat JSON object, or a flat
-YAML mapping, you can import them all in one request instead of creating each
-secret individually.
-
-Use `POST /api/v2/users/{user}/secrets/batch` or `codersdk.Client.ImportUserSecrets` to import multiple secrets from dotenv-style `KEY=VALUE` content, a flat JSON object, or a flat YAML mapping.
-Set the request `format` to `env`, `json`, or `yaml`, and pass the file contents in `content`.
-
-For example, to import this dotenv file:
-
-```sh
-API_KEY=abc123
-DATABASE_URL=postgres://user:pass@db.internal/app
-```
-
-Send it as the request body:
-
-```json
-{
-  "format": "env",
-  "content": "API_KEY=abc123\nDATABASE_URL=postgres://user:pass@db.internal/app"
-}
-```
-
-The import is atomic.
-If any secret fails validation, conflicts with another secret name, or exceeds a per-user limit, Coder rolls back the entire import and creates no secrets.
-
-Coder sets `env_name` to the imported key when the key is a valid environment variable name.
-Keys that can't be injected as environment variables, such as `MY-TOKEN` or the reserved name `PATH`, are still imported with an empty `env_name`.
-These secrets are stored but aren't injected into workspaces unless you later add a valid environment variable or file target.
-
-For request and response details, refer to the [Secrets API reference](../reference/api/secrets.md#import-user-secrets-from-a-file).
