@@ -122,12 +122,7 @@ export const reconcileEditedMessageInCache = ({
 }: {
 	currentData: InfiniteData<TypesGen.ChatMessagesResponse> | undefined;
 	optimisticMessageId: number;
-	// Every message the edit inserted, in insertion order. All of them
-	// must land in the cache, or a stream reconnect keyed on the
-	// highest cached ID would skip rows around the replacement.
 	responseMessages: readonly TypesGen.ChatMessage[];
-	// Messages the edit soft-deleted. Dropped here so the cache does
-	// not keep them if the history reset event is missed.
 	deletedMessageIds?: readonly number[];
 }): InfiniteData<TypesGen.ChatMessagesResponse> | undefined => {
 	if (!currentData?.pages?.length || responseMessages.length === 0) {
