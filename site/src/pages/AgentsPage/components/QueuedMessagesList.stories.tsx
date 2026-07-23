@@ -201,3 +201,27 @@ export const MixedQueueWithAttachments: Story = {
 		],
 	},
 };
+
+// A queued message carrying a lifecycle hook notice shows an info
+// indicator whose accessible name includes the notice text and whose
+// tooltip opens on keyboard focus.
+export const HookNotice: Story = {
+	args: {
+		messages: [
+			buildMessage(1, [
+				{ type: "text", text: "Deploy to production" },
+				{ type: "hook-notice", text: "Deployment prompts are audited." },
+			] as ChatQueuedMessage["content"]),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByRole("button", {
+			name: "Lifecycle hook notice: Deployment prompts are audited.",
+		});
+		await userEvent.tab();
+		expect(trigger).toHaveFocus();
+		const tooltip = await within(document.body).findByRole("tooltip");
+		expect(tooltip).toHaveTextContent("Deployment prompts are audited.");
+	},
+};

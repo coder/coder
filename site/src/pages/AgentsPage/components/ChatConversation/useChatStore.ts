@@ -338,6 +338,19 @@ export const useChatStore = (
 			return;
 		}
 		queuedMessagesHydratedChatIDRef.current = chatID;
+		// Skip snapshots identical to the visible queue. The promoted-queue
+		// reconciliation writes its own optimistic snapshot into the cache,
+		// and treating that write as authoritative would lift the promote
+		// suppression while a stale pre-promotion queue_update can still
+		// arrive and re-show the promoted message.
+		if (
+			chatQueuedMessagesEqualByID(
+				store.getSnapshot().queuedMessages,
+				chatQueuedMessages ?? [],
+			)
+		) {
+			return;
+		}
 		store.applyAuthoritativeQueuedMessages(chatQueuedMessages);
 	}, [chatMessagesData, chatID, chatQueuedMessages, store]);
 
