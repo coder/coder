@@ -154,8 +154,8 @@ Install the `coder` CLI to get started:
 
 > [!NOTE]
 > For this quickstart, install and run the Coder server on the same machine you're using right now.
-> In a real deployment, install the Coder server on a separate machine (not your laptop) so its compute stays available and shareable independent of any one person's device.
-> Refer to [Installing Coder](../install/index.md) for details on installing on a separate host.
+> In a real deployment, install the Coder server on a separate machine (not your laptop) so its compute stays available and shareable, independent of any one person's device.
+> Refer to the [Install guide](../install/index.md) for details on installing on a separate host.
 
 <div class="tabs">
 
