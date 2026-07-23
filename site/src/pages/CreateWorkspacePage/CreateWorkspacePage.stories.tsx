@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { Meta, StoryObj, WebSocketEvent } from "@storybook/react-vite";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
@@ -13,42 +13,31 @@ import {
 import {
 	withAuthProvider,
 	withDashboardProvider,
+	withWebSocket,
 } from "#/testHelpers/storybook";
 import CreateWorkspacePage from "./CreateWorkspacePage";
 
-/**
- * Mocks API.templateVersionDynamicParameters so the page renders the form
- * instead of the loader. The page waits for the socket to open (which sends
- * the initial parameters and records the response ID to wait for) and then
- * for a response with at least that ID, so the mock fires onOpen followed by
- * the server's initial id: -1 response.
- */
-function mockDynamicParameters() {
-	spyOn(API, "templateVersionDynamicParameters").mockImplementation(
-		(_versionId, _ownerId, callbacks) => {
-			// Fire asynchronously so the component mounts before the socket
-			// events arrive, matching real WebSocket behavior.
-			setTimeout(() => {
-				callbacks.onOpen?.();
-				callbacks.onMessage({ id: -1, parameters: [], diagnostics: [] });
-			}, 0);
-
-			return {
-				readyState: WebSocket.OPEN,
-				send: () => {},
-				close: () => {},
-			} as unknown as WebSocket;
+// The page renders its form once the dynamic-parameters socket opens (which
+// sends the initial parameters and records the response ID to wait for) and
+// the server's initial id: -1 response arrives.
+function dynamicParametersWebSocket(): WebSocketEvent[] {
+	return [
+		{ event: "open" },
+		{
+			event: "message",
+			data: JSON.stringify({ id: -1, parameters: [], diagnostics: [] }),
 		},
-	);
+	];
 }
 
 const meta: Meta<typeof CreateWorkspacePage> = {
 	title: "pages/CreateWorkspacePage",
 	component: CreateWorkspacePage,
-	decorators: [withAuthProvider, withDashboardProvider],
+	decorators: [withAuthProvider, withDashboardProvider, withWebSocket],
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
+		webSocket: dynamicParametersWebSocket(),
 		reactRouter: reactRouterParameters({
 			location: {
 				pathParams: {
@@ -75,8 +64,8 @@ const meta: Meta<typeof CreateWorkspacePage> = {
 			canUpdateTemplate: false,
 		});
 
-		// Dynamic parameters over WebSocket.
-		mockDynamicParameters();
+		// Dynamic parameters over WebSocket are provided by the withWebSocket
+		// decorator and parameters.webSocket.
 
 		// Default: no external auth required.
 		spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([]);
