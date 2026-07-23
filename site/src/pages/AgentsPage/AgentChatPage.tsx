@@ -1635,6 +1635,13 @@ const AgentChatPage: FC = () => {
 				onError: (error) => {
 					restoreOptimisticRequestSnapshot(store, previousSnapshot);
 					handleUsageLimitError(error);
+					// A failed edit can park the chat in error server-side
+					// (hook dispatch failures); refresh so the status is not
+					// stale if the websocket event is missed.
+					void queryClient.invalidateQueries({
+						queryKey: chatKey(agentId),
+						exact: true,
+					});
 				},
 			});
 			if (editSelectedModelConfigID) {
@@ -1718,6 +1725,11 @@ const AgentChatPage: FC = () => {
 				);
 				if (reconciledQueue) {
 					setCacheQueuedMessages(reconciledQueue);
+					// A promoted head means a turn just started; clear the
+					// stale error status so the Thinking indicator can show
+					// before the status websocket event arrives.
+					store.clearStreamState();
+					store.setChatStatus("running");
 				}
 			}
 		}
