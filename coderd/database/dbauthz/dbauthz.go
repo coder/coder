@@ -838,12 +838,12 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
-	// subjectExternalAuthChecker is used to check whether a user has configured
+	// subjectExternalAuthCoordinator is used to check whether a user has configured
 	// external auth providers or not when an admin is creating a workspace for
 	// another user.
-	subjectExternalAuthChecker = rbac.Subject{
-		Type:         rbac.SubjectTypeExternalAuthChecker,
-		FriendlyName: "External Auth Checker",
+	subjectExternalAuthCoordinator = rbac.Subject{
+		Type:         rbac.SubjectTypeExternalAuthCoordinator,
+		FriendlyName: "External Auth Coordinator",
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
@@ -1007,10 +1007,10 @@ func AsSCIMProvisioner(ctx context.Context) context.Context {
 	return As(ctx, subjectSCIM)
 }
 
-// AsExternalAuthChecker returns a context with an actor that has permission to
+// AsExternalAuthCoordinator returns a context with an actor that has permission to
 // read and refresh any user's external auth links.
-func AsExternalAuthChecker(ctx context.Context) context.Context {
-	return As(ctx, subjectExternalAuthChecker)
+func AsExternalAuthCoordinator(ctx context.Context) context.Context {
+	return As(ctx, subjectExternalAuthCoordinator)
 }
 
 var AsRemoveActor = rbac.Subject{

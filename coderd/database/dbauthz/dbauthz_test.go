@@ -7637,7 +7637,7 @@ func TestAsChatd(t *testing.T) {
 func TestAsExternalAuthChecker(t *testing.T) {
 	t.Parallel()
 
-	ctx := dbauthz.AsExternalAuthChecker(context.Background())
+	ctx := dbauthz.AsExternalAuthCoordinator(context.Background())
 	actor, ok := dbauthz.ActorFromContext(ctx)
 	require.True(t, ok, "actor must be present")
 
