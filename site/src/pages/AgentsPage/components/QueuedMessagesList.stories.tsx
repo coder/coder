@@ -211,7 +211,7 @@ export const HookNotice: Story = {
 			buildMessage(1, [
 				{ type: "text", text: "Deploy to production" },
 				{ type: "hook-notice", text: "Deployment prompts are audited." },
-			] as ChatQueuedMessage["content"]),
+			]),
 		],
 	},
 	play: async ({ canvasElement }) => {
