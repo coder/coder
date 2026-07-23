@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { type ComponentProps, useState } from "react";
 import { expect, fn, userEvent } from "storybook/test";
 import { filterSkillsByQuery } from "../../utils/personalSkills";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
@@ -9,6 +10,7 @@ import {
 	SkillsTriggerMenu,
 } from "./SkillsTriggerMenu";
 import {
+	expectInsideListViewport,
 	expectNoVisibleText,
 	findVisibleText,
 	MockSkills,
@@ -143,6 +145,44 @@ export const Filtered: Story = {
 		expect(await findVisibleText("/reviewer")).toBeDefined();
 		await expectNoVisibleText("/docs");
 		await expectNoVisibleText("/workspace/test-runner");
+	},
+};
+
+const manyPersonalSkillItems = Array.from({ length: 30 }, (_, index) =>
+	createSkillMenuItem("personal", {
+		name: `skill-${String(index).padStart(2, "0")}`,
+		description: "",
+	}),
+);
+
+// cmdk scrolls the controlled highlight into view only at mount, so the
+// selection must move after mount to exercise the menu's own scrolling.
+const SelectionScrollHarness = (
+	args: ComponentProps<typeof SkillsTriggerMenu>,
+) => {
+	const [selectedIndex, setSelectedIndex] = useState(0);
+	return (
+		<>
+			<button type="button" onClick={() => setSelectedIndex(29)}>
+				Highlight last skill
+			</button>
+			<SkillsTriggerMenu
+				{...args}
+				selectedIndex={selectedIndex}
+				onSelectedIndexChange={setSelectedIndex}
+			/>
+		</>
+	);
+};
+
+export const ScrollsSelectionIntoView: Story = {
+	args: {
+		personalSkills: manyPersonalSkillItems,
+	},
+	render: (args) => <SelectionScrollHarness {...args} />,
+	play: async () => {
+		await userEvent.click(await findVisibleText("Highlight last skill"));
+		await expectInsideListViewport(await findVisibleText("/skill-29"));
 	},
 };
 

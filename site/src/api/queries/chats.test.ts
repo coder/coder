@@ -1804,7 +1804,7 @@ describe("sidebar title race condition", () => {
 		});
 
 		// Simulate the title_change WebSocket event arriving while the
-		// refetch is in flight. This mirrors what AgentsPage does.
+		// refetch is in flight. This mirrors what AgentsPageLayout does.
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((c) =>
 				c.id === chatId ? { ...c, title: "generated title" } : c,

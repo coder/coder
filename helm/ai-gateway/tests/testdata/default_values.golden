@@ -1,0 +1,133 @@
+---
+# Source: coder-ai-gateway/templates/aigateway.yaml
+apiVersion: v1
+automountServiceAccountToken: false
+kind: ServiceAccount
+metadata:
+  annotations: {}
+  labels:
+    app.kubernetes.io/instance: ai-gateway
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: coder-ai-gateway
+    app.kubernetes.io/part-of: coder-ai-gateway
+    app.kubernetes.io/version: 0.1.0
+    helm.sh/chart: coder-ai-gateway-0.1.0
+  name: coder-ai-gateway
+  namespace: default
+---
+# Source: coder-ai-gateway/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: coder-ai-gateway
+  namespace: default
+  labels:
+    helm.sh/chart: coder-ai-gateway-0.1.0
+    app.kubernetes.io/name: coder-ai-gateway
+    app.kubernetes.io/instance: ai-gateway
+    app.kubernetes.io/part-of: coder-ai-gateway
+    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  sessionAffinity: None
+  selector:
+    app.kubernetes.io/name: coder-ai-gateway
+    app.kubernetes.io/instance: ai-gateway
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+---
+# Source: coder-ai-gateway/templates/aigateway.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations: {}
+  labels:
+    app.kubernetes.io/instance: ai-gateway
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: coder-ai-gateway
+    app.kubernetes.io/part-of: coder-ai-gateway
+    app.kubernetes.io/version: 0.1.0
+    helm.sh/chart: coder-ai-gateway-0.1.0
+  name: coder-ai-gateway
+  namespace: default
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: ai-gateway
+      app.kubernetes.io/name: coder-ai-gateway
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        app.kubernetes.io/component: ai-gateway
+      labels:
+        app.kubernetes.io/instance: ai-gateway
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: coder-ai-gateway
+        app.kubernetes.io/part-of: coder-ai-gateway
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: coder-ai-gateway-0.1.0
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - args:
+        - ai-gateway
+        - start
+        command:
+        - /opt/coder
+        env:
+        - name: CODER_AI_GATEWAY_HTTP_ADDRESS
+          value: 0.0.0.0:4001
+        - name: CODER_PROMETHEUS_ENABLE
+          value: "true"
+        - name: CODER_PROMETHEUS_ADDRESS
+          value: 0.0.0.0:2112
+        - name: CODER_URL
+          value: https://coder.example.com
+        - name: CODER_AI_GATEWAY_KEY
+          valueFrom:
+            secretKeyRef:
+              key: key
+              name: ai-gateway-key
+        image: ghcr.io/coder/coder:v2.36.0
+        imagePullPolicy: IfNotPresent
+        lifecycle: {}
+        name: coder
+        ports:
+        - containerPort: 4001
+          name: http
+          protocol: TCP
+        - containerPort: 2112
+          name: metrics
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 0
+        resources:
+          requests:
+            cpu: "1"
+            memory: 1Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts: []
+      restartPolicy: Always
+      serviceAccountName: coder-ai-gateway
+      terminationGracePeriodSeconds: 330
+      volumes: []

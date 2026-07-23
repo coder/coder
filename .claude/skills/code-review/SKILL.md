@@ -38,6 +38,9 @@ quality problems.
 - **Concurrency**: Race conditions, deadlocks, missing synchronization
 - **Resources**: Leaks, unclosed handles, missing cleanup
 - **Error handling**: Swallowed errors, missing validation, panic paths
+- **Frontend** (`site/src/`): audit against the FE rule IDs in
+  [Frontend Patterns](../../docs/FRONTEND_PATTERNS.md) and cite the rule ID
+  in findings (for example, "FE7: re-typed query key")
 
 ## What NOT to Comment On
 

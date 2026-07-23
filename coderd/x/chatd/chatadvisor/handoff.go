@@ -2,6 +2,7 @@ package chatadvisor
 
 import (
 	"encoding/json"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -111,63 +112,101 @@ func BuildAdvisorMessages(
 		remainingBudget -= messageBytes
 	}
 	slices.Reverse(recent)
-	recent = dropOrphanToolMessages(recent)
+	recent = textualizeToolExchanges(recent)
 	messages = append(messages, recent...)
 	messages = append(messages, textMessage(fantasy.MessageRoleUser, trimmedQuestion))
 	return messages
 }
 
-// dropOrphanToolMessages removes tool-role messages whose tool-call references
-// have been truncated out of the recent window. Providers reject prompts with
-// tool_result blocks that do not have a matching tool_use, so a truncation cut
-// that lands between an assistant tool-call message and its tool-result message
-// would otherwise produce a provider error rather than advice. The backward
-// walk always picks up tool results before their originating assistant
-// message, so orphan results can only appear at the leading edge of the
-// recent window. A single forward pass tracking known tool-call IDs is
-// sufficient to drop them.
-func dropOrphanToolMessages(recent []fantasy.Message) []fantasy.Message {
-	if len(recent) == 0 {
-		return recent
+// textualizeToolExchanges rewrites tool activity as inline text notes.
+// Assistant tool-call parts are removed, with their inputs folded into the
+// note rendered for the matching tool result, and tool-role messages become
+// user-role notes. The nested advisor call defines no tools, so
+// assistant-authored tool artifacts in the transcript prime the model to
+// imitate them instead of answering: raw tool_use/tool_result blocks yield
+// an empty step ("advisor produced no text output"), and a bare
+// "[tool call: ...]" text line yields that literal line back as advice.
+// Folding each exchange into a single note leaves no assistant tool-call
+// pattern to complete while keeping the activity visible, and it removes
+// the provider requirement that tool_result blocks pair with a tool_use in
+// the same request, so results whose calls were truncated out of the
+// window can be kept instead of dropped.
+func textualizeToolExchanges(recent []fantasy.Message) []fantasy.Message {
+	// Tool results carry only the call ID, so record each call's name and
+	// input as the forward walk scrubs assistant messages.
+	type callInfo struct {
+		name  string
+		input string
 	}
-	known := make(map[string]struct{})
+	calls := make(map[string]callInfo)
 	result := make([]fantasy.Message, 0, len(recent))
 	for _, msg := range recent {
-		if msg.Role == fantasy.MessageRoleAssistant {
+		switch msg.Role {
+		case fantasy.MessageRoleAssistant:
+			parts := make([]fantasy.MessagePart, 0, len(msg.Content))
 			for _, part := range msg.Content {
 				call, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
 				if !ok {
+					parts = append(parts, part)
 					continue
 				}
-				known[call.ToolCallID] = struct{}{}
+				calls[call.ToolCallID] = callInfo{name: call.ToolName, input: call.Input}
 			}
-			result = append(result, msg)
-			continue
-		}
-		if msg.Role != fantasy.MessageRoleTool {
-			result = append(result, msg)
-			continue
-		}
-
-		kept := make([]fantasy.MessagePart, 0, len(msg.Content))
-		for _, part := range msg.Content {
-			tr, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
-			if !ok {
-				kept = append(kept, part)
+			if len(parts) == 0 {
+				// The message carried only tool calls; the folded
+				// result notes preserve the information.
 				continue
 			}
-			if _, matched := known[tr.ToolCallID]; matched {
-				kept = append(kept, part)
+			msg.Content = parts
+			result = append(result, msg)
+		case fantasy.MessageRoleTool:
+			parts := make([]fantasy.MessagePart, 0, len(msg.Content))
+			for _, part := range msg.Content {
+				tr, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+				if !ok {
+					parts = append(parts, part)
+					continue
+				}
+				output := renderToolResultOutput(tr.Output)
+				note := fmt.Sprintf("[A tool run by the parent agent returned: %s]", output)
+				if call, known := calls[tr.ToolCallID]; known {
+					note = fmt.Sprintf(
+						"[The parent agent ran the %s tool with input %s. Result: %s]",
+						call.name, call.input, output,
+					)
+				}
+				parts = append(parts, fantasy.TextPart{Text: note})
 			}
+			msg.Role = fantasy.MessageRoleUser
+			msg.Content = parts
+			result = append(result, msg)
+		default:
+			result = append(result, msg)
 		}
-		if len(kept) == 0 {
-			continue
-		}
-		trimmed := msg
-		trimmed.Content = kept
-		result = append(result, trimmed)
 	}
 	return result
+}
+
+// renderToolResultOutput flattens a tool result payload into text for the
+// advisor transcript. Media payloads are summarized instead of inlined
+// because base64 data adds prompt bulk without helping a text-only advisor.
+func renderToolResultOutput(output fantasy.ToolResultOutputContent) string {
+	switch typed := output.(type) {
+	case fantasy.ToolResultOutputContentText:
+		return typed.Text
+	case fantasy.ToolResultOutputContentError:
+		if typed.Error != nil {
+			return "error: " + typed.Error.Error()
+		}
+		return "error"
+	case fantasy.ToolResultOutputContentMedia:
+		if typed.Text != "" {
+			return fmt.Sprintf("[%s media] %s", typed.MediaType, typed.Text)
+		}
+		return fmt.Sprintf("[%s media]", typed.MediaType)
+	default:
+		return ""
+	}
 }
 
 func textMessage(role fantasy.MessageRole, text string) fantasy.Message {

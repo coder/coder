@@ -6,6 +6,7 @@ import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import { ChatMessageInput } from "./ChatMessageInput";
 import type { SkillMetadata } from "./SkillsTriggerMenu";
 import {
+	expectInsideListViewport,
 	expectNoVisibleText,
 	findVisibleText,
 	MockSkill,
@@ -144,6 +145,33 @@ export const ArrowKeysSelectHighlightedSkill: Story = {
 		await waitFor(() => {
 			expect(editor.textContent).toBe("/plan");
 		});
+	},
+};
+
+// Enough skills to overflow the menu's max height so arrow-key
+// navigation has to scroll the list.
+const manyPersonalSkills: TypesGen.UserSkillMetadata[] = Array.from(
+	{ length: 15 },
+	(_, index) => ({
+		...MockSkill,
+		id: `skill-scroll-${index}`,
+		name: `skill-${String(index).padStart(2, "0")}`,
+	}),
+);
+
+export const ArrowKeysScrollMenuList: Story = {
+	args: {
+		personalSkillsOverride: manyPersonalSkills,
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+		const lastItem = await findVisibleText("/skill-14");
+		// ArrowUp wraps the highlight to the last item, below the fold.
+		await userEvent.keyboard("{ArrowUp}");
+		await expectInsideListViewport(lastItem);
+		// ArrowDown wraps back to the first item and its group heading.
+		await userEvent.keyboard("{ArrowDown}");
+		await expectInsideListViewport(await findVisibleText("Personal skills"));
 	},
 };
 

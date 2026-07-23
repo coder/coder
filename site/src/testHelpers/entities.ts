@@ -5523,6 +5523,10 @@ export const MockSession: TypesGen.AIBridgeSession = {
 		cache_read_input_tokens: 980,
 		cache_write_input_tokens: 120,
 	},
+	network_calls: {
+		total: 23,
+		blocked: 2,
+	},
 	last_prompt: "But *can* I really fix it?",
 	last_active_at: "2026-03-09T10:28:15.03152Z",
 };

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
 	Command,
 	CommandEmpty,
@@ -98,16 +98,44 @@ const SkillCommandItem = ({
 	value,
 	selected,
 	onSelect,
+	consumePointerHighlight,
 }: {
 	skill: SkillMenuItem;
 	value: string;
 	selected: boolean;
 	onSelect: (skill: SkillMenuItem) => void;
+	consumePointerHighlight: () => boolean;
 }) => {
 	const handleSelect = () => onSelect(skill);
+	const itemRef = useRef<HTMLDivElement>(null);
+
+	// cmdk only auto-scrolls for its own key handling; arrow keys here are
+	// consumed by the Lexical trigger plugin and arrive as a controlled value
+	// change, so the item scrolls itself when it becomes the highlight.
+	// Pointer highlights skip scrolling, like cmdk, to avoid hover/scroll loops.
+	useLayoutEffect(() => {
+		if (!selected || consumePointerHighlight()) {
+			return;
+		}
+		const item = itemRef.current;
+		if (!item) {
+			return;
+		}
+		if (item.parentElement?.firstElementChild === item) {
+			// First item in a group: reveal the group heading as well. cmdk
+			// renders headings internally without exposing a ref, so locate
+			// it through the DOM the same way cmdk does.
+			item
+				.closest("[cmdk-group]")
+				?.querySelector("[cmdk-group-heading]")
+				?.scrollIntoView({ block: "nearest" });
+		}
+		item.scrollIntoView({ block: "nearest" });
+	}, [selected, consumePointerHighlight]);
 
 	return (
 		<CommandItem
+			ref={itemRef}
 			value={value}
 			aria-selected={selected}
 			className={cn(
@@ -170,13 +198,23 @@ export const SkillsTriggerMenu = ({
 	const shouldShowEmpty = allSkills.length === 0 && statusItems.length === 0;
 	const selectedValue = selectedIndex >= 0 ? String(selectedIndex) : "";
 
+	const pointerHighlightRef = useRef(false);
+
+	const consumePointerHighlight = () => {
+		const fromPointer = pointerHighlightRef.current;
+		pointerHighlightRef.current = false;
+		return fromPointer;
+	};
+
 	const handleHighlightedValueChange = (value: string) => {
 		const nextIndex = Number(value);
 		if (
 			Number.isInteger(nextIndex) &&
 			nextIndex >= 0 &&
-			nextIndex < allSkills.length
+			nextIndex < allSkills.length &&
+			nextIndex !== selectedIndex
 		) {
+			pointerHighlightRef.current = true;
 			onSelectedIndexChange(nextIndex);
 		}
 	};
@@ -188,6 +226,7 @@ export const SkillsTriggerMenu = ({
 			value={String(index)}
 			selected={index === selectedIndex}
 			onSelect={onSelect}
+			consumePointerHighlight={consumePointerHighlight}
 		/>
 	);
 

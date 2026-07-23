@@ -9,6 +9,8 @@ import {
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { chatModelConfigsKey } from "#/api/queries/chats";
+import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { BlockList } from "../../ChatConversation/ConversationTimeline";
 import { DesktopPanelContext } from "./DesktopPanelContext";
@@ -685,6 +687,135 @@ export const SubagentMalformedChatIdLinksToRecoverableChatId: Story = {
 			"href",
 			["/agents/8f3a6131-1ce8-46f5-9", "b", "a8-4a36-beb2"].join(""),
 		);
+	},
+};
+
+const mockChatModelConfig = {
+	...MockChatModelConfig,
+	id: "8b29eba2-53a9-4c9a-95bb-b0326ac0a2fe",
+	model: "claude-sonnet-4-6",
+	display_name: "Claude Sonnet 4.6",
+	model_config: {
+		reasoning_effort: { default: "medium", max: "high" },
+	},
+};
+
+export const SubagentSpawnWithModelAndEffort: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+			model_config_id: "8b29eba2-53a9-4c9a-95bb-b0326ac0a2fe",
+			reasoning_effort: "high",
+		},
+		result: {
+			chat_id: "child-chat-id",
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	parameters: {
+		queries: [{ key: chatModelConfigsKey, data: [mockChatModelConfig] }],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() =>
+			expect(
+				canvas.getByRole("button", {
+					name: /Spawned Workspace diagnostics with Claude Sonnet 4.6, high thinking/,
+				}),
+			).toBeInTheDocument(),
+		);
+	},
+};
+
+export const SubagentSpawnWithModelDefaultEffort: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+			model_config_id: "8b29eba2-53a9-4c9a-95bb-b0326ac0a2fe",
+		},
+		result: {
+			chat_id: "child-chat-id",
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	parameters: {
+		queries: [{ key: chatModelConfigsKey, data: [mockChatModelConfig] }],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() =>
+			expect(
+				canvas.getByRole("button", {
+					name: /Spawned Workspace diagnostics with Claude Sonnet 4.6, medium thinking/,
+				}),
+			).toBeInTheDocument(),
+		);
+	},
+};
+
+// Effort-only spawns resolve against an inherited model whose effort
+// bounds are unknown client-side, so no suffix is shown.
+export const SubagentSpawnWithEffortOnly: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+			reasoning_effort: "high",
+		},
+		result: {
+			chat_id: "child-chat-id",
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	parameters: {
+		queries: [{ key: chatModelConfigsKey, data: [mockChatModelConfig] }],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const label = canvas.getByRole("button", {
+			name: /Spawned Workspace diagnostics/,
+		});
+		expect(label).toBeInTheDocument();
+		expect(label).not.toHaveTextContent(/with/);
+	},
+};
+
+export const SubagentSpawnWithUnknownModelConfig: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+			model_config_id: "00000000-0000-0000-0000-000000000000",
+		},
+		result: {
+			chat_id: "child-chat-id",
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	parameters: {
+		queries: [{ key: chatModelConfigsKey, data: [mockChatModelConfig] }],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const label = canvas.getByRole("button", {
+			name: /Spawned Workspace diagnostics/,
+		});
+		expect(label).toBeInTheDocument();
+		expect(label).not.toHaveTextContent(/with/);
 	},
 };
 
