@@ -423,7 +423,6 @@ func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIB
 		var detectErr error
 		crossings, detectErr = s.detectBudgetThresholdCrossings(ctx, tx, intc, cost, createdAt)
 		if detectErr != nil {
-			// log and continue so a failed read does not roll back the committed spend.
 			s.logger.Warn(ctx, "failed to detect AI budget threshold crossing",
 				slog.F("interception_id", intc.ID),
 				slog.F("initiator_id", intc.InitiatorID),

@@ -2324,7 +2324,7 @@ func TestRecordTokenUsageBudgetWarningNotification(t *testing.T) {
 			_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
 				InterceptionId: intc.ID.String(),
 				MsgId:          "msg_123",
-				InputTokens:    1000,
+				InputTokens:    inputTokens,
 				CreatedAt:      timestamppb.New(now),
 			})
 			require.NoError(t, err)
