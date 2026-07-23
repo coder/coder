@@ -17,7 +17,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chathooks"
@@ -75,16 +74,6 @@ func (p *Server) dispatchLifecycleHook(
 	}
 	resp, _, err := p.hookDispatcher.Dispatch(ctx, lifecycleHookEvent(chat, turnID, eventType, data))
 	return resp, err
-}
-
-type preToolUseResult struct {
-	Step chatloop.PersistedStep
-	// Responses carries the responses whose transcript effects still
-	// need to be committed with the step.
-	Responses []agenthooks.Response
-	// EffectToolUseIDs identifies the banked decisions whose transcript
-	// effects commit with the step, for post-commit cache marking.
-	EffectToolUseIDs []string
 }
 
 func (p *Server) dispatchPreToolUse(
@@ -168,74 +157,6 @@ func (p *Server) dispatchPostToolUseResults(
 	return responses, firstErr
 }
 
-func (p *Server) resolvePreToolUseDecision(
-	ctx context.Context,
-	chat database.Chat,
-	turnID *uuid.UUID,
-	toolCall fantasy.ToolCallContent,
-	priorToolCallIDs map[string]bool,
-) (agenthooks.Response, bool, error) {
-	// Re-consult invalid JSON or IDs reused earlier in the turn because
-	// no banked decision can safely authorize those calls.
-	if json.Valid([]byte(toolCall.Input)) && !priorToolCallIDs[toolCall.ToolCallID] {
-		response, effectsApplied, ok := p.hookDecisions.lookup(chat.ID, toolCall.ToolCallID, toolCall.ToolName, toolCall.Input)
-		if ok {
-			return response, effectsApplied, nil
-		}
-	}
-	response, err := p.dispatchPreToolUse(ctx, chat, turnID, toolCall)
-	if err != nil {
-		return agenthooks.Response{}, false, err
-	}
-	p.bankPreToolUseDecision(chat.ID, toolCall, response)
-	return response, false, nil
-}
-
-func (p *Server) preflightToolCalls(
-	ctx context.Context,
-	chat database.Chat,
-	turnID *uuid.UUID,
-	step chatloop.PersistedStep,
-	toolCalls []fantasy.ToolCallContent,
-	priorToolCallIDs map[string]bool,
-) (preToolUseResult, error) {
-	result := preToolUseResult{Step: step}
-	if !p.hookDispatcher.Enabled() {
-		return result, nil
-	}
-	if err := rejectDuplicateToolUseIDs(toolCalls); err != nil {
-		return preToolUseResult{}, err
-	}
-
-	for _, toolCall := range toolCalls {
-		if toolCall.ProviderExecuted {
-			continue
-		}
-		banked, effectsApplied, err := p.resolvePreToolUseDecision(ctx, chat, turnID, toolCall, priorToolCallIDs)
-		if err != nil {
-			return preToolUseResult{}, err
-		}
-		if err := applyPreToolUsePermission(&result.Step, toolCall, banked); err != nil {
-			return preToolUseResult{}, err
-		}
-		if !effectsApplied {
-			result.Responses = append(result.Responses, transcriptHookResponse(banked))
-			result.EffectToolUseIDs = append(result.EffectToolUseIDs, toolCall.ToolCallID)
-		}
-	}
-	return result, nil
-}
-
-// bankPreToolUseDecision caches a successful decision for same-process
-// replay. Invalid JSON input is never banked because replay identity
-// requires the exact input.
-func (p *Server) bankPreToolUseDecision(chatID uuid.UUID, toolCall fantasy.ToolCallContent, response agenthooks.Response) {
-	if !json.Valid([]byte(toolCall.Input)) {
-		return
-	}
-	p.hookDecisions.put(chatID, toolCall.ToolCallID, toolCall.ToolName, toolCall.Input, response)
-}
-
 // transcriptHookResponse returns the response with denial model context
 // cleared: a denied call's model_context is folded into the synthetic
 // tool result, so persisting it again as a row would duplicate it.
@@ -275,8 +196,9 @@ func restoreToolCallOrder(content []fantasy.Content, calls []fantasy.ToolCallCon
 	}
 }
 
-// rejectDuplicateToolUseIDs fails closed because banked replay decisions
-// are keyed by tool-use ID within a turn.
+// rejectDuplicateToolUseIDs fails closed because hook consumers key
+// decisions by tool-use ID; a duplicated ID in one step makes decisions
+// unattributable.
 func rejectDuplicateToolUseIDs(toolCalls []fantasy.ToolCallContent) error {
 	seen := make(map[string]struct{}, len(toolCalls))
 	for _, toolCall := range toolCalls {
@@ -296,9 +218,6 @@ type preToolUseExecutionResult struct {
 	Denied    []fantasy.ToolResultContent
 	Responses []agenthooks.Response
 	Overrides map[string]json.RawMessage
-	// EffectToolUseIDs identifies the banked decisions whose transcript
-	// effects commit with this step, for post-commit cache marking.
-	EffectToolUseIDs []string
 }
 
 func (p *Server) preflightPendingToolCalls(
@@ -306,7 +225,6 @@ func (p *Server) preflightPendingToolCalls(
 	chat database.Chat,
 	turnID *uuid.UUID,
 	toolCalls []fantasy.ToolCallContent,
-	priorToolCallIDs map[string]bool,
 ) (preToolUseExecutionResult, error) {
 	if !p.hookDispatcher.Enabled() {
 		return preToolUseExecutionResult{Allowed: toolCalls}, nil
@@ -319,30 +237,27 @@ func (p *Server) preflightPendingToolCalls(
 	}
 
 	for _, toolCall := range toolCalls {
-		banked, effectsApplied, err := p.resolvePreToolUseDecision(ctx, chat, turnID, toolCall, priorToolCallIDs)
+		response, err := p.dispatchPreToolUse(ctx, chat, turnID, toolCall)
 		if err != nil {
 			return preToolUseExecutionResult{}, err
 		}
-		if !effectsApplied {
-			result.Responses = append(result.Responses, transcriptHookResponse(banked))
-			result.EffectToolUseIDs = append(result.EffectToolUseIDs, toolCall.ToolCallID)
-		}
-		if banked.Permission == nil {
+		result.Responses = append(result.Responses, transcriptHookResponse(response))
+		if response.Permission == nil {
 			result.Allowed = append(result.Allowed, toolCall)
 			continue
 		}
-		switch banked.Permission.Decision {
+		switch response.Permission.Decision {
 		case agenthooks.PermissionAllow:
-			if len(banked.Permission.InputOverride) > 0 {
-				toolCall.Input = string(banked.Permission.InputOverride)
+			if len(response.Permission.InputOverride) > 0 {
+				toolCall.Input = string(response.Permission.InputOverride)
 				if result.Overrides == nil {
 					result.Overrides = make(map[string]json.RawMessage)
 				}
-				result.Overrides[toolCall.ToolCallID] = banked.Permission.InputOverride
+				result.Overrides[toolCall.ToolCallID] = response.Permission.InputOverride
 			}
 			result.Allowed = append(result.Allowed, toolCall)
 		case agenthooks.PermissionDeny:
-			result.Denied = append(result.Denied, deniedToolResult(toolCall, banked.Permission.Reason, banked.ModelContext))
+			result.Denied = append(result.Denied, deniedToolResult(toolCall, response.Permission.Reason, response.ModelContext))
 		}
 	}
 	return result, nil
@@ -388,21 +303,6 @@ func replacePersistedToolCallInputs(
 	return nil
 }
 
-func applyPreToolUsePermission(step *chatloop.PersistedStep, toolCall fantasy.ToolCallContent, response agenthooks.Response) error {
-	if response.Permission == nil {
-		return nil
-	}
-	switch response.Permission.Decision {
-	case agenthooks.PermissionAllow:
-		if !replaceToolCallInput(step.Content, toolCall.ToolCallID, string(response.Permission.InputOverride)) {
-			return xerrors.Errorf("tool call %q is missing from generated step", toolCall.ToolCallID)
-		}
-	case agenthooks.PermissionDeny:
-		step.Content = append(step.Content, deniedToolResult(toolCall, response.Permission.Reason, response.ModelContext))
-	}
-	return nil
-}
-
 // deniedToolResult synthesizes the denial as a tool result so the model
 // can replan within the same turn. The consumer's model_context rides in
 // the same result instead of a separate transcript row.
@@ -422,23 +322,6 @@ func deniedToolResult(toolCall fantasy.ToolCallContent, reason, modelContext str
 			Error: xerrors.New(message),
 		},
 	}
-}
-
-func replaceToolCallInput(content []fantasy.Content, toolCallID, input string) bool {
-	for i, block := range content {
-		if toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block); ok && toolCall.ToolCallID == toolCallID {
-			toolCall.Input = input
-			content[i] = toolCall
-			return true
-		}
-		if toolCall, ok := fantasy.AsContentType[*fantasy.ToolCallContent](block); ok && toolCall != nil && toolCall.ToolCallID == toolCallID {
-			updated := *toolCall
-			updated.Input = input
-			content[i] = updated
-			return true
-		}
-	}
-	return false
 }
 
 func sessionStartSource(messages []database.ChatMessage) string {

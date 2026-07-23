@@ -1,18 +1,15 @@
 package chatd //nolint:testpackage // Exercises unexported generation helpers.
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -89,67 +86,4 @@ func TestRecordGenerationFinishFailure(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestPriorToolCallIDsInTurn(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ExcludesEarlierTurns", func(t *testing.T) {
-		t.Parallel()
-
-		messages := []database.ChatMessage{
-			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("first prompt")),
-			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("reused-1", "run_command", json.RawMessage(`{}`))),
-			dbMessage(t, 3, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult("reused-1", "run_command", json.RawMessage(`{}`), false, false)),
-			dbMessage(t, 4, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("second prompt")),
-			dbMessage(t, 5, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("reused-1", "run_command", json.RawMessage(`{}`))),
-		}
-		prior, err := priorToolCallIDsInTurn(messages)
-		require.NoError(t, err)
-		require.Empty(t, prior)
-	})
-
-	t.Run("IncludesEarlierStepsInTurn", func(t *testing.T) {
-		t.Parallel()
-
-		messages := []database.ChatMessage{
-			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("prompt")),
-			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("call-1", "run_command", json.RawMessage(`{}`))),
-			dbMessage(t, 3, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult("call-1", "run_command", json.RawMessage(`{}`), false, false)),
-			dbMessage(t, 4, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("call-1", "run_command", json.RawMessage(`{}`))),
-		}
-		prior, err := priorToolCallIDsInTurn(messages)
-		require.NoError(t, err)
-		require.Equal(t, map[string]bool{"call-1": true}, prior)
-	})
-
-	t.Run("HookContextDoesNotSplitTurn", func(t *testing.T) {
-		t.Parallel()
-
-		hookContext := dbMessage(t, 4, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("hook context"))
-		hookContext.Visibility = database.ChatMessageVisibilityModel
-		messages := []database.ChatMessage{
-			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("prompt")),
-			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("call-1", "run_command", json.RawMessage(`{}`))),
-			dbMessage(t, 3, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult("call-1", "run_command", json.RawMessage(`{}`), false, false)),
-			hookContext,
-			dbMessage(t, 5, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("call-1", "run_command", json.RawMessage(`{}`))),
-		}
-		prior, err := priorToolCallIDsInTurn(messages)
-		require.NoError(t, err)
-		require.Equal(t, map[string]bool{"call-1": true}, prior)
-	})
-
-	t.Run("NoAssistantInCurrentTurn", func(t *testing.T) {
-		t.Parallel()
-
-		messages := []database.ChatMessage{
-			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("first prompt")),
-			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("old-1", "run_command", json.RawMessage(`{}`))),
-			dbMessage(t, 3, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("second prompt")),
-		}
-		prior, err := priorToolCallIDsInTurn(messages)
-		require.NoError(t, err)
-		require.Empty(t, prior)
-	})
 }

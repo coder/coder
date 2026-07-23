@@ -470,13 +470,17 @@ func TestPreToolUseHookDispatchFailure(t *testing.T) {
 			lastError := chatLastErrorMessage(failed.LastError)
 			require.Contains(t, lastError, "hook dispatch failed: pre_tool_use: "+tt.result)
 			messages := chatMessages(ctx, t, db, chat.ID)
-			require.Len(t, messages, 1)
+			require.Len(t, messages, 2)
 			require.Equal(t, database.ChatMessageRoleUser, messages[0].Role)
+			require.Equal(t, database.ChatMessageRoleAssistant, messages[1].Role)
 		})
 	}
 }
 
-func TestPreToolUseHookErrorRetryReusesBankedSiblingDecision(t *testing.T) {
+// A dispatch failure fails tool execution before any hook effect is
+// committed, so a retry re-dispatches every sibling call and commits
+// each transcript effect exactly once.
+func TestPreToolUseHookErrorRetryRedispatchesSiblings(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -552,7 +556,7 @@ func TestPreToolUseHookErrorRetryReusesBankedSiblingDecision(t *testing.T) {
 		OwnerID:        user.ID,
 		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
 		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
-		Title:          "pre-tool-use-cache-retry",
+		Title:          "pre-tool-use-error-retry",
 		ModelConfigID:  model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("read both files"),
@@ -562,7 +566,7 @@ func TestPreToolUseHookErrorRetryReusesBankedSiblingDecision(t *testing.T) {
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
 	require.Equal(t, int32(1), firstCalls.Load())
 	require.Equal(t, int32(1), secondCalls.Load())
-	require.Len(t, chatMessages(ctx, t, db, chat.ID), 1)
+	require.Len(t, chatMessages(ctx, t, db, chat.ID), 2)
 
 	failSecond.Store(false)
 	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
@@ -574,7 +578,7 @@ func TestPreToolUseHookErrorRetryReusesBankedSiblingDecision(t *testing.T) {
 	require.NoError(t, err)
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
-	require.Equal(t, int32(1), firstCalls.Load())
+	require.Equal(t, int32(2), firstCalls.Load())
 	require.Equal(t, int32(2), secondCalls.Load())
 	promptMessages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 	require.NoError(t, err)
@@ -643,7 +647,7 @@ func TestPreToolUseHookSettledDecisionDispatchesFresh(t *testing.T) {
 		OwnerID:        user.ID,
 		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
 		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
-		Title:          "pre-tool-use-settled-cache",
+		Title:          "pre-tool-use-settled",
 		ModelConfigID:  model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("read once"),

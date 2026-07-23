@@ -103,7 +103,7 @@ If the response has a body, return a JSON object with these optional fields.
 | `user_message`  | Adds a message visible to the user.                                                                                                                                            |
 
 The `permission.decision` value supports `allow` and `deny`.
-The `ask` value isn't supported and causes the dispatch to fail closed.
+Any other value causes the dispatch to fail closed.
 
 Permission rules depend on the event:
 
@@ -138,7 +138,8 @@ Treat events as attempt notifications rather than proof of a committed operation
 
 Delivery is at least once.
 Coder retries one connection failure per dispatch with the same JWT, so use `dispatch_id` to recognize a repeated HTTP attempt and return the same response.
-Coder can also re-dispatch the same logical event with a new `dispatch_id`, for example when a chat recovers after a crash and retries a pending tool call.
+Coder also re-dispatches the same logical event with a new `dispatch_id` whenever an operation runs again, for example when a chat recovers after a crash and retries a pending tool call, or when a user retries a turn that failed before committing.
+Every tool call is validated through a fresh `pre_tool_use` dispatch; Coder never reuses an earlier decision on the consumer's behalf.
 
 Use event-specific identifiers for logical duplicates:
 
