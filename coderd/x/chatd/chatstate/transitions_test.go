@@ -413,6 +413,36 @@ func TestSendMessageQueueCapRejectsQueueAppend(t *testing.T) {
 		"failed queue append must not bump queue_version")
 }
 
+func TestSendMessageInterruptRequiresActionReturnsCancellations(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	seeded := seedAOrA1(t, f, 0, "interrupt_cancels")
+	require.Equal(t, chatstate.StateA0, f.classify(ctx, t, seeded.chatID))
+
+	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
+	var send chatstate.SendMessageResult
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		var err error
+		send, err = tx.SendMessage(chatstate.SendMessageInput{
+			Message:      userTextMessage("interrupt", f.User.ID, f.Model.ID),
+			BusyBehavior: chatstate.BusyBehaviorInterrupt,
+		})
+		return err
+	}))
+
+	require.NotNil(t, send.QueuedMessage, "interrupt from A0 queues the user message")
+	require.Len(t, send.InsertedMessages, 1,
+		"the synthetic tool cancellation must be reported to callers")
+	cancel := send.InsertedMessages[0]
+	require.Equal(t, database.ChatMessageRoleTool, cancel.Role)
+	require.Equal(t, database.ChatMessageVisibilityBoth, cancel.Visibility)
+	parts, err := chatprompt.ParseContent(cancel)
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	require.Equal(t, seeded.pendingToolCallID, parts[0].ToolCallID)
+}
+
 // TestEditMessageNonUserReturnsSentinel asserts that editing a
 // non-user message returns chatstate.ErrEditedMessageNotUser via
 // the TransitionError cause chain, and still matches the generic
@@ -459,6 +489,55 @@ func TestEditMessageNonUserReturnsSentinel(t *testing.T) {
 		"non-user edit returns ErrEditedMessageNotUser via TransitionError cause")
 	require.ErrorIs(t, editErr, chatstate.ErrTransitionNotAllowed,
 		"ErrEditedMessageNotUser still matches the generic transition sentinel")
+}
+
+func TestEditMessageInsertsSuffixMessages(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+
+	target := userTextMessage("original prompt", f.User.ID, f.Model.ID)
+
+	var targetID int64
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		step, err := tx.CommitStep(chatstate.CommitStepInput{
+			Messages: []chatstate.Message{target},
+		})
+		if err != nil {
+			return err
+		}
+		require.Len(t, step.InsertedMessages, 1)
+		targetID = step.InsertedMessages[0].ID
+		return nil
+	}))
+
+	suffix := userTextMessage("session notice", f.User.ID, f.Model.ID)
+	suffix.Role = database.ChatMessageRoleSystem
+	rawContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("edited prompt"),
+	})
+	require.NoError(t, err)
+
+	var result chatstate.EditMessageResult
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		result, err = tx.EditMessage(chatstate.EditMessageInput{
+			MessageID:      targetID,
+			SuffixMessages: []chatstate.Message{suffix},
+			CreatedBy:      f.User.ID,
+			Content:        rawContent,
+		})
+		return err
+	}))
+
+	require.Contains(t, result.DeletedMessageIDs, targetID)
+	require.Len(t, result.SuffixMessages, 1)
+	assertChatMessageText(t, result.SuffixMessages[0], "session notice")
+	require.Greater(t, result.SuffixMessages[0].ID, result.ReplacementMessage.ID,
+		"the suffix message must follow the replacement")
+	_, err = f.DB.GetChatMessageByID(ctx, result.ReplacementMessage.ID)
+	require.NoError(t, err, "the replacement message must stay active")
 }
 
 // TestTransitionAbandon_RejectsUnowned verifies that calling Abandon
