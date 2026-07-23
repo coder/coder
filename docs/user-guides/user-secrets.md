@@ -241,8 +241,28 @@ the [Secrets API reference](../reference/api/secrets.md).
 
 ## Bulk import
 
+If you already keep secrets in a dotenv file, a flat JSON object, or a flat
+YAML mapping, you can import them all in one request instead of creating each
+secret individually.
+
 Use `POST /api/v2/users/{user}/secrets/batch` or `codersdk.Client.ImportUserSecrets` to import multiple secrets from dotenv-style `KEY=VALUE` content, a flat JSON object, or a flat YAML mapping.
 Set the request `format` to `env`, `json`, or `yaml`, and pass the file contents in `content`.
+
+For example, to import this dotenv file:
+
+```sh
+API_KEY=abc123
+DATABASE_URL=postgres://user:pass@db.internal/app
+```
+
+Send it as the request body:
+
+```json
+{
+  "format": "env",
+  "content": "API_KEY=abc123\nDATABASE_URL=postgres://user:pass@db.internal/app"
+}
+```
 
 The import is atomic.
 If any secret fails validation, conflicts with another secret name, or exceeds a per-user limit, Coder rolls back the entire import and creates no secrets.
