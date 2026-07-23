@@ -13,7 +13,6 @@
     "labels": {
       "effective_group_name": "Engineering",
       "limit": "$1000.00",
-      "limit_source": "group",
       "period": "monthly",
       "threshold": "85"
     },
@@ -22,6 +21,6 @@
   },
   "title": "You're approaching your monthly AI budget limit",
   "title_markdown": "You're approaching your monthly AI budget limit",
-  "body": "You have used more than 85% of your monthly AI budget ($1000.00).\n\nThis limit is set by your group Engineering.",
-  "body_markdown": "You have used more than 85% of your monthly AI budget ($1000.00).\n\nThis limit is set by your group **Engineering**."
+  "body": "You have used more than 85% of your monthly AI budget ($1000.00). Effective group: Engineering.",
+  "body_markdown": "You have used more than 85% of your monthly AI budget ($1000.00). Effective group: **Engineering**."
 }

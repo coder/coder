@@ -13,7 +13,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 // warningThresholdPercent triggers a warning notification; limitThresholdPercent
@@ -50,7 +49,6 @@ type budgetThresholdCrossing struct {
 	spendLimitMicros     int64
 	thresholdPercent     int
 	notificationTemplate uuid.UUID
-	limitSource          codersdk.AIBudgetLimitSource
 }
 
 // detectBudgetThresholdCrossings checks whether this interception's cost pushed
@@ -96,7 +94,6 @@ func (s *Server) detectBudgetThresholdCrossings(ctx context.Context, tx database
 				spendLimitMicros:     limit,
 				thresholdPercent:     t.percent,
 				notificationTemplate: t.notificationTemplate,
-				limitSource:          cost.limitSource,
 			})
 		}
 	}
@@ -115,7 +112,6 @@ func (s *Server) notifyBudgetThresholdCrossing(ctx context.Context, crossing bud
 		"threshold":            strconv.Itoa(crossing.thresholdPercent),
 		"limit":                formatSpendLimit(crossing.spendLimitMicros),
 		"period":               s.budgetPeriod.Adjective(),
-		"limit_source":         string(crossing.limitSource),
 		"effective_group_name": group.Name,
 	}
 
