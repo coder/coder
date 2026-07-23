@@ -18,7 +18,14 @@ func SafeRedirectPath(u string) string {
 	// protocol-relative, so make sure there is exactly one.
 	path := "/" + strings.TrimLeft(uri.EscapedPath(), "/")
 	if uri.RawQuery != "" {
-		return path + "?" + uri.RawQuery
+		path += "?" + uri.RawQuery
+	}
+	// We're specifically checking Fragment instead of RawFragment here because
+	// RawFragment is only populated when the parser needs to preserve a
+	// non-default escaping, so it is empty for plain-alphanumeric fragments like
+	// "#wooble". EscapedFragment handles escaping correctly in either case.
+	if uri.Fragment != "" {
+		path += "#" + uri.EscapedFragment()
 	}
 	return path
 }
