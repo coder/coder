@@ -30,7 +30,7 @@ disable retention entirely.
 
 Use the experimental admin API to read or update the value:
 
-```text
+```txt
 GET  /api/experimental/chats/config/retention-days
 PUT  /api/experimental/chats/config/retention-days
 ```

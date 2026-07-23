@@ -37,7 +37,7 @@ func TestRotator(t *testing.T) {
 		// are as expected.
 		dbkeys, err = db.GetCryptoKeys(ctx)
 		require.NoError(t, err)
-		require.Len(t, dbkeys, len(database.AllCryptoKeyFeatureValues()))
+		require.Len(t, dbkeys, len(cryptokeys.DefaultRotatedFeatures()))
 		requireContainsAllFeatures(t, dbkeys)
 	})
 
@@ -64,7 +64,7 @@ func TestRotator(t *testing.T) {
 
 		cryptokeys.StartRotator(ctx, logger, db, cryptokeys.WithClock(clock))
 
-		initialKeyLen := len(database.AllCryptoKeyFeatureValues())
+		initialKeyLen := len(cryptokeys.DefaultRotatedFeatures())
 		// Fetch the keys from the database and ensure they
 		// are as expected.
 		dbkeys, err := db.GetCryptoKeys(ctx)
@@ -113,7 +113,7 @@ func requireContainsAllFeatures(t *testing.T, keys []database.CryptoKey) {
 	for _, key := range keys {
 		features[key.Feature] = true
 	}
-	for _, feature := range database.AllCryptoKeyFeatureValues() {
+	for _, feature := range cryptokeys.DefaultRotatedFeatures() {
 		require.True(t, features[feature])
 	}
 }

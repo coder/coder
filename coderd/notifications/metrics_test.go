@@ -276,17 +276,24 @@ func TestPendingUpdatesMetric(t *testing.T) {
 	mClock.Advance(cfg.FetchInterval.Value()).MustWait(ctx)
 
 	// THEN:
-	// handler has dispatched the given notifications.
-	func() {
+	// Both handlers have dispatched the given notifications, and their
+	// results are pending in the metrics.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		handler.mu.RLock()
+		inboxHandler.mu.RLock()
 		defer handler.mu.RUnlock()
+		defer inboxHandler.mu.RUnlock()
 
-		require.Len(t, handler.succeeded, 1)
-		require.Len(t, handler.failed, 1)
-	}()
+		assert.Len(ct, handler.succeeded, 1)
+		assert.Len(ct, handler.failed, 1)
+		assert.Len(ct, inboxHandler.succeeded, 1)
+		assert.Len(ct, inboxHandler.failed, 1)
 
-	// Both handler calls should be pending in the metrics.
-	require.EqualValues(t, 4, promtest.ToFloat64(metrics.PendingUpdates))
+		success, failure := mgr.BufferedUpdatesCount()
+		assert.Equal(ct, 2, success)
+		assert.Equal(ct, 2, failure)
+		assert.EqualValues(ct, 4, promtest.ToFloat64(metrics.PendingUpdates))
+	}, testutil.WaitShort, testutil.IntervalFast)
 
 	// THEN:
 	// Trigger syncing updates

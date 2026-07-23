@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import {
 	AgentSettingsUserAgentsPageView,
 	type AgentSettingsUserAgentsPageViewProps,
@@ -15,14 +16,11 @@ const UNAVAILABLE_WARNING =
 const buildModelConfig = (
 	overrides: Partial<TypesGen.ChatModelConfig> = {},
 ): TypesGen.ChatModelConfig => ({
+	...MockChatModelConfig,
 	id: "model-default",
-	provider: "openai",
 	model: "gpt-4.1-mini",
 	display_name: "GPT 4.1 Mini",
-	enabled: true,
-	is_default: false,
 	context_limit: 1_000_000,
-	compression_threshold: 70,
 	created_at: "2026-03-12T12:00:00.000Z",
 	updated_at: "2026-03-12T12:00:00.000Z",
 	...overrides,
@@ -66,10 +64,20 @@ const defaultModelConfig = buildModelConfig({
 
 const claudeModelConfig = buildModelConfig({
 	id: "model-claude-sonnet-4",
-	provider: "anthropic",
+	ai_provider_id: "provider-anthropic",
 	model: "claude-sonnet-4",
 	display_name: "Claude Sonnet 4",
 	context_limit: 200_000,
+});
+
+const reasoningModelConfig = buildModelConfig({
+	id: "model-gpt-5",
+	model: "gpt-5",
+	display_name: "GPT-5",
+	model_config: {
+		reasoning_effort: { default: "medium", max: "high" },
+	},
+	reasoning_efforts: ["none", "minimal", "low", "medium", "high"],
 });
 
 const disabledModelConfig = buildModelConfig({
@@ -81,7 +89,7 @@ const disabledModelConfig = buildModelConfig({
 
 const inaccessibleModelConfig = buildModelConfig({
 	id: "model-inaccessible",
-	provider: "bedrock",
+	ai_provider_id: "provider-bedrock",
 	model: "claude-3-5-sonnet",
 	display_name: "Bedrock Claude",
 });
@@ -89,25 +97,37 @@ const inaccessibleModelConfig = buildModelConfig({
 const modelConfigs = [
 	defaultModelConfig,
 	claudeModelConfig,
+	reasoningModelConfig,
 	disabledModelConfig,
 	inaccessibleModelConfig,
 ];
 
+const reasoningModelOption: ModelSelectorOption = {
+	id: reasoningModelConfig.id,
+	provider: "openai",
+	model: reasoningModelConfig.model,
+	displayName: reasoningModelConfig.display_name,
+	contextLimit: reasoningModelConfig.context_limit,
+	reasoningEffortDefault: "medium",
+	reasoningEfforts: ["none", "minimal", "low", "medium", "high"],
+};
+
 const modelOptions: ModelSelectorOption[] = [
 	{
 		id: defaultModelConfig.id,
-		provider: defaultModelConfig.provider,
+		provider: "openai",
 		model: defaultModelConfig.model,
 		displayName: defaultModelConfig.display_name,
 		contextLimit: defaultModelConfig.context_limit,
 	},
 	{
 		id: claudeModelConfig.id,
-		provider: claudeModelConfig.provider,
+		provider: "anthropic",
 		model: claudeModelConfig.model,
 		displayName: claudeModelConfig.display_name,
 		contextLimit: claudeModelConfig.context_limit,
 	},
+	reasoningModelOption,
 ];
 
 const buildOverridesResponse = (
@@ -128,7 +148,7 @@ const buildOverridesResponse = (
 	...overrides,
 });
 
-const makeArgs = (
+const buildArgs = (
 	overrides: Partial<AgentSettingsUserAgentsPageViewProps> = {},
 ): AgentSettingsUserAgentsPageViewProps => ({
 	overridesData: buildOverridesResponse(),
@@ -170,27 +190,29 @@ const getSection = async (
 const selectOption = async (
 	section: HTMLElement,
 	canvasElement: HTMLElement,
-	comboboxName: string | RegExp,
+	comboboxName: string,
 	optionName: string | RegExp,
 ) => {
-	await userEvent.click(
-		within(section).getByRole("combobox", { name: comboboxName }),
-	);
+	const combobox = within(section).getByRole("combobox", {
+		name: comboboxName,
+	});
+	await userEvent.click(combobox);
 	const body = within(canvasElement.ownerDocument.body);
 	await userEvent.click(await body.findByRole("option", { name: optionName }));
+	return combobox;
 };
 
 const meta = {
 	title: "pages/AgentsPage/AgentSettingsUserAgentsPageView",
 	component: AgentSettingsUserAgentsPageView,
-	args: makeArgs(),
+	args: buildArgs(),
 } satisfies Meta<typeof AgentSettingsUserAgentsPageView>;
 
 export default meta;
 type Story = StoryObj<typeof AgentSettingsUserAgentsPageView>;
 
 export const EnabledWithNoSavedValues: Story = {
-	args: makeArgs(),
+	args: buildArgs(),
 	play: async ({ canvasElement }) => {
 		const rootSection = await getSection(canvasElement, "Root agent model");
 		const generalSection = await getSection(
@@ -219,7 +241,7 @@ export const EnabledWithNoSavedValues: Story = {
 };
 
 export const EnabledWithSavedValues: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		overridesData: buildOverridesResponse({
 			root: buildOverride("root", {
 				mode: "chat_default",
@@ -238,10 +260,20 @@ export const EnabledWithSavedValues: Story = {
 	}),
 	play: async ({ canvasElement, args }) => {
 		const rootSection = await getSection(canvasElement, "Root agent model");
+		const exploreSection = await getSection(
+			canvasElement,
+			"Explore subagent model",
+		);
+		expect(
+			within(exploreSection).getByRole("combobox", {
+				name: "Explore subagent model behavior, Claude Sonnet 4",
+			}),
+		).toHaveTextContent("Claude Sonnet 4");
+
 		await selectOption(
 			rootSection,
 			canvasElement,
-			"Root agent model behavior",
+			"Root agent model behavior, Chat default: GPT 4.1 Mini",
 			/Claude Sonnet 4/i,
 		);
 		const rootSaveButton = within(rootSection).getByRole("button", {
@@ -265,12 +297,13 @@ export const EnabledWithSavedValues: Story = {
 		await selectOption(
 			generalSection,
 			canvasElement,
-			"General subagent model behavior",
+			"General subagent model behavior, Deployment default: Claude Sonnet 4",
 			/Chat default/i,
 		);
 		await userEvent.click(
 			within(generalSection).getByRole("button", { name: "Save" }),
 		);
+
 		await waitFor(() => {
 			expect(args.onSaveGeneralModelOverride).toHaveBeenCalledWith(
 				{ mode: "chat_default", model_config_id: "" },
@@ -280,8 +313,116 @@ export const EnabledWithSavedValues: Story = {
 	},
 };
 
+export const SavedReasoningModel: Story = {
+	// TODO: This story fails when pixel runs its play function. Fix it and remove the exclude.
+	parameters: { pixel: { exclude: true } },
+	args: buildArgs({
+		modelOptions: [
+			{
+				id: defaultModelConfig.id,
+				provider: "openai",
+				model: defaultModelConfig.model,
+				displayName: defaultModelConfig.display_name,
+				contextLimit: defaultModelConfig.context_limit,
+			},
+			{
+				id: reasoningModelConfig.id,
+				provider: "openai",
+				model: reasoningModelConfig.model,
+				displayName: reasoningModelConfig.display_name,
+				contextLimit: reasoningModelConfig.context_limit,
+				reasoningEffortDefault: "medium",
+				reasoningEfforts: ["none", "minimal", "low", "medium", "high"],
+			},
+		],
+		overridesData: buildOverridesResponse({
+			root: buildOverride("root", {
+				mode: "model",
+				model_config_id: defaultModelConfig.id,
+				is_set: true,
+			}),
+		}),
+	}),
+	play: async ({ canvasElement, args }) => {
+		const rootSection = await getSection(canvasElement, "Root agent model");
+		const modelPicker = await selectOption(
+			rootSection,
+			canvasElement,
+			"Root agent model behavior, GPT 4.1 Mini",
+			/GPT-5/i,
+		);
+
+		const body = within(canvasElement.ownerDocument.body);
+		expect(modelPicker).toHaveAttribute("aria-expanded", "true");
+		expect(await body.findByRole("listbox")).toBeVisible();
+		const slider = await body.findByRole("slider");
+		expect(slider).toBeVisible();
+		expect(slider).toHaveAttribute("aria-valuenow", "3");
+		expect(body.getByText("Medium")).toBeVisible();
+
+		const infoTrigger = body.getByRole("button", {
+			name: "About reasoning effort",
+		});
+		await userEvent.tab();
+		expect(infoTrigger).toHaveFocus();
+
+		await userEvent.tab();
+		expect(slider).toHaveFocus();
+		await userEvent.keyboard("{ArrowRight}");
+		await waitFor(() => {
+			expect(slider).toHaveAttribute("aria-valuenow", "4");
+		});
+		expect(body.getByText("High")).toBeVisible();
+
+		await userEvent.keyboard("{Escape}");
+		await userEvent.click(
+			within(rootSection).getByRole("button", { name: "Save" }),
+		);
+		await waitFor(() => {
+			expect(args.onSaveRootModelOverride).toHaveBeenCalledWith(
+				{
+					mode: "model",
+					model_config_id: reasoningModelConfig.id,
+					reasoning_effort: "high",
+				},
+				expect.anything(),
+			);
+		});
+	},
+};
+
+export const SavedLowReasoningEffort: Story = {
+	args: buildArgs({
+		modelOptions: [reasoningModelOption],
+		overridesData: buildOverridesResponse({
+			root: buildOverride("root", {
+				mode: "model",
+				model_config_id: reasoningModelConfig.id,
+				reasoning_effort: "low",
+				is_set: true,
+			}),
+		}),
+	}),
+	play: async ({ canvasElement }) => {
+		const rootSection = await getSection(canvasElement, "Root agent model");
+		const modelPicker = within(rootSection).getByRole("combobox", {
+			name: "Root agent model behavior, GPT-5",
+		});
+		expect(modelPicker).toHaveTextContent("GPT-5");
+		await userEvent.click(modelPicker);
+
+		const body = within(canvasElement.ownerDocument.body);
+		expect(modelPicker).toHaveAttribute("aria-expanded", "true");
+		const slider = await body.findByRole("slider");
+		expect(slider).toHaveAttribute("aria-valuenow", "2");
+		await waitFor(() => {
+			expect(body.getByText("Low")).toBeVisible();
+		});
+	},
+};
+
 export const MalformedSavedValues: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		overridesData: buildOverridesResponse({
 			root: buildOverride("root", { is_malformed: true }),
 			general: buildOverride("general", { is_malformed: true }),
@@ -319,7 +460,7 @@ export const MalformedSavedValues: Story = {
 };
 
 export const MalformedEmptyModelSavedValues: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		overridesData: buildOverridesResponse({
 			root: buildOverride("root", {
 				mode: "model",
@@ -386,7 +527,7 @@ export const MalformedEmptyModelSavedValues: Story = {
 };
 
 export const UnavailableSavedModels: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		overridesData: buildOverridesResponse({
 			root: buildOverride("root", {
 				mode: "model",
@@ -419,7 +560,7 @@ export const UnavailableSavedModels: Story = {
 };
 
 export const ModelConfigsError: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		modelConfigsError: new Error("Failed to load model configs."),
 		overridesData: buildOverridesResponse({
 			root: buildOverride("root", {
@@ -462,19 +603,19 @@ export const ModelConfigsError: Story = {
 		await selectOption(
 			rootSection,
 			canvasElement,
-			"Root agent model behavior",
+			"Root agent model behavior, Claude Sonnet 4",
 			/Chat default/i,
 		);
 		await selectOption(
 			generalSection,
 			canvasElement,
-			"General subagent model behavior",
+			"General subagent model behavior, Claude Sonnet 4",
 			/Deployment default/i,
 		);
 		await selectOption(
 			exploreSection,
 			canvasElement,
-			"Explore subagent model behavior",
+			"Explore subagent model behavior, Claude Sonnet 4",
 			/Chat default/i,
 		);
 
@@ -485,7 +626,7 @@ export const ModelConfigsError: Story = {
 };
 
 export const LoadingState: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		overridesData: undefined,
 		isLoadingOverrides: true,
 		modelOptions: [],
@@ -495,7 +636,7 @@ export const LoadingState: Story = {
 		const rootSection = await getSection(canvasElement, "Root agent model");
 		expect(
 			within(rootSection).getByRole("combobox", {
-				name: "Root agent model behavior",
+				name: "Root agent model behavior, Chat default: GPT 4.1 Mini",
 			}),
 		).toBeDisabled();
 		expect(
@@ -505,7 +646,7 @@ export const LoadingState: Story = {
 };
 
 export const OverridesError: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		overridesData: undefined,
 		overridesError: new Error("Failed to load overrides"),
 	}),
@@ -541,7 +682,7 @@ export const OverridesError: Story = {
 };
 
 export const SaveErrorState: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		isSaveGeneralModelOverrideError: true,
 	}),
 	play: async ({ canvasElement }) => {
@@ -558,7 +699,7 @@ export const SaveErrorState: Story = {
 };
 
 export const AdminDisabledReadOnly: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		overridesData: buildOverridesResponse({
 			enabled: false,
 			root: buildOverride("root", {
@@ -578,7 +719,7 @@ export const AdminDisabledReadOnly: Story = {
 		const rootSection = await getSection(canvasElement, "Root agent model");
 		expect(
 			within(rootSection).getByRole("combobox", {
-				name: "Root agent model behavior",
+				name: "Root agent model behavior, GPT 4.1 Mini",
 			}),
 		).toBeDisabled();
 		expect(
@@ -588,7 +729,7 @@ export const AdminDisabledReadOnly: Story = {
 };
 
 export const InvalidRootDeploymentDefault: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		overridesData: buildOverridesResponse({
 			root: buildOverride("root", {
 				mode: "deployment_default",
@@ -611,7 +752,7 @@ export const InvalidRootDeploymentDefault: Story = {
 		await selectOption(
 			rootSection,
 			canvasElement,
-			"Root agent model behavior",
+			"Root agent model behavior, Invalid deployment default",
 			/Chat default/i,
 		);
 		await userEvent.click(

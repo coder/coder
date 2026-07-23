@@ -43,17 +43,6 @@ func AnthropicErrorResponse(statusCode int, errorType, message string) Anthropic
 	}
 }
 
-// AnthropicOverloadedResponse returns a 529 "overloaded" error matching
-// Anthropic's overloaded response format.
-func AnthropicOverloadedResponse() AnthropicResponse {
-	return AnthropicErrorResponse(529, "overloaded_error", "Overloaded")
-}
-
-// AnthropicRateLimitResponse returns a 429 rate limit error.
-func AnthropicRateLimitResponse() AnthropicResponse {
-	return AnthropicErrorResponse(http.StatusTooManyRequests, "rate_limit_error", "Rate limited")
-}
-
 // OpenAIErrorResponse returns an OpenAIResponse that causes the
 // test server to respond with the given HTTP status code and error.
 func OpenAIErrorResponse(statusCode int, errorType, message string) OpenAIResponse {

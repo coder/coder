@@ -5,6 +5,7 @@ export type ParsedToolCall = {
 	id: string;
 	name: string;
 	args?: unknown;
+	parsedCommands?: readonly string[][];
 	mcpServerConfigId?: string;
 };
 
@@ -25,6 +26,7 @@ export type MergedTool = {
 	status: "completed" | "error" | "running";
 	mcpServerConfigId?: string;
 	modelIntent?: string;
+	parsedCommands?: readonly string[][];
 	/** Set when a process_signal killed/terminated this process. */
 	killedBySignal?: "kill" | "terminate";
 };
@@ -80,6 +82,7 @@ type StreamToolCall = {
 	name: string;
 	args?: unknown;
 	argsRaw?: string;
+	parsedCommands?: readonly string[][];
 	mcpServerConfigId?: string;
 	modelIntent?: string;
 };

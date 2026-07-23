@@ -436,14 +436,14 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 	versionId,
 	missedExternalAuth,
 }) => {
-	const {
-		startPollingExternalAuth,
-		isPollingExternalAuth,
-		externalAuthPollingState,
-	} = useExternalAuth(versionId);
-	const shouldRetry = externalAuthPollingState === "abandoned";
+	const { startPollingExternalAuth, externalAuthPollingState } =
+		useExternalAuth(versionId);
 
 	return missedExternalAuth.map((auth) => {
+		const isPollingExternalAuth =
+			externalAuthPollingState[auth.id] === "polling";
+		const shouldRetry = externalAuthPollingState[auth.id] === "abandoned";
+
 		return (
 			<div className="flex items-center gap-2" key={auth.id}>
 				<Button
@@ -456,7 +456,7 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 							"_blank",
 							"width=900,height=600",
 						);
-						startPollingExternalAuth();
+						startPollingExternalAuth(auth.id);
 					}}
 				>
 					<Spinner loading={isPollingExternalAuth}>
@@ -471,7 +471,7 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 							<Button
 								variant="outline"
 								size="icon"
-								onClick={startPollingExternalAuth}
+								onClick={() => startPollingExternalAuth(auth.id)}
 							>
 								<RedoIcon />
 								<span className="sr-only">Refresh external auth</span>

@@ -131,8 +131,10 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 		err := agentClient.RefreshToken(ctx)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-		require.Contains(t, apiErr.Message, "isn't registered on the latest history")
+		// The prior build's agent is soft-deleted when the successor
+		// build completes (SoftDeletePriorWorkspaceAgents), so the
+		// auth query finds no candidates at all and returns 404.
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
 
 	t.Run("Ambiguous/MultipleAgentsNoSelector", func(t *testing.T) {

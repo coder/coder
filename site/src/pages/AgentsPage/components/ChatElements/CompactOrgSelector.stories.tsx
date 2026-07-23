@@ -13,6 +13,7 @@ const mockOrgs: Organization[] = [
 		created_at: "2024-01-01T00:00:00Z",
 		updated_at: "2024-06-01T00:00:00Z",
 		is_default: true,
+		default_org_member_roles: ["organization-workspace-access"],
 	},
 	{
 		id: "org-acme",
@@ -23,6 +24,7 @@ const mockOrgs: Organization[] = [
 		created_at: "2024-02-01T00:00:00Z",
 		updated_at: "2024-06-01T00:00:00Z",
 		is_default: false,
+		default_org_member_roles: ["organization-workspace-access"],
 	},
 	{
 		id: "org-globex",
@@ -33,19 +35,13 @@ const mockOrgs: Organization[] = [
 		created_at: "2024-03-01T00:00:00Z",
 		updated_at: "2024-06-01T00:00:00Z",
 		is_default: false,
+		default_org_member_roles: ["organization-workspace-access"],
 	},
 ];
 
 const meta: Meta<typeof CompactOrgSelector> = {
 	title: "pages/AgentsPage/ChatElements/CompactOrgSelector",
 	component: CompactOrgSelector,
-	decorators: [
-		(Story) => (
-			<div className="w-72 rounded-lg border border-solid border-border-default bg-surface-primary p-4">
-				<Story />
-			</div>
-		),
-	],
 	args: {
 		options: mockOrgs,
 		value: mockOrgs[0],

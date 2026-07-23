@@ -1,0 +1,13 @@
+module "jetbrains" {
+  count    = data.coder_workspace.me.start_count
+  source   = "{{ .RegistryBase }}/coder/jetbrains/coder"
+  version  = "{{ .PinnedVersion }}"
+  agent_id = coder_agent.{{ .AgentResourceName }}.id
+  agent_name = {{ .Variables.agent_name }}
+  channel = {{ .Variables.channel }}
+  download_base_link = {{ .Variables.download_base_link }}
+  folder = {{ .Variables.folder }}
+  major_version = {{ .Variables.major_version }}
+  releases_base_link = {{ .Variables.releases_base_link }}
+  tooltip = {{ .Variables.tooltip }}
+}

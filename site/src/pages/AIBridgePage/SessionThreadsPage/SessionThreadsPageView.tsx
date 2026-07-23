@@ -82,7 +82,7 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 					asChild
 					variant="outline"
 					size="lg"
-					title="Back to AI Bridge sessions list"
+					title="Back to AI Gateway sessions list"
 					onClick={onBackClicked}
 				>
 					<span>

@@ -74,6 +74,28 @@ func TestPrepareClientHeaders(t *testing.T) {
 		assert.Equal(t, "preserved", result.Get("X-Custom"))
 	})
 
+	t.Run("proxy headers are removed", func(t *testing.T) {
+		t.Parallel()
+
+		input := http.Header{
+			"X-Forwarded-For":   {"203.0.113.50"},
+			"X-Forwarded-Host":  {"app.example.com"},
+			"X-Forwarded-Proto": {"https"},
+			"X-Forwarded-Port":  {"443"},
+			"Forwarded":         {"for=203.0.113.50;proto=https"},
+			"X-Custom":          {"preserved"},
+		}
+
+		result := intercept.PrepareClientHeaders(input)
+
+		assert.Empty(t, result.Get("X-Forwarded-For"))
+		assert.Empty(t, result.Get("X-Forwarded-Host"))
+		assert.Empty(t, result.Get("X-Forwarded-Proto"))
+		assert.Empty(t, result.Get("X-Forwarded-Port"))
+		assert.Empty(t, result.Get("Forwarded"))
+		assert.Equal(t, "preserved", result.Get("X-Custom"))
+	})
+
 	t.Run("multi-value headers are preserved", func(t *testing.T) {
 		t.Parallel()
 
@@ -98,6 +120,22 @@ func TestPrepareClientHeaders(t *testing.T) {
 		_ = intercept.PrepareClientHeaders(input)
 
 		require.Equal(t, originalCopy, input)
+	})
+
+	t.Run("agent firewall headers are removed", func(t *testing.T) {
+		t.Parallel()
+
+		input := http.Header{
+			"X-Coder-Agent-Firewall-Session-Id":      {"e5f6a7b8-1234-5678-9abc-def012345678"},
+			"X-Coder-Agent-Firewall-Sequence-Number": {"42"},
+			"X-Custom":                               {"preserved"},
+		}
+
+		result := intercept.PrepareClientHeaders(input)
+
+		assert.Empty(t, result.Get("X-Coder-Agent-Firewall-Session-Id"))
+		assert.Empty(t, result.Get("X-Coder-Agent-Firewall-Sequence-Number"))
+		assert.Equal(t, "preserved", result.Get("X-Custom"))
 	})
 }
 

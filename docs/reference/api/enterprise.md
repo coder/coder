@@ -4,7 +4,7 @@
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/.well-known/oauth-authorization-server \
   -H 'Accept: application/json'
@@ -51,7 +51,7 @@ curl -X GET http://coder-server:8080/.well-known/oauth-authorization-server \
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/.well-known/oauth-protected-resource \
   -H 'Accept: application/json'
@@ -84,11 +84,251 @@ curl -X GET http://coder-server:8080/.well-known/oauth-protected-resource \
 |--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2ProtectedResourceMetadata](schemas.md#codersdkoauth2protectedresourcemetadata) |
 
+## Get agent firewall session by ID
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/agent-firewall/sessions/{id} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/agent-firewall/sessions/{id}`
+
+### Parameters
+
+| Name | In   | Type         | Required | Description               |
+|------|------|--------------|----------|---------------------------|
+| `id` | path | string(uuid) | true     | Agent firewall session ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "confined_process": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "started_at": "2019-08-24T14:15:22Z",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                   |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AgentFirewallSession](schemas.md#codersdkagentfirewallsession) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get agent firewall session logs
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/agent-firewall/sessions/{id}/logs \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/agent-firewall/sessions/{id}/logs`
+
+### Parameters
+
+| Name         | In    | Type         | Required | Description                                    |
+|--------------|-------|--------------|----------|------------------------------------------------|
+| `id`         | path  | string(uuid) | true     | Agent firewall session ID                      |
+| `seq_after`  | query | integer      | false    | Inclusive lower bound on sequence number       |
+| `seq_before` | query | integer      | false    | Exclusive upper bound on sequence number       |
+| `limit`      | query | integer      | false    | Maximum number of logs to return (default 100) |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "results": [
+    {
+      "allowed": true,
+      "captured_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
+      "detail": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "matched_rule": "string",
+      "method": "string",
+      "proto": "string",
+      "sequence_number": 0,
+      "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                           |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AgentFirewallSessionLogsResponse](schemas.md#codersdkagentfirewallsessionlogsresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## List AI Gateway keys
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/ai-gateway/keys \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/ai-gateway/keys`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "key_prefix": "string",
+    "last_heartbeat_at": "2019-08-24T14:15:22Z",
+    "name": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                            |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.AIGatewayKey](schemas.md#codersdkaigatewaykey) |
+
+<h3 id="list-ai-gateway-keys-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                  | Type              | Required | Restrictions | Description |
+|-----------------------|-------------------|----------|--------------|-------------|
+| `[array item]`        | array             | false    |              |             |
+| `» created_at`        | string(date-time) | false    |              |             |
+| `» id`                | string(uuid)      | false    |              |             |
+| `» key_prefix`        | string            | false    |              |             |
+| `» last_heartbeat_at` | string(date-time) | false    |              |             |
+| `» name`              | string            | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create AI Gateway key
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/ai-gateway/keys \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/ai-gateway/keys`
+
+> Body parameter
+
+```json
+{
+  "name": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                               | Required | Description                   |
+|--------|------|------------------------------------------------------------------------------------|----------|-------------------------------|
+| `body` | body | [codersdk.CreateAIGatewayKeyRequest](schemas.md#codersdkcreateaigatewaykeyrequest) | true     | Create AI Gateway key request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "key": "string",
+  "key_prefix": "string",
+  "name": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                                               |
+|--------|--------------------------------------------------------------|-------------|--------------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.CreateAIGatewayKeyResponse](schemas.md#codersdkcreateaigatewaykeyresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete AI Gateway key
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/ai-gateway/keys/{key} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /api/v2/ai-gateway/keys/{key}`
+
+### Parameters
+
+| Name  | In   | Type         | Required | Description |
+|-------|------|--------------|----------|-------------|
+| `key` | path | string(uuid) | true     | Key ID      |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## AI Gateway serve
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/ai-gateway/serve \
+  -H 'X-AI-Governance-Gateway-Key: API_KEY'
+```
+
+`GET /api/v2/ai-gateway/serve`
+
+### Responses
+
+| Status | Meaning                                                                  | Description         | Schema |
+|--------|--------------------------------------------------------------------------|---------------------|--------|
+| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get appearance
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/appearance \
   -H 'Accept: application/json' \
@@ -141,7 +381,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/appearance \
   -H 'Content-Type: application/json' \
@@ -213,7 +453,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
   -H 'Accept: application/json' \
@@ -308,7 +548,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/entitlements \
   -H 'Accept: application/json' \
@@ -372,7 +612,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/groups?organization=string&has_member=string&group_ids=string \
   -H 'Accept: application/json' \
@@ -477,7 +717,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/groups/{group} \
   -H 'Accept: application/json' \
@@ -540,7 +780,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
   -H 'Accept: application/json' \
@@ -602,7 +842,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
   -H 'Content-Type: application/json' \
@@ -679,11 +919,127 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get group AI budget
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/groups/{group}/ai/budget \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/groups/{group}/ai/budget`
+
+### Parameters
+
+| Name    | In   | Type         | Required | Description |
+|---------|------|--------------|----------|-------------|
+| `group` | path | string(uuid) | true     | Group ID    |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "spend_limit_micros": 0,
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                     |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupAIBudget](schemas.md#codersdkgroupaibudget) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Upsert group AI budget
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/groups/{group}/ai/budget \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/v2/groups/{group}/ai/budget`
+
+> Body parameter
+
+```json
+{
+  "spend_limit_micros": 0
+}
+```
+
+### Parameters
+
+| Name    | In   | Type                                                                                 | Required | Description                    |
+|---------|------|--------------------------------------------------------------------------------------|----------|--------------------------------|
+| `group` | path | string(uuid)                                                                         | true     | Group ID                       |
+| `body`  | body | [codersdk.UpsertGroupAIBudgetRequest](schemas.md#codersdkupsertgroupaibudgetrequest) | true     | Upsert group AI budget request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "spend_limit_micros": 0,
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                     |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupAIBudget](schemas.md#codersdkgroupaibudget) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete group AI budget
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/groups/{group}/ai/budget \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /api/v2/groups/{group}/ai/budget`
+
+### Parameters
+
+| Name    | In   | Type         | Required | Description |
+|---------|------|--------------|----------|-------------|
+| `group` | path | string(uuid) | true     | Group ID    |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get group members by group ID
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/groups/{group}/members \
   -H 'Accept: application/json' \
@@ -736,11 +1092,65 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group}/members \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get group members AI spend
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/groups/{group}/members/ai/spend?user_ids=string \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/groups/{group}/members/ai/spend`
+
+Returns aggregate AI spend attributed to the group per requested user.
+A maximum of 100 user IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.
+User IDs that are not members of the group, or that the caller has no read access to, are silently omitted.
+
+### Parameters
+
+| Name       | In    | Type         | Required | Description                                    |
+|------------|-------|--------------|----------|------------------------------------------------|
+| `group`    | path  | string(uuid) | true     | Group ID                                       |
+| `user_ids` | query | string       | true     | Comma-separated list of user IDs (maximum 100) |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "members": [
+    {
+      "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+      "group_budget": {
+        "limit_source": "user_override",
+        "spend_limit_micros": 0
+      },
+      "group_spend_micros": 0,
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+    }
+  ],
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                 |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupMembersAISpend](schemas.md#codersdkgroupmembersaispend) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get licenses
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/licenses \
   -H 'Accept: application/json' \
@@ -788,7 +1198,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/licenses \
   -H 'Content-Type: application/json' \
@@ -837,7 +1247,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/licenses/refresh-entitlements \
   -H 'Accept: application/json' \
@@ -875,7 +1285,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/licenses/{id} \
   -H 'Coder-Session-Token: API_KEY'
@@ -901,7 +1311,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/notifications/templates/{notification_template}/method \
   -H 'Coder-Session-Token: API_KEY'
@@ -928,7 +1338,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
   -H 'Accept: application/json' \
@@ -993,7 +1403,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
   -H 'Content-Type: application/json' \
@@ -1050,7 +1460,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
   -H 'Accept: application/json' \
@@ -1096,7 +1506,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
   -H 'Content-Type: application/json' \
@@ -1154,7 +1564,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
   -H 'Coder-Session-Token: API_KEY'
@@ -1180,7 +1590,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets \
   -H 'Accept: application/json' \
@@ -1232,7 +1642,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets \
   -H 'Accept: application/json' \
@@ -1282,7 +1692,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets/{secretID} \
   -H 'Coder-Session-Token: API_KEY'
@@ -1309,7 +1719,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups \
   -H 'Accept: application/json' \
@@ -1412,7 +1822,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups \
   -H 'Content-Type: application/json' \
@@ -1483,11 +1893,61 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get organization groups AI spend
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/ai/spend?group_ids=string \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/groups/ai/spend`
+
+Returns AI spend limits and aggregate spend for the requested groups.
+A maximum of 100 group IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.
+Unknown or unreadable group IDs are silently omitted.
+
+### Parameters
+
+| Name           | In    | Type         | Required | Description                                     |
+|----------------|-------|--------------|----------|-------------------------------------------------|
+| `organization` | path  | string(uuid) | true     | Organization ID                                 |
+| `group_ids`    | query | string       | true     | Comma-separated list of group IDs (maximum 100) |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "groups": [
+    {
+      "current_spend_micros": 0,
+      "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+      "spend_limit_micros": 0
+    }
+  ],
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                             |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationGroupsAISpend](schemas.md#codersdkorganizationgroupsaispend) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get group by organization and group name
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/{groupName} \
   -H 'Accept: application/json' \
@@ -1550,7 +2010,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/{groupName}/members \
   -H 'Accept: application/json' \
@@ -1604,11 +2064,66 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get group members AI spend by organization
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/{groupName}/members/ai/spend?user_ids=string \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/groups/{groupName}/members/ai/spend`
+
+Returns aggregate AI spend attributed to the group per requested user.
+A maximum of 100 user IDs may be requested per call, and requests with more are rejected, so callers are expected to batch across multiple requests.
+User IDs that are not members of the group, or that the caller has no read access to, are silently omitted.
+
+### Parameters
+
+| Name           | In    | Type         | Required | Description                                    |
+|----------------|-------|--------------|----------|------------------------------------------------|
+| `organization` | path  | string(uuid) | true     | Organization ID                                |
+| `groupName`    | path  | string       | true     | Group name                                     |
+| `user_ids`     | query | string       | true     | Comma-separated list of user IDs (maximum 100) |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "members": [
+    {
+      "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+      "group_budget": {
+        "limit_source": "user_override",
+        "spend_limit_micros": 0
+      },
+      "group_spend_micros": 0,
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+    }
+  ],
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                 |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupMembersAISpend](schemas.md#codersdkgroupmembersaispend) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get workspace quota by user
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members/{user}/workspace-quota \
   -H 'Accept: application/json' \
@@ -1647,7 +2162,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisionerdaemons/serve \
   -H 'Coder-Session-Token: API_KEY'
@@ -1673,7 +2188,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisionerkeys \
   -H 'Accept: application/json' \
@@ -1733,7 +2248,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/provisionerkeys \
   -H 'Accept: application/json' \
@@ -1770,7 +2285,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisionerkeys/daemons \
   -H 'Accept: application/json' \
@@ -1895,7 +2410,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/provisionerkeys/{provisionerkey} \
   -H 'Coder-Session-Token: API_KEY'
@@ -1922,7 +2437,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/available-fields \
   -H 'Accept: application/json' \
@@ -1961,7 +2476,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/field-values?claimField=string \
   -H 'Accept: application/json' \
@@ -2001,7 +2516,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/groups \
   -H 'Accept: application/json' \
@@ -2052,7 +2567,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/groups \
   -H 'Content-Type: application/json' \
@@ -2127,7 +2642,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/groups/config \
   -H 'Content-Type: application/json' \
@@ -2190,7 +2705,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/groups/mapping \
   -H 'Content-Type: application/json' \
@@ -2262,7 +2777,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/roles \
   -H 'Accept: application/json' \
@@ -2307,7 +2822,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/roles \
   -H 'Content-Type: application/json' \
@@ -2370,7 +2885,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/roles/config \
   -H 'Content-Type: application/json' \
@@ -2425,7 +2940,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/roles/mapping \
   -H 'Content-Type: application/json' \
@@ -2491,7 +3006,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/settings/workspace-sharing \
   -H 'Accept: application/json' \
@@ -2530,7 +3045,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/settings/workspace-sharing \
   -H 'Content-Type: application/json' \
@@ -2580,7 +3095,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/provisionerkeys/{provisionerkey} \
   -H 'Accept: application/json'
@@ -2623,7 +3138,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/replicas \
   -H 'Accept: application/json' \
@@ -2677,7 +3192,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/settings/idpsync/available-fields \
   -H 'Accept: application/json' \
@@ -2716,7 +3231,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/settings/idpsync/field-values?claimField=string \
   -H 'Accept: application/json' \
@@ -2756,7 +3271,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/settings/idpsync/organization \
   -H 'Accept: application/json' \
@@ -2796,7 +3311,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization \
   -H 'Content-Type: application/json' \
@@ -2860,7 +3375,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization/config \
   -H 'Content-Type: application/json' \
@@ -2916,7 +3431,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization/mapping \
   -H 'Content-Type: application/json' \
@@ -2982,7 +3497,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
   -H 'Accept: application/json' \
@@ -3077,7 +3592,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/acl \
   -H 'Content-Type: application/json' \
@@ -3138,7 +3653,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
   -H 'Accept: application/json' \
@@ -3263,7 +3778,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/templates/{template}/prebuilds/invalidate \
   -H 'Accept: application/json' \
@@ -3302,11 +3817,173 @@ curl -X POST http://coder-server:8080/api/v2/templates/{template}/prebuilds/inva
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get user AI budget override
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/budget \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/users/{user}/ai/budget`
+
+### Parameters
+
+| Name   | In   | Type   | Required | Description              |
+|--------|------|--------|----------|--------------------------|
+| `user` | path | string | true     | User ID, username, or me |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "spend_limit_micros": 0,
+  "updated_at": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                   |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserAIBudgetOverride](schemas.md#codersdkuseraibudgetoverride) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Upsert user AI budget override
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/users/{user}/ai/budget \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/v2/users/{user}/ai/budget`
+
+> Body parameter
+
+```json
+{
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "spend_limit_micros": 0
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                               | Required | Description                            |
+|--------|------|----------------------------------------------------------------------------------------------------|----------|----------------------------------------|
+| `user` | path | string                                                                                             | true     | User ID, username, or me               |
+| `body` | body | [codersdk.UpsertUserAIBudgetOverrideRequest](schemas.md#codersdkupsertuseraibudgetoverriderequest) | true     | Upsert user AI budget override request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "spend_limit_micros": 0,
+  "updated_at": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                   |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserAIBudgetOverride](schemas.md#codersdkuseraibudgetoverride) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete user AI budget override
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/users/{user}/ai/budget \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /api/v2/users/{user}/ai/budget`
+
+### Parameters
+
+| Name   | In   | Type   | Required | Description              |
+|--------|------|--------|----------|--------------------------|
+| `user` | path | string | true     | User ID, username, or me |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get user AI spend
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/spend \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/users/{user}/ai/spend`
+
+### Parameters
+
+| Name   | In   | Type   | Required | Description              |
+|--------|------|--------|----------|--------------------------|
+| `user` | path | string | true     | User ID, username, or me |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "current_spend_micros": 0,
+  "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+  "limit_source": "user_override",
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "spend_limit_micros": 0,
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                             |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserAISpendStatus](schemas.md#codersdkuseraispendstatus) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get user quiet hours schedule
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/users/{user}/quiet-hours \
   -H 'Accept: application/json' \
@@ -3364,7 +4041,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PUT http://coder-server:8080/api/v2/users/{user}/quiet-hours \
   -H 'Content-Type: application/json' \
@@ -3432,7 +4109,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspace-quota/{user} \
   -H 'Accept: application/json' \
@@ -3470,7 +4147,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaceproxies \
   -H 'Accept: application/json' \
@@ -3565,7 +4242,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
   -H 'Content-Type: application/json' \
@@ -3637,7 +4314,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} \
   -H 'Accept: application/json' \
@@ -3698,7 +4375,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} \
   -H 'Accept: application/json' \
@@ -3742,7 +4419,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} \
   -H 'Content-Type: application/json' \
@@ -3817,7 +4494,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/external-agent/{agent}/credentials \
   -H 'Accept: application/json' \
@@ -3856,7 +4533,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/oauth2/authorize?client_id=string&state=string&response_type=code \
   -H 'Coder-Session-Token: API_KEY'
@@ -3892,7 +4569,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&state=string&response_type=code \
   -H 'Coder-Session-Token: API_KEY'
@@ -3928,7 +4605,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/oauth2/clients/{client_id} \
   -H 'Accept: application/json'
@@ -3989,7 +4666,7 @@ curl -X GET http://coder-server:8080/oauth2/clients/{client_id} \
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PUT http://coder-server:8080/oauth2/clients/{client_id} \
   -H 'Content-Type: application/json' \
@@ -4083,7 +4760,7 @@ curl -X PUT http://coder-server:8080/oauth2/clients/{client_id} \
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X DELETE http://coder-server:8080/oauth2/clients/{client_id}
 
@@ -4107,7 +4784,7 @@ curl -X DELETE http://coder-server:8080/oauth2/clients/{client_id}
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/oauth2/register \
   -H 'Content-Type: application/json' \
@@ -4201,7 +4878,7 @@ curl -X POST http://coder-server:8080/oauth2/register \
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/oauth2/revoke \
 
@@ -4237,7 +4914,7 @@ token_type_hint: string
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/oauth2/tokens \
   -H 'Accept: application/json'
@@ -4297,7 +4974,7 @@ grant_type: authorization_code
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X DELETE http://coder-server:8080/oauth2/tokens?client_id=string \
   -H 'Coder-Session-Token: API_KEY'
@@ -4323,7 +5000,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/scim/v2/ServiceProviderConfig
 
@@ -4341,7 +5018,7 @@ curl -X GET http://coder-server:8080/scim/v2/ServiceProviderConfig
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/scim/v2/Users \
   -H 'Authorizaiton: API_KEY'
@@ -4361,7 +5038,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/scim/v2/Users \
   -H 'Content-Type: application/json' \
@@ -4404,9 +5081,9 @@ curl -X POST http://coder-server:8080/scim/v2/Users \
 
 ### Parameters
 
-| Name   | In   | Type                                         | Required | Description |
-|--------|------|----------------------------------------------|----------|-------------|
-| `body` | body | [coderd.SCIMUser](schemas.md#coderdscimuser) | true     | New user    |
+| Name   | In   | Type                                                 | Required | Description |
+|--------|------|------------------------------------------------------|----------|-------------|
+| `body` | body | [legacyscim.SCIMUser](schemas.md#legacyscimscimuser) | true     | New user    |
 
 ### Example responses
 
@@ -4443,9 +5120,9 @@ curl -X POST http://coder-server:8080/scim/v2/Users \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                       |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [coderd.SCIMUser](schemas.md#coderdscimuser) |
+| Status | Meaning                                                 | Description | Schema                                               |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [legacyscim.SCIMUser](schemas.md#legacyscimscimuser) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -4453,7 +5130,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/scim/v2/Users/{id} \
   -H 'Authorizaiton: API_KEY'
@@ -4479,7 +5156,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PUT http://coder-server:8080/scim/v2/Users/{id} \
   -H 'Content-Type: application/json' \
@@ -4522,10 +5199,10 @@ curl -X PUT http://coder-server:8080/scim/v2/Users/{id} \
 
 ### Parameters
 
-| Name   | In   | Type                                         | Required | Description          |
-|--------|------|----------------------------------------------|----------|----------------------|
-| `id`   | path | string(uuid)                                 | true     | User ID              |
-| `body` | body | [coderd.SCIMUser](schemas.md#coderdscimuser) | true     | Replace user request |
+| Name   | In   | Type                                                 | Required | Description          |
+|--------|------|------------------------------------------------------|----------|----------------------|
+| `id`   | path | string(uuid)                                         | true     | User ID              |
+| `body` | body | [legacyscim.SCIMUser](schemas.md#legacyscimscimuser) | true     | Replace user request |
 
 ### Example responses
 
@@ -4571,7 +5248,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/scim/v2/Users/{id} \
   -H 'Content-Type: application/json' \
@@ -4614,10 +5291,10 @@ curl -X PATCH http://coder-server:8080/scim/v2/Users/{id} \
 
 ### Parameters
 
-| Name   | In   | Type                                         | Required | Description         |
-|--------|------|----------------------------------------------|----------|---------------------|
-| `id`   | path | string(uuid)                                 | true     | User ID             |
-| `body` | body | [coderd.SCIMUser](schemas.md#coderdscimuser) | true     | Update user request |
+| Name   | In   | Type                                                 | Required | Description         |
+|--------|------|------------------------------------------------------|----------|---------------------|
+| `id`   | path | string(uuid)                                         | true     | User ID             |
+| `body` | body | [legacyscim.SCIMUser](schemas.md#legacyscimscimuser) | true     | Update user request |
 
 ### Example responses
 

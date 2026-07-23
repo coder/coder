@@ -218,6 +218,26 @@ func TestRegoQueries(t *testing.T) {
 			VariableConverter: regosql.WorkspaceConverter(),
 		},
 		{
+			Name: "UserChatACLAllow",
+			Queries: []string{
+				`"read" in input.object.acl_user_list["d5389ccc-57a4-4b13-8c3f-31747bcdc9f1"]`,
+				`"*" in input.object.acl_user_list["d5389ccc-57a4-4b13-8c3f-31747bcdc9f1"]`,
+			},
+			ExpectedSQL: "((chats_expanded.user_acl#>array['d5389ccc-57a4-4b13-8c3f-31747bcdc9f1', 'permissions'] ? 'read')" +
+				" OR (chats_expanded.user_acl#>array['d5389ccc-57a4-4b13-8c3f-31747bcdc9f1', 'permissions'] ? '*'))",
+			VariableConverter: regosql.ChatConverter(),
+		},
+		{
+			Name: "ChatAllowList",
+			Queries: []string{
+				`input.object.id != ""`,
+				`input.object.id in ["9046b041-58ed-47a3-9c3a-de302577875a"]`,
+			},
+			ExpectedSQL: p(`(chats_expanded.id :: text != '') OR ` +
+				`(chats_expanded.id :: text = ANY(ARRAY ['9046b041-58ed-47a3-9c3a-de302577875a']))`),
+			VariableConverter: regosql.ChatConverter(),
+		},
+		{
 			Name: "NoACLConfig",
 			Queries: []string{
 				`input.object.org_owner != "";

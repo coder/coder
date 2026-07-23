@@ -48,13 +48,12 @@ type OpenAIWebSearchCall struct {
 // OpenAIRequest represents an OpenAI chat completion request.
 type OpenAIRequest struct {
 	*http.Request
-	Model              string          `json:"model"`
-	Messages           []OpenAIMessage `json:"messages"`
-	Stream             bool            `json:"stream,omitempty"`
-	Tools              []OpenAITool    `json:"tools,omitempty"`
-	Prompt             []interface{}   `json:"prompt,omitempty"` // Responses API input or prompt.
-	Store              *bool           `json:"store,omitempty"`
-	PreviousResponseID *string         `json:"previous_response_id,omitempty"`
+	Model    string          `json:"model"`
+	Messages []OpenAIMessage `json:"messages"`
+	Stream   bool            `json:"stream,omitempty"`
+	Tools    []OpenAITool    `json:"tools,omitempty"`
+	Prompt   []interface{}   `json:"prompt,omitempty"` // Responses API input or prompt.
+	Store    *bool           `json:"store,omitempty"`
 	// RawBody holds the original request body so callers can inspect
 	// fields the typed struct does not expose, such as the Responses
 	// API "input" payload. It is populated before JSON decoding.
@@ -331,21 +330,7 @@ func writeChatCompletionsStreaming(w http.ResponseWriter, r *http.Request, chunk
 		return
 	}
 
-	for {
-		var chunk OpenAIChunk
-		var ok bool
-		select {
-		case <-r.Context().Done():
-			log.Printf("writeChatCompletionsStreaming: request context canceled, stopping stream")
-			return
-		case chunk, ok = <-chunks:
-			if !ok {
-				_, _ = fmt.Fprintf(w, "data: [DONE]\n\n")
-				flusher.Flush()
-				return
-			}
-		}
-
+	writeChunk := func(chunk OpenAIChunk) bool {
 		choicesData := make([]map[string]interface{}, len(chunk.Choices))
 		for i, choice := range chunk.Choices {
 			choiceData := map[string]interface{}{
@@ -369,6 +354,9 @@ func writeChatCompletionsStreaming(w http.ResponseWriter, r *http.Request, chunk
 				delta["tool_calls"] = choice.ToolCalls
 			}
 			if choice.FinishReason != "" {
+				if choiceData["delta"] == nil {
+					choiceData["delta"] = map[string]interface{}{}
+				}
 				choiceData["finish_reason"] = choice.FinishReason
 			}
 			choicesData[i] = choiceData
@@ -384,13 +372,69 @@ func writeChatCompletionsStreaming(w http.ResponseWriter, r *http.Request, chunk
 
 		chunkBytes, err := json.Marshal(chunkData)
 		if err != nil {
-			return
+			return false
 		}
 
 		if _, err := fmt.Fprintf(w, "data: %s\n\n", chunkBytes); err != nil {
-			return
+			return false
 		}
 		flusher.Flush()
+		return true
+	}
+
+	seenChoiceIndexes := make(map[int]struct{})
+	var templateChunk OpenAIChunk
+	sawFinishReason := false
+	sawToolCalls := false
+
+	for {
+		var chunk OpenAIChunk
+		var ok bool
+		select {
+		case <-r.Context().Done():
+			log.Printf("writeChatCompletionsStreaming: request context canceled, stopping stream")
+			return
+		case chunk, ok = <-chunks:
+			if !ok {
+				if !sawFinishReason && len(seenChoiceIndexes) > 0 {
+					finishReason := "stop"
+					if sawToolCalls {
+						finishReason = "tool_calls"
+					}
+					choiceIndexes := make([]int, 0, len(seenChoiceIndexes))
+					for index := range seenChoiceIndexes {
+						choiceIndexes = append(choiceIndexes, index)
+					}
+					sort.Ints(choiceIndexes)
+					finishChoices := make([]OpenAIChunkChoice, 0, len(choiceIndexes))
+					for _, index := range choiceIndexes {
+						finishChoices = append(finishChoices, OpenAIChunkChoice{Index: index, FinishReason: finishReason})
+					}
+					if !writeChunk(OpenAIChunk{
+						ID:      templateChunk.ID,
+						Object:  templateChunk.Object,
+						Created: templateChunk.Created,
+						Model:   templateChunk.Model,
+						Choices: finishChoices,
+					}) {
+						return
+					}
+				}
+				_, _ = fmt.Fprintf(w, "data: [DONE]\n\n")
+				flusher.Flush()
+				return
+			}
+		}
+
+		templateChunk = chunk
+		for _, choice := range chunk.Choices {
+			seenChoiceIndexes[choice.Index] = struct{}{}
+			sawToolCalls = sawToolCalls || len(choice.ToolCalls) > 0
+			sawFinishReason = sawFinishReason || choice.FinishReason != ""
+		}
+		if !writeChunk(chunk) {
+			return
+		}
 	}
 }
 

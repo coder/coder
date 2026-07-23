@@ -222,7 +222,11 @@ const OIDCIcon: FC<OIDCIconProps> = ({ oidcAuth }) => {
 	}
 
 	return (
-		<img alt="Open ID Connect icon" src={oidcAuth.iconUrl} className="size-4" />
+		<ExternalImage
+			alt="Open ID Connect icon"
+			src={oidcAuth.iconUrl}
+			className="size-4"
+		/>
 	);
 };
 

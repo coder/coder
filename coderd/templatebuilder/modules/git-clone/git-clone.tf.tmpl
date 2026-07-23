@@ -1,0 +1,12 @@
+module "git-clone" {
+  count    = data.coder_workspace.me.start_count
+  source   = "{{ .RegistryBase }}/coder/git-clone/coder"
+  version  = "{{ .PinnedVersion }}"
+  agent_id = coder_agent.{{ .AgentResourceName }}.id
+  base_dir = {{ .Variables.base_dir }}
+  branch_name = {{ .Variables.branch_name }}
+  folder_name = {{ .Variables.folder_name }}
+  post_clone_script = {{ .Variables.post_clone_script }}
+  pre_clone_script = {{ .Variables.pre_clone_script }}
+  url = {{ .Variables.url }}
+}

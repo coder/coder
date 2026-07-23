@@ -50,12 +50,9 @@ data "coder_workspace_preset" "pittsburgh" {
   description = "Development workspace hosted in United States with 2 prebuild instances"
   icon        = "/emojis/1f1fa-1f1f8.png"
   parameters = {
-    (data.coder_parameter.region.name)                   = "us-pittsburgh"
-    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
-    (data.coder_parameter.repo_base_dir.name)            = "~"
-    (data.coder_parameter.res_mon_memory_threshold.name) = 80
-    (data.coder_parameter.res_mon_volume_threshold.name) = 90
-    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
+    (data.coder_parameter.region.name)        = "us-pittsburgh"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
   }
   prebuilds {
     instances = 2
@@ -67,12 +64,9 @@ data "coder_workspace_preset" "cpt" {
   description = "Development workspace hosted in South Africa with 1 prebuild instance"
   icon        = "/emojis/1f1ff-1f1e6.png"
   parameters = {
-    (data.coder_parameter.region.name)                   = "za-cpt"
-    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
-    (data.coder_parameter.repo_base_dir.name)            = "~"
-    (data.coder_parameter.res_mon_memory_threshold.name) = 80
-    (data.coder_parameter.res_mon_volume_threshold.name) = 90
-    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
+    (data.coder_parameter.region.name)        = "za-cpt"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
   }
   prebuilds {
     instances = 1
@@ -84,12 +78,9 @@ data "coder_workspace_preset" "falkenstein" {
   description = "Development workspace hosted in Europe with 1 prebuild instance"
   icon        = "/emojis/1f1ea-1f1fa.png"
   parameters = {
-    (data.coder_parameter.region.name)                   = "eu-helsinki"
-    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
-    (data.coder_parameter.repo_base_dir.name)            = "~"
-    (data.coder_parameter.res_mon_memory_threshold.name) = 80
-    (data.coder_parameter.res_mon_volume_threshold.name) = 90
-    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
+    (data.coder_parameter.region.name)        = "eu-helsinki"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
   }
   prebuilds {
     instances = 1
@@ -101,15 +92,23 @@ data "coder_workspace_preset" "sydney" {
   description = "Development workspace hosted in Australia with 1 prebuild instance"
   icon        = "/emojis/1f1e6-1f1fa.png"
   parameters = {
-    (data.coder_parameter.region.name)                   = "ap-sydney"
-    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
-    (data.coder_parameter.repo_base_dir.name)            = "~"
-    (data.coder_parameter.res_mon_memory_threshold.name) = 80
-    (data.coder_parameter.res_mon_volume_threshold.name) = 90
-    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
+    (data.coder_parameter.region.name)        = "ap-sydney"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
   }
   prebuilds {
     instances = 1
+  }
+}
+
+locals {
+  image_tags = {
+    // Older style option values, where the option value was just supposed to
+    // be the exact name of the image on Docker hub. In practice, this is rather
+    // restrictive because the image_type parameter is immutable.
+    "codercom/oss-dogfood:latest" = "codercom/oss-dogfood:latest"
+
+    "ubuntu-latest" = "codercom/oss-dogfood:26.04"
   }
 }
 
@@ -121,23 +120,12 @@ data "coder_parameter" "repo_base_dir" {
   mutable     = true
 }
 
-locals {
-  image_tags = {
-    // Older style option values, where the option value was just supposed to
-    // be the exact name of the image on Docker hub. In practice, this is rather
-    // restrictive because the image_type parameter is immutable.
-    "codercom/oss-dogfood:latest"     = "codercom/oss-dogfood:latest"
-    "codercom/oss-dogfood-nix:latest" = "codercom/oss-dogfood-nix:latest"
-
-    "ubuntu-latest" = "codercom/oss-dogfood:26.04"
-  }
-}
-
 data "coder_parameter" "image_type" {
   type        = "string"
   name        = "Coder Image"
-  default     = "codercom/oss-dogfood:latest"
+  default     = "ubuntu-latest"
   description = "The Docker image used to run your workspace."
+  mutable     = true
   option {
     icon  = "/icon/coder.svg"
     name  = "Ubuntu 26.04"
@@ -147,11 +135,6 @@ data "coder_parameter" "image_type" {
     icon  = "/icon/coder.svg"
     name  = "Ubuntu 22.04 (Legacy)"
     value = "codercom/oss-dogfood:latest"
-  }
-  option {
-    icon  = "/icon/nix.svg"
-    name  = "Dogfood Nix (Experimental)"
-    value = "codercom/oss-dogfood-nix:latest"
   }
 }
 
@@ -200,38 +183,6 @@ data "coder_parameter" "region" {
   }
 }
 
-data "coder_parameter" "res_mon_memory_threshold" {
-  type        = "number"
-  name        = "Memory usage threshold"
-  default     = 80
-  description = "The memory usage threshold used in resources monitoring to trigger notifications."
-  mutable     = true
-  validation {
-    min = 0
-    max = 100
-  }
-}
-
-data "coder_parameter" "res_mon_volume_threshold" {
-  type        = "number"
-  name        = "Volume usage threshold"
-  default     = 90
-  description = "The volume usage threshold used in resources monitoring to trigger notifications."
-  mutable     = true
-  validation {
-    min = 0
-    max = 100
-  }
-}
-
-data "coder_parameter" "res_mon_volume_path" {
-  type        = "string"
-  name        = "Volume path"
-  default     = "/home/coder"
-  description = "The path monitored in resources monitoring to trigger notifications."
-  mutable     = true
-}
-
 data "coder_parameter" "devcontainer_autostart" {
   type        = "bool"
   name        = "Automatically start devcontainer for coder/coder"
@@ -240,20 +191,20 @@ data "coder_parameter" "devcontainer_autostart" {
   mutable     = true
 }
 
-data "coder_parameter" "enable_ai_gateway" {
+data "coder_parameter" "enable_kvm" {
   type        = "bool"
-  name        = "Use AI Gateway"
-  default     = true
-  description = "If enabled, AI requests will be sent via AI Gateway."
+  name        = "Expose /dev/kvm to the workspace"
+  default     = false
+  description = "If enabled, the host's /dev/kvm device is mapped into the workspace container to allow hardware-accelerated VMs. Only works when the underlying host exposes /dev/kvm; leave disabled otherwise."
   mutable     = true
 }
 
-# Only used if AI Gateway is disabled.
 # dogfood/main.tf injects this value from a GH Actions secret;
 # `coderd_template.dogfood` passes the value injected by .github/workflows/dogfood.yaml in `TF_VAR_CODER_DOGFOOD_ANTHROPIC_API_KEY` and `TF_VAR_CODER_DOGFOOD_OPENAI_API_KEY`.
+# Currently unused since AI Gateway is always enabled, but kept for emergency fallback.
 variable "anthropic_api_key" {
   type        = string
-  description = "The API key used to authenticate with the Anthropic API, if AI Bridge is disabled."
+  description = "The API key used to authenticate with the Anthropic API, if AI Gateway is disabled."
   default     = ""
   sensitive   = true
 }
@@ -277,7 +228,6 @@ data "coder_external_auth" "github" {
 
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
-data "coder_task" "me" {}
 data "coder_workspace_tags" "tags" {
   tags = {
     "cluster" : "dogfood-v2"
@@ -336,25 +286,6 @@ data "coder_parameter" "ide_choices" {
   }
 }
 
-data "coder_parameter" "vscode_channel" {
-  count       = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode") ? 1 : 0
-  type        = "string"
-  name        = "VS Code Desktop channel"
-  description = "Choose the VS Code Desktop channel"
-  mutable     = true
-  default     = "stable"
-  option {
-    value = "stable"
-    name  = "Stable"
-    icon  = "/icon/code.svg"
-  }
-  option {
-    value = "insiders"
-    name  = "Insiders"
-    icon  = "/icon/code-insiders.svg"
-  }
-}
-
 module "slackme" {
   count            = data.coder_workspace.me.start_count
   source           = "dev.registry.coder.com/coder/slackme/coder"
@@ -366,14 +297,14 @@ module "slackme" {
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "1.4.1"
+  version  = "1.4.2"
   agent_id = coder_agent.dev.id
 }
 
 module "git-config" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/git-config/coder"
-  version  = "1.0.33"
+  version  = "1.0.34"
   agent_id = coder_agent.dev.id
   # If you prefer to commit with a different email, this allows you to do so.
   allow_email_change = true
@@ -382,7 +313,7 @@ module "git-config" {
 module "git-clone" {
   count             = data.coder_workspace.me.start_count
   source            = "dev.registry.coder.com/coder/git-clone/coder"
-  version           = "1.2.3"
+  version           = "1.3.0"
   agent_id          = coder_agent.dev.id
   url               = "https://github.com/coder/coder"
   base_dir          = local.repo_base_dir
@@ -404,7 +335,7 @@ module "personalize" {
 module "mux" {
   count                = data.coder_workspace.me.start_count
   source               = "registry.coder.com/coder/mux/coder"
-  version              = "1.4.3"
+  version              = "1.5.0"
   agent_id             = coder_agent.dev.id
   subdomain            = true
   display_name         = "Mux"
@@ -418,7 +349,7 @@ module "mux" {
 module "code-server" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.4.4"
+  version                 = "1.5.2"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -428,7 +359,7 @@ module "code-server" {
 module "vscode-web" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode-web") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/vscode-web/coder"
-  version                 = "1.5.0"
+  version                 = "1.6.1"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   extensions              = ["github.copilot"]
@@ -482,7 +413,7 @@ module "windsurf" {
 module "zed" {
   count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "zed") ? data.coder_workspace.me.start_count : 0
   source     = "dev.registry.coder.com/coder/zed/coder"
-  version    = "1.1.4"
+  version    = "1.1.5"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
   folder     = local.repo_dir
@@ -508,19 +439,34 @@ resource "coder_agent" "dev" {
   env = merge(
     {
       OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
+      # `mise oci build` bakes `ENV MISE_CONFIG_DIR=/etc/mise` into
+      # the image layer above Dockerfile.base, so mise treats
+      # /etc/mise as the user config dir and never reads
+      # ~/.config/mise/conf.d/*, silently dropping the trust file
+      # the install-deps coder_script below seeds. `[oci.env]` in
+      # mise.toml would be the natural place for this, but mise's
+      # internal env bake currently wins on MISE_* key collisions
+      # (non-MISE keys flow through). Move this back to `[oci.env]`
+      # once upstream mise fixes that.
+      MISE_CONFIG_DIR : "/home/coder/.config/mise",
+      # Keep user-installed mise tools on the persistent home volume.
+      # The image still exposes baked tools from /opt/mise/data via
+      # MISE_SHARED_INSTALL_DIRS, but /opt itself is image-resident
+      # and is recreated with the container on workspace restart.
+      MISE_DATA_DIR : "/home/coder/.local/share/mise",
     },
-    data.coder_parameter.enable_ai_gateway.value ? {
-      ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
+    {
+      ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/ai-gateway/anthropic",
       ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
-      OPENAI_BASE_URL : "https://dev.coder.com/api/v2/aibridge/openai/v1",
+      OPENAI_BASE_URL : "https://dev.coder.com/api/v2/ai-gateway/openai/v1",
       OPENAI_API_KEY : data.coder_workspace_owner.me.session_token,
-    } : {}
+    }
   )
   startup_script_behavior = "blocking"
 
   display_apps {
-    vscode          = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode") && try(data.coder_parameter.vscode_channel[0].value, "stable") == "stable"
-    vscode_insiders = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode") && try(data.coder_parameter.vscode_channel[0].value, "stable") == "insiders"
+    vscode          = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode")
+    vscode_insiders = false
   }
 
   # The following metadata blocks are optional. They are used to display
@@ -577,16 +523,16 @@ resource "coder_agent" "dev" {
   resources_monitoring {
     memory {
       enabled   = true
-      threshold = data.coder_parameter.res_mon_memory_threshold.value
+      threshold = 80
     }
     volume {
       enabled   = true
-      threshold = data.coder_parameter.res_mon_volume_threshold.value
-      path      = data.coder_parameter.res_mon_volume_path.value
+      threshold = 90
+      path      = "/home/coder"
     }
     volume {
       enabled   = true
-      threshold = data.coder_parameter.res_mon_volume_threshold.value
+      threshold = 90
       path      = "/var/lib/docker"
     }
   }
@@ -679,18 +625,64 @@ resource "coder_script" "install-deps" {
   display_name       = "Installing Dependencies"
   run_on_start       = true
   start_blocks_login = false
-  script             = <<EOT
+  script             = <<-EOT
     #!/usr/bin/env bash
     set -euo pipefail
 
     trap 'coder exp sync complete install-deps' EXIT
+
+    # Ensure /opt/mise is writable by coder before any login shell
+    # or other script touches mise. `mise oci build` emits its tar
+    # layers in deterministic mode with hardcoded uid=0/gid=0 (see
+    # mise's src/oci/layer.rs), and `prefix_parents` walks the full
+    # mount_point chain, so the final image stamps /opt, /opt/mise,
+    # and /opt/mise/data as root:root regardless of what the base
+    # Dockerfile sets. Without this chown mise warns `migrate:
+    # failed create_dir_all: /opt/mise/data/migrations` and skips
+    # its state writes. /opt/mise is image-resident (not on the
+    # home volume), so this runs every workspace start. Runs
+    # before the git-clone sync barrier so early shells never
+    # observe the unwritable state.
+    sudo chown -R coder:coder /opt/mise
+
     coder exp sync want install-deps git-clone
     coder exp sync start install-deps
+
+    # Seed a user-owned mise trust config on the persistent home
+    # volume. The image ships /etc/mise/conf.d/00-coder-trust.toml as
+    # a fallback, but mise's `trusted_config_paths` setting doesn't
+    # merge across config layers, so anything the user adds to their
+    # own file would otherwise replace the system fallback. Writing
+    # this file once (if-absent) seeds the defaults under
+    # ~/.config/mise/conf.d/ where the user can edit it and the edits
+    # survive workspace restart.
+    TRUST_FILE="$HOME/.config/mise/conf.d/00-coder-trust.toml"
+    if [ ! -f "$TRUST_FILE" ]; then
+      mkdir -p "$(dirname "$TRUST_FILE")"
+      cat > "$TRUST_FILE" <<'TRUST'
+    # mise trust paths for the dogfood workspace. Edit to add your own
+    # paths; this file lives on the persistent home volume so changes
+    # survive workspace restart. The install-deps coder_script only
+    # writes this file when it's absent.
+    [settings]
+    trusted_config_paths = [
+      "/home/coder/coder",
+      "/etc/mise",
+    ]
+    TRUST
+    fi
 
     # Install playwright dependencies
     # We want to use the playwright version from site/package.json
     cd "${local.repo_dir}" && make clean
     cd "${local.repo_dir}/site" && pnpm install
+
+    # Two playwright installs: site/'s @playwright/test and
+    # @playwright/mcp@0.0.75 bundle different playwright-core versions
+    # with different chromium revisions, and both are used at runtime
+    # (site tests + the claude-code/codex MCP servers below).
+    cd "${local.repo_dir}/site" && pnpm exec playwright install chromium
+    npx --yes --package=@playwright/mcp@0.0.75 playwright-core install --no-shell chromium
   EOT
 }
 
@@ -823,12 +815,10 @@ data "docker_registry_image" "dogfood" {
 
 resource "docker_image" "dogfood" {
   name = "${local.image_tags[data.coder_parameter.image_type.value]}@${data.docker_registry_image.dogfood.sha256_digest}"
+  # CI rebuilds and pushes when any baked-in input changes, so the
+  # digest captures every effective change on its own.
   pull_triggers = [
     data.docker_registry_image.dogfood.sha256_digest,
-    sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
-    filesha1("ubuntu-22.04/Dockerfile"),
-    filesha1("ubuntu-26.04/Dockerfile"),
-    filesha1("nix.hash"),
   ]
   keep_locally = true
 }
@@ -854,6 +844,7 @@ resource "docker_container" "workspace" {
   # CPU limits are unnecessary since Docker will load balance automatically
   memory  = data.coder_workspace_owner.me.name == "code-asher" ? 65536 : 32768
   runtime = "sysbox-runc"
+  restart = "unless-stopped"
 
   # Ensure the workspace is given time to:
   # - Execute shutdown scripts
@@ -897,6 +888,15 @@ resource "docker_container" "workspace" {
   capabilities {
     add = ["CAP_NET_ADMIN", "CAP_SYS_NICE"]
   }
+  # Gated behind a parameter because mapping /dev/kvm fails container creation
+  # on hosts that do not expose it.
+  dynamic "devices" {
+    for_each = data.coder_parameter.enable_kvm.value ? [1] : []
+    content {
+      host_path      = "/dev/kvm"
+      container_path = "/dev/kvm"
+    }
+  }
   # Add labels in Docker to keep track of orphan resources.
   labels {
     label = "coder.owner"
@@ -931,10 +931,6 @@ resource "coder_metadata" "container_info" {
     key   = "region"
     value = data.coder_parameter.region.option[index(data.coder_parameter.region.option.*.value, data.coder_parameter.region.value)].name
   }
-  item {
-    key   = "ai_task"
-    value = data.coder_task.me.enabled ? "yes" : "no"
-  }
 }
 
 resource "coder_script" "boundary_config_setup" {
@@ -957,9 +953,9 @@ resource "coder_script" "boundary_config_setup" {
 module "claude-code" {
   count             = data.coder_workspace.me.start_count
   source            = "dev.registry.coder.com/coder/claude-code/coder"
-  version           = "5.1.0"
-  enable_ai_gateway = data.coder_parameter.enable_ai_gateway.value
-  anthropic_api_key = data.coder_parameter.enable_ai_gateway.value ? "" : var.anthropic_api_key
+  version           = "5.2.0"
+  enable_ai_gateway = true
+  anthropic_api_key = ""
   agent_id          = coder_agent.dev.id
   workdir           = local.repo_dir
   mcp               = <<-EOF
@@ -967,7 +963,7 @@ module "claude-code" {
       "mcpServers": {
         "playwright": {
           "command": "npx",
-          "args": ["--", "@playwright/mcp@latest", "--headless", "--isolated", "--no-sandbox"]
+          "args": ["--", "@playwright/mcp@0.0.75", "--headless", "--isolated", "--no-sandbox"]
         }
       }
     }
@@ -990,15 +986,15 @@ resource "coder_app" "claude" {
 
 module "codex" {
   source            = "dev.registry.coder.com/coder-labs/codex/coder"
-  version           = "5.0.0"
+  version           = "5.3.0"
   agent_id          = coder_agent.dev.id
   workdir           = local.repo_dir
-  enable_ai_gateway = data.coder_parameter.enable_ai_gateway.value
-  openai_api_key    = data.coder_parameter.enable_ai_gateway.value ? "" : var.openai_api_key
+  enable_ai_gateway = true
+  openai_api_key    = ""
   mcp               = <<-EOT
     [mcp_servers.playwright]
     command = "npx"
-    args = ["--", "@playwright/mcp@latest", "--headless", "--isolated", "--no-sandbox"]
+    args = ["--", "@playwright/mcp@0.0.75", "--headless", "--isolated", "--no-sandbox"]
     type = "stdio"
   EOT
 }

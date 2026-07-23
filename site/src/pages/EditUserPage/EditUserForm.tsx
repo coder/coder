@@ -8,6 +8,7 @@ import { Button } from "#/components/Button/Button";
 import { FormFooter } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { FullPageForm } from "#/components/FullPageForm/FullPageForm";
+import { IconField } from "#/components/IconField/IconField";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	displayNameValidator,
@@ -19,12 +20,15 @@ import {
 const validationSchema = Yup.object({
 	username: nameValidator("Username"),
 	name: displayNameValidator("Full name"),
+	avatar_url: Yup.string(),
 });
 
 interface EditUserFormProps {
 	error?: unknown;
 	isLoading: boolean;
 	initialValues: UpdateUserProfileRequest;
+	/** Allows hiding the avatar setting when it would be overwritten later by the user's identity provider. */
+	canEditAvatar: boolean;
 	onSubmit: (values: UpdateUserProfileRequest) => void;
 	onCancel: () => void;
 }
@@ -33,6 +37,7 @@ export const EditUserForm: FC<EditUserFormProps> = ({
 	error,
 	isLoading,
 	initialValues,
+	canEditAvatar,
 	onSubmit,
 	onCancel,
 }) => {
@@ -81,6 +86,16 @@ export const EditUserForm: FC<EditUserFormProps> = ({
 						onBlur={form.handleBlur}
 						autoComplete="name"
 					/>
+
+					{canEditAvatar && (
+						<IconField
+							{...getFieldHelpers("avatar_url")}
+							label="Avatar URL"
+							onChange={onChangeTrimmed(form)}
+							onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
+							fullWidth
+						/>
+					)}
 				</div>
 
 				<FormFooter className="mt-8">

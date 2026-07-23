@@ -5,18 +5,12 @@ import {
 	type useFilter,
 } from "#/components/Filter/Filter";
 import { type UserFilterMenu, UserMenu } from "#/components/Filter/UserFilter";
-import {
-	ClientFilter,
-	type ClientFilterMenu,
-} from "../RequestLogsPage/RequestLogsFilter/ClientFilter";
-import {
-	ModelFilter,
-	type ModelFilterMenu,
-} from "../RequestLogsPage/RequestLogsFilter/ModelFilter";
+import { ClientFilter, type ClientFilterMenu } from "../filters/ClientFilter";
+import { ModelFilter, type ModelFilterMenu } from "../filters/ModelFilter";
 import {
 	ProviderFilter,
 	type ProviderFilterMenu,
-} from "../RequestLogsPage/RequestLogsFilter/ProviderFilter";
+} from "../filters/ProviderFilter";
 
 interface ListSessionsFilterProps {
 	filter: ReturnType<typeof useFilter>;

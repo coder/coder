@@ -1,0 +1,126 @@
+{
+  "id": "codex",
+  "display_name": "Codex CLI",
+  "description": "Install and configure the Codex CLI in your workspace.",
+  "icon": "/icon/openai.svg",
+  "category": "AI Agent",
+  "tags": [
+    "agent",
+    "codex",
+    "ai",
+    "openai",
+    "ai-gateway"
+  ],
+  "compatible_os": [
+    "linux"
+  ],
+  "conflicts_with": [],
+  "namespace": "coder-labs",
+  "pinned_version": "5.3.0",
+  "variables": [
+    {
+      "name": "agent_id",
+      "type": "string",
+      "description": "The ID of a Coder agent.",
+      "required": false,
+      "sensitive": false,
+      "computed": true
+    },
+    {
+      "name": "base_config_toml",
+      "type": "string",
+      "description": "Complete base TOML configuration for Codex (without mcp_servers section).\nWhen empty, the module generates a minimal default:\n\n  preferred_auth_method = \"apikey\"\n  # model_provider = \"aigateway\"           (sets the default profile, when enable_ai_gateway = true)\n  # model_reasoning_effort = \"\u003cvalue\u003e\"    (sets the reasoning effort, when model_reasoning_effort is set)\n\n  [projects.\"\u003cworkdir\u003e\"]                  (when workdir is set)\n  trust_level = \"trusted\"\n\nWhen non-empty, the value is written verbatim as the base of config.toml;\nmcp and AI Gateway sections are still appended after it.\nNote: model_reasoning_effort and workdir trust are only applied in the\ndefault config. Include them in your custom config if needed.\n",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "codex_version",
+      "type": "string",
+      "description": "The version of Codex to install.",
+      "default": "latest",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "enable_ai_gateway",
+      "type": "bool",
+      "description": "Use AI Gateway for Codex. https://coder.com/docs/ai-coder/ai-gateway",
+      "default": false,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "icon",
+      "type": "string",
+      "description": "The icon to use for the app.",
+      "default": "/icon/openai.svg",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "install_codex",
+      "type": "bool",
+      "description": "Whether to install Codex.",
+      "default": true,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "mcp",
+      "type": "string",
+      "description": "MCP server configurations in TOML format. When set, servers are appended to the Codex config.toml.",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "model_reasoning_effort",
+      "type": "string",
+      "description": "The reasoning effort for the model. One of: none, minimal, low, medium, high, xhigh. See https://platform.openai.com/docs/guides/latest-model#lower-reasoning-effort",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "openai_api_key",
+      "type": "string",
+      "description": "OpenAI API key for Codex CLI.",
+      "default": "",
+      "required": false,
+      "sensitive": true,
+      "computed": false
+    },
+    {
+      "name": "post_install_script",
+      "type": "string",
+      "description": "Custom script to run after installing Codex.",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "pre_install_script",
+      "type": "string",
+      "description": "Custom script to run before installing Codex.",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "workdir",
+      "type": "string",
+      "description": "Optional project directory. When set, the module pre-creates it if missing and adds it as a trusted project in Codex config.toml.",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    }
+  ]
+}

@@ -89,6 +89,30 @@ func TestUserPasswordCompare(t *testing.T) {
 			wantErr:            true,
 			wantEqual:          false,
 		},
+		{
+			name:               "EmptyHashHunter2",
+			passwordToValidate: "",
+			password:           "hunter2",
+			shouldHash:         false,
+			wantErr:            false,
+			wantEqual:          false,
+		},
+		{
+			name:               "EmptyHashEmptyPassword",
+			passwordToValidate: "",
+			password:           "",
+			shouldHash:         false,
+			wantErr:            false,
+			wantEqual:          false,
+		},
+		{
+			name:               "EmptyHashArbitraryPassword",
+			passwordToValidate: "",
+			password:           "anyOtherPassword",
+			shouldHash:         false,
+			wantErr:            false,
+			wantEqual:          false,
+		},
 	}
 
 	for _, tt := range tests {

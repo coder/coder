@@ -12,8 +12,8 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 // nolint:paralleltest
@@ -31,6 +31,7 @@ func TestResetPassword(t *testing.T) {
 	const oldPassword = "MyOldPassword!"
 	const newPassword = "MyNewPassword!"
 
+	logger := testutil.Logger(t)
 	// start postgres and coder server processes
 	connectionURL, err := dbtestutil.Open(t)
 	require.NoError(t, err)
@@ -69,9 +70,8 @@ func TestResetPassword(t *testing.T) {
 	resetinv, cmdCfg := clitest.New(t, "reset-password", "--postgres-url", connectionURL, username)
 	clitest.SetupConfig(t, client, cmdCfg)
 	cmdDone := make(chan struct{})
-	pty := ptytest.New(t)
-	resetinv.Stdin = pty.Input()
-	resetinv.Stdout = pty.Output()
+	stdout := expecter.NewAttachedToInvocation(t, resetinv)
+	stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), resetinv)
 	go func() {
 		defer close(cmdDone)
 		err = resetinv.Run()
@@ -86,8 +86,8 @@ func TestResetPassword(t *testing.T) {
 		{"Confirm", newPassword},
 	}
 	for _, match := range matches {
-		pty.ExpectMatch(match.output)
-		pty.WriteLine(match.input)
+		stdout.ExpectMatch(ctx, match.output)
+		stdin.WriteLine(match.input)
 	}
 	<-cmdDone
 

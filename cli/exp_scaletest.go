@@ -70,6 +70,7 @@ func (r *RootCmd) scaletestCmd() *serpent.Command {
 			r.scaletestSMTP(),
 			r.scaletestPrebuilds(),
 			r.scaletestBridge(),
+			r.scaletestChat(),
 			r.scaletestLLMMock(),
 		},
 	}
@@ -395,6 +396,7 @@ type workspaceTargetFlags struct {
 	template         string
 	targetWorkspaces string
 	useHostLogin     bool
+	allowEmpty       bool
 }
 
 // attach adds the workspace target flags to the given options set.
@@ -404,13 +406,13 @@ func (f *workspaceTargetFlags) attach(opts *serpent.OptionSet) {
 			Flag:          "template",
 			FlagShorthand: "t",
 			Env:           "CODER_SCALETEST_TEMPLATE",
-			Description:   "Name or ID of the template. Traffic generation will be limited to workspaces created from this template.",
+			Description:   "Name or ID of the template. Only workspaces created from this template are targeted.",
 			Value:         serpent.StringOf(&f.template),
 		},
 		serpent.Option{
 			Flag:        "target-workspaces",
 			Env:         "CODER_SCALETEST_TARGET_WORKSPACES",
-			Description: "Target a specific range of workspaces in the format [START]:[END] (exclusive). Example: 0:10 will target the 10 first alphabetically sorted workspaces (0-9).",
+			Description: "Target a specific range of matching workspaces in the format [START]:[END] (exclusive). Example: 0:10 targets the first 10 matching workspaces returned by the workspace query.",
 			Value:       serpent.StringOf(&f.targetWorkspaces),
 		},
 		serpent.Option{
@@ -462,6 +464,9 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 
 	// Validate range
 	if len(workspaces) == 0 {
+		if f.allowEmpty {
+			return nil, nil
+		}
 		return nil, xerrors.Errorf("no scaletest workspaces exist")
 	}
 	if targetEnd > len(workspaces) {
@@ -472,7 +477,7 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 	return workspaces[targetStart:targetEnd], nil
 }
 
-func requireAdmin(ctx context.Context, client *codersdk.Client) (codersdk.User, error) {
+func RequireAdmin(ctx context.Context, client *codersdk.Client) (codersdk.User, error) {
 	me, err := client.User(ctx, codersdk.Me)
 	if err != nil {
 		return codersdk.User{}, xerrors.Errorf("fetch current user: %w", err)
@@ -617,7 +622,7 @@ func (r *RootCmd) scaletestCleanup() *serpent.Command {
 
 			ctx := inv.Context()
 
-			me, err := requireAdmin(ctx, client)
+			me, err := RequireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}
@@ -851,7 +856,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 
 			ctx := inv.Context()
 
-			me, err := requireAdmin(ctx, client)
+			me, err := RequireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}
@@ -1051,7 +1056,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 		{
 			Flag:        "no-wait-for-agents",
 			Env:         "CODER_SCALETEST_NO_WAIT_FOR_AGENTS",
-			Description: `Do not wait for agents to start before marking the test as succeeded. This can be useful if you are running the test against a template that does not start the agent quickly.`,
+			Description: `Do not wait for agents to start before marking the test as succeeded. This can be useful if you are running the test against a template that does not start the agent quickly. This is REQUIRED for templates whose workspaces use coder_external_agent resources, since external agents never connect on their own; pair with "coder exp scaletest agentfake" to drive those agents.`,
 			Value:       serpent.BoolOf(&noWaitForAgents),
 		},
 		{
@@ -1177,7 +1182,7 @@ func (r *RootCmd) scaletestWorkspaceUpdates() *serpent.Command {
 			defer stop()
 			ctx = notifyCtx
 
-			me, err := requireAdmin(ctx, client)
+			me, err := RequireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}
@@ -1473,7 +1478,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 			defer stop()
 			ctx = notifyCtx
 
-			me, err := requireAdmin(ctx, client)
+			me, err := RequireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}
@@ -1925,7 +1930,7 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 			defer stop()
 			ctx = notifyCtx
 
-			me, err := requireAdmin(ctx, client)
+			me, err := RequireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}

@@ -15,11 +15,17 @@ To copy the `.coder` hostname of a workspace agent, select the copy icon beside 
 
 You can also connect to the SSH server in your workspace using any SSH client, such as OpenSSH or PuTTY:
 
-   ```shell
+   ```sh
    ssh your-workspace.coder
    ```
 
-Any services listening on ports in your workspace will be available on the same hostname. For example, you can access a web server on port `8080` by visiting `http://your-workspace.coder:8080` in your browser.
+### Automatic port forwarding
+
+Any services listening on ports in your workspace are automatically available on the same hostname, with no manual port forwarding required. For example, you can access a web server on port `8080` by visiting `http://your-workspace.coder:8080` in your browser.
+
+This works for all TCP ports. Start a service in your workspace and access it immediately from your local machine at `http://your-workspace.coder:PORT`.
+
+For other port forwarding methods (CLI, dashboard, SSH), see [Workspace Ports](../workspace-access/port-forwarding.md).
 
 > [!NOTE]
 > For Coder versions v2.21.3 and earlier: the Coder IDE extensions for VSCode and JetBrains create their own tunnel and do not utilize the Coder Connect tunnel to connect to workspaces.
@@ -32,7 +38,7 @@ Any services listening on ports in your workspace will be available on the same 
 
 Use `ping6` in your terminal to verify the connection to your workspace:
 
-   ```shell
+   ```sh
    ping6 -c 5 your-workspace.coder
    ```
 
@@ -40,7 +46,7 @@ Use `ping6` in your terminal to verify the connection to your workspace:
 
 Use `ping` in a Command Prompt or PowerShell terminal to verify the connection to your workspace:
 
-   ```shell
+   ```sh
    ping -n 5 your-workspace.coder
    ```
 

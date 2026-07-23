@@ -7,7 +7,11 @@ import {
 } from "react";
 import { type InfiniteData, useQueryClient } from "react-query";
 import { watchChat } from "#/api/api";
-import { chatMessagesKey, updateInfiniteChatsCache } from "#/api/queries/chats";
+import {
+	chatMessagesKey,
+	chatPromptsKey,
+	updateInfiniteChatsCache,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
@@ -46,6 +50,7 @@ interface UseChatStoreOptions {
 	chatQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined;
 	setChatErrorReason: (chatID: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatID: string) => void;
+	aiGatewayDisabled?: boolean;
 }
 
 export const useChatStore = (
@@ -63,6 +68,7 @@ export const useChatStore = (
 		chatQueuedMessages,
 		setChatErrorReason,
 		clearChatErrorReason,
+		aiGatewayDisabled = false,
 	} = options;
 
 	const queryClient = useQueryClient();
@@ -80,7 +86,7 @@ export const useChatStore = (
 	// source for chatStatus and the REST-fetched chatRecord.status
 	// must not overwrite it. Without this guard, a React Query
 	// refetch (e.g. on window focus) can regress chatStatus to a
-	// stale value like "pending", causing shouldApplyMessagePart()
+	// stale value like "waiting", causing shouldApplyMessagePart()
 	// to drop all incoming parts.
 	const wsStatusReceivedRef = useRef(false);
 	const activeChatIDRef = useRef<string | null>(null);
@@ -166,6 +172,37 @@ export const useChatStore = (
 						{ ...firstPage, messages: updatedMessages },
 						...currentData.pages.slice(1),
 					],
+				};
+			});
+			// Refresh the dedicated prompt-history cache when a user message arrives.
+			const hasNewUserPrompt = messages.some((msg) => msg.role === "user");
+			if (hasNewUserPrompt) {
+				void queryClient.invalidateQueries({
+					queryKey: chatPromptsKey(chatID),
+					exact: true,
+				});
+			}
+		},
+		[chatID, queryClient],
+	);
+
+	const replaceCacheMessages = useCallback(
+		(messages: readonly TypesGen.ChatMessage[]) => {
+			if (!chatID) {
+				return;
+			}
+			queryClient.setQueryData<
+				InfiniteData<TypesGen.ChatMessagesResponse> | undefined
+			>(chatMessagesKey(chatID), (currentData) => {
+				if (!currentData?.pages?.length) {
+					return currentData;
+				}
+				const firstPage = currentData.pages[0];
+				const updatedMessages = [...messages].sort((a, b) => b.id - a.id);
+				return {
+					...currentData,
+					pages: [{ ...firstPage, messages: updatedMessages, has_more: false }],
+					pageParams: currentData.pageParams.slice(0, 1),
 				};
 			});
 		},
@@ -323,7 +360,7 @@ export const useChatStore = (
 		store.resetTransientState();
 		activeChatIDRef.current = chatID ?? null;
 
-		if (!chatID || !initialDataLoaded) {
+		if (!chatID || !initialDataLoaded || aiGatewayDisabled) {
 			return;
 		}
 
@@ -340,9 +377,18 @@ export const useChatStore = (
 		const partsBuf: TypesGen.ChatMessagePart[] = [];
 		let partsFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
+		// History replacement state lives at the effect scope because
+		// the server may split a history_reset and its replacement
+		// messages across multiple WS frames (the stream handler caps
+		// frames at a fixed batch size). Replacement messages are
+		// buffered until a non-message boundary event arrives; the
+		// server always emits preview_reset after a history change in
+		// the same sync, so the run is guaranteed to terminate.
+		let historyResetPending = false;
+		const historyReplacementBuf: TypesGen.ChatMessage[] = [];
+
 		const shouldApplyMessagePart = (): boolean => {
-			const currentStatus = store.getSnapshot().chatStatus;
-			return currentStatus !== "pending" && currentStatus !== "waiting";
+			return store.getSnapshot().chatStatus !== "waiting";
 		};
 
 		const schedulePartsFlush = () => {
@@ -381,9 +427,9 @@ export const useChatStore = (
 		};
 
 		// Discard buffered parts without applying them. Used when
-		// the stream is no longer active (pending, waiting, retry)
+		// the preview is reset or the stream is no longer active
 		// so stale buffered parts are not applied after the
-		// status transition.
+		// boundary event.
 		const discardBufferedParts = () => {
 			partsBuf.length = 0;
 			if (partsFlushTimer !== null) {
@@ -416,6 +462,20 @@ export const useChatStore = (
 			const pendingMessages: TypesGen.ChatMessage[] = [];
 			let needsStreamReset = false;
 
+			// Atomically swap in the buffered replacement history. Called
+			// when a boundary event signals the replacement run ended, so
+			// a run split across frames never renders a truncated
+			// conversation.
+			const commitHistoryReplacement = () => {
+				if (!historyResetPending) {
+					return;
+				}
+				historyResetPending = false;
+				const replacement = historyReplacementBuf.splice(0);
+				store.replaceMessages(replacement);
+				replaceCacheMessages(replacement);
+			};
+
 			// Wrap all store mutations in a batch so subscribers
 			// are notified exactly once at the end, not per event.
 			store.batch(() => {
@@ -424,6 +484,7 @@ export const useChatStore = (
 						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
 							continue;
 						}
+						commitHistoryReplacement();
 						if (!shouldApplyMessagePart()) {
 							continue;
 						}
@@ -435,14 +496,47 @@ export const useChatStore = (
 						continue;
 					}
 
+					if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
+						const nextStatus = streamEvent.status?.status;
+						if (streamEvent.type === "status" && nextStatus) {
+							store.setSubagentStatusOverride(streamEvent.chat_id, nextStatus);
+						}
+						continue;
+					}
+
+					if (streamEvent.type === "history_reset") {
+						discardBufferedParts();
+						store.clearStreamState();
+						// A newer reset supersedes any in-flight replacement
+						// run, so restart buffering instead of committing.
+						historyResetPending = true;
+						historyReplacementBuf.length = 0;
+						pendingMessages.length = 0;
+						needsStreamReset = false;
+						continue;
+					}
+
+					// Any non-message event for this chat marks the end of
+					// a replacement run (the server emits replacement
+					// messages contiguously after history_reset).
+					if (streamEvent.type !== "message") {
+						commitHistoryReplacement();
+					}
+
+					if (streamEvent.type === "preview_reset") {
+						discardBufferedParts();
+						store.clearStreamState();
+						continue;
+					}
+
 					// Only flush buffered parts before events that
 					// need them applied first. `message` events
 					// commit durable state that must include all
 					// stream parts. `error` events should surface
 					// partial output. Other events (status, retry,
-					// queue_update) must NOT flush — status changes
+					// queue_update) must not flush. Status changes
 					// need to be visible before parts so the
-					// "Thinking..." indicator can render, and retry
+					// Thinking indicator can render, and retry
 					// clears stream state which a flush would
 					// re-populate.
 					if (streamEvent.type === "message" || streamEvent.type === "error") {
@@ -455,11 +549,12 @@ export const useChatStore = (
 							if (!message) {
 								continue;
 							}
-							if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
-								continue;
-							}
 							store.clearRetryState();
-							pendingMessages.push(message);
+							if (historyResetPending) {
+								historyReplacementBuf.push(message);
+							} else {
+								pendingMessages.push(message);
+							}
 							if (
 								message.id !== undefined &&
 								(lastMessageIdRef.current === undefined ||
@@ -473,9 +568,6 @@ export const useChatStore = (
 							continue;
 						}
 						case "queue_update":
-							if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
-								continue;
-							}
 							wsQueueUpdateReceivedRef.current = true;
 							store.applyAuthoritativeQueuedMessages(
 								streamEvent.queued_messages,
@@ -488,23 +580,11 @@ export const useChatStore = (
 								continue;
 							}
 
-							if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
-								store.setSubagentStatusOverride(
-									streamEvent.chat_id,
-									nextStatus,
-								);
-								continue;
-							}
-
 							wsStatusReceivedRef.current = true;
 							store.clearRetryState();
 							store.setChatStatus(nextStatus);
-							if (nextStatus === "pending" || nextStatus === "waiting") {
+							if (nextStatus === "waiting") {
 								discardBufferedParts();
-								store.clearRetryState();
-							}
-							if (nextStatus === "running") {
-								store.clearRetryState();
 							}
 							if (nextStatus !== "error") {
 								clearChatErrorReasonEvent(chatID);
@@ -517,9 +597,6 @@ export const useChatStore = (
 							continue;
 						}
 						case "error": {
-							if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
-								continue;
-							}
 							const reason = normalizeChatErrorPayload(streamEvent.error) ?? {
 								kind: "generic",
 								message: "Chat processing failed.",
@@ -534,9 +611,6 @@ export const useChatStore = (
 							continue;
 						}
 						case "retry": {
-							if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
-								continue;
-							}
 							const retry = streamEvent.retry;
 							if (retry) {
 								discardBufferedParts();
@@ -610,6 +684,10 @@ export const useChatStore = (
 				// apply stale parts from the old connection
 				// into the fresh stream state.
 				discardBufferedParts();
+				// Drop any partial replacement run from the old
+				// socket; the new socket replays a fresh snapshot.
+				historyResetPending = false;
+				historyReplacementBuf.length = 0;
 			},
 			onDisconnect(
 				reconnectState: import("#/utils/reconnectingWebSocket").ReconnectSchedule,
@@ -632,7 +710,15 @@ export const useChatStore = (
 			}
 			activeChatIDRef.current = null;
 		};
-	}, [chatID, initialDataLoaded, queryClient, store, upsertCacheMessages]);
+	}, [
+		aiGatewayDisabled,
+		chatID,
+		initialDataLoaded,
+		queryClient,
+		replaceCacheMessages,
+		store,
+		upsertCacheMessages,
+	]);
 	return {
 		store,
 		clearStreamError: () => {

@@ -32,7 +32,7 @@ export const Loader: FC<LoaderProps> = ({
 				className,
 			)}
 		>
-			<Spinner aria-label={resolvedLabel} size={size} loading={true} />
+			<Spinner aria-label={resolvedLabel} size={size} loading />
 		</div>
 	);
 };

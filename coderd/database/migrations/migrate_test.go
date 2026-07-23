@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -18,11 +19,13 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/stub"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/testutil"
@@ -1184,4 +1187,984 @@ func TestMigration000475AgentsAccessOrgRole(t *testing.T) {
 		gotRoleNames,
 		"trigger should only create org-member and org-service-account system roles",
 	)
+}
+
+func TestMigration000504AIProvidersBackfill(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 504
+
+	sqlDB := testSQLDB(t)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	userID := uuid.New()
+	openAIProviderID := uuid.New()
+	anthropicProviderID := uuid.New()
+	openAIUserKeyID := uuid.New()
+	anthropicUserKeyID := uuid.New()
+	openAIModelConfigID := uuid.New()
+	anthropicModelConfigID := uuid.New()
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		userID, "ai-provider-backfill", "ai-provider-backfill@test.com", []byte{}, now, now, "active", pq.StringArray{}, "password",
+	)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO chat_providers (id, provider, display_name, api_key, enabled, base_url, created_at, updated_at)
+		VALUES
+			($1, 'openai', 'OpenAI', 'sk-provider-openai', TRUE, 'https://api.openai.example.com/v1', $3, $3),
+			($2, 'anthropic', '', '', FALSE, '', $3, $3)
+	`, openAIProviderID, anthropicProviderID, now)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO user_chat_provider_keys (id, user_id, chat_provider_id, api_key, created_at, updated_at)
+		VALUES
+			($1, $3, $4, 'sk-user-openai', $6, $6),
+			($2, $3, $5, 'sk-user-anthropic', $6, $6)
+	`, openAIUserKeyID, anthropicUserKeyID, userID, openAIProviderID, anthropicProviderID, now)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO chat_model_configs (id, provider, model, display_name, enabled, context_limit, compression_threshold, created_at, updated_at)
+		VALUES
+			($1, 'openai', 'gpt-4', 'GPT 4', TRUE, 100000, 70, $3, $3),
+			($2, 'anthropic', 'claude-3-5-sonnet-latest', 'Claude 3.5 Sonnet', TRUE, 200000, 70, $3, $3)
+	`, openAIModelConfigID, anthropicModelConfigID, now)
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit())
+
+	var preBackfillCount int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM ai_providers
+		WHERE id IN ($1, $2)
+	`, openAIProviderID, anthropicProviderID).Scan(&preBackfillCount)
+	require.NoError(t, err)
+	require.Zero(t, preBackfillCount, "test setup should start before the legacy chat providers are backfilled")
+
+	var preBackfillModelConfigCount int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM chat_model_configs
+		WHERE id IN ($1, $2)
+			AND ai_provider_id IS NOT NULL
+	`, openAIModelConfigID, anthropicModelConfigID).Scan(&preBackfillModelConfigCount)
+	require.NoError(t, err)
+	require.Zero(t, preBackfillModelConfigCount, "test setup should start before model configs point at AI providers")
+
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.EqualValues(t, migrationVersion, version)
+
+	assertBackfilledProvider := func(providerID uuid.UUID, providerType, name string, displayName sql.NullString, enabled bool, baseURL string) {
+		t.Helper()
+		var provider struct {
+			Typ         string
+			Name        string
+			DisplayName sql.NullString
+			Enabled     bool
+			BaseURL     string
+		}
+		err = sqlDB.QueryRowContext(ctx, `
+			SELECT type, name, display_name, enabled, base_url
+			FROM ai_providers
+			WHERE id = $1
+		`, providerID).Scan(&provider.Typ, &provider.Name, &provider.DisplayName, &provider.Enabled, &provider.BaseURL)
+		require.NoError(t, err)
+		require.Equal(t, providerType, provider.Typ)
+		require.Equal(t, name, provider.Name)
+		require.Equal(t, displayName, provider.DisplayName)
+		require.Equal(t, enabled, provider.Enabled)
+		require.Equal(t, baseURL, provider.BaseURL)
+	}
+	assertBackfilledProvider(
+		openAIProviderID,
+		"openai",
+		"agents-openai",
+		sql.NullString{String: "OpenAI", Valid: true},
+		true,
+		"https://api.openai.example.com/v1",
+	)
+	assertBackfilledProvider(
+		anthropicProviderID,
+		"anthropic",
+		"agents-anthropic",
+		sql.NullString{},
+		false,
+		"",
+	)
+
+	var providerKeyCount int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM ai_provider_keys
+		WHERE provider_id = $1 AND api_key = 'sk-provider-openai'
+	`, openAIProviderID).Scan(&providerKeyCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, providerKeyCount, "non-empty legacy provider API key should be copied")
+
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM ai_provider_keys
+		WHERE provider_id = $1
+	`, anthropicProviderID).Scan(&providerKeyCount)
+	require.NoError(t, err)
+	require.Zero(t, providerKeyCount, "empty legacy provider API key should not create an AI provider key")
+
+	assertBackfilledUserKey := func(userKeyID, providerID uuid.UUID, apiKey string) {
+		t.Helper()
+		var userKeyCount int
+		err = sqlDB.QueryRowContext(ctx, `
+			SELECT COUNT(*)
+			FROM user_ai_provider_keys
+			WHERE id = $1 AND user_id = $2 AND ai_provider_id = $3 AND api_key = $4
+		`, userKeyID, userID, providerID, apiKey).Scan(&userKeyCount)
+		require.NoError(t, err)
+		require.Equal(t, 1, userKeyCount)
+	}
+	assertBackfilledUserKey(openAIUserKeyID, openAIProviderID, "sk-user-openai")
+	assertBackfilledUserKey(anthropicUserKeyID, anthropicProviderID, "sk-user-anthropic")
+
+	assertModelConfigProviderID := func(modelConfigID, providerID uuid.UUID) {
+		t.Helper()
+		var aiProviderID sql.NullString
+		err = sqlDB.QueryRowContext(ctx,
+			`SELECT ai_provider_id::text FROM chat_model_configs WHERE id = $1`,
+			modelConfigID,
+		).Scan(&aiProviderID)
+		require.NoError(t, err)
+		require.Equal(t, sql.NullString{String: providerID.String(), Valid: true}, aiProviderID)
+	}
+	assertModelConfigProviderID(openAIModelConfigID, openAIProviderID)
+	assertModelConfigProviderID(anthropicModelConfigID, anthropicProviderID)
+
+	var legacyProviderCount int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM chat_providers
+		WHERE id IN ($1, $2)
+	`, openAIProviderID, anthropicProviderID).Scan(&legacyProviderCount)
+	require.NoError(t, err)
+	require.Equal(t, 2, legacyProviderCount, "backfill should leave legacy rows for the rest of the stack")
+
+	downSQL, err := os.ReadFile("000504_ai_providers_backfill.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM ai_providers
+		WHERE id IN ($1, $2)
+	`, openAIProviderID, anthropicProviderID).Scan(&providerKeyCount)
+	require.NoError(t, err)
+	require.Zero(t, providerKeyCount, "down migration should remove backfilled AI providers")
+
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM ai_provider_keys
+		WHERE provider_id IN ($1, $2)
+	`, openAIProviderID, anthropicProviderID).Scan(&providerKeyCount)
+	require.NoError(t, err)
+	require.Zero(t, providerKeyCount, "down migration should remove backfilled provider keys")
+
+	var userKeyCount int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM user_ai_provider_keys
+		WHERE id IN ($1, $2)
+	`, openAIUserKeyID, anthropicUserKeyID).Scan(&userKeyCount)
+	require.NoError(t, err)
+	require.Zero(t, userKeyCount, "down migration should remove backfilled user keys")
+
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM chat_model_configs
+		WHERE id IN ($1, $2)
+			AND ai_provider_id IS NOT NULL
+	`, openAIModelConfigID, anthropicModelConfigID).Scan(&preBackfillModelConfigCount)
+	require.NoError(t, err)
+	require.Zero(t, preBackfillModelConfigCount, "down migration should clear model config AI provider references")
+
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM chat_providers
+		WHERE id IN ($1, $2)
+	`, openAIProviderID, anthropicProviderID).Scan(&legacyProviderCount)
+	require.NoError(t, err)
+	require.Equal(t, 2, legacyProviderCount, "down migration should leave the legacy source rows intact")
+}
+
+// TestMigration000504AIProvidersBackfillOverridesNameConflict verifies that a
+// pre-existing live ai_providers row whose name collides with the backfill
+// (for example, agents-openai) is soft-deleted so the chat_providers-derived
+// row inserted by the migration becomes authoritative. This scenario should
+// not occur in practice since no other process writes to ai_providers before
+// this migration runs, but the migration tolerates it rather than failing.
+func TestMigration000504AIProvidersBackfillOverridesNameConflict(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 504
+
+	sqlDB := testSQLDB(t)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	chatProviderID := uuid.New()
+	staleProviderID := uuid.New()
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	// Pre-existing live ai_providers row that collides on name.
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO ai_providers (id, type, name, display_name, enabled, base_url, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		staleProviderID, "openai", "agents-openai", "Stale OpenAI", true, "https://stale.example.com/v1", now, now,
+	)
+	require.NoError(t, err)
+
+	// chat_providers row whose backfill will collide with the stale row above.
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO chat_providers (id, provider, display_name, api_key, enabled, base_url, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		chatProviderID, "openai", "OpenAI", "sk-provider", true, "https://api.openai.example.com/v1", now, now,
+	)
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit())
+
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.EqualValues(t, migrationVersion, version)
+
+	// The stale row must be soft-deleted and disabled so the unique name index
+	// (which is partial WHERE deleted = FALSE) no longer covers it.
+	var stale struct {
+		Deleted bool
+		Enabled bool
+	}
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT deleted, enabled FROM ai_providers WHERE id = $1`,
+		staleProviderID,
+	).Scan(&stale.Deleted, &stale.Enabled)
+	require.NoError(t, err)
+	require.True(t, stale.Deleted, "pre-existing conflicting ai_providers row should be soft-deleted")
+	require.False(t, stale.Enabled, "pre-existing conflicting ai_providers row should be disabled")
+
+	// The new authoritative row must exist with the chat_providers id, the
+	// agents-openai name, and the chat_providers base_url.
+	var fresh struct {
+		Name    string
+		BaseURL string
+		Deleted bool
+		Enabled bool
+	}
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT name, base_url, deleted, enabled FROM ai_providers WHERE id = $1`,
+		chatProviderID,
+	).Scan(&fresh.Name, &fresh.BaseURL, &fresh.Deleted, &fresh.Enabled)
+	require.NoError(t, err)
+	require.Equal(t, "agents-openai", fresh.Name)
+	require.Equal(t, "https://api.openai.example.com/v1", fresh.BaseURL)
+	require.False(t, fresh.Deleted)
+	require.True(t, fresh.Enabled)
+}
+
+// TestMigration000504AIProvidersBackfillEnumInSingleTxn reproduces the
+// production migration path, where every pending migration runs inside a
+// single transaction (see pgTxnDriver). Migration 000499 widens
+// ai_provider_type with ALTER TYPE ... ADD VALUE, and 000504 casts existing
+// chat_providers rows to that enum. Postgres forbids using an enum value
+// added by ADD VALUE within the same transaction, so when a legacy provider
+// uses one of the new values (for example openai-compat) the batch fails with
+// "unsafe use of new value". The per-step Stepper used by the other tests
+// commits each migration separately and cannot surface this.
+func TestMigration000504AIProvidersBackfillEnumInSingleTxn(t *testing.T) {
+	t.Parallel()
+
+	sqlDB := testSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	// Apply everything through 498 and commit, so chat_providers exists and is
+	// populated before the batch under test runs, matching a deployment that
+	// ran an earlier migration batch before this one.
+	applyMigrationsInTxn(ctx, t, sqlDB, 1, 498)
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	providerID := uuid.New()
+
+	// A legacy provider whose type is one of the values added in 000499.
+	_, err := sqlDB.ExecContext(ctx, `
+		INSERT INTO chat_providers (id, provider, display_name, api_key, enabled, base_url, created_at, updated_at)
+		VALUES ($1, 'openai-compat', 'OpenAI Compatible', '', TRUE, 'https://api.example.com/v1', $2, $2)
+	`, providerID, now)
+	require.NoError(t, err)
+
+	// Apply 000499 through 000504 in a single transaction, as production does.
+	applyMigrationsInTxn(ctx, t, sqlDB, 499, 504)
+
+	var typ string
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT type FROM ai_providers WHERE id = $1`, providerID,
+	).Scan(&typ)
+	require.NoError(t, err)
+	require.Equal(t, "openai-compat", typ)
+}
+
+// applyMigrationsInTxn executes the up SQL for every migration whose version is
+// in [from, to] inside a single transaction, mirroring pgTxnDriver. The whole
+// batch commits or rolls back together.
+func applyMigrationsInTxn(ctx context.Context, t *testing.T, sqlDB *sql.DB, from, to int) {
+	t.Helper()
+
+	entries, err := os.ReadDir(".")
+	require.NoError(t, err)
+
+	var files []string
+	for _, entry := range entries {
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".up.sql") {
+			continue
+		}
+		var version int
+		if _, err := fmt.Sscanf(name, "%06d_", &version); err != nil {
+			continue
+		}
+		if version >= from && version <= to {
+			files = append(files, name)
+		}
+	}
+	slices.Sort(files)
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	for _, name := range files {
+		query, err := os.ReadFile(name)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, string(query))
+		require.NoErrorf(t, err, "apply migration %s", name)
+	}
+	require.NoError(t, tx.Commit())
+}
+
+func TestMigration000542ChatReasoningEffortBackfill(t *testing.T) {
+	t.Parallel()
+
+	const priorMigrationVersion = 539
+
+	sqlDB := testSQLDB(t)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more || version == priorMigrationVersion {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+	azureID := uuid.New()
+	bedrockID := uuid.New()
+	emptyID := uuid.New()
+	invalidID := uuid.New()
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO ai_providers (id, type, name, enabled, base_url, created_at, updated_at)
+		VALUES
+			($1, 'azure', 'test-azure-reasoning', TRUE, '', $3, $3),
+			($2, 'bedrock', 'test-bedrock-reasoning', TRUE, '', $3, $3)
+	`, azureID, bedrockID, now)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO chat_model_configs (id, ai_provider_id, model, display_name, enabled, context_limit, compression_threshold, options, created_at, updated_at)
+		VALUES
+			($3, $1, 'gpt-5.1-azure', 'Azure GPT-5.1', TRUE, 200000, 70, '{"provider_options": {"azure": {"reasoning_effort": " LOW "}}}', $5, $5),
+			($4, $2, 'anthropic.claude-opus-4-6', 'Bedrock Claude Opus', TRUE, 200000, 70, '{"provider_options": {"bedrock": {"effort": "minimal"}}}', $5, $5),
+			(gen_random_uuid(), $1, 'gpt-5.1-empty-effort', 'Azure Empty Effort', TRUE, 200000, 70, '{"provider_options": {"azure": {"reasoning_effort": ""}}}', $5, $5),
+			(gen_random_uuid(), $2, 'anthropic.invalid-effort', 'Bedrock Invalid Effort', TRUE, 200000, 70, '{"provider_options": {"bedrock": {"effort": "extreme"}}}', $5, $5)
+	`, azureID, bedrockID, emptyID, invalidID, now)
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit())
+
+	migrationSQL, err := os.ReadFile("000542_chat_reasoning_effort.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(migrationSQL))
+	require.NoError(t, err)
+
+	rows, err := sqlDB.QueryContext(ctx, `
+		SELECT ap.type::text, cmc.model, cmc.options->'reasoning_effort'->>'default'
+		FROM chat_model_configs cmc
+		JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
+		WHERE cmc.ai_provider_id IN ($1, $2)
+		ORDER BY cmc.model
+	`, azureID, bedrockID)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	got := map[string]sql.NullString{}
+	for rows.Next() {
+		var provider, model string
+		var effort sql.NullString
+		require.NoError(t, rows.Scan(&provider, &model, &effort))
+		got[provider+":"+model] = effort
+	}
+	require.NoError(t, rows.Err())
+	require.Equal(t, sql.NullString{String: "low", Valid: true}, got["azure:gpt-5.1-azure"])
+	require.Equal(t, sql.NullString{}, got["azure:gpt-5.1-empty-effort"])
+	require.Equal(t, sql.NullString{String: "minimal", Valid: true}, got["bedrock:anthropic.claude-opus-4-6"])
+	require.Equal(t, sql.NullString{}, got["bedrock:anthropic.invalid-effort"])
+}
+
+func TestMigration000546ChatHistoryAPIKeyConstraints(t *testing.T) {
+	t.Parallel()
+
+	const priorMigrationVersion = 545
+
+	sqlDB := testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more || version == priorMigrationVersion {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	constraintNames := []string{
+		"chat_messages_api_key_id_fkey",
+		"chat_queued_messages_api_key_id_fkey",
+	}
+	assertConstraintCount := func(t *testing.T, want int) {
+		t.Helper()
+		for _, name := range constraintNames {
+			var got int
+			err := sqlDB.QueryRowContext(ctx, `
+				SELECT COUNT(*)
+				FROM pg_constraint
+				WHERE conname = $1
+			`, name).Scan(&got)
+			require.NoError(t, err)
+			require.Equal(t, want, got, name)
+		}
+	}
+
+	upSQL, err := os.ReadFile("000546_drop_chat_history_api_key_fks.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+	assertConstraintCount(t, 0)
+
+	downSQL, err := os.ReadFile("000546_drop_chat_history_api_key_fks.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+	assertConstraintCount(t, 1)
+
+	for _, name := range constraintNames {
+		var count int
+		err := sqlDB.QueryRowContext(ctx, `
+			SELECT COUNT(*)
+			FROM pg_constraint
+			WHERE conname = $1 AND confdeltype = 'n'
+		`, name).Scan(&count)
+		require.NoError(t, err)
+		require.Equal(t, 1, count, name)
+	}
+}
+
+func TestMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 498
+
+	sqlDB := testSQLDB(t)
+
+	// Step up to migrationVersion - 1.
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	// Seed the prerequisite tables. Two workspaces share the same EC2-style
+	// instance id across several builds; a third workspace has a single
+	// build on a different instance (baseline, must not be affected).
+	userID := uuid.New()
+	orgID := uuid.New()
+	templateID := uuid.New()
+	templateVersionID := uuid.New()
+	fileID := uuid.New()
+
+	wsA := uuid.New()
+	wsB := uuid.New()
+	wsSingle := uuid.New()
+	wsDeleted := uuid.New()
+
+	instanceAB := "i-shared-ab"
+	instanceSingle := "i-solo"
+	instanceDeleted := "i-deleted"
+
+	// For workspace A: 3 builds on the same instance.
+	// For workspace B: 2 builds on the same instance (different workspace,
+	// same instance id, exercises the cross-workspace scoping case).
+	// For wsSingle: 1 build, should stay non-deleted after the backfill.
+	// For wsDeleted: 1 build on a soft-deleted workspace. Agent should be
+	// marked deleted even though it's on the latest build.
+	type build struct {
+		id         uuid.UUID
+		jobID      uuid.UUID
+		resourceID uuid.UUID
+		agentID    uuid.UUID
+		buildNum   int32
+		wsID       uuid.UUID
+		instanceID string
+	}
+
+	mkBuild := func(ws uuid.UUID, buildNum int32, instance string) build {
+		return build{
+			id:         uuid.New(),
+			jobID:      uuid.New(),
+			resourceID: uuid.New(),
+			agentID:    uuid.New(),
+			buildNum:   buildNum,
+			wsID:       ws,
+			instanceID: instance,
+		}
+	}
+
+	aBuilds := []build{
+		mkBuild(wsA, 1, instanceAB),
+		mkBuild(wsA, 2, instanceAB),
+		mkBuild(wsA, 3, instanceAB),
+	}
+	bBuilds := []build{
+		mkBuild(wsB, 1, instanceAB),
+		mkBuild(wsB, 2, instanceAB),
+	}
+	singleBuilds := []build{
+		mkBuild(wsSingle, 1, instanceSingle),
+	}
+	deletedBuilds := []build{
+		mkBuild(wsDeleted, 1, instanceDeleted),
+	}
+	allBuilds := append(append(append(append([]build{}, aBuilds...), bBuilds...), singleBuilds...), deletedBuilds...)
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	// Minimal user / org / template / template_version / file.
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		userID, "seed", "seed@test.com", []byte{}, now, now, "active", pq.StringArray{}, "password",
+	)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO organizations (id, name, display_name, description, icon, created_at, updated_at, is_default)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		orgID, "seed-org", "Seed Org", "", "", now, now, false,
+	)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO files (id, hash, created_at, created_by, mimetype, data) VALUES ($1, $2, $3, $4, $5, $6)`,
+		fileID, "hash", now, userID, "application/octet-stream", []byte{},
+	)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO templates (id, created_at, updated_at, organization_id, name, provisioner, active_version_id, description, created_by, group_acl, user_acl, display_name)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+		templateID, now, now, orgID, "tpl", "echo", templateVersionID, "", userID, "{}", "{}", "",
+	)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO template_versions (id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, message)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		templateVersionID, templateID, orgID, now, now, "v", "", uuid.New(), userID, "",
+	)
+	require.NoError(t, err)
+
+	for _, ws := range []uuid.UUID{wsA, wsB, wsSingle} {
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO workspaces (id, created_at, updated_at, owner_id, organization_id, template_id, name, deleted, automatic_updates)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, false, 'never')`,
+			ws, now, now, userID, orgID, templateID, "ws-"+ws.String()[:8],
+		)
+		require.NoError(t, err)
+	}
+	// wsDeleted is a soft-deleted workspace. Its agent is on the latest
+	// build but must still be soft-deleted by the migration.
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO workspaces (id, created_at, updated_at, owner_id, organization_id, template_id, name, deleted, automatic_updates)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, true, 'never')`,
+		wsDeleted, now, now, userID, orgID, templateID, "ws-"+wsDeleted.String()[:8],
+	)
+	require.NoError(t, err)
+
+	// For every build: provisioner_job -> workspace_build -> workspace_resource -> workspace_agent.
+	for _, b := range allBuilds {
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO provisioner_jobs (id, created_at, updated_at, organization_id, initiator_id, provisioner, storage_method, type, input, file_id)
+			VALUES ($1, $2, $3, $4, $5, 'echo', 'file', 'workspace_build', '{}', $6)`,
+			b.jobID, now, now, orgID, userID, fileID,
+		)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO workspace_builds (id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, reason)
+			VALUES ($1, $2, $3, $4, $5, $6, 'start', $7, $8, 'initiator')`,
+			b.id, now, now, b.wsID, templateVersionID, b.buildNum, userID, b.jobID,
+		)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO workspace_resources (id, created_at, job_id, transition, type, name)
+			VALUES ($1, $2, $3, 'start', 'aws_instance', 'dev')`,
+			b.resourceID, now, b.jobID,
+		)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO workspace_agents (id, created_at, updated_at, name, resource_id, auth_token, auth_instance_id, architecture, operating_system, deleted)
+			VALUES ($1, $2, $3, 'main', $4, $5, $6, 'amd64', 'linux', false)`,
+			b.agentID, now, now, b.resourceID, uuid.New(), b.instanceID,
+		)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, tx.Commit())
+
+	// Sanity check pre-migration: all agents should be deleted=false.
+	var preDeletedCount int
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM workspace_agents WHERE deleted = true`).Scan(&preDeletedCount)
+	require.NoError(t, err)
+	require.Equal(t, 0, preDeletedCount, "no agents should be deleted pre-migration")
+
+	// Run migration 491.
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.EqualValues(t, migrationVersion, version)
+
+	// Backfill assertions:
+	//   wsA: builds 1,2,3 → keep agent for build 3, delete for 1 and 2.
+	//   wsB: builds 1,2 → keep agent for build 2, delete for 1.
+	//   wsSingle: 1 build → keep.
+	//   Per workspace, exactly one agent remains deleted=false.
+	check := func(label string, expectDeleted bool, agent uuid.UUID) {
+		var deleted bool
+		err := sqlDB.QueryRowContext(ctx,
+			`SELECT deleted FROM workspace_agents WHERE id = $1`, agent).Scan(&deleted)
+		require.NoError(t, err, label)
+		require.Equal(t, expectDeleted, deleted, label)
+	}
+	check("wsA build 1 (old) should be deleted", true, aBuilds[0].agentID)
+	check("wsA build 2 (old) should be deleted", true, aBuilds[1].agentID)
+	check("wsA build 3 (latest) should be kept", false, aBuilds[2].agentID)
+	check("wsB build 1 (old) should be deleted", true, bBuilds[0].agentID)
+	check("wsB build 2 (latest) should be kept", false, bBuilds[1].agentID)
+	check("wsSingle build 1 (solo latest) should be kept", false, singleBuilds[0].agentID)
+	check("wsDeleted: agent on deleted workspace should be soft-deleted even though it's the latest build",
+		true, deletedBuilds[0].agentID)
+
+	// The ongoing invariants are enforced by wsbuilder.Builder.Build and
+	// provisionerdserver.CompleteJob via SoftDeletePriorWorkspaceAgents and
+	// SoftDeleteWorkspaceAgentsByWorkspaceID. Those paths are covered by
+	// the querier tests TestSoftDeletePriorWorkspaceAgents and
+	// TestSoftDeleteWorkspaceAgentsByWorkspaceID, plus integration tests
+	// under coderd/coderd_test.go; not retested here.
+}
+
+func TestMigration000543ChatMessageSearchText(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+
+	cases := []struct {
+		name    string
+		content sql.NullString
+		want    sql.NullString
+	}{
+		{
+			name:    "SingleTextPart",
+			content: sql.NullString{String: `[{"type":"text","text":"hello world"}]`, Valid: true},
+			want:    sql.NullString{String: "hello world", Valid: true},
+		},
+		{
+			name: "TextInterleavedWithNonText",
+			content: sql.NullString{String: `[
+				{"type":"text","text":"first"},
+				{"type":"reasoning","text":"thinking"},
+				{"type":"tool-call","toolName":"execute"},
+				{"type":"text","text":"second"}
+			]`, Valid: true},
+			want: sql.NullString{String: "first second", Valid: true},
+		},
+		{
+			name:    "OnlyNonTextParts",
+			content: sql.NullString{String: `[{"type":"reasoning","text":"thinking"}]`, Valid: true},
+			want:    sql.NullString{},
+		},
+		{
+			name:    "ScalarContent",
+			content: sql.NullString{String: `"hello"`, Valid: true},
+			want:    sql.NullString{},
+		},
+		{
+			name:    "EmptyArray",
+			content: sql.NullString{String: `[]`, Valid: true},
+			want:    sql.NullString{},
+		},
+		{
+			name:    "NullInput",
+			content: sql.NullString{},
+			want:    sql.NullString{},
+		},
+		{
+			name:    "ElementsMissingTypeOrText",
+			content: sql.NullString{String: `[{"text":"no type"},{"type":"text"},{"type":"text","text":"kept"}]`, Valid: true},
+			want:    sql.NullString{String: "kept", Valid: true},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			var got sql.NullString
+			err := sqlDB.QueryRowContext(ctx,
+				`SELECT chat_message_search_text($1::jsonb)`, tc.content,
+			).Scan(&got)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// Shared eligibility predicate of the two partial chat_messages search
+// indexes. Queries must repeat it verbatim.
+const eligibilityPredicate = `deleted = false
+	AND visibility IN ('user', 'both')
+	AND role IN ('user', 'assistant')`
+
+func TestMigration000543ChatSearchSchemaIndexes(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+
+	cases := []struct {
+		name    string
+		table   string
+		partial bool
+	}{
+		{name: "idx_chat_messages_search_tsv", table: "chat_messages", partial: true},
+		{name: "idx_chat_messages_search_tsv_pending", table: "chat_messages", partial: true},
+		{name: "idx_chats_title_fts", table: "chats", partial: false},
+		{name: "idx_chat_diff_statuses_pr_title_fts", table: "chat_diff_statuses", partial: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			var table string
+			var partial bool
+			err := sqlDB.QueryRowContext(ctx, `
+				SELECT i.tablename, x.indpred IS NOT NULL
+				FROM pg_indexes i
+				JOIN pg_class c ON c.relname = i.indexname
+				JOIN pg_index x ON x.indexrelid = c.oid
+				WHERE i.indexname = $1`, tc.name,
+			).Scan(&table, &partial)
+			require.NoError(t, err, "index %s should exist", tc.name)
+			require.Equal(t, tc.table, table, "index %s table", tc.name)
+			require.Equal(t, tc.partial, partial, "index %s partial", tc.name)
+		})
+	}
+}
+
+func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		CreatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true},
+		IsDefault: true,
+	})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+	})
+
+	newMsg := func(role database.ChatMessageRole, visibility database.ChatMessageVisibility, content string) database.ChatMessage {
+		seed := database.ChatMessage{
+			ChatID:     chat.ID,
+			CreatedBy:  uuid.NullUUID{UUID: owner.ID, Valid: true},
+			Role:       role,
+			Visibility: visibility,
+		}
+		if content != "" {
+			seed.Content = pqtype.NullRawMessage{RawMessage: []byte(content), Valid: true}
+		}
+		return dbgen.ChatMessage(t, db, seed)
+	}
+	textContent := func(text string) string {
+		return `[{"type":"text","text":"` + text + `"}]`
+	}
+
+	pendingIDs := func(ctx context.Context, limit int) []int64 {
+		rows, err := sqlDB.QueryContext(ctx, `
+			SELECT id FROM chat_messages
+			WHERE search_tsv IS NULL AND `+eligibilityPredicate+`
+			ORDER BY id DESC
+			LIMIT $1`, limit)
+		require.NoError(t, err)
+		defer rows.Close()
+		var ids []int64
+		for rows.Next() {
+			var id int64
+			require.NoError(t, rows.Scan(&id))
+			ids = append(ids, id)
+		}
+		require.NoError(t, rows.Err())
+		return ids
+	}
+
+	// Insert regression: RETURNING * must survive the new column, and new
+	// rows must start with search_tsv NULL so they enter the pending queue.
+	eligibleText := newMsg(database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("deploy the search feature"))
+	var tsvIsNull bool
+	err := sqlDB.QueryRowContext(ctx,
+		`SELECT search_tsv IS NULL FROM chat_messages WHERE id = $1`, eligibleText.ID,
+	).Scan(&tsvIsNull)
+	require.NoError(t, err)
+	require.True(t, tsvIsNull, "new rows must have search_tsv NULL")
+
+	eligibleNoText := newMsg(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, `[{"type":"reasoning","text":"thinking"}]`)
+	toolMsg := newMsg(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, textContent("tool output about deploy"))
+	modelOnly := newMsg(database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, textContent("model-only deploy note"))
+	deletedMsg := newMsg(database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("deleted deploy message"))
+	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_messages SET deleted = true WHERE id = $1`, deletedMsg.ID)
+	require.NoError(t, err)
+
+	// Only eligible rows appear in the queue, newest first. The tool-role,
+	// model-only, and soft-deleted rows are excluded even though their
+	// search_tsv is NULL.
+	require.Equal(t, []int64{eligibleNoText.ID, eligibleText.ID}, pendingIDs(ctx, 10))
+
+	// Sweep-style UPDATE. The '' sentinel (not NULL) marks no-text rows as
+	// swept; NULL means pending, so COALESCE is what drains them from the
+	// queue.
+	_, err = sqlDB.ExecContext(ctx, `
+		UPDATE chat_messages
+		SET search_tsv = COALESCE(to_tsvector('simple', chat_message_search_text(content)), ''::tsvector)
+		WHERE id = ANY($1)`, pq.Array([]int64{eligibleText.ID, eligibleNoText.ID}))
+	require.NoError(t, err)
+	require.Empty(t, pendingIDs(ctx, 10), "swept rows must leave the queue, including no-text rows")
+
+	// Soft-deleting an unswept row removes it from the queue without a sweep.
+	unswept := newMsg(database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("unswept deploy row"))
+	require.Equal(t, []int64{unswept.ID}, pendingIDs(ctx, 10))
+	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_messages SET deleted = true WHERE id = $1`, unswept.ID)
+	require.NoError(t, err)
+	require.Empty(t, pendingIDs(ctx, 10))
+
+	// Search contract: populate search_tsv on every row (including
+	// ineligible ones) and assert the search-index predicate filters them.
+	_, err = sqlDB.ExecContext(ctx, `
+		UPDATE chat_messages
+		SET search_tsv = COALESCE(to_tsvector('simple', chat_message_search_text(content)), ''::tsvector)
+		WHERE chat_id = $1`, chat.ID)
+	require.NoError(t, err)
+
+	rows, err := sqlDB.QueryContext(ctx, `
+		SELECT id FROM chat_messages
+		WHERE search_tsv @@ websearch_to_tsquery('simple', $1)
+			AND search_tsv IS NOT NULL
+			AND `+eligibilityPredicate+`
+		ORDER BY id`, "deploy")
+	require.NoError(t, err)
+	defer rows.Close()
+	var matched []int64
+	for rows.Next() {
+		var id int64
+		require.NoError(t, rows.Scan(&id))
+		matched = append(matched, id)
+	}
+	require.NoError(t, rows.Err())
+	require.Equal(t, []int64{eligibleText.ID}, matched,
+		"search must exclude deleted, model-only, and tool-role rows (%d %d %d)",
+		toolMsg.ID, modelOnly.ID, deletedMsg.ID)
 }

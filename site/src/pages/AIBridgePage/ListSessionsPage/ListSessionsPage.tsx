@@ -8,10 +8,10 @@ import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
+import { useClientFilterMenu } from "../filters/ClientFilter";
+import { useModelFilterMenu } from "../filters/ModelFilter";
+import { useProviderFilterMenu } from "../filters/ProviderFilter";
 import { getAIBridgePermissions } from "../getAIBridgePermissions";
-import { useClientFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ClientFilter";
-import { useModelFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ModelFilter";
-import { useProviderFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ProviderFilter";
 import { ListSessionsPageView } from "./ListSessionsPageView";
 
 const AISessionListPage: FC = () => {
@@ -48,11 +48,11 @@ const AISessionListPage: FC = () => {
 	});
 
 	const providerMenu = useProviderFilterMenu({
-		value: filter.values.provider,
+		value: filter.values.provider_name,
 		onChange: (option) =>
 			filter.update({
 				...filter.values,
-				provider: option?.value,
+				provider_name: option?.value,
 			}),
 	});
 
@@ -76,7 +76,7 @@ const AISessionListPage: FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={hasPermission}>
-			<title>{pageTitle("Sessions", "AI Bridge")}</title>
+			<title>{pageTitle("Sessions", "AI Gateway")}</title>
 
 			<ListSessionsPageView
 				isLoading={sessionsQuery.isLoading}
@@ -86,7 +86,7 @@ const AISessionListPage: FC = () => {
 				sessions={sessionsQuery.data?.sessions}
 				sessionsQuery={sessionsQuery}
 				onSessionRowClick={(sessionId) =>
-					navigate(`/aibridge/sessions/${sessionId}`)
+					navigate(`/ai-gateway/sessions/${sessionId}`)
 				}
 				filterProps={{
 					filter,

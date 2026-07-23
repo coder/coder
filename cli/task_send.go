@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
 
@@ -107,7 +108,7 @@ func (r *RootCmd) taskSend() *serpent.Command {
 				return xerrors.Errorf("task %q has status %s and cannot be sent input", display, task.Status)
 			}
 
-			if err := waitForTaskIdle(ctx, inv, client, task, workspaceBuildID); err != nil {
+			if err := waitForTaskIdle(ctx, inv, r.clock, client, task, workspaceBuildID); err != nil {
 				return xerrors.Errorf("wait for task %q to be idle: %w", display, err)
 			}
 
@@ -126,7 +127,7 @@ func (r *RootCmd) taskSend() *serpent.Command {
 // then polls until the task becomes active and its app state is idle.
 // This merges build-watching and idle-polling into a single loop so
 // that status changes (e.g. paused) are never missed between phases.
-func waitForTaskIdle(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, task codersdk.Task, workspaceBuildID uuid.UUID) error {
+func waitForTaskIdle(ctx context.Context, inv *serpent.Invocation, clk quartz.Clock, client *codersdk.Client, task codersdk.Task, workspaceBuildID uuid.UUID) error {
 	if workspaceBuildID != uuid.Nil {
 		if err := cliui.WorkspaceBuild(ctx, inv.Stdout, client, workspaceBuildID); err != nil {
 			return xerrors.Errorf("watch workspace build: %w", err)
@@ -162,13 +163,15 @@ func waitForTaskIdle(ctx context.Context, inv *serpent.Invocation, client *coder
 	// TODO(DanielleMaywood):
 	// When we have a streaming Task API, this should be converted
 	// away from polling.
-	ticker := time.NewTicker(5 * time.Second)
+	const pollInterval = 5 * time.Second
+	ticker := clk.NewTicker(time.Nanosecond, "task_send", "poll")
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
+			ticker.Reset(pollInterval, "task_send", "poll")
 			task, err := client.TaskByID(ctx, task.ID)
 			if err != nil {
 				return xerrors.Errorf("get task by id: %w", err)

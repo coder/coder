@@ -23,7 +23,7 @@
 
 [Quickstart](#quickstart) | [Docs](https://coder.com/docs) | [Why Coder](https://coder.com/why) | [Premium](https://coder.com/pricing#compare-plans)
 
-[![discord](https://img.shields.io/discord/747933592273027093?label=discord)](https://discord.gg/coder)
+[![discord](https://img.shields.io/discord/747933592273027093?label=discord)](https://cdr.co/discord-Y6fMxGdNRg)
 [![release](https://img.shields.io/github/v/release/coder/coder)](https://github.com/coder/coder/releases/latest)
 [![godoc](https://pkg.go.dev/badge/github.com/coder/coder.svg)](https://pkg.go.dev/github.com/coder/coder)
 [![Go Report Card](https://goreportcard.com/badge/github.com/coder/coder/v2)](https://goreportcard.com/report/github.com/coder/coder/v2)
@@ -94,12 +94,12 @@ Use `coder --help` to get a list of flags and environment variables. See the [in
 
 Browse the [documentation](https://coder.com/docs) or visit a specific section below:
 
-- [**Workspaces**](https://coder.com/docs/workspaces): Workspaces contain the IDEs, dependencies, and configuration information needed for software development
-- [**Templates**](https://coder.com/docs/templates): Templates are written in Terraform and describe the infrastructure for workspaces
+- [**Workspaces**](https://coder.com/docs/user-guides/workspace-management): Workspaces contain the IDEs, dependencies, and configuration information needed for software development
+- [**Templates**](https://coder.com/docs/admin/templates): Templates are written in Terraform and describe the infrastructure for workspaces
 - [**Coder Agents**](https://coder.com/docs/ai-coder/agents): Delegate coding work to AI agents running on your self-hosted infrastructure
 - [**Administration**](https://coder.com/docs/admin): Learn how to operate Coder
 - [**Premium**](https://coder.com/pricing#compare-plans): Learn about paid features built for large teams
-- [**IDEs**](https://coder.com/docs/ides): Connect your existing editor to a workspace
+- [**IDEs**](https://coder.com/docs/user-guides/workspace-access): Connect your existing editor to a workspace
 
 ## Support
 
@@ -128,12 +128,12 @@ New integrations are always in progress. Open an issue to request one. Contribut
 - [**Community Modules**](https://registry.coder.com/modules): Community-contributed modules to extend Coder templates
 - [**Provision Coder with Terraform**](https://github.com/ElliotG/coder-oss-tf): Provision Coder on Google GKE, Azure AKS, AWS EKS, DigitalOcean DOKS, IBMCloud K8s, OVHCloud K8s, and Scaleway K8s Kapsule with Terraform
 - [**Coder Template GitHub Action**](https://github.com/marketplace/actions/update-coder-template): A GitHub Action that updates Coder templates
-- [**Discord**](https://discord.gg/coder): Chat with the community and provide feedback on in-progress features
+- [**Discord**](https://cdr.co/discord-5hw2sjadGU): Chat with the community and provide feedback on in-progress features
 
 ## Contributing
 
 New contributors are always welcome. If you are new to the Coder codebase, see
-[the contribution guide](https://coder.com/docs/CONTRIBUTING) to get started.
+[the contribution guide](https://coder.com/docs/about/contributing/CONTRIBUTING) to get started.
 
 ## Hiring
 

@@ -1,0 +1,61 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        headers:
+            Accept:
+                - application/json
+            Private-Token:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/test-group9945421%2Ftest-project
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: -1
+        uncompressed: true
+        body: '{"id":82310987,"description":null,"name":"test-project","name_with_namespace":"test-group / test-project","path":"test-project","path_with_namespace":"test-group9945421/test-project","created_at":"2026-05-18T14:50:04.401Z","default_branch":"main","tag_list":[],"topics":[],"ssh_url_to_repo":"git@gitlab.com:test-group9945421/test-project.git","http_url_to_repo":"https://gitlab.com/test-group9945421/test-project.git","web_url":"https://gitlab.com/test-group9945421/test-project","readme_url":"https://gitlab.com/test-group9945421/test-project/-/blob/main/README.md","forks_count":0,"avatar_url":null,"star_count":0,"last_activity_at":"2026-05-18T14:50:04.313Z","visibility":"public","namespace":{"id":132520176,"name":"test-group","path":"test-group9945421","kind":"group","full_path":"test-group9945421","parent_id":null,"avatar_url":null,"web_url":"https://gitlab.com/groups/test-group9945421"}}'
+        headers:
+            Content-Type:
+                - application/json
+        status: 200 OK
+        code: 200
+        duration: 100.000000ms
+    - id: 1
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        headers:
+            Accept:
+                - application/json
+            Private-Token:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/test-group9945421%2Ftest-project/repository/compare?from=main&to=johnstcn-main-patch-98822&unidiff=true
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: -1
+        uncompressed: true
+        body: '{"commit":{"id":"da57fca657e02c1fbe131402f927d134a34b257b","short_id":"da57fca6","created_at":"2026-05-18T14:53:46.000+00:00","parent_ids":["bc2d14403364db33c7811b29598509b8cf0223c4"],"title":"Open mergeable","message":"Open mergeable","author_name":"Cian Johnston","author_email":"public@cianjohnston.ie","authored_date":"2026-05-18T14:53:46.000+00:00","committer_name":"Cian Johnston","committer_email":"public@cianjohnston.ie","committed_date":"2026-05-18T14:53:46.000+00:00","trailers":{},"extended_trailers":{},"web_url":"https://gitlab.com/test-group9945421/test-project/-/commit/da57fca657e02c1fbe131402f927d134a34b257b"},"commits":[{"id":"da57fca657e02c1fbe131402f927d134a34b257b","short_id":"da57fca6","created_at":"2026-05-18T14:53:46.000+00:00","parent_ids":["bc2d14403364db33c7811b29598509b8cf0223c4"],"title":"Open mergeable","message":"Open mergeable","author_name":"Cian Johnston","author_email":"public@cianjohnston.ie","authored_date":"2026-05-18T14:53:46.000+00:00","committer_name":"Cian Johnston","committer_email":"public@cianjohnston.ie","committed_date":"2026-05-18T14:53:46.000+00:00","trailers":{},"extended_trailers":{},"web_url":"https://gitlab.com/test-group9945421/test-project/-/commit/da57fca657e02c1fbe131402f927d134a34b257b"}],"diffs":[{"diff":"@@ -1,6 +1,6 @@\n # test-project\n \n-\n+This is a test project for testing things.\n \n ## Next Steps\n \n","collapsed":false,"too_large":false,"new_path":"README.md","old_path":"README.md","a_mode":"100644","b_mode":"100644","new_file":false,"renamed_file":false,"deleted_file":false,"generated_file":null}],"compare_timeout":false,"compare_same_ref":false,"web_url":"https://gitlab.com/test-group9945421/test-project/-/compare/bc2d14403364db33c7811b29598509b8cf0223c4...da57fca657e02c1fbe131402f927d134a34b257b"}'
+        headers:
+            Content-Type:
+                - application/json
+        status: 200 OK
+        code: 200
+        duration: 100.000000ms

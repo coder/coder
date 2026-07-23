@@ -135,7 +135,8 @@
 				}
 			},
 			"complexity": {
-				"noImportantStyles": "off" // TODO: check and fix !important styles
+				"noImportantStyles": "off", // TODO: check and fix !important styles
+				"useLiteralKeys": "off"
 			}
 		}
 	},
@@ -146,5 +147,19 @@
 			"tailwindDirectives": true
 		}
 	},
+	"overrides": [
+		{
+			// Generated Go types can produce empty interfaces; the
+			// safe fix conflicts with noBannedTypes.
+			"includes": ["**/typesGenerated.ts"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noEmptyInterface": "off"
+					}
+				}
+			}
+		}
+	],
 	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json"
 }

@@ -116,10 +116,11 @@ func TestOrganizationParam(t *testing.T) {
 			rtr   = chi.NewRouter()
 		)
 		organization, err := db.InsertOrganization(r.Context(), database.InsertOrganizationParams{
-			ID:        uuid.New(),
-			Name:      "test",
-			CreatedAt: dbtime.Now(),
-			UpdatedAt: dbtime.Now(),
+			ID:                    uuid.New(),
+			Name:                  "test",
+			CreatedAt:             dbtime.Now(),
+			UpdatedAt:             dbtime.Now(),
+			DefaultOrgMemberRoles: rbac.DefaultOrgMemberRoles(),
 		})
 		require.NoError(t, err)
 		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.ID.String())

@@ -40,7 +40,7 @@ func (r *WrappedRecorder) RecordInterception(ctx context.Context, req *Intercept
 		return nil
 	}
 
-	r.logger.Warn(ctx, "failed to record interception", slog.Error(err), slog.F("interception_id", req.ID))
+	r.logger.Warn(ctx, "failed to record interception", slog.Error(err))
 	return err
 }
 
@@ -58,7 +58,7 @@ func (r *WrappedRecorder) RecordInterceptionEnded(ctx context.Context, req *Inte
 		return nil
 	}
 
-	r.logger.Warn(ctx, "failed to record that interception ended", slog.Error(err), slog.F("interception_id", req.ID))
+	r.logger.Warn(ctx, "failed to record that interception ended", slog.Error(err))
 	return err
 }
 
@@ -76,7 +76,7 @@ func (r *WrappedRecorder) RecordPromptUsage(ctx context.Context, req *PromptUsag
 		return nil
 	}
 
-	r.logger.Warn(ctx, "failed to record prompt usage", slog.Error(err), slog.F("interception_id", req.InterceptionID))
+	r.logger.Warn(ctx, "failed to record prompt usage", slog.Error(err))
 	return err
 }
 
@@ -94,7 +94,7 @@ func (r *WrappedRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageR
 		return nil
 	}
 
-	r.logger.Warn(ctx, "failed to record token usage", slog.Error(err), slog.F("interception_id", req.InterceptionID))
+	r.logger.Warn(ctx, "failed to record token usage", slog.Error(err))
 	return err
 }
 
@@ -112,7 +112,7 @@ func (r *WrappedRecorder) RecordToolUsage(ctx context.Context, req *ToolUsageRec
 		return nil
 	}
 
-	r.logger.Warn(ctx, "failed to record tool usage", slog.Error(err), slog.F("interception_id", req.InterceptionID))
+	r.logger.Warn(ctx, "failed to record tool usage", slog.Error(err))
 	return err
 }
 
@@ -130,7 +130,7 @@ func (r *WrappedRecorder) RecordModelThought(ctx context.Context, req *ModelThou
 		return nil
 	}
 
-	r.logger.Warn(ctx, "failed to record model thought", slog.Error(err), slog.F("interception_id", req.InterceptionID))
+	r.logger.Warn(ctx, "failed to record model thought", slog.Error(err))
 	return err
 }
 

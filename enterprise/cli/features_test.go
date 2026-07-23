@@ -12,21 +12,23 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
-	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestFeaturesList(t *testing.T) {
 	t.Parallel()
 	t.Run("Table", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client, admin := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		inv, conf := newCLI(t, "features", "list")
 		clitest.SetupConfig(t, anotherClient, conf)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.Start(t, inv)
-		pty.ExpectMatch("user_limit")
-		pty.ExpectMatch("not_entitled")
+		stdout.ExpectMatch(ctx, "user_limit")
+		stdout.ExpectMatch(ctx, "not_entitled")
 	})
 	t.Run("JSON", func(t *testing.T) {
 		t.Parallel()

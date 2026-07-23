@@ -1,24 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { createMockFile } from "#/testHelpers/files";
 import { AttachmentPreview, type UploadState } from "./AttachmentPreview";
 
 // Tiny 1x1 transparent PNG as data URI for previews.
 const TINY_PNG =
 	"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
-const createMockFile = (name: string, type: string, size = 9) =>
-	new File([new Uint8Array(size)], name, { type });
-
 const meta: Meta<typeof AttachmentPreview> = {
 	title: "pages/AgentsPage/AttachmentPreview",
 	component: AttachmentPreview,
-	decorators: [
-		(Story) => (
-			<div className="max-w-xl rounded-lg border border-solid border-border-default bg-surface-primary p-4">
-				<Story />
-			</div>
-		),
-	],
 	args: {
 		onRemove: fn(),
 		onPreview: fn(),

@@ -1,7 +1,8 @@
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
-import type { Group } from "#/api/typesGenerated";
+import type { Group, OrganizationGroupsAISpend } from "#/api/typesGenerated";
+import { AIBudgetUsage } from "#/components/AIBudgetUsage/AIBudgetUsage";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
@@ -24,17 +25,46 @@ import {
 } from "#/components/TableLoader/TableLoader";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { docs } from "#/utils/docs";
+import { StatusIconTooltip } from "./StatusIconTooltip";
+
+const EM_DASH = "\u2014";
+
+export type GroupWithSpend = Group & {
+	readonly spend: OrganizationGroupsAISpend["groups"][number] | undefined;
+};
+
+/** Attach each group's spend, when present, so rows get a single object. */
+export const joinGroupsSpend = (
+	groups: Group[] | undefined,
+	groupsSpend: OrganizationGroupsAISpend | undefined,
+): GroupWithSpend[] | undefined => {
+	if (groups === undefined) {
+		return undefined;
+	}
+	const spendByGroupId = new Map(
+		groupsSpend?.groups.map((spend) => [spend.group_id, spend]) ?? [],
+	);
+	return groups.map((group) => ({
+		...group,
+		spend: spendByGroupId.get(group.id),
+	}));
+};
 
 type GroupsPageViewProps = {
-	groups: Group[] | undefined;
+	groups: GroupWithSpend[] | undefined;
+	/** True when the spend query failed; cells then show an em dash. */
+	spendError: boolean;
 	canCreateGroup: boolean;
 	groupsEnabled: boolean;
+	showAIBudget: boolean;
 };
 
 export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	groups,
+	spendError,
 	canCreateGroup,
 	groupsEnabled,
+	showAIBudget,
 }) => {
 	if (!groupsEnabled) {
 		return (
@@ -47,32 +77,55 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	}
 
 	return (
-		<Table>
+		<Table aria-label="Groups">
 			<TableHeader>
 				<TableRow>
 					<TableHead className="w-2/5">Name</TableHead>
-					<TableHead className="w-3/5">Users</TableHead>
+					<TableHead className={showAIBudget ? "w-1/5" : "w-3/5"}>
+						Users
+					</TableHead>
+					{showAIBudget && (
+						<TableHead className="w-2/5">
+							<div className="flex items-center gap-1">
+								AI budget
+								{spendError ? (
+									<StatusIconTooltip
+										kind="warning"
+										message="AI spend couldn't be loaded, so budgets aren't shown."
+									/>
+								) : (
+									<StatusIconTooltip message="Current AI spend compared to the group's AI budget for the active period." />
+								)}
+							</div>
+						</TableHead>
+					)}
 					<TableHead className="w-auto" />
 				</TableRow>
 			</TableHeader>
 			<TableBody>
-				<GroupsTableBody groups={groups} canCreateGroup={canCreateGroup} />
+				<GroupsTableBody
+					groups={groups}
+					canCreateGroup={canCreateGroup}
+					showAIBudget={showAIBudget}
+				/>
 			</TableBody>
 		</Table>
 	);
 };
 
 interface GroupsTableBodyProps {
-	groups: Group[] | undefined;
+	groups: GroupWithSpend[] | undefined;
 	canCreateGroup: boolean;
+	showAIBudget: boolean;
 }
 
 const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 	groups,
 	canCreateGroup,
+	showAIBudget,
 }) => {
 	if (groups === undefined) {
-		return <TableLoader />;
+		return <TableLoader showAIBudget={showAIBudget} />;
 	}
 	if (groups.length === 0) {
 		return (
@@ -103,17 +156,18 @@ const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 	return (
 		<>
 			{groups.map((group) => (
-				<GroupRow key={group.id} group={group} />
+				<GroupRow key={group.id} group={group} showAIBudget={showAIBudget} />
 			))}
 		</>
 	);
 };
 
 interface GroupRowProps {
-	group: Group;
+	group: GroupWithSpend;
+	showAIBudget: boolean;
 }
 
-const GroupRow: FC<GroupRowProps> = ({ group }) => {
+const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
 	const navigate = useNavigate();
 	const rowProps = useClickableTableRow({
 		onClick: () => navigate(group.name),
@@ -155,9 +209,22 @@ const GroupRow: FC<GroupRowProps> = ({ group }) => {
 						)}
 					</div>
 				) : (
-					"-"
+					EM_DASH
 				)}
 			</TableCell>
+
+			{showAIBudget && (
+				<TableCell>
+					{group.spend ? (
+						<AIBudgetUsage
+							currentSpend={group.spend.current_spend_micros}
+							spendLimit={group.spend.spend_limit_micros}
+						/>
+					) : (
+						EM_DASH
+					)}
+				</TableCell>
+			)}
 
 			<TableCell>
 				<div className="flex">
@@ -168,7 +235,7 @@ const GroupRow: FC<GroupRowProps> = ({ group }) => {
 	);
 };
 
-const TableLoader: FC = () => {
+const TableLoader: FC<{ showAIBudget: boolean }> = ({ showAIBudget }) => {
 	return (
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>
@@ -180,6 +247,11 @@ const TableLoader: FC = () => {
 				<TableCell>
 					<Skeleton variant="text" width="25%" />
 				</TableCell>
+				{showAIBudget && (
+					<TableCell>
+						<Skeleton variant="text" width="50%" />
+					</TableCell>
+				)}
 				<TableCell>
 					<Skeleton variant="text" width="25%" />
 				</TableCell>

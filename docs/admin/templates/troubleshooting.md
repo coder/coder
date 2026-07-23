@@ -8,7 +8,7 @@ has failed or timed out.
 ## Agent connection issues
 
 If the agent is not connected, it means the agent or
-[init script](https://github.com/coder/coder/tree/main/provisionersdk/scripts)
+[init script](../../../provisionersdk/scripts)
 has failed on the resource.
 
 ```console
@@ -132,7 +132,7 @@ what's going on.
 
 Here's a short example of an informative startup script:
 
-```shell
+```sh
 echo "Running startup script..."
 echo "Run: long-running-command"
 /path/to/long-running-command
@@ -171,13 +171,20 @@ to optimize your templates based on this data.
 
 ![Workspace build timings UI](../../images/admin/templates/troubleshooting/workspace-build-timings-ui.png)
 
+## Cannot connect to the Docker daemon
+
+If a Docker-based template fails to provision with an error like `Cannot connect to the Docker daemon at unix:///var/run/docker.sock`, the Coder host cannot reach the Docker socket.
+Confirm that Docker is installed and running on the host.
+If you run Docker through rootless Docker, [Colima](https://colima.run), Podman, or a similar tool, the daemon may expose its socket at a non-default path, so set `DOCKER_HOST` to point at it.
+Refer to [Cannot connect to the Docker daemon](../../install/docker.md#cannot-connect-to-the-docker-daemon) for the full steps.
+
 ## Docker Workspaces on Raspberry Pi OS
 
 ### Unable to query ContainerMemory
 
 When you query `ContainerMemory` and encounter the error:
 
-```shell
+```sh
 open /sys/fs/cgroup/memory.max: no such file or directory
 ```
 
@@ -197,19 +204,19 @@ This error mostly affects Raspberry Pi OS, but might also affect older Debian-ba
 
 1. Add cgroup entries to `cmdline.txt` in `/boot/firmware` (or `/boot/` on older Pi OS releases):
 
-   ```text
+   ```txt
    cgroup_memory=1 cgroup_enable=memory
    ```
 
    You can use `sed` to add it to the file for you:
 
-   ```bash
+   ```sh
    sudo sed -i '$s/$/ cgroup_memory=1 cgroup_enable=memory/' /boot/firmware/cmdline.txt
    ```
 
 1. Reboot:
 
-   ```bash
+   ```sh
    sudo reboot
    ```
 

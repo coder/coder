@@ -1,17 +1,13 @@
 import { ExternalLinkIcon, GlobeIcon } from "lucide-react";
 import type { FC } from "react";
 import { cn } from "#/utils/cn";
-import { ToolCollapsible } from "./ToolCollapsible";
+import { ToolCall } from "./ToolCall";
 
 interface WebSearchSourcesProps {
 	sources: Array<{ url: string; title: string }>;
 }
 
-/**
- * Renders web search sources as a collapsible tool card, consistent
- * with other tool call renderings. The collapsed header shows a globe
- * icon and "Searched N sources"; expanding reveals clickable pills.
- */
+/** Collapsible web-search result pills, styled as a ToolCall row. */
 const WebSearchSources: FC<WebSearchSourcesProps> = ({ sources }) => {
 	// Deduplicate sources by URL, keeping the first occurrence.
 	const unique = (() => {
@@ -32,23 +28,24 @@ const WebSearchSources: FC<WebSearchSourcesProps> = ({ sources }) => {
 	const detail = unique.length === 1 ? "1 result" : `${unique.length} results`;
 
 	return (
-		<ToolCollapsible
-			hasContent={unique.length > 0}
-			header={
-				<>
-					<GlobeIcon className="h-4 w-4 shrink-0 text-current" />
-					<span className="text-[13px]">
-						Searched <span className="text-content-secondary/60">{detail}</span>
-					</span>
-				</>
-			}
-		>
-			<div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-				{unique.map((source) => (
-					<SourcePill key={source.url} source={source} />
-				))}
-			</div>
-		</ToolCollapsible>
+		<ToolCall.Root status="completed" hasContent={unique.length > 0}>
+			<ToolCall.HeaderButton>
+				<ToolCall.LeadingIcon>
+					<GlobeIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
+				</ToolCall.LeadingIcon>
+				<ToolCall.Label>
+					Searched <span className="text-content-secondary/60">{detail}</span>
+				</ToolCall.Label>
+				<ToolCall.Chevron />
+			</ToolCall.HeaderButton>
+			<ToolCall.Content>
+				<div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+					{unique.map((source) => (
+						<SourcePill key={source.url} source={source} />
+					))}
+				</div>
+			</ToolCall.Content>
+		</ToolCall.Root>
 	);
 };
 
@@ -103,7 +100,7 @@ const SourcePill: FC<{ source: { url: string; title: string } }> = ({
 				/>
 			)}
 			<span className="truncate">{label}</span>
-			<ExternalLinkIcon className="h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
+			<ExternalLinkIcon className="size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
 		</a>
 	);
 };

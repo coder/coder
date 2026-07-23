@@ -30,6 +30,33 @@ export const Default: Story = {
 	},
 };
 
+export const SingleProvider: Story = {
+	args: {
+		session: {
+			...MockSession,
+			providers: ["anthropic"],
+		},
+	},
+};
+
+export const MultipleProviders: Story = {
+	args: {
+		session: {
+			...MockSession,
+			providers: ["anthropic", "openai", "copilot"],
+		},
+	},
+};
+
+export const EmptyProviders: Story = {
+	args: {
+		session: {
+			...MockSession,
+			providers: [],
+		},
+	},
+};
+
 export const NullClient: Story = {
 	args: {
 		session: { ...MockSession, client: null },
@@ -78,5 +105,29 @@ export const LargeTokenCounts: Story = {
 				cache_write_input_tokens: 12_000,
 			},
 		},
+	},
+};
+
+export const NetworkCallsBlocked: Story = {
+	args: {
+		session: {
+			...MockSession,
+			network_calls: { total: 23, blocked: 2 },
+		},
+	},
+};
+
+export const NoNetworkActivity: Story = {
+	args: {
+		session: {
+			...MockSession,
+			network_calls: { total: 0, blocked: 0 },
+		},
+	},
+};
+
+export const NetworkDisabled: Story = {
+	args: {
+		session: { ...MockSession, network_calls: undefined },
 	},
 };

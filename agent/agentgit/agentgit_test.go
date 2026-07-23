@@ -43,13 +43,9 @@ func gitCmd(t *testing.T, dir string, args ...string) {
 // and returns the repo root path.
 func initTestRepo(t *testing.T) string {
 	t.Helper()
-	dir := t.TempDir()
 	// Resolve symlinks and short (8.3) names on Windows so test
 	// expectations match the canonical paths returned by git.
-	resolved, err := filepath.EvalSymlinks(dir)
-	if err == nil {
-		dir = resolved
-	}
+	dir := testutil.TempDirResolved(t)
 
 	gitCmd(t, dir, "init")
 	gitCmd(t, dir, "config", "user.name", "Test")
@@ -557,12 +553,9 @@ func TestScanDeletedWorktreeGitdirEmitsRemoved(t *testing.T) {
 	mainRepoDir := initTestRepo(t)
 
 	// Create a linked worktree using git CLI.
-	wtBase := t.TempDir()
 	// Resolve symlinks and short (8.3) names on Windows so test
 	// expectations match the canonical paths returned by git.
-	if resolved, err := filepath.EvalSymlinks(wtBase); err == nil {
-		wtBase = resolved
-	}
+	wtBase := testutil.TempDirResolved(t)
 	worktreeDir := filepath.Join(wtBase, "wt")
 	gitCmd(t, mainRepoDir, "branch", "worktree-branch")
 	gitCmd(t, mainRepoDir, "worktree", "add", worktreeDir, "worktree-branch")

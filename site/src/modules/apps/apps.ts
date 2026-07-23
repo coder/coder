@@ -170,3 +170,22 @@ export const needsSessionToken = (app: ExternalWorkspaceApp) => {
 	const requiresSessionToken = app.url.includes(SESSION_TOKEN_PLACEHOLDER);
 	return requiresSessionToken && !isHttp;
 };
+
+/**
+ * True for apps that can be rendered inside a dashboard iframe. Command apps
+ * open in terminal tabs instead.
+ */
+export const isWorkspaceAppEmbeddable = (app: WorkspaceApp): boolean => {
+	return !app.hidden && !isExternalApp(app) && !app.command;
+};
+
+/**
+ * True when an app requires subdomain access but the deployment has no wildcard
+ * access URL configured, so the app cannot be launched or embedded.
+ */
+export const isAppBlockedByMissingWildcard = (
+	app: WorkspaceApp,
+	wildcardHostname: string | undefined,
+): boolean => {
+	return app.subdomain && !wildcardHostname;
+};

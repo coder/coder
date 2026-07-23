@@ -4,7 +4,7 @@
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations \
   -H 'Accept: application/json' \
@@ -21,6 +21,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations \
 [
   {
     "created_at": "2019-08-24T14:15:22Z",
+    "default_org_member_roles": [
+      "string"
+    ],
     "description": "string",
     "display_name": "string",
     "icon": "string",
@@ -42,17 +45,18 @@ curl -X GET http://coder-server:8080/api/v2/organizations \
 
 Status Code **200**
 
-| Name             | Type              | Required | Restrictions | Description |
-|------------------|-------------------|----------|--------------|-------------|
-| `[array item]`   | array             | false    |              |             |
-| `» created_at`   | string(date-time) | true     |              |             |
-| `» description`  | string            | false    |              |             |
-| `» display_name` | string            | false    |              |             |
-| `» icon`         | string            | false    |              |             |
-| `» id`           | string(uuid)      | true     |              |             |
-| `» is_default`   | boolean           | true     |              |             |
-| `» name`         | string            | false    |              |             |
-| `» updated_at`   | string(date-time) | true     |              |             |
+| Name                         | Type              | Required | Restrictions | Description                                                                                                                                     |
+|------------------------------|-------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`               | array             | false    |              |                                                                                                                                                 |
+| `» created_at`               | string(date-time) | true     |              |                                                                                                                                                 |
+| `» default_org_member_roles` | array             | false    |              | Default org member roles are unioned into every member's effective roles at request time. Changes propagate to all members on the next request. |
+| `» description`              | string            | false    |              |                                                                                                                                                 |
+| `» display_name`             | string            | false    |              |                                                                                                                                                 |
+| `» icon`                     | string            | false    |              |                                                                                                                                                 |
+| `» id`                       | string(uuid)      | true     |              |                                                                                                                                                 |
+| `» is_default`               | boolean           | true     |              |                                                                                                                                                 |
+| `» name`                     | string            | false    |              |                                                                                                                                                 |
+| `» updated_at`               | string(date-time) | true     |              |                                                                                                                                                 |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -60,7 +64,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/organizations \
   -H 'Content-Type: application/json' \
@@ -94,6 +98,9 @@ curl -X POST http://coder-server:8080/api/v2/organizations \
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "default_org_member_roles": [
+    "string"
+  ],
   "description": "string",
   "display_name": "string",
   "icon": "string",
@@ -116,7 +123,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization} \
   -H 'Accept: application/json' \
@@ -138,6 +145,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization} \
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "default_org_member_roles": [
+    "string"
+  ],
   "description": "string",
   "display_name": "string",
   "icon": "string",
@@ -160,7 +170,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization} \
   -H 'Accept: application/json' \
@@ -204,7 +214,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization} \
   -H 'Content-Type: application/json' \
@@ -218,6 +228,9 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization} \
 
 ```json
 {
+  "default_org_member_roles": [
+    "string"
+  ],
   "description": "string",
   "display_name": "string",
   "icon": "string",
@@ -239,6 +252,9 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization} \
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "default_org_member_roles": [
+    "string"
+  ],
   "description": "string",
   "display_name": "string",
   "icon": "string",
@@ -261,7 +277,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisionerjobs \
   -H 'Accept: application/json' \
@@ -272,14 +288,14 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 ### Parameters
 
-| Name           | In    | Type         | Required | Description                                                                        |
-|----------------|-------|--------------|----------|------------------------------------------------------------------------------------|
-| `organization` | path  | string(uuid) | true     | Organization ID                                                                    |
-| `limit`        | query | integer      | false    | Page limit                                                                         |
-| `ids`          | query | array(uuid)  | false    | Filter results by job IDs                                                          |
-| `status`       | query | string       | false    | Filter results by status                                                           |
-| `tags`         | query | object       | false    | Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'}) |
-| `initiator`    | query | string(uuid) | false    | Filter results by initiator                                                        |
+| Name           | In    | Type         | Required | Description                                                                          |
+|----------------|-------|--------------|----------|--------------------------------------------------------------------------------------|
+| `organization` | path  | string(uuid) | true     | Organization ID                                                                      |
+| `limit`        | query | integer      | false    | Page limit                                                                           |
+| `ids`          | query | array(uuid)  | false    | Filter results by job IDs                                                            |
+| `status`       | query | string       | false    | Filter results by status                                                             |
+| `tags`         | query | object       | false    | Provisioner tags to filter by (JSON of the form `{'tag1':'value1','tag2':'value2'}`) |
+| `initiator`    | query | string(uuid) | false    | Filter results by initiator                                                          |
 
 #### Enumerated Values
 
@@ -399,7 +415,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisionerjobs/{job} \
   -H 'Accept: application/json' \

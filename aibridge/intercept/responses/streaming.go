@@ -16,7 +16,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
@@ -38,23 +37,19 @@ type StreamingResponsesInterceptor struct {
 func NewStreamingInterceptor(
 	id uuid.UUID,
 	reqPayload RequestPayload,
-	providerName string,
-	cfg config.OpenAI,
+	cfg intercept.Config,
+	cred intercept.Credential,
 	clientHeaders http.Header,
-	authHeaderName string,
 	tracer trace.Tracer,
-	cred intercept.CredentialInfo,
 ) *StreamingResponsesInterceptor {
 	return &StreamingResponsesInterceptor{
 		responsesInterceptionBase: responsesInterceptionBase{
-			id:             id,
-			providerName:   providerName,
-			reqPayload:     reqPayload,
-			cfg:            cfg,
-			clientHeaders:  clientHeaders,
-			authHeaderName: authHeaderName,
-			tracer:         tracer,
-			credential:     cred,
+			id:            id,
+			reqPayload:    reqPayload,
+			cfg:           cfg,
+			cred:          cred,
+			clientHeaders: clientHeaders,
+			tracer:        tracer,
 		},
 	}
 }
@@ -77,6 +72,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
 	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
 
 	if err := i.validateRequest(ctx, w); err != nil {
@@ -104,18 +100,27 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 		i.logger.Warn(ctx, "failed to get user prompt", slog.Error(err))
 	}
 	shouldLoop := true
-	srv := i.newResponsesService()
+	srv := i.newResponsesService(ctx)
+
+	// Sum the key attempts across all iterations and record once when the
+	// interception completes.
+	var totalKeyAttempts int
+	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+		defer func() {
+			cp.Pool.RecordAttempts(totalKeyAttempts)
+		}()
+	}
 
 	for shouldLoop {
 		shouldLoop = false
 
-		// Per-iteration walker. An iteration is either an agentic
-		// continuation (sending a tool result back in a new
-		// stream) or a failover retry (previous key marked, try
-		// the next one).
+		// A pool credential advances its failover walker. An iteration is an
+		// agentic continuation or a failover retry after the previous key was
+		// marked. BYOK has no pool and runs as a single attempt.
 		var walker *keypool.Walker
-		if i.cfg.KeyPool != nil {
-			walker = i.cfg.KeyPool.Walker()
+		cp, isPool := intercept.AsCentralizedPool(i.cred)
+		if isPool {
+			walker = cp.Pool.Walker()
 		}
 
 		// Failover sub-loop: try keys until a stream starts
@@ -132,18 +137,21 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 				opts = append(opts, intercept.ActorHeadersAsOpenAIOpts(actor)...)
 			}
 
-			var currentKey *keypool.Key
-			if walker != nil {
-				key, err := walker.Next()
-				if respErr := ProcessKeyPoolError(err); respErr != nil {
+			var currentPoolKey *keypool.Key
+			if isPool && walker != nil {
+				key, keyPoolErr := cp.NextKey(walker)
+				if keyPoolErr != nil {
 					// Pool exhausted: write the error directly. In
 					// agentic mode the inner loop buffers events
 					// instead of streaming them downstream, so the
 					// SSE connection has not been opened yet.
-					i.writeUpstreamError(w, respErr)
-					return xerrors.Errorf("key pool exhausted: %w", err)
+					totalKeyAttempts += walker.Attempts()
+					i.writeUpstreamError(w, intercept.ResponseErrorFromKeyPool(keyPoolErr))
+					return xerrors.Errorf("key pool exhausted: %w", keyPoolErr)
 				}
-				currentKey = key
+
+				i.logger.Debug(intercept.WithCredentialInfo(ctx, i.cred), "using centralized api key")
+				currentPoolKey = key
 				opts = append(opts,
 					option.WithAPIKey(key.Value()),
 					// Disable SDK retries because the failover
@@ -157,7 +165,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 				// Pre-stream failure of this attempt. For
 				// centralized requests, mark the key and
 				// retry with the next one.
-				if currentKey != nil && i.markKeyOnError(ctx, currentKey, upstreamErr) {
+				if currentPoolKey != nil && i.markKeyOnError(ctx, currentPoolKey, upstreamErr) {
 					stream.Close()
 					continue
 				}
@@ -168,6 +176,10 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 			}
 			// Stream started successfully: commit to this key.
 			break
+		}
+
+		if isPool {
+			totalKeyAttempts += walker.Attempts()
 		}
 
 		// func scope to defer steam.Close()

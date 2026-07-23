@@ -118,7 +118,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 		<div className="flex items-start gap-2">
 			{parameter.icon && (
 				<ExternalImage
-					className="w-5 h-5 mt-0.5 object-contain"
+					className="size-5 mt-0.5 object-contain"
 					alt="Parameter icon"
 					src={parameter.icon}
 				/>
@@ -373,17 +373,14 @@ const ParameterField: FC<ParameterFieldProps> = ({
 				disable: false,
 			}));
 
-			const optionMap = new Map(
-				parameter.options.map((opt) => [opt.value.value, opt.name]),
+			const selectedOptions: Option[] = parsedValues.values.map(
+				(val) =>
+					options.find((o) => o.value === val) ?? {
+						value: val,
+						label: val,
+						disable: false,
+					},
 			);
-
-			const selectedOptions: Option[] = parsedValues.values.map((val) => {
-				return {
-					value: val,
-					label: optionMap.get(val) || val,
-					disable: false,
-				};
-			});
 
 			return (
 				<MultiSelectCombobox
@@ -528,9 +525,9 @@ const MaskableInput: FC<MaskableInputProps> = ({
 					disabled={disabled}
 				>
 					{showMaskedInput ? (
-						<EyeOffIcon className="h-4 w-4" />
+						<EyeOffIcon className="size-4" />
 					) : (
-						<EyeIcon className="h-4 w-4" />
+						<EyeIcon className="size-4" />
 					)}
 				</Button>
 			)}
@@ -582,9 +579,9 @@ const MaskableTextArea: FC<MaskableInputProps> = ({
 					disabled={disabled}
 				>
 					{showMaskedInput ? (
-						<EyeOffIcon className="h-4 w-4" />
+						<EyeOffIcon className="size-4" />
 					) : (
-						<EyeIcon className="h-4 w-4" />
+						<EyeIcon className="size-4" />
 					)}
 				</Button>
 			)}
@@ -626,7 +623,7 @@ const OptionDisplay: FC<OptionDisplayProps> = ({ option }) => {
 		<div className="flex items-center gap-2">
 			{option.icon && (
 				<ExternalImage
-					className="w-4 h-4 object-contain"
+					className="size-4 object-contain"
 					src={option.icon}
 					alt=""
 				/>
@@ -680,7 +677,7 @@ const ParameterDiagnostics: FC<ParameterDiagnosticsProps> = ({
 };
 
 export const getInitialParameterValues = (
-	params: PreviewParameter[],
+	params: readonly PreviewParameter[],
 	autofillParams?: AutofillBuildParameter[],
 ): WorkspaceBuildParameter[] => {
 	return params.map((parameter) => {
@@ -698,7 +695,8 @@ export const getInitialParameterValues = (
 		);
 
 		const useAutofill =
-			autofillParam?.value && isValidParameterOption(parameter, autofillParam);
+			autofillParam?.value !== undefined &&
+			isValidParameterOption(parameter, autofillParam);
 
 		return {
 			name: parameter.name,

@@ -10,7 +10,6 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -56,10 +55,6 @@ func TestScaleTestCreateWorkspaces(t *testing.T) {
 		"--max-failures", "1",
 	)
 	clitest.SetupConfig(t, client, root)
-	pty := ptytest.New(t)
-	inv.Stdout = pty.Output()
-	inv.Stderr = pty.Output()
-
 	err := inv.WithContext(ctx).Run()
 	require.ErrorContains(t, err, "could not find template \"doesnotexist\" in any organization")
 }
@@ -91,10 +86,6 @@ func TestScaleTestWorkspaceTraffic(t *testing.T) {
 		"--ssh",
 	)
 	clitest.SetupConfig(t, client, root)
-	pty := ptytest.New(t)
-	inv.Stdout = pty.Output()
-	inv.Stderr = pty.Output()
-
 	err := inv.WithContext(ctx).Run()
 	require.ErrorContains(t, err, "no scaletest workspaces exist")
 }
@@ -120,10 +111,6 @@ func TestScaleTestWorkspaceTraffic_Template(t *testing.T) {
 		"--template", "doesnotexist",
 	)
 	clitest.SetupConfig(t, client, root)
-	pty := ptytest.New(t)
-	inv.Stdout = pty.Output()
-	inv.Stderr = pty.Output()
-
 	err := inv.WithContext(ctx).Run()
 	require.ErrorContains(t, err, "could not find template \"doesnotexist\" in any organization")
 }
@@ -149,10 +136,6 @@ func TestScaleTestWorkspaceTraffic_TargetWorkspaces(t *testing.T) {
 		"--target-workspaces", "0:0",
 	)
 	clitest.SetupConfig(t, client, root)
-	pty := ptytest.New(t)
-	inv.Stdout = pty.Output()
-	inv.Stderr = pty.Output()
-
 	err := inv.WithContext(ctx).Run()
 	require.ErrorContains(t, err, "invalid target workspaces \"0:0\": start and end cannot be equal")
 }
@@ -178,10 +161,6 @@ func TestScaleTestCleanup_Template(t *testing.T) {
 		"--template", "doesnotexist",
 	)
 	clitest.SetupConfig(t, client, root)
-	pty := ptytest.New(t)
-	inv.Stdout = pty.Output()
-	inv.Stderr = pty.Output()
-
 	err := inv.WithContext(ctx).Run()
 	require.ErrorContains(t, err, "could not find template \"doesnotexist\" in any organization")
 }
@@ -208,10 +187,6 @@ func TestScaleTestDashboard(t *testing.T) {
 			"--interval", "0s",
 		)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
-
 		err := inv.WithContext(ctx).Run()
 		require.ErrorContains(t, err, "--interval must be greater than zero")
 	})
@@ -232,10 +207,6 @@ func TestScaleTestDashboard(t *testing.T) {
 			"--jitter", "1s",
 		)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
-
 		err := inv.WithContext(ctx).Run()
 		require.ErrorContains(t, err, "--jitter must be less than --interval")
 	})
@@ -260,10 +231,6 @@ func TestScaleTestDashboard(t *testing.T) {
 			"--rand-seed", "1234567890",
 		)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
-
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err, "")
 	})
@@ -283,10 +250,6 @@ func TestScaleTestDashboard(t *testing.T) {
 			"--target-users", "0:0",
 		)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
-
 		err := inv.WithContext(ctx).Run()
 		require.ErrorContains(t, err, "invalid target users \"0:0\": start and end cannot be equal")
 	})

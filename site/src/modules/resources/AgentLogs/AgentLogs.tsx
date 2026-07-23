@@ -2,6 +2,7 @@ import type { JSX } from "react";
 import { FixedSizeList as List } from "react-window";
 import type { WorkspaceAgentLogSource } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import type { Line } from "#/components/Logs/LogLine";
 import {
 	Tooltip,
@@ -70,7 +71,7 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 					// colored circle to identify unique scripts.
 					if (logSource.icon) {
 						icon = (
-							<img
+							<ExternalImage
 								src={logSource.icon}
 								alt=""
 								className="size-3.5 mr-2 shrink-0"

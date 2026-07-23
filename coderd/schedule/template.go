@@ -123,6 +123,10 @@ type TemplateScheduleOptions struct {
 	// ActivityBump dictates the duration to bump the workspace's deadline by if
 	// Coder detects activity from the user. A value of 0 means no bumping.
 	ActivityBump time.Duration
+	// TimeTilAutostopNotify dictates how long before the workspace's autostop
+	// deadline a reminder notification should be sent. A value of 0 means
+	// disabled.
+	TimeTilAutostopNotify time.Duration
 	// AutostopRequirement dictates when the workspace must be restarted. This
 	// used to be handled by MaxTTL.
 	AutostopRequirement TemplateAutostopRequirement
@@ -178,10 +182,11 @@ func (*agplTemplateScheduleStore) Get(ctx context.Context, db database.Store, te
 	return TemplateScheduleOptions{
 		// Disregard the values in the database, since user scheduling is an
 		// enterprise feature.
-		UserAutostartEnabled: true,
-		UserAutostopEnabled:  true,
-		DefaultTTL:           time.Duration(tpl.DefaultTTL),
-		ActivityBump:         time.Duration(tpl.ActivityBump),
+		UserAutostartEnabled:  true,
+		UserAutostopEnabled:   true,
+		DefaultTTL:            time.Duration(tpl.DefaultTTL),
+		ActivityBump:          time.Duration(tpl.ActivityBump),
+		TimeTilAutostopNotify: time.Duration(tpl.TimeTilAutostopNotify),
 		// Disregard the values in the database, since AutostopRequirement,
 		// FailureTTL, TimeTilDormant, and TimeTilDormantAutoDelete are enterprise features.
 		AutostartRequirement: TemplateAutostartRequirement{
@@ -204,7 +209,9 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	if int64(opts.DefaultTTL) == tpl.DefaultTTL && int64(opts.ActivityBump) == tpl.ActivityBump {
+	if int64(opts.DefaultTTL) == tpl.DefaultTTL &&
+		int64(opts.ActivityBump) == tpl.ActivityBump &&
+		int64(opts.TimeTilAutostopNotify) == tpl.TimeTilAutostopNotify {
 		// Avoid updating the UpdatedAt timestamp if nothing will be changed.
 		return tpl, nil
 	}
@@ -212,10 +219,11 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 	var template database.Template
 	err := db.InTx(func(db database.Store) error {
 		err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-			ID:           tpl.ID,
-			UpdatedAt:    dbtime.Now(),
-			DefaultTTL:   int64(opts.DefaultTTL),
-			ActivityBump: int64(opts.ActivityBump),
+			ID:                    tpl.ID,
+			UpdatedAt:             dbtime.Now(),
+			DefaultTTL:            int64(opts.DefaultTTL),
+			ActivityBump:          int64(opts.ActivityBump),
+			TimeTilAutostopNotify: int64(opts.TimeTilAutostopNotify),
 			// Don't allow changing these settings, but keep the value in the DB (to
 			// avoid clearing settings if the license has an issue).
 			AutostopRequirementDaysOfWeek: tpl.AutostopRequirementDaysOfWeek,

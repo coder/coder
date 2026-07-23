@@ -1146,6 +1146,59 @@ func TestEntitlements(t *testing.T) {
 				require.NotContains(t, warning, "over the limit")
 			}
 		})
+
+		t.Run("NotEntitledSuppressed", func(t *testing.T) {
+			t.Parallel()
+
+			const activeSeatCount int64 = 42
+
+			ctrl := gomock.NewController(t)
+			mDB := dbmock.NewMockStore(ctrl)
+
+			// Premium license without the AI Governance addon.
+			licenseOpts := (&coderdenttest.LicenseOptions{
+				FeatureSet: codersdk.FeatureSetPremium,
+				NotBefore:  dbtime.Now().Add(-time.Hour).Truncate(time.Second),
+				GraceAt:    dbtime.Now().Add(time.Hour * 24 * 60).Truncate(time.Second),
+				ExpiresAt:  dbtime.Now().Add(time.Hour * 24 * 90).Truncate(time.Second),
+			}).
+				UserLimit(100)
+
+			lic := database.License{
+				ID:  1,
+				JWT: coderdenttest.GenerateLicense(t, *licenseOpts),
+				Exp: licenseOpts.ExpiresAt,
+			}
+
+			mDB.EXPECT().
+				GetUnexpiredLicenses(gomock.Any()).
+				Return([]database.License{lic}, nil)
+			mDB.EXPECT().
+				GetActiveUserCount(gomock.Any(), false).
+				Return(int64(1), nil)
+			mDB.EXPECT().
+				GetActiveAISeatCount(gomock.Any()).
+				Return(activeSeatCount, nil)
+			mDB.EXPECT().
+				GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).
+				Return(int64(0), nil)
+			mDB.EXPECT().
+				GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
+				Return([]database.Template{}, nil)
+
+			entitlements, err := license.Entitlements(context.Background(), mDB, 1, 0, coderdenttest.Keys, all)
+			require.NoError(t, err)
+			require.True(t, entitlements.HasLicense)
+
+			// The not-entitled case should not produce errors about
+			// AI Governance seat counts.
+			for _, e := range entitlements.Errors {
+				require.NotContains(t, e, "AI Governance seats")
+			}
+			for _, w := range entitlements.Warnings {
+				require.NotContains(t, w, "AI Governance seats")
+			}
+		})
 	})
 }
 
@@ -1537,7 +1590,7 @@ func TestAIBridgeSoftWarning(t *testing.T) {
 		codersdk.FeatureAIBridge: false,
 	}
 
-	aiBridgeWarningMessage := "The AI Governance add-on is required to use AI Bridge. Please reach out to your account team or sales@coder.com to learn more."
+	aiBridgeWarningMessage := "The AI Governance add-on is required to use AI Gateway. Please reach out to your account team or sales@coder.com to learn more."
 
 	t.Run("NoAddon_AIBridgeOff", func(t *testing.T) {
 		t.Parallel()
@@ -2117,7 +2170,7 @@ func TestAIGovernanceAddon(t *testing.T) {
 		// AI Bridge should be enabled without warning when addon is present.
 		aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
 		require.True(t, aibridgeFeature.Enabled, "AI Bridge should be enabled when addon is present and enablements are set")
-		aiBridgeWarningMessage := "The AI Governance add-on is required to use AI Bridge. Please reach out to your account team or sales@coder.com to learn more."
+		aiBridgeWarningMessage := "The AI Governance add-on is required to use AI Gateway. Please reach out to your account team or sales@coder.com to learn more."
 		require.NotContains(t, entitlements.Warnings, aiBridgeWarningMessage, "AI Bridge warning should not appear when AI Governance addon is present")
 
 		// require.Equal(t, codersdk.EntitlementEntitled, aibridgeFeature.Entitlement, "AI Bridge should be entitled when addon is present")

@@ -18,30 +18,34 @@ WHERE
 
 -- name: GetChatModelConfigs :many
 SELECT
-    *
-FROM
-    chat_model_configs
-WHERE
-    deleted = FALSE
-ORDER BY
-    provider ASC,
-    model ASC,
-    updated_at DESC,
-    id DESC;
-
--- name: GetEnabledChatModelConfigs :many
-SELECT
     cmc.*
 FROM
     chat_model_configs cmc
+LEFT JOIN
+    ai_providers ap ON ap.id = cmc.ai_provider_id
+WHERE
+    cmc.deleted = FALSE
+ORDER BY
+    ap.type::text ASC,
+    cmc.model ASC,
+    cmc.updated_at DESC,
+    cmc.id DESC;
+
+-- name: GetEnabledChatModelConfigs :many
+SELECT
+    sqlc.embed(cmc),
+    ap.type::text AS provider
+FROM
+    chat_model_configs cmc
 JOIN
-    chat_providers cp ON cp.provider = cmc.provider
+    ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
     cmc.enabled = TRUE
     AND cmc.deleted = FALSE
-    AND cp.enabled = TRUE
+    AND ap.enabled = TRUE
+    AND ap.deleted = FALSE
 ORDER BY
-    cmc.provider ASC,
+    ap.type::text ASC,
     cmc.model ASC,
     cmc.updated_at DESC,
     cmc.id DESC;
@@ -54,16 +58,16 @@ FROM
 -- Providers can be disabled independently of their model configs.
 -- Check both to ensure the selected config is actually usable.
 JOIN
-    chat_providers cp ON cp.provider = cmc.provider
+    ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
     cmc.id = @id::uuid
     AND cmc.deleted = FALSE
     AND cmc.enabled = TRUE
-    AND cp.enabled = TRUE;
+    AND ap.enabled = TRUE
+    AND ap.deleted = FALSE;
 
 -- name: InsertChatModelConfig :one
 INSERT INTO chat_model_configs (
-    provider,
     model,
     display_name,
     created_by,
@@ -72,9 +76,9 @@ INSERT INTO chat_model_configs (
     is_default,
     context_limit,
     compression_threshold,
-    options
+    options,
+    ai_provider_id
 ) VALUES (
-    @provider::text,
     @model::text,
     @display_name::text,
     sqlc.narg('created_by')::uuid,
@@ -83,7 +87,8 @@ INSERT INTO chat_model_configs (
     @is_default::boolean,
     @context_limit::bigint,
     @compression_threshold::integer,
-    @options::jsonb
+    @options::jsonb,
+    sqlc.narg('ai_provider_id')::uuid
 )
 RETURNING
     *;
@@ -92,7 +97,6 @@ RETURNING
 UPDATE
     chat_model_configs
 SET
-    provider = @provider::text,
     model = @model::text,
     display_name = @display_name::text,
     updated_by = sqlc.narg('updated_by')::uuid,
@@ -101,6 +105,7 @@ SET
     context_limit = @context_limit::bigint,
     compression_threshold = @compression_threshold::integer,
     options = @options::jsonb,
+    ai_provider_id = sqlc.narg('ai_provider_id')::uuid,
     updated_at = NOW()
 WHERE
     id = @id::uuid
@@ -128,7 +133,7 @@ SET
 WHERE
     id = @id::uuid;
 
--- name: DeleteChatModelConfigsByProvider :exec
+-- name: DeleteChatModelConfigsByAIProviderID :exec
 UPDATE
     chat_model_configs
 SET
@@ -136,5 +141,5 @@ SET
     deleted_at = NOW(),
     updated_at = NOW()
 WHERE
-    provider = @provider::text
+    ai_provider_id = @ai_provider_id::uuid
     AND deleted = FALSE;

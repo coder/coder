@@ -17,11 +17,12 @@ export const InboxButton: React.FC<InboxButtonProps> = ({
 			{unreadCount > 0 && (
 				<UnreadBadge
 					count={unreadCount}
-					className={cn([
+					className={cn(
 						"[--offset:calc(var(--unread-badge-size)/2)]",
 						"absolute top-0 right-0 -mr-[--offset] -mt-[--offset]",
-						"animate-in fade-in zoom-in duration-200",
-					])}
+						"origin-center animate-in zoom-in-0 fade-in-0 duration-500",
+						"[animation-timing-function:cubic-bezier(0.34,1.36,0.64,1)]",
+					)}
 				/>
 			)}
 		</Button>

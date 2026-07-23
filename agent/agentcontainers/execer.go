@@ -2,10 +2,7 @@ package agentcontainers
 
 import (
 	"context"
-	"fmt"
 	"os/exec"
-	"runtime"
-	"strings"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentexec"
@@ -51,15 +48,15 @@ func (e *commandEnvExecer) prepare(ctx context.Context, inName string, inArgs ..
 		return inName, inArgs, "", nil
 	}
 
-	caller := "-c"
-	if runtime.GOOS == "windows" {
-		caller = "/c"
-	}
 	name = shell
-	for _, arg := range append([]string{inName}, inArgs...) {
-		args = append(args, fmt.Sprintf("%q", arg))
-	}
-	args = []string{caller, strings.Join(args, " ")}
+	// Pass the command through the shell as positional parameters and run
+	// "$@" so the shell re-emits argv verbatim without re-parsing it. This
+	// prevents arguments containing shell metacharacters such as $, `, and
+	// quotes from being interpreted (e.g. command substitution). The token
+	// before them fills $0, which "$@" never references, so it is discarded.
+	// This assumes a POSIX shell; Windows is not supported here.
+	cmdArgs := append([]string{inName}, inArgs...)
+	args = append([]string{"-c", `"$@"`, ""}, cmdArgs...)
 	return name, args, dir, env
 }
 

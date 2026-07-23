@@ -32,13 +32,13 @@ const buildOrderedMessageIDs = (
 	// still exists in a later page). The Map-based messagesByID
 	// already deduplicates, but orderedMessageIDs must match.
 	const seen = new Set<number>();
-	return sorted
-		.map((message) => message.id)
-		.filter((id) => {
-			if (seen.has(id)) return false;
-			seen.add(id);
-			return true;
-		});
+	const orderedMessageIDs: number[] = [];
+	for (const message of sorted) {
+		if (seen.has(message.id)) continue;
+		seen.add(message.id);
+		orderedMessageIDs.push(message.id);
+	}
+	return orderedMessageIDs;
 };
 
 const mapsEqualByRef = <K, V>(left: Map<K, V>, right: Map<K, V>): boolean => {
@@ -142,7 +142,7 @@ const reconnectStatesEqual = (
 
 export const isActiveChatStatus = (
 	status: TypesGen.ChatStatus | null,
-): boolean => status === "running" || status === "pending";
+): boolean => status === "running" || status === "interrupting";
 
 export type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;
@@ -661,26 +661,14 @@ export const selectIsAwaitingFirstStreamChunk = (
 	const latestMessage = selectLatestDurableMessage(state);
 	const latestMessageNeedsAssistantResponse =
 		!latestMessage || latestMessage.role !== "assistant";
-	// Show the "Thinking..." indicator when the store has no stream
-	// data yet and the conversation is waiting for an assistant
-	// response. For "running" status we use the existing broad
-	// check (any non-assistant latest message). For "pending" we
-	// restrict to the case where the latest message is explicitly
-	// a user message — this covers the fresh-send flow (user just
-	// submitted and the server hasn't started streaming yet) while
-	// avoiding a spurious indicator during multi-turn tool-call
-	// cycles, where the latest durable message is a tool result
-	// and the assistant response is still being assembled.
+	// Show the Thinking indicator when the store has no stream
+	// data yet, the chat is running, and the conversation is
+	// waiting for an assistant response (any non-assistant latest
+	// message).
 	if (state.streamState !== null || !latestMessageNeedsAssistantResponse) {
 		return false;
 	}
-	if (state.chatStatus === "running") {
-		return true;
-	}
-	if (state.chatStatus === "pending" && latestMessage?.role === "user") {
-		return true;
-	}
-	return false;
+	return state.chatStatus === "running";
 };
 
 export const useChatSelector = <T>(

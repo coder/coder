@@ -1,7 +1,7 @@
 import { BarChart3Icon } from "lucide-react";
 import type { FC } from "react";
 import type { ChatCostSummary } from "#/api/typesGenerated";
-import { ChatCostSummaryView } from "./components/ChatCostSummaryView";
+import { ChatCostSummaryView } from "#/pages/AISettingsPage/SpendPage/components/ChatCostSummaryView";
 import { SectionHeader } from "./components/SectionHeader";
 
 interface AgentAnalyticsPageViewProps {
@@ -27,7 +27,7 @@ export const AgentAnalyticsPageView: FC<AgentAnalyticsPageViewProps> = ({
 					description="Review your personal Coder Agents usage and cost breakdowns."
 					action={
 						<div className="flex items-center gap-2 text-xs text-content-secondary">
-							<BarChart3Icon className="h-4 w-4" />
+							<BarChart3Icon className="size-4" />
 							<span>{rangeLabel}</span>
 						</div>
 					}

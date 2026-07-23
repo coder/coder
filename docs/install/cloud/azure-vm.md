@@ -56,11 +56,11 @@ as a system service.
 
 For this instance, we will run Coder as a system service, however you can run
 Coder a multitude of different ways. You can learn more about those
-[here](https://coder.com/docs/coder-oss/latest/install).
+[here](https://coder.com/docs/install).
 
 In the Azure VM instance, run the following command to install Coder
 
-```shell
+```sh
 curl -fsSL https://coder.com/install.sh | sh
 ```
 
@@ -68,13 +68,13 @@ curl -fsSL https://coder.com/install.sh | sh
 
 Run the following command to start Coder as a system level service:
 
-```shell
+```sh
 sudo systemctl enable --now coder
 ```
 
 The following command will get you information about the Coder launch service
 
-```shell
+```sh
 journalctl -u coder.service -b
 ```
 
@@ -84,7 +84,7 @@ Embedded in the logs is the Coder Access URL.
 Copy the URL and run the following command to create the first user, either on
 your local machine or in the instance terminal.
 
-```shell
+```sh
 coder login <url***.try.coder.app>
 ```
 
@@ -119,7 +119,7 @@ to initialize the template.
 Run the following commands to copy the Azure credentials and give the `coder`
 user access to them:
 
-```shell
+```sh
 sudo cp -r ~/.azure /home/coder/.azure
 sudo chown -R coder:coder /home/coder/.azure/
 ```
@@ -127,7 +127,7 @@ sudo chown -R coder:coder /home/coder/.azure/
 Navigate to the `./azure-linux` folder where you created your template and run
 the following command to put the template on your Coder instance.
 
-```shell
+```sh
 coder templates push
 ```
 

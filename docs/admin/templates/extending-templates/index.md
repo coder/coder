@@ -6,7 +6,7 @@ templates using the
 [Coder Terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs).
 The provider docs will provide code examples for usage; alternatively, you can
 view our
-[example templates](https://github.com/coder/coder/tree/main/examples/templates)
+[example templates](../../../../examples/templates)
 to get started.
 
 ## Workspace agents
@@ -95,7 +95,7 @@ You can use these examples to add new Coder apps:
 
 ## code-server
 
-```hcl
+```tf
 resource "coder_app" "code-server" {
   agent_id     = coder_agent.main.id
   slug         = "code-server"
@@ -109,7 +109,7 @@ resource "coder_app" "code-server" {
 
 ## Filebrowser
 
-```hcl
+```tf
 resource "coder_app" "filebrowser" {
   agent_id     = coder_agent.main.id
   display_name = "file browser"
@@ -123,7 +123,7 @@ resource "coder_app" "filebrowser" {
 
 ## Zed
 
-```hcl
+```tf
 resource "coder_app" "zed" {
     agent_id = coder_agent.main.id
     slug          = "slug"

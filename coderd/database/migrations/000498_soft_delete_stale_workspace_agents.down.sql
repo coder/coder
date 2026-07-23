@@ -1,0 +1,3 @@
+-- The backfill is not reversed: soft-deleted agents tied to stopped/deleted
+-- builds are no longer referenced anywhere. Restoring deleted=FALSE would
+-- only re-create the ambiguity the forward migration fixed.

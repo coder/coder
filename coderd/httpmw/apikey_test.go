@@ -471,6 +471,39 @@ func TestAPIKey(t *testing.T) {
 		require.NotEqual(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
 	})
 
+	t.Run("TokenNoExpiryRefresh", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _             = dbtestutil.NewDB(t)
+			user              = dbgen.User(t, db, database.User{})
+			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				LastUsed:  dbtime.Now(),
+				ExpiresAt: dbtime.Now().Add(time.Minute),
+				LoginType: database.LoginTypeToken,
+			})
+
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
+		require.NoError(t, err)
+
+		// Programmatic tokens honor a fixed lifetime, so the expiry must not be
+		// extended on use even though it is within the refresh window.
+		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
+	})
+
 	t.Run("NoRefresh", func(t *testing.T) {
 		t.Parallel()
 		var (

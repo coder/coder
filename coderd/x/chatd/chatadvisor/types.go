@@ -15,7 +15,7 @@ const (
 
 // AdvisorArgs contains the tool-visible advisor question.
 type AdvisorArgs struct {
-	Question string `json:"question"`
+	Question string `json:"question" description:"A brief question for the advisor. Must be 2000 runes or fewer. Summarize context instead of pasting long logs or transcripts."`
 }
 
 // AdvisorResult is the structured result returned by the advisor runtime.

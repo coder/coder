@@ -1,6 +1,7 @@
 package workspacesdk_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -30,6 +31,59 @@ func TestParseSkillFrontmatter(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "quoted-name", name)
 		require.Equal(t, "single-quoted", desc)
+	})
+
+	t.Run("EscapedDoubleQuotedValue", func(t *testing.T) {
+		t.Parallel()
+		_, desc, _, err := workspacesdk.ParseSkillFrontmatter(
+			"---\nname: escaped\ndescription: \"Review \\\"critical\\\" C:\\\\paths.\"\n---\nBody\n",
+		)
+		require.NoError(t, err)
+		require.Equal(t, "Review \"critical\" C:\\paths.", desc)
+	})
+
+	t.Run("FoldedDescription", func(t *testing.T) {
+		t.Parallel()
+		name, desc, body, err := workspacesdk.ParseSkillFrontmatter(
+			strings.Join([]string{
+				"---",
+				"name: brainstorming",
+				"description: >",
+				"  Use before any creative work: features, components, functionality changes,",
+				"  or behavior modifications. Turns ideas into approved designs through",
+				"  collaborative dialog. Hard gate: no implementation action until the",
+				"  design is presented and approved.",
+				"",
+				"---",
+				"Use this skill.",
+			}, "\n"),
+		)
+		require.NoError(t, err)
+		require.Equal(t, "brainstorming", name)
+		require.Equal(t, strings.Join([]string{
+			"Use before any creative work: features, components, functionality changes,",
+			"or behavior modifications. Turns ideas into approved designs through",
+			"collaborative dialog. Hard gate: no implementation action until the",
+			"design is presented and approved.",
+		}, " "), desc)
+		require.Equal(t, "Use this skill.", body)
+	})
+
+	t.Run("YAMLComments", func(t *testing.T) {
+		t.Parallel()
+		_, desc, _, err := workspacesdk.ParseSkillFrontmatter(
+			"---\nname: plain-hash\ndescription: Build # test\n---\nBody\n",
+		)
+		require.NoError(t, err)
+		require.Equal(t, "Build", desc)
+	})
+
+	t.Run("ErrorNullDescription", func(t *testing.T) {
+		t.Parallel()
+		_, _, _, err := workspacesdk.ParseSkillFrontmatter(
+			"---\nname: null-description\ndescription: null\n---\nBody\n",
+		)
+		require.ErrorContains(t, err, `frontmatter field "description" must be a string`)
 	})
 
 	t.Run("NoDescription", func(t *testing.T) {
@@ -81,14 +135,12 @@ func TestParseSkillFrontmatter(t *testing.T) {
 		require.Empty(t, body)
 	})
 
-	t.Run("CaseInsensitiveKeys", func(t *testing.T) {
+	t.Run("YAMLKeysAreCaseSensitive", func(t *testing.T) {
 		t.Parallel()
-		name, desc, _, err := workspacesdk.ParseSkillFrontmatter(
+		_, _, _, err := workspacesdk.ParseSkillFrontmatter(
 			"---\nName: upper\nDescription: Also upper\n---\n",
 		)
-		require.NoError(t, err)
-		require.Equal(t, "upper", name)
-		require.Equal(t, "Also upper", desc)
+		require.ErrorIs(t, err, workspacesdk.ErrFrontmatterNameRequired)
 	})
 
 	t.Run("UnknownKeysIgnored", func(t *testing.T) {
@@ -117,7 +169,17 @@ func TestParseSkillFrontmatter(t *testing.T) {
 		_, _, _, err := workspacesdk.ParseSkillFrontmatter(
 			"---\ndescription: no name\n---\n",
 		)
+		require.ErrorIs(t, err, workspacesdk.ErrFrontmatterNameRequired)
 		require.ErrorContains(t, err, "frontmatter missing required 'name' field")
+	})
+
+	t.Run("ErrorNullName", func(t *testing.T) {
+		t.Parallel()
+		_, _, _, err := workspacesdk.ParseSkillFrontmatter(
+			"---\nname: null\n---\nBody\n",
+		)
+		require.ErrorIs(t, err, workspacesdk.ErrFrontmatterNameRequired)
+		require.ErrorContains(t, err, `frontmatter field "name" must be a string`)
 	})
 
 	t.Run("WhitespaceAroundDelimiters", func(t *testing.T) {

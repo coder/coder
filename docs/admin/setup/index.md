@@ -21,7 +21,7 @@ to reverse proxy your deployment for simple setup.
 
 You can change which port(s) Coder listens on.
 
-```shell
+```sh
 # Listen on port 80
 export CODER_HTTP_ADDRESS=0.0.0.0:80
 
@@ -56,7 +56,7 @@ If you are providing TLS certificates directly to the Coder server, either
 
 1. Use a single certificate and key for both the root and wildcard domains.
 1. Configure multiple certificates and keys via
-   [`coder.tls.secretNames`](https://github.com/coder/coder/blob/main/helm/coder/values.yaml)
+   [`coder.tls.secretNames`](../../../helm/coder/values.yaml)
    in the Helm Chart, or
    [`--tls-cert-file`](../../reference/cli/server.md#--tls-cert-file) and
    [`--tls-key-file`](../../reference/cli/server.md#--tls-key-file) command line
@@ -83,7 +83,7 @@ working directory prior to step 1.
 
 1. Create the TLS secret in your Kubernetes cluster
 
-   ```shell
+   ```sh
    kubectl create secret tls coder-tls -n <coder-namespace> --key="tls.key" --cert="tls.crt"
    ```
 
