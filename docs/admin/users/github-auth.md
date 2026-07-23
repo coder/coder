@@ -85,28 +85,13 @@ CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE=false
 
 ## Step 2: Configure Coder with the OAuth credentials
 
-Coder server reads these settings from environment variables. On a host
-running Coder as a system service, add the variables to
-`/etc/coder.d/coder.env`:
+Coder server reads these settings from environment variables. Set them
+wherever your deployment manages environment variables. For example, use
+Helm `values.yaml` for Kubernetes or `/etc/coder.d/coder.env` for a system
+service.
 
-```sh
-CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS=true
-CODER_OAUTH2_GITHUB_ALLOWED_ORGS="your-org"
-CODER_OAUTH2_GITHUB_CLIENT_ID="8d1...e05"
-CODER_OAUTH2_GITHUB_CLIENT_SECRET="57ebc9...02c24c"
-```
-
-Then restart Coder with `sudo service coder restart`. For GitHub Enterprise
-support, also set `CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL`.
-
-> [!TIP]
-> To allow everyone to sign up using GitHub, set:
->
-> ```shell
-> CODER_OAUTH2_GITHUB_ALLOW_EVERYONE=true
-> ```
-
-If deploying Coder via Helm, set the same variables in `values.yaml`:
+**Kubernetes (Helm):** set the variables under `coder.env` in your
+`values.yaml`:
 
 ```yaml
 coder:
@@ -125,19 +110,40 @@ coder:
     #  value: "true"
 ```
 
-Then upgrade Coder with:
+Then apply the change with `helm upgrade`:
 
 ```sh
 helm upgrade <release-name> coder-v2/coder -n <namespace> -f values.yaml
 ```
+
+**System service:** add the variables to `/etc/coder.d/coder.env`:
+
+```sh
+CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS=true
+CODER_OAUTH2_GITHUB_ALLOWED_ORGS="your-org"
+CODER_OAUTH2_GITHUB_CLIENT_ID="8d1...e05"
+CODER_OAUTH2_GITHUB_CLIENT_SECRET="57ebc9...02c24c"
+```
+
+Then restart Coder with `sudo service coder restart`.
+
+> [!TIP]
+> To allow everyone to sign up using GitHub, set:
+>
+> ```shell
+> CODER_OAUTH2_GITHUB_ALLOW_EVERYONE=true
+> ```
+
+For GitHub Enterprise support, also set
+`CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL`.
 
 > [!NOTE]
 > Every option above also has an equivalent CLI flag (for example,
 > `CODER_OAUTH2_GITHUB_CLIENT_ID` becomes `--oauth2-github-client-id`).
 > CLI flags are convenient for ad-hoc invocations of `coder server` during
 > local development. For production deployments, prefer environment
-> variables so the configuration lives with the service unit, container, or
-> Helm chart that manages Coder. See the
+> variables so the configuration lives with the container, Helm chart, or
+> service unit that manages Coder. See the
 > [configuration reference](../setup/configuration-reference.md) for the
 > full mapping between environment variables and flags.
 
