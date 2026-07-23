@@ -847,8 +847,8 @@ var (
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
-				Identifier:  rbac.RoleIdentifier{Name: "external-auth-checker"},
-				DisplayName: "External Auth Checker",
+				Identifier:  rbac.RoleIdentifier{Name: "external-auth-coordinator"},
+				DisplayName: "External Auth Coordinator",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					// policy.ActionUpdatePersonal allows us to refresh tokens.
 					rbac.ResourceUser.Type: {policy.ActionReadPersonal, policy.ActionUpdatePersonal},

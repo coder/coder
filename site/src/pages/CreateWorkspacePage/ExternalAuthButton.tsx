@@ -17,9 +17,10 @@ interface ExternalAuthButtonProps {
 	isLoading: boolean;
 	onStartPolling: () => void;
 	error?: unknown;
-	// canAuthenticate is false when an admin is creating a workspace for another
-	// user. The login flow authenticates the current session, so it cannot
-	// connect a provider on the owner's behalf and is hidden in that case.
+	/**
+	 * Users can only connect external auth for themselves. An admin creating a
+	 * workspace for someone else should just be shown the status.
+	 */
 	canAuthenticate?: boolean;
 }
 
