@@ -39,7 +39,7 @@ const pillLayoutVariants = cva(
 		variants: {
 			size: {
 				md: "h-6",
-				lg: "",
+				lg: "h-[30px]",
 			},
 			withIcon: {
 				true: "",
@@ -60,12 +60,12 @@ const pillLayoutVariants = cva(
 			{
 				size: "lg",
 				withIcon: false,
-				class: "gap-2.5 py-3.5 px-4",
+				class: "gap-2.5 px-4",
 			},
 			{
 				size: "lg",
 				withIcon: true,
-				class: "gap-2.5 py-3.5 pr-4 pl-2.5",
+				class: "gap-2.5 pr-4 pl-2.5",
 			},
 		],
 		defaultVariants: {
