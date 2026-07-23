@@ -175,9 +175,8 @@ To opt in, set:
 CODER_SCIM_USE_LEGACY=false
 ```
 
-This is also available as the `--scim-use-legacy` server flag and the
-`scimUseLegacy` YAML option. Changing it requires a restart of the Coder
-server.
+This is also available as the `--scim-use-legacy` server flag and the `scimUseLegacy` YAML option.
+Changing it requires a restart of the Coder server.
 
 Behavior notes:
 
