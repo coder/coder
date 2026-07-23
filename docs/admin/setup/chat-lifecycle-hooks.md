@@ -24,7 +24,7 @@ CODER_EXPERIMENTS=agent-lifecycle-hooks
 ```
 
 Without the experiment, an enabled hook configuration is inactive: `coder server` logs a warning at startup and dispatches no hook events.
-Enabled hook settings are still validated at startup. Setting `CODER_CHAT_HOOK_ENABLED=false` makes the URL, secret, and timeout inert and skips their validation.
+Enabled hook settings are still validated at startup when a hook URL is set. Leaving the URL unset, or setting `CODER_CHAT_HOOK_ENABLED=false`, makes the hook settings inert and skips their validation.
 The experiment list is read at startup, so enabling or disabling it requires a `coder server` restart.
 
 Set the following deployment options on `coder server`.
