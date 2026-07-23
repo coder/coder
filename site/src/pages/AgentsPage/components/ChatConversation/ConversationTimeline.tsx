@@ -833,6 +833,7 @@ const StickyUserMessage = memo<{
 	nextUserMessageId?: number;
 	onJumpToUserMessage?: (messageId: number) => void;
 	registerSentinel?: (messageId: number, el: HTMLDivElement | null) => void;
+	urlTransform?: UrlTransform;
 }>(
 	({
 		message,
@@ -844,6 +845,7 @@ const StickyUserMessage = memo<{
 		nextUserMessageId,
 		onJumpToUserMessage,
 		registerSentinel,
+		urlTransform,
 	}) => {
 		const [isStuck, setIsStuck] = useState(false);
 		const [isReady, setIsReady] = useState(false);
@@ -1087,6 +1089,7 @@ const StickyUserMessage = memo<{
 							prevUserMessageId={prevUserMessageId}
 							nextUserMessageId={nextUserMessageId}
 							onJumpToUserMessage={onJumpToUserMessage}
+							urlTransform={urlTransform}
 						/>
 					</div>
 
@@ -1132,6 +1135,7 @@ const StickyUserMessage = memo<{
 									prevUserMessageId={prevUserMessageId}
 									nextUserMessageId={nextUserMessageId}
 									onJumpToUserMessage={onJumpToUserMessage}
+									urlTransform={urlTransform}
 									fadeFromBottom
 								/>
 							</div>
@@ -1330,6 +1334,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									nextUserMessageId={userNeighborsById.get(message.id)?.nextId}
 									onJumpToUserMessage={jumpToUserMessage}
 									registerSentinel={registerSentinel}
+									urlTransform={urlTransform}
 								/>
 							);
 						}
