@@ -17,20 +17,27 @@ import {
 import CreateWorkspacePage from "./CreateWorkspacePage";
 
 /**
- * Mocks API.templateVersionDynamicParameters to immediately send an empty
- * DynamicParametersResponse so the page renders the form instead of the
- * loader.
+ * Mocks API.templateVersionDynamicParameters so the page renders the form
+ * instead of the loader. The page waits for the socket to open (which sends
+ * the initial parameters and records the response ID to wait for) and then
+ * for a response with at least that ID, so the mock fires onOpen followed by
+ * the server's initial id: -1 response.
  */
 function mockDynamicParameters() {
 	spyOn(API, "templateVersionDynamicParameters").mockImplementation(
 		(_versionId, _ownerId, callbacks) => {
-			// Fire asynchronously so the component mounts before the message
-			// arrives, matching real WebSocket behavior.
+			// Fire asynchronously so the component mounts before the socket
+			// events arrive, matching real WebSocket behavior.
 			setTimeout(() => {
-				callbacks.onMessage({ id: 0, parameters: [], diagnostics: [] });
+				callbacks.onOpen?.();
+				callbacks.onMessage({ id: -1, parameters: [], diagnostics: [] });
 			}, 0);
 
-			return { close: () => {} } as unknown as WebSocket;
+			return {
+				readyState: WebSocket.OPEN,
+				send: () => {},
+				close: () => {},
+			} as unknown as WebSocket;
 		},
 	);
 }
