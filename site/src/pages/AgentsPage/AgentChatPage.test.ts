@@ -1,14 +1,18 @@
 import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChatQueuedMessage } from "#/api/typesGenerated";
-import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import type { ChatMessage, ChatQueuedMessage } from "#/api/typesGenerated";
+import {
+	MockChatMessage,
+	MockChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
 import { MockUserOwner, MockWorkspace } from "#/testHelpers/entities";
 import {
 	draftInputStorageKeyPrefix,
 	getPersistedDraftInputValue,
 	getWorkspaceOptionsWithLinkedWorkspace,
+	reconcilePromotedQueueHead,
 	restoreOptimisticRequestSnapshot,
 	runPromoteQueuedMessage,
 	submitEditAndScroll,
@@ -281,6 +285,100 @@ describe("runPromoteQueuedMessage", () => {
 		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id, b.id]);
 		expect(snapshot.chatStatus).toBe("waiting");
 		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(false);
+	});
+});
+
+describe("reconcilePromotedQueueHead", () => {
+	const buildQueuedMessage = (id: number, text: string): ChatQueuedMessage => ({
+		...MockChatQueuedMessage,
+		id,
+		content: [{ type: "text", text }],
+	});
+	const userMessage: ChatMessage = { ...MockChatMessage, id: 10, role: "user" };
+	const toolMessage: ChatMessage = { ...MockChatMessage, id: 9, role: "tool" };
+
+	it("suppresses the captured head and appends the queued tail", () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		const tail = buildQueuedMessage(3, "C");
+		store.setQueuedMessages([a, b]);
+
+		const reconciled = reconcilePromotedQueueHead(
+			store,
+			[toolMessage, userMessage],
+			a.id,
+			tail,
+		);
+
+		const snapshot = store.getSnapshot();
+		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([b.id, tail.id]);
+		expect(snapshot.suppressedQueuedMessageIDs.has(a.id)).toBe(true);
+		expect(reconciled?.map((m) => m.id)).toEqual([b.id, tail.id]);
+	});
+
+	it("does not suppress the rotated head when a queue_update already applied", () => {
+		const store = createChatStore();
+		// Pre-send queue was [a, b]; a was promoted and c was queued,
+		// and the authoritative post-promotion snapshot [b, c] landed
+		// before the send response. Re-appending c must not duplicate it.
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		const c = buildQueuedMessage(3, "C");
+		store.setQueuedMessages([b, c]);
+
+		reconcilePromotedQueueHead(store, [userMessage], a.id, c);
+
+		const snapshot = store.getSnapshot();
+		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([b.id, c.id]);
+		expect(snapshot.suppressedQueuedMessageIDs.has(a.id)).toBe(true);
+		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(false);
+		expect(snapshot.suppressedQueuedMessageIDs.has(c.id)).toBe(false);
+
+		// A late pre-promotion snapshot must not resurrect the
+		// promoted row, while the post-promotion snapshot clears the
+		// suppression entry.
+		store.applyAuthoritativeQueuedMessages([a, b, c]);
+		expect(store.getSnapshot().queuedMessages.map((m) => m.id)).toEqual([
+			b.id,
+			c.id,
+		]);
+		store.applyAuthoritativeQueuedMessages([b, c]);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
+	});
+
+	it("does nothing when no user row was inserted", () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		store.setQueuedMessages([a]);
+
+		const reconciled = reconcilePromotedQueueHead(
+			store,
+			[toolMessage],
+			a.id,
+			buildQueuedMessage(2, "B"),
+		);
+
+		const snapshot = store.getSnapshot();
+		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id]);
+		expect(snapshot.suppressedQueuedMessageIDs.size).toBe(0);
+		expect(reconciled).toBeUndefined();
+	});
+
+	it("does nothing when no head was captured before the send", () => {
+		const store = createChatStore();
+
+		const reconciled = reconcilePromotedQueueHead(
+			store,
+			[userMessage],
+			undefined,
+			buildQueuedMessage(1, "A"),
+		);
+
+		const snapshot = store.getSnapshot();
+		expect(snapshot.queuedMessages).toEqual([]);
+		expect(snapshot.suppressedQueuedMessageIDs.size).toBe(0);
+		expect(reconciled).toBeUndefined();
 	});
 });
 

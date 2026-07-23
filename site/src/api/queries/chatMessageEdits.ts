@@ -117,28 +117,40 @@ export const projectEditedConversationIntoCache = ({
 export const reconcileEditedMessageInCache = ({
 	currentData,
 	optimisticMessageId,
-	responseMessage,
+	responseMessages,
+	deletedMessageIds,
 }: {
 	currentData: InfiniteData<TypesGen.ChatMessagesResponse> | undefined;
 	optimisticMessageId: number;
-	responseMessage: TypesGen.ChatMessage;
+	// Every message the edit inserted, in insertion order. All of them
+	// must land in the cache, or a stream reconnect keyed on the
+	// highest cached ID would skip rows around the replacement.
+	responseMessages: readonly TypesGen.ChatMessage[];
+	// Messages the edit soft-deleted. Dropped here so the cache does
+	// not keep them if the history reset event is missed.
+	deletedMessageIds?: readonly number[];
 }): InfiniteData<TypesGen.ChatMessagesResponse> | undefined => {
-	if (!currentData?.pages?.length) {
+	if (!currentData?.pages?.length || responseMessages.length === 0) {
 		return currentData;
 	}
 
+	const responseIDs = new Set(responseMessages.map((message) => message.id));
+	const deletedIDs = new Set(deletedMessageIds ?? []);
 	const replacedPages = currentData.pages.map((page, pageIndex) => {
 		const preservedMessages = page.messages.filter(
 			(message) =>
-				message.id !== optimisticMessageId && message.id !== responseMessage.id,
+				message.id !== optimisticMessageId &&
+				!responseIDs.has(message.id) &&
+				!deletedIDs.has(message.id),
 		);
 		if (pageIndex !== 0) {
 			return { ...page, messages: preservedMessages };
 		}
-		return {
-			...page,
-			messages: upsertFirstPageMessage(preservedMessages, responseMessage),
-		};
+		let messages = preservedMessages;
+		for (const responseMessage of responseMessages) {
+			messages = upsertFirstPageMessage(messages, responseMessage);
+		}
+		return { ...page, messages };
 	});
 
 	return {

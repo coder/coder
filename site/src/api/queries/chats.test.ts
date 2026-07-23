@@ -1061,37 +1061,6 @@ describe("mutation invalidation scope", () => {
 		).toBe(true);
 	});
 
-	it("editChatMessage onError invalidates messages", async () => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		const messages = [3, 2, 1].map((id) => makeMsg(chatId, id));
-
-		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
-			pages: [{ messages, queued_messages: [], has_more: false }],
-			pageParams: [undefined],
-		});
-
-		const mutation = editChatMessage(queryClient, chatId);
-		mutation.onError(
-			new Error("fail"),
-			{ messageId: 2, req: editReq },
-			{
-				previousData: {
-					pages: [{ messages, queued_messages: [], has_more: false }],
-					pageParams: [undefined],
-				},
-			},
-		);
-
-		await new Promise((r) => setTimeout(r, 0));
-
-		const messagesState = queryClient.getQueryState(chatMessagesKey(chatId));
-		expect(
-			messagesState?.isInvalidated,
-			"chatMessagesKey should be invalidated on error",
-		).toBe(true);
-	});
-
 	// Shared type for the infinite messages cache shape used by
 	// editChatMessage tests below.
 	type InfMessages = {
@@ -1137,6 +1106,37 @@ describe("mutation invalidation scope", () => {
 			originalMessage: message,
 			requestContent: editReq.content,
 		});
+
+	it("editChatMessage onError invalidates messages", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const messages = [3, 2, 1].map((id) => makeMsg(chatId, id));
+
+		queryClient.setQueryData<InfMessages>(chatMessagesKey(chatId), {
+			pages: [{ messages, queued_messages: [], has_more: false }],
+			pageParams: [undefined],
+		});
+
+		const mutation = editChatMessage(queryClient, chatId);
+		mutation.onError(
+			new Error("fail"),
+			{ messageId: 2, req: editReq },
+			{
+				previousData: {
+					pages: [{ messages, queued_messages: [], has_more: false }],
+					pageParams: [undefined],
+				},
+			},
+		);
+
+		await new Promise((r) => setTimeout(r, 0));
+
+		const messagesState = queryClient.getQueryState(chatMessagesKey(chatId));
+		expect(
+			messagesState?.isInvalidated,
+			"chatMessagesKey should be invalidated on error",
+		).toBe(true);
+	});
 
 	it("editChatMessage writes the optimistic replacement into cache", async () => {
 		const queryClient = createTestQueryClient();
