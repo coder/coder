@@ -454,6 +454,14 @@ Path to the TLS private key file for the AI Gateway Proxy listener. Must be set 
 - CLI flag: [`--ai-gateway-proxy-tls-key-file`](../../reference/cli/server.md#--ai-gateway-proxy-tls-key-file)
 - YAML key: `ai_gateway_proxy.tls_key_file`
 
+### Target
+
+Base URL of the AI Gateway to forward intercepted requests to. Defaults to the embedded AI Gateway address at the Coder access URL plus /api/v2/ai-gateway.
+
+- Environment variable: `CODER_AI_GATEWAY_PROXY_TARGET`
+- CLI flag: [`--ai-gateway-proxy-target`](../../reference/cli/server.md#--ai-gateway-proxy-target)
+- YAML key: `ai_gateway_proxy.target`
+
 ### Upstream proxy
 
 URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.
@@ -1402,7 +1410,7 @@ Organizations the user must be a member of to Login with GitHub.
 
 #### Allowed teams
 
-Teams inside organizations the user must be a member of to Login with GitHub. Structured as: <organization-name>/<team-slug>.
+Teams inside organizations the user must be a member of to Login with GitHub. Structured as: `<organization-name>/<team-slug>`.
 
 - Environment variable: `CODER_OAUTH2_GITHUB_ALLOWED_TEAMS`
 - CLI flag: [`--oauth2-github-allowed-teams`](../../reference/cli/server.md#--oauth2-github-allowed-teams)
