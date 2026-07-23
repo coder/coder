@@ -163,9 +163,8 @@ CODER_SCIM_AUTH_HEADER="your-api-key"
 
 ### SCIM 2.0 handler
 
-Coder includes an opt-in SCIM 2.0 handler that follows
-[RFC 7644](https://datatracker.ietf.org/doc/html/rfc7644) and has been
-verified against an external SCIM 2.0 compliance suite. It supports:
+Coder includes an opt-in SCIM 2.0 handler that follows [RFC 7644](https://datatracker.ietf.org/doc/html/rfc7644) and has been verified against an external SCIM 2.0 compliance suite.
+It supports the following:
 
 - User provisioning and deprovisioning
 - User listing
