@@ -1,10 +1,11 @@
--- Drop the view before the columns it references, then recreate it without
--- the summary columns, matching the 000542 chats_expanded definition.
-DROP VIEW IF EXISTS chats_expanded;
-
+-- Persisted whole-chat summary and its freshness marker, distinct from
+-- last_turn_summary (which only reflects the most recent turn).
 ALTER TABLE chats
-    DROP COLUMN summary,
-    DROP COLUMN summary_generated_at;
+    ADD COLUMN summary TEXT,
+    ADD COLUMN summary_generated_at TIMESTAMPTZ;
+
+-- Recreate chats_expanded: its explicit column list hides new columns otherwise.
+DROP VIEW IF EXISTS chats_expanded;
 
 CREATE VIEW chats_expanded AS
  SELECT c.id,
@@ -35,6 +36,8 @@ CREATE VIEW chats_expanded AS
     c.plan_mode,
     c.client_type,
     c.last_turn_summary,
+    c.summary,
+    c.summary_generated_at,
     c.snapshot_version,
     c.history_version,
     c.queue_version,
@@ -50,7 +53,8 @@ CREATE VIEW chats_expanded AS
     c.context_aggregate_hash,
     c.context_dirty_since,
     c.context_dirty_resources,
-    c.context_error
+    c.context_error,
+    c.compaction_requested_at
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));

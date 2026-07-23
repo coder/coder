@@ -1063,6 +1063,7 @@ jobs:
         name: Snapshot
         env:
           PIXEL_KEY: ${{ secrets.PIXEL_KEY }}
+          PIXEL_AUTO_REVIEW: ${{ github.repository_owner == 'coder' && github.ref_name == 'main' }}
 
   offlinedocs:
     name: offlinedocs
@@ -1280,7 +1281,7 @@ jobs:
 
       # Necessary for signing Windows binaries.
       - name: Setup Java
-        uses: actions/setup-java@0f481fcb613427c0f801b606911222b5b6f3083a # v5.5.0
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           distribution: "zulu"
           java-version: "11.0"

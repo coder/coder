@@ -134,6 +134,9 @@ type generationDecision struct {
 	pendingDynamicToolCalls []pendingDynamicToolCall
 	finishReason            generationFinishReason
 	promotedMessageID       int64
+	// forced marks a compact action triggered by a manual
+	// compaction request rather than the usage threshold.
+	forced bool
 }
 
 type generationRetryDecision struct {
@@ -202,6 +205,20 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	}
 	if len(dynamicCalls) > 0 {
 		return generationDecision{kind: generationActionEnterRequiresAction, pendingDynamicToolCalls: dynamicCalls}, nil
+	}
+
+	// A manual compaction request wins over every non-tool decision:
+	// idle chats would otherwise finish the turn via the
+	// history-complete check before ever compacting. The request is
+	// ignored when nothing after the latest boundary is compactable
+	// (for example the history was edited between request and
+	// execution); the stale marker is then cleared by the terminal
+	// transition of this turn.
+	if input.chat.CompactionRequestedAt.Valid {
+		boundary := latestCompactionBoundaryIndex(input.messages)
+		if _, ok := firstUncompressedAssistantAfter(input.messages, boundary); ok {
+			return generationDecision{kind: generationActionCompact, forced: true}, nil
+		}
 	}
 
 	stopAfter, err := historyHasStopAfterToolResult(input.messages, input.stopAfterTools)
@@ -377,7 +394,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		case generationActionExecuteLocalTools:
 			actionErr = s.executeLocalTools(ctx, machine, input, prepared, decision)
 		case generationActionCompact:
-			actionErr = s.generateCompaction(ctx, machine, input, prepared)
+			actionErr = s.generateCompaction(ctx, machine, input, prepared, compactionSourceForDecision(decision))
 		default:
 			return s.finishGenerationError(ctx, machine, input, xerrors.Errorf("unknown generation action %q", decision.kind), generationAttemptNotRequired)
 		}
@@ -684,11 +701,22 @@ func (s *taskStarter) executeLocalTools(
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages)
 }
 
+// compactionSourceForDecision maps a compact decision to the
+// compaction source recorded in the summary messages. Manual
+// requests also force the compaction past the usage-threshold gates.
+func compactionSourceForDecision(decision generationDecision) chatloop.CompactionSource {
+	if decision.forced {
+		return chatloop.CompactionSourceManual
+	}
+	return chatloop.CompactionSourceAutomatic
+}
+
 func (s *taskStarter) generateCompaction(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
 	prepared generationPrepared,
+	source chatloop.CompactionSource,
 ) error {
 	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
@@ -724,6 +752,8 @@ func (s *taskStarter) generateCompaction(
 		)
 	}
 	compactionOpts.PublishMessagePart = attempt.publish
+	compactionOpts.Source = source
+	compactionOpts.Force = source == chatloop.CompactionSourceManual
 	// Attach the turn debug run so the compaction call records a child
 	// debug run; without it startCompactionDebugRun finds no parent and
 	// skips debug instrumentation entirely.
@@ -750,8 +780,9 @@ func (s *taskStarter) generateCompaction(
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
 	err = s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionCompact, stepMessagesForCommit{
-		Messages:       messages.Messages,
-		VisibleIndexes: visibleMessageIndexes(messages.Messages),
+		Messages:                 messages.Messages,
+		VisibleIndexes:           visibleMessageIndexes(messages.Messages),
+		ConsumeCompactionRequest: true,
 	})
 	s.server.metrics.RecordCompaction(metricProvider, metricModel, err == nil, err)
 	if err != nil {
@@ -857,7 +888,10 @@ func (s *taskStarter) commitGenerationStep(
 		if _, err := loadChatForGeneration(ctx, store, input, requireGenerationAttempt(attempt)); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
-		commitResult, err := tx.CommitStep(chatstate.CommitStepInput{Messages: messages.Messages})
+		commitResult, err := tx.CommitStep(chatstate.CommitStepInput{
+			Messages:                 messages.Messages,
+			ConsumeCompactionRequest: messages.ConsumeCompactionRequest,
+		})
 		if err != nil {
 			return xerrors.Errorf("tx.CommitStep: %w", err)
 		}

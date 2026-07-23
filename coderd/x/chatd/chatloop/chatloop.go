@@ -278,6 +278,14 @@ type GenerateCompactionOptions struct {
 	StepUsage            fantasy.Usage
 	StepMetadata         fantasy.ProviderMetadata
 
+	// Force skips the threshold gate (including the threshold=100
+	// disable and the zero-usage early return). Set for manual,
+	// user-requested compactions.
+	Force bool
+	// Source labels what triggered the compaction. Defaults to
+	// CompactionSourceAutomatic when empty.
+	Source CompactionSource
+
 	DebugSvc            *chatdebug.Service
 	ChatID              uuid.UUID
 	HistoryTipMessageID int64

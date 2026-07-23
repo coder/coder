@@ -483,6 +483,10 @@
       "models": [
         "string"
       ],
+      "network_calls": {
+        "blocked": 0,
+        "total": 0
+      },
       "providers": [
         "string"
       ],
@@ -598,6 +602,10 @@
   "models": [
     "string"
   ],
+  "network_calls": {
+    "blocked": 0,
+    "total": 0
+  },
   "providers": [
     "string"
   ],
@@ -614,21 +622,38 @@
 
 ### Properties
 
-| Name                  | Type                                                                                   | Required | Restrictions | Description |
-|-----------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `client`              | string                                                                                 | false    |              |             |
-| `ended_at`            | string                                                                                 | false    |              |             |
-| `id`                  | string                                                                                 | false    |              |             |
-| `initiator`           | [codersdk.MinimalUser](#codersdkminimaluser)                                           | false    |              |             |
-| `last_active_at`      | string                                                                                 | false    |              |             |
-| `last_prompt`         | string                                                                                 | false    |              |             |
-| `metadata`            | object                                                                                 | false    |              |             |
-| » `[any property]`    | any                                                                                    | false    |              |             |
-| `models`              | array of string                                                                        | false    |              |             |
-| `providers`           | array of string                                                                        | false    |              |             |
-| `started_at`          | string                                                                                 | false    |              |             |
-| `threads`             | integer                                                                                | false    |              |             |
-| `token_usage_summary` | [codersdk.AIBridgeSessionTokenUsageSummary](#codersdkaibridgesessiontokenusagesummary) | false    |              |             |
+| Name                  | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                           |
+|-----------------------|------------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client`              | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `ended_at`            | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `id`                  | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `initiator`           | [codersdk.MinimalUser](#codersdkminimaluser)                                             | false    |              |                                                                                                                                                                                                                                       |
+| `last_active_at`      | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `last_prompt`         | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `metadata`            | object                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| » `[any property]`    | any                                                                                      | false    |              |                                                                                                                                                                                                                                       |
+| `models`              | array of string                                                                          | false    |              |                                                                                                                                                                                                                                       |
+| `network_calls`       | [codersdk.AIBridgeSessionNetworkCallSummary](#codersdkaibridgesessionnetworkcallsummary) | false    |              | Network calls summarizes the Agent Firewall network calls made during the session. A nil value means the session did not pass through Agent Firewall, so network call monitoring was not active, which the UI surfaces as "Disabled". |
+| `providers`           | array of string                                                                          | false    |              |                                                                                                                                                                                                                                       |
+| `started_at`          | string                                                                                   | false    |              |                                                                                                                                                                                                                                       |
+| `threads`             | integer                                                                                  | false    |              |                                                                                                                                                                                                                                       |
+| `token_usage_summary` | [codersdk.AIBridgeSessionTokenUsageSummary](#codersdkaibridgesessiontokenusagesummary)   | false    |              |                                                                                                                                                                                                                                       |
+
+## codersdk.AIBridgeSessionNetworkCallSummary
+
+```json
+{
+  "blocked": 0,
+  "total": 0
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description |
+|-----------|---------|----------|--------------|-------------|
+| `blocked` | integer | false    |              |             |
+| `total`   | integer | false    |              |             |
 
 ## codersdk.AIBridgeSessionThreadsResponse
 
@@ -7721,12 +7746,12 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                 | Type                                             | Required | Restrictions | Description                                                                                                                                                                                                                                         |
-|----------------------|--------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `effective_group_id` | string                                           | false    |              | Effective group ID is the user's effective budget group within the queried group's organization. Null when no effective budget group is visible in this organization, including when the user's budget resolves to a group in another organization. |
-| `group_budget`       | [codersdk.AIGroupBudget](#codersdkaigroupbudget) | false    |              | Group budget is the budget when the queried group is this user's effective budget source. Null when the user's budget resolves to another group or no budget applies to the user.                                                                   |
-| `group_spend_micros` | integer                                          | false    |              | Group spend micros is the user's spend attributed to the queried group over the current budget period.                                                                                                                                              |
-| `user_id`            | string                                           | false    |              |                                                                                                                                                                                                                                                     |
+| Name                 | Type                                             | Required | Restrictions | Description                                                                                                                                                                                                                                           |
+|----------------------|--------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `effective_group_id` | string                                           | false    |              | Effective group ID is the user's effective budget group within the queried group's organization, falling back to the Everyone group when no budget applies. Null when the effective group belongs to a different organization than the queried group. |
+| `group_budget`       | [codersdk.AIGroupBudget](#codersdkaigroupbudget) | false    |              | Group budget is the budget when the queried group is this user's effective budget source. Null when the user's budget resolves to another group or no budget applies to the user.                                                                     |
+| `group_spend_micros` | integer                                          | false    |              | Group spend micros is the user's spend attributed to the queried group over the current budget period.                                                                                                                                                |
+| `user_id`            | string                                           | false    |              |                                                                                                                                                                                                                                                       |
 
 ## codersdk.GroupMembersAISpend
 
@@ -14089,15 +14114,15 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                   | Type                                                         | Required | Restrictions | Description                                                                                                          |
-|------------------------|--------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------|
-| `current_spend_micros` | integer                                                      | false    |              | Current spend micros is the user's spend on their effective group over the current budget period.                    |
-| `effective_group_id`   | string                                                       | false    |              | Effective group ID is the group the spend is attributed to. Null when no budget applies.                             |
-| `limit_source`         | [codersdk.AIBudgetLimitSource](#codersdkaibudgetlimitsource) | false    |              | Limit source identifies which tier produced the limit. Null when no budget applies.                                  |
-| `period_end`           | string                                                       | false    |              | Period end is the exclusive upper bound of the current budget period.                                                |
-| `period_start`         | string                                                       | false    |              | Period start is the inclusive lower bound of the current budget period.                                              |
-| `spend_limit_micros`   | integer                                                      | false    |              | Spend limit micros is the effective spend limit in micro-units. Null when no budget applies to the user (unlimited). |
-| `user_id`              | string                                                       | false    |              |                                                                                                                      |
+| Name                   | Type                                                         | Required | Restrictions | Description                                                                                                                                                                    |
+|------------------------|--------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros` | integer                                                      | false    |              | Current spend micros is the user's spend on their effective group over the current budget period.                                                                              |
+| `effective_group_id`   | string                                                       | false    |              | Effective group ID is the group the spend is attributed to, falling back to the Everyone group when no budget applies. Null only when the user has no organization membership. |
+| `limit_source`         | [codersdk.AIBudgetLimitSource](#codersdkaibudgetlimitsource) | false    |              | Limit source identifies which tier produced the limit. Null when no budget applies.                                                                                            |
+| `period_end`           | string                                                       | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                          |
+| `period_start`         | string                                                       | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                        |
+| `spend_limit_micros`   | integer                                                      | false    |              | Spend limit micros is the effective spend limit in micro-units. Null when no budget applies to the user (unlimited).                                                           |
+| `user_id`              | string                                                       | false    |              |                                                                                                                                                                                |
 
 ## codersdk.UserActivity
 

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
-import { type ComponentProps, useState } from "react";
+import { useState } from "react";
 import { Navigate, useOutletContext } from "react-router";
 import {
 	expect,
@@ -26,15 +26,17 @@ import {
 import {
 	withAuthProvider,
 	withDashboardProvider,
+	withWebSocket,
 } from "#/testHelpers/storybook";
 import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgentsPageView";
 import AgentAnalyticsPage from "./AgentAnalyticsPage";
 import AgentCreatePage from "./AgentCreatePage";
 import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
 import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
-import AgentSettingsPage from "./AgentSettingsPage";
-import { type AgentsOutletContext, AgentsPageView } from "./AgentsPageView";
-import type { ModelSelectorOption } from "./components/ChatElements";
+import AgentSettingsLayout from "./AgentSettingsLayout";
+import AgentsPageLayout, {
+	type AgentsPageOutletContext,
+} from "./AgentsPageLayout";
 import {
 	AGENTS_MAIN_PANEL_MIN_WIDTH,
 	clampLeftSidebarWidth,
@@ -45,26 +47,8 @@ import {
 	LEFT_SIDEBAR_STORAGE_KEY,
 } from "./components/ChatsSidebar/sidebarWidth";
 import { ChatTopBar } from "./components/ChatTopBar";
-import type { AgentSidebarFilters } from "./utils/agentSidebarFilters";
 
 const defaultModelConfigID = "model-config-1";
-
-const defaultSidebarFilters: AgentSidebarFilters = {
-	archiveStatus: "active",
-	groupBy: "date",
-	prStatuses: [],
-	chatStatuses: ["unread", "read"],
-	sources: ["created_by_me"],
-};
-
-const defaultModelOptions: ModelSelectorOption[] = [
-	{
-		id: defaultModelConfigID,
-		provider: "openai",
-		model: "gpt-4o",
-		displayName: "GPT-4o",
-	},
-];
 
 const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	{
@@ -217,7 +201,7 @@ const agentsRouting = {
 	children: [
 		{
 			path: "settings",
-			element: <AgentSettingsPage />,
+			element: <AgentSettingsLayout />,
 			children: [
 				{ index: true, element: <AgentSettingsGeneralPage /> },
 				{ path: "general", element: <AgentSettingsGeneralPage /> },
@@ -285,7 +269,7 @@ const setInnerWidthForStory = (width: number) => {
 
 const AgentTopBarRouteElement = () => {
 	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
-		useOutletContext<AgentsOutletContext>();
+		useOutletContext<AgentsPageOutletContext>();
 	return (
 		<ChatTopBar
 			chatTitle="Collapsed sidebar agent"
@@ -342,49 +326,15 @@ const agentsWithChatTopBarRouting = {
 	),
 };
 
-const defaultArgs: ComponentProps<typeof AgentsPageView> = {
-	agentId: undefined,
-	chatList: [],
-	currentUserId: MockUserOwner.id,
-	catalogModelOptions: defaultModelOptions,
-	modelConfigs: defaultModelConfigs,
-	handleNewAgent: fn(),
-	isSearchDialogOpen: false,
-	onSearchDialogOpenChange: fn(),
-	isCreating: false,
-	isArchiving: false,
-	archivingChatId: undefined,
-	isChatsLoading: false,
-	chatsLoadError: null,
-	onRetryChatsLoad: fn(),
-	onCollapseSidebar: fn(),
-	isSidebarCollapsed: false,
-	onExpandSidebar: fn(),
-	chatErrorReasons: {},
-	setChatErrorReason: fn(),
-	clearChatErrorReason: fn(),
-	requestArchiveAgent: fn(),
-	requestUnarchiveAgent: fn(),
-	requestArchiveAndDeleteWorkspace: fn(),
-	requestPinAgent: fn(),
-	requestUnpinAgent: fn(),
-	onProposeTitle: fn(async () => "Proposed title"),
-	onRenameTitle: fn(async () => {}),
-	onToggleSidebarCollapsed: fn(),
-	isAgentsAdmin: false,
-	sidebarFilters: defaultSidebarFilters,
-	onSidebarFiltersChange: fn(),
-	hasNextPage: false,
-	onLoadMore: fn(),
-	isFetchingNextPage: false,
-};
-
-const meta: Meta<typeof AgentsPageView> = {
-	title: "pages/AgentsPage/AgentsPageView",
-	component: AgentsPageView,
-	decorators: [withAuthProvider, withDashboardProvider],
+const meta: Meta<typeof AgentsPageLayout> = {
+	title: "pages/AgentsPage/AgentsPageLayout",
+	component: AgentsPageLayout,
+	decorators: [withAuthProvider, withDashboardProvider, withWebSocket],
 	parameters: {
 		layout: "fullscreen",
+		// The layout opens a chat-watch WebSocket on mount. An empty
+		// event list gives an inert socket that never emits.
+		webSocket: [],
 		user: MockUserOwner,
 		permissions: MockPermissions,
 		reactRouter: reactRouterParameters({
@@ -392,9 +342,50 @@ const meta: Meta<typeof AgentsPageView> = {
 			routing: [agentsRouting, aiSettingsRouting],
 		}),
 	},
-	args: defaultArgs,
+	args: {},
 	beforeEach: () => {
 		localStorage.removeItem(LEFT_SIDEBAR_STORAGE_KEY);
+		// Mocks for the queries AgentsPageLayout runs for the sidebar.
+		spyOn(API.experimental, "getChats").mockResolvedValue([]);
+		spyOn(
+			API.experimental,
+			"getUserChatPersonalModelOverrides",
+		).mockResolvedValue({
+			enabled: false,
+			root: {
+				context: "root",
+				mode: "deployment_default",
+				model_config_id: "",
+				is_set: false,
+				is_malformed: false,
+			},
+			general: {
+				context: "general",
+				mode: "deployment_default",
+				model_config_id: "",
+				is_set: false,
+				is_malformed: false,
+			},
+			explore: {
+				context: "explore",
+				mode: "deployment_default",
+				model_config_id: "",
+				is_set: false,
+				is_malformed: false,
+			},
+			deployment_defaults: {
+				general: {
+					context: "general",
+					model_config_id: "",
+					is_malformed: false,
+				},
+				explore: {
+					context: "explore",
+					model_config_id: "",
+					is_malformed: false,
+				},
+			},
+		});
 		spyOn(API, "getWorkspaces").mockResolvedValue({
 			workspaces: [],
 			count: 0,
@@ -528,13 +519,17 @@ const meta: Meta<typeof AgentsPageView> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof AgentsPageView>;
+type Story = StoryObj<typeof AgentsPageLayout>;
+
+const mockChats = (chats: Chat[]) => {
+	spyOn(API.experimental, "getChats").mockResolvedValue(chats);
+};
 
 export const EmptyState: Story = {};
 
 export const WithChatList: Story = {
-	args: {
-		chatList: [
+	beforeEach: () => {
+		mockChats([
 			buildChat({
 				id: "chat-1",
 				title: "Refactor authentication module",
@@ -576,19 +571,19 @@ export const WithChatList: Story = {
 				status: "interrupting",
 				updated_at: todayTimestamp,
 			}),
-		],
+		]);
 	},
 };
 
 export const ResizableSidebar: Story = {
-	args: {
-		chatList: [
+	beforeEach: () => {
+		mockChats([
 			buildChat({
 				id: "chat-resize",
 				title: "Resizable sidebar agent",
 				updated_at: todayTimestamp,
 			}),
-		],
+		]);
 	},
 	parameters: {
 		viewport: { defaultViewport: "ipad" },
@@ -645,14 +640,14 @@ export const ResizableSidebar: Story = {
 const persistedLeftSidebarWidth = 380;
 
 export const PersistedResizableSidebarWidth: Story = {
-	args: {
-		chatList: [
+	beforeEach: () => {
+		mockChats([
 			buildChat({
 				id: "chat-resize-persisted",
 				title: "Persisted sidebar width agent",
 				updated_at: todayTimestamp,
 			}),
-		],
+		]);
 	},
 	decorators: [
 		(Story) => {
@@ -686,17 +681,14 @@ export const PersistedResizableSidebarWidth: Story = {
 const narrowAgentsLayoutWidth = 720;
 
 export const WideSidebarPreservesChatPaneWidth: Story = {
-	args: {
-		agentId: "chat-wide-sidebar",
-		chatList: [
+	beforeEach: () => {
+		mockChats([
 			buildChat({
 				id: "chat-wide-sidebar",
 				title: "Wide sidebar agent",
 				updated_at: todayTimestamp,
 			}),
-		],
-	},
-	beforeEach: () => {
+		]);
 		localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "660");
 		return setInnerWidthForStory(narrowAgentsLayoutWidth);
 	},
@@ -754,14 +746,14 @@ export const WideSidebarPreservesChatPaneWidth: Story = {
 };
 
 export const ResizableSidebarKeyboard: Story = {
-	args: {
-		chatList: [
+	beforeEach: () => {
+		mockChats([
 			buildChat({
 				id: "chat-resize-keyboard",
 				title: "Keyboard resizable sidebar agent",
 				updated_at: todayTimestamp,
 			}),
-		],
+		]);
 	},
 	parameters: {
 		viewport: { defaultViewport: "ipad" },
@@ -824,42 +816,42 @@ export const ResizableSidebarKeyboard: Story = {
 	},
 };
 
+// The layout never resolves the chats query, so the sidebar stays
+// in its loading state.
 export const LoadingChats: Story = {
-	args: {
-		isChatsLoading: true,
-		chatList: [],
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockReturnValue(new Promise(() => {}));
 	},
 };
 
 export const ChatsLoadError: Story = {
-	args: {
-		chatsLoadError: new Error("Failed to fetch chats"),
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockRejectedValue(
+			new Error("Failed to fetch chats"),
+		);
 	},
 };
 
+// The collapsed state is internal to the layout. Drive it through
+// the UI, then assert the collapse took effect.
 export const SidebarCollapsed: Story = {
-	args: {
-		isSidebarCollapsed: true,
-		chatList: [
+	beforeEach: () => {
+		mockChats([
 			buildChat({
 				id: "chat-1",
 				title: "Collapsed sidebar agent",
 				updated_at: todayTimestamp,
 			}),
-		],
-		chatErrorReasons: {},
-		setChatErrorReason: fn(),
-		clearChatErrorReason: fn(),
-		requestArchiveAgent: fn(),
-		requestUnarchiveAgent: fn(),
-		requestArchiveAndDeleteWorkspace: fn(),
-		onToggleSidebarCollapsed: fn(),
+		]);
 	},
-};
-
-export const WithToolbarEndContent: Story = {
-	args: {
-		isAgentsAdmin: true,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Collapse sidebar" }),
+		);
+		await expect(
+			await canvas.findByRole("button", { name: "Expand sidebar" }),
+		).toBeVisible();
 	},
 };
 
@@ -902,15 +894,15 @@ export const EmptyStateZoom200Desktop: Story = {
 };
 
 export const CollapsedSidebarZoom200Desktop: Story = {
-	args: {
-		isSidebarCollapsed: true,
-	},
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
 		chromatic: { viewports: [720] },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Collapse sidebar" }),
+		);
 		const expandButton = await canvas.findByRole("button", {
 			name: "Expand sidebar",
 		});
@@ -920,16 +912,14 @@ export const CollapsedSidebarZoom200Desktop: Story = {
 };
 
 export const CollapsedSidebarZoom200DesktopWithAgent: Story = {
-	args: {
-		agentId: "chat-1",
-		isSidebarCollapsed: true,
-		chatList: [
+	beforeEach: () => {
+		mockChats([
 			buildChat({
 				id: "chat-1",
 				title: "Collapsed sidebar agent",
 				updated_at: todayTimestamp,
 			}),
-		],
+		]);
 	},
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
@@ -941,6 +931,9 @@ export const CollapsedSidebarZoom200DesktopWithAgent: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Collapse sidebar" }),
+		);
 		const expandButton = await canvas.findByRole("button", {
 			name: "Expand sidebar",
 		});
@@ -949,43 +942,11 @@ export const CollapsedSidebarZoom200DesktopWithAgent: Story = {
 	},
 };
 
-export const CreatingAgent: Story = {
-	args: {
-		isCreating: true,
-		chatList: [
-			buildChat({
-				id: "chat-1",
-				title: "Existing agent",
-				updated_at: todayTimestamp,
-			}),
-		],
-	},
-};
-
-export const ArchivingAgent: Story = {
-	args: {
-		isArchiving: true,
-		archivingChatId: "chat-1",
-		chatList: [
-			buildChat({
-				id: "chat-1",
-				title: "Agent being archived",
-				updated_at: todayTimestamp,
-			}),
-			buildChat({
-				id: "chat-2",
-				title: "Another agent",
-				updated_at: todayTimestamp,
-			}),
-		],
-	},
-};
-
 /**
  * Standalone story for the delete-confirmation dialog with
  * agents-specific copy (title, verb, info). The dialog now lives in
- * AgentsPage (the container) rather than AgentsPageView, so we
- * render it directly here to preserve interaction-test coverage.
+ * AgentsPageLayout (the container), so we render it directly here to
+ * preserve interaction-test coverage.
  */
 export const DeleteConfirmationDialog: Story = {
 	render: function Render() {
@@ -1037,9 +998,8 @@ export const DeleteConfirmationDialog: Story = {
 };
 
 export const WithAgentSelected: Story = {
-	args: {
-		agentId: "chat-1",
-		chatList: [
+	beforeEach: () => {
+		mockChats([
 			buildChat({
 				id: "chat-1",
 				title: "Selected agent",
@@ -1051,7 +1011,7 @@ export const WithAgentSelected: Story = {
 				title: "Another agent",
 				updated_at: todayTimestamp,
 			}),
-		],
+		]);
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -1064,13 +1024,20 @@ export const WithAgentSelected: Story = {
 	},
 };
 
+// Error reasons surface via each chat's last_error, which the
+// layout turns into sidebar error badges.
 export const WithErrorReasons: Story = {
-	args: {
-		chatList: [
+	beforeEach: () => {
+		mockChats([
 			buildChat({
 				id: "chat-1",
 				title: "Rate limited agent",
 				status: "error",
+				last_error: {
+					kind: "generic",
+					message: "Model rate limited",
+					retryable: false,
+				},
 				updated_at: todayTimestamp,
 			}),
 			buildChat({
@@ -1083,19 +1050,14 @@ export const WithErrorReasons: Story = {
 				id: "chat-3",
 				title: "Another errored agent",
 				status: "error",
+				last_error: {
+					kind: "generic",
+					message: "Context window exceeded",
+					retryable: false,
+				},
 				updated_at: todayTimestamp,
 			}),
-		],
-		chatErrorReasons: {
-			"chat-1": { kind: "generic", message: "Model rate limited" },
-			"chat-3": { kind: "generic", message: "Context window exceeded" },
-		},
-		setChatErrorReason: fn(),
-		clearChatErrorReason: fn(),
-		requestArchiveAgent: fn(),
-		requestUnarchiveAgent: fn(),
-		requestArchiveAndDeleteWorkspace: fn(),
-		onToggleSidebarCollapsed: fn(),
+		]);
 	},
 };
 
@@ -1105,9 +1067,6 @@ const openSettingsView = async (canvasElement: HTMLElement) => {
 };
 
 export const OpensAnalyticsForAdmins: Story = {
-	args: {
-		isAgentsAdmin: true,
-	},
 	parameters: {
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents/analytics" },
@@ -1126,9 +1085,6 @@ export const OpensAnalyticsForAdmins: Story = {
 };
 
 export const OpensAnalyticsForNonAdmins: Story = {
-	args: {
-		isAgentsAdmin: false,
-	},
 	parameters: {
 		permissions: MockNoPermissions,
 		reactRouter: reactRouterParameters({
@@ -1148,9 +1104,6 @@ export const OpensAnalyticsForNonAdmins: Story = {
 };
 
 export const OpensSettingsForAdmins: Story = {
-	args: {
-		isAgentsAdmin: true,
-	},
 	play: async ({ canvasElement }) => {
 		await openSettingsView(canvasElement);
 
@@ -1163,9 +1116,6 @@ export const OpensSettingsForAdmins: Story = {
 };
 
 export const OpensSettingsForNonAdmins: Story = {
-	args: {
-		isAgentsAdmin: false,
-	},
 	parameters: {
 		permissions: MockNoPermissions,
 	},
@@ -1185,9 +1135,6 @@ export const OpensSettingsForNonAdmins: Story = {
 };
 
 export const OpensAISettingsFromManageAgentsOnMobile: Story = {
-	args: {
-		isAgentsAdmin: true,
-	},
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
 		reactRouter: reactRouterParameters({
@@ -1213,11 +1160,7 @@ export const OpensAISettingsFromManageAgentsOnMobile: Story = {
 };
 
 export const SettingsViewCoderAgentsLink: Story = {
-	args: {
-		isAgentsAdmin: true,
-	},
 	play: async ({ canvasElement }) => {
-		// Open settings
 		await openSettingsView(canvasElement);
 
 		await waitFor(() => {

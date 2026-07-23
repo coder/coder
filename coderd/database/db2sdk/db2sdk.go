@@ -1114,6 +1114,15 @@ func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSess
 			CacheWriteInputTokens: row.CacheWriteInputTokens,
 		},
 	}
+	// NetworkCalls is only meaningful when the session passed through Agent
+	// Firewall. When it did not, leave it nil so the UI renders "Disabled"
+	// rather than a misleading zero count.
+	if row.FirewallActive {
+		session.NetworkCalls = &codersdk.AIBridgeSessionNetworkCallSummary{
+			Total:   row.NetworkCallsTotal,
+			Blocked: row.NetworkCallsBlocked,
+		}
+	}
 	// Ensure non-nil slices for JSON serialization.
 	if session.Providers == nil {
 		session.Providers = []string{}
