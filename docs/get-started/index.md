@@ -39,8 +39,9 @@ explained through a cooking analogy:
 
 > [!NOTE]
 > This guide installs the Coder server on the same machine you're working from so you can try Coder quickly.
-> That's fine for this walkthrough, but Coder's real value comes from remote development: hosting the Coder server on a separate machine (a cloud VM, a spare desktop, or on-prem hardware) lets you and your team provision workspaces on infrastructure that's more powerful, always-on, and reachable from anywhere, instead of tying your dev environment to your own laptop.
-> When you're ready to move past this quickstart, install the Coder server on a separate machine and connect to it remotely. Refer to [Installing Coder](../install/index.md) for supported platforms and installation methods.
+> That's fine for this tutorial, but Coder's real value comes from remote development.
+> By hosting the Coder server on a separate machine (a cloud VM, a spare desktop, or on-premise hardware), you and your team can provision workspaces on infrastructure that's more powerful, always-on, and reachable from anywhere, instead of tying your dev environment to your own laptop.
+> When you're ready to move past this tutorial, install the Coder server on a separate machine and connect to it remotely. Refer to the [Install guide](../install/index.md) for supported platforms and installation methods.
 
 ## Step 1: Install a container runtime
 
