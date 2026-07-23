@@ -10,7 +10,11 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { MockGroup2, MockGroupWithoutMembers } from "#/testHelpers/entities";
+import {
+	MockEveryoneGroup,
+	MockGroup2,
+	MockGroupWithoutMembers,
+} from "#/testHelpers/entities";
 import { GroupMemberBudgetCells } from "./GroupMemberBudgetCells";
 
 const group = MockGroupWithoutMembers;
@@ -92,12 +96,14 @@ export const Unlimited: Story = {
 	},
 };
 
-// Unlimited where the viewed group itself is the effective group.
-export const UnlimitedThisGroup: Story = {
+// Only the Everyone group can be an effective group without a budget.
+export const UnlimitedEveryoneGroup: Story = {
 	args: {
+		group: MockEveryoneGroup,
 		spend: {
 			...mockSpend,
 			group_budget: null,
+			effective_group_id: MockEveryoneGroup.id,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -105,7 +111,51 @@ export const UnlimitedThisGroup: Story = {
 		await expect(await canvas.findByTestId(testId)).toHaveTextContent(
 			"$0 / Unlimited USD",
 		);
-		await expect(canvas.getByText("Front-End")).toBeInTheDocument();
+		await expect(
+			canvas.getByText("Everyone (not allocated)"),
+		).toBeInTheDocument();
+	},
+};
+
+// The Everyone group's own budget governs; the badge drops "(not allocated)".
+export const EveryoneGroupWithBudget: Story = {
+	args: {
+		group: MockEveryoneGroup,
+		spend: {
+			...mockSpend,
+			group_spend_micros: 1_250_000_000,
+			effective_group_id: MockEveryoneGroup.id,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const cell = await canvas.findByTestId(testId);
+		await expect(cell).toHaveTextContent("$1,250 USD");
+		await expect(cell).toHaveTextContent("Group limit $7,000");
+		await expect(canvas.getByText("Everyone")).toBeInTheDocument();
+		await expect(canvas.queryByText(/not allocated/)).not.toBeInTheDocument();
+	},
+};
+
+// A user override resolving to the Everyone group shows as individual.
+export const EveryoneGroupIndividual: Story = {
+	args: {
+		group: MockEveryoneGroup,
+		spend: {
+			...mockSpend,
+			group_spend_micros: 1_250_000_000,
+			effective_group_id: MockEveryoneGroup.id,
+			group_budget: {
+				spend_limit_micros: 9_000_000_000,
+				limit_source: "user_override",
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const cell = await canvas.findByTestId(testId);
+		await expect(cell).toHaveTextContent("Custom limit $9,000");
+		await expect(canvas.getByText("Everyone (individual)")).toBeInTheDocument();
 	},
 };
 
@@ -115,7 +165,6 @@ export const ZeroBudget: Story = {
 		spend: {
 			...mockSpend,
 			group_budget: { spend_limit_micros: 0, limit_source: "group" },
-			effective_group_id: group.organization_id,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -123,6 +172,7 @@ export const ZeroBudget: Story = {
 		const cell = await canvas.findByTestId(testId);
 		await expect(cell).toHaveTextContent("$0 USD");
 		await expect(cell).toHaveTextContent("Group limit $0");
+		await expect(canvas.getByText("Front-End")).toBeInTheDocument();
 	},
 };
 
@@ -133,7 +183,6 @@ export const ZeroBudgetExceeded: Story = {
 			...mockSpend,
 			group_spend_micros: 100_000_000,
 			group_budget: { spend_limit_micros: 0, limit_source: "group" },
-			effective_group_id: group.organization_id,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -206,13 +255,13 @@ export const NotAttributed: Story = {
 		const canvas = within(canvasElement);
 		const cell = await canvas.findByTestId(testId);
 		await expect(cell).toHaveTextContent("$456 USD");
-		await expect(cell).toHaveTextContent("Not attributed to this group");
+		await expect(cell).toHaveTextContent("Budget managed by another group");
 		await expect(await canvas.findByText("developer")).toBeInTheDocument();
 		const body = await openInfo(canvasElement);
 		await expect(
-			await body.findByText(/None of this user's spend counts against/),
+			await body.findByText(/this user's spend in the/),
 		).toHaveTextContent(
-			"None of this user's spend counts against the Front-End group. It is managed by the developer group.",
+			"The amount shown is this user's spend in the Front-End group. Their AI budget is currently managed by the developer group.",
 		);
 	},
 };

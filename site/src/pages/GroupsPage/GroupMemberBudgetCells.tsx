@@ -17,8 +17,8 @@ const OTHER_ORG_MESSAGE =
 	"This user's AI budget is managed by a group in another organization and isn't visible here.";
 
 /**
- * The AI budget and Budget group cells for a group member. Spend only counts
- * against the viewed group; another group's budget shows as unattributed.
+ * The AI budget and Budget group cells for a group member. Spend is scoped to
+ * the viewed group; the limit comes from the member's effective group.
  */
 export const GroupMemberBudgetCells: FC<{
 	group: Group;
@@ -51,7 +51,15 @@ export const GroupMemberBudgetCells: FC<{
 			budgetGroup = EM_DASH;
 			break;
 		case "everyone":
-			budgetGroup = <Badge size="sm">Everyone (not allocated)</Badge>;
+			// A populated budget means the Everyone group's own budget applies,
+			// so it isn't the unallocated fallback.
+			budgetGroup = (
+				<Badge size="sm">
+					{spend?.group_budget
+						? badgeName("Everyone")
+						: "Everyone (not allocated)"}
+				</Badge>
+			);
 			break;
 		case "this":
 			budgetGroup = <Badge size="sm">{badgeName(groupName)}</Badge>;
@@ -92,11 +100,11 @@ export const GroupMemberBudgetCells: FC<{
 						<StatusIconTooltip
 							message={
 								<>
-									None of this user's spend counts against the{" "}
+									The amount shown is this user's spend in the{" "}
 									<span className="font-medium text-content-primary">
 										{groupName}
 									</span>{" "}
-									group. It is managed by the{" "}
+									group. Their AI budget is currently managed by the{" "}
 									<span className="font-medium text-content-primary">
 										{effectiveGroupName}
 									</span>{" "}
@@ -106,7 +114,7 @@ export const GroupMemberBudgetCells: FC<{
 						/>
 					</span>
 					<span className="text-xs text-content-secondary">
-						Not attributed to this group
+						Budget managed by another group
 					</span>
 				</div>
 			);
