@@ -1072,6 +1072,11 @@ const StickyUserMessage = memo<{
 								? { opacity: "calc(1 - var(--overlay-ready, 0))" }
 								: undefined
 						}
+						// While the overlay copy is shown, drop the flow copy
+						// from the accessibility tree so the message and its
+						// hook notices aren't exposed twice.
+						aria-hidden={isStuck && !isTooTall ? true : undefined}
+						inert={isStuck && !isTooTall ? true : undefined}
 					>
 						<ChatMessageItem
 							message={message}
