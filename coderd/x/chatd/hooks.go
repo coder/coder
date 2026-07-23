@@ -350,14 +350,14 @@ func (p *Server) preflightPendingToolCalls(
 
 func replacePersistedToolCallInputs(
 	ctx context.Context,
-	store database.Store,
+	tx *chatstate.Tx,
 	chatID uuid.UUID,
 	overrides map[string]json.RawMessage,
 ) error {
 	if len(overrides) == 0 {
 		return nil
 	}
-	assistant, err := store.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
+	assistant, err := tx.Store().GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
 		ChatID: chatID,
 		Role:   database.ChatMessageRoleAssistant,
 	})
@@ -382,10 +382,7 @@ func replacePersistedToolCallInputs(
 	if err != nil {
 		return xerrors.Errorf("marshal assistant message with tool override: %w", err)
 	}
-	if err := store.UpdateChatMessageContentByID(ctx, database.UpdateChatMessageContentByIDParams{
-		Content: content.RawMessage,
-		ID:      assistant.ID,
-	}); err != nil {
+	if err := tx.UpdateMessageContent(assistant.ID, content.RawMessage); err != nil {
 		return xerrors.Errorf("update assistant message with tool override: %w", err)
 	}
 	return nil
