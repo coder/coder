@@ -29,15 +29,15 @@ const budgetNotificationsCreatedBy = "aigateway"
 // budgetThreshold pairs a percentage of the spend limit with the notification
 // template sent when a user's spend crosses it.
 type budgetThreshold struct {
-	percent  int
-	template uuid.UUID
+	percent              int
+	notificationTemplate uuid.UUID
 }
 
 // budgetThresholds are the thresholds evaluated on every priced interception,
 // ordered ascending. A single interception can cross more than one.
 var budgetThresholds = []budgetThreshold{
-	{percent: warningThresholdPercent, template: notifications.TemplateAIBudgetWarningUser},
-	{percent: limitThresholdPercent, template: notifications.TemplateAIBudgetLimitReachedUser},
+	{percent: warningThresholdPercent, notificationTemplate: notifications.TemplateAIBudgetWarningUser},
+	{percent: limitThresholdPercent, notificationTemplate: notifications.TemplateAIBudgetLimitReachedUser},
 }
 
 // budgetThresholdCrossing describes a user crossing a budget threshold on a
@@ -45,12 +45,12 @@ var budgetThresholds = []budgetThreshold{
 // crossing is ever enqueued more than once, the payloads match and the
 // duplicate is dropped.
 type budgetThresholdCrossing struct {
-	userID           uuid.UUID
-	effectiveGroupID uuid.UUID
-	spendLimitMicros int64
-	thresholdPercent int
-	template         uuid.UUID
-	limitSource      codersdk.AIBudgetLimitSource
+	userID               uuid.UUID
+	effectiveGroupID     uuid.UUID
+	spendLimitMicros     int64
+	thresholdPercent     int
+	notificationTemplate uuid.UUID
+	limitSource          codersdk.AIBudgetLimitSource
 }
 
 // detectBudgetThresholdCrossings checks whether this interception's cost pushed
@@ -58,11 +58,10 @@ type budgetThresholdCrossing struct {
 // crossed. A single interception can cross several at once (e.g. straight past
 // both the warning and limit thresholds).
 //
-// The period is derived from createdAt, the same timestamp the spend row is
-// bucketed by. Using it (rather than the current wall clock) keeps the summed
-// window and the incremented row in the same period, so an interception whose
-// createdAt and processing time span across a period boundary is evaluated
-// against the period it was recorded in.
+// The period is derived from the interception's recorded time (the same
+// timestamp the spend row is bucketed by) rather than the current wall clock,
+// so an interception recorded near a period boundary but processed after it is
+// evaluated against the period it belongs to.
 func (s *Server) detectBudgetThresholdCrossings(ctx context.Context, tx database.Store, intc database.AIBridgeInterception, cost tokenUsageCost, createdAt time.Time) ([]budgetThresholdCrossing, error) {
 	if !cost.effectiveGroupID.Valid || !cost.spendLimitMicros.Valid || cost.spendLimitMicros.Int64 <= 0 {
 		return nil, nil
@@ -92,12 +91,12 @@ func (s *Server) detectBudgetThresholdCrossings(ctx context.Context, tx database
 		at := limit * int64(t.percent) / 100
 		if oldSpend < at && newSpend >= at {
 			crossings = append(crossings, budgetThresholdCrossing{
-				userID:           intc.InitiatorID,
-				effectiveGroupID: cost.effectiveGroupID.UUID,
-				spendLimitMicros: limit,
-				thresholdPercent: t.percent,
-				template:         t.template,
-				limitSource:      cost.limitSource,
+				userID:               intc.InitiatorID,
+				effectiveGroupID:     cost.effectiveGroupID.UUID,
+				spendLimitMicros:     limit,
+				thresholdPercent:     t.percent,
+				notificationTemplate: t.notificationTemplate,
+				limitSource:          cost.limitSource,
 			})
 		}
 	}
@@ -121,7 +120,7 @@ func (s *Server) notifyBudgetThresholdCrossing(ctx context.Context, crossing bud
 	}
 
 	//nolint:gocritic // Enqueuing notifications requires the notifier actor.
-	if _, err := s.notifEnqueuer.EnqueueWithData(dbauthz.AsNotifier(ctx), crossing.userID, crossing.template,
+	if _, err := s.notifEnqueuer.EnqueueWithData(dbauthz.AsNotifier(ctx), crossing.userID, crossing.notificationTemplate,
 		labels, nil, budgetNotificationsCreatedBy,
 		crossing.effectiveGroupID,
 	); err != nil {
