@@ -1159,7 +1159,7 @@ func (s *taskStarter) commitGenerationStep(
 		if _, err := loadChatForGeneration(ctx, store, input, requireGenerationAttempt(attempt)); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
-		if err := replacePersistedToolCallInputs(ctx, store, input.ChatID, hooks.Overrides); err != nil {
+		if err := replacePersistedToolCallInputs(ctx, tx, input.ChatID, hooks.Overrides); err != nil {
 			return err
 		}
 		commitResult, err := tx.CommitStep(chatstate.CommitStepInput{
@@ -1233,7 +1233,7 @@ func (s *taskStarter) enterRequiresAction(
 		if _, err := loadChatForTask(ctx, store, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
-		if err := replacePersistedToolCallInputs(ctx, store, input.ChatID, preflight.Overrides); err != nil {
+		if err := replacePersistedToolCallInputs(ctx, tx, input.ChatID, preflight.Overrides); err != nil {
 			return err
 		}
 		var inserted []database.ChatMessage
