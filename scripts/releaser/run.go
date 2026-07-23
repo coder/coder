@@ -6,7 +6,6 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/serpent"
 )
 
@@ -17,10 +16,9 @@ const (
 
 // Run executes the interactive release wizard.
 //
-// It verifies dependencies, warns when GPG signing or the gh CLI are not
-// configured, wires up a live or dry-run executor, and then walks the
-// operator through tagging, pushing, and triggering the release
-// workflow.
+// It verifies dependencies, warns when the gh CLI is not configured, wires
+// up a live or dry-run executor, and then walks the operator through
+// tagging, pushing, and triggering the release workflow.
 //
 //nolint:revive // dryRun selects the dry-run executor for the wizard.
 func Run(inv *serpent.Invocation, dryRun bool) error {
@@ -30,19 +28,6 @@ func Run(inv *serpent.Invocation, dryRun bool) error {
 	// --- Check dependencies ---
 	if _, err := exec.LookPath("git"); err != nil {
 		return xerrors.New("git is required but not found in PATH")
-	}
-
-	// --- Check GPG signing ---
-	signingKey, _ := gitOutput("config", "--get", "user.signingkey")
-	gpgFormat, _ := gitOutput("config", "--get", "gpg.format")
-	gpgConfigured := signingKey != "" || gpgFormat != ""
-	if !gpgConfigured {
-		warnf(w, "GPG signing is not configured. Tags will be unsigned, so there will be no way to verify who pushed the tag.")
-		_, _ = fmt.Fprintf(w, "  To fix: set git config user.signingkey or gpg.format\n")
-		if err := confirmWithDefault(inv, "Continue without signing?", cliui.ConfirmNo); err != nil {
-			return err
-		}
-		_, _ = fmt.Fprintln(w)
 	}
 
 	// --- Check gh CLI auth ---
@@ -62,5 +47,5 @@ func Run(inv *serpent.Invocation, dryRun bool) error {
 		executor = &liveExecutor{}
 	}
 
-	return runRelease(ctx, inv, executor, ghAvailable, gpgConfigured, dryRun)
+	return runRelease(ctx, inv, executor, ghAvailable, dryRun)
 }
