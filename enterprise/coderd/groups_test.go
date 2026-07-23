@@ -1264,7 +1264,7 @@ func TestPaginatedGroups(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		resp, err := userAdminClient.GroupsPaginated(ctx, user.OrganizationID, codersdk.UsersRequest{})
+		resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{})
 		require.NoError(t, err)
 		require.Equal(t, totalGroups, resp.Count)
 		require.Len(t, resp.Groups, totalGroups)
@@ -1281,7 +1281,7 @@ func TestPaginatedGroups(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		resp, err := userAdminClient.GroupsPaginated(ctx, user.OrganizationID, codersdk.UsersRequest{
+		resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{
 			SearchQuery: "alpha",
 		})
 		require.NoError(t, err)
@@ -1294,7 +1294,7 @@ func TestPaginatedGroups(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		resp, err := userAdminClient.GroupsPaginated(ctx, user.OrganizationID, codersdk.UsersRequest{
+		resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{
 			SearchQuery: "does-not-exist",
 		})
 		require.NoError(t, err)
@@ -1310,7 +1310,7 @@ func TestPaginatedGroups(t *testing.T) {
 		// every group exactly once, with a stable Count on each page.
 		seen := make(map[string]struct{})
 		for offset := 0; offset < totalGroups; offset += 2 {
-			resp, err := userAdminClient.GroupsPaginated(ctx, user.OrganizationID, codersdk.UsersRequest{
+			resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{
 				Pagination: codersdk.Pagination{Limit: 2, Offset: offset},
 			})
 			require.NoError(t, err)

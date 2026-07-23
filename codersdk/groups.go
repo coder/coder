@@ -53,6 +53,24 @@ type PaginatedGroupsResponse struct {
 	Count  int     `json:"count"`
 }
 
+// PaginatedGroupsRequest are the filters for a paginated groups request.
+// Groups only support free-text search, so unlike UsersRequest it exposes no
+// key:value filters that the endpoint would reject.
+type PaginatedGroupsRequest struct {
+	SearchQuery string `json:"q,omitempty"`
+	Pagination
+}
+
+func (req PaginatedGroupsRequest) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		if req.SearchQuery != "" {
+			q.Set("q", req.SearchQuery)
+		}
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
 func (g Group) IsEveryone() bool {
 	return g.ID == g.OrganizationID
 }
@@ -140,8 +158,9 @@ func (c *Client) GroupByOrgAndName(ctx context.Context, orgID uuid.UUID, name st
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// GroupsPaginated lists filtered and paginated groups in an organization.
-func (c *Client) GroupsPaginated(ctx context.Context, orgID uuid.UUID, req UsersRequest) (PaginatedGroupsResponse, error) {
+// OrganizationGroupsPaginated lists filtered and paginated groups in an
+// organization.
+func (c *Client) OrganizationGroupsPaginated(ctx context.Context, orgID uuid.UUID, req PaginatedGroupsRequest) (PaginatedGroupsResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/organizations/%s/paginated-groups", orgID.String()),
 		nil,

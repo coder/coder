@@ -9,6 +9,7 @@ import type {
 	GroupMembersResponse,
 	GroupRequest,
 	OrganizationGroupsAISpend,
+	PaginatedGroupsRequest,
 	PaginatedGroupsResponse,
 	PatchGroupRequest,
 	UsersRequest,
@@ -77,7 +78,7 @@ export const groupMembersAISpend = (
 
 const getPaginatedGroupsByOrganizationQueryKey = (
 	organization: string,
-	req?: UsersRequest,
+	req?: PaginatedGroupsRequest,
 ) => {
 	// Nested under the org groups key so create/patch/delete invalidations,
 	// which target ["organization", org, "groups"], also cover this list.
@@ -88,7 +89,7 @@ const getPaginatedGroupsByOrganizationQueryKey = (
 export function paginatedGroupsByOrganization(
 	organization: string,
 	searchParams: URLSearchParams,
-): UsePaginatedQueryOptions<PaginatedGroupsResponse, UsersRequest> {
+): UsePaginatedQueryOptions<PaginatedGroupsResponse, PaginatedGroupsRequest> {
 	return {
 		searchParams,
 		queryPayload: ({ limit, offset }) => {

@@ -2307,7 +2307,7 @@ class ApiMethods {
 	 */
 	getOrganizationPaginatedGroups = async (
 		organization: string,
-		options?: TypesGen.UsersRequest,
+		options?: TypesGen.PaginatedGroupsRequest,
 	): Promise<TypesGen.PaginatedGroupsResponse> => {
 		const url = getURLWithSearchParams(
 			`/api/v2/organizations/${organization}/paginated-groups`,
