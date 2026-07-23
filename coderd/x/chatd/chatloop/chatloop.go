@@ -439,10 +439,12 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		ctx, opts.Logger, provider, modelName,
 		"assistant_helper", 0, result.finishReason, result.content,
 	)
-	// A content-filter finish with no content means the provider's
-	// safety classifiers blocked the whole response (e.g. Anthropic
-	// stop_reason "refusal").
-	if len(result.content) == 0 && result.finishReason == fantasy.FinishReasonContentFilter {
+	// A content-filter finish without user-visible output means the
+	// provider's safety classifiers blocked the whole response (e.g.
+	// Anthropic stop_reason "refusal"). The refusal can arrive after
+	// reasoning has already streamed, so reasoning alone must not
+	// count as output.
+	if result.finishReason == fantasy.FinishReasonContentFilter && !hasUserVisibleContent(result.content) {
 		return AssistantOutcome{}, contentFilterError(errorProvider, result.providerMetadata)
 	}
 	step := PersistedStep{
@@ -477,6 +479,20 @@ func wrapProviderStreamError(provider string, err error) error {
 		}
 	}
 	return xerrors.Errorf("stream response: %w", chaterror.WithClassification(err, classified))
+}
+
+// hasUserVisibleContent reports whether any content part carries output the
+// user can see. Reasoning parts do not count: they stream transiently and are
+// not a substitute for a response.
+func hasUserVisibleContent(content []fantasy.Content) bool {
+	for _, part := range content {
+		switch part.(type) {
+		case fantasy.ReasoningContent, *fantasy.ReasoningContent:
+		default:
+			return true
+		}
+	}
+	return false
 }
 
 func contentFilterError(provider string, metadata fantasy.ProviderMetadata) error {
