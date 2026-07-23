@@ -4387,6 +4387,7 @@ func (p *Server) maybeFinalizeTurnStatusLabelAndPush(
 	switch status {
 	case database.ChatStatusWaiting:
 		p.finalizeSuccessfulTurnStatusLabelAndPush(ctx, chat, status, runResult, logger)
+		p.maybeGenerateChatSummaryAsync(ctx, logger, chat)
 
 	case database.ChatStatusError:
 		p.clearLastTurnSummaryAsync(ctx, chat, logger)
@@ -4612,6 +4613,200 @@ func (p *Server) updateLastTurnSummary(
 	updatedChat := chat
 	updatedChat.LastTurnSummary = lastTurnSummary
 	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindSummaryChange, nil)
+}
+
+const (
+	// Completed user turns before the first summary is generated.
+	summaryInitialTurnThreshold = 1
+	// New completed user turns before the summary is regenerated (since the last summary).
+	summaryStaleTurnThreshold  = 3
+	summaryMinTranscriptRunes  = 200
+	chatSummaryWorkTimeout     = 120 * time.Second
+	chatSummaryGenerateTimeout = 60 * time.Second
+	chatSummaryWriteTimeout    = 5 * time.Second
+)
+
+// maybeGenerateChatSummaryAsync launches best-effort whole-chat summary
+// generation in the background for a root chat.
+func (p *Server) maybeGenerateChatSummaryAsync(
+	ctx context.Context,
+	logger slog.Logger,
+	chat database.Chat,
+) {
+	if chat.ParentChatID.Valid {
+		return
+	}
+	ctx, cancel := p.inflightContext(ctx)
+	if err := p.goInflight(func() {
+		defer cancel()
+		p.generateAndStoreChatSummary(ctx, logger, chat)
+	}); err != nil {
+		cancel()
+		logger.Debug(ctx, "skipped chat summary generation",
+			slog.F("chat_id", chat.ID), slog.Error(err))
+	}
+}
+
+// generateAndStoreChatSummary regenerates and persists the whole-chat summary
+// when due. Best-effort; never clears an existing summary on failure.
+func (p *Server) generateAndStoreChatSummary(
+	ctx context.Context,
+	logger slog.Logger,
+	chat database.Chat,
+) {
+	ctx, cancel := context.WithTimeout(ctx, chatSummaryWorkTimeout)
+	defer cancel()
+
+	//nolint:gocritic // Narrow daemon access for best-effort summary generation.
+	ctx = dbauthz.AsChatd(ctx)
+
+	// If a turn commits after this read, the stale history_version makes the
+	// eventual summary write lose instead of omitting that newer turn.
+	chat, err := p.db.GetChatByID(ctx, chat.ID)
+	if err != nil {
+		logger.Debug(ctx, "failed to re-read chat for summary",
+			slog.F("chat_id", chat.ID), slog.Error(err))
+		return
+	}
+
+	messages, err := p.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	if err != nil {
+		logger.Debug(ctx, "failed to load messages for chat summary",
+			slog.F("chat_id", chat.ID), slog.Error(err))
+		return
+	}
+
+	if !shouldGenerateChatSummary(chat, messages) {
+		return
+	}
+
+	transcript := renderChatSummaryTranscript(messages)
+	if len([]rune(transcript)) < summaryMinTranscriptRunes {
+		logger.Debug(ctx, "skipping chat summary for short transcript",
+			slog.F("chat_id", chat.ID),
+			slog.F("transcript_runes", len([]rune(transcript))),
+		)
+		return
+	}
+
+	// Derive the delegated API key from the chat owner so AI Gateway routing
+	// attributes summary generation to the correct account. This goroutine may
+	// outlive the launching turn, so it cannot rely on that turn's context.
+	apiKeyID, err := p.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
+	if err != nil {
+		logger.Debug(ctx, "failed to ensure synthetic API key for chat summary",
+			slog.F("chat_id", chat.ID), slog.Error(err))
+		return
+	}
+	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
+
+	model, _, ok := p.resolveChatSummaryModel(ctx, logger, chat, modelOpts)
+	if !ok {
+		return
+	}
+
+	summaryCtx, cancelGen := context.WithTimeout(ctx, chatSummaryGenerateTimeout)
+	defer cancelGen()
+	summary, _, genErr := generateChatSummary(summaryCtx, model, transcript)
+
+	if genErr != nil {
+		logger.Debug(ctx, "failed to generate chat summary",
+			slog.F("chat_id", chat.ID), slog.Error(genErr))
+		return
+	}
+
+	p.updateChatSummary(ctx, logger, chat, chat.HistoryVersion, summary)
+}
+
+func (p *Server) resolveChatSummaryModel(
+	ctx context.Context,
+	logger slog.Logger,
+	chat database.Chat,
+	modelOpts modelBuildOptions,
+) (fantasy.LanguageModel, database.ChatModelConfig, bool) {
+	//nolint:dogsled // resolveChatModel returns rich routing metadata; summary generation only needs the model and its config.
+	model, dbConfig, _, _, _, _, err := p.resolveChatModel(ctx, chat, modelOpts)
+	if err != nil {
+		logger.Debug(ctx, "failed to resolve chat model for summary",
+			slog.F("chat_id", chat.ID), slog.Error(err))
+		return nil, database.ChatModelConfig{}, false
+	}
+	return model, dbConfig, true
+}
+
+func shouldGenerateChatSummary(chat database.Chat, messages []database.ChatMessage) bool {
+	if !chat.Summary.Valid {
+		return countCompletedTurnsSince(messages, time.Time{}) >= summaryInitialTurnThreshold
+	}
+	var marker time.Time
+	if chat.SummaryGeneratedAt.Valid {
+		marker = chat.SummaryGeneratedAt.Time
+	}
+	return countCompletedTurnsSince(messages, marker) >= summaryStaleTurnThreshold
+}
+
+// countCompletedTurnsSince counts visible user messages (one per turn) created
+// after the given time. Model-only user messages (injected context, replayed
+// compaction summary) are not turns; a zero time counts all.
+func countCompletedTurnsSince(messages []database.ChatMessage, after time.Time) int {
+	count := 0
+	for _, message := range messages {
+		if message.Role != database.ChatMessageRoleUser {
+			continue
+		}
+		if message.Visibility != database.ChatMessageVisibilityBoth &&
+			message.Visibility != database.ChatMessageVisibilityUser {
+			continue
+		}
+		if !after.IsZero() && !message.CreatedAt.After(after) {
+			continue
+		}
+		count++
+	}
+	return count
+}
+
+// updateChatSummary persists the whole-chat summary. Best-effort background
+// write (pass a detached context); a blank summary is a no-op, never clearing
+// an existing one.
+func (p *Server) updateChatSummary(
+	ctx context.Context,
+	logger slog.Logger,
+	chat database.Chat,
+	expectedHistoryVersion int64,
+	summary string,
+) {
+	summary = strings.TrimSpace(summary)
+	if summary == "" {
+		return
+	}
+	sqlSummary := sql.NullString{String: summary, Valid: true}
+
+	ctx, cancel := context.WithTimeout(ctx, chatSummaryWriteTimeout)
+	defer cancel()
+
+	affected, err := p.db.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{
+		ID:                     chat.ID,
+		ExpectedHistoryVersion: expectedHistoryVersion,
+		Summary:                sqlSummary,
+	})
+	if err != nil {
+		logger.Warn(ctx, "failed to update chat summary",
+			slog.F("chat_id", chat.ID), slog.Error(err))
+		return
+	}
+	if affected == 0 {
+		logger.Info(ctx, "skipped stale chat summary update",
+			slog.F("chat_id", chat.ID),
+			slog.F("summary_length", len(summary)),
+			slog.F("expected_history_version", expectedHistoryVersion),
+		)
+		return
+	}
+
+	updatedChat := chat
+	updatedChat.Summary = sqlSummary
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindChatSummaryChange, nil)
 }
 
 func (p *Server) webpushConfigured() bool {

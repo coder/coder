@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"charm.land/fantasy"
 	"charm.land/fantasy/object"
@@ -963,6 +964,211 @@ func generateManualTitle(
 	}
 
 	return title, nil
+}
+
+const chatSummaryGenerationPrompt = "You summarize an AI coding chat for a quick-reference popover. " +
+	"Populate the summary field with 1 to 3 plain sentences describing what the conversation is about and what was accomplished or attempted. " +
+	"Write about the conversation in the third person. " +
+	"Preserve specific identifiers such as PR numbers, repo names, file paths, function names, and error messages. " +
+	"Do not address the user, give instructions, or continue the task. " +
+	"No markdown, lists, headings, code fences, or surrounding quotes."
+
+const (
+	// Bound the transcript so the summary call stays cheap and within context;
+	// long chats keep head and tail turns (see renderChatSummaryTranscript).
+	summaryTranscriptMaxRunes = 16000
+	// Cap a single turn so one long message cannot dominate the budget.
+	summaryTranscriptPerMessageMaxRunes = 4000
+	summaryMaxOutputTokens              = 512
+	// Reject pathologically long or verbose summaries, with slack over the
+	// 1-3 sentence target.
+	summaryMaxRunes     = 1000
+	summaryMaxSentences = 6
+)
+
+type generatedChatSummary struct {
+	Summary string `json:"summary" description:"1-3 sentence summary of the whole chat"`
+}
+
+// renderChatSummaryTranscript renders chat history as plain text for summary
+// generation. Plain text avoids provider tool-call pairing rules.
+func renderChatSummaryTranscript(messages []database.ChatMessage) string {
+	lines := make([]string, 0, len(messages))
+	for _, message := range messages {
+		var role string
+		switch message.Role {
+		case database.ChatMessageRoleUser:
+			role = "user"
+		case database.ChatMessageRoleAssistant:
+			role = "assistant"
+		default:
+			continue
+		}
+
+		// Keep visible turns plus the compaction summary (model-only but
+		// compressed); skip other model-only messages as noise.
+		visible := message.Visibility == database.ChatMessageVisibilityBoth ||
+			message.Visibility == database.ChatMessageVisibilityUser
+		compactionSummary := message.Visibility == database.ChatMessageVisibilityModel &&
+			message.Compressed
+		if !visible && !compactionSummary {
+			continue
+		}
+
+		parts, err := chatprompt.ParseContent(message)
+		if err != nil {
+			continue
+		}
+		text := strings.TrimSpace(contentBlocksToText(parts))
+		if text == "" {
+			continue
+		}
+		text = truncateRunes(text, summaryTranscriptPerMessageMaxRunes)
+		lines = append(lines, fmt.Sprintf("[%s]: %s", role, text))
+	}
+	return boundTranscriptHeadTail(lines, summaryTranscriptMaxRunes)
+}
+
+// boundTranscriptHeadTail joins lines; if over maxRunes it keeps a head and
+// tail slice with an elision marker between, preserving the chat's start and
+// most recent activity.
+func boundTranscriptHeadTail(lines []string, maxRunes int) string {
+	if len(lines) == 0 {
+		return ""
+	}
+	total := 0
+	for _, line := range lines {
+		total += len([]rune(line)) + 1
+	}
+	if total <= maxRunes {
+		return strings.Join(lines, "\n")
+	}
+
+	half := maxRunes / 2
+	headEnd := 0
+	headRunes := 0
+	for headEnd < len(lines) {
+		n := len([]rune(lines[headEnd])) + 1
+		if headEnd > 0 && headRunes+n > half {
+			break
+		}
+		headRunes += n
+		headEnd++
+	}
+	tailStart := len(lines)
+	tailRunes := 0
+	for tailStart > headEnd {
+		n := len([]rune(lines[tailStart-1])) + 1
+		if tailRunes+n > half {
+			break
+		}
+		tailRunes += n
+		tailStart--
+	}
+
+	var out strings.Builder
+	writeLine := func(line string) {
+		if out.Len() > 0 {
+			_ = out.WriteByte('\n')
+		}
+		_, _ = out.WriteString(line)
+	}
+
+	for _, line := range lines[:headEnd] {
+		writeLine(line)
+	}
+	if tailStart > headEnd {
+		writeLine("[... earlier turns omitted ...]")
+	}
+	for _, line := range lines[tailStart:] {
+		writeLine(line)
+	}
+	return out.String()
+}
+
+// generateChatSummary generates a 1-3 sentence whole-chat summary from a
+// transcript. A blank or invalid result returns an error so callers preserve
+// any existing summary rather than clearing it.
+func generateChatSummary(
+	ctx context.Context,
+	model fantasy.LanguageModel,
+	transcript string,
+) (string, fantasy.Usage, error) {
+	transcript = strings.TrimSpace(transcript)
+	if transcript == "" {
+		return "", fantasy.Usage{}, xerrors.New("chat summary transcript was empty")
+	}
+
+	prompt := fantasy.Prompt{
+		{
+			Role: fantasy.MessageRoleSystem,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: chatSummaryGenerationPrompt},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: transcript},
+			},
+		},
+	}
+
+	maxOutputTokens := int64(summaryMaxOutputTokens)
+	var result *fantasy.ObjectResult[generatedChatSummary]
+	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+		var genErr error
+		result, genErr = object.Generate[generatedChatSummary](retryCtx, model, fantasy.ObjectCall{
+			Prompt:            prompt,
+			SchemaName:        "chat_summary",
+			SchemaDescription: "Summarize the whole chat in 1-3 sentences.",
+			MaxOutputTokens:   &maxOutputTokens,
+		})
+		return genErr
+	}, nil)
+	if err != nil {
+		var usage fantasy.Usage
+		if noObjErr, ok := errors.AsType[*fantasy.NoObjectGeneratedError](err); ok {
+			usage = noObjErr.Usage
+		}
+		return "", usage, xerrors.Errorf("generate chat summary: %w", err)
+	}
+
+	summary := normalizeShortTextOutput(result.Object.Summary)
+	if err := validateGeneratedChatSummary(summary); err != nil {
+		return "", result.Usage, err
+	}
+	return summary, result.Usage, nil
+}
+
+func validateGeneratedChatSummary(summary string) error {
+	if summary == "" {
+		return xerrors.New("generated chat summary was empty")
+	}
+	if len([]rune(summary)) > summaryMaxRunes {
+		return xerrors.Errorf("generated chat summary exceeded %d runes", summaryMaxRunes)
+	}
+	if countSentenceTerminators(summary) > summaryMaxSentences {
+		return xerrors.Errorf("generated chat summary exceeded %d sentences", summaryMaxSentences)
+	}
+	return nil
+}
+
+// countSentenceTerminators counts sentence-ending punctuation, but only when
+// followed by whitespace or end-of-text, so periods inside dotted identifiers
+// (pkg.cmd.server, file paths) do not inflate the count.
+func countSentenceTerminators(text string) int {
+	runes := []rune(text)
+	count := 0
+	for i, r := range runes {
+		if r != '.' && r != '!' && r != '?' {
+			continue
+		}
+		if i == len(runes)-1 || unicode.IsSpace(runes[i+1]) {
+			count++
+		}
+	}
+	return count
 }
 
 const turnStatusLabelPrompt = "You write compact chat status labels for a sidebar or push notification. " +
