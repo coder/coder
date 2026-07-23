@@ -590,7 +590,10 @@ export const useChatStore = (
 							store.applyAuthoritativeQueuedMessages(
 								streamEvent.queued_messages,
 							);
-							setCacheQueuedMessages(streamEvent.queued_messages);
+							// Cache the store's filtered queue, not the raw
+							// event, so a promoted message suppressed by the
+							// store cannot reappear on REST re-hydration.
+							setCacheQueuedMessages(store.getSnapshot().queuedMessages);
 							continue;
 						case "status": {
 							const nextStatus = streamEvent.status?.status;
