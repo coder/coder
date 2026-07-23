@@ -5095,11 +5095,11 @@ func (c *DeploymentValues) Validate() error {
 			if len(c.AI.Chat.HookSecret.Value()) < 32 {
 				return xerrors.New("chat hook secret must be at least 32 bytes of cryptographically random data; set --chat-hook-secret to a longer value")
 			}
-		}
 
-		hookTimeout := c.AI.Chat.HookTimeout.Value()
-		if hookTimeout <= 0 || hookTimeout > 5*time.Second {
-			return xerrors.Errorf("chat hook timeout (%s) must be greater than zero and no more than 5s; set --chat-hook-timeout to a valid duration", hookTimeout)
+			hookTimeout := c.AI.Chat.HookTimeout.Value()
+			if hookTimeout <= 0 || hookTimeout > 5*time.Second {
+				return xerrors.Errorf("chat hook timeout (%s) must be greater than zero and no more than 5s; set --chat-hook-timeout to a valid duration", hookTimeout)
+			}
 		}
 	}
 
