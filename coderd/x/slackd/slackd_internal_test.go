@@ -311,6 +311,28 @@ func mentionEventFrom(eventID, slackUserID, channel, ts, threadTS, text string) 
 	}
 }
 
+func directMessageEvent(eventID, slackUserID, channel, ts, threadTS, text string) socketmode.Event {
+	return socketmode.Event{
+		Type:    socketmode.EventTypeEventsAPI,
+		Request: &socketmode.Request{EnvelopeID: eventID},
+		Data: slackevents.EventsAPIEvent{
+			Type: slackevents.CallbackEvent,
+			Data: &slackevents.EventsAPICallbackEvent{EventID: eventID},
+			InnerEvent: slackevents.EventsAPIInnerEvent{
+				Data: &slackevents.MessageEvent{
+					Type:            "message",
+					User:            slackUserID,
+					Text:            text,
+					TimeStamp:       ts,
+					ThreadTimeStamp: threadTS,
+					Channel:         channel,
+					ChannelType:     "im",
+				},
+			},
+		},
+	}
+}
+
 func seedOwner(t *testing.T, db database.Store) (database.User, database.Organization) {
 	t.Helper()
 	user := dbgen.User(t, db, database.User{})
@@ -430,6 +452,209 @@ func TestHandleMentionCreatesChatForNewThread(t *testing.T) {
 	// Mentions are rendered inline the way Slack displays them.
 	assert.Contains(t, block.Text, "<content>\n@bot hello @sender\n</content>\n")
 	assert.NotContains(t, block.Text, "<@UBOT>")
+}
+
+func TestHandleDirectMessageCreatesChatForNewThread(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	owner, org := seedOwner(t, db)
+
+	chat := newFakeChatSubmitter()
+	chat.createChat = database.Chat{ID: uuid.New()}
+	socket := newFakeSocketClient()
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, owner.ID, "", socket)
+	webAPI.setReplies(threadMsg("100.1", "USENDER", "hello without a mention"))
+
+	server.handleEvent(ctx, directMessageEvent("EvDM1", "USENDER", "D1", "100.1", "", "hello without a mention"))
+	_ = testutil.TryReceive(ctx, t, socket.acked)
+	_ = testutil.TryReceive(ctx, t, chat.called)
+
+	creates, sends := chat.snapshot()
+	require.Len(t, creates, 1)
+	require.Empty(t, sends)
+	create := creates[0]
+	assert.Equal(t, owner.ID, create.OwnerID)
+	assert.Equal(t, org.ID, create.OrganizationID)
+	requireAPIKeyOwnedBy(t, db, create.APIKeyID, owner.ID)
+	assert.Equal(t, "D1:100.1", create.Labels[LabelSlackThread])
+	assert.Equal(t, "true", create.Labels[LabelSlackShared])
+	assert.Equal(t, map[string]string{
+		LabelSlackd:      "true",
+		LabelSlackThread: "D1:100.1",
+	}, create.DedupLabels)
+	require.Len(t, create.InitialUserContent, 2)
+	assert.Equal(t, "EvDM1", create.InitialUserContent[0].Metadata[MetadataKeySlackEventID])
+	assert.Contains(t, create.InitialUserContent[0].Text, "N/A (new thread)")
+	assert.Contains(t, create.InitialUserContent[1].Text, "hello without a mention")
+}
+
+func TestHandleDirectMessageSendsToExistingChat(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	owner, org := seedOwner(t, db)
+	existing := seedThreadChat(t, db, org, owner.ID, "D1:100.1")
+
+	chat := newFakeChatSubmitter()
+	socket := newFakeSocketClient()
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, owner.ID, "", socket)
+	webAPI.setReplies(
+		threadMsg("100.1", "USENDER", "thread start"),
+		threadMsg("105.0", "USENDER", "follow-up"),
+	)
+
+	server.handleEvent(ctx, directMessageEvent("EvDM2", "USENDER", "D1", "105.0", "100.1", "follow-up"))
+	_ = testutil.TryReceive(ctx, t, socket.acked)
+	_ = testutil.TryReceive(ctx, t, chat.called)
+
+	creates, sends := chat.snapshot()
+	require.Empty(t, creates)
+	require.Len(t, sends, 1)
+	assert.Equal(t, existing.ID, sends[0].ChatID)
+	assert.Equal(t, MetadataKeySlackEventID, sends[0].DedupMetadataKey)
+	assert.Equal(t, []string{"100.1", "105.0"}, blockTimestamps(sends[0].Content))
+}
+
+func TestHandleDirectMessageLinkedSenderOwnsChatAndInterruptsSibling(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	fallback, fallbackOrg := seedOwner(t, db)
+	linkedOrg := dbgen.Organization(t, db, database.Organization{})
+	linked := seedMember(t, db, linkedOrg)
+	linkSlackIdentity(t, db, testProviderID, linked.ID, "ULINKED")
+	sibling := seedThreadChat(t, db, fallbackOrg, fallback.ID, "D1:100.1")
+
+	chat := newFakeChatSubmitter()
+	chat.createChat = database.Chat{ID: uuid.New(), OwnerID: linked.ID}
+	socket := newFakeSocketClient()
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, fallback.ID, testProviderID, socket)
+	webAPI.setReplies(threadMsg("100.1", "ULINKED", "hello"))
+
+	server.handleEvent(ctx, directMessageEvent("EvDMOwner", "ULINKED", "D1", "100.1", "", "hello"))
+	_ = testutil.TryReceive(ctx, t, socket.acked)
+	_ = testutil.TryReceive(ctx, t, chat.called)
+
+	creates, sends := chat.snapshot()
+	require.Len(t, creates, 1)
+	require.Empty(t, sends)
+	assert.Equal(t, linked.ID, creates[0].OwnerID)
+	assert.Equal(t, linkedOrg.ID, creates[0].OrganizationID)
+	assert.NotContains(t, creates[0].Labels, LabelSlackShared)
+	requireAPIKeyOwnedBy(t, db, creates[0].APIKeyID, linked.ID)
+	interrupted, ops := chat.interrupts()
+	require.Len(t, interrupted, 1)
+	assert.Equal(t, sibling.ID, interrupted[0].ID)
+	assert.Equal(t, []string{"interrupt", "create"}, ops)
+}
+
+func TestHandleDirectMessageDuplicateEventDoesNotInterruptSibling(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	fallback, org := seedOwner(t, db)
+	siblingOwner := seedMember(t, db, org)
+	seedThreadChat(t, db, org, siblingOwner.ID, "D1:100.1")
+	own := seedThreadChat(t, db, org, fallback.ID, "D1:100.1")
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+		Type:     codersdk.ChatMessagePartTypeText,
+		Text:     "original",
+		Metadata: map[string]string{MetadataKeySlackEventID: "EvDMDuplicate"},
+	}})
+	require.NoError(t, err)
+	dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:    own.ID,
+		CreatedBy: uuid.NullUUID{UUID: fallback.ID, Valid: true},
+		Content:   content,
+	})
+
+	chat := newFakeChatSubmitter()
+	socket := newFakeSocketClient()
+	server := newTestServer(t, db, chat, fallback.ID, socket)
+
+	server.handleEvent(ctx, directMessageEvent("EvDMDuplicate", "USENDER", "D1", "105.0", "100.1", "duplicate"))
+	_ = testutil.TryReceive(ctx, t, socket.acked)
+	server.wg.Wait()
+
+	creates, sends := chat.snapshot()
+	require.Empty(t, creates)
+	require.Empty(t, sends)
+	interrupted, _ := chat.interrupts()
+	require.Empty(t, interrupted)
+}
+
+func TestHandleEventIgnoresUnsupportedDirectMessages(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		mutate func(*slackevents.MessageEvent)
+	}{
+		{
+			name: "BotAuthored",
+			mutate: func(ev *slackevents.MessageEvent) {
+				ev.BotID = "B1"
+			},
+		},
+		{
+			name: "SelfAuthored",
+			mutate: func(ev *slackevents.MessageEvent) {
+				ev.User = "UBOT"
+			},
+		},
+		{
+			name: "Subtype",
+			mutate: func(ev *slackevents.MessageEvent) {
+				ev.SubType = "message_changed"
+			},
+		},
+		{
+			name: "Malformed",
+			mutate: func(ev *slackevents.MessageEvent) {
+				ev.TimeStamp = ""
+			},
+		},
+		{
+			name: "Channel",
+			mutate: func(ev *slackevents.MessageEvent) {
+				ev.ChannelType = "channel"
+			},
+		},
+		{
+			name: "MultipartyDirectMessage",
+			mutate: func(ev *slackevents.MessageEvent) {
+				ev.ChannelType = "mpim"
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, _ := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			owner, _ := seedOwner(t, db)
+			chat := newFakeChatSubmitter()
+			socket := newFakeSocketClient()
+			server := newTestServer(t, db, chat, owner.ID, socket)
+			evt := directMessageEvent("EvIgnored", "USENDER", "D1", "100.1", "", "hello")
+			message := evt.Data.(slackevents.EventsAPIEvent).InnerEvent.Data.(*slackevents.MessageEvent)
+			tt.mutate(message)
+
+			server.handleEvent(ctx, evt)
+			_ = testutil.TryReceive(ctx, t, socket.acked)
+			server.wg.Wait()
+
+			creates, sends := chat.snapshot()
+			require.Empty(t, creates)
+			require.Empty(t, sends)
+		})
+	}
 }
 
 func TestFormatSlackTimestamp(t *testing.T) {

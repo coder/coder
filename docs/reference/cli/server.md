@@ -1752,7 +1752,7 @@ Force chat debug logging on for every chat, bypassing the runtime admin and user
 | Type        | <code>string</code>                 |
 | Environment | <code>$CODER_SLACK_BOT_TOKEN</code> |
 
-Bot token (xoxb-...) of the Slack app that slackd connects to. When set together with the app token and chat owner user ID, coderd connects to Slack over Socket Mode and submits app mentions to chats.
+Bot token (xoxb-...) of the Slack app that slackd connects to. When set together with the app token and chat owner user ID, coderd connects to Slack over Socket Mode and submits app mentions and 1:1 direct messages to chats. To receive direct messages, subscribe the app to the message.im bot event and grant the bot token the im:history scope.
 
 ### --slack-app-token
 

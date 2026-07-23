@@ -1,6 +1,6 @@
 // Package slackd connects coderd to a Slack app over Socket Mode and
-// submits Slack app mentions to chats. It is the built-in counterpart
-// of github.com/coder/coder-agents-slackbot. Incoming Slack events are
+// submits Slack app mentions and direct messages to chats. It is the built-in
+// counterpart of github.com/coder/coder-agents-slackbot. Incoming Slack events are
 // reduced to message submission; replies to Slack happen through the
 // Slack tools that chatd enables for chats carrying the slackd labels.
 //
@@ -15,7 +15,7 @@
 // thread-scoped Postgres advisory lock so concurrent senders on
 // different replicas cannot leave two chats generating.
 //
-// Each mention submits a catch-up: the Slack thread is fetched and
+// Each supported message submits a catch-up: the Slack thread is fetched and
 // every message the chat has not yet seen is included in the user
 // message, one <slack-message> block per Slack message. Ingestion is
 // tracked through content-part metadata: every block part is stamped
@@ -521,17 +521,17 @@ func (s *Server) handleEvent(ctx context.Context, evt socketmode.Event) {
 			s.logger.Warn(ctx, "events api event without event id, skipping")
 			return
 		}
-		mention, ok := apiEvent.InnerEvent.Data.(*slackevents.AppMentionEvent)
+		message, ok := s.normalizeIncomingMessage(ctx, apiEvent.InnerEvent.Data)
 		if !ok {
 			return
 		}
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
-			if err := s.handleMention(ctx, callback.EventID, mention); err != nil && ctx.Err() == nil {
-				s.logger.Error(ctx, "handle slack mention",
+			if err := s.handleMessage(ctx, callback.EventID, message); err != nil && ctx.Err() == nil {
+				s.logger.Error(ctx, "handle slack message",
 					slog.F("event_id", callback.EventID),
-					slog.F("channel", mention.Channel),
+					slog.F("channel", message.channel),
 					slog.Error(err),
 				)
 			}
@@ -539,19 +539,77 @@ func (s *Server) handleEvent(ctx context.Context, evt socketmode.Event) {
 	}
 }
 
-// handleMention submits one Slack app mention to the sender's chat for
+// incomingMessage is the common subset of Slack app mentions and direct
+// messages used by the chat submission pipeline.
+type incomingMessage struct {
+	user            string
+	text            string
+	timestamp       string
+	threadTimestamp string
+	channel         string
+}
+
+// normalizeIncomingMessage normalizes supported Events API payloads. Ordinary human
+// messages in one-to-one direct message channels are accepted without an app
+// mention. Other message events are ignored, including messages authored by
+// the app itself, to prevent reply loops.
+func (s *Server) normalizeIncomingMessage(ctx context.Context, event any) (incomingMessage, bool) {
+	switch ev := event.(type) {
+	case *slackevents.AppMentionEvent:
+		return incomingMessageFromMention(ev), true
+	case *slackevents.MessageEvent:
+		if ev.ChannelType != "im" || ev.SubType != "" || ev.BotID != "" ||
+			ev.User == "" || ev.Channel == "" || ev.TimeStamp == "" {
+			return incomingMessage{}, false
+		}
+		botUID, err := s.resolveBotUserID(ctx)
+		if err != nil {
+			s.logger.Warn(ctx, "resolve slack bot user id for direct message", slog.Error(err))
+			return incomingMessage{}, false
+		}
+		if ev.User == botUID {
+			return incomingMessage{}, false
+		}
+		return incomingMessage{
+			user:            ev.User,
+			text:            ev.Text,
+			timestamp:       ev.TimeStamp,
+			threadTimestamp: ev.ThreadTimeStamp,
+			channel:         ev.Channel,
+		}, true
+	default:
+		return incomingMessage{}, false
+	}
+}
+
+func incomingMessageFromMention(ev *slackevents.AppMentionEvent) incomingMessage {
+	return incomingMessage{
+		user:            ev.User,
+		text:            ev.Text,
+		timestamp:       ev.TimeStamp,
+		threadTimestamp: ev.ThreadTimeStamp,
+		channel:         ev.Channel,
+	}
+}
+
+// handleMention submits an app mention through the shared Slack message path.
+func (s *Server) handleMention(ctx context.Context, eventID string, ev *slackevents.AppMentionEvent) error {
+	return s.handleMessage(ctx, eventID, incomingMessageFromMention(ev))
+}
+
+// handleMessage submits one supported Slack message to the sender's chat for
 // the thread, creating the chat when the (thread, owner) pair is new.
 // Other owners' chats bound to the same thread are interrupted first so
 // at most one chat per thread is actively generating. The
 // lookup-interrupt-submit sequence runs under a thread-scoped advisory
 // lock (withThreadLock) so concurrent senders on different replicas
 // cannot leave two chats generating.
-func (s *Server) handleMention(ctx context.Context, eventID string, ev *slackevents.AppMentionEvent) error {
-	threadTS := ev.ThreadTimeStamp
+func (s *Server) handleMessage(ctx context.Context, eventID string, ev incomingMessage) error {
+	threadTS := ev.threadTimestamp
 	if threadTS == "" {
-		threadTS = ev.TimeStamp
+		threadTS = ev.timestamp
 	}
-	threadKey := ev.Channel + ":" + threadTS
+	threadKey := ev.channel + ":" + threadTS
 
 	// Thread identity labels used for lookup, sibling interrupt, and
 	// creation dedup. Mode labels (e.g. LabelSlackShared) are stamped
@@ -565,13 +623,13 @@ func (s *Server) handleMention(ctx context.Context, eventID string, ev *slackeve
 	// so the owner is resolved per message, not only for new threads.
 	// Resolution keeps its fail-closed semantics: an error drops the
 	// event (Slack redelivery plus event-id dedup make this safe).
-	owner, kind, err := s.resolveOwner(ctx, ev.User)
+	owner, kind, err := s.resolveOwner(ctx, ev.user)
 	if err != nil {
-		return xerrors.Errorf("resolve chat owner for slack user %q: %w", ev.User, err)
+		return xerrors.Errorf("resolve chat owner for slack user %q: %w", ev.user, err)
 	}
 	s.logger.Debug(ctx, "resolved chat owner for slack message",
 		slog.F("thread", threadKey),
-		slog.F("slack_user_id", ev.User),
+		slog.F("slack_user_id", ev.user),
 		slog.F("owner_id", owner.ID),
 		slog.F("resolution", string(kind)),
 	)
@@ -660,7 +718,7 @@ func (s *Server) handleMention(ctx context.Context, eventID string, ev *slackeve
 				APIKeyID:           apiKeyID,
 				ModelConfigID:      modelConfig.ID,
 				Title:              "Slack thread " + threadKey,
-				SystemPrompt:       s.buildSystemPrompt(ctx, kind, owner.ID, ev.User),
+				SystemPrompt:       s.buildSystemPrompt(ctx, kind, owner.ID, ev.user),
 				InitialUserContent: content,
 				Labels:             database.StringMap(createLabels),
 				// Dedup is scoped per owner: each (owner, thread) pair
@@ -1195,12 +1253,12 @@ func (s *Server) renderMentionsInline(ctx context.Context, text string) string {
 // slack_message_ts so later events can compute the unseen set.
 func (s *Server) buildContent(
 	ctx context.Context,
-	ev *slackevents.AppMentionEvent,
+	ev incomingMessage,
 	threadTS, eventID string,
 	unseen []slack.Message,
 ) []codersdk.ChatMessagePart {
 	threadLine := threadTS
-	if ev.ThreadTimeStamp == "" {
+	if ev.threadTimestamp == "" {
 		threadLine = "N/A (new thread)"
 	}
 	header := fmt.Sprintf("Slack thread metadata:\n\n"+
@@ -1208,14 +1266,14 @@ func (s *Server) buildContent(
 		"The slack-message blocks below are the messages from this Slack "+
 		"thread that have not been submitted to this chat yet, in "+
 		"chronological order.\n",
-		ev.Channel, threadLine)
+		ev.channel, threadLine)
 
 	parts := []codersdk.ChatMessagePart{{
 		Type: codersdk.ChatMessagePartTypeText,
 		Text: header,
 		Metadata: map[string]string{
 			MetadataKeySlackEventID:  eventID,
-			MetadataKeySlackSenderID: ev.User,
+			MetadataKeySlackSenderID: ev.user,
 		},
 	}}
 	for _, msg := range unseen {
@@ -1242,19 +1300,19 @@ func (s *Server) buildContent(
 // drops the event.
 func (s *Server) unseenThreadMessages(
 	ctx context.Context,
-	ev *slackevents.AppMentionEvent,
+	ev incomingMessage,
 	threadTS string,
 	chatID uuid.NullUUID,
 ) ([]slack.Message, error) {
 	mention := slack.Message{Msg: slack.Msg{
-		Timestamp: ev.TimeStamp,
-		User:      ev.User,
-		Text:      ev.Text,
+		Timestamp: ev.timestamp,
+		User:      ev.user,
+		Text:      ev.text,
 	}}
-	replies, err := s.fetchThreadReplies(ctx, ev.Channel, threadTS)
+	replies, err := s.fetchThreadReplies(ctx, ev.channel, threadTS)
 	if err != nil {
-		s.logger.Warn(ctx, "fetch slack thread replies, falling back to mention-only submission",
-			slog.F("channel", ev.Channel), slog.F("thread_ts", threadTS), slog.Error(err))
+		s.logger.Warn(ctx, "fetch slack thread replies, falling back to event-only submission",
+			slog.F("channel", ev.channel), slog.F("thread_ts", threadTS), slog.Error(err))
 		return []slack.Message{mention}, nil
 	}
 

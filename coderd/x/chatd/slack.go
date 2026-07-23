@@ -16,7 +16,7 @@ import (
 
 // Labels and metadata keys that bind a chat to a Slack thread. They are
 // stamped by the slackd integration (coderd/x/slackd) when it creates
-// chats for Slack app mentions, and chatd uses them to decide whether
+// chats for Slack messages, and chatd uses them to decide whether
 // to enable the Slack tools for a turn. They live here because slackd
 // depends on chatd, so chatd cannot import slackd.
 const (
