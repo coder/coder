@@ -22,8 +22,8 @@ import {
 	MockDefaultOrganization,
 	MockDeploymentConfig,
 	MockEntitlements,
+	MockNoPermissions,
 	MockOrganizationPermissions,
-	MockPermissions,
 	MockProxyLatencies,
 } from "./entities";
 
@@ -167,10 +167,11 @@ export const withAuthProvider = (Story: FC, { parameters }: StoryContext) => {
 	queryClient.setQueryData(hasFirstUserKey, true);
 	queryClient.setQueryData(
 		getAuthorizationKey({ checks: permissionChecks }),
-		// parameters.permissions is a partial override; unspecified keys fall
-		// back to the full-permission mock so stories track new permission
-		// keys without listing every one.
-		{ ...MockPermissions, ...parameters.permissions },
+		// parameters.permissions is a partial override; unspecified keys are
+		// explicitly false so the seeded object always contains every
+		// permission key. Stories that depend on a permission being granted
+		// must list it.
+		{ ...MockNoPermissions, ...parameters.permissions },
 	);
 
 	return (

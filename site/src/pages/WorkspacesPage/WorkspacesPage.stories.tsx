@@ -74,6 +74,7 @@ const meta = {
 		user: MockUserOwner,
 		permissions: {
 			viewDeploymentConfig: false,
+			createWorkspace: true,
 		},
 		queries: [
 			{
