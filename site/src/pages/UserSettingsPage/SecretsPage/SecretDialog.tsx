@@ -141,7 +141,8 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 		const format = secretsFileFormatFromFilename(file.name);
 		if (!format) {
 			setImportError({
-				message: "Unsupported file type. Import a .env, .json, or .yml file.",
+				message:
+					"Unsupported file type. Import a .env, .json, .yaml, or .yml file.",
 			});
 			return;
 		}
@@ -255,7 +256,7 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 									}}
 									removeLabel="Remove file"
 									title="Import secrets from a file"
-									description="Import a single or multiple secrets at once with a .env, .json, or .yml file."
+									description="Import a single or multiple secrets at once with a .env, .json, .yaml, or .yml file."
 									extensions={["env", "json", "yaml", "yml"]}
 								/>
 								{importError !== undefined && (

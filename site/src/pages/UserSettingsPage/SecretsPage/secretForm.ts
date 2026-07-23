@@ -28,8 +28,6 @@ interface SecretFormErrors {
 	formError?: string;
 }
 
-// secretsFileFormatFromFilename maps a filename extension to its import
-// format, or undefined when the extension is unsupported.
 export const buildImportSuccessMessage = (secrets: UserSecret[]): string => {
 	const total = secrets.length;
 	const noEnvName = secrets.filter((s) => s.env_name === "").length;

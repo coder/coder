@@ -123,13 +123,9 @@ const useFileDrop = (
 			return;
 		}
 
-		const extension = file.name.split(".").pop();
+		const extension = file.name.split(".").pop()?.toLowerCase();
 
-		if (!extension) {
-			throw new Error(`File has no extension to compare with ${extensions}`);
-		}
-
-		if (extensions.includes(extension)) {
+		if (extension && extensions.includes(extension)) {
 			callback(file);
 		}
 	};
