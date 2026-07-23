@@ -563,7 +563,7 @@ func (api *API) paginatedGroups(rw http.ResponseWriter, r *http.Request) {
 	org := httpmw.OrganizationParam(r)
 
 	filterQuery := r.URL.Query().Get("q")
-	groupFilter, filterErrs := searchquery.Groups(filterQuery)
+	search, filterErrs := searchquery.Groups(filterQuery)
 	if len(filterErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid group search query.",
@@ -579,7 +579,7 @@ func (api *API) paginatedGroups(rw http.ResponseWriter, r *http.Request) {
 
 	groups, err := api.Database.PaginatedOrganizationGroups(ctx, database.PaginatedOrganizationGroupsParams{
 		OrganizationID: org.ID,
-		Search:         groupFilter.Search,
+		Search:         search,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32

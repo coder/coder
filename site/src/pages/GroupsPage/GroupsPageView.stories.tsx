@@ -61,14 +61,16 @@ export const WithGroups: Story = {
 	},
 };
 
+const totalRecords = 15;
+const totalPages = 3;
+const limit = totalRecords / totalPages;
+
 // Multiple pages of results with the search field in use.
 export const WithSearchAndPagination: Story = {
 	args: {
-		groups: [
-			aiGroup("group-a", "Group A"),
-			aiGroup("group-b", "Group B"),
-			aiGroup("group-c", "Group C"),
-		],
+		groups: Array.from({ length: limit }).map((_, i) =>
+			aiGroup(`group-${i}`, `Group ${i}`),
+		),
 		filterProps: {
 			filter: {
 				query: "group",
@@ -81,8 +83,9 @@ export const WithSearchAndPagination: Story = {
 		},
 		groupsQuery: {
 			...mockSuccessResult,
-			totalRecords: 60,
-			totalPages: 3,
+			totalRecords,
+			totalPages,
+			limit,
 			hasNextPage: true,
 		} as UsePaginatedQueryResult,
 	},

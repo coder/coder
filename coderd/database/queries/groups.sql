@@ -102,7 +102,7 @@ INNER JOIN
 WHERE
 		true
 		AND CASE
-				WHEN @organization_id:: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+				WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000' :: uuid THEN
 						groups.organization_id = @organization_id
 				ELSE true
 		END
@@ -115,7 +115,7 @@ WHERE
 		END
 ORDER BY
 		-- Deterministic and consistent ordering of all groups. This is to ensure consistent pagination.
-		LOWER(groups.name) ASC OFFSET @offset_opt
+		LOWER(groups.name) ASC, groups.id ASC
 LIMIT
 		-- A null limit means "no limit", so 0 means return all
 		NULLIF(@limit_opt :: int, 0);
