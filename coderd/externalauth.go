@@ -203,15 +203,17 @@ func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Reque
 		}
 	} else {
 		_, err = api.Database.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
-			ProviderID:             config.ID,
-			UserID:                 apiKey.UserID,
-			UpdatedAt:              dbtime.Now(),
-			OAuthAccessToken:       token.AccessToken,
-			OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
-			OAuthRefreshToken:      token.RefreshToken,
-			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
-			OAuthExpiry:            token.Expiry,
-			OAuthExtra:             pqtype.NullRawMessage{},
+			ProviderID:                config.ID,
+			UserID:                    apiKey.UserID,
+			UpdatedAt:                 dbtime.Now(),
+			OAuthAccessToken:          token.AccessToken,
+			OAuthAccessTokenKeyID:     sql.NullString{}, // dbcrypt will update as required
+			OAuthRefreshToken:         token.RefreshToken,
+			OAuthRefreshTokenKeyID:    sql.NullString{}, // dbcrypt will update as required
+			OAuthExpiry:               token.Expiry,
+			OAuthExtra:                pqtype.NullRawMessage{},
+			OauthRefreshFailureReason: "",
+			RefreshLeaseExpiresAt:     sql.NullTime{},
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -305,15 +307,17 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 			}
 		} else {
 			_, err = api.Database.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
-				ProviderID:             externalAuthConfig.ID,
-				UserID:                 apiKey.UserID,
-				UpdatedAt:              dbtime.Now(),
-				OAuthAccessToken:       state.Token.AccessToken,
-				OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
-				OAuthRefreshToken:      state.Token.RefreshToken,
-				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
-				OAuthExpiry:            state.Token.Expiry,
-				OAuthExtra:             extra,
+				ProviderID:                externalAuthConfig.ID,
+				UserID:                    apiKey.UserID,
+				UpdatedAt:                 dbtime.Now(),
+				OAuthAccessToken:          state.Token.AccessToken,
+				OAuthAccessTokenKeyID:     sql.NullString{}, // dbcrypt will update as required
+				OAuthRefreshToken:         state.Token.RefreshToken,
+				OAuthRefreshTokenKeyID:    sql.NullString{}, // dbcrypt will update as required
+				OAuthExpiry:               state.Token.Expiry,
+				OAuthExtra:                extra,
+				OauthRefreshFailureReason: "",
+				RefreshLeaseExpiresAt:     sql.NullTime{},
 			})
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
