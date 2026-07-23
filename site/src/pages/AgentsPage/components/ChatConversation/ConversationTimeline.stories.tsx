@@ -441,6 +441,8 @@ export const LifecycleHookNotice: Story = {
 export const LifecycleHookNoticeOnUserMessage: Story = {
 	args: {
 		...defaultArgs,
+		urlTransform: (url) =>
+			url.replace("http://localhost:3000", "https://proxy.example.com"),
 		parsedMessages: buildMessages([
 			{
 				...baseMessage,
@@ -450,7 +452,7 @@ export const LifecycleHookNoticeOnUserMessage: Story = {
 					{ type: "text", text: "original prompt" },
 					{
 						type: "hook-notice",
-						text: "Deployment context was added to this prompt.",
+						text: "Deployment context was added: [policy](http://localhost:3000/policy)",
 					},
 				],
 			},
@@ -461,10 +463,11 @@ export const LifecycleHookNoticeOnUserMessage: Story = {
 		const notice = canvas.getByRole("note");
 		expect(notice).toBeVisible();
 		expect(within(notice).getByText("Lifecycle hook")).toBeVisible();
-		expect(
-			within(notice).getByText("Deployment context was added to this prompt."),
-		).toBeVisible();
 		expect(canvas.getByText("original prompt")).toBeVisible();
+		// The user-message notice must receive the timeline's
+		// urlTransform even through the sticky message wrapper.
+		const link = within(notice).getByRole("link", { name: "policy" });
+		expect(link).toHaveAttribute("href", "https://proxy.example.com/policy");
 	},
 };
 
