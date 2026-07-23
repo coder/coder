@@ -1204,6 +1204,7 @@ export const ScrollToBottomButtonWorksWithInverseScroll: Story = {
 		).toBeNull();
 
 		scrollToHistoryTop(scrollContainer);
+		await waitForIntersectionObserverTick();
 
 		await waitFor(() => {
 			expect(

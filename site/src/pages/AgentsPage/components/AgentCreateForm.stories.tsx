@@ -340,21 +340,23 @@ export const SubmitsReasoningEffort: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
+		const user = userEvent.setup();
 
 		// Open the model selector; the effort row shows the model default.
-		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
+		await user.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
 		const slider = await body.findByRole("slider");
 		// "medium" is the fourth of seven selectable efforts.
 		expect(slider).toHaveAttribute("aria-valuenow", "3");
 
-		// Bump the effort to "high" with the keyboard, then close.
-		await userEvent.tab();
+		// Select the slider as a user would, then bump the effort to "high" with
+		// the keyboard and close the selector.
+		await user.click(slider);
 		expect(slider).toHaveFocus();
-		await userEvent.keyboard("{ArrowRight}");
+		await user.keyboard("{ArrowRight}");
 		await waitFor(() => {
 			expect(slider).toHaveAttribute("aria-valuenow", "4");
 		});
-		await userEvent.keyboard("{Escape}");
+		await user.keyboard("{Escape}");
 
 		await submitMessage(canvasElement, "create with reasoning effort");
 		await waitFor(() => {

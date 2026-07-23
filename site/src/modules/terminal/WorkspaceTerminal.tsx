@@ -331,7 +331,10 @@ export const WorkspaceTerminal = ({
 			window.removeEventListener("resize", refit);
 			resizeObserver.disconnect();
 			fitAddonRef.current = undefined;
-			nextTerminal.dispose();
+			// xterm schedules its initial viewport sync with setTimeout and does not
+			// cancel it on dispose. Let that earlier task finish before disposing the
+			// renderer it reads from.
+			window.setTimeout(() => nextTerminal.dispose(), 0);
 			setTerminal(undefined);
 		};
 	}, [
