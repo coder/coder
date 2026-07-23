@@ -5011,6 +5011,17 @@ export interface Feature {
 	readonly entitlement: Entitlement;
 	readonly enabled: boolean;
 	readonly limit?: number;
+	/**
+	 * SoftLimit and HardLimit are optional thresholds that accompany Limit
+	 * for features whose license carries them. For these features, Limit
+	 * carries the purchased allocation, SoftLimit is the advisory warning
+	 * threshold, and HardLimit is the enforcement ceiling.
+	 *
+	 * Only certain features set these fields:
+	 * - FeatureAgentRuntimeHours
+	 */
+	readonly soft_limit?: number;
+	readonly hard_limit?: number;
 	readonly actual?: number;
 	/**
 	 * UsagePeriod denotes that the usage is a counter that accumulates over
@@ -5022,6 +5033,7 @@ export interface Feature {
 	 *
 	 * Only certain features set these fields:
 	 * - FeatureManagedAgentLimit
+	 * - FeatureAgentRuntimeHours
 	 */
 	readonly usage_period?: UsagePeriod;
 }
@@ -5032,6 +5044,7 @@ export type FeatureName =
 	| "ai_governance_user_limit"
 	| "access_control"
 	| "advanced_template_scheduling"
+	| "agent_runtime_hours"
 	| "appearance"
 	| "audit_log"
 	| "boundary"
@@ -5061,6 +5074,7 @@ export const FeatureNames: FeatureName[] = [
 	"ai_governance_user_limit",
 	"access_control",
 	"advanced_template_scheduling",
+	"agent_runtime_hours",
 	"appearance",
 	"audit_log",
 	"boundary",

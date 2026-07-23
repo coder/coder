@@ -18412,11 +18412,18 @@
 				"entitlement": {
 					"$ref": "#/definitions/codersdk.Entitlement"
 				},
+				"hard_limit": {
+					"type": "integer"
+				},
 				"limit": {
 					"type": "integer"
 				},
+				"soft_limit": {
+					"description": "SoftLimit and HardLimit are optional thresholds that accompany Limit\nfor features whose license carries them. For these features, Limit\ncarries the purchased allocation, SoftLimit is the advisory warning\nthreshold, and HardLimit is the enforcement ceiling.\n\nOnly certain features set these fields:\n- FeatureAgentRuntimeHours",
+					"type": "integer"
+				},
 				"usage_period": {
-					"description": "UsagePeriod denotes that the usage is a counter that accumulates over\nthis period (and most likely resets with the issuance of the next\nlicense).\n\nThese dates are determined from the license that this entitlement comes\nfrom, see enterprise/coderd/license/license.go.\n\nOnly certain features set these fields:\n- FeatureManagedAgentLimit",
+					"description": "UsagePeriod denotes that the usage is a counter that accumulates over\nthis period (and most likely resets with the issuance of the next\nlicense).\n\nThese dates are determined from the license that this entitlement comes\nfrom, see enterprise/coderd/license/license.go.\n\nOnly certain features set these fields:\n- FeatureManagedAgentLimit\n- FeatureAgentRuntimeHours",
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.UsagePeriod"

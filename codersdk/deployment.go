@@ -199,6 +199,12 @@ const (
 	FeatureBoundary               FeatureName = "boundary"
 	FeatureServiceAccounts        FeatureName = "service_accounts"
 	FeatureAIGovernanceUserLimit  FeatureName = "ai_governance_user_limit"
+	// AgentRuntimeHours is a usage period feature. It is never a license
+	// claim itself; it is populated from the agent_runtime_hours_allocation,
+	// agent_runtime_hours_limit_soft and agent_runtime_hours_limit_hard
+	// claims. Refer to enterprise/coderd/license/license.go for the license
+	// format.
+	FeatureAgentRuntimeHours FeatureName = "agent_runtime_hours"
 )
 
 var (
@@ -231,6 +237,7 @@ var (
 		FeatureBoundary,
 		FeatureServiceAccounts,
 		FeatureAIGovernanceUserLimit,
+		FeatureAgentRuntimeHours,
 	}
 
 	// FeatureNamesMap is a map of all feature names for quick lookups.
@@ -300,6 +307,7 @@ func (n FeatureName) UsesLimit() bool {
 		FeatureUserLimit:             true,
 		FeatureManagedAgentLimit:     true,
 		FeatureAIGovernanceUserLimit: true,
+		FeatureAgentRuntimeHours:     true,
 	}[n]
 }
 
@@ -307,6 +315,7 @@ func (n FeatureName) UsesLimit() bool {
 func (n FeatureName) UsesUsagePeriod() bool {
 	return map[FeatureName]bool{
 		FeatureManagedAgentLimit: true,
+		FeatureAgentRuntimeHours: true,
 	}[n]
 }
 
@@ -372,7 +381,16 @@ type Feature struct {
 	Entitlement Entitlement `json:"entitlement"`
 	Enabled     bool        `json:"enabled"`
 	Limit       *int64      `json:"limit,omitempty"`
-	Actual      *int64      `json:"actual,omitempty"`
+	// SoftLimit and HardLimit are optional thresholds that accompany Limit
+	// for features whose license carries them. For these features, Limit
+	// carries the purchased allocation, SoftLimit is the advisory warning
+	// threshold, and HardLimit is the enforcement ceiling.
+	//
+	// Only certain features set these fields:
+	// - FeatureAgentRuntimeHours
+	SoftLimit *int64 `json:"soft_limit,omitempty"`
+	HardLimit *int64 `json:"hard_limit,omitempty"`
+	Actual    *int64 `json:"actual,omitempty"`
 
 	// Below is only for features that use usage periods.
 
@@ -385,6 +403,7 @@ type Feature struct {
 	//
 	// Only certain features set these fields:
 	// - FeatureManagedAgentLimit
+	// - FeatureAgentRuntimeHours
 	UsagePeriod *UsagePeriod `json:"usage_period,omitempty"`
 }
 
@@ -407,6 +426,9 @@ type UsagePeriod struct {
 // 5. The limit is greater
 // 6. Enabled is greater than disabled
 // 7. The actual is greater
+//
+// SoftLimit and HardLimit are not comparison inputs; they ride along with
+// whichever feature wins the comparison.
 func (f Feature) Compare(b Feature) int {
 	// For features with usage period constraints only, check the issued at and
 	// end dates.
