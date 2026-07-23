@@ -234,8 +234,8 @@ func TestParseSecretsFileYAMLMultiDocument(t *testing.T) {
 // FuzzParseSecretsFile checks two invariants: (1) the parser never panics
 // regardless of input (the fuzz engine catches panics automatically); (2) on
 // success the result is well-formed: at least one entry, at most
-// MaxUserSecretsPerUserCount entries, EnvName == Name for every entry,
-// and all keys unique. On error the returned slice must be nil/empty.
+// MaxUserSecretsPerUserCount entries, EnvName is empty or equals Name for every
+// entry, and all keys unique. On error the returned slice must be nil/empty.
 func FuzzParseSecretsFile(f *testing.F) {
 	// env - valid
 	f.Add("env", "KEY=value")
@@ -295,7 +295,7 @@ func FuzzParseSecretsFile(f *testing.F) {
 
 		seen := make(map[string]struct{}, len(reqs))
 		for _, req := range reqs {
-			require.Equal(t, req.Name, req.EnvName)
+			require.True(t, req.EnvName == "" || req.EnvName == req.Name, "EnvName must be empty or equal to Name")
 			_, dup := seen[req.Name]
 			require.False(t, dup, "duplicate key %q in result", req.Name)
 			seen[req.Name] = struct{}{}
@@ -367,6 +367,30 @@ func TestParseSecretsFileGeneralErrors(t *testing.T) {
 			_, err := codersdk.ParseSecretsFile(tt.format, tt.content)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "no secrets found")
+		})
+	}
+}
+
+func TestParseSecretsFileBestEffortEnvName(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		format  codersdk.SecretsFileFormat
+		content string
+	}{
+		{format: codersdk.SecretsFileFormatEnv, content: "PATH=value"},
+		{format: codersdk.SecretsFileFormatJSON, content: `{"PATH":"value"}`},
+		{format: codersdk.SecretsFileFormatYAML, content: "PATH: value"},
+	}
+	for _, tc := range cases {
+		t.Run(string(tc.format), func(t *testing.T) {
+			t.Parallel()
+			reqs, err := codersdk.ParseSecretsFile(tc.format, tc.content)
+			require.NoError(t, err)
+			require.Equal(t, []codersdk.CreateUserSecretRequest{{
+				Name:  "PATH",
+				Value: "value",
+			}}, reqs)
 		})
 	}
 }

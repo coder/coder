@@ -5459,6 +5459,16 @@ export interface IDPSyncMapping<ResourceIdType extends string> {
 	readonly Gets: ResourceIdType;
 }
 
+// From codersdk/usersecrets.go
+/**
+ * ImportUserSecretsRequest is the payload for the bulk secret import
+ * endpoint. Content is the raw file bytes and Format selects the parser.
+ */
+export interface ImportUserSecretsRequest {
+	readonly format: SecretsFileFormat;
+	readonly content: string;
+}
+
 // From codersdk/inboxnotification.go
 export interface InboxNotification {
 	readonly id: string;
