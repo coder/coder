@@ -501,7 +501,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		t.Run("DeviationAllowedWithExperiment", func(t *testing.T) {
 			t.Parallel()
 			dv := coderdtest.DeploymentValues(t)
-			dv.Experiments = []string{string(codersdk.ExperimentMinimumImplicitMember)}
+			dv.Experiments = []string{}
 			client, _ := coderdenttest.New(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{DeploymentValues: dv},
 				LicenseOptions: &coderdenttest.LicenseOptions{
@@ -524,7 +524,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		t.Run("NonBuiltInRoleRejected", func(t *testing.T) {
 			t.Parallel()
 			dv := coderdtest.DeploymentValues(t)
-			dv.Experiments = []string{string(codersdk.ExperimentMinimumImplicitMember)}
+			dv.Experiments = []string{}
 			client, _ := coderdenttest.New(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{DeploymentValues: dv},
 				LicenseOptions: &coderdenttest.LicenseOptions{
