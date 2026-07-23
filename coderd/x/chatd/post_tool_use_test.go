@@ -74,11 +74,9 @@ func TestPostToolUseHookResponsesCommitWithResults(t *testing.T) {
 			require.NoError(t, err)
 			return
 		}
-		decoded, err := request.Decode()
-		require.NoError(t, err)
-		data := decoded.(*agenthooks.PostToolUseData)
+		data := decodeHookData[agenthooks.PostToolUseData](t, request)
 		mu.Lock()
-		received = append(received, *data)
+		received = append(received, data)
 		index := len(received)
 		mu.Unlock()
 
@@ -86,6 +84,7 @@ func TestPostToolUseHookResponsesCommitWithResults(t *testing.T) {
 		for _, message := range messages {
 			require.NotEqual(t, database.ChatMessageRoleTool, message.Role)
 		}
+		var err error
 		if index == 1 {
 			_, err = w.Write([]byte(`{"model_context":"lint feedback","user_message":"tool notice"}`))
 		} else {
@@ -205,13 +204,11 @@ func TestPostToolUseHookDynamicResult(t *testing.T) {
 			return
 		}
 		postCalls.Add(1)
-		decoded, err := request.Decode()
-		require.NoError(t, err)
-		data := decoded.(*agenthooks.PostToolUseData)
+		data := decodeHookData[agenthooks.PostToolUseData](t, request)
 		require.Equal(t, "call_dynamic_result", data.ToolUseID)
 		require.Equal(t, "my_dynamic_tool", data.ToolName)
 		require.JSONEq(t, `{"answer":42}`, string(data.ToolResponse))
-		_, err = w.Write([]byte(`{"model_context":"dynamic feedback","user_message":"dynamic notice"}`))
+		_, err := w.Write([]byte(`{"model_context":"dynamic feedback","user_message":"dynamic notice"}`))
 		require.NoError(t, err)
 	}))
 	t.Cleanup(consumer.Close)
@@ -377,9 +374,7 @@ func TestPostToolUseHookFailureCommitsResultThenErrors(t *testing.T) {
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		if request.Type == agenthooks.EventPostToolUse {
 			postCalls.Add(1)
-			decoded, err := request.Decode()
-			require.NoError(t, err)
-			data := decoded.(*agenthooks.PostToolUseData)
+			data := decodeHookData[agenthooks.PostToolUseData](t, request)
 			require.Equal(t, "call_failure", data.ToolUseID)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -456,9 +451,7 @@ func TestPostToolUseHookFailureDispatchesRemainingResults(t *testing.T) {
 			require.NoError(t, err)
 			return
 		}
-		decoded, err := request.Decode()
-		require.NoError(t, err)
-		data := decoded.(*agenthooks.PostToolUseData)
+		data := decodeHookData[agenthooks.PostToolUseData](t, request)
 		result := "ok"
 		if data.ToolUseID == "call_first" {
 			result = "http_error"
@@ -470,7 +463,7 @@ func TestPostToolUseHookFailureDispatchesRemainingResults(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		_, err = w.Write([]byte(`{}`))
+		_, err := w.Write([]byte(`{}`))
 		require.NoError(t, err)
 	}))
 	t.Cleanup(consumer.Close)
