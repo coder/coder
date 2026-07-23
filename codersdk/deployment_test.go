@@ -844,18 +844,28 @@ func TestDeploymentValues_Validate_ChatHooks(t *testing.T) {
 		},
 		{
 			name:    "ZeroTimeout",
+			url:     "https://hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcdef",
 			timeout: 0,
 			wantErr: "chat hook timeout",
 		},
 		{
 			name:    "NegativeTimeout",
+			url:     "https://hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcdef",
 			timeout: -time.Millisecond,
 			wantErr: "chat hook timeout",
 		},
 		{
 			name:    "TimeoutAboveMaximum",
+			url:     "https://hooks.example.com/agent",
+			secret:  "0123456789abcdef0123456789abcdef",
 			timeout: 5*time.Second + time.Millisecond,
 			wantErr: "chat hook timeout",
+		},
+		{
+			name:    "NoURLSkipsTimeoutValidation",
+			timeout: 10 * time.Second,
 		},
 	}
 
