@@ -23,7 +23,9 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chathooks"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agenthooks"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -768,6 +770,14 @@ func (p *Server) subagentTools(
 					options,
 				)
 				if err != nil {
+					// A failed hook dispatch must fail closed instead of
+					// degrading into a tool error the model can ignore.
+					var hookErr *chathooks.DispatchError
+					if errors.As(err, &hookErr) {
+						return fantasy.ToolResponse{}, err
+					}
+					// UserPromptDeniedError.Error() carries the hook's
+					// reason, so the model can adjust its prompt.
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
@@ -1153,7 +1163,6 @@ func (p *Server) loadSubagentSpawnParentChat(
 	if err := validateSubagentSpawnParent(parent); err != nil {
 		return database.Chat{}, err
 	}
-
 	return parent, nil
 }
 
@@ -1245,9 +1254,6 @@ func (p *Server) createChildSubagentChatWithOptions(
 	}
 
 	title = strings.TrimSpace(title)
-	if title == "" {
-		title = subagentFallbackChatTitle(prompt)
-	}
 
 	rootChatID := parent.ID
 	if parent.RootChatID.Valid {
@@ -1291,6 +1297,34 @@ func (p *Server) createChildSubagentChatWithOptions(
 		return database.Chat{}, limitErr
 	}
 
+	// Review before persistence so spawned chats cannot bypass prompt policy.
+	childChatID := uuid.New()
+	var hookResponse agenthooks.Response
+	if p.hookDispatcher.Enabled() {
+		mintedTurnID := uuid.New()
+		hookChat := database.Chat{}
+		hookChat.ID = childChatID
+		hookChat.OwnerID = parent.OwnerID
+		hookChat.WorkspaceID = parent.WorkspaceID
+		hookChat.ParentChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
+		hookChat.RootChatID = uuid.NullUUID{UUID: rootChatID, Valid: true}
+		hookResponse, err = p.dispatchUserPromptSubmit(ctx, hookChat, mintedTurnID, []codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)})
+		if err != nil {
+			return database.Chat{}, err
+		}
+		override, overridden, overrideErr := userPromptOverride(hookResponse)
+		if overrideErr != nil {
+			return database.Chat{}, overrideErr
+		}
+		if overridden {
+			// The overridden prompt also feeds the fallback title below.
+			prompt = override
+		}
+	}
+	if title == "" {
+		title = subagentFallbackChatTitle(prompt)
+	}
+
 	workspaceAwareness := workspaceDetachedNoCreateAwareness
 	if parent.WorkspaceID.Valid {
 		workspaceAwareness = workspaceAttachedAwareness
@@ -1301,7 +1335,9 @@ func (p *Server) createChildSubagentChatWithOptions(
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal workspace awareness: %w", err)
 	}
-	userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)})
+	childUserParts := []codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)}
+	childUserParts = append(childUserParts, userPromptHookParts(hookResponse)...)
+	userContent, err := chatprompt.MarshalParts(childUserParts)
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal initial user content: %w", err)
 	}
@@ -1337,7 +1373,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 	if publisher == nil {
 		publisher = dbpubsub.NewInMemory()
 	}
-	result, err := chatstate.CreateChat(ctx, p.db, publisher, chatstate.CreateChatInput{
+	result, err := chatstate.CreateChatWithID(ctx, p.db, publisher, childChatID, chatstate.CreateChatInput{
 		OrganizationID:    parent.OrganizationID,
 		OwnerID:           parent.OwnerID,
 		WorkspaceID:       parent.WorkspaceID,

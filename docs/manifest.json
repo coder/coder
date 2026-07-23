@@ -429,6 +429,12 @@
 							"path": "./admin/setup/telemetry.md"
 						},
 						{
+							"title": "Chat lifecycle hooks",
+							"description": "Configure an external policy service for chat agent lifecycle events",
+							"path": "./admin/setup/chat-lifecycle-hooks.md",
+							"state": ["early access"]
+						},
+						{
 							"title": "Data Retention",
 							"description": "Configure retention policies that automatically purge old records from Coder database tables.",
 							"path": "./admin/setup/data-retention.md"

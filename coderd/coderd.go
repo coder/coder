@@ -101,6 +101,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
+	"github.com/coder/coder/v2/coderd/x/chathooks"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -879,6 +880,27 @@ func New(options *Options) *API {
 		// the chat daemon stays nil and chat HTTP handlers return a
 		// service-unavailable error with a clear remediation message.
 		if options.DeploymentValues.AI.BridgeConfig.Enabled.Value() {
+			var hookDispatcher *chathooks.Dispatcher
+			chatConfig := options.DeploymentValues.AI.Chat
+			hooksConfigured := chatConfig.HookURL.String() != "" && chatConfig.HookEnabled.Value()
+			hooksExperimentEnabled := experiments.Enabled(codersdk.ExperimentAgentLifecycleHooks)
+			if hooksConfigured && !hooksExperimentEnabled {
+				options.Logger.Warn(ctx, "chat lifecycle hooks are configured but inactive; enable the agent-lifecycle-hooks experiment to activate them",
+					slog.F("experiment", codersdk.ExperimentAgentLifecycleHooks),
+				)
+			}
+			if hooksConfigured && hooksExperimentEnabled {
+				hookDispatcher = chathooks.New(
+					options.Logger,
+					nil,
+					chatConfig.HookURL.String(),
+					chatConfig.HookSecret.Value(),
+					chatConfig.HookTimeout.Value(),
+					api.DeploymentID,
+					buildinfo.Version(),
+					options.PrometheusRegistry,
+				)
+			}
 			api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
 				Logger:                         options.Logger.Named("chatd"),
 				Database:                       options.Database,
@@ -898,6 +920,7 @@ func New(options *Options) *API {
 				StartWorkspace:                 api.chatStartWorkspace,
 				StopWorkspace:                  api.chatStopWorkspace,
 				WebpushDispatcher:              options.WebPushDispatcher,
+				HookDispatcher:                 hookDispatcher,
 				UsageTracker:                   options.WorkspaceUsageTracker,
 				PrometheusRegistry:             options.PrometheusRegistry,
 				OIDCTokenSource:                oidcMCPSrc,

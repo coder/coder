@@ -282,6 +282,20 @@ Configure the background chat processing daemon.
           Force chat debug logging on for every chat, bypassing the runtime
           admin and user opt-in settings.
 
+      --chat-hook-enabled bool, $CODER_CHAT_HOOK_ENABLED (default: true)
+          Whether to dispatch chat agent lifecycle hooks when a hook URL is
+          configured. Requires the agent-lifecycle-hooks experiment.
+
+      --chat-hook-secret string, $CODER_CHAT_HOOK_SECRET
+          Shared secret used to sign chat agent lifecycle hook JWTs.
+
+      --chat-hook-timeout duration, $CODER_CHAT_HOOK_TIMEOUT (default: 1.5s)
+          Maximum time to wait for a chat agent lifecycle hook response.
+
+      --chat-hook-url url, $CODER_CHAT_HOOK_URL
+          HTTPS URL to receive chat agent lifecycle hook events. Hooks are
+          disabled when unset. Requires the agent-lifecycle-hooks experiment.
+
 CLIENT OPTIONS: 
 These options change the behavior of how clients interact with the Coder.
 Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
