@@ -388,8 +388,9 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 
 		t.Run("AddonUsesFn", func(t *testing.T) {
 			entitlements, err := license.LicensesEntitlements(ctx, now, []database.License{addonLicense()}, enablements, coderdenttest.Keys, license.FeatureArguments{
-				ActiveUserCount:  7,
-				UserCountingMode: license.UserCountingModePermissionBased,
+				ActiveUserCount:   7,
+				ActiveAISeatCount: 5,
+				UserCountingMode:  license.UserCountingModePermissionBased,
 				WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 					return 3, nil
 				},
@@ -397,6 +398,11 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			require.NoError(t, err)
 			require.Empty(t, entitlements.Errors)
 			require.Equal(t, int64(3), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
+			// Permission-based counting applies to workspace seats only:
+			// AI Governance seats keep their own count and limit.
+			aiSeats := entitlements.Features[codersdk.FeatureAIGovernanceUserLimit]
+			require.Equal(t, int64(5), *aiSeats.Actual)
+			require.Equal(t, int64(10), *aiSeats.Limit)
 			// Under the limit: no user-limit warning, even though the
 			// legacy active user count would also have been under it.
 			for _, warning := range entitlements.Warnings {
