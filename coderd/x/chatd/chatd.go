@@ -178,7 +178,7 @@ type Server struct {
 	stopWorkspaceFn                chattool.StopWorkspaceFn
 	pubsub                         pubsub.Pubsub
 	webpushDispatcher              webpush.Dispatcher
-	hookDispatcher                 *chathooks.Dispatcher
+	hooks                          *hookTrigger
 	providerAPIKeys                chatprovider.ProviderAPIKeys
 	allowBYOK                      bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
@@ -1318,22 +1318,26 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 
 	chatID := uuid.New()
 	contentParts := opts.InitialUserContent
-	var hookResponse agenthooks.Response
-	if p.hookDispatcher.Enabled() {
+	if p.hooks.enabled() {
 		// Validate model admission before dispatch, matching the insert path.
 		if err := validateCreateModelConfigID(ctx, p.db, opts.ModelConfigID); err != nil {
 			return database.Chat{}, err
 		}
 		turnID := uuid.New()
-		hookChat := database.Chat{}
-		hookChat.ID = chatID
-		hookChat.OwnerID = opts.OwnerID
-		hookChat.WorkspaceID = opts.WorkspaceID
-		hookResponse, err = p.dispatchUserPromptSubmit(ctx, hookChat, turnID, contentParts)
+		promptMessage, err := userPromptHookMessage(contentParts)
 		if err != nil {
 			return database.Chat{}, err
 		}
-		composed, overridden, err := composeUserPromptContent(contentParts, hookResponse)
+		promptResult, err := p.hooks.trigger(ctx, hookChat{
+			ID:          chatID,
+			OwnerID:     opts.OwnerID,
+			WorkspaceID: opts.WorkspaceID,
+			TurnID:      &turnID,
+		}, promptMessage, agenthooks.EventUserPromptSubmit)
+		if err != nil {
+			return database.Chat{}, userPromptDenial(err)
+		}
+		composed, overridden, err := composeUserPromptContent(contentParts, promptResult)
 		if err != nil {
 			return database.Chat{}, err
 		}
@@ -1453,8 +1457,7 @@ func (p *Server) SendMessage(
 	}
 
 	contentParts := opts.Content
-	var hookResponse agenthooks.Response
-	if p.hookDispatcher.Enabled() {
+	if p.hooks.enabled() {
 		turnID := uuid.New()
 		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
@@ -1478,11 +1481,15 @@ func (p *Server) SendMessage(
 		if queuedCount >= chatstate.MaxQueueSize {
 			return SendMessageResult{}, &chatstate.MessageQueueFullError{Max: chatstate.MaxQueueSize}
 		}
-		hookResponse, err = p.dispatchUserPromptSubmit(ctx, chat, turnID, contentParts)
+		promptMessage, err := userPromptHookMessage(contentParts)
 		if err != nil {
-			return SendMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, err)
+			return SendMessageResult{}, err
 		}
-		contentParts, _, err = composeUserPromptContent(contentParts, hookResponse)
+		promptResult, err := p.hooks.trigger(ctx, hookChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit)
+		if err != nil {
+			return SendMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, userPromptDenial(err))
+		}
+		contentParts, _, err = composeUserPromptContent(contentParts, promptResult)
 		if err != nil {
 			return SendMessageResult{}, err
 		}
@@ -1781,8 +1788,8 @@ func (p *Server) EditMessage(
 	}
 
 	contentParts := opts.Content
-	var sessionStartResponse, hookResponse agenthooks.Response
-	if p.hookDispatcher.Enabled() {
+	var sessionStartHookResult *hookResult
+	if p.hooks.enabled() {
 		turnID := uuid.New()
 		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
@@ -1801,15 +1808,19 @@ func (p *Server) EditMessage(
 		if _, err := validateModelConfigOverride(ctx, p.db, opts.ModelConfigID); err != nil {
 			return EditMessageResult{}, err
 		}
-		sessionStartResponse, err = p.dispatchLifecycleHook(ctx, chat, &turnID, agenthooks.EventSessionStart, agenthooks.SessionStartData{Source: sessionStartSourceClear})
+		sessionStartHookResult, err = p.hooks.trigger(ctx, hookChatFor(chat, &turnID), hookMessage{Source: sessionStartSourceClear}, agenthooks.EventSessionStart)
 		if err != nil {
 			return EditMessageResult{}, p.handleAPIDispatchError(ctx, opts.ChatID, agenthooks.EventSessionStart, err)
 		}
-		hookResponse, err = p.dispatchUserPromptSubmit(ctx, chat, turnID, contentParts)
+		promptMessage, err := userPromptHookMessage(contentParts)
 		if err != nil {
-			return EditMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, err)
+			return EditMessageResult{}, err
 		}
-		contentParts, _, err = composeUserPromptContent(contentParts, hookResponse)
+		promptResult, err := p.hooks.trigger(ctx, hookChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit)
+		if err != nil {
+			return EditMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, userPromptDenial(err))
+		}
+		contentParts, _, err = composeUserPromptContent(contentParts, promptResult)
 		if err != nil {
 			return EditMessageResult{}, err
 		}
@@ -1887,7 +1898,7 @@ func (p *Server) EditMessage(
 		// only the session_start(clear) response needs transcript rows.
 		// They insert after the replacement so a later edit's suffix
 		// truncation cleans them up.
-		suffixMessages, err := hookEventMessages(sessionStartResponse, modelConfigID)
+		suffixMessages, err := hookEventMessages(sessionStartHookResult, modelConfigID)
 		if err != nil {
 			return err
 		}
@@ -2162,110 +2173,6 @@ func (e *ToolResultStatusConflictError) Error() string {
 	)
 }
 
-type dynamicPostToolUseState struct {
-	chat          database.Chat
-	modelConfigID uuid.UUID
-	toolNames     map[string]string
-}
-
-func loadDynamicPostToolUseState(
-	ctx context.Context,
-	machine *chatstate.ChatMachine,
-	opts SubmitToolResultsOptions,
-) (dynamicPostToolUseState, error) {
-	var state dynamicPostToolUseState
-	err := machine.ReadLock(ctx, func(store database.Store) error {
-		chat, err := store.GetChatByID(ctx, opts.ChatID)
-		if err != nil {
-			return xerrors.Errorf("load chat: %w", err)
-		}
-		if chat.Archived {
-			return ErrChatArchived
-		}
-		if chat.Status != database.ChatStatusRequiresAction {
-			return &ToolResultStatusConflictError{ActualStatus: chat.Status}
-		}
-		messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-			ChatID:  opts.ChatID,
-			AfterID: 0,
-		})
-		if err != nil {
-			return xerrors.Errorf("load chat messages: %w", err)
-		}
-		_, pending, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
-		if err != nil {
-			return xerrors.Errorf("load pending dynamic tool calls: %w", err)
-		}
-		toolNames := make(map[string]string, len(pending))
-		for _, call := range pending {
-			toolNames[call.ToolCallID] = call.ToolName
-		}
-		if err := validateSubmittedToolResults(opts.Results, toolNames); err != nil {
-			return err
-		}
-		modelConfigID := opts.ModelConfigID
-		if modelConfigID == uuid.Nil {
-			modelConfigID = chat.LastModelConfigID
-		}
-		state = dynamicPostToolUseState{
-			chat:          chat,
-			modelConfigID: modelConfigID,
-			toolNames:     toolNames,
-		}
-		return nil
-	})
-	return state, err
-}
-
-func validateSubmittedToolResults(results []codersdk.ToolResult, toolNames map[string]string) error {
-	submitted := make(map[string]struct{}, len(results))
-	for _, result := range results {
-		if _, ok := submitted[result.ToolCallID]; ok {
-			return &ToolResultValidationError{
-				Message: "Duplicate tool_call_id in results.",
-				Detail:  fmt.Sprintf("Duplicate tool call ID %q.", result.ToolCallID),
-			}
-		}
-		if !json.Valid(result.Output) {
-			return &ToolResultValidationError{
-				Message: "Tool result output must be valid JSON.",
-				Detail:  fmt.Sprintf("Output for tool call %q is not valid JSON.", result.ToolCallID),
-			}
-		}
-		if _, ok := toolNames[result.ToolCallID]; !ok {
-			return &ToolResultValidationError{
-				Message: "Unexpected tool result.",
-				Detail:  fmt.Sprintf("No pending tool call with ID %q.", result.ToolCallID),
-			}
-		}
-		submitted[result.ToolCallID] = struct{}{}
-	}
-	for toolCallID := range toolNames {
-		if _, ok := submitted[toolCallID]; !ok {
-			return &ToolResultValidationError{
-				Message: "Missing tool result.",
-				Detail:  fmt.Sprintf("Missing result for tool call %q.", toolCallID),
-			}
-		}
-	}
-	return nil
-}
-
-func dynamicPostToolUseData(result codersdk.ToolResult, toolName string) agenthooks.PostToolUseData {
-	data := agenthooks.PostToolUseData{
-		ToolUseID: result.ToolCallID,
-		ToolName:  toolName,
-	}
-	if result.IsError {
-		if err := json.Unmarshal(result.Output, &data.ToolError); err != nil {
-			data.ToolError = string(result.Output)
-		}
-	} else {
-		data.ToolResponse = append(json.RawMessage(nil), result.Output...)
-	}
-	return data
-}
-
 // SubmitToolResults dispatches hooks before completing the
 // requires_action transition.
 func (p *Server) SubmitToolResults(
@@ -2274,13 +2181,13 @@ func (p *Server) SubmitToolResults(
 ) error {
 	machine := p.newChatMachine(opts.ChatID)
 	var hookSuffix []chatstate.Message
-	if p.hookDispatcher.Enabled() {
+	if p.hooks.enabled() {
 		state, err := loadDynamicPostToolUseState(ctx, machine, opts)
 		if err != nil {
 			return err
 		}
 		for _, result := range opts.Results {
-			response, err := p.dispatchPostToolUseData(ctx, state.chat, nil, dynamicPostToolUseData(result, state.toolNames[result.ToolCallID]))
+			response, err := p.hooks.trigger(ctx, hookChatFor(state.chat, nil), dynamicPostToolUseMessage(result, state.toolNames[result.ToolCallID]), agenthooks.EventPostToolUse)
 			if err != nil {
 				// Leave pending calls intact so the client can resubmit after recovery.
 				return generationHookDispatchError(agenthooks.EventPostToolUse, err)
@@ -3288,7 +3195,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		stopWorkspaceFn:                cfg.StopWorkspace,
 		pubsub:                         ps,
 		webpushDispatcher:              cfg.WebpushDispatcher,
-		hookDispatcher:                 hookDispatcher,
+		hooks:                          newHookTrigger(hookDispatcher),
 		providerAPIKeys:                cfg.ProviderAPIKeys,
 		allowBYOK:                      allowBYOK,
 		oidcTokenSource:                cfg.OIDCTokenSource,

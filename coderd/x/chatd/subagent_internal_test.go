@@ -293,7 +293,7 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 		server := &Server{
 			db:     db,
 			logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-			hookDispatcher: chathooks.New(
+			hooks: newHookTrigger(chathooks.New(
 				slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 				consumer.Client(),
 				consumer.URL,
@@ -302,7 +302,7 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 				"test-deployment",
 				"test-version",
 				prometheus.NewRegistry(),
-			),
+			)),
 		}
 		return ctx, db, parent, server
 	}

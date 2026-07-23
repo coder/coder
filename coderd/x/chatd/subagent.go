@@ -1288,20 +1288,25 @@ func (p *Server) createChildSubagentChatWithOptions(
 
 	// Review before persistence so spawned chats cannot bypass prompt policy.
 	childChatID := uuid.New()
-	var hookResponse agenthooks.Response
-	if p.hookDispatcher.Enabled() {
+	var promptResult *hookResult
+	if p.hooks.enabled() {
 		mintedTurnID := uuid.New()
-		hookChat := database.Chat{}
-		hookChat.ID = childChatID
-		hookChat.OwnerID = parent.OwnerID
-		hookChat.WorkspaceID = parent.WorkspaceID
-		hookChat.ParentChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
-		hookChat.RootChatID = uuid.NullUUID{UUID: rootChatID, Valid: true}
-		hookResponse, err = p.dispatchUserPromptSubmit(ctx, hookChat, mintedTurnID, []codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)})
+		promptMessage, err := userPromptHookMessage([]codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)})
 		if err != nil {
 			return database.Chat{}, err
 		}
-		override, overridden, overrideErr := userPromptOverride(hookResponse)
+		promptResult, err = p.hooks.trigger(ctx, hookChat{
+			ID:           childChatID,
+			OwnerID:      parent.OwnerID,
+			WorkspaceID:  parent.WorkspaceID,
+			ParentChatID: uuid.NullUUID{UUID: parent.ID, Valid: true},
+			RootChatID:   uuid.NullUUID{UUID: rootChatID, Valid: true},
+			TurnID:       &mintedTurnID,
+		}, promptMessage, agenthooks.EventUserPromptSubmit)
+		if err != nil {
+			return database.Chat{}, userPromptDenial(err)
+		}
+		override, overridden, overrideErr := userPromptOverride(promptResult)
 		if overrideErr != nil {
 			return database.Chat{}, overrideErr
 		}
@@ -1325,7 +1330,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 		return database.Chat{}, xerrors.Errorf("marshal workspace awareness: %w", err)
 	}
 	childUserParts := []codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)}
-	childUserParts = append(childUserParts, userPromptHookParts(hookResponse)...)
+	childUserParts = append(childUserParts, userPromptHookParts(promptResult)...)
 	userContent, err := chatprompt.MarshalParts(childUserParts)
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal initial user content: %w", err)
