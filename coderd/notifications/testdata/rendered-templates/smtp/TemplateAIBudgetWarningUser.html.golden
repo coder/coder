@@ -12,8 +12,9 @@ Content-Type: text/plain; charset=UTF-8
 
 Hi Bobby,
 
-You have used more than 85% of your monthly AI budget ($1000.00). Effective=
- group: Engineering.
+You have used more than 85% of your monthly AI budget ($1000.00).
+
+This limit is set by your group Engineering.
 
 
 --bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
@@ -46,7 +47,9 @@ argin: 8px 0 32px; line-height: 1.5;">
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
         <p>You have used more than 85% of your monthly AI budget ($1000.00)=
-. Effective group: <strong>Engineering</strong>.</p>
+.</p>
+
+<p>This limit is set by your group <strong>Engineering</strong>.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20
