@@ -19963,7 +19963,6 @@ const docTemplate = `{
                 "mcp-server-http",
                 "workspace-build-updates",
                 "nats_pubsub",
-                "minimum-implicit-member",
                 "ai-gateway-cost-control",
                 "chat-advisor",
                 "chat-virtual-desktop"
@@ -19975,7 +19974,6 @@ const docTemplate = `{
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
-                "ExperimentMinimumImplicitMember": "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
                 "ExperimentNATSPubsub": "Enables embedded NATS pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
@@ -19991,7 +19989,6 @@ const docTemplate = `{
                 "Enables the MCP HTTP server functionality.",
                 "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "Enables embedded NATS pubsub.",
-                "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
                 "Enables AI Gateway cost control functionality.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents."
@@ -20005,7 +20002,6 @@ const docTemplate = `{
                 "ExperimentMCPServerHTTP",
                 "ExperimentWorkspaceBuildUpdates",
                 "ExperimentNATSPubsub",
-                "ExperimentMinimumImplicitMember",
                 "ExperimentAIGatewayCostControl",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop"

@@ -203,6 +203,50 @@ func TestOwnerExec(t *testing.T) {
 	})
 }
 
+// TestMemberWorkspaceElevation verifies that organization-member and
+// organization-service-account carry only the floor: the workspace-ops
+// elevation is never bundled in and must be granted explicitly via
+// organization-workspace-access (typically attached through
+// default_org_member_roles).
+//
+//nolint:tparallel,paralleltest
+func TestMemberWorkspaceElevation(t *testing.T) {
+	orgSettings := rbac.OrgSettings{
+		ShareableWorkspaceOwners: rbac.ShareableWorkspaceOwnersEveryone,
+	}
+
+	hasResource := func(perms []rbac.Permission, resource string) bool {
+		for _, p := range perms {
+			if p.ResourceType == resource && !p.Negate {
+				return true
+			}
+		}
+		return false
+	}
+
+	// ResourceWorkspace is granted by the elevation
+	// (OrgWorkspaceAccessMemberPerms) and not by the floor, so it acts as
+	// a witness for whether the elevation is bundled in.
+	elevationWitness := rbac.ResourceWorkspace.Type
+	// ResourceOrganizationMember is part of the floor; floor must always
+	// be present.
+	floorWitness := rbac.ResourceOrganizationMember.Type
+
+	rbac.ReloadBuiltinRoles(nil)
+	t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
+
+	member := rbac.OrgMemberPermissions(orgSettings).Member
+	require.False(t, hasResource(member, elevationWitness), "organization-member must not include the elevation")
+	require.True(t, hasResource(member, floorWitness), "organization-member should include the floor")
+
+	sa := rbac.OrgServiceAccountPermissions(orgSettings).Member
+	require.False(t, hasResource(sa, elevationWitness), "organization-service-account must not include the elevation")
+	require.True(t, hasResource(sa, floorWitness), "organization-service-account should include the floor")
+
+	// The elevation is available via organization-workspace-access.
+	require.True(t, hasResource(rbac.OrgWorkspaceAccessMemberPerms(), elevationWitness), "organization-workspace-access should carry the elevation")
+}
+
 // These were "pared down" in https://github.com/coder/coder/pull/21359 to avoid
 // using the now DB-backed organization-member role. As a result, they no longer
 // model real-world org-scoped users (who also have organization-member).
