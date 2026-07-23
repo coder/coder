@@ -1007,10 +1007,8 @@ func AsSCIMProvisioner(ctx context.Context) context.Context {
 	return As(ctx, subjectSCIM)
 }
 
-// AsExternalAuthChecker returns a context with an actor that can read and
-// refresh a user's external auth links, and nothing else. It is used to report
-// a workspace owner's external auth state to an authorized requester without
-// granting broad system access.
+// AsExternalAuthChecker returns a context with an actor that has permission to
+// read and refresh any user's external auth links.
 func AsExternalAuthChecker(ctx context.Context) context.Context {
 	return As(ctx, subjectExternalAuthChecker)
 }
