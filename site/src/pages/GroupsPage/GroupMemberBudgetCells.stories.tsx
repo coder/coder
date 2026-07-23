@@ -74,6 +74,7 @@ export const Unlimited: Story = {
 	args: {
 		spend: {
 			...mockSpend,
+			group_spend_micros: 1_250_000_000,
 			group_budget: null,
 			effective_group_id: group.organization_id,
 		},
@@ -81,7 +82,7 @@ export const Unlimited: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(await canvas.findByTestId(testId)).toHaveTextContent(
-			"Unlimited",
+			"$1,250 / Unlimited USD",
 		);
 		await expect(
 			canvas.getByText("Everyone (not allocated)"),
@@ -102,13 +103,14 @@ export const UnlimitedThisGroup: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(await canvas.findByTestId(testId)).toHaveTextContent(
-			"Unlimited",
+			"$0 / Unlimited USD",
 		);
 		await expect(canvas.getByText("Front-End")).toBeInTheDocument();
 	},
 };
 
-export const None: Story = {
+// A $0 budget renders like any other limit; no spend keeps the normal color.
+export const ZeroBudget: Story = {
 	args: {
 		spend: {
 			...mockSpend,
@@ -118,11 +120,27 @@ export const None: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(await canvas.findByTestId(testId)).toHaveTextContent("None");
-		const body = await openInfo(canvasElement);
-		await expect(
-			await body.findByText(/no AI spending allowance/),
-		).toBeInTheDocument();
+		const cell = await canvas.findByTestId(testId);
+		await expect(cell).toHaveTextContent("$0 USD");
+		await expect(cell).toHaveTextContent("Group limit $0");
+	},
+};
+
+// Visual variant of ZeroBudget: spend over a $0 budget takes the exceeded color.
+export const ZeroBudgetExceeded: Story = {
+	args: {
+		spend: {
+			...mockSpend,
+			group_spend_micros: 100_000_000,
+			group_budget: { spend_limit_micros: 0, limit_source: "group" },
+			effective_group_id: group.organization_id,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const cell = await canvas.findByTestId(testId);
+		await expect(cell).toHaveTextContent("$100 USD");
+		await expect(cell).toHaveTextContent("Group limit $0");
 	},
 };
 

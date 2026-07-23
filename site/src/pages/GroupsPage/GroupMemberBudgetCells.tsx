@@ -3,6 +3,7 @@ import { useQuery } from "react-query";
 import { groupById } from "#/api/queries/groups";
 import type { Group, GroupMemberAISpend } from "#/api/typesGenerated";
 import { AIBudgetAmount } from "#/components/AIBudgetAmount/AIBudgetAmount";
+import { AIBudgetUsage } from "#/components/AIBudgetUsage/AIBudgetUsage";
 import { Badge } from "#/components/Badge/Badge";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { TableCell } from "#/components/Table/Table";
@@ -116,16 +117,13 @@ export const GroupMemberBudgetCells: FC<{
 			// The effective group has no budget, so no limit applies.
 			budget = (
 				<LabelWithInfo
-					label="Unlimited"
+					label={
+						<AIBudgetUsage
+							currentSpend={spend.group_spend_micros}
+							spendLimit={null}
+						/>
+					}
 					message="None of this user's groups have an AI budget configured, so their AI usage isn't restricted."
-				/>
-			);
-		} else if (limit === 0) {
-			// A $0 budget disables spending, distinct from no budget configured.
-			budget = (
-				<LabelWithInfo
-					label="None"
-					message="This user's group(s) have an AI budget of $0, so they have no AI spending allowance."
 				/>
 			);
 		} else {
