@@ -293,6 +293,7 @@ const buildParsedReadFileEntry = ({
 			],
 			blocks: [{ type: "tool", id: toolId }],
 			sources: [],
+			hookNotices: [],
 		},
 	};
 };
@@ -2294,6 +2295,7 @@ export const ToolDisplayModesFromPreferences: Story = {
 						{ type: "tool", id: "edit-tool" },
 					],
 					sources: [],
+					hookNotices: [],
 				},
 			},
 		] satisfies ParsedMessageEntry[],

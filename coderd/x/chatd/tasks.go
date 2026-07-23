@@ -317,6 +317,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		}
 		return normalizeTaskTransitionError(err, "finish interruption")
 	}
+	s.server.hookDecisions.evictChat(input.ChatID)
 	input.DebugTurn.RecordOutcome(chatdebug.StatusInterrupted)
 	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
 		return xerrors.Errorf("publish watch and route: %w", err)

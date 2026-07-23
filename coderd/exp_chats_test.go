@@ -75,6 +75,7 @@ func newChatTestOptions(
 		values.Experiments = serpent.StringArray{
 			string(codersdk.ExperimentChatAdvisor),
 			string(codersdk.ExperimentChatVirtualDesktop),
+			string(codersdk.ExperimentAgentLifecycleHooks),
 		}
 	}
 
@@ -7275,7 +7276,6 @@ func TestSendMessageWithModelOverrideUpdatesLastModelConfigID(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.False(t, resp.Queued)
-	require.NotNil(t, resp.Message)
 	require.NotNil(t, resp.Message.ModelConfigID)
 	require.Equal(t, modelConfigB.ID, *resp.Message.ModelConfigID)
 
@@ -7556,7 +7556,6 @@ func TestSubsequentSendWithoutOverrideUsesPersistedModel(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.False(t, resp.Queued)
-	require.NotNil(t, resp.Message)
 	require.NotNil(t, resp.Message.ModelConfigID)
 	require.Equal(t, modelConfigB.ID, *resp.Message.ModelConfigID)
 
@@ -8119,7 +8118,6 @@ func TestChatMessageWithFiles(t *testing.T) {
 		if resp.Queued {
 			require.NotNil(t, resp.QueuedMessage)
 		} else {
-			require.NotNil(t, resp.Message)
 			require.Equal(t, codersdk.ChatMessageRoleUser, resp.Message.Role)
 		}
 	})
@@ -8167,7 +8165,6 @@ func TestChatMessageWithFiles(t *testing.T) {
 		if resp.Queued {
 			require.NotNil(t, resp.QueuedMessage)
 		} else {
-			require.NotNil(t, resp.Message)
 			require.Equal(t, codersdk.ChatMessageRoleUser, resp.Message.Role)
 		}
 

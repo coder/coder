@@ -209,6 +209,7 @@ const mergeReadFileMessageGroup = (
 			tools: group.flatMap((entry) => entry.parsed.tools),
 			blocks: group.flatMap((entry) => entry.parsed.blocks),
 			sources: [],
+			hookNotices: [],
 		},
 	};
 };

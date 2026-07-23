@@ -59,6 +59,7 @@ export type ParsedMessageContent = {
 	tools: MergedTool[];
 	blocks: RenderBlock[];
 	sources: Array<{ url: string; title: string }>;
+	hookNotices: string[];
 };
 
 export type ParsedMessageEntry = {

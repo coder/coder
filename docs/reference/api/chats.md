@@ -225,12 +225,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property      | Value(s)                                                                                                                                                                                                                   |
-|---------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type` | `api`, `ui`                                                                                                                                                                                                                |
-| `kind`        | `auth`, `config`, `content_filter`, `generic`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
-| `status`      | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                    |
-| `plan_mode`   | `plan`                                                                                                                                                                                                                     |
+| Property      | Value(s)                                                                                                                                                                                                                                           |
+|---------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type` | `api`, `ui`                                                                                                                                                                                                                                        |
+| `kind`        | `auth`, `config`, `content_filter`, `generic`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
+| `status`      | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                            |
+| `plan_mode`   | `plan`                                                                                                                                                                                                                                             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1881,6 +1881,89 @@ Experimental: this endpoint is subject to change.
       "total_tokens": 0
     }
   },
+  "messages": [
+    {
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "content": [
+        {
+          "args": [
+            0
+          ],
+          "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
+          "content": "string",
+          "context_file_agent_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "context_file_content": "string",
+          "context_file_directory": "string",
+          "context_file_os": "string",
+          "context_file_path": "string",
+          "context_file_skill_meta_file": "string",
+          "context_file_truncated": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "data": [
+            0
+          ],
+          "end_line": 0,
+          "file_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "file_name": "string",
+          "is_error": true,
+          "is_media": true,
+          "mcp_server_config_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "media_type": "string",
+          "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
+          "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
+          "result": [
+            0
+          ],
+          "result_delta": "string",
+          "result_reset": true,
+          "signature": "string",
+          "skill_description": "string",
+          "skill_dir": "string",
+          "skill_name": "string",
+          "source_id": "string",
+          "start_line": 0,
+          "text": "string",
+          "title": "string",
+          "tool_call_id": "string",
+          "tool_name": "string",
+          "type": "text",
+          "url": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+      "id": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "role": "system",
+      "usage": {
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 0,
+        "context_limit": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "total_tokens": 0
+      }
+    }
+  ],
   "queued": true,
   "queued_message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
@@ -2016,6 +2099,9 @@ Experimental: this endpoint is subject to change.
 
 ```json
 {
+  "deleted_message_ids": [
+    0
+  ],
   "message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
@@ -2097,6 +2183,89 @@ Experimental: this endpoint is subject to change.
       "total_tokens": 0
     }
   },
+  "messages": [
+    {
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "content": [
+        {
+          "args": [
+            0
+          ],
+          "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
+          "content": "string",
+          "context_file_agent_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "context_file_content": "string",
+          "context_file_directory": "string",
+          "context_file_os": "string",
+          "context_file_path": "string",
+          "context_file_skill_meta_file": "string",
+          "context_file_truncated": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "data": [
+            0
+          ],
+          "end_line": 0,
+          "file_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "file_name": "string",
+          "is_error": true,
+          "is_media": true,
+          "mcp_server_config_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "media_type": "string",
+          "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
+          "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
+          "result": [
+            0
+          ],
+          "result_delta": "string",
+          "result_reset": true,
+          "signature": "string",
+          "skill_description": "string",
+          "skill_dir": "string",
+          "skill_name": "string",
+          "source_id": "string",
+          "start_line": 0,
+          "text": "string",
+          "title": "string",
+          "tool_call_id": "string",
+          "tool_name": "string",
+          "type": "text",
+          "url": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+      "id": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "role": "system",
+      "usage": {
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 0,
+        "context_limit": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "total_tokens": 0
+      }
+    }
+  ],
   "warnings": [
     "string"
   ]

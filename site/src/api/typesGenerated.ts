@@ -1996,6 +1996,10 @@ export const ChatComputerUseProviders: ChatComputerUseProvider[] = [
 export interface ChatConfig {
 	readonly acquire_batch_size: number;
 	readonly debug_logging_enabled: boolean;
+	readonly hook_url: string;
+	readonly hook_secret: string;
+	readonly hook_timeout: number;
+	readonly hook_enabled: boolean;
 	/**
 	 * @deprecated AI Gateway routing is now the only routing path. Setting this
 	 * value has no effect. This option will be removed in a future release.
@@ -2456,6 +2460,7 @@ export type ChatErrorKind =
 	| "config"
 	| "content_filter"
 	| "generic"
+	| "hook_dispatch_failed"
 	| "missing_key"
 	| "overloaded"
 	| "provider_disabled"
@@ -2469,6 +2474,7 @@ export const ChatErrorKinds: ChatErrorKind[] = [
 	"config",
 	"content_filter",
 	"generic",
+	"hook_dispatch_failed",
 	"missing_key",
 	"overloaded",
 	"provider_disabled",
@@ -2587,6 +2593,22 @@ export interface ChatGroup extends Group {
 
 // From codersdk/chats.go
 /**
+ * ChatHookDispatchFailedResponse is the error body returned when a
+ * lifecycle hook dispatch fails during a synchronous chat operation.
+ * Kind lets clients classify the failure without parsing message text.
+ */
+export interface ChatHookDispatchFailedResponse extends Response {
+	readonly kind: ChatErrorKind;
+}
+
+// From codersdk/chats.go
+export interface ChatHookNoticePart {
+	readonly type: "hook-notice";
+	readonly text: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatInputPart is a single user input part for creating a chat.
  */
 export interface ChatInputPart {
@@ -2673,13 +2695,16 @@ export type ChatMessagePart =
 	| ChatFilePart
 	| ChatFileReferencePart
 	| ChatContextFilePart
-	| ChatSkillPart;
+	| ChatSkillPart
+	| ChatHookNoticePart;
 
 // From codersdk/chats.go
 export type ChatMessagePartType =
 	| "context-file"
 	| "file"
 	| "file-reference"
+	| "hook-context"
+	| "hook-notice"
 	| "reasoning"
 	| "skill"
 	| "source"
@@ -2691,6 +2716,8 @@ export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"context-file",
 	"file",
 	"file-reference",
+	"hook-context",
+	"hook-notice",
 	"reasoning",
 	"skill",
 	"source",
@@ -3886,6 +3913,12 @@ export interface CreateChatMessageRequest {
  */
 export interface CreateChatMessageResponse {
 	readonly message?: ChatMessage;
+	/**
+	 * Messages contains all user-visible messages inserted by the send, in
+	 * insertion order. A queued send on an errored chat may promote the
+	 * previous queue head, so clients must upsert the full batch.
+	 */
+	readonly messages?: readonly ChatMessage[];
 	readonly queued_message?: ChatQueuedMessage;
 	readonly queued: boolean;
 	readonly warnings?: readonly string[];
@@ -4960,11 +4993,21 @@ export interface EditChatMessageRequest {
 // From codersdk/chats.go
 /**
  * EditChatMessageResponse is the response from editing a message in a chat.
- * Edits are always synchronous (no queueing), so the message is returned
- * directly.
  */
 export interface EditChatMessageResponse {
 	readonly message: ChatMessage;
+	/**
+	 * Messages holds every user-visible message inserted by the edit, in
+	 * insertion order. Hook-generated suffix messages may follow Message,
+	 * so clients must upsert the full batch.
+	 */
+	readonly messages?: readonly ChatMessage[];
+	/**
+	 * DeletedMessageIDs holds the IDs of previously visible messages the
+	 * edit removed, including stale hook notices from the edited turn.
+	 * Clients should drop them from local caches.
+	 */
+	readonly deleted_message_ids?: readonly number[];
 	readonly warnings?: readonly string[];
 }
 
@@ -5015,6 +5058,7 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 // From codersdk/deployment.go
 export type Experiment =
 	| "ai-gateway-cost-control"
+	| "agent-lifecycle-hooks"
 	| "auto-fill-parameters"
 	| "chat-advisor"
 	| "chat-virtual-desktop"
@@ -5029,6 +5073,7 @@ export type Experiment =
 
 export const Experiments: Experiment[] = [
 	"ai-gateway-cost-control",
+	"agent-lifecycle-hooks",
 	"auto-fill-parameters",
 	"chat-advisor",
 	"chat-virtual-desktop",
