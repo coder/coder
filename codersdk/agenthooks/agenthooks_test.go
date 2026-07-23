@@ -33,6 +33,23 @@ func TestSignClaimsVerify(t *testing.T) {
 	require.Equal(t, claims, got)
 }
 
+func TestShortSecretRejected(t *testing.T) {
+	t.Parallel()
+
+	claims := validClaims(t, "https://hooks.example.com/coder", agenthooks.EventPreToolUse, nil)
+	shortSecret := testSecret[:agenthooks.MinSecretLen-1]
+
+	_, err := agenthooks.SignClaims(shortSecret, claims)
+	require.ErrorContains(t, err, "secret must be at least")
+
+	token, err := agenthooks.SignClaims(testSecret, claims)
+	require.NoError(t, err)
+	_, err = agenthooks.Verify("Bearer "+token, shortSecret)
+	require.ErrorContains(t, err, "secret must be at least")
+	_, err = agenthooks.Verify("Bearer "+token, nil)
+	require.ErrorContains(t, err, "secret must be at least")
+}
+
 func TestVerifyRejectsAlgorithmConfusion(t *testing.T) {
 	t.Parallel()
 

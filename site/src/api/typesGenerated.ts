@@ -1303,6 +1303,14 @@ export interface AgentHookMeta extends AgentHookChatRef {
 	readonly schema_version: number;
 }
 
+// From agenthooks/jwt.go
+/**
+ * MinSecretLen is the minimum HS256 secret length in bytes. go-jose
+ * accepts shorter keys, so signing and verification enforce it to fail
+ * closed on missing or weak secrets.
+ */
+export const AgentHookMinSecretLen = 32;
+
 // From agenthooks/types.go
 /**
  * Permission controls whether mutable hook input may proceed.

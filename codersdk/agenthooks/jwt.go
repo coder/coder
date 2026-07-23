@@ -13,8 +13,16 @@ import (
 
 const jwtType = "JWT"
 
+// MinSecretLen is the minimum HS256 secret length in bytes. go-jose
+// accepts shorter keys, so signing and verification enforce it to fail
+// closed on missing or weak secrets.
+const MinSecretLen = 32
+
 // SignClaims signs claims with the shared secret using HS256.
 func SignClaims(secret []byte, claims Claims) (string, error) {
+	if len(secret) < MinSecretLen {
+		return "", xerrors.Errorf("secret must be at least %d bytes", MinSecretLen)
+	}
 	signer, err := jose.NewSigner(
 		jose.SigningKey{Algorithm: jose.HS256, Key: secret},
 		new(jose.SignerOptions).WithType(jwtType),
@@ -39,6 +47,9 @@ func SignClaims(secret []byte, claims Claims) (string, error) {
 }
 
 func Verify(authzHeader string, secret []byte) (Claims, error) {
+	if len(secret) < MinSecretLen {
+		return Claims{}, xerrors.Errorf("secret must be at least %d bytes", MinSecretLen)
+	}
 	const bearerPrefix = "Bearer "
 	token, ok := strings.CutPrefix(authzHeader, bearerPrefix)
 	if !ok || token == "" || strings.ContainsAny(token, " \t\r\n") {

@@ -254,11 +254,13 @@ func (d *Dispatcher) post(
 	body []byte,
 	token string,
 ) (response agenthooks.Response, result DispatchResult, err error) {
+	// One deadline bounds both attempts so a retry cannot extend the
+	// dispatch past the configured timeout or the JWT lifetime.
+	ctx, cancel := context.WithTimeout(ctx, d.timeout)
+	defer cancel()
 	for attempt := range 2 {
-		attemptCtx, cancel := context.WithTimeout(ctx, d.timeout)
-		req, reqErr := http.NewRequestWithContext(attemptCtx, http.MethodPost, d.hookURL, bytes.NewReader(body))
+		req, reqErr := http.NewRequestWithContext(ctx, http.MethodPost, d.hookURL, bytes.NewReader(body))
 		if reqErr != nil {
-			cancel()
 			return agenthooks.Response{}, ResultProtocolError, xerrors.Errorf("create request: %w", reqErr)
 		}
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -267,8 +269,7 @@ func (d *Dispatcher) post(
 
 		httpResponse, requestErr := d.client.Do(req)
 		if requestErr != nil {
-			attemptErr := attemptCtx.Err()
-			cancel()
+			attemptErr := ctx.Err()
 			if isTimeoutError(attemptErr) || isTimeoutError(requestErr) || errors.Is(requestErr, context.Canceled) {
 				return agenthooks.Response{}, ResultTimeout, xerrors.Errorf("post lifecycle hook: %w", requestErr)
 			}
@@ -290,14 +291,12 @@ func (d *Dispatcher) post(
 
 		if httpResponse.StatusCode < http.StatusOK || httpResponse.StatusCode >= http.StatusMultipleChoices {
 			_ = httpResponse.Body.Close()
-			cancel()
 			return agenthooks.Response{}, ResultHTTPError, xerrors.Errorf("lifecycle hook returned HTTP status %d", httpResponse.StatusCode)
 		}
 
 		responseBody, readErr := io.ReadAll(io.LimitReader(httpResponse.Body, maxResponseBodyBytes+1))
-		attemptErr := attemptCtx.Err()
+		attemptErr := ctx.Err()
 		_ = httpResponse.Body.Close()
-		cancel()
 		if readErr != nil {
 			switch {
 			case isTimeoutError(attemptErr), isTimeoutError(readErr), errors.Is(readErr, context.Canceled):
