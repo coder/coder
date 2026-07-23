@@ -356,6 +356,11 @@ export const TemplateInfoPopoverWithoutDisplayName: Story = {
 };
 
 export const NarrowViewportWraps: Story = {
+	// Pixel captures at desktop width by default; the wrap behavior under
+	// test only exists below the narrow breakpoint.
+	parameters: {
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
 	// Storybook 10 applies viewports through globals; the legacy
 	// parameters.viewport.defaultViewport is only honored by addon-vitest.
 	globals: { viewport: { value: "mobile1" } },

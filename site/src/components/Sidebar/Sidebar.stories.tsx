@@ -101,7 +101,12 @@ export const MobileFullWidth: Story = {
 			</div>
 		),
 	],
-	parameters: Default.parameters,
+	parameters: {
+		...Default.parameters,
+		// Pixel captures at desktop width by default, where the sidebar is
+		// exactly 240px and the play assertion cannot hold.
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
 	// Storybook 10 applies viewports through globals; the legacy
 	// parameters.viewport.defaultViewport is only honored by addon-vitest.
 	globals: { viewport: { value: "mobile1" } },
