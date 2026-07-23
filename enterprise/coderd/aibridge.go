@@ -911,7 +911,7 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 	)
 
 	policy := codersdk.NewAIBudgetPolicyFromString(api.DeploymentValues.AI.BridgeConfig.BudgetPolicy)
-	effectiveBudget, ok, err := budget.ResolveUserAIBudget(ctx, api.Database, user.ID, policy)
+	effectiveGroup, ok, err := budget.ResolveUserEffectiveGroup(ctx, api.Database, user.ID, policy)
 	if err != nil {
 		logger.Error(ctx, "failed to resolve user AI budget", slog.Error(err))
 		httpapi.InternalServerError(rw, err)
@@ -929,14 +929,16 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if ok {
-		resp.EffectiveGroupID = &effectiveBudget.GroupID
-		resp.SpendLimitMicros = &effectiveBudget.SpendLimitMicros
-		resp.LimitSource = &effectiveBudget.Source
-		logger = logger.With(slog.F("effective_group_id", effectiveBudget.GroupID))
+		resp.EffectiveGroupID = &effectiveGroup.GroupID
+		if effectiveGroup.Limit != nil {
+			resp.SpendLimitMicros = &effectiveGroup.Limit.SpendLimitMicros
+			resp.LimitSource = &effectiveGroup.Limit.Source
+		}
+		logger = logger.With(slog.F("effective_group_id", effectiveGroup.GroupID))
 
 		spend, err := api.Database.GetUserAISpendSince(ctx, database.GetUserAISpendSinceParams{
 			UserID:           user.ID,
-			EffectiveGroupID: effectiveBudget.GroupID,
+			EffectiveGroupID: effectiveGroup.GroupID,
 			PeriodStart:      periodWindow.Start,
 		})
 		if err != nil {

@@ -3934,7 +3934,7 @@ func (q *querier) GetHealthSettings(ctx context.Context) (string, error) {
 }
 
 func (q *querier) GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error) {
-	if _, err := q.GetUserByID(ctx, userID); err != nil { // AuthZ check
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(userID)); err != nil {
 		return database.GetHighestGroupAIBudgetByUserRow{}, err
 	}
 	return q.db.GetHighestGroupAIBudgetByUser(ctx, userID)
@@ -4941,7 +4941,7 @@ func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License,
 }
 
 func (q *querier) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
-	if _, err := q.GetUserByID(ctx, userID); err != nil { // AuthZ check
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(userID)); err != nil {
 		return database.UserAIBudgetOverride{}, err
 	}
 	return q.db.GetUserAIBudgetOverride(ctx, userID)
@@ -5110,6 +5110,13 @@ func (q *querier) GetUserCount(ctx context.Context, includeSystem bool) (int64, 
 		return 0, err
 	}
 	return q.db.GetUserCount(ctx, includeSystem)
+}
+
+func (q *querier) GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(userID)); err != nil {
+		return uuid.Nil, err
+	}
+	return q.db.GetUserEveryoneFallbackGroup(ctx, userID)
 }
 
 func (q *querier) GetUserForChatSyntheticAPIKeyByID(ctx context.Context, id uuid.UUID) (database.User, error) {
@@ -7444,6 +7451,17 @@ func (q *querier) UpdateChatStatus(ctx context.Context, arg database.UpdateChatS
 		return database.Chat{}, err
 	}
 	return q.db.UpdateChatStatus(ctx, arg)
+}
+
+func (q *querier) UpdateChatSummary(ctx context.Context, arg database.UpdateChatSummaryParams) (int64, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return 0, err
+	}
+	return q.db.UpdateChatSummary(ctx, arg)
 }
 
 func (q *querier) UpdateChatTitleByID(ctx context.Context, arg database.UpdateChatTitleByIDParams) (database.Chat, error) {

@@ -28,6 +28,8 @@ coderd/schedule/autostop.go @deansheather @DanielleMaywood
 coderd/usage/ @deansheather @spikecurtis
 enterprise/coderd/usage/ @deansheather @spikecurtis
 
+site/src/pages/AgentsPage/ @DanielleMaywood
+
 .github/ 	@jdomeracki-coder
 
 # Shared contract between chatd and aibridge: AI provider configuration and

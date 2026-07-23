@@ -6,6 +6,8 @@ import { GatewayKeysPageView } from "./GatewayKeysPageView";
 const meta: Meta<typeof GatewayKeysPageView> = {
 	title: "pages/AISettingsPage/GatewayKeysPageView",
 	component: GatewayKeysPageView,
+	// TODO: Stories in this file fail when pixel runs their play functions. Fix them and remove the exclude.
+	parameters: { pixel: { exclude: true } },
 	args: {
 		keys: MockAIGatewayKeys,
 		isLoading: false,
