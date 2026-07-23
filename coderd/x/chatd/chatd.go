@@ -4387,7 +4387,7 @@ func (p *Server) maybeFinalizeTurnStatusLabelAndPush(
 	switch status {
 	case database.ChatStatusWaiting:
 		p.finalizeSuccessfulTurnStatusLabelAndPush(ctx, chat, status, runResult, logger)
-		p.maybeGenerateChatSummaryAsync(ctx, chat, logger)
+		p.maybeGenerateChatSummaryAsync(ctx, logger, chat)
 
 	case database.ChatStatusError:
 		p.clearLastTurnSummaryAsync(ctx, chat, logger)
@@ -4630,8 +4630,8 @@ const (
 // generation in the background for a root chat.
 func (p *Server) maybeGenerateChatSummaryAsync(
 	ctx context.Context,
-	chat database.Chat,
 	logger slog.Logger,
+	chat database.Chat,
 ) {
 	if chat.ParentChatID.Valid {
 		return
@@ -4700,7 +4700,7 @@ func (p *Server) generateAndStoreChatSummary(
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 
-	model, _, ok := p.resolveChatSummaryModel(ctx, chat, modelOpts, logger)
+	model, _, ok := p.resolveChatSummaryModel(ctx, logger, chat, modelOpts)
 	if !ok {
 		return
 	}
@@ -4715,14 +4715,14 @@ func (p *Server) generateAndStoreChatSummary(
 		return
 	}
 
-	p.updateChatSummary(ctx, chat, chat.HistoryVersion, summary, logger)
+	p.updateChatSummary(ctx, logger, chat, chat.HistoryVersion, summary)
 }
 
 func (p *Server) resolveChatSummaryModel(
 	ctx context.Context,
+	logger slog.Logger,
 	chat database.Chat,
 	modelOpts modelBuildOptions,
-	logger slog.Logger,
 ) (fantasy.LanguageModel, database.ChatModelConfig, bool) {
 	//nolint:dogsled // resolveChatModel returns rich routing metadata; summary generation only needs the model and its config.
 	model, dbConfig, _, _, _, _, err := p.resolveChatModel(ctx, chat, modelOpts)
@@ -4771,10 +4771,10 @@ func countCompletedTurnsSince(messages []database.ChatMessage, after time.Time) 
 // an existing one.
 func (p *Server) updateChatSummary(
 	ctx context.Context,
+	logger slog.Logger,
 	chat database.Chat,
 	expectedHistoryVersion int64,
 	summary string,
-	logger slog.Logger,
 ) {
 	summary = strings.TrimSpace(summary)
 	if summary == "" {

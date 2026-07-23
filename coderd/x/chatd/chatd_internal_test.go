@@ -118,7 +118,7 @@ func TestUpdateChatSummary(t *testing.T) {
 			return 1, nil
 		})
 
-		server.updateChatSummary(ctx, chat, chat.HistoryVersion, " \n trimmed summary\t ", logger)
+		server.updateChatSummary(ctx, logger, chat, chat.HistoryVersion, " \n trimmed summary\t ")
 
 		events := ps.watchEvents(t)
 		require.Len(t, events, 1)
@@ -136,7 +136,7 @@ func TestUpdateChatSummary(t *testing.T) {
 		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), HistoryVersion: 7}
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
-		server.updateChatSummary(context.Background(), chat, chat.HistoryVersion, " \n\t ", logger)
+		server.updateChatSummary(context.Background(), logger, chat, chat.HistoryVersion, " \n\t ")
 	})
 
 	t.Run("SkipsEventOnStaleWrite", func(t *testing.T) {
@@ -155,7 +155,7 @@ func TestUpdateChatSummary(t *testing.T) {
 			Summary:                sql.NullString{String: "stale summary", Valid: true},
 		}).Return(int64(0), nil)
 
-		server.updateChatSummary(context.Background(), chat, chat.HistoryVersion, "stale summary", logger)
+		server.updateChatSummary(context.Background(), logger, chat, chat.HistoryVersion, "stale summary")
 
 		require.Empty(t, ps.watchEvents(t))
 	})
@@ -164,8 +164,6 @@ func TestUpdateChatSummary(t *testing.T) {
 func TestMaybeGenerateChatSummaryAsync_CloseCancelsInflight(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	serverCtx, serverCancel := context.WithCancel(context.Background())
@@ -173,7 +171,6 @@ func TestMaybeGenerateChatSummaryAsync_CloseCancelsInflight(t *testing.T) {
 	server := &Server{ctx: serverCtx, cancel: serverCancel, db: db}
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
-
 	entered := make(chan struct{})
 	db.EXPECT().GetChatByID(gomock.Any(), chat.ID).DoAndReturn(
 		func(readCtx context.Context, _ uuid.UUID) (database.Chat, error) {
@@ -186,7 +183,9 @@ func TestMaybeGenerateChatSummaryAsync_CloseCancelsInflight(t *testing.T) {
 		},
 	)
 
-	server.maybeGenerateChatSummaryAsync(ctx, chat, logger)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	server.maybeGenerateChatSummaryAsync(ctx, logger, chat)
+
 	testutil.TryReceive(ctx, t, entered)
 
 	closed := make(chan struct{})
