@@ -414,6 +414,33 @@ export const PersistedReasoningEffortOutranksRootOverride: Story = {
 	},
 };
 
+export const ManualReselectKeepsRootOverrideEffort: Story = {
+	args: {
+		...defaultArgs,
+		modelOptions: [...effortModelOptions],
+		modelConfigs: defaultModelConfigs,
+		rootPersonalModelOverride: buildRootPersonalModelOverride({
+			mode: "model",
+			model_config_id: modelConfigID,
+			reasoning_effort: "high",
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Re-selecting the override's own model keeps the override effort.
+		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
+		await userEvent.click(await body.findByRole("option", { name: /GPT-4o/i }));
+		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
+		expect(await body.findByRole("slider")).toHaveAttribute(
+			"aria-valuenow",
+			"4",
+		);
+		await userEvent.keyboard("{Escape}");
+	},
+};
+
 export const StalePersistedEffortFallsThroughToRootOverride: Story = {
 	args: {
 		...defaultArgs,

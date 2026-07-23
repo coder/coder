@@ -251,9 +251,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		(option) => option.id === selectedModel,
 	);
 	// Persisted per-model choice wins over a root override; a stale
-	// stored value is ignored so the override still applies.
+	// stored value is ignored so the override still applies. The
+	// override applies to its own model even after a manual re-select.
 	const rootOverrideReasoningEffort =
-		!hasValidUserSelectedModel && selectedModel === rootOverrideModelID
+		selectedModel === rootOverrideModelID
 			? rootPersonalModelOverride?.reasoning_effort
 			: undefined;
 	const persistedReasoningEffort = (() => {
