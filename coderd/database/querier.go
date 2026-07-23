@@ -1419,6 +1419,10 @@ type sqlcQuerier interface {
 	// Two summary workers using the same freshness marker are last-write-wins.
 	UpdateChatLastTurnSummary(ctx context.Context, arg UpdateChatLastTurnSummaryParams) (int64, error)
 	UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatMCPServerIDsParams) (Chat, error)
+	// Must run inside a chatstate.ChatMachine.Update transaction (use
+	// Tx.UpdateMessageContent) so the revision trigger stamps the
+	// allocated snapshot version; an out-of-band call breaks the
+	// generation fence.
 	// Preserve NULL as the backfill marker; otherwise refresh search_tsv
 	// from the new content.
 	UpdateChatMessageContentByID(ctx context.Context, arg UpdateChatMessageContentByIDParams) error

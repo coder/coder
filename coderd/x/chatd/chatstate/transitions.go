@@ -212,6 +212,22 @@ func (tx *Tx) insertMessages(messages []Message) ([]database.ChatMessage, error)
 	return inserted, nil
 }
 
+// UpdateMessageContent rewrites one message's content inside the
+// transaction so the revision trigger stamps the snapshot version the
+// surrounding [ChatMachine.Update] allocated and the enclosing
+// transition's publish delivers the rewrite. Calling the store query
+// outside a machine transaction would stamp a stale revision and break
+// the generation fence.
+func (tx *Tx) UpdateMessageContent(messageID int64, content json.RawMessage) error {
+	if err := tx.store.UpdateChatMessageContentByID(tx.ctx, database.UpdateChatMessageContentByIDParams{
+		Content: content,
+		ID:      messageID,
+	}); err != nil {
+		return xerrors.Errorf("update message content: %w", err)
+	}
+	return nil
+}
+
 // clearQueue deletes all queued messages on the chat and returns the
 // IDs that were deleted in queue order.
 func (tx *Tx) clearQueue() ([]int64, error) {
