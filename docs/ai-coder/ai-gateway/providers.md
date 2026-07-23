@@ -86,10 +86,42 @@ to have restricted permissions at the time of writing (June 2026).
 Bedrock providers serve Anthropic models hosted on AWS and authenticate
 with AWS credentials rather than a registered API key. Configure:
 
-- A **region** (or a full base URL when routing through a proxy or a
-  non-standard endpoint that does not follow the
-  `https://bedrock-runtime.<region>.amazonaws.com` format).
-- The **model** and **small fast model** identifiers.
+- A **protocol**, either `InvokeModel` or `Mantle`. It determines the
+  endpoint format and which of the fields below apply. See
+  [InvokeModel](#invokemodel) and [Mantle](#mantle).
+- An **endpoint** in the format the protocol requires:
+  `https://bedrock-runtime.<region>.amazonaws.com` for InvokeModel or
+  `https://bedrock-mantle.<region>.api.aws/anthropic` for Mantle. The AWS
+  region is read from the endpoint host.
+- The **model** and **small fast model** identifiers, for InvokeModel
+  only. Mantle providers do not set them; the client chooses the model on
+  each request and AI Gateway forwards it upstream.
+
+#### InvokeModel
+
+The legacy Bedrock runtime API. AI Gateway translates each request into
+Bedrock's InvokeModel format and sends it to
+`https://bedrock-runtime.<region>.amazonaws.com`. Still supported, but
+Mantle is recommended for new deployments.
+
+#### Mantle
+
+The newer Anthropic-compatible Bedrock endpoint, recommended by AWS for new
+deployments. AI Gateway serves Anthropic models through the native Messages
+API, forwarding the request body **unchanged** and only applying AWS SigV4
+signing with the provider's base identity.
+
+To route Claude Code through a Mantle provider, run it in mantle mode with
+client-side signing disabled so the gateway signs centrally:
+
+```sh
+export CLAUDE_CODE_USE_MANTLE=1
+export CLAUDE_CODE_SKIP_MANTLE_AUTH=1
+export ANTHROPIC_BEDROCK_MANTLE_BASE_URL="<your-deployment-url>/api/v2/ai-gateway/<provider-name>"
+export ANTHROPIC_AUTH_TOKEN="<your-coder-api-token>"
+```
+
+#### AWS credentials
 
 Do not attach API keys to a Bedrock provider.
 
@@ -162,6 +194,35 @@ To use role assumption:
 
 Each provider assumes a single role. To use several roles, configure one
 provider per role.
+
+#### External ID
+
+When a Bedrock provider assumes a role, the gateway generates a unique
+**external ID** for it and sends that value on every `AssumeRole` call.
+The external ID guards against the
+[confused deputy problem](https://docs.aws.amazon.com/IAM/latest/UserGuide/confused-deputy.html)
+on cross-account assumption. The gateway generates and owns the value, as
+AWS [recommends](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html):
+you cannot set or change it. It is not a secret, and it is shown on the
+provider's edit page once a Role ARN is configured.
+
+To enforce it, add the external ID to the target role's trust policy as an
+`sts:ExternalId` condition:
+
+```json
+{
+  "Effect": "Allow",
+  "Principal": { "AWS": "<gateway base identity>" },
+  "Action": "sts:AssumeRole",
+  "Condition": { "StringEquals": { "sts:ExternalId": "<the provider's External ID>" } }
+}
+```
+
+> [!IMPORTANT]
+> The gateway sends the external ID whether or not the trust policy checks
+> it. Until you add the `sts:ExternalId` condition, the value is sent but
+> not enforced, and the role can still be assumed without it. To rotate the
+> external ID, recreate the provider.
 
 ### GitHub Copilot
 

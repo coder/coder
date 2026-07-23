@@ -41,7 +41,7 @@ The VPN extension routes only Coder traffic—your other internet activity remai
 
 #### Homebrew (Recommended)
 
-```shell
+```sh
 brew install --cask coder/coder/coder-desktop
 ```
 
@@ -67,7 +67,7 @@ Coder Desktop requires VPN extension permissions:
 
 #### WinGet (Recommended)
 
-```shell
+```sh
 winget install Coder.CoderDesktop
 ```
 
@@ -96,13 +96,13 @@ Once connected, test access to your workspaces:
 
 ### SSH Connection
 
-```shell
+```sh
 ssh your-workspace.coder
 ```
 
 ### Ping Test
 
-```shell
+```sh
 # macOS
 ping6 -c 3 your-workspace.coder
 
@@ -130,7 +130,7 @@ Administrators can disable the built-in auto-updater to manage updates through t
 
 Set the `disableUpdater` preference to `true` using the `defaults` command:
 
-```shell
+```sh
 defaults write com.coder.Coder-Desktop disableUpdater -bool true
 ```
 
@@ -140,7 +140,7 @@ Organization administrators can also enforce this setting across managed devices
 
 Set the `Updater:Enable` registry value to `0` under `HKEY_LOCAL_MACHINE\SOFTWARE\Coder Desktop\App`:
 
-```powershell
+```ps1
 New-Item -Path "HKLM:\SOFTWARE\Coder Desktop\App" -Force
 New-ItemProperty -Path "HKLM:\SOFTWARE\Coder Desktop\App" -Name "Updater:Enable" -Value 0 -PropertyType DWord -Force
 ```
@@ -181,7 +181,7 @@ Coder Desktop and its network extension write to the Apple [unified logging syst
 
 1. Export the unified logs for the last hour with the `log` command:
 
-    ```shell
+    ```sh
     log show --predicate 'subsystem == "com.coder.Coder-Desktop"' \
       --info --debug --last 1h > ~/Desktop/coder-desktop.log
     ```
@@ -190,7 +190,7 @@ Coder Desktop and its network extension write to the Apple [unified logging syst
 
 2. If you're using file sync, also collect the Mutagen daemon log:
 
-    ```shell
+    ```sh
     ~/Library/Application\ Support/Coder\ Desktop/Mutagen/daemon.log
     ```
 
@@ -202,19 +202,19 @@ Coder Desktop has three components that write logs: the app (UI), the VPN servic
 
 1. App log (daily rolling):
 
-    ```powershell
+    ```ps1
     %LOCALAPPDATA%\CoderDesktop\app.log
     ```
 
 2. VPN service log (default install path):
 
-    ```powershell
+    ```ps1
     C:\Program Files\Coder Desktop\coder-desktop-service.log
     ```
 
 3. File sync (Mutagen) daemon log, if you use file sync:
 
-    ```powershell
+    ```ps1
     %LOCALAPPDATA%\CoderDesktop\mutagen\daemon.log
     ```
 

@@ -15,19 +15,19 @@ To uninstall your Coder server, delete the following directories.
 
 ## Debian, Ubuntu
 
-```shell
+```sh
 sudo apt remove coder
 ```
 
 ## Fedora, CentOS, RHEL, SUSE
 
-```shell
+```sh
 sudo yum remove coder
 ```
 
 ## Alpine
 
-```shell
+```sh
 sudo apk del coder
 ```
 
@@ -36,25 +36,25 @@ sudo apk del coder
 If you installed Coder manually or used the install script on an unsupported
 operating system, you can remove the binary directly:
 
-```shell
+```sh
 sudo rm /usr/local/bin/coder
 ```
 
 ## macOS
 
-```shell
+```sh
 brew uninstall coder
 ```
 
 If you installed Coder manually, you can remove the binary directly:
 
-```shell
+```sh
 sudo rm /usr/local/bin/coder
 ```
 
 ## Windows
 
-```powershell
+```ps1
 winget uninstall Coder.Coder
 ```
 
@@ -62,7 +62,7 @@ winget uninstall Coder.Coder
 
 ## Coder as a system service configuration
 
-```shell
+```sh
 sudo rm /etc/coder.d/coder.env
 ```
 
@@ -76,20 +76,20 @@ performing the following step or copying the directory to another location.
 
 ## Linux
 
-```shell
+```sh
 rm -rf ~/.config/coderv2
 rm -rf ~/.cache/coder
 ```
 
 ## macOS
 
-```shell
+```sh
 rm -rf ~/Library/Application\ Support/coderv2
 ```
 
 ## Windows
 
-```powershell
+```ps1
 rmdir %AppData%\coderv2
 ```
 

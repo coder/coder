@@ -7,13 +7,20 @@ import {
 } from "react-query";
 import { API } from "#/api/api";
 import {
+	chatAdvisorConfig,
+	chatComputerUseProvider,
 	chatModelConfigs,
 	chatPersonalModelOverridesAdminSettings,
+	chatProviderConfigs,
+	updateChatAdvisorConfig,
+	updateChatComputerUseProvider,
 	updateChatPersonalModelOverridesAdminSettings,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { providerInfoByIDFromConfigs } from "#/pages/AgentsPage/utils/modelOptions";
 import { pageTitle } from "#/utils/page";
 import { CoderAgentsPageView } from "./CoderAgentsPageView";
 
@@ -21,6 +28,8 @@ const generalOverrideContext: TypesGen.ChatModelOverrideContext = "general";
 const exploreOverrideContext: TypesGen.ChatModelOverrideContext = "explore";
 const titleGenerationOverrideContext: TypesGen.ChatModelOverrideContext =
 	"title_generation";
+const compactionOverrideContext: TypesGen.ChatModelOverrideContext =
+	"compaction";
 
 const chatModelOverrideKey = (context: TypesGen.ChatModelOverrideContext) =>
 	["chat-model-override", context] as const;
@@ -48,8 +57,13 @@ const updateChatModelOverrideMutation = (
 
 const CoderAgentsPage: FC = () => {
 	const { permissions } = useAuthenticated();
+	const { experiments } = useDashboard();
 	const queryClient = useQueryClient();
 	const canEditDeploymentConfig = permissions.editDeploymentConfig;
+	const showAdvisorSettings = experiments.includes("chat-advisor");
+	const showVirtualDesktopSettings = experiments.includes(
+		"chat-virtual-desktop",
+	);
 
 	const personalModelOverridesAdminSettingsQuery = useQuery({
 		...chatPersonalModelOverridesAdminSettings(),
@@ -67,7 +81,23 @@ const CoderAgentsPage: FC = () => {
 		...chatModelOverrideQuery(titleGenerationOverrideContext),
 		enabled: canEditDeploymentConfig,
 	});
+	const compactionModelQuery = useQuery({
+		...chatModelOverrideQuery(compactionOverrideContext),
+		enabled: canEditDeploymentConfig,
+	});
 	const modelConfigsQuery = useQuery(chatModelConfigs());
+	const advisorConfigQuery = useQuery({
+		...chatAdvisorConfig(),
+		enabled: canEditDeploymentConfig && showAdvisorSettings,
+	});
+	const computerUseProviderQuery = useQuery({
+		...chatComputerUseProvider(),
+		enabled: canEditDeploymentConfig && showVirtualDesktopSettings,
+	});
+	const providerConfigsQuery = useQuery({
+		...chatProviderConfigs(),
+		enabled: canEditDeploymentConfig,
+	});
 	const savePersonalModelOverridesAdminSettingsMutation = useMutation(
 		updateChatPersonalModelOverridesAdminSettings(queryClient),
 	);
@@ -80,8 +110,21 @@ const CoderAgentsPage: FC = () => {
 			titleGenerationOverrideContext,
 		),
 	);
+	const saveCompactionModelMutation = useMutation(
+		updateChatModelOverrideMutation(queryClient, compactionOverrideContext),
+	);
 	const saveExploreModelOverrideMutation = useMutation(
 		updateChatModelOverrideMutation(queryClient, exploreOverrideContext),
+	);
+	const saveAdvisorConfigMutation = useMutation(
+		updateChatAdvisorConfig(queryClient),
+	);
+	const saveComputerUseProviderMutation = useMutation(
+		updateChatComputerUseProvider(queryClient),
+	);
+
+	const providerInfoByID = providerInfoByIDFromConfigs(
+		providerConfigsQuery.data,
 	);
 
 	return (
@@ -107,10 +150,19 @@ const CoderAgentsPage: FC = () => {
 				}
 				generalModelOverrideData={generalModelOverrideQuery.data}
 				titleGenerationModelOverrideData={titleGenerationModelQuery.data}
+				compactionModelOverrideData={compactionModelQuery.data}
 				exploreModelOverrideData={exploreModelOverrideQuery.data}
 				modelConfigsData={modelConfigsQuery.data}
-				modelConfigsError={modelConfigsQuery.error}
-				isLoadingModelConfigs={modelConfigsQuery.isLoading}
+				providerInfoByID={providerInfoByID}
+				modelConfigsError={
+					modelConfigsQuery.error ?? providerConfigsQuery.error
+				}
+				isLoadingModelConfigs={
+					modelConfigsQuery.isLoading || providerConfigsQuery.isLoading
+				}
+				isFetchingModelConfigs={
+					modelConfigsQuery.isFetching || providerConfigsQuery.isFetching
+				}
 				onSaveGeneralModelOverride={saveGeneralModelOverrideMutation.mutate}
 				isSavingGeneralModelOverride={
 					saveGeneralModelOverrideMutation.isPending
@@ -125,6 +177,9 @@ const CoderAgentsPage: FC = () => {
 				isSaveTitleGenerationModelError={
 					saveTitleGenerationModelMutation.isError
 				}
+				onSaveCompactionModel={saveCompactionModelMutation.mutate}
+				isSavingCompactionModel={saveCompactionModelMutation.isPending}
+				isSaveCompactionModelError={saveCompactionModelMutation.isError}
 				onSaveExploreModelOverride={saveExploreModelOverrideMutation.mutate}
 				isSavingExploreModelOverride={
 					saveExploreModelOverrideMutation.isPending
@@ -132,6 +187,21 @@ const CoderAgentsPage: FC = () => {
 				isSaveExploreModelOverrideError={
 					saveExploreModelOverrideMutation.isError
 				}
+				showAdvisorSettings={showAdvisorSettings}
+				advisorConfigData={advisorConfigQuery.data}
+				isAdvisorConfigLoading={advisorConfigQuery.isLoading}
+				isAdvisorConfigFetching={advisorConfigQuery.isFetching}
+				isAdvisorConfigLoadError={advisorConfigQuery.isError}
+				onSaveAdvisorConfig={saveAdvisorConfigMutation.mutate}
+				isSavingAdvisorConfig={saveAdvisorConfigMutation.isPending}
+				isSaveAdvisorConfigError={saveAdvisorConfigMutation.isError}
+				saveAdvisorConfigError={saveAdvisorConfigMutation.error}
+				showVirtualDesktopSettings={showVirtualDesktopSettings}
+				computerUseProviderData={computerUseProviderQuery.data}
+				isLoadingComputerUseProvider={computerUseProviderQuery.isLoading}
+				onSaveComputerUseProvider={saveComputerUseProviderMutation.mutate}
+				isSavingComputerUseProvider={saveComputerUseProviderMutation.isPending}
+				computerUseProviderSaveError={saveComputerUseProviderMutation.error}
 			/>
 		</RequirePermission>
 	);

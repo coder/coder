@@ -14,7 +14,7 @@ import {
 	type ConcreteThemeName,
 	isConcreteThemeName,
 } from "#/theme";
-import type { AgentsOutletContext } from "./AgentsPage";
+import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import {
 	bootstrapChatEmbedSession,
 	EmbedContext,
@@ -221,7 +221,7 @@ const AgentEmbedPage: FC = () => {
 		window.parent.postMessage({ type: "coder:chat-ready" }, "*");
 	};
 
-	const outletContext: AgentsOutletContext = {
+	const outletContext: AgentsPageOutletContext = {
 		chatErrorReasons,
 		setChatErrorReason,
 		clearChatErrorReason,
@@ -232,8 +232,6 @@ const AgentEmbedPage: FC = () => {
 		requestArchiveAndDeleteWorkspace,
 		isArchiving: false,
 		archivingChatId: undefined,
-		// Title regeneration is not supported in embed mode.
-		regeneratingTitleChatIds: [],
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onExpandSidebar: () => {},

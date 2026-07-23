@@ -1,6 +1,6 @@
 import { useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import { InfoIcon, RotateCcwIcon } from "lucide-react";
+import { CircleAlertIcon, RotateCcwIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
@@ -35,27 +35,36 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 }) => {
 	const [isOpen, setIsOpen] = useState(false);
 
+	// Stop activation from bubbling to a parent `useClickableTableRow` row,
+	// which navigates on click, Enter (onKeyDown), and Space (onKeyUp). Radix
+	// composes its own click handler, so the popover still opens.
+	const stopPropagation = (event: React.SyntheticEvent) => {
+		event.stopPropagation();
+	};
+
 	return (
 		<HelpPopover open={isOpen} onOpenChange={setIsOpen}>
 			{children ? (
 				<HelpPopoverTrigger asChild>
-					<span className="flex items-center gap-1.5 cursor-help">
-						<InfoIcon
-							css={(theme) => ({
-								color: theme.roles.notice.outline,
-							})}
-							size={14}
-						/>
+					<span
+						className="flex items-center gap-1.5 cursor-help"
+						onClick={stopPropagation}
+						onKeyDown={stopPropagation}
+						onKeyUp={stopPropagation}
+					>
+						<CircleAlertIcon className="text-content-secondary" size={14} />
 						<span>{children}</span>
 					</span>
 				</HelpPopoverTrigger>
 			) : (
-				<HelpPopoverIconTrigger size="small" hoverEffect={false}>
-					<InfoIcon
-						css={(theme) => ({
-							color: theme.roles.notice.outline,
-						})}
-					/>
+				<HelpPopoverIconTrigger
+					size="small"
+					hoverEffect={false}
+					onClick={stopPropagation}
+					onKeyDown={stopPropagation}
+					onKeyUp={stopPropagation}
+				>
+					<CircleAlertIcon className="text-content-secondary" />
 					<span className="sr-only">Outdated info</span>
 				</HelpPopoverIconTrigger>
 			)}

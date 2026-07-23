@@ -4,7 +4,7 @@ import type {
 	UseMutationOptions,
 	UseQueryOptions,
 } from "react-query";
-import { API, type UserAISpend } from "#/api/api";
+import { API } from "#/api/api";
 import { isApiError } from "#/api/errors";
 import type {
 	AuthorizationRequest,
@@ -19,6 +19,7 @@ import type {
 	UpsertUserAIBudgetOverrideRequest,
 	User,
 	UserAIBudgetOverride,
+	UserAISpendStatus,
 	UserAppearanceSettings,
 	UserPreferenceSettings,
 	UsersRequest,
@@ -159,7 +160,7 @@ export const me = (metadata: MetadataState<User>) => {
 
 export const meAISpendKey = [...meKey, "aiSpend"] as const;
 
-export const meAISpend = (): UseQueryOptions<UserAISpend> => {
+export const meAISpend = (): UseQueryOptions<UserAISpendStatus> => {
 	return {
 		queryKey: meAISpendKey,
 		queryFn: () => API.getUserAISpend(),

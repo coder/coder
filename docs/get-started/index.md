@@ -127,7 +127,7 @@ Windows Subsystem for Linux (WSL2) or Hyper-V layer if it isn't already enabled.
    or create a `.wslconfig` file in the `%USERPROFILE%` directory
    with the following contents
 
-   ```text
+   ```txt
    [wsl2]
    kernelCommandLine=cgroup_no_v1=all
    ```
@@ -176,7 +176,7 @@ is installed.
    [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
    package manager to install Coder:
 
-   ```powershell
+   ```ps1
    winget install Coder.Coder
    ```
 
@@ -199,6 +199,8 @@ viewing the page, locate the web UI URL in Coder logs in your terminal. It looks
 like `https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app`. It's one of the first
 lines of output, so you might have to scroll up to find it.
 
+This section includes some of the quicker ways to install Coder. For more detailed options, visit the [Install](../install/index.md) page.
+
 ## Step 3: Initial setup
 
 1. Create your admin account:
@@ -215,34 +217,43 @@ lines of output, so you might have to scroll up to find it.
 > [!TIP]
 > If you use an AI coding assistant, the [coder-templates](https://github.com/coder/registry/blob/main/.agents/skills/coder-templates/SKILL.md) agent skill can guide you through creating and customizing templates with best practices built-in.
 
-Templates define what's in your development environment. The following is a basic example:
+Templates define what's in your development environment. The template builder
+guides you through creating one without writing any Terraform.
 
-1. Select **Templates** → **New Template**.
+1. Select **Templates** > **New Template**. The template builder opens.
 
-2. Select the **Coder Quickstart** template from the list of starter templates.
+1. Select the **Docker** base template from the list.
 
-   **Note:** running this template requires Docker to be running in the background, so make sure Docker is running!
+   > [!NOTE]
+   > This template requires Docker to be running in the background, so make sure Docker is running.
 
-3. Name your template.
-   The **Display name** and **Description** are pre-filled from the starter template, so you can keep the defaults or replace them:
-   - **Name**: `quickstart`
-   - **Display name**: `Coder Quickstart`
-   - **Description**: `Get started with Coder by picking your languages, editors, and a repo`
+1. Skip or configure any base template parameters, then select modules to add
+   IDEs and tools to your template. For example, add **code-server** to get
+   VS Code in the browser. You can skip module selection for now and add
+   modules later.
 
-4. Select **Save**.
+1. On the final step, name your template:
+   - **Name**: `my-docker-template`
+   - **Display name** and **Description**: fill in as you like.
 
-   ![Create template](../images/screenshots/create-template.png)
+1. Select **Create Template**. Coder composes and validates the Terraform
+   configuration, then creates your template.
+
+   ![Template builder base selection step](../images/templatebuilder_01_bases.png)
 
 **What just happened?**
-You defined a template, a reusable blueprint for dev environments, in your Coder deployment.
-It's now stored in your organization's template list, where you and any teammates in the same organization can create workspaces from it.
+The template builder selected a base infrastructure template, composed it with
+any modules you chose, and generated a valid Terraform configuration. Coder
+validated the configuration server-side, then created a reusable template in
+your organization's template list. You and any teammates in the same
+organization can now create workspaces from it.
 
 <details>
 <summary>What happens under the hood?</summary>
 
 A Coder template is a [Terraform](https://developer.hashicorp.com/terraform/intro) configuration, and Coder is built on top of Terraform.
 When you create a workspace from this template, a Coder [provisioner](../admin/infrastructure/architecture.md#provisionerd) runs a Terraform job from the template's configuration to build your environment.
-For the Coder Quickstart template, that job starts a Docker container, connects the Coder agent, and runs a startup script that installs the programming languages and editors you choose in the next step.
+For the Docker base template, that job starts a Docker container with the Coder agent pre-configured, along with any modules you selected.
 
 To learn how Coder uses Terraform to provision and run workspaces, refer to the [architecture overview](../admin/infrastructure/architecture.md).
 
@@ -254,17 +265,15 @@ Now it's time to launch a workspace.
 
 1. After the template is ready, select **+ Create Workspace**.
 
-2. Give the workspace a name. If you need a suggestion for a workspace, you can select the automatically generated name next to the **Need a suggestion?** label.
+1. Give the workspace a name. If you need a suggestion, you can select the
+   automatically generated name next to the **Need a suggestion?** label.
 
-3. In this window are [parameters](../admin/templates/extending-templates/parameters.md) that customize the workspace's behavior. Set the following based on your needs:
+1. If the template has any
+   [parameters](../admin/templates/extending-templates/parameters.md), fill
+   them in. Parameters vary by template and the modules you selected in the
+   builder.
 
-   - **Programming Languages**: the languages to pre-install in your workspace. You can use more than one if you want.
-   - **IDEs & Editors**: the IDEs and editors you want to configure for quick access once the workspace is running. You can choose more than one if you want.
-   - **Git Repository (Optional)**: the Git repository you want to clone into your workspace. Leave this field blank to skip it.
-
-   **Note:** If you use any of the JetBrains IDEs as your preferred IDE (such as PyCharm, GoLand, or RustRover), select **JetBrains IDEs** as the value. A new parameter will appear, with which you can choose your preferred JetBrains IDE.
-
-4. Launch your workspace by selecting **Create workspace**.
+1. Select **Create workspace**.
 
 After a short wait (10-15 seconds on most modern computers), Coder will start your new workspace:
 
@@ -273,7 +282,7 @@ After a short wait (10-15 seconds on most modern computers), Coder will start yo
 ## Step 6: Connect your IDE
 
 Each button in the workspace view is a different **agent app**.
-The buttons you see reflect the editors you selected in the **IDEs & Editors** parameter in [Step 5](#step-5-launch-your-workspace).
+The buttons in the UI reflect the modules you added in the template builder (such as code-server, Claude Code, or any of the JetBrains editors).
 Select your preferred IDE from the list of agent apps.
 
 This guide uses **VS Code Desktop**, which opens the workspace in the VS Code installed on your local machine, using the Coder extension.
@@ -305,7 +314,7 @@ workspace, you can clone it manually if you want:
 
 4. You are now using VS Code in your Coder environment!
 
-## Success! You're coding in Coder
+## What's next?
 
 You now have:
 
@@ -314,10 +323,9 @@ You now have:
 - A workspace running that environment.
 - IDE access to code remotely.
 
-### What's next?
+Now that you have your own workspace running, you can [customize your template](./customize-your-template/index.md) to fit your needs.
 
-Now that you have your own workspace running, you can start exploring more
-advanced capabilities that Coder offers.
+## Learn more
 
 - [Try Coder Agents](../ai-coder/agents/getting-started.md), the chat
   interface and API for delegating development work to coding agents in your
@@ -333,7 +341,7 @@ advanced capabilities that Coder offers.
 
 When creating a workspace from a Docker template, you may see an error like:
 
-```text
+```txt
 Error: Error pinging Docker server: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
 ```
 
@@ -345,34 +353,6 @@ This is common with Colima on macOS and with rootless Docker on Linux.
 In that case, point Coder at the socket with the `DOCKER_HOST` environment variable, then restart the Coder server.
 
 <div class="tabs">
-
-#### macOS
-
-1. If Colima is not installed, install it with [Homebrew](https://brew.sh):
-
-   ```sh
-   brew install colima docker
-   ```
-
-1. Start Colima to launch the Docker daemon:
-
-   ```sh
-   colima start
-   ```
-
-1. Verify that the daemon is reachable:
-
-   ```sh
-   docker ps
-   ```
-
-1. If `docker ps` works but Coder still cannot connect, point `DOCKER_HOST` at the Colima socket, then restart the Coder server:
-
-   ```sh
-   export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
-   ```
-
-   To persist the setting across restarts, add that `export` line to your shell's startup file, such as `~/.zshrc`, `~/.bashrc`, or `~/.config/fish/config.fish`.
 
 #### Linux
 
@@ -403,6 +383,34 @@ In that case, point Coder at the socket with the `DOCKER_HOST` environment varia
    docker sudo users
    ```
 
+#### macOS
+
+1. If Colima is not installed, install it with [Homebrew](https://brew.sh):
+
+   ```sh
+   brew install colima docker
+   ```
+
+1. Start Colima to launch the Docker daemon:
+
+   ```sh
+   colima start
+   ```
+
+1. Verify that the daemon is reachable:
+
+   ```sh
+   docker ps
+   ```
+
+1. If `docker ps` works but Coder still cannot connect, point `DOCKER_HOST` at the Colima socket, then restart the Coder server:
+
+   ```sh
+   export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
+   ```
+
+   To persist the setting across restarts, add that `export` line to your shell's startup file, such as `~/.zshrc`, `~/.bashrc`, or `~/.config/fish/config.fish`.
+
 #### Windows
 
 1. If Podman Desktop is not installed,
@@ -414,13 +422,15 @@ In that case, point Coder at the socket with the `DOCKER_HOST` environment varia
 
 ### Can't start Coder server: Address already in use
 
-```text
+```txt
 Encountered an error running "coder server", see "coder server --help" for more information
 error: configure http(s): listen tcp 127.0.0.1:3000: bind: address already in use
 ```
 
 Another process is already listening on port 3000. Identify and stop it,
 then start the server again.
+
+<div class="tabs">
 
 #### Linux
 
@@ -466,13 +476,13 @@ then start the server again.
 
 1. Identify the process using port 3000 in PowerShell:
 
-   ```powershell
+   ```ps1
    Get-NetTCPConnection -LocalPort 3000 | Select-Object OwningProcess
    ```
 
 1. Stop the process using the PID from the previous command:
 
-   ```powershell
+   ```ps1
    Stop-Process -Id <PID>
    ```
 
@@ -481,3 +491,5 @@ then start the server again.
    ```sh
    coder server
    ```
+
+</div>

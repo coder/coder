@@ -122,6 +122,7 @@ type AgentConn interface {
 	ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error)
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
 	EditFiles(ctx context.Context, edits FileEditRequest) (FileEditResponse, error)
+	BundleFiles(ctx context.Context, req BundleFilesRequest) ([]byte, error)
 	SSH(ctx context.Context) (*gonet.TCPConn, error)
 	SSHClient(ctx context.Context) (*ssh.Client, error)
 	SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Client, error)
@@ -458,6 +459,73 @@ func (c *agentConn) DebugManifest(ctx context.Context) ([]byte, error) {
 	bs, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, xerrors.Errorf("read response body: %w", err)
+	}
+	return bs, nil
+}
+
+// BundleFilesRequest configures a workspace-side file collection.
+type BundleFilesRequest struct {
+	Paths []string `json:"paths"`
+}
+
+// BundleFilesManifest is the manifest.json of the archive returned by
+// BundleFiles.
+type BundleFilesManifest struct {
+	Requested []string                   `json:"requested"`
+	Files     []BundleFilesManifestEntry `json:"files"`
+	Errors    []BundleFilesManifestError `json:"errors"`
+	Truncated bool                       `json:"truncated"`
+	Limits    BundleFilesLimits          `json:"limits"`
+}
+
+// BundleFilesManifestEntry describes one file collected into the archive.
+type BundleFilesManifestEntry struct {
+	Requested    string    `json:"requested"`
+	Path         string    `json:"path"`
+	ArchivePath  string    `json:"archive_path"`
+	Size         int64     `json:"size"`
+	ModTime      time.Time `json:"mod_time"`
+	BytesWritten int64     `json:"bytes_written"`
+	Truncated    bool      `json:"truncated"`
+}
+
+// BundleFilesManifestError records a path that could not be collected.
+type BundleFilesManifestError struct {
+	Requested string `json:"requested"`
+	Path      string `json:"path,omitempty"`
+	Reason    string `json:"reason"`
+}
+
+// BundleFilesLimits are the collection limits the agent applied.
+type BundleFilesLimits struct {
+	MaxFiles        int   `json:"max_files"`
+	MaxBytesPerFile int64 `json:"max_bytes_per_file"`
+	MaxTotalBytes   int64 `json:"max_total_bytes"`
+}
+
+// bundleFilesResponseMaxBytes guards against a misbehaving agent; the
+// agent itself caps collection at 100 MiB.
+const bundleFilesResponseMaxBytes int64 = 110 * 1024 * 1024
+
+// BundleFiles returns a tar archive of explicitly requested workspace
+// files.
+func (c *agentConn) BundleFiles(ctx context.Context, req BundleFilesRequest) ([]byte, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/bundle-files", req)
+	if err != nil {
+		return nil, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, codersdk.ReadBodyAsError(res)
+	}
+	bs, err := io.ReadAll(io.LimitReader(res.Body, bundleFilesResponseMaxBytes+1))
+	if err != nil {
+		return nil, xerrors.Errorf("read response body: %w", err)
+	}
+	if int64(len(bs)) > bundleFilesResponseMaxBytes {
+		return nil, xerrors.Errorf("response exceeds %d bytes", bundleFilesResponseMaxBytes)
 	}
 	return bs, nil
 }

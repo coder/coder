@@ -353,7 +353,9 @@ const ProvisionerJobsPage = lazy(
 			"./pages/OrganizationSettingsPage/OrganizationProvisionerJobsPage/OrganizationProvisionerJobsPage"
 		),
 );
-const AgentsPage = lazy(() => import("./pages/AgentsPage/AgentsPage"));
+const AgentsPageLayout = lazy(
+	() => import("./pages/AgentsPage/AgentsPageLayout"),
+);
 const AgentChatPage = lazy(() => import("./pages/AgentsPage/AgentChatPage"));
 const AgentEmbedPage = lazy(() => import("./pages/AgentsPage/AgentEmbedPage"));
 const DesktopPopoutPage = lazy(
@@ -362,8 +364,8 @@ const DesktopPopoutPage = lazy(
 const AgentCreatePage = lazy(
 	() => import("./pages/AgentsPage/AgentCreatePage"),
 );
-const AgentSettingsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsPage"),
+const AgentSettingsLayout = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsLayout"),
 );
 const AgentSettingsGeneralPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsGeneralPage"),
@@ -372,9 +374,6 @@ const AgentSettingsCompactionPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsCompactionPage"),
 );
 
-const AgentSettingsExperimentsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsExperimentsPage"),
-);
 const AISettingsLifecyclePage = lazy(
 	() => import("./pages/AISettingsPage/LifecyclePage/LifecyclePage"),
 );
@@ -399,7 +398,7 @@ const AgentAnalyticsPage = lazy(
 
 import {
 	AgentChatPageSkeleton,
-	AgentsPageSkeleton,
+	AgentsPageLayoutSkeleton,
 } from "./pages/AgentsPage/components/AgentsSkeletons";
 
 const CoderCupPage = lazy(() => import("./pages/CoderCupPage/CoderCupPage"));
@@ -437,7 +436,7 @@ const AISettingsAddProviderPage = lazy(
 			"./pages/AISettingsPage/ProvidersPage/AddProviderPage/AddProviderPage"
 		),
 );
-const _AISettingsGatewayKeysPage = lazy(
+const AISettingsGatewayKeysPage = lazy(
 	() => import("./pages/AISettingsPage/GatewayKeysPage/GatewayKeysPage"),
 );
 const AISettingsModelsPage = lazy(
@@ -477,6 +476,10 @@ const AISettingsIndexRedirect = () => {
 
 	if (permissions.viewAnyAIProvider) {
 		return <Navigate to="/ai/settings/providers" replace />;
+	}
+
+	if (permissions.viewAIGatewayKeys) {
+		return <Navigate to="/ai/settings/gateway-keys" replace />;
 	}
 
 	if (permissions.editDeploymentConfig) {
@@ -759,6 +762,10 @@ export const router = createBrowserRouter(
 						<Route element={<DeploymentConfigProvider />}>
 							<Route path="governance" element={<AIGovernanceSettingsPage />} />
 						</Route>
+						<Route
+							path="gateway-keys"
+							element={<AISettingsGatewayKeysPage />}
+						/>
 						<Route index element={<AISettingsIndexRedirect />} />
 						<Route path="models" element={<AISettingsModelsPage />} />
 						<Route path="spend" element={<AISettingsSpendPage />} />
@@ -839,13 +846,13 @@ export const router = createBrowserRouter(
 				<Route
 					path="/agents"
 					element={
-						<Suspense fallback={<AgentsPageSkeleton />}>
-							<AgentsPage />
+						<Suspense fallback={<AgentsPageLayoutSkeleton />}>
+							<AgentsPageLayout />
 						</Suspense>
 					}
 				>
 					<Route index element={<AgentCreatePage />} />
-					<Route path="settings" element={<AgentSettingsPage />}>
+					<Route path="settings" element={<AgentSettingsLayout />}>
 						<Route index element={<AgentSettingsGeneralPage />} />
 						<Route path="general" element={<AgentSettingsGeneralPage />} />
 						<Route
@@ -855,10 +862,6 @@ export const router = createBrowserRouter(
 						<Route
 							path="instructions"
 							element={<Navigate to="/ai/settings/instructions" replace />}
-						/>
-						<Route
-							path="experiments"
-							element={<AgentSettingsExperimentsPage />}
 						/>
 						<Route
 							path="lifecycle"
@@ -878,6 +881,14 @@ export const router = createBrowserRouter(
 						/>
 						<Route
 							path="agents"
+							element={<Navigate to="/ai/settings/coder-agents" replace />}
+						/>
+						<Route
+							path="coder-agents"
+							element={<Navigate to="/ai/settings/coder-agents" replace />}
+						/>
+						<Route
+							path="experiments"
 							element={<Navigate to="/ai/settings/coder-agents" replace />}
 						/>
 						<Route path="api-keys" element={<AgentSettingsAPIKeysPage />} />

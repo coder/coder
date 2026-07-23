@@ -24,7 +24,7 @@ const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 	{
 		...MockChatModelConfig,
 		id: "model-2",
-		provider: "anthropic",
+		ai_provider_id: "provider-anthropic",
 		model: "claude-sonnet",
 		display_name: "Claude Sonnet",
 		created_at: "2025-01-01T00:00:00Z",
@@ -49,6 +49,10 @@ const meta = {
 	decorators: [withAuthProvider, withDashboardProvider],
 	args: {
 		modelConfigs: mockModelConfigs,
+		providerTypeByID: new Map<string, string>([
+			["provider-1", "openai"],
+			["provider-anthropic", "anthropic"],
+		]),
 		thresholds: [],
 		isThresholdsLoading: false,
 		thresholdsError: undefined,
@@ -73,6 +77,12 @@ export const Default: Story = {
 		expect(canvas.getByText("GPT-4o")).toBeInTheDocument();
 		expect(canvas.getByText("Claude Sonnet")).toBeInTheDocument();
 		expect(canvas.queryByText("GPT-3.5 (Disabled)")).not.toBeInTheDocument();
+
+		// Each badge announces provider + model (the icon itself is decorative).
+		expect(canvas.getByLabelText("OpenAI GPT-4o")).toBeInTheDocument();
+		expect(
+			canvas.getByLabelText("Anthropic Claude Sonnet"),
+		).toBeInTheDocument();
 
 		// No footer visible when nothing is dirty
 		expect(

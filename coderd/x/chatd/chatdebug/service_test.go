@@ -25,13 +25,14 @@ import (
 )
 
 type testFixture struct {
-	ctx   context.Context
-	db    database.Store
-	svc   *chatdebug.Service
-	org   database.Organization
-	owner database.User
-	chat  database.Chat
-	model database.ChatModelConfig
+	ctx      context.Context
+	db       database.Store
+	svc      *chatdebug.Service
+	org      database.Organization
+	owner    database.User
+	chat     database.Chat
+	model    database.ChatModelConfig
+	provider string
 }
 
 func TestService_IsEnabled(t *testing.T) {
@@ -115,7 +116,7 @@ func TestService_CreateRun(t *testing.T) {
 		HistoryTipMessageID: historyTipMsg.ID,
 		Kind:                chatdebug.KindChatTurn,
 		Status:              chatdebug.StatusInProgress,
-		Provider:            fixture.model.Provider,
+		Provider:            fixture.provider,
 		Model:               fixture.model.Model,
 		Summary: map[string]any{
 			"phase": "create",
@@ -126,7 +127,7 @@ func TestService_CreateRun(t *testing.T) {
 	assertRunMatches(t, run, fixture.chat.ID, rootChat.ID, parentChat.ID,
 		fixture.model.ID, triggerMsg.ID, historyTipMsg.ID,
 		chatdebug.KindChatTurn, chatdebug.StatusInProgress,
-		fixture.model.Provider, fixture.model.Model,
+		fixture.provider, fixture.model.Model,
 		`{"count":1,"phase":"create"}`)
 
 	stored, err := fixture.db.GetChatDebugRunByID(fixture.ctx, run.ID)
@@ -470,7 +471,7 @@ func TestService_UpdateStep(t *testing.T) {
 			ResponseStatus: 200,
 			DurationMs:     25,
 		}},
-		Metadata:   map[string]any{"provider": fixture.model.Provider},
+		Metadata:   map[string]any{"provider": fixture.provider},
 		FinishedAt: finishedAt,
 	})
 	require.NoError(t, err)
@@ -487,7 +488,7 @@ func TestService_UpdateStep(t *testing.T) {
 		`[{"number":1,"response_status":200,"duration_ms":25}]`,
 		string(updated.Attempts),
 	)
-	require.JSONEq(t, `{"provider":"`+fixture.model.Provider+`"}`,
+	require.JSONEq(t, `{"provider":"`+fixture.provider+`"}`,
 		string(updated.Metadata))
 	require.True(t, updated.FinishedAt.Valid)
 	storedSteps, err := fixture.db.GetChatDebugStepsByRunID(fixture.ctx, run.ID)
@@ -1070,14 +1071,17 @@ func newFixture(t *testing.T) testFixture {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, _ := dbtestutil.NewDB(t)
 	org, owner, chat, model := seedChat(t, db)
+	prov, err := db.GetAIProviderByID(ctx, model.AIProviderID.UUID)
+	require.NoError(t, err)
 	return testFixture{
-		ctx:   ctx,
-		db:    db,
-		svc:   chatdebug.NewService(db, testutil.Logger(t), nil),
-		org:   org,
-		owner: owner,
-		chat:  chat,
-		model: model,
+		ctx:      ctx,
+		db:       db,
+		svc:      chatdebug.NewService(db, testutil.Logger(t), nil),
+		org:      org,
+		owner:    owner,
+		chat:     chat,
+		model:    model,
+		provider: string(prov.Type),
 	}
 }
 
@@ -1139,13 +1143,12 @@ func insertMessage(
 	require.NoError(t, err)
 
 	msg := dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:             chatID,
-		CreatedBy:          uuid.NullUUID{UUID: createdBy, Valid: true},
-		ModelConfigID:      uuid.NullUUID{UUID: modelID, Valid: true},
-		Role:               role,
-		Content:            parts,
-		ContentVersion:     chatprompt.CurrentContentVersion,
-		ProviderResponseID: sql.NullString{},
+		ChatID:         chatID,
+		CreatedBy:      uuid.NullUUID{UUID: createdBy, Valid: true},
+		ModelConfigID:  uuid.NullUUID{UUID: modelID, Valid: true},
+		Role:           role,
+		Content:        parts,
+		ContentVersion: chatprompt.CurrentContentVersion,
 	})
 	return msg
 }
@@ -1158,7 +1161,7 @@ func createRun(t *testing.T, fixture testFixture) database.ChatDebugRun {
 		ModelConfigID: fixture.model.ID,
 		Kind:          chatdebug.KindChatTurn,
 		Status:        chatdebug.StatusInProgress,
-		Provider:      fixture.model.Provider,
+		Provider:      fixture.provider,
 		Model:         fixture.model.Model,
 	})
 	require.NoError(t, err)

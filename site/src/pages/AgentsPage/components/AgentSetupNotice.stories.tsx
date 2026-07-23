@@ -88,6 +88,26 @@ export const MemberOnlyUnsupportedProvider: Story = {
 	},
 };
 
+// AI Gateway disabled takes precedence even when providers and models are
+// configured and the viewer is an admin.
+export const AIGatewayDisabled: Story = {
+	args: {
+		isAdmin: true,
+		providerCount: 1,
+		modelCount: 1,
+		aiGatewayDisabled: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(/AI Gateway is disabled/),
+		).toBeInTheDocument();
+		await expect(
+			canvas.getByText(/Enable it in your deployment config/),
+		).toBeInTheDocument();
+	},
+};
+
 // Both a provider and a model are configured: the notice renders nothing.
 export const Configured: Story = {
 	args: {

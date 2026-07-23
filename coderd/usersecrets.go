@@ -20,11 +20,6 @@ import (
 )
 
 const (
-	userSecretNameField     = "name"
-	userSecretValueField    = "value"
-	userSecretEnvNameField  = "env_name"
-	userSecretFilePathField = "file_path"
-
 	// These names are raised by the enforce_user_secrets_per_user_limits
 	// trigger with USING CONSTRAINT. They are not table CHECK
 	// constraints, so dbgen does not emit them in check_constraint.go.
@@ -62,7 +57,7 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if validations := createUserSecretValidationErrors(req); len(validations) > 0 {
+	if validations := codersdk.ValidateCreateUserSecretRequest(req); len(validations) > 0 {
 		writeUserSecretValidationErrors(ctx, rw, http.StatusBadRequest, validations)
 		return
 	}
@@ -133,7 +128,7 @@ func (api *API) getUserSecrets(rw http.ResponseWriter, r *http.Request) { //noli
 func (api *API) getUserSecret(rw http.ResponseWriter, r *http.Request) { //nolint:revive // Method name matches route.
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
-	name := chi.URLParam(r, userSecretNameField)
+	name := chi.URLParam(r, codersdk.UserSecretNameField)
 
 	secret, err := api.Database.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
 		UserID: user.ID,
@@ -169,7 +164,7 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		user              = httpmw.UserParam(r)
-		name              = chi.URLParam(r, userSecretNameField)
+		name              = chi.URLParam(r, codersdk.UserSecretNameField)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.UserSecret](rw, &audit.RequestParams{
 			Audit:   *auditor,
@@ -284,7 +279,7 @@ func (api *API) deleteUserSecret(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		user              = httpmw.UserParam(r)
-		name              = chi.URLParam(r, userSecretNameField)
+		name              = chi.URLParam(r, codersdk.UserSecretNameField)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.UserSecret](rw, &audit.RequestParams{
 			Audit:   *auditor,
@@ -322,32 +317,16 @@ func writeUserSecretValidationErrors(ctx context.Context, rw http.ResponseWriter
 	})
 }
 
-func createUserSecretValidationErrors(req codersdk.CreateUserSecretRequest) []codersdk.ValidationError {
-	var validations []codersdk.ValidationError
-	validations = appendUserSecretValidationError(validations, userSecretNameField, codersdk.UserSecretNameValid(req.Name))
-	if req.Value == "" {
-		validations = append(validations, codersdk.ValidationError{
-			Field:  userSecretValueField,
-			Detail: "Value is required.",
-		})
-	} else {
-		validations = appendUserSecretValidationError(validations, userSecretValueField, codersdk.UserSecretValueValid(req.Value))
-	}
-	validations = appendUserSecretValidationError(validations, userSecretEnvNameField, codersdk.UserSecretEnvNameValid(req.EnvName))
-	validations = appendUserSecretValidationError(validations, userSecretFilePathField, codersdk.UserSecretFilePathValid(req.FilePath))
-	return validations
-}
-
 func updateUserSecretValidationErrors(req codersdk.UpdateUserSecretRequest) []codersdk.ValidationError {
 	var validations []codersdk.ValidationError
 	if req.Value != nil {
-		validations = appendUserSecretValidationError(validations, userSecretValueField, codersdk.UserSecretValueValid(*req.Value))
+		validations = appendUserSecretValidationError(validations, codersdk.UserSecretValueField, codersdk.UserSecretValueValid(*req.Value))
 	}
 	if req.EnvName != nil {
-		validations = appendUserSecretValidationError(validations, userSecretEnvNameField, codersdk.UserSecretEnvNameValid(*req.EnvName))
+		validations = appendUserSecretValidationError(validations, codersdk.UserSecretEnvNameField, codersdk.UserSecretEnvNameValid(*req.EnvName))
 	}
 	if req.FilePath != nil {
-		validations = appendUserSecretValidationError(validations, userSecretFilePathField, codersdk.UserSecretFilePathValid(*req.FilePath))
+		validations = appendUserSecretValidationError(validations, codersdk.UserSecretFilePathField, codersdk.UserSecretFilePathValid(*req.FilePath))
 	}
 	return validations
 }
@@ -404,17 +383,17 @@ func userSecretConflictValidationErrors(err error) []codersdk.ValidationError {
 	switch {
 	case database.IsUniqueViolation(err, database.UniqueUserSecretsUserNameIndex):
 		return []codersdk.ValidationError{{
-			Field:  userSecretNameField,
+			Field:  codersdk.UserSecretNameField,
 			Detail: "name already in use",
 		}}
 	case database.IsUniqueViolation(err, database.UniqueUserSecretsUserEnvNameIndex):
 		return []codersdk.ValidationError{{
-			Field:  userSecretEnvNameField,
+			Field:  codersdk.UserSecretEnvNameField,
 			Detail: "environment variable already in use",
 		}}
 	case database.IsUniqueViolation(err, database.UniqueUserSecretsUserFilePathIndex):
 		return []codersdk.ValidationError{{
-			Field:  userSecretFilePathField,
+			Field:  codersdk.UserSecretFilePathField,
 			Detail: "file path already in use",
 		}}
 	default:

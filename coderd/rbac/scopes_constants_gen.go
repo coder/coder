@@ -164,6 +164,10 @@ const (
 	ScopeWorkspaceAgentResourceMonitorCreate ScopeName = "workspace_agent_resource_monitor:create"
 	ScopeWorkspaceAgentResourceMonitorRead   ScopeName = "workspace_agent_resource_monitor:read"
 	ScopeWorkspaceAgentResourceMonitorUpdate ScopeName = "workspace_agent_resource_monitor:update"
+	ScopeWorkspaceBuildOrchestrationCreate   ScopeName = "workspace_build_orchestration:create"
+	ScopeWorkspaceBuildOrchestrationDelete   ScopeName = "workspace_build_orchestration:delete"
+	ScopeWorkspaceBuildOrchestrationRead     ScopeName = "workspace_build_orchestration:read"
+	ScopeWorkspaceBuildOrchestrationUpdate   ScopeName = "workspace_build_orchestration:update"
 	ScopeWorkspaceDormantApplicationConnect  ScopeName = "workspace_dormant:application_connect"
 	ScopeWorkspaceDormantCreate              ScopeName = "workspace_dormant:create"
 	ScopeWorkspaceDormantCreateAgent         ScopeName = "workspace_dormant:create_agent"
@@ -348,6 +352,10 @@ func (e ScopeName) Valid() bool {
 		ScopeWorkspaceAgentResourceMonitorCreate,
 		ScopeWorkspaceAgentResourceMonitorRead,
 		ScopeWorkspaceAgentResourceMonitorUpdate,
+		ScopeWorkspaceBuildOrchestrationCreate,
+		ScopeWorkspaceBuildOrchestrationDelete,
+		ScopeWorkspaceBuildOrchestrationRead,
+		ScopeWorkspaceBuildOrchestrationUpdate,
 		ScopeWorkspaceDormantApplicationConnect,
 		ScopeWorkspaceDormantCreate,
 		ScopeWorkspaceDormantCreateAgent,
@@ -533,6 +541,10 @@ func AllScopeNameValues() []ScopeName {
 		ScopeWorkspaceAgentResourceMonitorCreate,
 		ScopeWorkspaceAgentResourceMonitorRead,
 		ScopeWorkspaceAgentResourceMonitorUpdate,
+		ScopeWorkspaceBuildOrchestrationCreate,
+		ScopeWorkspaceBuildOrchestrationDelete,
+		ScopeWorkspaceBuildOrchestrationRead,
+		ScopeWorkspaceBuildOrchestrationUpdate,
 		ScopeWorkspaceDormantApplicationConnect,
 		ScopeWorkspaceDormantCreate,
 		ScopeWorkspaceDormantCreateAgent,

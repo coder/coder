@@ -73,7 +73,6 @@ func CreateOpenAICompatChatModelConfig(
 	contextLimit := int64(4096)
 	isDefault := true
 	modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     TestChatProviderOpenAICompat,
 		AIProviderID: &provider.ID,
 		Model:        TestChatModelOpenAICompat,
 		ContextLimit: &contextLimit,
@@ -118,7 +117,7 @@ func waitForChatTerminalState(
 		if err != nil {
 			return false
 		}
-		return chat.Status != database.ChatStatusPending && chat.Status != database.ChatStatusRunning
+		return chat.Status != database.ChatStatusRunning
 	}, testutil.WaitLong, testutil.IntervalFast)
 }
 

@@ -17,6 +17,7 @@ const compilerPreset = reactCompilerPreset();
 compilerPreset.rolldown.filter = {
 	...compilerPreset.rolldown.filter,
 	id: {
+		// Keep in sync with targetDirs in scripts/check-compiler.mjs.
 		include: [/src\/pages\/AgentsPage\//, /src\/pages\/AIBridgePage\//],
 	},
 };
@@ -172,7 +173,6 @@ export default defineConfig({
 			"@mui/material/CardActionArea",
 			"@mui/material/CardContent",
 			"@mui/material/Checkbox",
-			"@mui/material/CircularProgress",
 			"@mui/material/Collapse",
 			"@mui/material/CssBaseline",
 			"@mui/material/Dialog",

@@ -42,7 +42,6 @@ const aiGatewayKeyHeartbeatInterval = 60 * time.Second
 // @Tags Enterprise
 // @Success 101
 // @Router /api/v2/ai-gateway/serve [get]
-// @x-apidocgen {"skip": true}
 func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 	key := r.Header.Get(codersdk.AIGatewayKeyHeader)
 	if key == "" {
@@ -67,7 +66,7 @@ func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	clientAPIVersion := r.URL.Query().Get("version")
+	clientAPIVersion := r.URL.Query().Get(aibridgedproto.VersionQueryParam)
 	clientCoderVersion := r.Header.Get(codersdk.BuildVersionHeader)
 	logger := api.Logger.Named("aigateway-serve").With(
 		slog.F("remote_addr", r.RemoteAddr),
@@ -89,7 +88,7 @@ func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(keyCtx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Incompatible or unparsable version",
 			Validations: []codersdk.ValidationError{
-				{Field: "version", Detail: err.Error()},
+				{Field: aibridgedproto.VersionQueryParam, Detail: err.Error()},
 				{Field: "client_api_version", Detail: clientAPIVersion},
 				{Field: "server_api_version", Detail: aibridgedproto.CurrentVersion.String()},
 			},
@@ -132,19 +131,20 @@ func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 	if _, err := aiGatewayUpdateKeyLastHeartbeat(connCtx, api, gatewayKey.ID); err != nil {
 		logger.Warn(connCtx, "update ai gateway key last heartbeat", slog.Error(err))
 	}
-	go aiGatewayTrackKeyUsage(connCtx, keyCtxCancel, api, gatewayKey.ID, logger)
+	go aiGatewayCheckEntitlementAndTrackKeyUsage(connCtx, keyCtxCancel, api, gatewayKey.ID, logger)
 
 	mux := drpcmux.New()
-	srv, err := aibridgedserver.NewServer(
-		connCtx,
-		api.Database,
-		logger,
-		api.AccessURL.String(),
-		api.DeploymentValues.AI.BridgeConfig,
-		api.ExternalAuthConfigs,
-		api.AGPL.Experiments,
-		api.AGPL.AISeatTracker,
-	)
+	srv, err := aibridgedserver.NewServer(connCtx, aibridgedserver.Options{
+		Store:               api.Database,
+		Pubsub:              api.AGPL.Pubsub,
+		AISeatTracker:       api.AGPL.AISeatTracker,
+		AccessURL:           api.AccessURL.String(),
+		GatewayCfg:          api.DeploymentValues.AI.BridgeConfig,
+		ExternalAuthConfigs: api.ExternalAuthConfigs,
+		Experiments:         api.AGPL.Experiments,
+		Logger:              logger,
+		Clock:               api.AGPL.Clock,
+	})
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) {
 			logger.Error(connCtx, "server creation failed", slog.Error(err))
@@ -195,8 +195,11 @@ func aiGatewayUpdateKeyLastHeartbeat(ctx context.Context, api *API, keyID uuid.U
 	return rows > 0, nil
 }
 
-// aiGatewayTrackKeyUsage refreshes last_heartbeat_at for keyID on a fixed interval until ctx is canceled.
-func aiGatewayTrackKeyUsage(ctx context.Context, ctxCancel context.CancelFunc, api *API, keyID uuid.UUID, logger slog.Logger) {
+// aiGatewayCheckEntitlementAndTrackKeyUsage until ctx is canceled on a fixed interval:
+// - refreshes last_heartbeat_at for keyID.
+// - checks if key still exists, cancels ctx if it does not.
+// - checks if the AI Gov entitlement is still enabled, cancels ctx if it is not.
+func aiGatewayCheckEntitlementAndTrackKeyUsage(ctx context.Context, ctxCancel context.CancelFunc, api *API, keyID uuid.UUID, logger slog.Logger) {
 	ticker, done := api.NewTicker(aiGatewayKeyHeartbeatInterval)
 	defer done()
 
@@ -211,6 +214,13 @@ func aiGatewayTrackKeyUsage(ctx context.Context, ctxCancel context.CancelFunc, a
 		active, err := aiGatewayUpdateKeyLastHeartbeat(ctx, api, keyID)
 		if err == nil && !active {
 			logger.Info(ctx, "ai gateway key no longer exists, closing connection")
+			ctxCancel()
+			return
+		}
+
+		// Close connection when the entitlement is revoked.
+		if !api.Entitlements.Enabled(codersdk.FeatureAIBridge) {
+			logger.Info(ctx, "ai gateway entitlement no longer enabled, closing connection")
 			ctxCancel()
 			return
 		}

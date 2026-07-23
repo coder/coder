@@ -99,6 +99,7 @@ interface ModelsPageViewProps {
 	error: unknown;
 	models: readonly ChatModelConfig[];
 	providerStates: readonly ProviderState[];
+	providerTypeByID: ReadonlyMap<string, string>;
 }
 
 const ModelsPageView: FC<ModelsPageViewProps> = ({
@@ -106,6 +107,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 	error,
 	models,
 	providerStates,
+	providerTypeByID,
 }) => {
 	const navigate = useNavigate();
 	const [page, setPage] = useState(1);
@@ -212,7 +214,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 				</div>
 				<Select value={providerFilter} onValueChange={handleProviderChange}>
 					<SelectTrigger
-						className="w-full sm:w-60"
+						className="w-full shadow-none sm:w-60"
 						aria-label="Filter by provider"
 					>
 						<SelectValue placeholder="All providers" />
@@ -221,7 +223,10 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 						<SelectItem value={ALL_PROVIDERS_VALUE}>All providers</SelectItem>
 						{providerStates.map((providerState) => (
 							<SelectItem key={providerState.key} value={providerState.key}>
-								{providerState.label}
+								<span className="flex items-center gap-2">
+									<ProviderIcon provider={providerState.provider} />
+									{providerState.label}
+								</span>
 							</SelectItem>
 						))}
 					</SelectContent>
@@ -264,6 +269,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 								key={model.id}
 								model={model}
 								providerLabel={providerLabelByModelId.get(model.id) ?? ""}
+								providerTypeByID={providerTypeByID}
 								onClick={() => void navigate(`/ai/settings/models/${model.id}`)}
 							/>
 						))

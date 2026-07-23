@@ -9,7 +9,7 @@ lockfile = true
 [tools]
 # Languages and runtimes.
 bun = "1.2.15"
-go = "1.26.4"
+go = "1.26.5"
 node = "22.19.0"
 pnpm = "10.33.2"
 

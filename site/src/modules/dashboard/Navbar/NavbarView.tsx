@@ -166,6 +166,8 @@ export const NavbarView: FC<NavbarViewProps> = ({
 						canViewConnectionLog={canViewConnectionLog}
 						canViewOrganizations={canViewOrganizations}
 						canViewDeployment={canViewDeployment}
+						canViewAIBridge={canViewAIBridge}
+						canViewAISettings={canViewAISettings}
 						canViewHealth={canViewHealth}
 					/>
 				</div>

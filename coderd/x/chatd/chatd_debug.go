@@ -116,18 +116,14 @@ func (p *Server) scheduleDebugCleanup(
 func (p *Server) newDebugAwareModel(
 	ctx context.Context,
 	req modelClientRequest,
-	route resolvedModelRoute,
+	route aiGatewayModelRoute,
 	opts modelBuildOptions,
 ) (fantasy.LanguageModel, bool, error) {
-	providerHint, err := route.providerHint()
+	provider, resolvedModel, err := chatprovider.ResolveModelWithProviderHint(req.ModelName, route.ModelProviderHint)
 	if err != nil {
 		return nil, false, err
 	}
-	provider, resolvedModel, err := chatprovider.ResolveModelWithProviderHint(req.ModelName, providerHint)
-	if err != nil {
-		return nil, false, err
-	}
-	route = route.withProviderHint(provider)
+	route.ModelProviderHint = provider
 	req.ModelName = resolvedModel
 
 	debugSvc := p.debugService()

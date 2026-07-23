@@ -49,7 +49,12 @@ not just what was called.
 
 The sessions page (`http://<deployment-url>/ai-gateway/sessions`) lists all sessions in
 reverse-chronological order. Each row shows the last prompt, initiator, provider,
-client, token usage, thread count, and timestamp.
+client, token usage, network calls, thread count, and timestamp.
+
+The network calls column reports the total and blocked
+[Agent Firewall](../agent-firewall/index.md) calls for the session. It shows
+`No activity` when the session made no calls, and `Disabled` when the session
+did not pass through Agent Firewall, so no network calls were monitored.
 
 Select one to view its full details.
 

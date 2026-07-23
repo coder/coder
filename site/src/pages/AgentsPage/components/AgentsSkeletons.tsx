@@ -25,11 +25,11 @@ function getRightPanelState(): { open: boolean; width: number } {
 }
 
 /**
- * Skeleton shown while the AgentsPage chunk is loading. Mimics the
+ * Skeleton shown while the AgentsPageLayout chunk is loading. Mimics the
  * sidebar + empty main area layout so the user sees structure
  * immediately instead of a fullscreen spinner.
  */
-export const AgentsPageSkeleton: FC = () => {
+export const AgentsPageLayoutSkeleton: FC = () => {
 	const [leftSidebarWidth] = useState(() => loadPersistedLeftSidebarWidth());
 
 	return (

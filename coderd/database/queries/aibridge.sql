@@ -15,7 +15,11 @@ UPDATE aibridge_interceptions
 		credential_hint = CASE
 			WHEN credential_kind = 'centralized' THEN @credential_hint::text
 			ELSE credential_hint
-		END
+		END,
+		-- Terminal upstream error, only set when the interception failed.
+		-- NULL leaves the columns empty for successful interceptions.
+		error_type = sqlc.narg('error_type')::aibridge_interception_error_type,
+		error_message = sqlc.narg('error_message')::text
 WHERE
 	id = @id::uuid
 	AND ended_at IS NULL
@@ -56,9 +60,9 @@ RETURNING *;
 
 -- name: InsertAIBridgeToolUsage :one
 INSERT INTO aibridge_tool_usages (
-  id, interception_id, provider_response_id, provider_tool_call_id, tool, server_url, input, injected, invocation_error, metadata, created_at
+  id, interception_id, provider_response_id, provider_tool_call_id, provider_item_id, tool, server_url, input, injected, invocation_error, metadata, created_at
 ) VALUES (
-  @id, @interception_id, @provider_response_id, @provider_tool_call_id, @tool, @server_url, @input, @injected, @invocation_error, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
+  @id, @interception_id, @provider_response_id, @provider_tool_call_id, @provider_item_id, @tool, @server_url, @input, @injected, @invocation_error, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
 )
 RETURNING *;
 
@@ -475,7 +479,10 @@ SELECT
 	COALESCE(st.cache_read_input_tokens, 0)::bigint AS cache_read_input_tokens,
 	COALESCE(st.cache_write_input_tokens, 0)::bigint AS cache_write_input_tokens,
 	COALESCE(slp.prompt, '') AS last_prompt,
-	sp.last_active_at AS last_active_at
+	sp.last_active_at AS last_active_at,
+	COALESCE(bnc.total, 0)::bigint AS network_calls_total,
+	COALESCE(bnc.blocked, 0)::bigint AS network_calls_blocked,
+	COALESCE(sr.firewall_active, false) AS firewall_active
 FROM
 	session_page sp
 JOIN
@@ -486,7 +493,8 @@ LEFT JOIN LATERAL (
 		(ARRAY_AGG(ai.metadata ORDER BY ai.started_at, ai.id))[1] AS metadata,
 		ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider) AS providers,
 		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model) AS models,
-		ARRAY_AGG(ai.id) AS interception_ids
+		ARRAY_AGG(ai.id) AS interception_ids,
+		BOOL_OR(ai.agent_firewall_session_id IS NOT NULL) AS firewall_active
 	FROM aibridge_interceptions ai
 	WHERE ai.session_id = sp.session_id
 		AND ai.initiator_id = sp.initiator_id
@@ -511,6 +519,33 @@ LEFT JOIN LATERAL (
 	ORDER BY up.created_at DESC, up.id DESC
 	LIMIT 1
 ) slp ON true
+LEFT JOIN LATERAL (
+	-- Count Agent Firewall network calls attributed to this session. Each
+	-- interception marks a point in its firewall session's monotonic sequence
+	-- stream; the boundary logs it triggered fall in the open interval
+	-- (this seq, next interception's seq) within the same firewall session.
+	-- The exclusive lower bound drops the interception's own LLM-provider call
+	-- (logged at exactly its sequence number), leaving the agent's other
+	-- egress. next_seq considers all interceptions in the firewall session so
+	-- windows never bleed across AI sessions that share one firewall session.
+	SELECT
+		COUNT(*)::bigint AS total,
+		COUNT(*) FILTER (WHERE bl.matched_rule IS NULL)::bigint AS blocked
+	FROM aibridge_interceptions afi
+	LEFT JOIN LATERAL (
+		SELECT MIN(nxt.agent_firewall_sequence_number) AS next_seq
+		FROM aibridge_interceptions nxt
+		WHERE nxt.agent_firewall_session_id = afi.agent_firewall_session_id
+			AND nxt.agent_firewall_sequence_number > afi.agent_firewall_sequence_number
+	) w ON true
+	JOIN boundary_logs bl
+		ON bl.session_id = afi.agent_firewall_session_id
+		AND bl.sequence_number > afi.agent_firewall_sequence_number
+		AND (w.next_seq IS NULL OR bl.sequence_number < w.next_seq)
+	WHERE afi.id = ANY(sr.interception_ids)
+		AND afi.agent_firewall_session_id IS NOT NULL
+		AND afi.agent_firewall_sequence_number IS NOT NULL
+) bnc ON true
 ORDER BY
 	sp.last_active_at DESC,
 	sp.session_id DESC

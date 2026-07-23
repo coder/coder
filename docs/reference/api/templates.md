@@ -4,7 +4,7 @@
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templates \
   -H 'Accept: application/json' \
@@ -159,7 +159,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templates \
   -H 'Content-Type: application/json' \
@@ -288,7 +288,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templates/examples \
   -H 'Accept: application/json' \
@@ -350,7 +350,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templates/{templatename} \
   -H 'Accept: application/json' \
@@ -441,7 +441,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname} \
   -H 'Accept: application/json' \
@@ -544,7 +544,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous \
   -H 'Accept: application/json' \
@@ -648,7 +648,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templateversions \
   -H 'Content-Type: application/json' \
@@ -775,7 +775,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templates \
   -H 'Accept: application/json' \
@@ -924,7 +924,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templates/examples \
   -H 'Accept: application/json' \
@@ -980,7 +980,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   -H 'Accept: application/json' \
@@ -1070,7 +1070,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/templates/{template} \
   -H 'Accept: application/json' \
@@ -1114,7 +1114,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   -H 'Content-Type: application/json' \
@@ -1246,7 +1246,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templates/{template}/daus \
   -H 'Accept: application/json' \
@@ -1289,7 +1289,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
   -H 'Accept: application/json' \
@@ -1467,7 +1467,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/versions \
   -H 'Content-Type: application/json' \
@@ -1521,7 +1521,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/templates/{template}/versions/archive \
   -H 'Content-Type: application/json' \
@@ -1575,7 +1575,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templateversionname} \
   -H 'Accept: application/json' \
@@ -1750,7 +1750,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
   -H 'Accept: application/json' \
@@ -1851,7 +1851,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion} \
   -H 'Content-Type: application/json' \
@@ -1963,7 +1963,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/archive \
   -H 'Accept: application/json' \
@@ -2007,7 +2007,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}/cancel \
   -H 'Accept: application/json' \
@@ -2051,7 +2051,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/dry-run \
   -H 'Content-Type: application/json' \
@@ -2148,7 +2148,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/dry-run/{jobID} \
   -H 'Accept: application/json' \
@@ -2224,7 +2224,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}/dry-run/{jobID}/cancel \
   -H 'Accept: application/json' \
@@ -2269,7 +2269,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/dry-run/{jobID}/logs \
   -H 'Accept: application/json' \
@@ -2345,7 +2345,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/dry-run/{jobID}/matched-provisioners \
   -H 'Accept: application/json' \
@@ -2385,7 +2385,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/dry-run/{jobID}/resources \
   -H 'Accept: application/json' \
@@ -2682,7 +2682,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/dynamic-parameters \
   -H 'Coder-Session-Token: API_KEY'
@@ -2708,7 +2708,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/dynamic-parameters/evaluate \
   -H 'Content-Type: application/json' \
@@ -2828,7 +2828,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/external-auth \
   -H 'Accept: application/json' \
@@ -2889,7 +2889,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/logs \
   -H 'Accept: application/json' \
@@ -2964,7 +2964,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/parameters \
   -H 'Coder-Session-Token: API_KEY'
@@ -2990,7 +2990,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/presets \
   -H 'Accept: application/json' \
@@ -3057,7 +3057,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/resources \
   -H 'Accept: application/json' \
@@ -3353,7 +3353,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/rich-parameters \
   -H 'Accept: application/json' \
@@ -3452,7 +3452,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/schema \
   -H 'Coder-Session-Token: API_KEY'
@@ -3478,7 +3478,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/unarchive \
   -H 'Accept: application/json' \
@@ -3522,7 +3522,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/variables \
   -H 'Accept: application/json' \

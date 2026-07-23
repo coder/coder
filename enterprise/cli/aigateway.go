@@ -14,13 +14,13 @@ import (
 
 func (r *RootCmd) aiGateway() *serpent.Command {
 	return &serpent.Command{
-		Use:    "ai-gateway",
-		Short:  "Manage AI Gateway",
-		Hidden: true,
+		Use:   "ai-gateway",
+		Short: "Manage AI Gateway",
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
 		Children: []*serpent.Command{
+			r.aiGatewayStart(),
 			r.aiGatewayKeys(),
 		},
 	}

@@ -23,7 +23,7 @@ Add the following example to the template's `main.tf`.
 Change the `90`, `80`, and `95` to a threshold that's more appropriate for your
 deployment:
 
-```hcl
+```tf
 resource "coder_agent" "main" {
   arch = data.coder_provisioner.dev.arch
   os   = data.coder_provisioner.dev.os

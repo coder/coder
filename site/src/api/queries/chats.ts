@@ -420,6 +420,7 @@ export const mergeWatchedChatSummary = (
 	const isTitleEvent = eventKind === "title_change";
 	const isStatusEvent = eventKind === "status_change";
 	const isSummaryEvent = eventKind === "summary_change";
+	const isChatSummaryEvent = eventKind === "chat_summary_change";
 	const isDiffStatusEvent = eventKind === "diff_status_change";
 	const isContextDirtyEvent = eventKind === "context_dirty";
 	const updatedAtComparison = compareUpdatedAtInstants(
@@ -456,10 +457,17 @@ export const mergeWatchedChatSummary = (
 	const nextLastModelConfigId = isFreshEnough
 		? watchedChat.last_model_config_id
 		: cachedChat.last_model_config_id;
-	const nextLastTurnSummary =
-		isFreshEnough || isSummaryEvent
-			? watchedChat.last_turn_summary
-			: cachedChat.last_turn_summary;
+	// The summary writes (UpdateChatLastTurnSummary, UpdateChatSummary) never
+	// bump chats.updated_at, and both events publish pre-write chat snapshots,
+	// so updated_at cannot order summary_change against chat_summary_change and
+	// isFreshEnough cannot guard these fields. Scope each field to its own
+	// event, else one event's stale snapshot clobbers the other field's value.
+	const nextLastTurnSummary = isSummaryEvent
+		? watchedChat.last_turn_summary
+		: cachedChat.last_turn_summary;
+	const nextSummary = isChatSummaryEvent
+		? watchedChat.summary
+		: cachedChat.summary;
 	const nextHasUnread =
 		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
 			? true
@@ -478,6 +486,7 @@ export const mergeWatchedChatSummary = (
 		nextBuildId === cachedChat.build_id &&
 		nextLastModelConfigId === cachedChat.last_model_config_id &&
 		nextLastTurnSummary === cachedChat.last_turn_summary &&
+		nextSummary === cachedChat.summary &&
 		nextHasUnread === cachedChat.has_unread &&
 		nextUpdatedAt === cachedChat.updated_at &&
 		nextContext === cachedChat.context
@@ -494,6 +503,7 @@ export const mergeWatchedChatSummary = (
 		build_id: nextBuildId,
 		last_model_config_id: nextLastModelConfigId,
 		last_turn_summary: nextLastTurnSummary,
+		summary: nextSummary,
 		has_unread: nextHasUnread,
 		updated_at: nextUpdatedAt,
 		context: nextContext,
@@ -1197,38 +1207,6 @@ export const reorderPinnedChat = (queryClient: QueryClient) => ({
 	},
 });
 
-export const regenerateChatTitle = (queryClient: QueryClient) => ({
-	mutationFn: (chatId: string) => API.experimental.regenerateChatTitle(chatId),
-
-	onSuccess: (updatedChat: TypesGen.Chat) => {
-		queryClient.setQueryData<TypesGen.Chat>(
-			chatKey(updatedChat.id),
-			(previousChat) =>
-				previousChat ? { ...previousChat, ...updatedChat } : updatedChat,
-		);
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) =>
-				chat.id === updatedChat.id
-					? { ...chat, title: updatedChat.title }
-					: chat,
-			),
-		);
-	},
-
-	onSettled: async (
-		_data: TypesGen.Chat | undefined,
-		_error: unknown,
-		chatId: string,
-	) => {
-		await invalidateChatListQueries(queryClient);
-		await queryClient.invalidateQueries({
-			queryKey: chatKey(chatId),
-			exact: true,
-		});
-		void invalidateChatDebugRuns(queryClient, chatId);
-	},
-});
-
 export const proposeChatTitle = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) => API.experimental.proposeChatTitle(chatId),
 
@@ -1370,6 +1348,10 @@ export const createChatMessage = (
 	onSuccess: () => {
 		void invalidateChatDebugRuns(queryClient, chatId);
 		void queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		void queryClient.invalidateQueries({
 			queryKey: chatPromptsKey(chatId),
 			exact: true,
 		});
@@ -1477,6 +1459,19 @@ export const interruptChat = (queryClient: QueryClient, chatId: string) => ({
 	},
 });
 
+export const compactChat = (queryClient: QueryClient, chatId: string) => ({
+	mutationFn: () => API.experimental.compactChat(chatId),
+	onSuccess: () => {
+		// The compaction transitions the chat to running; the summary
+		// rows stream in over the websocket like any other turn.
+		void queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		void invalidateChatDebugRuns(queryClient, chatId);
+	},
+});
+
 /**
  * Re-pins the chat to its agent's latest context snapshot, clearing the
  * dirty marker. On success the returned chat (carrying the freshly pinned
@@ -1577,22 +1572,6 @@ export const updateChatPlanModeInstructions = (queryClient: QueryClient) => ({
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatPlanModeInstructionsKey,
-		});
-	},
-});
-
-const chatDesktopEnabledKey = ["chat-desktop-enabled"] as const;
-
-export const chatDesktopEnabled = () => ({
-	queryKey: chatDesktopEnabledKey,
-	queryFn: () => API.experimental.getChatDesktopEnabled(),
-});
-
-export const updateChatDesktopEnabled = (queryClient: QueryClient) => ({
-	mutationFn: API.experimental.updateChatDesktopEnabled,
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatDesktopEnabledKey,
 		});
 	},
 });
@@ -1833,6 +1812,7 @@ const toChatProviderConfig = (
 	id: provider.id,
 	provider: provider.type,
 	display_name: provider.display_name || provider.type,
+	icon: provider.icon,
 	enabled: provider.enabled,
 	has_api_key: provider.api_keys.length > 0,
 	central_api_key_enabled: true,
@@ -1852,7 +1832,7 @@ export const chatProviderConfigs = () => ({
 	},
 });
 
-const chatModelConfigsKey = ["chat-model-configs"] as const;
+export const chatModelConfigsKey = ["chat-model-configs"] as const;
 
 export const chatModelConfigs = () => ({
 	queryKey: chatModelConfigsKey,
@@ -1872,6 +1852,8 @@ export const userChatProviderConfigs = () => ({
 			provider_id: config.provider.id,
 			provider: config.provider.type,
 			display_name: config.provider.display_name || config.provider.type,
+			icon: config.provider.icon,
+			enabled: config.provider.enabled,
 			has_user_api_key: config.has_user_api_key,
 			byok_enabled: config.byok_enabled,
 			has_central_api_key_fallback: config.has_provider_api_key,
@@ -1915,6 +1897,16 @@ const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {
 		queryClient.invalidateQueries({ queryKey: chatProviderConfigsKey }),
 		queryClient.invalidateQueries({ queryKey: chatModelConfigsKey }),
 		queryClient.invalidateQueries({ queryKey: chatModelsKey }),
+	]);
+};
+
+// Called after AI provider mutations so open model pickers refresh.
+export const invalidateChatProviderDependentQueries = async (
+	queryClient: QueryClient,
+) => {
+	await Promise.all([
+		invalidateChatConfigurationQueries(queryClient),
+		queryClient.invalidateQueries({ queryKey: userChatProviderConfigsKey }),
 	]);
 };
 
@@ -2111,6 +2103,13 @@ export const updateMCPServerConfig = (queryClient: QueryClient) => ({
 
 export const deleteMCPServerConfig = (queryClient: QueryClient) => ({
 	mutationFn: (id: string) => API.experimental.deleteMCPServerConfig(id),
+	onSuccess: async () => {
+		await invalidateMCPServerConfigQueries(queryClient);
+	},
+});
+
+export const disconnectMCPServerOAuth2 = (queryClient: QueryClient) => ({
+	mutationFn: (id: string) => API.experimental.disconnectMCPServerOAuth2(id),
 	onSuccess: async () => {
 		await invalidateMCPServerConfigQueries(queryClient);
 	},

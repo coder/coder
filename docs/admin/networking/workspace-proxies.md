@@ -35,7 +35,7 @@ Create the workspace proxy and make sure to save the returned authentication
 token for said proxy. This is the token the workspace proxy will use to
 authenticate back to primary coderd.
 
-```bash
+```sh
 $ coder wsproxy create --name=newyork --display-name="USA East" --icon="/emojis/2194.png"
 Workspace Proxy "newyork" created successfully. Save this token, it will not be shown again.
 Token: 2fb6500b-bb47-4783-a0db-dedde895b865:05271b4ef9432bac14c02b3c56b5a2d7f05453718a1f85ba7e772c0a096c7175
@@ -43,7 +43,7 @@ Token: 2fb6500b-bb47-4783-a0db-dedde895b865:05271b4ef9432bac14c02b3c56b5a2d7f054
 
 To verify it was created.
 
-```bash
+```sh
 $ coder wsproxy ls
 NAME         URL                    STATUS STATUS
 newyork                             unregistered
@@ -55,7 +55,7 @@ Deploying the workspace proxy will also register the proxy with coderd and make
 the workspace proxy usable. If the proxy deployment is successful,
 `coder wsproxy ls` will show an `ok` status code:
 
-```shell
+```sh
 $ coder wsproxy ls
 NAME              URL                         STATUS STATUS
 primary           https://dev.coder.com        ok
@@ -80,7 +80,7 @@ Workspace proxy configuration overlaps with a subset of the coderd
 configuration. To see the full list of configuration options:
 `coder wsproxy server --help`
 
-```bash
+```sh
 # Proxy specific configuration. These are REQUIRED
 # Example: https://coderd.example.com
 CODER_PRIMARY_ACCESS_URL="https://<url_of_coderd_dashboard>"
@@ -133,7 +133,7 @@ coder:
 
 Using Helm, install the workspace proxy chart
 
-```bash
+```sh
 helm install coder coder-v2/coder --namespace <your workspace proxy namespace> -f ./values-wsproxy.yaml
 ```
 
@@ -143,7 +143,7 @@ and up the deployment's replicas.
 
 ### Running on a VM
 
-```bash
+```sh
 # Set configuration options via environment variables, a config file, or cmd flags
 coder wsproxy server
 ```
@@ -156,7 +156,7 @@ can configure the workspace proxy by settings in
 
 To run workspace proxy as a system service on the host:
 
-```bash
+```sh
 # Use systemd to start workspace proxy now and on reboot
 sudo systemctl enable --now coder-workspace-proxy
 
@@ -166,7 +166,7 @@ journalctl -u coder-workspace-proxy.service -b
 
 To restart workspace proxy after applying system changes:
 
-```shell
+```sh
 sudo systemctl restart coder-workspace-proxy
 ```
 
@@ -188,13 +188,13 @@ file to include a custom entrypoint:
 
 #### Docker run
 
-```bash
+```sh
 docker run --rm -it --entrypoint /opt/coder ghcr.io/coder/coder:latest wsproxy server
 ```
 
 #### Custom Dockerfile
 
-```Dockerfile
+```dockerfile
 FROM ghcr.io/coder/coder:latest
 ENTRYPOINT ["/opt/coder", "wsproxy", "server"]
 ```

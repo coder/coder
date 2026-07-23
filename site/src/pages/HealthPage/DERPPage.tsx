@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import { MapPinIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link, useOutletContext } from "react-router";
@@ -27,7 +26,6 @@ import {
 	StatusIcon,
 } from "./Content";
 import { DismissWarningButton } from "./DismissWarningButton";
-import { healthyColor } from "./healthyColor";
 
 type BooleanKeys<T> = {
 	[K in keyof T]: T[K] extends boolean | null ? K : never;
@@ -123,11 +121,23 @@ const flagGroups: FlagGroup[] = [
 	},
 ];
 
+const severityColor = (severity: HealthSeverity): string => {
+	switch (severity) {
+		case "ok":
+			return "text-content-success";
+		case "warning":
+			return "text-content-warning";
+		case "error":
+			return "text-content-destructive";
+		default:
+			return "";
+	}
+};
+
 const DERPPage: FC = () => {
 	const { derp } = useOutletContext<HealthcheckReport>();
 	const { netcheck, regions, netcheck_logs: logs } = derp;
 	const safeNetcheck = netcheck || ({} as NetcheckReport);
-	const theme = useTheme();
 
 	return (
 		<>
@@ -213,12 +223,7 @@ const DERPPage: FC = () => {
 									<Button variant="outline" key={region.RegionID} asChild>
 										<Link to={`/health/derp/regions/${region.RegionID}`}>
 											<MapPinIcon
-												style={{
-													color: healthyColor(
-														theme,
-														severity as HealthSeverity,
-													),
-												}}
+												className={severityColor(severity as HealthSeverity)}
 											/>
 											{region.RegionName}
 										</Link>

@@ -17,7 +17,7 @@ const alternatives: readonly AlternativeLink[] = [
 	},
 	{
 		label: "Upload an existing template",
-		href: "/starter-templates",
+		href: "/templates/new",
 		external: false,
 	},
 	{
@@ -35,7 +35,7 @@ const alternatives: readonly AlternativeLink[] = [
 export const TemplateAlternatives: FC = () => {
 	return (
 		<div className="p-6 border border-solid rounded-lg mt-6">
-			<p className="text-sm text-content-secondary mb-4">
+			<p className="text-sm text-content-secondary mb-4 mt-0">
 				Alternatives to create a template:
 			</p>
 			<div className="flex flex-wrap gap-2">
