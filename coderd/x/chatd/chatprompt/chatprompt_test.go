@@ -351,6 +351,58 @@ func TestConvertMessagesWithFiles_ResolvesFileData(t *testing.T) {
 	require.Equal(t, "image/png", filePart.MediaType)
 }
 
+func TestConvertMessagesWithFiles_SplitsPromptMessageGroups(t *testing.T) {
+	t.Parallel()
+
+	fileID := uuid.New()
+	part := func(text, group string) codersdk.ChatMessagePart {
+		return codersdk.ChatMessagePart{
+			Type: codersdk.ChatMessagePartTypeText,
+			Text: text,
+			Metadata: map[string]string{
+				chatprompt.MetadataKeyPromptMessageGroup: group,
+			},
+		}
+	}
+	filePart := codersdk.ChatMessageFile(fileID, "image/png", "diagram.png")
+	filePart.Metadata = map[string]string{chatprompt.MetadataKeyPromptMessageGroup: "1"}
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		part("thread metadata", "0"),
+		part("two attachment-free Slack messages", "0"),
+		part("Slack message with an image", "1"),
+		filePart,
+		part("following attachment-free Slack message", "2"),
+	})
+	require.NoError(t, err)
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{{
+			Role:       database.ChatMessageRoleUser,
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    content,
+		}},
+		func(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+			require.Equal(t, []uuid.UUID{fileID}, ids)
+			return map[uuid.UUID]chatprompt.FileData{
+				fileID: {Name: "diagram.png", Data: []byte("png"), MediaType: "image/png"},
+			}, nil
+		},
+		slogtest.Make(t, nil),
+		nil,
+	)
+	require.NoError(t, err)
+	require.Len(t, prompt, 3)
+	require.Len(t, prompt[0].Content, 2)
+	require.Len(t, prompt[1].Content, 2)
+	require.Len(t, prompt[2].Content, 1)
+
+	image, ok := fantasy.AsMessagePart[fantasy.FilePart](prompt[1].Content[1])
+	require.True(t, ok)
+	require.Equal(t, "diagram.png", image.Filename)
+	require.Equal(t, []byte("png"), image.Data)
+}
+
 func TestConvertMessagesWithFiles_MissingFileBackedAttachmentBecomesTextPart(t *testing.T) {
 	t.Parallel()
 

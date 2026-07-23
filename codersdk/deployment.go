@@ -4288,7 +4288,7 @@ Write out the current server config as YAML to stdout.`,
 		// Slack (slackd) Options
 		{
 			Name:        "Slack Bot Token",
-			Description: "Bot token (xoxb-...) of the Slack app that slackd connects to. When set together with the app token and chat owner user ID, coderd connects to Slack over Socket Mode and submits app mentions and 1:1 direct messages to chats. To receive direct messages, subscribe the app to the message.im bot event and grant the bot token the im:history scope.",
+			Description: "Bot token (xoxb-...) of the Slack app that slackd connects to. When set together with the app token and chat owner user ID, coderd connects to Slack over Socket Mode and submits app mentions and 1:1 direct messages to chats. Grant the bot token the files:read scope to include supported Slack attachments. To receive direct messages, subscribe the app to the message.im bot event and grant the bot token the im:history scope.",
 			Flag:        "slack-bot-token",
 			Env:         "CODER_SLACK_BOT_TOKEN",
 			Value:       &c.AI.Slack.BotToken,

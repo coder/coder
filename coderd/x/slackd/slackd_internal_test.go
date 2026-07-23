@@ -2,7 +2,9 @@ package slackd
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/url"
 	"strconv"
 	"strings"
@@ -79,8 +81,10 @@ func (f *fakeSocketClient) Ack(req socketmode.Request, _ ...any) error {
 // fakeWebAPI serves canned Slack identities and scripted thread
 // replies.
 type fakeWebAPI struct {
-	botUID string
-	users  map[string]*slack.User
+	botUID   string
+	users    map[string]*slack.User
+	files    map[string][]byte
+	fileErrs map[string]error
 
 	mu sync.Mutex
 	// replies is returned from GetConversationRepliesContext, split
@@ -89,11 +93,25 @@ type fakeWebAPI struct {
 	repliesPageSize int
 	repliesErr      error
 	repliesCalls    []slack.GetConversationRepliesParameters
+	fileCalls       []string
 
 	// updateCalls records UpdateMessageContext invocations;
 	// ephemeralCalls records PostEphemeralContext invocations.
 	updateCalls    []fakeMessageUpdate
 	ephemeralCalls []fakeEphemeralPost
+}
+
+func (f *fakeWebAPI) GetFileContext(_ context.Context, downloadURL string, writer io.Writer) error {
+	f.mu.Lock()
+	f.fileCalls = append(f.fileCalls, downloadURL)
+	err := f.fileErrs[downloadURL]
+	data := append([]byte(nil), f.files[downloadURL]...)
+	f.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	_, err = writer.Write(data)
+	return err
 }
 
 // fakeMessageUpdate captures one UpdateMessageContext call.
@@ -187,6 +205,10 @@ func threadMsg(ts, user, text string) slack.Message {
 	return slack.Message{Msg: slack.Msg{Timestamp: ts, User: user, Text: text}}
 }
 
+func threadMsgWithFiles(ts, user, text string, files ...slack.File) slack.Message {
+	return slack.Message{Msg: slack.Msg{Timestamp: ts, User: user, Text: text, Files: files}}
+}
+
 // fakeChatSubmitter records chatd calls and returns scripted results.
 type fakeChatSubmitter struct {
 	mu             sync.Mutex
@@ -265,7 +287,9 @@ func newTestServerWithProvider(t *testing.T, db database.Store, chat ChatSubmitt
 func newTestServerWithWebAPI(t *testing.T, db database.Store, chat ChatSubmitter, owner uuid.UUID, providerID string, socket *fakeSocketClient) (*Server, *fakeWebAPI) {
 	t.Helper()
 	webAPI := &fakeWebAPI{
-		botUID: "UBOT",
+		botUID:   "UBOT",
+		files:    map[string][]byte{},
+		fileErrs: map[string]error{},
 		users: map[string]*slack.User{
 			"USENDER": {Name: "sender", RealName: "Sender Name"},
 			"UBOT":    {Name: "bot", RealName: "Bot App"},
@@ -518,6 +542,255 @@ func TestHandleDirectMessageSendsToExistingChat(t *testing.T) {
 	assert.Equal(t, []string{"100.1", "105.0"}, blockTimestamps(sends[0].Content))
 }
 
+func TestHandleMessageImportsSlackAttachments(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	owner, org := seedOwner(t, db)
+	existing := seedThreadChat(t, db, org, owner.ID, "C1:100.1")
+
+	chat := newFakeChatSubmitter()
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, owner.ID, "", newFakeSocketClient())
+	png, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg==")
+	require.NoError(t, err)
+	webAPI.files["https://files.example/image"] = png
+	webAPI.files["https://files.example/notes"] = []byte("# Deployment notes\n")
+	webAPI.users["UOTHER"] = &slack.User{Name: "other", RealName: "Other Person"}
+	webAPI.setReplies(
+		threadMsgWithFiles("100.1", "USENDER", "look at this image", slack.File{
+			ID: "FIMAGE", Name: "diagram.png", Mimetype: "application/octet-stream",
+			URLPrivateDownload: "https://files.example/image", Size: len(png),
+		}),
+		threadMsgWithFiles("105.0", "UOTHER", "and these notes", slack.File{
+			ID: "FNOTES", Name: "notes.md", Mimetype: "image/png",
+			URLPrivateDownload: "https://files.example/notes", Size: len("# Deployment notes\n"),
+		}),
+	)
+
+	err = server.handleMessage(ctx, "EvFiles", incomingMessage{
+		user: "USENDER", channel: "C1", timestamp: "105.0", threadTimestamp: "100.1",
+	})
+	require.NoError(t, err)
+
+	_, sends := chat.snapshot()
+	require.Len(t, sends, 1)
+	content := sends[0].Content
+	require.Len(t, content, 5)
+	assert.Equal(t, "0", content[0].Metadata[chatprompt.MetadataKeyPromptMessageGroup])
+	assert.Equal(t, codersdk.ChatMessagePartTypeText, content[1].Type)
+	assert.Equal(t, "0", content[1].Metadata[chatprompt.MetadataKeyPromptMessageGroup])
+	assert.Contains(t, content[1].Text,
+		"The file parts immediately following this block were sent by sender (<@USENDER>) (Sender Name).")
+	assert.Contains(t, content[1].Text,
+		"You are responding to sender (<@USENDER>) (Sender Name).")
+	assert.Equal(t, codersdk.ChatMessagePartTypeFile, content[2].Type)
+	assert.Equal(t, "0", content[2].Metadata[chatprompt.MetadataKeyPromptMessageGroup])
+	assert.Equal(t, "image/png", content[2].MediaType)
+	assert.Equal(t, "diagram.png", content[2].Name)
+	assert.Equal(t, codersdk.ChatMessagePartTypeText, content[3].Type)
+	assert.Equal(t, "1", content[3].Metadata[chatprompt.MetadataKeyPromptMessageGroup])
+	assert.Contains(t, content[3].Text,
+		"The file parts immediately following this block were sent by other (<@UOTHER>) (Other Person).")
+	assert.Contains(t, content[3].Text,
+		"You are responding to sender (<@USENDER>) (Sender Name).")
+	assert.Contains(t, content[3].Text,
+		"direct your response and actions to the user you are responding to, not another participant")
+	assert.Equal(t, codersdk.ChatMessagePartTypeFile, content[4].Type)
+	assert.Equal(t, "1", content[4].Metadata[chatprompt.MetadataKeyPromptMessageGroup])
+	assert.Equal(t, "text/markdown", content[4].MediaType)
+
+	linked, err := db.GetChatFileMetadataByChatID(ctx, existing.ID)
+	require.NoError(t, err)
+	require.Len(t, linked, 2)
+	stored, err := db.GetChatFilesByIDs(ctx, []uuid.UUID{content[2].FileID.UUID, content[4].FileID.UUID})
+	require.NoError(t, err)
+	require.Len(t, stored, 2)
+	storedData := make(map[string][]byte, len(stored))
+	for _, file := range stored {
+		storedData[file.Name] = file.Data
+	}
+	assert.Equal(t, png, storedData["diagram.png"])
+	assert.Equal(t, []byte("# Deployment notes\n"), storedData["notes.md"])
+	assert.Equal(t, []string{"https://files.example/image", "https://files.example/notes"}, webAPI.fileCalls)
+}
+
+func TestHandleMessageLinksAttachmentsToNewChat(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	owner, org := seedOwner(t, db)
+	created := seedThreadChat(t, db, org, owner.ID, "unrelated:thread")
+	chat := newFakeChatSubmitter()
+	chat.createChat = created
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, owner.ID, "", newFakeSocketClient())
+	webAPI.files["https://files.example/readme"] = []byte("hello from Slack\n")
+	webAPI.setReplies(threadMsgWithFiles("100.1", "USENDER", "", slack.File{
+		ID: "FREADME", Name: "README.txt", URLPrivateDownload: "https://files.example/readme",
+	}))
+
+	err := server.handleMessage(ctx, "EvNewFile", incomingMessage{
+		user: "USENDER", channel: "CNEW", timestamp: "100.1",
+	})
+	require.NoError(t, err)
+
+	creates, sends := chat.snapshot()
+	require.Len(t, creates, 1)
+	require.Empty(t, sends)
+	require.Len(t, creates[0].InitialUserContent, 3)
+	assert.Equal(t, codersdk.ChatMessagePartTypeFile, creates[0].InitialUserContent[2].Type)
+	linked, err := db.GetChatFileMetadataByChatID(ctx, created.ID)
+	require.NoError(t, err)
+	require.Len(t, linked, 1)
+	assert.Equal(t, "README.txt", linked[0].Name)
+}
+
+func TestHandleDirectMessageFileShareCreatesChatWithImage(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	owner, org := seedOwner(t, db)
+	created := seedThreadChat(t, db, org, owner.ID, "unrelated:thread")
+	chat := newFakeChatSubmitter()
+	chat.createChat = created
+	socket := newFakeSocketClient()
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, owner.ID, "", socket)
+	png, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg==")
+	require.NoError(t, err)
+	file := slack.File{
+		ID: "FNEWIMAGE", Name: "new-image.png", URLPrivateDownload: "https://files.example/new-image",
+		Size: len(png),
+	}
+	webAPI.files[file.URLPrivateDownload] = png
+	webAPI.setReplies(threadMsgWithFiles("100.1", "USENDER", "", file))
+	event := directMessageEvent("EvNewImage", "USENDER", "DIMAGE", "100.1", "", "")
+	message := event.Data.(slackevents.EventsAPIEvent).InnerEvent.Data.(*slackevents.MessageEvent)
+	message.SubType = slack.MsgSubTypeFileShare
+	message.Message = &slack.Msg{Files: []slack.File{file}}
+
+	server.handleEvent(ctx, event)
+	_ = testutil.TryReceive(ctx, t, socket.acked)
+	_ = testutil.TryReceive(ctx, t, chat.called)
+	server.wg.Wait()
+
+	creates, sends := chat.snapshot()
+	require.Len(t, creates, 1)
+	require.Empty(t, sends)
+	require.Len(t, creates[0].InitialUserContent, 3)
+	image := creates[0].InitialUserContent[2]
+	assert.Equal(t, codersdk.ChatMessagePartTypeFile, image.Type)
+	assert.Equal(t, "0", image.Metadata[chatprompt.MetadataKeyPromptMessageGroup])
+	assert.Equal(t, "image/png", image.MediaType)
+	assert.Equal(t, "new-image.png", image.Name)
+	linked, err := db.GetChatFileMetadataByChatID(ctx, created.ID)
+	require.NoError(t, err)
+	require.Len(t, linked, 1)
+	assert.Equal(t, image.FileID.UUID, linked[0].ID)
+}
+
+func TestHandleMessageContinuesWhenSlackAttachmentsFail(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	owner, org := seedOwner(t, db)
+	seedThreadChat(t, db, org, owner.ID, "C1:100.1")
+	chat := newFakeChatSubmitter()
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, owner.ID, "", newFakeSocketClient())
+	webAPI.files["https://files.example/archive"] = []byte("PK\x03\x04binary")
+	webAPI.fileErrs["https://files.example/failure"] = xerrors.New("private failure")
+	webAPI.files["https://files.example/ok"] = []byte("usable text\n")
+	webAPI.setReplies(threadMsgWithFiles("100.1", "USENDER", "please inspect these",
+		slack.File{ID: "FBIG", Name: "big.png", Size: codersdk.MaxChatFileSizeBytes + 1, URLPrivateDownload: "https://files.example/big"},
+		slack.File{ID: "FZIP", Name: "archive.zip", URLPrivateDownload: "https://files.example/archive"},
+		slack.File{ID: "FMISSING", Name: "missing.pdf"},
+		slack.File{ID: "FFAIL", Name: "failure.txt", URLPrivateDownload: "https://files.example/failure"},
+		slack.File{ID: "FOK", Name: "ok.txt", URLPrivateDownload: "https://files.example/ok"},
+	))
+
+	err := server.handleMessage(ctx, "EvFileFailures", incomingMessage{
+		user: "USENDER", channel: "C1", timestamp: "100.1",
+	})
+	require.NoError(t, err)
+
+	_, sends := chat.snapshot()
+	require.Len(t, sends, 1)
+	content := sends[0].Content
+	require.Len(t, content, 7)
+	for _, index := range []int{2, 3, 4, 5} {
+		assert.Equal(t, codersdk.ChatMessagePartTypeText, content[index].Type)
+		assert.Contains(t, content[index].Text, "was not included")
+	}
+	assert.Contains(t, content[2].Text, "size limit")
+	assert.Contains(t, content[3].Text, "not supported")
+	assert.Contains(t, content[4].Text, "download URL is unavailable")
+	assert.Contains(t, content[5].Text, "download failed")
+	assert.Equal(t, codersdk.ChatMessagePartTypeFile, content[6].Type)
+	assert.Equal(t, []string{
+		"https://files.example/archive",
+		"https://files.example/failure",
+		"https://files.example/ok",
+	}, webAPI.fileCalls)
+}
+
+func TestImportAttachmentsHonorsChatFileLimit(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	owner, org := seedOwner(t, db)
+	server, webAPI := newTestServerWithWebAPI(t, db, newFakeChatSubmitter(), owner.ID, "", newFakeSocketClient())
+	unseen := []slack.Message{threadMsgWithFiles("100.1", "USENDER", "", slack.File{
+		ID: "FOVERFLOW", Name: "overflow.txt", URLPrivateDownload: "https://files.example/overflow",
+	})}
+
+	parts, fileIDs := server.importAttachments(ctx, owner.ID, org.ID, unseen, 0)
+	require.Empty(t, fileIDs)
+	require.Len(t, parts["100.1"], 1)
+	assert.Contains(t, parts["100.1"][0].Text, "maximum of 50 files")
+	assert.Empty(t, webAPI.fileCalls)
+}
+
+func TestLimitedBufferRejectsOversizeSlackFile(t *testing.T) {
+	t.Parallel()
+
+	buffer := limitedBuffer{remaining: 4}
+	n, err := buffer.Write([]byte("12345"))
+	require.ErrorIs(t, err, errSlackFileTooLarge)
+	assert.Equal(t, 4, n)
+	assert.Equal(t, []byte("1234"), buffer.Bytes())
+}
+
+func TestBuildContentGroupsSlackMessagesAroundAttachments(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	owner, _ := seedOwner(t, db)
+	server := newTestServer(t, db, newFakeChatSubmitter(), owner.ID, newFakeSocketClient())
+	file := slack.File{ID: "F1", Name: "image.png"}
+	unseen := []slack.Message{
+		threadMsg("100.1", "USENDER", "first"),
+		threadMsg("101.1", "USENDER", "second"),
+		threadMsgWithFiles("102.1", "USENDER", "image", file),
+		threadMsg("103.1", "USENDER", "fourth"),
+	}
+	attachments := map[string][]codersdk.ChatMessagePart{
+		"102.1": {codersdk.ChatMessageFile(uuid.New(), "image/png", "image.png")},
+	}
+
+	content := server.buildContent(t.Context(), incomingMessage{
+		user: "USENDER", channel: "C1", timestamp: "103.1", threadTimestamp: "100.1",
+	}, "100.1", "EvGroups", unseen, attachments)
+	require.Len(t, content, 6)
+	groups := make([]string, 0, len(content))
+	for _, part := range content {
+		groups = append(groups, part.Metadata[chatprompt.MetadataKeyPromptMessageGroup])
+	}
+	assert.Equal(t, []string{"0", "0", "0", "1", "1", "2"}, groups)
+}
+
 func TestHandleDirectMessageLinkedSenderOwnsChatAndInterruptsSibling(t *testing.T) {
 	t.Parallel()
 
@@ -575,7 +848,11 @@ func TestHandleDirectMessageDuplicateEventDoesNotInterruptSibling(t *testing.T) 
 
 	chat := newFakeChatSubmitter()
 	socket := newFakeSocketClient()
-	server := newTestServer(t, db, chat, fallback.ID, socket)
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, fallback.ID, "", socket)
+	webAPI.files["https://files.example/duplicate"] = []byte("must not download")
+	webAPI.setReplies(threadMsgWithFiles("105.0", "USENDER", "duplicate", slack.File{
+		ID: "FDUP", Name: "duplicate.txt", URLPrivateDownload: "https://files.example/duplicate",
+	}))
 
 	server.handleEvent(ctx, directMessageEvent("EvDMDuplicate", "USENDER", "D1", "105.0", "100.1", "duplicate"))
 	_ = testutil.TryReceive(ctx, t, socket.acked)
@@ -586,6 +863,24 @@ func TestHandleDirectMessageDuplicateEventDoesNotInterruptSibling(t *testing.T) 
 	require.Empty(t, sends)
 	interrupted, _ := chat.interrupts()
 	require.Empty(t, interrupted)
+	assert.Empty(t, webAPI.fileCalls)
+}
+
+func TestNormalizeDirectMessagePreservesFiles(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	owner, _ := seedOwner(t, db)
+	server := newTestServer(t, db, newFakeChatSubmitter(), owner.ID, newFakeSocketClient())
+	event := &slackevents.MessageEvent{
+		User: "USENDER", Channel: "D1", ChannelType: "im", TimeStamp: "100.1",
+		Message: &slack.Msg{Files: []slack.File{{ID: "F1", Name: "photo.png"}}},
+	}
+
+	message, ok := server.normalizeIncomingMessage(t.Context(), event)
+	require.True(t, ok)
+	require.Len(t, message.files, 1)
+	assert.Equal(t, "F1", message.files[0].ID)
 }
 
 func TestHandleEventIgnoresUnsupportedDirectMessages(t *testing.T) {
@@ -1022,16 +1317,23 @@ func TestHandleMentionRepliesFetchFailureFallsBackToMentionOnly(t *testing.T) {
 	chat := newFakeChatSubmitter()
 	server, webAPI := newTestServerWithWebAPI(t, db, chat, owner.ID, "", newFakeSocketClient())
 	webAPI.repliesErr = xerrors.New("slack is down")
+	webAPI.files["https://files.example/fallback"] = []byte("fallback attachment\n")
+	mention := appMention("USENDER", "C1", "105.0", "100.1")
+	mention.Files = []slack.File{{
+		ID: "FFALLBACK", Name: "fallback.txt", URLPrivateDownload: "https://files.example/fallback",
+	}}
 
-	require.NoError(t, server.handleMention(ctx, "Ev5", appMention("USENDER", "C1", "105.0", "100.1")))
+	require.NoError(t, server.handleMention(ctx, "Ev5", mention))
 
 	_, sends := chat.snapshot()
 	require.Len(t, sends, 1)
 	content := sends[0].Content
-	require.Len(t, content, 2)
+	require.Len(t, content, 3)
 	assert.Equal(t, "Ev5", content[0].Metadata[MetadataKeySlackEventID])
 	assert.Equal(t, "105.0", content[1].Metadata[MetadataKeySlackMessageTS])
 	assert.Contains(t, content[1].Text, "hello")
+	assert.Equal(t, codersdk.ChatMessagePartTypeFile, content[2].Type)
+	assert.Equal(t, "fallback.txt", content[2].Name)
 }
 
 func TestWithThreadLock(t *testing.T) {

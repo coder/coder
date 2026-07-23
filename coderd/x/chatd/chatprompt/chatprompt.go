@@ -23,7 +23,14 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-const syntheticPasteInlineBudget = 128 * 1024
+const (
+	syntheticPasteInlineBudget = 128 * 1024
+
+	// MetadataKeyPromptMessageGroup splits contiguous parts from one persisted
+	// user message into separate model-facing user messages. The metadata is
+	// internal and is not included in the resulting prompt content.
+	MetadataKeyPromptMessageGroup = "prompt_message_group"
+)
 
 const syntheticPasteInlinePrefix = "[pasted-text] The user pasted text into the chat UI. The frontend collapsed it into an attachment, so the content is inlined below for direct model consumption.\n\n"
 
@@ -182,21 +189,23 @@ func ConvertMessagesWithFiles(
 				},
 			})
 		case codersdk.ChatMessageRoleUser:
-			userParts := partsToMessageParts(
-				ctx,
-				logger,
-				pm.parts,
-				resolved,
-				userMissingFilePolicy,
-				acceptsFilePart,
-			)
-			if len(userParts) == 0 {
-				continue
+			for _, group := range promptMessageGroups(pm.parts) {
+				userParts := partsToMessageParts(
+					ctx,
+					logger,
+					group,
+					resolved,
+					userMissingFilePolicy,
+					acceptsFilePart,
+				)
+				if len(userParts) == 0 {
+					continue
+				}
+				prompt = append(prompt, fantasy.Message{
+					Role:    fantasy.MessageRoleUser,
+					Content: userParts,
+				})
 			}
-			prompt = append(prompt, fantasy.Message{
-				Role:    fantasy.MessageRoleUser,
-				Content: userParts,
-			})
 		case codersdk.ChatMessageRoleAssistant:
 			fantasyParts := normalizeAssistantToolCallInputs(
 				partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles, nil),
@@ -239,6 +248,37 @@ func ConvertMessagesWithFiles(
 		toolNameByCallID,
 	)
 	return prompt, nil
+}
+
+// promptMessageGroups partitions one persisted user message at changes to the
+// internal prompt-message group metadata. Parts without the metadata inherit
+// the current group. Ordinary messages without any markers remain unchanged.
+func promptMessageGroups(parts []codersdk.ChatMessagePart) [][]codersdk.ChatMessagePart {
+	start := 0
+	current := ""
+	found := false
+	var groups [][]codersdk.ChatMessagePart
+	for i, part := range parts {
+		group, ok := part.Metadata[MetadataKeyPromptMessageGroup]
+		if !ok {
+			continue
+		}
+		if !found {
+			found = true
+			current = group
+			continue
+		}
+		if group == current {
+			continue
+		}
+		groups = append(groups, parts[start:i])
+		start = i
+		current = group
+	}
+	if !found {
+		return [][]codersdk.ChatMessagePart{parts}
+	}
+	return append(groups, parts[start:])
 }
 
 // InsertSystem inserts a system message after the existing system

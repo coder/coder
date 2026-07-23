@@ -25,6 +25,12 @@
 // metadata that chatd stamps on the tool-result part; they never
 // advance the watermark.
 //
+// Files attached to unseen Slack messages are downloaded through Slack's
+// authenticated private-file API and stored as durable chat files. Supported
+// files appear immediately after their originating <slack-message> block;
+// files that cannot be imported are represented by a notice so the agent can
+// tell the user what it could not access.
+//
 // Every coderd replica runs its own Socket Mode connection, so the
 // same Slack event can be delivered to multiple replicas. slackd
 // deduplicates in two layers:
@@ -41,11 +47,14 @@
 package slackd
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"regexp"
 	"sort"
@@ -66,7 +75,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
 )
@@ -112,6 +123,8 @@ const (
 	threadLockRetryCeil  = time.Second
 )
 
+var errSlackFileTooLarge = xerrors.New("slack file exceeds the chat attachment size limit")
+
 const systemPrompt = `You process messages forwarded from Slack by slackd,
 Coder's built-in Slack integration. Each user message starts with Slack
 thread metadata (channel, thread timestamp) followed by one or more
@@ -123,6 +136,12 @@ slack_get_user_info or the <from-user> tags when you need a user's id.
 A single user message may catch you up on several Slack messages at
 once: everything said in the thread since the last message you received
 is included.
+
+Each Slack message with attachments is delivered as a separate user message,
+with its supported file parts immediately after its <slack-message> block.
+Consecutive Slack messages without attachments may be grouped into one user
+message. If an attachment could not be included, a text notice appears after
+its message block with the reason.
 
 You can reply to the Slack thread with the slack_* tools when they are
 available. You must reply in-thread with slack_send_message when the sender
@@ -289,6 +308,7 @@ type WebAPI interface {
 	AuthTestContext(ctx context.Context) (*slack.AuthTestResponse, error)
 	GetUserInfoContext(ctx context.Context, user string) (*slack.User, error)
 	GetConversationRepliesContext(ctx context.Context, params *slack.GetConversationRepliesParameters) ([]slack.Message, bool, string, error)
+	GetFileContext(ctx context.Context, downloadURL string, writer io.Writer) error
 	UpdateMessageContext(ctx context.Context, channelID, timestamp string, options ...slack.MsgOption) (string, string, string, error)
 	PostEphemeralContext(ctx context.Context, channelID, userID string, options ...slack.MsgOption) (string, error)
 }
@@ -544,6 +564,7 @@ func (s *Server) handleEvent(ctx context.Context, evt socketmode.Event) {
 type incomingMessage struct {
 	user            string
 	text            string
+	files           []slack.File
 	timestamp       string
 	threadTimestamp string
 	channel         string
@@ -558,7 +579,7 @@ func (s *Server) normalizeIncomingMessage(ctx context.Context, event any) (incom
 	case *slackevents.AppMentionEvent:
 		return incomingMessageFromMention(ev), true
 	case *slackevents.MessageEvent:
-		if ev.ChannelType != "im" || ev.SubType != "" || ev.BotID != "" ||
+		if ev.ChannelType != "im" || !supportedDirectMessageSubtype(ev.SubType) || ev.BotID != "" ||
 			ev.User == "" || ev.Channel == "" || ev.TimeStamp == "" {
 			return incomingMessage{}, false
 		}
@@ -573,6 +594,7 @@ func (s *Server) normalizeIncomingMessage(ctx context.Context, event any) (incom
 		return incomingMessage{
 			user:            ev.User,
 			text:            ev.Text,
+			files:           messageEventFiles(ev),
 			timestamp:       ev.TimeStamp,
 			threadTimestamp: ev.ThreadTimeStamp,
 			channel:         ev.Channel,
@@ -582,14 +604,26 @@ func (s *Server) normalizeIncomingMessage(ctx context.Context, event any) (incom
 	}
 }
 
+func supportedDirectMessageSubtype(subtype string) bool {
+	return subtype == "" || subtype == slack.MsgSubTypeFileShare
+}
+
 func incomingMessageFromMention(ev *slackevents.AppMentionEvent) incomingMessage {
 	return incomingMessage{
 		user:            ev.User,
 		text:            ev.Text,
+		files:           ev.Files,
 		timestamp:       ev.TimeStamp,
 		threadTimestamp: ev.ThreadTimeStamp,
 		channel:         ev.Channel,
 	}
+}
+
+func messageEventFiles(ev *slackevents.MessageEvent) []slack.File {
+	if ev.Message == nil {
+		return nil
+	}
+	return ev.Message.Files
 }
 
 // handleMention submits an app mention through the shared Slack message path.
@@ -679,7 +713,27 @@ func (s *Server) handleMessage(ctx context.Context, eventID string, ev incomingM
 				slog.F("event_id", eventID), slog.F("thread", threadKey))
 			return nil
 		}
-		content := s.buildContent(ctx, ev, threadTS, eventID, unseen)
+
+		organizationID := chat.OrganizationID
+		if !found {
+			organizationID, err = s.resolveOrganizationID(ctx, owner.ID)
+			if err != nil {
+				return xerrors.Errorf("resolve organization: %w", err)
+			}
+		}
+		attachmentSlots := codersdk.MaxChatFileIDs
+		if found {
+			files, err := s.db.GetChatFileMetadataByChatID(ctx, chat.ID)
+			if err != nil {
+				s.logger.Warn(ctx, "load linked chat files for slack attachments",
+					slog.F("chat_id", chat.ID), slog.Error(err))
+				attachmentSlots = 0
+			} else {
+				attachmentSlots = max(0, codersdk.MaxChatFileIDs-len(files))
+			}
+		}
+		attachments, fileIDs := s.importAttachments(ctx, owner.ID, organizationID, unseen, attachmentSlots)
+		content := s.buildContent(ctx, ev, threadTS, eventID, unseen, attachments)
 
 		// At most one chat per Slack thread generates at a time: other
 		// owners' chats bound to this thread are interrupted before the
@@ -688,10 +742,6 @@ func (s *Server) handleMessage(ctx context.Context, eventID string, ev incomingM
 		s.interruptSiblingChats(ctx, labels, owner.ID)
 
 		if !found {
-			orgID, err := s.resolveOrganizationID(ctx, owner.ID)
-			if err != nil {
-				return xerrors.Errorf("resolve organization: %w", err)
-			}
 			apiKeyID, err := s.ensureAPIKeyID(ctx, owner.ID)
 			if err != nil {
 				return xerrors.Errorf("ensure api key: %w", err)
@@ -713,7 +763,7 @@ func (s *Server) handleMessage(ctx context.Context, eventID string, ev incomingM
 				createLabels[LabelSlackShared] = "true"
 			}
 			created, err := s.chat.CreateChat(ctx, chatd.CreateOptions{
-				OrganizationID:     orgID,
+				OrganizationID:     organizationID,
 				OwnerID:            owner.ID,
 				APIKeyID:           apiKeyID,
 				ModelConfigID:      modelConfig.ID,
@@ -729,6 +779,7 @@ func (s *Server) handleMessage(ctx context.Context, eventID string, ev incomingM
 			})
 			switch {
 			case err == nil:
+				s.linkFilesToChat(ctx, created.ID, fileIDs)
 				s.logger.Info(ctx, "created chat for slack thread",
 					slog.F("chat_id", created.ID), slog.F("thread", threadKey),
 					slog.F("owner_id", owner.ID))
@@ -749,6 +800,7 @@ func (s *Server) handleMessage(ctx context.Context, eventID string, ev incomingM
 				slog.F("chat_id", chat.ID), slog.F("thread", threadKey),
 				slog.F("owner_id", chat.OwnerID))
 		}
+		s.linkFilesToChat(ctx, chat.ID, fileIDs)
 
 		apiKeyID, err := s.ensureAPIKeyID(ctx, chat.OwnerID)
 		if err != nil {
@@ -1187,19 +1239,12 @@ func (s *Server) lookupUser(ctx context.Context, id string) *slack.User {
 }
 
 // buildMessageBody renders the body of a <slack-message> block:
-// nested <timestamp-raw>, <timestamp>, <from-user>, and <content> tags. User
-// mentions in the content are rendered inline as @name, the way Slack
-// displays them.
-func (s *Server) buildMessageBody(ctx context.Context, msg slack.Message) string {
-	sender := s.lookupUser(ctx, msg.User)
-	senderName, senderRealName := msg.User, ""
-	if sender != nil {
-		senderName = sender.Name
-		senderRealName = sender.RealName
-		if senderRealName == "" {
-			senderRealName = sender.Profile.DisplayName
-		}
-	}
+// nested <timestamp-raw>, <timestamp>, <from-user>, and <content> tags. A
+// message with files also carries attachment attribution and the response
+// target immediately before its file parts. User mentions in the content are
+// rendered inline as @name, the way Slack displays them.
+func (s *Server) buildMessageBody(ctx context.Context, msg slack.Message, responseUserID string) string {
+	sender := s.slackUserDescription(ctx, msg.User)
 
 	var sb strings.Builder
 	_, _ = fmt.Fprintf(&sb, "<timestamp-raw>%s</timestamp-raw>\n", msg.Timestamp)
@@ -1207,11 +1252,32 @@ func (s *Server) buildMessageBody(ctx context.Context, msg slack.Message) string
 		_, _ = fmt.Fprintf(&sb, "<timestamp>%s</timestamp>\n", timestamp)
 	}
 	_, _ = fmt.Fprintf(&sb,
-		"<from-user>%s (<@%s>) (%s)</from-user>\n"+
+		"<from-user>%s</from-user>\n"+
 			"<content>\n%s\n</content>\n",
-		senderName, msg.User, senderRealName,
+		sender,
 		strings.TrimRight(s.renderMentionsInline(ctx, msg.Text), "\n"))
+	if len(msg.Files) > 0 {
+		responseTarget := s.slackUserDescription(ctx, responseUserID)
+		_, _ = fmt.Fprintf(&sb,
+			"<attachment-context>\n"+
+				"The file parts immediately following this block were sent by %s.\n"+
+				"You are responding to %s. Treat the attachments as context from "+
+				"their sender, but direct your response and actions to the user you "+
+				"are responding to, not another participant, unless the responding "+
+				"user explicitly asks otherwise.\n"+
+				"</attachment-context>\n",
+			sender, responseTarget)
+	}
 	return sb.String()
+}
+
+func (s *Server) slackUserDescription(ctx context.Context, userID string) string {
+	name, realName := userID, ""
+	if user := s.lookupUser(ctx, userID); user != nil {
+		name = user.Name
+		realName = cmp.Or(user.RealName, user.Profile.DisplayName)
+	}
+	return fmt.Sprintf("%s (<@%s>) (%s)", name, userID, realName)
 }
 
 func formatSlackTimestamp(raw string) (string, bool) {
@@ -1249,13 +1315,17 @@ func (s *Server) renderMentionsInline(ctx context.Context, text string) string {
 // buildContent renders the user message submitted to the chat: a
 // header part carrying the thread metadata and the triggering event id
 // (part 0), followed by one <slack-message> block part per unseen
-// Slack message, in timestamp order. Each block part is stamped with
-// slack_message_ts so later events can compute the unseen set.
+// Slack message, in timestamp order. Each attachment-bearing Slack message is
+// assigned its own model-facing prompt group, while consecutive messages
+// without attachments share a group. File parts immediately follow their
+// originating block. Each block part is stamped with slack_message_ts so later
+// events can compute the unseen set.
 func (s *Server) buildContent(
 	ctx context.Context,
 	ev incomingMessage,
 	threadTS, eventID string,
 	unseen []slack.Message,
+	attachments map[string][]codersdk.ChatMessagePart,
 ) []codersdk.ChatMessagePart {
 	threadLine := threadTS
 	if ev.threadTimestamp == "" {
@@ -1272,18 +1342,187 @@ func (s *Server) buildContent(
 		Type: codersdk.ChatMessagePartTypeText,
 		Text: header,
 		Metadata: map[string]string{
-			MetadataKeySlackEventID:  eventID,
-			MetadataKeySlackSenderID: ev.user,
+			MetadataKeySlackEventID:                  eventID,
+			MetadataKeySlackSenderID:                 ev.user,
+			chatprompt.MetadataKeyPromptMessageGroup: "0",
 		},
 	}}
-	for _, msg := range unseen {
+	group := 0
+	previousHadAttachments := false
+	for i, msg := range unseen {
+		hasAttachments := len(msg.Files) > 0
+		if i > 0 && (hasAttachments || previousHadAttachments) {
+			group++
+		}
+		groupValue := strconv.Itoa(group)
+		messageAttachments := attachments[msg.Timestamp]
 		parts = append(parts, codersdk.ChatMessagePart{
-			Type:     codersdk.ChatMessagePartTypeText,
-			Text:     "<slack-message>\n" + s.buildMessageBody(ctx, msg) + "</slack-message>\n",
-			Metadata: map[string]string{MetadataKeySlackMessageTS: msg.Timestamp},
+			Type: codersdk.ChatMessagePartTypeText,
+			Text: "<slack-message>\n" + s.buildMessageBody(ctx, msg, ev.user) +
+				"</slack-message>\n",
+			Metadata: map[string]string{
+				MetadataKeySlackMessageTS:                msg.Timestamp,
+				chatprompt.MetadataKeyPromptMessageGroup: groupValue,
+			},
 		})
+		for attachmentIndex := range messageAttachments {
+			if messageAttachments[attachmentIndex].Metadata == nil {
+				messageAttachments[attachmentIndex].Metadata = make(map[string]string, 1)
+			}
+			messageAttachments[attachmentIndex].Metadata[chatprompt.MetadataKeyPromptMessageGroup] = groupValue
+		}
+		parts = append(parts, messageAttachments...)
+		previousHadAttachments = hasAttachments
 	}
 	return parts
+}
+
+// importAttachments downloads and stores prompt-compatible files from unseen
+// Slack messages. Returned parts are grouped by the timestamp of the message
+// they came from so buildContent can preserve conversational order.
+func (s *Server) importAttachments(
+	ctx context.Context,
+	ownerID, organizationID uuid.UUID,
+	unseen []slack.Message,
+	availableSlots int,
+) (map[string][]codersdk.ChatMessagePart, []uuid.UUID) {
+	parts := make(map[string][]codersdk.ChatMessagePart)
+	fileIDs := make([]uuid.UUID, 0)
+	for _, msg := range unseen {
+		for _, file := range msg.Files {
+			name := slackFileName(file)
+			if availableSlots == 0 {
+				parts[msg.Timestamp] = append(parts[msg.Timestamp], slackAttachmentNotice(name,
+					fmt.Sprintf("the chat already has the maximum of %d files", codersdk.MaxChatFileIDs)))
+				continue
+			}
+
+			part, err := s.importAttachment(ctx, ownerID, organizationID, file)
+			if err != nil {
+				reason := "download failed"
+				switch {
+				case errors.Is(err, errSlackFileTooLarge):
+					reason = fmt.Sprintf("file exceeds the %d byte size limit", codersdk.MaxChatFileSizeBytes)
+				case errors.Is(err, errUnsupportedSlackFile):
+					reason = "file type is not supported"
+				case errors.Is(err, errSlackFileUnavailable):
+					reason = "private download URL is unavailable"
+				case errors.Is(err, errStoreSlackFile):
+					reason = "file could not be stored"
+				}
+				parts[msg.Timestamp] = append(parts[msg.Timestamp], slackAttachmentNotice(name, reason))
+				s.logger.Warn(ctx, "skip slack attachment",
+					slog.F("slack_file_id", file.ID),
+					slog.F("file_name", name),
+					slog.F("reason", reason),
+				)
+				continue
+			}
+			parts[msg.Timestamp] = append(parts[msg.Timestamp], part)
+			fileIDs = append(fileIDs, part.FileID.UUID)
+			availableSlots--
+		}
+	}
+	return parts, fileIDs
+}
+
+var (
+	errUnsupportedSlackFile = xerrors.New("unsupported slack file type")
+	errSlackFileUnavailable = xerrors.New("slack file download URL unavailable")
+	errStoreSlackFile       = xerrors.New("store slack file")
+)
+
+func (s *Server) importAttachment(
+	ctx context.Context,
+	ownerID, organizationID uuid.UUID,
+	file slack.File,
+) (codersdk.ChatMessagePart, error) {
+	if file.Size > codersdk.MaxChatFileSizeBytes {
+		return codersdk.ChatMessagePart{}, errSlackFileTooLarge
+	}
+	downloadURL := cmp.Or(file.URLPrivateDownload, file.URLPrivate)
+	if downloadURL == "" {
+		return codersdk.ChatMessagePart{}, errSlackFileUnavailable
+	}
+
+	var data limitedBuffer
+	data.remaining = codersdk.MaxChatFileSizeBytes + 1
+	if err := s.webAPI.GetFileContext(ctx, downloadURL, &data); err != nil {
+		if errors.Is(err, errSlackFileTooLarge) {
+			return codersdk.ChatMessagePart{}, errSlackFileTooLarge
+		}
+		return codersdk.ChatMessagePart{}, xerrors.New("download slack file")
+	}
+	if data.Len() > codersdk.MaxChatFileSizeBytes {
+		return codersdk.ChatMessagePart{}, errSlackFileTooLarge
+	}
+
+	name := slackFileName(file)
+	storedName, mediaType, err := chatfiles.PrepareStoredFile(name, name, data.Bytes())
+	if err != nil {
+		return codersdk.ChatMessagePart{}, xerrors.Errorf("%w: %v", errUnsupportedSlackFile, err)
+	}
+	if !chatfiles.IsAllowedPromptInputMediaType(mediaType) {
+		return codersdk.ChatMessagePart{}, errUnsupportedSlackFile
+	}
+	row, err := s.db.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID:        ownerID,
+		OrganizationID: organizationID,
+		Name:           storedName,
+		Mimetype:       mediaType,
+		Data:           data.Bytes(),
+	})
+	if err != nil {
+		return codersdk.ChatMessagePart{}, xerrors.Errorf("%w: %v", errStoreSlackFile, err)
+	}
+	return codersdk.ChatMessageFile(row.ID, mediaType, storedName), nil
+}
+
+func (s *Server) linkFilesToChat(ctx context.Context, chatID uuid.UUID, fileIDs []uuid.UUID) {
+	if len(fileIDs) == 0 {
+		return
+	}
+	rejected, err := s.db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chatID,
+		FileIds:      fileIDs,
+		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+	})
+	if err != nil {
+		s.logger.Warn(ctx, "link slack attachments to chat",
+			slog.F("chat_id", chatID), slog.F("file_count", len(fileIDs)), slog.Error(err))
+		return
+	}
+	if rejected > 0 {
+		s.logger.Warn(ctx, "slack attachments exceeded chat file limit while linking",
+			slog.F("chat_id", chatID), slog.F("file_count", len(fileIDs)))
+	}
+}
+
+func slackFileName(file slack.File) string {
+	return cmp.Or(file.Name, file.Title, file.ID, "Slack attachment")
+}
+
+func slackAttachmentNotice(name, reason string) codersdk.ChatMessagePart {
+	return codersdk.ChatMessageText(fmt.Sprintf("[Slack attachment %q was not included: %s.]", name, reason))
+}
+
+// limitedBuffer bounds Slack downloads even when the file metadata omits or
+// understates the size. It retains at most one byte beyond the accepted cap so
+// callers can distinguish an exact-limit file from an oversized one.
+type limitedBuffer struct {
+	bytes.Buffer
+	remaining int
+}
+
+func (b *limitedBuffer) Write(p []byte) (int, error) {
+	if len(p) <= b.remaining {
+		n, err := b.Buffer.Write(p)
+		b.remaining -= n
+		return n, err
+	}
+	n, _ := b.Buffer.Write(p[:b.remaining])
+	b.remaining = 0
+	return n, errSlackFileTooLarge
 }
 
 // unseenThreadMessages fetches the Slack thread and returns the
@@ -1308,6 +1547,7 @@ func (s *Server) unseenThreadMessages(
 		Timestamp: ev.timestamp,
 		User:      ev.user,
 		Text:      ev.text,
+		Files:     ev.files,
 	}}
 	replies, err := s.fetchThreadReplies(ctx, ev.channel, threadTS)
 	if err != nil {
