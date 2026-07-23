@@ -1056,6 +1056,8 @@ func TestTemplateVersionsExternalAuth(t *testing.T) {
 				ID:                       "github",
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -1110,6 +1112,8 @@ func TestTemplateVersionsExternalAuth(t *testing.T) {
 				ID:                       "github",
 				Regex:                    regexp.MustCompile(`github\.com`),
 				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				DisplayName:              "GitHub",
+				RefreshGroup:             new(singleflight.Group),
 			}},
 		})
 		owner := coderdtest.CreateFirstUser(t, client)
