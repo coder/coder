@@ -2374,8 +2374,8 @@ WHERE c.owner_id = @user_id::uuid
   AND cm.total_cost_micros IS NOT NULL;
 
 -- name: GetTotalChatMessageRuntimeMsInRange :one
--- Used solely to compute hb_agent_runtime_v1 usage events. Sums agent-loop
--- runtime across ALL chats (including soft-deleted messages) in [start, end).
+-- Computes hb_agent_runtime_v1 usage event payloads. Deliberately includes
+-- soft-deleted messages and messages from all chats.
 SELECT COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
 FROM chat_messages cm
 WHERE cm.created_at >= @start_time::timestamptz

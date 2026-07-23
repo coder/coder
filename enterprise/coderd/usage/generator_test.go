@@ -27,10 +27,9 @@ import (
 // clock.NewTimer so tests can trap its timers.
 const generatorTimerName = "agent-runtime-generator"
 
-// generatorHarness bundles a real database with seeded chat dependencies.
-// The generator itself runs against a dbauthz-wrapped store so the tests
-// also verify that the usage publisher subject holds the permissions the
-// generator's queries require.
+// generatorHarness runs the generator against a dbauthz-wrapped store so the
+// tests also verify that the usage publisher subject holds the permissions
+// the generator's queries require.
 type generatorHarness struct {
 	db      database.Store
 	authzDB database.Store
@@ -80,8 +79,6 @@ func newGeneratorHarness(t *testing.T) *generatorHarness {
 	}
 }
 
-// insertRuntimeMessage inserts an assistant message with the given runtime
-// and backdates it to createdAt.
 func (h *generatorHarness) insertRuntimeMessage(ctx context.Context, t *testing.T, chatID uuid.UUID, runtimeMs int64, createdAt time.Time, deleted bool) {
 	t.Helper()
 	msg := dbgen.ChatMessage(t, h.db, database.ChatMessage{
@@ -95,8 +92,7 @@ func (h *generatorHarness) insertRuntimeMessage(ctx context.Context, t *testing.
 	require.NoError(t, err)
 }
 
-// fetchRuntimeEvents returns all hb_agent_runtime_v1 events keyed by their
-// created_at (bucket start, UTC), plus a map of created_at to event ID.
+// fetchRuntimeEvents fails the test if any bucket has more than one event.
 func (h *generatorHarness) fetchRuntimeEvents(ctx context.Context, t *testing.T) (map[time.Time]int64, map[time.Time]string) {
 	t.Helper()
 	rows, err := h.rawDB.QueryContext(ctx, `
@@ -126,8 +122,6 @@ func (h *generatorHarness) fetchRuntimeEvents(ctx context.Context, t *testing.T)
 	return runtimes, ids
 }
 
-// expectedBuckets returns a map of every hourly bucket in [first, last] set
-// to 0, then applies overrides.
 func expectedBuckets(first, last time.Time, overrides map[time.Time]int64) map[time.Time]int64 {
 	expected := make(map[time.Time]int64)
 	for bucket := first; !bucket.After(last); bucket = bucket.Add(time.Hour) {
@@ -154,7 +148,6 @@ func TestGenerator(t *testing.T) {
 	clock.Set(startTime)
 
 	var (
-		// Buckets within the window at the first tick.
 		bucketA = time.Date(2025, 3, 10, 10, 0, 0, 0, time.UTC)
 		bucketB = time.Date(2025, 3, 10, 11, 0, 0, 0, time.UTC)
 		// The most recent closed bucket; not eligible at the first tick.
@@ -183,7 +176,6 @@ func TestGenerator(t *testing.T) {
 	gen.Start(ctx)
 	defer gen.Close()
 
-	// The initial pass is delayed by a uniform random duration in [1m, 5m).
 	call := trap.MustWait(ctx)
 	call.MustRelease(ctx)
 	require.GreaterOrEqual(t, call.Duration, time.Minute)
@@ -195,9 +187,8 @@ func TestGenerator(t *testing.T) {
 	call = trap.MustWait(ctx)
 	call.MustRelease(ctx)
 
-	// The first pass fills every bucket in [windowFirst, windowLast]:
-	// bucket C is not yet eligible and the bucket before windowFirst is
-	// outside the window, message runtimes land in their buckets, and idle
+	// The first pass fills every bucket in [windowFirst, windowLast]: bucket
+	// C is not yet eligible, the pre-window message is excluded, and idle
 	// hours are zero-filled.
 	runtimes, ids := h.fetchRuntimeEvents(ctx, t)
 	require.Equal(t, expectedBuckets(windowFirst, windowLast, map[time.Time]int64{
@@ -257,8 +248,7 @@ func TestGeneratorBackfillAfterDowntime(t *testing.T) {
 	h.insertRuntimeMessage(ctx, t, h.chat.ID, 5000, gapBucket.Add(45*time.Minute), false)
 
 	// Simulate events generated before the deployment went down at 09:00:
-	// every bucket in [windowFirst, 08:00] exists with runtime 1. These are
-	// inserted through the unwrapped store, which performs no authz.
+	// every bucket in [windowFirst, 08:00] exists with runtime 1.
 	inserter := usage.NewDBInserter()
 	for bucket := windowFirst; !bucket.After(time.Date(2025, 3, 10, 8, 0, 0, 0, time.UTC)); bucket = bucket.Add(time.Hour) {
 		err := inserter.InsertHeartbeatUsageEvent(ctx, h.db, "hb_agent_runtime_v1:"+bucket.Format("2006-01-02_15:04:05"), bucket, usagetypes.HBAgentRuntime{RuntimeMs: 1})

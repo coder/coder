@@ -18,37 +18,30 @@ import (
 )
 
 const (
-	// AgentRuntimeInterval is the bucket size for hb_agent_runtime_v1 usage
-	// events. Each event covers one UTC hour [H, H+1).
+	// AgentRuntimeInterval is the bucket size of hb_agent_runtime_v1 events.
 	AgentRuntimeInterval = time.Hour
 	// AgentRuntimeWindow is the trailing window scanned for missing buckets.
-	// Buckets that are still missing beyond this window (e.g. because the
-	// deployment was down for longer) are forfeited, which can only ever
-	// undercount usage.
+	// Buckets still missing beyond this window (e.g. because the deployment
+	// was down for longer) are forfeited, which can only ever undercount
+	// usage.
 	AgentRuntimeWindow = 7 * 24 * time.Hour
 	// AgentRuntimeEligibilityLag is how long after a bucket closes before it
-	// becomes eligible for generation. This gives replicas time to commit
+	// becomes eligible for generation, giving replicas time to commit
 	// in-flight chat messages with timestamps inside the bucket.
 	AgentRuntimeEligibilityLag = 5 * time.Minute
-	// agentRuntimeJitter is the maximum random delay added after each hour
-	// boundary. It staggers replicas so one is likely to complete the work
-	// before others attempt it (inserts are idempotent either way).
+	// agentRuntimeJitter staggers replicas after each hour boundary so one
+	// is likely to complete the work before others attempt it.
 	agentRuntimeJitter = 4 * time.Minute
 	// generatorTimerName tags the quartz timer so tests can trap it.
 	generatorTimerName = "agent-runtime-generator"
 )
 
 // Generator reconciles hb_agent_runtime_v1 heartbeat usage events. Unlike
-// Cron jobs, which sample state at the time they fire, the Generator derives
-// events from data already persisted in the database (chat_messages), so it
-// can deterministically backfill hours that were missed while the deployment
-// was down.
-//
-// Every tick it scans the trailing AgentRuntimeWindow for missing hourly
-// buckets and fills each one with the total chat message runtime recorded in
-// that hour, inserting zero-valued events for idle hours. Deterministic event
-// IDs plus the database's ON CONFLICT (id) DO NOTHING make concurrent
-// replicas safe without locking.
+// Cron jobs, which sample live state when they fire, the Generator derives
+// events from data already persisted in the database, so it can
+// deterministically backfill hours missed while the deployment was down,
+// zero-filling idle hours. Deterministic event IDs plus the database's
+// ON CONFLICT (id) DO NOTHING make concurrent replicas safe without locking.
 //
 // Events are generated unconditionally in enterprise builds; the
 // publish_usage_data license flag only gates publishing to Tallyman.
@@ -58,20 +51,12 @@ type Generator struct {
 	db    database.Store
 	ins   agplusage.Inserter
 
-	// cancel cancels the context of the running goroutine. If the ctx passed
-	// into Start is canceled, the goroutine also stops.
-	cancel context.CancelFunc
-
-	// wg ensures the goroutine has exited before Close returns.
-	wg sync.WaitGroup
-
-	// startOnce ensures Start is idempotent.
+	cancel    context.CancelFunc
+	wg        sync.WaitGroup
 	startOnce sync.Once
 }
 
-// NewGenerator creates a Generator that reconciles agent runtime heartbeat
-// events. The clock controls all timers so that tests can advance time
-// deterministically via quartz.Mock.
+// NewGenerator creates an unstarted Generator.
 func NewGenerator(clock quartz.Clock, log slog.Logger, db database.Store, ins agplusage.Inserter) *Generator {
 	return &Generator{
 		clock: clock,
@@ -81,8 +66,8 @@ func NewGenerator(clock quartz.Clock, log slog.Logger, db database.Store, ins ag
 	}
 }
 
-// Start launches the reconciliation goroutine. Subsequent calls are no-ops.
-// On daemon restart a new Generator should be created.
+// Start launches the reconciliation goroutine. Subsequent calls are no-ops;
+// a closed Generator cannot be restarted.
 func (g *Generator) Start(ctx context.Context) {
 	g.startOnce.Do(func() {
 		ctx, g.cancel = context.WithCancel(ctx)
@@ -93,7 +78,7 @@ func (g *Generator) Start(ctx context.Context) {
 	})
 }
 
-// Close cancels the goroutine and waits for it to exit.
+// Close stops the Generator and waits for its goroutine to exit.
 func (g *Generator) Close() error {
 	if g.cancel != nil {
 		g.cancel()
@@ -107,20 +92,15 @@ func (g *Generator) run(ctx context.Context) {
 	ctx = dbauthz.AsUsagePublisher(ctx)
 	defer g.wg.Done()
 
-	// The first pass runs shortly after startup to heal any gaps that
-	// accumulated while the deployment was down. The uniform random delay in
-	// [1m, 5m) staggers replicas that start simultaneously.
+	// The random initial delay staggers replicas that start simultaneously.
 	//nolint:gosec // Jitter does not need cryptographic randomness.
 	delay := time.Minute + time.Duration(rand.Int63n(int64(4*time.Minute)))
 	for {
-		// Use a quartz timer so the wait honors ctx cancellation and tests
-		// can advance time deterministically.
 		timer := g.clock.NewTimer(delay, generatorTimerName)
 
 		select {
 		case <-ctx.Done():
 			if !timer.Stop() {
-				// Drain the channel if the timer already fired.
 				<-timer.C
 			}
 			return
@@ -132,28 +112,21 @@ func (g *Generator) run(ctx context.Context) {
 			return
 		}
 		if err != nil {
-			// The next tick rescans the whole window, so failed ticks heal
-			// automatically.
 			g.log.Warn(ctx, "generate agent runtime usage events", slog.Error(err))
 		}
 
-		// Wake shortly after the next hour boundary, once the just-closed
-		// bucket becomes eligible.
 		_, delay = nextTick(g.clock.Now(), AgentRuntimeInterval, agentRuntimeJitter)
 		delay += AgentRuntimeEligibilityLag
 	}
 }
 
-// generateAgentRuntimeEvents scans the trailing window for missing hourly
-// buckets and inserts one hb_agent_runtime_v1 event per missing bucket. Any
-// error aborts the current tick; remaining buckets are retried on the next
-// tick.
+// generateAgentRuntimeEvents inserts one hb_agent_runtime_v1 event per
+// missing hourly bucket in the trailing window. Any error aborts the current
+// tick; the next tick rescans the whole window, so failures self-heal.
 func (g *Generator) generateAgentRuntimeEvents(ctx context.Context) error {
 	now := g.clock.Now().UTC()
-	// The most recent bucket that is old enough to generate. Bucket [H, H+1)
-	// becomes eligible at H + interval + lag.
+	// Bucket [H, H+1) becomes eligible at H + interval + lag.
 	latestEligible := now.Add(-AgentRuntimeInterval - AgentRuntimeEligibilityLag).Truncate(AgentRuntimeInterval)
-	// The oldest bucket we are willing to backfill.
 	earliest := now.Truncate(AgentRuntimeInterval).Add(-AgentRuntimeWindow)
 	if latestEligible.Before(earliest) {
 		return nil
@@ -168,8 +141,8 @@ func (g *Generator) generateAgentRuntimeEvents(ctx context.Context) error {
 	}
 	existing := make(map[time.Time]struct{}, len(existingTimes))
 	for _, ts := range existingTimes {
-		// Events of this type always have created_at set to the exact bucket
-		// start; truncation just normalizes timezone and precision.
+		// created_at is always the exact bucket start for this event type;
+		// truncation just normalizes timezone and precision.
 		existing[ts.UTC().Truncate(AgentRuntimeInterval)] = struct{}{}
 	}
 
@@ -188,8 +161,9 @@ func (g *Generator) generateAgentRuntimeEvents(ctx context.Context) error {
 		}
 
 		// The deterministic ID makes concurrent inserts of the same bucket
-		// idempotent. created_at is the bucket start (not insertion time) so
-		// daily rollups attribute backfilled hours to the correct day.
+		// idempotent, and created_at is the bucket start (not the insertion
+		// time) so daily rollups attribute backfilled hours to the correct
+		// day.
 		id := string(usagetypes.UsageEventTypeHBAgentRuntimeV1) + ":" + bucket.Format(cronDateFormat)
 		err = g.ins.InsertHeartbeatUsageEvent(ctx, g.db, id, bucket, usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs})
 		if err != nil {

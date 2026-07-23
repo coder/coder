@@ -160,11 +160,8 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		usageCron.Start(ctx)
 		closers.Add(usageCron)
 
-		// The usage generator reconciles hourly agent runtime heartbeat
-		// events from data already in the database, backfilling hours missed
-		// while the deployment was down. Events are generated unconditionally
-		// in enterprise builds; the publish_usage_data license flag only
-		// gates publishing to Tallyman.
+		// Usage generation is deliberately not license-gated; the
+		// publish_usage_data license flag only gates publishing to Tallyman.
 		usageGenerator := usage.NewGenerator(quartz.NewReal(), options.Logger.Named("usage-generator"), options.Database, *options.UsageInserter.Load())
 		usageGenerator.Start(ctx)
 		closers.Add(usageGenerator)

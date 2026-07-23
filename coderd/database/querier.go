@@ -829,8 +829,8 @@ type sqlcQuerier interface {
 	GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error)
 	GetTemplates(ctx context.Context) ([]Template, error)
 	GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error)
-	// Used solely to compute hb_agent_runtime_v1 usage events. Sums agent-loop
-	// runtime across ALL chats (including soft-deleted messages) in [start, end).
+	// Computes hb_agent_runtime_v1 usage event payloads. Deliberately includes
+	// soft-deleted messages and messages from all chats.
 	GetTotalChatMessageRuntimeMsInRange(ctx context.Context, arg GetTotalChatMessageRuntimeMsInRangeParams) (int64, error)
 	// Gets the total number of managed agents created between two dates. Uses the
 	// aggregate table to avoid large scans or a complex index on the usage_events
@@ -1214,8 +1214,7 @@ type sqlcQuerier interface {
 	ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)
-	// Returns created_at of all events of the given type since @since. Used by
-	// the usage generator to find missing heartbeat buckets.
+	// Used by the usage generator to find missing heartbeat buckets.
 	ListUsageEventCreatedAtsByTypeSince(ctx context.Context, arg ListUsageEventCreatedAtsByTypeSinceParams) ([]time.Time, error)
 	ListUserChatCompactionThresholds(ctx context.Context, userID uuid.UUID) ([]UserConfig, error)
 	ListUserChatPersonalModelOverrides(ctx context.Context, userID uuid.UUID) ([]ListUserChatPersonalModelOverridesRow, error)

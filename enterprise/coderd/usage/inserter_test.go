@@ -77,14 +77,11 @@ func TestInserter(t *testing.T) {
 		clock := quartz.NewMock(t)
 		inserter := usage.NewDBInserter(usage.InserterWithClock(clock))
 
-		// Heartbeat events use the provided ID and createdAt verbatim rather
-		// than generating them, so backfilled buckets keep their bucket start
-		// time.
 		event := usagetypes.HBAgentRuntime{RuntimeMs: 1234}
 		eventJSON := jsoninate(t, event)
 		id := "hb_agent_runtime_v1:2025-01-02_03:00:00"
 		createdAt := time.Date(2025, 1, 2, 3, 0, 0, 0, time.UTC)
-		// Set the clock to a different time to prove it is not used.
+		// Prove the provided createdAt is stored rather than clock.Now().
 		clock.Set(createdAt.Add(30 * time.Hour))
 
 		db.EXPECT().InsertUsageEvent(gomock.Any(), gomock.Any()).DoAndReturn(
@@ -115,7 +112,6 @@ func TestInserter(t *testing.T) {
 		})
 		assert.ErrorContains(t, err, `invalid "dc_managed_agents_v1" event: count must be greater than 0`)
 
-		// Same for heartbeat events.
 		err = inserter.InsertHeartbeatUsageEvent(ctx, db, "some-id", time.Now(), usagetypes.HBAgentRuntime{
 			RuntimeMs: -1, // invalid
 		})

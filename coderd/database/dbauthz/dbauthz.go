@@ -4927,9 +4927,8 @@ func (q *querier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTe
 
 func (q *querier) GetTotalChatMessageRuntimeMsInRange(ctx context.Context, arg database.GetTotalChatMessageRuntimeMsInRangeParams) (int64, error) {
 	// This query exists solely to compute hb_agent_runtime_v1 usage event
-	// payloads. It returns a bare runtime sum across all chats with no chat
-	// content, so it's gated on the ability to create usage events rather
-	// than on reading chats.
+	// payloads and returns a bare sum with no chat content, so it is gated
+	// on usage event creation rather than on reading chats.
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceUsageEvent); err != nil {
 		return 0, err
 	}

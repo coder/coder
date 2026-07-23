@@ -6,13 +6,11 @@ DROP INDEX IF EXISTS idx_usage_events_agent_runtime;
 DELETE FROM usage_events WHERE event_type = 'hb_agent_runtime_v1';
 DELETE FROM usage_events_daily WHERE event_type = 'hb_agent_runtime_v1';
 
--- Restore previous constraint.
 ALTER TABLE usage_events
   DROP CONSTRAINT usage_event_type_check,
   ADD CONSTRAINT usage_event_type_check CHECK (event_type IN ('dc_managed_agents_v1', 'hb_ai_seats_v1'));
 
--- Restore the previous aggregate function without hb_agent_runtime_v1
--- support.
+-- Restores the 000444 version of the function.
 CREATE OR REPLACE FUNCTION aggregate_usage_event()
 RETURNS TRIGGER AS $$
 BEGIN

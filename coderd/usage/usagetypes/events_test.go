@@ -87,16 +87,13 @@ func TestParseEventWithType(t *testing.T) {
 		require.Equal(t, eventType, event.EventType())
 		require.Equal(t, map[string]any{"runtime_ms": int64(1234)}, event.Fields())
 
-		// Zero runtime is valid (idle hour).
 		event, err = usagetypes.ParseEventWithType(eventType, []byte(`{"runtime_ms": 0}`))
 		require.NoError(t, err)
 		require.Equal(t, usagetypes.HBAgentRuntime{RuntimeMs: 0}, event)
 
-		// Negative runtime is invalid.
 		_, err = usagetypes.ParseEventWithType(eventType, []byte(`{"runtime_ms": -1}`))
 		require.ErrorContains(t, err, "runtime_ms cannot be negative")
 
-		// Unknown fields are rejected.
 		_, err = usagetypes.ParseEventWithType(eventType, []byte(`{"runtime_ms": 1, "extra": "field"}`))
 		require.ErrorContains(t, err, "unmarshal *usagetypes.HBAgentRuntime event")
 	})

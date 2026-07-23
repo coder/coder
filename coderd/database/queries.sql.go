@@ -9679,8 +9679,8 @@ type GetTotalChatMessageRuntimeMsInRangeParams struct {
 	EndTime   time.Time `db:"end_time" json:"end_time"`
 }
 
-// Used solely to compute hb_agent_runtime_v1 usage events. Sums agent-loop
-// runtime across ALL chats (including soft-deleted messages) in [start, end).
+// Computes hb_agent_runtime_v1 usage event payloads. Deliberately includes
+// soft-deleted messages and messages from all chats.
 func (q *sqlQuerier) GetTotalChatMessageRuntimeMsInRange(ctx context.Context, arg GetTotalChatMessageRuntimeMsInRangeParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getTotalChatMessageRuntimeMsInRange, arg.StartTime, arg.EndTime)
 	var total_runtime_ms int64
@@ -28523,8 +28523,7 @@ type ListUsageEventCreatedAtsByTypeSinceParams struct {
 	Since     time.Time `db:"since" json:"since"`
 }
 
-// Returns created_at of all events of the given type since @since. Used by
-// the usage generator to find missing heartbeat buckets.
+// Used by the usage generator to find missing heartbeat buckets.
 func (q *sqlQuerier) ListUsageEventCreatedAtsByTypeSince(ctx context.Context, arg ListUsageEventCreatedAtsByTypeSinceParams) ([]time.Time, error) {
 	rows, err := q.db.QueryContext(ctx, listUsageEventCreatedAtsByTypeSince, arg.EventType, arg.Since)
 	if err != nil {

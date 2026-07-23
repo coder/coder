@@ -30,9 +30,8 @@ type Inserter interface {
 	// Inserts with the same `id` must be idempotent. The database enforces this by
 	// ignoring duplicate records.
 	//
-	// The `createdAt` timestamp is stored on the event row. Generators that
-	// backfill historical buckets set it to the bucket start rather than the
-	// insertion time.
+	// Generators that backfill historical buckets pass the bucket start as
+	// `createdAt` rather than the insertion time.
 	InsertHeartbeatUsageEvent(ctx context.Context, tx database.Store, id string, createdAt time.Time, event usagetypes.HeartbeatEvent) error
 }
 

@@ -10591,7 +10591,6 @@ func TestUsageEventsTrigger(t *testing.T) {
 		day1 := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 		day2 := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
 
-		// Insert an hourly runtime heartbeat event.
 		insert("hb_agent_runtime_v1:2025-01-01_00:00:00", "hb_agent_runtime_v1", `{"runtime_ms": 1000}`, day1)
 		requireDaily(`{"runtime_ms": 1000}`)
 
@@ -10603,7 +10602,6 @@ func TestUsageEventsTrigger(t *testing.T) {
 		insert("hb_agent_runtime_v1:2025-01-01_18:00:00", "hb_agent_runtime_v1", `{"runtime_ms": 0}`, day1.Add(18*time.Hour))
 		requireDaily(`{"runtime_ms": 1500}`)
 
-		// Insert on a different day: separate daily row.
 		insert("hb_agent_runtime_v1:2025-01-02_00:00:00", "hb_agent_runtime_v1", `{"runtime_ms": 250}`, day2)
 		requireDaily(`{"runtime_ms": 1500}`, `{"runtime_ms": 250}`)
 
@@ -10655,7 +10653,6 @@ func TestGetTotalChatMessageRuntimeMsInRange(t *testing.T) {
 	rangeStart := time.Date(2025, 3, 10, 10, 0, 0, 0, time.UTC)
 	rangeEnd := rangeStart.Add(time.Hour)
 
-	// No messages at all: zero.
 	total, err := db.GetTotalChatMessageRuntimeMsInRange(ctx, database.GetTotalChatMessageRuntimeMsInRangeParams{
 		StartTime: rangeStart,
 		EndTime:   rangeEnd,

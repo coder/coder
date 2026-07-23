@@ -21,8 +21,7 @@ SELECT EXISTS(
 )::bool;
 
 -- name: ListUsageEventCreatedAtsByTypeSince :many
--- Returns created_at of all events of the given type since @since. Used by
--- the usage generator to find missing heartbeat buckets.
+-- Used by the usage generator to find missing heartbeat buckets.
 SELECT created_at
 FROM usage_events
 WHERE event_type = @event_type
