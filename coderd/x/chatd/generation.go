@@ -318,37 +318,6 @@ func unresolvedToolCallsFromHistory(
 	return localCalls, dynamicCalls, nil
 }
 
-// priorToolCallIDsInTurn returns tool call IDs from assistant steps
-// before the latest one in the current turn. Their recorded
-// pre_tool_use decisions must not be replayed for a repeated call.
-func priorToolCallIDsInTurn(messages []database.ChatMessage) (map[string]bool, error) {
-	assistantIndex := lastMessageIndex(messages, func(msg database.ChatMessage) bool {
-		return msg.Role == database.ChatMessageRoleAssistant
-	})
-	prior := make(map[string]bool)
-	// Assistant steps lack turn IDs, so user-visible prompts bound the turn.
-	// Including earlier turns would duplicate hook effects on retry.
-	start := currentTurnStartIndex(messages)
-	if assistantIndex < start {
-		return prior, nil
-	}
-	for _, msg := range messages[start:assistantIndex] {
-		if msg.Deleted || msg.Compressed || msg.Role != database.ChatMessageRoleAssistant {
-			continue
-		}
-		parts, err := chatprompt.ParseContent(msg)
-		if err != nil {
-			return nil, xerrors.Errorf("parse assistant message: %w", err)
-		}
-		for _, part := range parts {
-			if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolCallID != "" {
-				prior[part.ToolCallID] = true
-			}
-		}
-	}
-	return prior, nil
-}
-
 func hasExclusiveToolCall(toolCalls []fantasy.ToolCallContent, exclusiveToolNames map[string]bool) bool {
 	if len(exclusiveToolNames) == 0 {
 		return false
@@ -479,15 +448,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 					Input:      toolCall.Args,
 				})
 			}
-			var priorToolCallIDs map[string]bool
-			if s.server.hookDispatcher.Enabled() {
-				priorToolCallIDs, err = priorToolCallIDsInTurn(prepared.Messages)
-				if err != nil {
-					cleanup()
-					return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
-				}
-			}
-			preflight, err := s.server.preflightPendingToolCalls(ctx, prepared.Chat, input.hookTurnID(), toolCalls, priorToolCallIDs)
+			preflight, err := s.server.preflightPendingToolCalls(ctx, prepared.Chat, input.hookTurnID(), toolCalls)
 			if err != nil {
 				cleanup()
 				return s.finishGenerationError(ctx, machine, input, generationHookDispatchError(agenthooks.EventPreToolUse, err), generationAttemptNotRequired)
@@ -747,21 +708,10 @@ func (s *taskStarter) generateAssistant(
 	if len(outcome.Step.Content) == 0 {
 		return s.finishGenerationTurn(ctx, machine, input, generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, requireGenerationAttempt(attempt.number))
 	}
-	var priorToolCallIDs map[string]bool
-	if s.server.hookDispatcher.Enabled() {
-		priorToolCallIDs, err = priorToolCallIDsInTurn(prepared.Messages)
-		if err != nil {
-			return err
-		}
-	}
-	preflight, err := s.server.preflightToolCalls(ctx, prepared.Chat, input.hookTurnID(), outcome.Step, outcome.ToolCalls, priorToolCallIDs)
-	if err != nil {
-		return generationHookDispatchError(agenthooks.EventPreToolUse, err)
-	}
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:      prepared.ModelConfigID,
 		modelCallConfig:    prepared.ModelConfig,
-		step:               stepDataFromPersisted(preflight.Step),
+		step:               stepDataFromPersisted(outcome.Step),
 		toolNameToConfigID: prepared.ToolNameToConfigID,
 		logger:             s.opts.Logger,
 		contentVersion:     chatprompt.CurrentContentVersion,
@@ -769,13 +719,7 @@ func (s *taskStarter) generateAssistant(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
-	messages, err = applyHookResponseMessages(messages, preflight.Responses, prepared.ModelConfigID)
-	if err != nil {
-		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
-	}
-	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionGenerateAssistant, messages, generationCommitHooks{
-		EffectToolUseIDs: preflight.EffectToolUseIDs,
-	})
+	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionGenerateAssistant, messages, generationCommitHooks{})
 }
 
 func (s *taskStarter) commitPreToolUseDeniedResults(
@@ -809,14 +753,8 @@ func (s *taskStarter) commitPreToolUseDeniedResults(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
-	settled := make([]string, 0, len(preflight.Denied))
-	for _, denied := range preflight.Denied {
-		settled = append(settled, denied.ToolCallID)
-	}
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages, generationCommitHooks{
-		Overrides:         preflight.Overrides,
-		EffectToolUseIDs:  preflight.EffectToolUseIDs,
-		SettledToolUseIDs: settled,
+		Overrides: preflight.Overrides,
 	})
 }
 
@@ -827,15 +765,7 @@ func (s *taskStarter) executeLocalTools(
 	prepared generationPrepared,
 	decision generationDecision,
 ) error {
-	var priorToolCallIDs map[string]bool
-	if s.server.hookDispatcher.Enabled() {
-		ids, err := priorToolCallIDsInTurn(prepared.Messages)
-		if err != nil {
-			return err
-		}
-		priorToolCallIDs = ids
-	}
-	preflight, err := s.server.preflightPendingToolCalls(ctx, prepared.Chat, input.hookTurnID(), decision.localToolCalls, priorToolCallIDs)
+	preflight, err := s.server.preflightPendingToolCalls(ctx, prepared.Chat, input.hookTurnID(), decision.localToolCalls)
 	if err != nil {
 		return generationHookDispatchError(agenthooks.EventPreToolUse, err)
 	}
@@ -900,15 +830,9 @@ func (s *taskStarter) executeLocalTools(
 	if postDispatchErr != nil {
 		postCommitErr = generationHookDispatchError(agenthooks.EventPostToolUse, postDispatchErr)
 	}
-	settled := make([]string, 0, len(decision.localToolCalls))
-	for _, toolCall := range decision.localToolCalls {
-		settled = append(settled, toolCall.ToolCallID)
-	}
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages, generationCommitHooks{
-		Overrides:         preflight.Overrides,
-		PostCommitError:   postCommitErr,
-		EffectToolUseIDs:  preflight.EffectToolUseIDs,
-		SettledToolUseIDs: settled,
+		Overrides:       preflight.Overrides,
+		PostCommitError: postCommitErr,
 	})
 }
 
@@ -1113,12 +1037,6 @@ func (s *taskStarter) beginGenerationAttempt(
 type generationCommitHooks struct {
 	Overrides       map[string]json.RawMessage
 	PostCommitError error
-	// EffectToolUseIDs marks banked pre_tool_use decisions whose
-	// transcript effects land in this commit.
-	EffectToolUseIDs []string
-	// SettledToolUseIDs are tool calls whose results land in this
-	// commit; their banked decisions are evicted after it succeeds.
-	SettledToolUseIDs []string
 }
 
 func (s *taskStarter) commitGenerationStep(
@@ -1192,8 +1110,6 @@ func (s *taskStarter) commitGenerationStep(
 	if err != nil {
 		return normalizeTaskTransitionError(err, "commit generation step")
 	}
-	s.server.hookDecisions.markEffectsApplied(input.ChatID, hooks.EffectToolUseIDs)
-	s.server.hookDecisions.evict(input.ChatID, hooks.SettledToolUseIDs)
 	if failClosed {
 		input.DebugTurn.RecordOutcome(chatdebug.StatusError)
 		postCommitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), postCommitWatchPublishTimeout)
@@ -1260,7 +1176,6 @@ func (s *taskStarter) enterRequiresAction(
 	if err != nil {
 		return normalizeTaskTransitionError(err, "enter requires action")
 	}
-	s.server.hookDecisions.markEffectsApplied(input.ChatID, preflight.EffectToolUseIDs)
 	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindActionRequired); err != nil {
 		return xerrors.Errorf("publish watch and route: %w", err)
 	}
@@ -1327,7 +1242,6 @@ func (s *taskStarter) completeGenerationTurn(
 	promotedMessageID int64,
 ) error {
 	input.StopNudges.reset()
-	s.server.hookDecisions.evictChat(input.ChatID)
 	input.DebugTurn.RecordOutcome(chatdebug.StatusCompleted)
 	watchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), postCommitWatchPublishTimeout)
 	defer cancel()
