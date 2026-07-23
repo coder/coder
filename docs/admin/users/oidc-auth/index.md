@@ -161,6 +161,51 @@ it the Coder server.
 CODER_SCIM_AUTH_HEADER="your-api-key"
 ```
 
+### SCIM 2.0 handler
+
+Coder ships two SCIM implementations:
+
+- **Legacy handler** (current default): the original implementation, scoped
+  to the provisioning flows used by Okta cloud. It mixes SCIM 1.0 and 2.0
+  behaviors, does not serve the SCIM discovery endpoints, and treats `PATCH`
+  requests as full-resource updates rather than
+  [RFC 7644](https://datatracker.ietf.org/doc/html/rfc7644) patch operations.
+- **SCIM 2.0 handler** (opt-in): a rewrite that follows RFC 7644 and has been
+  verified against an external SCIM 2.0 compliance suite. It adds:
+
+  - Discovery endpoints: `/scim/v2/ServiceProviderConfig`,
+    `/scim/v2/Schemas`, and `/scim/v2/ResourceTypes`.
+  - `GET /scim/v2/Users` with pagination and basic `userName` filtering.
+  - `GET`, `PUT`, `PATCH`, and `DELETE` on `/scim/v2/Users/{id}`, where
+    `PATCH` accepts RFC 7644 patch operations.
+  - Spec-compliant error responses.
+
+To turn off the legacy behavior and opt into the SCIM 2.0 handler, set:
+
+```dotenv
+CODER_SCIM_USE_LEGACY=false
+```
+
+This is also available as the `--scim-use-legacy` server flag and the
+`scimUseLegacy` YAML option. Because the setting selects which handler is
+mounted at server startup, changing it requires a restart of the Coder
+server.
+
+Behavior notes for the SCIM 2.0 handler:
+
+- Coder never hard-deletes users. `DELETE /scim/v2/Users/{id}` and
+  deactivation (`active: false`) both [suspend](../index.md#suspend-a-user)
+  the user.
+- Re-activating or re-creating a previously suspended user places them in the
+  dormant state, and they become active again on their next login.
+- Usernames are immutable. Attempts to change `userName` via `PUT` or `PATCH`
+  return a `mutability` error.
+
+The legacy handler remains the default for backward compatibility while the
+new handler is validated in production. In a future release the default will
+flip to the SCIM 2.0 handler, and the legacy handler will eventually be
+removed.
+
 ## TLS
 
 If your OpenID Connect provider requires client TLS certificates for
