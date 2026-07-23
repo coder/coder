@@ -838,11 +838,9 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
-	// subjectExternalAuthChecker reports whether a user has a usable external
-	// auth link for a template's required providers. It can read and refresh a
-	// user's external auth links (personal user data) and nothing else, so it
-	// can validate a workspace owner's external auth without granting broad
-	// system access.
+	// subjectExternalAuthChecker is used to check whether a user has configured
+	// external auth providers or not when an admin is creating a workspace for
+	// another user.
 	subjectExternalAuthChecker = rbac.Subject{
 		Type:         rbac.SubjectTypeExternalAuthChecker,
 		FriendlyName: "External Auth Checker",
@@ -852,8 +850,7 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "external-auth-checker"},
 				DisplayName: "External Auth Checker",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					// ReadPersonal fetches the link; UpdatePersonal lets
-					// RefreshToken persist a refreshed token.
+					// policy.ActionUpdatePersonal allows us to refresh tokens.
 					rbac.ResourceUser.Type: {policy.ActionReadPersonal, policy.ActionUpdatePersonal},
 				}),
 				User:    []rbac.Permission{},
