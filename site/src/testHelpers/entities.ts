@@ -619,7 +619,6 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 	},
 ];
 
-// MockImportedUserSecrets is the result returned by the bulk import endpoint.
 export const MockImportedUserSecrets: TypesGen.UserSecret[] = [
 	{
 		id: "imported-database-url",

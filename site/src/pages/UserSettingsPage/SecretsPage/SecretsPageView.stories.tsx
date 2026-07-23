@@ -61,6 +61,16 @@ const waitForDialogToClose = async (body: ReturnType<typeof within>) => {
 	});
 };
 
+const uploadImportFile = async (canvasElement: HTMLElement, file: File) => {
+	const user = userEvent.setup({ applyAccept: false });
+	const canvas = within(canvasElement);
+	const body = within(canvasElement.ownerDocument.body);
+	await user.click(canvas.getByRole("button", { name: "Add secret" }));
+	const dialog = within(await body.findByRole("dialog"));
+	await user.upload(dialog.getByTestId("file-upload"), file);
+	return { user, dialog, body };
+};
+
 const expectNoValueField = (body: ReturnType<typeof within>) => {
 	expect(body.queryByLabelText("Value")).not.toBeInTheDocument();
 };
@@ -616,14 +626,8 @@ export const ImportSecretsFromFileSubmit: Story = {
 	play: async ({ canvasElement, args }) => {
 		const onImportSecrets = args.onImportSecrets as ImportSecretsMock;
 		onImportSecrets.mockClear();
-		const user = userEvent.setup({ applyAccept: false });
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-
-		await user.click(canvas.getByRole("button", { name: "Add secret" }));
-		const dialog = within(await body.findByRole("dialog"));
-		await user.upload(
-			dialog.getByTestId("file-upload"),
+		const { body } = await uploadImportFile(
+			canvasElement,
 			new File(["A=1\nB=2"], "secrets.env", { type: "text/plain" }),
 		);
 
@@ -655,24 +659,18 @@ export const ImportSecretsValidationError: Story = {
 	play: async ({ canvasElement, args }) => {
 		const onImportSecrets = args.onImportSecrets as ImportSecretsMock;
 		onImportSecrets.mockClear();
-		const user = userEvent.setup({ applyAccept: false });
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-
-		await user.click(canvas.getByRole("button", { name: "Add secret" }));
-		const dialog = within(await body.findByRole("dialog"));
-		await user.upload(
-			dialog.getByTestId("file-upload"),
+		const { dialog } = await uploadImportFile(
+			canvasElement,
 			new File(["PATH=/usr/bin"], "secrets.env", { type: "text/plain" }),
 		);
 
 		await waitFor(() => expect(onImportSecrets).toHaveBeenCalledTimes(1));
-		await waitFor(() => {
-			expect(dialog.getByText("secrets[1].env_name")).toBeVisible();
-			expect(
-				dialog.getByText("PATH is a reserved environment variable name"),
-			).toBeVisible();
-		});
+		await waitFor(() =>
+			expect(dialog.getByText("secrets[1].env_name")).toBeVisible(),
+		);
+		expect(
+			dialog.getByText("PATH is a reserved environment variable name"),
+		).toBeVisible();
 		await expect(
 			dialog.getByRole("heading", { name: "Add secret" }),
 		).toBeVisible();
@@ -688,21 +686,23 @@ export const ImportSecretsUnsupportedFile: Story = {
 	play: async ({ canvasElement, args }) => {
 		const onImportSecrets = args.onImportSecrets as ImportSecretsMock;
 		onImportSecrets.mockClear();
-		const user = userEvent.setup({ applyAccept: false });
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-
-		await user.click(canvas.getByRole("button", { name: "Add secret" }));
-		const dialog = within(await body.findByRole("dialog"));
-		await user.upload(
-			dialog.getByTestId("file-upload"),
+		const unsupportedError =
+			"Unsupported file type. Import a .env, .json, .yaml, or .yml file.";
+		const { user, dialog } = await uploadImportFile(
+			canvasElement,
 			new File(["not a secret"], "bad.txt", { type: "text/plain" }),
 		);
 
-		const importError = await dialog.findByText(
-			"Unsupported file type. Import a .env, .json, or .yml file.",
-		);
+		const importError = await dialog.findByText(unsupportedError);
 		await waitFor(() => expect(importError).toBeVisible());
 		expect(onImportSecrets).not.toHaveBeenCalled();
+
+		await user.click(dialog.getByRole("button", { name: "Remove file" }));
+		await user.upload(
+			dialog.getByTestId("file-upload"),
+			new File(["A=1"], "secrets.env", { type: "text/plain" }),
+		);
+		await waitFor(() => expect(onImportSecrets).toHaveBeenCalledTimes(1));
+		expect(dialog.queryByText(unsupportedError)).toBeNull();
 	},
 };
