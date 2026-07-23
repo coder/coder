@@ -18,6 +18,10 @@ import {
 	MockWorkspace,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
+import {
+	getReasoningEffortForModel,
+	saveReasoningEffortForModel,
+} from "../utils/reasoningEffort";
 import { AgentCreateForm } from "./AgentCreateForm";
 
 // Query key used by permittedOrganizations() in the form.
@@ -329,6 +333,157 @@ const effortModelOptions = [
 	},
 ] as const;
 
+export const RemembersReasoningEffortByModel: Story = {
+	args: {
+		...defaultArgs,
+		modelOptions: [...effortModelOptions],
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		saveReasoningEffortForModel(modelConfigID, "high");
+		saveReasoningEffortForModel(claudeModelConfigID, "medium");
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const modelSelector = canvas.getByRole("combobox", { name: "GPT-4o" });
+
+		await userEvent.click(modelSelector);
+		expect(await body.findByRole("slider")).toHaveAttribute(
+			"aria-valuenow",
+			"4",
+		);
+		await userEvent.click(
+			await body.findByRole("option", { name: /Claude Sonnet 4/i }),
+		);
+
+		await userEvent.click(
+			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
+		);
+		expect(await body.findByRole("slider")).toHaveAttribute(
+			"aria-valuenow",
+			"1",
+		);
+		await userEvent.click(await body.findByRole("option", { name: /GPT-4o/i }));
+
+		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
+		const restoredSlider = await body.findByRole("slider");
+		expect(restoredSlider).toHaveAttribute("aria-valuenow", "4");
+		restoredSlider.focus();
+		await userEvent.keyboard("{ArrowRight}");
+		await waitFor(() => {
+			expect(getReasoningEffortForModel(modelConfigID)).toBe("xhigh");
+		});
+		await userEvent.keyboard("{Escape}");
+	},
+};
+
+export const PersistedReasoningEffortOutranksRootOverride: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+		modelOptions: [...effortModelOptions],
+		modelConfigs: defaultModelConfigs,
+		rootPersonalModelOverride: buildRootPersonalModelOverride({
+			mode: "model",
+			model_config_id: modelConfigID,
+			reasoning_effort: "high",
+		}),
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		saveReasoningEffortForModel(modelConfigID, "low");
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		// The persisted per-model value wins over the root override.
+		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
+		expect(await body.findByRole("slider")).toHaveAttribute(
+			"aria-valuenow",
+			"2",
+		);
+		await userEvent.keyboard("{Escape}");
+
+		await submitMessage(canvasElement, "create with persisted effort");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		expect(getCreateOptions(args.onCreateChat).reasoningEffort).toBe("low");
+	},
+};
+
+export const ManualReselectKeepsRootOverrideEffort: Story = {
+	args: {
+		...defaultArgs,
+		modelOptions: [...effortModelOptions],
+		modelConfigs: defaultModelConfigs,
+		rootPersonalModelOverride: buildRootPersonalModelOverride({
+			mode: "model",
+			model_config_id: modelConfigID,
+			reasoning_effort: "high",
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Re-selecting the override's own model keeps the override effort.
+		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
+		await userEvent.click(await body.findByRole("option", { name: /GPT-4o/i }));
+		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
+		expect(await body.findByRole("slider")).toHaveAttribute(
+			"aria-valuenow",
+			"4",
+		);
+		await userEvent.keyboard("{Escape}");
+	},
+};
+
+export const StalePersistedEffortFallsThroughToRootOverride: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+		modelOptions: [
+			{
+				...modelOptions[0],
+				reasoningEffortDefault: "low",
+				reasoningEfforts: ["low", "medium"],
+			},
+		],
+		modelConfigs: defaultModelConfigs,
+		rootPersonalModelOverride: buildRootPersonalModelOverride({
+			mode: "model",
+			model_config_id: modelConfigID,
+			reasoning_effort: "medium",
+		}),
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		saveReasoningEffortForModel(modelConfigID, "max");
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		// The stored "max" is no longer valid for this model, so the
+		// root override's "medium" applies instead of the default "low".
+		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
+		expect(await body.findByRole("slider")).toHaveAttribute(
+			"aria-valuenow",
+			"1",
+		);
+		await userEvent.keyboard("{Escape}");
+
+		await submitMessage(canvasElement, "create with stale persisted effort");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		expect(getCreateOptions(args.onCreateChat).reasoningEffort).toBe("medium");
+	},
+};
+
 export const SubmitsReasoningEffort: Story = {
 	// TODO: This story fails when pixel runs its play function. Fix it and remove the exclude.
 	parameters: { pixel: { exclude: true } },
@@ -348,6 +503,11 @@ export const SubmitsReasoningEffort: Story = {
 		expect(slider).toHaveAttribute("aria-valuenow", "3");
 
 		// Bump the effort to "high" with the keyboard, then close.
+		// The info button precedes the slider in tab order.
+		await userEvent.tab();
+		expect(
+			body.getByRole("button", { name: "About reasoning effort" }),
+		).toHaveFocus();
 		await userEvent.tab();
 		expect(slider).toHaveFocus();
 		await userEvent.keyboard("{ArrowRight}");
