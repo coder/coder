@@ -243,7 +243,7 @@ export const PermissionDenied: Story = {
 	play: async ({ canvasElement }) => {
 		// The dialog renders in a portal outside the story canvas.
 		const body = within(canvasElement.ownerDocument.body);
-		await body.findByText(/permission to view this page/i);
+		await body.findByText(/you don't have permission to view this page/i);
 		expect(
 			within(canvasElement).queryByRole("form", {
 				name: /create workspace/i,
@@ -269,7 +269,7 @@ export const CanCreateForOthersOnly: Story = {
 		await canvas.findByRole("form", { name: /create workspace/i });
 		expect(
 			within(canvasElement.ownerDocument.body).queryByText(
-				/permission to view this page/i,
+				/you don't have permission to view this page/i,
 			),
 		).toBeNull();
 	},
