@@ -146,6 +146,8 @@ NEVER USE:
 				slack.MsgOptionText(formatted, false),
 				slack.MsgOptionBlocks(blocks...),
 				slack.MsgOptionTS(opts.ThreadTS),
+				slack.MsgOptionDisableLinkUnfurl(),
+				slack.MsgOptionDisableMediaUnfurl(),
 			)
 			if err != nil {
 				return slackErrorResponse(err), nil

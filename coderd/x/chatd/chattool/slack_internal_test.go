@@ -3,6 +3,8 @@ package chattool
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -179,6 +181,30 @@ func TestSlackSendMessage(t *testing.T) {
 		require.Equal(t, true, result["ok"])
 		require.Equal(t, true, result["truncated"])
 		require.EqualValues(t, slackMessageMaxLen+100, result["original_length"])
+	})
+
+	t.Run("DisablesPreviews", func(t *testing.T) {
+		t.Parallel()
+		var request *http.Request
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			request = r
+			require.NoError(t, r.ParseForm())
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"ok":true,"channel":"C123","ts":"1"}`))
+		}))
+		t.Cleanup(srv.Close)
+		api := slack.New("token", slack.OptionAPIURL(srv.URL+"/"))
+		tool := findSlackTool(t, SlackTools(SlackToolsOptions{
+			API:      api,
+			Channel:  "C123",
+			ThreadTS: "1700000000.000100",
+		}), "slack_send_message")
+
+		result := runSlackTool(t, tool, map[string]any{"text": "https://example.com/image.png"})
+		require.Equal(t, true, result["ok"])
+		require.Equal(t, "/chat.postMessage", request.URL.Path)
+		require.Equal(t, "false", request.PostForm.Get("unfurl_links"))
+		require.Equal(t, "false", request.PostForm.Get("unfurl_media"))
 	})
 
 	t.Run("Snippets", func(t *testing.T) {
