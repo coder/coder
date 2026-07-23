@@ -1,0 +1,496 @@
+package chathooks
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/codersdk/agenthooks"
+	"github.com/coder/coder/v2/testutil"
+)
+
+const (
+	testSecret       = "test-hook-secret-32-bytes-minimum!!"
+	testDeploymentID = "test-deployment"
+	testVersion      = "test-version"
+)
+
+func TestDispatcherSuccess(t *testing.T) {
+	t.Parallel()
+
+	event := newTestEvent(t, agenthooks.EventSessionStart, agenthooks.SessionStartData{Source: "new"})
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+		assert.Equal(t, "coderd/"+testVersion, r.Header.Get("User-Agent"))
+
+		claims, err := agenthooks.Verify(r.Header.Get("Authorization"), []byte(testSecret))
+		assert.NoError(t, err)
+		assert.Equal(t, testDeploymentID, claims.Issuer)
+		assert.Equal(t, serverURL(r), claims.Audience)
+		assert.Equal(t, event.Type, claims.Type)
+		chatID, err := claims.ChatID()
+		assert.NoError(t, err)
+		assert.Equal(t, event.ChatID, chatID)
+		digest := sha256.Sum256(body)
+		assert.Equal(t, hex.EncodeToString(digest[:]), claims.BodySHA256)
+		assert.Equal(t, claims.IssuedAt-int64(clockSkewLeeway/time.Second), claims.NotBefore)
+
+		var request agenthooks.Request
+		assert.NoError(t, json.Unmarshal(body, &request))
+		assert.Equal(t, claims.JTI, request.Meta.DispatchID)
+		assert.Equal(t, agenthooks.SchemaVersion, request.Meta.SchemaVersion)
+		decoded, err := request.Decode()
+		assert.NoError(t, err)
+		assert.Equal(t, &agenthooks.SessionStartData{Source: "new"}, decoded)
+
+		_, err = w.Write([]byte(`{}`))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	dispatcher := newTestDispatcher(t, server.Client(), server.URL, 2*time.Second)
+	response, _, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitLong), event)
+	require.NoError(t, err)
+	require.Equal(t, agenthooks.Response{}, response)
+}
+
+func TestDispatcherDeny(t *testing.T) {
+	t.Parallel()
+
+	event := newTestEvent(t, agenthooks.EventUserPromptSubmit, agenthooks.UserPromptSubmitData{Prompt: "delete everything"})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte(`{"permission":{"decision":"deny","reason":"blocked"},"user_message":"not allowed"}`))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	response, _, err := newTestDispatcher(t, server.Client(), server.URL, time.Second).Dispatch(
+		testutil.Context(t, testutil.WaitLong), event,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, response.Permission)
+	require.Equal(t, agenthooks.PermissionDeny, response.Permission.Decision)
+	require.Equal(t, "not allowed", response.UserMessage)
+}
+
+func TestDispatcherDenyNullOverrideDecode(t *testing.T) {
+	t.Parallel()
+
+	event := newTestEvent(t, agenthooks.EventPreToolUse, agenthooks.PreToolUseData{
+		ToolUseID: "tool-use-1",
+		ToolName:  "execute",
+		ToolInput: json.RawMessage(`{"cmd":"rm"}`),
+	})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte(`{"permission":{"decision":"deny","input_override":null}}`))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	response, _, err := newTestDispatcher(t, server.Client(), server.URL, time.Second).Dispatch(
+		testutil.Context(t, testutil.WaitLong), event,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, response.Permission)
+	require.Equal(t, agenthooks.PermissionDeny, response.Permission.Decision)
+	require.JSONEq(t, `null`, string(response.Permission.InputOverride))
+}
+
+func TestDispatcherAllowInputOverride(t *testing.T) {
+	t.Parallel()
+
+	toolInput := json.RawMessage(`{"path":"before"}`)
+	toolUseID := "call_" + uuid.NewString()
+	event := newTestEvent(t, agenthooks.EventPreToolUse, agenthooks.PreToolUseData{
+		ToolUseID: toolUseID,
+		ToolName:  "edit",
+		ToolInput: toolInput,
+	})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte(`{"permission":{"decision":"allow","input_override":{"path":"after"}}}`))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	response, _, err := newTestDispatcher(t, server.Client(), server.URL, time.Second).Dispatch(
+		testutil.Context(t, testutil.WaitLong), event,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, response.Permission)
+	require.Equal(t, agenthooks.PermissionAllow, response.Permission.Decision)
+	require.JSONEq(t, `{"path":"after"}`, string(response.Permission.InputOverride))
+}
+
+func TestDispatcherTimeoutNoRetry(t *testing.T) {
+	t.Parallel()
+
+	event := newTestEvent(t, agenthooks.EventStop, agenthooks.StopData{})
+	var requests atomic.Int32
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusOK)
+		assert.NoError(t, http.NewResponseController(w).Flush())
+		<-release
+	}))
+	t.Cleanup(server.Close)
+
+	_, _, err := newTestDispatcher(t, server.Client(), server.URL, 50*time.Millisecond).Dispatch(
+		testutil.Context(t, testutil.WaitLong), event,
+	)
+	close(release)
+	assertDispatchErrorClass(t, err, ResultTimeout)
+	require.Equal(t, int32(1), requests.Load())
+}
+
+func TestDispatcherRetriesConnectionErrorWithSameJTI(t *testing.T) {
+	t.Parallel()
+
+	event := newTestEvent(t, agenthooks.EventPostCompact, agenthooks.PostCompactData{})
+	claimsCh := make(chan agenthooks.Claims, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		claims, err := agenthooks.Verify(r.Header.Get("Authorization"), []byte(testSecret))
+		assert.NoError(t, err)
+		claimsCh <- claims
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	var attempts atomic.Int32
+	baseTransport := server.Client().Transport
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		claims, err := agenthooks.Verify(req.Header.Get("Authorization"), []byte(testSecret))
+		if err != nil {
+			return nil, err
+		}
+		if attempts.Add(1) == 1 {
+			claimsCh <- claims
+			_, err = io.Copy(io.Discard, req.Body)
+			if err != nil {
+				return nil, err
+			}
+			return nil, io.EOF
+		}
+		return baseTransport.RoundTrip(req)
+	})}
+
+	_, dispatchID, err := newTestDispatcher(t, client, server.URL, time.Second).Dispatch(
+		testutil.Context(t, testutil.WaitLong), event,
+	)
+	require.NoError(t, err)
+	require.Equal(t, int32(2), attempts.Load())
+	first := <-claimsCh
+	second := <-claimsCh
+	require.Equal(t, first.JTI, second.JTI)
+	require.Equal(t, first.JTI, dispatchID)
+	chatID, err := first.ChatID()
+	require.NoError(t, err)
+	require.Equal(t, event.ChatID, chatID)
+}
+
+func TestDispatcherRetriesMidBodyConnectionError(t *testing.T) {
+	t.Parallel()
+
+	event := newTestEvent(t, agenthooks.EventPostCompact, agenthooks.PostCompactData{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	var attempts atomic.Int32
+	baseTransport := server.Client().Transport
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if attempts.Add(1) == 1 {
+			_, err := io.Copy(io.Discard, req.Body)
+			if err != nil {
+				return nil, err
+			}
+			// A response whose body errors mid-read simulates the
+			// connection dropping after headers were received.
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(errReader{err: io.ErrUnexpectedEOF}),
+				Header:     http.Header{},
+			}, nil
+		}
+		return baseTransport.RoundTrip(req)
+	})}
+
+	_, _, err := newTestDispatcher(t, client, server.URL, time.Second).Dispatch(
+		testutil.Context(t, testutil.WaitLong), event,
+	)
+	require.NoError(t, err)
+	require.Equal(t, int32(2), attempts.Load())
+}
+
+type errReader struct{ err error }
+
+func (r errReader) Read([]byte) (int, error) { return 0, r.err }
+
+func TestDispatcherTLSFailureNoRetry(t *testing.T) {
+	t.Parallel()
+
+	event := newTestEvent(t, agenthooks.EventStop, agenthooks.StopData{})
+	server := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("request with an untrusted certificate reached the handler")
+	}))
+	t.Cleanup(server.Close)
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	t.Cleanup(transport.CloseIdleConnections)
+	var attempts atomic.Int32
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		attempts.Add(1)
+		return transport.RoundTrip(req)
+	})}
+
+	_, _, err := newTestDispatcher(t, client, server.URL, time.Second).Dispatch(
+		testutil.Context(t, testutil.WaitLong), event,
+	)
+	assertDispatchErrorClass(t, err, ResultProtocolError)
+	require.Equal(t, int32(1), attempts.Load())
+}
+
+func TestDispatcherNon2xxNoRetry(t *testing.T) {
+	t.Parallel()
+
+	event := newTestEvent(t, agenthooks.EventPreCompact, agenthooks.PreCompactData{})
+	var requests atomic.Int32
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		assert.NoError(t, http.NewResponseController(w).Flush())
+		<-release
+	}))
+	t.Cleanup(server.Close)
+
+	_, _, err := newTestDispatcher(t, server.Client(), server.URL, time.Second).Dispatch(
+		testutil.Context(t, testutil.WaitLong), event,
+	)
+	close(release)
+	assertDispatchErrorClass(t, err, ResultHTTPError)
+	require.Equal(t, int32(1), requests.Load())
+}
+
+func TestDispatcherProtocolErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		eventType    agenthooks.EventType
+		data         any
+		responseBody []byte
+	}{
+		{
+			name:         "malformed JSON",
+			eventType:    agenthooks.EventStop,
+			data:         agenthooks.StopData{},
+			responseBody: []byte(`{"user_message":`),
+		},
+		{
+			name:         "oversized model context",
+			eventType:    agenthooks.EventStop,
+			data:         agenthooks.StopData{},
+			responseBody: mustJSON(t, agenthooks.Response{ModelContext: string(bytes.Repeat([]byte("x"), maxModelContextBytes+1))}),
+		},
+		{
+			name:      "invalid user prompt override shape",
+			eventType: agenthooks.EventUserPromptSubmit,
+			data:      agenthooks.UserPromptSubmitData{Prompt: "question"},
+			responseBody: mustJSON(t, agenthooks.Response{Permission: &agenthooks.Permission{
+				Decision:      agenthooks.PermissionAllow,
+				InputOverride: json.RawMessage(`{"unexpected":"value"}`),
+			}}),
+		},
+		{
+			name:      "deny with input override",
+			eventType: agenthooks.EventPreToolUse,
+			data: agenthooks.PreToolUseData{
+				ToolUseID: "call_deny_override",
+				ToolName:  "edit",
+				ToolInput: json.RawMessage(`{"path":"a"}`),
+			},
+			responseBody: mustJSON(t, agenthooks.Response{Permission: &agenthooks.Permission{
+				Decision:      agenthooks.PermissionDeny,
+				InputOverride: json.RawMessage(`{"path":"b"}`),
+			}}),
+		},
+		{
+			name:      "ask decision",
+			eventType: agenthooks.EventUserPromptSubmit,
+			data:      agenthooks.UserPromptSubmitData{Prompt: "question"},
+			responseBody: mustJSON(t, agenthooks.Response{Permission: &agenthooks.Permission{
+				Decision: agenthooks.PermissionAsk,
+			}}),
+		},
+		{
+			name:      "pre_tool_use allow without input_override",
+			eventType: agenthooks.EventPreToolUse,
+			data:      agenthooks.PreToolUseData{ToolUseID: "call_no_override", ToolName: "run_command", ToolInput: json.RawMessage(`{"cmd":"ls"}`)},
+			responseBody: mustJSON(t, agenthooks.Response{Permission: &agenthooks.Permission{
+				Decision: agenthooks.PermissionAllow,
+			}}),
+		},
+		{
+			name:         "pre_tool_use without tool_use_id",
+			eventType:    agenthooks.EventPreToolUse,
+			data:         agenthooks.PreToolUseData{ToolName: "run_command", ToolInput: json.RawMessage(`{"cmd":"ls"}`)},
+			responseBody: []byte(`{}`),
+		},
+		{
+			name:         "post_tool_use without tool_name",
+			eventType:    agenthooks.EventPostToolUse,
+			data:         agenthooks.PostToolUseData{ToolUseID: "call_no_name"},
+			responseBody: []byte(`{}`),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			event := newTestEvent(t, test.eventType, test.data)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, err := w.Write(test.responseBody)
+				assert.NoError(t, err)
+			}))
+			t.Cleanup(server.Close)
+
+			_, _, err := newTestDispatcher(t, server.Client(), server.URL, time.Second).Dispatch(
+				testutil.Context(t, testutil.WaitLong), event,
+			)
+			assertDispatchErrorClass(t, err, ResultProtocolError)
+		})
+	}
+}
+
+func TestDispatcherOverCapacity(t *testing.T) {
+	t.Parallel()
+
+	event := newTestEvent(t, agenthooks.EventStop, agenthooks.StopData{})
+	dispatcher := newTestDispatcher(t, nil, "http://unused.test", 10*time.Millisecond)
+	for range maxConcurrentDispatches {
+		dispatcher.semaphore <- struct{}{}
+	}
+	defer func() {
+		for range maxConcurrentDispatches {
+			<-dispatcher.semaphore
+		}
+	}()
+
+	_, _, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitLong), event)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assertDispatchErrorClass(t, err, ResultOverCapacity)
+}
+
+func TestDispatcherCanceledContextReturnsTimeout(t *testing.T) {
+	t.Parallel()
+
+	event := newTestEvent(t, agenthooks.EventStop, agenthooks.StopData{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+
+	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
+	cancel()
+	_, _, err := newTestDispatcher(t, server.Client(), server.URL, time.Second).Dispatch(ctx, event)
+	assertDispatchErrorClass(t, err, ResultTimeout)
+}
+
+func TestDispatcherInvalidToolInputReturnsProtocolError(t *testing.T) {
+	t.Parallel()
+
+	toolUseID := "call_" + uuid.NewString()
+	event := newTestEvent(t, agenthooks.EventPreToolUse, agenthooks.PreToolUseData{
+		ToolUseID: toolUseID,
+		ToolName:  "edit",
+		ToolInput: json.RawMessage(`{"path":`),
+	})
+
+	var hookRequests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hookRequests.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+
+	_, _, err := newTestDispatcher(t, server.Client(), server.URL, time.Second).Dispatch(
+		testutil.Context(t, testutil.WaitLong), event,
+	)
+	assertDispatchErrorClass(t, err, ResultProtocolError)
+	require.Zero(t, hookRequests.Load())
+}
+
+func newTestDispatcher(
+	t *testing.T,
+	client *http.Client,
+	hookURL string,
+	timeout time.Duration,
+) *Dispatcher {
+	t.Helper()
+	return New(
+		testutil.Logger(t),
+		client,
+		hookURL,
+		testSecret,
+		timeout,
+		testDeploymentID,
+		testVersion,
+		prometheus.NewRegistry(),
+	)
+}
+
+func newTestEvent(t *testing.T, eventType agenthooks.EventType, data any) Event {
+	t.Helper()
+	return Event{
+		Type: eventType,
+		ChatRef: agenthooks.ChatRef{
+			ChatID:  uuid.New(),
+			OwnerID: uuid.New(),
+		},
+		Data: data,
+	}
+}
+
+func assertDispatchErrorClass(t *testing.T, err error, expected DispatchResult) {
+	t.Helper()
+	var dispatchErr *DispatchError
+	require.ErrorAs(t, err, &dispatchErr)
+	require.Equal(t, expected, dispatchErr.Class)
+	require.NotEqual(t, uuid.Nil, dispatchErr.DispatchID)
+}
+
+func mustJSON(t *testing.T, value any) []byte {
+	t.Helper()
+	encoded, err := json.Marshal(value)
+	require.NoError(t, err)
+	return encoded
+}
+
+func serverURL(r *http.Request) string {
+	return "http://" + r.Host
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
