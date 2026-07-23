@@ -5242,7 +5242,6 @@ const (
 	ExperimentMCPServerHTTP         Experiment = "mcp-server-http"         // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceBuildUpdates Experiment = "workspace-build-updates" // Enables publishing workspace build updates to the all builds pubsub channel.
 	ExperimentNATSPubsub            Experiment = "nats_pubsub"             // Enables embedded NATS pubsub.
-	ExperimentMinimumImplicitMember Experiment = "minimum-implicit-member" // Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.
 	ExperimentAIGatewayCostControl  Experiment = "ai-gateway-cost-control" // Enables AI Gateway cost control functionality.
 	ExperimentChatAdvisor           Experiment = "chat-advisor"            // Enables the advisor tool for root agent chats.
 	ExperimentChatVirtualDesktop    Experiment = "chat-virtual-desktop"    // Enables virtual desktop and computer use provider for agents.
@@ -5266,8 +5265,6 @@ func (e Experiment) DisplayName() string {
 		return "Workspace Build Updates Channel"
 	case ExperimentNATSPubsub:
 		return "NATS Pubsub"
-	case ExperimentMinimumImplicitMember:
-		return "Gateway Accounts (minimum implicit member)"
 	case ExperimentAIGatewayCostControl:
 		return "AI Gateway Cost Control"
 	case ExperimentChatAdvisor:
@@ -5292,7 +5289,6 @@ var ExperimentsKnown = Experiments{
 	ExperimentMCPServerHTTP,
 	ExperimentNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
-	ExperimentMinimumImplicitMember,
 	ExperimentAIGatewayCostControl,
 	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,
@@ -5302,9 +5298,7 @@ var ExperimentsKnown = Experiments{
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsSafe = Experiments{
-	ExperimentMinimumImplicitMember,
-}
+var ExperimentsSafe = Experiments{}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.
