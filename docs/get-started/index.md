@@ -180,6 +180,10 @@ is installed.
    winget install Coder.Coder
    ```
 
+   - For the Windows installer (`.msi`), standalone binary (`.exe`), or other
+     installation methods, refer to the
+     [installation guide](../install/index.md).
+
 1. Start Coder:
 
    ```sh
