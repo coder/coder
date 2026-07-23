@@ -105,6 +105,8 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, username, or me"
 // @Param request body codersdk.ImportUserSecretsRequest true "Import secrets request"
 // @Success 201 {array} codersdk.UserSecret
+// @Failure 400 {object} codersdk.Response
+// @Failure 409 {object} codersdk.Response
 // @Failure 413 {object} codersdk.Response
 // @Router /api/v2/users/{user}/secrets/batch [post]
 func (api *API) postUserSecretsBatch(rw http.ResponseWriter, r *http.Request) {

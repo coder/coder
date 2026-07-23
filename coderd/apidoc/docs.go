@@ -11068,6 +11068,18 @@ const docTemplate = `{
                             }
                         }
                     },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
                     "413": {
                         "description": "Request Entity Too Large",
                         "schema": {
