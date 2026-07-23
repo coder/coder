@@ -217,13 +217,13 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 							{item.hookNotices.length > 0 && (
 								<Tooltip>
 									<TooltipTrigger asChild>
-										<span
-											role="note"
-											aria-label="Lifecycle hook notice"
-											className="flex shrink-0 items-center text-highlight-sky"
+										<button
+											type="button"
+											aria-label={`Lifecycle hook notice: ${item.hookNotices.join(" ")}`}
+											className="flex shrink-0 cursor-default items-center border-none bg-transparent p-0 text-highlight-sky"
 										>
-											<InfoIcon className="size-3" />
-										</span>
+											<InfoIcon className="size-3" aria-hidden="true" />
+										</button>
 									</TooltipTrigger>
 									<TooltipContent side="top">
 										{item.hookNotices.join(" ")}
