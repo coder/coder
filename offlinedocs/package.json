@@ -4,7 +4,7 @@
 	"description": "Generates the self-contained, offline Coder documentation bundle from the coder/coder docs corpus using Fumadocs.",
 	"scripts": {
 		"sync": "node scripts/sync-docs.mjs",
-		"dev": "pnpm sync && next dev",
+		"dev": "pnpm sync && next dev -p 26337",
 		"build": "next build",
 		"export": "pnpm sync && next build",
 		"start": "next start",
