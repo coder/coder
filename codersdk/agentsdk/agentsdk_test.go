@@ -43,7 +43,10 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		requestCtx := testutil.Context(t, testutil.WaitShort)
 		req, err := http.NewRequestWithContext(requestCtx, "GET", srv.URL, nil)
 		require.NoError(t, err)
-		client := &http.Client{}
+		// Use a dedicated transport so a parallel httptest.Server.Close()
+		// (which calls http.DefaultTransport.CloseIdleConnections()) cannot
+		// break this in-flight request.
+		client := &http.Client{Transport: &http.Transport{}}
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -79,7 +82,10 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		requestCtx := testutil.Context(t, testutil.WaitShort)
 		req, err := http.NewRequestWithContext(requestCtx, "GET", srv.URL, nil)
 		require.NoError(t, err)
-		client := &http.Client{}
+		// Use a dedicated transport so a parallel httptest.Server.Close()
+		// (which calls http.DefaultTransport.CloseIdleConnections()) cannot
+		// break this in-flight request.
+		client := &http.Client{Transport: &http.Transport{}}
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -113,7 +119,10 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		requestCtx := testutil.Context(t, testutil.WaitShort)
 		req, err := http.NewRequestWithContext(requestCtx, "GET", srv.URL, nil)
 		require.NoError(t, err)
-		client := &http.Client{}
+		// Use a dedicated transport so a parallel httptest.Server.Close()
+		// (which calls http.DefaultTransport.CloseIdleConnections()) cannot
+		// break this in-flight request.
+		client := &http.Client{Transport: &http.Transport{}}
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
