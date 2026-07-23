@@ -1146,16 +1146,30 @@ func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSess
 // into the threads response. It groups interceptions into threads, builds
 // agentic actions from tool usages and model thoughts, and aggregates
 // token usage with metadata.
-func AIBridgeSessionThreads(
-	session database.ListAIBridgeSessionsRow,
-	interceptions []database.ListAIBridgeSessionThreadsRow,
-	tokenUsages []database.AIBridgeTokenUsage,
-	toolUsages []database.AIBridgeToolUsage,
-	userPrompts []database.AIBridgeUserPrompt,
-	modelThoughts []database.AIBridgeModelThought,
-	topDomains []database.GetAIBridgeSessionTopDomainsRow,
-	networkCalls []database.ListAIBridgeSessionNetworkCallsRow,
-) codersdk.AIBridgeSessionThreadsResponse {
+// AIBridgeSessionThreadsParams groups the session row and its subresources for
+// AIBridgeSessionThreads. Named fields avoid transposing the several adjacent
+// slice arguments (notably TopDomains and NetworkCalls) at the call site.
+type AIBridgeSessionThreadsParams struct {
+	Session       database.ListAIBridgeSessionsRow
+	Interceptions []database.ListAIBridgeSessionThreadsRow
+	TokenUsages   []database.AIBridgeTokenUsage
+	ToolUsages    []database.AIBridgeToolUsage
+	UserPrompts   []database.AIBridgeUserPrompt
+	ModelThoughts []database.AIBridgeModelThought
+	TopDomains    []database.GetAIBridgeSessionTopDomainsRow
+	NetworkCalls  []database.ListAIBridgeSessionNetworkCallsRow
+}
+
+func AIBridgeSessionThreads(p AIBridgeSessionThreadsParams) codersdk.AIBridgeSessionThreadsResponse {
+	session := p.Session
+	interceptions := p.Interceptions
+	tokenUsages := p.TokenUsages
+	toolUsages := p.ToolUsages
+	userPrompts := p.UserPrompts
+	modelThoughts := p.ModelThoughts
+	topDomains := p.TopDomains
+	networkCalls := p.NetworkCalls
+
 	// Index subresources by interception ID.
 	tokensByInterception := make(map[uuid.UUID][]database.AIBridgeTokenUsage, len(interceptions))
 	for _, tu := range tokenUsages {

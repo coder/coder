@@ -1761,6 +1761,34 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.Equal(t, "api.github.com", res.NetworkTopDomains[0].Domain)
 		require.EqualValues(t, 4, res.NetworkTopDomains[0].Count)
 		require.EqualValues(t, 2, res.NetworkDomainCount)
+
+		// The per-call list spans the same window as the summary (all protos,
+		// seq 0 LLM call excluded), ordered chronologically. Its length and
+		// blocked count agree with the summary counts.
+		gotSeqs := make([]int32, len(res.NetworkCallLogs))
+		blocked := 0
+		for i, c := range res.NetworkCallLogs {
+			gotSeqs[i] = c.SequenceNumber
+			if !c.Allowed {
+				blocked++
+			}
+		}
+		require.Equal(t, []int32{1, 2, 3, 4, 5, 6}, gotSeqs)
+		require.EqualValues(t, res.NetworkCalls.Total, len(res.NetworkCallLogs))
+		require.EqualValues(t, res.NetworkCalls.Blocked, blocked)
+
+		// The blocked npm call (seq 3, index 2) has no matched rule; allowed
+		// calls do.
+		npm := res.NetworkCallLogs[2]
+		require.Equal(t, int32(3), npm.SequenceNumber)
+		require.Equal(t, "https://registry.npmjs.org/lodash", npm.Detail)
+		require.False(t, npm.Allowed)
+		require.Nil(t, npm.MatchedRule)
+		require.True(t, res.NetworkCallLogs[0].Allowed)
+		require.NotNil(t, res.NetworkCallLogs[0].MatchedRule)
+
+		// Non-http protocols appear in the list (unlike top domains): seq 5 dns.
+		require.Equal(t, "dns", res.NetworkCallLogs[4].Proto)
 	})
 
 	t.Run("NetworkMultipleInterceptions", func(t *testing.T) {
@@ -1816,9 +1844,9 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.EqualValues(t, 3, res.NetworkTopDomains[0].Count)
 		require.EqualValues(t, 2, res.NetworkDomainCount)
 
-		// The per-call list covers the same window as the summary (all protos,
-		// LLM call at seq 0 excluded), ordered chronologically by sequence.
-		require.Len(t, res.NetworkCallLogs, 5)
+		// The per-call list spans both windows in chronological order, and its
+		// length and blocked count agree with the summary (three-way agreement
+		// across summary, top domains, and list).
 		gotSeqs := make([]int32, len(res.NetworkCallLogs))
 		blocked := 0
 		for i, c := range res.NetworkCallLogs {
@@ -1827,24 +1855,9 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 				blocked++
 			}
 		}
-		require.Equal(t, []int32{1, 2, 3, 4, 5}, gotSeqs)
-		// List length and blocked count agree with the summary counts.
+		require.Equal(t, []int32{1, 2, 3, 6, 7}, gotSeqs)
 		require.EqualValues(t, res.NetworkCalls.Total, len(res.NetworkCallLogs))
 		require.EqualValues(t, res.NetworkCalls.Blocked, blocked)
-
-		// The blocked npm call (seq 3) has no matched rule; allowed calls do.
-		npm := res.NetworkCallLogs[2]
-		require.Equal(t, int32(3), npm.SequenceNumber)
-		require.Equal(t, "https://registry.npmjs.org/lodash", npm.Detail)
-		require.False(t, npm.Allowed)
-		require.Nil(t, npm.MatchedRule)
-
-		gh := res.NetworkCallLogs[0]
-		require.True(t, gh.Allowed)
-		require.NotNil(t, gh.MatchedRule)
-
-		// Non-http protocols are included in the list (unlike top domains).
-		require.Equal(t, "dns", res.NetworkCallLogs[4].Proto)
 	})
 
 	t.Run("NetworkSharedFirewallSessionNoBleed", func(t *testing.T) {
@@ -1889,12 +1902,18 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 			{13, "http", "https://registry.npmjs.org/b3", false}, // B's window (10,+inf), blocked
 		})
 
-		// Session A sees only its own two calls (seqs 1, 2), not B's.
+		// Session A sees only its own two calls (seqs 1, 2), not B's, in both
+		// the summary and the per-call list.
 		resA, err := client.AIBridgeGetSessionThreads(ctx, "sess-a", uuid.Nil, uuid.Nil, 0)
 		require.NoError(t, err)
 		require.NotNil(t, resA.NetworkCalls)
 		require.EqualValues(t, 2, resA.NetworkCalls.Total)
 		require.EqualValues(t, 1, resA.NetworkCalls.Blocked)
+		seqsA := make([]int32, len(resA.NetworkCallLogs))
+		for i, c := range resA.NetworkCallLogs {
+			seqsA[i] = c.SequenceNumber
+		}
+		require.Equal(t, []int32{1, 2}, seqsA)
 
 		// Session B sees only its own three calls (seqs 11, 12, 13), not A's.
 		resB, err := client.AIBridgeGetSessionThreads(ctx, "sess-b", uuid.Nil, uuid.Nil, 0)
@@ -1902,6 +1921,58 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.NotNil(t, resB.NetworkCalls)
 		require.EqualValues(t, 3, resB.NetworkCalls.Total)
 		require.EqualValues(t, 1, resB.NetworkCalls.Blocked)
+		seqsB := make([]int32, len(resB.NetworkCallLogs))
+		for i, c := range resB.NetworkCallLogs {
+			seqsB[i] = c.SequenceNumber
+		}
+		require.Equal(t, []int32{11, 12, 13}, seqsB)
+	})
+
+	t.Run("NetworkCallsTruncated", func(t *testing.T) {
+		t.Parallel()
+		// The per-call list is capped server-side (currently 100 rows) while the
+		// summary total reflects the whole session. When a session exceeds the
+		// cap the list is truncated but the summary total stays authoritative.
+		db, ps := dbtestutil.NewDB(t)
+		opts := aibridgeOpts(t)
+		opts.Options.Database = db
+		opts.Options.Pubsub = ps
+		client, _, firstUser := coderdenttest.NewWithDatabase(t, opts)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		fw := uuid.New()
+
+		endedAt := now.Add(time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:                 firstUser.UserID,
+			Provider:                    "anthropic",
+			Model:                       "claude-sonnet-4-20250514",
+			StartedAt:                   now,
+			ClientSessionID:             sql.NullString{String: "trunc-net", Valid: true},
+			AgentFirewallSessionID:      uuid.NullUUID{UUID: fw, Valid: true},
+			AgentFirewallSequenceNumber: sql.NullInt32{Int32: 0, Valid: true},
+		}, &endedAt)
+
+		// 105 allowed HTTP calls at seqs 1..105, all in the interception's
+		// window (0, +inf).
+		const total = 105
+		seeds := make([]boundaryLogSeed, 0, total)
+		for seq := int32(1); seq <= total; seq++ {
+			seeds = append(seeds, boundaryLogSeed{seq, "http", "https://api.github.com/x", true})
+		}
+		seedBoundaryLogs(t, db, fw, firstUser.UserID, now, seeds)
+
+		res, err := client.AIBridgeGetSessionThreads(ctx, "trunc-net", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+
+		// The summary reflects all 105 calls; the list is capped at 100.
+		require.NotNil(t, res.NetworkCalls)
+		require.EqualValues(t, total, res.NetworkCalls.Total)
+		require.Len(t, res.NetworkCallLogs, 100)
+		// The cap keeps the earliest calls in chronological order.
+		require.EqualValues(t, 1, res.NetworkCallLogs[0].SequenceNumber)
+		require.EqualValues(t, 100, res.NetworkCallLogs[99].SequenceNumber)
 	})
 
 	t.Run("NetworkSummaryDisabled", func(t *testing.T) {

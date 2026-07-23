@@ -485,7 +485,16 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	resp := db2sdk.AIBridgeSessionThreads(session, threadRows, tokenUsages, toolUsages, userPrompts, modelThoughts, topDomains, networkCalls)
+	resp := db2sdk.AIBridgeSessionThreads(db2sdk.AIBridgeSessionThreadsParams{
+		Session:       session,
+		Interceptions: threadRows,
+		TokenUsages:   tokenUsages,
+		ToolUsages:    toolUsages,
+		UserPrompts:   userPrompts,
+		ModelThoughts: modelThoughts,
+		TopDomains:    topDomains,
+		NetworkCalls:  networkCalls,
+	})
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
