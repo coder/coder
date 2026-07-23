@@ -115,7 +115,7 @@ WHERE
 		END
 ORDER BY
 		-- Deterministic and consistent ordering of all groups. This is to ensure consistent pagination.
-		LOWER(groups.name) ASC, groups.id ASC
+		LOWER(groups.name) ASC, groups.id ASC OFFSET @offset_opt
 LIMIT
 		-- A null limit means "no limit", so 0 means return all
 		NULLIF(@limit_opt :: int, 0);
