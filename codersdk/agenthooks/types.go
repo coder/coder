@@ -41,41 +41,13 @@ type Request struct {
 	Data json.RawMessage `json:"data"`
 }
 
-func (r Request) Decode() (any, error) {
-	var data any
-	switch r.Type {
-	case EventSessionStart:
-		data = &SessionStartData{}
-	case EventUserPromptSubmit:
-		data = &UserPromptSubmitData{}
-	case EventPreToolUse:
-		data = &PreToolUseData{}
-	case EventPostToolUse:
-		data = &PostToolUseData{}
-	case EventPreCompact:
-		data = &PreCompactData{}
-	case EventPostCompact:
-		data = &PostCompactData{}
-	case EventStop:
-		data = &StopData{}
-	default:
-		return nil, xerrors.Errorf("unknown event type %q", r.Type)
-	}
-
-	if err := json.Unmarshal(r.Data, data); err != nil {
-		return nil, xerrors.Errorf("decode %q event data: %w", r.Type, err)
-	}
-	return data, nil
-}
-
 type Meta struct {
 	DispatchID    uuid.UUID `json:"dispatch_id"`
 	SchemaVersion int       `json:"schema_version"`
 	ChatRef
 }
 
-// ChatRef identifies the chat a lifecycle hook event refers to. Embedded
-// structs flatten in JSON, so it adds no nesting on the wire.
+// ChatRef identifies the chat a lifecycle hook event refers to.
 type ChatRef struct {
 	ChatID       uuid.UUID  `json:"chat_id"`
 	OwnerID      uuid.UUID  `json:"owner_id"`

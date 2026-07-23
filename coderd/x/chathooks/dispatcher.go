@@ -149,14 +149,14 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (agenthooks.Resp
 		defer func() { <-d.semaphore }()
 	case <-ctx.Done():
 		outcome := dispatchOutcome{result: ResultTimeout, err: ctx.Err()}
-		return d.finish(ctx, event, dispatchID, startedAt, outcome)
+		return agenthooks.Response{}, dispatchID, d.finish(ctx, event, dispatchID, startedAt, outcome)
 	case <-capacityTimer.C:
 		outcome := dispatchOutcome{result: ResultOverCapacity, err: context.DeadlineExceeded}
-		return d.finish(ctx, event, dispatchID, startedAt, outcome)
+		return agenthooks.Response{}, dispatchID, d.finish(ctx, event, dispatchID, startedAt, outcome)
 	}
 
 	response, outcome := d.prepareAndPost(ctx, event, dispatchID)
-	if _, _, err := d.finish(ctx, event, dispatchID, startedAt, outcome); err != nil {
+	if err := d.finish(ctx, event, dispatchID, startedAt, outcome); err != nil {
 		return agenthooks.Response{}, dispatchID, err
 	}
 	return response, dispatchID, nil
@@ -168,7 +168,7 @@ func (d *Dispatcher) finish(
 	dispatchID uuid.UUID,
 	startedAt time.Time,
 	outcome dispatchOutcome,
-) (agenthooks.Response, uuid.UUID, error) {
+) error {
 	if outcome.err != nil {
 		d.logger.Warn(context.WithoutCancel(ctx), "chat hook dispatch failed",
 			slog.F("dispatch_id", dispatchID),
@@ -176,9 +176,15 @@ func (d *Dispatcher) finish(
 			slog.F("result", outcome.result),
 			slog.Error(outcome.err),
 		)
+	} else {
+		d.logger.Debug(context.WithoutCancel(ctx), "chat hook dispatched",
+			slog.F("dispatch_id", dispatchID),
+			slog.F("event", event.Type),
+			slog.F("duration", time.Since(startedAt)),
+		)
 	}
 	d.metrics.observe(event.Type, outcome.result, outcome.response, time.Since(startedAt))
-	return outcome.response, dispatchID, newDispatchError(outcome.result, dispatchID, outcome.err)
+	return newDispatchError(outcome.result, dispatchID, outcome.err)
 }
 
 type dispatchOutcome struct {

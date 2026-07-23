@@ -55,9 +55,9 @@ func TestDispatcherSuccess(t *testing.T) {
 		assert.NoError(t, json.Unmarshal(body, &request))
 		assert.Equal(t, claims.JTI, request.Meta.DispatchID)
 		assert.Equal(t, agenthooks.SchemaVersion, request.Meta.SchemaVersion)
-		decoded, err := request.Decode()
-		assert.NoError(t, err)
-		assert.Equal(t, &agenthooks.SessionStartData{Source: "new"}, decoded)
+		var decoded agenthooks.SessionStartData
+		assert.NoError(t, json.Unmarshal(request.Data, &decoded))
+		assert.Equal(t, agenthooks.SessionStartData{Source: "new"}, decoded)
 
 		_, err = w.Write([]byte(`{}`))
 		assert.NoError(t, err)

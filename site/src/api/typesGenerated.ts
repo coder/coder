@@ -1219,8 +1219,7 @@ export interface AgentFirewallSessionLogsResponse {
 
 // From agenthooks/types.go
 /**
- * ChatRef identifies the chat a lifecycle hook event refers to. Embedded
- * structs flatten in JSON, so it adds no nesting on the wire.
+ * ChatRef identifies the chat a lifecycle hook event refers to.
  */
 export interface AgentHookChatRef {
 	readonly chat_id: string;
