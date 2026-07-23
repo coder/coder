@@ -12,6 +12,7 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -499,12 +500,28 @@ func (p *Server) handleAPIDispatchError(ctx context.Context, chatID uuid.UUID, e
 	if !ok {
 		return dispatchErr
 	}
+	encoded, marshalErr := json.Marshal(codersdk.ChatError{
+		Message: lastError,
+		Kind:    codersdk.ChatErrorKindHookDispatchFailed,
+	})
+	if marshalErr != nil {
+		return errors.Join(dispatchErr, xerrors.Errorf("encode hook dispatch error: %w", marshalErr))
+	}
 	var failedChat database.Chat
 	machine := p.newChatMachine(chatID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		if _, err := tx.FailIdle(chatstate.FailIdleInput{
-			LastError: lastError,
-			Kind:      codersdk.ChatErrorKindHookDispatchFailed,
+		current, err := store.GetChatByID(ctx, chatID)
+		if err != nil {
+			return xerrors.Errorf("load chat for hook failure: %w", err)
+		}
+		// Park only idle chats. FinishError is also allowed from running
+		// states, but a running chat keeps its active turn and the
+		// request error alone surfaces to the caller.
+		if current.Status != database.ChatStatusWaiting {
+			return chatstate.ErrTransitionNotAllowed
+		}
+		if _, err := tx.FinishError(chatstate.FinishErrorInput{
+			LastError: pqtype.NullRawMessage{RawMessage: encoded, Valid: true},
 		}); err != nil {
 			return err
 		}
