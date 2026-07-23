@@ -274,6 +274,8 @@ Each row in `chat_messages` has a `revision` column. It stores the `chats.snapsh
 
 Message revision triggers depend on the transition invariant that `snapshot_version` is allocated immediately after the chat row is locked and before any message mutation happens. Runtime code must not assign `chat_messages.revision` directly, and every `chat_messages` insert or update must go through a state machine transition: the triggers advance `history_version` on any write, so an out-of-band write (even of a hidden or soft-deleted row) moves `history_version` without a matching `snapshot_version` bump and breaks the fence of an in-flight generation task.
 
+Rewriting an existing message's content follows the same rule through `Tx.UpdateMessageContent`. It is not a named transition; it is a primitive available only inside an open machine transaction, alongside the named transitions that commit with it, so the revision trigger stamps the snapshot version that transaction allocated and the transaction's publish makes the rewrite observable to streams and workers through the normal `history_version` fence. The rewrite is scoped to the locked chat and fails when the target message is missing, deleted, or belongs to another chat. Callers must never issue the underlying store query outside a machine transaction: it would stamp a stale revision and break the generation fence.
+
 A `BEFORE INSERT` trigger assigns the current chat `snapshot_version` to the inserted message row and records the same value as the chat's latest history version:
 
 ```sql
