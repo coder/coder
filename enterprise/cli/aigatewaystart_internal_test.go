@@ -500,16 +500,8 @@ func TestStandaloneGatewayServe_ShutdownOrder(t *testing.T) {
 
 	// Expect the runtime owner to shut down the daemon after HTTP serving stops.
 	require.NoError(t, shutdownWithTimeout(daemon.Shutdown, daemonShutdownTimeout))
-	select {
-	case <-dialCtx.Done():
-	case <-testCtx.Done():
-		t.Fatal("daemon dial context was not canceled")
-	}
-	select {
-	case <-daemon.Done():
-	case <-testCtx.Done():
-		t.Fatal("daemon did not stop")
-	}
+	testutil.TryReceive(testCtx, t, dialCtx.Done())
+	testutil.TryReceive(testCtx, t, daemon.Done())
 
 	requireListenerAvailable(t, httpAddress, "HTTP listener must be closed before serve returns")
 }
@@ -517,14 +509,15 @@ func TestStandaloneGatewayServe_ShutdownOrder(t *testing.T) {
 func requireListenerReady(t *testing.T, address string) {
 	t.Helper()
 
-	require.Eventually(t, func() bool {
-		conn, err := net.Dial("tcp", address)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", address)
 		if err != nil {
 			return false
 		}
 		_ = conn.Close()
 		return true
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 func requireListenerAvailable(t *testing.T, address, message string) {
