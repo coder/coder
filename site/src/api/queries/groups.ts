@@ -1,15 +1,14 @@
 import type { QueryClient, UseQueryOptions } from "react-query";
-import {
-	API,
-	type GroupMembersResponseWithAICostControl,
-	type GroupWithAICostControl,
-} from "#/api/api";
+import { API } from "#/api/api";
 import { isApiError } from "#/api/errors";
 import type {
 	CreateGroupRequest,
 	Group,
 	GroupAIBudget,
+	GroupMembersAISpend,
+	GroupMembersResponse,
 	GroupRequest,
+	OrganizationGroupsAISpend,
 	PatchGroupRequest,
 	UsersRequest,
 } from "#/api/typesGenerated";
@@ -38,7 +37,41 @@ export const groupsByOrganization = (organization: string) => {
 	return {
 		queryKey: getGroupsByOrganizationQueryKey(organization),
 		queryFn: () => API.getGroupsByOrganization(organization),
-	} satisfies UseQueryOptions<GroupWithAICostControl[]>;
+	} satisfies UseQueryOptions<Group[]>;
+};
+
+const getOrganizationGroupsAISpendQueryKey = (
+	organization: string,
+	groupIds: readonly string[],
+) => [
+	...getGroupsByOrganizationQueryKey(organization),
+	"aiSpend",
+	[...groupIds].sort(),
+];
+
+export const organizationGroupsAISpend = (
+	organization: string,
+	groupIds: readonly string[],
+) => {
+	return {
+		queryKey: getOrganizationGroupsAISpendQueryKey(organization, groupIds),
+		queryFn: () => API.getOrganizationGroupsAISpend(organization, groupIds),
+	} satisfies UseQueryOptions<OrganizationGroupsAISpend>;
+};
+
+export const getGroupMembersAISpendQueryKey = (
+	groupId: string,
+	userIds: readonly string[],
+) => ["group", groupId, "members", "aiSpend", [...userIds].sort()];
+
+export const groupMembersAISpend = (
+	groupId: string,
+	userIds: readonly string[],
+) => {
+	return {
+		queryKey: getGroupMembersAISpendQueryKey(groupId, userIds),
+		queryFn: () => API.getGroupMembersAISpend(groupId, userIds),
+	} satisfies UseQueryOptions<GroupMembersAISpend>;
 };
 
 const getRootGroupQueryKey = (organization: string, groupName: string) => [
@@ -97,10 +130,7 @@ export function groupMembers(
 	organization: string,
 	groupName: string,
 	searchParams: URLSearchParams,
-): UsePaginatedQueryOptions<
-	GroupMembersResponseWithAICostControl,
-	UsersRequest
-> {
+): UsePaginatedQueryOptions<GroupMembersResponse, UsersRequest> {
 	return {
 		searchParams,
 		queryPayload: ({ limit, offset }) => {
@@ -131,11 +161,7 @@ export function groupsByUserIdInOrganization(organization: string) {
 	return {
 		...groupsByOrganization(organization),
 		select: selectGroupsByUserId,
-	} satisfies UseQueryOptions<
-		GroupWithAICostControl[],
-		unknown,
-		GroupsByUserId
-	>;
+	} satisfies UseQueryOptions<Group[], unknown, GroupsByUserId>;
 }
 
 function selectGroupsByUserId(groups: Group[]): GroupsByUserId {

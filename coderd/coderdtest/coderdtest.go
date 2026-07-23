@@ -35,6 +35,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
+	"github.com/nats-io/nats-server/v2/server"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/smallstep/pkcs7"
 	"github.com/stretchr/testify/assert"
@@ -93,6 +94,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	natspubsub "github.com/coder/coder/v2/coderd/x/nats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -171,7 +173,7 @@ type Options struct {
 	// test instances are running against the same database.
 	Database          database.Store
 	Pubsub            pubsub.Pubsub
-	ReplicaSyncPubsub *pubsub.PGPubsub
+	ReplicaSyncPubsub pubsub.Pubsub
 
 	// APIMiddleware inserts middleware before api.RootHandler, this can be
 	// useful in certain tests where you want to intercept requests before
@@ -290,13 +292,28 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		usageInserter.Store(&options.UsageInserter)
 	}
 	if options.Database == nil {
-		options.Database, options.Pubsub = dbtestutil.NewDB(t)
+		var ps pubsub.Pubsub
+		options.Database, ps = dbtestutil.NewDB(t)
+		var ok bool
+		options.ReplicaSyncPubsub, ok = ps.(*pubsub.PGPubsub)
+		require.True(t, ok)
 	}
 	if options.ReplicaSyncPubsub == nil {
-		pgPubsub, ok := options.Pubsub.(*pubsub.PGPubsub)
-		require.True(t, ok, "ReplicaSyncPubsub must be a PGPubsub")
-		options.ReplicaSyncPubsub = pgPubsub
+		// To get here, the database must have been passed in, but not the ReplicSyncPubsub. We can't create a PGPubsub
+		// just from the database.Store since it could be anything including a mock. We need this to be independent from
+		// the main Pubsub in case it's NATS, since that uses the ReplicaSync to bootstrap the cluster. The in-mem
+		// pubsub satisfies these requirements.
+		options.ReplicaSyncPubsub = pubsub.NewInMemory()
 	}
+	if options.Pubsub == nil {
+		natsCtx, natsCancel := context.WithCancel(context.Background())
+		t.Cleanup(natsCancel)
+		natPS, err := natspubsub.New(natsCtx, *options.Logger, natspubsub.Options{ClusterPort: server.RANDOM_PORT})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = natPS.Close() })
+		options.Pubsub = natPS
+	}
+
 	if options.CoordinatorResumeTokenProvider == nil {
 		options.CoordinatorResumeTokenProvider = tailnet.NewInsecureTestResumeTokenProvider()
 	}

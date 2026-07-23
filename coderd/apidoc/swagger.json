@@ -442,6 +442,41 @@
 				}
 			}
 		},
+		"/api/experimental/chats/{chat}/compact": {
+			"post": {
+				"description": "Experimental: this endpoint is subject to change.\nRequests a manual context compaction on an idle chat. The\ncompaction runs asynchronously through the chat worker and\nbypasses the automatic usage threshold.",
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Compact chat",
+				"operationId": "compact-chat",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Chat ID",
+						"name": "chat",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Chat"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/api/experimental/chats/{chat}/context": {
 			"put": {
 				"description": "Experimental: this endpoint is subject to change.",
@@ -13595,6 +13630,14 @@
 						"type": "string"
 					}
 				},
+				"network_calls": {
+					"description": "NetworkCalls summarizes the Agent Firewall network calls made during the\nsession. A nil value means the session did not pass through Agent\nFirewall, so network call monitoring was not active, which the UI\nsurfaces as \"Disabled\".",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.AIBridgeSessionNetworkCallSummary"
+						}
+					]
+				},
 				"providers": {
 					"type": "array",
 					"items": {
@@ -13610,6 +13653,17 @@
 				},
 				"token_usage_summary": {
 					"$ref": "#/definitions/codersdk.AIBridgeSessionTokenUsageSummary"
+				}
+			}
+		},
+		"codersdk.AIBridgeSessionNetworkCallSummary": {
+			"type": "object",
+			"properties": {
+				"blocked": {
+					"type": "integer"
+				},
+				"total": {
+					"type": "integer"
 				}
 			}
 		},
@@ -18592,7 +18646,7 @@
 			"type": "object",
 			"properties": {
 				"effective_group_id": {
-					"description": "EffectiveGroupID is the user's effective budget group within the queried\ngroup's organization. Null when no effective budget group is visible in\nthis organization, including when the user's budget resolves to a group\nin another organization.",
+					"description": "EffectiveGroupID is the user's effective budget group within the queried\ngroup's organization, falling back to the Everyone group when no budget\napplies. Null when the effective group belongs to a different organization\nthan the queried group.",
 					"type": "string",
 					"format": "uuid"
 				},
@@ -23934,7 +23988,7 @@
 					"type": "integer"
 				},
 				"effective_group_id": {
-					"description": "EffectiveGroupID is the group the spend is attributed to. Null when\nno budget applies.",
+					"description": "EffectiveGroupID is the group the spend is attributed to, falling back to\nthe Everyone group when no budget applies. Null only when the user has no\norganization membership.",
 					"type": "string",
 					"format": "uuid"
 				},

@@ -17,6 +17,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatcost"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -38,6 +39,9 @@ type buildCommitStepMessagesInput struct {
 type stepMessagesForCommit struct {
 	Messages       []chatstate.Message
 	VisibleIndexes []int
+	// ConsumeCompactionRequest clears the manual compaction marker
+	// atomically with the commit. Set on compaction commits.
+	ConsumeCompactionRequest bool
 }
 
 func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesForCommit, error) {
@@ -280,8 +284,12 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	if err != nil {
 		return compactionMessagesForCommit{}, xerrors.Errorf("marshal compaction system summary: %w", err)
 	}
+	source := input.compaction.Source
+	if source == "" {
+		source = chatloop.CompactionSourceAutomatic
+	}
 	args, err := json.Marshal(map[string]any{
-		"source":            "automatic",
+		"source":            source,
 		"threshold_percent": input.compaction.ThresholdPercent,
 	})
 	if err != nil {
@@ -295,7 +303,7 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	}
 	summaryResult, err := json.Marshal(map[string]any{
 		"summary":              input.compaction.SummaryReport,
-		"source":               "automatic",
+		"source":               source,
 		"threshold_percent":    input.compaction.ThresholdPercent,
 		"usage_percent":        input.compaction.UsagePercent,
 		"context_tokens":       input.compaction.ContextTokens,

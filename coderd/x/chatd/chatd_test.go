@@ -5660,6 +5660,245 @@ func TestActiveServer_Compaction(t *testing.T) {
 	})
 }
 
+func TestCompactChat(t *testing.T) {
+	t.Parallel()
+
+	setupAtLimitChat := func(
+		t *testing.T,
+		status database.ChatStatus,
+		compactable bool,
+	) (context.Context, database.Store, *chatd.Server, database.Chat) {
+		t.Helper()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		server := newTestServer(t, db, ps, uuid.New())
+
+		_, err := db.UpsertChatUsageLimitConfig(ctx, database.UpsertChatUsageLimitConfigParams{
+			Enabled:            true,
+			DefaultLimitMicros: 100,
+			Period:             string(codersdk.ChatUsageLimitPeriodDay),
+		})
+		require.NoError(t, err)
+
+		spendChat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+		})
+		spendContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("spent usage"),
+		})
+		require.NoError(t, err)
+		dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:          spendChat.ID,
+			ModelConfigID:   uuid.NullUUID{UUID: model.ID, Valid: true},
+			Role:            database.ChatMessageRoleAssistant,
+			ContentVersion:  chatprompt.CurrentContentVersion,
+			Content:         spendContent,
+			TotalCostMicros: sql.NullInt64{Int64: 100, Valid: true},
+		})
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+			Status:            status,
+		})
+		if compactable {
+			assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("assistant response"),
+			})
+			require.NoError(t, err)
+			dbgen.ChatMessage(t, db, database.ChatMessage{
+				ChatID:         chat.ID,
+				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+				Role:           database.ChatMessageRoleAssistant,
+				ContentVersion: chatprompt.CurrentContentVersion,
+				Content:        assistantContent,
+			})
+		}
+
+		return ctx, db, server, chat
+	}
+
+	t.Run("usage limit rejects compactable idle chat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, db, server, chat := setupAtLimitChat(t, database.ChatStatusWaiting, true)
+		_, err := server.CompactChat(ctx, chat)
+
+		var limitErr *chatd.UsageLimitExceededError
+		require.ErrorAs(t, err, &limitErr)
+		refreshed, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusWaiting, refreshed.Status)
+		require.False(t, refreshed.CompactionRequestedAt.Valid)
+	})
+
+	t.Run("nothing to compact precedes usage limit", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, _, server, chat := setupAtLimitChat(t, database.ChatStatusWaiting, false)
+		_, err := server.CompactChat(ctx, chat)
+
+		require.ErrorIs(t, err, chatd.ErrNothingToCompact)
+		var limitErr *chatd.UsageLimitExceededError
+		require.False(t, errors.As(err, &limitErr))
+	})
+
+	t.Run("state conflict precedes usage limit", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, _, server, chat := setupAtLimitChat(t, database.ChatStatusRunning, true)
+		_, err := server.CompactChat(ctx, chat)
+
+		require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed)
+		var limitErr *chatd.UsageLimitExceededError
+		require.False(t, errors.As(err, &limitErr))
+	})
+}
+
+func TestActiveServer_ManualCompaction(t *testing.T) {
+	t.Parallel()
+
+	const compactionSummary = "manual compaction summary"
+
+	t.Run("compacts below threshold and returns to waiting", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		var streamCount atomic.Int32
+		var compactionRequests atomic.Int32
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			body := anthropicRequestBody(t, *req)
+			if !req.Stream {
+				if strings.Contains(body, "You are performing a context compaction") {
+					compactionRequests.Add(1)
+					require.Contains(t, body, "hello from the user")
+					return anthropicCompactionResponse(compactionSummary)
+				}
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			streamCount.Add(1)
+			// Low usage: far below the 70% threshold so only a
+			// manual request can trigger compaction.
+			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunksWithCacheUsage(chattest.AnthropicUsage{
+				InputTokens:  10,
+				OutputTokens: 5,
+			}, "assistant answer")...)
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+		model = updateChatModelCompressionThreshold(t, db, model, 100, 70)
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello from the user")
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.Equal(t, int32(1), streamCount.Load())
+		require.Equal(t, int32(0), compactionRequests.Load())
+		preCompactionMessageCount := len(chatMessages(ctx, t, db, chat.ID))
+
+		compacted, err := server.CompactChat(ctx, chat)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusRunning, compacted.Status)
+		require.True(t, compacted.CompactionRequestedAt.Valid)
+
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.False(t, chat.LastError.Valid)
+		require.False(t, chat.CompactionRequestedAt.Valid,
+			"compaction commit must consume the request marker")
+		require.Equal(t, int32(1), compactionRequests.Load(), "one forced compaction call")
+		require.Equal(t, int32(1), streamCount.Load(),
+			"manual compaction must not trigger an assistant follow-up")
+
+		messages := chatMessages(ctx, t, db, chat.ID)
+		promptMessages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		compressed := compressedChatSummarizedMessages(t, append(promptMessages, messages...))
+		require.Len(t, compressed.results, 1)
+		resultPart := singlePartOfType(t, compressed.results[0], codersdk.ChatMessagePartTypeToolResult)
+		require.Equal(t, "chat_summarized", resultPart.ToolName)
+		var result map[string]any
+		require.NoError(t, json.Unmarshal(resultPart.Result, &result))
+		require.Equal(t, "manual", result["source"])
+		require.Equal(t, compactionSummary, result["summary"])
+		// The commit inserts the summary triplet: a hidden model-only
+		// boundary (visible only through the prompt query) plus the
+		// user-visible tool call/result pair.
+		require.Len(t, compressed.summaries, 1,
+			"prompt history contains the compressed summary boundary")
+		require.Len(t, compressed.calls, 1)
+		require.Len(t, messages, preCompactionMessageCount+2,
+			"user-visible history grows by the summary tool call/result pair")
+
+		// A second /compact with nothing new to summarize is
+		// rejected before any LLM call.
+		_, err = server.CompactChat(ctx, chat)
+		require.ErrorIs(t, err, chatd.ErrNothingToCompact)
+		require.Equal(t, int32(1), compactionRequests.Load())
+
+		// The chat still works: a follow-up message continues from
+		// the compacted summary.
+		_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:        chat.ID,
+			CreatedBy:     user.ID,
+			ModelConfigID: model.ID,
+			Content: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("continue after manual compaction"),
+			},
+		})
+		require.NoError(t, err)
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.False(t, chat.LastError.Valid)
+		require.Equal(t, int32(2), streamCount.Load())
+	})
+
+	t.Run("busy chat rejects manual compaction", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		release := make(chan struct{})
+		releaseOnce := sync.OnceFunc(func() { close(release) })
+		streamStarted := make(chan struct{}, 1)
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			if !req.Stream {
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			select {
+			case streamStarted <- struct{}{}:
+			default:
+			}
+			// Hold the generation open so the chat stays running.
+			<-release
+			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("done")...)
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
+		// Registered after newActiveTestServer so this cleanup runs
+		// before server shutdown: a failed assertion must not leave
+		// shutdown waiting on the blocked stream.
+		t.Cleanup(releaseOnce)
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "stay busy")
+		// Wait for the generation to reach the blocked LLM call: the
+		// chat is then running with an owning worker.
+		testutil.TryReceive(ctx, t, streamStarted)
+
+		_, err := server.CompactChat(ctx, chat)
+		require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed)
+
+		releaseOnce()
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+	})
+}
+
 type compressedCompactionMessages struct {
 	summaries []database.ChatMessage
 	calls     []database.ChatMessage

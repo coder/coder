@@ -6,6 +6,7 @@ import (
 
 	"charm.land/fantasy"
 
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -47,6 +48,7 @@ type pendingDynamicToolCall struct {
 type compactionOutcome struct {
 	SystemSummary    string
 	SummaryReport    string
+	Source           chatloop.CompactionSource
 	ThresholdPercent int32
 	UsagePercent     float64
 	ContextTokens    int64

@@ -4,7 +4,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import {
 	chatCostIdsToInvalidate,
 	shouldInvalidateFilteredChatList,
-} from "./AgentsPage";
+} from "./AgentsPageLayout";
 import {
 	emptyInputStorageKey,
 	useEmptyStateDraft,

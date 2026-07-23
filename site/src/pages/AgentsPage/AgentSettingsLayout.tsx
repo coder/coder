@@ -3,7 +3,7 @@ import { Outlet, useLocation } from "react-router";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { AgentPageHeader } from "./components/AgentPageHeader";
 
-const AgentSettingsPage: FC = () => {
+const AgentSettingsLayout: FC = () => {
 	const location = useLocation();
 	const match = location.pathname.match(/\/agents\/settings\/(.+)/);
 	const section = match?.[1];
@@ -23,4 +23,4 @@ const AgentSettingsPage: FC = () => {
 	);
 };
 
-export default AgentSettingsPage;
+export default AgentSettingsLayout;

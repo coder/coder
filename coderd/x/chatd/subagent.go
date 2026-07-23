@@ -113,6 +113,8 @@ type listAgentsArgs struct {
 	Offset *int `json:"offset,omitempty"`
 }
 
+type listSubagentModelsArgs struct{}
+
 func subagentModelOverrideLogLabel(
 	overrideContext codersdk.ChatModelOverrideContext,
 ) string {
@@ -543,6 +545,142 @@ func (p *Server) resolveModelConfigAndNormalizedProvider(
 	return database.ChatModelConfig{}, "", sql.ErrNoRows
 }
 
+func (p *Server) resolveExplicitSpawnOverrides(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	args spawnAgentArgs,
+) (*uuid.UUID, *string, error) {
+	var explicitModelConfigID *uuid.UUID
+	if raw := strings.TrimSpace(args.ModelConfigID); raw != "" {
+		modelConfigID, err := uuid.Parse(raw)
+		if err != nil {
+			return nil, nil, xerrors.New(
+				"invalid model_config_id: must be a valid UUID; use " +
+					listSubagentModelsToolName + " to see available models",
+			)
+		}
+		//nolint:gocritic // Chatd needs its scoped config and user-data access here.
+		chatdCtx := dbauthz.AsChatd(ctx)
+		modelConfig, providerName, err := p.resolveModelConfigAndNormalizedProvider(
+			chatdCtx,
+			modelConfigID,
+		)
+		if err != nil {
+			switch {
+			case errors.Is(err, sql.ErrNoRows):
+				return nil, nil, xerrors.New(
+					"model_config_id not found or is disabled; use " +
+						listSubagentModelsToolName + " to see available models",
+				)
+			case errors.Is(err, errInvalidModelOverrideMetadata):
+				return nil, nil, xerrors.Errorf(
+					"model_config_id metadata is invalid: %w",
+					err,
+				)
+			default:
+				p.logger.Warn(ctx, "failed to resolve spawn_agent model_config_id",
+					slog.F("model_config_id", modelConfigID),
+					slog.Error(err),
+				)
+				return nil, nil, xerrors.New("internal error looking up model config")
+			}
+		}
+		providerKeys, err := p.resolveUserProviderAPIKeys(
+			chatdCtx,
+			ownerID,
+			modelConfigAIProviderID(modelConfig),
+		)
+		if err != nil {
+			p.logger.Warn(ctx, "failed to resolve provider API keys for spawn_agent model_config_id",
+				slog.F("model_config_id", modelConfigID),
+				slog.Error(err),
+			)
+			return nil, nil, xerrors.New("internal error looking up model config")
+		}
+		if !userCanUseProviderKeys(providerKeys, providerName) {
+			return nil, nil, xerrors.Errorf(
+				"model_config_id credentials are unavailable for provider %q",
+				providerName,
+			)
+		}
+		explicitModelConfigID = &modelConfig.ID
+	}
+
+	var explicitReasoningEffort *string
+	if raw := strings.TrimSpace(args.ReasoningEffort); raw != "" {
+		effort := strings.ToLower(raw)
+		if !chatprovider.IsValidReasoningEffort(effort) {
+			return nil, nil, xerrors.Errorf(
+				"invalid reasoning_effort: must be one of %s",
+				strings.Join(codersdk.ChatModelReasoningEffortValues(), ", "),
+			)
+		}
+		explicitReasoningEffort = &effort
+	}
+
+	return explicitModelConfigID, explicitReasoningEffort, nil
+}
+
+func (p *Server) listSpawnableModelConfigs(
+	ctx context.Context,
+	ownerID uuid.UUID,
+) ([]map[string]any, error) {
+	//nolint:gocritic // Chatd needs its scoped config and user-data access here.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	rows, err := p.db.GetEnabledChatModelConfigs(chatdCtx)
+	if err != nil {
+		return nil, xerrors.Errorf("get enabled chat model configs: %w", err)
+	}
+	models := make([]map[string]any, 0, len(rows))
+	providerKeysByID := make(map[uuid.UUID]chatprovider.ProviderAPIKeys)
+	for _, row := range rows {
+		providerName := chatprovider.NormalizeProvider(row.Provider)
+		if providerName == "" {
+			continue
+		}
+		if _, _, err := chatprovider.ResolveModelWithProviderHint(
+			row.ChatModelConfig.Model,
+			providerName,
+		); err != nil {
+			continue
+		}
+		providerID := modelConfigAIProviderID(row.ChatModelConfig)
+		providerKeys, ok := providerKeysByID[providerID]
+		if !ok {
+			providerKeys, err = p.resolveUserProviderAPIKeys(
+				chatdCtx,
+				ownerID,
+				providerID,
+			)
+			if err != nil {
+				return nil, xerrors.Errorf("resolve provider API keys: %w", err)
+			}
+			providerKeysByID[providerID] = providerKeys
+		}
+		if !userCanUseProviderKeys(providerKeys, providerName) {
+			continue
+		}
+		entry := map[string]any{
+			"model_config_id": row.ChatModelConfig.ID.String(),
+			"display_name":    row.ChatModelConfig.DisplayName,
+			"model":           row.ChatModelConfig.Model,
+			"provider":        providerName,
+			"context_limit":   row.ChatModelConfig.ContextLimit,
+			"is_default":      row.ChatModelConfig.IsDefault,
+		}
+		callConfig := codersdk.ChatModelCallConfig{}
+		if len(row.ChatModelConfig.Options) > 0 {
+			if err := json.Unmarshal(row.ChatModelConfig.Options, &callConfig); err == nil {
+				if efforts := chatprovider.SelectableReasoningEfforts(callConfig.ReasoningEffort); len(efforts) > 0 {
+					entry["reasoning_efforts"] = efforts
+				}
+			}
+		}
+		models = append(models, entry)
+	}
+	return models, nil
+}
+
 func (p *Server) subagentTools(
 	ctx context.Context,
 	currentChat func() database.Chat,
@@ -583,6 +721,24 @@ func (p *Server) subagentTools(
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
+				if definition.id == subagentTypeComputerUse &&
+					(strings.TrimSpace(args.ModelConfigID) != "" ||
+						strings.TrimSpace(args.ReasoningEffort) != "") {
+					return fantasy.NewTextErrorResponse(
+						`model_config_id and reasoning_effort are not supported for type "` +
+							subagentTypeComputerUse + `"`,
+					), nil
+				}
+
+				explicitModelConfigID, explicitReasoningEffort, err := p.resolveExplicitSpawnOverrides(
+					ctx,
+					parent.OwnerID,
+					args,
+				)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
+
 				turnParent := currentChatSnapshot
 				if turnParent.ID == uuid.Nil {
 					turnParent = parent
@@ -594,10 +750,15 @@ func (p *Server) subagentTools(
 					parent,
 					turnParent,
 					currentModelConfigID,
+					explicitModelConfigID,
 					args.Prompt,
 				)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
+
+				if explicitReasoningEffort != nil {
+					options.reasoningEffortOverride = explicitReasoningEffort
 				}
 
 				childChat, err := p.createChildSubagentChatWithOptions(
@@ -616,6 +777,39 @@ func (p *Server) subagentTools(
 					"title":   childChat.Title,
 					"status":  string(childChat.Status),
 				}, childChat)), nil
+			},
+		),
+		fantasy.NewAgentTool(
+			listSubagentModelsToolName,
+			"List the enabled model configurations available for "+
+				spawnAgentToolName+"'s model_config_id argument. Only models "+
+				"usable with the chat owner's credentials are returned. Each "+
+				"entry includes model_config_id, display_name, model, "+
+				"provider, context_limit, is_default, and reasoning_efforts "+
+				"(the values accepted by "+spawnAgentToolName+"'s "+
+				"reasoning_effort for that model).",
+			func(ctx context.Context, _ listSubagentModelsArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				if currentChat == nil {
+					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
+				}
+
+				parent, err := p.loadSubagentSpawnParentChat(ctx, currentChat)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
+
+				models, err := p.listSpawnableModelConfigs(ctx, parent.OwnerID)
+				if err != nil {
+					p.logger.Warn(ctx, "failed to list spawnable model configs",
+						slog.F("chat_id", parent.ID),
+						slog.Error(err),
+					)
+					return fantasy.NewTextErrorResponse("internal error listing model configs"), nil
+				}
+
+				return toolJSONResponse(map[string]any{
+					"models": models,
+				}), nil
 			},
 		),
 		fantasy.NewAgentTool(
