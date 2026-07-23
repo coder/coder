@@ -617,7 +617,7 @@
 						},
 						{
 							"title": "Extending Templates",
-							"description": "Use Coder-native features to extend your templates with parameters, metadata, IDEs, and more.",
+							"description": "Extend your Coder templates with parameters, metadata, web IDEs, Docker, and more.",
 							"path": "./admin/templates/extending-templates/index.md",
 							"children": [
 								{
@@ -999,7 +999,7 @@
 		},
 		{
 			"title": "Run AI Coding Agents in Coder",
-			"description": "Run and manage AI coding agents like Claude Code and Aider in Coder workspaces, alongside your existing development environments.",
+			"description": "Run and manage AI coding agents like Claude Code and Codex in Coder workspaces, alongside your existing development environments.",
 			"path": "./ai-coder/index.md",
 			"icon_path": "./images/icons/wand.svg",
 			"children": [
@@ -1348,7 +1348,7 @@
 				},
 				{
 					"title": "Coder Tasks",
-					"description": "Run and manage coding agents like Claude Code and Aider on your own infrastructure with Coder Tasks.",
+					"description": "Run and manage coding agents like Claude Code and Codex on your own infrastructure with Coder Tasks.",
 					"path": "./ai-coder/tasks.md",
 					"children": [
 						{
