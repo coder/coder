@@ -117,6 +117,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog.
 - `CompleteRequiresAction(results)` inserts submitted tool-result messages, clears `requires_action_deadline_at`, and lands in `running`. It preserves queued messages.
 - `RequestCompaction` records a manual compaction request on an idle chat by setting `compaction_requested_at` and landing in `running` without inserting any message. The chat worker picks the chat up like any other running chat and consumes the request. See [Manual compaction](#manual-compaction).
+- `FailIdle(err)` moves a waiting chat to `error` and persists `last_error = err` without requiring runner ownership. Used when admission-time work on an idle chat fails in a way that must surface on the chat itself.
 
 ### Transitions used by the chat worker
 
@@ -149,6 +150,7 @@ stateDiagram-v2
     W --> R0: SendMessage
     W --> R0: EditMessage
     W --> R0: RequestCompaction
+    W --> E0: FailIdle
     W --> XW: SetArchived(true)
 
     E0 --> R0: SendMessage
