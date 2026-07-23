@@ -1251,20 +1251,57 @@ export const WithMessageHistory: Story = {
 			).toBeEnabled();
 		});
 
-		await editLastMessage();
-		await changeReasoningEffort("{ArrowLeft}");
-		await user.click(canvas.getByRole("button", { name: "Save Edit" }));
-		await waitFor(() => {
-			expect(API.experimental.editChatMessage).toHaveBeenCalledTimes(2);
-		});
-		expect(API.experimental.editChatMessage).toHaveBeenNthCalledWith(
-			1,
+		// A composer-level effort change made before entering edit mode
+		// must not leak into the edit payload.
+		expect(API.experimental.editChatMessage).toHaveBeenCalledWith(
 			CHAT_ID,
 			5,
 			expect.not.objectContaining({ reasoning_effort: expect.anything() }),
 		);
-		expect(API.experimental.editChatMessage).toHaveBeenNthCalledWith(
-			2,
+	},
+};
+
+/** Changing reasoning effort while editing a history message includes the
+ *  sanitized effort in the edit payload. Lives in a separate story because
+ *  saving an edit optimistically marks the chat running, which hides the
+ *  Save Edit button for any later edit in the same story (the WebSocket
+ *  that would deliver the follow-up status change is mocked with no
+ *  events). */
+export const WithMessageHistoryEditReasoningEffort: Story = {
+	...WithMessageHistory,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const user = userEvent.setup();
+		const changeReasoningEffort = async (key: string) => {
+			const modelSelector = canvas.getByRole("combobox", { name: "GPT-4o" });
+			await user.click(modelSelector);
+			const slider = await body.findByRole("slider");
+			slider.focus();
+			await user.keyboard(key);
+			await user.click(modelSelector);
+		};
+
+		expect(
+			await canvas.findByText("Markdown rendering showcase"),
+		).toBeVisible();
+		await waitFor(() => {
+			expect(
+				canvas.queryByText(/^This chat is owned by/),
+			).not.toBeInTheDocument();
+		});
+
+		await changeReasoningEffort("{ArrowRight}");
+		const editButtons = canvas.getAllByRole("button", {
+			name: "Edit message",
+		});
+		await user.click(editButtons[editButtons.length - 1]);
+		await changeReasoningEffort("{ArrowLeft}");
+		await user.click(canvas.getByRole("button", { name: "Save Edit" }));
+		await waitFor(() => {
+			expect(API.experimental.editChatMessage).toHaveBeenCalledTimes(1);
+		});
+		expect(API.experimental.editChatMessage).toHaveBeenCalledWith(
 			CHAT_ID,
 			5,
 			expect.objectContaining({ reasoning_effort: "medium" }),
