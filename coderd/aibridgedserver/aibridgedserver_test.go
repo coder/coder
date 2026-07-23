@@ -2537,7 +2537,6 @@ func TestRecordTokenUsageBudgetLimitReachedNotification(t *testing.T) {
 				require.Equal(t, intc.InitiatorID, sent[0].UserID)
 				require.Equal(t, "$1.00", sent[0].Labels["limit"])
 				require.Equal(t, "Engineering", sent[0].Labels["effective_group_name"])
-				require.Equal(t, string(codersdk.AIBudgetLimitSourceGroup), sent[0].Labels["limit_source"])
 			}
 		})
 	}
@@ -2622,76 +2621,6 @@ func TestRecordTokenUsageBudgetNotificationAcrossPeriodBoundary(t *testing.T) {
 
 	sent := enq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIBudgetWarningUser))
 	require.Len(t, sent, 1, "expected the crossing to be detected against the interception's period")
-}
-
-// TestRecordTokenUsageBudgetNotificationUserOverride verifies that when the
-// limit comes from a per-user override, the notification reflects that.
-func TestRecordTokenUsageBudgetNotificationUserOverride(t *testing.T) {
-	t.Parallel()
-
-	const (
-		spendLimitMicros int64 = 1_000_000 // $1 limit
-		warnAtMicros     int64 = 850_000   // 85% of the limit
-		inputPriceMicros int64 = 1_000_000 // $1 per million tokens
-	)
-	now := time.Date(2026, 6, 25, 14, 30, 0, 0, time.UTC)
-
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	enq := &notificationstest.FakeEnqueuer{}
-
-	intc := newTestInterception(uuid.New())
-	groupID := uuid.New()
-	override := &database.UserAIBudgetOverride{
-		UserID:           intc.InitiatorID,
-		GroupID:          groupID,
-		SpendLimitMicros: spendLimitMicros,
-	}
-	price := &database.AIModelPrice{InputPrice: sql.NullInt64{Int64: inputPriceMicros, Valid: true}}
-
-	expectTokenUsageCostLookups(db, intc, override, nil, nil, price)
-
-	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
-		func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
-	)
-	db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).
-		Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: intc.ID}, nil)
-	db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
-		Return(database.AIUserDailySpend{}, nil)
-	db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
-		Return(database.GetUserAISpendSinceRow{SpendMicros: warnAtMicros}, nil)
-	db.EXPECT().GetGroupByID(gomock.Any(), groupID).
-		Return(database.Group{ID: groupID, Name: "Engineering"}, nil)
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
-		Store:         db,
-		AISeatTracker: agplaiseats.Noop{},
-		AccessURL:     "/",
-		GatewayCfg:    codersdk.AIBridgeConfig{},
-		Experiments:   requiredExperiments,
-		Enqueuer:      enq,
-		Logger:        testutil.Logger(t),
-		Clock:         quartz.NewReal(),
-	})
-	require.NoError(t, err)
-
-	_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
-		InterceptionId: intc.ID.String(),
-		MsgId:          "msg_override",
-		InputTokens:    1000,
-		CreatedAt:      timestamppb.New(now),
-	})
-	require.NoError(t, err)
-
-	sent := enq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIBudgetWarningUser))
-	require.Len(t, sent, 1, "expected one budget warning notification")
-	require.Equal(t, intc.InitiatorID, sent[0].UserID)
-	require.Equal(t, "$1.00", sent[0].Labels["limit"])
-	require.Equal(t, "Engineering", sent[0].Labels["effective_group_name"],
-		"attribution group must be surfaced even for an override")
-	require.Equal(t, string(codersdk.AIBudgetLimitSourceUserOverride), sent[0].Labels["limit_source"],
-		"limit source must be recorded so the template does not attribute the limit to the group")
 }
 
 // newTestInterception returns an interception with a fixed initiator, provider,

@@ -13,7 +13,6 @@
     "labels": {
       "effective_group_name": "Engineering",
       "limit": "$1000.00",
-      "limit_source": "user_override",
       "period": "monthly",
       "threshold": "100"
     },
@@ -22,6 +21,6 @@
   },
   "title": "You've reached your monthly AI budget limit",
   "title_markdown": "You've reached your monthly AI budget limit",
-  "body": "You have reached your monthly AI budget limit ($1000.00). Subsequent requests will be blocked.\n\nThis limit is set specifically for your account.",
-  "body_markdown": "You have reached your monthly AI budget limit ($1000.00). Subsequent requests will be blocked.\n\nThis limit is set specifically for your account."
+  "body": "You have reached your monthly AI budget limit ($1000.00). Subsequent requests will be blocked. Effective group: Engineering.",
+  "body_markdown": "You have reached your monthly AI budget limit ($1000.00). Subsequent requests will be blocked. Effective group: **Engineering**."
 }

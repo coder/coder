@@ -13,14 +13,7 @@ VALUES (
     'b5db9597-de2a-4dea-87e9-25cee6906b86',
     'AI Budget Warning',
     E'You''re approaching your {{.Labels.period}} AI budget limit',
-    $$You have used more than {{.Labels.threshold}}% of your {{.Labels.period}} AI budget ({{.Labels.limit}}).
-{{- if eq .Labels.limit_source "group"}}
-
-This limit is set by your group **{{.Labels.effective_group_name}}**.
-{{- else if eq .Labels.limit_source "user_override"}}
-
-This limit is set specifically for your account.
-{{- end}}$$,
+    E'You have used more than {{.Labels.threshold}}% of your {{.Labels.period}} AI budget ({{.Labels.limit}}). Effective group: **{{.Labels.effective_group_name}}**.',
     '[]'::jsonb,
     'AI Cost Control Events',
     NULL,
@@ -43,14 +36,7 @@ VALUES (
     'cdcf2ecd-f003-4169-9800-abb2661ea522',
     'AI Budget Limit Reached',
     E'You''ve reached your {{.Labels.period}} AI budget limit',
-    $$You have reached your {{.Labels.period}} AI budget limit ({{.Labels.limit}}). Subsequent requests will be blocked.
-{{- if eq .Labels.limit_source "group"}}
-
-This limit is set by your group **{{.Labels.effective_group_name}}**.
-{{- else if eq .Labels.limit_source "user_override"}}
-
-This limit is set specifically for your account.
-{{- end}}$$,
+    E'You have reached your {{.Labels.period}} AI budget limit ({{.Labels.limit}}). Subsequent requests will be blocked. Effective group: **{{.Labels.effective_group_name}}**.',
     '[]'::jsonb,
     'AI Cost Control Events',
     NULL,

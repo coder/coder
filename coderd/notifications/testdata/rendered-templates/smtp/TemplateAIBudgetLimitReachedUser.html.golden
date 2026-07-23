@@ -13,9 +13,7 @@ Content-Type: text/plain; charset=UTF-8
 Hi Bobby,
 
 You have reached your monthly AI budget limit ($1000.00). Subsequent reques=
-ts will be blocked.
-
-This limit is set specifically for your account.
+ts will be blocked. Effective group: Engineering.
 
 
 --bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
@@ -48,9 +46,8 @@ argin: 8px 0 32px; line-height: 1.5;">
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
         <p>You have reached your monthly AI budget limit ($1000.00). Subseq=
-uent requests will be blocked.</p>
-
-<p>This limit is set specifically for your account.</p>
+uent requests will be blocked. Effective group: <strong>Engineering</strong=
+>.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20
