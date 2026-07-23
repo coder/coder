@@ -71,6 +71,7 @@ const emptyParsedMessageContent = (): ParsedMessageContent => ({
 	tools: [],
 	blocks: [],
 	sources: [],
+	hookNotices: [],
 });
 
 export const ensureToolBlock = (
@@ -291,6 +292,12 @@ export const parseMessageContent = (
 			case "skill": {
 				// Skill parts are metadata for the context indicator;
 				// they are not rendered in the conversation timeline.
+				break;
+			}
+			case "hook-notice": {
+				if (part.text.trim()) {
+					parsed.hookNotices.push(part.text);
+				}
 				break;
 			}
 			default: {

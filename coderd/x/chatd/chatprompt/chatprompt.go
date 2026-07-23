@@ -1642,6 +1642,16 @@ func partsToMessageParts(
 			_, _ = sb.WriteString(part.ContextFileContent)
 			_, _ = sb.WriteString("\n</workspace-context>")
 			result = append(result, fantasy.TextPart{Text: sb.String()})
+		case codersdk.ChatMessagePartTypeHookContext:
+			// Lifecycle hook model context rides inside the user
+			// message and is sent to the model as plain text.
+			if strings.TrimSpace(part.Text) == "" {
+				continue
+			}
+			result = append(result, fantasy.TextPart{Text: part.Text})
+		case codersdk.ChatMessagePartTypeHookNotice:
+			// Client-only hook notice, never sent to the model.
+			continue
 		case codersdk.ChatMessagePartTypeSource:
 			// Source parts are metadata-only, not sent to LLM.
 			continue

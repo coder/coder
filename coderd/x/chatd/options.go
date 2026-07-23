@@ -3,6 +3,7 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -53,8 +54,12 @@ type chatWorkerTaskStarter interface {
 
 // chatWorkerTaskStartInput describes one runner task invocation.
 type chatWorkerTaskStartInput struct {
-	TaskID                   uuid.UUID
-	ChatID                   uuid.UUID
+	TaskID uuid.UUID
+	ChatID uuid.UUID
+	// TurnID is a process-local correlation ID minted per generation
+	// task run. It groups the run's hook events; it is best-effort only
+	// and never persisted.
+	TurnID                   uuid.UUID
 	WorkerID                 uuid.UUID
 	RunnerID                 uuid.UUID
 	HistoryVersion           int64
@@ -62,6 +67,114 @@ type chatWorkerTaskStartInput struct {
 	Status                   database.ChatStatus
 	RequiresActionDeadlineAt sql.NullTime
 	DebugTurn                *runnerDebugTurn
+	SessionStart             *sessionStartTracker
+	StopNudges               *stopNudgeTracker
+}
+
+func (i chatWorkerTaskStartInput) hookTurnID() *uuid.UUID {
+	if i.TurnID == uuid.Nil {
+		return nil
+	}
+	turnID := i.TurnID
+	return &turnID
+}
+
+// stopNudgeTracker allows at most one stop-hook nudge continuation per
+// turn. Turns are keyed by the last user prompt's message ID so the
+// claim survives task restarts, which mint fresh process-local turn
+// IDs.
+type stopNudgeTracker struct {
+	mu      sync.Mutex
+	turnKey int64
+	claimed bool
+	pending bool
+}
+
+// stopNudgeKey identifies the current turn by its prompt row. Model
+// visibility user rows are hook context, not prompts.
+func stopNudgeKey(messages []database.ChatMessage) int64 {
+	index := lastUserPromptIndex(messages)
+	if index == -1 {
+		return 0
+	}
+	return messages[index].ID
+}
+
+func (t *stopNudgeTracker) claim(turnKey int64) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.turnKey != turnKey {
+		t.turnKey = turnKey
+		t.claimed = false
+	}
+	if t.claimed {
+		return false
+	}
+	t.claimed = true
+	t.pending = true
+	return true
+}
+
+func (t *stopNudgeTracker) consume(turnKey int64) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.turnKey != turnKey || !t.pending {
+		return false
+	}
+	t.pending = false
+	return true
+}
+
+func (t *stopNudgeTracker) cancel(turnKey int64) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.turnKey != turnKey || !t.pending {
+		return
+	}
+	t.pending = false
+	t.claimed = false
+}
+
+func (t *stopNudgeTracker) reset() {
+	t.mu.Lock()
+	t.turnKey = 0
+	t.claimed = false
+	t.pending = false
+	t.mu.Unlock()
+}
+
+type sessionStartTracker struct {
+	mu        sync.Mutex
+	completed bool
+	inFlight  chan struct{}
+}
+
+func (t *sessionStartTracker) claim(ctx context.Context) (bool, func(bool), error) {
+	for {
+		t.mu.Lock()
+		if t.completed {
+			t.mu.Unlock()
+			return false, nil, nil
+		}
+		if t.inFlight == nil {
+			t.inFlight = make(chan struct{})
+			t.mu.Unlock()
+			return true, func(completed bool) {
+				t.mu.Lock()
+				t.completed = completed
+				close(t.inFlight)
+				t.inFlight = nil
+				t.mu.Unlock()
+			}, nil
+		}
+		inFlight := t.inFlight
+		t.mu.Unlock()
+		select {
+		case <-inFlight:
+		case <-ctx.Done():
+			return false, nil, ctx.Err()
+		}
+	}
 }
 
 // chatWorkerOptions configures a chatWorker.

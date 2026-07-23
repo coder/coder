@@ -1745,6 +1745,47 @@ Hide AI tasks from the dashboard.
 
 Force chat debug logging on for every chat, bypassing the runtime admin and user opt-in settings.
 
+### --chat-hook-url
+
+|             |                                   |
+|-------------|-----------------------------------|
+| Type        | <code>url</code>                  |
+| Environment | <code>$CODER_CHAT_HOOK_URL</code> |
+| YAML        | <code>chat.hookURL</code>         |
+
+HTTPS URL to receive chat agent lifecycle hook events. Hooks are disabled when unset. Requires the agent-lifecycle-hooks experiment.
+
+### --chat-hook-secret
+
+|             |                                      |
+|-------------|--------------------------------------|
+| Type        | <code>string</code>                  |
+| Environment | <code>$CODER_CHAT_HOOK_SECRET</code> |
+
+Shared secret used to sign chat agent lifecycle hook JWTs.
+
+### --chat-hook-timeout
+
+|             |                                       |
+|-------------|---------------------------------------|
+| Type        | <code>duration</code>                 |
+| Environment | <code>$CODER_CHAT_HOOK_TIMEOUT</code> |
+| YAML        | <code>chat.hookTimeout</code>         |
+| Default     | <code>1.5s</code>                     |
+
+Maximum time to wait for a chat agent lifecycle hook response.
+
+### --chat-hook-enabled
+
+|             |                                       |
+|-------------|---------------------------------------|
+| Type        | <code>bool</code>                     |
+| Environment | <code>$CODER_CHAT_HOOK_ENABLED</code> |
+| YAML        | <code>chat.hookEnabled</code>         |
+| Default     | <code>true</code>                     |
+
+Whether to dispatch chat agent lifecycle hooks when a hook URL is configured. Requires the agent-lifecycle-hooks experiment.
+
 ### --ai-gateway-enabled
 
 |             |                                        |
