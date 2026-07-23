@@ -8,10 +8,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -511,6 +513,43 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 				require.Equal(t, int64(30), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
 				require.Equal(t, int64(100), *entitlements.Features[codersdk.FeatureUserLimit].Limit)
 			})
+
+			t.Run("TwoAddonCandidates", func(t *testing.T) {
+				// Two addon licenses: the entitled higher-limit pair fits
+				// the capable count and wins over the grace pair, and its
+				// presence suppresses the revert warning.
+				licenses := []database.License{
+					dbLicense(*(&coderdenttest.LicenseOptions{
+						Features: license.Features{codersdk.FeatureUserLimit: 100},
+					}).GracePeriod(now).AIGovernanceAddon(10)),
+					dbLicense(*(&coderdenttest.LicenseOptions{
+						Features: license.Features{codersdk.FeatureUserLimit: 300},
+					}).Valid(now).AIGovernanceAddon(10)),
+				}
+				entitlements, err := license.LicensesEntitlements(ctx, now, licenses, enablements, coderdenttest.Keys, license.FeatureArguments{
+					ActiveUserCount:  500,
+					UserCountingMode: license.UserCountingModePermissionBased,
+					WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
+						return 150, nil
+					},
+				})
+				require.NoError(t, err)
+				require.Equal(t, int64(150), *entitlements.Features[codersdk.FeatureUserLimit].Actual)
+				require.Equal(t, int64(300), *entitlements.Features[codersdk.FeatureUserLimit].Limit)
+				require.Equal(t, codersdk.EntitlementEntitled, entitlements.Features[codersdk.FeatureUserLimit].Entitlement)
+				for _, warning := range entitlements.Warnings {
+					require.NotContains(t, warning, "fully expires")
+					require.NotContains(t, warning, "users but")
+				}
+			})
+		})
+
+		t.Run("ModeWithoutFnIsDevError", func(t *testing.T) {
+			_, err := license.LicensesEntitlements(ctx, now, []database.License{addonLicense()}, enablements, coderdenttest.Keys, license.FeatureArguments{
+				ActiveUserCount:  7,
+				UserCountingMode: license.UserCountingModePermissionBased,
+			})
+			require.ErrorContains(t, err, "dev error")
 		})
 
 		t.Run("OverLimitWarnsWithCapableCount", func(t *testing.T) {
@@ -579,5 +618,55 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			})
 			require.ErrorIs(t, err, context.Canceled)
 		})
+	})
+}
+
+// TestCountWorkspaceCapableUsersErrors covers the count's database
+// failure paths, which abort the count rather than skewing it.
+//
+// Reads the builtin role registry that sibling tests reload, so it must
+// run serially.
+//
+//nolint:paralleltest
+func TestCountWorkspaceCapableUsersErrors(t *testing.T) {
+	ctx := context.Background()
+	authorizer := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
+
+	prefetchParams := database.CustomRolesParams{IncludeSystemRoles: true}
+
+	t.Run("PrefetchError", func(t *testing.T) {
+		mDB := dbmock.NewMockStore(gomock.NewController(t))
+		mDB.EXPECT().CustomRoles(gomock.Any(), prefetchParams).Return(nil, xerrors.New("boom"))
+
+		_, err := license.CountWorkspaceCapableUsers(ctx, testutil.Logger(t), mDB, authorizer)
+		require.ErrorContains(t, err, "prefetch custom roles")
+	})
+
+	t.Run("RolesQueryError", func(t *testing.T) {
+		mDB := dbmock.NewMockStore(gomock.NewController(t))
+		mDB.EXPECT().CustomRoles(gomock.Any(), prefetchParams).Return([]database.CustomRole{}, nil)
+		mDB.EXPECT().GetActiveUsersAuthorizationRoles(gomock.Any()).Return(nil, xerrors.New("boom"))
+
+		_, err := license.CountWorkspaceCapableUsers(ctx, testutil.Logger(t), mDB, authorizer)
+		require.ErrorContains(t, err, "get active users authorization roles")
+	})
+
+	t.Run("ExpandLookupError", func(t *testing.T) {
+		// A custom role that was not prefetched (deleted, or created
+		// mid-count) is looked up individually; a database failure there
+		// aborts the count.
+		mDB := dbmock.NewMockStore(gomock.NewController(t))
+		userID := uuid.New()
+		orgID := uuid.New()
+		mDB.EXPECT().CustomRoles(gomock.Any(), prefetchParams).Return([]database.CustomRole{}, nil)
+		mDB.EXPECT().GetActiveUsersAuthorizationRoles(gomock.Any()).Return([]database.GetActiveUsersAuthorizationRolesRow{{
+			ID:    userID,
+			Roles: []string{"member", "dangling-role:" + orgID.String()},
+		}}, nil)
+		mDB.EXPECT().CustomRoles(gomock.Any(), gomock.Not(prefetchParams)).Return(nil, xerrors.New("boom"))
+
+		_, err := license.CountWorkspaceCapableUsers(ctx, testutil.Logger(t), mDB, authorizer)
+		require.ErrorContains(t, err, "evaluate workspace-create for user "+userID.String())
+		require.ErrorContains(t, err, "expand roles")
 	})
 }
