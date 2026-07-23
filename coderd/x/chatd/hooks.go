@@ -196,6 +196,35 @@ func restoreToolCallOrder(content []fantasy.Content, calls []fantasy.ToolCallCon
 	}
 }
 
+// hookDispatchFailureFromResults returns the first tool result error
+// whose chain contains a hook dispatch failure. Tools that dispatch
+// lifecycle hooks inside Run (subagent spawn admission) must fail
+// closed, but the tool loop persists Run errors as ordinary tool
+// results the model can ignore, so the step has to be failed before
+// commit instead.
+func hookDispatchFailureFromResults(content []fantasy.Content) error {
+	for _, block := range content {
+		toolResult, ok := asToolResultContent(block)
+		if !ok {
+			continue
+		}
+		var resultErr error
+		switch output := toolResult.Result.(type) {
+		case fantasy.ToolResultOutputContentError:
+			resultErr = output.Error
+		case *fantasy.ToolResultOutputContentError:
+			if output != nil {
+				resultErr = output.Error
+			}
+		}
+		var dispatchErr *chathooks.DispatchError
+		if resultErr != nil && errors.As(resultErr, &dispatchErr) {
+			return resultErr
+		}
+	}
+	return nil
+}
+
 // rejectDuplicateToolUseIDs fails closed because hook consumers key
 // decisions by tool-use ID; a duplicated ID in one step makes decisions
 // unattributable.
