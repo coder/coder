@@ -1,6 +1,7 @@
 import { expect, waitFor, within } from "storybook/test";
 import type { UserSkillMetadata } from "#/api/typesGenerated";
 import { MOCK_TIMESTAMP } from "#/testHelpers/chatEntities";
+import type { SkillMetadata } from "./SkillsTriggerMenu";
 
 export const MockSkill: UserSkillMetadata = {
 	id: "skill-1",
@@ -24,6 +25,17 @@ export const MockSkills: UserSkillMetadata[] = [
 		description: "Draft docs for user-facing behavior.",
 	},
 	{ ...MockSkill, id: "skill-plan", name: "plan" },
+];
+
+export const MockWorkspaceSkills: SkillMetadata[] = [
+	{
+		name: "test-runner",
+		description: "Run the workspace test command.",
+	},
+	{
+		name: "workspace-docs",
+		description: "Use repository documentation conventions.",
+	},
 ];
 
 export const findVisibleText = async (text: string): Promise<HTMLElement> => {
@@ -52,9 +64,11 @@ export const expectInsideListViewport = async (
 	element: HTMLElement,
 ): Promise<void> => {
 	const list = element.closest("[cmdk-list]");
-	expect(list).not.toBeNull();
+	if (!(list instanceof HTMLElement)) {
+		throw new Error("Expected element to be inside a [cmdk-list] container");
+	}
 	await waitFor(() => {
-		const listRect = (list as HTMLElement).getBoundingClientRect();
+		const listRect = list.getBoundingClientRect();
 		const elementRect = element.getBoundingClientRect();
 		expect(elementRect.top).toBeGreaterThanOrEqual(listRect.top - 1);
 		expect(elementRect.bottom).toBeLessThanOrEqual(listRect.bottom + 1);

@@ -354,3 +354,18 @@ export const TemplateInfoPopoverWithoutDisplayName: Story = {
 		});
 	},
 };
+
+export const NarrowViewportWraps: Story = {
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+	},
+	play: async () => {
+		// Horizontal overflow is the behavior under test: the topbar must
+		// wrap its controls instead of forcing the page wider than the
+		// viewport.
+		await waitFor(() => {
+			const html = document.documentElement;
+			expect(html.scrollWidth).toBeLessThanOrEqual(html.clientWidth);
+		});
+	},
+};

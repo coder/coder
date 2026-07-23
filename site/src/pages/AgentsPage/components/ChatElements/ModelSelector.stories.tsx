@@ -301,6 +301,35 @@ export const FiltersModels: Story = {
 };
 
 // ---------------------------------------------------------------------------
+// Unset entry
+// ---------------------------------------------------------------------------
+
+export const UnsetLabelClearsSelection: Story = {
+	args: {
+		options: openAIModels,
+		value: "openai/gpt-4o",
+		unsetLabel: "Use chat model",
+		onValueChange: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		const trigger = canvas.getByRole("combobox", { name: "GPT-4o" });
+		await userEvent.click(trigger);
+		const listbox = await body.findByRole("listbox");
+
+		await userEvent.click(
+			within(listbox).getByRole("option", { name: "Use chat model" }),
+		);
+		expect(args.onValueChange).toHaveBeenCalledWith("");
+		await waitFor(() => {
+			expect(body.queryByRole("listbox")).not.toBeInTheDocument();
+		});
+	},
+};
+
+// ---------------------------------------------------------------------------
 // Reasoning effort row
 // ---------------------------------------------------------------------------
 

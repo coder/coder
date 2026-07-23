@@ -50,6 +50,9 @@ export const Default: Story = {
 		);
 		await userEvent.click(body.getByRole("option", { name: "OAuth2" }));
 		await expect(canvas.getByLabelText(/client id/i)).toBeInTheDocument();
+		const revocationInput = canvas.getByLabelText(/revocation url/i);
+		await userEvent.type(revocationInput, "https://example.com/revoke");
+		await expect(revocationInput).toHaveValue("https://example.com/revoke");
 
 		await userEvent.click(addButton);
 		await waitFor(() => {
@@ -59,6 +62,7 @@ export const Default: Story = {
 					slug: "github",
 					url: "https://api.githubcopilot.com/mcp/",
 					auth_type: "oauth2",
+					oauth2_revocation_url: "https://example.com/revoke",
 				}),
 			);
 		});

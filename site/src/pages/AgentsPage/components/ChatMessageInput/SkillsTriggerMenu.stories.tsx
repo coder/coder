@@ -6,7 +6,6 @@ import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import {
 	createCommandMenuItem,
 	createSkillMenuItem,
-	type SkillMetadata,
 	SkillsTriggerMenu,
 } from "./SkillsTriggerMenu";
 import {
@@ -14,24 +13,14 @@ import {
 	expectNoVisibleText,
 	findVisibleText,
 	MockSkills,
+	MockWorkspaceSkills,
 } from "./storyHelpers";
-
-const mockWorkspaceSkills: SkillMetadata[] = [
-	{
-		name: "test-runner",
-		description: "Run the workspace test command.",
-	},
-	{
-		name: "workspace-docs",
-		description: "Use repository documentation conventions.",
-	},
-];
 
 const mockPersonalSkillItems = MockSkills.map((skill) =>
 	createSkillMenuItem("personal", skill),
 );
 const compactCommandItem = createCommandMenuItem(COMPACT_SLASH_COMMAND);
-const mockWorkspaceSkillItems = mockWorkspaceSkills.map((skill) =>
+const mockWorkspaceSkillItems = MockWorkspaceSkills.map((skill) =>
 	createSkillMenuItem("workspace", skill),
 );
 

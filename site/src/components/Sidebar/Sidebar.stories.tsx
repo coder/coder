@@ -7,6 +7,7 @@ import {
 	UserIcon,
 } from "lucide-react";
 import { Outlet } from "react-router";
+import { expect, waitFor, within } from "storybook/test";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Sidebar, SidebarHeader, SidebarNavItem } from "./Sidebar";
 
@@ -87,5 +88,29 @@ export const Default: Story = {
 				},
 			],
 		},
+	},
+};
+
+export const MobileFullWidth: Story = {
+	...Default,
+	decorators: [
+		(Story) => (
+			<div className="flex flex-col gap-2 lg:flex-row">
+				<Story />
+				<Outlet />
+			</div>
+		),
+	],
+	parameters: {
+		...Default.parameters,
+		viewport: { defaultViewport: "mobile1" },
+	},
+	play: async ({ canvasElement }) => {
+		// Width is the behavior under test: below lg the sidebar must span
+		// the container instead of the fixed 240px desktop column.
+		const nav = within(canvasElement).getByRole("navigation");
+		await waitFor(() => {
+			expect(nav.getBoundingClientRect().width).toBeGreaterThan(240);
+		});
 	},
 };

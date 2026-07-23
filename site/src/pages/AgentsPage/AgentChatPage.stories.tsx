@@ -2705,13 +2705,14 @@ export const SlashCompactCommandSubmits: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const compactedChat: TypesGen.Chat = {
+			id: CHAT_ID,
+			...baseChatFields,
+			title: "Compact command",
+			status: "running",
+		};
 		const compactSpy = spyOn(API.experimental, "compactChat").mockResolvedValue(
-			{
-				id: CHAT_ID,
-				...baseChatFields,
-				title: "Compact command",
-				status: "running",
-			} as TypesGen.Chat,
+			compactedChat,
 		);
 		const sendSpy = spyOn(API.experimental, "createChatMessage");
 

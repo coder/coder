@@ -239,6 +239,15 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 		!isLoadingModelConfigs &&
 		!isUnsetModelConfigId(form.values.model_config_id) &&
 		selectedModelOption === undefined;
+	// A saved override has no display name until configs load, so the
+	// trigger must show a loading state instead of the unset placeholder.
+	const isSelectedModelLoading =
+		isLoadingModelConfigs && !isUnsetModelConfigId(form.values.model_config_id);
+	const modelSelectorPlaceholder = isSelectedModelLoading
+		? "Loading..."
+		: hasUnavailableSelectedModel
+			? "Unavailable model"
+			: "Use chat model";
 	const canSave = hasLoadedAdvisorConfig && form.dirty && form.isValid;
 
 	return (
@@ -312,9 +321,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 					});
 				}}
 				disabled={isModelSelectDisabled}
-				placeholder={
-					hasUnavailableSelectedModel ? "Unavailable model" : "Use chat model"
-				}
+				placeholder={modelSelectorPlaceholder}
 				unsetLabel="Use chat model"
 				emptyMessage={
 					isLoadingModelConfigs

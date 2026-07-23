@@ -4,26 +4,14 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import { ChatMessageInput } from "./ChatMessageInput";
-import type { SkillMetadata } from "./SkillsTriggerMenu";
 import {
 	expectInsideListViewport,
 	expectNoVisibleText,
 	findVisibleText,
 	MockSkill,
 	MockSkills,
+	MockWorkspaceSkills,
 } from "./storyHelpers";
-
-// Override props keep skill menu stories deterministic without network calls.
-const mockWorkspaceSkills: SkillMetadata[] = [
-	{
-		name: "test-runner",
-		description: "Run the workspace test command.",
-	},
-	{
-		name: "workspace-docs",
-		description: "Use repository documentation conventions.",
-	},
-];
 
 const meta: Meta<typeof ChatMessageInput> = {
 	title: "components/ChatMessageInput/ChatMessageInput",
@@ -201,7 +189,7 @@ export const ClickSelectsSkill: Story = {
 export const OpensWithPersonalAndWorkspaceSkills: Story = {
 	args: {
 		hasWorkspace: true,
-		workspaceSkills: mockWorkspaceSkills,
+		workspaceSkills: MockWorkspaceSkills,
 	},
 	play: async ({ canvasElement }) => {
 		await typeInEditor(canvasElement, "/");
@@ -215,7 +203,7 @@ export const OpensWithPersonalAndWorkspaceSkills: Story = {
 export const ArrowDownSelectsWorkspaceSkill: Story = {
 	args: {
 		hasWorkspace: true,
-		workspaceSkills: mockWorkspaceSkills,
+		workspaceSkills: MockWorkspaceSkills,
 	},
 	play: async ({ canvasElement }) => {
 		const editor = await typeInEditor(canvasElement, "/");
@@ -275,7 +263,7 @@ export const QualifiedPersonalQueryMatchesBareTrigger: Story = {
 		hasWorkspace: true,
 		// Workspace skills resolve without collisions, so personal items
 		// display bare triggers while the typed query stays qualified.
-		workspaceSkills: mockWorkspaceSkills,
+		workspaceSkills: MockWorkspaceSkills,
 	},
 	play: async ({ canvasElement }) => {
 		const editor = await typeInEditor(canvasElement, "/personal/rev");
@@ -290,7 +278,7 @@ export const QualifiedPersonalQueryMatchesBareTrigger: Story = {
 export const UniqueWorkspaceQualifiedPrefixStaysSearchable: Story = {
 	args: {
 		hasWorkspace: true,
-		workspaceSkills: mockWorkspaceSkills,
+		workspaceSkills: MockWorkspaceSkills,
 	},
 	play: async ({ canvasElement }) => {
 		const editor = await typeInEditor(canvasElement, "/workspace/t");

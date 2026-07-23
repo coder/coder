@@ -39,6 +39,18 @@ const formWith = (overrides: Record<string, unknown>): ModelConfigFormState => {
 	return base;
 };
 
+/** Narrow a top-level form entry to a provider sub-object. */
+const providerState = (
+	state: ModelConfigFormState,
+	provider: string,
+): Record<string, unknown> => {
+	const value = state[provider];
+	if (typeof value === "string") {
+		throw new Error(`Expected ${provider} form state to be an object`);
+	}
+	return value;
+};
+
 /** Simple recursive merge for plain objects. */
 function deepMerge(
 	target: Record<string, unknown>,
@@ -295,7 +307,7 @@ describe("extractModelConfigFormState", () => {
 			},
 		};
 		const result = extractModelConfigFormState(model);
-		const openai = result.openai as Record<string, unknown>;
+		const openai = providerState(result, "openai");
 		expect(openai.parallelToolCalls).toBe("true");
 		expect(openai.textVerbosity).toBe("medium");
 		expect(openai.serviceTier).toBe("auto");
@@ -318,7 +330,7 @@ describe("extractModelConfigFormState", () => {
 			},
 		};
 		const result = extractModelConfigFormState(model);
-		const anthropic = result.anthropic as Record<string, unknown>;
+		const anthropic = providerState(result, "anthropic");
 		expect(deepGet(anthropic, ["thinking", "budgetTokens"])).toBe("1024");
 		expect(anthropic.sendReasoning).toBe("true");
 		expect(anthropic.disableParallelToolUse).toBe("false");
@@ -336,7 +348,7 @@ describe("extractModelConfigFormState", () => {
 			},
 		};
 		const result = extractModelConfigFormState(model);
-		const anthropic = result.anthropic as Record<string, unknown>;
+		const anthropic = providerState(result, "anthropic");
 		expect(anthropic.context1mEnabled).toBe("true");
 	});
 

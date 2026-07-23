@@ -737,6 +737,27 @@ export const DisabledProviderModelsHidden: Story = {
 	},
 };
 
+export const AdvisorModelLoadingWithSavedOverride: Story = {
+	args: buildArgs({
+		showAdvisorSettings: true,
+		modelConfigsData: undefined,
+		isLoadingModelConfigs: true,
+		advisorConfigData: {
+			enabled: true,
+			max_uses_per_run: 3,
+			max_output_tokens: 16384,
+			model_config_id: advisorReasoningModelConfig.id,
+		},
+	}),
+	play: async ({ canvasElement }) => {
+		const section = await getSection(canvasElement, "Advisor");
+		const trigger = within(section).getByRole("combobox", {
+			name: "Loading...",
+		});
+		expect(trigger).toBeDisabled();
+	},
+};
+
 export const AdvisorClearButton: Story = {
 	args: buildArgs({
 		showAdvisorSettings: true,

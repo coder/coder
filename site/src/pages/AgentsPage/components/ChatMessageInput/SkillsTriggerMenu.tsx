@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import {
 	Command,
 	CommandEmpty,
@@ -11,7 +11,6 @@ import {
 	PopoverAnchor,
 	PopoverContent,
 } from "#/components/Popover/Popover";
-import { cn } from "#/utils/cn";
 
 // Prevent zero-height anchors when the browser returns a degenerate caret rect.
 const MIN_ANCHOR_HEIGHT_PX = 16;
@@ -113,8 +112,8 @@ const SkillCommandItem = ({
 	// consumed by the Lexical trigger plugin and arrive as a controlled value
 	// change, so the item scrolls itself when it becomes the highlight.
 	// Pointer highlights skip scrolling, like cmdk, to avoid hover/scroll loops.
-	useLayoutEffect(() => {
-		if (!selected || consumePointerHighlight()) {
+	const scrollHighlightIntoView = useEffectEvent(() => {
+		if (consumePointerHighlight()) {
 			return;
 		}
 		const item = itemRef.current;
@@ -131,17 +130,19 @@ const SkillCommandItem = ({
 				?.scrollIntoView({ block: "nearest" });
 		}
 		item.scrollIntoView({ block: "nearest" });
-	}, [selected, consumePointerHighlight]);
+	});
+
+	useLayoutEffect(() => {
+		if (selected) {
+			scrollHighlightIntoView();
+		}
+	}, [selected]);
 
 	return (
 		<CommandItem
 			ref={itemRef}
 			value={value}
-			aria-selected={selected}
-			className={cn(
-				"items-start",
-				selected && "bg-surface-secondary text-content-primary",
-			)}
+			className="items-start"
 			onSelect={handleSelect}
 		>
 			<div className="min-w-0 space-y-1">

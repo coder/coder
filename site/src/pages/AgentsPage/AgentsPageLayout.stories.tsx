@@ -997,6 +997,55 @@ export const DeleteConfirmationDialog: Story = {
 	},
 };
 
+/**
+ * Archiving a chat with an in-flight run (running, interrupting, or
+ * requires_action) asks for confirmation before interrupting it.
+ */
+export const ArchiveConfirmationForActiveChat: Story = {
+	beforeEach: () => {
+		mockChats([
+			buildChat({
+				id: "chat-active",
+				title: "Interrupting agent",
+				status: "interrupting",
+				updated_at: todayTimestamp,
+			}),
+		]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const updateChatSpy = spyOn(
+			API.experimental,
+			"updateChat",
+		).mockResolvedValue();
+
+		await userEvent.click(
+			await canvas.findByRole("button", {
+				name: "Open actions for Interrupting agent",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Archive agent" }),
+		);
+
+		const dialog = await body.findByRole("dialog");
+		await expect(
+			within(dialog).getByText("Archive agent?"),
+		).toBeInTheDocument();
+		await expect(updateChatSpy).not.toHaveBeenCalled();
+
+		await userEvent.click(
+			within(dialog).getByRole("button", { name: "Archive" }),
+		);
+		await waitFor(() => {
+			expect(updateChatSpy).toHaveBeenCalledWith("chat-active", {
+				archived: true,
+			});
+		});
+	},
+};
+
 export const WithAgentSelected: Story = {
 	beforeEach: () => {
 		mockChats([
