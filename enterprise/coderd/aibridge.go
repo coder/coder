@@ -436,11 +436,13 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 			return xerrors.Errorf("list model thoughts: %w", err)
 		}
 
-		// Aggregate the session's top network destinations. Scoped by
-		// session ID (not the page) so the summary reflects the whole session.
+		// Aggregate the session's top network destination. Scoped by session
+		// ID (not the page) so the summary reflects the whole session. The
+		// summary card renders only the single most-contacted domain plus a
+		// "+N more" count derived from NetworkDomainCount, so we fetch one row.
 		topDomains, err = db.GetAIBridgeSessionTopDomains(ctx, database.GetAIBridgeSessionTopDomainsParams{
 			SessionID: sessionIDParam,
-			Limit:     5,
+			Limit:     1,
 		})
 		if err != nil {
 			return xerrors.Errorf("get session top domains: %w", err)

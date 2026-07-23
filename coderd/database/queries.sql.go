@@ -1294,7 +1294,11 @@ WITH session_boundary_logs AS (
 ),
 extracted AS (
 	-- Strip an optional scheme, then keep the host up to the first port, path,
-	-- query, or fragment delimiter.
+	-- query, or fragment delimiter. This assumes HTTP egress detail is a plain
+	-- scheme+host(+port) URL: it does not handle userinfo (user@host, which
+	-- would be captured into the host) or IPv6 literal hosts ([::1], where the
+	-- leading '[' is captured and the ':' terminates early). Boundary HTTP logs
+	-- do not currently emit those forms; revisit this extraction if they do.
 	SELECT substring(detail from '^(?:[A-Za-z][A-Za-z0-9+.-]*://)?([^/:?#]+)') AS domain
 	FROM session_boundary_logs
 ),
