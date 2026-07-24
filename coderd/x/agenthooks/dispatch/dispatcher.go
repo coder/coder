@@ -104,9 +104,15 @@ func validateHookURL(raw string) error {
 	}
 	switch parsed.Scheme {
 	case "https":
+		if parsed.Hostname() == "" {
+			return xerrors.New("chat hook URL must include a host")
+		}
 		return nil
 	case "http":
 		host := parsed.Hostname()
+		if host == "" {
+			return xerrors.New("chat hook URL must include a host")
+		}
 		if host == "localhost" {
 			return nil
 		}

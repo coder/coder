@@ -85,6 +85,9 @@ func TestDispatcherRejectsCleartextURL(t *testing.T) {
 	require.NoError(t, validateHookURL("http://[::1]:8080/hooks"))
 	require.Error(t, validateHookURL("http://10.0.0.5/hooks"))
 	require.Error(t, validateHookURL("ftp://hooks.example.com/coder"))
+	require.ErrorContains(t, validateHookURL("https:///coder"), "must include a host")
+	require.ErrorContains(t, validateHookURL("https:hooks.example.com"), "must include a host")
+	require.ErrorContains(t, validateHookURL("http:///hooks"), "must include a host")
 }
 
 func TestDispatcherDeny(t *testing.T) {
