@@ -36,6 +36,7 @@ type ExecuteToolProps = {
 	transcriptBlocks: readonly ExecuteTranscriptBlock[];
 	status: ToolStatus;
 	isError: boolean;
+	errorText?: string;
 	durationMs?: number;
 	isBackgrounded?: boolean;
 	killedBySignal?: "kill" | "terminate";
@@ -49,6 +50,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 	transcriptBlocks,
 	status,
 	isError,
+	errorText,
 	durationMs,
 	isBackgrounded = false,
 	killedBySignal,
@@ -88,7 +90,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 			className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-sans font-normal text-xs leading-5"
 			status={status}
 			isError={isError}
-			errorMessage="Command failed"
+			errorMessage={errorText || "Command failed"}
 			hasContent
 			defaultView={defaultView}
 			ariaLabel={(expanded) =>

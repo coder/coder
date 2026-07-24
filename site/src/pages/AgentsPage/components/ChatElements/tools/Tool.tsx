@@ -247,6 +247,7 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 			transcriptBlocks={data.transcriptBlocks}
 			status={status}
 			isError={isError}
+			errorText={data.errorText}
 			durationMs={data.durationMs}
 			isBackgrounded={data.isBackgrounded}
 			killedBySignal={killedBySignal}
