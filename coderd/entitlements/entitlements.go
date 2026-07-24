@@ -16,6 +16,11 @@ import (
 type Set struct {
 	entitlementsMu sync.RWMutex
 	entitlements   codersdk.Entitlements
+	// lastForcedRefresh is the last time AllowRefresh granted a forced
+	// refresh. It is tracked separately from entitlements.RefreshedAt, which
+	// is stamped by every recomputation, not just forced ones. Guarded by
+	// entitlementsMu.
+	lastForcedRefresh time.Time
 	// right2Update works like a semaphore. Reading from the chan gives the right to update the set,
 	// and you send on the chan when you are done. We only allow one simultaneous update, so this
 	// serve to serialize them.  You MUST NOT attempt to read from this channel while holding the
@@ -85,18 +90,21 @@ func (l *Set) Update(ctx context.Context, fetch func(context.Context) (codersdk.
 	return nil
 }
 
-// AllowRefresh returns whether the entitlements are allowed to be refreshed.
-// If it returns false, that means it was recently refreshed and the caller should
-// wait the returned duration before trying again.
+// AllowRefresh returns whether a forced refresh of the entitlements is
+// allowed. If it returns true, the cooldown restarts at now and the caller is
+// expected to perform the refresh. If it returns false, a forced refresh was
+// granted recently and the caller should wait the returned duration before
+// trying again.
 func (l *Set) AllowRefresh(now time.Time) (bool, time.Duration) {
-	l.entitlementsMu.RLock()
-	defer l.entitlementsMu.RUnlock()
+	l.entitlementsMu.Lock()
+	defer l.entitlementsMu.Unlock()
 
-	diff := now.Sub(l.entitlements.RefreshedAt)
+	diff := now.Sub(l.lastForcedRefresh)
 	if diff < time.Minute {
 		return false, time.Minute - diff
 	}
 
+	l.lastForcedRefresh = now
 	return true, 0
 }
 
