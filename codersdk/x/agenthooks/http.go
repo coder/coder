@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"golang.org/x/xerrors"
 )
@@ -44,11 +43,24 @@ func WithExpectedIssuer(issuer string) HandlerOption {
 	}
 }
 
-func NewHTTPHandler(secret []byte, hooks Hooks, opts ...HandlerOption) http.Handler {
+// NewHTTPHandler verifies hook POSTs, binds their claims to each request,
+// and routes events to their configured callbacks. expectedAudience must be
+// the URL Coder dispatches to, which is the value it signs into the aud
+// claim. Deriving it from the request instead would let a caller replay a
+// token minted for a different listener, because the request URL, the Host
+// header, and any forwarding headers are all caller-controlled. A handler
+// built with an empty audience rejects every request.
+func NewHTTPHandler(secret []byte, expectedAudience string, hooks Hooks, opts ...HandlerOption) http.Handler {
 	var options handlerOptions
 	for _, opt := range opts {
 		opt(&options)
 	}
+	if expectedAudience == "" {
+		return http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+			http.Error(rw, "hook audience is not configured", http.StatusInternalServerError)
+		})
+	}
+	audience := canonicalAudience(expectedAudience)
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			rw.Header().Set("Allow", http.MethodPost)
@@ -81,7 +93,7 @@ func NewHTTPHandler(secret []byte, hooks Hooks, opts ...HandlerOption) http.Hand
 			http.Error(rw, "decode request body", http.StatusBadRequest)
 			return
 		}
-		if err := verifyBody(r, body, claims, request); err != nil {
+		if err := verifyBody(body, claims, request, audience); err != nil {
 			http.Error(rw, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -98,13 +110,13 @@ func NewHTTPHandler(secret []byte, hooks Hooks, opts ...HandlerOption) http.Hand
 	})
 }
 
-func verifyBody(r *http.Request, body []byte, claims Claims, request Request) error {
+func verifyBody(body []byte, claims Claims, request Request, audience string) error {
 	digest := sha256.Sum256(body)
 	if claims.BodySHA256 != hex.EncodeToString(digest[:]) {
 		return xerrors.New("request body does not match body_sha256 claim")
 	}
-	if canonicalAudience(claims.Audience) != requestAudience(r) {
-		return xerrors.New("request URL does not match audience claim")
+	if canonicalAudience(claims.Audience) != audience {
+		return xerrors.New("audience claim does not match the configured audience")
 	}
 	if request.Meta.SchemaVersion != SchemaVersion {
 		return xerrors.New("unsupported schema version")
@@ -123,40 +135,6 @@ func verifyBody(r *http.Request, body []byte, claims Claims, request Request) er
 		return xerrors.New("chat ID does not match subject claim")
 	}
 	return nil
-}
-
-func requestAudience(r *http.Request) string {
-	requestURL := *r.URL
-	if requestURL.Scheme == "" {
-		requestURL.Scheme = "http"
-		if r.TLS != nil {
-			requestURL.Scheme = "https"
-		}
-		// Forwarded values reconstruct the signed audience when set by a trusted proxy.
-		if proto := forwardedProto(r); proto != "" {
-			requestURL.Scheme = proto
-		}
-	}
-	if requestURL.Host == "" {
-		requestURL.Host = r.Host
-		if host := forwardedHost(r); host != "" {
-			requestURL.Host = host
-		}
-	}
-	return canonicalAudience(requestURL.String())
-}
-
-func forwardedProto(r *http.Request) string {
-	proto := r.Header.Get("X-Forwarded-Proto")
-	// Trusted proxies append values, so the first is client-facing.
-	proto, _, _ = strings.Cut(proto, ",")
-	return strings.ToLower(strings.TrimSpace(proto))
-}
-
-func forwardedHost(r *http.Request) string {
-	host := r.Header.Get("X-Forwarded-Host")
-	host, _, _ = strings.Cut(host, ",")
-	return strings.TrimSpace(host)
 }
 
 func canonicalAudience(audience string) string {
