@@ -101,8 +101,8 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
-	"github.com/coder/coder/v2/coderd/x/chathooks"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
+	"github.com/coder/coder/v2/coderd/x/hooks/dispatch"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
@@ -880,7 +880,7 @@ func New(options *Options) *API {
 		// the chat daemon stays nil and chat HTTP handlers return a
 		// service-unavailable error with a clear remediation message.
 		if options.DeploymentValues.AI.BridgeConfig.Enabled.Value() {
-			var hookDispatcher *chathooks.Dispatcher
+			var hookDispatcher *dispatch.Dispatcher
 			chatConfig := options.DeploymentValues.AI.Chat
 			hooksConfigured := chatConfig.HookURL.String() != "" && chatConfig.HookEnabled.Value()
 			hooksExperimentEnabled := experiments.Enabled(codersdk.ExperimentAgentLifecycleHooks)
@@ -890,7 +890,7 @@ func New(options *Options) *API {
 				)
 			}
 			if hooksConfigured && hooksExperimentEnabled {
-				hookDispatcher = chathooks.New(
+				hookDispatcher = dispatch.New(
 					options.Logger,
 					nil,
 					chatConfig.HookURL.String(),

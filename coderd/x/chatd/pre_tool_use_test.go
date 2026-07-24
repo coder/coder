@@ -21,8 +21,8 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/coderd/x/hooks"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agenthooks"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/testutil"
@@ -69,7 +69,7 @@ func TestPreToolUseHookAllow(t *testing.T) {
 			ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
 			var hookCalls atomic.Int32
-			consumer := preToolUseConsumer(t, func(data agenthooks.PreToolUseData) string {
+			consumer := preToolUseConsumer(t, func(data hooks.PreToolUseData) string {
 				hookCalls.Add(1)
 				require.Equal(t, "call_non_uuid", data.ToolUseID)
 				require.Equal(t, "read_file", data.ToolName)
@@ -140,7 +140,7 @@ func TestPreToolUseHookDeny(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
-	consumer := preToolUseConsumer(t, func(data agenthooks.PreToolUseData) string {
+	consumer := preToolUseConsumer(t, func(data hooks.PreToolUseData) string {
 		require.Equal(t, "call_denied", data.ToolUseID)
 		return `{"permission":{"decision":"deny","reason":"blocked by policy"},"model_context":"Do not read secrets."}`
 	})
@@ -209,7 +209,7 @@ func TestPreToolUseSkipsProviderExecutedTools(t *testing.T) {
 	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 	model = enableAnthropicWebSearchForTest(t, db, model)
 	var preToolCalls atomic.Int32
-	consumer := preToolUseConsumer(t, func(agenthooks.PreToolUseData) string {
+	consumer := preToolUseConsumer(t, func(hooks.PreToolUseData) string {
 		preToolCalls.Add(1)
 		return `{}`
 	})
@@ -240,7 +240,7 @@ func TestPreToolUseHookDynamicAllowResponse(t *testing.T) {
 		return chattest.OpenAIStreamingResponse(chunk)
 	})
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	consumer := preToolUseConsumer(t, func(data agenthooks.PreToolUseData) string {
+	consumer := preToolUseConsumer(t, func(data hooks.PreToolUseData) string {
 		require.Equal(t, "call_dynamic_allow", data.ToolUseID)
 		return `{"permission":{"decision":"allow","input_override":{"query":"redacted"}},"model_context":"dynamic context","user_message":"dynamic notice"}`
 	})
@@ -372,7 +372,7 @@ func TestPreToolUseHookRepeatedToolCallIDDispatchesFresh(t *testing.T) {
 	}))
 
 	var hookCalls atomic.Int32
-	consumer := preToolUseConsumer(t, func(data agenthooks.PreToolUseData) string {
+	consumer := preToolUseConsumer(t, func(data hooks.PreToolUseData) string {
 		hookCalls.Add(1)
 		require.Equal(t, toolUseID, data.ToolUseID)
 		return `{"permission":{"decision":"deny","reason":"repeated call"}}`
@@ -432,9 +432,9 @@ func TestPreToolUseHookDispatchFailure(t *testing.T) {
 			})
 			user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 			consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				var request agenthooks.Request
+				var request hooks.Request
 				require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
-				if request.Type != agenthooks.EventPreToolUse {
+				if request.Type != hooks.EventPreToolUse {
 					_, err := w.Write([]byte(`{}`))
 					require.NoError(t, err)
 					return
@@ -509,14 +509,14 @@ func TestPreToolUseHookErrorRetryRedispatchesSiblings(t *testing.T) {
 	var failSecond atomic.Bool
 	failSecond.Store(true)
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request agenthooks.Request
+		var request hooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
-		if request.Type != agenthooks.EventPreToolUse {
+		if request.Type != hooks.EventPreToolUse {
 			_, err := w.Write([]byte(`{}`))
 			require.NoError(t, err)
 			return
 		}
-		data := decodeHookData[agenthooks.PreToolUseData](t, request)
+		data := decodeHookData[hooks.PreToolUseData](t, request)
 		switch data.ToolUseID {
 		case "call_first":
 			firstCalls.Add(1)
@@ -621,7 +621,7 @@ func TestPreToolUseHookSettledDecisionDispatchesFresh(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 	var hookCalls atomic.Int32
-	consumer := preToolUseConsumer(t, func(data agenthooks.PreToolUseData) string {
+	consumer := preToolUseConsumer(t, func(data hooks.PreToolUseData) string {
 		hookCalls.Add(1)
 		require.Equal(t, "call_reused_after_settle", data.ToolUseID)
 		return `{}`
@@ -695,7 +695,7 @@ func TestPreToolUseHookResumeFallback(t *testing.T) {
 	})
 
 	var hookCalls atomic.Int32
-	consumer := preToolUseConsumer(t, func(data agenthooks.PreToolUseData) string {
+	consumer := preToolUseConsumer(t, func(data hooks.PreToolUseData) string {
 		hookCalls.Add(1)
 		require.Equal(t, "call_resume_fallback", data.ToolUseID)
 		return `{"permission":{"decision":"allow","input_override":{"path":"/tmp/resume.txt"}}}`
@@ -814,7 +814,7 @@ func TestPreToolUseHookDynamicDeny(t *testing.T) {
 		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("replanned")...)
 	})
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	consumer := preToolUseConsumer(t, func(data agenthooks.PreToolUseData) string {
+	consumer := preToolUseConsumer(t, func(data hooks.PreToolUseData) string {
 		require.Equal(t, "call_dynamic_denied", data.ToolUseID)
 		return `{"permission":{"decision":"deny","reason":"dynamic denied"}}`
 	})
@@ -845,17 +845,17 @@ func TestPreToolUseHookDynamicDeny(t *testing.T) {
 	require.Contains(t, string(result.Result), "DENIED: dynamic denied")
 }
 
-func preToolUseConsumer(t *testing.T, response func(agenthooks.PreToolUseData) string) *httptest.Server {
+func preToolUseConsumer(t *testing.T, response func(hooks.PreToolUseData) string) *httptest.Server {
 	t.Helper()
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request agenthooks.Request
+		var request hooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
-		if request.Type != agenthooks.EventPreToolUse {
+		if request.Type != hooks.EventPreToolUse {
 			_, err := w.Write([]byte(`{}`))
 			require.NoError(t, err)
 			return
 		}
-		data := decodeHookData[agenthooks.PreToolUseData](t, request)
+		data := decodeHookData[hooks.PreToolUseData](t, request)
 		var err error
 		_, err = w.Write([]byte(response(data)))
 		require.NoError(t, err)

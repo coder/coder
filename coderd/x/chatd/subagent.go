@@ -23,9 +23,9 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
-	"github.com/coder/coder/v2/coderd/x/chathooks"
+	"github.com/coder/coder/v2/coderd/x/hooks"
+	"github.com/coder/coder/v2/coderd/x/hooks/dispatch"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agenthooks"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -772,7 +772,7 @@ func (p *Server) subagentTools(
 				if err != nil {
 					// A failed hook dispatch must fail closed instead of
 					// degrading into a tool error the model can ignore.
-					var hookErr *chathooks.DispatchError
+					var hookErr *dispatch.Error
 					if errors.As(err, &hookErr) {
 						return fantasy.ToolResponse{}, err
 					}
@@ -1313,7 +1313,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 			ParentChatID: uuid.NullUUID{UUID: parent.ID, Valid: true},
 			RootChatID:   uuid.NullUUID{UUID: rootChatID, Valid: true},
 			TurnID:       &mintedTurnID,
-		}, promptMessage, agenthooks.EventUserPromptSubmit)
+		}, promptMessage, hooks.EventUserPromptSubmit)
 		if err != nil {
 			return database.Chat{}, userPromptDenial(err)
 		}

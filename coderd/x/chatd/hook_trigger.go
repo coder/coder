@@ -9,9 +9,9 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
-	"github.com/coder/coder/v2/coderd/x/chathooks"
+	"github.com/coder/coder/v2/coderd/x/hooks"
+	"github.com/coder/coder/v2/coderd/x/hooks/dispatch"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agenthooks"
 )
 
 const (
@@ -33,10 +33,10 @@ func sessionStartSource(messages []database.ChatMessage) string {
 // Every lifecycle event flows through trigger, which builds the wire
 // envelope, dispatches, and normalizes the outcome.
 type hookTrigger struct {
-	dispatcher *chathooks.Dispatcher
+	dispatcher *dispatch.Dispatcher
 }
 
-func newHookTrigger(dispatcher *chathooks.Dispatcher) *hookTrigger {
+func newHookTrigger(dispatcher *dispatch.Dispatcher) *hookTrigger {
 	return &hookTrigger{dispatcher: dispatcher}
 }
 
@@ -67,8 +67,8 @@ func hookChatFor(chat database.Chat, turnID *uuid.UUID) hookChat {
 	}
 }
 
-func (c hookChat) ref() agenthooks.ChatRef {
-	ref := agenthooks.ChatRef{
+func (c hookChat) ref() hooks.ChatRef {
+	ref := hooks.ChatRef{
 		ChatID:  c.ID,
 		OwnerID: c.OwnerID,
 		TurnID:  c.TurnID,
@@ -137,31 +137,31 @@ func (t *hookTrigger) trigger(
 	ctx context.Context,
 	chat hookChat,
 	msg hookMessage,
-	event agenthooks.EventType,
+	event hooks.EventType,
 ) (*hookResult, error) {
 	if !t.enabled() {
 		return emptyHookResult, nil
 	}
 	var data any
 	switch event {
-	case agenthooks.EventSessionStart:
-		data = agenthooks.SessionStartData{Source: msg.Source}
-	case agenthooks.EventUserPromptSubmit:
-		data = agenthooks.UserPromptSubmitData{Prompt: msg.Prompt, Parts: msg.Parts}
-	case agenthooks.EventPreToolUse:
-		data = agenthooks.PreToolUseData{ToolUseID: msg.ToolUseID, ToolName: msg.ToolName, ToolInput: msg.ToolInput}
-	case agenthooks.EventPostToolUse:
-		data = agenthooks.PostToolUseData{ToolUseID: msg.ToolUseID, ToolName: msg.ToolName, ToolResponse: msg.ToolResponse, ToolError: msg.ToolError}
-	case agenthooks.EventPreCompact:
-		data = agenthooks.PreCompactData{}
-	case agenthooks.EventPostCompact:
-		data = agenthooks.PostCompactData{}
-	case agenthooks.EventStop:
-		data = agenthooks.StopData{}
+	case hooks.EventSessionStart:
+		data = hooks.SessionStartData{Source: msg.Source}
+	case hooks.EventUserPromptSubmit:
+		data = hooks.UserPromptSubmitData{Prompt: msg.Prompt, Parts: msg.Parts}
+	case hooks.EventPreToolUse:
+		data = hooks.PreToolUseData{ToolUseID: msg.ToolUseID, ToolName: msg.ToolName, ToolInput: msg.ToolInput}
+	case hooks.EventPostToolUse:
+		data = hooks.PostToolUseData{ToolUseID: msg.ToolUseID, ToolName: msg.ToolName, ToolResponse: msg.ToolResponse, ToolError: msg.ToolError}
+	case hooks.EventPreCompact:
+		data = hooks.PreCompactData{}
+	case hooks.EventPostCompact:
+		data = hooks.PostCompactData{}
+	case hooks.EventStop:
+		data = hooks.StopData{}
 	default:
 		return nil, xerrors.Errorf("unsupported hook event %q", event)
 	}
-	response, _, err := t.dispatcher.Dispatch(ctx, chathooks.Event{
+	response, _, err := t.dispatcher.Dispatch(ctx, dispatch.Event{
 		Type:    event,
 		ChatRef: chat.ref(),
 		Data:    data,
@@ -169,7 +169,7 @@ func (t *hookTrigger) trigger(
 	if err != nil {
 		return nil, err
 	}
-	if response.Permission != nil && response.Permission.Decision == agenthooks.PermissionDeny {
+	if response.Permission != nil && response.Permission.Decision == hooks.PermissionDeny {
 		return nil, &hookDeniedError{
 			Event:        event,
 			Reason:       response.Permission.Reason,
@@ -181,7 +181,7 @@ func (t *hookTrigger) trigger(
 		ModelContext: response.ModelContext,
 		UserMessage:  response.UserMessage,
 	}
-	if response.Permission != nil && response.Permission.Decision == agenthooks.PermissionAllow {
+	if response.Permission != nil && response.Permission.Decision == hooks.PermissionAllow {
 		result.InputOverride = response.Permission.InputOverride
 	}
 	return result, nil

@@ -35,7 +35,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
-	"github.com/coder/coder/v2/coderd/x/chathooks"
+	"github.com/coder/coder/v2/coderd/x/hooks/dispatch"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -293,7 +293,7 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 		server := &Server{
 			db:     db,
 			logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-			hooks: newHookTrigger(chathooks.New(
+			hooks: newHookTrigger(dispatch.New(
 				slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 				consumer.Client(),
 				consumer.URL,
@@ -405,7 +405,7 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 			Name:  spawnAgentToolName,
 			Input: string(input),
 		})
-		var hookErr *chathooks.DispatchError
+		var hookErr *dispatch.Error
 		require.ErrorAs(t, runErr, &hookErr,
 			"dispatch failures must fail closed, not degrade to a tool error the model can ignore")
 
