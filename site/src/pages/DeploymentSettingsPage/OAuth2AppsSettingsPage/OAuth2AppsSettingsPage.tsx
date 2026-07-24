@@ -1,15 +1,28 @@
 import type { FC } from "react";
-import { useQuery } from "react-query";
-import { getApps } from "#/api/queries/oauth2";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import {
+	getApps,
+	getOAuth2ProviderSettings,
+	putOAuth2ProviderSettings,
+} from "#/api/queries/oauth2";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { pageTitle } from "#/utils/page";
 import OAuth2AppsSettingsPageView from "./OAuth2AppsSettingsPageView";
 
 const OAuth2AppsSettingsPage: FC = () => {
 	const { permissions } = useAuthenticated();
+	const queryClient = useQueryClient();
 	const appsQuery = useQuery(getApps());
+	const settingsQuery = useQuery({
+		...getOAuth2ProviderSettings(),
+		enabled: permissions.viewDeploymentConfig,
+	});
+	const updateSettingsMutation = useMutation(
+		putOAuth2ProviderSettings(queryClient),
+	);
 
 	const canCreateApp = permissions.createOAuth2App;
+	const canEditSettings = permissions.editDeploymentConfig;
 
 	return (
 		<>
@@ -18,8 +31,19 @@ const OAuth2AppsSettingsPage: FC = () => {
 			<OAuth2AppsSettingsPageView
 				apps={appsQuery.data}
 				isLoading={appsQuery.isLoading}
-				error={appsQuery.error}
+				error={
+					appsQuery.error ?? settingsQuery.error ?? updateSettingsMutation.error
+				}
 				canCreateApp={canCreateApp}
+				canEditSettings={canEditSettings}
+				dynamicClientRegistrationEnabled={
+					settingsQuery.data?.dynamic_client_registration_enabled
+				}
+				onDynamicClientRegistrationChange={(enabled) => {
+					updateSettingsMutation.mutate({
+						dynamic_client_registration_enabled: enabled,
+					});
+				}}
 			/>
 		</>
 	);

@@ -2035,6 +2035,19 @@ class ApiMethods {
 		await this.axios.delete(`/oauth2/tokens?client_id=${appId}`);
 	};
 
+	getOAuth2ProviderSettings =
+		async (): Promise<TypesGen.OAuth2ProviderSettings> => {
+			const resp = await this.axios.get("/api/v2/oauth2-provider/settings");
+			return resp.data;
+		};
+
+	putOAuth2ProviderSettings = async (
+		data: TypesGen.OAuth2ProviderSettings,
+	): Promise<TypesGen.OAuth2ProviderSettings> => {
+		const resp = await this.axios.put("/api/v2/oauth2-provider/settings", data);
+		return resp.data;
+	};
+
 	getAuditLogs = async (
 		options: TypesGen.AuditLogsRequest,
 	): Promise<TypesGen.AuditLogResponse> => {
