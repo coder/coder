@@ -68,7 +68,7 @@ const limit = totalRecords / totalPages;
 // Multiple pages of results with the search field in use.
 export const WithSearchAndPagination: Story = {
 	args: {
-		groups: Array.from({ length: limit }).map((_, i) =>
+		groups: Array.from({ length: limit }, (_, i) =>
 			aiGroup(`group-${i}`, `Group ${i}`),
 		),
 		filterProps: {
