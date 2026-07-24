@@ -212,14 +212,9 @@ func (tx *Tx) insertMessages(messages []Message) ([]database.ChatMessage, error)
 	return inserted, nil
 }
 
-// UpdateMessageContent rewrites one message's content inside the
-// transaction so the revision trigger stamps the snapshot version the
-// surrounding [ChatMachine.Update] allocated and the enclosing
-// transition's publish delivers the rewrite. Calling the store query
-// outside a machine transaction would stamp a stale revision and break
-// the generation fence. The rewrite is scoped to the locked chat and
-// fails when the message is missing, deleted, or owned by another
-// chat.
+// UpdateMessageContent rewrites one message in the current chat. It relies on
+// [ChatMachine.Update] to stamp the allocated snapshot version and publish
+// the rewrite through the normal generation fence.
 func (tx *Tx) UpdateMessageContent(messageID int64, content json.RawMessage) error {
 	rows, err := tx.store.UpdateChatMessageContentByID(tx.ctx, database.UpdateChatMessageContentByIDParams{
 		Content: content,

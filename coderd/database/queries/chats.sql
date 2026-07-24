@@ -382,12 +382,9 @@ WHERE
     AND deleted = false;
 
 -- name: UpdateChatMessageContentByID :execrows
--- Must run inside a chatstate.ChatMachine.Update transaction (use
--- Tx.UpdateMessageContent) so the revision trigger stamps the
--- allocated snapshot version; an out-of-band call breaks the
--- generation fence.
--- Preserve NULL as the backfill marker; otherwise refresh search_tsv
--- from the new content.
+-- Use Tx.UpdateMessageContent so the revision trigger stamps the allocated
+-- snapshot version and preserves the generation fence. Preserve a NULL
+-- search_tsv backfill marker; otherwise refresh it from the new content.
 UPDATE chat_messages
 SET content = @content::jsonb,
     search_tsv = CASE

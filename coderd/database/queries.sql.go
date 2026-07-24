@@ -12100,12 +12100,9 @@ type UpdateChatMessageContentByIDParams struct {
 	ChatID  uuid.UUID       `db:"chat_id" json:"chat_id"`
 }
 
-// Must run inside a chatstate.ChatMachine.Update transaction (use
-// Tx.UpdateMessageContent) so the revision trigger stamps the
-// allocated snapshot version; an out-of-band call breaks the
-// generation fence.
-// Preserve NULL as the backfill marker; otherwise refresh search_tsv
-// from the new content.
+// Use Tx.UpdateMessageContent so the revision trigger stamps the allocated
+// snapshot version and preserves the generation fence. Preserve a NULL
+// search_tsv backfill marker; otherwise refresh it from the new content.
 func (q *sqlQuerier) UpdateChatMessageContentByID(ctx context.Context, arg UpdateChatMessageContentByIDParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateChatMessageContentByID, arg.Content, arg.ID, arg.ChatID)
 	if err != nil {
