@@ -118,6 +118,9 @@ func run() error {
 	if cfg.secret == "" {
 		return xerrors.New("secret is required through --secret or CODER_AGENTHOOKS_SECRET")
 	}
+	if len(cfg.secret) < agenthooks.MinSecretLen {
+		return xerrors.Errorf("secret must be at least %d bytes", agenthooks.MinSecretLen)
+	}
 	if (cfg.tlsCert == "") != (cfg.tlsKey == "") {
 		return xerrors.New("TLS certificate and key must be configured together")
 	}
