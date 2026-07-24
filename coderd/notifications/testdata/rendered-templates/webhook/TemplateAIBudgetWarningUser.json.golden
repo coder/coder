@@ -14,6 +14,8 @@
       "effective_group_name": "Engineering",
       "limit": "$1000.00",
       "period": "monthly",
+      "period_end": "August 1, 2026",
+      "period_start": "July 1, 2026",
       "threshold": "85"
     },
     "data": {},
@@ -21,6 +23,6 @@
   },
   "title": "You're approaching your monthly AI budget limit",
   "title_markdown": "You're approaching your monthly AI budget limit",
-  "body": "You have used more than 85% of your monthly AI budget ($1000.00). Effective group: Engineering.",
-  "body_markdown": "You have used more than 85% of your monthly AI budget ($1000.00). Effective group: **Engineering**."
+  "body": "You have used more than 85% of your monthly AI budget ($1000.00).\n\nEffective group: Engineering\n\nAI budget period: July 1, 2026 - August 1, 2026",
+  "body_markdown": "You have used more than 85% of your monthly AI budget ($1000.00).\n\nEffective group: **Engineering**\n\nAI budget period: July 1, 2026 - August 1, 2026"
 }

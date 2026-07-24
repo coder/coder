@@ -49,6 +49,10 @@ type budgetThresholdCrossing struct {
 	spendLimitMicros     int64
 	thresholdPercent     int
 	notificationTemplate uuid.UUID
+	// periodStart and periodEnd bound the budget period [start, end) the
+	// crossing occurred in.
+	periodStart time.Time
+	periodEnd   time.Time
 }
 
 // detectBudgetThresholdCrossings checks whether this interception's cost pushed
@@ -94,6 +98,8 @@ func (s *Server) detectBudgetThresholdCrossings(ctx context.Context, tx database
 				spendLimitMicros:     limit,
 				thresholdPercent:     t.percent,
 				notificationTemplate: t.notificationTemplate,
+				periodStart:          period.Start,
+				periodEnd:            period.End,
 			})
 		}
 	}
@@ -113,6 +119,10 @@ func (s *Server) notifyBudgetThresholdCrossing(ctx context.Context, crossing bud
 		"limit":                formatSpendLimit(crossing.spendLimitMicros),
 		"period":               s.budgetPeriod.Adjective(),
 		"effective_group_name": group.Name,
+		// Both bounds carry the year so a period straddling a year boundary
+		// (e.g. December 1, 2026 - January 1, 2027) is unambiguous.
+		"period_start": crossing.periodStart.UTC().Format("January 2, 2006"),
+		"period_end":   crossing.periodEnd.UTC().Format("January 2, 2006"),
 	}
 
 	//nolint:gocritic // Enqueuing notifications requires the notifier actor.
