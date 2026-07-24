@@ -2008,7 +2008,10 @@ export const EditFilesError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Edited missing\.ts/)).toBeInTheDocument();
+		expect(canvas.getByText(/Failed to edit missing\.ts/)).toBeInTheDocument();
+		await waitFor(() => {
+			expect(canvas.getByText("File not found")).toBeVisible();
+		});
 		// On error, no diff body: the synthetic fallback would
 		// misrepresent a rejected edit as applied.
 		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);

@@ -22,6 +22,7 @@ describe("toolVisibility", () => {
 			).toEqual({
 				command: "git fetch origin",
 				transcriptBlocks: [{ kind: "output", text: "fetched" }],
+				errorText: "",
 				durationMs: 47200,
 				isBackgrounded: true,
 				authenticateURL: "https://example.com/auth",
