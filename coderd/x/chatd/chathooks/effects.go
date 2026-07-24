@@ -67,11 +67,12 @@ func EventMessagesForResults(
 }
 
 // deniedToolResult synthesizes the denial as a tool result so the model
-// can replan within the same turn. The consumer's model_context rides in
-// the same result instead of a separate transcript row. The text must
-// distinguish a policy denial from a genuine tool failure, or the model
-// retries the call and misreports the denial as an infrastructure error.
-func deniedToolResult(toolCall fantasy.ToolCallContent, reason, modelContext string) fantasy.ToolResultContent {
+// can replan within the same turn. The result is client-visible, so it
+// must never carry the consumer's model_context; that travels as a
+// model-only transcript row instead. The text must distinguish a policy
+// denial from a genuine tool failure, or the model retries the call and
+// misreports the denial as an infrastructure error.
+func deniedToolResult(toolCall fantasy.ToolCallContent, reason string) fantasy.ToolResultContent {
 	message := "This tool usage was blocked by an external policy" +
 		" (the deployment's lifecycle hook); the tool call was not executed."
 	if reason = strings.TrimSpace(reason); reason != "" {
@@ -80,9 +81,6 @@ func deniedToolResult(toolCall fantasy.ToolCallContent, reason, modelContext str
 	message += " This is an administrative policy decision, not a tool or" +
 		" workspace failure; retrying the same call will be denied again." +
 		" Explain the policy block to the user and adjust your approach."
-	if modelContext = strings.TrimSpace(modelContext); modelContext != "" {
-		message += "\n\n" + modelContext
-	}
 	return fantasy.ToolResultContent{
 		ToolCallID: toolCall.ToolCallID,
 		ToolName:   toolCall.ToolName,
