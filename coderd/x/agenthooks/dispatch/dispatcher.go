@@ -148,7 +148,7 @@ func New(
 		secret:       []byte(secret),
 		timeout:      timeout,
 		deploymentID: deploymentID,
-		userAgent:    "coderd/" + coderVersion,
+		userAgent:    "coderd-agenthooks/" + coderVersion,
 		semaphore:    make(chan struct{}, maxConcurrentDispatches),
 		metrics:      newMetrics(reg),
 	}

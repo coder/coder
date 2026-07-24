@@ -37,7 +37,7 @@ func TestDispatcherSuccess(t *testing.T) {
 		body, err := io.ReadAll(r.Body)
 		assert.NoError(t, err)
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
-		assert.Equal(t, "coderd/"+testVersion, r.Header.Get("User-Agent"))
+		assert.Equal(t, "coderd-agenthooks/"+testVersion, r.Header.Get("User-Agent"))
 
 		claims, err := agenthooks.Verify(r.Header.Get("Authorization"), []byte(testSecret))
 		assert.NoError(t, err)
