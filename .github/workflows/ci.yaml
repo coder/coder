@@ -573,6 +573,7 @@ jobs:
           install-args: "go terraform"
 
       - name: Install Go mise tools
+        shell: bash
         run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum go:github.com/slsyy/mtimehash/cmd/mtimehash
 
       - name: Download Test Cache
