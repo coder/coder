@@ -131,6 +131,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 							groups={groups}
 							canCreateGroup={canCreateGroup}
 							showAIBudget={showAIBudget}
+							filterUsed={filterProps.filter.used}
 						/>
 					</TableBody>
 				</Table>
@@ -143,17 +144,33 @@ interface GroupsTableBodyProps {
 	groups: GroupWithSpend[] | undefined;
 	canCreateGroup: boolean;
 	showAIBudget: boolean;
+	filterUsed: boolean;
 }
 
 const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 	groups,
 	canCreateGroup,
 	showAIBudget,
+	filterUsed,
 }) => {
 	if (groups === undefined) {
 		return <TableLoader showAIBudget={showAIBudget} />;
 	}
 	if (groups.length === 0) {
+		// When a search returned no matches, don't nudge the user to create a
+		// first group; the org may already have groups that simply don't match.
+		if (filterUsed) {
+			return (
+				<TableRow>
+					<TableCell colSpan={999}>
+						<EmptyState
+							message="No groups match your search"
+							description="Try a different search term."
+						/>
+					</TableCell>
+				</TableRow>
+			);
+		}
 		return (
 			<TableRow>
 				<TableCell colSpan={999}>

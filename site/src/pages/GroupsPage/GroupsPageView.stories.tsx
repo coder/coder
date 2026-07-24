@@ -279,3 +279,28 @@ export const EmptyGroupWithPermission: Story = {
 		groups: [],
 	},
 };
+
+// A search that matches nothing shows filter-aware copy, not the
+// create-first-group empty state.
+export const NoSearchResults: Story = {
+	args: {
+		groups: [],
+		filterProps: {
+			filter: {
+				query: "nomatch",
+				values: {},
+				update: () => {},
+				debounceUpdate: () => {},
+				cancelDebounce: () => {},
+				used: true,
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText("No groups match your search"),
+		).toBeInTheDocument();
+		expect(canvas.queryByText("No groups yet")).not.toBeInTheDocument();
+	},
+};
