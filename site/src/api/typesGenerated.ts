@@ -1228,8 +1228,7 @@ export interface AgentHookChatRef {
 	readonly turn_id?: string;
 	readonly parent_chat_id?: string;
 	/**
-	 * RootChatID groups a subagent subtree with its user-facing conversation.
-	 * Unset for top-level chats.
+	 * RootChatID identifies the user-facing root of the chat tree.
 	 */
 	readonly root_chat_id?: string;
 }

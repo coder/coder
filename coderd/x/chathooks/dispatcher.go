@@ -30,8 +30,7 @@ const (
 	maxModelContextBytes    = 16_384
 	capacityWaitLimit       = 250 * time.Millisecond
 	retryBackoff            = 250 * time.Millisecond
-	// clockSkewLeeway tolerates small clock differences with hook consumers.
-	clockSkewLeeway = 30 * time.Second
+	clockSkewLeeway         = 30 * time.Second
 )
 
 // DispatchResult classifies the terminal outcome of a dispatch attempt.
@@ -92,11 +91,9 @@ type Dispatcher struct {
 	metrics      *metrics
 }
 
-// validateHookURL fails closed on cleartext hook URLs: the request
-// carries prompt and tool data plus a bearer token, and the response
-// controls allow/deny, so both need a confidential, authenticated
-// channel. Plain HTTP is allowed only for loopback development
-// consumers.
+// validateHookURL requires HTTPS because hook traffic carries sensitive data
+// and authorization tokens, and responses can control execution. Plain HTTP
+// is allowed only for loopback development consumers.
 func validateHookURL(raw string) error {
 	if raw == "" {
 		return nil
@@ -161,8 +158,8 @@ func (d *Dispatcher) Enabled() bool {
 	return d != nil && d.hookURL != ""
 }
 
-// Dispatch delivers one event. The returned ID correlates the attempt in
-// logs and DispatchError values; nothing is persisted.
+// Dispatch delivers one event. The returned ID correlates the attempt in logs
+// and DispatchError values; the dispatcher does not persist delivery state.
 func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (agenthooks.Response, uuid.UUID, error) {
 	if !d.Enabled() {
 		return agenthooks.Response{}, uuid.Nil, xerrors.New("chat hook dispatcher is not enabled")
@@ -396,8 +393,7 @@ func validateResponse(eventType agenthooks.EventType, response agenthooks.Respon
 			}
 		}
 	case agenthooks.PermissionDeny:
-		// A denied call never executes, so an override is meaningless;
-		// reject it to surface consumer bugs.
+		// Denied input does not proceed, so reject overrides to surface consumer bugs.
 		inputOverride := bytes.TrimSpace(response.Permission.InputOverride)
 		if len(inputOverride) > 0 && !bytes.Equal(inputOverride, []byte("null")) {
 			return xerrors.New("deny decision must not include input_override")

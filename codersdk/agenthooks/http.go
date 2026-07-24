@@ -132,7 +132,7 @@ func requestAudience(r *http.Request) string {
 		if r.TLS != nil {
 			requestURL.Scheme = "https"
 		}
-		// Forwarded values reconstruct the signed client-facing audience.
+		// Forwarded values reconstruct the signed audience when set by a trusted proxy.
 		if proto := forwardedProto(r); proto != "" {
 			requestURL.Scheme = proto
 		}
@@ -148,7 +148,7 @@ func requestAudience(r *http.Request) string {
 
 func forwardedProto(r *http.Request) string {
 	proto := r.Header.Get("X-Forwarded-Proto")
-	// Proxies append values; the first is client-facing.
+	// Trusted proxies append values, so the first is client-facing.
 	proto, _, _ = strings.Cut(proto, ",")
 	return strings.ToLower(strings.TrimSpace(proto))
 }
@@ -159,8 +159,6 @@ func forwardedHost(r *http.Request) string {
 	return strings.TrimSpace(host)
 }
 
-// canonicalAudience treats root URLs with and without a trailing
-// slash as equivalent.
 func canonicalAudience(audience string) string {
 	parsed, err := url.Parse(audience)
 	if err != nil {

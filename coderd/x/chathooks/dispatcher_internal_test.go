@@ -238,8 +238,6 @@ func TestDispatcherRetriesMidBodyConnectionError(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			// A response whose body errors mid-read simulates the
-			// connection dropping after headers were received.
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(errReader{err: io.ErrUnexpectedEOF}),

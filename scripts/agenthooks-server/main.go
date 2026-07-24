@@ -54,8 +54,8 @@ type eventLog struct {
 // chat_id, the event type, and tool_use_id.
 type consumerState struct {
 	mu sync.Mutex
-	// preToolDecisions dedupes pre_tool_use deliveries by
-	// (chat_id, tool_use_id) so a redelivered event gets the same answer.
+	// preToolDecisions reuses responses for duplicate (chat_id, tool_use_id)
+	// deliveries while they remain cached.
 	preToolDecisions map[string]agenthooks.Response
 	// blockedTools records tool names this consumer denied per chat, so
 	// the policy outlives any single dispatch.
@@ -81,7 +81,6 @@ func (s *consumerState) rememberedDecision(chatID, toolUseID string) (agenthooks
 func (s *consumerState) rememberDecision(chatID, toolUseID string, response agenthooks.Response, deniedTool string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	// Bound the remembered-decision cache by resetting it.
 	if len(s.preToolDecisions) >= maxRememberedDecisions {
 		s.preToolDecisions = make(map[string]agenthooks.Response)
 	}

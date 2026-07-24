@@ -1,14 +1,10 @@
 // Package agenthooks defines the experimental wire protocol for Coder agent
-// lifecycle hooks. The protocol has no backward-compatibility guarantee,
-// including for SchemaVersion 1.
+// lifecycle hooks. The protocol, including SchemaVersion 1, has no
+// backward-compatibility guarantee.
 //
-// Delivery is at-least-once: coderd persists no dispatch state, so after a
-// crash or failover the same logical event can be delivered again (for
-// example the same pending tool call). Consumers must treat their latest
-// decision as authoritative and deduplicate side effects using the stable
-// payload identifiers: chat_id, the event type, tool_use_id for tool
-// events, and message IDs where applicable. Consumers own any state their
-// decisions require, keyed by those identifiers.
+// Delivery is at-least-once because Coder persists no hook dispatch state.
+// Consumers must deduplicate side effects by stable identifiers such as
+// chat_id, event type, and tool_use_id.
 package agenthooks
 
 import (
@@ -54,8 +50,7 @@ type ChatRef struct {
 	WorkspaceID  *uuid.UUID `json:"workspace_id,omitempty"`
 	TurnID       *uuid.UUID `json:"turn_id,omitempty"`
 	ParentChatID *uuid.UUID `json:"parent_chat_id,omitempty"`
-	// RootChatID groups a subagent subtree with its user-facing conversation.
-	// Unset for top-level chats.
+	// RootChatID identifies the user-facing root of the chat tree.
 	RootChatID *uuid.UUID `json:"root_chat_id,omitempty"`
 }
 
