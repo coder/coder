@@ -322,16 +322,8 @@ export const BatchUpdateSkipsUpToDateWorkspaces: Story = {
 		await user.click(within(modal).getByRole("button", { name: /Update/ }));
 
 		await waitFor(() => expect(API.updateWorkspace).toHaveBeenCalledTimes(2));
-		expect(API.updateWorkspace).toHaveBeenCalledWith(
-			skipUpToDateWorkspaces[2],
-			[],
-			false,
-		);
-		expect(API.updateWorkspace).toHaveBeenCalledWith(
-			skipUpToDateWorkspaces[3],
-			[],
-			false,
-		);
+		expect(API.updateWorkspace).toHaveBeenCalledWith(skipUpToDateWorkspaces[2]);
+		expect(API.updateWorkspace).toHaveBeenCalledWith(skipUpToDateWorkspaces[3]);
 	},
 };
 
@@ -370,18 +362,12 @@ export const BatchUpdateRunningWorkspace: Story = {
 		await waitFor(() => expect(API.updateWorkspace).toHaveBeenCalledTimes(3));
 		expect(API.updateWorkspace).toHaveBeenCalledWith(
 			updateRunningWorkspaces[0],
-			[],
-			false,
 		);
 		expect(API.updateWorkspace).toHaveBeenCalledWith(
 			updateRunningWorkspaces[1],
-			[],
-			false,
 		);
 		expect(API.updateWorkspace).toHaveBeenCalledWith(
 			updateRunningWorkspaces[2],
-			[],
-			false,
 		);
 	},
 };
@@ -416,13 +402,9 @@ export const BatchUpdateIgnoresDormantWorkspaces: Story = {
 		await waitFor(() => expect(API.updateWorkspace).toHaveBeenCalledTimes(2));
 		expect(API.updateWorkspace).toHaveBeenCalledWith(
 			ignoreDormantWorkspaces[1],
-			[],
-			false,
 		);
 		expect(API.updateWorkspace).toHaveBeenCalledWith(
 			ignoreDormantWorkspaces[2],
-			[],
-			false,
 		);
 	},
 };
