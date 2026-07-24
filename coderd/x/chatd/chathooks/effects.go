@@ -1,4 +1,4 @@
-package chatd
+package chathooks
 
 import (
 	"bytes"
@@ -17,12 +17,12 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// hookEventMessages converts a turn-time hook result into ordinary
+// EventMessages converts a turn-time hook result into ordinary
 // transcript rows: model context becomes a user-role, model-visible row
 // and the user message becomes a system-role, user-visible notice row.
-func hookEventMessages(result *hookResult, modelConfigID uuid.UUID) ([]chatstate.Message, error) {
+func EventMessages(result *Result, modelConfigID uuid.UUID) ([]chatstate.Message, error) {
 	messages := make([]chatstate.Message, 0, 2)
-	if result.modelContext() != "" {
+	if result.GetModelContext() != "" {
 		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(result.ModelContext)})
 		if err != nil {
 			return nil, xerrors.Errorf("marshal hook model context: %w", err)
@@ -35,7 +35,7 @@ func hookEventMessages(result *hookResult, modelConfigID uuid.UUID) ([]chatstate
 			ContentVersion: chatprompt.CurrentContentVersion,
 		})
 	}
-	if result.userMessage() != "" {
+	if result.GetUserMessage() != "" {
 		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(result.UserMessage)})
 		if err != nil {
 			return nil, xerrors.Errorf("marshal hook user message: %w", err)
@@ -51,65 +51,17 @@ func hookEventMessages(result *hookResult, modelConfigID uuid.UUID) ([]chatstate
 	return messages, nil
 }
 
-func hookEventMessagesForResults(
-	results []*hookResult,
+func EventMessagesForResults(
+	results []*Result,
 	modelConfigID uuid.UUID,
 ) ([]chatstate.Message, error) {
 	var messages []chatstate.Message
 	for _, result := range results {
-		resultMessages, err := hookEventMessages(result, modelConfigID)
+		resultMessages, err := EventMessages(result, modelConfigID)
 		if err != nil {
 			return nil, err
 		}
 		messages = append(messages, resultMessages...)
-	}
-	return messages, nil
-}
-
-// applyHookResultMessages inserts hook event rows before the step's
-// own rows so injected model context precedes the assistant content it
-// steers; providers require tool results to directly follow the
-// assistant tool calls.
-func applyHookResultMessages(
-	messages stepMessagesForCommit,
-	results []*hookResult,
-	modelConfigID uuid.UUID,
-) (stepMessagesForCommit, error) {
-	return insertHookResultMessages(messages, results, modelConfigID, hookRowsBeforeStep)
-}
-
-func appendHookResultMessages(
-	messages stepMessagesForCommit,
-	results []*hookResult,
-	modelConfigID uuid.UUID,
-) (stepMessagesForCommit, error) {
-	return insertHookResultMessages(messages, results, modelConfigID, hookRowsAfterStep)
-}
-
-type hookRowPlacement int
-
-const (
-	hookRowsBeforeStep hookRowPlacement = iota
-	hookRowsAfterStep
-)
-
-func insertHookResultMessages(
-	messages stepMessagesForCommit,
-	results []*hookResult,
-	modelConfigID uuid.UUID,
-	placement hookRowPlacement,
-) (stepMessagesForCommit, error) {
-	rows, err := hookEventMessagesForResults(results, modelConfigID)
-	if err != nil {
-		return stepMessagesForCommit{}, err
-	}
-	if len(rows) > 0 {
-		if placement == hookRowsBeforeStep {
-			messages.Messages = append(rows, messages.Messages...)
-		} else {
-			messages.Messages = append(messages.Messages, rows...)
-		}
-		messages.VisibleIndexes = visibleMessageIndexes(messages.Messages)
 	}
 	return messages, nil
 }
@@ -139,9 +91,9 @@ func deniedToolResult(toolCall fantasy.ToolCallContent, reason, modelContext str
 	}
 }
 
-// restoreToolCallOrder reorders known tool results to match the assistant's
+// RestoreToolCallOrder reorders known tool results to match the assistant's
 // call order while preserving slots for unrelated entries.
-func restoreToolCallOrder(content []fantasy.Content, calls []fantasy.ToolCallContent) {
+func RestoreToolCallOrder(content []fantasy.Content, calls []fantasy.ToolCallContent) {
 	position := make(map[string]int, len(calls))
 	for index, call := range calls {
 		position[call.ToolCallID] = index
@@ -167,7 +119,7 @@ func restoreToolCallOrder(content []fantasy.Content, calls []fantasy.ToolCallCon
 	}
 }
 
-func userPromptOverride(result *hookResult) (string, bool, error) {
+func UserPromptOverride(result *Result) (string, bool, error) {
 	if result == nil || len(result.InputOverride) == 0 {
 		return "", false, nil
 	}
@@ -188,15 +140,15 @@ func userPromptOverride(result *hookResult) (string, bool, error) {
 	return *override.Prompt, true, nil
 }
 
-func userPromptHookParts(result *hookResult) []codersdk.ChatMessagePart {
+func UserPromptParts(result *Result) []codersdk.ChatMessagePart {
 	parts := make([]codersdk.ChatMessagePart, 0, 2)
-	if result.modelContext() != "" {
+	if result.GetModelContext() != "" {
 		parts = append(parts, codersdk.ChatMessagePart{
 			Type: codersdk.ChatMessagePartTypeHookContext,
 			Text: result.ModelContext,
 		})
 	}
-	if result.userMessage() != "" {
+	if result.GetUserMessage() != "" {
 		parts = append(parts, codersdk.ChatMessagePart{
 			Type: codersdk.ChatMessagePartTypeHookNotice,
 			Text: result.UserMessage,
@@ -205,12 +157,12 @@ func userPromptHookParts(result *hookResult) []codersdk.ChatMessagePart {
 	return parts
 }
 
-// composeUserPromptContent applies a user_prompt_submit result to the
+// ComposeUserPromptContent applies a user_prompt_submit result to the
 // submitted parts. The merge order is fixed: override-or-original user
 // parts first, then hook-context, then hook-notice. The composite
 // content then flows through the ordinary send, queue, and edit paths.
-func composeUserPromptContent(parts []codersdk.ChatMessagePart, result *hookResult) ([]codersdk.ChatMessagePart, bool, error) {
-	override, overridden, err := userPromptOverride(result)
+func ComposeUserPromptContent(parts []codersdk.ChatMessagePart, result *Result) ([]codersdk.ChatMessagePart, bool, error) {
+	override, overridden, err := UserPromptOverride(result)
 	if err != nil {
 		return nil, false, err
 	}
@@ -218,7 +170,7 @@ func composeUserPromptContent(parts []codersdk.ChatMessagePart, result *hookResu
 	if overridden {
 		userParts = []codersdk.ChatMessagePart{codersdk.ChatMessageText(override)}
 	}
-	hookParts := userPromptHookParts(result)
+	hookParts := UserPromptParts(result)
 	if len(hookParts) == 0 {
 		return userParts, overridden, nil
 	}

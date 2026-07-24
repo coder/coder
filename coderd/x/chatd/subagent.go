@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -776,7 +777,7 @@ func (p *Server) subagentTools(
 					if _, ok := errors.AsType[*dispatch.Error](err); ok {
 						return fantasy.ToolResponse{}, err
 					}
-					// UserPromptDeniedError.Error() carries the user-facing
+					// chathooks.UserPromptDeniedError.Error() carries the user-facing
 					// denial message, so the model can adjust its prompt.
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
@@ -1287,14 +1288,14 @@ func (p *Server) createChildSubagentChatWithOptions(
 
 	// Review before persistence so spawned chats cannot bypass prompt policy.
 	childChatID := uuid.New()
-	var promptResult *hookResult
-	if p.hooks.enabled() {
+	var promptResult *chathooks.Result
+	if p.hooks.Enabled() {
 		mintedTurnID := uuid.New()
-		promptMessage, err := userPromptHookMessage([]codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)})
+		promptMessage, err := chathooks.UserPromptMessage([]codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)})
 		if err != nil {
 			return database.Chat{}, err
 		}
-		promptResult, err = p.hooks.trigger(ctx, hookChat{
+		promptResult, err = p.hooks.Trigger(ctx, chathooks.Chat{
 			ID:           childChatID,
 			OwnerID:      parent.OwnerID,
 			WorkspaceID:  parent.WorkspaceID,
@@ -1303,9 +1304,9 @@ func (p *Server) createChildSubagentChatWithOptions(
 			TurnID:       &mintedTurnID,
 		}, promptMessage, hooks.EventUserPromptSubmit)
 		if err != nil {
-			return database.Chat{}, userPromptDenial(err)
+			return database.Chat{}, chathooks.UserPromptDenial(err)
 		}
-		override, overridden, overrideErr := userPromptOverride(promptResult)
+		override, overridden, overrideErr := chathooks.UserPromptOverride(promptResult)
 		if overrideErr != nil {
 			return database.Chat{}, overrideErr
 		}
@@ -1329,7 +1330,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 		return database.Chat{}, xerrors.Errorf("marshal workspace awareness: %w", err)
 	}
 	childUserParts := []codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)}
-	childUserParts = append(childUserParts, userPromptHookParts(promptResult)...)
+	childUserParts = append(childUserParts, chathooks.UserPromptParts(promptResult)...)
 	userContent, err := chatprompt.MarshalParts(childUserParts)
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal initial user content: %w", err)
