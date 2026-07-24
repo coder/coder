@@ -173,7 +173,7 @@ func TestPreToolUseHookDeny(t *testing.T) {
 	parts := chatToolParts(ctx, t, db, chat.ID)
 	result := requireToolResultPart(t, parts, "read_file")
 	require.True(t, result.IsError)
-	require.Contains(t, string(result.Result), "denied by the deployment's lifecycle hook policy")
+	require.Contains(t, string(result.Result), "blocked by an external policy")
 	require.Contains(t, string(result.Result), "Reason: blocked by policy.")
 	require.Contains(t, string(result.Result), "Do not read secrets.")
 

@@ -72,13 +72,14 @@ func EventMessagesForResults(
 // distinguish a policy denial from a genuine tool failure, or the model
 // retries the call and misreports the denial as an infrastructure error.
 func deniedToolResult(toolCall fantasy.ToolCallContent, reason, modelContext string) fantasy.ToolResultContent {
-	message := "Tool call denied by the deployment's lifecycle hook policy."
+	message := "This tool usage was blocked by an external policy" +
+		" (the deployment's lifecycle hook)."
 	if reason = strings.TrimSpace(reason); reason != "" {
 		message += " Reason: " + reason + "."
 	}
 	message += " This is an administrative policy decision, not a tool or" +
 		" workspace failure; retrying the same call will be denied again." +
-		" Explain the denial to the user and adjust your approach."
+		" Explain the policy block to the user and adjust your approach."
 	if modelContext = strings.TrimSpace(modelContext); modelContext != "" {
 		message += "\n\n" + modelContext
 	}
