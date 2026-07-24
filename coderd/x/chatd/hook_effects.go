@@ -116,13 +116,17 @@ func insertHookResultMessages(
 
 // deniedToolResult synthesizes the denial as a tool result so the model
 // can replan within the same turn. The consumer's model_context rides in
-// the same result instead of a separate transcript row.
+// the same result instead of a separate transcript row. The text must
+// distinguish a policy denial from a genuine tool failure, or the model
+// retries the call and misreports the denial as an infrastructure error.
 func deniedToolResult(toolCall fantasy.ToolCallContent, reason, modelContext string) fantasy.ToolResultContent {
-	reason = strings.TrimSpace(reason)
-	if reason == "" {
-		reason = "denied by lifecycle hook"
+	message := "Tool call denied by the deployment's lifecycle hook policy."
+	if reason = strings.TrimSpace(reason); reason != "" {
+		message += " Reason: " + reason + "."
 	}
-	message := "DENIED: " + reason
+	message += " This is an administrative policy decision, not a tool or" +
+		" workspace failure; retrying the same call will be denied again." +
+		" Explain the denial to the user and adjust your approach."
 	if modelContext = strings.TrimSpace(modelContext); modelContext != "" {
 		message += "\n\n" + modelContext
 	}

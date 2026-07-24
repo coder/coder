@@ -294,7 +294,7 @@ func TestChatLifecycleHooksWorkedExample(t *testing.T) {
 		return err == nil && stored.Status == database.ChatStatusRequiresAction
 	}, testutil.IntervalFast)
 	require.Equal(t, int32(2), modelCalls.Load())
-	require.Contains(t, string(testutil.RequireReceive(ctx, t, secondModelRequest)), "DENIED: secret reads are blocked")
+	require.Contains(t, string(testutil.RequireReceive(ctx, t, secondModelRequest)), "Reason: secret reads are blocked.")
 
 	messages, err := client.GetChatMessages(ctx, chat.ID, nil)
 	require.NoError(t, err)
