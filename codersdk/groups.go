@@ -159,7 +159,11 @@ func (c *Client) GroupByOrgAndName(ctx context.Context, orgID uuid.UUID, name st
 }
 
 // OrganizationGroupsPaginated lists filtered and paginated groups in an
-// organization.
+// organization. Unlike Groups (GET /groups), which authorizes each group
+// individually via its ACL, this endpoint requires organization-wide group
+// read permission and does no per-group filtering. It is therefore not a
+// drop-in replacement for Groups: callers without org-wide group read will
+// receive an error rather than a filtered subset.
 func (c *Client) OrganizationGroupsPaginated(ctx context.Context, orgID uuid.UUID, req PaginatedGroupsRequest) (PaginatedGroupsResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/organizations/%s/paginated-groups", orgID.String()),
