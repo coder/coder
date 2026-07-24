@@ -12,7 +12,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,6 +20,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/util/xnet"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 )
 
@@ -303,10 +303,10 @@ func (d *Dispatcher) post(
 		httpResponse, requestErr := d.client.Do(req)
 		if requestErr != nil {
 			attemptErr := ctx.Err()
-			if isTimeoutError(attemptErr) || isTimeoutError(requestErr) || errors.Is(requestErr, context.Canceled) {
+			if xnet.IsTimeoutError(attemptErr) || xnet.IsTimeoutError(requestErr) || errors.Is(requestErr, context.Canceled) {
 				return agenthooks.Response{}, ResultTimeout, xerrors.Errorf("post lifecycle hook: %w", requestErr)
 			}
-			if !isConnectionError(requestErr) {
+			if !xnet.IsConnectionError(requestErr) {
 				return agenthooks.Response{}, ResultProtocolError, xerrors.Errorf("post lifecycle hook: %w", requestErr)
 			}
 			if attempt == 1 {
@@ -332,9 +332,9 @@ func (d *Dispatcher) post(
 		_ = httpResponse.Body.Close()
 		if readErr != nil {
 			switch {
-			case isTimeoutError(attemptErr), isTimeoutError(readErr), errors.Is(readErr, context.Canceled):
+			case xnet.IsTimeoutError(attemptErr), xnet.IsTimeoutError(readErr), errors.Is(readErr, context.Canceled):
 				return agenthooks.Response{}, ResultTimeout, xerrors.Errorf("read lifecycle hook response: %w", readErr)
-			case isConnectionError(readErr):
+			case xnet.IsConnectionError(readErr):
 				if attempt == 1 {
 					return agenthooks.Response{}, ResultConnectionError, xerrors.Errorf("read lifecycle hook response: %w", readErr)
 				}
@@ -485,27 +485,6 @@ func dataValue[T any](value any) (T, bool) {
 	}
 	var zero T
 	return zero, false
-}
-
-func isTimeoutError(err error) bool {
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, syscall.ETIMEDOUT) {
-		return true
-	}
-	var netErr net.Error
-	return errors.As(err, &netErr) && netErr.Timeout()
-}
-
-func isConnectionError(err error) bool {
-	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) ||
-		errors.Is(err, net.ErrClosed) || errors.Is(err, syscall.ECONNRESET) ||
-		errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.EPIPE) {
-		return true
-	}
-	var opErr *net.OpError
-	return errors.As(err, &opErr)
 }
 
 type metrics struct {
