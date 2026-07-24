@@ -311,20 +311,19 @@ describe("api.ts", () => {
 					});
 				vi.spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
 
-				let error = new Error();
+				let error: unknown;
 				try {
 					await API.updateWorkspace(MockWorkspace);
 				} catch (e) {
-					error = e as Error;
+					error = e;
 				}
 
 				expect(error).toBeInstanceOf(ParameterValidationError);
-				expect((error as ParameterValidationError).versionId).toBe(
-					MockTemplate.active_version_id,
-				);
-				expect((error as ParameterValidationError).validations).toEqual(
-					validationErrors,
-				);
+				if (!(error instanceof ParameterValidationError)) {
+					throw new Error("expected a ParameterValidationError");
+				}
+				expect(error.versionId).toBe(MockTemplate.active_version_id);
+				expect(error.validations).toEqual(validationErrors);
 			});
 
 			it("succeeds when the server accepts the build parameters", async () => {
