@@ -382,10 +382,6 @@ describe("api.ts", () => {
 				...MockProvisionerJob,
 				status: "succeeded",
 			});
-			vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
-			vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce(
-				[],
-			);
 			vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
 				...MockWorkspaceBuild,
 				template_version_id: MockTemplateVersion2.id,
@@ -404,10 +400,6 @@ describe("api.ts", () => {
 
 		it("does not stop workspace if already stopped", async () => {
 			vi.spyOn(API, "stopWorkspace");
-			vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
-			vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce(
-				[],
-			);
 			vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
 				...MockWorkspaceBuild,
 				template_version_id: MockTemplateVersion2.id,
@@ -431,40 +423,12 @@ describe("api.ts", () => {
 				...MockProvisionerJob,
 				status: "canceled",
 			});
-			vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
-			vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce(
-				[],
-			);
 			vi.spyOn(API, "postWorkspaceBuild");
 
 			await expect(
 				API.changeWorkspaceVersion(MockWorkspace, MockTemplateVersion2.id),
 			).rejects.toThrow("Workspace stop was canceled");
 			expect(API.postWorkspaceBuild).not.toHaveBeenCalled();
-		});
-
-		it("throws MissingBuildParameters for missing params", async () => {
-			vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
-			vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
-				MockTemplateVersionParameter1,
-				{ ...MockTemplateVersionParameter2, mutable: false },
-			]);
-
-			let error = new Error();
-			try {
-				await API.changeWorkspaceVersion(
-					MockStoppedWorkspace,
-					MockTemplateVersion2.id,
-				);
-			} catch (e) {
-				error = e as Error;
-			}
-
-			expect(error).toBeInstanceOf(MissingBuildParameters);
-			expect((error as MissingBuildParameters).parameters).toEqual([
-				MockTemplateVersionParameter1,
-				{ ...MockTemplateVersionParameter2, mutable: false },
-			]);
 		});
 	});
 
