@@ -13,8 +13,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
-	"github.com/coder/coder/v2/coderd/x/hooks"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 )
 
 // applyHookResultMessages inserts hook event rows before the step's
@@ -66,10 +66,10 @@ func insertHookResultMessages(
 }
 
 func (p *Server) handleUserPromptDispatchError(ctx context.Context, chatID uuid.UUID, dispatchErr error) error {
-	return p.handleAPIDispatchError(ctx, chatID, hooks.EventUserPromptSubmit, dispatchErr)
+	return p.handleAPIDispatchError(ctx, chatID, agenthooks.EventUserPromptSubmit, dispatchErr)
 }
 
-func (p *Server) handleAPIDispatchError(ctx context.Context, chatID uuid.UUID, eventType hooks.EventType, dispatchErr error) error {
+func (p *Server) handleAPIDispatchError(ctx context.Context, chatID uuid.UUID, eventType agenthooks.EventType, dispatchErr error) error {
 	lastError, ok := chathooks.DispatchErrorMessage(eventType, dispatchErr)
 	if !ok {
 		return dispatchErr

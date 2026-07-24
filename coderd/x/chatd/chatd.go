@@ -39,6 +39,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/xjson"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
@@ -52,11 +53,10 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
-	"github.com/coder/coder/v2/coderd/x/hooks"
-	"github.com/coder/coder/v2/coderd/x/hooks/dispatch"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 	"github.com/coder/quartz"
 )
 
@@ -1334,7 +1334,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			OwnerID:     opts.OwnerID,
 			WorkspaceID: opts.WorkspaceID,
 			TurnID:      &turnID,
-		}, promptMessage, hooks.EventUserPromptSubmit)
+		}, promptMessage, agenthooks.EventUserPromptSubmit)
 		if err != nil {
 			return database.Chat{}, chathooks.UserPromptDenial(err)
 		}
@@ -1487,7 +1487,7 @@ func (p *Server) SendMessage(
 		if err != nil {
 			return SendMessageResult{}, err
 		}
-		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, hooks.EventUserPromptSubmit)
+		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit)
 		if err != nil {
 			return SendMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
 		}
@@ -1791,15 +1791,15 @@ func (p *Server) EditMessage(
 		if _, err := validateModelConfigOverride(ctx, p.db, opts.ModelConfigID); err != nil {
 			return EditMessageResult{}, err
 		}
-		sessionStartHookResult, err = p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), chathooks.Message{Source: chathooks.SessionStartSourceClear}, hooks.EventSessionStart)
+		sessionStartHookResult, err = p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), chathooks.Message{Source: chathooks.SessionStartSourceClear}, agenthooks.EventSessionStart)
 		if err != nil {
-			return EditMessageResult{}, p.handleAPIDispatchError(ctx, opts.ChatID, hooks.EventSessionStart, err)
+			return EditMessageResult{}, p.handleAPIDispatchError(ctx, opts.ChatID, agenthooks.EventSessionStart, err)
 		}
 		promptMessage, err := chathooks.UserPromptMessage(contentParts)
 		if err != nil {
 			return EditMessageResult{}, err
 		}
-		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, hooks.EventUserPromptSubmit)
+		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit)
 		if err != nil {
 			return EditMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
 		}
@@ -2170,10 +2170,10 @@ func (p *Server) SubmitToolResults(
 			return err
 		}
 		for _, result := range opts.Results {
-			response, err := p.hooks.Trigger(ctx, chathooks.ChatFor(state.chat, nil), chathooks.DynamicPostToolUseMessage(result, state.toolNames[result.ToolCallID]), hooks.EventPostToolUse)
+			response, err := p.hooks.Trigger(ctx, chathooks.ChatFor(state.chat, nil), chathooks.DynamicPostToolUseMessage(result, state.toolNames[result.ToolCallID]), agenthooks.EventPostToolUse)
 			if err != nil {
 				// Leave pending calls intact so the client can resubmit after recovery.
-				return chathooks.GenerationDispatchError(hooks.EventPostToolUse, err)
+				return chathooks.GenerationDispatchError(agenthooks.EventPostToolUse, err)
 			}
 			responseMessages, err := chathooks.EventMessages(response, state.modelConfigID)
 			if err != nil {

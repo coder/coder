@@ -20,14 +20,14 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
-	"github.com/coder/coder/v2/coderd/x/hooks"
-	"github.com/coder/coder/v2/coderd/x/hooks/dispatch"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 )
 
 var ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of current chat")
@@ -1313,7 +1313,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 			ParentChatID: uuid.NullUUID{UUID: parent.ID, Valid: true},
 			RootChatID:   uuid.NullUUID{UUID: rootChatID, Valid: true},
 			TurnID:       &mintedTurnID,
-		}, promptMessage, hooks.EventUserPromptSubmit)
+		}, promptMessage, agenthooks.EventUserPromptSubmit)
 		if err != nil {
 			return database.Chat{}, chathooks.UserPromptDenial(err)
 		}

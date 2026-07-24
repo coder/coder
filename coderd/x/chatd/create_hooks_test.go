@@ -14,12 +14,12 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
-	"github.com/coder/coder/v2/coderd/x/hooks"
-	"github.com/coder/coder/v2/coderd/x/hooks/dispatch"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -36,11 +36,11 @@ func TestCreateChatUserPromptSubmitHook(t *testing.T) {
 		chat, err := server.CreateChat(ctx, createHookOptions(t, db, user.ID, org.ID, model.ID, "passthrough"))
 		require.NoError(t, err)
 		request := testutil.RequireReceive(ctx, t, requests)
-		require.Equal(t, hooks.EventUserPromptSubmit, request.Type)
+		require.Equal(t, agenthooks.EventUserPromptSubmit, request.Type)
 		require.Equal(t, chat.ID, request.Meta.ChatID)
 		require.Equal(t, user.ID, request.Meta.OwnerID)
 		require.NotNil(t, request.Meta.TurnID)
-		data := decodeHookData[hooks.UserPromptSubmitData](t, request)
+		data := decodeHookData[agenthooks.UserPromptSubmitData](t, request)
 		require.Equal(t, "passthrough", data.Prompt)
 		var hookParts []codersdk.ChatMessagePart
 		require.NoError(t, json.Unmarshal(data.Parts, &hookParts))
@@ -194,11 +194,11 @@ func newCreateHookTestServer(
 	ps dbpubsub.Pubsub,
 	statusCode int,
 	response string,
-) (*chatd.Server, <-chan hooks.Request) {
+) (*chatd.Server, <-chan agenthooks.Request) {
 	t.Helper()
-	requests := make(chan hooks.Request, 2)
+	requests := make(chan agenthooks.Request, 2)
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request hooks.Request
+		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		requests <- request
 		w.WriteHeader(statusCode)
