@@ -17,8 +17,6 @@ export function useLinks() {
 	return get;
 }
 
-export const linkToAuditing = "/audit";
-
 export const linkToTemplate =
 	(organizationName: string, templateName: string): LinkThunk =>
 	(dashboard) =>

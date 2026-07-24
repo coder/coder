@@ -4,7 +4,7 @@ import {
 	createOrganizationMember,
 	setupApiCalls,
 } from "../api";
-import { defaultOrganizationId, license, users } from "../constants";
+import { license, users } from "../constants";
 import { login, requiresLicense } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
@@ -104,14 +104,12 @@ test.describe("org-scoped roles admin settings access", () => {
 	});
 
 	test("member cannot see admin settings", async ({ page }) => {
-		// The unlicensed member test above cannot catch regressions here.
-		// Organizations are only shown when the deployment has the
-		// `multiple_organizations` entitlement, and every member can view the
-		// other members of their organizations, so the dropdown was visible to
-		// everyone. See https://github.com/coder/coder/issues/26695
+		// The unlicensed member test above cannot catch all regressions here.
+		// Many admin settings are locked behind a license and wouldn't be shown.
+		const org = await createOrganization();
 		const member = await createOrganizationMember({
 			orgRoles: {
-				[defaultOrganizationId]: [],
+				[org.id]: [],
 			},
 		});
 

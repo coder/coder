@@ -6,7 +6,7 @@ import { DropdownMenuItem } from "#/components/DropdownMenu/DropdownMenu";
  * Shared by the desktop `DeploymentDropdown` and the mobile `MobileMenu` so
  * both surfaces render the same set of items from a single source of truth.
  */
-export type AdminSettingsItemsProps = {
+type AdminSettingsItemsProps = {
 	itemClassName?: string;
 	permissions: AdminSettingsPermissions;
 };
