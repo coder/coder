@@ -86,14 +86,9 @@ func (c hookChat) ref() agenthooks.ChatRef {
 }
 
 type hookMessage struct {
-	// Source is the session_start trigger: startup, resume, or clear.
-	Source string
-	// Prompt and Parts describe the user_prompt_submit submission.
-	Prompt string
-	Parts  json.RawMessage
-	// ToolUseID and ToolName identify pre_tool_use and post_tool_use
-	// calls; ToolInput rides on pre_tool_use, ToolResponse and
-	// ToolError on post_tool_use.
+	Source       string
+	Prompt       string
+	Parts        json.RawMessage
 	ToolUseID    string
 	ToolName     string
 	ToolInput    json.RawMessage
