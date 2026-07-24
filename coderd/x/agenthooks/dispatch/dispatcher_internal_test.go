@@ -88,6 +88,7 @@ func TestDispatcherRejectsCleartextURL(t *testing.T) {
 	require.ErrorContains(t, validateHookURL("https:///coder"), "must include a host")
 	require.ErrorContains(t, validateHookURL("https:hooks.example.com"), "must include a host")
 	require.ErrorContains(t, validateHookURL("http:///hooks"), "must include a host")
+	require.ErrorContains(t, validateHookURL("https://hooks.example.com/coder#frag"), "must not contain a fragment")
 }
 
 func TestDispatcherDeny(t *testing.T) {

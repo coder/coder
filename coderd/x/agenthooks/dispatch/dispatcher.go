@@ -102,6 +102,12 @@ func validateHookURL(raw string) error {
 	if err != nil {
 		return xerrors.Errorf("parse hook URL: %w", err)
 	}
+	// The raw URL is signed as the JWT audience, but HTTP clients never send
+	// fragments, so consumers reconstructing the audience from the request
+	// would reject every dispatch.
+	if parsed.Fragment != "" {
+		return xerrors.New("chat hook URL must not contain a fragment")
+	}
 	switch parsed.Scheme {
 	case "https":
 		if parsed.Hostname() == "" {
