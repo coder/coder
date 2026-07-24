@@ -52,8 +52,6 @@ func (e *UserPromptDeniedError) Error() string {
 	return "user prompt denied by lifecycle hook: " + e.UserMessage
 }
 
-// userPromptDenial maps a hook denial to the exported error consumed
-// by the API handlers; every other error passes through unchanged.
 func userPromptDenial(err error) error {
 	var denied *hookDeniedError
 	if errors.As(err, &denied) {

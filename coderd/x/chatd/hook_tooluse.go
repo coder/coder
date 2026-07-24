@@ -35,10 +35,8 @@ func rejectDuplicateToolUseIDs(toolCalls []fantasy.ToolCallContent) error {
 	return nil
 }
 
-// preToolUseExecutionResult partitions a step's tool calls by the
-// pre_tool_use decisions: Allowed calls run (with overridden inputs
-// applied), Denied calls become synthetic results, and Results carries
-// the per-call injected content for the transcript in call order.
+// preToolUseExecutionResult preserves hook results in tool-call order for
+// transcript injection.
 type preToolUseExecutionResult struct {
 	Allowed   []fantasy.ToolCallContent
 	Denied    []fantasy.ToolResultContent
