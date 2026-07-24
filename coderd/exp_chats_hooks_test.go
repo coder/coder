@@ -19,8 +19,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/coderd/x/hooks"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agenthooks"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
 )
@@ -51,9 +51,9 @@ func TestPostChatsInitialPromptHookErrors(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			requests := make(chan agenthooks.Request, 2)
+			requests := make(chan hooks.Request, 2)
 			consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				var request agenthooks.Request
+				var request hooks.Request
 				require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 				requests <- request
 				w.WriteHeader(test.statusCode)
@@ -89,7 +89,7 @@ func TestPostChatsInitialPromptHookErrors(t *testing.T) {
 				require.Equal(t, test.wantMessage, sdkErr.Message)
 			}
 			request := testutil.RequireReceive(ctx, t, requests)
-			require.Equal(t, agenthooks.EventUserPromptSubmit, request.Type)
+			require.Equal(t, hooks.EventUserPromptSubmit, request.Type)
 			require.NotEqual(t, uuid.Nil, request.Meta.ChatID)
 			_, err = db.GetChatByID(dbauthz.AsSystemRestricted(ctx), request.Meta.ChatID)
 			require.ErrorIs(t, err, sql.ErrNoRows)
@@ -139,9 +139,9 @@ func TestChatPromptHookContextHiddenFromAPI(t *testing.T) {
 	t.Parallel()
 
 	const secret = "test-hook-secret-32-bytes-minimum!!"
-	consumer := httptest.NewServer(agenthooks.NewHTTPHandler([]byte(secret), agenthooks.Hooks{
-		UserPromptSubmit: func(context.Context, agenthooks.Meta, agenthooks.UserPromptSubmitData) (agenthooks.Response, error) {
-			return agenthooks.Response{
+	consumer := httptest.NewServer(hooks.NewHTTPHandler([]byte(secret), hooks.Hooks{
+		UserPromptSubmit: func(context.Context, hooks.Meta, hooks.UserPromptSubmitData) (hooks.Response, error) {
+			return hooks.Response{
 				ModelContext: "prompt context",
 				UserMessage:  "prompt notice",
 			}, nil
@@ -213,46 +213,46 @@ func TestChatLifecycleHooksWorkedExample(t *testing.T) {
 		}
 	})
 
-	hookEvents := make(chan agenthooks.EventType, 16)
-	recordHook := func(event agenthooks.EventType) {
+	hookEvents := make(chan hooks.EventType, 16)
+	recordHook := func(event hooks.EventType) {
 		hookEvents <- event
 	}
-	consumer := httptest.NewServer(agenthooks.NewHTTPHandler([]byte(secret), agenthooks.Hooks{
-		SessionStart: func(context.Context, agenthooks.Meta, agenthooks.SessionStartData) (agenthooks.Response, error) {
-			recordHook(agenthooks.EventSessionStart)
-			return agenthooks.Response{}, nil
+	consumer := httptest.NewServer(hooks.NewHTTPHandler([]byte(secret), hooks.Hooks{
+		SessionStart: func(context.Context, hooks.Meta, hooks.SessionStartData) (hooks.Response, error) {
+			recordHook(hooks.EventSessionStart)
+			return hooks.Response{}, nil
 		},
-		UserPromptSubmit: func(context.Context, agenthooks.Meta, agenthooks.UserPromptSubmitData) (agenthooks.Response, error) {
-			recordHook(agenthooks.EventUserPromptSubmit)
-			return agenthooks.Response{}, nil
+		UserPromptSubmit: func(context.Context, hooks.Meta, hooks.UserPromptSubmitData) (hooks.Response, error) {
+			recordHook(hooks.EventUserPromptSubmit)
+			return hooks.Response{}, nil
 		},
-		PreToolUse: func(_ context.Context, _ agenthooks.Meta, tool agenthooks.PreToolUseData) (agenthooks.Response, error) {
-			recordHook(agenthooks.EventPreToolUse)
+		PreToolUse: func(_ context.Context, _ hooks.Meta, tool hooks.PreToolUseData) (hooks.Response, error) {
+			recordHook(hooks.EventPreToolUse)
 			switch tool.ToolUseID {
 			case deniedToolCallID:
-				return agenthooks.Response{Permission: &agenthooks.Permission{
-					Decision: agenthooks.PermissionDeny,
+				return hooks.Response{Permission: &hooks.Permission{
+					Decision: hooks.PermissionDeny,
 					Reason:   "secret reads are blocked",
 				}}, nil
 			case allowedToolCallID:
-				return agenthooks.Response{Permission: &agenthooks.Permission{
-					Decision:      agenthooks.PermissionAllow,
+				return hooks.Response{Permission: &hooks.Permission{
+					Decision:      hooks.PermissionAllow,
 					InputOverride: json.RawMessage(`{"query":"public documentation"}`),
 				}}, nil
 			default:
-				return agenthooks.Response{}, nil
+				return hooks.Response{}, nil
 			}
 		},
-		PostToolUse: func(context.Context, agenthooks.Meta, agenthooks.PostToolUseData) (agenthooks.Response, error) {
-			recordHook(agenthooks.EventPostToolUse)
-			return agenthooks.Response{
+		PostToolUse: func(context.Context, hooks.Meta, hooks.PostToolUseData) (hooks.Response, error) {
+			recordHook(hooks.EventPostToolUse)
+			return hooks.Response{
 				ModelContext: "The approved search result is safe to use.",
 				UserMessage:  "Search result approved by policy.",
 			}, nil
 		},
-		Stop: func(context.Context, agenthooks.Meta, agenthooks.StopData) (agenthooks.Response, error) {
-			recordHook(agenthooks.EventStop)
-			return agenthooks.Response{}, nil
+		Stop: func(context.Context, hooks.Meta, hooks.StopData) (hooks.Response, error) {
+			recordHook(hooks.EventStop)
+			return hooks.Response{}, nil
 		},
 	}))
 	t.Cleanup(consumer.Close)
@@ -339,24 +339,24 @@ func TestChatLifecycleHooksWorkedExample(t *testing.T) {
 	}
 	require.True(t, foundPostToolNotice)
 
-	var seenEvents []agenthooks.EventType
+	var seenEvents []hooks.EventType
 	for {
 		event := testutil.RequireReceive(ctx, t, hookEvents)
 		seenEvents = append(seenEvents, event)
-		if event == agenthooks.EventStop {
+		if event == hooks.EventStop {
 			break
 		}
 	}
-	require.Contains(t, seenEvents, agenthooks.EventUserPromptSubmit)
-	require.Contains(t, seenEvents, agenthooks.EventSessionStart)
+	require.Contains(t, seenEvents, hooks.EventUserPromptSubmit)
+	require.Contains(t, seenEvents, hooks.EventSessionStart)
 	var preToolUseEvents int
 	for _, event := range seenEvents {
-		if event == agenthooks.EventPreToolUse {
+		if event == hooks.EventPreToolUse {
 			preToolUseEvents++
 		}
 	}
 	require.GreaterOrEqual(t, preToolUseEvents, 2)
-	require.Contains(t, seenEvents, agenthooks.EventPostToolUse)
+	require.Contains(t, seenEvents, hooks.EventPostToolUse)
 }
 
 func TestChatHooksFileLinksAfterPromptOverride(t *testing.T) {
@@ -370,15 +370,15 @@ func TestChatHooksFileLinksAfterPromptOverride(t *testing.T) {
 		}
 		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
 	})
-	consumer := httptest.NewServer(agenthooks.NewHTTPHandler([]byte(secret), agenthooks.Hooks{
-		UserPromptSubmit: func(_ context.Context, _ agenthooks.Meta, data agenthooks.UserPromptSubmitData) (agenthooks.Response, error) {
+	consumer := httptest.NewServer(hooks.NewHTTPHandler([]byte(secret), hooks.Hooks{
+		UserPromptSubmit: func(_ context.Context, _ hooks.Meta, data hooks.UserPromptSubmitData) (hooks.Response, error) {
 			if strings.Contains(data.Prompt, "REDACTME") {
-				return agenthooks.Response{Permission: &agenthooks.Permission{
-					Decision:      agenthooks.PermissionAllow,
+				return hooks.Response{Permission: &hooks.Permission{
+					Decision:      hooks.PermissionAllow,
 					InputOverride: json.RawMessage(`{"prompt":"redacted"}`),
 				}}, nil
 			}
-			return agenthooks.Response{}, nil
+			return hooks.Response{}, nil
 		},
 	}))
 	t.Cleanup(consumer.Close)
@@ -457,12 +457,12 @@ func TestChatHookNoticeMessagesInResponses(t *testing.T) {
 		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
 	})
 
-	consumer := httptest.NewServer(agenthooks.NewHTTPHandler([]byte(secret), agenthooks.Hooks{
-		SessionStart: func(context.Context, agenthooks.Meta, agenthooks.SessionStartData) (agenthooks.Response, error) {
-			return agenthooks.Response{UserMessage: "session notice"}, nil
+	consumer := httptest.NewServer(hooks.NewHTTPHandler([]byte(secret), hooks.Hooks{
+		SessionStart: func(context.Context, hooks.Meta, hooks.SessionStartData) (hooks.Response, error) {
+			return hooks.Response{UserMessage: "session notice"}, nil
 		},
-		UserPromptSubmit: func(_ context.Context, _ agenthooks.Meta, data agenthooks.UserPromptSubmitData) (agenthooks.Response, error) {
-			response := agenthooks.Response{UserMessage: "prompt notice"}
+		UserPromptSubmit: func(_ context.Context, _ hooks.Meta, data hooks.UserPromptSubmitData) (hooks.Response, error) {
+			response := hooks.Response{UserMessage: "prompt notice"}
 			if data.Prompt == "edited prompt" {
 				response.ModelContext = "prompt context"
 			}

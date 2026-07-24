@@ -25,9 +25,9 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
-	"github.com/coder/coder/v2/coderd/x/chathooks"
+	"github.com/coder/coder/v2/coderd/x/hooks"
+	"github.com/coder/coder/v2/coderd/x/hooks/dispatch"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agenthooks"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -50,9 +50,9 @@ func TestSendMessageUserPromptSubmitHook(t *testing.T) {
 			codersdk.ChatMessageFileReference("main.go", 1, 3, "package main"),
 		}
 		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			var request agenthooks.Request
+			var request hooks.Request
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
-			data := decodeHookData[agenthooks.UserPromptSubmitData](t, request)
+			data := decodeHookData[hooks.UserPromptSubmitData](t, request)
 			require.Equal(t, "before", data.Prompt)
 			var hookParts []codersdk.ChatMessagePart
 			require.NoError(t, json.Unmarshal(data.Parts, &hookParts))
@@ -114,9 +114,9 @@ func TestSendMessageUserPromptSubmitHook(t *testing.T) {
 	})
 }
 
-func newHookDispatcher(t *testing.T, _ database.Store, consumer *httptest.Server) *chathooks.Dispatcher {
+func newHookDispatcher(t *testing.T, _ database.Store, consumer *httptest.Server) *dispatch.Dispatcher {
 	t.Helper()
-	return chathooks.New(
+	return dispatch.New(
 		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		consumer.Client(),
 		consumer.URL,
@@ -183,7 +183,7 @@ func TestSendMessageUserPromptSubmitPassthrough(t *testing.T) {
 		OwnerID:           user.ID,
 		LastModelConfigID: model.ID,
 	})
-	var received agenthooks.Request
+	var received hooks.Request
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&received))
 		_, err := w.Write([]byte(`{}`))
@@ -197,8 +197,8 @@ func TestSendMessageUserPromptSubmitPassthrough(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, "passthrough", hookMessageText(t, result.Message))
-	require.Equal(t, agenthooks.EventUserPromptSubmit, received.Type)
-	promptData := decodeHookData[agenthooks.UserPromptSubmitData](t, received)
+	require.Equal(t, hooks.EventUserPromptSubmit, received.Type)
+	promptData := decodeHookData[hooks.UserPromptSubmitData](t, received)
 	require.Equal(t, "passthrough", promptData.Prompt)
 	// The persisted content is jsonb-normalized, so compare JSON
 	// semantics rather than raw bytes.
@@ -218,7 +218,7 @@ func TestSendMessageUserPromptSubmitQueue(t *testing.T) {
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("running")},
 	})
 	require.NoError(t, err)
-	var received agenthooks.Request
+	var received hooks.Request
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&received))
 		_, err := w.Write([]byte(`{"permission":{"decision":"allow","input_override":{"prompt":"queued override"}},"model_context":"queued context","user_message":"queued notice"}`))
@@ -257,8 +257,8 @@ func TestSendMessageUserPromptSubmitQueue(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, wantQueuedParts, persistedParts)
-	require.Equal(t, agenthooks.EventUserPromptSubmit, received.Type)
-	require.Equal(t, "queued original", decodeHookData[agenthooks.UserPromptSubmitData](t, received).Prompt)
+	require.Equal(t, hooks.EventUserPromptSubmit, received.Type)
+	require.Equal(t, "queued original", decodeHookData[hooks.UserPromptSubmitData](t, received).Prompt)
 }
 
 func TestSendMessageUserPromptSubmitQueuedRejections(t *testing.T) {
@@ -282,7 +282,7 @@ func TestSendMessageUserPromptSubmitQueuedRejections(t *testing.T) {
 			name:       "dispatch failure",
 			statusCode: http.StatusInternalServerError,
 			assertErr: func(t *testing.T, err error) {
-				var dispatchErr *chathooks.DispatchError
+				var dispatchErr *dispatch.Error
 				require.ErrorAs(t, err, &dispatchErr)
 			},
 		},
@@ -343,10 +343,10 @@ func TestSubagentSpawnHookDispatchFailureFailsTurn(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request agenthooks.Request
+		var request hooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
-		if request.Type == agenthooks.EventUserPromptSubmit {
-			data := decodeHookData[agenthooks.UserPromptSubmitData](t, request)
+		if request.Type == hooks.EventUserPromptSubmit {
+			data := decodeHookData[hooks.UserPromptSubmitData](t, request)
 			if data.Prompt == "child admission prompt" {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
@@ -400,7 +400,7 @@ func TestSendMessageUserPromptSubmitDispatchFailure(t *testing.T) {
 		OwnerID:           user.ID,
 		LastModelConfigID: model.ID,
 	})
-	var received agenthooks.Request
+	var received hooks.Request
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&received))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -412,17 +412,17 @@ func TestSendMessageUserPromptSubmitDispatchFailure(t *testing.T) {
 		ChatID:  chat.ID,
 		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("fails")},
 	})
-	var dispatchErr *chathooks.DispatchError
+	var dispatchErr *dispatch.Error
 	require.ErrorAs(t, err, &dispatchErr)
-	require.Equal(t, chathooks.ResultHTTPError, dispatchErr.Class)
+	require.Equal(t, dispatch.ResultHTTPError, dispatchErr.Class)
 	updated, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, database.ChatStatusError, updated.Status)
 	var chatErr codersdk.ChatError
 	require.NoError(t, json.Unmarshal(updated.LastError.RawMessage, &chatErr))
 	require.Equal(t, "hook dispatch failed: user_prompt_submit: http_error (dispatch "+dispatchErr.DispatchID.String()+")", chatErr.Message)
-	require.Equal(t, agenthooks.EventUserPromptSubmit, received.Type)
-	prompt := decodeHookData[agenthooks.UserPromptSubmitData](t, received)
+	require.Equal(t, hooks.EventUserPromptSubmit, received.Type)
+	prompt := decodeHookData[hooks.UserPromptSubmitData](t, received)
 	require.Equal(t, "fails", prompt.Prompt)
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
 	require.NoError(t, err)
@@ -450,21 +450,21 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, inserted, 1)
 	type receivedHook struct {
-		request agenthooks.Request
-		claims  agenthooks.Claims
+		request hooks.Request
+		claims  hooks.Claims
 	}
 	var receivedMu sync.Mutex
 	received := make([]receivedHook, 0, 2)
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request agenthooks.Request
+		var request hooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
-		claims, err := agenthooks.Verify(r.Header.Get("Authorization"), []byte("test-hook-secret-32-bytes-minimum!!"))
+		claims, err := hooks.Verify(r.Header.Get("Authorization"), []byte("test-hook-secret-32-bytes-minimum!!"))
 		require.NoError(t, err)
 		receivedMu.Lock()
 		received = append(received, receivedHook{request: request, claims: claims})
 		receivedMu.Unlock()
 		response := `{"model_context":"clear context","user_message":"clear notice"}`
-		if request.Type == agenthooks.EventUserPromptSubmit {
+		if request.Type == hooks.EventUserPromptSubmit {
 			response = `{"permission":{"decision":"allow","input_override":{"prompt":"edited override"}},"model_context":"edit context","user_message":"edit notice"}`
 		}
 		_, err = w.Write([]byte(response))
@@ -491,11 +491,11 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 	received = slices.Clone(received)
 	receivedMu.Unlock()
 	require.Len(t, received, 2)
-	require.Equal(t, agenthooks.EventSessionStart, received[0].request.Type)
-	require.Equal(t, agenthooks.SessionStartData{Source: "clear"}, decodeHookData[agenthooks.SessionStartData](t, received[0].request))
+	require.Equal(t, hooks.EventSessionStart, received[0].request.Type)
+	require.Equal(t, hooks.SessionStartData{Source: "clear"}, decodeHookData[hooks.SessionStartData](t, received[0].request))
 	require.Equal(t, received[0].request.Meta.DispatchID, received[0].claims.JTI)
-	require.Equal(t, agenthooks.EventUserPromptSubmit, received[1].request.Type)
-	prompt := decodeHookData[agenthooks.UserPromptSubmitData](t, received[1].request)
+	require.Equal(t, hooks.EventUserPromptSubmit, received[1].request.Type)
+	prompt := decodeHookData[hooks.UserPromptSubmitData](t, received[1].request)
 	require.Equal(t, "edited original", prompt.Prompt)
 	require.NotNil(t, received[0].request.Meta.TurnID)
 	require.Equal(t, received[0].request.Meta.TurnID, received[1].request.Meta.TurnID)
@@ -577,9 +577,9 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, model := seedChatDependencies(t, db)
-	received := make(chan agenthooks.Request, 8)
+	received := make(chan hooks.Request, 8)
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request agenthooks.Request
+		var request hooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		received <- request
 		_, err := w.Write([]byte(`{}`))
@@ -704,7 +704,7 @@ func hookMessageText(t *testing.T, message database.ChatMessage) string {
 	return parts[0].Text
 }
 
-func decodeHookData[T any](t *testing.T, request agenthooks.Request) T {
+func decodeHookData[T any](t *testing.T, request hooks.Request) T {
 	t.Helper()
 	var data T
 	require.NoError(t, json.Unmarshal(request.Data, &data))

@@ -16,8 +16,8 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/coderd/x/hooks"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agenthooks"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -162,9 +162,9 @@ func TestStopHookDispatchFailureErrorsChat(t *testing.T) {
 func stopConsumer(t *testing.T, response func() (int, string)) *httptest.Server {
 	t.Helper()
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request agenthooks.Request
+		var request hooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
-		if request.Type != agenthooks.EventStop {
+		if request.Type != hooks.EventStop {
 			_, err := w.Write([]byte(`{}`))
 			require.NoError(t, err)
 			return

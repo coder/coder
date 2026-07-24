@@ -20,9 +20,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
-	"github.com/coder/coder/v2/coderd/x/chathooks"
+	"github.com/coder/coder/v2/coderd/x/hooks"
+	"github.com/coder/coder/v2/coderd/x/hooks/dispatch"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agenthooks"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -31,17 +31,17 @@ func TestSessionStartDispatchSources(t *testing.T) {
 
 	const secret = "test-hook-secret-32-bytes-minimum!!"
 	type received struct {
-		request agenthooks.Request
-		claims  agenthooks.Claims
-		data    agenthooks.SessionStartData
+		request hooks.Request
+		claims  hooks.Claims
+		data    hooks.SessionStartData
 	}
 	receivedCh := make(chan received, 2)
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request agenthooks.Request
+		var request hooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
-		claims, err := agenthooks.Verify(r.Header.Get("Authorization"), []byte(secret))
+		claims, err := hooks.Verify(r.Header.Get("Authorization"), []byte(secret))
 		require.NoError(t, err)
-		var data agenthooks.SessionStartData
+		var data hooks.SessionStartData
 		require.NoError(t, json.Unmarshal(request.Data, &data))
 		receivedCh <- received{request: request, claims: claims, data: data}
 		_, err = w.Write([]byte(`{}`))
@@ -50,7 +50,7 @@ func TestSessionStartDispatchSources(t *testing.T) {
 	t.Cleanup(consumer.Close)
 
 	db, _ := dbtestutil.NewDB(t)
-	dispatcher := chathooks.New(
+	dispatcher := dispatch.New(
 		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		consumer.Client(),
 		consumer.URL,
@@ -68,17 +68,17 @@ func TestSessionStartDispatchSources(t *testing.T) {
 	turnID := uuid.New()
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	_, err := server.hooks.trigger(ctx, hookChatFor(chat, &turnID), hookMessage{Source: sessionStartSource(nil)}, agenthooks.EventSessionStart)
+	_, err := server.hooks.trigger(ctx, hookChatFor(chat, &turnID), hookMessage{Source: sessionStartSource(nil)}, hooks.EventSessionStart)
 	require.NoError(t, err)
-	_, err = server.hooks.trigger(ctx, hookChatFor(chat, &turnID), hookMessage{Source: sessionStartSource([]database.ChatMessage{{Role: database.ChatMessageRoleAssistant}})}, agenthooks.EventSessionStart)
+	_, err = server.hooks.trigger(ctx, hookChatFor(chat, &turnID), hookMessage{Source: sessionStartSource([]database.ChatMessage{{Role: database.ChatMessageRoleAssistant}})}, hooks.EventSessionStart)
 	require.NoError(t, err)
 
 	startup := <-receivedCh
 	resume := <-receivedCh
-	require.Equal(t, agenthooks.EventSessionStart, startup.request.Type)
+	require.Equal(t, hooks.EventSessionStart, startup.request.Type)
 	require.Equal(t, sessionStartSourceStartup, startup.data.Source)
 	require.Equal(t, startup.request.Meta.DispatchID, startup.claims.JTI)
-	require.Equal(t, agenthooks.EventSessionStart, resume.request.Type)
+	require.Equal(t, hooks.EventSessionStart, resume.request.Type)
 	require.Equal(t, sessionStartSourceResume, resume.data.Source)
 	require.Equal(t, resume.request.Meta.DispatchID, resume.claims.JTI)
 	require.NotEqual(t, startup.claims.JTI, resume.claims.JTI)
@@ -117,7 +117,7 @@ func TestSessionStartDispatchFailureFinishesGeneration(t *testing.T) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	t.Cleanup(consumer.Close)
-	dispatcher := chathooks.New(
+	dispatcher := dispatch.New(
 		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		consumer.Client(),
 		consumer.URL,
@@ -234,7 +234,7 @@ func newTestHookTrigger(t *testing.T, handler http.Handler) *hookTrigger {
 	t.Helper()
 	consumer := httptest.NewServer(handler)
 	t.Cleanup(consumer.Close)
-	return newHookTrigger(chathooks.New(
+	return newHookTrigger(dispatch.New(
 		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		consumer.Client(),
 		consumer.URL,
@@ -256,7 +256,7 @@ func TestHookTriggerDisabled(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			require.False(t, trigger.enabled())
-			result, err := trigger.trigger(t.Context(), hookChat{ID: uuid.New()}, hookMessage{}, agenthooks.EventStop)
+			result, err := trigger.trigger(t.Context(), hookChat{ID: uuid.New()}, hookMessage{}, hooks.EventStop)
 			require.NoError(t, err)
 			require.Empty(t, result.modelContext())
 			require.Empty(t, result.userMessage())
@@ -281,11 +281,11 @@ func TestHookTriggerDeny(t *testing.T) {
 		ToolUseID: "call_1",
 		ToolName:  "execute",
 		ToolInput: json.RawMessage(`{}`),
-	}, agenthooks.EventPreToolUse)
+	}, hooks.EventPreToolUse)
 	require.Nil(t, result)
 	var denied *hookDeniedError
 	require.ErrorAs(t, err, &denied)
-	require.Equal(t, agenthooks.EventPreToolUse, denied.Event)
+	require.Equal(t, hooks.EventPreToolUse, denied.Event)
 	require.Equal(t, "policy", denied.Reason)
 	require.Equal(t, "try another tool", denied.ModelContext)
 	require.Equal(t, "blocked by policy", denied.UserMessage)
@@ -294,9 +294,9 @@ func TestHookTriggerDeny(t *testing.T) {
 func TestHookTriggerEventPayloads(t *testing.T) {
 	t.Parallel()
 
-	requests := make(chan agenthooks.Request, 1)
+	requests := make(chan hooks.Request, 1)
 	trigger := newTestHookTrigger(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request agenthooks.Request
+		var request hooks.Request
 		assert.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		requests <- request
 		_, err := w.Write([]byte(`{}`))
@@ -308,7 +308,7 @@ func TestHookTriggerEventPayloads(t *testing.T) {
 		WorkspaceID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 	}
 	ctx := testutil.Context(t, testutil.WaitShort)
-	dispatch := func(t *testing.T, msg hookMessage, event agenthooks.EventType) agenthooks.Request {
+	dispatchEvent := func(t *testing.T, msg hookMessage, event hooks.EventType) hooks.Request {
 		t.Helper()
 		_, err := trigger.trigger(ctx, chat, msg, event)
 		require.NoError(t, err)
@@ -321,37 +321,37 @@ func TestHookTriggerEventPayloads(t *testing.T) {
 		return request
 	}
 
-	sessionStart := dispatch(t, hookMessage{Source: sessionStartSourceClear}, agenthooks.EventSessionStart)
-	var sessionStartData agenthooks.SessionStartData
+	sessionStart := dispatchEvent(t, hookMessage{Source: sessionStartSourceClear}, hooks.EventSessionStart)
+	var sessionStartData hooks.SessionStartData
 	require.NoError(t, json.Unmarshal(sessionStart.Data, &sessionStartData))
 	require.Equal(t, sessionStartSourceClear, sessionStartData.Source)
 
-	prompt := dispatch(t, hookMessage{Prompt: "hello", Parts: json.RawMessage(`[{"type":"text","text":"hello"}]`)}, agenthooks.EventUserPromptSubmit)
-	var promptData agenthooks.UserPromptSubmitData
+	prompt := dispatchEvent(t, hookMessage{Prompt: "hello", Parts: json.RawMessage(`[{"type":"text","text":"hello"}]`)}, hooks.EventUserPromptSubmit)
+	var promptData hooks.UserPromptSubmitData
 	require.NoError(t, json.Unmarshal(prompt.Data, &promptData))
 	require.Equal(t, "hello", promptData.Prompt)
 	require.JSONEq(t, `[{"type":"text","text":"hello"}]`, string(promptData.Parts))
 
-	preToolUse := dispatch(t, hookMessage{ToolUseID: "call_1", ToolName: "execute", ToolInput: json.RawMessage(`{"cmd":"ls"}`)}, agenthooks.EventPreToolUse)
-	var preToolUseData agenthooks.PreToolUseData
+	preToolUse := dispatchEvent(t, hookMessage{ToolUseID: "call_1", ToolName: "execute", ToolInput: json.RawMessage(`{"cmd":"ls"}`)}, hooks.EventPreToolUse)
+	var preToolUseData hooks.PreToolUseData
 	require.NoError(t, json.Unmarshal(preToolUse.Data, &preToolUseData))
 	require.Equal(t, "call_1", preToolUseData.ToolUseID)
 	require.Equal(t, "execute", preToolUseData.ToolName)
 	require.JSONEq(t, `{"cmd":"ls"}`, string(preToolUseData.ToolInput))
 
-	postToolUse := dispatch(t, hookMessage{ToolUseID: "call_1", ToolName: "execute", ToolResponse: json.RawMessage(`{"ok":true}`), ToolError: "boom"}, agenthooks.EventPostToolUse)
-	var postToolUseData agenthooks.PostToolUseData
+	postToolUse := dispatchEvent(t, hookMessage{ToolUseID: "call_1", ToolName: "execute", ToolResponse: json.RawMessage(`{"ok":true}`), ToolError: "boom"}, hooks.EventPostToolUse)
+	var postToolUseData hooks.PostToolUseData
 	require.NoError(t, json.Unmarshal(postToolUse.Data, &postToolUseData))
 	require.Equal(t, "call_1", postToolUseData.ToolUseID)
 	require.Equal(t, "execute", postToolUseData.ToolName)
 	require.JSONEq(t, `{"ok":true}`, string(postToolUseData.ToolResponse))
 	require.Equal(t, "boom", postToolUseData.ToolError)
 
-	for _, event := range []agenthooks.EventType{agenthooks.EventPreCompact, agenthooks.EventPostCompact, agenthooks.EventStop} {
-		dispatch(t, hookMessage{}, event)
+	for _, event := range []hooks.EventType{hooks.EventPreCompact, hooks.EventPostCompact, hooks.EventStop} {
+		dispatchEvent(t, hookMessage{}, event)
 	}
 
-	_, err := trigger.trigger(ctx, chat, hookMessage{}, agenthooks.EventType("bogus"))
+	_, err := trigger.trigger(ctx, chat, hookMessage{}, hooks.EventType("bogus"))
 	require.ErrorContains(t, err, "unsupported hook event")
 }
 
