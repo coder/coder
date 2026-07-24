@@ -202,9 +202,6 @@ export const MixedQueueWithAttachments: Story = {
 	},
 };
 
-// A queued message carrying a lifecycle hook notice shows an info
-// indicator whose accessible name includes the notice text and whose
-// tooltip opens on keyboard focus.
 export const HookNotice: Story = {
 	args: {
 		messages: [
