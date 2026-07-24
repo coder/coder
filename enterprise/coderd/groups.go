@@ -585,7 +585,7 @@ func (api *API) paginatedGroups(rw http.ResponseWriter, r *http.Request) {
 		// #nosec G115 - Pagination limits are small and fit in int32
 		LimitOpt: int32(paginationParams.Limit),
 	})
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
