@@ -1501,18 +1501,33 @@ func handleSubagentDone(
 	return chat, report, nil
 }
 
-// subagentLastErrorMessage extracts the normalized, user-facing message
-// from a chat's last_error payload, falling back to the raw JSON when the
-// payload is not a recognized ChatError.
+// subagentGenericErrorMessage matches the normalized fallback that
+// chaterror and db2sdk emit for unclassifiable failures. It carries no
+// actionable information, so a provider detail replaces it entirely.
+const subagentGenericErrorMessage = "The chat request failed unexpectedly."
+
+// subagentLastErrorMessage builds the message surfaced to the parent
+// model from a chat's last_error payload, preferring the actionable
+// provider detail. The content mirrors what the chat UI renders from
+// the same payload. An unrecognized payload yields an empty message so
+// the caller falls back to its own status reason instead of exposing
+// raw stored bytes.
 func subagentLastErrorMessage(raw pqtype.NullRawMessage) string {
 	if !raw.Valid {
 		return ""
 	}
 	var payload codersdk.ChatError
-	if err := json.Unmarshal(raw.RawMessage, &payload); err == nil && payload.Message != "" {
-		return payload.Message
+	if err := json.Unmarshal(raw.RawMessage, &payload); err != nil {
+		return ""
 	}
-	return string(raw.RawMessage)
+	switch {
+	case payload.Detail == "":
+		return payload.Message
+	case payload.Message == "" || payload.Message == subagentGenericErrorMessage:
+		return payload.Detail
+	default:
+		return payload.Message + " (" + payload.Detail + ")"
+	}
 }
 
 // waitAgentSuccessResponse stops and stores the recording (if active) and

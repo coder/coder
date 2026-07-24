@@ -3555,6 +3555,26 @@ func setChatStatus(
 	require.NoError(t, err)
 }
 
+func setChatStatusWithError(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	chatID uuid.UUID,
+	status database.ChatStatus,
+	chatErr codersdk.ChatError,
+) {
+	t.Helper()
+
+	encoded, err := json.Marshal(chatErr)
+	require.NoError(t, err)
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:        chatID,
+		Status:    status,
+		LastError: pqtype.NullRawMessage{RawMessage: encoded, Valid: true},
+	})
+	require.NoError(t, err)
+}
+
 // insertAssistantMessage inserts an assistant message with v1 content
 // into a chat.
 func insertAssistantMessage(
@@ -4191,6 +4211,108 @@ func TestWaitAgentErrorStatusReturnsStructuredPayload(t *testing.T) {
 	require.NotContains(t, result, "timed_out")
 }
 
+func TestSubagentLastErrorMessage(t *testing.T) {
+	t.Parallel()
+
+	rawJSON := func(s string) pqtype.NullRawMessage {
+		return pqtype.NullRawMessage{RawMessage: json.RawMessage(s), Valid: true}
+	}
+
+	cases := []struct {
+		name string
+		raw  pqtype.NullRawMessage
+		want string
+	}{
+		{name: "Invalid", raw: pqtype.NullRawMessage{}, want: ""},
+		// Unrecognized payloads must not leak raw stored bytes into
+		// model context; the caller falls back to its status reason.
+		{name: "NotChatError", raw: rawJSON(`"oops"`), want: ""},
+		{name: "EmptyObject", raw: rawJSON(`{}`), want: ""},
+		{
+			name: "MessageOnly",
+			raw:  rawJSON(`{"message":"provider overloaded"}`),
+			want: "provider overloaded",
+		},
+		{
+			name: "DetailReplacesGenericMessage",
+			raw:  rawJSON(`{"message":"The chat request failed unexpectedly.","detail":"reasoning model ` + "`max`" + ` not supported"}`),
+			want: "reasoning model `max` not supported",
+		},
+		{
+			name: "DetailOnly",
+			raw:  rawJSON(`{"detail":"reasoning model ` + "`max`" + ` not supported"}`),
+			want: "reasoning model `max` not supported",
+		},
+		{
+			name: "DetailAppendedToMeaningfulMessage",
+			raw:  rawJSON(`{"kind":"config","message":"Vercel AI Gateway rejected the model configuration.","detail":"unknown model slug"}`),
+			want: "Vercel AI Gateway rejected the model configuration. (unknown model slug)",
+		},
+		// Detail passes through exactly as the chat UI renders it,
+		// including auth details, provider request IDs, and long
+		// opaque diagnostic tokens.
+		{
+			name: "AuthKindDetailPreserved",
+			raw:  rawJSON(`{"kind":"auth","message":"Authentication with Anthropic failed.","detail":"401 invalid x-api-key"}`),
+			want: "Authentication with Anthropic failed. (401 invalid x-api-key)",
+		},
+		{
+			name: "RequestIDPreserved",
+			raw:  rawJSON(`{"kind":"generic","message":"The chat request failed unexpectedly.","detail":"upstream error (request id req_0a1b2c3d4e5f6a7b8c9d)"}`),
+			want: "upstream error (request id req_0a1b2c3d4e5f6a7b8c9d)",
+		},
+		{
+			name: "ModelSlugPreserved",
+			raw:  rawJSON(`{"kind":"generic","message":"The chat request failed unexpectedly.","detail":"model claude-haiku-4-5-20251001 is not available"}`),
+			want: "model claude-haiku-4-5-20251001 is not available",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, subagentLastErrorMessage(tc.raw))
+		})
+	}
+}
+
+func TestWaitAgentErrorStatusSurfacesLastErrorDetail(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parent, child := createParentChildChats(ctx, t, server, user, org, model)
+
+	// A generic fallback message hides the actionable provider detail
+	// (e.g. an unsupported reasoning effort); wait_agent must surface
+	// the detail so the parent model can self-correct.
+	WaitUntilIdleForTest(server)
+	setChatStatusWithError(ctx, t, db, child.ID, database.ChatStatusError, codersdk.ChatError{
+		Message:   "The chat request failed unexpectedly.",
+		Detail:    "reasoning model `max` not supported",
+		Kind:      codersdk.ChatErrorKindGeneric,
+		Provider:  "vercel",
+		Retryable: false,
+	})
+	insertAssistantMessage(t, db, child.ID, model.ID, "partial progress")
+
+	result := requireToolResponseMap(t, runSubagentTool(
+		ctx,
+		t,
+		server,
+		parent,
+		parent.LastModelConfigID,
+		"wait_agent",
+		waitAgentArgs{ChatID: child.ID.String()},
+	), false)
+
+	require.Equal(t, string(database.ChatStatusError), result["status"])
+	require.Equal(t, child.ID.String(), result["chat_id"])
+	require.Equal(t, "reasoning model `max` not supported", result["last_error"])
+	require.Equal(t, "partial progress", result["report"])
+}
+
 func TestWaitAgentTimeoutGapCompletesWithError(t *testing.T) {
 	t.Parallel()
 
@@ -4245,6 +4367,98 @@ func TestWaitAgentTimeoutGapCompletesWithError(t *testing.T) {
 	require.Equal(t, child.ID.String(), m["chat_id"])
 	require.Equal(t, subagentTypeGeneral, m["type"])
 	require.NotContains(t, m, "timed_out")
+}
+
+func TestWaitAgentTimeoutGapSurfacesLastErrorDetail(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	mClock := quartz.NewMock(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerClock(mClock))
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parent, child := createParentChildChats(ctx, t, server, user, org, model)
+
+	WaitUntilIdleForTest(server)
+	setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
+
+	timerTrap := mClock.Trap().NewTimer("chatd", "subagent_await")
+
+	type toolResult struct {
+		resp fantasy.ToolResponse
+	}
+	resultCh := make(chan toolResult, 1)
+	oneSecond := 1
+	go func() {
+		resp := runSubagentTool(
+			ctx,
+			t,
+			server,
+			parent,
+			parent.LastModelConfigID,
+			"wait_agent",
+			waitAgentArgs{ChatID: child.ID.String(), TimeoutSeconds: &oneSecond},
+		)
+		resultCh <- toolResult{resp: resp}
+	}()
+
+	timerTrap.MustWait(ctx).MustRelease(ctx)
+	timerTrap.Close()
+
+	// The timeout-gap recheck must surface the same detail-aware
+	// last_error as the normal poll path.
+	setChatStatusWithError(ctx, t, db, child.ID, database.ChatStatusError, codersdk.ChatError{
+		Message:   "The chat request failed unexpectedly.",
+		Detail:    "reasoning model `max` not supported",
+		Kind:      codersdk.ChatErrorKindGeneric,
+		Provider:  "vercel",
+		Retryable: false,
+	})
+	insertAssistantMessage(t, db, child.ID, model.ID, "partial progress")
+
+	mClock.Advance(time.Second).MustWait(ctx)
+
+	result := testutil.RequireReceive(ctx, t, resultCh)
+	m := requireToolResponseMap(t, result.resp, false)
+
+	require.Equal(t, string(database.ChatStatusError), m["status"])
+	require.Equal(t, "reasoning model `max` not supported", m["last_error"])
+	require.Equal(t, "partial progress", m["report"])
+	require.Equal(t, child.ID.String(), m["chat_id"])
+	require.NotContains(t, m, "timed_out")
+}
+
+func TestWaitAgentErrorStatusUnrecognizedLastError(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parent, child := createParentChildChats(ctx, t, server, user, org, model)
+
+	WaitUntilIdleForTest(server)
+	_, err := db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:        child.ID,
+		Status:    database.ChatStatusError,
+		LastError: pqtype.NullRawMessage{RawMessage: json.RawMessage(`"oops"`), Valid: true},
+	})
+	require.NoError(t, err)
+
+	result := requireToolResponseMap(t, runSubagentTool(
+		ctx,
+		t,
+		server,
+		parent,
+		parent.LastModelConfigID,
+		"wait_agent",
+		waitAgentArgs{ChatID: child.ID.String()},
+	), false)
+
+	// Unrecognized payloads fall back to the status reason instead of
+	// leaking raw stored bytes.
+	require.Equal(t, string(database.ChatStatusError), result["status"])
+	require.Equal(t, "agent reached error status", result["last_error"])
 }
 
 func listAgentsChatIDs(t *testing.T, result map[string]any) []string {
