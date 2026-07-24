@@ -18,10 +18,10 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
-	"github.com/coder/coder/v2/coderd/x/hooks"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -30,11 +30,11 @@ func TestCompactionHooksHintAndPostCommitResponses(t *testing.T) {
 
 	var postSawCommitted atomic.Bool
 	fixture := startCompactionHookChat(t,
-		func(t *testing.T, db database.Store, request hooks.Request) (int, string) {
+		func(t *testing.T, db database.Store, request agenthooks.Request) (int, string) {
 			switch request.Type {
-			case hooks.EventPreCompact:
+			case agenthooks.EventPreCompact:
 				return http.StatusOK, `{"model_context":"preserve deployment constraints","user_message":"compaction starting"}`
-			case hooks.EventPostCompact:
+			case agenthooks.EventPostCompact:
 				postSawCommitted.Store(hasCompactionRows(t, db, request.Meta.ChatID))
 				return http.StatusOK, `{"model_context":"post compact context","user_message":"compaction complete"}`
 			default:
@@ -68,8 +68,8 @@ func TestPreCompactHookFailureAbortsCompaction(t *testing.T) {
 	t.Parallel()
 
 	fixture := startCompactionHookChat(t,
-		func(_ *testing.T, _ database.Store, request hooks.Request) (int, string) {
-			if request.Type == hooks.EventPreCompact {
+		func(_ *testing.T, _ database.Store, request agenthooks.Request) (int, string) {
+			if request.Type == agenthooks.EventPreCompact {
 				return http.StatusInternalServerError, ""
 			}
 			return http.StatusOK, `{}`
@@ -93,8 +93,8 @@ func TestPostCompactHookFailureKeepsCompaction(t *testing.T) {
 
 	var postSawCommitted atomic.Bool
 	fixture := startCompactionHookChat(t,
-		func(t *testing.T, db database.Store, request hooks.Request) (int, string) {
-			if request.Type == hooks.EventPostCompact {
+		func(t *testing.T, db database.Store, request agenthooks.Request) (int, string) {
+			if request.Type == agenthooks.EventPostCompact {
 				postSawCommitted.Store(hasCompactionRows(t, db, request.Meta.ChatID))
 				return http.StatusInternalServerError, ""
 			}
@@ -124,7 +124,7 @@ type compactionHookFixture struct {
 
 func startCompactionHookChat(
 	t *testing.T,
-	hookResponse func(*testing.T, database.Store, hooks.Request) (int, string),
+	hookResponse func(*testing.T, database.Store, agenthooks.Request) (int, string),
 	inspectCompaction func(*testing.T, string),
 ) compactionHookFixture {
 	t.Helper()
@@ -161,12 +161,12 @@ func startCompactionHookChat(
 	model = updateChatModelCompressionThreshold(t, db, model, contextLimit, thresholdPercent)
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request hooks.Request
+		var request agenthooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		switch request.Type {
-		case hooks.EventPreCompact:
+		case agenthooks.EventPreCompact:
 			preCompactCalls.Add(1)
-		case hooks.EventPostCompact:
+		case agenthooks.EventPostCompact:
 			postCompactCalls.Add(1)
 		}
 		status, body := hookResponse(t, db, request)

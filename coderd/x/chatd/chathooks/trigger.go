@@ -12,10 +12,10 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
-	"github.com/coder/coder/v2/coderd/x/hooks"
-	"github.com/coder/coder/v2/coderd/x/hooks/dispatch"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 )
 
 const (
@@ -71,8 +71,8 @@ func ChatFor(chat database.Chat, turnID *uuid.UUID) Chat {
 	}
 }
 
-func (c Chat) ref() hooks.ChatRef {
-	ref := hooks.ChatRef{
+func (c Chat) ref() agenthooks.ChatRef {
+	ref := agenthooks.ChatRef{
 		ChatID:  c.ID,
 		OwnerID: c.OwnerID,
 		TurnID:  c.TurnID,
@@ -141,27 +141,27 @@ func (t *Trigger) Trigger(
 	ctx context.Context,
 	chat Chat,
 	msg Message,
-	event hooks.EventType,
+	event agenthooks.EventType,
 ) (*Result, error) {
 	if !t.Enabled() {
 		return emptyResult, nil
 	}
 	var data any
 	switch event {
-	case hooks.EventSessionStart:
-		data = hooks.SessionStartData{Source: msg.Source}
-	case hooks.EventUserPromptSubmit:
-		data = hooks.UserPromptSubmitData{Prompt: msg.Prompt, Parts: msg.Parts}
-	case hooks.EventPreToolUse:
-		data = hooks.PreToolUseData{ToolUseID: msg.ToolUseID, ToolName: msg.ToolName, ToolInput: msg.ToolInput}
-	case hooks.EventPostToolUse:
-		data = hooks.PostToolUseData{ToolUseID: msg.ToolUseID, ToolName: msg.ToolName, ToolResponse: msg.ToolResponse, ToolError: msg.ToolError}
-	case hooks.EventPreCompact:
-		data = hooks.PreCompactData{}
-	case hooks.EventPostCompact:
-		data = hooks.PostCompactData{}
-	case hooks.EventStop:
-		data = hooks.StopData{}
+	case agenthooks.EventSessionStart:
+		data = agenthooks.SessionStartData{Source: msg.Source}
+	case agenthooks.EventUserPromptSubmit:
+		data = agenthooks.UserPromptSubmitData{Prompt: msg.Prompt, Parts: msg.Parts}
+	case agenthooks.EventPreToolUse:
+		data = agenthooks.PreToolUseData{ToolUseID: msg.ToolUseID, ToolName: msg.ToolName, ToolInput: msg.ToolInput}
+	case agenthooks.EventPostToolUse:
+		data = agenthooks.PostToolUseData{ToolUseID: msg.ToolUseID, ToolName: msg.ToolName, ToolResponse: msg.ToolResponse, ToolError: msg.ToolError}
+	case agenthooks.EventPreCompact:
+		data = agenthooks.PreCompactData{}
+	case agenthooks.EventPostCompact:
+		data = agenthooks.PostCompactData{}
+	case agenthooks.EventStop:
+		data = agenthooks.StopData{}
 	default:
 		return nil, xerrors.Errorf("unsupported hook event %q", event)
 	}
@@ -173,7 +173,7 @@ func (t *Trigger) Trigger(
 	if err != nil {
 		return nil, err
 	}
-	if response.Permission != nil && response.Permission.Decision == hooks.PermissionDeny {
+	if response.Permission != nil && response.Permission.Decision == agenthooks.PermissionDeny {
 		return nil, &deniedError{
 			Event:        event,
 			Reason:       response.Permission.Reason,
@@ -185,7 +185,7 @@ func (t *Trigger) Trigger(
 		ModelContext: response.ModelContext,
 		UserMessage:  response.UserMessage,
 	}
-	if response.Permission != nil && response.Permission.Decision == hooks.PermissionAllow {
+	if response.Permission != nil && response.Permission.Decision == agenthooks.PermissionAllow {
 		result.InputOverride = response.Permission.InputOverride
 	}
 	return result, nil

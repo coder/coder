@@ -13,8 +13,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
-	"github.com/coder/coder/v2/coderd/x/hooks"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 )
 
 // rejectDuplicateToolUseIDs fails closed because hook consumers key
@@ -63,7 +63,7 @@ func (t *Trigger) PreflightPendingToolCalls(
 			ToolUseID: toolCall.ToolCallID,
 			ToolName:  toolCall.ToolName,
 			ToolInput: json.RawMessage(toolCall.Input),
-		}, hooks.EventPreToolUse)
+		}, agenthooks.EventPreToolUse)
 		if err != nil {
 			denied, ok := errors.AsType[*deniedError](err)
 			if !ok {
@@ -134,7 +134,7 @@ func (t *Trigger) PostToolUseResults(
 			}
 			continue
 		}
-		result, err := t.Trigger(ctx, chat, msg, hooks.EventPostToolUse)
+		result, err := t.Trigger(ctx, chat, msg, agenthooks.EventPostToolUse)
 		if err != nil {
 			if firstErr == nil {
 				firstErr = err
