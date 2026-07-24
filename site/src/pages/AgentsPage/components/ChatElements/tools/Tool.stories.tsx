@@ -409,7 +409,7 @@ export const ExecuteDeniedByHook: Story = {
 		args: { command: "cat /etc/secrets" },
 		result: {
 			error:
-				"This tool usage was blocked by an external policy (the deployment's lifecycle hook). Reason: secret reads are blocked. This is an administrative policy decision, not a tool or workspace failure; retrying the same call will be denied again. Explain the policy block to the user and adjust your approach.",
+				"This tool usage was blocked by an external policy (the deployment's lifecycle hook); the tool call was not executed. Reason: secret reads are blocked. This is an administrative policy decision, not a tool or workspace failure; retrying the same call will be denied again. Explain the policy block to the user and adjust your approach.",
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -1815,7 +1815,7 @@ export const WriteFileDeniedByHook: Story = {
 		},
 		result: {
 			error:
-				"This tool usage was blocked by an external policy (the deployment's lifecycle hook). Reason: writes to src are blocked.",
+				"This tool usage was blocked by an external policy (the deployment's lifecycle hook); the tool call was not executed. Reason: writes to src are blocked.",
 		},
 	},
 	play: async ({ canvasElement }) => {
