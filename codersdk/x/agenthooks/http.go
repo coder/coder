@@ -1,4 +1,4 @@
-package hooks
+package agenthooks
 
 import (
 	"context"

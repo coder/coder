@@ -21,7 +21,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/x/hooks"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 )
 
 const (
@@ -49,8 +49,8 @@ const (
 
 // Event carries the identities delivered with each dispatch attempt.
 type Event struct {
-	Type hooks.EventType
-	hooks.ChatRef
+	Type agenthooks.EventType
+	agenthooks.ChatRef
 	Data any
 }
 
@@ -160,12 +160,12 @@ func (d *Dispatcher) Enabled() bool {
 
 // Dispatch delivers one event. The returned ID correlates the attempt in logs
 // and Error values; the dispatcher does not persist delivery state.
-func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (hooks.Response, uuid.UUID, error) {
+func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (agenthooks.Response, uuid.UUID, error) {
 	if !d.Enabled() {
-		return hooks.Response{}, uuid.Nil, xerrors.New("chat hook dispatcher is not enabled")
+		return agenthooks.Response{}, uuid.Nil, xerrors.New("chat hook dispatcher is not enabled")
 	}
 	if d.hookURLErr != nil {
-		return hooks.Response{}, uuid.Nil, xerrors.Errorf("chat hook URL rejected: %w", d.hookURLErr)
+		return agenthooks.Response{}, uuid.Nil, xerrors.Errorf("chat hook URL rejected: %w", d.hookURLErr)
 	}
 
 	startedAt := time.Now()
@@ -182,15 +182,15 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (hooks.Response,
 		defer func() { <-d.semaphore }()
 	case <-ctx.Done():
 		outcome := dispatchOutcome{result: ResultTimeout, err: ctx.Err()}
-		return hooks.Response{}, dispatchID, d.finish(ctx, event, dispatchID, startedAt, outcome)
+		return agenthooks.Response{}, dispatchID, d.finish(ctx, event, dispatchID, startedAt, outcome)
 	case <-capacityTimer.C:
 		outcome := dispatchOutcome{result: ResultOverCapacity, err: context.DeadlineExceeded}
-		return hooks.Response{}, dispatchID, d.finish(ctx, event, dispatchID, startedAt, outcome)
+		return agenthooks.Response{}, dispatchID, d.finish(ctx, event, dispatchID, startedAt, outcome)
 	}
 
 	response, outcome := d.prepareAndPost(ctx, event, dispatchID)
 	if err := d.finish(ctx, event, dispatchID, startedAt, outcome); err != nil {
-		return hooks.Response{}, dispatchID, err
+		return agenthooks.Response{}, dispatchID, err
 	}
 	return response, dispatchID, nil
 }
@@ -222,32 +222,32 @@ func (d *Dispatcher) finish(
 
 type dispatchOutcome struct {
 	result   Result
-	response hooks.Response
+	response agenthooks.Response
 	err      error
 }
 
-func (d *Dispatcher) prepareAndPost(ctx context.Context, event Event, dispatchID uuid.UUID) (hooks.Response, dispatchOutcome) {
+func (d *Dispatcher) prepareAndPost(ctx context.Context, event Event, dispatchID uuid.UUID) (agenthooks.Response, dispatchOutcome) {
 	data, err := marshalEventData(event)
 	if err != nil {
-		return hooks.Response{}, dispatchOutcome{result: ResultProtocolError, err: err}
+		return agenthooks.Response{}, dispatchOutcome{result: ResultProtocolError, err: err}
 	}
-	request := hooks.Request{
+	request := agenthooks.Request{
 		Type: event.Type,
-		Meta: hooks.Meta{
+		Meta: agenthooks.Meta{
 			DispatchID:    dispatchID,
-			SchemaVersion: hooks.SchemaVersion,
+			SchemaVersion: agenthooks.SchemaVersion,
 			ChatRef:       event.ChatRef,
 		},
 		Data: data,
 	}
 	body, err := json.Marshal(request)
 	if err != nil {
-		return hooks.Response{}, dispatchOutcome{result: ResultProtocolError, err: xerrors.Errorf("marshal request: %w", err)}
+		return agenthooks.Response{}, dispatchOutcome{result: ResultProtocolError, err: xerrors.Errorf("marshal request: %w", err)}
 	}
 
 	digest := sha256.Sum256(body)
 	now := time.Now()
-	token, err := hooks.SignClaims(d.secret, hooks.Claims{
+	token, err := agenthooks.SignClaims(d.secret, agenthooks.Claims{
 		Issuer:     d.deploymentID,
 		Subject:    "coder:chat:" + event.ChatID.String(),
 		Audience:   d.hookURL,
@@ -259,7 +259,7 @@ func (d *Dispatcher) prepareAndPost(ctx context.Context, event Event, dispatchID
 		BodySHA256: hex.EncodeToString(digest[:]),
 	})
 	if err != nil {
-		return hooks.Response{}, dispatchOutcome{result: ResultProtocolError, err: xerrors.Errorf("sign request: %w", err)}
+		return agenthooks.Response{}, dispatchOutcome{result: ResultProtocolError, err: xerrors.Errorf("sign request: %w", err)}
 	}
 
 	response, result, err := d.post(ctx, body, token)
@@ -269,14 +269,14 @@ func (d *Dispatcher) prepareAndPost(ctx context.Context, event Event, dispatchID
 		err:      err,
 	}
 	if err != nil {
-		return hooks.Response{}, outcome
+		return agenthooks.Response{}, outcome
 	}
 	if err := validateResponse(event.Type, response); err != nil {
 		outcome.result = ResultProtocolError
 		outcome.err = err
-		return hooks.Response{}, outcome
+		return agenthooks.Response{}, outcome
 	}
-	if response.Permission != nil && response.Permission.Decision == hooks.PermissionDeny {
+	if response.Permission != nil && response.Permission.Decision == agenthooks.PermissionDeny {
 		outcome.result = ResultDenied
 	}
 	return response, outcome
@@ -286,7 +286,7 @@ func (d *Dispatcher) post(
 	ctx context.Context,
 	body []byte,
 	token string,
-) (response hooks.Response, result Result, err error) {
+) (response agenthooks.Response, result Result, err error) {
 	// One deadline bounds both attempts so a retry cannot extend the
 	// dispatch past the configured timeout or the JWT lifetime.
 	ctx, cancel := context.WithTimeout(ctx, d.timeout)
@@ -294,7 +294,7 @@ func (d *Dispatcher) post(
 	for attempt := range 2 {
 		req, reqErr := http.NewRequestWithContext(ctx, http.MethodPost, d.hookURL, bytes.NewReader(body))
 		if reqErr != nil {
-			return hooks.Response{}, ResultProtocolError, xerrors.Errorf("create request: %w", reqErr)
+			return agenthooks.Response{}, ResultProtocolError, xerrors.Errorf("create request: %w", reqErr)
 		}
 		req.Header.Set("Authorization", "Bearer "+token)
 		req.Header.Set("Content-Type", "application/json")
@@ -304,19 +304,19 @@ func (d *Dispatcher) post(
 		if requestErr != nil {
 			attemptErr := ctx.Err()
 			if isTimeoutError(attemptErr) || isTimeoutError(requestErr) || errors.Is(requestErr, context.Canceled) {
-				return hooks.Response{}, ResultTimeout, xerrors.Errorf("post lifecycle hook: %w", requestErr)
+				return agenthooks.Response{}, ResultTimeout, xerrors.Errorf("post lifecycle hook: %w", requestErr)
 			}
 			if !isConnectionError(requestErr) {
-				return hooks.Response{}, ResultProtocolError, xerrors.Errorf("post lifecycle hook: %w", requestErr)
+				return agenthooks.Response{}, ResultProtocolError, xerrors.Errorf("post lifecycle hook: %w", requestErr)
 			}
 			if attempt == 1 {
-				return hooks.Response{}, ResultConnectionError, xerrors.Errorf("post lifecycle hook: %w", requestErr)
+				return agenthooks.Response{}, ResultConnectionError, xerrors.Errorf("post lifecycle hook: %w", requestErr)
 			}
 			backoff := time.NewTimer(retryBackoff)
 			select {
 			case <-ctx.Done():
 				backoff.Stop()
-				return hooks.Response{}, ResultTimeout, xerrors.Errorf("post lifecycle hook: %w", ctx.Err())
+				return agenthooks.Response{}, ResultTimeout, xerrors.Errorf("post lifecycle hook: %w", ctx.Err())
 			case <-backoff.C:
 			}
 			continue
@@ -324,7 +324,7 @@ func (d *Dispatcher) post(
 
 		if httpResponse.StatusCode < http.StatusOK || httpResponse.StatusCode >= http.StatusMultipleChoices {
 			_ = httpResponse.Body.Close()
-			return hooks.Response{}, ResultHTTPError, xerrors.Errorf("lifecycle hook returned HTTP status %d", httpResponse.StatusCode)
+			return agenthooks.Response{}, ResultHTTPError, xerrors.Errorf("lifecycle hook returned HTTP status %d", httpResponse.StatusCode)
 		}
 
 		responseBody, readErr := io.ReadAll(io.LimitReader(httpResponse.Body, maxResponseBodyBytes+1))
@@ -333,13 +333,13 @@ func (d *Dispatcher) post(
 		if readErr != nil {
 			switch {
 			case isTimeoutError(attemptErr), isTimeoutError(readErr), errors.Is(readErr, context.Canceled):
-				return hooks.Response{}, ResultTimeout, xerrors.Errorf("read lifecycle hook response: %w", readErr)
+				return agenthooks.Response{}, ResultTimeout, xerrors.Errorf("read lifecycle hook response: %w", readErr)
 			case isConnectionError(readErr):
 				if attempt == 1 {
-					return hooks.Response{}, ResultConnectionError, xerrors.Errorf("read lifecycle hook response: %w", readErr)
+					return agenthooks.Response{}, ResultConnectionError, xerrors.Errorf("read lifecycle hook response: %w", readErr)
 				}
 			default:
-				return hooks.Response{}, ResultProtocolError, xerrors.Errorf("read lifecycle hook response: %w", readErr)
+				return agenthooks.Response{}, ResultProtocolError, xerrors.Errorf("read lifecycle hook response: %w", readErr)
 			}
 			// Mid-body connection drops get the same single retry as dial
 			// failures, reusing the dispatch ID.
@@ -347,52 +347,52 @@ func (d *Dispatcher) post(
 			select {
 			case <-ctx.Done():
 				backoff.Stop()
-				return hooks.Response{}, ResultTimeout, xerrors.Errorf("read lifecycle hook response: %w", ctx.Err())
+				return agenthooks.Response{}, ResultTimeout, xerrors.Errorf("read lifecycle hook response: %w", ctx.Err())
 			case <-backoff.C:
 			}
 			continue
 		}
 		if len(responseBody) > maxResponseBodyBytes {
-			return hooks.Response{}, ResultProtocolError, xerrors.New("lifecycle hook response exceeds 1 MiB")
+			return agenthooks.Response{}, ResultProtocolError, xerrors.New("lifecycle hook response exceeds 1 MiB")
 		}
 		trimmed := bytes.TrimSpace(responseBody)
 		if len(trimmed) == 0 {
-			return hooks.Response{}, ResultOK, nil
+			return agenthooks.Response{}, ResultOK, nil
 		}
 		if bytes.Equal(trimmed, []byte("null")) {
-			return hooks.Response{}, ResultProtocolError, xerrors.New("lifecycle hook response must be a JSON object")
+			return agenthooks.Response{}, ResultProtocolError, xerrors.New("lifecycle hook response must be a JSON object")
 		}
 		if err := json.Unmarshal(trimmed, &response); err != nil {
-			return hooks.Response{}, ResultProtocolError, xerrors.Errorf("decode lifecycle hook response: %w", err)
+			return agenthooks.Response{}, ResultProtocolError, xerrors.Errorf("decode lifecycle hook response: %w", err)
 		}
 		return response, ResultOK, nil
 	}
 	panic("unreachable")
 }
 
-func validateResponse(eventType hooks.EventType, response hooks.Response) error {
+func validateResponse(eventType agenthooks.EventType, response agenthooks.Response) error {
 	if len(response.ModelContext) > maxModelContextBytes {
 		return xerrors.New("model_context exceeds 16 KiB")
 	}
 	if response.Permission == nil {
 		return nil
 	}
-	if eventType != hooks.EventUserPromptSubmit && eventType != hooks.EventPreToolUse {
+	if eventType != agenthooks.EventUserPromptSubmit && eventType != agenthooks.EventPreToolUse {
 		return xerrors.Errorf("permission is not valid for event %q", eventType)
 	}
 
 	switch response.Permission.Decision {
-	case hooks.PermissionAllow:
+	case agenthooks.PermissionAllow:
 		inputOverride := bytes.TrimSpace(response.Permission.InputOverride)
 		if len(inputOverride) == 0 || bytes.Equal(inputOverride, []byte("null")) {
 			return xerrors.New("allow decision requires input_override")
 		}
-		if eventType == hooks.EventUserPromptSubmit {
+		if eventType == agenthooks.EventUserPromptSubmit {
 			if err := validateUserPromptSubmitOverride(inputOverride); err != nil {
 				return err
 			}
 		}
-	case hooks.PermissionDeny:
+	case agenthooks.PermissionDeny:
 		// Denied input does not proceed, so reject overrides to surface consumer bugs.
 		inputOverride := bytes.TrimSpace(response.Permission.InputOverride)
 		if len(inputOverride) > 0 && !bytes.Equal(inputOverride, []byte("null")) {
@@ -424,40 +424,40 @@ func validateUserPromptSubmitOverride(input json.RawMessage) error {
 
 func marshalEventData(event Event) (json.RawMessage, error) {
 	switch event.Type {
-	case hooks.EventSessionStart:
-		if !isData[hooks.SessionStartData](event.Data) {
+	case agenthooks.EventSessionStart:
+		if !isData[agenthooks.SessionStartData](event.Data) {
 			return nil, xerrors.New("session_start data has the wrong type")
 		}
-	case hooks.EventUserPromptSubmit:
-		if !isData[hooks.UserPromptSubmitData](event.Data) {
+	case agenthooks.EventUserPromptSubmit:
+		if !isData[agenthooks.UserPromptSubmitData](event.Data) {
 			return nil, xerrors.New("user_prompt_submit data has the wrong type")
 		}
-	case hooks.EventPreToolUse:
-		value, ok := dataValue[hooks.PreToolUseData](event.Data)
+	case agenthooks.EventPreToolUse:
+		value, ok := dataValue[agenthooks.PreToolUseData](event.Data)
 		if !ok {
 			return nil, xerrors.New("pre_tool_use data has the wrong type")
 		}
 		if value.ToolUseID == "" || value.ToolName == "" {
 			return nil, xerrors.New("pre_tool_use data requires tool_use_id and tool_name")
 		}
-	case hooks.EventPostToolUse:
-		value, ok := dataValue[hooks.PostToolUseData](event.Data)
+	case agenthooks.EventPostToolUse:
+		value, ok := dataValue[agenthooks.PostToolUseData](event.Data)
 		if !ok {
 			return nil, xerrors.New("post_tool_use data has the wrong type")
 		}
 		if value.ToolUseID == "" || value.ToolName == "" {
 			return nil, xerrors.New("post_tool_use data requires tool_use_id and tool_name")
 		}
-	case hooks.EventPreCompact:
-		if !isData[hooks.PreCompactData](event.Data) {
+	case agenthooks.EventPreCompact:
+		if !isData[agenthooks.PreCompactData](event.Data) {
 			return nil, xerrors.New("pre_compact data has the wrong type")
 		}
-	case hooks.EventPostCompact:
-		if !isData[hooks.PostCompactData](event.Data) {
+	case agenthooks.EventPostCompact:
+		if !isData[agenthooks.PostCompactData](event.Data) {
 			return nil, xerrors.New("post_compact data has the wrong type")
 		}
-	case hooks.EventStop:
-		if !isData[hooks.StopData](event.Data) {
+	case agenthooks.EventStop:
+		if !isData[agenthooks.StopData](event.Data) {
 			return nil, xerrors.New("stop data has the wrong type")
 		}
 	default:
@@ -556,7 +556,7 @@ func newMetrics(reg prometheus.Registerer) *metrics {
 	}
 }
 
-func (m *metrics) observe(eventType hooks.EventType, result Result, response hooks.Response, duration time.Duration) {
+func (m *metrics) observe(eventType agenthooks.EventType, result Result, response agenthooks.Response, duration time.Duration) {
 	event := string(eventType)
 	m.dispatches.WithLabelValues(event, string(result)).Inc()
 	m.duration.WithLabelValues(event).Observe(duration.Seconds())
@@ -567,10 +567,10 @@ func (m *metrics) observe(eventType hooks.EventType, result Result, response hoo
 		return
 	}
 	switch response.Permission.Decision {
-	case hooks.PermissionAllow, hooks.PermissionDeny:
+	case agenthooks.PermissionAllow, agenthooks.PermissionDeny:
 		m.decisions.WithLabelValues(event, string(response.Permission.Decision)).Inc()
 	}
-	if response.Permission.Decision == hooks.PermissionAllow && response.Permission.InputOverride != nil {
+	if response.Permission.Decision == agenthooks.PermissionAllow && response.Permission.InputOverride != nil {
 		m.inputOverrides.WithLabelValues(event).Inc()
 	}
 }

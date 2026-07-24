@@ -1,4 +1,4 @@
-package hooks_test
+package agenthooks_test
 
 import (
 	"bytes"
@@ -16,7 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/x/hooks"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 )
 
 var testSecret = []byte("0123456789abcdef0123456789abcdef")
@@ -24,11 +24,11 @@ var testSecret = []byte("0123456789abcdef0123456789abcdef")
 func TestSignClaimsVerify(t *testing.T) {
 	t.Parallel()
 
-	claims := validClaims(t, "https://hooks.example.com/coder", hooks.EventPreToolUse, nil)
-	token, err := hooks.SignClaims(testSecret, claims)
+	claims := validClaims(t, "https://hooks.example.com/coder", agenthooks.EventPreToolUse, nil)
+	token, err := agenthooks.SignClaims(testSecret, claims)
 	require.NoError(t, err)
 
-	got, err := hooks.Verify("Bearer "+token, testSecret)
+	got, err := agenthooks.Verify("Bearer "+token, testSecret)
 	require.NoError(t, err)
 	require.Equal(t, claims, got)
 }
@@ -36,24 +36,24 @@ func TestSignClaimsVerify(t *testing.T) {
 func TestShortSecretRejected(t *testing.T) {
 	t.Parallel()
 
-	claims := validClaims(t, "https://hooks.example.com/coder", hooks.EventPreToolUse, nil)
-	shortSecret := testSecret[:hooks.MinSecretLen-1]
+	claims := validClaims(t, "https://hooks.example.com/coder", agenthooks.EventPreToolUse, nil)
+	shortSecret := testSecret[:agenthooks.MinSecretLen-1]
 
-	_, err := hooks.SignClaims(shortSecret, claims)
+	_, err := agenthooks.SignClaims(shortSecret, claims)
 	require.ErrorContains(t, err, "secret must be at least")
 
-	token, err := hooks.SignClaims(testSecret, claims)
+	token, err := agenthooks.SignClaims(testSecret, claims)
 	require.NoError(t, err)
-	_, err = hooks.Verify("Bearer "+token, shortSecret)
+	_, err = agenthooks.Verify("Bearer "+token, shortSecret)
 	require.ErrorContains(t, err, "secret must be at least")
-	_, err = hooks.Verify("Bearer "+token, nil)
+	_, err = agenthooks.Verify("Bearer "+token, nil)
 	require.ErrorContains(t, err, "secret must be at least")
 }
 
 func TestVerifyRejectsAlgorithmConfusion(t *testing.T) {
 	t.Parallel()
 
-	claims := validClaims(t, "https://hooks.example.com/coder", hooks.EventStop, nil)
+	claims := validClaims(t, "https://hooks.example.com/coder", agenthooks.EventStop, nil)
 	signer, err := jose.NewSigner(
 		jose.SigningKey{Algorithm: jose.HS512, Key: bytes.Repeat([]byte{1}, 64)},
 		new(jose.SignerOptions).WithType("JWT"),
@@ -66,7 +66,7 @@ func TestVerifyRejectsAlgorithmConfusion(t *testing.T) {
 	token, err := signed.CompactSerialize()
 	require.NoError(t, err)
 
-	_, err = hooks.Verify("Bearer "+token, testSecret)
+	_, err = agenthooks.Verify("Bearer "+token, testSecret)
 	require.Error(t, err)
 }
 
@@ -76,17 +76,17 @@ func TestVerifyTimeBounds(t *testing.T) {
 	now := time.Now()
 	tests := []struct {
 		name   string
-		update func(*hooks.Claims)
+		update func(*agenthooks.Claims)
 	}{
 		{
 			name: "expired",
-			update: func(claims *hooks.Claims) {
+			update: func(claims *agenthooks.Claims) {
 				claims.Expires = now.Add(-time.Minute).Unix()
 			},
 		},
 		{
 			name: "not before",
-			update: func(claims *hooks.Claims) {
+			update: func(claims *agenthooks.Claims) {
 				claims.NotBefore = now.Add(time.Minute).Unix()
 			},
 		},
@@ -95,12 +95,12 @@ func TestVerifyTimeBounds(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			claims := validClaims(t, "https://hooks.example.com/coder", hooks.EventStop, nil)
+			claims := validClaims(t, "https://hooks.example.com/coder", agenthooks.EventStop, nil)
 			test.update(&claims)
-			token, err := hooks.SignClaims(testSecret, claims)
+			token, err := agenthooks.SignClaims(testSecret, claims)
 			require.NoError(t, err)
 
-			_, err = hooks.Verify("Bearer "+token, testSecret)
+			_, err = agenthooks.Verify("Bearer "+token, testSecret)
 			require.Error(t, err)
 		})
 	}
@@ -111,96 +111,96 @@ func TestHTTPHandlerRoutesEvents(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		event   hooks.EventType
+		event   agenthooks.EventType
 		data    any
-		install func(*hooks.Hooks, *bool)
+		install func(*agenthooks.Hooks, *bool)
 	}{
 		{
 			name:  "session start",
-			event: hooks.EventSessionStart,
-			data:  hooks.SessionStartData{Source: "startup"},
-			install: func(h *hooks.Hooks, called *bool) {
-				h.SessionStart = func(_ context.Context, _ hooks.Meta, data hooks.SessionStartData) (hooks.Response, error) {
+			event: agenthooks.EventSessionStart,
+			data:  agenthooks.SessionStartData{Source: "startup"},
+			install: func(h *agenthooks.Hooks, called *bool) {
+				h.SessionStart = func(_ context.Context, _ agenthooks.Meta, data agenthooks.SessionStartData) (agenthooks.Response, error) {
 					*called = true
 					require.Equal(t, "startup", data.Source)
-					return hooks.Response{UserMessage: "session start"}, nil
+					return agenthooks.Response{UserMessage: "session start"}, nil
 				}
 			},
 		},
 		{
 			name:  "user prompt submit",
-			event: hooks.EventUserPromptSubmit,
-			data:  hooks.UserPromptSubmitData{Prompt: "hello"},
-			install: func(h *hooks.Hooks, called *bool) {
-				h.UserPromptSubmit = func(_ context.Context, _ hooks.Meta, data hooks.UserPromptSubmitData) (hooks.Response, error) {
+			event: agenthooks.EventUserPromptSubmit,
+			data:  agenthooks.UserPromptSubmitData{Prompt: "hello"},
+			install: func(h *agenthooks.Hooks, called *bool) {
+				h.UserPromptSubmit = func(_ context.Context, _ agenthooks.Meta, data agenthooks.UserPromptSubmitData) (agenthooks.Response, error) {
 					*called = true
 					require.Equal(t, "hello", data.Prompt)
-					return hooks.Response{UserMessage: "user prompt submit"}, nil
+					return agenthooks.Response{UserMessage: "user prompt submit"}, nil
 				}
 			},
 		},
 		{
 			name:  "pre tool use",
-			event: hooks.EventPreToolUse,
-			data: hooks.PreToolUseData{
+			event: agenthooks.EventPreToolUse,
+			data: agenthooks.PreToolUseData{
 				ToolUseID: "call_" + uuid.NewString(),
 				ToolName:  "execute",
 				ToolInput: json.RawMessage(`{"command":"pwd"}`),
 			},
-			install: func(h *hooks.Hooks, called *bool) {
-				h.PreToolUse = func(_ context.Context, _ hooks.Meta, data hooks.PreToolUseData) (hooks.Response, error) {
+			install: func(h *agenthooks.Hooks, called *bool) {
+				h.PreToolUse = func(_ context.Context, _ agenthooks.Meta, data agenthooks.PreToolUseData) (agenthooks.Response, error) {
 					*called = true
 					require.Equal(t, "execute", data.ToolName)
-					return hooks.Response{UserMessage: "pre tool use"}, nil
+					return agenthooks.Response{UserMessage: "pre tool use"}, nil
 				}
 			},
 		},
 		{
 			name:  "post tool use",
-			event: hooks.EventPostToolUse,
-			data: hooks.PostToolUseData{
+			event: agenthooks.EventPostToolUse,
+			data: agenthooks.PostToolUseData{
 				ToolUseID:    "call_" + uuid.NewString(),
 				ToolName:     "execute",
 				ToolResponse: json.RawMessage(`{"output":"ok"}`),
 			},
-			install: func(h *hooks.Hooks, called *bool) {
-				h.PostToolUse = func(_ context.Context, _ hooks.Meta, data hooks.PostToolUseData) (hooks.Response, error) {
+			install: func(h *agenthooks.Hooks, called *bool) {
+				h.PostToolUse = func(_ context.Context, _ agenthooks.Meta, data agenthooks.PostToolUseData) (agenthooks.Response, error) {
 					*called = true
 					require.Equal(t, "execute", data.ToolName)
-					return hooks.Response{UserMessage: "post tool use"}, nil
+					return agenthooks.Response{UserMessage: "post tool use"}, nil
 				}
 			},
 		},
 		{
 			name:  "pre compact",
-			event: hooks.EventPreCompact,
-			data:  hooks.PreCompactData{},
-			install: func(h *hooks.Hooks, called *bool) {
-				h.PreCompact = func(context.Context, hooks.Meta, hooks.PreCompactData) (hooks.Response, error) {
+			event: agenthooks.EventPreCompact,
+			data:  agenthooks.PreCompactData{},
+			install: func(h *agenthooks.Hooks, called *bool) {
+				h.PreCompact = func(context.Context, agenthooks.Meta, agenthooks.PreCompactData) (agenthooks.Response, error) {
 					*called = true
-					return hooks.Response{UserMessage: "pre compact"}, nil
+					return agenthooks.Response{UserMessage: "pre compact"}, nil
 				}
 			},
 		},
 		{
 			name:  "post compact",
-			event: hooks.EventPostCompact,
-			data:  hooks.PostCompactData{},
-			install: func(h *hooks.Hooks, called *bool) {
-				h.PostCompact = func(context.Context, hooks.Meta, hooks.PostCompactData) (hooks.Response, error) {
+			event: agenthooks.EventPostCompact,
+			data:  agenthooks.PostCompactData{},
+			install: func(h *agenthooks.Hooks, called *bool) {
+				h.PostCompact = func(context.Context, agenthooks.Meta, agenthooks.PostCompactData) (agenthooks.Response, error) {
 					*called = true
-					return hooks.Response{UserMessage: "post compact"}, nil
+					return agenthooks.Response{UserMessage: "post compact"}, nil
 				}
 			},
 		},
 		{
 			name:  "stop",
-			event: hooks.EventStop,
-			data:  hooks.StopData{},
-			install: func(h *hooks.Hooks, called *bool) {
-				h.Stop = func(context.Context, hooks.Meta, hooks.StopData) (hooks.Response, error) {
+			event: agenthooks.EventStop,
+			data:  agenthooks.StopData{},
+			install: func(h *agenthooks.Hooks, called *bool) {
+				h.Stop = func(context.Context, agenthooks.Meta, agenthooks.StopData) (agenthooks.Response, error) {
 					*called = true
-					return hooks.Response{UserMessage: "stop"}, nil
+					return agenthooks.Response{UserMessage: "stop"}, nil
 				}
 			},
 		},
@@ -210,15 +210,15 @@ func TestHTTPHandlerRoutesEvents(t *testing.T) {
 			t.Parallel()
 
 			called := false
-			var h hooks.Hooks
+			var h agenthooks.Hooks
 			test.install(&h, &called)
-			server := httptest.NewServer(hooks.NewHTTPHandler(testSecret, h))
+			server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, h))
 			t.Cleanup(server.Close)
 
 			response := postEvent(t, server.URL, test.event, test.data, nil, nil)
 			defer response.Body.Close()
 			require.Equal(t, http.StatusOK, response.StatusCode)
-			var got hooks.Response
+			var got agenthooks.Response
 			require.NoError(t, json.NewDecoder(response.Body).Decode(&got))
 			require.Equal(t, test.name, got.UserMessage)
 			require.True(t, called)
@@ -229,14 +229,14 @@ func TestHTTPHandlerRoutesEvents(t *testing.T) {
 func TestHTTPHandlerNoOpHookDoesNotDecodeData(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(hooks.NewHTTPHandler(testSecret, hooks.Hooks{}))
+	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
 	t.Cleanup(server.Close)
-	response := postEvent(t, server.URL, hooks.EventStop, "unused", nil, nil)
+	response := postEvent(t, server.URL, agenthooks.EventStop, "unused", nil, nil)
 	defer response.Body.Close()
 	require.Equal(t, http.StatusOK, response.StatusCode)
-	var got hooks.Response
+	var got agenthooks.Response
 	require.NoError(t, json.NewDecoder(response.Body).Decode(&got))
-	require.Equal(t, hooks.Response{}, got)
+	require.Equal(t, agenthooks.Response{}, got)
 }
 
 func TestHTTPHandlerRejectsMismatches(t *testing.T) {
@@ -244,36 +244,36 @@ func TestHTTPHandlerRejectsMismatches(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		updateRequest func(*hooks.Request)
-		updateClaims  func(*hooks.Claims)
+		updateRequest func(*agenthooks.Request)
+		updateClaims  func(*agenthooks.Claims)
 	}{
 		{
 			name: "dispatch ID",
-			updateRequest: func(request *hooks.Request) {
+			updateRequest: func(request *agenthooks.Request) {
 				request.Meta.DispatchID = uuid.New()
 			},
 		},
 		{
 			name: "event type",
-			updateRequest: func(request *hooks.Request) {
-				request.Type = hooks.EventPreCompact
+			updateRequest: func(request *agenthooks.Request) {
+				request.Type = agenthooks.EventPreCompact
 			},
 		},
 		{
 			name: "chat ID",
-			updateRequest: func(request *hooks.Request) {
+			updateRequest: func(request *agenthooks.Request) {
 				request.Meta.ChatID = uuid.New()
 			},
 		},
 		{
 			name: "audience",
-			updateClaims: func(claims *hooks.Claims) {
+			updateClaims: func(claims *agenthooks.Claims) {
 				claims.Audience = "https://hooks.example.com/other"
 			},
 		},
 		{
 			name: "body SHA-256",
-			updateClaims: func(claims *hooks.Claims) {
+			updateClaims: func(claims *agenthooks.Claims) {
 				claims.BodySHA256 = hex.EncodeToString(bytes.Repeat([]byte{1}, sha256.Size))
 			},
 		},
@@ -282,9 +282,9 @@ func TestHTTPHandlerRejectsMismatches(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			server := httptest.NewServer(hooks.NewHTTPHandler(testSecret, hooks.Hooks{}))
+			server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
 			t.Cleanup(server.Close)
-			response := postEvent(t, server.URL, hooks.EventStop, hooks.StopData{}, test.updateRequest, test.updateClaims)
+			response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, test.updateRequest, test.updateClaims)
 			defer response.Body.Close()
 			require.Equal(t, http.StatusBadRequest, response.StatusCode)
 		})
@@ -294,20 +294,20 @@ func TestHTTPHandlerRejectsMismatches(t *testing.T) {
 func TestHTTPHandlerExpectedIssuer(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(hooks.NewHTTPHandler(
+	server := httptest.NewServer(agenthooks.NewHTTPHandler(
 		testSecret,
-		hooks.Hooks{},
-		hooks.WithExpectedIssuer("deployment-a"),
+		agenthooks.Hooks{},
+		agenthooks.WithExpectedIssuer("deployment-a"),
 	))
 	t.Cleanup(server.Close)
 
-	matching := postEvent(t, server.URL, hooks.EventStop, hooks.StopData{}, nil, func(claims *hooks.Claims) {
+	matching := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
 		claims.Issuer = "deployment-a"
 	})
 	defer matching.Body.Close()
 	require.Equal(t, http.StatusOK, matching.StatusCode)
 
-	mismatched := postEvent(t, server.URL, hooks.EventStop, hooks.StopData{}, nil, func(claims *hooks.Claims) {
+	mismatched := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
 		claims.Issuer = "deployment-b"
 	})
 	defer mismatched.Body.Close()
@@ -317,9 +317,9 @@ func TestHTTPHandlerExpectedIssuer(t *testing.T) {
 func TestHTTPHandlerAcceptsTrailingSlashAudience(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(hooks.NewHTTPHandler(testSecret, hooks.Hooks{}))
+	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
 	t.Cleanup(server.Close)
-	response := postEvent(t, server.URL, hooks.EventStop, hooks.StopData{}, nil, func(claims *hooks.Claims) {
+	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
 		claims.Audience = server.URL + "/"
 	})
 	defer response.Body.Close()
@@ -329,10 +329,10 @@ func TestHTTPHandlerAcceptsTrailingSlashAudience(t *testing.T) {
 func TestHTTPHandlerHonorsForwardedProto(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(hooks.NewHTTPHandler(testSecret, hooks.Hooks{}))
+	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
 	t.Cleanup(server.Close)
 	httpsAudience := "https" + strings.TrimPrefix(server.URL, "http")
-	response := postEvent(t, server.URL, hooks.EventStop, hooks.StopData{}, nil, func(claims *hooks.Claims) {
+	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
 		claims.Audience = httpsAudience
 	}, func(r *http.Request) {
 		r.Header.Set("X-Forwarded-Proto", "https, http")
@@ -344,9 +344,9 @@ func TestHTTPHandlerHonorsForwardedProto(t *testing.T) {
 func TestHTTPHandlerHonorsForwardedHost(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(hooks.NewHTTPHandler(testSecret, hooks.Hooks{}))
+	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
 	t.Cleanup(server.Close)
-	response := postEvent(t, server.URL, hooks.EventStop, hooks.StopData{}, nil, func(claims *hooks.Claims) {
+	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
 		claims.Audience = "https://hooks.example.com"
 	}, func(r *http.Request) {
 		r.Header.Set("X-Forwarded-Proto", "https")
@@ -356,17 +356,17 @@ func TestHTTPHandlerHonorsForwardedHost(t *testing.T) {
 	require.Equal(t, http.StatusOK, response.StatusCode)
 }
 
-func postEvent(t *testing.T, target string, eventType hooks.EventType, data any, updateRequest func(*hooks.Request), updateClaims func(*hooks.Claims), updateHTTPRequest ...func(*http.Request)) *http.Response {
+func postEvent(t *testing.T, target string, eventType agenthooks.EventType, data any, updateRequest func(*agenthooks.Request), updateClaims func(*agenthooks.Claims), updateHTTPRequest ...func(*http.Request)) *http.Response {
 	t.Helper()
 
 	dataJSON, err := json.Marshal(data)
 	require.NoError(t, err)
-	request := hooks.Request{
+	request := agenthooks.Request{
 		Type: eventType,
-		Meta: hooks.Meta{
+		Meta: agenthooks.Meta{
 			DispatchID:    uuid.New(),
-			SchemaVersion: hooks.SchemaVersion,
-			ChatRef: hooks.ChatRef{
+			SchemaVersion: agenthooks.SchemaVersion,
+			ChatRef: agenthooks.ChatRef{
 				ChatID:  uuid.New(),
 				OwnerID: uuid.New(),
 			},
@@ -384,7 +384,7 @@ func postEvent(t *testing.T, target string, eventType hooks.EventType, data any,
 	if updateClaims != nil {
 		updateClaims(&claims)
 	}
-	token, err := hooks.SignClaims(testSecret, claims)
+	token, err := agenthooks.SignClaims(testSecret, claims)
 	require.NoError(t, err)
 	httpRequest, err := http.NewRequestWithContext(t.Context(), http.MethodPost, target, bytes.NewReader(body))
 	require.NoError(t, err)
@@ -397,11 +397,11 @@ func postEvent(t *testing.T, target string, eventType hooks.EventType, data any,
 	return response
 }
 
-func validClaims(t *testing.T, audience string, eventType hooks.EventType, request *hooks.Request) hooks.Claims {
+func validClaims(t *testing.T, audience string, eventType agenthooks.EventType, request *agenthooks.Request) agenthooks.Claims {
 	t.Helper()
 
 	now := time.Now()
-	claims := hooks.Claims{
+	claims := agenthooks.Claims{
 		Issuer:     uuid.NewString(),
 		Subject:    "coder:chat:" + uuid.NewString(),
 		Audience:   audience,
@@ -422,14 +422,14 @@ func validClaims(t *testing.T, audience string, eventType hooks.EventType, reque
 func TestHTTPHandlerRejectsOversizedBody(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(hooks.NewHTTPHandler(testSecret, hooks.Hooks{}))
+	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
 	t.Cleanup(server.Close)
 
 	// A correctly signed body over the limit must be rejected by size
 	// before it is hashed or decoded.
-	huge, err := json.Marshal(strings.Repeat("a", int(hooks.MaxRequestBodyBytes)))
+	huge, err := json.Marshal(strings.Repeat("a", int(agenthooks.MaxRequestBodyBytes)))
 	require.NoError(t, err)
-	response := postEvent(t, server.URL, hooks.EventStop, hooks.StopData{}, func(request *hooks.Request) {
+	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, func(request *agenthooks.Request) {
 		request.Data = huge
 	}, nil)
 	defer response.Body.Close()

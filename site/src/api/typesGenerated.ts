@@ -1217,7 +1217,7 @@ export interface AgentFirewallSessionLogsResponse {
 	readonly results: readonly AgentFirewallLog[];
 }
 
-// From hooks/types.go
+// From agenthooks/types.go
 /**
  * ChatRef identifies the chat a lifecycle hook event refers to.
  */
@@ -1233,7 +1233,7 @@ export interface AgentHookChatRef {
 	readonly root_chat_id?: string;
 }
 
-// From hooks/types.go
+// From agenthooks/types.go
 /**
  * Claims describes the JWT minted by coderd for a lifecycle hook dispatch.
  */
@@ -1249,7 +1249,7 @@ export interface AgentHookClaims {
 	readonly body_sha256: string;
 }
 
-// From hooks/types.go
+// From agenthooks/types.go
 export type AgentHookEventType =
 	| "post_compact"
 	| "post_tool_use"
@@ -1269,7 +1269,7 @@ export const AgentHookEventTypes: AgentHookEventType[] = [
 	"user_prompt_submit",
 ];
 
-// From hooks/http.go
+// From agenthooks/http.go
 /**
  * Hooks lets a consumer implement only the lifecycle events it uses.
  */
@@ -1290,19 +1290,19 @@ export interface AgentHookHooks {
 	readonly Stop: unknown;
 }
 
-// From hooks/http.go
+// From agenthooks/http.go
 /**
  * MaxRequestBodyBytes limits memory used to verify hook requests.
  */
 export const AgentHookMaxRequestBodyBytes = 10485760; // 10 MiB
 
-// From hooks/types.go
+// From agenthooks/types.go
 export interface AgentHookMeta extends AgentHookChatRef {
 	readonly dispatch_id: string;
 	readonly schema_version: number;
 }
 
-// From hooks/jwt.go
+// From agenthooks/jwt.go
 /**
  * MinSecretLen is the minimum HS256 secret length in bytes. go-jose
  * accepts shorter keys, so signing and verification enforce it to fail
@@ -1310,7 +1310,7 @@ export interface AgentHookMeta extends AgentHookChatRef {
  */
 export const AgentHookMinSecretLen = 32;
 
-// From hooks/types.go
+// From agenthooks/types.go
 /**
  * Permission controls whether mutable hook input may proceed.
  */
@@ -1320,7 +1320,7 @@ export interface AgentHookPermission {
 	readonly input_override?: unknown;
 }
 
-// From hooks/types.go
+// From agenthooks/types.go
 export type AgentHookPermissionDecision = "allow" | "deny";
 
 export const AgentHookPermissionDecisions: AgentHookPermissionDecision[] = [
@@ -1328,10 +1328,10 @@ export const AgentHookPermissionDecisions: AgentHookPermissionDecision[] = [
 	"deny",
 ];
 
-// From hooks/types.go
+// From agenthooks/types.go
 export interface AgentHookPostCompactData {}
 
-// From hooks/types.go
+// From agenthooks/types.go
 export interface AgentHookPostToolUseData {
 	readonly tool_use_id: string;
 	readonly tool_name: string;
@@ -1339,17 +1339,17 @@ export interface AgentHookPostToolUseData {
 	readonly tool_error?: string;
 }
 
-// From hooks/types.go
+// From agenthooks/types.go
 export interface AgentHookPreCompactData {}
 
-// From hooks/types.go
+// From agenthooks/types.go
 export interface AgentHookPreToolUseData {
 	readonly tool_use_id: string;
 	readonly tool_name: string;
 	readonly tool_input: unknown;
 }
 
-// From hooks/types.go
+// From agenthooks/types.go
 /**
  * Request is the body coderd posts to the configured lifecycle hook URL.
  */
@@ -1359,7 +1359,7 @@ export interface AgentHookRequest {
 	readonly data: unknown;
 }
 
-// From hooks/types.go
+// From agenthooks/types.go
 /**
  * Response carries a consumer's decision and optional injected content.
  * Permission is honored for user_prompt_submit and pre_tool_use only.
@@ -1372,21 +1372,21 @@ export interface AgentHookResponse {
 	readonly user_message?: string;
 }
 
-// From hooks/types.go
+// From agenthooks/types.go
 /**
  * SchemaVersion is the current lifecycle hook request schema version.
  */
 export const AgentHookSchemaVersion = 1;
 
-// From hooks/types.go
+// From agenthooks/types.go
 export interface AgentHookSessionStartData {
 	readonly source: string;
 }
 
-// From hooks/types.go
+// From agenthooks/types.go
 export interface AgentHookStopData {}
 
-// From hooks/types.go
+// From agenthooks/types.go
 /**
  * UserPromptSubmitData includes concatenated text and persisted parts.
  * Inspect Parts when structure matters.

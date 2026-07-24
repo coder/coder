@@ -19,7 +19,7 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/x/hooks"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 )
 
 type config struct {
@@ -34,18 +34,18 @@ type config struct {
 }
 
 type eventLog struct {
-	Event      hooks.EventType `json:"event"`
-	DispatchID string          `json:"dispatch_id"`
-	ChatID     string          `json:"chat_id"`
-	TurnID     string          `json:"turn_id,omitempty"`
-	ToolUseID  string          `json:"tool_use_id,omitempty"`
-	ToolName   string          `json:"tool_name,omitempty"`
-	Source     string          `json:"source,omitempty"`
-	Prompt     string          `json:"prompt,omitempty"`
-	ToolInput  json.RawMessage `json:"tool_input,omitempty"`
-	ToolOutput json.RawMessage `json:"tool_output,omitempty"`
-	ToolError  string          `json:"tool_error,omitempty"`
-	Duplicate  bool            `json:"duplicate,omitempty"`
+	Event      agenthooks.EventType `json:"event"`
+	DispatchID string               `json:"dispatch_id"`
+	ChatID     string               `json:"chat_id"`
+	TurnID     string               `json:"turn_id,omitempty"`
+	ToolUseID  string               `json:"tool_use_id,omitempty"`
+	ToolName   string               `json:"tool_name,omitempty"`
+	Source     string               `json:"source,omitempty"`
+	Prompt     string               `json:"prompt,omitempty"`
+	ToolInput  json.RawMessage      `json:"tool_input,omitempty"`
+	ToolOutput json.RawMessage      `json:"tool_output,omitempty"`
+	ToolError  string               `json:"tool_error,omitempty"`
+	Duplicate  bool                 `json:"duplicate,omitempty"`
 }
 
 // consumerState demonstrates consumer-owned hook state. Coder persists no
@@ -56,7 +56,7 @@ type consumerState struct {
 	mu sync.Mutex
 	// preToolDecisions reuses responses for duplicate (chat_id, tool_use_id)
 	// deliveries while they remain cached.
-	preToolDecisions map[string]hooks.Response
+	preToolDecisions map[string]agenthooks.Response
 	// blockedTools records tool names this consumer denied per chat, so
 	// the policy outlives any single dispatch.
 	blockedTools map[string]map[string]struct{}
@@ -66,23 +66,23 @@ const maxRememberedDecisions = 8192
 
 func newConsumerState() *consumerState {
 	return &consumerState{
-		preToolDecisions: make(map[string]hooks.Response),
+		preToolDecisions: make(map[string]agenthooks.Response),
 		blockedTools:     make(map[string]map[string]struct{}),
 	}
 }
 
-func (s *consumerState) rememberedDecision(chatID, toolUseID string) (hooks.Response, bool) {
+func (s *consumerState) rememberedDecision(chatID, toolUseID string) (agenthooks.Response, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	response, ok := s.preToolDecisions[chatID+"\x00"+toolUseID]
 	return response, ok
 }
 
-func (s *consumerState) rememberDecision(chatID, toolUseID string, response hooks.Response, deniedTool string) {
+func (s *consumerState) rememberDecision(chatID, toolUseID string, response agenthooks.Response, deniedTool string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if len(s.preToolDecisions) >= maxRememberedDecisions {
-		s.preToolDecisions = make(map[string]hooks.Response)
+		s.preToolDecisions = make(map[string]agenthooks.Response)
 	}
 	s.preToolDecisions[chatID+"\x00"+toolUseID] = response
 	if deniedTool == "" {
@@ -148,7 +148,7 @@ func run() error {
 		}
 		return nil
 	}
-	baseEvent := func(event hooks.EventType, meta hooks.Meta) eventLog {
+	baseEvent := func(event agenthooks.EventType, meta agenthooks.Meta) eventLog {
 		entry := eventLog{
 			Event:      event,
 			DispatchID: meta.DispatchID.String(),
@@ -160,38 +160,38 @@ func run() error {
 		return entry
 	}
 
-	consumerHooks := hooks.Hooks{
-		SessionStart: func(_ context.Context, meta hooks.Meta, data hooks.SessionStartData) (hooks.Response, error) {
-			entry := baseEvent(hooks.EventSessionStart, meta)
+	consumerHooks := agenthooks.Hooks{
+		SessionStart: func(_ context.Context, meta agenthooks.Meta, data agenthooks.SessionStartData) (agenthooks.Response, error) {
+			entry := baseEvent(agenthooks.EventSessionStart, meta)
 			entry.Source = data.Source
-			return hooks.Response{}, logEvent(entry)
+			return agenthooks.Response{}, logEvent(entry)
 		},
-		UserPromptSubmit: func(_ context.Context, meta hooks.Meta, data hooks.UserPromptSubmitData) (hooks.Response, error) {
-			entry := baseEvent(hooks.EventUserPromptSubmit, meta)
+		UserPromptSubmit: func(_ context.Context, meta agenthooks.Meta, data agenthooks.UserPromptSubmitData) (agenthooks.Response, error) {
+			entry := baseEvent(agenthooks.EventUserPromptSubmit, meta)
 			entry.Prompt = data.Prompt
 			matches := redactPrompt != nil && redactPrompt.MatchString(data.Prompt)
 			if matches {
 				entry.Prompt = redactPrompt.ReplaceAllString(data.Prompt, "[REDACTED]")
 			}
 			if err := logEvent(entry); err != nil {
-				return hooks.Response{}, err
+				return agenthooks.Response{}, err
 			}
 			// Log-only mode still redacts the log entry above; it only
 			// suppresses the prompt override response.
 			if cfg.logOnly || !matches {
-				return hooks.Response{}, nil
+				return agenthooks.Response{}, nil
 			}
 			override, err := json.Marshal(map[string]string{"prompt": entry.Prompt})
 			if err != nil {
-				return hooks.Response{}, xerrors.Errorf("marshal prompt override: %w", err)
+				return agenthooks.Response{}, xerrors.Errorf("marshal prompt override: %w", err)
 			}
-			return hooks.Response{Permission: &hooks.Permission{
-				Decision:      hooks.PermissionAllow,
+			return agenthooks.Response{Permission: &agenthooks.Permission{
+				Decision:      agenthooks.PermissionAllow,
 				InputOverride: override,
 			}}, nil
 		},
-		PreToolUse: func(_ context.Context, meta hooks.Meta, data hooks.PreToolUseData) (hooks.Response, error) {
-			entry := baseEvent(hooks.EventPreToolUse, meta)
+		PreToolUse: func(_ context.Context, meta agenthooks.Meta, data agenthooks.PreToolUseData) (agenthooks.Response, error) {
+			entry := baseEvent(agenthooks.EventPreToolUse, meta)
 			entry.ToolUseID = data.ToolUseID
 			entry.ToolName = data.ToolName
 			entry.ToolInput = data.ToolInput
@@ -200,51 +200,51 @@ func run() error {
 				return response, logEvent(entry)
 			}
 			if err := logEvent(entry); err != nil {
-				return hooks.Response{}, err
+				return agenthooks.Response{}, err
 			}
-			var response hooks.Response
+			var response agenthooks.Response
 			deniedTool := ""
 			switch {
 			case cfg.logOnly:
 			case state.isBlocked(entry.ChatID, data.ToolName):
-				response = hooks.Response{Permission: &hooks.Permission{
-					Decision: hooks.PermissionDeny,
+				response = agenthooks.Response{Permission: &agenthooks.Permission{
+					Decision: agenthooks.PermissionDeny,
 					Reason:   "tool is blocked for this chat",
 				}}
 			case denyTool != nil && denyTool.MatchString(data.ToolName):
 				deniedTool = data.ToolName
-				response = hooks.Response{Permission: &hooks.Permission{
-					Decision: hooks.PermissionDeny,
+				response = agenthooks.Response{Permission: &agenthooks.Permission{
+					Decision: agenthooks.PermissionDeny,
 					Reason:   "tool name matched the configured deny pattern",
 				}}
 			}
 			state.rememberDecision(entry.ChatID, data.ToolUseID, response, deniedTool)
 			return response, nil
 		},
-		PostToolUse: func(_ context.Context, meta hooks.Meta, data hooks.PostToolUseData) (hooks.Response, error) {
-			entry := baseEvent(hooks.EventPostToolUse, meta)
+		PostToolUse: func(_ context.Context, meta agenthooks.Meta, data agenthooks.PostToolUseData) (agenthooks.Response, error) {
+			entry := baseEvent(agenthooks.EventPostToolUse, meta)
 			entry.ToolUseID = data.ToolUseID
 			entry.ToolName = data.ToolName
 			entry.ToolOutput = data.ToolResponse
 			entry.ToolError = data.ToolError
-			return hooks.Response{}, logEvent(entry)
+			return agenthooks.Response{}, logEvent(entry)
 		},
-		PreCompact: func(_ context.Context, meta hooks.Meta, _ hooks.PreCompactData) (hooks.Response, error) {
-			return hooks.Response{}, logEvent(baseEvent(hooks.EventPreCompact, meta))
+		PreCompact: func(_ context.Context, meta agenthooks.Meta, _ agenthooks.PreCompactData) (agenthooks.Response, error) {
+			return agenthooks.Response{}, logEvent(baseEvent(agenthooks.EventPreCompact, meta))
 		},
-		PostCompact: func(_ context.Context, meta hooks.Meta, _ hooks.PostCompactData) (hooks.Response, error) {
-			return hooks.Response{}, logEvent(baseEvent(hooks.EventPostCompact, meta))
+		PostCompact: func(_ context.Context, meta agenthooks.Meta, _ agenthooks.PostCompactData) (agenthooks.Response, error) {
+			return agenthooks.Response{}, logEvent(baseEvent(agenthooks.EventPostCompact, meta))
 		},
-		Stop: func(_ context.Context, meta hooks.Meta, _ hooks.StopData) (hooks.Response, error) {
-			return hooks.Response{}, logEvent(baseEvent(hooks.EventStop, meta))
+		Stop: func(_ context.Context, meta agenthooks.Meta, _ agenthooks.StopData) (agenthooks.Response, error) {
+			return agenthooks.Response{}, logEvent(baseEvent(agenthooks.EventStop, meta))
 		},
 	}
 
-	var handlerOpts []hooks.HandlerOption
+	var handlerOpts []agenthooks.HandlerOption
 	if cfg.issuer != "" {
-		handlerOpts = append(handlerOpts, hooks.WithExpectedIssuer(cfg.issuer))
+		handlerOpts = append(handlerOpts, agenthooks.WithExpectedIssuer(cfg.issuer))
 	}
-	handler := hooks.NewHTTPHandler([]byte(cfg.secret), consumerHooks, handlerOpts...)
+	handler := agenthooks.NewHTTPHandler([]byte(cfg.secret), consumerHooks, handlerOpts...)
 	server := &http.Server{
 		Addr:              cfg.listen,
 		Handler:           handler,

@@ -26,7 +26,7 @@ func main() {
 	generateDirectories := map[string]string{
 		"github.com/coder/coder/v2/codersdk":                  "",
 		"github.com/coder/coder/v2/coderd/healthcheck/health": "Health",
-		"github.com/coder/coder/v2/coderd/x/hooks":            "AgentHook",
+		"github.com/coder/coder/v2/codersdk/x/agenthooks":     "AgentHook",
 		"github.com/coder/coder/v2/codersdk/healthsdk":        "",
 	}
 	for dir, prefix := range generateDirectories {
