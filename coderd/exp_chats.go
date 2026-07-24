@@ -50,6 +50,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -126,7 +127,7 @@ func writeChatHookDispatchFailed(ctx context.Context, rw http.ResponseWriter, ho
 // dispatch failures, reporting whether it handled the error. The fallback
 // message is used when the hook denies without a user message.
 func writeChatHookErr(ctx context.Context, rw http.ResponseWriter, err error, deniedFallback string) bool {
-	if denied, ok := errors.AsType[*chatd.UserPromptDeniedError](err); ok {
+	if denied, ok := errors.AsType[*chathooks.UserPromptDeniedError](err); ok {
 		message := denied.UserMessage
 		if message == "" {
 			message = deniedFallback

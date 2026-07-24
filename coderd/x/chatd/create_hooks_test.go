@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/hooks"
 	"github.com/coder/coder/v2/coderd/x/hooks/dispatch"
@@ -150,7 +151,7 @@ func TestCreateChatUserPromptSubmitHook(t *testing.T) {
 		server, requests := newCreateHookTestServer(t, db, ps, http.StatusOK, `{"permission":{"decision":"deny"},"user_message":"blocked"}`)
 
 		_, err := server.CreateChat(ctx, createHookOptions(t, db, user.ID, org.ID, model.ID, "prompt"))
-		var denied *chatd.UserPromptDeniedError
+		var denied *chathooks.UserPromptDeniedError
 		require.ErrorAs(t, err, &denied)
 		require.Equal(t, "blocked", denied.UserMessage)
 		request := testutil.RequireReceive(ctx, t, requests)

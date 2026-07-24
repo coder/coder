@@ -1,8 +1,12 @@
-package chatd
+// Package chathooks integrates chat lifecycle hooks into chatd: it
+// builds event envelopes, dispatches them, and converts consumer
+// responses into transcript effects and permission decisions.
+package chathooks
 
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -15,39 +19,39 @@ import (
 )
 
 const (
-	sessionStartSourceStartup = "startup"
-	sessionStartSourceResume  = "resume"
-	sessionStartSourceClear   = "clear"
+	SessionStartSourceStartup = "startup"
+	SessionStartSourceResume  = "resume"
+	SessionStartSourceClear   = "clear"
 )
 
-func sessionStartSource(messages []database.ChatMessage) string {
+func SessionStartSource(messages []database.ChatMessage) string {
 	for _, message := range messages {
 		if message.Role == database.ChatMessageRoleAssistant {
-			return sessionStartSourceResume
+			return SessionStartSourceResume
 		}
 	}
-	return sessionStartSourceStartup
+	return SessionStartSourceStartup
 }
 
-// hookTrigger is the only component that talks to the hook dispatcher.
+// Trigger is the only component that talks to the hook dispatcher.
 // Every lifecycle event flows through trigger, which builds the wire
 // envelope, dispatches, and normalizes the outcome.
-type hookTrigger struct {
+type Trigger struct {
 	dispatcher *dispatch.Dispatcher
 }
 
-func newHookTrigger(dispatcher *dispatch.Dispatcher) *hookTrigger {
-	return &hookTrigger{dispatcher: dispatcher}
+func NewTrigger(dispatcher *dispatch.Dispatcher) *Trigger {
+	return &Trigger{dispatcher: dispatcher}
 }
 
-func (t *hookTrigger) enabled() bool {
+func (t *Trigger) Enabled() bool {
 	return t != nil && t.dispatcher.Enabled()
 }
 
-// hookChat identifies the chat and turn an event belongs to. Admission
+// Chat identifies the chat and turn an event belongs to. Admission
 // events for chats that do not exist yet (create, subagent spawn) fill
 // the fields directly instead of loading a row.
-type hookChat struct {
+type Chat struct {
 	ID           uuid.UUID
 	OwnerID      uuid.UUID
 	WorkspaceID  uuid.NullUUID
@@ -56,8 +60,8 @@ type hookChat struct {
 	TurnID       *uuid.UUID
 }
 
-func hookChatFor(chat database.Chat, turnID *uuid.UUID) hookChat {
-	return hookChat{
+func ChatFor(chat database.Chat, turnID *uuid.UUID) Chat {
+	return Chat{
 		ID:           chat.ID,
 		OwnerID:      chat.OwnerID,
 		WorkspaceID:  chat.WorkspaceID,
@@ -67,7 +71,7 @@ func hookChatFor(chat database.Chat, turnID *uuid.UUID) hookChat {
 	}
 }
 
-func (c hookChat) ref() hooks.ChatRef {
+func (c Chat) ref() hooks.ChatRef {
 	ref := hooks.ChatRef{
 		ChatID:  c.ID,
 		OwnerID: c.OwnerID,
@@ -85,7 +89,7 @@ func (c hookChat) ref() hooks.ChatRef {
 	return ref
 }
 
-type hookMessage struct {
+type Message struct {
 	Source       string
 	Prompt       string
 	Parts        json.RawMessage
@@ -96,51 +100,51 @@ type hookMessage struct {
 	ToolError    string
 }
 
-func userPromptHookMessage(parts []codersdk.ChatMessagePart) (hookMessage, error) {
+func UserPromptMessage(parts []codersdk.ChatMessagePart) (Message, error) {
 	encoded, err := chatprompt.MarshalParts(parts)
 	if err != nil {
-		return hookMessage{}, xerrors.Errorf("marshal prompt parts for hook: %w", err)
+		return Message{}, xerrors.Errorf("marshal prompt parts for hook: %w", err)
 	}
-	return hookMessage{
+	return Message{
 		Prompt: textFromParts(parts),
 		Parts:  encoded.RawMessage,
 	}, nil
 }
 
-// hookResult is a consumer response normalized for callers: a non-empty
+// Result is a consumer response normalized for callers: a non-empty
 // InputOverride means the permission decision was allow with a
 // replacement input (the wire contract rejects allow without one).
-// Denials surface as *hookDeniedError instead.
-type hookResult struct {
+// Denials surface as *deniedError instead.
+type Result struct {
 	InputOverride json.RawMessage
 	ModelContext  string
 	UserMessage   string
 }
 
-var emptyHookResult = &hookResult{}
+var emptyResult = &Result{}
 
-func (r *hookResult) modelContext() string {
+func (r *Result) GetModelContext() string {
 	if r == nil {
 		return ""
 	}
 	return r.ModelContext
 }
 
-func (r *hookResult) userMessage() string {
+func (r *Result) GetUserMessage() string {
 	if r == nil {
 		return ""
 	}
 	return r.UserMessage
 }
 
-func (t *hookTrigger) trigger(
+func (t *Trigger) Trigger(
 	ctx context.Context,
-	chat hookChat,
-	msg hookMessage,
+	chat Chat,
+	msg Message,
 	event hooks.EventType,
-) (*hookResult, error) {
-	if !t.enabled() {
-		return emptyHookResult, nil
+) (*Result, error) {
+	if !t.Enabled() {
+		return emptyResult, nil
 	}
 	var data any
 	switch event {
@@ -170,14 +174,14 @@ func (t *hookTrigger) trigger(
 		return nil, err
 	}
 	if response.Permission != nil && response.Permission.Decision == hooks.PermissionDeny {
-		return nil, &hookDeniedError{
+		return nil, &deniedError{
 			Event:        event,
 			Reason:       response.Permission.Reason,
 			ModelContext: response.ModelContext,
 			UserMessage:  response.UserMessage,
 		}
 	}
-	result := &hookResult{
+	result := &Result{
 		ModelContext: response.ModelContext,
 		UserMessage:  response.UserMessage,
 	}
@@ -185,4 +189,14 @@ func (t *hookTrigger) trigger(
 		result.InputOverride = response.Permission.InputOverride
 	}
 	return result, nil
+}
+
+func textFromParts(parts []codersdk.ChatMessagePart) string {
+	var builder strings.Builder
+	for _, part := range parts {
+		if part.Type == codersdk.ChatMessagePartTypeText {
+			_, _ = builder.WriteString(part.Text)
+		}
+	}
+	return builder.String()
 }
