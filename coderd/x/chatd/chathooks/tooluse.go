@@ -69,10 +69,14 @@ func (t *Trigger) PreflightPendingToolCalls(
 			if !ok {
 				return PreToolUseExecutionResult{}, err
 			}
-			// The denial's model context folds into the synthetic tool
-			// result; only the user notice needs a transcript row.
-			result.Results = append(result.Results, &Result{UserMessage: denied.UserMessage})
-			result.Denied = append(result.Denied, deniedToolResult(toolCall, denied.Reason, denied.ModelContext))
+			// The synthetic tool result is client-visible, so the
+			// denial's model context becomes a model-only transcript
+			// row instead of riding in the result.
+			result.Results = append(result.Results, &Result{
+				ModelContext: denied.ModelContext,
+				UserMessage:  denied.UserMessage,
+			})
+			result.Denied = append(result.Denied, deniedToolResult(toolCall, denied.Reason))
 			continue
 		}
 		result.Results = append(result.Results, callResult)
