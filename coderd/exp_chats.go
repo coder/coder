@@ -122,6 +122,27 @@ func writeChatHookDispatchFailed(ctx context.Context, rw http.ResponseWriter, ho
 	})
 }
 
+// writeChatHookErr writes the response for lifecycle hook denials and
+// dispatch failures, reporting whether it handled the error. The fallback
+// message is used when the hook denies without a user message.
+func writeChatHookErr(ctx context.Context, rw http.ResponseWriter, err error, deniedFallback string) bool {
+	var denied *chatd.UserPromptDeniedError
+	if errors.As(err, &denied) {
+		message := denied.UserMessage
+		if message == "" {
+			message = deniedFallback
+		}
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: message})
+		return true
+	}
+	var hookErr *dispatch.Error
+	if errors.As(err, &hookErr) {
+		writeChatHookDispatchFailed(ctx, rw, hookErr)
+		return true
+	}
+	return false
+}
+
 func maybeWriteLimitErr(ctx context.Context, rw http.ResponseWriter, err error) bool {
 	var limitErr *chatd.UsageLimitExceededError
 	if errors.As(err, &limitErr) {
@@ -1453,18 +1474,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		ParentChatID: uuid.NullUUID{},
 	})
 	if err != nil {
-		var denied *chatd.UserPromptDeniedError
-		if errors.As(err, &denied) {
-			message := denied.UserMessage
-			if message == "" {
-				message = "Chat creation denied by lifecycle hook."
-			}
-			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: message})
-			return
-		}
-		var hookErr *dispatch.Error
-		if errors.As(err, &hookErr) {
-			writeChatHookDispatchFailed(ctx, rw, hookErr)
+		if writeChatHookErr(ctx, rw, err, "Chat creation denied by lifecycle hook.") {
 			return
 		}
 		if maybeWriteLimitErr(ctx, rw, err) {
@@ -3419,18 +3429,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if sendErr != nil {
-		var denied *chatd.UserPromptDeniedError
-		if errors.As(sendErr, &denied) {
-			message := denied.UserMessage
-			if message == "" {
-				message = "Chat message denied by lifecycle hook."
-			}
-			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: message})
-			return
-		}
-		var hookErr *dispatch.Error
-		if errors.As(sendErr, &hookErr) {
-			writeChatHookDispatchFailed(ctx, rw, hookErr)
+		if writeChatHookErr(ctx, rw, sendErr, "Chat message denied by lifecycle hook.") {
 			return
 		}
 		if maybeWriteLimitErr(ctx, rw, sendErr) {
@@ -3620,18 +3619,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		ReasoningEffort: editReasoningEffort,
 	})
 	if editErr != nil {
-		var denied *chatd.UserPromptDeniedError
-		if errors.As(editErr, &denied) {
-			message := denied.UserMessage
-			if message == "" {
-				message = "Chat message denied by lifecycle hook."
-			}
-			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: message})
-			return
-		}
-		var hookErr *dispatch.Error
-		if errors.As(editErr, &hookErr) {
-			writeChatHookDispatchFailed(ctx, rw, hookErr)
+		if writeChatHookErr(ctx, rw, editErr, "Chat message denied by lifecycle hook.") {
 			return
 		}
 		if maybeWriteLimitErr(ctx, rw, editErr) {
