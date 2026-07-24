@@ -47,6 +47,7 @@ import (
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridge/prices"
+	"github.com/coder/coder/v2/coderd/aibridgedserver"
 	"github.com/coder/coder/v2/coderd/aiseats"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
 	"github.com/coder/coder/v2/coderd/appearance"
@@ -2318,6 +2319,8 @@ type API struct {
 	// routes (license-gated) which apply their own StripPrefix, and by
 	// the in-memory transport (used by chatd, license-exempt).
 	aiGatewayHandler http.Handler
+	// AIGatewayServerMetrics records AI budget cost-control metrics. May be nil.
+	AIGatewayServerMetrics *aibridgedserver.Metrics
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 
