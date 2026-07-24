@@ -14,9 +14,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
-	"github.com/coder/coder/v2/coderd/x/chathooks"
+	"github.com/coder/coder/v2/coderd/x/hooks"
+	"github.com/coder/coder/v2/coderd/x/hooks/dispatch"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agenthooks"
 )
 
 // hookDeniedError is trigger's normalized form of a permission deny.
@@ -24,7 +24,7 @@ import (
 // UserPromptDeniedError, pre_tool_use sites fold it into a synthetic
 // tool result.
 type hookDeniedError struct {
-	Event        agenthooks.EventType
+	Event        hooks.EventType
 	Reason       string
 	ModelContext string
 	UserMessage  string
@@ -61,10 +61,10 @@ func userPromptDenial(err error) error {
 }
 
 func (p *Server) handleUserPromptDispatchError(ctx context.Context, chatID uuid.UUID, dispatchErr error) error {
-	return p.handleAPIDispatchError(ctx, chatID, agenthooks.EventUserPromptSubmit, dispatchErr)
+	return p.handleAPIDispatchError(ctx, chatID, hooks.EventUserPromptSubmit, dispatchErr)
 }
 
-func (p *Server) handleAPIDispatchError(ctx context.Context, chatID uuid.UUID, eventType agenthooks.EventType, dispatchErr error) error {
+func (p *Server) handleAPIDispatchError(ctx context.Context, chatID uuid.UUID, eventType hooks.EventType, dispatchErr error) error {
 	lastError, ok := hookDispatchErrorMessage(eventType, dispatchErr)
 	if !ok {
 		return dispatchErr
@@ -111,8 +111,8 @@ func (p *Server) handleAPIDispatchError(ctx context.Context, chatID uuid.UUID, e
 	return dispatchErr
 }
 
-func hookDispatchErrorMessage(eventType agenthooks.EventType, dispatchErr error) (string, bool) {
-	var structured *chathooks.DispatchError
+func hookDispatchErrorMessage(eventType hooks.EventType, dispatchErr error) (string, bool) {
+	var structured *dispatch.Error
 	if !errors.As(dispatchErr, &structured) {
 		return "", false
 	}
@@ -124,7 +124,7 @@ func hookDispatchErrorMessage(eventType agenthooks.EventType, dispatchErr error)
 	), true
 }
 
-func generationHookDispatchError(eventType agenthooks.EventType, dispatchErr error) error {
+func generationHookDispatchError(eventType hooks.EventType, dispatchErr error) error {
 	message, ok := hookDispatchErrorMessage(eventType, dispatchErr)
 	if !ok {
 		message = dispatchErr.Error()
@@ -156,7 +156,7 @@ func hookDispatchFailureFromResults(content []fantasy.Content) error {
 				resultErr = output.Error
 			}
 		}
-		var dispatchErr *chathooks.DispatchError
+		var dispatchErr *dispatch.Error
 		if resultErr != nil && errors.As(resultErr, &dispatchErr) {
 			return resultErr
 		}

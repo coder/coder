@@ -16,9 +16,9 @@ import (
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
-	"github.com/coder/coder/v2/coderd/x/chathooks"
+	"github.com/coder/coder/v2/coderd/x/hooks"
+	"github.com/coder/coder/v2/coderd/x/hooks/dispatch"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agenthooks"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -35,11 +35,11 @@ func TestCreateChatUserPromptSubmitHook(t *testing.T) {
 		chat, err := server.CreateChat(ctx, createHookOptions(t, db, user.ID, org.ID, model.ID, "passthrough"))
 		require.NoError(t, err)
 		request := testutil.RequireReceive(ctx, t, requests)
-		require.Equal(t, agenthooks.EventUserPromptSubmit, request.Type)
+		require.Equal(t, hooks.EventUserPromptSubmit, request.Type)
 		require.Equal(t, chat.ID, request.Meta.ChatID)
 		require.Equal(t, user.ID, request.Meta.OwnerID)
 		require.NotNil(t, request.Meta.TurnID)
-		data := decodeHookData[agenthooks.UserPromptSubmitData](t, request)
+		data := decodeHookData[hooks.UserPromptSubmitData](t, request)
 		require.Equal(t, "passthrough", data.Prompt)
 		var hookParts []codersdk.ChatMessagePart
 		require.NoError(t, json.Unmarshal(data.Parts, &hookParts))
@@ -165,9 +165,9 @@ func TestCreateChatUserPromptSubmitHook(t *testing.T) {
 		server, requests := newCreateHookTestServer(t, db, ps, http.StatusInternalServerError, "")
 
 		_, err := server.CreateChat(ctx, createHookOptions(t, db, user.ID, org.ID, model.ID, "prompt"))
-		var dispatchErr *chathooks.DispatchError
+		var dispatchErr *dispatch.Error
 		require.ErrorAs(t, err, &dispatchErr)
-		require.Equal(t, chathooks.ResultHTTPError, dispatchErr.Class)
+		require.Equal(t, dispatch.ResultHTTPError, dispatchErr.Class)
 		request := testutil.RequireReceive(ctx, t, requests)
 		requireCreateHookChatMissing(ctx, t, db, request.Meta.ChatID)
 	})
@@ -193,11 +193,11 @@ func newCreateHookTestServer(
 	ps dbpubsub.Pubsub,
 	statusCode int,
 	response string,
-) (*chatd.Server, <-chan agenthooks.Request) {
+) (*chatd.Server, <-chan hooks.Request) {
 	t.Helper()
-	requests := make(chan agenthooks.Request, 2)
+	requests := make(chan hooks.Request, 2)
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request agenthooks.Request
+		var request hooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 		requests <- request
 		w.WriteHeader(statusCode)

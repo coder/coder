@@ -55,8 +55,8 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
-	"github.com/coder/coder/v2/coderd/x/chathooks"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
+	"github.com/coder/coder/v2/coderd/x/hooks/dispatch"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/websocket"
@@ -112,7 +112,7 @@ func writeChatUsageLimitExceeded(
 }
 
 // Avoid returning raw dispatch errors, which may expose deployment internals.
-func writeChatHookDispatchFailed(ctx context.Context, rw http.ResponseWriter, hookErr *chathooks.DispatchError) {
+func writeChatHookDispatchFailed(ctx context.Context, rw http.ResponseWriter, hookErr *dispatch.Error) {
 	httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.ChatHookDispatchFailedResponse{
 		Response: codersdk.Response{
 			Message: "Chat lifecycle hook dispatch failed.",
@@ -1462,7 +1462,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: message})
 			return
 		}
-		var hookErr *chathooks.DispatchError
+		var hookErr *dispatch.Error
 		if errors.As(err, &hookErr) {
 			writeChatHookDispatchFailed(ctx, rw, hookErr)
 			return
@@ -3428,7 +3428,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: message})
 			return
 		}
-		var hookErr *chathooks.DispatchError
+		var hookErr *dispatch.Error
 		if errors.As(sendErr, &hookErr) {
 			writeChatHookDispatchFailed(ctx, rw, hookErr)
 			return
@@ -3629,7 +3629,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: message})
 			return
 		}
-		var hookErr *chathooks.DispatchError
+		var hookErr *dispatch.Error
 		if errors.As(editErr, &hookErr) {
 			writeChatHookDispatchFailed(ctx, rw, hookErr)
 			return
@@ -8271,7 +8271,7 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		var validationErr *chatd.ToolResultValidationError
 		var conflictErr *chatd.ToolResultStatusConflictError
-		var hookErr *chathooks.DispatchError
+		var hookErr *dispatch.Error
 		switch {
 		case errors.As(err, &hookErr):
 			writeChatHookDispatchFailed(ctx, rw, hookErr)

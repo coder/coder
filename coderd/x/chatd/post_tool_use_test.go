@@ -19,9 +19,9 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
-	"github.com/coder/coder/v2/coderd/x/chathooks"
+	"github.com/coder/coder/v2/coderd/x/hooks"
+	"github.com/coder/coder/v2/coderd/x/hooks/dispatch"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agenthooks"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/testutil"
@@ -65,16 +65,16 @@ func TestPostToolUseHookResponsesCommitWithResults(t *testing.T) {
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
 	var mu sync.Mutex
-	var received []agenthooks.PostToolUseData
+	var received []hooks.PostToolUseData
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request agenthooks.Request
+		var request hooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
-		if request.Type != agenthooks.EventPostToolUse {
+		if request.Type != hooks.EventPostToolUse {
 			_, err := w.Write([]byte(`{}`))
 			require.NoError(t, err)
 			return
 		}
-		data := decodeHookData[agenthooks.PostToolUseData](t, request)
+		data := decodeHookData[hooks.PostToolUseData](t, request)
 		mu.Lock()
 		received = append(received, data)
 		index := len(received)
@@ -126,7 +126,7 @@ func TestPostToolUseHookResponsesCommitWithResults(t *testing.T) {
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
 	mu.Lock()
-	receivedSnapshot := append([]agenthooks.PostToolUseData(nil), received...)
+	receivedSnapshot := append([]hooks.PostToolUseData(nil), received...)
 	mu.Unlock()
 	require.Len(t, receivedSnapshot, 2)
 	require.Equal(t, "call_first", receivedSnapshot[0].ToolUseID)
@@ -196,15 +196,15 @@ func TestPostToolUseHookDynamicResult(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	var postCalls atomic.Int32
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request agenthooks.Request
+		var request hooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
-		if request.Type != agenthooks.EventPostToolUse {
+		if request.Type != hooks.EventPostToolUse {
 			_, err := w.Write([]byte(`{}`))
 			require.NoError(t, err)
 			return
 		}
 		postCalls.Add(1)
-		data := decodeHookData[agenthooks.PostToolUseData](t, request)
+		data := decodeHookData[hooks.PostToolUseData](t, request)
 		require.Equal(t, "call_dynamic_result", data.ToolUseID)
 		require.Equal(t, "my_dynamic_tool", data.ToolName)
 		require.JSONEq(t, `{"answer":42}`, string(data.ToolResponse))
@@ -284,9 +284,9 @@ func TestPostToolUseHookDynamicFailureRejectsSubmission(t *testing.T) {
 	var failPostToolUse atomic.Bool
 	failPostToolUse.Store(true)
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request agenthooks.Request
+		var request hooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
-		if request.Type == agenthooks.EventPostToolUse {
+		if request.Type == hooks.EventPostToolUse {
 			postCalls.Add(1)
 			if failPostToolUse.Load() {
 				w.WriteHeader(http.StatusInternalServerError)
@@ -328,7 +328,7 @@ func TestPostToolUseHookDynamicFailureRejectsSubmission(t *testing.T) {
 		ModelConfigID: model.ID,
 		Results:       results,
 	})
-	var dispatchErr *chathooks.DispatchError
+	var dispatchErr *dispatch.Error
 	require.ErrorAs(t, err, &dispatchErr)
 
 	unchanged, err := db.GetChatByID(ctx, chat.ID)
@@ -370,11 +370,11 @@ func TestPostToolUseHookFailureCommitsResultThenErrors(t *testing.T) {
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 	var postCalls atomic.Int32
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request agenthooks.Request
+		var request hooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
-		if request.Type == agenthooks.EventPostToolUse {
+		if request.Type == hooks.EventPostToolUse {
 			postCalls.Add(1)
-			data := decodeHookData[agenthooks.PostToolUseData](t, request)
+			data := decodeHookData[hooks.PostToolUseData](t, request)
 			require.Equal(t, "call_failure", data.ToolUseID)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -444,14 +444,14 @@ func TestPostToolUseHookFailureDispatchesRemainingResults(t *testing.T) {
 	var mu sync.Mutex
 	results := map[string]string{}
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request agenthooks.Request
+		var request hooks.Request
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
-		if request.Type != agenthooks.EventPostToolUse {
+		if request.Type != hooks.EventPostToolUse {
 			_, err := w.Write([]byte(`{}`))
 			require.NoError(t, err)
 			return
 		}
-		data := decodeHookData[agenthooks.PostToolUseData](t, request)
+		data := decodeHookData[hooks.PostToolUseData](t, request)
 		result := "ok"
 		if data.ToolUseID == "call_first" {
 			result = "http_error"
