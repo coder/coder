@@ -173,7 +173,8 @@ func TestPreToolUseHookDeny(t *testing.T) {
 	parts := chatToolParts(ctx, t, db, chat.ID)
 	result := requireToolResultPart(t, parts, "read_file")
 	require.True(t, result.IsError)
-	require.Contains(t, string(result.Result), "DENIED: blocked by policy")
+	require.Contains(t, string(result.Result), "denied by the deployment's lifecycle hook policy")
+	require.Contains(t, string(result.Result), "Reason: blocked by policy.")
 	require.Contains(t, string(result.Result), "Do not read secrets.")
 
 	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
@@ -192,7 +193,7 @@ func TestPreToolUseHookDeny(t *testing.T) {
 	messagesMu.Lock()
 	modelMessages := append([]chattest.OpenAIMessage(nil), secondMessages...)
 	messagesMu.Unlock()
-	require.True(t, openAIMessagesContain(modelMessages, "DENIED: blocked by policy"))
+	require.True(t, openAIMessagesContain(modelMessages, "Reason: blocked by policy."))
 	require.True(t, openAIMessagesContain(modelMessages, "Do not read secrets."))
 }
 
@@ -842,7 +843,7 @@ func TestPreToolUseHookDynamicDeny(t *testing.T) {
 	require.Equal(t, int32(2), modelCalls.Load())
 	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chat.ID), "my_dynamic_tool")
 	require.True(t, result.IsError)
-	require.Contains(t, string(result.Result), "DENIED: dynamic denied")
+	require.Contains(t, string(result.Result), "Reason: dynamic denied.")
 }
 
 func preToolUseConsumer(t *testing.T, response func(hooks.PreToolUseData) string) *httptest.Server {
