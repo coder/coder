@@ -61,14 +61,14 @@ test.describe("roles admin settings access", () => {
 		await login(page, users.templateAdmin);
 		await page.goto("/", { waitUntil: "domcontentloaded" });
 
-		await hasAccessToAdminSettings(page, ["Deployment", "Organizations"]);
+		await hasAccessToAdminSettings(page, ["Deployment"]);
 	});
 
 	test("user admin can see admin settings", async ({ page }) => {
 		await login(page, users.userAdmin);
 		await page.goto("/", { waitUntil: "domcontentloaded" });
 
-		await hasAccessToAdminSettings(page, ["Deployment", "Organizations"]);
+		await hasAccessToAdminSettings(page, ["Deployment"]);
 	});
 
 	test("auditor can see admin settings", async ({ page }) => {
@@ -77,7 +77,6 @@ test.describe("roles admin settings access", () => {
 
 		await hasAccessToAdminSettings(page, [
 			"Deployment",
-			"Organizations",
 			"Audit Logs",
 		]);
 	});
@@ -88,7 +87,6 @@ test.describe("roles admin settings access", () => {
 
 		await hasAccessToAdminSettings(page, [
 			"Deployment",
-			"Organizations",
 			"Healthcheck",
 			"Audit Logs",
 		]);
