@@ -2454,6 +2454,10 @@ func TestRecordTokenUsageBudgetNotifications(t *testing.T) {
 				require.Equal(t, wantThreshold[tmpl], sent[0].Labels["threshold"])
 				require.Equal(t, "$100.00", sent[0].Labels["limit"])
 				require.Equal(t, "Engineering", sent[0].Labels["effective_group_name"])
+				// The interception is recorded at 2026-06-25, so its budget
+				// period runs June 1 - July 1, 2026.
+				require.Equal(t, "June 1, 2026", sent[0].Labels["period_start"])
+				require.Equal(t, "July 1, 2026", sent[0].Labels["period_end"])
 			}
 		})
 	}
