@@ -212,13 +212,13 @@ func run() error {
 			case state.isBlocked(entry.ChatID, data.ToolName):
 				response = agenthooks.Response{Permission: &agenthooks.Permission{
 					Decision: agenthooks.PermissionDeny,
-					Reason:   "tool is blocked for this chat",
+					Reason:   "use of this tool is blocked for this chat",
 				}}
 			case denyTool != nil && denyTool.MatchString(data.ToolName):
 				deniedTool = data.ToolName
 				response = agenthooks.Response{Permission: &agenthooks.Permission{
 					Decision: agenthooks.PermissionDeny,
-					Reason:   "tool name matched the configured deny pattern",
+					Reason:   "use of this tool is denied by this deployment's policy",
 				}}
 			}
 			state.rememberDecision(entry.ChatID, data.ToolUseID, response, deniedTool)
