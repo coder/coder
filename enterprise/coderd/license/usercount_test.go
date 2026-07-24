@@ -640,6 +640,12 @@ func TestCountWorkspaceCapableUsersErrors(t *testing.T) {
 
 	prefetchParams := database.CustomRolesParams{IncludeSystemRoles: true}
 
+	t.Run("NilAuthorizer", func(t *testing.T) {
+		mDB := dbmock.NewMockStore(gomock.NewController(t))
+		_, err := license.CountWorkspaceCapableUsers(ctx, testutil.Logger(t), mDB, nil)
+		require.ErrorContains(t, err, "dev error")
+	})
+
 	t.Run("PrefetchError", func(t *testing.T) {
 		mDB := dbmock.NewMockStore(gomock.NewController(t))
 		mDB.EXPECT().CustomRoles(gomock.Any(), prefetchParams).Return(nil, xerrors.New("boom"))
