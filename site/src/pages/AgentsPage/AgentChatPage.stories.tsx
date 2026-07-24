@@ -2848,3 +2848,81 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 		expect(compactSpy).not.toHaveBeenCalled();
 	},
 };
+
+const promotedQueueHeadChat: TypesGen.Chat = {
+	id: CHAT_ID,
+	...baseChatFields,
+	title: "Promoted queue head",
+	status: "error",
+};
+
+const promotedQueueHeadMessages: TypesGen.ChatMessagesResponse = {
+	messages: compactCommandMessages.messages,
+	queued_messages: [
+		{
+			...MockChatQueuedMessage,
+			id: 41,
+			chat_id: CHAT_ID,
+			content: [{ type: "text", text: "Queued head prompt" }],
+		},
+	],
+	has_more: false,
+};
+
+/** A queued send on an errored chat can promote the previous queue head:
+ *  the inserted batch lands in the transcript, the new send becomes the
+ *  queued tail, and the stale error flips to a running Thinking state. */
+export const QueuedSendPromotesPreviousHead: Story = {
+	parameters: {
+		queries: buildQueries(promotedQueueHeadChat, promotedQueueHeadMessages, {
+			diffUrl: undefined,
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const promotedHead: TypesGen.ChatMessage = {
+			...MockChatMessage,
+			id: 42,
+			chat_id: CHAT_ID,
+			role: "user",
+			created_at: "2024-01-01T00:01:00Z",
+			content: [{ type: "text", text: "Queued head prompt" }],
+		};
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockResolvedValue({
+			queued: true,
+			messages: [promotedHead],
+			queued_message: {
+				...MockChatQueuedMessage,
+				id: 43,
+				chat_id: CHAT_ID,
+				content: [{ type: "text", text: "Follow-up prompt" }],
+			},
+		});
+
+		expect(await canvas.findByText("Queued head prompt")).toBeVisible();
+
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.type(editor, "Follow-up prompt");
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledTimes(1);
+		});
+
+		// The promoted head moves from the queue into the transcript and
+		// the new send replaces it as the only queued row.
+		await waitFor(() => {
+			expect(canvas.getAllByText("Queued head prompt")).toHaveLength(1);
+			expect(canvas.getAllByText("Follow-up prompt")).toHaveLength(1);
+		});
+		// The promotion started a turn: the Thinking indicator replaces
+		// the stale error state.
+		expect(await canvas.findByTestId("live-activity-slot")).toBeVisible();
+	},
+};
