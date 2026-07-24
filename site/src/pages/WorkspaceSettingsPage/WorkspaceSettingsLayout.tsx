@@ -42,7 +42,7 @@ export const WorkspaceSettingsLayout: FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle(workspaceName, "Settings")}</title>
+			<title>{pageTitle(workspaceName, "Workspace Settings")}</title>
 
 			<div>
 				<Breadcrumb>
@@ -71,7 +71,7 @@ export const WorkspaceSettingsLayout: FC = () => {
 												variant="icon"
 												size="sm"
 												fallback={
-													workspace.template_display_name ??
+													workspace.template_display_name ||
 													workspace.template_name
 												}
 												src={workspace.template_icon}
