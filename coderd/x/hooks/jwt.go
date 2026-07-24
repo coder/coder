@@ -1,4 +1,4 @@
-package agenthooks
+package hooks
 
 import (
 	"encoding/hex"

@@ -1,11 +1,11 @@
-// Package agenthooks defines the experimental wire protocol for Coder agent
+// Package hooks defines the experimental wire protocol for Coder agent
 // lifecycle hooks. The protocol, including SchemaVersion 1, has no
 // backward-compatibility guarantee.
 //
 // Delivery is at-least-once because Coder persists no hook dispatch state.
 // Consumers must deduplicate side effects by stable identifiers such as
 // chat_id, event type, and tool_use_id.
-package agenthooks
+package hooks
 
 import (
 	"encoding/json"
