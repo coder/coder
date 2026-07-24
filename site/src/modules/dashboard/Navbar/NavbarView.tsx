@@ -16,7 +16,8 @@ import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { NotificationsInbox } from "#/modules/notifications/NotificationsInbox/NotificationsInbox";
 import { getPrereleaseFlag } from "#/utils/buildInfo";
 import { cn } from "#/utils/cn";
-import { DeploymentDropdown } from "./DeploymentDropdown";
+import { canViewAdminSettings, type AdminSettingsPermissions } from "./AdminSettings";
+import { AdminSettingsDropdown } from "./DeploymentDropdown";
 import { MobileMenu } from "./MobileMenu";
 import { ProxyMenu } from "./ProxyMenu";
 import { SupportIcon } from "./SupportIcon";
@@ -27,13 +28,7 @@ interface NavbarViewProps {
 	buildInfo?: TypesGen.BuildInfoResponse;
 	supportLinks: readonly TypesGen.LinkConfig[];
 	onSignOut: () => void;
-	canViewDeployment: boolean;
-	canViewOrganizations: boolean;
-	canViewAuditLog: boolean;
-	canViewConnectionLog: boolean;
-	canViewHealth: boolean;
-	canViewAIBridge: boolean;
-	canViewAISettings: boolean;
+	adminPermissions: AdminSettingsPermissions;
 	canCreateChat: boolean;
 	proxyContextValue?: ProxyContextValue;
 }
@@ -49,13 +44,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	buildInfo,
 	supportLinks,
 	onSignOut,
-	canViewDeployment,
-	canViewOrganizations,
-	canViewHealth,
-	canViewAuditLog,
-	canViewConnectionLog,
-	canViewAIBridge,
-	canViewAISettings,
+	adminPermissions,
 	canCreateChat,
 	proxyContextValue,
 }) => {
@@ -125,17 +114,9 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					</div>
 				)}
 
-				<div className="hidden md:block">
-					<DeploymentDropdown
-						canViewAuditLog={canViewAuditLog}
-						canViewOrganizations={canViewOrganizations}
-						canViewDeployment={canViewDeployment}
-						canViewConnectionLog={canViewConnectionLog}
-						canViewAIBridge={canViewAIBridge}
-						canViewAISettings={canViewAISettings}
-						canViewHealth={canViewHealth}
-					/>
-				</div>
+				{canViewAdminSettings(adminPermissions) && <div className="hidden md:block">
+					<AdminSettingsDropdown permissions={adminPermissions} />
+				</div>}
 
 				<NotificationsInbox
 					fetchNotifications={API.getInboxNotifications}
@@ -159,16 +140,10 @@ export const NavbarView: FC<NavbarViewProps> = ({
 				<div className="md:hidden">
 					<MobileMenu
 						proxyContextValue={proxyContextValue}
+						adminPermissions={adminPermissions}
 						user={user}
 						supportLinks={supportLinks}
 						onSignOut={onSignOut}
-						canViewAuditLog={canViewAuditLog}
-						canViewConnectionLog={canViewConnectionLog}
-						canViewOrganizations={canViewOrganizations}
-						canViewDeployment={canViewDeployment}
-						canViewAIBridge={canViewAIBridge}
-						canViewAISettings={canViewAISettings}
-						canViewHealth={canViewHealth}
 					/>
 				</div>
 			</div>
@@ -207,7 +182,16 @@ const NavItems: FC<NavItemsProps> = ({ className, user, canCreateChat }) => {
 				Templates
 			</NavLink>
 			<TasksNavItem user={user} />
-			<AgentsNavItem canCreateChat={canCreateChat} />
+			{canCreateChat && (
+				<NavLink
+					className={({ isActive }) => {
+						return cn(linkStyles.default, { [linkStyles.active]: isActive });
+					}}
+					to="/agents"
+				>
+					Agents
+				</NavLink>
+			)}
 		</nav>
 	);
 };
@@ -271,23 +255,6 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 function idleTasksLabel(count: number) {
 	return `You have ${count} ${count === 1 ? "task" : "tasks"} waiting for input`;
 }
-
-const AgentsNavItem: FC<{ canCreateChat: boolean }> = ({ canCreateChat }) => {
-	if (!canCreateChat) {
-		return null;
-	}
-
-	return (
-		<NavLink
-			className={({ isActive }) => {
-				return cn(linkStyles.default, { [linkStyles.active]: isActive });
-			}}
-			to="/agents"
-		>
-			Agents
-		</NavLink>
-	);
-};
 
 function isNavbarLink(link: TypesGen.LinkConfig): boolean {
 	return link.location === "navbar";
