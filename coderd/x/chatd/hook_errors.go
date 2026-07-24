@@ -53,8 +53,7 @@ func (e *UserPromptDeniedError) Error() string {
 }
 
 func userPromptDenial(err error) error {
-	var denied *hookDeniedError
-	if errors.As(err, &denied) {
+	if denied, ok := errors.AsType[*hookDeniedError](err); ok {
 		return &UserPromptDeniedError{UserMessage: denied.UserMessage}
 	}
 	return err
@@ -112,8 +111,8 @@ func (p *Server) handleAPIDispatchError(ctx context.Context, chatID uuid.UUID, e
 }
 
 func hookDispatchErrorMessage(eventType hooks.EventType, dispatchErr error) (string, bool) {
-	var structured *dispatch.Error
-	if !errors.As(dispatchErr, &structured) {
+	structured, ok := errors.AsType[*dispatch.Error](dispatchErr)
+	if !ok {
 		return "", false
 	}
 	return fmt.Sprintf(
@@ -156,9 +155,10 @@ func hookDispatchFailureFromResults(content []fantasy.Content) error {
 				resultErr = output.Error
 			}
 		}
-		var dispatchErr *dispatch.Error
-		if resultErr != nil && errors.As(resultErr, &dispatchErr) {
-			return resultErr
+		if resultErr != nil {
+			if _, ok := errors.AsType[*dispatch.Error](resultErr); ok {
+				return resultErr
+			}
 		}
 	}
 	return nil
