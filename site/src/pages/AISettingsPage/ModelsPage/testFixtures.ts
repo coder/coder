@@ -7,6 +7,7 @@ const MockOpenAIProviderConfig: ChatProviderConfig = {
 	id: "prov-openai",
 	provider: "openai",
 	display_name: "OpenAI",
+	icon: "",
 	enabled: true,
 	has_api_key: true,
 	central_api_key_enabled: true,
@@ -103,6 +104,31 @@ export const MockBedrockProviderState: ProviderState = {
 	label: "AWS Bedrock",
 	providerConfig: MockBedrockProviderConfig,
 	modelConfigs: [mockBedrockClaude],
+};
+
+const MockDisabledProviderConfig: ChatProviderConfig = {
+	...MockOpenAIProviderConfig,
+	id: "prov-openai-disabled",
+	display_name: "OpenAI Secondary",
+	enabled: false,
+};
+
+export const mockProviderDisabledModel: ChatModelConfig = {
+	...mockGPT5,
+	id: "model-provider-disabled",
+	ai_provider_id: "prov-openai-disabled",
+	model: "gpt-4o-secondary",
+	display_name: "GPT-4o Secondary",
+	is_default: false,
+};
+
+export const MockDisabledProviderState: ProviderState = {
+	...MockOpenAIProviderState,
+	key: "prov-openai-disabled",
+	provider: "openai",
+	label: "OpenAI Secondary",
+	providerConfig: MockDisabledProviderConfig,
+	modelConfigs: [mockProviderDisabledModel],
 };
 
 export const MockCopilotProviderState: ProviderState = {

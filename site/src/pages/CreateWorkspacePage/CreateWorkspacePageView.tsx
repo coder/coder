@@ -392,6 +392,11 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 			),
 		);
 
+	// External auth is connected to the workspace owner. When creating a
+	// workspace for another user, the form reflects that owner's auth state and
+	// the requester cannot authenticate on their behalf.
+	const isCreatingForSelf = owner.id === defaultOwner.id;
+
 	return (
 		<>
 			<div className="sticky top-5 ml-10">
@@ -404,7 +409,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					Go back
 				</button>
 			</div>
-			<div className="flex flex-col gap-6 max-w-screen-md mx-auto pb-96">
+			<div className="flex flex-col gap-6 w-full max-w-screen-md mx-auto pb-96">
 				<header className="flex flex-col items-start gap-3 mt-10">
 					<div className="flex items-center gap-2 justify-between w-full">
 						<span className="flex items-center gap-2">
@@ -583,11 +588,19 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 										all required external authentication providers listed below.
 									</Alert>
 								)}
+								{!isCreatingForSelf && (
+									<Alert severity="info">
+										This shows the external authentication state for{" "}
+										{owner.username}. They must connect any required providers
+										themselves; you can't authenticate on their behalf.
+									</Alert>
+								)}
 								{externalAuth.map((auth) => (
 									<ExternalAuthButton
 										key={auth.id}
 										error={error}
 										auth={auth}
+										canAuthenticate={isCreatingForSelf}
 										isLoading={externalAuthPollingState[auth.id] === "polling"}
 										onStartPolling={() => startPollingExternalAuth(auth.id)}
 										displayRetry={
@@ -671,7 +684,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 																<ExternalImage
 																	src={preset.icon}
 																	alt={preset.label}
-																	className="w-4 h-4"
+																	className="size-4"
 																/>
 															)}
 															{preset.label}

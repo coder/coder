@@ -1,5 +1,6 @@
 import type { QueryClient } from "react-query";
 import { API } from "#/api/api";
+import { invalidateChatProviderDependentQueries } from "#/api/queries/chats";
 import type {
 	AIProvider,
 	CreateAIProviderRequest,
@@ -25,7 +26,10 @@ export const createAIProviderMutation = (queryClient: QueryClient) => ({
 	mutationFn: (request: CreateAIProviderRequest): Promise<AIProvider> =>
 		API.createAIProvider(request),
 	onSuccess: async () => {
-		await queryClient.invalidateQueries({ queryKey: aiProvidersListKey });
+		await Promise.all([
+			queryClient.invalidateQueries({ queryKey: aiProvidersListKey }),
+			invalidateChatProviderDependentQueries(queryClient),
+		]);
 	},
 });
 
@@ -36,10 +40,13 @@ export const updateAIProviderMutation = (
 	mutationFn: (request: UpdateAIProviderRequest): Promise<AIProvider> =>
 		API.updateAIProvider(idOrName, request),
 	onSuccess: async () => {
-		await queryClient.invalidateQueries({ queryKey: aiProvidersListKey });
-		await queryClient.invalidateQueries({
-			queryKey: aiProviderKeyFor(idOrName),
-		});
+		await Promise.all([
+			queryClient.invalidateQueries({ queryKey: aiProvidersListKey }),
+			queryClient.invalidateQueries({
+				queryKey: aiProviderKeyFor(idOrName),
+			}),
+			invalidateChatProviderDependentQueries(queryClient),
+		]);
 	},
 });
 
@@ -49,7 +56,10 @@ export const deleteAIProviderMutation = (
 ) => ({
 	mutationFn: () => API.deleteAIProvider(idOrName),
 	onSuccess: async () => {
-		await queryClient.invalidateQueries({ queryKey: aiProvidersListKey });
 		queryClient.removeQueries({ queryKey: aiProviderKeyFor(idOrName) });
+		await Promise.all([
+			queryClient.invalidateQueries({ queryKey: aiProvidersListKey }),
+			invalidateChatProviderDependentQueries(queryClient),
+		]);
 	},
 });

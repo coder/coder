@@ -243,8 +243,7 @@ func waitForChatDone(
 				if event.Status != nil {
 					t.Logf("[%s] status → %s", label, event.Status.Status)
 					switch event.Status.Status {
-					case codersdk.ChatStatusWaiting,
-						codersdk.ChatStatusCompleted:
+					case codersdk.ChatStatusWaiting:
 						return
 					case codersdk.ChatStatusError:
 						require.FailNow(t, label+" ended with error status")

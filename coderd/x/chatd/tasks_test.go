@@ -1044,7 +1044,6 @@ func taskUserTextMessage(t *testing.T, text string, createdBy uuid.UUID, modelCo
 		ContentVersion: chatprompt.CurrentContentVersion,
 		CreatedBy:      uuid.NullUUID{UUID: createdBy, Valid: true},
 		ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: true},
-		APIKeyID:       sql.NullString{String: apiKeyID, Valid: apiKeyID != ""},
 	}
 }
 

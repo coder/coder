@@ -263,7 +263,7 @@ const InstructionsForm: FC<InstructionsFormProps> = ({
 						Cancel
 					</Button>
 					<Button type="submit" disabled={isDisabled || !form.dirty}>
-						{isSaving && <Spinner loading className="h-4 w-4" />}
+						{isSaving && <Spinner loading className="size-4" />}
 						Save
 					</Button>
 				</div>

@@ -90,6 +90,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 			Type:        codersdk.AIProviderTypeAnthropic,
 			Name:        "primary-anthropic",
 			DisplayName: "Primary Anthropic",
+			Icon:        "https://example.com/anthropic.svg",
 			Enabled:     true,
 			BaseURL:     "https://api.anthropic.com/",
 			Settings: codersdk.AIProviderSettings{
@@ -105,6 +106,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Equal(t, req.Type, created.Type)
 		require.Equal(t, req.Name, created.Name)
 		require.Equal(t, req.DisplayName, created.DisplayName)
+		require.Equal(t, req.Icon, created.Icon)
 		require.Equal(t, req.Enabled, created.Enabled)
 		require.Equal(t, req.BaseURL, created.BaseURL)
 		require.NotNil(t, created.Settings.Bedrock)
@@ -128,10 +130,12 @@ func TestAIProvidersCRUD(t *testing.T) {
 
 		// Update.
 		newDisplay := "Updated Display"
+		newIcon := "🦜"
 		newURL := "https://api.anthropic.com/v1"
 		disabled := false
 		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
 			DisplayName: &newDisplay,
+			Icon:        &newIcon,
 			BaseURL:     &newURL,
 			Enabled:     &disabled,
 			Settings: &codersdk.AIProviderSettings{
@@ -143,6 +147,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, newDisplay, updated.DisplayName)
+		require.Equal(t, newIcon, updated.Icon)
 		require.Equal(t, newURL, updated.BaseURL)
 		require.False(t, updated.Enabled)
 		require.NotNil(t, updated.Settings.Bedrock)

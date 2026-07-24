@@ -9,6 +9,8 @@ import {
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { chatModelConfigsKey } from "#/api/queries/chats";
+import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { BlockList } from "../../ChatConversation/ConversationTimeline";
 import { DesktopPanelContext } from "./DesktopPanelContext";
@@ -688,6 +690,135 @@ export const SubagentMalformedChatIdLinksToRecoverableChatId: Story = {
 	},
 };
 
+const mockChatModelConfig = {
+	...MockChatModelConfig,
+	id: "8b29eba2-53a9-4c9a-95bb-b0326ac0a2fe",
+	model: "claude-sonnet-4-6",
+	display_name: "Claude Sonnet 4.6",
+	model_config: {
+		reasoning_effort: { default: "medium", max: "high" },
+	},
+};
+
+export const SubagentSpawnWithModelAndEffort: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+			model_config_id: "8b29eba2-53a9-4c9a-95bb-b0326ac0a2fe",
+			reasoning_effort: "high",
+		},
+		result: {
+			chat_id: "child-chat-id",
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	parameters: {
+		queries: [{ key: chatModelConfigsKey, data: [mockChatModelConfig] }],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() =>
+			expect(
+				canvas.getByRole("button", {
+					name: /Spawned Workspace diagnostics with Claude Sonnet 4.6, high thinking/,
+				}),
+			).toBeInTheDocument(),
+		);
+	},
+};
+
+export const SubagentSpawnWithModelDefaultEffort: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+			model_config_id: "8b29eba2-53a9-4c9a-95bb-b0326ac0a2fe",
+		},
+		result: {
+			chat_id: "child-chat-id",
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	parameters: {
+		queries: [{ key: chatModelConfigsKey, data: [mockChatModelConfig] }],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() =>
+			expect(
+				canvas.getByRole("button", {
+					name: /Spawned Workspace diagnostics with Claude Sonnet 4.6, medium thinking/,
+				}),
+			).toBeInTheDocument(),
+		);
+	},
+};
+
+// Effort-only spawns resolve against an inherited model whose effort
+// bounds are unknown client-side, so no suffix is shown.
+export const SubagentSpawnWithEffortOnly: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+			reasoning_effort: "high",
+		},
+		result: {
+			chat_id: "child-chat-id",
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	parameters: {
+		queries: [{ key: chatModelConfigsKey, data: [mockChatModelConfig] }],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const label = canvas.getByRole("button", {
+			name: /Spawned Workspace diagnostics/,
+		});
+		expect(label).toBeInTheDocument();
+		expect(label).not.toHaveTextContent(/with/);
+	},
+};
+
+export const SubagentSpawnWithUnknownModelConfig: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+			model_config_id: "00000000-0000-0000-0000-000000000000",
+		},
+		result: {
+			chat_id: "child-chat-id",
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	parameters: {
+		queries: [{ key: chatModelConfigsKey, data: [mockChatModelConfig] }],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const label = canvas.getByRole("button", {
+			name: /Spawned Workspace diagnostics/,
+		});
+		expect(label).toBeInTheDocument();
+		expect(label).not.toHaveTextContent(/with/);
+	},
+};
+
 export const ExploreSubagentRunning: Story = {
 	args: {
 		name: "spawn_explore_agent",
@@ -1259,6 +1390,59 @@ export const ChatSummarized: Story = {
 				text.includes("Compaction summary text."),
 			),
 		).toBeInTheDocument();
+	},
+};
+
+// Automatic compactions include source: "automatic" but keep the
+// plain "Summarized" label; only manual ones are called out.
+export const ChatSummarizedAutomaticSource: Story = {
+	args: {
+		name: "chat_summarized",
+		args: JSON.stringify({ source: "automatic" }),
+		result: { summary: "Compaction summary text.", source: "automatic" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: "Summarized" }),
+		).toBeInTheDocument();
+	},
+};
+
+// A user-requested /compact renders with a distinct manual label.
+export const ChatSummarizedManual: Story = {
+	args: {
+		name: "chat_summarized",
+		args: JSON.stringify({ source: "manual" }),
+		result: { summary: "Manual compaction summary text.", source: "manual" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", { name: "Summarized (manual)" });
+		expect(toggle).toBeInTheDocument();
+
+		await userEvent.click(toggle);
+
+		expect(
+			await canvas.findByText((text) =>
+				text.includes("Manual compaction summary text."),
+			),
+		).toBeInTheDocument();
+	},
+};
+
+// While the summary streams in, the manual source is only present in
+// the call args; the header still shows the running label.
+export const ChatSummarizedManualRunning: Story = {
+	args: {
+		name: "chat_summarized",
+		args: JSON.stringify({ source: "manual" }),
+		status: "running",
+		result: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Summarizing…")).toBeInTheDocument();
 	},
 };
 

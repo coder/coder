@@ -12,10 +12,20 @@ import "github.com/coder/coder/v2/apiversion"
 //   - Adds the ProviderConfigurator service with the GetAIProviders unary RPC,
 //     letting embedded and standalone gateways fetch provider configuration
 //     over DRPC instead of reading the database directly.
+//
+// API v1.2:
+//   - Adds the ProviderConfigurator.WatchAIProviders streaming RPC, pushing a
+//     change signal to gateways so a running standalone gateway refetches its
+//     provider set when the provider configuration changes.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 1
+	CurrentMinor = 2
 )
+
+// VersionQueryParam is the URL query parameter the standalone AI Gateway
+// uses to advertise its aibridged API version when dialing coderd's serve
+// endpoint, and that coderd reads to negotiate compatibility.
+const VersionQueryParam = "version"
 
 // CurrentVersion is the current aibridged API version.
 // Breaking changes to the aibridged API **MUST** increment CurrentMajor above.

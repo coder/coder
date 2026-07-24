@@ -44,6 +44,7 @@ func BackfillBedrockProviderType(ctx context.Context, db database.Store, logger 
 			ID:          provider.ID,
 			Type:        database.AIProviderTypeBedrock,
 			DisplayName: provider.DisplayName,
+			Icon:        provider.Icon,
 			Enabled:     provider.Enabled,
 			BaseUrl:     provider.BaseUrl,
 			Settings:    provider.Settings,

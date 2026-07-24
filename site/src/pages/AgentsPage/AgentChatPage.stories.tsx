@@ -21,6 +21,10 @@ import {
 } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import {
+	MockChatMessage,
+	MockChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import {
 	MockGroup,
@@ -36,10 +40,10 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
-import type { AgentsOutletContext } from "./AgentsPage";
+import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 
 // ---------------------------------------------------------------------------
-// Layout wrapper – provides outlet context for the child route.
+// Layout wrapper: provides outlet context for the child route.
 // ---------------------------------------------------------------------------
 const AgentChatPageLayout: FC = () => {
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -67,7 +71,7 @@ const AgentChatPageLayout: FC = () => {
 							onExpandSidebar: () => {},
 							onChatReady: () => {},
 							scrollContainerRef,
-						} satisfies AgentsOutletContext
+						} satisfies AgentsPageOutletContext
 					}
 				/>
 			</div>
@@ -122,6 +126,10 @@ const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 		model: "gpt-4o",
 		display_name: "GPT-4o",
 		is_default: true,
+		model_config: {
+			reasoning_effort: { default: "medium", max: "high" },
+		},
+		reasoning_efforts: ["low", "medium", "high"],
 		created_at: "2026-02-18T00:00:00.000Z",
 		updated_at: "2026-02-18T00:00:00.000Z",
 	},
@@ -144,6 +152,7 @@ const baseChatFields = {
 	has_unread: false,
 	client_type: "ui",
 	last_turn_summary: null,
+	summary: null,
 	children: [],
 } as const;
 
@@ -821,6 +830,7 @@ const meta: Meta<typeof AgentChatPageLayout> = {
 					type: "openai",
 					name: "openai",
 					display_name: "OpenAI",
+					icon: "",
 					enabled: true,
 					deleted: false,
 				},
@@ -845,12 +855,14 @@ type Story = StoryObj<typeof AgentChatPageLayout>;
  *  horizontal rules, inline formatting, links, images, and task lists. */
 export const WithMessageHistory: Story = {
 	parameters: {
+		// TODO: This story fails when pixel runs its play function. Fix it and remove the exclude.
+		pixel: { exclude: true },
 		queries: buildQueries(
 			{
 				id: CHAT_ID,
 				...baseChatFields,
 				title: "Markdown rendering showcase",
-				status: "completed",
+				status: "waiting",
 			},
 			{
 				messages: [
@@ -1188,8 +1200,38 @@ export const WithMessageHistory: Story = {
 			{ diffUrl: undefined },
 		),
 	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockResolvedValue({
+			id: CHAT_ID,
+			...baseChatFields,
+			title: "Markdown rendering showcase",
+			status: "waiting",
+		});
+		spyOn(API.experimental, "editChatMessage").mockResolvedValue({
+			message: {
+				...MockChatMessage,
+				id: 5,
+				created_at: "2026-02-18T00:03:00.000Z",
+			},
+		});
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const user = userEvent.setup();
+		const changeReasoningEffort = async (key: string) => {
+			const modelSelector = canvas.getByRole("combobox", { name: "GPT-4o" });
+			await user.click(modelSelector);
+			const slider = await body.findByRole("slider");
+			slider.focus();
+			await user.keyboard(key);
+			await user.click(modelSelector);
+		};
+		const editLastMessage = async () => {
+			const buttons = canvas.getAllByRole("button", { name: "Edit message" });
+			await user.click(buttons[buttons.length - 1]);
+		};
+
 		expect(
 			await canvas.findByText("Markdown rendering showcase"),
 		).toBeVisible();
@@ -1198,6 +1240,35 @@ export const WithMessageHistory: Story = {
 				canvas.queryByText(/^This chat is owned by/),
 			).not.toBeInTheDocument();
 		});
+
+		await changeReasoningEffort("{ArrowRight}");
+		await editLastMessage();
+		await user.click(canvas.getByRole("button", { name: "Save Edit" }));
+		await waitFor(() => {
+			expect(API.experimental.editChatMessage).toHaveBeenCalledTimes(1);
+			expect(
+				canvas.getByRole("textbox", { name: "Chat message" }),
+			).toBeEnabled();
+		});
+
+		await editLastMessage();
+		await changeReasoningEffort("{ArrowLeft}");
+		await user.click(canvas.getByRole("button", { name: "Save Edit" }));
+		await waitFor(() => {
+			expect(API.experimental.editChatMessage).toHaveBeenCalledTimes(2);
+		});
+		expect(API.experimental.editChatMessage).toHaveBeenNthCalledWith(
+			1,
+			CHAT_ID,
+			5,
+			expect.not.objectContaining({ reasoning_effort: expect.anything() }),
+		);
+		expect(API.experimental.editChatMessage).toHaveBeenNthCalledWith(
+			2,
+			CHAT_ID,
+			5,
+			expect.objectContaining({ reasoning_effort: "medium" }),
+		);
 	},
 };
 
@@ -1208,7 +1279,7 @@ export const RootChatShareActionAvailable: Story = {
 				id: CHAT_ID,
 				...baseChatFields,
 				title: "Shareable root chat",
-				status: "completed",
+				status: "waiting",
 			},
 			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
@@ -1267,7 +1338,7 @@ export const OtherUserChatReadOnly: Story = {
 				owner_username: "OtherUser",
 				owner_name: "Other User",
 				title: "Other user's chat",
-				status: "completed",
+				status: "waiting",
 			},
 			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
@@ -1297,7 +1368,7 @@ export const OtherUserChatWithMessages: Story = {
 				owner_username: "OtherUser",
 				owner_name: "Other User",
 				title: "Other user's chat with messages",
-				status: "completed",
+				status: "waiting",
 			},
 			{
 				messages: [
@@ -1371,7 +1442,7 @@ export const ArchivedOtherUserChat: Story = {
 				owner_username: "OtherUser",
 				owner_name: "Other User",
 				title: "Archived other user's chat",
-				status: "completed",
+				status: "waiting",
 			},
 			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
@@ -1431,7 +1502,7 @@ export const PlanModeFromChatState: Story = {
 				id: CHAT_ID,
 				...baseChatFields,
 				title: "Plan mode persists",
-				status: "completed",
+				status: "waiting",
 				plan_mode: "plan",
 			},
 			{ messages: [], queued_messages: [], has_more: false },
@@ -1475,7 +1546,7 @@ export const CompletedWithDiffPanel: Story = {
 				id: CHAT_ID,
 				...baseChatFields,
 				title: "Build a feature",
-				status: "completed",
+				status: "waiting",
 			},
 			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: "https://github.com/coder/coder/pull/123" },
@@ -1535,7 +1606,7 @@ export const WithSubagentCards: Story = {
 								result: {
 									chat_id: "child-chat-1",
 									title: "Child agent",
-									status: "pending",
+									status: "running",
 								},
 							},
 						],
@@ -1646,7 +1717,7 @@ export const WithMixedSubagentTranscript: Story = {
 				id: CHAT_ID,
 				...baseChatFields,
 				title: "Mixed subagent transcript",
-				status: "completed",
+				status: "waiting",
 			},
 			{
 				messages: [
@@ -1772,7 +1843,7 @@ export const WithReasoningInline: Story = {
 				id: CHAT_ID,
 				...baseChatFields,
 				title: "Reasoning title",
-				status: "completed",
+				status: "waiting",
 			},
 			{
 				messages: [
@@ -1876,7 +1947,7 @@ export const SidebarWithPRAndRepos: Story = {
 				id: CHAT_ID,
 				...baseChatFields,
 				title: "Full sidebar demo",
-				status: "completed",
+				status: "waiting",
 			},
 			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: "https://github.com/coder/coder/pull/456" },
@@ -2057,7 +2128,7 @@ export const SidebarWithSingleRepo: Story = {
 				id: CHAT_ID,
 				...baseChatFields,
 				title: "Single repo sidebar",
-				status: "completed",
+				status: "waiting",
 			},
 			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
@@ -2109,7 +2180,7 @@ export const SidebarWithSingleRepo: Story = {
 	},
 };
 /**
- * Streaming reasoning part via WebSocket — renders inline text.
+ * Streaming reasoning part via WebSocket, renders inline text.
  */
 export const StreamedReasoning: Story = {
 	parameters: {
@@ -2562,5 +2633,219 @@ export const WithWaitAgentComputerUseVNC: Story = {
 		await waitFor(() => {
 			expect(canvas.getByText(/Using the computer/)).toBeInTheDocument();
 		});
+	},
+};
+
+// ---------------------------------------------------------------------------
+// /compact slash command
+// ---------------------------------------------------------------------------
+
+const compactCommandMessages: TypesGen.ChatMessagesResponse = {
+	messages: [
+		{
+			id: 1,
+			chat_id: CHAT_ID,
+			role: "user",
+			created_at: "2024-01-01T00:00:00Z",
+			content: [{ type: "text", text: "Explain the auth flow" }],
+		},
+		{
+			id: 2,
+			chat_id: CHAT_ID,
+			role: "assistant",
+			created_at: "2024-01-01T00:00:30Z",
+			content: [
+				{ type: "text", text: "The auth flow starts at the login page." },
+			],
+		},
+	],
+	queued_messages: [],
+	has_more: false,
+};
+
+const compactQueuedEditChat: TypesGen.Chat = {
+	id: CHAT_ID,
+	...baseChatFields,
+	title: "Compact queued edit",
+	status: "running",
+};
+
+const compactQueuedEditMessages: TypesGen.ChatMessagesResponse = {
+	messages: compactCommandMessages.messages,
+	queued_messages: [
+		{
+			...MockChatQueuedMessage,
+			id: 3,
+			chat_id: CHAT_ID,
+			content: [{ type: "text", text: "Queued follow-up" }],
+		},
+	],
+	has_more: false,
+};
+
+/** Submitting "/compact" alone requests a manual compaction instead of
+ *  sending a chat message. */
+export const SlashCompactCommandSubmits: Story = {
+	parameters: {
+		// TODO: This story fails when pixel runs its play function. Fix it and remove the exclude.
+		pixel: { exclude: true },
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Compact command",
+				status: "waiting",
+			},
+			compactCommandMessages,
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const compactSpy = spyOn(API.experimental, "compactChat").mockResolvedValue(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Compact command",
+				status: "running",
+			} as TypesGen.Chat,
+		);
+		const sendSpy = spyOn(API.experimental, "createChatMessage");
+
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.keyboard("/compact");
+		// First Enter accepts the highlighted menu entry; second Enter
+		// submits the composer.
+		expect(await within(document.body).findByText("Commands")).toBeVisible();
+		await userEvent.keyboard("{Enter}");
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(compactSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(compactSpy).toHaveBeenCalledWith(CHAT_ID);
+		expect(sendSpy).not.toHaveBeenCalled();
+	},
+};
+
+export const SlashCompactQueuedEditSaves: Story = {
+	parameters: {
+		queries: buildQueries(compactQueuedEditChat, compactQueuedEditMessages, {
+			diffUrl: undefined,
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const compactSpy = spyOn(API.experimental, "compactChat");
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockResolvedValue({
+			queued: true,
+			queued_message: {
+				...MockChatQueuedMessage,
+				id: 4,
+				chat_id: CHAT_ID,
+				content: [{ type: "text", text: "/compact" }],
+			},
+		});
+		const deleteSpy = spyOn(
+			API.experimental,
+			"deleteChatQueuedMessage",
+		).mockResolvedValue();
+		spyOn(API.experimental, "getChat").mockResolvedValue(compactQueuedEditChat);
+		spyOn(API.experimental, "getChatMessages").mockResolvedValue({
+			...compactQueuedEditMessages,
+			queued_messages: [],
+		});
+
+		await userEvent.click(await canvas.findByRole("button", { name: "Edit" }));
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.clear(editor);
+		await userEvent.type(editor, "/compact");
+		await userEvent.click(canvas.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledTimes(1);
+			expect(deleteSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(sendSpy).toHaveBeenCalledWith(
+			CHAT_ID,
+			expect.objectContaining({
+				content: [{ type: "text", text: "/compact" }],
+			}),
+		);
+		expect(deleteSpy).toHaveBeenCalledWith(CHAT_ID, 3);
+		expect(compactSpy).not.toHaveBeenCalled();
+	},
+};
+
+/** A personal skill named "compact" takes precedence: "/compact" is sent
+ *  as a normal message (skill trigger) and no compaction is requested. */
+export const SlashCompactYieldsToPersonalSkill: Story = {
+	parameters: {
+		// TODO: This story fails when pixel runs its play function. Fix it and remove the exclude.
+		pixel: { exclude: true },
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Compact skill precedence",
+				status: "waiting",
+			},
+			compactCommandMessages,
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([
+			{
+				id: "5f3f847b-6e77-4be4-a591-6c04ee0e0e78",
+				name: "compact",
+				description: "Personal compact skill",
+				created_at: "2024-01-01T00:00:00Z",
+				updated_at: "2024-01-01T00:00:00Z",
+			},
+		]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const compactSpy = spyOn(API.experimental, "compactChat");
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockResolvedValue({
+			queued: false,
+			message: {
+				id: 3,
+				chat_id: CHAT_ID,
+				role: "user",
+				created_at: "2024-01-01T00:01:00Z",
+				content: [{ type: "text", text: "/compact" }],
+			},
+		});
+
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.keyboard("/compact");
+		// The menu offers only the personal skill (the built-in command
+		// yields); first Enter accepts it, second Enter submits.
+		expect(
+			await within(document.body).findByText("Personal compact skill"),
+		).toBeVisible();
+		await userEvent.keyboard("{Enter}");
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(compactSpy).not.toHaveBeenCalled();
 	},
 };

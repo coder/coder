@@ -232,7 +232,7 @@ func TestServer(t *testing.T) {
 
 		const superDuperLong = testutil.WaitSuperLong * 3
 		ctx := testutil.Context(t, superDuperLong)
-		clitest.Start(t, inv.WithContext(ctx))
+		startIgnoringPostgresQueryCancel(t, inv.WithContext(ctx))
 
 		//nolint:gocritic // Embedded postgres take a while to fire up.
 		require.Eventually(t, func() bool {
@@ -332,7 +332,7 @@ func TestServer(t *testing.T) {
 		)
 		pty := ptytest.New(t).Attach(inv)
 		require.NoError(t, pty.Resize(20, 80))
-		clitest.Start(t, inv)
+		startIgnoringPostgresQueryCancel(t, inv)
 
 		// Wait for startup
 		_ = waitAccessURL(t, cfg)
@@ -1757,7 +1757,7 @@ func TestServer(t *testing.T) {
 				"--provisioner-types=echo",
 				"--log-human", fiName,
 			)
-			clitest.Start(t, root)
+			startIgnoringPostgresQueryCancel(t, root)
 
 			loggingWaitFile(t, fiName, testutil.WaitLong)
 		})
@@ -1776,7 +1776,7 @@ func TestServer(t *testing.T) {
 				"--provisioner-types=echo",
 				"--log-human", fi,
 			)
-			clitest.Start(t, root)
+			startIgnoringPostgresQueryCancel(t, root)
 
 			loggingWaitFile(t, fi, testutil.WaitShort)
 		})
@@ -1795,7 +1795,7 @@ func TestServer(t *testing.T) {
 				"--provisioner-types=echo",
 				"--log-json", fi,
 			)
-			clitest.Start(t, root)
+			startIgnoringPostgresQueryCancel(t, root)
 
 			loggingWaitFile(t, fi, testutil.WaitShort)
 		})
@@ -2556,7 +2556,7 @@ func TestServer_DisabledDERP_EmptyBaseMap(t *testing.T) {
 		"--access-url", "http://example.com",
 		"--derp-server-enable=false",
 	)
-	clitest.Start(t, inv.WithContext(ctx))
+	startIgnoringPostgresQueryCancel(t, inv.WithContext(ctx))
 	waitAccessURL(t, cfg)
 }
 
@@ -2582,7 +2582,7 @@ func TestServer_DisabledDERP_ExternalMap(t *testing.T) {
 		"--derp-server-enable=false",
 		"--derp-config-url", srv.URL,
 	)
-	clitest.Start(t, inv.WithContext(ctx))
+	startIgnoringPostgresQueryCancel(t, inv.WithContext(ctx))
 	accessURL := waitAccessURL(t, cfg)
 	derpURL, err := accessURL.Parse("/derp")
 	require.NoError(t, err)

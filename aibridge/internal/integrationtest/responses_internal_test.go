@@ -376,6 +376,15 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectModel:          "gpt-6.7",
 			expectPromptRecorded: "hello_wrong_format",
 			expectedClient:       aibridge.ClientUnknown,
+			expectTokenUsage: &recorder.TokenUsageRecord{
+				MsgID:  "resp_123",
+				Input:  11,
+				Output: 18,
+				ExtraTokenTypes: map[string]int64{
+					"output_reasoning": 0,
+					"total_tokens":     29,
+				},
+			},
 		},
 	}
 

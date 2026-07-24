@@ -29,6 +29,7 @@ import {
 	GeneralModelConfigFields,
 	ModelConfigFields,
 	PricingModelConfigFields,
+	ReasoningEffortConfigFields,
 } from "#/pages/AgentsPage/components/ChatModelAdminPanel/ModelConfigFields";
 import { ModelIdentifierField } from "#/pages/AgentsPage/components/ChatModelAdminPanel/ModelIdentifierField";
 import type {
@@ -148,6 +149,7 @@ export const ModelFormFields: FC<{
 					<ModelFormProviderSelect
 						providerStates={providerStates}
 						selectedProviderKey={selectedProviderKey}
+						isEditing={mode === "edit"}
 						onProviderChange={onProviderChange}
 						disabled={isDuplicating || providerStates.length === 0}
 					/>
@@ -271,7 +273,14 @@ export const ModelFormFields: FC<{
 								form={form}
 								fieldErrors={modelConfigFormBuildResult.fieldErrors}
 								disabled={isSaving}
-							/>
+							>
+								<ReasoningEffortConfigFields
+									provider={selectedProviderState.provider}
+									form={form}
+									fieldErrors={modelConfigFormBuildResult.fieldErrors}
+									disabled={isSaving}
+								/>
+							</ModelConfigFields>
 						</CollapsibleSection>
 					)}
 

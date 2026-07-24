@@ -46,11 +46,19 @@ func (t *recorderTranslation) RecordInterception(ctx context.Context, req *aibri
 }
 
 func (t *recorderTranslation) RecordInterceptionEnded(ctx context.Context, req *aibridge.InterceptionRecordEnded) error {
-	_, err := t.client.RecordInterceptionEnded(ctx, &proto.RecordInterceptionEndedRequest{
+	endedReq := &proto.RecordInterceptionEndedRequest{
 		Id:             req.ID,
 		EndedAt:        timestamppb.New(req.EndedAt),
 		CredentialHint: req.CredentialHint,
-	})
+	}
+	if req.ErrorType != "" {
+		errType := string(req.ErrorType)
+		endedReq.ErrorType = &errType
+	}
+	if req.ErrorMessage != "" {
+		endedReq.ErrorMessage = &req.ErrorMessage
+	}
+	_, err := t.client.RecordInterceptionEnded(ctx, endedReq)
 	return err
 }
 

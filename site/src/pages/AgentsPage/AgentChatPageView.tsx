@@ -36,6 +36,7 @@ import {
 import type { useChatStore } from "./components/ChatConversation/chatStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
+import type { SkillMetadata } from "./components/ChatMessageInput/SkillsTriggerMenu";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatScrollContainer } from "./components/ChatScrollContainer";
@@ -136,6 +137,8 @@ interface AgentChatPageViewProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: ReactNode;
+	reasoningEffort?: string;
+	onReasoningEffortChange?: (value: string) => void;
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
 	modelCount?: number;
@@ -220,6 +223,7 @@ interface AgentChatPageViewProps {
 	desktopChatId?: string;
 
 	chatContext?: TypesGen.ChatContext;
+	workspaceSkills?: readonly SkillMetadata[];
 }
 
 const UnavailableTabMessage: FC<{ message: string }> = ({ message }) => (
@@ -328,6 +332,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
+	reasoningEffort,
+	onReasoningEffortChange,
 	canConfigureAgentSetup,
 	providerCount,
 	modelCount,
@@ -382,6 +388,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	onMCPAuthComplete,
 	desktopChatId,
 	chatContext,
+	workspaceSkills,
 }) => {
 	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
@@ -941,6 +948,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								modelOptions={modelOptions}
 								modelSelectorPlaceholder={modelSelectorPlaceholder}
 								modelSelectorHelp={modelSelectorHelp}
+								reasoningEffort={reasoningEffort}
+								onReasoningEffortChange={onReasoningEffortChange}
 								planModeEnabled={planModeEnabled}
 								onPlanModeToggle={onPlanModeToggle}
 								isModelCatalogLoading={isModelCatalogLoading}
@@ -966,6 +975,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								onMCPSelectionChange={onMCPSelectionChange}
 								onMCPAuthComplete={onMCPAuthComplete}
 								chatContext={chatContext}
+								workspaceSkills={workspaceSkills}
 								workspace={workspace}
 								workspaceAgent={workspaceAgent}
 								chatId={agentId}

@@ -70,6 +70,30 @@ func (c *Client) UserSecrets(ctx context.Context, user string) ([]UserSecret, er
 	return secrets, json.NewDecoder(res.Body).Decode(&secrets)
 }
 
+// ImportUserSecretsRequest is the payload for the bulk secret import
+// endpoint. Content is the raw file bytes and Format selects the parser.
+type ImportUserSecretsRequest struct {
+	Format  SecretsFileFormat `json:"format" validate:"required"`
+	Content string            `json:"content" validate:"required"`
+}
+
+// ImportUserSecrets parses the supplied file content and creates the
+// resulting secrets atomically: either all secrets are created or, if
+// any entry fails validation, uniqueness, or a per-user limit, none
+// are. It returns the created secrets' metadata (never their values).
+func (c *Client) ImportUserSecrets(ctx context.Context, user string, req ImportUserSecretsRequest) ([]UserSecret, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/secrets/batch", user), req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return nil, ReadBodyAsError(res)
+	}
+	var secrets []UserSecret
+	return secrets, json.NewDecoder(res.Body).Decode(&secrets)
+}
+
 func (c *Client) UserSecretByName(ctx context.Context, user string, name string) (UserSecret, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/secrets/%s", user, name), nil)
 	if err != nil {

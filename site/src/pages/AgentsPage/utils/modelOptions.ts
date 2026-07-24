@@ -158,18 +158,59 @@ export const resolveModelOptionId = (
 	return "";
 };
 
-// providerTypeByIDFromConfigs and providerTypeByIDFromUserConfigs build
-// the ai_provider_id -> provider-type lookup that getModelOptionsFromConfigs
-// needs. The admin and user provider endpoints expose the provider id under
-// different field names (id vs provider_id), so each source has its own
-// helper to bake in the correct field and keep callers from mixing them up.
+export type ProviderInfo = {
+	readonly provider: string;
+	readonly displayName: string;
+	readonly icon: string;
+	// Absent is treated as enabled.
+	readonly enabled?: boolean;
+};
+
+// providerInfoByIDFromConfigs and providerInfoByIDFromUserConfigs build
+// the ai_provider_id -> provider metadata lookup that
+// getModelOptionsFromConfigs needs. The admin and user provider endpoints
+// expose the provider id under different field names (id vs provider_id), so
+// each source has its own helper to bake in the correct field.
+export const providerInfoByIDFromConfigs = (
+	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
+): ReadonlyMap<string, ProviderInfo> =>
+	new Map(
+		(providerConfigs ?? []).map((providerConfig) => [
+			providerConfig.id,
+			{
+				provider: providerConfig.provider,
+				displayName: providerConfig.display_name,
+				icon: providerConfig.icon,
+				enabled: providerConfig.enabled,
+			},
+		]),
+	);
+
+export const providerInfoByIDFromUserConfigs = (
+	providerConfigs:
+		| readonly TypesGen.UserChatProviderConfig[]
+		| null
+		| undefined,
+): ReadonlyMap<string, ProviderInfo> =>
+	new Map(
+		(providerConfigs ?? []).map((providerConfig) => [
+			providerConfig.provider_id,
+			{
+				provider: providerConfig.provider,
+				displayName: providerConfig.display_name,
+				icon: providerConfig.icon,
+				enabled: providerConfig.enabled,
+			},
+		]),
+	);
+
 export const providerTypeByIDFromConfigs = (
 	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
 ): ReadonlyMap<string, string> =>
 	new Map(
-		(providerConfigs ?? []).map((providerConfig) => [
-			providerConfig.id,
-			providerConfig.provider,
+		Array.from(providerInfoByIDFromConfigs(providerConfigs), ([id, info]) => [
+			id,
+			info.provider,
 		]),
 	);
 
@@ -180,16 +221,30 @@ export const providerTypeByIDFromUserConfigs = (
 		| undefined,
 ): ReadonlyMap<string, string> =>
 	new Map(
-		(providerConfigs ?? []).map((providerConfig) => [
-			providerConfig.provider_id,
-			providerConfig.provider,
-		]),
+		Array.from(
+			providerInfoByIDFromUserConfigs(providerConfigs),
+			([id, info]) => [id, info.provider],
+		),
 	);
+
+/**
+ * Drops model configs whose provider row is disabled or missing. Both
+ * provider-info sources include every enabled provider, so a missing row
+ * means the provider is disabled or deleted.
+ */
+export const filterConfigsWithEnabledProvider = (
+	configs: readonly TypesGen.ChatModelConfig[],
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
+): readonly TypesGen.ChatModelConfig[] =>
+	configs.filter((config) => {
+		const info = providerInfoByID.get(config.ai_provider_id);
+		return info !== undefined && info.enabled !== false;
+	});
 
 export const getModelOptionsFromConfigs = (
 	configs: readonly TypesGen.ChatModelConfig[] | null | undefined,
 	catalog: TypesGen.ChatModelsResponse | null | undefined,
-	providerTypeByID: ReadonlyMap<string, string>,
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
 ): readonly ModelSelectorOption[] => {
 	if (!configs || !catalog) {
 		return [];
@@ -198,17 +253,21 @@ export const getModelOptionsFromConfigs = (
 	const availableProviders = getAvailableProviders(catalog);
 	const options: ModelSelectorOption[] = [];
 
-	for (const config of configs) {
+	// The catalog check below is keyed by provider type, so it cannot
+	// exclude a disabled provider when another of the same type is enabled.
+	for (const config of filterConfigsWithEnabledProvider(
+		configs,
+		providerInfoByID,
+	)) {
 		if (!config.enabled) {
 			continue;
 		}
 
 		const configID = config.id.trim();
-		const provider = asString(providerTypeByID.get(config.ai_provider_id))
-			.trim()
-			.toLowerCase();
+		const providerInfo = providerInfoByID.get(config.ai_provider_id);
+		const provider = asString(providerInfo?.provider).trim().toLowerCase();
 		const model = config.model.trim();
-		if (!configID || !provider || !model) {
+		if (!configID || !providerInfo || !provider || !model) {
 			continue;
 		}
 		if (!availableProviders.has(provider)) {
@@ -217,17 +276,27 @@ export const getModelOptionsFromConfigs = (
 
 		const displayName = config.display_name.trim() || model;
 		const contextLimit = asNumber(config.context_limit);
+		const reasoningEffort = config.model_config?.reasoning_effort;
+		const reasoningEffortDefault = asString(reasoningEffort?.default).trim();
+		const reasoningEfforts = config.reasoning_efforts ?? [];
 		options.push({
 			id: configID,
 			provider,
+			providerId: config.ai_provider_id,
+			providerLabel: providerInfo.displayName,
+			providerIcon: providerInfo.icon,
 			model,
 			displayName,
 			...(contextLimit !== undefined ? { contextLimit } : {}),
+			...(reasoningEffortDefault ? { reasoningEffortDefault } : {}),
+			...(reasoningEfforts.length > 0 ? { reasoningEfforts } : {}),
 		});
 	}
 
 	return options.sort((a, b) => {
-		const providerCompare = a.provider.localeCompare(b.provider);
+		const providerCompare = (a.providerLabel ?? a.provider).localeCompare(
+			b.providerLabel ?? b.provider,
+		);
 		if (providerCompare !== 0) {
 			return providerCompare;
 		}
@@ -264,7 +333,7 @@ export const resolveModelSelector = (
 	options: getModelOptionsFromConfigs(
 		modelConfigs.data,
 		catalog.data,
-		providerTypeByIDFromUserConfigs(userProviderConfigs.data),
+		providerInfoByIDFromUserConfigs(userProviderConfigs.data),
 	),
 	isModelCatalogLoading:
 		modelConfigs.isLoading ||

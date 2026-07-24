@@ -812,57 +812,6 @@ func isChatModelForProvider(provider, modelID string) bool {
 	}
 }
 
-// ReasoningEffortFromChat normalizes chat-config reasoning effort values for a
-// provider and returns the canonical provider effort value.
-func ReasoningEffortFromChat(provider string, value *string) *string {
-	if value == nil {
-		return nil
-	}
-
-	normalized := strings.ToLower(strings.TrimSpace(*value))
-	if normalized == "" {
-		return nil
-	}
-
-	switch NormalizeProvider(provider) {
-	case fantasyopenai.Name:
-		effort := chatopenai.ReasoningEffortFromChat(value)
-		if effort == nil {
-			return nil
-		}
-		valueCopy := string(*effort)
-		return &valueCopy
-	case fantasyanthropic.Name:
-		return chatutil.NormalizedEnumValue(
-			normalized,
-			string(fantasyanthropic.EffortLow),
-			string(fantasyanthropic.EffortMedium),
-			string(fantasyanthropic.EffortHigh),
-			string(fantasyanthropic.EffortXHigh),
-			string(fantasyanthropic.EffortMax),
-		)
-	case fantasyopenrouter.Name:
-		return chatutil.NormalizedEnumValue(
-			normalized,
-			string(fantasyopenrouter.ReasoningEffortLow),
-			string(fantasyopenrouter.ReasoningEffortMedium),
-			string(fantasyopenrouter.ReasoningEffortHigh),
-		)
-	case fantasyvercel.Name:
-		return chatutil.NormalizedEnumValue(
-			normalized,
-			string(fantasyvercel.ReasoningEffortNone),
-			string(fantasyvercel.ReasoningEffortMinimal),
-			string(fantasyvercel.ReasoningEffortLow),
-			string(fantasyvercel.ReasoningEffortMedium),
-			string(fantasyvercel.ReasoningEffortHigh),
-			string(fantasyvercel.ReasoningEffortXHigh),
-		)
-	default:
-		return nil
-	}
-}
-
 // AnthropicThinkingDisplayFromChat normalizes chat-config thinking display
 // values for Anthropic and returns the canonical provider display value.
 func AnthropicThinkingDisplayFromChat(value *string) *fantasyanthropic.ThinkingDisplay {
@@ -923,6 +872,30 @@ func CoderHeaders(chat database.Chat) map[string]string {
 		h[HeaderCoderWorkspaceID] = chat.WorkspaceID.UUID.String()
 	}
 	return h
+}
+
+// AnthropicBetaContext1M is the beta token for Anthropic's 1M context window.
+const AnthropicBetaContext1M = "context-1m-2025-08-07"
+
+// HeaderAnthropicBeta names Anthropic's beta feature header.
+const HeaderAnthropicBeta = "Anthropic-Beta"
+
+// BetaHeadersFromCallConfig returns beta feature headers for Anthropic and
+// Bedrock calls.
+func BetaHeadersFromCallConfig(providerName string, config *codersdk.ChatModelCallConfig) map[string]string {
+	if config == nil || config.ProviderOptions == nil || config.ProviderOptions.Anthropic == nil {
+		return nil
+	}
+	enabled := config.ProviderOptions.Anthropic.Context1MEnabled
+	if enabled == nil || !*enabled {
+		return nil
+	}
+	switch NormalizeProvider(providerName) {
+	case fantasyanthropic.Name, fantasybedrock.Name:
+		return map[string]string{HeaderAnthropicBeta: AnthropicBetaContext1M}
+	default:
+		return nil
+	}
 }
 
 // ModelFromConfig resolves a provider/model pair and constructs a fantasy
@@ -1176,7 +1149,6 @@ func anthropicProviderOptionsFromChatConfig(
 ) *fantasyanthropic.ProviderOptions {
 	result := &fantasyanthropic.ProviderOptions{
 		SendReasoning:          options.SendReasoning,
-		Effort:                 anthropicEffortFromChat(options.Effort),
 		ThinkingDisplay:        AnthropicThinkingDisplayFromChat(options.ThinkingDisplay),
 		DisableParallelToolUse: options.DisableParallelToolUse,
 	}
@@ -1221,8 +1193,7 @@ func openAICompatProviderOptionsFromChatConfig(
 	options *codersdk.ChatModelOpenAICompatProviderOptions,
 ) *fantasyopenaicompat.ProviderOptions {
 	return &fantasyopenaicompat.ProviderOptions{
-		User:            chatutil.NormalizedStringPointer(options.User),
-		ReasoningEffort: chatopenai.ReasoningEffortFromChat(options.ReasoningEffort),
+		User: chatutil.NormalizedStringPointer(options.User),
 	}
 }
 
@@ -1242,7 +1213,6 @@ func openRouterProviderOptionsFromChatConfig(
 			Enabled:   options.Reasoning.Enabled,
 			Exclude:   options.Reasoning.Exclude,
 			MaxTokens: options.Reasoning.MaxTokens,
-			Effort:    openRouterReasoningEffortFromChat(options.Reasoning.Effort),
 		}
 	}
 	if options.Provider != nil {
@@ -1275,7 +1245,6 @@ func vercelProviderOptionsFromChatConfig(
 		result.Reasoning = &fantasyvercel.ReasoningOptions{
 			Enabled:   options.Reasoning.Enabled,
 			MaxTokens: options.Reasoning.MaxTokens,
-			Effort:    vercelReasoningEffortFromChat(options.Reasoning.Effort),
 			Exclude:   options.Reasoning.Exclude,
 		}
 	}
@@ -1286,31 +1255,4 @@ func vercelProviderOptionsFromChatConfig(
 		}
 	}
 	return result
-}
-
-func anthropicEffortFromChat(value *string) *fantasyanthropic.Effort {
-	effort := ReasoningEffortFromChat(fantasyanthropic.Name, value)
-	if effort == nil {
-		return nil
-	}
-	valueCopy := fantasyanthropic.Effort(*effort)
-	return &valueCopy
-}
-
-func openRouterReasoningEffortFromChat(value *string) *fantasyopenrouter.ReasoningEffort {
-	effort := ReasoningEffortFromChat(fantasyopenrouter.Name, value)
-	if effort == nil {
-		return nil
-	}
-	valueCopy := fantasyopenrouter.ReasoningEffort(*effort)
-	return &valueCopy
-}
-
-func vercelReasoningEffortFromChat(value *string) *fantasyvercel.ReasoningEffort {
-	effort := ReasoningEffortFromChat(fantasyvercel.Name, value)
-	if effort == nil {
-		return nil
-	}
-	valueCopy := fantasyvercel.ReasoningEffort(*effort)
-	return &valueCopy
 }

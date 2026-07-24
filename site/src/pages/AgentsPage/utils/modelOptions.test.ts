@@ -10,12 +10,15 @@ import {
 } from "#/testHelpers/chatModels";
 import {
 	countConfiguredProviderConfigs,
+	filterConfigsWithEnabledProvider,
 	formatProviderLabel,
 	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
 	getUnsupportedProviderNames,
 	hasConfiguredProviderConfigs,
 	hasUserFixableProviders,
+	providerInfoByIDFromConfigs,
+	providerInfoByIDFromUserConfigs,
 	providerTypeByIDFromConfigs,
 	providerTypeByIDFromUserConfigs,
 	resolveModelOptionId,
@@ -34,10 +37,16 @@ const createConfig = (
 	...overrides,
 });
 
-const providerTypeByID = new Map<string, string>([
-	["prov-openai", "openai"],
-	["prov-anthropic", "anthropic"],
-	["prov-openrouter", "openrouter"],
+const providerInfoByID = new Map([
+	["prov-openai", { provider: "openai", displayName: "OpenAI", icon: "" }],
+	[
+		"prov-anthropic",
+		{ provider: "anthropic", displayName: "Anthropic", icon: "" },
+	],
+	[
+		"prov-openrouter",
+		{ provider: "openrouter", displayName: "OpenRouter", icon: "" },
+	],
 ]);
 
 const createCatalog = (
@@ -240,12 +249,18 @@ describe("resolveModelOptionId", () => {
 		{
 			id: "config-1",
 			provider: "openai",
+			providerId: "prov-openai",
+			providerLabel: "OpenAI",
+			providerIcon: "",
 			model: "gpt-4o",
 			displayName: "GPT-4o",
 		},
 		{
 			id: "config-2",
 			provider: "anthropic",
+			providerId: "prov-anthropic",
+			providerLabel: "Anthropic",
+			providerIcon: "",
 			model: "claude-sonnet-4-20250514",
 			displayName: "Claude Sonnet",
 		},
@@ -293,21 +308,70 @@ describe("getModelOptionsFromConfigs", () => {
 		]);
 
 		expect(
-			getModelOptionsFromConfigs(configs, catalog, providerTypeByID),
+			getModelOptionsFromConfigs(configs, catalog, providerInfoByID),
 		).toEqual([
 			{
 				id: "config-1",
 				provider: "openai",
+				providerId: "prov-openai",
+				providerLabel: "OpenAI",
+				providerIcon: "",
 				model: "gpt-4o",
 				displayName: "GPT-4o (Fast)",
 				contextLimit: 128_000,
 			},
-			{
-				id: "config-2",
-				provider: "openai",
+			expect.objectContaining({ id: "config-2" }),
+		]);
+	});
+
+	it("populates reasoning effort bounds from the model config", () => {
+		const configs = [
+			createConfig({
+				id: "config-effort",
+				ai_provider_id: "prov-openai",
+				model: "gpt-5",
+				display_name: "GPT-5",
+				model_config: {
+					reasoning_effort: { default: "medium", max: "xhigh" },
+				},
+				reasoning_efforts: ["minimal", "low", "medium", "high", "xhigh"],
+			}),
+			createConfig({
+				id: "config-no-effort",
+				ai_provider_id: "prov-openai",
 				model: "gpt-4o",
-				displayName: "GPT-4o (Quality)",
-				contextLimit: 128_000,
+				display_name: "GPT-4o",
+				model_config: {},
+			}),
+		];
+		const catalog = createCatalog([
+			{ provider: "openai", available: true, models: [] },
+		]);
+
+		expect(
+			getModelOptionsFromConfigs(configs, catalog, providerInfoByID),
+		).toEqual([
+			{
+				id: "config-no-effort",
+				provider: "openai",
+				providerId: "prov-openai",
+				providerLabel: "OpenAI",
+				providerIcon: "",
+				model: "gpt-4o",
+				displayName: "GPT-4o",
+				contextLimit: 0,
+			},
+			{
+				id: "config-effort",
+				provider: "openai",
+				providerId: "prov-openai",
+				providerLabel: "OpenAI",
+				providerIcon: "",
+				model: "gpt-5",
+				displayName: "GPT-5",
+				contextLimit: 0,
+				reasoningEffortDefault: "medium",
+				reasoningEfforts: ["minimal", "low", "medium", "high", "xhigh"],
 			},
 		]);
 	});
@@ -331,7 +395,7 @@ describe("getModelOptionsFromConfigs", () => {
 		]);
 
 		expect(
-			getModelOptionsFromConfigs(configs, catalog, providerTypeByID),
+			getModelOptionsFromConfigs(configs, catalog, providerInfoByID),
 		).toEqual([]);
 	});
 
@@ -362,16 +426,10 @@ describe("getModelOptionsFromConfigs", () => {
 		]);
 
 		expect(
-			getModelOptionsFromConfigs(configs, catalog, providerTypeByID),
-		).toEqual([
-			{
-				id: "config-2",
-				provider: "openai",
-				model: "gpt-4.1",
-				displayName: "GPT-4.1",
-				contextLimit: 128_000,
-			},
-		]);
+			getModelOptionsFromConfigs(configs, catalog, providerInfoByID).map(
+				(option) => option.id,
+			),
+		).toEqual(["config-2"]);
 	});
 
 	it("falls back to the model name when display_name is blank", () => {
@@ -393,24 +451,22 @@ describe("getModelOptionsFromConfigs", () => {
 		]);
 
 		expect(
-			getModelOptionsFromConfigs(configs, catalog, providerTypeByID),
+			getModelOptionsFromConfigs(configs, catalog, providerInfoByID),
 		).toEqual([
-			{
+			expect.objectContaining({
 				id: "config-1",
-				provider: "openai",
 				model: "gpt-4o",
 				displayName: "gpt-4o",
-				contextLimit: 0,
-			},
+			}),
 		]);
 	});
 
 	it("returns an empty array for null and undefined inputs", () => {
-		expect(getModelOptionsFromConfigs(null, null, providerTypeByID)).toEqual(
+		expect(getModelOptionsFromConfigs(null, null, providerInfoByID)).toEqual(
 			[],
 		);
 		expect(
-			getModelOptionsFromConfigs(undefined, undefined, providerTypeByID),
+			getModelOptionsFromConfigs(undefined, undefined, providerInfoByID),
 		).toEqual([]);
 	});
 
@@ -452,7 +508,7 @@ describe("getModelOptionsFromConfigs", () => {
 		]);
 
 		expect(
-			getModelOptionsFromConfigs(configs, catalog, providerTypeByID).map(
+			getModelOptionsFromConfigs(configs, catalog, providerInfoByID).map(
 				(option) => option.id,
 			),
 		).toEqual([
@@ -488,23 +544,10 @@ describe("getModelOptionsFromConfigs", () => {
 		]);
 
 		expect(
-			getModelOptionsFromConfigs(configs, catalog, providerTypeByID),
-		).toEqual([
-			{
-				id: "config-2",
-				provider: "openrouter",
-				model: "anthropic/claude-sonnet-4-20250514",
-				displayName: "Claude via OpenRouter",
-				contextLimit: 200_000,
-			},
-			{
-				id: "config-1",
-				provider: "openrouter",
-				model: "openai/gpt-4o",
-				displayName: "GPT-4o via OpenRouter",
-				contextLimit: 128_000,
-			},
-		]);
+			getModelOptionsFromConfigs(configs, catalog, providerInfoByID).map(
+				(option) => option.id,
+			),
+		).toEqual(["config-2", "config-1"]);
 	});
 
 	it("drops configs whose ai_provider_id is absent from the provider map", () => {
@@ -545,13 +588,269 @@ describe("getModelOptionsFromConfigs", () => {
 			{ provider: "openai", available: true, models: [] },
 			{ provider: "anthropic", available: true, models: [] },
 		]);
-		const partialMap = new Map<string, string>([["prov-openai", "openai"]]);
+		const partialMap = new Map([
+			["prov-openai", { provider: "openai", displayName: "OpenAI", icon: "" }],
+		]);
 
 		expect(
 			getModelOptionsFromConfigs(configs, catalog, partialMap).map(
 				(option) => option.id,
 			),
 		).toEqual(["config-openai"]);
+	});
+
+	it("preserves provider instance metadata for same-type providers", () => {
+		const configs = [
+			createConfig({
+				id: "config-primary",
+				ai_provider_id: "prov-anthropic-primary",
+				model: "claude-sonnet-4-20250514",
+			}),
+			createConfig({
+				id: "config-hyper",
+				ai_provider_id: "prov-anthropic-hyper",
+				model: "claude-opus-4-20250514",
+			}),
+		];
+		const catalog = createCatalog([
+			{ provider: "anthropic", available: true, models: [] },
+		]);
+		const sameTypeProviders = new Map([
+			[
+				"prov-anthropic-primary",
+				{ provider: "anthropic", displayName: "Anthropic", icon: "" },
+			],
+			[
+				"prov-anthropic-hyper",
+				{
+					provider: "anthropic",
+					displayName: "Hyper",
+					icon: "/icon/coder.svg",
+				},
+			],
+		]);
+
+		expect(
+			getModelOptionsFromConfigs(configs, catalog, sameTypeProviders),
+		).toEqual([
+			expect.objectContaining({
+				id: "config-primary",
+				providerId: "prov-anthropic-primary",
+				providerLabel: "Anthropic",
+			}),
+			expect.objectContaining({
+				id: "config-hyper",
+				providerId: "prov-anthropic-hyper",
+				providerLabel: "Hyper",
+				providerIcon: "/icon/coder.svg",
+			}),
+		]);
+	});
+
+	it("drops configs whose provider row is disabled", () => {
+		const configs = [
+			createConfig({
+				id: "config-enabled",
+				ai_provider_id: "prov-enabled",
+				model: "gpt-4o",
+			}),
+			createConfig({
+				id: "config-disabled",
+				ai_provider_id: "prov-disabled",
+				model: "gpt-4o-mini",
+			}),
+		];
+		const catalog = createCatalog([
+			{ provider: "openai", available: true, models: [] },
+		]);
+		const providers = new Map([
+			[
+				"prov-enabled",
+				{ provider: "openai", displayName: "OpenAI", icon: "", enabled: true },
+			],
+			[
+				"prov-disabled",
+				{
+					provider: "openai",
+					displayName: "OpenAI Disabled",
+					icon: "",
+					enabled: false,
+				},
+			],
+		]);
+
+		expect(
+			getModelOptionsFromConfigs(configs, catalog, providers).map(
+				(option) => option.id,
+			),
+		).toEqual(["config-enabled"]);
+	});
+
+	it("keeps configs when the provider enabled flag is undefined", () => {
+		const configs = [
+			createConfig({
+				id: "config-openai",
+				ai_provider_id: "prov-openai",
+				model: "gpt-4o",
+			}),
+		];
+		const catalog = createCatalog([
+			{ provider: "openai", available: true, models: [] },
+		]);
+
+		expect(
+			getModelOptionsFromConfigs(configs, catalog, providerInfoByID).map(
+				(option) => option.id,
+			),
+		).toEqual(["config-openai"]);
+	});
+
+	it("excludes only the disabled instance for same-type providers", () => {
+		// The catalog marks the type as available because of the enabled
+		// instance, so only the per-row flag can exclude the disabled one.
+		const configs = [
+			createConfig({
+				id: "config-primary",
+				ai_provider_id: "prov-anthropic-primary",
+				model: "claude-sonnet-4-20250514",
+			}),
+			createConfig({
+				id: "config-secondary",
+				ai_provider_id: "prov-anthropic-secondary",
+				model: "claude-opus-4-20250514",
+			}),
+		];
+		const catalog = createCatalog([
+			{ provider: "anthropic", available: true, models: [] },
+		]);
+		const sameTypeProviders = new Map([
+			[
+				"prov-anthropic-primary",
+				{
+					provider: "anthropic",
+					displayName: "Anthropic",
+					icon: "",
+					enabled: true,
+				},
+			],
+			[
+				"prov-anthropic-secondary",
+				{
+					provider: "anthropic",
+					displayName: "Anthropic Secondary",
+					icon: "",
+					enabled: false,
+				},
+			],
+		]);
+
+		expect(
+			getModelOptionsFromConfigs(configs, catalog, sameTypeProviders).map(
+				(option) => option.id,
+			),
+		).toEqual(["config-primary"]);
+	});
+});
+
+describe("filterConfigsWithEnabledProvider", () => {
+	const configs = [
+		createConfig({
+			id: "config-enabled",
+			ai_provider_id: "prov-enabled",
+			model: "gpt-4o",
+		}),
+		createConfig({
+			id: "config-disabled",
+			ai_provider_id: "prov-disabled",
+			model: "gpt-4o-mini",
+		}),
+		createConfig({
+			id: "config-unknown",
+			ai_provider_id: "prov-unknown",
+			model: "claude-sonnet-4-20250514",
+		}),
+	];
+	const providers = new Map([
+		[
+			"prov-enabled",
+			{ provider: "openai", displayName: "OpenAI", icon: "", enabled: true },
+		],
+		[
+			"prov-disabled",
+			{
+				provider: "openai",
+				displayName: "OpenAI Disabled",
+				icon: "",
+				enabled: false,
+			},
+		],
+	]);
+
+	it("drops configs of disabled or unknown providers", () => {
+		expect(
+			filterConfigsWithEnabledProvider(configs, providers).map(
+				(config) => config.id,
+			),
+		).toEqual(["config-enabled"]);
+	});
+
+	it("keeps configs whose provider rows lack enabled flags", () => {
+		const flaglessProviders = new Map(
+			["prov-enabled", "prov-disabled", "prov-unknown"].map((id) => [
+				id,
+				{ provider: "openai", displayName: "OpenAI", icon: "" },
+			]),
+		);
+		expect(
+			filterConfigsWithEnabledProvider(configs, flaglessProviders),
+		).toEqual(configs);
+	});
+});
+
+describe("providerInfoByIDFromConfigs", () => {
+	it("maps ChatProviderConfig.id to provider metadata", () => {
+		const map = providerInfoByIDFromConfigs([
+			{
+				...MockChatProviderConfig,
+				id: "prov-openai",
+				provider: "openai",
+				display_name: "Primary OpenAI",
+				icon: "/icon/openai.svg",
+			},
+		]);
+
+		expect(map.get("prov-openai")).toEqual({
+			provider: "openai",
+			displayName: "Primary OpenAI",
+			icon: "/icon/openai.svg",
+			enabled: true,
+		});
+		expect(map.size).toBe(1);
+	});
+});
+
+describe("providerInfoByIDFromUserConfigs", () => {
+	it("maps UserChatProviderConfig.provider_id to provider metadata", () => {
+		const map = providerInfoByIDFromUserConfigs([
+			{
+				provider_id: "prov-openai",
+				provider: "openai",
+				display_name: "Primary OpenAI",
+				icon: "/icon/openai.svg",
+				enabled: true,
+				has_user_api_key: false,
+				has_central_api_key_fallback: true,
+				byok_enabled: true,
+			},
+		]);
+
+		expect(map.get("prov-openai")).toEqual({
+			provider: "openai",
+			displayName: "Primary OpenAI",
+			icon: "/icon/openai.svg",
+			enabled: true,
+		});
+		expect(map.size).toBe(1);
 	});
 });
 
@@ -584,6 +883,8 @@ describe("providerTypeByIDFromUserConfigs", () => {
 				provider_id: "prov-openai",
 				provider: "openai",
 				display_name: "OpenAI",
+				icon: "",
+				enabled: true,
 				has_user_api_key: false,
 				has_central_api_key_fallback: true,
 				byok_enabled: true,
@@ -660,6 +961,8 @@ describe("resolveModelSelector", () => {
 			provider_id: "prov-openai",
 			provider: "openai",
 			display_name: "OpenAI",
+			icon: "",
+			enabled: true,
 			has_user_api_key: false,
 			has_central_api_key_fallback: true,
 			byok_enabled: true,
@@ -693,6 +996,9 @@ describe("resolveModelSelector", () => {
 			{
 				id: "config-openai",
 				provider: "openai",
+				providerId: "prov-openai",
+				providerLabel: "OpenAI",
+				providerIcon: "",
 				model: "gpt-4o",
 				displayName: "GPT-4o",
 				contextLimit: 128_000,

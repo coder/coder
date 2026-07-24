@@ -35,8 +35,8 @@ export const WorkspaceSettingsLayout: FC = () => {
 		<>
 			<title>{pageTitle(workspaceName, "Settings")}</title>
 
-			<Margins>
-				<div className="flex flex-row gap-20 py-12">
+			<Margins className="max-sm:!px-4">
+				<div className="flex flex-col gap-8 py-6 lg:flex-row lg:gap-20 lg:py-12">
 					{error ? (
 						<ErrorAlert error={error} />
 					) : (
@@ -50,7 +50,7 @@ export const WorkspaceSettingsLayout: FC = () => {
 							>
 								<Sidebar />
 								<Suspense fallback={<Loader />}>
-									<div className="w-full">
+									<div className="w-full min-w-0">
 										<Outlet />
 									</div>
 								</Suspense>

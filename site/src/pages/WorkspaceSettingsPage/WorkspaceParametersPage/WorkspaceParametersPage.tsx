@@ -67,7 +67,7 @@ const WorkspaceParametersPage: FC = () => {
 		})) ?? [];
 
 	// sendMessage increments the ID and sends the form values on the web socket
-	// and return true.  If the socket is not open, it does not increment the ID
+	// and returns true.  If the socket is not open, it does not increment the ID
 	// and returns false.
 	const sendMessage = (formValues: Record<string, string>): boolean => {
 		const request: DynamicParametersRequest = {

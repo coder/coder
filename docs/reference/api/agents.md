@@ -6,7 +6,7 @@ Workspace agent endpoints. These power the workspace agent daemon defined by the
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/derp-map \
   -H 'Coder-Session-Token: API_KEY'
@@ -26,7 +26,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/tailnet \
   -H 'Coder-Session-Token: API_KEY'
@@ -46,7 +46,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/workspaceagents/aws-instance-identity \
   -H 'Content-Type: application/json' \
@@ -94,7 +94,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/workspaceagents/azure-instance-identity \
   -H 'Content-Type: application/json' \
@@ -142,7 +142,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-identity \
   -H 'Content-Type: application/json' \
@@ -189,7 +189,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/app-status \
   -H 'Content-Type: application/json' \
@@ -247,7 +247,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/external-auth?match=string&id=string \
   -H 'Accept: application/json' \
@@ -271,6 +271,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/external-auth?mat
 ```json
 {
   "access_token": "string",
+  "expires_at": "string",
   "password": "string",
   "token_extra": {},
   "type": "string",
@@ -291,7 +292,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?match=string&id=string \
   -H 'Accept: application/json' \
@@ -315,6 +316,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?match=str
 ```json
 {
   "access_token": "string",
+  "expires_at": "string",
   "password": "string",
   "token_extra": {},
   "type": "string",
@@ -335,7 +337,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitsshkey \
   -H 'Accept: application/json' \
@@ -367,7 +369,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/log-source \
   -H 'Content-Type: application/json' \
@@ -419,7 +421,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/logs \
   -H 'Content-Type: application/json' \
@@ -479,7 +481,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/reinit \
   -H 'Accept: application/json' \
@@ -519,7 +521,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   -H 'Accept: application/json' \
@@ -670,7 +672,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/connection \
   -H 'Accept: application/json' \
@@ -768,7 +770,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/containers?label=string \
   -H 'Accept: application/json' \
@@ -878,7 +880,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer} \
   -H 'Coder-Session-Token: API_KEY'
@@ -905,7 +907,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/containers/devcontainers/{devcontainer}/recreate \
   -H 'Accept: application/json' \
@@ -950,7 +952,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/containers/watch \
   -H 'Accept: application/json' \
@@ -1059,7 +1061,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/coordinate \
   -H 'Coder-Session-Token: API_KEY'
@@ -1085,7 +1087,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/listening-ports \
   -H 'Accept: application/json' \
@@ -1128,7 +1130,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/logs \
   -H 'Accept: application/json' \
@@ -1201,7 +1203,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/pty \
   -H 'Coder-Session-Token: API_KEY'
@@ -1227,7 +1229,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ### Code samples
 
-```shell
+```sh
 # Example request using curl
 curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/startup-logs \
   -H 'Accept: application/json' \

@@ -19,7 +19,7 @@ This guide shows how to configure Coder to authenticate users with Google using 
 
 Set the following environment variables on your Coder deployment and restart Coder:
 
-```env
+```dotenv
 CODER_OIDC_ISSUER_URL=https://accounts.google.com
 CODER_OIDC_CLIENT_ID=<client id>
 CODER_OIDC_CLIENT_SECRET=<client secret>
@@ -39,7 +39,7 @@ CODER_OIDC_ICON_URL=/icon/google.svg
 
 Google uses auth URL parameters to issue refresh tokens. Configure:
 
-```env
+```dotenv
 # Keep standard scopes
 CODER_OIDC_SCOPES=openid,profile,email
 # Add Google-specific auth URL params

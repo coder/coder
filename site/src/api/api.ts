@@ -200,38 +200,6 @@ type WatchInboxNotificationsParams = Readonly<{
 	read_status?: "read" | "unread" | "all";
 }>;
 
-// TODO(AIGOV-290): drop once `ai_cost_control` is generated onto Group.
-export type GroupAICostControl = Readonly<{
-	current_spend_micros: number;
-	spend_limit_micros: number | null;
-}>;
-export type GroupWithAICostControl = TypesGen.Group &
-	Readonly<{ ai_cost_control?: GroupAICostControl }>;
-
-// TODO(AIGOV-291): drop once `ai_cost_control` is generated onto ReducedUser.
-export type GroupMemberAICostControl = Readonly<{
-	current_spend_micros: number;
-	spend_limit_micros: number | null;
-	effective_group_id: string | null;
-	limit_source: "group" | "override" | null;
-}>;
-export type GroupMemberWithAICostControl = TypesGen.ReducedUser &
-	Readonly<{ ai_cost_control?: GroupMemberAICostControl }>;
-export type GroupMembersResponseWithAICostControl = Omit<
-	TypesGen.GroupMembersResponse,
-	"users"
-> &
-	Readonly<{ users: readonly GroupMemberWithAICostControl[] }>;
-
-// TODO(AIGOV-473): drop once generated from codersdk.
-export type UserAISpend = Readonly<{
-	user_id: string;
-	spend_limit_micros: number | null;
-	effective_group_id: string | null;
-	limit_source: "group" | "override" | null;
-	current_spend_micros: number;
-}>;
-
 export function watchInboxNotifications(
 	params?: WatchInboxNotificationsParams,
 ): OneWayWebSocket<TypesGen.GetInboxNotificationResponse> {
@@ -439,6 +407,25 @@ export type DeploymentConfig = Readonly<{
 	options: TypesGen.SerpentOption[];
 }>;
 
+/**
+ * Fetches `items` in concurrent batches of at most `batchSize`, resolving
+ * with one response per batch, in input order.
+ */
+async function fetchInBatches<Item, Response>(
+	items: readonly Item[],
+	batchSize: number,
+	fetchBatch: (batch: readonly Item[]) => Promise<Response>,
+): Promise<Response[]> {
+	const batches: Promise<Response>[] = [];
+	for (let i = 0; i < items.length; i += batchSize) {
+		batches.push(fetchBatch(items.slice(i, i + batchSize)));
+	}
+	return Promise.all(batches);
+}
+
+/** The AI spend endpoints reject requests with more than 100 IDs. */
+const aiSpendBatchSize = 100;
+
 const aiProviderConfigsPath = "/api/v2/ai/providers";
 const aiGatewayPath = "/api/v2/ai-gateway";
 const chatModelConfigsPath = "/api/experimental/chats/model-configs";
@@ -584,8 +571,8 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getUserAISpend = async (): Promise<UserAISpend> => {
-		const response = await this.axios.get<UserAISpend>(
+	getUserAISpend = async (): Promise<TypesGen.UserAISpendStatus> => {
+		const response = await this.axios.get<TypesGen.UserAISpendStatus>(
 			"/api/v2/users/me/ai/spend",
 		);
 		return response.data;
@@ -1173,9 +1160,10 @@ class ApiMethods {
 
 	getTemplateVersionExternalAuth = async (
 		versionId: string,
+		userId = "me",
 	): Promise<TypesGen.TemplateVersionExternalAuth[]> => {
 		const response = await this.axios.get(
-			`/api/v2/templateversions/${versionId}/external-auth`,
+			`/api/v2/templateversions/${versionId}/external-auth?user_id=${userId}`,
 		);
 
 		return response.data;
@@ -2241,11 +2229,77 @@ class ApiMethods {
 	 */
 	getGroupsByOrganization = async (
 		organization: string,
-	): Promise<GroupWithAICostControl[]> => {
-		const response = await this.axios.get(
+	): Promise<TypesGen.Group[]> => {
+		const response = await this.axios.get<TypesGen.Group[]>(
 			`/api/v2/organizations/${organization}/groups`,
 		);
 		return response.data;
+	};
+
+	/**
+	 * AI spend for the given groups in the active budget period. Fetched in
+	 * batches of 100 (the backend cap) and merged. Requires at least one ID;
+	 * the period window comes from the backend, so an empty request has no
+	 * meaningful response.
+	 * @param organization Can be the organization's ID or name
+	 */
+	getOrganizationGroupsAISpend = async (
+		organization: string,
+		groupIds: readonly string[],
+	): Promise<TypesGen.OrganizationGroupsAISpend> => {
+		if (groupIds.length === 0) {
+			throw new Error("groupIds must not be empty");
+		}
+		const responses = await fetchInBatches(
+			groupIds,
+			aiSpendBatchSize,
+			async (ids) => {
+				const url = getURLWithSearchParams(
+					`/api/v2/organizations/${organization}/groups/ai/spend`,
+					{ group_ids: ids.join(",") },
+				);
+				const response =
+					await this.axios.get<TypesGen.OrganizationGroupsAISpend>(url);
+				return response.data;
+			},
+		);
+		// Every batch reports the same active period window.
+		return {
+			...responses[0],
+			groups: responses.flatMap((r) => r.groups),
+		};
+	};
+
+	/**
+	 * Per-member AI spend attributed to a group in the active budget period.
+	 * Users not in the group, or whose spend the caller can't read, are
+	 * omitted. Fetched in batches of 100 (the backend cap) and merged.
+	 * Requires at least one ID.
+	 */
+	getGroupMembersAISpend = async (
+		groupId: string,
+		userIds: readonly string[],
+	): Promise<TypesGen.GroupMembersAISpend> => {
+		if (userIds.length === 0) {
+			throw new Error("userIds must not be empty");
+		}
+		const responses = await fetchInBatches(
+			userIds,
+			aiSpendBatchSize,
+			async (ids) => {
+				const url = getURLWithSearchParams(
+					`/api/v2/groups/${groupId}/members/ai/spend`,
+					{ user_ids: ids.join(",") },
+				);
+				const response =
+					await this.axios.get<TypesGen.GroupMembersAISpend>(url);
+				return response.data;
+			},
+		);
+		return {
+			...responses[0],
+			members: responses.flatMap((r) => r.members),
+		};
 	};
 
 	/**
@@ -2294,12 +2348,15 @@ class ApiMethods {
 		groupName: string,
 		filter?: UsersRequest,
 		signal?: AbortSignal,
-	): Promise<GroupMembersResponseWithAICostControl> => {
+	): Promise<TypesGen.GroupMembersResponse> => {
 		const url = getURLWithSearchParams(
 			`/api/v2/organizations/${organization}/groups/${groupName}/members`,
 			filter,
 		);
-		const response = await this.axios.get(url.toString(), { signal });
+		const response = await this.axios.get<TypesGen.GroupMembersResponse>(
+			url.toString(),
+			{ signal },
+		);
 		return response.data;
 	};
 
@@ -3474,6 +3531,18 @@ class ExperimentalApiMethods {
 	};
 
 	/**
+	 * Requests a manual context compaction on an idle chat. The
+	 * compaction runs asynchronously through the chat worker and
+	 * bypasses the automatic usage threshold.
+	 */
+	compactChat = async (chatId: string): Promise<TypesGen.Chat> => {
+		const response = await this.axios.post<TypesGen.Chat>(
+			`/api/experimental/chats/${chatId}/compact`,
+		);
+		return response.data;
+	};
+
+	/**
 	 * Re-pins the chat to its agent's latest context snapshot and clears
 	 * the dirty marker. Returns the updated chat.
 	 */
@@ -3983,6 +4052,16 @@ class ExperimentalApiMethods {
 		await this.axios.delete(
 			`${mcpServerConfigsPath}/${encodeURIComponent(id)}`,
 		);
+	};
+
+	disconnectMCPServerOAuth2 = async (
+		id: string,
+	): Promise<TypesGen.MCPServerOAuth2DisconnectResponse> => {
+		const response =
+			await this.axios.delete<TypesGen.MCPServerOAuth2DisconnectResponse>(
+				`${mcpServerConfigsPath}/${encodeURIComponent(id)}/oauth2/disconnect`,
+			);
+		return response.data;
 	};
 
 	getChatCostSummary = async (

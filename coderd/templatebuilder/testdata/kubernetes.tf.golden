@@ -153,7 +153,7 @@ resource "coder_agent" "main" {
 resource "kubernetes_persistent_volume_claim_v1" "home" {
   metadata {
     name      = "coder-${data.coder_workspace.me.id}-home"
-    namespace = <no value>
+    namespace = "test-namespace"
     labels = {
       "app.kubernetes.io/name"     = "coder-pvc"
       "app.kubernetes.io/instance" = "coder-pvc-${data.coder_workspace.me.id}"
@@ -188,7 +188,7 @@ resource "kubernetes_deployment_v1" "main" {
   wait_for_rollout = false
   metadata {
     name      = "coder-${data.coder_workspace.me.id}"
-    namespace = <no value>
+    namespace = "test-namespace"
     labels = {
       "app.kubernetes.io/name"     = "coder-workspace"
       "app.kubernetes.io/instance" = "coder-workspace-${data.coder_workspace.me.id}"
@@ -244,7 +244,7 @@ resource "kubernetes_deployment_v1" "main" {
 
         container {
           name              = "dev"
-          image             = "codercom/enterprise-base:ubuntu"
+          image             = "codercom/example-base:ubuntu"
           image_pull_policy = "Always"
           command           = ["sh", "-c", coder_agent.main.init_script]
           security_context {

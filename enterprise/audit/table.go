@@ -400,6 +400,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"type":            ActionTrack,
 		"name":            ActionTrack,
 		"display_name":    ActionTrack,
+		"icon":            ActionTrack,
 		"enabled":         ActionTrack,
 		"deleted":         ActionTrack,
 		"base_url":        ActionTrack,
@@ -456,9 +457,12 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"parent_chat_id":              ActionIgnore, // Immutable after creation.
 		"root_chat_id":                ActionIgnore, // Immutable after creation.
 		"last_model_config_id":        ActionIgnore, // Churns every message.
+		"last_reasoning_effort":       ActionIgnore, // Churns every message.
 		"archived":                    ActionTrack,
 		"last_error":                  ActionIgnore, // Internal.
 		"last_turn_summary":           ActionIgnore, // Internal cached display text.
+		"summary":                     ActionIgnore, // Internal cached display text, generated asynchronously.
+		"summary_generated_at":        ActionIgnore, // Internal freshness marker for the cached summary.
 		"mode":                        ActionTrack,
 		"mcp_server_ids":              ActionTrack,
 		"labels":                      ActionTrack,
@@ -481,6 +485,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"generation_attempt":          ActionIgnore, // Internal retry counter.
 		"runner_id":                   ActionIgnore, // Internal ownership identifier.
 		"requires_action_deadline_at": ActionIgnore, // Internal pending-action deadline.
+		"compaction_requested_at":     ActionIgnore, // Internal one-shot manual compaction signal.
 	},
 	&database.UserSkill{}: {
 		"id":          ActionTrack,

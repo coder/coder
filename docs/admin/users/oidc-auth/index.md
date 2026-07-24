@@ -13,7 +13,7 @@ Your OIDC provider will ask you for the following parameter:
 
 Set the following environment variables on your Coder deployment and restart Coder:
 
-```env
+```dotenv
 CODER_OIDC_ISSUER_URL="https://issuer.corp.com"
 CODER_OIDC_EMAIL_DOMAIN="your-domain-1,your-domain-2"
 CODER_OIDC_CLIENT_ID="533...des"
@@ -57,7 +57,7 @@ Coder requires all OIDC email addresses to be verified by default. If the
 provider, Coder will validate that its value is `true`. If needed, you can
 disable this behavior with the following setting:
 
-```env
+```dotenv
 CODER_OIDC_IGNORE_EMAIL_VERIFIED=true
 ```
 
@@ -84,7 +84,7 @@ If your upstream identity provider uses a different claim, you can set
 If you'd like to change the OpenID Connect button text and/or icon, you can
 configure them like so:
 
-```env
+```dotenv
 CODER_OIDC_SIGN_IN_TEXT="Sign in with Gitea"
 CODER_OIDC_ICON_URL=https://gitea.io/images/gitea.png
 ```
@@ -107,13 +107,13 @@ The general steps to configure persistent user sessions are:
 
    For most providers, add the `offline_access` scope:
 
-   ```env
+   ```dotenv
    CODER_OIDC_SCOPES=openid,profile,email,offline_access
    ```
 
    For Google, add auth URL parameters (`CODER_OIDC_AUTH_URL_PARAMS`) too:
 
-   ```env
+   ```dotenv
    CODER_OIDC_SCOPES=openid,profile,email
    CODER_OIDC_AUTH_URL_PARAMS='{"access_type": "offline", "prompt": "consent"}'
    ```
@@ -130,7 +130,7 @@ The general steps to configure persistent user sessions are:
 To remove email and password login, set the following environment variable on
 your Coder deployment:
 
-```env
+```dotenv
 CODER_DISABLE_PASSWORD_AUTH=true
 ```
 
@@ -157,7 +157,7 @@ authentication. Upon deactivation, users are
 [Configure](../../setup/index.md) your SCIM application with an auth key and supply
 it the Coder server.
 
-```env
+```dotenv
 CODER_SCIM_AUTH_HEADER="your-api-key"
 ```
 
@@ -166,7 +166,7 @@ CODER_SCIM_AUTH_HEADER="your-api-key"
 If your OpenID Connect provider requires client TLS certificates for
 authentication, you can configure them like so:
 
-```env
+```dotenv
 CODER_TLS_CLIENT_CERT_FILE=/path/to/cert.pem
 CODER_TLS_CLIENT_KEY_FILE=/path/to/key.pem
 ```

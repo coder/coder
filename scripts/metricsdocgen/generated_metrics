@@ -316,6 +316,9 @@ coderd_db_tx_duration_seconds{success="",tx_id=""} 0
 # HELP coderd_db_tx_executions_count Total count of transactions executed. 'retries' is expected to be 0 for a successful transaction.
 # TYPE coderd_db_tx_executions_count counter
 coderd_db_tx_executions_count{success="",retries="",tx_id=""} 0
+# HELP coderd_dbpurge_chat_search_rows_backfilled_total Total number of chat message rows whose search_tsv was backfilled.
+# TYPE coderd_dbpurge_chat_search_rows_backfilled_total counter
+coderd_dbpurge_chat_search_rows_backfilled_total 0
 # HELP coderd_dbpurge_iteration_duration_seconds Duration of each dbpurge iteration in seconds.
 # TYPE coderd_dbpurge_iteration_duration_seconds histogram
 coderd_dbpurge_iteration_duration_seconds{success=""} 0

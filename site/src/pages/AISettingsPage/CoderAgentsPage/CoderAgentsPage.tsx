@@ -20,7 +20,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
-import { providerTypeByIDFromConfigs } from "#/pages/AgentsPage/utils/modelOptions";
+import { providerInfoByIDFromConfigs } from "#/pages/AgentsPage/utils/modelOptions";
 import { pageTitle } from "#/utils/page";
 import { CoderAgentsPageView } from "./CoderAgentsPageView";
 
@@ -28,6 +28,8 @@ const generalOverrideContext: TypesGen.ChatModelOverrideContext = "general";
 const exploreOverrideContext: TypesGen.ChatModelOverrideContext = "explore";
 const titleGenerationOverrideContext: TypesGen.ChatModelOverrideContext =
 	"title_generation";
+const compactionOverrideContext: TypesGen.ChatModelOverrideContext =
+	"compaction";
 
 const chatModelOverrideKey = (context: TypesGen.ChatModelOverrideContext) =>
 	["chat-model-override", context] as const;
@@ -79,6 +81,10 @@ const CoderAgentsPage: FC = () => {
 		...chatModelOverrideQuery(titleGenerationOverrideContext),
 		enabled: canEditDeploymentConfig,
 	});
+	const compactionModelQuery = useQuery({
+		...chatModelOverrideQuery(compactionOverrideContext),
+		enabled: canEditDeploymentConfig,
+	});
 	const modelConfigsQuery = useQuery(chatModelConfigs());
 	const advisorConfigQuery = useQuery({
 		...chatAdvisorConfig(),
@@ -104,6 +110,9 @@ const CoderAgentsPage: FC = () => {
 			titleGenerationOverrideContext,
 		),
 	);
+	const saveCompactionModelMutation = useMutation(
+		updateChatModelOverrideMutation(queryClient, compactionOverrideContext),
+	);
 	const saveExploreModelOverrideMutation = useMutation(
 		updateChatModelOverrideMutation(queryClient, exploreOverrideContext),
 	);
@@ -114,7 +123,7 @@ const CoderAgentsPage: FC = () => {
 		updateChatComputerUseProvider(queryClient),
 	);
 
-	const providerTypeByID = providerTypeByIDFromConfigs(
+	const providerInfoByID = providerInfoByIDFromConfigs(
 		providerConfigsQuery.data,
 	);
 
@@ -141,12 +150,19 @@ const CoderAgentsPage: FC = () => {
 				}
 				generalModelOverrideData={generalModelOverrideQuery.data}
 				titleGenerationModelOverrideData={titleGenerationModelQuery.data}
+				compactionModelOverrideData={compactionModelQuery.data}
 				exploreModelOverrideData={exploreModelOverrideQuery.data}
 				modelConfigsData={modelConfigsQuery.data}
-				providerTypeByID={providerTypeByID}
-				modelConfigsError={modelConfigsQuery.error}
-				isLoadingModelConfigs={modelConfigsQuery.isLoading}
-				isFetchingModelConfigs={modelConfigsQuery.isFetching}
+				providerInfoByID={providerInfoByID}
+				modelConfigsError={
+					modelConfigsQuery.error ?? providerConfigsQuery.error
+				}
+				isLoadingModelConfigs={
+					modelConfigsQuery.isLoading || providerConfigsQuery.isLoading
+				}
+				isFetchingModelConfigs={
+					modelConfigsQuery.isFetching || providerConfigsQuery.isFetching
+				}
 				onSaveGeneralModelOverride={saveGeneralModelOverrideMutation.mutate}
 				isSavingGeneralModelOverride={
 					saveGeneralModelOverrideMutation.isPending
@@ -161,6 +177,9 @@ const CoderAgentsPage: FC = () => {
 				isSaveTitleGenerationModelError={
 					saveTitleGenerationModelMutation.isError
 				}
+				onSaveCompactionModel={saveCompactionModelMutation.mutate}
+				isSavingCompactionModel={saveCompactionModelMutation.isPending}
+				isSaveCompactionModelError={saveCompactionModelMutation.isError}
 				onSaveExploreModelOverride={saveExploreModelOverrideMutation.mutate}
 				isSavingExploreModelOverride={
 					saveExploreModelOverrideMutation.isPending
