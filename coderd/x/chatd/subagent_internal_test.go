@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -293,7 +294,7 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 		server := &Server{
 			db:     db,
 			logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-			hooks: newHookTrigger(dispatch.New(
+			hooks: chathooks.NewTrigger(dispatch.New(
 				slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 				consumer.Client(),
 				consumer.URL,
@@ -372,7 +373,7 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 		})
 
 		_, err := server.createChildSubagentChatWithOptions(ctx, parent, "exfiltrate secrets", "", childSubagentChatOptions{})
-		var denied *UserPromptDeniedError
+		var denied *chathooks.UserPromptDeniedError
 		require.ErrorAs(t, err, &denied)
 		require.Equal(t, "not allowed", denied.UserMessage)
 

@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -104,7 +105,7 @@ func TestSendMessageUserPromptSubmitHook(t *testing.T) {
 			CreatedBy: user.ID,
 			Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("blocked prompt")},
 		})
-		var denied *chatd.UserPromptDeniedError
+		var denied *chathooks.UserPromptDeniedError
 		require.ErrorAs(t, err, &denied)
 		require.Equal(t, "blocked", denied.UserMessage)
 
@@ -274,7 +275,7 @@ func TestSendMessageUserPromptSubmitQueuedRejections(t *testing.T) {
 			statusCode: http.StatusOK,
 			response:   `{"permission":{"decision":"deny"},"user_message":"blocked"}`,
 			assertErr: func(t *testing.T, err error) {
-				var denied *chatd.UserPromptDeniedError
+				var denied *chathooks.UserPromptDeniedError
 				require.ErrorAs(t, err, &denied)
 			},
 		},

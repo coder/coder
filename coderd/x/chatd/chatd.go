@@ -43,6 +43,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -178,7 +179,7 @@ type Server struct {
 	stopWorkspaceFn                chattool.StopWorkspaceFn
 	pubsub                         pubsub.Pubsub
 	webpushDispatcher              webpush.Dispatcher
-	hooks                          *hookTrigger
+	hooks                          *chathooks.Trigger
 	providerAPIKeys                chatprovider.ProviderAPIKeys
 	allowBYOK                      bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
@@ -1318,26 +1319,26 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 
 	chatID := uuid.New()
 	contentParts := opts.InitialUserContent
-	if p.hooks.enabled() {
+	if p.hooks.Enabled() {
 		// Validate model admission before dispatch, matching the insert path.
 		if err := validateCreateModelConfigID(ctx, p.db, opts.ModelConfigID); err != nil {
 			return database.Chat{}, err
 		}
 		turnID := uuid.New()
-		promptMessage, err := userPromptHookMessage(contentParts)
+		promptMessage, err := chathooks.UserPromptMessage(contentParts)
 		if err != nil {
 			return database.Chat{}, err
 		}
-		promptResult, err := p.hooks.trigger(ctx, hookChat{
+		promptResult, err := p.hooks.Trigger(ctx, chathooks.Chat{
 			ID:          chatID,
 			OwnerID:     opts.OwnerID,
 			WorkspaceID: opts.WorkspaceID,
 			TurnID:      &turnID,
 		}, promptMessage, hooks.EventUserPromptSubmit)
 		if err != nil {
-			return database.Chat{}, userPromptDenial(err)
+			return database.Chat{}, chathooks.UserPromptDenial(err)
 		}
-		composed, overridden, err := composeUserPromptContent(contentParts, promptResult)
+		composed, overridden, err := chathooks.ComposeUserPromptContent(contentParts, promptResult)
 		if err != nil {
 			return database.Chat{}, err
 		}
@@ -1457,7 +1458,7 @@ func (p *Server) SendMessage(
 	}
 
 	contentParts := opts.Content
-	if p.hooks.enabled() {
+	if p.hooks.Enabled() {
 		turnID := uuid.New()
 		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
@@ -1482,15 +1483,15 @@ func (p *Server) SendMessage(
 		if queuedCount >= chatstate.MaxQueueSize {
 			return SendMessageResult{}, &chatstate.MessageQueueFullError{Max: chatstate.MaxQueueSize}
 		}
-		promptMessage, err := userPromptHookMessage(contentParts)
+		promptMessage, err := chathooks.UserPromptMessage(contentParts)
 		if err != nil {
 			return SendMessageResult{}, err
 		}
-		promptResult, err := p.hooks.trigger(ctx, hookChatFor(chat, &turnID), promptMessage, hooks.EventUserPromptSubmit)
+		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, hooks.EventUserPromptSubmit)
 		if err != nil {
-			return SendMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, userPromptDenial(err))
+			return SendMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
 		}
-		contentParts, _, err = composeUserPromptContent(contentParts, promptResult)
+		contentParts, _, err = chathooks.ComposeUserPromptContent(contentParts, promptResult)
 		if err != nil {
 			return SendMessageResult{}, err
 		}
@@ -1770,8 +1771,8 @@ func (p *Server) EditMessage(
 	}
 
 	contentParts := opts.Content
-	var sessionStartHookResult *hookResult
-	if p.hooks.enabled() {
+	var sessionStartHookResult *chathooks.Result
+	if p.hooks.Enabled() {
 		turnID := uuid.New()
 		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
@@ -1790,19 +1791,19 @@ func (p *Server) EditMessage(
 		if _, err := validateModelConfigOverride(ctx, p.db, opts.ModelConfigID); err != nil {
 			return EditMessageResult{}, err
 		}
-		sessionStartHookResult, err = p.hooks.trigger(ctx, hookChatFor(chat, &turnID), hookMessage{Source: sessionStartSourceClear}, hooks.EventSessionStart)
+		sessionStartHookResult, err = p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), chathooks.Message{Source: chathooks.SessionStartSourceClear}, hooks.EventSessionStart)
 		if err != nil {
 			return EditMessageResult{}, p.handleAPIDispatchError(ctx, opts.ChatID, hooks.EventSessionStart, err)
 		}
-		promptMessage, err := userPromptHookMessage(contentParts)
+		promptMessage, err := chathooks.UserPromptMessage(contentParts)
 		if err != nil {
 			return EditMessageResult{}, err
 		}
-		promptResult, err := p.hooks.trigger(ctx, hookChatFor(chat, &turnID), promptMessage, hooks.EventUserPromptSubmit)
+		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, hooks.EventUserPromptSubmit)
 		if err != nil {
-			return EditMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, userPromptDenial(err))
+			return EditMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
 		}
-		contentParts, _, err = composeUserPromptContent(contentParts, promptResult)
+		contentParts, _, err = chathooks.ComposeUserPromptContent(contentParts, promptResult)
 		if err != nil {
 			return EditMessageResult{}, err
 		}
@@ -1880,7 +1881,7 @@ func (p *Server) EditMessage(
 		// only the session_start(clear) response needs transcript rows.
 		// They insert after the replacement so a later edit's suffix
 		// truncation cleans them up.
-		suffixMessages, err := hookEventMessages(sessionStartHookResult, modelConfigID)
+		suffixMessages, err := chathooks.EventMessages(sessionStartHookResult, modelConfigID)
 		if err != nil {
 			return err
 		}
@@ -2163,18 +2164,18 @@ func (p *Server) SubmitToolResults(
 ) error {
 	machine := p.newChatMachine(opts.ChatID)
 	var hookSuffix []chatstate.Message
-	if p.hooks.enabled() {
+	if p.hooks.Enabled() {
 		state, err := loadDynamicPostToolUseState(ctx, machine, opts)
 		if err != nil {
 			return err
 		}
 		for _, result := range opts.Results {
-			response, err := p.hooks.trigger(ctx, hookChatFor(state.chat, nil), dynamicPostToolUseMessage(result, state.toolNames[result.ToolCallID]), hooks.EventPostToolUse)
+			response, err := p.hooks.Trigger(ctx, chathooks.ChatFor(state.chat, nil), chathooks.DynamicPostToolUseMessage(result, state.toolNames[result.ToolCallID]), hooks.EventPostToolUse)
 			if err != nil {
 				// Leave pending calls intact so the client can resubmit after recovery.
-				return generationHookDispatchError(hooks.EventPostToolUse, err)
+				return chathooks.GenerationDispatchError(hooks.EventPostToolUse, err)
 			}
-			responseMessages, err := hookEventMessages(response, state.modelConfigID)
+			responseMessages, err := chathooks.EventMessages(response, state.modelConfigID)
 			if err != nil {
 				return err
 			}
@@ -3177,7 +3178,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		stopWorkspaceFn:                cfg.StopWorkspace,
 		pubsub:                         ps,
 		webpushDispatcher:              cfg.WebpushDispatcher,
-		hooks:                          newHookTrigger(hookDispatcher),
+		hooks:                          chathooks.NewTrigger(hookDispatcher),
 		providerAPIKeys:                cfg.ProviderAPIKeys,
 		allowBYOK:                      allowBYOK,
 		oidcTokenSource:                cfg.OIDCTokenSource,

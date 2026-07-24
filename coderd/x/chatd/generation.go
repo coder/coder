@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
@@ -339,13 +340,13 @@ func applySessionStartResponse(
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
 	chat database.Chat,
-	result *hookResult,
+	result *chathooks.Result,
 ) (sessionStartResult, error) {
-	if result.modelContext() == "" && result.userMessage() == "" {
+	if result.GetModelContext() == "" && result.GetUserMessage() == "" {
 		return sessionStartResult{Chat: chat}, nil
 	}
 
-	eventMessages, err := hookEventMessages(result, chat.LastModelConfigID)
+	eventMessages, err := chathooks.EventMessages(result, chat.LastModelConfigID)
 	if err != nil {
 		return sessionStartResult{}, err
 	}
@@ -391,9 +392,9 @@ func (s *taskStarter) startGenerationSession(
 	// Re-arm the claim until its response is applied so a replacement task
 	// can replay session_start effects.
 	defer func() { complete(completed) }()
-	response, err := s.server.hooks.trigger(ctx, hookChatFor(chat, input.hookTurnID()), hookMessage{Source: sessionStartSource(messages)}, hooks.EventSessionStart)
+	response, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(chat, input.hookTurnID()), chathooks.Message{Source: chathooks.SessionStartSource(messages)}, hooks.EventSessionStart)
 	if err != nil {
-		return sessionStartResult{}, true, generationHookDispatchError(hooks.EventSessionStart, err)
+		return sessionStartResult{}, true, chathooks.GenerationDispatchError(hooks.EventSessionStart, err)
 	}
 	result, err = applySessionStartResponse(ctx, machine, input, chat, response)
 	if err != nil {
@@ -416,7 +417,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if err != nil {
 			return xerrors.Errorf("load generation state: %w", err)
 		}
-		if s.server.hooks.enabled() {
+		if s.server.hooks.Enabled() {
 			result, dispatched, err := s.startGenerationSession(ctx, machine, input, chat, messages)
 			if err != nil {
 				if errors.Is(err, errTaskExpectedExit) {
@@ -490,10 +491,10 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 					Input:      toolCall.Args,
 				})
 			}
-			preflight, err := s.server.hooks.preflightPendingToolCalls(ctx, hookChatFor(prepared.Chat, input.hookTurnID()), toolCalls)
+			preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), toolCalls)
 			if err != nil {
 				cleanup()
-				return s.finishGenerationError(ctx, machine, input, generationHookDispatchError(hooks.EventPreToolUse, err), generationAttemptNotRequired)
+				return s.finishGenerationError(ctx, machine, input, chathooks.GenerationDispatchError(hooks.EventPreToolUse, err), generationAttemptNotRequired)
 			}
 			if len(preflight.Denied) == 0 {
 				cleanup()
@@ -769,7 +770,7 @@ func (s *taskStarter) commitPreToolUseDeniedResults(
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
 	prepared generationPrepared,
-	preflight preToolUseExecutionResult,
+	preflight chathooks.PreToolUseExecutionResult,
 ) error {
 	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
@@ -807,9 +808,9 @@ func (s *taskStarter) executeLocalTools(
 	prepared generationPrepared,
 	decision generationDecision,
 ) error {
-	preflight, err := s.server.hooks.preflightPendingToolCalls(ctx, hookChatFor(prepared.Chat, input.hookTurnID()), decision.localToolCalls)
+	preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), decision.localToolCalls)
 	if err != nil {
-		return generationHookDispatchError(hooks.EventPreToolUse, err)
+		return chathooks.GenerationDispatchError(hooks.EventPreToolUse, err)
 	}
 	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
@@ -846,15 +847,15 @@ func (s *taskStarter) executeLocalTools(
 		// Subagent spawn admission dispatches user_prompt_submit inside
 		// the tool run; its failure surfaces as a tool result error and
 		// must fail the step instead of committing.
-		if hookErr := hookDispatchFailureFromResults(outcome.Step.Content); hookErr != nil {
-			return generationHookDispatchError(hooks.EventUserPromptSubmit, hookErr)
+		if hookErr := chathooks.DispatchFailureFromResults(outcome.Step.Content); hookErr != nil {
+			return chathooks.GenerationDispatchError(hooks.EventUserPromptSubmit, hookErr)
 		}
 	}
-	postResults, postDispatchErr := s.server.hooks.postToolUseResults(ctx, hookChatFor(prepared.Chat, input.hookTurnID()), outcome.Step.Content)
+	postResults, postDispatchErr := s.server.hooks.PostToolUseResults(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), outcome.Step.Content)
 	for _, denied := range preflight.Denied {
 		outcome.Step.Content = append(outcome.Step.Content, denied)
 	}
-	restoreToolCallOrder(outcome.Step.Content, decision.localToolCalls)
+	chathooks.RestoreToolCallOrder(outcome.Step.Content, decision.localToolCalls)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:      prepared.ModelConfigID,
 		modelCallConfig:    prepared.ModelConfig,
@@ -876,7 +877,7 @@ func (s *taskStarter) executeLocalTools(
 	}
 	var postCommitErr error
 	if postDispatchErr != nil {
-		postCommitErr = generationHookDispatchError(hooks.EventPostToolUse, postDispatchErr)
+		postCommitErr = chathooks.GenerationDispatchError(hooks.EventPostToolUse, postDispatchErr)
 	}
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages, generationCommitHooks{
 		Overrides:       preflight.Overrides,
@@ -934,11 +935,11 @@ func (s *taskStarter) generateCompaction(
 			overrideModel.modelConfig,
 		)
 	}
-	preResult, err := s.server.hooks.trigger(ctx, hookChatFor(prepared.Chat, input.hookTurnID()), hookMessage{}, hooks.EventPreCompact)
+	preResult, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, hooks.EventPreCompact)
 	if err != nil {
-		return generationHookDispatchError(hooks.EventPreCompact, err)
+		return chathooks.GenerationDispatchError(hooks.EventPreCompact, err)
 	}
-	compactionOpts.SummaryHint = preResult.modelContext()
+	compactionOpts.SummaryHint = preResult.GetModelContext()
 	compactionOpts.PublishMessagePart = attempt.publish
 	compactionOpts.Source = source
 	compactionOpts.Force = source == chatloop.CompactionSourceManual
@@ -968,12 +969,12 @@ func (s *taskStarter) generateCompaction(
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
 	// The summary hint already consumed the pre_compact model context.
-	persistedPreResult := &hookResult{UserMessage: preResult.userMessage()}
+	persistedPreResult := &chathooks.Result{UserMessage: preResult.GetUserMessage()}
 	commitMessages, err := applyHookResultMessages(stepMessagesForCommit{
 		Messages:                 messages.Messages,
 		VisibleIndexes:           visibleMessageIndexes(messages.Messages),
 		ConsumeCompactionRequest: true,
-	}, []*hookResult{persistedPreResult}, prepared.ModelConfigID)
+	}, []*chathooks.Result{persistedPreResult}, prepared.ModelConfigID)
 	if err != nil {
 		s.server.metrics.RecordCompaction(metricProvider, metricModel, false, err)
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
@@ -981,12 +982,12 @@ func (s *taskStarter) generateCompaction(
 	// Hook effects and fail-closed errors must commit atomically with
 	// compaction; a separate commit races the runner and can be dropped
 	// on crash.
-	postResult, postDispatchErr := s.server.hooks.trigger(ctx, hookChatFor(prepared.Chat, input.hookTurnID()), hookMessage{}, hooks.EventPostCompact)
+	postResult, postDispatchErr := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, hooks.EventPostCompact)
 	var postCommitErr error
 	if postDispatchErr != nil {
-		postCommitErr = generationHookDispatchError(hooks.EventPostCompact, postDispatchErr)
+		postCommitErr = chathooks.GenerationDispatchError(hooks.EventPostCompact, postDispatchErr)
 	} else {
-		commitMessages, err = appendHookResultMessages(commitMessages, []*hookResult{postResult}, prepared.ModelConfigID)
+		commitMessages, err = appendHookResultMessages(commitMessages, []*chathooks.Result{postResult}, prepared.ModelConfigID)
 		if err != nil {
 			s.server.metrics.RecordCompaction(metricProvider, metricModel, false, err)
 			return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
@@ -1125,7 +1126,7 @@ func (s *taskStarter) commitGenerationStep(
 		if _, err := loadChatForGeneration(ctx, store, input, requireGenerationAttempt(attempt)); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
-		if err := replacePersistedToolCallInputs(ctx, tx, input.ChatID, commitHooks.Overrides); err != nil {
+		if err := chathooks.ReplacePersistedToolCallInputs(ctx, tx, input.ChatID, commitHooks.Overrides); err != nil {
 			return err
 		}
 		commitResult, err := tx.CommitStep(chatstate.CommitStepInput{
@@ -1185,7 +1186,7 @@ func (s *taskStarter) enterRequiresAction(
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
 	prepared generationPrepared,
-	preflight preToolUseExecutionResult,
+	preflight chathooks.PreToolUseExecutionResult,
 ) error {
 	messages, err := applyHookResultMessages(stepMessagesForCommit{}, preflight.Results, prepared.ModelConfigID)
 	if err != nil {
@@ -1197,7 +1198,7 @@ func (s *taskStarter) enterRequiresAction(
 		if _, err := loadChatForTask(ctx, store, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
-		if err := replacePersistedToolCallInputs(ctx, tx, input.ChatID, preflight.Overrides); err != nil {
+		if err := chathooks.ReplacePersistedToolCallInputs(ctx, tx, input.ChatID, preflight.Overrides); err != nil {
 			return err
 		}
 		var inserted []database.ChatMessage
@@ -1345,7 +1346,7 @@ func (s *taskStarter) finishGenerationTurn(
 	decision generationDecision,
 	fence generationAttemptFence,
 ) error {
-	if !s.server.hooks.enabled() {
+	if !s.server.hooks.Enabled() {
 		return s.finishGenerationTurnWithoutHook(ctx, machine, input, decision, fence)
 	}
 	var chat database.Chat
@@ -1369,16 +1370,16 @@ func (s *taskStarter) finishGenerationTurn(
 	if err != nil {
 		return normalizeTaskTransitionError(err, "load stop hook state")
 	}
-	response, err := s.server.hooks.trigger(ctx, hookChatFor(chat, input.hookTurnID()), hookMessage{}, hooks.EventStop)
+	response, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(chat, input.hookTurnID()), chathooks.Message{}, hooks.EventStop)
 	if err != nil {
-		return s.finishGenerationError(ctx, machine, input, generationHookDispatchError(hooks.EventStop, err), fence)
+		return s.finishGenerationError(ctx, machine, input, chathooks.GenerationDispatchError(hooks.EventStop, err), fence)
 	}
-	stopMessages, err := hookEventMessages(response, chat.LastModelConfigID)
+	stopMessages, err := chathooks.EventMessages(response, chat.LastModelConfigID)
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, fence)
 	}
 	nudgeKey := stopNudgeKey(messages)
-	continueTurn := response.modelContext() != "" && input.StopNudges.claim(nudgeKey)
+	continueTurn := response.GetModelContext() != "" && input.StopNudges.claim(nudgeKey)
 
 	var committed database.Chat
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
