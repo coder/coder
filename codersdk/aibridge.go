@@ -373,10 +373,10 @@ func (c *Client) AIBridgeListClients(ctx context.Context) ([]string, error) {
 // Both bounds are optional and interpreted as UTC; zero values fall back to the
 // current budget period on the server.
 type AISpendExportOptions struct {
-	// Start is the inclusive lower bound of the export window.
-	Start time.Time
-	// End is the exclusive upper bound of the export window.
-	End time.Time
+	// PeriodStart is the inclusive lower bound of the export window.
+	PeriodStart time.Time
+	// PeriodEnd is the exclusive upper bound of the export window.
+	PeriodEnd time.Time
 }
 
 // ExportOrganizationAISpend returns a CSV of per-user, per-group, per-model,
@@ -388,11 +388,11 @@ func (c *Client) ExportOrganizationAISpend(ctx context.Context, organization uui
 		nil,
 		func(r *http.Request) {
 			q := r.URL.Query()
-			if !opts.Start.IsZero() {
-				q.Set("start", opts.Start.UTC().Format(time.RFC3339Nano))
+			if !opts.PeriodStart.IsZero() {
+				q.Set("period_start", opts.PeriodStart.UTC().Format(time.RFC3339Nano))
 			}
-			if !opts.End.IsZero() {
-				q.Set("end", opts.End.UTC().Format(time.RFC3339Nano))
+			if !opts.PeriodEnd.IsZero() {
+				q.Set("period_end", opts.PeriodEnd.UTC().Format(time.RFC3339Nano))
 			}
 			r.URL.RawQuery = q.Encode()
 		},

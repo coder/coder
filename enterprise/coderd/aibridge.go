@@ -1045,8 +1045,8 @@ var aiSpendExportCSVHeader = []string{
 // it writes the error response and returns ok=false.
 func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter, r *http.Request) (start, end time.Time, ok bool) {
 	query := r.URL.Query()
-	hasStart := query.Has("start")
-	hasEnd := query.Has("end")
+	hasStart := query.Has("period_start")
+	hasEnd := query.Has("period_end")
 
 	if !hasStart && !hasEnd {
 		window, err := api.currentAIBudgetWindow()
@@ -1060,14 +1060,14 @@ func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter,
 
 	if hasStart != hasEnd {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Query parameters \"start\" and \"end\" must be provided together.",
+			Message: "Query parameters \"period_start\" and \"period_end\" must be provided together.",
 		})
 		return time.Time{}, time.Time{}, false
 	}
 
 	parser := httpapi.NewQueryParamParser()
-	start = parser.Time3339Nano(query, time.Time{}, "start")
-	end = parser.Time3339Nano(query, time.Time{}, "end")
+	start = parser.Time3339Nano(query, time.Time{}, "period_start")
+	end = parser.Time3339Nano(query, time.Time{}, "period_end")
 	parser.ErrorExcessParams(query)
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -1078,7 +1078,7 @@ func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter,
 	}
 	if !start.Before(end) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Query parameter \"start\" must be before \"end\".",
+			Message: "Query parameter \"period_start\" must be before \"period_end\".",
 		})
 		return time.Time{}, time.Time{}, false
 	}
@@ -1093,14 +1093,14 @@ func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter,
 
 // @Summary Export organization AI spend as CSV
 // @Description Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.
-// @Description The optional start and end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days; when both are omitted the current UTC monthly period is used.
+// @Description The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days; when both are omitted the current UTC monthly period is used.
 // @ID export-organization-ai-spend-as-csv
 // @Security CoderSessionToken
 // @Produce text/csv
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
-// @Param start query string false "Inclusive lower bound (RFC3339)" format(date-time)
-// @Param end query string false "Exclusive upper bound (RFC3339)" format(date-time)
+// @Param period_start query string false "Inclusive lower bound (RFC3339)" format(date-time)
+// @Param period_end query string false "Exclusive upper bound (RFC3339)" format(date-time)
 // @Success 200
 // @Router /api/v2/organizations/{organization}/ai/spend/export [get]
 func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Request) {

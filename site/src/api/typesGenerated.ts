@@ -540,13 +540,13 @@ export const AIProviderTypes: AIProviderType[] = [
  */
 export interface AISpendExportOptions {
 	/**
-	 * Start is the inclusive lower bound of the export window.
+	 * PeriodStart is the inclusive lower bound of the export window.
 	 */
-	readonly Start: string;
+	readonly PeriodStart: string;
 	/**
-	 * End is the exclusive upper bound of the export window.
+	 * PeriodEnd is the exclusive upper bound of the export window.
 	 */
-	readonly End: string;
+	readonly PeriodEnd: string;
 }
 
 // From codersdk/aibridge.go

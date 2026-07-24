@@ -3893,8 +3893,8 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		}
 
 		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, map[string]string{
-			"start": start.Format(time.RFC3339Nano),
-			"end":   end.Format(time.RFC3339Nano),
+			"period_start": start.Format(time.RFC3339Nano),
+			"period_end":   end.Format(time.RFC3339Nano),
 		})
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
@@ -3919,32 +3919,32 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		}{
 			{
 				name:       "OnlyStart",
-				params:     map[string]string{"start": start.Format(time.RFC3339Nano)},
+				params:     map[string]string{"period_start": start.Format(time.RFC3339Nano)},
 				wantStatus: http.StatusBadRequest,
 			},
 			{
 				name:       "OnlyEnd",
-				params:     map[string]string{"end": start.Format(time.RFC3339Nano)},
+				params:     map[string]string{"period_end": start.Format(time.RFC3339Nano)},
 				wantStatus: http.StatusBadRequest,
 			},
 			{
 				name:       "StartEqualsEnd",
-				params:     map[string]string{"start": start.Format(time.RFC3339Nano), "end": start.Format(time.RFC3339Nano)},
+				params:     map[string]string{"period_start": start.Format(time.RFC3339Nano), "period_end": start.Format(time.RFC3339Nano)},
 				wantStatus: http.StatusBadRequest,
 			},
 			{
 				name:       "InvalidFormat",
-				params:     map[string]string{"start": "not-a-date", "end": start.AddDate(0, 0, 1).Format(time.RFC3339Nano)},
+				params:     map[string]string{"period_start": "not-a-date", "period_end": start.AddDate(0, 0, 1).Format(time.RFC3339Nano)},
 				wantStatus: http.StatusBadRequest,
 			},
 			{
 				name:       "PeriodTooLong",
-				params:     map[string]string{"start": start.Format(time.RFC3339Nano), "end": start.AddDate(0, 0, 32).Format(time.RFC3339Nano)},
+				params:     map[string]string{"period_start": start.Format(time.RFC3339Nano), "period_end": start.AddDate(0, 0, 32).Format(time.RFC3339Nano)},
 				wantStatus: http.StatusBadRequest,
 			},
 			{
 				name:       "MaxPeriodAllowed",
-				params:     map[string]string{"start": start.Format(time.RFC3339Nano), "end": start.AddDate(0, 0, 31).Format(time.RFC3339Nano)},
+				params:     map[string]string{"period_start": start.Format(time.RFC3339Nano), "period_end": start.AddDate(0, 0, 31).Format(time.RFC3339Nano)},
 				wantStatus: http.StatusOK,
 			},
 		}
