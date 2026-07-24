@@ -18,7 +18,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 )
 
-// BenchmarkCountWorkspaceCapableUsers measures how permission-based seat
+// BenchmarkCountWorkspaceCapableUsers measures how workspace-capable seat
 // counting scales along its two cost axes: the number of eligible active
 // users (row fetch and per-row signature work) and the number of unique
 // role sets (role expansion and rego evaluation, one per set).
