@@ -123,9 +123,8 @@ func deniedToolResult(toolCall fantasy.ToolCallContent, reason, modelContext str
 	}
 }
 
-// restoreToolCallOrder reorders tool results to match the assistant's
-// call order because providers pair results with calls positionally.
-// Entries that are not tool results for the given calls keep their slots.
+// restoreToolCallOrder reorders known tool results to match the assistant's
+// call order while preserving slots for unrelated entries.
 func restoreToolCallOrder(content []fantasy.Content, calls []fantasy.ToolCallContent) {
 	position := make(map[string]int, len(calls))
 	for index, call := range calls {
@@ -173,9 +172,6 @@ func userPromptOverride(result *hookResult) (string, bool, error) {
 	return *override.Prompt, true, nil
 }
 
-// userPromptHookParts converts a user_prompt_submit result into the
-// typed parts carried inside the submitted message: hook-context is
-// model-only steering, hook-notice is a client-only notice.
 func userPromptHookParts(result *hookResult) []codersdk.ChatMessagePart {
 	parts := make([]codersdk.ChatMessagePart, 0, 2)
 	if result.modelContext() != "" {

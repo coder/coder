@@ -43,8 +43,8 @@ type UserPromptDeniedError struct {
 }
 
 // Error includes UserMessage so callers that only surface the error
-// string, such as subagent tool responses, still expose the hook's
-// reason. The HTTP handlers unwrap the typed error instead.
+// string, such as subagent tool responses, still expose the user-facing
+// denial message. The HTTP handlers unwrap the typed error instead.
 func (e *UserPromptDeniedError) Error() string {
 	if e.UserMessage == "" {
 		return "user prompt denied by lifecycle hook"

@@ -927,10 +927,6 @@ func TestInjectMissingToolUses_DropsProviderExecutedOrphans(t *testing.T) {
 	}
 }
 
-// TestInjectMissingToolResults_HookContextBetweenCallAndResult
-// verifies that a model-visible hook context row persisted between an
-// assistant tool call and its result rows does not break tool-result
-// adjacency or trigger a synthetic interrupted result.
 func TestInjectMissingToolResults_HookContextBetweenCallAndResult(t *testing.T) {
 	t.Parallel()
 
@@ -956,8 +952,6 @@ func TestInjectMissingToolResults_HookContextBetweenCallAndResult(t *testing.T) 
 		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: result},
 	})
 
-	// The result is hoisted next to the call and the hook context
-	// follows it.
 	require.Len(t, prompt, 3)
 	require.Equal(t, fantasy.MessageRoleAssistant, prompt[0].Role)
 	require.Equal(t, fantasy.MessageRoleTool, prompt[1].Role)

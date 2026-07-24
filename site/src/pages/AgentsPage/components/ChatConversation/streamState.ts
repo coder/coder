@@ -211,8 +211,8 @@ export const applyMessagePartToStreamState = (
 		// skill parts are metadata-only; no streaming render
 		// needed.
 		case "skill":
-		// hook-notice parts only appear in persisted user messages,
-		// never via SSE streaming.
+		// Hook notices may arrive in durable message events, but not in
+		// streaming part deltas.
 		case "hook-notice":
 			return prev;
 		default: {
