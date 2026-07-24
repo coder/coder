@@ -1094,7 +1094,7 @@ func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter,
 // @Summary Export organization AI spend as CSV
 // @Description Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.
 // @Description The optional start and end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days; when both are omitted the current UTC monthly period is used.
-// @ID export-organization-ai-spend
+// @ID export-organization-ai-spend-as-csv
 // @Security CoderSessionToken
 // @Produce text/csv
 // @Tags Enterprise

@@ -4798,7 +4798,7 @@ const docTemplate = `{
                     "Enterprise"
                 ],
                 "summary": "Export organization AI spend as CSV",
-                "operationId": "export-organization-ai-spend",
+                "operationId": "export-organization-ai-spend-as-csv",
                 "parameters": [
                     {
                         "type": "string",
