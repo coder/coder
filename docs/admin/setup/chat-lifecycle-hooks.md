@@ -44,8 +44,8 @@ Rotation is a hard cutover: Coder signs with exactly one secret, so dispatches f
 Rotate during a maintenance window, or temporarily set `CODER_CHAT_HOOK_ENABLED=false` for the cutover if blocked chats are worse than unreviewed ones for your deployment.
 Coder requires the configured URL to use HTTPS.
 A TLS terminator can forward the request to a consumer over plain HTTP on a trusted local network.
-It must set `X-Forwarded-Proto: https` and either preserve the original `Host` header or carry it in `X-Forwarded-Host` for the SDK handler's audience check.
-The SDK trusts those forwarded headers, so the audience check is only as strong as that proxy boundary: the proxy must strip or overwrite client-supplied forwarded headers, and the consumer must not be reachable except through the proxy.
+The proxy must set `X-Forwarded-Proto: https` and either preserve the original `Host` header or carry it in `X-Forwarded-Host` for the SDK handler's audience check.
+The SDK handler ignores forwarded headers unless the consumer opts in with `agenthooks.WithTrustForwardedHeaders`, because the audience check is then only as strong as the proxy boundary: the proxy must strip or overwrite client-supplied forwarded headers, and the consumer must not be reachable except through the proxy.
 
 ## Handle lifecycle events
 
@@ -83,7 +83,7 @@ A consumer must apply all of the following checks before it uses the body:
 - Check that `jti` equals the request `meta.dispatch_id`.
 - Check that the JWT event `type` equals the body event `type`.
 - Compute SHA-256 over the exact request body bytes and compare it with `body_sha256`.
-- Check that the chat ID in `sub` matches `meta.chat_id`.
+- Check that `sub` has the form `coder:chat:<chat ID>` and that its chat ID matches `meta.chat_id`.
 
 The Go consumer SDK in `codersdk/x/agenthooks` implements the wire types, JWT verification, body binding, audience checks, and event routing.
 Use `agenthooks.NewHTTPHandler` to build an `http.Handler` from callbacks for the events your consumer handles.
@@ -114,12 +114,13 @@ Permission rules depend on the event:
   Coder persists the replacement with the tool call and executes the tool with it.
   Nothing marks the call as rewritten in the chat, so the model may misattribute the changed behavior; a consumer that rewrites input should also return `user_message` explaining the change.
 - For either event, `deny` blocks the input and must not include `input_override`.
-  A denied prompt isn't persisted, and a denied tool call becomes a synthetic error result, carrying any returned `model_context`, so the model can choose another action.
+  A denied prompt isn't persisted: Coder rejects the submission and surfaces any returned `user_message` in the rejection, ignoring `model_context`.
+  A denied tool call becomes a synthetic error result, carrying any returned `model_context`, so the model can choose another action.
 - For all other events, omit `permission`.
 
 For `user_prompt_submit`, `model_context` and `user_message` are stored as typed parts of the prompt message itself: the model-context part goes to the model but never to clients, and the user-message part is shown to the user attached to the prompt but never sent to the model.
 For a denied `pre_tool_use`, `model_context` is included in the synthetic denied tool result.
-Other hook effects become ordinary transcript messages with audience-specific visibility.
+Other hook effects become ordinary transcript messages with audience-specific visibility, except that a `pre_compact` `model_context` guides the compaction summary instead of entering the transcript.
 Coder dispatches `user_prompt_submit` exactly once per submission, when the prompt is admitted (sent, queued, edited, or used to create a chat or subagent), and applies the response effects to the final stored prompt content.
 
 ## Plan failure recovery
@@ -140,7 +141,7 @@ Treat events as attempt notifications rather than proof of a committed operation
 Delivery is at least once.
 Coder retries one connection failure per dispatch with the same JWT, so use `dispatch_id` to recognize a repeated HTTP attempt and return the same response.
 Coder also re-dispatches the same logical event with a new `dispatch_id` whenever an operation runs again, for example when a chat recovers after a crash and retries a pending tool call, or when a user retries a turn that failed before committing.
-Every tool call is validated through a fresh `pre_tool_use` dispatch; Coder never reuses an earlier decision on the consumer's behalf.
+Every non-provider-executed tool call is validated through a fresh `pre_tool_use` dispatch; Coder never reuses an earlier decision on the consumer's behalf.
 
 Use event-specific identifiers for logical duplicates:
 
@@ -154,7 +155,7 @@ Use event-specific identifiers for logical duplicates:
 Rejecting duplicates breaks Coder's retries. Return the same decision whenever the payload identifies the same logical event.
 
 After the consumer is healthy, send another message to an existing errored chat to resume it.
-Coder emits `session_start` with `source` set to `resume` when the agent loop starts again.
+Coder emits `session_start` when the agent loop starts again, with `source` set to `resume` when the chat already contains an assistant reply and `startup` otherwise.
 If the consumer continues blocking chat activity, set `CODER_CHAT_HOOK_ENABLED=false` and roll out the Coder deployment configuration before users retry.
 
 ## Roll out enforcement in stages
@@ -187,7 +188,7 @@ CODER_AGENTHOOKS_SECRET='<shared-secret>' \
 ```
 
 The reference server accepts optional TLS certificate and key paths.
-For local testing with plain HTTP, place an HTTPS reverse proxy in front of it because `CODER_CHAT_HOOK_URL` accepts only HTTPS URLs.
+For local testing with plain HTTP, place an HTTPS reverse proxy in front of it because `CODER_CHAT_HOOK_URL` accepts only HTTPS URLs, and pass `--trust-forwarded-headers` so the audience check uses the proxy's forwarded scheme and host.
 Run `go run ./scripts/agenthooks-server --help` for all flags and environment variable names.
 
 ## Audit dispatches
