@@ -85,8 +85,6 @@ func (c hookChat) ref() agenthooks.ChatRef {
 	return ref
 }
 
-// hookMessage carries the message details for an event. Each event
-// reads the fields relevant to it and ignores the rest.
 type hookMessage struct {
 	// Source is the session_start trigger: startup, resume, or clear.
 	Source string
