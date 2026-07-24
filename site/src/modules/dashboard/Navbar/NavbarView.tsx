@@ -16,7 +16,10 @@ import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { NotificationsInbox } from "#/modules/notifications/NotificationsInbox/NotificationsInbox";
 import { getPrereleaseFlag } from "#/utils/buildInfo";
 import { cn } from "#/utils/cn";
-import { canViewAdminSettings, type AdminSettingsPermissions } from "./AdminSettings";
+import {
+	type AdminSettingsPermissions,
+	canViewAdminSettings,
+} from "./AdminSettings";
 import { AdminSettingsDropdown } from "./DeploymentDropdown";
 import { MobileMenu } from "./MobileMenu";
 import { ProxyMenu } from "./ProxyMenu";
@@ -114,9 +117,11 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					</div>
 				)}
 
-				{canViewAdminSettings(adminPermissions) && <div className="hidden md:block">
-					<AdminSettingsDropdown permissions={adminPermissions} />
-				</div>}
+				{canViewAdminSettings(adminPermissions) && (
+					<div className="hidden md:block">
+						<AdminSettingsDropdown permissions={adminPermissions} />
+					</div>
+				)}
 
 				<NotificationsInbox
 					fetchNotifications={API.getInboxNotifications}
