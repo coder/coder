@@ -2307,19 +2307,21 @@ func TestRecordTokenUsageBudgetNotifications(t *testing.T) {
 	t.Parallel()
 
 	const (
-		spendLimitMicros int64 = 1_000_000 // $1 limit (100% threshold)
-		warnAtMicros     int64 = 850_000   // 85% of the limit
-		inputPriceMicros int64 = 1_000_000 // $1 per million tokens
+		dollar          int64 = 1_000_000    // micros per USD dollar
+		spendLimit      int64 = 100 * dollar // $100 limit (100% threshold)
+		warnAt          int64 = 85 * dollar  // $85 (85% of the limit)
+		inputPrice      int64 = dollar       // $1 per million tokens
+		tokensPerDollar int64 = 1_000_000    // 1,000,000 tokens = $1 at the price above
 	)
 	now := time.Date(2026, 6, 25, 14, 30, 0, 0, time.UTC)
 
-	// $1 per million tokens means the interception cost in micros equals the
-	// input token count, so each case sets its cost via inputTokens. newSpend is
-	// the post-increment period total; the code derives the pre-increment total
-	// as newSpend - cost and fires a threshold only when the pre-increment total
-	// is below the threshold amount and the post-increment total is at or above it.
+	// Each case sets its cost via inputTokens (tokensPerDollar tokens = $1).
+	// newSpend is the post-increment period total; the code derives the
+	// pre-increment total as newSpend - cost and fires a threshold only when the
+	// pre-increment total is below the threshold and the post-increment total is
+	// at or above it.
 	price := &database.AIModelPrice{
-		InputPrice: sql.NullInt64{Int64: inputPriceMicros, Valid: true},
+		InputPrice: sql.NullInt64{Int64: inputPrice, Valid: true},
 	}
 
 	// Threshold percentage label expected for each template.
@@ -2330,61 +2332,57 @@ func TestRecordTokenUsageBudgetNotifications(t *testing.T) {
 
 	testCases := []struct {
 		name          string
-		inputTokens   int64 // also the interception cost in micros
+		inputTokens   int64
 		newSpend      int64 // post-increment period total
 		wantTemplates []uuid.UUID
 	}{
 		{
 			name: "crosses warning threshold",
-			// pre  = 850_500 - 1000 = 849_500 (< 850_000)
-			// post = 850_500                  (>= 850_000) -> warning.
-			inputTokens:   1000,
-			newSpend:      warnAtMicros + 500,
+			// pre = $84.50 (< $85), post = $85.50 (>= $85) -> warning.
+			inputTokens:   tokensPerDollar,
+			newSpend:      warnAt + dollar/2,
 			wantTemplates: []uuid.UUID{notifications.TemplateAIBudgetWarningUser},
 		},
 		{
 			name: "crosses warning threshold exactly",
-			// pre  = 850_000 - 1000 = 849_000 (< 850_000)
-			// post = 850_000                  (>= 850_000) -> warning.
-			inputTokens:   1000,
-			newSpend:      warnAtMicros,
+			// pre = $84 (< $85), post = $85 (>= $85) -> warning.
+			inputTokens:   tokensPerDollar,
+			newSpend:      warnAt,
 			wantTemplates: []uuid.UUID{notifications.TemplateAIBudgetWarningUser},
 		},
 		{
 			name: "stays below warning threshold",
-			// post = 849_999 (< 850_000) -> no crossing.
-			inputTokens:   1000,
-			newSpend:      warnAtMicros - 1,
+			// post = $84.50 (< $85) -> no crossing.
+			inputTokens:   tokensPerDollar,
+			newSpend:      warnAt - dollar/2,
 			wantTemplates: nil,
 		},
 		{
 			name: "already at warning threshold",
-			// pre = 851_000 - 1000 = 850_000 (not < 850_000) -> no fresh crossing.
-			inputTokens:   1000,
-			newSpend:      warnAtMicros + 1000,
+			// pre = $85 (not < $85), post = $86 -> no fresh crossing.
+			inputTokens:   tokensPerDollar,
+			newSpend:      warnAt + dollar,
 			wantTemplates: nil,
 		},
 		{
 			name: "already above warning threshold",
-			// pre = 860_000 - 1000 = 859_000 (>= 850_000, < 1_000_000) -> no crossing.
-			inputTokens:   1000,
-			newSpend:      warnAtMicros + 10_000,
+			// pre = $89 (>= $85, < $100), post = $90 -> no crossing.
+			inputTokens:   tokensPerDollar,
+			newSpend:      warnAt + 5*dollar,
 			wantTemplates: nil,
 		},
 		{
 			name: "crosses limit",
-			// pre  = 1_000_500 - 1000 = 999_500 (>= 850_000, so no warning; < 1_000_000)
-			// post = 1_000_500                  (>= 1_000_000) -> limit only.
-			inputTokens:   1000,
-			newSpend:      spendLimitMicros + 500,
+			// pre = $99.50 (>= $85, so no warning; < $100), post = $100.50 (>= $100) -> limit.
+			inputTokens:   tokensPerDollar,
+			newSpend:      spendLimit + dollar/2,
 			wantTemplates: []uuid.UUID{notifications.TemplateAIBudgetLimitReachedUser},
 		},
 		{
 			name: "crosses warning and limit in one interception",
-			// pre  = 1_000_000 - 200_000 = 800_000 (< 850_000)
-			// post = 1_000_000                     (>= 850_000 and >= 1_000_000) -> warning + limit.
-			inputTokens: 200_000,
-			newSpend:    spendLimitMicros,
+			// pre = $80 (< $85), post = $100 (>= $85 and >= $100) -> warning + limit.
+			inputTokens: 20 * tokensPerDollar,
+			newSpend:    spendLimit,
 			wantTemplates: []uuid.UUID{
 				notifications.TemplateAIBudgetWarningUser,
 				notifications.TemplateAIBudgetLimitReachedUser,
@@ -2392,9 +2390,9 @@ func TestRecordTokenUsageBudgetNotifications(t *testing.T) {
 		},
 		{
 			name: "already above limit",
-			// pre = 1_010_000 - 1000 = 1_009_000 (>= 1_000_000) -> no fresh crossing.
-			inputTokens:   1000,
-			newSpend:      spendLimitMicros + 10_000,
+			// pre = $109 (>= $100), post = $110 -> no fresh crossing.
+			inputTokens:   tokensPerDollar,
+			newSpend:      spendLimit + 10*dollar,
 			wantTemplates: nil,
 		},
 	}
@@ -2409,7 +2407,7 @@ func TestRecordTokenUsageBudgetNotifications(t *testing.T) {
 
 			intc := newTestInterception(uuid.New())
 			groupID := uuid.New()
-			group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: spendLimitMicros}
+			group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: spendLimit}
 
 			expectTokenUsageCostLookups(db, intc, nil, group, nil, price)
 
@@ -2454,7 +2452,7 @@ func TestRecordTokenUsageBudgetNotifications(t *testing.T) {
 				require.Len(t, sent, 1, "expected one notification for template %s", tmpl)
 				require.Equal(t, intc.InitiatorID, sent[0].UserID)
 				require.Equal(t, wantThreshold[tmpl], sent[0].Labels["threshold"])
-				require.Equal(t, "$1.00", sent[0].Labels["limit"])
+				require.Equal(t, "$100.00", sent[0].Labels["limit"])
 				require.Equal(t, "Engineering", sent[0].Labels["effective_group_name"])
 			}
 		})
@@ -2469,9 +2467,11 @@ func TestRecordTokenUsageBudgetNotificationAcrossPeriodBoundary(t *testing.T) {
 	t.Parallel()
 
 	const (
-		spendLimitMicros int64 = 1_000_000 // $1 limit
-		warnAtMicros     int64 = 850_000   // 85% of the limit
-		inputPriceMicros int64 = 1_000_000 // $1 per million tokens
+		dollar          int64 = 1_000_000    // micros per USD dollar
+		spendLimit      int64 = 100 * dollar // $100 limit (100% threshold)
+		warnAt          int64 = 85 * dollar  // $85 (85% of the limit)
+		inputPrice      int64 = dollar       // $1 per million tokens
+		tokensPerDollar int64 = 1_000_000    // 1,000,000 tokens = $1 at the price above
 	)
 
 	// The interception was created in the final second of January but is
@@ -2487,8 +2487,8 @@ func TestRecordTokenUsageBudgetNotificationAcrossPeriodBoundary(t *testing.T) {
 
 	intc := newTestInterception(uuid.New())
 	groupID := uuid.New()
-	group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: spendLimitMicros}
-	price := &database.AIModelPrice{InputPrice: sql.NullInt64{Int64: inputPriceMicros, Valid: true}}
+	group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: spendLimit}
+	price := &database.AIModelPrice{InputPrice: sql.NullInt64{Int64: inputPrice, Valid: true}}
 
 	expectTokenUsageCostLookups(db, intc, nil, group, nil, price)
 
@@ -2506,7 +2506,7 @@ func TestRecordTokenUsageBudgetNotificationAcrossPeriodBoundary(t *testing.T) {
 	db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, p database.GetUserAISpendSinceParams) (database.GetUserAISpendSinceRow, error) {
 			gotPeriodStart = p.PeriodStart
-			return database.GetUserAISpendSinceRow{SpendMicros: warnAtMicros}, nil
+			return database.GetUserAISpendSinceRow{SpendMicros: warnAt}, nil
 		})
 	db.EXPECT().GetGroupByID(gomock.Any(), groupID).
 		Return(database.Group{ID: groupID, Name: "Engineering"}, nil)
@@ -2530,7 +2530,7 @@ func TestRecordTokenUsageBudgetNotificationAcrossPeriodBoundary(t *testing.T) {
 	_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
 		InterceptionId: intc.ID.String(),
 		MsgId:          "msg_boundary",
-		InputTokens:    1000,
+		InputTokens:    tokensPerDollar,
 		CreatedAt:      timestamppb.New(createdAt),
 	})
 	require.NoError(t, err)
