@@ -75,15 +75,7 @@ func applyHookResultMessages(
 	results []*hookResult,
 	modelConfigID uuid.UUID,
 ) (stepMessagesForCommit, error) {
-	rows, err := hookEventMessagesForResults(results, modelConfigID)
-	if err != nil {
-		return stepMessagesForCommit{}, err
-	}
-	if len(rows) > 0 {
-		messages.Messages = append(rows, messages.Messages...)
-		messages.VisibleIndexes = visibleMessageIndexes(messages.Messages)
-	}
-	return messages, nil
+	return insertHookResultMessages(messages, results, modelConfigID, hookRowsBeforeStep)
 }
 
 func appendHookResultMessages(
@@ -91,12 +83,32 @@ func appendHookResultMessages(
 	results []*hookResult,
 	modelConfigID uuid.UUID,
 ) (stepMessagesForCommit, error) {
-	suffix, err := hookEventMessagesForResults(results, modelConfigID)
+	return insertHookResultMessages(messages, results, modelConfigID, hookRowsAfterStep)
+}
+
+type hookRowPlacement int
+
+const (
+	hookRowsBeforeStep hookRowPlacement = iota
+	hookRowsAfterStep
+)
+
+func insertHookResultMessages(
+	messages stepMessagesForCommit,
+	results []*hookResult,
+	modelConfigID uuid.UUID,
+	placement hookRowPlacement,
+) (stepMessagesForCommit, error) {
+	rows, err := hookEventMessagesForResults(results, modelConfigID)
 	if err != nil {
 		return stepMessagesForCommit{}, err
 	}
-	if len(suffix) > 0 {
-		messages.Messages = append(messages.Messages, suffix...)
+	if len(rows) > 0 {
+		if placement == hookRowsBeforeStep {
+			messages.Messages = append(rows, messages.Messages...)
+		} else {
+			messages.Messages = append(messages.Messages, rows...)
+		}
 		messages.VisibleIndexes = visibleMessageIndexes(messages.Messages)
 	}
 	return messages, nil
