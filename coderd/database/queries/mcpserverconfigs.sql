@@ -67,6 +67,7 @@ INSERT INTO mcp_server_configs (
     oauth2_client_secret_key_id,
     oauth2_auth_url,
     oauth2_token_url,
+    oauth2_revocation_url,
     oauth2_scopes,
     api_key_header,
     api_key_value,
@@ -79,6 +80,7 @@ INSERT INTO mcp_server_configs (
     enabled,
     model_intent,
     allow_in_plan_mode,
+    forward_coder_headers,
     created_by,
     updated_by
 ) VALUES (
@@ -94,6 +96,7 @@ INSERT INTO mcp_server_configs (
     sqlc.narg('oauth2_client_secret_key_id')::text,
     @oauth2_auth_url::text,
     @oauth2_token_url::text,
+    @oauth2_revocation_url::text,
     @oauth2_scopes::text,
     @api_key_header::text,
     @api_key_value::text,
@@ -106,6 +109,7 @@ INSERT INTO mcp_server_configs (
     @enabled::boolean,
     @model_intent::boolean,
     @allow_in_plan_mode::boolean,
+    @forward_coder_headers::boolean,
     @created_by::uuid,
     @updated_by::uuid
 )
@@ -128,6 +132,7 @@ SET
     oauth2_client_secret_key_id = sqlc.narg('oauth2_client_secret_key_id')::text,
     oauth2_auth_url = @oauth2_auth_url::text,
     oauth2_token_url = @oauth2_token_url::text,
+    oauth2_revocation_url = @oauth2_revocation_url::text,
     oauth2_scopes = @oauth2_scopes::text,
     api_key_header = @api_key_header::text,
     api_key_value = @api_key_value::text,
@@ -140,6 +145,7 @@ SET
     enabled = @enabled::boolean,
     model_intent = @model_intent::boolean,
     allow_in_plan_mode = @allow_in_plan_mode::boolean,
+    forward_coder_headers = @forward_coder_headers::boolean,
     updated_by = @updated_by::uuid,
     updated_at = NOW()
 WHERE
@@ -197,7 +203,50 @@ ON CONFLICT (mcp_server_config_id, user_id) DO UPDATE SET
     refresh_token_key_id = sqlc.narg('refresh_token_key_id')::text,
     token_type = @token_type::text,
     expiry = sqlc.narg('expiry')::timestamptz,
+    -- New token material means the user re-authenticated, so any
+    -- cached permanent refresh failure no longer applies.
+    oauth_refresh_failure_reason = '',
     updated_at = NOW()
+RETURNING
+    *;
+
+-- name: UpdateMCPServerUserTokenFromRefresh :one
+-- Refresh persistence must not recreate a token deleted by disconnect.
+-- The optimistic lock also prevents stale refreshes from replacing newer tokens.
+UPDATE mcp_server_user_tokens
+SET
+    access_token = @access_token::text,
+    access_token_key_id = sqlc.narg('access_token_key_id')::text,
+    refresh_token = @refresh_token::text,
+    refresh_token_key_id = sqlc.narg('refresh_token_key_id')::text,
+    token_type = @token_type::text,
+    expiry = sqlc.narg('expiry')::timestamptz,
+    oauth_refresh_failure_reason = '',
+    updated_at = NOW()
+WHERE
+    id = @id::uuid
+    AND updated_at = @updated_at::timestamptz
+RETURNING
+    *;
+
+-- name: MarkMCPServerUserTokenRefreshFailure :one
+-- Records a permanent refresh failure (e.g. revoked grant) and clears
+-- the dead token material so it is never attached to a request again.
+-- The updated_at predicate provides optimistic concurrency: if another
+-- request refreshed or replaced the token since it was read, this
+-- update matches zero rows and returns sql.ErrNoRows.
+UPDATE mcp_server_user_tokens
+SET
+    access_token = '',
+    access_token_key_id = NULL,
+    refresh_token = '',
+    refresh_token_key_id = NULL,
+    expiry = NULL,
+    oauth_refresh_failure_reason = @oauth_refresh_failure_reason::text,
+    updated_at = NOW()
+WHERE
+    id = @id::uuid
+    AND updated_at = @updated_at::timestamptz
 RETURNING
     *;
 

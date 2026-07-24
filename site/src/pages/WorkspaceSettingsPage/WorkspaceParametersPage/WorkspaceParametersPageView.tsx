@@ -81,7 +81,7 @@ export const WorkspaceParametersPageView: FC<
 			const formInputs: Record<string, string> = {};
 			const formParameters = form.values.rich_parameter_values ?? [];
 			for (const param of formParameters) {
-				if (param?.name && param?.value) {
+				if (param?.name && param?.value !== undefined) {
 					formInputs[param.name] = param.value;
 				}
 			}
@@ -189,8 +189,8 @@ export const WorkspaceParametersPageView: FC<
 							className={cn(
 								"text-xs flex flex-col rounded-md border px-4 pb-3 border-solid",
 								diagnostic.severity === "error"
-									? " text-content-destructive border-border-destructive"
-									: " text-content-warning border-border-warning",
+									? "text-content-destructive border-border-destructive"
+									: "text-content-warning border-border-warning",
 							)}
 						>
 							<div className="flex items-center m-0">

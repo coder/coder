@@ -115,7 +115,7 @@ describe("DynamicParameter", () => {
 					parameter={mockStringParameter}
 					value=""
 					onChange={mockOnChange}
-					disabled={true}
+					disabled
 				/>,
 			);
 
@@ -626,7 +626,7 @@ describe("DynamicParameter", () => {
 					parameter={mockStringParameter}
 					value="autofilled_value"
 					onChange={mockOnChange}
-					autofill={true}
+					autofill
 				/>,
 			);
 
@@ -651,7 +651,7 @@ describe("DynamicParameter", () => {
 					parameter={mockStringParameter}
 					value="preset_value"
 					onChange={mockOnChange}
-					isPreset={true}
+					isPreset
 				/>,
 			);
 

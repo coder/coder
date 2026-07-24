@@ -1,5 +1,6 @@
 import type { FC } from "react";
 import type { WorkspaceResource } from "#/api/typesGenerated";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Sidebar,
 	SidebarCaption,
@@ -44,8 +45,8 @@ export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
 					key={r.id}
 					className="leading-normal flex items-center gap-3"
 				>
-					<div className="flex items-center justify-center leading-none w-4 h-4 p-0.5">
-						<img
+					<div className="flex items-center justify-center leading-none size-4 p-0.5">
+						<ExternalImage
 							className="w-full h-full object-contain"
 							src={getResourceIconPath(r.type)}
 							alt=""

@@ -13,8 +13,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestResolveWorkspace(t *testing.T) {
@@ -271,13 +273,13 @@ func TestResolveWorkspace(t *testing.T) {
 	t.Run("TransportError", func(t *testing.T) {
 		t.Parallel()
 
-		// Close the server immediately so the transport layer fails.
-		srv := httptest.NewServer(http.NotFoundHandler())
-		srvURL, err := url.Parse(srv.URL)
+		baseURL, err := url.Parse("http://example.com")
 		require.NoError(t, err)
-		srv.Close()
-
-		client := codersdk.New(srvURL)
+		client := codersdk.New(baseURL, codersdk.WithHTTPClient(&http.Client{
+			Transport: testutil.RoundTripperFunc(func(*http.Request) (*http.Response, error) {
+				return nil, xerrors.New("transport error")
+			}),
+		}))
 
 		_, err = client.ResolveWorkspace(t.Context(), uuid.NewString())
 		require.Error(t, err)

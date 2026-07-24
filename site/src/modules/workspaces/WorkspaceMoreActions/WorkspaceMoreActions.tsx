@@ -238,7 +238,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				workspaceOwner={workspace.owner_name}
 				workspaceName={workspace.name}
 				templateVersionId={workspace.latest_build.template_version_id}
-				isDeleting={true}
+				isDeleting
 			/>
 		</>
 	);

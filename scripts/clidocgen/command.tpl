@@ -40,7 +40,7 @@ Aliases:
 {{- if eq $index 0 }}
 ## Options
 {{- end }}
-### {{ with $opt.FlagShorthand}}-{{ . }}, {{end}}--{{ $opt.Flag }}
+### {{ with $opt.FlagShorthand}}-{{ . }}, {{end}}{{ if $opt.Flag }}--{{ $opt.Flag }}{{ else }}{{ $opt.YAMLPath }}{{ end }}
 {{" "}}
 {{ tableHeader }}
 | Type | {{ typeHelper $opt | wrapCode }} |

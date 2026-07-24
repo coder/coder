@@ -17,7 +17,7 @@ Coder Tasks is Coder's platform for managing coding agents. With Coder Tasks, yo
 
 ![Tasks UI](../images/guides/ai-agents/tasks-ui.png)Coder Tasks Dashboard view to see all available tasks.
 
-Coder Tasks allows you and your organization to build and automate workflows to fully leverage AI. Tasks operate through Coder Workspaces. We support interacting with an agent through the Task UI and CLI. Some Tasks can also be accessed through the Coder Workspace IDE; see [connect via an IDE](../user-guides/workspace-access).
+Coder Tasks allows you and your organization to build and automate workflows to fully leverage AI. Tasks operate through Coder Workspaces. We support interacting with an agent through the Task UI and CLI. Some Tasks can also be accessed through the Coder Workspace IDE; see [connect via an IDE](../user-guides/workspace-access/index.md).
 
 ## Why Use Tasks?
 
@@ -66,7 +66,7 @@ The following code snippet can be dropped into any existing template in Coder v2
 > [!NOTE]
 > This requires at least version 2.13.0 of the `coder/coder` Terraform provider.
 
-```hcl
+```tf
 data "coder_parameter" "setup_script" {
   name         = "setup_script"
   display_name = "Setup Script"

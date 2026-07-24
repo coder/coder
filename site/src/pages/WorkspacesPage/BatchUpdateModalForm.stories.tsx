@@ -210,25 +210,7 @@ export const RunningWorkspacesFailedValidation: Story = {
 		);
 
 		const updateButton = modal.getByRole("button", { name: "Update" });
-		await userEvent.click(updateButton, {
-			/**
-			 * @todo 2025-07-15 - Something in the test setup is causing the
-			 * Update button to get treated as though it should opt out of
-			 * pointer events, which causes userEvent to break. All of our code
-			 * seems to be fine - we do have logic to disable pointer events,
-			 * but only when the button is obviously configured wrong (e.g.,
-			 * it's configured as a link but has no URL).
-			 *
-			 * Disabling this check makes things work again, but shoots our
-			 * confidence for how accessible the UI is, even if we know that at
-			 * this point, the button exists, has the right text content, and is
-			 * not disabled.
-			 *
-			 * We should aim to remove this property as soon as possible,
-			 * opening up an issue upstream if necessary.
-			 */
-			pointerEventsCheck: 0,
-		});
+		await userEvent.click(updateButton);
 		await modal.findByText("Please acknowledge risks to continue.");
 
 		const checkbox = modal.getByRole("checkbox", {

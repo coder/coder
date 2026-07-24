@@ -34,6 +34,48 @@
 - **MUST DO**: Queries are grouped in files relating to context - e.g. `prebuilds.sql`, `users.sql`, `oauth2.sql`
 - After making changes to any `coderd/database/queries/*.sql` files you must run `make gen` to generate respective ORM changes
 
+### Query Naming
+
+- Use `ByX` when `X` is the lookup or filter column.
+- Use `PerX` or `GroupedByX` when `X` is the aggregation or grouping
+  dimension.
+- Avoid `ByX` names for grouped queries.
+
+### Enum Changes Run in a Single Transaction
+
+All migrations run inside one transaction (`pgTxnDriver`). Postgres forbids
+*using* an enum value added by `ALTER TYPE ... ADD VALUE` within the same
+transaction that added it, so it fails with `unsafe use of new value`.
+
+Adding the value is fine; using it in the same batch is not. "Using it"
+includes a later migration that casts to it (`col::my_enum`), inserts or
+updates a row with it, or sets it as a column default. This only fails when a
+row actually materializes the new value, so fresh databases and CI pass while
+deployments with existing data break.
+
+**MUST DO**: If any migration uses a newly added enum value, recreate the type
+instead of using `ADD VALUE`. A freshly created enum's values are usable
+immediately in the same transaction. Precedent: `000144_user_status_dormant`.
+
+```sql
+CREATE TYPE new_my_enum AS ENUM ('existing', 'value', 'new_value');
+
+ALTER TABLE my_table
+    ALTER COLUMN col TYPE new_my_enum USING (col::text::new_my_enum);
+
+DROP TYPE my_enum;
+
+ALTER TYPE new_my_enum RENAME TO my_enum;
+```
+
+Recreating produces an identical schema, so `make gen` yields no `dump.sql`
+diff and databases that already applied the migration see no drift.
+
+**Testing**: `migrations.Stepper` commits each migration separately, so tests
+built on it cannot surface this. To catch it, seed a row using the new value,
+then apply the affected migrations in a single transaction (see
+`TestMigration000504AIProvidersBackfillEnumInSingleTxn`).
+
 ## Handling Nullable Fields
 
 Use `sql.NullString`, `sql.NullBool`, etc. for optional database fields:
@@ -46,6 +88,13 @@ CodeChallenge: sql.NullString{
 ```
 
 Set `.Valid = true` when providing values.
+
+## Database-to-SDK Conversions
+
+- Extract explicit db-to-SDK conversion helpers instead of inlining large
+  conversion blocks inside handlers.
+- Keep nullable-field handling, type coercion, and response shaping in the
+  converter so handlers stay focused on request flow and authorization.
 
 ## Audit Table Updates
 
@@ -128,6 +177,19 @@ func TestDatabaseFunction(t *testing.T) {
 2. **Handle errors appropriately**: Check for specific error types
 3. **Use transactions**: For related operations that must succeed together
 4. **Optimize queries**: Use EXPLAIN to understand query performance
+
+### Transaction Safety with `InTx`
+
+- Inside `db.InTx(...)` closures, do not use the outer store
+  (`api.Database`, `p.db`, etc.) directly or indirectly. Use the `tx`
+  handle for DB work inside the closure, or fetch read-only inputs before
+  opening the transaction.
+- Watch for helper methods on a receiver that hide outer-store access. A
+  call like `p.someHelper(ctx)` is still unsafe inside `InTx` if that
+  helper uses `p.db` internally.
+- Using the outer store while a transaction is open can hold one
+  connection and then block on another pool checkout, which can cause
+  pool starvation and `idle in transaction` incidents under load.
 
 ### Migration Writing
 

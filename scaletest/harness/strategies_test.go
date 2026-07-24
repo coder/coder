@@ -19,12 +19,13 @@ import (
 //nolint:paralleltest // this tests uses timings to determine if it's working
 func Test_LinearExecutionStrategy(t *testing.T) {
 	var (
-		lastSeenI int64 = -1
-		count     int64
+		lastSeenI atomic.Int64
+		count     atomic.Int64
 	)
+	lastSeenI.Store(-1)
 	runs, fns := strategyTestData(100, func(_ context.Context, i int, _ io.Writer) error {
-		atomic.AddInt64(&count, 1)
-		swapped := atomic.CompareAndSwapInt64(&lastSeenI, int64(i-1), int64(i))
+		count.Add(1)
+		swapped := lastSeenI.CompareAndSwap(int64(i-1), int64(i))
 		assert.True(t, swapped)
 		time.Sleep(2 * time.Millisecond)
 
@@ -38,7 +39,7 @@ func Test_LinearExecutionStrategy(t *testing.T) {
 	runErrs, err := strategy.Run(context.Background(), fns)
 	require.NoError(t, err)
 	require.Len(t, runErrs, 50)
-	require.EqualValues(t, 100, atomic.LoadInt64(&count))
+	require.EqualValues(t, 100, count.Load())
 
 	lastStartTime := time.Time{}
 	for _, run := range runs {

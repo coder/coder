@@ -3,7 +3,7 @@ import useTheme from "@mui/system/useTheme";
 import type { FC } from "react";
 import type { ProvisionerDaemon } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
-import { FormSection } from "#/components/Form/Form";
+import { FormSection, VerticalForm } from "#/components/Form/Form";
 import { TopbarButton } from "#/components/FullPageLayout/Topbar";
 import {
 	Popover,
@@ -43,30 +43,32 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 						borderBottom: `1px solid ${theme.palette.divider}`,
 					}}
 				>
-					<FormSection
-						classes={{
-							// Override lg:gap-6 from FormSection defaults. The
-							// lg:flex-col counters the default FormContext
-							// direction ("horizontal") which adds lg:flex-row.
-							root: "flex-col lg:flex-col gap-4 lg:gap-4",
-						}}
-						title="Provisioner Tags"
-						description={
-							<>
-								Tags are a way to control which provisioner daemons complete
-								which build jobs.&nbsp;
-								<Link
-									href={docs("/admin/provisioners")}
-									target="_blank"
-									rel="noreferrer"
-								>
-									Learn more...
-								</Link>
-							</>
-						}
-					>
-						<ProvisionerTagsField value={tags} onChange={onTagsChange} />
-					</FormSection>
+					<VerticalForm>
+						<FormSection
+							classes={{
+								// Override lg:gap-6 from FormSection defaults. The
+								// lg:flex-col counters the default FormContext
+								// direction ("horizontal") which adds lg:flex-row.
+								root: "flex-col lg:flex-col gap-4 lg:gap-4",
+							}}
+							title="Provisioner Tags"
+							description={
+								<>
+									Tags are a way to control which provisioner daemons complete
+									which build jobs.&nbsp;
+									<Link
+										href={docs("/admin/provisioners")}
+										target="_blank"
+										rel="noreferrer"
+									>
+										Learn more...
+									</Link>
+								</>
+							}
+						>
+							<ProvisionerTagsField value={tags} onChange={onTagsChange} />
+						</FormSection>
+					</VerticalForm>
 				</div>
 			</PopoverContent>
 		</Popover>

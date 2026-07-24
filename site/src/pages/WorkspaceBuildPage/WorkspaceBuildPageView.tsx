@@ -30,10 +30,10 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "#/components/Tabs/Tabs";
-import { BuildAvatar } from "#/modules/builds/BuildAvatar/BuildAvatar";
 import { DashboardFullPage } from "#/modules/dashboard/DashboardLayout";
 import { AgentLogs } from "#/modules/resources/AgentLogs/AgentLogs";
 import { useAgentLogs } from "#/modules/resources/useAgentLogs";
+import { BuildIcon } from "#/modules/workspaces/BuildIcon/BuildIcon";
 import {
 	WorkspaceBuildData,
 	WorkspaceBuildDataSkeleton,
@@ -42,6 +42,7 @@ import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/Work
 import { cn } from "#/utils/cn";
 import { formatDate } from "#/utils/time";
 import { displayWorkspaceBuildDuration } from "#/utils/workspace";
+import { WorkspaceDeletedBanner } from "../WorkspacePage/WorkspaceDeletedBanner";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
 
 export const LOGS_TAB_KEY = "logs";
@@ -61,10 +62,16 @@ const BuildStatsItem: FC<BuildStatsItemProps> = ({ children, label }) => {
 	);
 };
 
+type DeletedWorkspaceBannerProps = Readonly<{
+	createWorkspaceLink: string;
+	templateName: string;
+}>;
+
 interface WorkspaceBuildPageViewProps {
 	logs: ProvisionerJobLog[] | undefined;
 	build: WorkspaceBuild | undefined;
 	buildError?: unknown;
+	deletedWorkspaceBanner?: DeletedWorkspaceBannerProps;
 	builds: WorkspaceBuild[] | undefined;
 	activeBuildNumber: number;
 }
@@ -73,6 +80,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 	logs,
 	build,
 	buildError,
+	deletedWorkspaceBanner,
 	builds,
 	activeBuildNumber,
 }) => {
@@ -81,7 +89,13 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 	if (buildError) {
 		return (
 			<Margins>
-				<ErrorAlert error={buildError} className="my-4" />
+				{deletedWorkspaceBanner ? (
+					<div className="my-4">
+						<WorkspaceDeletedBanner {...deletedWorkspaceBanner} />
+					</div>
+				) : (
+					<ErrorAlert error={buildError} className="my-4" />
+				)}
 			</Margins>
 		);
 	}
@@ -101,7 +115,11 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 		<DashboardFullPage>
 			<FullWidthPageHeader sticky={false}>
 				<div className="flex flex-row gap-4">
-					<BuildAvatar build={build} size="lg" />
+					<BuildIcon
+						avatar
+						transition={build.transition}
+						jobStatus={build.job.status}
+					/>
 					<div>
 						<PageHeaderTitle>Build #{build.build_number}</PageHeaderTitle>
 						<PageHeaderSubtitle>{build.initiator_name}</PageHeaderSubtitle>

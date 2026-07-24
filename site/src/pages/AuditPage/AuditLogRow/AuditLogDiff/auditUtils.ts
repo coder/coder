@@ -25,27 +25,68 @@ export const determineGroupDiff = (auditLogDiff: AuditDiff): AuditDiff => {
 };
 
 /**
- *
- * @param auditLogDiff
- * @returns a diff with the 'mappings' as a JSON string. Otherwise, it is [Object object]
+ * Formats an audit diff value for display. Strings are quoted, nullish values
+ * become "null", SQL time objects are localized, arrays are recursed, and plain
+ * objects are serialized as compact JSON with sorted keys.
  */
-export const determineIdPSyncMappingDiff = (
-	auditLogDiff: AuditDiff,
-): AuditDiff => {
-	const old = auditLogDiff.mapping?.old as Record<string, string[]> | undefined;
-	const new_ = auditLogDiff.mapping?.new as
-		| Record<string, string[]>
-		| undefined;
-	if (!old || !new_) {
-		return auditLogDiff;
+export const formatAuditDiffValue = (value: unknown): string => {
+	if (typeof value === "string") {
+		return JSON.stringify(value);
 	}
 
-	return {
-		...auditLogDiff,
-		mapping: {
-			old: JSON.stringify(old),
-			new: JSON.stringify(new_),
-			secret: auditLogDiff.mapping?.secret,
-		},
-	};
+	if (isTimeObject(value)) {
+		if (!value.Valid) {
+			return "null";
+		}
+
+		return new Date(value.Time).toLocaleString();
+	}
+
+	if (Array.isArray(value)) {
+		const values = value.map((v) => formatAuditDiffValue(v));
+		return `[${values.join(", ")}]`;
+	}
+
+	if (value === null || value === undefined) {
+		return "null";
+	}
+
+	if (isPlainObject(value)) {
+		return JSON.stringify(sortObjectKeys(value));
+	}
+
+	return String(value);
+};
+
+const isTimeObject = (
+	value: unknown,
+): value is { Time: string; Valid: boolean } => {
+	return (
+		value !== null &&
+		typeof value === "object" &&
+		"Time" in value &&
+		typeof value.Time === "string" &&
+		"Valid" in value &&
+		typeof value.Valid === "boolean"
+	);
+};
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+	return Object.prototype.toString.call(value) === "[object Object]";
+};
+
+const sortObjectKeys = (value: unknown): unknown => {
+	if (Array.isArray(value)) {
+		return value.map(sortObjectKeys);
+	}
+
+	if (!isPlainObject(value)) {
+		return value;
+	}
+
+	const sorted: Record<string, unknown> = {};
+	for (const key of Object.keys(value).sort()) {
+		sorted[key] = sortObjectKeys(value[key]);
+	}
+	return sorted;
 };

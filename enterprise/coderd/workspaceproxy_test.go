@@ -44,13 +44,9 @@ func TestRegions(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		db, pubsub := dbtestutil.NewDB(t)
-
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+		client, db, _ := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				AppHostname: appHostname,
-				Database:    db,
-				Pubsub:      pubsub,
 			},
 		})
 
@@ -1089,6 +1085,12 @@ func TestGetCryptoKeys(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		_, err = proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeatureTailnetResume)
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		// The NATS cluster CA bundle contains a private key and must never be
+		// served to workspace proxies.
+		_, err = proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeature(database.CryptoKeyFeatureNATSCA))
 		require.Error(t, err)
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())

@@ -41,6 +41,11 @@ func init() {
 					if opt.Hidden {
 						continue
 					}
+					// Skip YAML-only options that have no CLI flag; documenting them
+					// as if they were flags is misleading in the CLI reference.
+					if opt.Flag == "" && opt.FlagShorthand == "" {
+						continue
+					}
 					visible = append(visible, opt)
 				}
 				return visible

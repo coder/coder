@@ -18,6 +18,8 @@ import type { Workspace } from "#/api/typesGenerated";
 import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
 import {
 	MockDropdownParameter,
+	MockOutdatedRunningWorkspaceRequireActiveVersion,
+	MockOutdatedStoppedWorkspaceRequireActiveVersion,
 	MockPermissions,
 	MockPreviewParameter,
 	MockStoppedWorkspace,
@@ -49,6 +51,9 @@ const meta = {
 		queries: workspaceQueries(MockWorkspace),
 		webSocket: [
 			{
+				event: "open",
+			},
+			{
 				event: "message",
 				data: JSON.stringify({
 					id: 0,
@@ -66,6 +71,9 @@ type Story = StoryObj<typeof WorkspaceParametersPage>;
 export const NoParameters: Story = {
 	parameters: {
 		webSocket: [
+			{
+				event: "open",
+			},
 			{
 				event: "message",
 				data: JSON.stringify({
@@ -154,6 +162,80 @@ export const StartWorkspace: Story = {
 	},
 };
 
+export const RequireActiveVersionBlocked: Story = {
+	parameters: {
+		reactRouter: workspaceRouterParameters(
+			MockOutdatedStoppedWorkspaceRequireActiveVersion,
+		),
+		queries: workspaceQueries(
+			MockOutdatedStoppedWorkspaceRequireActiveVersion,
+			{ updateWorkspaceVersion: false },
+		),
+		webSocket: filledWebSocketParams(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() =>
+			expect(
+				canvas.getByText(/requires automatic updates/),
+			).toBeInTheDocument(),
+		);
+		const submitButton = canvas.getByRole("button", {
+			name: "Update and start",
+		});
+		expect(submitButton).toBeDisabled();
+	},
+};
+
+export const RequireActiveVersionBlockedRunning: Story = {
+	parameters: {
+		reactRouter: workspaceRouterParameters(
+			MockOutdatedRunningWorkspaceRequireActiveVersion,
+		),
+		queries: workspaceQueries(
+			MockOutdatedRunningWorkspaceRequireActiveVersion,
+			{ updateWorkspaceVersion: false },
+		),
+		webSocket: filledWebSocketParams(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() =>
+			expect(
+				canvas.getByText(/requires automatic updates/),
+			).toBeInTheDocument(),
+		);
+		const submitButton = canvas.getByRole("button", {
+			name: "Update and restart",
+		});
+		expect(submitButton).toBeDisabled();
+	},
+};
+
+export const RequireActiveVersionEditable: Story = {
+	parameters: {
+		reactRouter: workspaceRouterParameters(
+			MockOutdatedStoppedWorkspaceRequireActiveVersion,
+		),
+		queries: workspaceQueries(
+			MockOutdatedStoppedWorkspaceRequireActiveVersion,
+			{ updateWorkspaceVersion: true },
+		),
+		webSocket: filledWebSocketParams(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Wait for the form to render before asserting absence of warning.
+		const submitButton = await canvas.findByRole("button", {
+			name: "Update and start",
+		});
+		expect(
+			canvas.queryByText(/requires automatic updates/),
+		).not.toBeInTheDocument();
+		expect(submitButton).not.toBeDisabled();
+	},
+};
+
 function workspaceRouterParameters(workspace: Workspace) {
 	return reactRouterParameters({
 		location: {
@@ -171,7 +253,10 @@ function workspaceRouterParameters(workspace: Workspace) {
 	});
 }
 
-function workspaceQueries(workspace: Workspace) {
+function workspaceQueries(
+	workspace: Workspace,
+	permissionOverrides?: Partial<WorkspacePermissions>,
+) {
 	return [
 		{
 			key: workspaceByOwnerAndNameKey(workspace.owner_name, workspace.name),
@@ -193,6 +278,7 @@ function workspaceQueries(workspace: Workspace) {
 				updateWorkspace: true,
 				updateWorkspaceVersion: true,
 				deleteFailedWorkspace: true,
+				...permissionOverrides,
 			} satisfies WorkspacePermissions,
 		},
 	];
@@ -200,6 +286,9 @@ function workspaceQueries(workspace: Workspace) {
 
 function filledWebSocketParams(): WebSocketEvent[] {
 	return [
+		{
+			event: "open",
+		},
 		{
 			event: "message",
 			data: JSON.stringify({

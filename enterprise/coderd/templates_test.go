@@ -186,14 +186,16 @@ func TestTemplates(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// OK
+		// OK: setting the same level is a no-op under the new PATCH semantics
+		// (304 Not Modified) but must not be a server error.
 		var level codersdk.WorkspaceAgentPortShareLevel = codersdk.WorkspaceAgentPortShareLevelPublic
-		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			MaxPortShareLevel: &level,
 		})
 		require.NoError(t, err)
-		assert.Equal(t, level, updated.MaxPortShareLevel)
-
+		template, err = client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		assert.Equal(t, level, template.MaxPortShareLevel)
 		// Invalid level
 		level = "invalid"
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
@@ -258,7 +260,7 @@ func TestTemplates(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			Name:        template.Name,
+			Name:        ptr.Ref(template.Name),
 			DisplayName: &template.DisplayName,
 			Description: &template.Description,
 			Icon:        &template.Icon,
@@ -275,7 +277,7 @@ func TestTemplates(t *testing.T) {
 
 		// Ensure a missing field is a noop
 		updated, err = anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			Name:        template.Name,
+			Name:        ptr.Ref(template.Name),
 			DisplayName: &template.DisplayName,
 			Description: &template.Description,
 			Icon:        ptr.Ref(template.Icon + "something"),
@@ -312,7 +314,7 @@ func TestTemplates(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			Name:        template.Name,
+			Name:        ptr.Ref(template.Name),
 			DisplayName: &template.DisplayName,
 			Description: &template.Description,
 			Icon:        &template.Icon,
@@ -348,12 +350,12 @@ func TestTemplates(t *testing.T) {
 
 		ctx := context.Background()
 		updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			Name:                         template.Name,
+			Name:                         ptr.Ref(template.Name),
 			DisplayName:                  &template.DisplayName,
 			Description:                  &template.Description,
 			Icon:                         &template.Icon,
-			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-			DefaultTTLMillis:             time.Hour.Milliseconds(),
+			AllowUserCancelWorkspaceJobs: ptr.Ref(template.AllowUserCancelWorkspaceJobs),
+			DefaultTTLMillis:             ptr.Ref(time.Hour.Milliseconds()),
 			AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 				DaysOfWeek: []string{"monday", "saturday"},
 				Weeks:      3,
@@ -402,14 +404,14 @@ func TestTemplates(t *testing.T) {
 			)
 
 			updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-				Name:                           template.Name,
+				Name:                           ptr.Ref(template.Name),
 				DisplayName:                    &template.DisplayName,
 				Description:                    &template.Description,
 				Icon:                           &template.Icon,
-				AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
-				TimeTilDormantMillis:           inactivityTTL.Milliseconds(),
-				FailureTTLMillis:               failureTTL.Milliseconds(),
-				TimeTilDormantAutoDeleteMillis: dormantTTL.Milliseconds(),
+				AllowUserCancelWorkspaceJobs:   ptr.Ref(template.AllowUserCancelWorkspaceJobs),
+				TimeTilDormantMillis:           ptr.Ref(inactivityTTL.Milliseconds()),
+				FailureTTLMillis:               ptr.Ref(failureTTL.Milliseconds()),
+				TimeTilDormantAutoDeleteMillis: ptr.Ref(dormantTTL.Milliseconds()),
 			})
 			require.NoError(t, err)
 			require.Equal(t, failureTTL.Milliseconds(), updated.FailureTTLMillis)
@@ -471,14 +473,14 @@ func TestTemplates(t *testing.T) {
 				// nolint: paralleltest // context is from parent t.Run
 				t.Run(c.Name, func(t *testing.T) {
 					_, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-						Name:                           template.Name,
+						Name:                           ptr.Ref(template.Name),
 						DisplayName:                    &template.DisplayName,
 						Description:                    &template.Description,
 						Icon:                           &template.Icon,
-						AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
-						TimeTilDormantMillis:           c.TimeTilDormantMS,
-						FailureTTLMillis:               c.FailureTTLMS,
-						TimeTilDormantAutoDeleteMillis: c.DormantAutoDeleteMS,
+						AllowUserCancelWorkspaceJobs:   ptr.Ref(template.AllowUserCancelWorkspaceJobs),
+						TimeTilDormantMillis:           ptr.Ref(c.TimeTilDormantMS),
+						FailureTTLMillis:               ptr.Ref(c.FailureTTLMS),
+						TimeTilDormantAutoDeleteMillis: ptr.Ref(c.DormantAutoDeleteMS),
 					})
 					require.Error(t, err)
 					cerr, ok := codersdk.AsError(err)
@@ -529,7 +531,7 @@ func TestTemplates(t *testing.T) {
 
 		dormantTTL := time.Minute
 		updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantAutoDeleteMillis: dormantTTL.Milliseconds(),
+			TimeTilDormantAutoDeleteMillis: ptr.Ref(dormantTTL.Milliseconds()),
 		})
 		require.NoError(t, err)
 		require.Equal(t, dormantTTL.Milliseconds(), updated.TimeTilDormantAutoDeleteMillis)
@@ -547,7 +549,7 @@ func TestTemplates(t *testing.T) {
 		// Disable the time_til_dormant_auto_delete on the template, then we can assert that the workspaces
 		// no longer have a deleting_at field.
 		updated, err = anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantAutoDeleteMillis: 0,
+			TimeTilDormantAutoDeleteMillis: ptr.Ref[int64](0),
 		})
 		require.NoError(t, err)
 		require.EqualValues(t, 0, updated.TimeTilDormantAutoDeleteMillis)
@@ -604,8 +606,8 @@ func TestTemplates(t *testing.T) {
 		dormantTTL := time.Minute
 		//nolint:gocritic // non-template-admin cannot update template meta
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantAutoDeleteMillis: dormantTTL.Milliseconds(),
-			UpdateWorkspaceDormantAt:       true,
+			TimeTilDormantAutoDeleteMillis: ptr.Ref(dormantTTL.Milliseconds()),
+			UpdateWorkspaceDormantAt:       ptr.Ref(true),
 		})
 		require.NoError(t, err)
 		require.Equal(t, dormantTTL.Milliseconds(), updated.TimeTilDormantAutoDeleteMillis)
@@ -661,8 +663,8 @@ func TestTemplates(t *testing.T) {
 
 		inactivityTTL := time.Minute
 		updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantMillis:      inactivityTTL.Milliseconds(),
-			UpdateWorkspaceLastUsedAt: true,
+			TimeTilDormantMillis:      ptr.Ref(inactivityTTL.Milliseconds()),
+			UpdateWorkspaceLastUsedAt: ptr.Ref(true),
 		})
 		require.NoError(t, err)
 		require.Equal(t, inactivityTTL.Milliseconds(), updated.TimeTilDormantMillis)
@@ -706,14 +708,14 @@ func TestTemplates(t *testing.T) {
 
 		// Update the field and assert it persists.
 		updatedTemplate, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			RequireActiveVersion: false,
+			RequireActiveVersion: ptr.Ref(false),
 		})
 		require.NoError(t, err)
 		require.False(t, updatedTemplate.RequireActiveVersion)
 
 		// Flip it back to ensure we aren't hardcoding to a default value.
 		updatedTemplate, err = anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			RequireActiveVersion: true,
+			RequireActiveVersion: ptr.Ref(true),
 		})
 		require.NoError(t, err)
 		require.True(t, updatedTemplate.RequireActiveVersion)
@@ -1003,12 +1005,12 @@ func TestTemplateACL(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 1, len(acl.Groups))
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			Name:                         template.Name,
+			Name:                         ptr.Ref(template.Name),
 			DisplayName:                  &template.DisplayName,
 			Description:                  &template.Description,
 			Icon:                         &template.Icon,
-			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-			DisableEveryoneGroupAccess:   true,
+			AllowUserCancelWorkspaceJobs: ptr.Ref(template.AllowUserCancelWorkspaceJobs),
+			DisableEveryoneGroupAccess:   ptr.Ref(true),
 		})
 		require.NoError(t, err)
 
@@ -1238,6 +1240,119 @@ func TestTemplateACL(t *testing.T) {
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
+	})
+
+	// Regression test for PLAT-149. Previously this endpoint did an N+1
+	// fetch of every group's members and member count. Verify that the
+	// member count is returned correctly for many groups, and that the
+	// per-group members list is no longer populated (callers should rely
+	// on TotalMemberCount).
+	t.Run("AvailableReturnsGroupMemberCounts", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		}})
+		admin, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin())
+
+		// Create a couple of users we can stuff into groups.
+		_, alice := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_, bob := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_, carol := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		// emptyGroup: zero non-system members.
+		// singleGroup: alice only.
+		// fullGroup: alice + bob + carol.
+		emptyGroup := coderdtest.CreateGroup(t, admin, user.OrganizationID, "empty-group")
+		singleGroup := coderdtest.CreateGroup(t, admin, user.OrganizationID, "single-group", alice)
+		fullGroup := coderdtest.CreateGroup(t, admin, user.OrganizationID, "full-group", alice, bob, carol)
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		available, err := admin.TemplateACLAvailable(ctx, template.ID, codersdk.UsersRequest{})
+		require.NoError(t, err)
+
+		wantCounts := map[uuid.UUID]int{
+			emptyGroup.ID:  0,
+			singleGroup.ID: 1,
+			fullGroup.ID:   3,
+		}
+
+		found := map[uuid.UUID]bool{}
+		for _, group := range available.Groups {
+			if want, ok := wantCounts[group.ID]; ok {
+				found[group.ID] = true
+				require.Equal(t, want, group.TotalMemberCount,
+					"unexpected total_member_count for group %q", group.Name)
+				require.Empty(t, group.Members,
+					"members must not be populated by the available endpoint for group %q", group.Name)
+			}
+		}
+		for id := range wantCounts {
+			require.True(t, found[id], "group %s missing from available response", id)
+		}
+	})
+
+	// Companion to the AvailableReturnsGroupMemberCounts test above. Verifies
+	// that the q query parameter applies a server-side substring filter on
+	// group name / display_name, and that limit caps the number of groups
+	// returned. The autocomplete sends both on each keystroke; before
+	// PLAT-149 both were ignored for groups.
+	t.Run("AvailableHonorsGroupSearchAndLimit", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		}})
+		admin, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin())
+
+		// Create a handful of groups with predictable names so we can
+		// pin assertions to specific substrings.
+		engAlpha := coderdtest.CreateGroup(t, admin, user.OrganizationID, "engineering-alpha")
+		engBeta := coderdtest.CreateGroup(t, admin, user.OrganizationID, "engineering-beta")
+		design := coderdtest.CreateGroup(t, admin, user.OrganizationID, "design")
+		sales := coderdtest.CreateGroup(t, admin, user.OrganizationID, "sales")
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		groupIDs := func(available codersdk.ACLAvailable) []uuid.UUID {
+			ids := make([]uuid.UUID, 0, len(available.Groups))
+			for _, g := range available.Groups {
+				ids = append(ids, g.ID)
+			}
+			return ids
+		}
+
+		// q filters by group name / display_name substring.
+		filtered, err := admin.TemplateACLAvailable(ctx, template.ID, codersdk.UsersRequest{
+			SearchQuery: "engineering",
+		})
+		require.NoError(t, err)
+		got := groupIDs(filtered)
+		require.ElementsMatch(t, []uuid.UUID{engAlpha.ID, engBeta.ID}, got,
+			"q=engineering should return only engineering-* groups, got %v", got)
+		require.NotContains(t, got, design.ID)
+		require.NotContains(t, got, sales.ID)
+
+		// limit caps the number of groups returned. With 4 user-created
+		// groups plus the implicit Everyone group, asking for 2 must
+		// return at most 2 groups.
+		limited, err := admin.TemplateACLAvailable(ctx, template.ID, codersdk.UsersRequest{
+			Pagination: codersdk.Pagination{Limit: 2},
+		})
+		require.NoError(t, err)
+		require.Len(t, limited.Groups, 2,
+			"limit=2 should cap groups to 2, got %d", len(limited.Groups))
 	})
 }
 
@@ -1624,7 +1739,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		require.NoError(t, err)
 
 		// Should be able to see user 3
-		available, err := client2.TemplateACLAvailable(ctx, template.ID)
+		available, err := client2.TemplateACLAvailable(ctx, template.ID, codersdk.UsersRequest{})
 		require.NoError(t, err)
 		userFound := false
 		for _, avail := range available.Users {
@@ -2186,8 +2301,10 @@ func TestInvalidateTemplatePrebuilds(t *testing.T) {
 
 	// Then
 	require.Len(t, invalidated.Invalidated, 2)
-	require.Equal(t, codersdk.InvalidatedPreset{TemplateName: template.Name, TemplateVersionName: version1.Name, PresetName: presetWithParameters1.Name}, invalidated.Invalidated[0])
-	require.Equal(t, codersdk.InvalidatedPreset{TemplateName: template.Name, TemplateVersionName: version1.Name, PresetName: presetWithParameters2.Name}, invalidated.Invalidated[1])
+	require.ElementsMatch(t, []codersdk.InvalidatedPreset{
+		{TemplateName: template.Name, TemplateVersionName: version1.Name, PresetName: presetWithParameters1.Name},
+		{TemplateName: template.Name, TemplateVersionName: version1.Name, PresetName: presetWithParameters2.Name},
+	}, invalidated.Invalidated)
 
 	// Given the template is updated...
 	version2 := coderdtest.UpdateTemplateVersion(t, templateAdminClient, owner.OrganizationID, &echo.Responses{
@@ -2205,8 +2322,10 @@ func TestInvalidateTemplatePrebuilds(t *testing.T) {
 
 	// Then: it should only invalidate the presets from the currently active version (preset2 and preset3)
 	require.Len(t, invalidated.Invalidated, 2)
-	require.Equal(t, codersdk.InvalidatedPreset{TemplateName: template.Name, TemplateVersionName: version2.Name, PresetName: presetWithParameters2.Name}, invalidated.Invalidated[0])
-	require.Equal(t, codersdk.InvalidatedPreset{TemplateName: template.Name, TemplateVersionName: version2.Name, PresetName: presetWithParameters3.Name}, invalidated.Invalidated[1])
+	require.ElementsMatch(t, []codersdk.InvalidatedPreset{
+		{TemplateName: template.Name, TemplateVersionName: version2.Name, PresetName: presetWithParameters2.Name},
+		{TemplateName: template.Name, TemplateVersionName: version2.Name, PresetName: presetWithParameters3.Name},
+	}, invalidated.Invalidated)
 }
 
 func TestInvalidateTemplatePrebuilds_RegularUser(t *testing.T) {

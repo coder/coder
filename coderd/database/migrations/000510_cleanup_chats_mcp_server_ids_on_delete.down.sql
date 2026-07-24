@@ -1,0 +1,2 @@
+DROP TRIGGER IF EXISTS remove_chat_mcp_server_config_id ON mcp_server_configs;
+DROP FUNCTION IF EXISTS remove_mcp_server_config_id_from_chats;

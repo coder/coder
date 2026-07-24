@@ -9,6 +9,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/quartz"
 )
 
@@ -63,7 +64,8 @@ func (s StoreMembershipReconciler) ReconcileAll(ctx context.Context, userID uuid
 
 		// Add user to org if needed
 		if !orgStatus.HasPrebuildUser {
-			_, err = s.store.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
+			//nolint:gocritic // Must use AsSystemRestricted when creating a new org member as it also assigns roles.
+			_, err = s.store.InsertOrganizationMember(dbauthz.AsSystemRestricted(ctx), database.InsertOrganizationMemberParams{
 				OrganizationID: orgStatus.OrganizationID,
 				UserID:         userID,
 				CreatedAt:      s.clock.Now(),

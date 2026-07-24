@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -14,10 +15,19 @@ import (
 type OAuth2Config struct {
 	Token           *oauth2.Token
 	TokenSourceFunc OAuth2TokenSource
+
+	httpClientOnce sync.Once
+	httpClient     *http.Client
 }
 
-func (*OAuth2Config) Do(_ context.Context, _ promoauth.Oauth2Source, req *http.Request) (*http.Response, error) {
-	return http.DefaultClient.Do(req)
+// Do issues req using a dedicated http.Client per OAuth2Config so a
+// parallel httptest.Server.Close() (which calls CloseIdleConnections
+// on http.DefaultTransport) cannot break our in-flight requests.
+func (c *OAuth2Config) Do(_ context.Context, _ promoauth.Oauth2Source, req *http.Request) (*http.Response, error) {
+	c.httpClientOnce.Do(func() {
+		c.httpClient = &http.Client{Transport: &http.Transport{}}
+	})
+	return c.httpClient.Do(req)
 }
 
 func (*OAuth2Config) AuthCodeURL(state string, _ ...oauth2.AuthCodeOption) string {

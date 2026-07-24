@@ -58,21 +58,21 @@ func Test_TestRun(t *testing.T) {
 
 		var (
 			name, id          = "test", "1"
-			runCalled         int64
-			cleanupCalled     int64
-			collectableCalled int64
+			runCalled         atomic.Int64
+			cleanupCalled     atomic.Int64
+			collectableCalled atomic.Int64
 
 			testFns = testFns{
 				RunFn: func(ctx context.Context, id string, logs io.Writer) error {
-					atomic.AddInt64(&runCalled, 1)
+					runCalled.Add(1)
 					return nil
 				},
 				CleanupFn: func(ctx context.Context, id string, logs io.Writer) error {
-					atomic.AddInt64(&cleanupCalled, 1)
+					cleanupCalled.Add(1)
 					return nil
 				},
 				GetMetricsFn: func() map[string]any {
-					atomic.AddInt64(&collectableCalled, 1)
+					collectableCalled.Add(1)
 					return nil
 				},
 			}
@@ -83,12 +83,12 @@ func Test_TestRun(t *testing.T) {
 
 		err := run.Run(context.Background())
 		require.NoError(t, err)
-		require.EqualValues(t, 1, atomic.LoadInt64(&runCalled))
-		require.EqualValues(t, 1, atomic.LoadInt64(&collectableCalled))
+		require.EqualValues(t, 1, runCalled.Load())
+		require.EqualValues(t, 1, collectableCalled.Load())
 
 		err = run.Cleanup(context.Background())
 		require.NoError(t, err)
-		require.EqualValues(t, 1, atomic.LoadInt64(&cleanupCalled))
+		require.EqualValues(t, 1, cleanupCalled.Load())
 	})
 
 	t.Run("Cleanup", func(t *testing.T) {
@@ -111,20 +111,20 @@ func Test_TestRun(t *testing.T) {
 		t.Run("NotDone", func(t *testing.T) {
 			t.Parallel()
 
-			var cleanupCalled int64
+			var cleanupCalled atomic.Int64
 			run := harness.NewTestRun("test", "1", testFns{
 				RunFn: func(ctx context.Context, id string, logs io.Writer) error {
 					return nil
 				},
 				CleanupFn: func(ctx context.Context, id string, logs io.Writer) error {
-					atomic.AddInt64(&cleanupCalled, 1)
+					cleanupCalled.Add(1)
 					return nil
 				},
 			})
 
 			err := run.Cleanup(context.Background())
 			require.NoError(t, err)
-			require.EqualValues(t, 0, atomic.LoadInt64(&cleanupCalled))
+			require.EqualValues(t, 0, cleanupCalled.Load())
 		})
 	})
 

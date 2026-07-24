@@ -1,5 +1,12 @@
 package database
 
-import "github.com/google/uuid"
+import (
+	"github.com/google/uuid"
 
-var PrebuildsSystemUserID = uuid.MustParse("c42fdf75-3097-471c-8c33-fb52454d81c0")
+	"github.com/coder/coder/v2/codersdk"
+)
+
+// PrebuildsSystemUserID mirrors codersdk.PrebuildsSystemUserID, parsed
+// for use as a uuid.UUID. Both must agree; tests pin the value to the
+// codersdk constant so the two cannot drift.
+var PrebuildsSystemUserID = uuid.MustParse(codersdk.PrebuildsSystemUserID)

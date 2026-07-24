@@ -98,6 +98,19 @@ func TestViewSubsetWorkspace(t *testing.T) {
 	}
 }
 
+func TestViewSubsetChat(t *testing.T) {
+	t.Parallel()
+	table := reflect.TypeOf(database.ChatTable{})
+	joined := reflect.TypeOf(database.Chat{})
+
+	tableFields := allFields(table)
+	joinedFields := allFields(joined)
+	if !assert.Subset(t, fieldNames(joinedFields), fieldNames(tableFields), "table is not subset") {
+		t.Log("Some fields were added to the Chat Table without updating the 'chats_expanded' view.")
+		t.Log("See migration 000496_chat_database_foundation.up.sql to create the view.")
+	}
+}
+
 func fieldNames(fields []reflect.StructField) []string {
 	names := make([]string, len(fields))
 	for i, field := range fields {

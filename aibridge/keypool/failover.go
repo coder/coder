@@ -2,11 +2,10 @@ package keypool
 
 import (
 	"bytes"
-	"context"
-	"fmt"
 	"io"
 	"net/http"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/utils"
 )
 
@@ -16,6 +15,8 @@ type KeyFailoverConfig struct {
 	// Pool is the key pool to walk. Nil disables key failover.
 	Pool *Pool
 
+	Logger slog.Logger
+
 	// IsBYOK returns true when the request already carries
 	// user-supplied auth. BYOK requests skip key failover.
 	IsBYOK func(*http.Request) bool
@@ -24,14 +25,9 @@ type KeyFailoverConfig struct {
 	// in the format the provider expects.
 	InjectAuthKey func(*http.Header, string)
 
-	// MarkKey marks the key based on the upstream response.
-	// Returns true when the response is a key-specific error,
-	// causing the walker to advance and retry with the next key.
-	MarkKey func(ctx context.Context, key *Key, resp *http.Response) bool
-
-	// BuildExhaustedResponse returns the response sent to the
-	// client when the walker has no more keys to try.
-	BuildExhaustedResponse func(err error) *http.Response
+	// BuildKeyPoolResponse renders the response sent to the client
+	// when the walker has no more keys to try.
+	BuildKeyPoolResponse func(*Error) *http.Response
 }
 
 // keyFailoverTransport retries inner across the key pool on
@@ -73,13 +69,14 @@ func (t *keyFailoverTransport) RoundTrip(req *http.Request) (*http.Response, err
 
 	// Fresh walker per request, independent of other inflight requests.
 	walker := t.config.Pool.Walker()
+	defer func() { t.config.Pool.RecordAttempts(walker.Attempts()) }()
 	for {
-		key, err := walker.Next()
-		if err != nil {
-			resp := t.config.BuildExhaustedResponse(err)
+		key, keyPoolErr := walker.Next()
+		if keyPoolErr != nil {
+			resp := t.config.BuildKeyPoolResponse(keyPoolErr)
 			if resp == nil {
-				// Fallback if BuildExhaustedResponse returns nil.
-				body := []byte(fmt.Sprintf(`{"error":"key pool exhausted: %s"}`, err))
+				// Fallback if BuildKeyPoolResponse returns nil.
+				body := []byte(`{"error":"key pool unavailable"}`)
 				resp = utils.NewJSONErrorResponse(http.StatusBadGateway, 0, body)
 			}
 			return resp, nil
@@ -97,8 +94,8 @@ func (t *keyFailoverTransport) RoundTrip(req *http.Request) (*http.Response, err
 			// Transport-level error, not a key issue.
 			return resp, rtErr
 		}
-		// MarkKey returns true on key-specific failures (e.g. 401/403/429).
-		if t.config.MarkKey(req.Context(), key, resp) {
+		// MarkKeyOnStatus returns true on key-specific failures (e.g. 401/403/429).
+		if t.config.Pool.MarkKeyOnStatus(req.Context(), key, resp, t.config.Logger) {
 			// Drain and retry with the next key.
 			_, _ = io.Copy(io.Discard, resp.Body)
 			_ = resp.Body.Close()

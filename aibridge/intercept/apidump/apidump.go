@@ -43,25 +43,25 @@ func NewBridgeMiddleware(baseDir string, provider string, model string, intercep
 		return nil
 	}
 
-	d := &dumper{
+	d := &Dumper{
 		dumpPath: interceptDumpPath(baseDir, provider, model, interceptionID, clk),
 		logger:   logger,
 	}
 
 	return func(req *http.Request, next MiddlewareNext) (*http.Response, error) {
-		if err := d.dumpRequest(req); err != nil {
+		if err := d.DumpRequest(req); err != nil {
 			logger.Named("apidump").Warn(req.Context(), "failed to dump request", slog.Error(err))
 		}
 
 		resp, err := next(req)
 		if err != nil {
-			if dumpErr := d.dumpError(err); dumpErr != nil {
+			if dumpErr := d.DumpError(err); dumpErr != nil {
 				logger.Named("apidump").Warn(req.Context(), "failed to dump request error", slog.Error(dumpErr))
 			}
 			return resp, err
 		}
 
-		if err := d.dumpResponse(resp); err != nil {
+		if err := d.DumpResponse(resp); err != nil {
 			logger.Named("apidump").Warn(req.Context(), "failed to dump response", slog.Error(err))
 		}
 
@@ -69,12 +69,24 @@ func NewBridgeMiddleware(baseDir string, provider string, model string, intercep
 	}
 }
 
-type dumper struct {
+// Dumper writes HTTP request/response dump files to disk. Each
+// Dumper is associated with a single base path; the .req.txt,
+// .resp.txt, and .req_error.txt suffixes are appended automatically.
+type Dumper struct {
 	dumpPath string
 	logger   slog.Logger
 }
 
-func (d *dumper) dumpRequest(req *http.Request) error {
+// NewDumper returns a Dumper that writes dump files rooted at
+// dumpPath. The caller constructs a unique path per request (e.g.
+// provider + request ID). logger is used for non-fatal I/O warnings.
+func NewDumper(dumpPath string, logger slog.Logger) *Dumper {
+	return &Dumper{dumpPath: dumpPath, logger: logger}
+}
+
+// DumpRequest writes the request to a .req.txt file. The request
+// body is read and restored so downstream consumers are unaffected.
+func (d *Dumper) DumpRequest(req *http.Request) error {
 	dumpPath := d.dumpPath + SuffixRequest
 	if err := os.MkdirAll(filepath.Dir(dumpPath), 0o755); err != nil {
 		return xerrors.Errorf("create dump dir: %w", err)
@@ -117,7 +129,8 @@ func (d *dumper) dumpRequest(req *http.Request) error {
 	return os.WriteFile(dumpPath, buf.Bytes(), 0o644) //nolint:gosec // https://github.com/coder/aibridge/pull/256#discussion_r3072143983
 }
 
-func (d *dumper) dumpError(reqErr error) error {
+// DumpError writes the error message to a .req_error.txt file.
+func (d *Dumper) DumpError(reqErr error) error {
 	dumpPath := d.dumpPath + SuffixError
 	if err := os.MkdirAll(filepath.Dir(dumpPath), 0o755); err != nil {
 		return xerrors.Errorf("create dump dir: %w", err)
@@ -125,7 +138,9 @@ func (d *dumper) dumpError(reqErr error) error {
 	return os.WriteFile(dumpPath, []byte(reqErr.Error()+"\n"), 0o644) //nolint:gosec // same rationale as other dump files
 }
 
-func (d *dumper) dumpResponse(resp *http.Response) error {
+// DumpResponse writes the response headers and wraps the body so
+// it streams to a .resp.txt file as it is consumed.
+func (d *Dumper) DumpResponse(resp *http.Response) error {
 	dumpPath := d.dumpPath + SuffixResponse
 
 	// Build raw HTTP response headers
@@ -166,7 +181,7 @@ func (d *dumper) dumpResponse(resp *http.Response) error {
 // for deterministic output.
 // `sensitive` and `overrides` must both supply keys in canonicalized form.
 // See [textproto.MIMEHeader].
-func (*dumper) writeRedactedHeaders(w io.Writer, headers http.Header, sensitive map[string]struct{}, overrides map[string]string) error {
+func (*Dumper) writeRedactedHeaders(w io.Writer, headers http.Header, sensitive map[string]struct{}, overrides map[string]string) error {
 	// Collect all header keys including overrides.
 	headerKeys := make([]string, 0, len(headers)+len(overrides))
 	seen := make(map[string]struct{}, len(headers)+len(overrides))
@@ -249,25 +264,25 @@ type dumpRoundTripper struct {
 }
 
 func (rt *dumpRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	dumper := dumper{
+	d := Dumper{
 		dumpPath: passthroughDumpPath(rt.baseDir, rt.provider, req.URL.Path, rt.clk),
 		logger:   rt.logger,
 	}
 
-	if err := dumper.dumpRequest(req); err != nil {
-		dumper.logger.Named("apidump").Warn(req.Context(), "failed to dump passthrough request", slog.Error(err))
+	if err := d.DumpRequest(req); err != nil {
+		d.logger.Named("apidump").Warn(req.Context(), "failed to dump passthrough request", slog.Error(err))
 	}
 
 	resp, err := rt.inner.RoundTrip(req)
 	if err != nil {
-		if dumpErr := dumper.dumpError(err); dumpErr != nil {
-			dumper.logger.Named("apidump").Warn(req.Context(), "failed to dump passthrough request error", slog.Error(dumpErr))
+		if dumpErr := d.DumpError(err); dumpErr != nil {
+			d.logger.Named("apidump").Warn(req.Context(), "failed to dump passthrough request error", slog.Error(dumpErr))
 		}
 		return resp, err
 	}
 
-	if err := dumper.dumpResponse(resp); err != nil {
-		dumper.logger.Named("apidump").Warn(req.Context(), "failed to dump passthrough response", slog.Error(err))
+	if err := d.DumpResponse(resp); err != nil {
+		d.logger.Named("apidump").Warn(req.Context(), "failed to dump passthrough response", slog.Error(err))
 	}
 
 	return resp, nil

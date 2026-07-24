@@ -17,18 +17,38 @@ func (c *Client) MCPServerOAuth2ConnectURL(id uuid.UUID) string {
 	return fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/connect", c.URL.String(), id)
 }
 
+// MCPServerOAuth2DisconnectResponse reports whether the removed token
+// was also revoked at the OAuth provider.
+type MCPServerOAuth2DisconnectResponse struct {
+	TokenRevoked         bool   `json:"token_revoked"`
+	TokenRevocationError string `json:"token_revocation_error,omitempty"`
+}
+
 // MCPServerOAuth2Disconnect removes the user's OAuth2 token for an
-// MCP server.
+// MCP server. Use MCPServerOAuth2DisconnectWithResponse for the
+// provider revocation outcome.
 func (c *Client) MCPServerOAuth2Disconnect(ctx context.Context, id uuid.UUID) error {
+	_, err := c.MCPServerOAuth2DisconnectWithResponse(ctx, id)
+	return err
+}
+
+// MCPServerOAuth2DisconnectWithResponse removes the user's OAuth2
+// token for an MCP server and reports the provider revocation outcome.
+func (c *Client) MCPServerOAuth2DisconnectWithResponse(ctx context.Context, id uuid.UUID) (MCPServerOAuth2DisconnectResponse, error) {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/disconnect", id), nil)
 	if err != nil {
-		return err
+		return MCPServerOAuth2DisconnectResponse{}, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
+	// Servers from before provider revocation respond 204 without a body.
+	if res.StatusCode == http.StatusNoContent {
+		return MCPServerOAuth2DisconnectResponse{}, nil
 	}
-	return nil
+	if res.StatusCode != http.StatusOK {
+		return MCPServerOAuth2DisconnectResponse{}, ReadBodyAsError(res)
+	}
+	var resp MCPServerOAuth2DisconnectResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // MCPServerConfig represents an admin-configured MCP server.
@@ -45,11 +65,12 @@ type MCPServerConfig struct {
 	AuthType string `json:"auth_type"` // "none", "oauth2", "api_key", "custom_headers", "user_oidc"
 
 	// OAuth2 fields (only populated for admins).
-	OAuth2ClientID  string `json:"oauth2_client_id,omitempty"`
-	HasOAuth2Secret bool   `json:"has_oauth2_secret"`
-	OAuth2AuthURL   string `json:"oauth2_auth_url,omitempty"`
-	OAuth2TokenURL  string `json:"oauth2_token_url,omitempty"`
-	OAuth2Scopes    string `json:"oauth2_scopes,omitempty"`
+	OAuth2ClientID      string `json:"oauth2_client_id,omitempty"`
+	HasOAuth2Secret     bool   `json:"has_oauth2_secret"`
+	OAuth2AuthURL       string `json:"oauth2_auth_url,omitempty"`
+	OAuth2TokenURL      string `json:"oauth2_token_url,omitempty"`
+	OAuth2RevocationURL string `json:"oauth2_revocation_url,omitempty"`
+	OAuth2Scopes        string `json:"oauth2_scopes,omitempty"`
 
 	// API key fields (only populated for admins).
 	APIKeyHeader string `json:"api_key_header,omitempty"`
@@ -64,11 +85,18 @@ type MCPServerConfig struct {
 	// Availability policy set by admin.
 	Availability string `json:"availability"` // "force_on", "default_on", "default_off"
 
-	Enabled         bool      `json:"enabled"`
-	ModelIntent     bool      `json:"model_intent"`
-	AllowInPlanMode bool      `json:"allow_in_plan_mode"`
-	CreatedAt       time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt       time.Time `json:"updated_at" format:"date-time"`
+	Enabled         bool `json:"enabled"`
+	ModelIntent     bool `json:"model_intent"`
+	AllowInPlanMode bool `json:"allow_in_plan_mode"`
+
+	// ForwardCoderHeaders forwards the same Coder identity headers we
+	// send to LLM providers (X-Coder-Owner-Id, X-Coder-Chat-Id, and the
+	// optional X-Coder-Subchat-Id and X-Coder-Workspace-Id) to this
+	// MCP server on every request. Off by default to avoid leaking
+	// chat identity to third-party servers.
+	ForwardCoderHeaders bool      `json:"forward_coder_headers"`
+	CreatedAt           time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt           time.Time `json:"updated_at" format:"date-time"`
 
 	// Per-user state (populated for non-admin requests).
 	AuthConnected bool `json:"auth_connected"`
@@ -84,15 +112,18 @@ type CreateMCPServerConfigRequest struct {
 	Transport string `json:"transport" validate:"required,oneof=streamable_http sse"`
 	URL       string `json:"url" validate:"required,url"`
 
-	AuthType           string            `json:"auth_type" validate:"required,oneof=none oauth2 api_key custom_headers user_oidc"`
-	OAuth2ClientID     string            `json:"oauth2_client_id,omitempty"`
-	OAuth2ClientSecret string            `json:"oauth2_client_secret,omitempty"`
-	OAuth2AuthURL      string            `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
-	OAuth2TokenURL     string            `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
-	OAuth2Scopes       string            `json:"oauth2_scopes,omitempty"`
-	APIKeyHeader       string            `json:"api_key_header,omitempty"`
-	APIKeyValue        string            `json:"api_key_value,omitempty"`
-	CustomHeaders      map[string]string `json:"custom_headers,omitempty"`
+	AuthType           string `json:"auth_type" validate:"required,oneof=none oauth2 api_key custom_headers user_oidc"`
+	OAuth2ClientID     string `json:"oauth2_client_id,omitempty"`
+	OAuth2ClientSecret string `json:"oauth2_client_secret,omitempty"`
+	OAuth2AuthURL      string `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
+	OAuth2TokenURL     string `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
+	// OAuth2RevocationURL is the provider's RFC 7009 revocation
+	// endpoint; auto-populated by OAuth2 discovery when omitted.
+	OAuth2RevocationURL string            `json:"oauth2_revocation_url,omitempty" validate:"omitempty,url"`
+	OAuth2Scopes        string            `json:"oauth2_scopes,omitempty"`
+	APIKeyHeader        string            `json:"api_key_header,omitempty"`
+	APIKeyValue         string            `json:"api_key_value,omitempty"`
+	CustomHeaders       map[string]string `json:"custom_headers,omitempty"`
 
 	ToolAllowList []string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  []string `json:"tool_deny_list,omitempty"`
@@ -101,6 +132,10 @@ type CreateMCPServerConfigRequest struct {
 	Enabled         bool   `json:"enabled"`
 	ModelIntent     bool   `json:"model_intent"`
 	AllowInPlanMode bool   `json:"allow_in_plan_mode"`
+
+	// ForwardCoderHeaders, when true, forwards Coder identity
+	// headers on every outgoing MCP request. See MCPServerConfig.
+	ForwardCoderHeaders bool `json:"forward_coder_headers"`
 }
 
 // UpdateMCPServerConfigRequest is the request to update an MCP server config.
@@ -113,15 +148,18 @@ type UpdateMCPServerConfigRequest struct {
 	Transport *string `json:"transport,omitempty" validate:"omitempty,oneof=streamable_http sse"`
 	URL       *string `json:"url,omitempty" validate:"omitempty,url"`
 
-	AuthType           *string            `json:"auth_type,omitempty" validate:"omitempty,oneof=none oauth2 api_key custom_headers user_oidc"`
-	OAuth2ClientID     *string            `json:"oauth2_client_id,omitempty"`
-	OAuth2ClientSecret *string            `json:"oauth2_client_secret,omitempty"`
-	OAuth2AuthURL      *string            `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
-	OAuth2TokenURL     *string            `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
-	OAuth2Scopes       *string            `json:"oauth2_scopes,omitempty"`
-	APIKeyHeader       *string            `json:"api_key_header,omitempty"`
-	APIKeyValue        *string            `json:"api_key_value,omitempty"`
-	CustomHeaders      *map[string]string `json:"custom_headers,omitempty"`
+	AuthType           *string `json:"auth_type,omitempty" validate:"omitempty,oneof=none oauth2 api_key custom_headers user_oidc"`
+	OAuth2ClientID     *string `json:"oauth2_client_id,omitempty"`
+	OAuth2ClientSecret *string `json:"oauth2_client_secret,omitempty"`
+	OAuth2AuthURL      *string `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
+	OAuth2TokenURL     *string `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
+	// OAuth2RevocationURL is validated in the handler because a
+	// validate tag would reject the pointer to "" that clears it.
+	OAuth2RevocationURL *string            `json:"oauth2_revocation_url,omitempty"`
+	OAuth2Scopes        *string            `json:"oauth2_scopes,omitempty"`
+	APIKeyHeader        *string            `json:"api_key_header,omitempty"`
+	APIKeyValue         *string            `json:"api_key_value,omitempty"`
+	CustomHeaders       *map[string]string `json:"custom_headers,omitempty"`
 
 	ToolAllowList *[]string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  *[]string `json:"tool_deny_list,omitempty"`
@@ -130,6 +168,10 @@ type UpdateMCPServerConfigRequest struct {
 	Enabled         *bool   `json:"enabled,omitempty"`
 	ModelIntent     *bool   `json:"model_intent,omitempty"`
 	AllowInPlanMode *bool   `json:"allow_in_plan_mode,omitempty"`
+
+	// ForwardCoderHeaders, when set, updates whether Coder identity
+	// headers are forwarded on every outgoing MCP request.
+	ForwardCoderHeaders *bool `json:"forward_coder_headers,omitempty"`
 }
 
 func (c *Client) MCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error) {

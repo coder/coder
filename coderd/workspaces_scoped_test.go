@@ -63,7 +63,11 @@ func TestCompositeWorkspaceScopes(t *testing.T) {
 		})
 		require.NoError(t, err, "creating scoped token")
 
-		scoped := codersdk.New(adminClient.URL, codersdk.WithSessionToken(resp.Key))
+		scoped := codersdk.New(
+			adminClient.URL,
+			codersdk.WithSessionToken(resp.Key),
+			codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(adminClient.URL)),
+		)
 		t.Cleanup(func() { scoped.HTTPClient.CloseIdleConnections() })
 		return scoped
 	}

@@ -142,6 +142,22 @@ WHERE group_id = @group_id
         user_is_system = false
         END;
 
+-- name: GetGroupMembersCountByGroupIDs :many
+-- Returns the total member count for each of the given group IDs in a
+-- single query. Used to avoid N+1 lookups when listing many groups. Like
+-- GetGroupMembersCountByGroupID, the count is returned even when the
+-- caller does not have read access to individual group members.
+SELECT
+	group_id,
+	COUNT(*) AS member_count
+FROM group_members_expanded
+WHERE group_id = ANY(@group_ids :: uuid[])
+	AND CASE
+		WHEN @include_system::bool THEN TRUE
+		ELSE user_is_system = false
+	END
+GROUP BY group_id;
+
 -- InsertUserGroupsByID adds a user to all provided groups, if they exist.
 -- name: InsertUserGroupsByID :many
 WITH groups AS (

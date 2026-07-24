@@ -1,5 +1,10 @@
 # nsjail on ECS
 
+> [!NOTE]
+> Agent Firewall requires the [AI Governance Add-On](../../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access Agent Firewall.
+
 This page describes the runtime and permission requirements for running Agent
 Firewall with the **nsjail** jail type on **Amazon ECS**.
 
@@ -21,7 +26,7 @@ with `NET_ADMIN`) so that Agent Firewall can create namespaces and run nsjail.
 
 **Task definition (Terraform) — `linuxParameters`:**
 
-```hcl
+```tf
 container_definitions = jsonencode([{
   name      = "coder-agent"
   image     = "your-coder-agent-image"

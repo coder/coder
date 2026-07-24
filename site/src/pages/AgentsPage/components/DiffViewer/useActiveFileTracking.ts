@@ -1,146 +1,72 @@
-import type { FileDiffMetadata } from "@pierre/diffs";
-import { type RefObject, useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
-// Leaves a 5% strip at the top of the viewport as the "active file" band.
-const VIEWPORT_BOTTOM_MARGIN_RATIO = 0.95;
+// Pixels of slack added when matching a file against the scroll offset, so a
+// file counts as active while its sticky header is still pinned at the top.
+const ACTIVE_FILE_SCROLL_THRESHOLD = 4;
 
-interface UseActiveFileTrackingOptions {
-	viewportRef: RefObject<HTMLElement | null>;
-	sortedFiles: readonly FileDiffMetadata[];
-	enabled: boolean;
-	scrollToFile?: string | null;
-	onScrollToFileComplete?: () => void;
+// Minimal view of the @pierre/diffs CodeView instance handed to `onScroll`.
+// `getRenderedItems` only returns the small set of currently virtualized
+// items, so deriving the active file from it avoids scanning every file.
+export interface ScrollViewer {
+	getRenderedItems(): readonly { id: string }[];
+	getTopForItem(id: string): number | undefined;
 }
 
-interface UseActiveFileTrackingReturn {
-	treeActiveFile: string | null;
-	setFileRef: (name: string, el: HTMLDivElement | null) => void;
-	handleFileClick: (name: string) => void;
+// The active file is the rendered item closest to the top edge that has
+// already crossed it (largest top still at or above the fold). Exported for
+// unit tests that pin the closest-to-top selection logic.
+export function getActiveFile(
+	scrollTop: number,
+	viewer: ScrollViewer,
+): string | undefined {
+	const rendered = viewer.getRenderedItems();
+	const limit = scrollTop + ACTIVE_FILE_SCROLL_THRESHOLD;
+	let activePath: string | undefined;
+	let activeTop = Number.NEGATIVE_INFINITY;
+	for (const item of rendered) {
+		const top = viewer.getTopForItem(item.id);
+		if (top !== undefined && top <= limit && top > activeTop) {
+			activeTop = top;
+			activePath = item.id;
+		}
+	}
+	return activePath ?? rendered[0]?.id;
 }
 
+/**
+ * Reports the diff file scrolled to the top as the user scrolls. Returns a
+ * CodeView `onScroll` handler. Tree-agnostic: callers decide what to do with
+ * the active path (the diff viewer feeds it to the sidebar selection).
+ */
 export function useActiveFileTracking({
-	viewportRef,
-	sortedFiles,
 	enabled,
-	scrollToFile,
-	onScrollToFileComplete,
-}: UseActiveFileTrackingOptions): UseActiveFileTrackingReturn {
-	const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-	const [treeActiveFile, setTreeActiveFile] = useState<string | null>(null);
-
-	const [viewportHeight, setViewportHeight] = useState(0);
-
-	// viewportRef is a stable RefObject whose identity never changes, so
-	// an effect that depends on it won't re-run when .current transitions
-	// from null to the actual DOM node (e.g. after a loading state).
-	// Keep a state mirror that flips exactly once when the element mounts.
-	const [viewportEl, setViewportEl] = useState<HTMLElement | null>(null);
-	useEffect(() => {
-		setViewportEl(viewportRef.current);
-	});
+	onActiveFileChange,
+}: {
+	enabled: boolean;
+	onActiveFileChange: (path: string) => void;
+}) {
+	const rafRef = useRef<number | null>(null);
 
 	useEffect(() => {
-		if (!viewportEl) return;
-		setViewportHeight(viewportEl.clientHeight);
-		const ro = new ResizeObserver(([entry]) => {
-			setViewportHeight(Math.round(entry.contentRect.height));
+		return () => {
+			if (rafRef.current !== null) {
+				cancelAnimationFrame(rafRef.current);
+			}
+		};
+	}, []);
+
+	return (scrollTop: number, viewer: ScrollViewer) => {
+		if (!enabled) return;
+		if (rafRef.current !== null) {
+			cancelAnimationFrame(rafRef.current);
+		}
+		// Coalesce bursts of scroll events into one update per frame.
+		rafRef.current = requestAnimationFrame(() => {
+			rafRef.current = null;
+			const next = getActiveFile(scrollTop, viewer);
+			if (next) {
+				onActiveFileChange(next);
+			}
 		});
-		ro.observe(viewportEl);
-		return () => ro.disconnect();
-	}, [viewportEl]);
-
-	const sortedFilesRef = useRef(sortedFiles);
-	useEffect(() => {
-		sortedFilesRef.current = sortedFiles;
-	});
-
-	const fileListKey = sortedFiles.map((f) => f.name).join("\0");
-
-	const setFileRef = (name: string, el: HTMLDivElement | null) => {
-		if (el) {
-			fileRefs.current.set(name, el);
-		} else {
-			fileRefs.current.delete(name);
-		}
-	};
-
-	useEffect(() => {
-		if (!enabled || fileListKey === "" || viewportHeight === 0) return;
-		if (!viewportEl) return;
-
-		const bottomMargin = Math.round(
-			viewportHeight * VIEWPORT_BOTTOM_MARGIN_RATIO,
-		);
-
-		const intersecting = new Set<string>();
-
-		const observer = new IntersectionObserver(
-			(entries) => {
-				for (const entry of entries) {
-					const name = (entry.target as HTMLElement).dataset.fileName;
-					if (!name) continue;
-					if (entry.isIntersecting) {
-						intersecting.add(name);
-					} else {
-						intersecting.delete(name);
-					}
-				}
-				for (const file of sortedFilesRef.current) {
-					if (intersecting.has(file.name)) {
-						setTreeActiveFile(file.name);
-						break;
-					}
-				}
-			},
-			{
-				root: viewportEl,
-				// Observe only the top ~5% strip of the viewport height.
-				rootMargin: `0px 0px -${bottomMargin}px 0px`,
-				threshold: 0,
-			},
-		);
-
-		for (const [, el] of fileRefs.current.entries()) {
-			observer.observe(el);
-		}
-
-		return () => observer.disconnect();
-	}, [enabled, fileListKey, viewportEl, viewportHeight]);
-
-	const handleFileClick = (name: string) => {
-		const el = fileRefs.current.get(name);
-		if (el) {
-			el.scrollIntoView({ block: "start", behavior: "instant" });
-			setTreeActiveFile(name);
-		}
-	};
-
-	// biome-ignore lint/correctness/useExhaustiveDependencies: fileListKey is an intentional trigger dep. The effect reads fileRefs (a mutable ref) and must retry when the file list changes so a previously-unmounted element can be found.
-	useEffect(() => {
-		if (!scrollToFile) return;
-		const el = fileRefs.current.get(scrollToFile);
-		if (el) {
-			el.scrollIntoView({ block: "start", behavior: "instant" });
-			setTreeActiveFile(scrollToFile);
-			onScrollToFileComplete?.();
-			return;
-		}
-		// Element not found. If the target isn't even in the current file
-		// list (e.g. stale chip after the diff changed), complete the
-		// request so the parent can clear its scroll target. Otherwise
-		// the target is present but not yet mounted; wait for fileListKey
-		// to change again.
-		const existsInFileList = sortedFilesRef.current.some(
-			(f) => f.name === scrollToFile,
-		);
-		if (!existsInFileList) {
-			onScrollToFileComplete?.();
-		}
-	}, [scrollToFile, onScrollToFileComplete, fileListKey]);
-
-	return {
-		treeActiveFile,
-		setFileRef,
-		handleFileClick,
 	};
 }

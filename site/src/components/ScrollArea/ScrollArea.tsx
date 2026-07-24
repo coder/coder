@@ -3,13 +3,16 @@
  * @see {@link https://ui.shadcn.com/docs/components/scroll-area}
  */
 import { ScrollArea as ScrollAreaPrimitive } from "radix-ui";
-import { useCallback, useRef } from "react";
 import { cn } from "#/utils/cn";
 
 interface ScrollAreaProps
 	extends React.ComponentPropsWithRef<typeof ScrollAreaPrimitive.Root> {
 	scrollBarClassName?: string;
+	horizontalScrollBarClassName?: string;
+	/** Extra thumb classes; also reaches the thumb's `::before` hit-target. */
+	scrollThumbClassName?: string;
 	viewportClassName?: string;
+	viewportTabIndex?: number;
 	/** Which scrollbar(s) to show. Defaults to "vertical". */
 	orientation?: "vertical" | "horizontal" | "both";
 }
@@ -17,37 +20,21 @@ interface ScrollAreaProps
 export const ScrollArea: React.FC<ScrollAreaProps> = ({
 	className,
 	scrollBarClassName,
+	horizontalScrollBarClassName,
+	scrollThumbClassName,
 	viewportClassName,
+	viewportTabIndex,
 	orientation = "vertical",
 	children,
 	...props
 }) => {
-	const viewportRef = useRef<HTMLDivElement>(null);
-
-	// Translate vertical wheel events into horizontal scroll when the
-	// scroll area only scrolls horizontally. Without this, the mouse
-	// wheel does nothing on a horizontal-only container.
-	const handleWheel = useCallback(
-		(e: React.WheelEvent<HTMLDivElement>) => {
-			if (orientation !== "horizontal") return;
-			const el = viewportRef.current;
-			if (!el) return;
-			// Only redirect when the user is scrolling vertically.
-			if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
-			e.preventDefault();
-			el.scrollBy({ left: e.deltaY, behavior: "smooth" });
-		},
-		[orientation],
-	);
-
 	return (
 		<ScrollAreaPrimitive.Root
 			className={cn("relative overflow-hidden", className)}
 			{...props}
 		>
 			<ScrollAreaPrimitive.Viewport
-				ref={viewportRef}
-				onWheel={handleWheel}
+				tabIndex={viewportTabIndex}
 				className={cn("h-full w-full rounded-[inherit]", viewportClassName)}
 			>
 				{children}
@@ -56,12 +43,19 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 				<ScrollBar
 					orientation="vertical"
 					className={cn("z-10", scrollBarClassName)}
+					thumbClassName={scrollThumbClassName}
 				/>
 			)}
 			{(orientation === "horizontal" || orientation === "both") && (
 				<ScrollBar
 					orientation="horizontal"
-					className={cn("z-10", scrollBarClassName)}
+					className={cn(
+						"z-10",
+						orientation === "both"
+							? horizontalScrollBarClassName
+							: (horizontalScrollBarClassName ?? scrollBarClassName),
+					)}
+					thumbClassName={scrollThumbClassName}
 				/>
 			)}
 			<ScrollAreaPrimitive.Corner />
@@ -70,8 +64,12 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 };
 
 export const ScrollBar: React.FC<
-	React.ComponentPropsWithRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>
-> = ({ className, orientation = "vertical", ...props }) => {
+	React.ComponentPropsWithRef<
+		typeof ScrollAreaPrimitive.ScrollAreaScrollbar
+	> & {
+		thumbClassName?: string;
+	}
+> = ({ className, orientation = "vertical", thumbClassName, ...props }) => {
 	return (
 		<ScrollAreaPrimitive.ScrollAreaScrollbar
 			orientation={orientation}
@@ -85,7 +83,16 @@ export const ScrollBar: React.FC<
 			)}
 			{...props}
 		>
-			<ScrollAreaPrimitive.ScrollAreaThumb className="relative flex-1 rounded-full bg-surface-quaternary" />
+			<ScrollAreaPrimitive.ScrollAreaThumb
+				className={cn(
+					"relative flex-1 rounded-full bg-surface-invert-secondary",
+					"before:absolute before:content-['']",
+					orientation === "vertical"
+						? "before:right-0 before:top-1/2 before:h-full before:min-h-6 before:w-6 before:-translate-y-1/2"
+						: "before:bottom-0 before:left-1/2 before:w-full before:min-w-6 before:h-6 before:-translate-x-1/2",
+					thumbClassName,
+				)}
+			/>
 		</ScrollAreaPrimitive.ScrollAreaScrollbar>
 	);
 };

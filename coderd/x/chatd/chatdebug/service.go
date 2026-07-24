@@ -522,6 +522,64 @@ func (s *Service) TouchStep(
 		})
 }
 
+// TouchRun bumps the run's updated_at timestamp without changing any
+// other fields. Runner-owned debug turns use this while no model step is
+// active, such as requires-action waits. It is a no-op when the service
+// is nil or either ID is uuid.Nil, since debug tracking is optional and
+// callers may not have an open run.
+func (s *Service) TouchRun(ctx context.Context, runID uuid.UUID, chatID uuid.UUID) error {
+	if s == nil || runID == uuid.Nil || chatID == uuid.Nil {
+		return nil
+	}
+	return s.db.TouchChatDebugRunUpdatedAt(chatdContext(ctx),
+		database.TouchChatDebugRunUpdatedAtParams{
+			Now:    s.clock.Now(),
+			ID:     runID,
+			ChatID: chatID,
+		})
+}
+
+// LaunchRunHeartbeat starts a goroutine that periodically touches an
+// open run until done is closed or ctx is canceled. It is a no-op when
+// the service is nil, either ID is uuid.Nil, or done is nil, since debug
+// tracking is optional and callers may not have an open run.
+func (s *Service) LaunchRunHeartbeat(ctx context.Context, runID uuid.UUID, chatID uuid.UUID, done <-chan struct{}) {
+	if s == nil || runID == uuid.Nil || chatID == uuid.Nil || done == nil {
+		return
+	}
+	go func() {
+		thresholdCh := s.thresholdChan()
+		interval := s.heartbeatInterval()
+		ticker := s.clock.NewTicker(interval, "chatdebug", "run-heartbeat")
+		defer ticker.Stop()
+		maybeResetTicker := func() {
+			if newInterval := s.heartbeatInterval(); newInterval != interval {
+				interval = newInterval
+				ticker.Reset(interval, "chatdebug", "run-heartbeat")
+			}
+		}
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-done:
+				return
+			case <-thresholdCh:
+				thresholdCh = s.thresholdChan()
+				maybeResetTicker()
+			case <-ticker.C:
+				if err := s.TouchRun(ctx, runID, chatID); err != nil {
+					s.log.Debug(ctx, "run heartbeat touch failed",
+						slog.Error(err),
+						slog.F("run_id", runID),
+					)
+				}
+				maybeResetTicker()
+			}
+		}
+	}()
+}
+
 // DeleteByChatID deletes debug data for a chat and emits a delete event.
 // The startedBefore bound scopes deletion to runs created before that
 // instant so that retried cleanup does not remove runs created by a

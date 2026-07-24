@@ -4,13 +4,12 @@ Administrators can register external MCP servers that provide additional tools
 for agent chat sessions. Configured servers are injected into or offered to
 users during chat depending on the availability policy.
 
-This is an admin-only feature accessible at **Agents** > **Settings** >
-**Manage Agents** > **MCP Servers**.
+This is an admin-only feature accessible at **AI Settings** > **Coder Agents** > **MCP servers**
+(`/ai/settings/mcp-servers`).
 
 ## Add an MCP server
 
-1. Navigate to **Agents** > **Settings** > **Manage Agents** >
-   **MCP Servers**.
+1. Navigate to **AI Settings** > **Coder Agents** > **MCP servers**.
 1. Click **Add**.
 1. Fill in the configuration fields described below.
 1. Click **Save**.
@@ -33,11 +32,12 @@ This is an admin-only feature accessible at **Agents** > **Settings** >
 
 ### Availability
 
-| Field          | Required | Description                                                                                                                   |
-|----------------|----------|-------------------------------------------------------------------------------------------------------------------------------|
-| `enabled`      | No       | Master toggle. Disabled servers are hidden from non-admin users.                                                              |
-| `availability` | Yes      | Controls how the server appears in chat sessions. See [Availability policies](#availability-policies).                        |
-| `model_intent` | No       | When enabled, requires the model to describe each tool call's purpose in natural language, shown as a status label in the UI. |
+| Field                   | Required | Description                                                                                                                         |
+|-------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------|
+| `enabled`               | No       | Master toggle. Disabled servers are hidden from non-admin users.                                                                    |
+| `availability`          | Yes      | Controls how the server appears in chat sessions. See [Availability policies](#availability-policies).                              |
+| `model_intent`          | No       | When enabled, requires the model to describe each tool call's purpose in natural language, shown as a status label in the UI.       |
+| `forward_coder_headers` | No       | When enabled, forwards Coder identity headers on every outgoing MCP request. See [Coder identity headers](#coder-identity-headers). |
 
 #### Availability policies
 
@@ -75,10 +75,14 @@ each user independently completes the authorization flow.
 
 Optional fields:
 
-| Field                  | Description                     |
-|------------------------|---------------------------------|
-| `oauth2_client_secret` | OAuth2 client secret.           |
-| `oauth2_scopes`        | Space-separated list of scopes. |
+| Field                   | Description                               |
+|-------------------------|-------------------------------------------|
+| `oauth2_client_secret`  | OAuth2 client secret.                     |
+| `oauth2_scopes`         | Space-separated list of scopes.           |
+| `oauth2_revocation_url` | Token revocation endpoint URL (RFC 7009). |
+
+The revocation endpoint must use HTTPS.
+Loopback URLs may use HTTP for local development and tests.
 
 **Auto-discovery** — leave `oauth2_client_id`, `oauth2_auth_url`, and
 `oauth2_token_url` empty. The server attempts discovery in this order:
@@ -87,9 +91,17 @@ Optional fields:
 1. RFC 8414 — Authorization Server Metadata
 1. RFC 7591 — Dynamic Client Registration
 
+Auto-discovery also records the provider's `revocation_endpoint` from the
+RFC 8414 metadata when advertised. An explicit `oauth2_revocation_url` in
+the request takes precedence over the discovered value.
+
 Users connect through a popup that redirects through the OAuth2 provider.
 Tokens are stored per-user and refreshed automatically. Users can disconnect
-via the UI or API to remove stored tokens.
+via the UI or API to remove stored tokens. When a revocation endpoint is
+configured, disconnecting also asks the provider to revoke the token
+(RFC 7009). Provider revocation is best-effort: the stored token is always
+deleted from Coder, and the disconnect response reports whether provider
+revocation succeeded via `token_revoked` and `token_revocation_error`.
 
 ### API key
 
@@ -128,6 +140,28 @@ Control which tools from a server are available in chat:
 |-------------------|---------------------------------------------------------------------------------------|
 | `tool_allow_list` | If non-empty, only the listed tool names are exposed. An empty list allows all tools. |
 | `tool_deny_list`  | Listed tool names are always blocked, even if they appear in the allow list.          |
+
+## Coder identity headers
+
+MCP servers configured with `forward_coder_headers = true` receive the
+following identity headers on every outgoing request, alongside the
+auth header for the configured `auth_type`:
+
+| Header                 | Description                                                                                                  |
+|------------------------|--------------------------------------------------------------------------------------------------------------|
+| `X-Coder-Owner-Id`     | Coder user who owns the chat that issued the tool call.                                                      |
+| `X-Coder-Chat-Id`      | Top-level (parent) chat ID. For root chats this is the chat's own ID; for subchats it is the parent chat ID. |
+| `X-Coder-Subchat-Id`   | Subchat ID. Only present when the request originates from a child chat.                                      |
+| `X-Coder-Workspace-Id` | Workspace associated with the chat, if any.                                                                  |
+
+Coder sends the same identity headers to LLM providers, so a first-party
+MCP server can correlate a tool call back to the originating chat.
+
+Because the headers leak chat identity, the option is **off by
+default** and should only be enabled for first-party or trusted
+internal MCP servers. If the auth header for the configured
+`auth_type` collides with one of these headers, the auth header
+wins.
 
 ## Permissions
 

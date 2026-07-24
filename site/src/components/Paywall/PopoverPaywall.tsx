@@ -17,7 +17,7 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 			message={message}
 			description={description}
 			documentationLink={documentationLink}
-			compact={true}
+			compact
 		/>
 	);
 };

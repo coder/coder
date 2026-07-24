@@ -31,6 +31,11 @@ OPTIONS:
           this value for the template (and allow autostart on all days), pass
           'all'.
 
+      --autostop-reminder duration
+          Edit how long before the autostop deadline a reminder notification is
+          sent for workspaces created from this template, in Go duration format
+          (e.g. 1h, 30m). Set to 0 to disable.
+
       --autostop-requirement-weekdays [monday|tuesday|wednesday|thursday|friday|saturday|sunday|none]
           Edit the template autostop requirement weekdays - workspaces created
           from this template must be restarted on the given weekdays. To unset

@@ -37,7 +37,7 @@ data "coder_workspace_tags" "custom_workspace_tags" {
   `feature_cache_enabled`
 
 Review the
-[full template example](https://github.com/coder/coder/tree/main/examples/workspace-tags)
+[full template example](../../../../examples/workspace-tags)
 using `coder_workspace_tags` and `coder_parameter`s.
 
 ## How it Works
@@ -106,13 +106,9 @@ Passing template tags in from other data sources or resources is not permitted.
 
 ### HCL syntax
 
-When importing the template version with `coder_workspace_tags`, the Coder
-provisioner server extracts raw partial queries for each workspace tag and
-stores them in the database. During workspace build time, the Coder server uses
-the [Hashicorp HCL library](https://github.com/hashicorp/hcl) to evaluate these
-raw queries on-the-fly without processing the entire Terraform template. This
-evaluation is simpler but also limited in terms of available functions,
-variables, and references to other resources.
+When importing the template version with `coder_workspace_tags`, the Coder provisioner server extracts raw partial queries for each workspace tag and stores them in the database.
+During workspace build time, the Coder server uses the [HashiCorp HCL library](https://github.com/hashicorp/hcl) to evaluate these raw queries on-the-fly without processing the entire Terraform template.
+This evaluation is simpler but also limited in terms of available functions, variables, and references to other resources.
 
 #### Supported syntax
 

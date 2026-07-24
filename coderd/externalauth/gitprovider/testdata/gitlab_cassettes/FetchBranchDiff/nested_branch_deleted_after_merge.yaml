@@ -1,0 +1,61 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        headers:
+            Accept:
+                - application/json
+            Private-Token:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/test-group9945421%2Ftest-subgroup%2Fanother-test-project
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: -1
+        uncompressed: true
+        body: '{"id":82312037,"description":null,"name":"another-test-project","name_with_namespace":"test-group / test-subgroup / another-test-project","path":"another-test-project","path_with_namespace":"test-group9945421/test-subgroup/another-test-project","created_at":"2026-05-18T15:20:05.607Z","default_branch":"main","tag_list":[],"topics":[],"ssh_url_to_repo":"git@gitlab.com:test-group9945421/test-subgroup/another-test-project.git","http_url_to_repo":"https://gitlab.com/test-group9945421/test-subgroup/another-test-project.git","web_url":"https://gitlab.com/test-group9945421/test-subgroup/another-test-project","readme_url":"https://gitlab.com/test-group9945421/test-subgroup/another-test-project/-/blob/main/README.md","forks_count":1,"avatar_url":null,"star_count":0,"last_activity_at":"2026-05-18T15:20:05.517Z","visibility":"public","namespace":{"id":132531619,"name":"test-subgroup","path":"test-subgroup","kind":"group","full_path":"test-group9945421/test-subgroup","parent_id":132520176,"avatar_url":null,"web_url":"https://gitlab.com/groups/test-group9945421/test-subgroup"}}'
+        headers:
+            Content-Type:
+                - application/json
+        status: 200 OK
+        code: 200
+        duration: 100.000000ms
+    - id: 1
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        headers:
+            Accept:
+                - application/json
+            Private-Token:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/test-group9945421%2Ftest-subgroup%2Fanother-test-project/repository/compare?from=main&to=johnstcn-main-patch-54711
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: -1
+        uncompressed: true
+        body: '{"message":"404 Ref Not Found"}'
+        headers:
+            Content-Type:
+                - application/json
+        status: 404 Not Found
+        code: 404
+        duration: 100.000000ms

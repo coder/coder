@@ -25,7 +25,7 @@ USAGE:
        $ Show organization with the given ID.
 
 OPTIONS:
-  -c, --column [id|name|display name|icon|description|created at|updated at|default] (default: id,name,default)
+  -c, --column [id|name|display name|icon|description|created at|updated at|default|default org member roles] (default: id,name,default)
           Columns to display in table output.
 
       --only-id bool

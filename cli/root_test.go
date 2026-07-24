@@ -18,12 +18,13 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 	"github.com/coder/serpent"
 )
 
@@ -98,7 +99,153 @@ func TestCommandHelp(t *testing.T) {
 			Name: "coder exp sync status --help",
 			Cmd:  []string{"exp", "sync", "status", "--help"},
 		},
+		clitest.CommandHelpCase{
+			Name: "coder exp sync list --help",
+			Cmd:  []string{"exp", "sync", "list", "--help"},
+		},
 	))
+}
+
+func TestResolveClientConnection(t *testing.T) {
+	t.Parallel()
+
+	run := func(t *testing.T, configure func(config.Root), args ...string) (string, http.RoundTripper, error, error) {
+		t.Helper()
+
+		var root cli.RootCmd
+		var gotURL string
+		var gotTransport http.RoundTripper
+		var gotErr error
+		cmd, err := root.Command([]*serpent.Command{{
+			Use: "resolve",
+			Handler: func(*serpent.Invocation) error {
+				serverURL, transport, err := root.ResolveClientConnection()
+				if serverURL != nil {
+					gotURL = serverURL.String()
+				}
+				gotTransport = transport
+				gotErr = err
+				return nil
+			},
+		}})
+		require.NoError(t, err)
+
+		inv, cfg := clitest.NewWithCommand(t, cmd, args...)
+		if configure != nil {
+			configure(cfg)
+		}
+		runErr := inv.Run()
+		return gotURL, gotTransport, gotErr, runErr
+	}
+
+	tests := []struct {
+		name           string
+		args           []string
+		configure      func(*testing.T, config.Root)
+		wantURL        string
+		wantTransport  bool
+		wantErr        string
+		wantRunErr     string
+		checkTransport func(*testing.T, http.RoundTripper)
+	}{
+		{
+			name:    "MissingURL",
+			args:    []string{"resolve"},
+			wantErr: cli.ErrClientURLNotConfigured.Error(),
+		},
+		{
+			name:          "URLFlag",
+			args:          []string{"--url", "https://example.com", "resolve"},
+			wantURL:       "https://example.com",
+			wantTransport: true,
+		},
+		{
+			name: "ConfiguredURL",
+			args: []string{"resolve"},
+			configure: func(t *testing.T, cfg config.Root) {
+				t.Helper()
+				require.NoError(t, cfg.URL().Write("https://configured.example.com"))
+			},
+			wantURL:       "https://configured.example.com",
+			wantTransport: true,
+		},
+		{
+			name: "URLFlagOverridesConfig",
+			args: []string{"--url", "https://flag.example.com", "resolve"},
+			configure: func(t *testing.T, cfg config.Root) {
+				t.Helper()
+				require.NoError(t, cfg.URL().Write("https://configured.example.com"))
+			},
+			wantURL:       "https://flag.example.com",
+			wantTransport: true,
+		},
+		{
+			name:       "InvalidURLFlag",
+			args:       []string{"--url", "%zz", "resolve"},
+			wantRunErr: "invalid URL escape",
+		},
+		{
+			name: "ClientTLSConfig",
+			args: func() []string {
+				certPath, keyPath := generateTLSCertificate(t)
+				return []string{
+					"--url", "https://example.com",
+					"--client-tls-cert-file", certPath,
+					"--client-tls-key-file", keyPath,
+					"resolve",
+				}
+			}(),
+			wantURL:       "https://example.com",
+			wantTransport: true,
+			checkTransport: func(t *testing.T, transport http.RoundTripper) {
+				t.Helper()
+
+				httpTransport, ok := transport.(*http.Transport)
+				require.True(t, ok)
+				require.NotNil(t, httpTransport.TLSClientConfig)
+				require.Len(t, httpTransport.TLSClientConfig.Certificates, 1)
+			},
+		},
+		{
+			name: "TLSConfigError",
+			args: []string{
+				"--url", "https://example.com",
+				"--client-tls-cert-file", "/tmp/missing-cert.pem",
+				"resolve",
+			},
+			wantErr: "load client TLS config: --client-tls-cert-file and --client-tls-key-file must be specified together",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var configure func(config.Root)
+			if tc.configure != nil {
+				configure = func(cfg config.Root) {
+					tc.configure(t, cfg)
+				}
+			}
+
+			serverURL, transport, err, runErr := run(t, configure, tc.args...)
+			if tc.wantRunErr != "" {
+				require.ErrorContains(t, runErr, tc.wantRunErr)
+				return
+			}
+			require.NoError(t, runErr)
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tc.wantURL, serverURL)
+			require.Equal(t, tc.wantTransport, transport != nil)
+			if tc.checkTransport != nil {
+				tc.checkTransport(t, transport)
+			}
+		})
+	}
 }
 
 func TestRoot(t *testing.T) {
@@ -164,9 +311,9 @@ func TestRoot(t *testing.T) {
 		t.Parallel()
 
 		var url string
-		var called int64
+		var called atomic.Int64
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			atomic.AddInt64(&called, 1)
+			called.Add(1)
 			assert.Equal(t, "wow", r.Header.Get("X-Testing"))
 			assert.Equal(t, "Dean was Here!", r.Header.Get("Cool-Header"))
 			assert.Equal(t, "very-wow-"+url, r.Header.Get("X-Process-Testing"))
@@ -193,7 +340,7 @@ func TestRoot(t *testing.T) {
 		err := inv.Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "unexpected status code 410")
-		require.EqualValues(t, 1, atomic.LoadInt64(&called), "called exactly once")
+		require.EqualValues(t, 1, called.Load(), "called exactly once")
 	})
 }
 
@@ -217,7 +364,7 @@ func TestDERPHeaders(t *testing.T) {
 	t.Cleanup(func() {
 		_ = provisionerCloser.Close()
 	})
-	client := codersdk.New(serverURL)
+	client := codersdk.New(serverURL, codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(serverURL)))
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
@@ -238,7 +385,7 @@ func TestDERPHeaders(t *testing.T) {
 			"Cool-Header":       "Dean was Here!",
 			"X-Process-Testing": "very-wow",
 		}
-		derpCalled int64
+		derpCalled atomic.Int64
 	)
 	setHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/derp") {
@@ -252,7 +399,7 @@ func TestDERPHeaders(t *testing.T) {
 			if ok {
 				// Only increment if all the headers are set, because the agent
 				// calls derp also.
-				atomic.AddInt64(&derpCalled, 1)
+				derpCalled.Add(1)
 			}
 		}
 
@@ -275,10 +422,7 @@ func TestDERPHeaders(t *testing.T) {
 	}
 	inv, root := clitest.New(t, args...)
 	clitest.SetupConfig(t, member, root)
-	pty := ptytest.New(t)
-	inv.Stdin = pty.Input()
-	inv.Stderr = pty.Output()
-	inv.Stdout = pty.Output()
+	stdout := expecter.NewAttachedToInvocation(t, inv)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	cmdDone := tGo(t, func() {
@@ -286,10 +430,10 @@ func TestDERPHeaders(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	pty.ExpectMatch("pong from " + workspace.Name)
+	stdout.ExpectMatch(ctx, "pong from "+workspace.Name)
 	<-cmdDone
 
-	require.Greater(t, atomic.LoadInt64(&derpCalled), int64(0), "expected /derp to be called at least once")
+	require.Greater(t, derpCalled.Load(), int64(0), "expected /derp to be called at least once")
 }
 
 func TestHandlersOK(t *testing.T) {

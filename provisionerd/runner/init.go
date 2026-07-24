@@ -19,14 +19,17 @@ func (r *Runner) init(ctx context.Context, omitModules bool, templateArchive []b
 	// If `moduleTar` is populated, `init` will send it over in multiple parts. This
 	// It must be called before the initial request to populate the correct hash if
 	// there is data to send. This is safe to call on nil or empty slices.
-	data, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleTar)
+	data, chunks, err := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleTar)
+	if err != nil {
+		return nil, r.failedJobf("prepare module files upload: %v", err)
+	}
 
 	hash := []byte{}
 	if len(moduleTar) > 0 {
 		hash = data.DataHash
 	}
 
-	err := r.session.Send(&sdkproto.Request{Type: &sdkproto.Request_Init{Init: &sdkproto.InitRequest{
+	err = r.session.Send(&sdkproto.Request{Type: &sdkproto.Request_Init{Init: &sdkproto.InitRequest{
 		TemplateSourceArchive: templateArchive,
 		OmitModuleFiles:       omitModules,
 		InitialModuleTarHash:  hash,

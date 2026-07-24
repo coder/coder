@@ -16,57 +16,28 @@ import {
 	type PropsWithChildren,
 	type ReactNode,
 	useEffect,
-	useMemo,
-	useState,
 } from "react";
 import { useQuery } from "react-query";
 import { appearanceSettings } from "#/api/queries/users";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
-import themes, {
-	baseModeFor,
-	CONCRETE_THEMES,
-	DEFAULT_THEME,
-	resolveThemeName,
-	type Theme,
-} from "#/theme";
+import themes, { baseModeFor, CONCRETE_THEMES, type Theme } from "#/theme";
+import {
+	migrateLegacyPreference,
+	resolveActiveThemeName,
+} from "#/theme/themeMode";
+import { usePreferredColorScheme } from "#/theme/usePreferredColorScheme";
 
 export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	const { metadata } = useEmbeddedMetadata();
 	const appearanceSettingsQuery = useQuery(
 		appearanceSettings(metadata.userAppearance),
 	);
-	const themeQuery = useMemo(
-		() => window.matchMedia?.("(prefers-color-scheme: light)"),
-		[],
-	);
-	const [preferredColorScheme, setPreferredColorScheme] = useState<
-		"dark" | "light"
-	>(themeQuery?.matches ? "light" : "dark");
+	const preferredColorScheme = usePreferredColorScheme();
 
-	useEffect(() => {
-		if (!themeQuery) {
-			return;
-		}
-
-		const listener = (event: MediaQueryListEvent) => {
-			setPreferredColorScheme(event.matches ? "light" : "dark");
-		};
-
-		// `addEventListener` here is a recent API that isn't mocked in tests.
-		themeQuery.addEventListener?.("change", listener);
-		return () => {
-			themeQuery.removeEventListener?.("change", listener);
-		};
-	}, [themeQuery]);
-
-	// We might not be logged in yet, or the `theme_preference` could be an
-	// empty string. Prefer the JS-fetched value, fall back to the
-	// server-rendered meta tag, then to DEFAULT_THEME.
-	const storedPreference =
-		appearanceSettingsQuery.data?.theme_preference ||
-		metadata.userAppearance?.value?.theme_preference ||
-		DEFAULT_THEME;
-	const concreteName = resolveThemeName(storedPreference, preferredColorScheme);
+	const settings =
+		appearanceSettingsQuery.data ?? metadata.userAppearance?.value ?? {};
+	const state = migrateLegacyPreference(settings);
+	const concreteName = resolveActiveThemeName(state, preferredColorScheme);
 
 	useEffect(() => {
 		const root = document.documentElement;

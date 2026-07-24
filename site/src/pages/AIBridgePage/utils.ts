@@ -18,20 +18,25 @@ export const getProviderDisplayName = (provider: string) => {
 			return "Anthropic";
 		case "openai":
 			return "OpenAI";
+		case "google":
+			return "Google";
+		case "azure":
+			return "Azure OpenAI";
+		case "bedrock":
+			return "AWS Bedrock";
 		case "copilot":
-			return "Github";
-		default:
-			return "Unknown";
+			return "GitHub Copilot";
+		case "openai-compat":
+			return "OpenAI-compatible";
+		case "openrouter":
+			return "OpenRouter";
+		case "vercel":
+			return "Vercel";
+		default: {
+			if (!provider) {
+				return "Unknown";
+			}
+			return provider.charAt(0).toUpperCase() + provider.slice(1);
+		}
 	}
-};
-
-// FIXME the current AIBridgeProviderIcon uses the claude icon for the
-// anthropic provider. while it's still in use in the RequestLogsPage, we need
-// to hack around it here, but when we delete that page, we can just swap the
-// icon
-export const getProviderIconName = (provider: string) => {
-	if (provider === "anthropic") {
-		return "anthropic-neue";
-	}
-	return provider;
 };

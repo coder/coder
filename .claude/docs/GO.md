@@ -1,9 +1,58 @@
-# Modern Go (1.18–1.26)
+# Modern Go (1.18-1.26)
 
 Reference for writing idiomatic Go. Covers what changed, what it
 replaced, and what to reach for. Respect the project's `go.mod` `go`
 line: don't emit features from a version newer than what the module
 declares. Check `go.mod` before writing code.
+
+## Go LSP Navigation
+
+Use Go LSP tools first for backend code navigation:
+
+- **Find definitions**: `mcp__go-language-server__definition symbolName`
+- **Find references**: `mcp__go-language-server__references symbolName`
+- **Get type info**: `mcp__go-language-server__hover filePath line column`
+- **Rename symbol**: `mcp__go-language-server__rename_symbol filePath line column newName`
+
+## Code Comments
+
+Code comments should be clear, well-formatted, and add meaningful context.
+
+- Comments are sentences and should end with periods or other appropriate
+  punctuation.
+- Explain why, not what. The code itself should be self-documenting
+  through clear naming and structure. Focus comments on non-obvious
+  decisions, edge cases, or business logic.
+- Keep comment lines to 80 characters wide, including the comment prefix
+  like `//` or `#`. When a comment spans multiple lines, wrap it
+  naturally at word boundaries.
+
+```go
+// Good: Explains the rationale with proper sentence structure.
+// We need a custom timeout here because workspace builds can take several
+// minutes on slow networks, and the default 30s timeout causes false
+// failures during initial template imports.
+ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+
+// Bad: Describes what the code does without punctuation or wrapping.
+// Set a custom timeout
+// Workspace builds can take a long time
+// Default timeout is too short
+ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+```
+
+## Avoid Unnecessary Changes
+
+When fixing a bug or adding a feature, don't modify code unrelated to your
+task. Unnecessary changes make PRs harder to review and can introduce
+regressions.
+
+- Don't reword existing comments or code unless the change is directly
+  motivated by your task.
+- Don't delete existing comments that explain non-obvious behavior.
+- When adding tests for new behavior, read existing tests first to
+  understand what's covered. Add new cases for uncovered behavior. Edit
+  existing tests as needed, but don't change what they verify.
 
 ## How modern Go thinks differently
 
@@ -24,7 +73,7 @@ etc., they replace ad-hoc "loop and append" code with composable,
 lazy pipelines. When a sequence is consumed only once, prefer an
 iterator over materializing a slice.
 
-**Error trees** (1.20–1.26): Errors compose as trees, not chains.
+**Error trees** (1.20-1.26): Errors compose as trees, not chains.
 `errors.Join` aggregates multiple errors. `fmt.Errorf` accepts multiple
 `%w` verbs. `errors.Is`/`As` traverse the full tree. Custom error
 types that wrap multiple causes must implement `Unwrap() []error` (the
@@ -43,69 +92,69 @@ The left column reflects common patterns from pre-1.22 Go. Write the
 right column instead. The "Since" column tells you the minimum `go`
 directive version required in `go.mod`.
 
-| Old pattern | Modern replacement | Since |
-|---|---|---|
-| `interface{}` | `any` | 1.18 |
-| `v := v` inside loops | remove it | 1.22 |
-| `for i := 0; i < n; i++` | `for i := range n` | 1.22 |
-| `for i := 0; i < b.N; i++` (benchmarks) | `for b.Loop()` (correct timing, future-proof) | 1.24 |
-| `sort.Slice(s, func(i,j int) bool{…})` | `slices.SortFunc(s, cmpFn)` | 1.21 |
-| `wg.Add(1); go func(){ defer wg.Done(); … }()` | `wg.Go(func(){…})` | 1.25 |
-| `func ptr[T any](v T) *T { return &v }` | `new(expr)` e.g. `new(time.Now())` | 1.26 |
-| `var target *E; errors.As(err, &target)` | `t, ok := errors.AsType[*E](err)` | 1.26 |
-| Custom multi-error type | `errors.Join(err1, err2, …)` | 1.20 |
-| Single `%w` for multiple causes | `fmt.Errorf("…: %w, %w", e1, e2)` | 1.20 |
-| `rand.Seed(time.Now().UnixNano())` | delete it (auto-seeded); prefer `math/rand/v2` | 1.20/1.22 |
-| `sync.Once` + captured variable | `sync.OnceValue(func() T {…})` / `OnceValues` | 1.21 |
-| Custom `min`/`max` helpers | `min(a, b)` / `max(a, b)` builtins (any ordered type) | 1.21 |
-| `for k := range m { delete(m, k) }` | `clear(m)` (also zeroes slices) | 1.21 |
-| Index+slice or `SplitN(s, sep, 2)` | `strings.Cut(s, sep)` / `bytes.Cut` | 1.18 |
-| `TrimPrefix` + check if anything was trimmed | `strings.CutPrefix` / `CutSuffix` (returns ok bool) | 1.20 |
-| `strings.Split` + loop when no slice is needed | `strings.SplitSeq` / `Lines` / `FieldsSeq` (iterator, no alloc) | 1.24 |
-| `"2006-01-02"` / `"2006-01-02 15:04:05"` / `"15:04:05"` | `time.DateOnly` / `time.DateTime` / `time.TimeOnly` | 1.20 |
-| Manual `Before`/`After`/`Equal` chains for comparison | `time.Time.Compare` (returns -1/0/+1; works with `slices.SortFunc`) | 1.20 |
-| Loop collecting map keys into slice | `slices.Sorted(maps.Keys(m))` | 1.23 |
-| `fmt.Sprintf` + append to `[]byte` | `fmt.Appendf(buf, …)` (also `Append`, `Appendln`) | 1.18 |
-| `reflect.TypeOf((*T)(nil)).Elem()` | `reflect.TypeFor[T]()` | 1.22 |
-| `*(*[4]byte)(slice)` unsafe cast | `[4]byte(slice)` direct conversion | 1.20 |
-| `atomic.LoadInt64` / `StoreInt64` | `atomic.Int64` (also `Bool`, `Uint64`, `Pointer[T]`) | 1.19 |
-| `crypto/rand.Read(buf)` + hex/base64 encode | `crypto/rand.Text()` (one call) | 1.24 |
-| Checking `crypto/rand.Read` error | don't: return is always nil | 1.24 |
-| `time.Sleep` in tests | `testing/synctest` (deterministic fake clock) | 1.24/1.25 |
-| `json:",omitempty"` on zero-value structs like `time.Time{}` | `json:",omitzero"` (uses `IsZero()` method) | 1.24 |
-| `strings.Title` | `golang.org/x/text/cases` | 1.18 |
-| `net.IP` in new code | `net/netip.Addr` (immutable, comparable, lighter) | 1.18 |
-| `tools.go` with blank imports | `tool` directive in `go.mod` | 1.24 |
-| `runtime.SetFinalizer` | `runtime.AddCleanup` (multiple per object, no pointer cycles) | 1.24 |
-| `httputil.ReverseProxy.Director` | `.Rewrite` hook + `ProxyRequest` (Director deprecated in 1.26) | 1.20 |
-| `sql.NullString`, `sql.NullInt64`, etc. | `sql.Null[T]` | 1.22 |
-| Manual `ctx, cancel := context.WithCancel(…)` + `t.Cleanup(cancel)` | `t.Context()` (auto-canceled when test ends) | 1.24 |
-| `if d < 0 { d = -d }` on durations | `d.Abs()` (handles `math.MinInt64`) | 1.19 |
-| Implement only `TextMarshaler` | also implement `TextAppender` for alloc-free marshaling | 1.24 |
-| Custom `Unwrap() error` on multi-cause errors | `Unwrap() []error` (slice form; required for tree traversal) | 1.20 |
+| Old pattern                                                         | Modern replacement                                                      | Since     |
+|---------------------------------------------------------------------|-------------------------------------------------------------------------|-----------|
+| `interface{}`                                                       | `any`                                                                   | 1.18      |
+| `v := v` inside loops                                               | remove it                                                               | 1.22      |
+| `for i := 0; i < n; i++`                                            | `for i := range n`                                                      | 1.22      |
+| `for i := 0; i < b.N; i++` (benchmarks)                             | `for b.Loop()` (correct timing, future-proof)                           | 1.24      |
+| `sort.Slice(s, func(i,j int) bool{…})`                              | `slices.SortFunc(s, cmpFn)`                                             | 1.21      |
+| `wg.Add(1); go func(){ defer wg.Done(); … }()`                      | `wg.Go(func(){…})`                                                      | 1.25      |
+| `func ptr[T any](v T) *T { return &v }`                             | `new(expr)` e.g. `new(time.Now())`                                      | 1.26      |
+| `var target *E; errors.As(err, &target)`                            | `t, ok := errors.AsType[*E](err)`                                       | 1.26      |
+| Custom multi-error type                                             | `errors.Join(err1, err2, …)`                                            | 1.20      |
+| Single `%w` for multiple causes                                     | `fmt.Errorf("…: %w, %w", e1, e2)`                                       | 1.20      |
+| `rand.Seed(time.Now().UnixNano())`                                  | delete it (auto-seeded); prefer `math/rand/v2`                          | 1.20/1.22 |
+| `sync.Once` + captured variable                                     | `sync.OnceValue(func() T {…})` / `OnceValues`                           | 1.21      |
+| Custom `min`/`max` helpers                                          | `min(a, b)` / `max(a, b)` builtins (any ordered type)                   | 1.21      |
+| `for k := range m { delete(m, k) }`                                 | `clear(m)` (also zeroes slices)                                         | 1.21      |
+| Index+slice or `SplitN(s, sep, 2)`                                  | `strings.Cut(s, sep)` / `bytes.Cut`                                     | 1.18      |
+| `TrimPrefix` + check if anything was trimmed                        | `strings.CutPrefix` / `CutSuffix` (returns ok bool)                     | 1.20      |
+| `strings.Split` + loop when no slice is needed                      | `strings.SplitSeq` / `Lines` / `FieldsSeq` (iterator, no alloc)         | 1.24      |
+| `"2006-01-02"` / `"2006-01-02 15:04:05"` / `"15:04:05"`             | `time.DateOnly` / `time.DateTime` / `time.TimeOnly`                     | 1.20      |
+| Manual `Before`/`After`/`Equal` chains for comparison               | `time.Time.Compare` (returns -1/0/+1; works with `slices.SortFunc`)     | 1.20      |
+| Loop collecting map keys into slice                                 | `slices.Sorted(maps.Keys(m))`                                           | 1.23      |
+| `fmt.Sprintf` + append to `[]byte`                                  | `fmt.Appendf(buf, …)` (also `Append`, `Appendln`)                       | 1.18      |
+| `reflect.TypeOf((*T)(nil)).Elem()`                                  | `reflect.TypeFor[T]()`                                                  | 1.22      |
+| `*(*[4]byte)(slice)` unsafe cast                                    | `[4]byte(slice)` direct conversion                                      | 1.20      |
+| `atomic.LoadInt64` / `AddInt64` / `StoreInt64` etc.                 | `atomic.Int64` (also `Int32`, `Uint32`, `Uint64`, `Bool`, `Pointer[T]`) | 1.19      |
+| `crypto/rand.Read(buf)` + hex/base64 encode                         | `crypto/rand.Text()` (one call)                                         | 1.24      |
+| Checking `crypto/rand.Read` error                                   | don't: return is always nil                                             | 1.24      |
+| `time.Sleep` in tests                                               | `testing/synctest` (deterministic fake clock)                           | 1.24/1.25 |
+| `json:",omitempty"` on zero-value structs like `time.Time{}`        | `json:",omitzero"` (uses `IsZero()` method)                             | 1.24      |
+| `strings.Title`                                                     | `golang.org/x/text/cases`                                               | 1.18      |
+| `net.IP` in new code                                                | `net/netip.Addr` (immutable, comparable, lighter)                       | 1.18      |
+| `tools.go` with blank imports                                       | `tool` directive in `go.mod`                                            | 1.24      |
+| `runtime.SetFinalizer`                                              | `runtime.AddCleanup` (multiple per object, no pointer cycles)           | 1.24      |
+| `httputil.ReverseProxy.Director`                                    | `.Rewrite` hook + `ProxyRequest` (Director deprecated in 1.26)          | 1.20      |
+| `sql.NullString`, `sql.NullInt64`, etc.                             | `sql.Null[T]`                                                           | 1.22      |
+| Manual `ctx, cancel := context.WithCancel(…)` + `t.Cleanup(cancel)` | `t.Context()` (auto-canceled when test ends)                            | 1.24      |
+| `if d < 0 { d = -d }` on durations                                  | `d.Abs()` (handles `math.MinInt64`)                                     | 1.19      |
+| Implement only `TextMarshaler`                                      | also implement `TextAppender` for alloc-free marshaling                 | 1.24      |
+| Custom `Unwrap() error` on multi-cause errors                       | `Unwrap() []error` (slice form; required for tree traversal)            | 1.20      |
 
 ## New capabilities
 
 These enable things that weren't practical before. Reach for them in the
 described situations.
 
-| What | Since | When to use it |
-|---|---|---|
-| `cmp.Or(a, b, c)` | 1.22 | Defaults/fallback chains: returns first non-zero value. Replaces verbose `if a != "" { return a }` cascades. |
-| `context.WithoutCancel(ctx)` | 1.21 | Background work that must outlive the request (e.g. async cleanup after HTTP response). Derived context keeps parent's values but ignores cancellation. |
-| `context.AfterFunc(ctx, fn)` | 1.21 | Register cleanup that fires on context cancellation without spawning a goroutine that blocks on `<-ctx.Done()`. |
-| `context.WithCancelCause` / `Cause` | 1.20 | When callers need to know WHY a context was canceled, not just that it was. Retrieve cause with `context.Cause(ctx)`. |
-| `context.WithDeadlineCause` / `WithTimeoutCause` | 1.21 | Attach a domain-specific error to deadline/timeout expiry (e.g. distinguish "DB query timed out" from "HTTP request timed out"). |
-| `errors.ErrUnsupported` | 1.21 | Standard sentinel for "not supported." Use instead of per-package custom sentinels. Check with `errors.Is`. |
-| `http.ResponseController` | 1.20 | Per-request flush, hijack, and deadline control without type-asserting `ResponseWriter` to `http.Flusher` or `http.Hijacker`. |
-| Enhanced `ServeMux` routing | 1.22 | `"GET /items/{id}"` patterns in `http.ServeMux`. Access with `r.PathValue("id")`. Wildcards: `{name}`, catch-all: `{path...}`, exact: `{$}`. Eliminates many third-party router dependencies. |
-| `os.Root` / `OpenRoot` | 1.24 | Confined directory access that prevents symlink escape. 1.25 adds `MkdirAll`, `ReadFile`, `WriteFile` for real use. |
-| `os.CopyFS` | 1.23 | Copy an entire `fs.FS` to local filesystem in one call. |
-| `os/signal.NotifyContext` with cause | 1.26 | Cancellation cause identifies which signal (SIGTERM vs SIGINT) triggered shutdown. |
-| `io/fs.SkipAll` / `filepath.SkipAll` | 1.20 | Return from `WalkDir` callback to stop walking entirely. Cleaner than a sentinel error. |
-| `GOMEMLIMIT` env / `debug.SetMemoryLimit` | 1.19 | Soft memory limit for GC. Use alongside or instead of `GOGC` in memory-constrained containers. |
-| `net/url.JoinPath` | 1.19 | Join URL path segments correctly. Replaces error-prone string concatenation. |
-| `go test -skip` | 1.20 | Skip tests matching a pattern. Useful when running a subset of a large test suite. |
+| What                                             | Since | When to use it                                                                                                                                                                                |
+|--------------------------------------------------|-------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `cmp.Or(a, b, c)`                                | 1.22  | Defaults/fallback chains: returns first non-zero value. Replaces verbose `if a != "" { return a }` cascades.                                                                                  |
+| `context.WithoutCancel(ctx)`                     | 1.21  | Background work that must outlive the request (e.g. async cleanup after HTTP response). Derived context keeps parent's values but ignores cancellation.                                       |
+| `context.AfterFunc(ctx, fn)`                     | 1.21  | Register cleanup that fires on context cancellation without spawning a goroutine that blocks on `<-ctx.Done()`.                                                                               |
+| `context.WithCancelCause` / `Cause`              | 1.20  | When callers need to know WHY a context was canceled, not just that it was. Retrieve cause with `context.Cause(ctx)`.                                                                         |
+| `context.WithDeadlineCause` / `WithTimeoutCause` | 1.21  | Attach a domain-specific error to deadline/timeout expiry (e.g. distinguish "DB query timed out" from "HTTP request timed out").                                                              |
+| `errors.ErrUnsupported`                          | 1.21  | Standard sentinel for "not supported." Use instead of per-package custom sentinels. Check with `errors.Is`.                                                                                   |
+| `http.ResponseController`                        | 1.20  | Per-request flush, hijack, and deadline control without type-asserting `ResponseWriter` to `http.Flusher` or `http.Hijacker`.                                                                 |
+| Enhanced `ServeMux` routing                      | 1.22  | `"GET /items/{id}"` patterns in `http.ServeMux`. Access with `r.PathValue("id")`. Wildcards: `{name}`, catch-all: `{path...}`, exact: `{$}`. Eliminates many third-party router dependencies. |
+| `os.Root` / `OpenRoot`                           | 1.24  | Confined directory access that prevents symlink escape. 1.25 adds `MkdirAll`, `ReadFile`, `WriteFile` for real use.                                                                           |
+| `os.CopyFS`                                      | 1.23  | Copy an entire `fs.FS` to local filesystem in one call.                                                                                                                                       |
+| `os/signal.NotifyContext` with cause             | 1.26  | Cancellation cause identifies which signal (SIGTERM vs SIGINT) triggered shutdown.                                                                                                            |
+| `io/fs.SkipAll` / `filepath.SkipAll`             | 1.20  | Return from `WalkDir` callback to stop walking entirely. Cleaner than a sentinel error.                                                                                                       |
+| `GOMEMLIMIT` env / `debug.SetMemoryLimit`        | 1.19  | Soft memory limit for GC. Use alongside or instead of `GOGC` in memory-constrained containers.                                                                                                |
+| `net/url.JoinPath`                               | 1.19  | Join URL path segments correctly. Replaces error-prone string concatenation.                                                                                                                  |
+| `go test -skip`                                  | 1.20  | Skip tests matching a pattern. Useful when running a subset of a large test suite.                                                                                                            |
 
 ## Key packages
 

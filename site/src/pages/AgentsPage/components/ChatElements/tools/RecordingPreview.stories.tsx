@@ -9,13 +9,6 @@ const TINY_THUMBNAIL = "/tiny-thumbnail.png";
 const meta: Meta<typeof RecordingPreview> = {
 	title: "pages/AgentsPage/ChatElements/tools/RecordingPreview",
 	component: RecordingPreview,
-	decorators: [
-		(Story) => (
-			<div className="max-w-3xl rounded-lg border border-solid border-border-default bg-surface-primary p-4">
-				<Story />
-			</div>
-		),
-	],
 };
 
 export default meta;

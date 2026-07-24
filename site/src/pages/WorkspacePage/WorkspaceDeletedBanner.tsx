@@ -1,23 +1,28 @@
 import type { FC } from "react";
+import { Link as RouterLink } from "react-router";
 import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 
 interface WorkspaceDeletedBannerProps {
-	handleClick: () => void;
+	createWorkspaceLink: string;
+	templateName: string;
 }
 
 export const WorkspaceDeletedBanner: FC<WorkspaceDeletedBannerProps> = ({
-	handleClick,
+	createWorkspaceLink,
+	templateName,
 }) => {
-	const NewWorkspaceButton = (
-		<Button onClick={handleClick} size="sm">
-			Create new workspace
+	const createWorkspaceButton = (
+		<Button asChild size="sm">
+			<RouterLink to={createWorkspaceLink}>
+				Create another from {templateName}
+			</RouterLink>
 		</Button>
 	);
 
 	return (
-		<Alert severity="warning" prominent actions={NewWorkspaceButton}>
-			This workspace has been deleted and cannot be edited.
+		<Alert severity="warning" prominent actions={createWorkspaceButton}>
+			This workspace has been deleted.
 		</Alert>
 	);
 };

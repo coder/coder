@@ -17,7 +17,11 @@ ordinary users for specific templates without granting them the site-wide role
 of `Template Admin`.
 
 By default the `Everyone` group is assigned to each template meaning any Coder
-user can use the template to create a workspace. To prevent this, disable the
-`Allow everyone to use the template` setting when creating a template.
+user can use the template to create a workspace. This access can be revoked
+via the actions menu button to the right hand side of each group entry.
 
-![Create Template Permissions](../../images/templates/create-template-permissions.png)
+> [!WARNING]
+> If a user's only access to a template is through a group and they lose that
+> access (for example, by being removed from the group or by removing the group
+> from the template's permissions), they cannot start or stop workspaces created
+> from that template.

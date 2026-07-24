@@ -22,10 +22,10 @@ const adminSettings = [
 ] as const;
 
 async function hasAccessToAdminSettings(page: Page, settings: AdminSetting[]) {
-	// Organizations and Audit Logs both require a license to be visible
+	// Audit Logs requires a license to be visible
 	const visibleSettings = license
 		? settings
-		: settings.filter((it) => it !== "Organizations" && it !== "Audit Logs");
+		: settings.filter((it) => it !== "Audit Logs");
 	const adminSettingsButton = page.getByRole("button", {
 		name: "Admin settings",
 	});

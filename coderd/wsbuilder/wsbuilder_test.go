@@ -1059,10 +1059,10 @@ func TestWorkspaceBuildUsageChecker(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		var calls int64
+		var calls atomic.Int64
 		fakeUsageChecker := &fakeUsageChecker{
 			checkBuildUsageFunc: func(_ context.Context, _ database.Store, _ *database.TemplateVersion, _ *database.Task, _ database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
-				atomic.AddInt64(&calls, 1)
+				calls.Add(1)
 				return wsbuilder.UsageCheckResponse{Permitted: true}, nil
 			},
 		}
@@ -1095,7 +1095,7 @@ func TestWorkspaceBuildUsageChecker(t *testing.T) {
 		// nolint: dogsled
 		_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 		require.NoError(t, err)
-		require.EqualValues(t, 1, calls)
+		require.EqualValues(t, 1, calls.Load())
 	})
 
 	// The failure cases are mostly identical from a test perspective.
@@ -1137,10 +1137,10 @@ func TestWorkspaceBuildUsageChecker(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			var calls int64
+			var calls atomic.Int64
 			fakeUsageChecker := &fakeUsageChecker{
 				checkBuildUsageFunc: func(_ context.Context, _ database.Store, _ *database.TemplateVersion, _ *database.Task, _ database.WorkspaceTransition) (wsbuilder.UsageCheckResponse, error) {
-					atomic.AddInt64(&calls, 1)
+					calls.Add(1)
 					return c.response, c.responseErr
 				},
 			}
@@ -1158,7 +1158,7 @@ func TestWorkspaceBuildUsageChecker(t *testing.T) {
 			// nolint: dogsled
 			_, _, _, err := uut.Build(ctx, mDB, fc, nil, audit.WorkspaceBuildBaggage{})
 			c.assertions(t, err)
-			require.EqualValues(t, 1, calls)
+			require.EqualValues(t, 1, calls.Load())
 		})
 	}
 }
@@ -1513,7 +1513,9 @@ func expectUpdateProvisionerJobWithCompleteWithStartedAtByID(assertions func(par
 }
 
 // expectUpdateWorkspaceDeletedByID asserts a call to UpdateWorkspaceDeletedByID
-// and runs the provided assertions against it.
+// and runs the provided assertions against it. It also expects the follow-up
+// SoftDeleteWorkspaceAgentsByWorkspaceID call that wsbuilder.Builder.Build now
+// issues inside the same orphan-delete transaction.
 func expectUpdateWorkspaceDeletedByID(assertions func(params database.UpdateWorkspaceDeletedByIDParams)) func(mTx *dbmock.MockStore) {
 	return func(mTx *dbmock.MockStore) {
 		mTx.EXPECT().UpdateWorkspaceDeletedByID(gomock.Any(), gomock.Any()).
@@ -1524,6 +1526,9 @@ func expectUpdateWorkspaceDeletedByID(assertions func(params database.UpdateWork
 					return nil
 				},
 			)
+		mTx.EXPECT().SoftDeleteWorkspaceAgentsByWorkspaceID(gomock.Any(), gomock.Any()).
+			Times(1).
+			Return(nil)
 	}
 }
 

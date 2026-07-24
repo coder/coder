@@ -3,6 +3,7 @@ package httpmw
 import (
 	"fmt"
 	"net/http"
+	"path"
 	"strconv"
 	"sync/atomic"
 	"time"
@@ -85,13 +86,28 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 				"%q provided but user is not %v",
 				codersdk.BypassRatelimitHeader, rbac.RoleOwner(),
 			)
-		}, httprate.KeyByEndpoint),
+		}, keyByNormalizedEndpoint),
 		httprate.WithLimitHandler(func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(r.Context(), w, http.StatusTooManyRequests, codersdk.Response{
 				Message: fmt.Sprintf("You've been rate limited for sending more than %v requests in %v.", count, window),
 			})
 		}),
 	)
+}
+
+// keyByNormalizedEndpoint mirrors httprate.KeyByEndpoint, but cleans the
+// request path first. chi's router tolerates redundant slashes (see
+// singleSlashMW in coderd.go) and routes them to the same handler as the
+// canonical path, but only normalizes its internal route-matching path,
+// not r.URL.Path. Without normalizing here too, a client can respell a
+// path, for example inserting an extra slash, to get a fresh rate-limit
+// bucket for an endpoint it's already been throttled on.
+func keyByNormalizedEndpoint(r *http.Request) (string, error) {
+	p := r.URL.Path
+	if p == "" {
+		p = "/"
+	}
+	return path.Clean(p), nil
 }
 
 // RateLimitByAuthToken returns a handler that limits requests based on the

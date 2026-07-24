@@ -407,7 +407,7 @@ func (failingHealthcheck) Ping(context.Context) (time.Duration, error) {
 
 type wrappedListener struct {
 	net.Listener
-	dials int32
+	dials atomic.Int32
 }
 
 func (w *wrappedListener) Accept() (net.Conn, error) {
@@ -416,12 +416,12 @@ func (w *wrappedListener) Accept() (net.Conn, error) {
 		return nil, err
 	}
 
-	atomic.AddInt32(&w.dials, 1)
+	w.dials.Add(1)
 	return conn, nil
 }
 
 func (w *wrappedListener) getDials() int {
-	return int(atomic.LoadInt32(&w.dials))
+	return int(w.dials.Load())
 }
 
 type agentWithID struct {

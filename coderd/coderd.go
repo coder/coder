@@ -3,7 +3,6 @@ package coderd
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"database/sql"
 	_ "embed"
 	"errors"
@@ -46,11 +45,14 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
+	"github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/aibridge/prices"
 	"github.com/coder/coder/v2/coderd/aiseats"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
+	"github.com/coder/coder/v2/coderd/azureidentity"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
@@ -91,9 +93,12 @@ import (
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/workspaceconnwatcher"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/coderd/wsbuildorchestrator"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
@@ -159,7 +164,10 @@ type Options struct {
 	Logger           slog.Logger
 	Database         database.Store
 	Pubsub           pubsub.Pubsub
-	RuntimeConfig    *runtimeconfig.Manager
+	// ReplicaSyncPubsub is used explicitly to instantiate the replicasync manager downstream if it exists.
+	// All other consumers of pubsub should reference Options.Pubsub.
+	ReplicaSyncPubsub pubsub.Pubsub
+	RuntimeConfig     *runtimeconfig.Manager
 
 	// CacheDir is used for caching files served by the API.
 	CacheDir string
@@ -171,7 +179,7 @@ type Options struct {
 	ChatdInstructionLookupTimeout  time.Duration
 	AWSCertificates                awsidentity.Certificates
 	Authorizer                     rbac.Authorizer
-	AzureCertificates              x509.VerifyOptions
+	AzureCertificates              azureidentity.Options
 	GoogleTokenValidator           *idtoken.Validator
 	GithubOAuth2Config             *GithubOAuth2Config
 	OIDCConfig                     *OIDCConfig
@@ -198,6 +206,13 @@ type Options struct {
 	TLSCertificates    []tls.Certificate
 	TailnetCoordinator tailnet.Coordinator
 	DERPServer         *derp.Server
+	// ClusterHost is this replica's routable cluster address (IP or hostname),
+	// resolved from DeploymentValues.Cluster.Host, falling back to the DERP
+	// relay host for older HA deployments that predate the setting. It is used
+	// as the NATS cluster route host and, when it is an IP, the cluster mTLS
+	// leaf IP SAN. It is consumed by the NATS pubsub (AGPL) and, under
+	// enterprise HA, by replicasync.
+	ClusterHost string
 	// BaseDERPMap is used as the base DERP map for all clients and agents.
 	// Proxies are added to this list.
 	BaseDERPMap                    *tailcfg.DERPMap
@@ -244,9 +259,16 @@ type Options struct {
 	SSHConfig codersdk.SSHConfigResponse
 
 	HTTPClient *http.Client
-	// ChatSubscribeFn provides cross-replica subscription merging.
-	// Set by enterprise for HA deployments. Nil in AGPL single-replica.
-	ChatSubscribeFn chatd.SubscribeFn
+	// ChatStreamPartsDialer dials remote chat stream parts.
+	// Set by enterprise for HA deployments. Nil uses chatd's local
+	// in-process channel dialer.
+	ChatStreamPartsDialer chatd.StreamPartsDialer
+	// ChatProviderAPIKeys overrides deployment-derived provider keys.
+	// Test harnesses use this to route chat models to local providers.
+	ChatProviderAPIKeys *chatprovider.ProviderAPIKeys
+	// ChatWorkerDisabled skips starting the chat daemon's background
+	// worker.
+	ChatWorkerDisabled bool
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
@@ -291,7 +313,15 @@ type Options struct {
 	AppSigningKeyCache    cryptokeys.SigningKeycache
 	AppEncryptionKeyCache cryptokeys.EncryptionKeycache
 	OIDCConvertKeyCache   cryptokeys.SigningKeycache
-	Clock                 quartz.Clock
+	// NATSCACache serves the NATS cluster mTLS CA via the generic signing key
+	// cache for the nats_ca feature. SigningKey returns the active CA
+	// (a *NATSCA); VerifyingKey returns a specific CA by sequence. The key
+	// rotator is the sole creator of nats_ca rows, so this cache is read-only.
+	NATSCACache cryptokeys.SigningKeycache
+	Clock       quartz.Clock
+	// Acquirer acquires provisioner jobs. Defaults to provisionerdserver.Acquirer
+	// backed by Database and Pubsub.
+	Acquirer *provisionerdserver.Acquirer
 
 	// WebPushDispatcher is a way to send notifications over Web Push.
 	WebPushDispatcher webpush.Dispatcher
@@ -311,6 +341,12 @@ type Options struct {
 
 // @BasePath /
 
+// @tag.name Agents
+// @tag.description Workspace agent endpoints. These power the workspace agent daemon defined by the `coder_agent` Terraform resource. This API is NOT the Coder Agents Chats API. For programmatic access to AI Coder Agents, see the Chats API.
+
+// @tag.name Chats
+// @tag.description Programmatic API for Coder Agents (the user-facing "Coder Agents" / "Chats" product). Use these endpoints to create, list, and manage AI coding agent sessions.
+
 // @securitydefinitions.apiKey Authorization
 // @in header
 // @name Authorizaiton
@@ -318,6 +354,10 @@ type Options struct {
 // @securitydefinitions.apiKey CoderSessionToken
 // @in header
 // @name Coder-Session-Token
+
+// @securitydefinitions.apiKey AIGatewayKey
+// @in header
+// @name X-AI-Governance-Gateway-Key
 // New constructs a Coder API handler.
 func New(options *Options) *API {
 	if options == nil {
@@ -338,15 +378,24 @@ func New(options *Options) *API {
 		panic("developer error: options.PrometheusRegistry is nil and not running a unit test")
 	}
 
-	if options.DeploymentValues.DisableOwnerWorkspaceExec || options.DeploymentValues.DisableWorkspaceSharing {
+	experiments := ReadExperiments(
+		options.Logger, options.DeploymentValues.Experiments.Value(),
+	)
+
+	if bool(options.DeploymentValues.DisableOwnerWorkspaceExec) || bool(options.DeploymentValues.DisableWorkspaceSharing) || bool(options.DeploymentValues.DisableChatSharing) || experiments.Enabled(codersdk.ExperimentMinimumImplicitMember) {
 		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
-			NoOwnerWorkspaceExec: bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
-			NoWorkspaceSharing:   bool(options.DeploymentValues.DisableWorkspaceSharing),
+			NoOwnerWorkspaceExec:  bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
+			NoWorkspaceSharing:    bool(options.DeploymentValues.DisableWorkspaceSharing),
+			NoChatSharing:         bool(options.DeploymentValues.DisableChatSharing),
+			MinimumImplicitMember: experiments.Enabled(codersdk.ExperimentMinimumImplicitMember),
 		})
 	}
 
 	if options.DeploymentValues.DisableWorkspaceSharing {
 		rbac.SetWorkspaceACLDisabled(true)
+	}
+	if options.DeploymentValues.DisableChatSharing {
+		rbac.SetChatACLDisabled(true)
 	}
 
 	if options.PrometheusRegistry == nil {
@@ -377,9 +426,6 @@ func New(options *Options) *API {
 		options.IDPSync = idpsync.NewAGPLSync(options.Logger, options.RuntimeConfig, idpsync.FromDeploymentValues(options.DeploymentValues))
 	}
 
-	experiments := ReadExperiments(
-		options.Logger, options.DeploymentValues.Experiments.Value(),
-	)
 	if options.AppHostname != "" && options.AppHostnameRegex == nil || options.AppHostname == "" && options.AppHostnameRegex != nil {
 		panic("coderd: both AppHostname and AppHostnameRegex must be set or unset")
 	}
@@ -577,10 +623,34 @@ func New(options *Options) *API {
 
 	updatesProvider := NewUpdatesProvider(options.Logger.Named("workspace_updates"), options.Pubsub, options.Database, options.Authorizer)
 
+	// The NATS cluster CA is only minted and served when NATS pubsub is in use.
+	// It is experiment-gated, so it is opted into rotation and backed by a real
+	// signing cache only when the experiment is enabled; otherwise the rotator
+	// leaves it alone and the cache is a noop, which still answers requests (the
+	// pubsub treats a missing CA as "mTLS off"). This avoids minting CA private
+	// keys on deployments that never run NATS clustering.
+	rotatedFeatures := cryptokeys.DefaultRotatedFeatures()
+	if experiments.Enabled(codersdk.ExperimentNATSPubsub) {
+		rotatedFeatures = append(rotatedFeatures, database.CryptoKeyFeatureNATSCA)
+	}
+
 	// Start a background process that rotates keys. We intentionally start this after the caches
 	// are created to force initial requests for a key to populate the caches. This helps catch
 	// bugs that may only occur when a key isn't precached in tests and the latency cost is minimal.
-	cryptokeys.StartRotator(ctx, options.Logger, options.Database)
+	cryptokeys.StartRotator(ctx, options.Logger, options.Database, cryptokeys.WithFeatures(rotatedFeatures))
+
+	// The NATS CA cache is read-only and depends on the rotator having minted
+	// the nats_ca CA, so it must be constructed after StartRotator.
+	if options.NATSCACache == nil {
+		if experiments.Enabled(codersdk.ExperimentNATSPubsub) {
+			options.NATSCACache, err = cryptokeys.NewSigningCache(ctx, options.Logger.Named("nats_ca_cache"), &cryptokeys.DBFetcher{DB: options.Database}, codersdk.CryptoKeyFeatureNATSCA)
+			if err != nil {
+				options.Logger.Fatal(ctx, "failed to instantiate NATS CA cache", slog.Error(err))
+			}
+		} else {
+			options.NATSCACache = cryptokeys.NoopSigningKeycache{}
+		}
+	}
 
 	// Ensure all system role permissions are current.
 	//nolint:gocritic // Startup reconciliation reads/writes system roles. There is
@@ -592,20 +662,34 @@ func New(options *Options) *API {
 		options.Logger.Fatal(ctx, "failed to reconcile system role permissions", slog.Error(err))
 	}
 
+	// Seed the AI Bridge model price table from the embedded price book.
+	//nolint:gocritic // Startup seeder needs to run as aibridge context.
+	if err := prices.Seed(dbauthz.AsAIBridged(ctx), options.Database); err != nil {
+		options.Logger.Error(ctx, "failed to seed AI Gateway prices; cost tracking may use stale prices", slog.Error(err))
+	}
+
 	// AGPL uses a no-op build usage checker as there are no license
 	// entitlements to enforce. This is swapped out in
 	// enterprise/coderd/coderd.go.
 	var buildUsageChecker atomic.Pointer[wsbuilder.UsageChecker]
 	var noopUsageChecker wsbuilder.UsageChecker = wsbuilder.NoopUsageChecker{}
 	buildUsageChecker.Store(&noopUsageChecker)
+	acquirer := options.Acquirer
+	if acquirer == nil {
+		acquirer = provisionerdserver.NewAcquirer(
+			ctx,
+			options.Logger.Named("acquirer"),
+			options.Database,
+			options.Pubsub,
+		)
+	}
 	api := &API{
 		ctx:          ctx,
 		cancel:       cancel,
 		DeploymentID: depID,
-
-		ID:          uuid.New(),
-		Options:     options,
-		RootHandler: r,
+		ID:           uuid.New(),
+		Options:      options,
+		RootHandler:  r,
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
@@ -624,15 +708,10 @@ func New(options *Options) *API {
 		Experiments:                 experiments,
 		WebpushDispatcher:           options.WebPushDispatcher,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
-		Acquirer: provisionerdserver.NewAcquirer(
-			ctx,
-			options.Logger.Named("acquirer"),
-			options.Database,
-			options.Pubsub,
-		),
-		dbRolluper:       options.DatabaseRolluper,
-		ProfileCollector: defaultProfileCollector{},
-		AISeatTracker:    aiseats.Noop{},
+		Acquirer:                    acquirer,
+		dbRolluper:                  options.DatabaseRolluper,
+		ProfileCollector:            defaultProfileCollector{},
+		AISeatTracker:               aiseats.Noop{},
 	}
 
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
@@ -679,6 +758,7 @@ func New(options *Options) *API {
 		Telemetry:         options.Telemetry,
 		Logger:            options.Logger.Named("site"),
 		HideAITasks:       options.DeploymentValues.HideAITasks.Value(),
+		AIGatewayEnabled:  options.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
 	})
 	if err != nil {
 		options.Logger.Fatal(ctx, "failed to initialize site handler", slog.Error(err))
@@ -741,8 +821,12 @@ func New(options *Options) *API {
 	}
 
 	var oidcAuthURLParams map[string]string
+	var oidcRedirectAllowedHosts []string
+	var oidcRedirectDefaultScheme string
 	if options.OIDCConfig != nil {
 		oidcAuthURLParams = options.OIDCConfig.AuthURLParams
+		oidcRedirectAllowedHosts = options.OIDCConfig.RedirectAllowedHosts
+		oidcRedirectDefaultScheme = options.OIDCConfig.RedirectDefaultScheme
 	}
 
 	api.Auditor.Store(&options.Auditor)
@@ -785,25 +869,44 @@ func New(options *Options) *API {
 				options.Logger.Named("mcp-user-oidc"),
 			)
 		}
-		api.chatDaemon = chatd.New(chatd.Config{
-			Logger:                         options.Logger.Named("chatd"),
-			Database:                       options.Database,
-			ReplicaID:                      api.ID,
-			SubscribeFn:                    options.ChatSubscribeFn,
-			MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
-			ProviderAPIKeys:                ChatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
-			AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
-			AgentConn:                      api.agentProvider.AgentConn,
-			AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
-			InstructionLookupTimeout:       options.ChatdInstructionLookupTimeout,
-			CreateWorkspace:                api.chatCreateWorkspace,
-			StartWorkspace:                 api.chatStartWorkspace,
-			Pubsub:                         options.Pubsub,
-			WebpushDispatcher:              options.WebPushDispatcher,
-			UsageTracker:                   options.WorkspaceUsageTracker,
-			PrometheusRegistry:             options.PrometheusRegistry,
-			OIDCTokenSource:                oidcMCPSrc,
-		}).Start()
+		providerAPIKeys := ChatProviderAPIKeysFromDeploymentValues(options.DeploymentValues)
+		if options.ChatProviderAPIKeys != nil {
+			providerAPIKeys = *options.ChatProviderAPIKeys
+		}
+
+		// AI Gateway is mandatory for chat. When the bridge is disabled
+		// the chat daemon stays nil and chat HTTP handlers return a
+		// service-unavailable error with a clear remediation message.
+		if options.DeploymentValues.AI.BridgeConfig.Enabled.Value() {
+			api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
+				Logger:                         options.Logger.Named("chatd"),
+				Database:                       options.Database,
+				ReplicaID:                      api.ID,
+				StreamPartsDialer:              options.ChatStreamPartsDialer,
+				MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
+				ProviderAPIKeys:                providerAPIKeys,
+				AllowBYOK:                      options.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
+				AllowBYOKSet:                   true,
+				AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
+				AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
+				Experiments:                    experiments,
+				AgentConn:                      api.agentProvider.AgentConn,
+				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
+				InstructionLookupTimeout:       options.ChatdInstructionLookupTimeout,
+				CreateWorkspace:                api.chatCreateWorkspace,
+				StartWorkspace:                 api.chatStartWorkspace,
+				StopWorkspace:                  api.chatStopWorkspace,
+				WebpushDispatcher:              options.WebPushDispatcher,
+				UsageTracker:                   options.WorkspaceUsageTracker,
+				PrometheusRegistry:             options.PrometheusRegistry,
+				OIDCTokenSource:                oidcMCPSrc,
+				NotificationsEnqueuer:          options.NotificationsEnqueuer,
+				Auditor:                        &api.Auditor,
+			})
+			if !options.ChatWorkerDisabled {
+				api.chatDaemon.Start()
+			}
+		}
 		gitSyncLogger := options.Logger.Named("gitsync")
 		refresher := gitsync.NewRefresher(
 			api.resolveGitProvider,
@@ -811,9 +914,10 @@ func New(options *Options) *API {
 			gitSyncLogger.Named("refresher"),
 			quartz.NewReal(),
 		)
+		publishDiffStatusChange := chatDaemonPublishDiffStatusChangeFunc(api.chatDaemon)
 		api.gitSyncWorker = gitsync.NewWorker(options.Database,
 			refresher,
-			api.chatDaemon.PublishDiffStatusChange,
+			publishDiffStatusChange,
 			quartz.NewReal(),
 			gitSyncLogger,
 		)
@@ -823,6 +927,7 @@ func New(options *Options) *API {
 	if options.DeploymentValues.Prometheus.Enable {
 		options.PrometheusRegistry.MustRegister(stn)
 		api.lifecycleMetrics = agentapi.NewLifecycleMetrics(options.PrometheusRegistry)
+		api.workspaceAgentRPCMetrics = NewWorkspaceAgentRPCMetrics(options.PrometheusRegistry, options.Logger)
 	}
 	api.NetworkTelemetryBatcher = tailnet.NewNetworkTelemetryBatcher(
 		quartz.NewReal(),
@@ -883,6 +988,9 @@ func New(options *Options) *API {
 		options.WorkspaceAppsStatsCollectorOptions.Reporter = api.statsReporter
 	}
 
+	wsMetrics := httpmw.NewWSMetrics(options.PrometheusRegistry)
+	api.wsWatcher = httpapi.NewWSWatcher(options.Clock, wsMetrics.RecordProbe)
+
 	api.workspaceAppServer = workspaceapps.NewServer(workspaceapps.ServerOptions{
 		Logger: workspaceAppsLogger,
 
@@ -895,11 +1003,27 @@ func New(options *Options) *API {
 		SignedTokenProvider: api.WorkspaceAppsProvider,
 		AgentProvider:       api.agentProvider,
 		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
+		WSWatcher:           api.wsWatcher,
 
 		DisablePathApps:          options.DeploymentValues.DisablePathApps.Value(),
 		CookiesConfig:            options.DeploymentValues.HTTPCookies,
 		APIKeyEncryptionKeycache: options.AppEncryptionKeyCache,
 	})
+
+	api.workspaceAgentConnWatcher = workspaceconnwatcher.New(api.ctx, options.Logger, options.Pubsub, options.Database)
+
+	api.workspaceBuildOrchestrator = wsbuildorchestrator.New(wsbuildorchestrator.Options{
+		Logger:            options.Logger,
+		Database:          options.Database,
+		Pubsub:            options.Pubsub,
+		FileCache:         api.FileCache,
+		BuildUsageChecker: api.BuildUsageChecker,
+		DeploymentValues:  options.DeploymentValues,
+		Experiments:       api.Experiments,
+		BuilderMetrics:    options.WorkspaceBuilderMetrics,
+		Clock:             quartz.NewReal(),
+	})
+	api.workspaceBuildOrchestrator.Start(api.ctx)
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
@@ -961,7 +1085,7 @@ func New(options *Options) *API {
 		options.PrometheusRegistry.MustRegister(derpmetrics.NewDERPExpvarCollector(options.DERPServer))
 	}
 	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
-	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
+	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry, wsMetrics)
 
 	r.Use(
 		sharedhttpmw.Recover(api.Logger),
@@ -971,7 +1095,9 @@ func New(options *Options) *API {
 		tracing.Middleware(api.TracerProvider),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
-		loggermw.Logger(api.Logger),
+		loggermw.Logger(api.Logger, func(r *http.Request) string {
+			return httpmw.EffectiveHost(api.RealIPConfig, r)
+		}),
 		singleSlashMW,
 		rolestore.CustomRoleMW,
 		// Validate API key on every request (if present) and store
@@ -1050,7 +1176,7 @@ func New(options *Options) *API {
 				r.Route(fmt.Sprintf("/%s/callback", externalAuthConfig.ID), func(r chi.Router) {
 					r.Use(
 						apiKeyMiddlewareRedirect,
-						httpmw.ExtractOAuth2(externalAuthConfig, options.HTTPClient, options.DeploymentValues.HTTPCookies, nil, externalAuthConfig.CodeChallengeMethodsSupported),
+						httpmw.ExtractOAuth2(externalAuthConfig, options.HTTPClient, options.DeploymentValues.HTTPCookies, nil, externalAuthConfig.CodeChallengeMethodsSupported, nil, ""),
 					)
 					r.Get("/", api.externalAuthCallback(externalAuthConfig))
 				})
@@ -1162,6 +1288,30 @@ func New(options *Options) *API {
 				})
 			})
 		})
+		r.Route("/users/{user}/skills", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractUserParam(options.Database),
+			)
+			r.Post("/", api.postUserSkill)
+			r.Get("/", api.getUserSkills)
+			r.Route("/{skillName}", func(r chi.Router) {
+				r.Get("/", api.getUserSkill)
+				r.Patch("/", api.patchUserSkill)
+				r.Delete("/", api.deleteUserSkill)
+			})
+		})
+		r.Route("/users/{user}/ai-provider-keys", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractUserParam(options.Database),
+			)
+			r.Get("/", api.listUserAIProviderKeyConfigs)
+			r.Route("/{aiProvider}", func(r chi.Router) {
+				r.Put("/", api.upsertUserAIProviderKey)
+				r.Delete("/", api.deleteUserAIProviderKey)
+			})
+		})
 		r.Route("/chats", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1177,9 +1327,6 @@ func New(options *Options) *API {
 					r.Use(httpmw.ExtractUserParam(options.Database))
 					r.Get("/summary", api.chatCostSummary)
 				})
-			})
-			r.Route("/insights", func(r chi.Router) {
-				r.Get("/pull-requests", api.prInsights)
 			})
 			r.Route("/files", func(r chi.Router) {
 				r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
@@ -1197,16 +1344,20 @@ func New(options *Options) *API {
 				r.Put("/personal-model-overrides", api.putChatPersonalModelOverridesAdminSettings)
 				r.Get("/user-personal-model-overrides", api.getUserChatPersonalModelOverrides)
 				r.Put("/user-personal-model-overrides/{context}", api.putUserChatPersonalModelOverride)
-				r.Get("/desktop-enabled", api.getChatDesktopEnabled)
-				r.Put("/desktop-enabled", api.putChatDesktopEnabled)
-				r.Get("/computer-use-provider", api.getChatComputerUseProvider)
-				r.Put("/computer-use-provider", api.putChatComputerUseProvider)
+				r.Group(func(r chi.Router) {
+					r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatVirtualDesktop))
+					r.Get("/computer-use-provider", api.getChatComputerUseProvider)
+					r.Put("/computer-use-provider", api.putChatComputerUseProvider)
+				})
 				r.Get("/debug-logging", api.getChatDebugLogging)
 				r.Put("/debug-logging", api.putChatDebugLogging)
 				r.Get("/user-debug-logging", api.getUserChatDebugLogging)
 				r.Put("/user-debug-logging", api.putUserChatDebugLogging)
-				r.Get("/advisor", api.getChatAdvisorConfig)
-				r.Put("/advisor", api.putChatAdvisorConfig)
+				r.Group(func(r chi.Router) {
+					r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatAdvisor))
+					r.Get("/advisor", api.getChatAdvisorConfig)
+					r.Put("/advisor", api.putChatAdvisorConfig)
+				})
 				r.Get("/user-prompt", api.getUserChatCustomPrompt)
 				r.Put("/user-prompt", api.putUserChatCustomPrompt)
 				r.Get("/user-compaction-thresholds", api.getUserChatCompactionThresholds)
@@ -1263,21 +1414,30 @@ func New(options *Options) *API {
 			})
 			r.Route("/{chat}", func(r chi.Router) {
 				r.Use(httpmw.ExtractChatParam(options.Database))
+				r.Route("/acl", func(r chi.Router) {
+					r.Get("/", api.getChatACL)
+					r.Patch("/", api.patchChatACL)
+				})
 				r.Get("/", api.getChat)
 				r.Patch("/", api.patchChat)
 				r.Get("/messages", api.getChatMessages)
 				r.Post("/messages", api.postChatMessages)
 				r.Patch("/messages/{message}", api.patchChatMessage)
+				r.Get("/prompts", api.getChatUserPrompts)
 				r.Route("/stream", func(r chi.Router) {
 					r.Get("/", api.streamChat)
+					r.Get("/parts", api.streamChatParts)
 					r.Get("/desktop", api.watchChatDesktop)
 					r.Get("/git", api.watchChatGit)
 				})
 				r.Post("/interrupt", api.interruptChat)
+				r.Post("/compact", api.compactChat)
+				r.Post("/reconcile-invalid", api.reconcileInvalidChatState)
 				r.Post("/tool-results", api.postChatToolResults)
 				r.Post("/title/regenerate", api.regenerateChatTitle)
 				r.Post("/title/propose", api.proposeChatTitle)
 				r.Get("/diff", api.getChatDiffContents)
+				r.Put("/context", api.refreshChatContext)
 				r.Route("/queue/{queuedMessage}", func(r chi.Router) {
 					r.Delete("/", api.deleteChatQueuedMessage)
 					r.Post("/promote", api.promoteChatQueuedMessage)
@@ -1385,6 +1545,7 @@ func New(options *Options) *API {
 			r.Get("/", api.auditLogs)
 			r.Post("/testgenerate", api.generateFakeAuditLog)
 		})
+
 		r.Route("/files", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1533,6 +1694,18 @@ func New(options *Options) *API {
 				})
 			})
 		})
+		if !api.DeploymentValues.TemplateBuilder.Disabled.Value() {
+			r.Route("/templatebuilder", func(r chi.Router) {
+				r.Use(
+					apiKeyMiddleware,
+				)
+				r.Get("/bases", api.templateBuilderBases)
+				r.Get("/modules", api.templateBuilderModules)
+				r.Post("/compose", api.templateBuilderCompose)
+				r.Post("/compose/template", api.templateBuilderCreateTemplate)
+			})
+		}
+
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/first", api.firstUser)
 			r.Post("/first", api.postFirstUser)
@@ -1554,14 +1727,14 @@ func New(options *Options) *API {
 					r.Route("/github", func(r chi.Router) {
 						r.Use(
 							// Github supports PKCE S256
-							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, options.DeploymentValues.HTTPCookies, nil, options.GithubOAuth2Config.PKCESupported()),
+							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, options.DeploymentValues.HTTPCookies, nil, options.GithubOAuth2Config.PKCESupported(), nil, ""),
 						)
 						r.Get("/callback", api.userOAuth2Github)
 					})
 				})
 				r.Route("/oidc/callback", func(r chi.Router) {
 					r.Use(
-						httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, options.DeploymentValues.HTTPCookies, oidcAuthURLParams, options.OIDCConfig.PKCESupported()),
+						httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, options.DeploymentValues.HTTPCookies, oidcAuthURLParams, options.OIDCConfig.PKCESupported(), oidcRedirectAllowedHosts, oidcRedirectDefaultScheme),
 					)
 					r.Get("/", api.userOIDC)
 				})
@@ -1643,6 +1816,7 @@ func New(options *Options) *API {
 						r.Put("/gitsshkey", api.regenerateGitSSHKey)
 						r.Route("/secrets", func(r chi.Router) {
 							r.Post("/", api.postUserSecret)
+							r.Post("/batch", api.postUserSecretsBatch)
 							r.Get("/", api.getUserSecrets)
 							r.Route("/{name}", func(r chi.Router) {
 								r.Get("/", api.getUserSecret)
@@ -1695,8 +1869,7 @@ func New(options *Options) *API {
 				r.Post("/log-source", api.workspaceAgentPostLogSource)
 				r.Get("/reinit", api.workspaceAgentReinit)
 				r.Route("/experimental", func(r chi.Router) {
-					r.Post("/chat-context", api.workspaceAgentAddChatContext)
-					r.Delete("/chat-context", api.workspaceAgentClearChatContext)
+					r.Post("/chat-context/refresh", api.workspaceAgentRefreshChatContext)
 				})
 				r.Route("/tasks/{task}", func(r chi.Router) {
 					r.Post("/log-snapshot", api.postWorkspaceAgentTaskLogSnapshot)
@@ -1770,6 +1943,7 @@ func New(options *Options) *API {
 					r.Patch("/", api.patchWorkspaceACL)
 					r.Delete("/", api.deleteWorkspaceACL)
 				})
+				r.Get("/agent-connection-watch", api.workspaceAgentConnWatcher.WorkspaceAgentConnectionWatch)
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
@@ -1960,6 +2134,7 @@ func New(options *Options) *API {
 		r.Route("/init-script", func(r chi.Router) {
 			r.Get("/{os}/{arch}", api.initScript)
 		})
+		r.Route("/ai/providers", aiProvidersHandler(api, apiKeyMiddleware))
 		r.Route("/tasks", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 
@@ -2130,6 +2305,17 @@ type API struct {
 	// UsageInserter is a pointer to an atomic pointer because it is passed to
 	// multiple components.
 	UsageInserter *atomic.Pointer[usage.Inserter]
+	// AIBridgeTransportFactory, when non-nil, lets chatd route LLM requests
+	// through an in-process aibridge transport instead of calling upstream
+	// providers directly. Registered by coderd at startup once aibridged is
+	// wired in-memory.
+	AIBridgeTransportFactory atomic.Pointer[aibridge.TransportFactory]
+	// aiGatewayHandler is the in-memory AI Gateway HTTP handler
+	// (no prefix stripping). Set by RegisterInMemoryAIBridgedHTTPHandler,
+	// used by the enterprise /api/v2/aibridge and /api/v2/ai-gateway
+	// routes (license-gated) which apply their own StripPrefix, and by
+	// the in-memory transport (used by chatd, license-exempt).
+	aiGatewayHandler http.Handler
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 
@@ -2163,9 +2349,11 @@ type API struct {
 	healthCheckCache    atomic.Pointer[healthsdk.HealthcheckReport]
 	healthCheckProgress healthcheck.Progress
 
-	statsReporter    *workspacestats.Reporter
-	metadataBatcher  *metadatabatcher.Batcher
-	lifecycleMetrics *agentapi.LifecycleMetrics
+	statsReporter            *workspacestats.Reporter
+	metadataBatcher          *metadatabatcher.Batcher
+	lifecycleMetrics         *agentapi.LifecycleMetrics
+	workspaceAgentRPCMetrics *WorkspaceAgentRPCMetrics
+	wsWatcher                *httpapi.WSWatcher
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app
@@ -2186,6 +2374,26 @@ type API struct {
 	// profile collection (via /debug/profile) can run at a time. The CPU
 	// profiler is process-global, so concurrent collections would fail.
 	ProfileCollecting atomic.Bool
+
+	workspaceAgentConnWatcher  *workspaceconnwatcher.Watcher
+	workspaceBuildOrchestrator *wsbuildorchestrator.Orchestrator
+}
+
+// chatDaemonPublishDiffStatusChangeFunc returns chatDaemon's
+// PublishDiffStatusChange method bound as a gitsync.PublishDiffStatusChangeFunc,
+// or a true nil func value when chatDaemon is nil (AI Gateway disabled).
+//
+// This must not be inlined as chatDaemon.PublishDiffStatusChange: a method
+// value on a nil pointer receiver is itself non-nil (it captures the
+// receiver, it doesn't call the method), so gitsync.Worker's own "if
+// publishDiffStatusChangeFn != nil" check would not catch a nil chatDaemon,
+// and invoking the returned func would panic dereferencing the nil
+// receiver.
+func chatDaemonPublishDiffStatusChangeFunc(chatDaemon *chatd.Server) gitsync.PublishDiffStatusChangeFunc {
+	if chatDaemon == nil {
+		return nil
+	}
+	return chatDaemon.PublishDiffStatusChange
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -2222,8 +2430,10 @@ func (api *API) Close() error {
 		api.Logger.Warn(context.Background(),
 			"chat diff refresh worker did not exit in time")
 	}
-	if err := api.chatDaemon.Close(); err != nil {
-		api.Logger.Warn(api.ctx, "close chat processor", slog.Error(err))
+	if api.chatDaemon != nil {
+		if err := api.chatDaemon.Close(); err != nil {
+			api.Logger.Warn(api.ctx, "close chat processor", slog.Error(err))
+		}
 	}
 	api.metricsCache.Close()
 	if api.updateChecker != nil {
@@ -2248,7 +2458,12 @@ func (api *API) Close() error {
 	_ = api.OIDCConvertKeyCache.Close()
 	_ = api.AppSigningKeyCache.Close()
 	_ = api.AppEncryptionKeyCache.Close()
+	if api.NATSCACache != nil {
+		_ = api.NATSCACache.Close()
+	}
 	_ = api.UpdatesProvider.Close()
+	api.workspaceAgentConnWatcher.Close()
+	api.workspaceBuildOrchestrator.Close()
 
 	if current := api.PrebuildsReconciler.Load(); current != nil {
 		ctx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop before shutdown"))

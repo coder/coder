@@ -1,0 +1,345 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        headers:
+            Accept:
+                - application/json
+            Private-Token:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/test-group9945421%2Ftest-subgroup%2Fanother-test-project/merge_requests/1
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: -1
+        uncompressed: true
+        body: '{"id":486261628,"iid":1,"project_id":82312037,"title":"Nested merged","description":"","state":"merged","created_at":"2026-05-18T15:21:59.875Z","updated_at":"2026-05-18T15:22:07.620Z","merged_by":{"id":687093,"username":"johnstcn","public_email":"","name":"Cian Johnston","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/687093/avatar.png","web_url":"https://gitlab.com/johnstcn"},"merge_user":{"id":687093,"username":"johnstcn","public_email":"","name":"Cian Johnston","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/687093/avatar.png","web_url":"https://gitlab.com/johnstcn"},"merged_at":"2026-05-18T15:22:07.165Z","closed_by":null,"closed_at":null,"target_branch":"main","source_branch":"johnstcn-main-patch-54711","user_notes_count":0,"upvotes":0,"downvotes":0,"author":{"id":687093,"username":"johnstcn","public_email":"","name":"Cian Johnston","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/687093/avatar.png","web_url":"https://gitlab.com/johnstcn"},"assignees":[{"id":687093,"username":"johnstcn","public_email":"","name":"Cian Johnston","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/687093/avatar.png","web_url":"https://gitlab.com/johnstcn"}],"assignee":{"id":687093,"username":"johnstcn","public_email":"","name":"Cian Johnston","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/687093/avatar.png","web_url":"https://gitlab.com/johnstcn"},"reviewers":[],"source_project_id":82312037,"target_project_id":82312037,"labels":[],"draft":false,"imported":false,"imported_from":"none","work_in_progress":false,"milestone":null,"merge_when_pipeline_succeeds":false,"merge_status":"can_be_merged","detailed_merge_status":"not_open","merge_after":null,"sha":"ff919f3dc418e4fbffb6fbded7b4c9ae60a4531b","merge_commit_sha":"76b308af8b4711f47887c6862607f6d5924f47c0","squash_commit_sha":null,"discussion_locked":null,"should_remove_source_branch":true,"force_remove_source_branch":true,"prepared_at":"2026-05-18T15:22:02.380Z","reference":"!1","references":{"short":"!1","relative":"!1","full":"test-group9945421/test-subgroup/another-test-project!1"},"web_url":"https://gitlab.com/test-group9945421/test-subgroup/another-test-project/-/merge_requests/1","time_stats":{"time_estimate":0,"total_time_spent":0,"human_time_estimate":null,"human_total_time_spent":null},"squash":false,"squash_on_merge":false,"task_completion_status":{"count":0,"completed_count":0},"has_conflicts":false,"blocking_discussions_resolved":true,"approvals_before_merge":null,"subscribed":false,"changes_count":"1","latest_build_started_at":null,"latest_build_finished_at":null,"first_deployed_to_production_at":null,"pipeline":null,"head_pipeline":null,"diff_refs":{"base_sha":"ecd06ae70b01b8185c16bddb19db6e7e000e6fc3","head_sha":"ff919f3dc418e4fbffb6fbded7b4c9ae60a4531b","start_sha":"ecd06ae70b01b8185c16bddb19db6e7e000e6fc3"},"merge_error":null,"first_contribution":true,"user":{"can_merge":false}}'
+        headers:
+            Cache-Control:
+                - stripped
+            Cf-Cache-Status:
+                - stripped
+            Cf-Ray:
+                - stripped
+            Content-Security-Policy:
+                - stripped
+            Content-Type:
+                - application/json
+            Date:
+                - stripped
+            Etag:
+                - stripped
+            Gitlab-Lb:
+                - stripped
+            Gitlab-Sv:
+                - stripped
+            Nel:
+                - stripped
+            Ratelimit-Limit:
+                - stripped
+            Ratelimit-Name:
+                - stripped
+            Ratelimit-Observed:
+                - stripped
+            Ratelimit-Remaining:
+                - stripped
+            Ratelimit-Reset:
+                - stripped
+            Referrer-Policy:
+                - stripped
+            Server:
+                - stripped
+            Set-Cookie:
+                - stripped
+            Strict-Transport-Security:
+                - stripped
+            Vary:
+                - stripped
+            X-Content-Type-Options:
+                - stripped
+            X-Frame-Options:
+                - stripped
+            X-Gitlab-Meta:
+                - stripped
+            X-Request-Id:
+                - stripped
+            X-Runtime:
+                - stripped
+        status: 200 OK
+        code: 200
+        duration: 255.584981ms
+    - id: 1
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        headers:
+            Accept:
+                - application/json
+            Private-Token:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/test-group9945421%2Ftest-subgroup%2Fanother-test-project/merge_requests/1/approvals
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: -1
+        uncompressed: true
+        body: '{"id":486261628,"iid":1,"project_id":82312037,"title":"Nested merged","description":"","state":"merged","created_at":"2026-05-18T15:21:59.875Z","updated_at":"2026-05-18T15:22:07.620Z","merge_status":"can_be_merged","approved":true,"approvals_required":0,"approvals_left":0,"require_password_to_approve":false,"approved_by":[],"suggested_approvers":[],"approvers":[],"approver_groups":[],"user_has_approved":false,"user_can_approve":false,"approval_rules_left":[],"has_approval_rules":false,"merge_request_approvers_available":false,"multiple_approval_rules_available":false,"invalid_approvers_rules":[]}'
+        headers:
+            Cache-Control:
+                - stripped
+            Cf-Cache-Status:
+                - stripped
+            Cf-Ray:
+                - stripped
+            Content-Security-Policy:
+                - stripped
+            Content-Type:
+                - application/json
+            Date:
+                - stripped
+            Etag:
+                - stripped
+            Gitlab-Lb:
+                - stripped
+            Gitlab-Sv:
+                - stripped
+            Nel:
+                - stripped
+            Ratelimit-Limit:
+                - stripped
+            Ratelimit-Name:
+                - stripped
+            Ratelimit-Observed:
+                - stripped
+            Ratelimit-Remaining:
+                - stripped
+            Ratelimit-Reset:
+                - stripped
+            Referrer-Policy:
+                - stripped
+            Server:
+                - stripped
+            Set-Cookie:
+                - stripped
+            Strict-Transport-Security:
+                - stripped
+            Vary:
+                - stripped
+            X-Content-Type-Options:
+                - stripped
+            X-Frame-Options:
+                - stripped
+            X-Gitlab-Meta:
+                - stripped
+            X-Request-Id:
+                - stripped
+            X-Runtime:
+                - stripped
+        status: 200 OK
+        code: 200
+        duration: 238.750519ms
+    - id: 2
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        form:
+            per_page:
+                - "100"
+        headers:
+            Accept:
+                - application/json
+            Private-Token:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/test-group9945421%2Ftest-subgroup%2Fanother-test-project/merge_requests/1/commits?per_page=100
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: -1
+        uncompressed: true
+        body: '[{"id":"ff919f3dc418e4fbffb6fbded7b4c9ae60a4531b","short_id":"ff919f3d","created_at":"2026-05-18T15:21:50.000+00:00","parent_ids":["ecd06ae70b01b8185c16bddb19db6e7e000e6fc3"],"title":"Nested merged","message":"Nested merged","author_name":"Cian Johnston","author_email":"public@cianjohnston.ie","authored_date":"2026-05-18T15:21:50.000+00:00","committer_name":"Cian Johnston","committer_email":"public@cianjohnston.ie","committed_date":"2026-05-18T15:21:50.000+00:00","trailers":{},"extended_trailers":{},"web_url":"https://gitlab.com/test-group9945421/test-subgroup/another-test-project/-/commit/ff919f3dc418e4fbffb6fbded7b4c9ae60a4531b"}]'
+        headers:
+            Cache-Control:
+                - stripped
+            Cf-Cache-Status:
+                - stripped
+            Cf-Ray:
+                - stripped
+            Content-Security-Policy:
+                - stripped
+            Content-Type:
+                - application/json
+            Date:
+                - stripped
+            Etag:
+                - stripped
+            Gitlab-Lb:
+                - stripped
+            Gitlab-Sv:
+                - stripped
+            Link:
+                - stripped
+            Nel:
+                - stripped
+            Ratelimit-Limit:
+                - stripped
+            Ratelimit-Name:
+                - stripped
+            Ratelimit-Observed:
+                - stripped
+            Ratelimit-Remaining:
+                - stripped
+            Ratelimit-Reset:
+                - stripped
+            Referrer-Policy:
+                - stripped
+            Server:
+                - stripped
+            Set-Cookie:
+                - stripped
+            Strict-Transport-Security:
+                - stripped
+            Vary:
+                - stripped
+            X-Content-Type-Options:
+                - stripped
+            X-Frame-Options:
+                - stripped
+            X-Gitlab-Meta:
+                - stripped
+            X-Next-Page:
+                - stripped
+            X-Page:
+                - stripped
+            X-Per-Page:
+                - stripped
+            X-Prev-Page:
+                - stripped
+            X-Request-Id:
+                - stripped
+            X-Runtime:
+                - stripped
+            X-Total:
+                - "1"
+            X-Total-Pages:
+                - stripped
+        status: 200 OK
+        code: 200
+        duration: 243.115989ms
+    - id: 3
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        form:
+            per_page:
+                - "100"
+        headers:
+            Accept:
+                - application/json
+            Private-Token:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/test-group9945421%2Ftest-subgroup%2Fanother-test-project/merge_requests/1/diffs?per_page=100
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: -1
+        uncompressed: true
+        body: '[{"diff":"@@ -1,6 +1,6 @@\n # another-test-project\n \n-\n+This is another test project for testing stuff.\n \n ## Getting started\n \n","collapsed":false,"too_large":false,"new_path":"README.md","old_path":"README.md","a_mode":"100644","b_mode":"100644","new_file":false,"renamed_file":false,"deleted_file":false,"generated_file":false}]'
+        headers:
+            Cache-Control:
+                - stripped
+            Cf-Cache-Status:
+                - stripped
+            Cf-Ray:
+                - stripped
+            Content-Security-Policy:
+                - stripped
+            Content-Type:
+                - application/json
+            Date:
+                - stripped
+            Etag:
+                - stripped
+            Gitlab-Lb:
+                - stripped
+            Gitlab-Sv:
+                - stripped
+            Link:
+                - stripped
+            Nel:
+                - stripped
+            Ratelimit-Limit:
+                - stripped
+            Ratelimit-Name:
+                - stripped
+            Ratelimit-Observed:
+                - stripped
+            Ratelimit-Remaining:
+                - stripped
+            Ratelimit-Reset:
+                - stripped
+            Referrer-Policy:
+                - stripped
+            Server:
+                - stripped
+            Set-Cookie:
+                - stripped
+            Strict-Transport-Security:
+                - stripped
+            Vary:
+                - stripped
+            X-Content-Type-Options:
+                - stripped
+            X-Frame-Options:
+                - stripped
+            X-Gitlab-Meta:
+                - stripped
+            X-Next-Page:
+                - stripped
+            X-Page:
+                - stripped
+            X-Per-Page:
+                - stripped
+            X-Prev-Page:
+                - stripped
+            X-Request-Id:
+                - stripped
+            X-Runtime:
+                - stripped
+            X-Total:
+                - "1"
+            X-Total-Pages:
+                - stripped
+        status: 200 OK
+        code: 200
+        duration: 271.552894ms

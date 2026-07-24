@@ -31,6 +31,7 @@ type Metrics struct {
 	MessageCount             *prometheus.HistogramVec
 	PromptSizeBytes          *prometheus.HistogramVec
 	ToolResultSizeBytes      *prometheus.HistogramVec
+	ToolResultTruncatedTotal *prometheus.CounterVec
 	ToolErrorsTotal          *prometheus.CounterVec
 	TTFTSeconds              *prometheus.HistogramVec
 	CompactionTotal          *prometheus.CounterVec
@@ -70,6 +71,12 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "tool_result_size_bytes",
 			Help:      "Size in bytes of each tool execution result.",
 			Buckets:   prometheus.ExponentialBuckets(64, 4, 9), // 64B .. 4MB
+		}, []string{"provider", "model", "tool_name"}),
+		ToolResultTruncatedTotal: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "tool_result_truncated_total",
+			Help:      "Total tool results truncated to fit the model context window.",
 		}, []string{"provider", "model", "tool_name"}),
 		ToolErrorsTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
@@ -145,7 +152,11 @@ func (m *Metrics) RecordStreamRetry(provider, model string, classified chaterror
 	if m == nil {
 		return
 	}
-	m.StreamRetriesTotal.WithLabelValues(provider, model, string(classified.Kind)).Inc()
+	m.StreamRetriesTotal.WithLabelValues(
+		provider,
+		model,
+		string(classified.Kind),
+	).Inc()
 }
 
 // RecordToolError increments tool_errors_total for the given
@@ -155,6 +166,19 @@ func (m *Metrics) RecordToolError(provider, model, toolLabel string) {
 		return
 	}
 	m.ToolErrorsTotal.WithLabelValues(provider, model, toolLabel).Inc()
+}
+
+// RecordToolResultTruncated increments tool_result_truncated_total for
+// the given tool. No-op when m is nil. An empty tool label is
+// normalized to "unknown" to match the other tool metrics.
+func (m *Metrics) RecordToolResultTruncated(provider, model, toolLabel string) {
+	if m == nil {
+		return
+	}
+	if toolLabel == "" {
+		toolLabel = "unknown"
+	}
+	m.ToolResultTruncatedTotal.WithLabelValues(provider, model, toolLabel).Inc()
 }
 
 // RecordStreamBufferDropped increments stream_buffer_dropped_total

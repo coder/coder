@@ -10,11 +10,12 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { AIBridgeClientIcon } from "#/pages/AIBridgePage/RequestLogsPage/icons/AIBridgeClientIcon";
-import { AIBridgeProviderIcon } from "#/pages/AIBridgePage/RequestLogsPage/icons/AIBridgeProviderIcon";
+import { AIBridgeClientIcon } from "#/pages/AIBridgePage/icons/AIBridgeClientIcon";
+import { AIBridgeProviderIcon } from "#/pages/AIBridgePage/icons/AIBridgeProviderIcon";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
+import { NetworkCallBadges } from "../NetworkCallBadges";
 import { TokenBadges } from "../TokenBadges";
-import { getProviderDisplayName, getProviderIconName } from "../utils";
+import { getProviderDisplayName } from "../utils";
 
 type ListSessionsRowProps = {
 	session: AIBridgeSession;
@@ -63,17 +64,23 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 			</TableCell>
 			<TableCell className="w-40 max-w-40">
 				<div className="min-w-0 overflow-hidden">
-					<Badge className="gap-1.5 max-w-full">
-						<div className="flex-shrink-0 flex items-center">
-							<AIBridgeProviderIcon
-								provider={getProviderIconName(session.providers[0])}
-								className="size-icon-xs"
-							/>
-						</div>
-						<span className="truncate min-w-0">
-							{getProviderDisplayName(session.providers[0])}
-						</span>
-					</Badge>
+					{session.providers.length > 1 ? (
+						<Badge className="max-w-full">
+							{session.providers.length} providers
+						</Badge>
+					) : session.providers.length === 1 ? (
+						<Badge className="gap-1.5 max-w-full">
+							<div className="flex-shrink-0 flex items-center">
+								<AIBridgeProviderIcon
+									provider={session.providers[0]}
+									className="size-icon-xs"
+								/>
+							</div>
+							<span className="truncate min-w-0">
+								{getProviderDisplayName(session.providers[0])}
+							</span>
+						</Badge>
+					) : null}
 				</div>
 			</TableCell>
 			<TableCell className="w-40 max-w-40">
@@ -98,6 +105,9 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 						outputTokens={session.token_usage_summary.output_tokens}
 					/>
 				</div>
+			</TableCell>
+			<TableCell className="w-40">
+				<NetworkCallBadges summary={session.network_calls} />
 			</TableCell>
 			<TableCell className="w-32">
 				<Badge className="bg-surface-secondary align-end">

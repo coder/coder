@@ -9,6 +9,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -447,6 +448,107 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 			Icon: ptr.Ref(icon),
 		})
 		require.ErrorContains(t, err, "Multiple Organizations is a Premium feature")
+	})
+
+	t.Run("DefaultOrgMemberRoles", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("EqualToDefaultAllowedWithoutExperiment", func(t *testing.T) {
+			t.Parallel()
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureMultipleOrganizations: 1,
+					},
+				},
+			})
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			o := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+
+			// Writing exactly the deployment default is a no-op and must be allowed.
+			//nolint:gocritic // Only owners can update organization settings.
+			updated, err := client.UpdateOrganization(ctx, o.ID.String(), codersdk.UpdateOrganizationRequest{
+				DefaultOrgMemberRoles: ptr.Ref(rbac.DefaultOrgMemberRoles()),
+			})
+			require.NoError(t, err)
+			require.Equal(t, rbac.DefaultOrgMemberRoles(), updated.DefaultOrgMemberRoles)
+		})
+
+		t.Run("DeviationRejectedWithoutExperiment", func(t *testing.T) {
+			t.Parallel()
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureMultipleOrganizations: 1,
+					},
+				},
+			})
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			o := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+
+			// Empty array represents a Gateway Accounts organization. Without
+			// the experiment, this must be rejected.
+			//nolint:gocritic // Only owners can update organization settings.
+			_, err := client.UpdateOrganization(ctx, o.ID.String(), codersdk.UpdateOrganizationRequest{
+				DefaultOrgMemberRoles: ptr.Ref([]string{}),
+			})
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+			require.Contains(t, apiErr.Message, "Changing default organization roles is not enabled")
+		})
+
+		t.Run("DeviationAllowedWithExperiment", func(t *testing.T) {
+			t.Parallel()
+			dv := coderdtest.DeploymentValues(t)
+			dv.Experiments = []string{string(codersdk.ExperimentMinimumImplicitMember)}
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{DeploymentValues: dv},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureMultipleOrganizations: 1,
+					},
+				},
+			})
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			o := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+
+			//nolint:gocritic // Only owners can update organization settings.
+			updated, err := client.UpdateOrganization(ctx, o.ID.String(), codersdk.UpdateOrganizationRequest{
+				DefaultOrgMemberRoles: ptr.Ref([]string{}),
+			})
+			require.NoError(t, err)
+			require.Empty(t, updated.DefaultOrgMemberRoles)
+		})
+
+		t.Run("NonBuiltInRoleRejected", func(t *testing.T) {
+			t.Parallel()
+			dv := coderdtest.DeploymentValues(t)
+			dv.Experiments = []string{string(codersdk.ExperimentMinimumImplicitMember)}
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{DeploymentValues: dv},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureMultipleOrganizations: 1,
+					},
+				},
+			})
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			o := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+
+			// A name that does not resolve via rbac.RoleByName (no such
+			// built-in role) must be rejected. This blocks both custom roles
+			// and malformed names like "foo:bar" that would otherwise break
+			// RoleNameFromString downstream.
+			//nolint:gocritic // Only owners can update organization settings.
+			_, err := client.UpdateOrganization(ctx, o.ID.String(), codersdk.UpdateOrganizationRequest{
+				DefaultOrgMemberRoles: ptr.Ref([]string{"not-a-built-in-role"}),
+			})
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+			require.Contains(t, apiErr.Message, "Invalid default_org_member_roles entry")
+		})
 	})
 }
 

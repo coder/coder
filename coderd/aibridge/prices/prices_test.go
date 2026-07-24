@@ -1,0 +1,188 @@
+package prices_test
+
+import (
+	"testing"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/require"
+
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/aibridge/prices"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/testutil"
+)
+
+// testSeedJSON is a synthetic seed used by tests instead of the embedded
+// one, so assertions don't depend on whatever values currently live in the
+// embedded seed.
+const testSeedJSON = `[
+  {
+    "provider": "anthropic",
+    "model": "claude-opus-4-7",
+    "input_price": 5000000,
+    "output_price": 25000000,
+    "cache_read_price": 500000,
+    "cache_write_price": 6250000
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-4o",
+    "input_price": 2500000,
+    "output_price": 10000000,
+    "cache_read_price": 1250000,
+    "cache_write_price": null
+  }
+]`
+
+func TestSeedFromBytes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("SeedsFreshDatabase", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+
+		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
+
+		// Spot-check a fully-populated row.
+		opus, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+			Provider: "anthropic",
+			Model:    "claude-opus-4-7",
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(5_000_000), opus.InputPrice.Int64)
+		require.Equal(t, int64(25_000_000), opus.OutputPrice.Int64)
+		require.Equal(t, int64(500_000), opus.CacheReadPrice.Int64)
+		require.Equal(t, int64(6_250_000), opus.CacheWritePrice.Int64)
+
+		// Spot-check a row where the seed has a NULL price (OpenAI does not
+		// publish a cache_write_price). The column should land as SQL NULL.
+		gpt, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+			Provider: "openai",
+			Model:    "gpt-4o",
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(2_500_000), gpt.InputPrice.Int64)
+		require.Equal(t, int64(10_000_000), gpt.OutputPrice.Int64)
+		require.Equal(t, int64(1_250_000), gpt.CacheReadPrice.Int64)
+		require.False(t, gpt.CacheWritePrice.Valid)
+		require.Zero(t, gpt.CacheWritePrice.Int64)
+	})
+
+	t.Run("Idempotent", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+
+		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
+		first, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+			Provider: "openai", Model: "gpt-4o",
+		})
+		require.NoError(t, err)
+
+		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
+		second, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+			Provider: "openai", Model: "gpt-4o",
+		})
+		require.NoError(t, err)
+
+		// Prices must be identical across runs and CreatedAt must be
+		// preserved (only updated_at moves on a no-op upsert).
+		require.Equal(t, first.InputPrice, second.InputPrice)
+		require.Equal(t, first.OutputPrice, second.OutputPrice)
+		require.Equal(t, first.CreatedAt, second.CreatedAt)
+	})
+
+	t.Run("OverwritesExistingPrices", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+
+		// Pre-seed with deliberately wrong values for all four price columns.
+		// cache_write_price is set to a non-NULL value here even though the
+		// embedded seed leaves it NULL for OpenAI; Seed must replace it with
+		// NULL to keep the table in sync with the seed.
+		require.NoError(t, db.UpsertAIModelPrices(ctx, []byte(`[{
+			"provider": "openai",
+			"model": "gpt-4o",
+			"input_price": 1,
+			"output_price": 2,
+			"cache_read_price": 3,
+			"cache_write_price": 4
+		}]`)))
+
+		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
+
+		got, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+			Provider: "openai", Model: "gpt-4o",
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(2_500_000), got.InputPrice.Int64)
+		require.Equal(t, int64(10_000_000), got.OutputPrice.Int64)
+		require.Equal(t, int64(1_250_000), got.CacheReadPrice.Int64)
+		require.False(t, got.CacheWritePrice.Valid)
+		require.Zero(t, got.CacheWritePrice.Int64)
+	})
+
+	t.Run("LeavesOrphanRowsUntouched", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+
+		// Insert a row for a (provider, model) the seed doesn't cover. After
+		// Seed it should still be there with its values intact.
+		require.NoError(t, db.UpsertAIModelPrices(ctx, []byte(`[{
+			"provider": "test-provider",
+			"model": "test-model-not-in-seed",
+			"input_price": 12345,
+			"output_price": 67890,
+			"cache_read_price": null,
+			"cache_write_price": null
+		}]`)))
+
+		require.NoError(t, prices.SeedFromBytes(ctx, db, []byte(testSeedJSON)))
+
+		got, err := db.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+			Provider: "test-provider", Model: "test-model-not-in-seed",
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(12345), got.InputPrice.Int64)
+		require.Equal(t, int64(67890), got.OutputPrice.Int64)
+	})
+
+	// Verifies the chain: AsAIBridged context -> dbauthz wrapper auth check
+	// -> subjectAibridged's permission grant. A missing or wrong action on
+	// the subject would surface as "unauthorized: rbac: forbidden" here, even
+	// though the unit tests above (which bypass dbauthz) would still pass.
+	t.Run("AuthorizedAsAIBridged", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		rawDB, _ := dbtestutil.NewDB(t)
+		authzDB := dbauthz.New(rawDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+		require.NoError(t, prices.SeedFromBytes(dbauthz.AsAIBridged(ctx), authzDB, []byte(testSeedJSON)))
+
+		// Read back via the raw DB.
+		got, err := rawDB.GetAIModelPriceByProviderModel(ctx, database.GetAIModelPriceByProviderModelParams{
+			Provider: "openai", Model: "gpt-4o",
+		})
+		require.NoError(t, err)
+		require.True(t, got.InputPrice.Valid)
+		require.Equal(t, int64(2_500_000), got.InputPrice.Int64)
+	})
+}
+
+// TestSeed exercises the real embedded prices.json so we catch a corrupted,
+// empty, or unparseable seed file at test time rather than at server startup.
+// Intentionally makes no assertions about specific prices, since those drift
+// whenever the seed is regenerated from upstream.
+func TestSeed(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	require.NoError(t, prices.Seed(ctx, db))
+}

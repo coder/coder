@@ -8,35 +8,22 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { linkToAuditing } from "#/modules/navigation";
+import {
+	type AdminSettingsPermissions,
+	canViewAdminSettings,
+	getAdminSettingsItems,
+} from "./adminSettings";
 
-interface DeploymentDropdownProps {
-	canViewDeployment: boolean;
-	canViewOrganizations: boolean;
-	canViewAuditLog: boolean;
-	canViewConnectionLog: boolean;
-	canViewHealth: boolean;
-	canViewAIBridge: boolean;
-}
+type DeploymentDropdownProps = AdminSettingsPermissions;
 
-export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
-	canViewDeployment,
-	canViewOrganizations,
-	canViewAuditLog,
-	canViewConnectionLog,
-	canViewHealth,
-	canViewAIBridge,
-}) => {
-	if (
-		!canViewAuditLog &&
-		!canViewConnectionLog &&
-		!canViewOrganizations &&
-		!canViewDeployment &&
-		!canViewHealth &&
-		!canViewAIBridge
-	) {
+export const DeploymentDropdown: FC<DeploymentDropdownProps> = (
+	permissions,
+) => {
+	if (!canViewAdminSettings(permissions)) {
 		return null;
 	}
+
+	const items = getAdminSettingsItems(permissions);
 
 	return (
 		<DropdownMenu>
@@ -48,59 +35,14 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 			</DropdownMenuTrigger>
 
 			<DropdownMenuContent align="end" className="w-[180px] min-w-auto">
-				<DeploymentDropdownContent
-					canViewDeployment={canViewDeployment}
-					canViewOrganizations={canViewOrganizations}
-					canViewAuditLog={canViewAuditLog}
-					canViewConnectionLog={canViewConnectionLog}
-					canViewHealth={canViewHealth}
-					canViewAIBridge={canViewAIBridge}
-				/>
+				<nav>
+					{items.map((item) => (
+						<DropdownMenuItem key={item.to} asChild>
+							<Link to={item.to}>{item.label}</Link>
+						</DropdownMenuItem>
+					))}
+				</nav>
 			</DropdownMenuContent>
 		</DropdownMenu>
-	);
-};
-
-const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
-	canViewDeployment,
-	canViewOrganizations,
-	canViewAuditLog,
-	canViewHealth,
-	canViewConnectionLog,
-	canViewAIBridge,
-}) => {
-	return (
-		<nav>
-			{canViewDeployment && (
-				<DropdownMenuItem asChild>
-					<Link to="/deployment">Deployment</Link>
-				</DropdownMenuItem>
-			)}
-			{canViewOrganizations && (
-				<DropdownMenuItem asChild>
-					<Link to="/organizations">Organizations</Link>
-				</DropdownMenuItem>
-			)}
-			{canViewAuditLog && (
-				<DropdownMenuItem asChild>
-					<Link to={linkToAuditing}>Audit Logs</Link>
-				</DropdownMenuItem>
-			)}
-			{canViewConnectionLog && (
-				<DropdownMenuItem asChild>
-					<Link to="/connectionlog">Connection Logs</Link>
-				</DropdownMenuItem>
-			)}
-			{canViewAIBridge && (
-				<DropdownMenuItem asChild>
-					<Link to="/aibridge/sessions">AI Bridge Sessions</Link>
-				</DropdownMenuItem>
-			)}
-			{canViewHealth && (
-				<DropdownMenuItem asChild>
-					<Link to="/health">Healthcheck</Link>
-				</DropdownMenuItem>
-			)}
-		</nav>
 	);
 };

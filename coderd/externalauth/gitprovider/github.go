@@ -10,7 +10,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"golang.org/x/xerrors"
 
@@ -19,8 +18,6 @@ import (
 
 const (
 	defaultGitHubAPIBaseURL = "https://api.github.com"
-	// Adding padding to our retry times to guard against over-consumption of request quotas.
-	RateLimitPadding = 5 * time.Minute
 )
 
 type githubProvider struct {
@@ -148,7 +145,7 @@ func (g *githubProvider) ParsePullRequestURL(raw string) (PRRef, bool) {
 func (g *githubProvider) NormalizePullRequestURL(raw string) string {
 	ref, ok := g.ParsePullRequestURL(strings.TrimRight(
 		strings.TrimSpace(raw),
-		"),.;",
+		trailingPunctuation,
 	))
 	if !ok {
 		return ""
@@ -411,12 +408,8 @@ func (g *githubProvider) decodeJSON(
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
-			retryAfter := ParseRetryAfter(resp.Header, g.clock)
-			if retryAfter > 0 {
-				return &RateLimitError{RetryAfter: g.clock.Now().Add(retryAfter + RateLimitPadding)}
-			}
-			// No rate-limit headers — fall through to generic error.
+		if rlErr := checkRateLimitError(resp, g.clock, "X-Ratelimit-Reset"); rlErr != nil {
+			return rlErr
 		}
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
 		if readErr != nil {
@@ -461,11 +454,8 @@ func (g *githubProvider) fetchDiff(
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
-			retryAfter := ParseRetryAfter(resp.Header, g.clock)
-			if retryAfter > 0 {
-				return "", &RateLimitError{RetryAfter: g.clock.Now().Add(retryAfter + RateLimitPadding)}
-			}
+		if rlErr := checkRateLimitError(resp, g.clock, "X-Ratelimit-Reset"); rlErr != nil {
+			return "", rlErr
 		}
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
 		if readErr != nil {
@@ -489,30 +479,6 @@ func (g *githubProvider) fetchDiff(
 		return "", ErrDiffTooLarge
 	}
 	return string(buf), nil
-}
-
-// ParseRetryAfter extracts a retry-after time from GitHub
-// rate-limit headers. Returns zero value if no recognizable header is
-// present.
-func ParseRetryAfter(h http.Header, clk quartz.Clock) time.Duration {
-	if clk == nil {
-		clk = quartz.NewReal()
-	}
-	// Retry-After header: seconds until retry.
-	if ra := h.Get("Retry-After"); ra != "" {
-		if secs, err := strconv.Atoi(ra); err == nil {
-			return time.Duration(secs) * time.Second
-		}
-	}
-	// X-Ratelimit-Reset header: unix timestamp. We compute the
-	// duration from now according to the caller's clock.
-	if reset := h.Get("X-Ratelimit-Reset"); reset != "" {
-		if ts, err := strconv.ParseInt(reset, 10, 64); err == nil {
-			d := time.Unix(ts, 0).Sub(clk.Now())
-			return d
-		}
-	}
-	return 0
 }
 
 // reviewStats holds aggregated review statistics for a PR.

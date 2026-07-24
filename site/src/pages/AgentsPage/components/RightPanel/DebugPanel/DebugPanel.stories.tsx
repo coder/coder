@@ -1,14 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { toast } from "sonner";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import type { Mock } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DebugPanel } from "./DebugPanel";
+import { CHAT_ID, MockRun, MockStep } from "./debugFixtures";
 
 const FIXTURE_NOW = Date.parse("2026-03-05T12:00:10.000Z");
 
-const CHAT_ID = "debug-chat-1";
-
-const makeRunSummary = (
+const buildRunSummary = (
 	overrides: Partial<TypesGen.ChatDebugRunSummary>,
 ): TypesGen.ChatDebugRunSummary => ({
 	id: "run-1",
@@ -24,46 +25,9 @@ const makeRunSummary = (
 	...overrides,
 });
 
-const makeStep = (
-	overrides: Partial<TypesGen.ChatDebugStep>,
-): TypesGen.ChatDebugStep => ({
-	id: "step-1",
-	run_id: "run-1",
-	chat_id: CHAT_ID,
-	step_number: 1,
-	operation: "stream",
-	status: "completed",
-	normalized_request: { model: "gpt-4", prompt: "Hello" },
-	normalized_response: { content: "Hi there!", finish_reason: "stop" },
-	usage: { prompt_tokens: "10", completion_tokens: "5", total_tokens: "15" },
-	attempts: [],
-	metadata: { provider: "openai" },
-	started_at: "2026-03-05T12:00:06Z",
-	updated_at: "2026-03-05T12:00:08Z",
-	finished_at: "2026-03-05T12:00:08Z",
-	...overrides,
-});
-
-const makeRun = (
-	overrides: Partial<TypesGen.ChatDebugRun>,
-): TypesGen.ChatDebugRun => ({
-	id: "run-1",
-	chat_id: CHAT_ID,
-	kind: "chat_turn",
-	status: "completed",
-	provider: "openai",
-	model: "gpt-4",
-	summary: { result: "Generated response successfully" },
-	started_at: "2026-03-05T12:00:05Z",
-	updated_at: "2026-03-05T12:00:08Z",
-	finished_at: "2026-03-05T12:00:08Z",
-	steps: [makeStep({})],
-	...overrides,
-});
-
 type StoryAttempt = Record<string, unknown>;
 
-const makeAttempts = (
+const buildAttempts = (
 	attempts: readonly Record<string, unknown>[],
 ): TypesGen.ChatDebugStep["attempts"] => {
 	return attempts.map((attempt, index) => ({
@@ -82,7 +46,7 @@ const makeAttempts = (
 	})) as readonly StoryAttempt[];
 };
 
-const makeLargeRecord = (
+const buildLargeRecord = (
 	prefix: string,
 	count: number,
 ): Record<string, string> => {
@@ -97,9 +61,35 @@ const makeLargeRecord = (
 type StoryCanvas = ReturnType<typeof within>;
 type StoryUser = ReturnType<typeof userEvent.setup>;
 
-// Story fixtures use structured normalized payloads even though the generated
-// API type still models them as string records.
-const makeNormalizedPayloadFixture = (
+const expectVisibleCopyButtonOnHover = async ({
+	canvas,
+	label,
+}: {
+	canvas: StoryCanvas;
+	label: RegExp;
+}) => {
+	const copyButton = canvas.getByRole("button", { name: label });
+	const groupContainer = copyButton.closest("[data-debug-code-block]");
+	if (!(groupContainer instanceof HTMLElement)) {
+		throw new Error("Missing debug-code hover wrapper.");
+	}
+	let supportsNativeHover = false;
+	try {
+		const { userEvent: browserUserEvent } = await import("vitest/browser");
+		await browserUserEvent.hover(groupContainer);
+		supportsNativeHover = true;
+	} catch {
+		await userEvent.hover(groupContainer);
+	}
+	if (supportsNativeHover) {
+		await waitFor(() => {
+			expect(copyButton).toBeVisible();
+		});
+	}
+	return copyButton;
+};
+
+const buildNormalizedPayloadFixture = (
 	payload: Record<string, unknown>,
 ): TypesGen.ChatDebugStep["normalized_request"] => {
 	return payload as TypesGen.ChatDebugStep["normalized_request"];
@@ -177,14 +167,16 @@ const toolCallResponse: Record<string, string> = {
 // Pre-built run details.
 // ---------------------------------------------------------------------------
 
-const successfulRunDetail = makeRun({
+const successfulRunDetail: TypesGen.ChatDebugRun = {
+	...MockRun,
 	summary: {
 		result: "Generated response successfully",
 		latency: "5s",
 	},
 	steps: [
-		makeStep({
-			attempts: makeAttempts([
+		{
+			...MockStep,
+			attempts: buildAttempts([
 				{
 					attempt_number: 1,
 					status: "completed",
@@ -205,11 +197,12 @@ const successfulRunDetail = makeRun({
 				provider: "openai",
 				region: "us-east-1",
 			},
-		}),
+		},
 	],
-});
+};
 
-const richRunDetail = makeRun({
+const richRunDetail: TypesGen.ChatDebugRun = {
+	...MockRun,
 	id: "run-rich",
 	summary: {
 		first_message: "Write me a hello world function in Python",
@@ -217,7 +210,8 @@ const richRunDetail = makeRun({
 		completion_tokens: "42",
 	},
 	steps: [
-		makeStep({
+		{
+			...MockStep,
 			id: "step-rich-1",
 			run_id: "run-rich",
 			normalized_request: richRequest,
@@ -227,7 +221,7 @@ const richRunDetail = makeRun({
 				completion_tokens: "42",
 				total_tokens: "192",
 			},
-			attempts: makeAttempts([
+			attempts: buildAttempts([
 				{
 					attempt_number: 1,
 					status: "completed",
@@ -240,17 +234,19 @@ const richRunDetail = makeRun({
 					finished_at: "2026-03-05T12:00:08Z",
 				},
 			]),
-		}),
+		},
 	],
-});
+};
 
-const toolCallRunDetail = makeRun({
+const toolCallRunDetail: TypesGen.ChatDebugRun = {
+	...MockRun,
 	id: "run-tool",
 	summary: {
 		first_message: "Run some code for me",
 	},
 	steps: [
-		makeStep({
+		{
+			...MockStep,
 			id: "step-tool-1",
 			run_id: "run-tool",
 			normalized_request: richRequest,
@@ -260,12 +256,13 @@ const toolCallRunDetail = makeRun({
 				completion_tokens: "30",
 				total_tokens: "230",
 			},
-			attempts: makeAttempts([]),
-		}),
+			attempts: buildAttempts([]),
+		},
 	],
-});
+};
 
-const multiStepRunDetail = makeRun({
+const multiStepRunDetail: TypesGen.ChatDebugRun = {
+	...MockRun,
 	id: "run-2",
 	status: "completed",
 	started_at: "2026-03-02T09:00:00Z",
@@ -276,7 +273,8 @@ const multiStepRunDetail = makeRun({
 		retries: "2",
 	},
 	steps: [
-		makeStep({
+		{
+			...MockStep,
 			id: "step-2-1",
 			run_id: "run-2",
 			step_number: 1,
@@ -289,7 +287,7 @@ const multiStepRunDetail = makeRun({
 				content: "Retry succeeded on attempt 3",
 				finish_reason: "stop",
 			},
-			attempts: makeAttempts([
+			attempts: buildAttempts([
 				{
 					attempt_number: 1,
 					status: "failed",
@@ -320,8 +318,9 @@ const multiStepRunDetail = makeRun({
 					finished_at: "2026-03-02T09:00:05.400Z",
 				},
 			]),
-		}),
-		makeStep({
+		},
+		{
+			...MockStep,
 			id: "step-2-2",
 			run_id: "run-2",
 			step_number: 2,
@@ -329,7 +328,7 @@ const multiStepRunDetail = makeRun({
 			status: "completed",
 			normalized_request: { action: "annotate", content: "Final answer" },
 			normalized_response: { result: "Annotated response" },
-			attempts: makeAttempts([
+			attempts: buildAttempts([
 				{
 					attempt_number: 1,
 					status: "completed",
@@ -340,11 +339,12 @@ const multiStepRunDetail = makeRun({
 					finished_at: "2026-03-02T09:00:06.500Z",
 				},
 			]),
-		}),
+		},
 	],
-});
+};
 
-const errorRunDetail = makeRun({
+const errorRunDetail: TypesGen.ChatDebugRun = {
+	...MockRun,
 	id: "run-3",
 	status: "error",
 	started_at: "2026-03-03T14:00:00Z",
@@ -355,7 +355,8 @@ const errorRunDetail = makeRun({
 		authorization: "[REDACTED]",
 	},
 	steps: [
-		makeStep({
+		{
+			...MockStep,
 			id: "step-3-1",
 			run_id: "run-3",
 			status: "error",
@@ -369,7 +370,7 @@ const errorRunDetail = makeRun({
 				message: "Provider request failed",
 				code: "upstream_unauthorized",
 			},
-			attempts: makeAttempts([
+			attempts: buildAttempts([
 				{
 					attempt_number: 1,
 					status: "failed",
@@ -384,11 +385,12 @@ const errorRunDetail = makeRun({
 					finished_at: "2026-03-03T14:00:01.800Z",
 				},
 			]),
-		}),
+		},
 	],
-});
+};
 
-const longPayloadRunDetail = makeRun({
+const longPayloadRunDetail: TypesGen.ChatDebugRun = {
+	...MockRun,
 	id: "run-4",
 	status: "completed",
 	started_at: "2026-03-04T08:30:00Z",
@@ -399,31 +401,32 @@ const longPayloadRunDetail = makeRun({
 		size: "large",
 	},
 	steps: [
-		makeStep({
+		{
+			...MockStep,
 			id: "step-4-1",
 			run_id: "run-4",
-			normalized_request: makeLargeRecord("request", 24),
-			normalized_response: makeLargeRecord("response", 24),
-			metadata: makeLargeRecord("metadata", 12),
+			normalized_request: buildLargeRecord("request", 24),
+			normalized_response: buildLargeRecord("response", 24),
+			metadata: buildLargeRecord("metadata", 12),
 			usage: {
 				prompt_tokens: "512",
 				completion_tokens: "256",
 				total_tokens: "768",
 			},
-			attempts: makeAttempts([
+			attempts: buildAttempts([
 				{
 					attempt_number: 1,
 					status: "completed",
-					raw_request: makeLargeRecord("raw_request_chunk", 20),
-					raw_response: makeLargeRecord("raw_response_chunk", 20),
+					raw_request: buildLargeRecord("raw_request_chunk", 20),
+					raw_response: buildLargeRecord("raw_response_chunk", 20),
 					duration_ms: 3200,
 					started_at: "2026-03-04T08:30:02Z",
 					finished_at: "2026-03-04T08:30:05.200Z",
 				},
 			]),
-		}),
+		},
 	],
-});
+};
 
 const getAllRunDetails = () => [
 	successfulRunDetail,
@@ -437,7 +440,7 @@ const getAllRunDetails = () => [
 
 const getAllRunSummaries = () =>
 	getAllRunDetails().map((run) =>
-		makeRunSummary({
+		buildRunSummary({
 			id: run.id,
 			kind: run.kind,
 			status: run.status,
@@ -487,12 +490,12 @@ const meta: Meta<typeof DebugPanel> = {
 			"getChatDebugRun",
 		).mockImplementation(async (_chatID, runID) => {
 			return (
-				getDebugRunDetailById().get(runID) ??
-				makeRun({
+				getDebugRunDetailById().get(runID) ?? {
+					...MockRun,
 					id: runID,
 					summary: { result: `Unknown debug run fixture: ${runID}` },
 					steps: [],
-				})
+				}
 			);
 		});
 		return () => {
@@ -512,6 +515,21 @@ const meta: Meta<typeof DebugPanel> = {
 
 export default meta;
 type Story = StoryObj<typeof DebugPanel>;
+
+const getLastDownloadCall = (download: unknown): [Blob, string] => {
+	const lastCall = (download as Mock).mock.lastCall;
+	if (!lastCall) {
+		throw new Error("Expected debug export download to be called.");
+	}
+	const [blob, filename] = lastCall;
+	if (!(blob instanceof Blob)) {
+		throw new Error("Expected debug export download to receive a Blob.");
+	}
+	if (typeof filename !== "string") {
+		throw new Error("Expected debug export download to receive a filename.");
+	}
+	return [blob, filename];
+};
 
 export const Empty: Story = {
 	parameters: {
@@ -588,7 +606,7 @@ export const Loading: Story = {
 // ---------------------------------------------------------------------------
 
 const detailProbeRunId = "run-detail-probe";
-const detailProbeSummary = makeRunSummary({
+const detailProbeSummary = buildRunSummary({
 	id: detailProbeRunId,
 	summary: { first_message: "Detail state probe" },
 });
@@ -669,11 +687,12 @@ export const RunWithNoSteps: Story = {
 			},
 			{
 				key: ["chats", CHAT_ID, "debug-runs", detailProbeRunId],
-				data: makeRun({
+				data: {
+					...MockRun,
 					id: detailProbeRunId,
 					summary: { first_message: "Detail state probe" },
 					steps: [],
-				}),
+				},
 			},
 		],
 	},
@@ -702,7 +721,7 @@ export const SingleStepSuccessfulRun: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: successfulRunDetail.id,
 						summary: successfulRunDetail.summary,
 					}),
@@ -735,14 +754,306 @@ export const SingleStepSuccessfulRun: Story = {
 		// Request body toggle should be available once the step is open.
 		expect(canvas.getByText("Request body")).toBeVisible();
 
-		// Verify a copy button is reachable for normalized body sections.
+		// Verify a copy button becomes visible for normalized body sections.
 		await user.click(canvas.getByText("Request body"));
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", { name: /Copy request body JSON/i }),
-			).toBeVisible();
+		await expectVisibleCopyButtonOnHover({
+			canvas,
+			label: /Copy request body JSON/i,
 		});
 	},
+};
+
+export const ExportAllRuns: Story = {
+	args: {
+		download: fn(),
+	},
+	parameters: {
+		queries: [
+			{
+				key: ["chats", CHAT_ID, "debug-runs"],
+				data: [
+					buildRunSummary({
+						id: successfulRunDetail.id,
+						summary: successfulRunDetail.summary,
+					}),
+					buildRunSummary({
+						id: richRunDetail.id,
+						summary: richRunDetail.summary,
+					}),
+				],
+			},
+		],
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		await user.click(
+			await canvas.findByRole("button", { name: "Export debug logs" }),
+		);
+
+		await waitFor(() => expect(args.download).toHaveBeenCalledTimes(1));
+		const [blob, filename] = getLastDownloadCall(args.download);
+		expect(filename).toMatch(/^coder-agents-debug-chat-debug-ch-.*\.json$/);
+		expect(blob.type).toBe("application/json");
+
+		const payload = JSON.parse(await blob.text());
+		expect(payload).toMatchObject({
+			version: 1,
+			scope: "chat",
+			chat_id: CHAT_ID,
+			run_count: 2,
+			limited_to_most_recent: 100,
+		});
+		expect(payload.runs).toHaveLength(2);
+		expect(payload.runs[0].id).toBe(successfulRunDetail.id);
+		expect(payload.runs[1].id).toBe(richRunDetail.id);
+		expect(payload.runs[0].steps).toHaveLength(1);
+	},
+};
+
+export const ExportAllRunsUsesCachedTerminalRunDetails: Story = {
+	args: {
+		download: fn(),
+	},
+	parameters: {
+		queries: [
+			{
+				key: ["chats", CHAT_ID, "debug-runs"],
+				data: [
+					buildRunSummary({
+						id: successfulRunDetail.id,
+						summary: successfulRunDetail.summary,
+					}),
+				],
+			},
+			{
+				key: ["chats", CHAT_ID, "debug-runs", successfulRunDetail.id],
+				data: successfulRunDetail,
+			},
+		],
+	},
+	beforeEach: () => {
+		const getChatDebugRunMock = spyOn(
+			API.experimental,
+			"getChatDebugRun",
+		).mockRejectedValue(new Error("detail refetch should not happen"));
+		return () => {
+			getChatDebugRunMock.mockRestore();
+		};
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		await user.click(
+			await canvas.findByRole("button", { name: "Export debug logs" }),
+		);
+
+		await waitFor(() => expect(args.download).toHaveBeenCalledTimes(1));
+		const [blob] = getLastDownloadCall(args.download);
+		const payload = JSON.parse(await blob.text());
+		expect(payload.runs).toHaveLength(1);
+		expect(payload.runs[0].id).toBe(successfulRunDetail.id);
+		expect(payload).not.toHaveProperty("failed_runs");
+	},
+};
+
+export const ExportAllRunsPartialFailure: Story = {
+	args: {
+		download: fn(),
+	},
+	parameters: ExportAllRuns.parameters,
+	beforeEach: () => {
+		const getChatDebugRunMock = spyOn(
+			API.experimental,
+			"getChatDebugRun",
+		).mockImplementation(async (_chatID, runID) => {
+			if (runID === richRunDetail.id) {
+				throw new Error("run detail unavailable");
+			}
+			return successfulRunDetail;
+		});
+		return () => {
+			getChatDebugRunMock.mockRestore();
+		};
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		const warningSpy = spyOn(toast, "warning");
+		await user.click(
+			await canvas.findByRole("button", { name: "Export debug logs" }),
+		);
+
+		await waitFor(() => expect(args.download).toHaveBeenCalledTimes(1));
+		expect(warningSpy).toHaveBeenCalledWith(
+			"Exported debug logs with missing runs.",
+			expect.objectContaining({
+				description: expect.stringContaining("1 run"),
+			}),
+		);
+		warningSpy.mockRestore();
+		const [blob] = getLastDownloadCall(args.download);
+		const payload = JSON.parse(await blob.text());
+		expect(payload.runs).toHaveLength(1);
+		expect(payload.run_count).toBe(1);
+		expect(payload.requested_run_count).toBe(2);
+		expect(payload.failed_runs).toEqual([
+			{ run_id: richRunDetail.id, message: "run detail unavailable" },
+		]);
+		expect(
+			canvas.getByRole("button", { name: "Export debug logs" }),
+		).toBeEnabled();
+	},
+};
+
+export const ExportAllRunsTotalFetchFailure: Story = {
+	args: {
+		download: fn(),
+	},
+	parameters: ExportAllRuns.parameters,
+	beforeEach: () => {
+		const getChatDebugRunMock = spyOn(
+			API.experimental,
+			"getChatDebugRun",
+		).mockRejectedValue(new Error("run details unavailable"));
+		return () => {
+			getChatDebugRunMock.mockRestore();
+		};
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+		const errorSpy = spyOn(toast, "error");
+
+		await user.click(
+			await canvas.findByRole("button", { name: "Export debug logs" }),
+		);
+
+		await waitFor(() =>
+			expect(errorSpy).toHaveBeenCalledWith("Failed to export debug logs.", {
+				description: "No debug run details could be fetched.",
+			}),
+		);
+		expect(args.download).not.toHaveBeenCalled();
+		expect(
+			canvas.getByRole("button", { name: "Export debug logs" }),
+		).toBeEnabled();
+		errorSpy.mockRestore();
+	},
+};
+
+export const ExportAllRunsDownloadError: Story = {
+	args: {
+		download: fn(async () => {
+			throw new Error("download failed");
+		}),
+	},
+	parameters: ExportAllRuns.parameters,
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		const errorSpy = spyOn(toast, "error");
+		await user.click(
+			await canvas.findByRole("button", { name: "Export debug logs" }),
+		);
+
+		await waitFor(() => expect(args.download).toHaveBeenCalledTimes(1));
+		expect(errorSpy).toHaveBeenCalledWith("Failed to export debug logs.", {
+			description: "Please check the developer console for more details.",
+		});
+		errorSpy.mockRestore();
+		expect(
+			canvas.getByRole("button", { name: "Export debug logs" }),
+		).toBeEnabled();
+	},
+};
+
+export const ExportSingleRun: Story = {
+	args: {
+		download: fn(),
+	},
+	parameters: {
+		queries: [
+			{
+				key: ["chats", CHAT_ID, "debug-runs"],
+				data: [
+					buildRunSummary({
+						id: successfulRunDetail.id,
+						summary: successfulRunDetail.summary,
+					}),
+				],
+			},
+			{
+				key: ["chats", CHAT_ID, "debug-runs", successfulRunDetail.id],
+				data: successfulRunDetail,
+			},
+		],
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		await user.click(await canvas.findByRole("button", { name: /Chat Turn/i }));
+		await user.click(
+			await canvas.findByRole("button", { name: "Export this run" }),
+		);
+
+		await waitFor(() => expect(args.download).toHaveBeenCalledTimes(1));
+		const [blob, filename] = getLastDownloadCall(args.download);
+		expect(filename).toMatch(/^coder-agents-debug-run-run-1-.*\.json$/);
+		expect(blob.type).toBe("application/json");
+
+		const payload = JSON.parse(await blob.text());
+		expect(payload).toMatchObject({
+			version: 1,
+			scope: "run",
+			chat_id: CHAT_ID,
+			run_id: successfulRunDetail.id,
+		});
+		expect(payload.run.steps).toHaveLength(1);
+	},
+};
+
+export const ExportSingleRunDownloadError: Story = {
+	args: {
+		download: fn(async () => {
+			throw new Error("download failed");
+		}),
+	},
+	parameters: ExportSingleRun.parameters,
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		await user.click(await canvas.findByRole("button", { name: /Chat Turn/i }));
+		const errorSpy = spyOn(toast, "error");
+		await user.click(
+			await canvas.findByRole("button", { name: "Export this run" }),
+		);
+
+		await waitFor(() => expect(args.download).toHaveBeenCalledTimes(1));
+		expect(errorSpy).toHaveBeenCalledWith("Failed to export debug run.", {
+			description: "Please check the developer console for more details.",
+		});
+		errorSpy.mockRestore();
+		expect(
+			canvas.getByRole("button", { name: "Export this run" }),
+		).toBeEnabled();
+	},
+};
+
+// These stories intentionally use the real saveAs default for manual
+// agent-browser dogfooding of browser downloads.
+export const ExportAllRunsDogfood: Story = {
+	parameters: ExportAllRuns.parameters,
+};
+
+export const ExportSingleRunDogfood: Story = {
+	parameters: ExportSingleRun.parameters,
 };
 
 export const MultiStepRunWithRetries: Story = {
@@ -751,7 +1062,7 @@ export const MultiStepRunWithRetries: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: multiStepRunDetail.id,
 						status: multiStepRunDetail.status,
 						summary: multiStepRunDetail.summary,
@@ -788,16 +1099,17 @@ export const MultiStepRunWithRetries: Story = {
 		});
 
 		await user.click(canvas.getByRole("button", { name: /Attempt 1/i }));
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", { name: /Copy raw request JSON/i }),
-			).toBeVisible();
-			expect(
-				canvas.getByRole("button", { name: /Copy raw response JSON/i }),
-			).toBeVisible();
-			expect(
-				canvas.getByRole("button", { name: /Copy raw attempt error/i }),
-			).toBeVisible();
+		await expectVisibleCopyButtonOnHover({
+			canvas,
+			label: /Copy raw request JSON/i,
+		});
+		await expectVisibleCopyButtonOnHover({
+			canvas,
+			label: /Copy raw response JSON/i,
+		});
+		await expectVisibleCopyButtonOnHover({
+			canvas,
+			label: /Copy raw attempt error/i,
 		});
 	},
 };
@@ -808,7 +1120,7 @@ export const ErrorStateWithRedactedHeaders: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: errorRunDetail.id,
 						status: errorRunDetail.status,
 						summary: errorRunDetail.summary,
@@ -842,10 +1154,9 @@ export const ErrorStateWithRedactedHeaders: Story = {
 
 		// Expand request body to reveal the redacted headers.
 		await user.click(canvas.getByText("Request body"));
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", { name: /Copy request body JSON/i }),
-			).toBeVisible();
+		await expectVisibleCopyButtonOnHover({
+			canvas,
+			label: /Copy request body JSON/i,
 		});
 
 		// After expanding, verify [REDACTED] markers appear in the
@@ -865,7 +1176,7 @@ export const CompactionAndTitleGenerationBadges: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: "run-compaction",
 						kind: "compaction",
 						status: "in_progress",
@@ -874,7 +1185,7 @@ export const CompactionAndTitleGenerationBadges: Story = {
 						started_at: "2026-03-05T12:00:03Z",
 						updated_at: "2026-03-05T12:00:05Z",
 					}),
-					makeRunSummary({
+					buildRunSummary({
 						id: "run-chat-turn",
 						kind: "chat_turn",
 						status: "completed",
@@ -884,7 +1195,7 @@ export const CompactionAndTitleGenerationBadges: Story = {
 						updated_at: "2026-03-05T12:00:02Z",
 						finished_at: "2026-03-05T12:00:02Z",
 					}),
-					makeRunSummary({
+					buildRunSummary({
 						id: "run-title",
 						kind: "title_generation",
 						status: "error",
@@ -913,7 +1224,7 @@ export const LongRawPayloads: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: longPayloadRunDetail.id,
 						summary: longPayloadRunDetail.summary,
 						started_at: longPayloadRunDetail.started_at,
@@ -957,7 +1268,7 @@ export const RichPayloadWithTranscript: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: richRunDetail.id,
 						summary: richRunDetail.summary,
 					}),
@@ -1034,7 +1345,7 @@ export const ToolCallStep: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: toolCallRunDetail.id,
 						summary: toolCallRunDetail.summary,
 					}),
@@ -1071,7 +1382,7 @@ export const FallbackLabeledRun: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: "run-fallback",
 						summary: {},
 						provider: "anthropic",
@@ -1100,7 +1411,7 @@ export const InProgressRun: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: "run-progress",
 						status: "in_progress",
 						provider: "openai",
@@ -1137,7 +1448,7 @@ const longToolResultPayload = JSON.stringify({
 	steps: ["parse expression", "compute result", "return integer"],
 });
 
-const backendNormalizedRequest = makeNormalizedPayloadFixture({
+const backendNormalizedRequest = buildNormalizedPayloadFixture({
 	messages: [
 		{
 			role: "system",
@@ -1201,7 +1512,7 @@ const backendNormalizedRequest = makeNormalizedPayloadFixture({
 	provider_option_count: 0,
 });
 
-const backendNormalizedResponse = makeNormalizedPayloadFixture({
+const backendNormalizedResponse = buildNormalizedPayloadFixture({
 	content: [
 		{
 			type: "tool_call",
@@ -1241,7 +1552,8 @@ const backendNormalizedAttempts = [
 	},
 ];
 
-const backendShapeRunDetail = makeRun({
+const backendShapeRunDetail: TypesGen.ChatDebugRun = {
+	...MockRun,
 	id: "run-backend",
 	provider: "anthropic",
 	model: "claude-sonnet-4",
@@ -1253,7 +1565,8 @@ const backendShapeRunDetail = makeRun({
 		total_output_tokens: "1",
 	},
 	steps: [
-		makeStep({
+		{
+			...MockStep,
 			id: "step-backend-1",
 			run_id: "run-backend",
 			operation: "stream",
@@ -1264,10 +1577,10 @@ const backendShapeRunDetail = makeRun({
 				output_tokens: "1",
 				total_tokens: "43",
 			},
-			attempts: makeAttempts(backendNormalizedAttempts),
-		}),
+			attempts: buildAttempts(backendNormalizedAttempts),
+		},
 	],
-});
+};
 
 export const BackendNormalizedShape: Story = {
 	parameters: {
@@ -1275,7 +1588,7 @@ export const BackendNormalizedShape: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: backendShapeRunDetail.id,
 						provider: "anthropic",
 						model: "claude-sonnet-4",

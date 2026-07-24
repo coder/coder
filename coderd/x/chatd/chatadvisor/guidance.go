@@ -19,6 +19,7 @@ Use the built-in advisor tool when you need strategic guidance on planning
 ambiguity, architectural tradeoffs, debugging strategy, or repeated failures.
 The advisor sees recent conversation context, runs as a single-step nested model
 call with no tools, and returns concise guidance for the parent agent rather
-than the end user.
+than the end user. Provide a brief question, no more than 2000 runes. Summarize
+context instead of pasting long logs or transcripts.
 </advisor-guidance>`
 )

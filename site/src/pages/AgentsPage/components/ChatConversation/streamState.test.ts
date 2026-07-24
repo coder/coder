@@ -105,6 +105,24 @@ describe("applyMessagePartToStreamState", () => {
 		expect(result!.blocks).toEqual([{ type: "tool", id: "tc-1" }]);
 	});
 
+	it("propagates parsed_commands from a tool-call part", () => {
+		const result = applyMessagePartToStreamState(null, {
+			type: "tool-call",
+			tool_name: "execute",
+			tool_call_id: "tc-1",
+			args: { command: "cd /repo && git pull" },
+			parsed_commands: [
+				["cd", "/repo"],
+				["git", "pull"],
+			],
+		});
+		expect(result).not.toBeNull();
+		expect(result!.toolCalls["tc-1"].parsedCommands).toEqual([
+			["cd", "/repo"],
+			["git", "pull"],
+		]);
+	});
+
 	it("generates fallback tool call ID when missing", () => {
 		const result = applyMessagePartToStreamState(null, {
 			type: "tool-call",
@@ -193,6 +211,283 @@ describe("applyMessagePartToStreamState", () => {
 			result: { output: "file.txt" },
 			isError: false,
 		});
+	});
+
+	it("accumulates tool result deltas until a final result arrives", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			args: { question: "What is the safe path?" },
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			result_delta: "Use ",
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			result_delta: "small steps.",
+		});
+
+		expect(state).not.toBeNull();
+		expect(state!.toolResults["call-advisor-1"]).toMatchObject({
+			id: "call-advisor-1",
+			name: "advisor",
+			result: "Use small steps.",
+			resultRaw: "Use small steps.",
+			isError: false,
+			isStreaming: true,
+		});
+		expect(
+			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
+		).toBe("running");
+
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			result: {
+				type: "advice",
+				advice: "Use small steps.",
+				advisor_model: "test-provider/test-model",
+				remaining_uses: "2",
+			},
+		});
+
+		expect(state!.toolResults["call-advisor-1"]).toMatchObject({
+			id: "call-advisor-1",
+			name: "advisor",
+			result: {
+				type: "advice",
+				advice: "Use small steps.",
+				advisor_model: "test-provider/test-model",
+				remaining_uses: "2",
+			},
+			isError: false,
+		});
+		expect(state!.toolResults["call-advisor-1"].isStreaming).toBeUndefined();
+		expect(
+			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
+		).toBe("completed");
+	});
+
+	it("completes a streamed tool result when an empty delta carries the final result", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-2",
+			args: { question: "What is the safe path?" },
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-2",
+			result_delta: "Use ",
+		});
+
+		expect(state!.toolResults["call-advisor-2"]).toMatchObject({
+			result: "Use ",
+			isStreaming: true,
+		});
+		expect(
+			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
+		).toBe("running");
+
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-2",
+			result_delta: "",
+			result: {
+				type: "advice",
+				advice: "Use small steps.",
+				advisor_model: "test-provider/test-model",
+				remaining_uses: "2",
+			},
+		});
+
+		expect(state!.toolResults["call-advisor-2"]).toMatchObject({
+			result: {
+				type: "advice",
+				advice: "Use small steps.",
+				advisor_model: "test-provider/test-model",
+				remaining_uses: "2",
+			},
+			isError: false,
+		});
+		expect(state!.toolResults["call-advisor-2"].isStreaming).toBeUndefined();
+		expect(
+			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
+		).toBe("completed");
+	});
+
+	it("marks a streamed tool result as error when an empty delta carries is_error", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-3",
+			args: { question: "What is the safe path?" },
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-3",
+			result_delta: "partial advice",
+		});
+
+		expect(state!.toolResults["call-advisor-3"]).toMatchObject({
+			result: "partial advice",
+			isStreaming: true,
+		});
+		expect(
+			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
+		).toBe("running");
+
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-3",
+			result_delta: "",
+			is_error: true,
+		});
+
+		expect(state!.toolResults["call-advisor-3"]).toMatchObject({
+			result: "partial advice",
+			isError: true,
+		});
+		expect(state!.toolResults["call-advisor-3"].isStreaming).toBeUndefined();
+		expect(
+			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
+		).toBe("error");
+	});
+
+	it("ignores empty tool result deltas", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "edit_files",
+			tool_call_id: "edit-1",
+			args: { files: "[]" },
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "edit_files",
+			tool_call_id: "edit-1",
+			result_delta: "",
+		});
+
+		expect(state).not.toBeNull();
+		expect(state!.toolResults["edit-1"]).toBeUndefined();
+		expect(
+			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
+		).toBe("running");
+	});
+
+	it("resets streaming tool result deltas", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			args: { question: "What is the safe path?" },
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			result_delta: "stale advice",
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			result_reset: true,
+		});
+
+		expect(state).not.toBeNull();
+		expect(state!.toolResults["call-advisor-1"]).toBeUndefined();
+		expect(
+			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
+		).toBe("running");
+
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			result_delta: "fresh advice",
+		});
+		expect(state!.toolResults["call-advisor-1"]).toMatchObject({
+			result: "fresh advice",
+			resultRaw: "fresh advice",
+			isStreaming: true,
+		});
+	});
+
+	it("replaces streamed tool result deltas with a final error", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			args: { question: "What is the safe path?" },
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			result_delta: "partial advice",
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			result: { type: "error", error: "advisor failed" },
+			is_error: true,
+		});
+
+		expect(state).not.toBeNull();
+		expect(state!.toolResults["call-advisor-1"]).toMatchObject({
+			result: { type: "error", error: "advisor failed" },
+			isError: true,
+		});
+		expect(state!.toolResults["call-advisor-1"].isStreaming).toBeUndefined();
+		expect(
+			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
+		).toBe("error");
+	});
+
+	it("clears streaming state for bare error tool results", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			args: { question: "What is the safe path?" },
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			result_delta: "partial advice",
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "advisor",
+			tool_call_id: "call-advisor-1",
+			is_error: true,
+		});
+
+		expect(state!.toolResults["call-advisor-1"].isStreaming).toBeUndefined();
+		expect(
+			buildStreamTools(state!.toolCalls, state!.toolResults)[0].status,
+		).toBe("error");
 	});
 
 	it("accumulates multiple tool calls in sequence", () => {

@@ -24,7 +24,7 @@ type noopTracer = noop.Tracer
 type fakeTracer struct {
 	noop.TracerProvider
 	noopTracer
-	startCalled int64
+	startCalled atomic.Int64
 }
 
 var (
@@ -39,7 +39,7 @@ func (f *fakeTracer) Tracer(_ string, _ ...trace.TracerOption) trace.Tracer {
 
 // Start implements trace.Tracer.
 func (f *fakeTracer) Start(ctx context.Context, _ string, _ ...trace.SpanStartOption) (context.Context, trace.Span) {
-	atomic.AddInt64(&f.startCalled, 1)
+	f.startCalled.Add(1)
 	return ctx, tracing.NoopSpan
 }
 
@@ -94,7 +94,7 @@ func Test_Middleware(t *testing.T) {
 					rw.WriteHeader(http.StatusNoContent)
 				})).ServeHTTP(rw, r)
 
-				didRun := atomic.LoadInt64(&fake.startCalled) == 1
+				didRun := fake.startCalled.Load() == 1
 				require.Equal(t, c.runs, didRun, "expected middleware to run/not run")
 			})
 		}

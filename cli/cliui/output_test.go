@@ -80,7 +80,7 @@ func Test_OutputFormatter(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		var called int64
+		var called atomic.Int64
 		f := cliui.NewOutputFormatter(
 			cliui.JSONFormat(),
 			&format{
@@ -95,7 +95,7 @@ func Test_OutputFormatter(t *testing.T) {
 					})
 				},
 				formatFn: func(_ context.Context, _ any) (string, error) {
-					atomic.AddInt64(&called, 1)
+					called.Add(1)
 					return "foo", nil
 				},
 			},
@@ -121,18 +121,18 @@ func Test_OutputFormatter(t *testing.T) {
 		var got []string
 		require.NoError(t, json.Unmarshal([]byte(out), &got))
 		require.Equal(t, data, got)
-		require.EqualValues(t, 0, atomic.LoadInt64(&called))
+		require.EqualValues(t, 0, called.Load())
 
 		require.NoError(t, fs.Set("output", "foo"))
 		out, err = f.Format(ctx, data)
 		require.NoError(t, err)
 		require.Equal(t, "foo", out)
-		require.EqualValues(t, 1, atomic.LoadInt64(&called))
+		require.EqualValues(t, 1, called.Load())
 
 		require.Error(t, fs.Set("output", "bar"))
 		out, err = f.Format(ctx, data)
 		require.NoError(t, err)
 		require.Equal(t, "foo", out)
-		require.EqualValues(t, 2, atomic.LoadInt64(&called))
+		require.EqualValues(t, 2, called.Load())
 	})
 }

@@ -1,5 +1,10 @@
 # nsjail on Docker
 
+> [!NOTE]
+> Agent Firewall requires the [AI Governance Add-On](../../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access Agent Firewall.
+
 This page describes the runtime and permission requirements for running Agent
 Firewall with the **nsjail** jail type on **Docker**.
 
@@ -88,7 +93,7 @@ above (or add "clone" to the list of allowed syscalls).
 
 Once updated, you can run the container with the custom seccomp profile:
 
-```bash
+```sh
 docker run -it \
   --cap-add=NET_ADMIN \
   --security-opt seccomp=seccomp-v25.0.13.json \

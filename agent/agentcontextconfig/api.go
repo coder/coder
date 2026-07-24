@@ -28,7 +28,7 @@ const (
 
 const (
 	maxInstructionFileBytes = 64 * 1024
-	maxSkillMetaBytes       = 64 * 1024
+	maxSkillMetaBytes       = workspacesdk.MaxSkillMetaBytes
 )
 
 // markdownCommentPattern strips HTML comments from instruction
@@ -53,17 +53,16 @@ var invisibleRunePattern = regexp.MustCompile(
 		"\ufff0-\ufff8]",
 )
 
-// skillNamePattern validates kebab-case skill names.
-var skillNamePattern = regexp.MustCompile(
-	`^[a-z0-9]+(-[a-z0-9]+)*$`,
-)
-
 // Default values for agent-internal configuration. These are
 // used when the corresponding env vars are unset.
+//
+// DefaultSkillsDir is a comma-separated list so home-scoped
+// skills override project-scoped ones with the same name
+// (discoverSkills picks the first occurrence per skill name).
 const (
 	DefaultInstructionsDir  = "~/.coder"
 	DefaultInstructionsFile = "AGENTS.md"
-	DefaultSkillsDir        = ".agents/skills"
+	DefaultSkillsDir        = "~/.coder/skills,.agents/skills"
 	DefaultSkillMetaFile    = "SKILL.md"
 	DefaultMCPConfigFile    = ".mcp.json"
 )
@@ -353,7 +352,7 @@ func discoverSkills(skillsDirs []string, metaFile string) []codersdk.ChatMessage
 			if name != entry.Name() {
 				continue
 			}
-			if !skillNamePattern.MatchString(name) {
+			if !workspacesdk.SkillNamePattern.MatchString(name) {
 				continue
 			}
 

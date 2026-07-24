@@ -103,6 +103,14 @@
 		"object": { "resource_type": "aibridge_interception", "any_org": true },
 		"action": "read"
 	},
+	"viewAnyAIProvider": {
+		"object": { "resource_type": "ai_provider" },
+		"action": "read"
+	},
+	"viewAIGatewayKeys": {
+		"object": { "resource_type": "ai_gateway_key" },
+		"action": "read"
+	},
 	"createOAuth2App": {
 		"object": { "resource_type": "oauth2_app" },
 		"action": "create"

@@ -1,5 +1,10 @@
 # Rules Engine Documentation
 
+> [!NOTE]
+> Agent Firewall requires the [AI Governance Add-On](../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access Agent Firewall.
+
 ## Overview
 
 The `rulesengine` package provides a flexible rule-based filtering system for

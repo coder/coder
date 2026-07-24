@@ -38,11 +38,8 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 					{example.tags.map((tag) => (
 						<RouterLink key={tag} to={`/starter-templates?tag=${tag}`}>
 							<Pill
-								className={cn(
-									"cursor-pointer border-border",
-									"hover:border-content-primary",
-									activeTag === tag && "!border-border-pending !bg-surface-sky",
-								)}
+								type={activeTag === tag ? "active" : undefined}
+								className="cursor-pointer no-underline hover:border-content-primary"
 							>
 								{tag}
 							</Pill>

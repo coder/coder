@@ -32,9 +32,11 @@ export function useBatchActions(
 	const startAllMutation = useMutation({
 		mutationFn: (workspaces: readonly Workspace[]) => {
 			return Promise.all(
-				workspaces.map((w) =>
-					API.startWorkspace(w.id, w.latest_build.template_version_id),
-				),
+				workspaces
+					.filter((w) => w.latest_build.status === "stopped")
+					.map((w) =>
+						API.startWorkspace(w.id, w.latest_build.template_version_id),
+					),
 			);
 		},
 		onSuccess,
@@ -47,7 +49,11 @@ export function useBatchActions(
 
 	const stopAllMutation = useMutation({
 		mutationFn: (workspaces: readonly Workspace[]) => {
-			return Promise.all(workspaces.map((w) => API.stopWorkspace(w.id)));
+			return Promise.all(
+				workspaces
+					.filter((w) => w.latest_build.status === "running")
+					.map((w) => API.stopWorkspace(w.id)),
+			);
 		},
 		onSuccess,
 		onError: (error) => {

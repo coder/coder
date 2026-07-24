@@ -77,7 +77,7 @@ const OidcIcon: FC<OidcIconProps> = ({ iconUrl }) => {
 	// if that happens, but also still need a way to inject accessible text
 	return (
 		<>
-			<img alt="" src={iconUrl} aria-labelledby={oidcId} />
+			<ExternalImage alt="" src={iconUrl} aria-labelledby={oidcId} />
 			<div id={oidcId} className="sr-only">
 				Open ID Connect
 			</div>

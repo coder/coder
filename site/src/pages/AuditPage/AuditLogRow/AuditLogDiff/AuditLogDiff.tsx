@@ -1,43 +1,6 @@
 import type { FC } from "react";
 import type { AuditDiff } from "#/api/typesGenerated";
-
-const getDiffValue = (value: unknown): string => {
-	if (typeof value === "string") {
-		return `"${value}"`;
-	}
-
-	if (isTimeObject(value)) {
-		if (!value.Valid) {
-			return "null";
-		}
-
-		return new Date(value.Time).toLocaleString();
-	}
-
-	if (Array.isArray(value)) {
-		const values = value.map((v) => getDiffValue(v));
-		return `[${values.join(", ")}]`;
-	}
-
-	if (value === null || value === undefined) {
-		return "null";
-	}
-
-	return String(value);
-};
-
-const isTimeObject = (
-	value: unknown,
-): value is { Time: string; Valid: boolean } => {
-	return (
-		value !== null &&
-		typeof value === "object" &&
-		"Time" in value &&
-		typeof value.Time === "string" &&
-		"Valid" in value &&
-		typeof value.Valid === "boolean"
-	);
-};
+import { formatAuditDiffValue } from "./auditUtils";
 
 interface AuditLogDiffProps {
 	diff: AuditDiff;
@@ -58,7 +21,9 @@ export const AuditLogDiff: FC<AuditLogDiffProps> = ({ diff }) => {
 						<div>
 							{attrName}:{" "}
 							<span className="rounded p-px bg-red-800">
-								{valueDiff.secret ? "••••••••" : getDiffValue(valueDiff.old)}
+								{valueDiff.secret
+									? "••••••••"
+									: formatAuditDiffValue(valueDiff.old)}
 							</span>
 						</div>
 					</div>
@@ -74,7 +39,9 @@ export const AuditLogDiff: FC<AuditLogDiffProps> = ({ diff }) => {
 						<div>
 							{attrName}:{" "}
 							<span className="rounded p-px bg-green-800">
-								{valueDiff.secret ? "••••••••" : getDiffValue(valueDiff.new)}
+								{valueDiff.secret
+									? "••••••••"
+									: formatAuditDiffValue(valueDiff.new)}
 							</span>
 						</div>
 					</div>

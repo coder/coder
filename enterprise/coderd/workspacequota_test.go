@@ -152,13 +152,11 @@ func TestWorkspaceQuota(t *testing.T) {
 		// Spin up three workspaces fine
 		var wg sync.WaitGroup
 		for i := 0; i < 4; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 				build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 				assert.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
-			}()
+			})
 		}
 		wg.Wait()
 		verifyQuota(ctx, t, client, user.OrganizationID.String(), 4, 4)
