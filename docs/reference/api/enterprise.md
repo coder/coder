@@ -1715,6 +1715,37 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secret
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Export organization AI spend as CSV
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/ai/spend/export \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/ai/spend/export`
+
+Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.
+The optional start and end query parameters bound the period and are interpreted as UTC; both default to the current budget period when omitted.
+
+### Parameters
+
+| Name           | In    | Type              | Required | Description                     |
+|----------------|-------|-------------------|----------|---------------------------------|
+| `organization` | path  | string(uuid)      | true     | Organization ID                 |
+| `start`        | query | string(date-time) | false    | Inclusive lower bound (RFC3339) |
+| `end`          | query | string(date-time) | false    | Exclusive upper bound (RFC3339) |
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema |
+|--------|---------------------------------------------------------|-------------|--------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get groups by organization
 
 ### Code samples

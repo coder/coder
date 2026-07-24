@@ -534,6 +534,23 @@ export const AIProviderTypes: AIProviderType[] = [
 
 // From codersdk/aibridge.go
 /**
+ * AISpendExportOptions bounds the period exported by ExportOrganizationAISpend.
+ * Both bounds are optional and interpreted as UTC; zero values fall back to the
+ * current budget period on the server.
+ */
+export interface AISpendExportOptions {
+	/**
+	 * Start is the inclusive lower bound of the export window.
+	 */
+	readonly Start: string;
+	/**
+	 * End is the exclusive upper bound of the export window.
+	 */
+	readonly End: string;
+}
+
+// From codersdk/aibridge.go
+/**
  * AISpendPeriodWindow is the [Start, End) window over which AI spend is
  * aggregated.
  */

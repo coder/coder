@@ -305,3 +305,35 @@ FROM user_spend
 WHERE current_spend_micros >= spend_limit_micros
 GROUP BY effective_group_id
 ORDER BY effective_group_id;
+
+-- name: ExportOrganizationAISpend :many
+-- Returns per-user, per-group, per-model, per-provider aggregated AI spend for
+-- @organization_id over the [period_start, period_end) window, built from raw
+-- AI Gateway token usage rather than the daily spend rollup. Spend is
+-- attributed through the token usage's effective group, and rows are bucketed
+-- by the token usage created_at, matching how ai_user_daily_spend is derived.
+-- Only token usage with an effective group in the organization is included.
+SELECT
+	ai.initiator_id AS user_id,
+	tu.effective_group_id AS group_id,
+	groups.organization_id AS organization_id,
+	ai.model AS model,
+	ai.provider AS provider,
+	COALESCE(SUM(tu.input_tokens), 0)::BIGINT AS input_tokens,
+	COALESCE(SUM(tu.output_tokens), 0)::BIGINT AS output_tokens,
+	COALESCE(SUM(tu.cache_read_input_tokens), 0)::BIGINT AS cache_read_tokens,
+	COALESCE(SUM(tu.cache_write_input_tokens), 0)::BIGINT AS cache_write_tokens,
+	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros
+FROM aibridge_token_usages tu
+JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+JOIN groups ON groups.id = tu.effective_group_id
+WHERE groups.organization_id = @organization_id
+	AND tu.created_at >= @period_start::timestamptz
+	AND tu.created_at < @period_end::timestamptz
+GROUP BY
+	ai.initiator_id,
+	tu.effective_group_id,
+	groups.organization_id,
+	ai.model,
+	ai.provider
+ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.model;

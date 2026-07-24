@@ -4227,6 +4227,49 @@
 				]
 			}
 		},
+		"/api/v2/organizations/{organization}/ai/spend/export": {
+			"get": {
+				"description": "Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.\nThe optional start and end query parameters bound the period and are interpreted as UTC; both default to the current budget period when omitted.",
+				"produces": ["text/csv"],
+				"tags": ["Enterprise"],
+				"summary": "Export organization AI spend as CSV",
+				"operationId": "export-organization-ai-spend",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Organization ID",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"format": "date-time",
+						"description": "Inclusive lower bound (RFC3339)",
+						"name": "start",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"format": "date-time",
+						"description": "Exclusive upper bound (RFC3339)",
+						"name": "end",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
 		"/api/v2/organizations/{organization}/groups": {
 			"get": {
 				"produces": ["application/json"],

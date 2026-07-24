@@ -2525,6 +2525,92 @@ func (q *sqlQuerier) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid
 	return i, err
 }
 
+const exportOrganizationAISpend = `-- name: ExportOrganizationAISpend :many
+SELECT
+	ai.initiator_id AS user_id,
+	tu.effective_group_id AS group_id,
+	groups.organization_id AS organization_id,
+	ai.model AS model,
+	ai.provider AS provider,
+	COALESCE(SUM(tu.input_tokens), 0)::BIGINT AS input_tokens,
+	COALESCE(SUM(tu.output_tokens), 0)::BIGINT AS output_tokens,
+	COALESCE(SUM(tu.cache_read_input_tokens), 0)::BIGINT AS cache_read_tokens,
+	COALESCE(SUM(tu.cache_write_input_tokens), 0)::BIGINT AS cache_write_tokens,
+	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros
+FROM aibridge_token_usages tu
+JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+JOIN groups ON groups.id = tu.effective_group_id
+WHERE groups.organization_id = $1
+	AND tu.created_at >= $2::timestamptz
+	AND tu.created_at < $3::timestamptz
+GROUP BY
+	ai.initiator_id,
+	tu.effective_group_id,
+	groups.organization_id,
+	ai.model,
+	ai.provider
+ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.model
+`
+
+type ExportOrganizationAISpendParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	PeriodStart    time.Time `db:"period_start" json:"period_start"`
+	PeriodEnd      time.Time `db:"period_end" json:"period_end"`
+}
+
+type ExportOrganizationAISpendRow struct {
+	UserID           uuid.UUID     `db:"user_id" json:"user_id"`
+	GroupID          uuid.NullUUID `db:"group_id" json:"group_id"`
+	OrganizationID   uuid.UUID     `db:"organization_id" json:"organization_id"`
+	Model            string        `db:"model" json:"model"`
+	Provider         string        `db:"provider" json:"provider"`
+	InputTokens      int64         `db:"input_tokens" json:"input_tokens"`
+	OutputTokens     int64         `db:"output_tokens" json:"output_tokens"`
+	CacheReadTokens  int64         `db:"cache_read_tokens" json:"cache_read_tokens"`
+	CacheWriteTokens int64         `db:"cache_write_tokens" json:"cache_write_tokens"`
+	CostMicros       int64         `db:"cost_micros" json:"cost_micros"`
+}
+
+// Returns per-user, per-group, per-model, per-provider aggregated AI spend for
+// @organization_id over the [period_start, period_end) window, built from raw
+// AI Gateway token usage rather than the daily spend rollup. Spend is
+// attributed through the token usage's effective group, and rows are bucketed
+// by the token usage created_at, matching how ai_user_daily_spend is derived.
+// Only token usage with an effective group in the organization is included.
+func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOrganizationAISpendParams) ([]ExportOrganizationAISpendRow, error) {
+	rows, err := q.db.QueryContext(ctx, exportOrganizationAISpend, arg.OrganizationID, arg.PeriodStart, arg.PeriodEnd)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ExportOrganizationAISpendRow
+	for rows.Next() {
+		var i ExportOrganizationAISpendRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.GroupID,
+			&i.OrganizationID,
+			&i.Model,
+			&i.Provider,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.CacheReadTokens,
+			&i.CacheWriteTokens,
+			&i.CostMicros,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAIModelPriceByProviderModel = `-- name: GetAIModelPriceByProviderModel :one
 SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at
 FROM ai_model_prices

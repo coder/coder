@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -366,6 +367,44 @@ func (c *Client) AIBridgeListClients(ctx context.Context) ([]string, error) {
 	}
 	var clients []string
 	return clients, json.NewDecoder(res.Body).Decode(&clients)
+}
+
+// AISpendExportOptions bounds the period exported by ExportOrganizationAISpend.
+// Both bounds are optional and interpreted as UTC; zero values fall back to the
+// current budget period on the server.
+type AISpendExportOptions struct {
+	// Start is the inclusive lower bound of the export window.
+	Start time.Time
+	// End is the exclusive upper bound of the export window.
+	End time.Time
+}
+
+// ExportOrganizationAISpend returns a CSV of per-user, per-group, per-model,
+// per-provider AI spend for the organization over the requested period. The
+// caller is responsible for closing the returned ReadCloser.
+func (c *Client) ExportOrganizationAISpend(ctx context.Context, organization uuid.UUID, opts AISpendExportOptions) (io.ReadCloser, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/ai/spend/export", organization.String()),
+		nil,
+		func(r *http.Request) {
+			q := r.URL.Query()
+			if !opts.Start.IsZero() {
+				q.Set("start", opts.Start.UTC().Format(time.RFC3339Nano))
+			}
+			if !opts.End.IsZero() {
+				q.Set("end", opts.End.UTC().Format(time.RFC3339Nano))
+			}
+			r.URL.RawQuery = q.Encode()
+		},
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("make request: %w", err)
+	}
+	if res.StatusCode != http.StatusOK {
+		defer res.Body.Close()
+		return nil, ReadBodyAsError(res)
+	}
+	return res.Body, nil
 }
 
 type GroupAIBudget struct {

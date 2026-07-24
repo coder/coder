@@ -1,8 +1,10 @@
 package coderd
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/csv"
 	"errors"
 	"fmt"
 	"net/http"
@@ -39,6 +41,9 @@ const (
 	aiBridgeRateLimitWindow              = time.Second
 	maxOrganizationGroupsAISpendGroupIDs = 100
 	maxGroupMembersAISpendUserIDs        = 100
+	// maxAISpendExportPeriod bounds an explicit AI spend export window to at
+	// most 31 days, matching the maximum length of the monthly default period.
+	maxAISpendExportPeriod = 31 * 24 * time.Hour
 )
 
 // errInvalidCursor is returned when a pagination cursor does not
@@ -1024,6 +1029,152 @@ func (api *API) organizationGroupsAISpend(rw http.ResponseWriter, r *http.Reques
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// aiSpendExportCSVHeader is the CSV column order for the AI spend export.
+var aiSpendExportCSVHeader = []string{
+	"user", "group", "organization", "model", "provider",
+	"input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens",
+	"cost_micros", "period_start", "period_end",
+}
+
+// aiSpendExportPeriod resolves the export window from the request. When neither
+// start nor end is supplied it defaults to the current UTC monthly budget
+// period. Both bounds must be supplied together and are interpreted as UTC; an
+// explicit window must be non-empty and span at most 31 days. On invalid input
+// it writes the error response and returns ok=false.
+func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter, r *http.Request) (start, end time.Time, ok bool) {
+	query := r.URL.Query()
+	hasStart := query.Has("start")
+	hasEnd := query.Has("end")
+
+	if !hasStart && !hasEnd {
+		window, err := api.currentAIBudgetWindow()
+		if err != nil {
+			api.Logger.Error(ctx, "failed to compute AI budget period", slog.Error(err))
+			httpapi.InternalServerError(rw, err)
+			return time.Time{}, time.Time{}, false
+		}
+		return window.Start, window.End, true
+	}
+
+	if hasStart != hasEnd {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Query parameters \"start\" and \"end\" must be provided together.",
+		})
+		return time.Time{}, time.Time{}, false
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	start = parser.Time3339Nano(query, time.Time{}, "start")
+	end = parser.Time3339Nano(query, time.Time{}, "end")
+	parser.ErrorExcessParams(query)
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.Errors,
+		})
+		return time.Time{}, time.Time{}, false
+	}
+	if !start.Before(end) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Query parameter \"start\" must be before \"end\".",
+		})
+		return time.Time{}, time.Time{}, false
+	}
+	if end.Sub(start) > maxAISpendExportPeriod {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Query period must not exceed 31 days.",
+		})
+		return time.Time{}, time.Time{}, false
+	}
+	return start, end, true
+}
+
+// @Summary Export organization AI spend as CSV
+// @Description Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.
+// @Description The optional start and end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days; when both are omitted the current UTC monthly period is used.
+// @ID export-organization-ai-spend
+// @Security CoderSessionToken
+// @Produce text/csv
+// @Tags Enterprise
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param start query string false "Inclusive lower bound (RFC3339)" format(date-time)
+// @Param end query string false "Exclusive upper bound (RFC3339)" format(date-time)
+// @Success 200
+// @Router /api/v2/organizations/{organization}/ai/spend/export [get]
+func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	org := httpmw.OrganizationParam(r)
+	logger := api.Logger.With(slog.F("organization_id", org.ID))
+
+	periodStart, periodEnd, ok := api.aiSpendExportPeriod(ctx, rw, r)
+	if !ok {
+		return
+	}
+	logger = logger.With(
+		slog.F("period_start", periodStart),
+		slog.F("period_end", periodEnd),
+	)
+
+	rows, err := api.Database.ExportOrganizationAISpend(ctx, database.ExportOrganizationAISpendParams{
+		OrganizationID: org.ID,
+		PeriodStart:    periodStart,
+		PeriodEnd:      periodEnd,
+	})
+	if err != nil {
+		logger.Error(ctx, "failed to export organization AI spend", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	start := periodStart.UTC().Format(time.RFC3339)
+	end := periodEnd.UTC().Format(time.RFC3339)
+
+	// Build the full CSV in memory so the response is sent once with a
+	// Content-Length, and so a write error surfaces as a 500 before any
+	// status is written. The row count is bounded by the 31-day period cap.
+	var buf bytes.Buffer
+	cw := csv.NewWriter(&buf)
+	if err := cw.Write(aiSpendExportCSVHeader); err != nil {
+		logger.Error(ctx, "failed to write AI spend export header", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	for _, row := range rows {
+		if err := cw.Write([]string{
+			row.UserID.String(),
+			row.GroupID.UUID.String(),
+			row.OrganizationID.String(),
+			row.Model,
+			row.Provider,
+			strconv.FormatInt(row.InputTokens, 10),
+			strconv.FormatInt(row.OutputTokens, 10),
+			strconv.FormatInt(row.CacheReadTokens, 10),
+			strconv.FormatInt(row.CacheWriteTokens, 10),
+			strconv.FormatInt(row.CostMicros, 10),
+			start,
+			end,
+		}); err != nil {
+			logger.Error(ctx, "failed to write AI spend export row", slog.Error(err))
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+	}
+	cw.Flush()
+	if err := cw.Error(); err != nil {
+		logger.Error(ctx, "failed to build AI spend export", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	rw.Header().Set("Content-Type", "text/csv")
+	rw.Header().Set("Content-Disposition", "attachment; filename=\"ai-spend-export.csv\"")
+	rw.Header().Set("Content-Length", strconv.Itoa(buf.Len()))
+	rw.WriteHeader(http.StatusOK)
+	if _, err := rw.Write(buf.Bytes()); err != nil {
+		logger.Error(ctx, "failed to write AI spend export", slog.Error(err))
+	}
 }
 
 // @Summary Get group members AI spend by organization
