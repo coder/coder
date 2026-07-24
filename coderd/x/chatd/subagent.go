@@ -773,8 +773,7 @@ func (p *Server) subagentTools(
 				if err != nil {
 					// A failed hook dispatch must fail closed instead of
 					// degrading into a tool error the model can ignore.
-					var hookErr *dispatch.Error
-					if errors.As(err, &hookErr) {
+					if _, ok := errors.AsType[*dispatch.Error](err); ok {
 						return fantasy.ToolResponse{}, err
 					}
 					// UserPromptDeniedError.Error() carries the user-facing

@@ -66,8 +66,8 @@ func (t *hookTrigger) preflightPendingToolCalls(
 			ToolInput: json.RawMessage(toolCall.Input),
 		}, hooks.EventPreToolUse)
 		if err != nil {
-			var denied *hookDeniedError
-			if !errors.As(err, &denied) {
+			denied, ok := errors.AsType[*hookDeniedError](err)
+			if !ok {
 				return preToolUseExecutionResult{}, err
 			}
 			// The denial's model context folds into the synthetic tool

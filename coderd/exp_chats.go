@@ -126,8 +126,7 @@ func writeChatHookDispatchFailed(ctx context.Context, rw http.ResponseWriter, ho
 // dispatch failures, reporting whether it handled the error. The fallback
 // message is used when the hook denies without a user message.
 func writeChatHookErr(ctx context.Context, rw http.ResponseWriter, err error, deniedFallback string) bool {
-	var denied *chatd.UserPromptDeniedError
-	if errors.As(err, &denied) {
+	if denied, ok := errors.AsType[*chatd.UserPromptDeniedError](err); ok {
 		message := denied.UserMessage
 		if message == "" {
 			message = deniedFallback
@@ -135,8 +134,7 @@ func writeChatHookErr(ctx context.Context, rw http.ResponseWriter, err error, de
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: message})
 		return true
 	}
-	var hookErr *dispatch.Error
-	if errors.As(err, &hookErr) {
+	if hookErr, ok := errors.AsType[*dispatch.Error](err); ok {
 		writeChatHookDispatchFailed(ctx, rw, hookErr)
 		return true
 	}
@@ -3670,8 +3668,8 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	response := codersdk.EditChatMessageResponse{Message: convertChatMessage(editResult.Message)}
 	// Synthetic cancellations precede the replacement with lower IDs;
 	// clients that seed their transcript cache from this response need
-	// all user-visible inserted rows, or a stream reconnect with after_id set to the
-	// replacement would skip the earlier ones.
+	// all user-visible inserted rows, or a stream reconnect with
+	// after_id set to the replacement would skip the earlier ones.
 	for _, inserted := range editResult.InsertedMessages {
 		if inserted.Visibility == database.ChatMessageVisibilityModel {
 			continue
@@ -8257,12 +8255,13 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 		DynamicTools:  dynamicTools,
 	})
 	if err != nil {
+		if hookErr, ok := errors.AsType[*dispatch.Error](err); ok {
+			writeChatHookDispatchFailed(ctx, rw, hookErr)
+			return
+		}
 		var validationErr *chatd.ToolResultValidationError
 		var conflictErr *chatd.ToolResultStatusConflictError
-		var hookErr *dispatch.Error
 		switch {
-		case errors.As(err, &hookErr):
-			writeChatHookDispatchFailed(ctx, rw, hookErr)
 		case xerrors.Is(err, chatd.ErrChatArchived):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Cannot submit tool results to an archived chat.",
