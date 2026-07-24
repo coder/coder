@@ -1228,9 +1228,7 @@ export const updateWorkspace = async (
 	await page.getByTestId("workspace-update-button").click();
 	await page.getByTestId("confirm-button").click();
 
-	await page
-		.getByRole("button", { name: /go to workspace parameters/i })
-		.click();
+	await page.getByRole("link", { name: /go to workspace parameters/i }).click();
 
 	await fillParameters(page, richParameters, buildParameters);
 
