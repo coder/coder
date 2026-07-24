@@ -929,17 +929,29 @@ func (p *Server) subagentTools(
 					}
 					if errStatus, ok := errors.AsType[*subagentStatusError](awaitErr); ok {
 						errChat := errStatus.chat
-						lastError := subagentLastErrorMessage(errChat.LastError)
+						decoded, lastError := subagentLastError(errChat.LastError)
 						if lastError == "" {
 							lastError = errStatus.reason
 						}
-						return toolJSONResponse(withSubagentType(map[string]any{
+						payload := map[string]any{
 							"chat_id":    errChat.ID.String(),
 							"title":      errChat.Title,
 							"status":     string(errChat.Status),
 							"last_error": lastError,
 							"report":     errStatus.report,
-						}, errChat)), nil
+						}
+						if decoded != nil {
+							kind := decoded.Kind
+							if kind == "" {
+								kind = codersdk.ChatErrorKindGeneric
+							}
+							payload["last_error_kind"] = string(kind)
+							payload["last_error_retryable"] = decoded.Retryable
+							if decoded.Detail != "" {
+								payload["last_error_detail"] = decoded.Detail
+							}
+						}
+						return toolJSONResponse(withSubagentType(payload, errChat)), nil
 					}
 					return subagentErrorResponse(awaitErr, targetChatInfo), nil
 				}
@@ -1506,27 +1518,29 @@ func handleSubagentDone(
 // actionable information, so a provider detail replaces it entirely.
 const subagentGenericErrorMessage = "The chat request failed unexpectedly."
 
-// subagentLastErrorMessage builds the message surfaced to the parent
-// model from a chat's last_error payload, preferring the actionable
+// subagentLastError decodes a chat's last_error payload and builds the
+// message surfaced to the parent model, preferring the actionable
 // provider detail. The content mirrors what the chat UI renders from
 // the same payload. An unrecognized payload yields an empty message so
 // the caller falls back to its own status reason instead of exposing
 // raw stored bytes.
-func subagentLastErrorMessage(raw pqtype.NullRawMessage) string {
+func subagentLastError(raw pqtype.NullRawMessage) (*codersdk.ChatError, string) {
 	if !raw.Valid {
-		return ""
+		return nil, ""
 	}
 	var payload codersdk.ChatError
 	if err := json.Unmarshal(raw.RawMessage, &payload); err != nil {
-		return ""
+		return nil, ""
 	}
 	switch {
+	case payload.Message == "" && payload.Detail == "":
+		return nil, ""
 	case payload.Detail == "":
-		return payload.Message
+		return &payload, payload.Message
 	case payload.Message == "" || payload.Message == subagentGenericErrorMessage:
-		return payload.Detail
+		return &payload, payload.Detail
 	default:
-		return payload.Message + " (" + payload.Detail + ")"
+		return &payload, payload.Message + " (" + payload.Detail + ")"
 	}
 }
 
