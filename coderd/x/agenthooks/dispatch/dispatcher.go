@@ -362,12 +362,80 @@ func (d *Dispatcher) post(
 		if bytes.Equal(trimmed, []byte("null")) {
 			return agenthooks.Response{}, ResultProtocolError, xerrors.New("lifecycle hook response must be a JSON object")
 		}
-		if err := json.Unmarshal(trimmed, &response); err != nil {
+		if err := decodeResponse(trimmed, &response); err != nil {
 			return agenthooks.Response{}, ResultProtocolError, xerrors.Errorf("decode lifecycle hook response: %w", err)
 		}
 		return response, ResultOK, nil
 	}
 	panic("unreachable")
+}
+
+// decodeResponse rejects response bodies that plain unmarshaling would
+// silently misread as allow: unknown fields (misspelled keys), duplicate
+// object keys (Go keeps the last value), and trailing JSON values.
+func decodeResponse(trimmed []byte, response *agenthooks.Response) error {
+	if err := rejectDuplicateKeys(json.NewDecoder(bytes.NewReader(trimmed)), 0); err != nil {
+		return err
+	}
+	decoder := json.NewDecoder(bytes.NewReader(trimmed))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(response); err != nil {
+		return err
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return xerrors.New("response must contain one JSON object")
+	}
+	return nil
+}
+
+const maxResponseJSONDepth = 128
+
+// rejectDuplicateKeys consumes one JSON value and fails on duplicate object
+// keys at any depth, including inside input_override, because a duplicated
+// key such as {"permission":{"decision":"deny"},"permission":null} would
+// otherwise drop the decision the consumer intended.
+func rejectDuplicateKeys(decoder *json.Decoder, depth int) error {
+	if depth > maxResponseJSONDepth {
+		return xerrors.New("response JSON exceeds supported nesting depth")
+	}
+	token, err := decoder.Token()
+	if err != nil {
+		return err
+	}
+	delim, ok := token.(json.Delim)
+	if !ok {
+		return nil
+	}
+	switch delim {
+	case '{':
+		seen := make(map[string]struct{})
+		for decoder.More() {
+			keyToken, err := decoder.Token()
+			if err != nil {
+				return err
+			}
+			key, _ := keyToken.(string)
+			if _, dup := seen[key]; dup {
+				return xerrors.Errorf("duplicate key %q", key)
+			}
+			seen[key] = struct{}{}
+			if err := rejectDuplicateKeys(decoder, depth+1); err != nil {
+				return err
+			}
+		}
+		_, err = decoder.Token()
+		return err
+	case '[':
+		for decoder.More() {
+			if err := rejectDuplicateKeys(decoder, depth+1); err != nil {
+				return err
+			}
+		}
+		_, err = decoder.Token()
+		return err
+	default:
+		return nil
+	}
 }
 
 func validateResponse(eventType agenthooks.EventType, response agenthooks.Response) error {

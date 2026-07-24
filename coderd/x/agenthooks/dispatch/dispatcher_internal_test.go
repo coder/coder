@@ -320,6 +320,36 @@ func TestDispatcherProtocolErrors(t *testing.T) {
 			responseBody: []byte(`{"user_message":`),
 		},
 		{
+			name:         "misspelled permission key",
+			eventType:    agenthooks.EventPreToolUse,
+			data:         agenthooks.PreToolUseData{ToolUseID: "call_typo", ToolName: "run_command", ToolInput: json.RawMessage(`{"cmd":"ls"}`)},
+			responseBody: []byte(`{"permision":{"decision":"deny"}}`),
+		},
+		{
+			name:         "duplicate permission key",
+			eventType:    agenthooks.EventPreToolUse,
+			data:         agenthooks.PreToolUseData{ToolUseID: "call_dup", ToolName: "run_command", ToolInput: json.RawMessage(`{"cmd":"ls"}`)},
+			responseBody: []byte(`{"permission":{"decision":"deny"},"permission":null}`),
+		},
+		{
+			name:         "unknown permission field",
+			eventType:    agenthooks.EventPreToolUse,
+			data:         agenthooks.PreToolUseData{ToolUseID: "call_unknown", ToolName: "run_command", ToolInput: json.RawMessage(`{"cmd":"ls"}`)},
+			responseBody: []byte(`{"permission":{"decision":"deny","reasoning":"typo"}}`),
+		},
+		{
+			name:         "duplicate key inside input_override",
+			eventType:    agenthooks.EventPreToolUse,
+			data:         agenthooks.PreToolUseData{ToolUseID: "call_override_dup", ToolName: "run_command", ToolInput: json.RawMessage(`{"cmd":"ls"}`)},
+			responseBody: []byte(`{"permission":{"decision":"allow","input_override":{"cmd":"ls","cmd":"rm -rf"}}}`),
+		},
+		{
+			name:         "trailing JSON value",
+			eventType:    agenthooks.EventStop,
+			data:         agenthooks.StopData{},
+			responseBody: []byte(`{"user_message":"done"}{}`),
+		},
+		{
 			name:         "oversized model context",
 			eventType:    agenthooks.EventStop,
 			data:         agenthooks.StopData{},
