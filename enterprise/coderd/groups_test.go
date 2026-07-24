@@ -1260,6 +1260,16 @@ func TestPaginatedGroups(t *testing.T) {
 	// The org's implicit "Everyone" group is included in the paginated results.
 	totalGroups := len(names) + 1
 
+	// Add a known member to the "alpha" group so member hydration can be
+	// asserted below.
+	_, member := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+	alpha, err := userAdminClient.GroupByOrgAndName(ctx, user.OrganizationID, "alpha")
+	require.NoError(t, err)
+	_, err = userAdminClient.PatchGroup(ctx, alpha.ID, codersdk.PatchGroupRequest{
+		AddUsers: []string{member.ID.String()},
+	})
+	require.NoError(t, err)
+
 	t.Run("AllGroups", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1275,6 +1285,23 @@ func TestPaginatedGroups(t *testing.T) {
 			sorted[i] = strings.ToLower(g.Name)
 		}
 		require.IsIncreasing(t, sorted)
+	})
+
+	t.Run("MemberHydration", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// The handler enriches each page group with its members and total
+		// count. Assert both so removing that logic would fail the test.
+		resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{
+			SearchQuery: "alpha",
+		})
+		require.NoError(t, err)
+		require.Len(t, resp.Groups, 1)
+		require.Equal(t, "alpha", resp.Groups[0].Name)
+		require.Equal(t, 1, resp.Groups[0].TotalMemberCount)
+		require.Len(t, resp.Groups[0].Members, 1)
+		require.Equal(t, member.ID, resp.Groups[0].Members[0].ID)
 	})
 
 	t.Run("Search", func(t *testing.T) {
