@@ -2639,6 +2639,58 @@ func TestRecordTokenUsageBudgetNotificationBestEffort(t *testing.T) {
 	}
 }
 
+// TestRecordTokenUsageBudgetNotificationZeroLimit verifies that a zero spend
+// limit (used to block a group entirely) produces no budget notification: there
+// is no meaningful threshold to cross, and such users are already blocked by
+// pre-request enforcement. The token usage is still recorded.
+func TestRecordTokenUsageBudgetNotificationZeroLimit(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	enq := &notificationstest.FakeEnqueuer{}
+
+	intc := newTestInterception(uuid.New())
+	groupID := uuid.New()
+	// A zero limit blocks the group; there is no threshold to cross.
+	group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: 0}
+	price := &database.AIModelPrice{InputPrice: sql.NullInt64{Int64: 1_000_000, Valid: true}}
+
+	expectTokenUsageCostLookups(db, intc, nil, group, nil, price)
+
+	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
+	)
+	// The spend is still recorded; detection then short-circuits on the zero
+	// limit without reading spend or looking up the group.
+	db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).
+		Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: intc.ID}, nil)
+	db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
+		Return(database.AIUserDailySpend{}, nil)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+		Store:         db,
+		AISeatTracker: agplaiseats.Noop{},
+		AccessURL:     "/",
+		GatewayCfg:    codersdk.AIBridgeConfig{},
+		Experiments:   requiredExperiments,
+		Enqueuer:      enq,
+		Logger:        testutil.Logger(t),
+		Clock:         quartz.NewReal(),
+	})
+	require.NoError(t, err)
+
+	_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+		InterceptionId: intc.ID.String(),
+		MsgId:          "msg_123",
+		InputTokens:    1_000_000, // $1 at $1 per million tokens
+		CreatedAt:      timestamppb.New(time.Date(2026, 6, 25, 14, 30, 0, 0, time.UTC)),
+	})
+	require.NoError(t, err)
+	require.Empty(t, enq.Sent(), "a zero spend limit must not produce a notification")
+}
+
 // newTestInterception returns an interception with a fixed initiator, provider,
 // and model for cost-attribution test setup.
 func newTestInterception(id uuid.UUID) database.AIBridgeInterception {
