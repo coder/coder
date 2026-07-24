@@ -27,9 +27,10 @@ import { Latency } from "#/components/Latency/Latency";
 import type { ProxyContextValue } from "#/contexts/ProxyContext";
 import { cn } from "#/utils/cn";
 import {
+	AdminSettingsItems,
 	type AdminSettingsPermissions,
-	getAdminSettingsItems,
-} from "./adminSettings";
+	canViewAdminSettings,
+} from "./AdminSettings";
 import { sortProxiesByLatency } from "./proxyUtils";
 
 const itemStyles = {
@@ -38,8 +39,9 @@ const itemStyles = {
 	open: "text-content-primary",
 };
 
-type MobileMenuProps = AdminSettingsPermissions & {
+type MobileMenuProps = {
 	proxyContextValue?: ProxyContextValue;
+	adminPermissions: AdminSettingsPermissions;
 	user?: TypesGen.User;
 	supportLinks?: readonly TypesGen.LinkConfig[];
 	onSignOut: () => void;
@@ -47,15 +49,14 @@ type MobileMenuProps = AdminSettingsPermissions & {
 };
 
 export const MobileMenu: FC<MobileMenuProps> = ({
-	isDefaultOpen,
+	adminPermissions,
 	proxyContextValue,
 	user,
 	supportLinks,
 	onSignOut,
-	...permissions
+	isDefaultOpen,
 }) => {
 	const [open, setOpen] = useState(isDefaultOpen);
-	const hasSomePermission = Object.values(permissions).some((p) => p);
 
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
@@ -87,10 +88,10 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 				<DropdownMenuSeparator />
 				<ProxySettingsSub proxyContextValue={proxyContextValue} />
 
-				{hasSomePermission && (
+				{canViewAdminSettings(adminPermissions) && (
 					<>
 						<DropdownMenuSeparator />
-						<AdminSettingsSub {...permissions} />
+						<AdminSettingsSub permissions={adminPermissions} />
 					</>
 				)}
 				<DropdownMenuSeparator />
@@ -123,7 +124,7 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 		<Collapsible open={open} onOpenChange={setOpen}>
 			<CollapsibleTrigger asChild>
 				<DropdownMenuItem
-					className={cn(itemStyles.default, open ? itemStyles.open : "")}
+					className={cn(itemStyles.default, open && itemStyles.open)}
 					onClick={(e) => {
 						e.preventDefault();
 						setOpen((prev) => !prev);
@@ -191,7 +192,8 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 				</DropdownMenuItem>
 				<DropdownMenuItem
 					className={cn(itemStyles.default, itemStyles.sub)}
-					onClick={() => {
+					onClick={(event) => {
+						event.stopPropagation();
 						proxyContextValue.refetchProxyLatencies();
 					}}
 				>
@@ -202,15 +204,18 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 	);
 };
 
-const AdminSettingsSub: FC<AdminSettingsPermissions> = (permissions) => {
+type AdminSettingsSubProps = {
+	permissions: AdminSettingsPermissions;
+};
+
+const AdminSettingsSub: FC<AdminSettingsSubProps> = ({ permissions }) => {
 	const [open, setOpen] = useState(false);
-	const items = getAdminSettingsItems(permissions);
 
 	return (
 		<Collapsible open={open} onOpenChange={setOpen}>
 			<CollapsibleTrigger asChild>
 				<DropdownMenuItem
-					className={cn(itemStyles.default, open ? itemStyles.open : "")}
+					className={cn(itemStyles.default, open && itemStyles.open)}
 					onClick={(e) => {
 						e.preventDefault();
 						setOpen((prev) => !prev);
@@ -223,15 +228,10 @@ const AdminSettingsSub: FC<AdminSettingsPermissions> = (permissions) => {
 				</DropdownMenuItem>
 			</CollapsibleTrigger>
 			<CollapsibleContent>
-				{items.map((item) => (
-					<DropdownMenuItem
-						key={item.to}
-						asChild
-						className={cn(itemStyles.default, itemStyles.sub)}
-					>
-						<Link to={item.to}>{item.label}</Link>
-					</DropdownMenuItem>
-				))}
+				<AdminSettingsItems
+					itemClassName={cn(itemStyles.default, itemStyles.sub)}
+					permissions={permissions}
+				/>
 			</CollapsibleContent>
 		</Collapsible>
 	);
@@ -254,7 +254,7 @@ const UserSettingsSub: FC<UserSettingsSubProps> = ({
 		<Collapsible open={open} onOpenChange={setOpen}>
 			<CollapsibleTrigger asChild>
 				<DropdownMenuItem
-					className={cn(itemStyles.default, open ? itemStyles.open : "")}
+					className={cn(itemStyles.default, open && itemStyles.open)}
 					onClick={(e) => {
 						e.preventDefault();
 						setOpen((prev) => !prev);
