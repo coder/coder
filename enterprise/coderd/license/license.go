@@ -58,17 +58,11 @@ func Entitlements(
 	}
 
 	// Workspace-capable licensing counts only users the RBAC engine
-	// authorizes to create workspaces. The counting function is provided
-	// exactly when the mode selects it.
+	// authorizes to create workspaces. The mode alone decides whether the
+	// counting function below is invoked.
 	countingMode := UserCountingModeActive
-	var workspaceCapableUserCountFn WorkspaceCapableUserCountFn
 	if experiments.Enabled(codersdk.ExperimentWorkspaceCapableLicensing) && authorizer != nil {
 		countingMode = UserCountingModeWorkspaceCapable
-		workspaceCapableUserCountFn = func(ctx context.Context) (int64, error) {
-			ctx, cancel := context.WithTimeout(ctx, workspaceCapableUserCountTimeout)
-			defer cancel()
-			return CountWorkspaceCapableUsers(ctx, logger, db, authorizer)
-		}
 	}
 
 	// nolint:gocritic // Getting active AI seat count is a system function.
@@ -89,13 +83,17 @@ func Entitlements(
 	}
 
 	entitlements, err := LicensesEntitlements(ctx, now, licenses, enablements, keys, FeatureArguments{
-		ActiveUserCount:             activeUserCount,
-		ActiveAISeatCount:           activeAISeatCount,
-		ReplicaCount:                replicaCount,
-		ExternalAuthCount:           externalAuthCount,
-		ExternalTemplateCount:       int64(len(externalTemplates)),
-		UserCountingMode:            countingMode,
-		WorkspaceCapableUserCountFn: workspaceCapableUserCountFn,
+		ActiveUserCount:       activeUserCount,
+		ActiveAISeatCount:     activeAISeatCount,
+		ReplicaCount:          replicaCount,
+		ExternalAuthCount:     externalAuthCount,
+		ExternalTemplateCount: int64(len(externalTemplates)),
+		UserCountingMode:      countingMode,
+		WorkspaceCapableUserCountFn: func(ctx context.Context) (int64, error) {
+			ctx, cancel := context.WithTimeout(ctx, workspaceCapableUserCountTimeout)
+			defer cancel()
+			return CountWorkspaceCapableUsers(ctx, logger, db, authorizer)
+		},
 		ManagedAgentCountFn: func(ctx context.Context, startTime time.Time, endTime time.Time) (int64, error) {
 			// This is not super accurate, as the start and end times will be
 			// truncated to the date in UTC timezone. This is an optimization

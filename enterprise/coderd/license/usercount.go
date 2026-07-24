@@ -22,6 +22,10 @@ import (
 // role such as owner. System users and service accounts are excluded by
 // the underlying query, matching GetActiveUserCount.
 func CountWorkspaceCapableUsers(ctx context.Context, logger slog.Logger, db database.Store, authorizer rbac.Authorizer) (int64, error) {
+	if authorizer == nil {
+		return 0, xerrors.New("dev error: authorizer is required")
+	}
+
 	start := time.Now()
 
 	// All custom roles are prefetched into the context's role cache in a
