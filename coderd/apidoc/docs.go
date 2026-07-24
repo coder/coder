@@ -20125,7 +20125,7 @@ const docTemplate = `{
                 "workspace-build-updates",
                 "nats_pubsub",
                 "minimum-implicit-member",
-                "permission-based-licensing",
+                "workspace-capable-licensing",
                 "ai-gateway-cost-control",
                 "chat-advisor",
                 "chat-virtual-desktop"
@@ -20141,8 +20141,8 @@ const docTemplate = `{
                 "ExperimentNATSPubsub": "Enables embedded NATS pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
-                "ExperimentPermissionBasedLicensing": "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
+                "ExperimentWorkspaceCapableLicensing": "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-descriptions": [
@@ -20170,7 +20170,7 @@ const docTemplate = `{
                 "ExperimentWorkspaceBuildUpdates",
                 "ExperimentNATSPubsub",
                 "ExperimentMinimumImplicitMember",
-                "ExperimentPermissionBasedLicensing",
+                "ExperimentWorkspaceCapableLicensing",
                 "ExperimentAIGatewayCostControl",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop"

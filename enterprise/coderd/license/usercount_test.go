@@ -24,7 +24,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// TestCountWorkspaceCapableUsers verifies permission-based license seat
+// TestCountWorkspaceCapableUsers verifies workspace-capable license seat
 // counting: only users the RBAC engine authorizes to create workspaces
 // consume seats, so members without workspace-create ("gateway accounts")
 // are excluded.
@@ -64,7 +64,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 	t.Run("ElevationBundledParity", func(t *testing.T) {
 		// MinimumImplicitMember off (default): organization-member bundles
 		// the workspace-ops elevation, so every active org member counts
-		// and the permission-based count matches the legacy count except
+		// and the workspace-capable count matches the legacy count except
 		// for zero-org plain members.
 		rbac.ReloadBuiltinRoles(nil)
 		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
@@ -81,7 +81,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		owner := activeUser(t, db, database.User{RBACRoles: []string{rbac.RoleOwner().Name}})
 		member(t, db, org.ID, owner)
 
-		// Counts under legacy, not under permission-based: no org, no
+		// Counts under legacy, not under workspace-capable counting: no org, no
 		// workspace-create anywhere.
 		activeUser(t, db, database.User{})
 
@@ -267,7 +267,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		member(t, db, org.ID, wsUser, rbac.RoleOrgWorkspaceAccess())
 
 		enablements := map[codersdk.FeatureName]bool{}
-		experimentOn := codersdk.Experiments{codersdk.ExperimentPermissionBasedLicensing}
+		experimentOn := codersdk.Experiments{codersdk.ExperimentWorkspaceCapableLicensing}
 
 		// No license: legacy count, even with the experiment on.
 		entitlements, err := license.Entitlements(ctx, testutil.Logger(t), db, 1, 1, coderdenttest.Keys, enablements, authorizer, experimentOn)
@@ -339,7 +339,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			}).Valid(now))}
 			entitlements, err := license.LicensesEntitlements(ctx, now, licenses, enablements, coderdenttest.Keys, license.FeatureArguments{
 				ActiveUserCount:  7,
-				UserCountingMode: license.UserCountingModePermissionBased,
+				UserCountingMode: license.UserCountingModeWorkspaceCapable,
 				WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 					t.Fatal("count fn must not be called without the addon")
 					return 0, nil
@@ -352,14 +352,14 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		t.Run("AddonMissingDependenciesIgnored", func(t *testing.T) {
 			// A license carrying the addon without its required features
 			// records a validation error and the addon is skipped, so
-			// permission-based counting must not activate.
+			// workspace-capable counting must not activate.
 			opts := (&coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureUserLimit: 100},
 			}).Valid(now)
 			opts.Addons = append(opts.Addons, codersdk.AddonAIGovernance)
 			entitlements, err := license.LicensesEntitlements(ctx, now, []database.License{dbLicense(*opts)}, enablements, coderdenttest.Keys, license.FeatureArguments{
 				ActiveUserCount:  7,
-				UserCountingMode: license.UserCountingModePermissionBased,
+				UserCountingMode: license.UserCountingModeWorkspaceCapable,
 				WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 					t.Fatal("count fn must not be called when addon dependencies are unmet")
 					return 0, nil
@@ -390,7 +390,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			entitlements, err := license.LicensesEntitlements(ctx, now, []database.License{addonLicense()}, enablements, coderdenttest.Keys, license.FeatureArguments{
 				ActiveUserCount:   7,
 				ActiveAISeatCount: 5,
-				UserCountingMode:  license.UserCountingModePermissionBased,
+				UserCountingMode:  license.UserCountingModeWorkspaceCapable,
 				WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 					return 3, nil
 				},
@@ -428,7 +428,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			run := func(t *testing.T, activeUsers, capableUsers int64) codersdk.Entitlements {
 				entitlements, err := license.LicensesEntitlements(ctx, now, licenses, enablements, coderdenttest.Keys, license.FeatureArguments{
 					ActiveUserCount:  activeUsers,
-					UserCountingMode: license.UserCountingModePermissionBased,
+					UserCountingMode: license.UserCountingModeWorkspaceCapable,
 					WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 						return capableUsers, nil
 					},
@@ -483,7 +483,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 				}
 				entitlements, err := license.LicensesEntitlements(ctx, now, licenses, enablements, coderdenttest.Keys, license.FeatureArguments{
 					ActiveUserCount:  250,
-					UserCountingMode: license.UserCountingModePermissionBased,
+					UserCountingMode: license.UserCountingModeWorkspaceCapable,
 					WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 						return 90, nil
 					},
@@ -510,7 +510,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 				}
 				entitlements, err := license.LicensesEntitlements(ctx, now, licenses, enablements, coderdenttest.Keys, license.FeatureArguments{
 					ActiveUserCount:  80,
-					UserCountingMode: license.UserCountingModePermissionBased,
+					UserCountingMode: license.UserCountingModeWorkspaceCapable,
 					WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 						return 30, nil
 					},
@@ -534,7 +534,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 				}
 				entitlements, err := license.LicensesEntitlements(ctx, now, licenses, enablements, coderdenttest.Keys, license.FeatureArguments{
 					ActiveUserCount:  500,
-					UserCountingMode: license.UserCountingModePermissionBased,
+					UserCountingMode: license.UserCountingModeWorkspaceCapable,
 					WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 						return 150, nil
 					},
@@ -553,7 +553,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		t.Run("ModeWithoutFnIsDevError", func(t *testing.T) {
 			_, err := license.LicensesEntitlements(ctx, now, []database.License{addonLicense()}, enablements, coderdenttest.Keys, license.FeatureArguments{
 				ActiveUserCount:  7,
-				UserCountingMode: license.UserCountingModePermissionBased,
+				UserCountingMode: license.UserCountingModeWorkspaceCapable,
 			})
 			require.ErrorContains(t, err, "dev error")
 		})
@@ -564,7 +564,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			// claiming that many "active users" exist.
 			entitlements, err := license.LicensesEntitlements(ctx, now, []database.License{addonLicense()}, enablements, coderdenttest.Keys, license.FeatureArguments{
 				ActiveUserCount:  7,
-				UserCountingMode: license.UserCountingModePermissionBased,
+				UserCountingMode: license.UserCountingModeWorkspaceCapable,
 				WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 					return 150, nil
 				},
@@ -583,7 +583,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			}).GracePeriod(now).AIGovernanceAddon(10))}
 			entitlements, err := license.LicensesEntitlements(ctx, now, licenses, enablements, coderdenttest.Keys, license.FeatureArguments{
 				ActiveUserCount:  7,
-				UserCountingMode: license.UserCountingModePermissionBased,
+				UserCountingMode: license.UserCountingModeWorkspaceCapable,
 				WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 					return 3, nil
 				},
@@ -605,7 +605,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 			// different count.
 			_, err := license.LicensesEntitlements(ctx, now, []database.License{addonLicense()}, enablements, coderdenttest.Keys, license.FeatureArguments{
 				ActiveUserCount:  7,
-				UserCountingMode: license.UserCountingModePermissionBased,
+				UserCountingMode: license.UserCountingModeWorkspaceCapable,
 				WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 					return 0, xerrors.New("boom")
 				},
@@ -617,7 +617,7 @@ func TestCountWorkspaceCapableUsers(t *testing.T) {
 		t.Run("ContextCanceledBails", func(t *testing.T) {
 			_, err := license.LicensesEntitlements(ctx, now, []database.License{addonLicense()}, enablements, coderdenttest.Keys, license.FeatureArguments{
 				ActiveUserCount:  7,
-				UserCountingMode: license.UserCountingModePermissionBased,
+				UserCountingMode: license.UserCountingModeWorkspaceCapable,
 				WorkspaceCapableUserCountFn: func(context.Context) (int64, error) {
 					return 0, context.Canceled
 				},
