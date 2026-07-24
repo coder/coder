@@ -327,9 +327,6 @@ func TestSendMessageUserPromptSubmitQueuedRejections(t *testing.T) {
 	}
 }
 
-// A user_prompt_submit dispatch failure during subagent spawn admission
-// must fail the parent turn closed instead of committing a tool error
-// the model can ignore.
 func TestSubagentSpawnHookDispatchFailureFailsTurn(t *testing.T) {
 	t.Parallel()
 
@@ -377,14 +374,11 @@ func TestSubagentSpawnHookDispatchFailureFailsTurn(t *testing.T) {
 	failed := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
 	require.Contains(t, chatLastErrorMessage(failed.LastError), "hook dispatch failed: user_prompt_submit: http_error")
 
-	// The assistant step with the tool call committed, but no tool
-	// result was persisted for the failed spawn.
 	messages := chatMessages(ctx, t, db, chat.ID)
 	require.Len(t, messages, 2)
 	require.Equal(t, database.ChatMessageRoleUser, messages[0].Role)
 	require.Equal(t, database.ChatMessageRoleAssistant, messages[1].Role)
 
-	// The rejected child chat must not exist.
 	chats, err := db.GetChats(ctx, database.GetChatsParams{
 		OwnedOnly: true,
 		ViewerID:  user.ID,

@@ -133,8 +133,6 @@ func (r *hookResult) userMessage() string {
 	return r.UserMessage
 }
 
-// trigger dispatches one lifecycle event. A disabled dispatcher returns
-// an empty result; interpretation of the result stays with the caller.
 func (t *hookTrigger) trigger(
 	ctx context.Context,
 	chat hookChat,
