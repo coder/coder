@@ -85,9 +85,9 @@ A consumer must apply all of the following checks before it uses the body:
 - Compute SHA-256 over the exact request body bytes and compare it with `body_sha256`.
 - Check that the chat ID in `sub` matches `meta.chat_id`.
 
-The Go consumer SDK in `coderd/x/hooks` implements the wire types, JWT verification, body binding, audience checks, and event routing.
-Use `hooks.NewHTTPHandler` to build an `http.Handler` from callbacks for the events your consumer handles.
-Pass `hooks.WithExpectedIssuer` with the deployment ID associated with the secret to enforce the `iss` check.
+The Go consumer SDK in `codersdk/x/agenthooks` implements the wire types, JWT verification, body binding, audience checks, and event routing.
+Use `agenthooks.NewHTTPHandler` to build an `http.Handler` from callbacks for the events your consumer handles.
+Pass `agenthooks.WithExpectedIssuer` with the deployment ID associated with the secret to enforce the `iss` check.
 Without it, `NewHTTPHandler` accepts any non-empty `iss` signed with the shared secret, so use a secret dedicated to one deployment or always set the expected issuer.
 
 ### Return a response
@@ -95,6 +95,7 @@ Without it, `NewHTTPHandler` accepts any non-empty `iss` signed with the shared 
 Return any `2xx` status with an empty body for a no-op response.
 An empty JSON object has the same effect.
 If the response has a body, return a JSON object with these optional fields.
+Coder rejects a response body with unknown fields, duplicate JSON keys, or trailing data as malformed, so the dispatch fails closed instead of misreading the decision.
 
 | Field           | Effect                                                                                                                                                                         |
 |-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -171,7 +172,7 @@ Keep the break-glass procedure available throughout the rollout.
 
 ## Start from the reference consumer
 
-The reference consumer at `scripts/agenthooks-server` uses `hooks.NewHTTPHandler` and logs 1 JSON object for each event.
+The reference consumer at `scripts/agenthooks-server` uses `agenthooks.NewHTTPHandler` and logs 1 JSON object for each event.
 Log-only mode returns an empty response for every verified event.
 With log-only mode disabled, the optional example flags can deny tool names by regular expression or replace matching prompt text before the agent loop uses it.
 It also demonstrates consumer-owned state: it remembers `pre_tool_use` decisions in memory keyed by chat and tool-use ID, replays them for duplicate deliveries, and marks the duplicates in its log output.

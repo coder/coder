@@ -6,10 +6,10 @@ import (
 
 	"charm.land/fantasy"
 
+	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
-	"github.com/coder/coder/v2/coderd/x/hooks"
-	"github.com/coder/coder/v2/coderd/x/hooks/dispatch"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 )
 
 // deniedError is trigger's normalized form of a permission deny.
@@ -17,7 +17,7 @@ import (
 // UserPromptDeniedError, pre_tool_use sites fold it into a synthetic
 // tool result.
 type deniedError struct {
-	Event        hooks.EventType
+	Event        agenthooks.EventType
 	Reason       string
 	ModelContext string
 	UserMessage  string
@@ -52,7 +52,7 @@ func UserPromptDenial(err error) error {
 	return err
 }
 
-func DispatchErrorMessage(eventType hooks.EventType, dispatchErr error) (string, bool) {
+func DispatchErrorMessage(eventType agenthooks.EventType, dispatchErr error) (string, bool) {
 	structured, ok := errors.AsType[*dispatch.Error](dispatchErr)
 	if !ok {
 		return "", false
@@ -65,7 +65,7 @@ func DispatchErrorMessage(eventType hooks.EventType, dispatchErr error) (string,
 	), true
 }
 
-func GenerationDispatchError(eventType hooks.EventType, dispatchErr error) error {
+func GenerationDispatchError(eventType agenthooks.EventType, dispatchErr error) error {
 	message, ok := DispatchErrorMessage(eventType, dispatchErr)
 	if !ok {
 		message = dispatchErr.Error()
