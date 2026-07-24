@@ -32,6 +32,10 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 		</div>
 	);
 
+	if (isUsingFilter) {
+		return <EmptyState message="No results matched your search" />;
+	}
+
 	if (!canCreateWorkspace) {
 		return (
 			<EmptyState
@@ -41,10 +45,6 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 				image={defaultImage}
 			/>
 		);
-	}
-
-	if (isUsingFilter) {
-		return <EmptyState message="No results matched your search" />;
 	}
 
 	if (templates && templates.length === 0 && canCreateTemplate) {

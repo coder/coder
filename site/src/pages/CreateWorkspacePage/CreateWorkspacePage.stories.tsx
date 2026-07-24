@@ -225,8 +225,8 @@ export const SequentialAuthFlow: Story = {
 };
 
 /**
- * A user who can create workspaces neither for themselves nor for others
- * is blocked by the RequirePermission dialog instead of seeing the form.
+ * A user without workspace-create permission is blocked by the
+ * RequirePermission dialog instead of seeing the form.
  */
 export const PermissionDenied: Story = {
 	beforeEach: () => {
@@ -244,29 +244,6 @@ export const PermissionDenied: Story = {
 			within(canvasElement).queryByRole("form", {
 				name: /create workspace/i,
 			}),
-		).toBeNull();
-	},
-};
-
-/**
- * A user who can create workspaces for others but not for themselves
- * still sees the form.
- */
-export const CanCreateForOthersOnly: Story = {
-	beforeEach: () => {
-		spyOn(API, "checkAuthorization").mockResolvedValue({
-			createWorkspaceForUserID: false,
-			createWorkspaceForAny: true,
-			canUpdateTemplate: false,
-		});
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await canvas.findByRole("form", { name: /create workspace/i });
-		expect(
-			within(canvasElement.ownerDocument.body).queryByText(
-				/you don't have permission to view this page/i,
-			),
 		).toBeNull();
 	},
 };

@@ -227,12 +227,16 @@ export const CannotCreateWorkspaceWithFilter: Story = {
 			filter: { ...defaultFilterProps.filter, used: true },
 		},
 	},
-	// The no-permission empty state takes priority over the filter empty
-	// state.
+	// The filter empty state takes priority: an active filter that matched
+	// nothing shows "no results" regardless of create permission, since the
+	// user may own workspaces the filter excluded.
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await canvas.findByText(/don't have permission to create workspaces/i);
-		expect(canvas.queryByText(/no results matched your search/i)).toBeNull();
+		await canvas.findByText(/no results matched your search/i);
+		expect(
+			canvas.queryByText(/don't have permission to create workspaces/i),
+		).toBeNull();
+		expect(canvas.queryByRole("button", { name: /new workspace/i })).toBeNull();
 	},
 };
 

@@ -413,10 +413,7 @@ const CreateWorkspacePage: FC = () => {
 					// page so the request error is surfaced instead.
 					isFeatureVisible={
 						permissionsQuery.isError ||
-						Boolean(
-							permissionsQuery.data?.createWorkspaceForUserID ||
-								permissionsQuery.data?.createWorkspaceForAny,
-						)
+						Boolean(permissionsQuery.data?.createWorkspaceForUserID)
 					}
 				>
 					<CreateWorkspacePageView
