@@ -1247,18 +1247,37 @@ func TestPaginatedGroups(t *testing.T) {
 	userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	// Create a deterministic set of groups. The org's implicit "Everyone" group
-	// also exists, so account for it in the expected counts.
-	names := []string{"alpha", "bravo", "charlie", "delta", "echo"}
-	for _, name := range names {
+	// Create a deterministic set of groups. Names include mixed case, a pair
+	// that differs only by case, and one group with a distinct display name so
+	// ordering (LOWER(name)), the groups.id tiebreaker, and display-name search
+	// are all exercised. The org's implicit "Everyone" group also exists, so
+	// account for it in the expected counts.
+	type groupSpec struct {
+		name        string
+		displayName string
+	}
+	specs := []groupSpec{
+		{name: "alpha"},
+		{name: "Bravo"},
+		{name: "charlie"},
+		{name: "Delta"},
+		{name: "echo"},
+		// "Dev" and "dev" collide once lowercased, forcing the groups.id
+		// tiebreaker to produce a deterministic order.
+		{name: "Dev"},
+		{name: "dev"},
+		{name: "zeta", displayName: "Frontend Squad"},
+	}
+	for _, spec := range specs {
 		_, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
-			Name: name,
+			Name:        spec.name,
+			DisplayName: spec.displayName,
 		})
 		require.NoError(t, err)
 	}
 
 	// The org's implicit "Everyone" group is included in the paginated results.
-	totalGroups := len(names) + 1
+	totalGroups := len(specs) + 1
 
 	// Add a known member to the "alpha" group so member hydration can be
 	// asserted below.
@@ -1279,12 +1298,20 @@ func TestPaginatedGroups(t *testing.T) {
 		require.Equal(t, totalGroups, resp.Count)
 		require.Len(t, resp.Groups, totalGroups)
 
-		// Verify deterministic ascending ordering by lower(name).
-		sorted := make([]string, len(resp.Groups))
-		for i, g := range resp.Groups {
-			sorted[i] = strings.ToLower(g.Name)
+		// Verify deterministic ordering: lower(name) ascending, with ties
+		// broken by groups.id ascending. uuid string comparison matches
+		// Postgres' byte-wise uuid ordering.
+		for i := 1; i < len(resp.Groups); i++ {
+			prev, cur := resp.Groups[i-1], resp.Groups[i]
+			prevName, curName := strings.ToLower(prev.Name), strings.ToLower(cur.Name)
+			if prevName == curName {
+				require.Less(t, prev.ID.String(), cur.ID.String(),
+					"groups with equal lowercased names must be ordered by id")
+			} else {
+				require.Less(t, prevName, curName,
+					"groups must be ordered by lowercased name")
+			}
 		}
-		require.IsIncreasing(t, sorted)
 	})
 
 	t.Run("MemberHydration", func(t *testing.T) {
@@ -1327,6 +1354,52 @@ func TestPaginatedGroups(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 0, resp.Count)
 		require.Empty(t, resp.Groups)
+	})
+
+	t.Run("SearchSubstring", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// A substring of the name matches, not just a prefix.
+		resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{
+			SearchQuery: "harl",
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, resp.Count)
+		require.Len(t, resp.Groups, 1)
+		require.Equal(t, "charlie", resp.Groups[0].Name)
+	})
+
+	t.Run("SearchCaseInsensitive", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// An uppercase query matches both "Dev" and "dev" case-insensitively.
+		resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{
+			SearchQuery: "DEV",
+		})
+		require.NoError(t, err)
+		require.Equal(t, 2, resp.Count)
+		require.Len(t, resp.Groups, 2)
+		for _, g := range resp.Groups {
+			require.Equal(t, "dev", strings.ToLower(g.Name))
+		}
+		// The case-only collision is ordered deterministically by id.
+		require.Less(t, resp.Groups[0].ID.String(), resp.Groups[1].ID.String())
+	})
+
+	t.Run("SearchDisplayName", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Search matches the display name, not just the name.
+		resp, err := userAdminClient.OrganizationGroupsPaginated(ctx, user.OrganizationID, codersdk.PaginatedGroupsRequest{
+			SearchQuery: "squad",
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, resp.Count)
+		require.Len(t, resp.Groups, 1)
+		require.Equal(t, "zeta", resp.Groups[0].Name)
 	})
 
 	t.Run("PageBoundaries", func(t *testing.T) {
