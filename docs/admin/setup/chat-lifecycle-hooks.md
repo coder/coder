@@ -115,11 +115,11 @@ Permission rules depend on the event:
   Nothing marks the call as rewritten in the chat, so the model may misattribute the changed behavior; a consumer that rewrites input should also return `user_message` explaining the change.
 - For either event, `deny` blocks the input and must not include `input_override`.
   A denied prompt isn't persisted: Coder rejects the submission and surfaces any returned `user_message` in the rejection, ignoring `model_context`.
-  A denied tool call becomes a synthetic error result, carrying any returned `model_context`, so the model can choose another action.
+  A denied tool call becomes a synthetic error result, and any returned `model_context` reaches the model separately, so the model can choose another action.
 - For all other events, omit `permission`.
 
 For `user_prompt_submit`, `model_context` and `user_message` are stored as typed parts of the prompt message itself: the model-context part goes to the model but never to clients, and the user-message part is shown to the user attached to the prompt but never sent to the model.
-For a denied `pre_tool_use`, `model_context` is included in the synthetic denied tool result.
+For a denied `pre_tool_use`, the synthetic denied tool result stays visible to both audiences, while `model_context` becomes a model-only transcript message so it never reaches clients.
 Other hook effects become ordinary transcript messages with audience-specific visibility, except that a `pre_compact` `model_context` guides the compaction summary instead of entering the transcript.
 Coder dispatches `user_prompt_submit` exactly once per submission, when the prompt is admitted (sent, queued, edited, or used to create a chat or subagent), and applies the response effects to the final stored prompt content.
 

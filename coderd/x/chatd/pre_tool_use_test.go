@@ -175,26 +175,112 @@ func TestPreToolUseHookDeny(t *testing.T) {
 	require.True(t, result.IsError)
 	require.Contains(t, string(result.Result), "blocked by an external policy")
 	require.Contains(t, string(result.Result), "Reason: blocked by policy.")
-	require.Contains(t, string(result.Result), "Do not read secrets.")
+	require.NotContains(t, string(result.Result), "Do not read secrets.")
 
-	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
-	require.NoError(t, err)
-	for _, message := range messages {
-		if message.Visibility != database.ChatMessageVisibilityModel {
-			continue
-		}
-		parsed, err := chatprompt.ParseContent(message)
-		require.NoError(t, err)
-		for _, part := range parsed {
-			require.NotEqual(t, "Do not read secrets.", part.Text)
-		}
-	}
+	requireNoClientVisibleText(ctx, t, db, chat.ID, "Do not read secrets.")
+	requireModelOnlyTextCount(ctx, t, db, chat.ID, "Do not read secrets.", 1)
 
 	messagesMu.Lock()
 	modelMessages := append([]chattest.OpenAIMessage(nil), secondMessages...)
 	messagesMu.Unlock()
-	require.True(t, openAIMessagesContain(modelMessages, "Reason: blocked by policy."))
-	require.True(t, openAIMessagesContain(modelMessages, "Do not read secrets."))
+	deniedIndex, contextIndex := -1, -1
+	for i, msg := range modelMessages {
+		if strings.Contains(msg.Content, "Reason: blocked by policy.") {
+			deniedIndex = i
+			require.Equal(t, "tool", msg.Role)
+		}
+		if strings.Contains(msg.Content, "Do not read secrets.") {
+			contextIndex = i
+			require.Equal(t, "user", msg.Role)
+		}
+	}
+	// The model still receives the denial reason and the hook context,
+	// with the context after the tool result so results stay adjacent
+	// to the assistant tool calls.
+	require.NotEqual(t, -1, deniedIndex)
+	require.Greater(t, contextIndex, deniedIndex)
+}
+
+func TestPreToolUseHookDenyMixedWithAllowed(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	var modelCalls atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if modelCalls.Add(1) == 1 {
+			first := chattest.OpenAIToolCallChunk("read_file", `{"path":"/tmp/secret.txt"}`)
+			first.Choices[0].ToolCalls[0].ID = "call_denied"
+			second := chattest.OpenAIToolCallChunk("read_file", `{"path":"/tmp/allowed.txt"}`).Choices[0].ToolCalls[0]
+			second.ID = "call_allowed"
+			second.Index = 1
+			first.Choices[0].ToolCalls = append(first.Choices[0].ToolCalls, second)
+			return chattest.OpenAIStreamingResponse(first)
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	consumer := preToolUseConsumer(t, func(data agenthooks.PreToolUseData) string {
+		if data.ToolUseID == "call_denied" {
+			return `{"permission":{"decision":"deny","reason":"blocked by policy"},"model_context":"Do not read secrets."}`
+		}
+		return `{}`
+	})
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), "/tmp/allowed.txt", int64(1), int64(0), gomock.Any()).
+		Return(workspacesdk.ReadFileLinesResponse{
+			Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data",
+		}, nil).
+		Times(1)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "pre-tool-use-deny-mixed",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("read both files"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	var results []codersdk.ChatMessagePart
+	for _, part := range chatToolParts(ctx, t, db, chat.ID) {
+		if part.Type == codersdk.ChatMessagePartTypeToolResult {
+			results = append(results, part)
+		}
+	}
+	require.Len(t, results, 2)
+	// Persisted results keep the assistant call order even though the
+	// denied result is synthesized after the executed one.
+	require.Equal(t, "call_denied", results[0].ToolCallID)
+	require.Equal(t, "call_allowed", results[1].ToolCallID)
+	require.True(t, results[0].IsError)
+	require.Contains(t, string(results[0].Result), "Reason: blocked by policy.")
+	require.NotContains(t, string(results[0].Result), "Do not read secrets.")
+	require.False(t, results[1].IsError)
+
+	requireNoClientVisibleText(ctx, t, db, chat.ID, "Do not read secrets.")
+	requireModelOnlyTextCount(ctx, t, db, chat.ID, "Do not read secrets.", 1)
 }
 
 func TestPreToolUseSkipsProviderExecutedTools(t *testing.T) {
@@ -844,6 +930,39 @@ func TestPreToolUseHookDynamicDeny(t *testing.T) {
 	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chat.ID), "my_dynamic_tool")
 	require.True(t, result.IsError)
 	require.Contains(t, string(result.Result), "Reason: dynamic denied.")
+}
+
+func requireNoClientVisibleText(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID, text string) {
+	t.Helper()
+	for _, message := range chatMessages(ctx, t, db, chatID) {
+		parsed, err := chatprompt.ParseContent(message)
+		require.NoError(t, err)
+		for _, part := range parsed {
+			require.NotContains(t, part.Text, text)
+			require.NotContains(t, string(part.Result), text)
+			require.NotContains(t, string(part.Args), text)
+		}
+	}
+}
+
+func requireModelOnlyTextCount(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID, text string, count int) {
+	t.Helper()
+	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chatID)
+	require.NoError(t, err)
+	found := 0
+	for _, message := range messages {
+		if message.Visibility != database.ChatMessageVisibilityModel {
+			continue
+		}
+		parsed, err := chatprompt.ParseContent(message)
+		require.NoError(t, err)
+		for _, part := range parsed {
+			if strings.Contains(part.Text, text) {
+				found++
+			}
+		}
+	}
+	require.Equal(t, count, found)
 }
 
 func preToolUseConsumer(t *testing.T, response func(agenthooks.PreToolUseData) string) *httptest.Server {
