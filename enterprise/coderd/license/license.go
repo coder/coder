@@ -223,6 +223,16 @@ type userLimitSelection struct {
 // license's counting mode. A candidate satisfied by its count wins over
 // any unsatisfied one.
 //
+// For example, with 250 active users of whom 90 are workspace-capable, a
+// deployment holding a 200-seat non-addon license and a 100-seat AI
+// Governance license is compliant: the non-addon pair is over
+// (250 > 200), but the addon pair is satisfied (90 <= 100) and is
+// selected. With 180 active users of whom 150 are workspace-capable, the
+// same licenses select the non-addon pair instead (180 <= 200 while
+// 150 > 100). Neither license's limit is ever paired with the other's
+// count: 90 capable users against the 200-seat limit, or 180 active
+// users against the 100-seat limit, are not considered.
+//
 // When an addon candidate is selected, the capable count overwrites
 // featureArguments.ActiveUserCount, which the FeatureUserLimit feature's
 // Actual pointer aliases: Feature values copy the pointer, not the
