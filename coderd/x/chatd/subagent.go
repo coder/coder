@@ -777,8 +777,8 @@ func (p *Server) subagentTools(
 					if errors.As(err, &hookErr) {
 						return fantasy.ToolResponse{}, err
 					}
-					// UserPromptDeniedError.Error() carries the hook's
-					// reason, so the model can adjust its prompt.
+					// UserPromptDeniedError.Error() carries the user-facing
+					// denial message, so the model can adjust its prompt.
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 

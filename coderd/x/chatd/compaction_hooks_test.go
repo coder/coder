@@ -104,7 +104,6 @@ func TestPostCompactHookFailureKeepsCompaction(t *testing.T) {
 	)
 	waitCtx := testutil.Context(t, testutil.WaitLong)
 	failed := waitForChatStatus(waitCtx, t, fixture.db, fixture.chat.ID, database.ChatStatusError)
-	// The hook error commits atomically with the compaction step.
 	require.False(t, postSawCommitted.Load())
 	require.Equal(t, int32(1), fixture.compactionCalls.Load())
 	require.True(t, hasCompactionRows(t, fixture.db, fixture.chat.ID))

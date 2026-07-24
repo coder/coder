@@ -122,8 +122,6 @@ func (t *hookTrigger) postToolUseResults(
 		return nil, nil
 	}
 	results := make([]*hookResult, 0, len(content))
-	// Dispatch every completed non-provider-executed tool result.
-	// Preserve only the first failure.
 	var firstErr error
 	for _, block := range content {
 		toolResult, ok := asToolResultContent(block)
