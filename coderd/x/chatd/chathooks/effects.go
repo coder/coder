@@ -73,7 +73,7 @@ func EventMessagesForResults(
 // retries the call and misreports the denial as an infrastructure error.
 func deniedToolResult(toolCall fantasy.ToolCallContent, reason, modelContext string) fantasy.ToolResultContent {
 	message := "This tool usage was blocked by an external policy" +
-		" (the deployment's lifecycle hook)."
+		" (the deployment's lifecycle hook); the tool call was not executed."
 	if reason = strings.TrimSpace(reason); reason != "" {
 		message += " Reason: " + reason + "."
 	}
