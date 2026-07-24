@@ -330,7 +330,7 @@ func TestHTTPHandlerAcceptsTrailingSlashAudience(t *testing.T) {
 func TestHTTPHandlerHonorsForwardedProto(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
+	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}, agenthooks.WithTrustForwardedHeaders()))
 	t.Cleanup(server.Close)
 	httpsAudience := "https" + strings.TrimPrefix(server.URL, "http")
 	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
@@ -345,7 +345,7 @@ func TestHTTPHandlerHonorsForwardedProto(t *testing.T) {
 func TestHTTPHandlerHonorsForwardedHost(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
+	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}, agenthooks.WithTrustForwardedHeaders()))
 	t.Cleanup(server.Close)
 	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
 		claims.Audience = "https://hooks.example.com"
@@ -355,6 +355,21 @@ func TestHTTPHandlerHonorsForwardedHost(t *testing.T) {
 	})
 	defer response.Body.Close()
 	require.Equal(t, http.StatusOK, response.StatusCode)
+}
+
+func TestHTTPHandlerIgnoresForwardedHeadersByDefault(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
+	t.Cleanup(server.Close)
+	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
+		claims.Audience = "https://hooks.example.com"
+	}, func(r *http.Request) {
+		r.Header.Set("X-Forwarded-Proto", "https")
+		r.Header.Set("X-Forwarded-Host", "hooks.example.com")
+	})
+	defer response.Body.Close()
+	require.Equal(t, http.StatusBadRequest, response.StatusCode)
 }
 
 func postEvent(t *testing.T, target string, eventType agenthooks.EventType, data any, updateRequest func(*agenthooks.Request), updateClaims func(*agenthooks.Claims), updateHTTPRequest ...func(*http.Request)) *http.Response {

@@ -32,7 +32,8 @@ type Hooks struct {
 type HandlerOption func(*handlerOptions)
 
 type handlerOptions struct {
-	expectedIssuer string
+	expectedIssuer        string
+	trustForwardedHeaders bool
 }
 
 // WithExpectedIssuer requires the verified iss claim to match issuer.
@@ -41,6 +42,17 @@ type handlerOptions struct {
 func WithExpectedIssuer(issuer string) HandlerOption {
 	return func(options *handlerOptions) {
 		options.expectedIssuer = issuer
+	}
+}
+
+// WithTrustForwardedHeaders reconstructs the audience from
+// X-Forwarded-Proto and X-Forwarded-Host. Enable it only behind a
+// trusted proxy that strips client-supplied forwarding headers;
+// otherwise a caller could spoof them to satisfy the audience check
+// for a token signed for a different listener.
+func WithTrustForwardedHeaders() HandlerOption {
+	return func(options *handlerOptions) {
+		options.trustForwardedHeaders = true
 	}
 }
 
@@ -81,7 +93,7 @@ func NewHTTPHandler(secret []byte, hooks Hooks, opts ...HandlerOption) http.Hand
 			http.Error(rw, "decode request body", http.StatusBadRequest)
 			return
 		}
-		if err := verifyBody(r, body, claims, request); err != nil {
+		if err := options.verifyBody(r, body, claims, request); err != nil {
 			http.Error(rw, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -98,12 +110,12 @@ func NewHTTPHandler(secret []byte, hooks Hooks, opts ...HandlerOption) http.Hand
 	})
 }
 
-func verifyBody(r *http.Request, body []byte, claims Claims, request Request) error {
+func (options handlerOptions) verifyBody(r *http.Request, body []byte, claims Claims, request Request) error {
 	digest := sha256.Sum256(body)
 	if claims.BodySHA256 != hex.EncodeToString(digest[:]) {
 		return xerrors.New("request body does not match body_sha256 claim")
 	}
-	if canonicalAudience(claims.Audience) != requestAudience(r) {
+	if canonicalAudience(claims.Audience) != options.requestAudience(r) {
 		return xerrors.New("request URL does not match audience claim")
 	}
 	if request.Meta.SchemaVersion != SchemaVersion {
@@ -125,22 +137,25 @@ func verifyBody(r *http.Request, body []byte, claims Claims, request Request) er
 	return nil
 }
 
-func requestAudience(r *http.Request) string {
+func (options handlerOptions) requestAudience(r *http.Request) string {
 	requestURL := *r.URL
 	if requestURL.Scheme == "" {
 		requestURL.Scheme = "http"
 		if r.TLS != nil {
 			requestURL.Scheme = "https"
 		}
-		// Forwarded values reconstruct the signed audience when set by a trusted proxy.
-		if proto := forwardedProto(r); proto != "" {
-			requestURL.Scheme = proto
+		if options.trustForwardedHeaders {
+			if proto := forwardedProto(r); proto != "" {
+				requestURL.Scheme = proto
+			}
 		}
 	}
 	if requestURL.Host == "" {
 		requestURL.Host = r.Host
-		if host := forwardedHost(r); host != "" {
-			requestURL.Host = host
+		if options.trustForwardedHeaders {
+			if host := forwardedHost(r); host != "" {
+				requestURL.Host = host
+			}
 		}
 	}
 	return canonicalAudience(requestURL.String())
