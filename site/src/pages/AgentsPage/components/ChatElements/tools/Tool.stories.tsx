@@ -409,14 +409,14 @@ export const ExecuteDeniedByHook: Story = {
 		args: { command: "cat /etc/secrets" },
 		result: {
 			error:
-				"Tool call denied by the deployment's lifecycle hook policy. Reason: secret reads are blocked. This is an administrative policy decision, not a tool or workspace failure; retrying the same call will be denied again. Explain the denial to the user and adjust your approach.",
+				"This tool usage was blocked by an external policy (the deployment's lifecycle hook). Reason: secret reads are blocked. This is an administrative policy decision, not a tool or workspace failure; retrying the same call will be denied again. Explain the policy block to the user and adjust your approach.",
 		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
 			canvas.getByRole("img", {
-				name: /denied by the deployment's lifecycle hook policy/,
+				name: /blocked by an external policy/,
 			}),
 		).toBeVisible();
 		expect(canvas.getByText(/Reason: secret reads are blocked/)).toBeVisible();
@@ -1817,7 +1817,7 @@ export const WriteFileDeniedByHook: Story = {
 		},
 		result: {
 			error:
-				"Tool call denied by the deployment's lifecycle hook policy. Reason: writes to src are blocked.",
+				"This tool usage was blocked by an external policy (the deployment's lifecycle hook). Reason: writes to src are blocked.",
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -1827,9 +1827,7 @@ export const WriteFileDeniedByHook: Story = {
 			canvas.getByRole("button", { name: /Failed to write helpers\.ts/ }),
 		);
 		await waitFor(() => {
-			expect(
-				canvas.getByText(/denied by the deployment's lifecycle hook policy/),
-			).toBeVisible();
+			expect(canvas.getByText(/blocked by an external policy/)).toBeVisible();
 		});
 		expect(canvas.queryByTestId("write-file-diff")).not.toBeInTheDocument();
 	},
