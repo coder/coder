@@ -102,11 +102,14 @@ func validateHookURL(raw string) error {
 	if err != nil {
 		return xerrors.Errorf("parse hook URL: %w", err)
 	}
-	// The raw URL is signed as the JWT audience, but HTTP clients never send
-	// fragments, so consumers reconstructing the audience from the request
-	// would reject every dispatch.
+	// The raw URL is signed as the JWT audience, but requests never carry
+	// fragments or userinfo, so consumers reconstructing the audience from
+	// the request would reject every dispatch.
 	if parsed.Fragment != "" {
 		return xerrors.New("chat hook URL must not contain a fragment")
+	}
+	if parsed.User != nil {
+		return xerrors.New("chat hook URL must not contain userinfo")
 	}
 	switch parsed.Scheme {
 	case "https":
@@ -182,6 +185,11 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (agenthooks.Resp
 
 	startedAt := time.Now()
 	dispatchID := uuid.New()
+	// One deadline bounds capacity waiting and both post attempts so a
+	// saturated semaphore cannot extend the dispatch past the configured
+	// timeout.
+	ctx, cancel := context.WithTimeout(ctx, d.timeout)
+	defer cancel()
 	wait := min(d.timeout, capacityWaitLimit)
 	if wait < 0 {
 		wait = 0
@@ -299,10 +307,8 @@ func (d *Dispatcher) post(
 	body []byte,
 	token string,
 ) (response agenthooks.Response, result Result, err error) {
-	// One deadline bounds both attempts so a retry cannot extend the
-	// dispatch past the configured timeout or the JWT lifetime.
-	ctx, cancel := context.WithTimeout(ctx, d.timeout)
-	defer cancel()
+	// The deadline set in Dispatch bounds both attempts so a retry cannot
+	// extend the dispatch past the configured timeout or the JWT lifetime.
 	for attempt := range 2 {
 		req, reqErr := http.NewRequestWithContext(ctx, http.MethodPost, d.hookURL, bytes.NewReader(body))
 		if reqErr != nil {
