@@ -2542,6 +2542,103 @@ func TestRecordTokenUsageBudgetNotificationAcrossPeriodBoundary(t *testing.T) {
 	require.Len(t, sent, 1, "expected the crossing to be detected against the interception's period")
 }
 
+// TestRecordTokenUsageBudgetNotificationBestEffort verifies that a failure while
+// detecting or sending a budget notification is swallowed: the token usage and
+// spend are still recorded (RecordTokenUsage returns no error) and no
+// notification is enqueued. This guards the best-effort contract, e.g. that a
+// detection error is not propagated out of the transaction (which would roll
+// back the committed spend).
+func TestRecordTokenUsageBudgetNotificationBestEffort(t *testing.T) {
+	t.Parallel()
+
+	const (
+		dollar          int64 = 1_000_000
+		spendLimit      int64 = 100 * dollar
+		warnAt          int64 = 85 * dollar
+		inputPrice      int64 = dollar
+		tokensPerDollar int64 = 1_000_000
+	)
+	now := time.Date(2026, 6, 25, 14, 30, 0, 0, time.UTC)
+	price := &database.AIModelPrice{InputPrice: sql.NullInt64{Int64: inputPrice, Valid: true}}
+
+	testCases := []struct {
+		name string
+		// spendSinceErr fails detection (the read inside the transaction);
+		// groupLookupErr fails the notification after a crossing is detected.
+		spendSinceErr  error
+		groupLookupErr error
+	}{
+		{name: "detection read fails", spendSinceErr: sql.ErrConnDone},
+		{name: "group lookup fails", groupLookupErr: sql.ErrConnDone},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			enq := &notificationstest.FakeEnqueuer{}
+
+			intc := newTestInterception(uuid.New())
+			groupID := uuid.New()
+			group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: spendLimit}
+
+			expectTokenUsageCostLookups(db, intc, nil, group, nil, price)
+
+			db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+				func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
+			)
+			// The token usage and spend are recorded before detection runs.
+			db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).
+				Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: intc.ID}, nil)
+			db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
+				Return(database.AIUserDailySpend{}, nil)
+
+			switch {
+			case tc.spendSinceErr != nil:
+				// Detection fails; the group is never looked up.
+				db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
+					Return(database.GetUserAISpendSinceRow{}, tc.spendSinceErr)
+			case tc.groupLookupErr != nil:
+				// A crossing is detected ($84 -> $85), but resolving the group
+				// for the notification fails.
+				db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
+					Return(database.GetUserAISpendSinceRow{SpendMicros: warnAt}, nil)
+				db.EXPECT().GetGroupByID(gomock.Any(), groupID).
+					Return(database.Group{}, tc.groupLookupErr)
+			default:
+				t.Fatal("test case must set spendSinceErr or groupLookupErr")
+			}
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+				Store:         db,
+				AISeatTracker: agplaiseats.Noop{},
+				AccessURL:     "/",
+				GatewayCfg:    codersdk.AIBridgeConfig{},
+				Experiments:   requiredExperiments,
+				Enqueuer:      enq,
+				// The detect/notify failure is logged; ignore it here since
+				// triggering it is the point of the test.
+				Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				Clock:  quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			// The failure must not surface as an error from RecordTokenUsage.
+			_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+				InterceptionId: intc.ID.String(),
+				MsgId:          "msg_123",
+				InputTokens:    tokensPerDollar,
+				CreatedAt:      timestamppb.New(now),
+			})
+			require.NoError(t, err)
+			require.Empty(t, enq.Sent(), "no notification should be enqueued when detection or lookup fails")
+		})
+	}
+}
+
 // newTestInterception returns an interception with a fixed initiator, provider,
 // and model for cost-attribution test setup.
 func newTestInterception(id uuid.UUID) database.AIBridgeInterception {
