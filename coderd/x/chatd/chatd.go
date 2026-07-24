@@ -1473,7 +1473,8 @@ func (p *Server) SendMessage(
 		if _, err := resolveSendMessageModelConfigID(ctx, p.db, chat, opts.ModelConfigID); err != nil {
 			return SendMessageResult{}, err
 		}
-		// Check queue capacity before dispatch; the transaction rechecks it under lock.
+		// Check queue capacity before dispatch; the transaction
+		// rechecks it under lock.
 		queuedCount, err := p.db.CountChatQueuedMessages(ctx, opts.ChatID)
 		if err != nil {
 			return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
