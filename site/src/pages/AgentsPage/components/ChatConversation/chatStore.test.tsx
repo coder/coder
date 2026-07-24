@@ -1591,8 +1591,6 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
-		// Promote the queued message, then deliver a stale queue_update
-		// that still contains it.
 		act(() => {
 			result.current.store.suppressQueuedMessageID(queuedMessage.id);
 		});

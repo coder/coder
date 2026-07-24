@@ -464,8 +464,6 @@ export const LifecycleHookNoticeOnUserMessage: Story = {
 		expect(notice).toBeVisible();
 		expect(within(notice).getByText("Lifecycle hook")).toBeVisible();
 		expect(canvas.getByText("original prompt")).toBeVisible();
-		// The user-message notice must receive the timeline's
-		// urlTransform even through the sticky message wrapper.
 		const link = within(notice).getByRole("link", { name: "policy" });
 		expect(link).toHaveAttribute("href", "https://proxy.example.com/policy");
 	},

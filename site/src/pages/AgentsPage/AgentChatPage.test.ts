@@ -319,9 +319,7 @@ describe("reconcilePromotedQueueHead", () => {
 
 	it("does not suppress the rotated head when a queue_update already applied", () => {
 		const store = createChatStore();
-		// Pre-send queue was [a, b]; a was promoted and c was queued,
-		// and the authoritative post-promotion snapshot [b, c] landed
-		// before the send response. Re-appending c must not duplicate it.
+		// The authoritative [b, c] snapshot arrives before the send response.
 		const a = buildQueuedMessage(1, "A");
 		const b = buildQueuedMessage(2, "B");
 		const c = buildQueuedMessage(3, "C");
@@ -335,9 +333,7 @@ describe("reconcilePromotedQueueHead", () => {
 		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(false);
 		expect(snapshot.suppressedQueuedMessageIDs.has(c.id)).toBe(false);
 
-		// A late pre-promotion snapshot must not resurrect the
-		// promoted row, while the post-promotion snapshot clears the
-		// suppression entry.
+		// A late pre-promotion snapshot must not resurrect the promoted row.
 		store.applyAuthoritativeQueuedMessages([a, b, c]);
 		expect(store.getSnapshot().queuedMessages.map((m) => m.id)).toEqual([
 			b.id,
