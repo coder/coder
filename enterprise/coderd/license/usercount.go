@@ -2,7 +2,7 @@ package license
 
 import (
 	"context"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -122,11 +122,13 @@ func canCreateWorkspace(ctx context.Context, logger slog.Logger, db database.Sto
 }
 
 // authorizationSignature returns a canonical key for the user's role set.
-// Two users with equal signatures are interchangeable for
-// workspace-create evaluation.
+// Roles are sorted and deduplicated, so equivalent sets share a key. Two
+// users with equal signatures are interchangeable for workspace-create
+// evaluation.
 func authorizationSignature(row database.GetActiveUsersAuthorizationRolesRow) string {
 	roles := make([]string, len(row.Roles))
 	copy(roles, row.Roles)
-	sort.Strings(roles)
+	slices.Sort(roles)
+	roles = slices.Compact(roles)
 	return strings.Join(roles, "\x00")
 }

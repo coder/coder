@@ -58,20 +58,17 @@ func Entitlements(
 	}
 
 	// Permission-based licensing counts only users the RBAC engine
-	// authorizes to create workspaces. The counting function is always
-	// provided; UserCountingMode decides whether LicensesEntitlements
-	// uses it, and only for licenses carrying the AI Governance addon.
+	// authorizes to create workspaces. The counting function is provided
+	// exactly when the mode selects it.
 	countingMode := UserCountingModeActive
+	var workspaceCapableUserCountFn WorkspaceCapableUserCountFn
 	if experiments.Enabled(codersdk.ExperimentPermissionBasedLicensing) && authorizer != nil {
 		countingMode = UserCountingModePermissionBased
-	}
-	workspaceCapableUserCountFn := func(ctx context.Context) (int64, error) {
-		if authorizer == nil {
-			return 0, xerrors.New("dev error: an authorizer is required to count workspace-capable users")
+		workspaceCapableUserCountFn = func(ctx context.Context) (int64, error) {
+			ctx, cancel := context.WithTimeout(ctx, workspaceCapableUserCountTimeout)
+			defer cancel()
+			return CountWorkspaceCapableUsers(ctx, logger, db, authorizer)
 		}
-		ctx, cancel := context.WithTimeout(ctx, workspaceCapableUserCountTimeout)
-		defer cancel()
-		return CountWorkspaceCapableUsers(ctx, logger, db, authorizer)
 	}
 
 	// nolint:gocritic // Getting active AI seat count is a system function.
@@ -145,7 +142,9 @@ type FeatureArguments struct {
 	// license carries both the AI Governance addon and a FeatureUserLimit
 	// claim; the result then applies to that license's FeatureUserLimit
 	// candidate, and replaces ActiveUserCount when such a candidate is
-	// selected for enforcement.
+	// selected for enforcement. May be nil under UserCountingModeActive;
+	// leaving it nil when the permission-based mode would invoke it is a
+	// dev error.
 	WorkspaceCapableUserCountFn WorkspaceCapableUserCountFn
 }
 
@@ -176,15 +175,22 @@ type userLimitCandidate struct {
 	aiGovernanceAddon bool
 }
 
-// betterUserLimit reports whether candidate a is more favorable than b,
-// where countA and countB are the user counts each candidate's mode
-// implies. Ordering mirrors Feature.Compare: a candidate whose count is
-// within its limit beats one whose count is not, then higher entitlement,
-// then higher limit; the addon mode breaks remaining ties since its
-// count is never larger than the active user count.
-func betterUserLimit(a, b userLimitCandidate, countA, countB int64) bool {
-	compliantA := countA <= a.limit
-	compliantB := countB <= b.limit
+// resolvedCandidate pairs a candidate with the count its counting mode
+// implies: the workspace-capable count for addon candidates when
+// permission-based counting is active, the active user count otherwise.
+type resolvedCandidate struct {
+	userLimitCandidate
+	count int64
+}
+
+// betterUserLimit reports whether candidate a is more favorable than b.
+// Ordering mirrors Feature.Compare: a candidate whose count is within its
+// limit beats one whose count is not, then higher entitlement, then
+// higher limit; the addon mode breaks remaining ties since its count is
+// never larger than the active user count.
+func betterUserLimit(a, b resolvedCandidate) bool {
+	compliantA := a.count <= a.limit
+	compliantB := b.count <= b.limit
 	if compliantA != compliantB {
 		return compliantA
 	}
@@ -250,8 +256,7 @@ func selectUserLimit(
 		}
 	}
 
-	var capableCount int64
-	capableCountValid := false
+	var capableCount *int64
 	if hasAddonCandidate && featureArguments.UserCountingMode == UserCountingModePermissionBased {
 		if featureArguments.WorkspaceCapableUserCountFn == nil {
 			return sel, xerrors.New("dev error: workspace-capable user count function is not set")
@@ -265,26 +270,27 @@ func selectUserLimit(
 			// failure yields a stale count rather than a different one.
 			return sel, xerrors.Errorf("count workspace capable users: %w", err)
 		}
-		capableCount = count
-		capableCountValid = true
-	}
-	countFor := func(c userLimitCandidate) int64 {
-		if c.aiGovernanceAddon && capableCountValid {
-			return capableCount
-		}
-		return featureArguments.ActiveUserCount
+		capableCount = &count
 	}
 
-	best := candidates[0]
-	for _, c := range candidates[1:] {
-		if betterUserLimit(c, best, countFor(c), countFor(best)) {
+	resolved := make([]resolvedCandidate, len(candidates))
+	for i, c := range candidates {
+		resolved[i] = resolvedCandidate{userLimitCandidate: c, count: featureArguments.ActiveUserCount}
+		if c.aiGovernanceAddon && capableCount != nil {
+			resolved[i].count = *capableCount
+		}
+	}
+
+	best := resolved[0]
+	for _, c := range resolved[1:] {
+		if betterUserLimit(c, best) {
 			best = c
 		}
 	}
 
-	if best.aiGovernanceAddon && capableCountValid {
+	if best.aiGovernanceAddon && capableCount != nil {
 		sel.legacyActiveUserCount = featureArguments.ActiveUserCount
-		featureArguments.ActiveUserCount = capableCount
+		featureArguments.ActiveUserCount = best.count
 		sel.permissionBased = true
 	}
 

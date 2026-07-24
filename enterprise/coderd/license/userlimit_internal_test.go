@@ -11,58 +11,60 @@ import (
 func TestBetterUserLimit(t *testing.T) {
 	t.Parallel()
 
-	cand := func(limit int64, entitlement codersdk.Entitlement, addon bool) userLimitCandidate {
-		return userLimitCandidate{limit: limit, entitlement: entitlement, aiGovernanceAddon: addon}
+	cand := func(limit, count int64, entitlement codersdk.Entitlement, addon bool) resolvedCandidate {
+		return resolvedCandidate{
+			userLimitCandidate: userLimitCandidate{limit: limit, entitlement: entitlement, aiGovernanceAddon: addon},
+			count:              count,
+		}
 	}
 	entitled := codersdk.EntitlementEntitled
 	grace := codersdk.EntitlementGracePeriod
 
 	cases := []struct {
-		name           string
-		a, b           userLimitCandidate
-		countA, countB int64
-		want           bool
+		name string
+		a, b resolvedCandidate
+		want bool
 	}{
 		{
 			name: "ComplianceBeatsEntitlement",
-			a:    cand(200, grace, false), countA: 150,
-			b: cand(100, entitled, false), countB: 150,
+			a:    cand(200, 150, grace, false),
+			b:    cand(100, 150, entitled, false),
 			want: true,
 		},
 		{
 			name: "ComplianceBeatsHigherLimit",
-			a:    cand(100, entitled, true), countA: 90,
-			b: cand(200, entitled, false), countB: 250,
+			a:    cand(100, 90, entitled, true),
+			b:    cand(200, 250, entitled, false),
 			want: true,
 		},
 		{
 			name: "EntitlementBeatsLimitWhenBothCompliant",
-			a:    cand(100, entitled, false), countA: 50,
-			b: cand(200, grace, false), countB: 50,
+			a:    cand(100, 50, entitled, false),
+			b:    cand(200, 50, grace, false),
 			want: true,
 		},
 		{
 			name: "HigherLimitWinsWhenBothCompliantAndEqualEntitlement",
-			a:    cand(200, entitled, false), countA: 50,
-			b: cand(100, entitled, false), countB: 50,
+			a:    cand(200, 50, entitled, false),
+			b:    cand(100, 50, entitled, false),
 			want: true,
 		},
 		{
 			name: "HigherLimitWinsWhenBothOver",
-			a:    cand(200, entitled, false), countA: 250,
-			b: cand(100, entitled, true), countB: 150,
+			a:    cand(200, 250, entitled, false),
+			b:    cand(100, 150, entitled, true),
 			want: true,
 		},
 		{
 			name: "AddonBreaksExactTies",
-			a:    cand(100, entitled, true), countA: 50,
-			b: cand(100, entitled, false), countB: 80,
+			a:    cand(100, 50, entitled, true),
+			b:    cand(100, 80, entitled, false),
 			want: true,
 		},
 		{
 			name: "EqualCandidatesAreNotBetter",
-			a:    cand(100, entitled, false), countA: 50,
-			b: cand(100, entitled, false), countB: 50,
+			a:    cand(100, 50, entitled, false),
+			b:    cand(100, 50, entitled, false),
 			want: false,
 		},
 	}
@@ -70,9 +72,9 @@ func TestBetterUserLimit(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.want, betterUserLimit(tc.a, tc.b, tc.countA, tc.countB))
+			require.Equal(t, tc.want, betterUserLimit(tc.a, tc.b))
 			if tc.want {
-				require.False(t, betterUserLimit(tc.b, tc.a, tc.countB, tc.countA),
+				require.False(t, betterUserLimit(tc.b, tc.a),
 					"strict ordering must not hold both ways")
 			}
 		})
