@@ -2290,6 +2290,65 @@ describe("useChatStore", () => {
 		});
 	});
 
+	it("applies a refetched status after acceptServerChatStatus", async () => {
+		const chatID = "chat-resync";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+
+		const { result, rerender } = renderHook(
+			({ status }: { status: TypesGen.ChatStatus }) => {
+				const { store, acceptServerChatStatus } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: { ...buildChat(chatID), status },
+					chatMessagesData: {
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					acceptServerChatStatus,
+					chatStatus: useChatSelector(store, selectChatStatus),
+				};
+			},
+			{ wrapper, initialProps: { status: "waiting" as TypesGen.ChatStatus } },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		// The socket becomes authoritative, so a refetched status is ignored.
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "running" },
+			});
+		});
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+		});
+		rerender({ status: "error" });
+		expect(result.current.chatStatus).toBe("running");
+
+		// A failed request opts back in, so the next refetch applies.
+		act(() => {
+			result.current.acceptServerChatStatus();
+		});
+		rerender({ status: "waiting" });
+		rerender({ status: "error" });
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("error");
+		});
+	});
+
 	it("sets chatStatus to error and populates streamError on error event", async () => {
 		immediateAnimationFrame();
 

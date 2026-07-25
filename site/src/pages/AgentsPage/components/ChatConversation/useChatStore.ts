@@ -94,6 +94,7 @@ export const useChatStore = (
 	options: UseChatStoreOptions,
 ): {
 	store: ChatStore;
+	acceptServerChatStatus: () => void;
 	clearStreamError: () => void;
 	setCacheQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
@@ -750,6 +751,12 @@ export const useChatStore = (
 		store,
 		clearStreamError: () => {
 			store.clearStreamError();
+		},
+		// A failed request can change server-side chat status while the
+		// socket is down, and the socket having already delivered a status
+		// otherwise makes the refetched one inert.
+		acceptServerChatStatus: () => {
+			wsStatusReceivedRef.current = false;
 		},
 		setCacheQueuedMessages: (queuedMessages) => {
 			writeQueuedMessagesToCache(queryClient, chatID, queuedMessages);
