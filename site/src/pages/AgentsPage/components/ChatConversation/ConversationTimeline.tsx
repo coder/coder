@@ -650,6 +650,7 @@ const ChatMessageItem = memo<{
 					isAfterEditingMessage && "opacity-40 pointer-events-none",
 					"group/msg relative transition-opacity duration-200",
 				)}
+				inert={isAfterEditingMessage ? true : undefined}
 			>
 				{parsed.hookNotices.map((notice, index) => (
 					<LifecycleHookNotice
