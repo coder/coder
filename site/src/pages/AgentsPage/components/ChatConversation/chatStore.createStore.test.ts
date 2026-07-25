@@ -439,8 +439,7 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		store.suppressQueuedMessageID(b.id);
 		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(true);
 
-		// The running-case promote only reorders the queue, so the backend
-		// still reports the suppressed message.
+		// Running-case promotion only reorders the queue; the backend still reports the row.
 		store.applyAuthoritativeQueuedMessages([b, a, c]);
 		expect(
 			store.getSnapshot().queuedMessages.map((message) => message.id),
@@ -492,11 +491,9 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		const b = makeQueuedMessage(2, "B");
 		const c = makeQueuedMessage(3, "C");
 
-		// A was promoted into history and C was queued by the same send.
 		store.setQueuedMessages([b, c]);
 		store.markQueuedMessagePromoted(a.id);
 
-		// This snapshot predates both the promotion and C.
 		store.applyAuthoritativeQueuedMessages([a, b]);
 		expect(
 			store.getSnapshot().queuedMessages.map((message) => message.id),
