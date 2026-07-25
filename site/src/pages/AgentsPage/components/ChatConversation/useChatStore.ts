@@ -84,6 +84,7 @@ interface UseChatStoreOptions {
 	chatID: string | undefined;
 	chatMessages: readonly TypesGen.ChatMessage[] | undefined;
 	chatRecord: TypesGen.Chat | undefined;
+	chatRecordUpdatedAt?: number;
 	chatMessagesData: TypesGen.ChatMessagesResponse | undefined;
 	chatQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined;
 	setChatErrorReason: (chatID: string, reason: ChatDetailError) => void;
@@ -106,6 +107,7 @@ export const useChatStore = (
 		chatID,
 		chatMessages,
 		chatRecord,
+		chatRecordUpdatedAt = 0,
 		chatMessagesData,
 		chatQueuedMessages,
 		setChatErrorReason,
@@ -132,6 +134,7 @@ export const useChatStore = (
 	// to drop all incoming parts.
 	const wsStatusReceivedRef = useRef(false);
 	const [pendingStatusResync, setPendingStatusResync] = useState(false);
+	const pendingStatusResyncUpdatedAtRef = useRef<number | null>(null);
 	const activeChatIDRef = useRef<string | null>(null);
 	const prevChatIDRef = useRef<string | undefined>(chatID);
 	// Snapshot of the chatMessages elements from the last sync effect
@@ -303,25 +306,34 @@ export const useChatStore = (
 	}, [chatID, chatMessages, store]);
 
 	useEffect(() => {
+		if (pendingStatusResync) {
+			const armedAt = pendingStatusResyncUpdatedAtRef.current;
+			// dataUpdatedAt advances after a fetch even when structural sharing
+			// preserves chatRecord.
+			if (armedAt === null || chatRecordUpdatedAt <= armedAt) {
+				return;
+			}
+			store.setChatStatus(chatRecord?.status ?? null);
+			pendingStatusResyncUpdatedAtRef.current = null;
+			wsStatusReceivedRef.current = false;
+			setPendingStatusResync(false);
+			return;
+		}
 		// Only hydrate from REST when the WebSocket hasn't delivered
 		// a status event yet. Once the WS is the authoritative
 		// source, a stale REST refetch must not overwrite the
 		// fresher WS-delivered value.
-		if (!wsStatusReceivedRef.current || pendingStatusResync) {
+		if (!wsStatusReceivedRef.current) {
 			store.setChatStatus(chatRecord?.status ?? null);
 		}
-		// A resync must apply the cached status even when its value never
-		// changed, which happens when the store drifted ahead of it.
-		if (pendingStatusResync) {
-			setPendingStatusResync(false);
-		}
-	}, [chatRecord?.status, store, pendingStatusResync]);
+	}, [chatRecord?.status, chatRecordUpdatedAt, store, pendingStatusResync]);
 
 	useEffect(() => {
-		store.setActiveChatID(chatID ?? null);
 		queuedMessagesHydratedChatIDRef.current = null;
 		wsQueueUpdateReceivedRef.current = false;
 		wsStatusReceivedRef.current = false;
+		pendingStatusResyncUpdatedAtRef.current = null;
+		setPendingStatusResync(false);
 		store.setQueuedMessages([]);
 		// Suppression entries are scoped to the current chat; clear
 		// them on chat change so a stale promote suppression doesn't
@@ -639,6 +651,7 @@ export const useChatStore = (
 								kind: "generic",
 								message: "Chat processing failed.",
 							};
+							wsStatusReceivedRef.current = true;
 							store.applyServerChatStatus("error");
 							store.setStreamError(reason);
 							store.clearRetryState();
@@ -767,7 +780,7 @@ export const useChatStore = (
 		// socket is down, and the socket having already delivered a status
 		// otherwise makes the refetched one inert.
 		acceptServerChatStatus: () => {
-			wsStatusReceivedRef.current = false;
+			pendingStatusResyncUpdatedAtRef.current = chatRecordUpdatedAt;
 			setPendingStatusResync(true);
 		},
 		setCacheQueuedMessages: (queuedMessages) => {

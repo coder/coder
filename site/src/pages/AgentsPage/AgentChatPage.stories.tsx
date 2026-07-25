@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { useRef } from "react";
-import { Outlet } from "react-router";
+import { Outlet, useNavigate } from "react-router";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
 	reactRouterOutlet,
@@ -83,7 +83,24 @@ const AgentChatPageLayout: FC = () => {
 // Shared mock data
 // ---------------------------------------------------------------------------
 const CHAT_ID = "chat-1";
+const SWITCHED_CHAT_ID = "chat-2";
 const MODEL_CONFIG_ID = "model-config-1";
+
+const AgentChatSwitchHarness: FC = () => {
+	const navigate = useNavigate();
+	return (
+		<>
+			<button
+				type="button"
+				className="sr-only"
+				onClick={() => navigate(`/agents/${SWITCHED_CHAT_ID}`)}
+			>
+				Switch chat
+			</button>
+			<AgentChatPageLayout />
+		</>
+	);
+};
 
 const mockWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
@@ -2923,6 +2940,111 @@ export const QueuedSendPromotesPreviousHead: Story = {
 			expect(timeline.queryByText("Follow-up prompt")).not.toBeInTheDocument();
 		});
 		expect(await canvas.findByTestId("live-activity-slot")).toBeVisible();
+	},
+};
+
+const switchedChat: TypesGen.Chat = {
+	id: SWITCHED_CHAT_ID,
+	...baseChatFields,
+	title: "Switched chat",
+	status: "waiting",
+};
+
+const switchedChatMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 50,
+	chat_id: SWITCHED_CHAT_ID,
+	role: "assistant",
+	content: [{ type: "text", text: "Current chat message" }],
+};
+
+export const SendResponseAfterChatSwitch: Story = {
+	render: () => <AgentChatSwitchHarness />,
+	parameters: {
+		queries: [
+			...buildQueries(
+				{
+					id: CHAT_ID,
+					...baseChatFields,
+					title: "Original chat",
+					status: "waiting",
+				},
+				{ messages: [], queued_messages: [], has_more: false },
+				{ diffUrl: undefined },
+			),
+			{ key: chatKey(SWITCHED_CHAT_ID), data: switchedChat },
+			{
+				key: chatMessagesKey(SWITCHED_CHAT_ID),
+				data: {
+					pages: [
+						{
+							messages: [switchedChatMessage],
+							queued_messages: [],
+							has_more: false,
+						},
+					],
+					pageParams: [undefined],
+				},
+			},
+			{
+				key: chatPromptsKey(SWITCHED_CHAT_ID),
+				data: { prompts: [] } satisfies TypesGen.ChatPromptsResponse,
+			},
+			{
+				key: chatDiffContentsKey(SWITCHED_CHAT_ID),
+				data: { chat_id: SWITCHED_CHAT_ID } satisfies TypesGen.ChatDiffContents,
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		let releaseSend: (() => void) | undefined;
+		const sendGate = new Promise<void>((resolve) => {
+			releaseSend = resolve;
+		});
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockImplementation(async () => {
+			await sendGate;
+			return {
+				queued: false,
+				message: {
+					...MockChatMessage,
+					id: 51,
+					chat_id: CHAT_ID,
+					role: "user",
+					content: [
+						{ type: "text", text: "Stale response from previous chat" },
+					],
+				},
+			};
+		});
+
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.type(editor, "Send before switching");
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledTimes(1);
+		});
+
+		await userEvent.click(canvas.getByRole("button", { name: "Switch chat" }));
+		const timeline = within(await canvas.findByTestId("conversation-timeline"));
+		expect(await timeline.findByText("Current chat message")).toBeVisible();
+
+		releaseSend?.();
+		await waitFor(() => {
+			expect(
+				timeline.queryByText("Stale response from previous chat"),
+			).not.toBeInTheDocument();
+			expect(
+				canvas.queryByTestId("live-activity-slot"),
+			).not.toBeInTheDocument();
+		});
 	},
 };
 
