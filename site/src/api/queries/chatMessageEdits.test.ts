@@ -89,7 +89,7 @@ describe("reconcileEditedMessageInCache", () => {
 		});
 
 		const ids = reconciled?.pages[0]?.messages.map((message) => message.id);
-		// The first page is ordered newest first.
+		// Reversed from responseMessages: the first page is newest first.
 		expect(ids).toEqual([replacement.id, newNotice.id]);
 	});
 });
