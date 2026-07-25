@@ -259,3 +259,17 @@ func TestRestoreToolCallOrder(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "call_b", last.ToolCallID)
 }
+
+func TestEventMessagesSkipsBlankModelContext(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	messages, err := EventMessages(&Result{ModelContext: " \n\t "}, modelConfigID)
+	require.NoError(t, err)
+	require.Empty(t, messages)
+
+	messages, err = EventMessages(&Result{ModelContext: "real context"}, modelConfigID)
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, database.ChatMessageVisibilityModel, messages[0].Visibility)
+}
