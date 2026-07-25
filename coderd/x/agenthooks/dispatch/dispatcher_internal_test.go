@@ -450,6 +450,40 @@ func TestDispatcherOverCapacity(t *testing.T) {
 	assertDispatchErrorClass(t, err, ResultOverCapacity)
 }
 
+func TestDispatcherRejectedResponseIsNotObserved(t *testing.T) {
+	t.Parallel()
+
+	event := newTestEvent(t, agenthooks.EventPreToolUse, agenthooks.PreToolUseData{
+		ToolUseID: "call_" + uuid.NewString(),
+		ToolName:  "execute",
+		ToolInput: json.RawMessage(`{"cmd":"ls"}`),
+	})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte(`{"permission":{"decision":"deny","input_override":{"cmd":"rm"}},"model_context":"ctx"}`))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	registry := prometheus.NewRegistry()
+	dispatcher := New(
+		testutil.Logger(t), server.Client(), server.URL, testSecret, time.Second,
+		testDeploymentID, testVersion, registry,
+	)
+	_, _, err := dispatcher.Dispatch(testutil.Context(t, testutil.WaitLong), event)
+	assertDispatchErrorClass(t, err, ResultProtocolError)
+
+	families, err := registry.Gather()
+	require.NoError(t, err)
+	for _, family := range families {
+		switch family.GetName() {
+		case "coderd_chatd_hook_decisions_total",
+			"coderd_chatd_hook_input_overrides_total",
+			"coderd_chatd_hook_context_size_bytes":
+			require.Empty(t, family.GetMetric(), "rejected response observed in %s", family.GetName())
+		}
+	}
+}
+
 func TestDispatcherCanceledContextAtCapacityReturnsTimeout(t *testing.T) {
 	t.Parallel()
 

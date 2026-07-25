@@ -3,8 +3,10 @@
 // backward-compatibility guarantee.
 //
 // Delivery is at-least-once because Coder persists no hook dispatch state.
-// Consumers must deduplicate side effects by stable identifiers such as
-// chat_id, event type, and tool_use_id.
+// A retried HTTP attempt reuses its Meta.DispatchID, so consumers deduplicate
+// transport retries by that ID. A repeated logical event gets a new ID, so
+// keep side effects keyed on the event's own identifiers, such as tool_use_id,
+// or make them safe to repeat.
 package agenthooks
 
 import (

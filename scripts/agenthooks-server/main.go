@@ -59,7 +59,7 @@ type consumerState struct {
 	// deliveries while they remain cached.
 	preToolDecisions map[string]agenthooks.Response
 	// blockedTools records tool names this consumer denied per chat, so
-	// the policy outlives any single dispatch.
+	// the policy outlives any single dispatch. Evicted with preToolDecisions.
 	blockedTools map[string]map[string]struct{}
 }
 
@@ -83,7 +83,10 @@ func (s *consumerState) rememberDecision(chatID, toolUseID string, response agen
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if len(s.preToolDecisions) >= maxRememberedDecisions {
+		// Both maps grow per chat, so evict them together to keep a
+		// long-running consumer bounded.
 		s.preToolDecisions = make(map[string]agenthooks.Response)
+		s.blockedTools = make(map[string]map[string]struct{})
 	}
 	s.preToolDecisions[chatID+"\x00"+toolUseID] = response
 	if deniedTool == "" {
