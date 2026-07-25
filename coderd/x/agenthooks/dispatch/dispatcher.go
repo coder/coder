@@ -12,8 +12,9 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -417,6 +418,34 @@ func decodeResponse(trimmed []byte, response *agenthooks.Response) error {
 
 const maxResponseJSONDepth = 128
 
+// foldJSONName canonicalizes an object key the way encoding/json matches
+// struct fields: ASCII is case-folded, and other runes collapse to the
+// smallest member of their Unicode simple-fold orbit. strings.ToLower is
+// not equivalent, so "permi\u017f\u017fion" would otherwise slip past the
+// duplicate check and overwrite "permission".
+func foldJSONName(name string) string {
+	folded := make([]byte, 0, len(name))
+	for _, r := range name {
+		if r < utf8.RuneSelf {
+			if 'a' <= r && r <= 'z' {
+				r -= 'a' - 'A'
+			}
+			folded = append(folded, byte(r))
+			continue
+		}
+		for {
+			next := unicode.SimpleFold(r)
+			if next <= r {
+				r = next
+				break
+			}
+			r = next
+		}
+		folded = utf8.AppendRune(folded, r)
+	}
+	return string(folded)
+}
+
 // rejectDuplicateKeys consumes one JSON value and fails on duplicate object
 // keys at any depth, including inside input_override, because a duplicated
 // key such as {"permission":{"decision":"deny"},"permission":null} would
@@ -444,7 +473,7 @@ func rejectDuplicateKeys(decoder *json.Decoder, depth int) error {
 				return err
 			}
 			key, _ := keyToken.(string)
-			folded := strings.ToLower(key)
+			folded := foldJSONName(key)
 			if _, dup := seen[folded]; dup {
 				return xerrors.Errorf("duplicate key %q", key)
 			}
