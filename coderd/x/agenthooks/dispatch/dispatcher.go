@@ -446,12 +446,6 @@ func foldJSONName(name string) string {
 	return string(folded)
 }
 
-// rejectDuplicateKeys consumes one JSON value and fails on duplicate object
-// keys at any depth, including inside input_override, because a duplicated
-// key such as {"permission":{"decision":"deny"},"permission":null} would
-// otherwise drop the decision the consumer intended. Keys are compared
-// case-insensitively because encoding/json matches struct fields that way,
-// so "Permission" would silently override "permission".
 // keyMatching selects how object keys are compared for duplicates.
 type keyMatching int
 
@@ -464,6 +458,12 @@ const (
 	keyMatchingExact
 )
 
+// rejectDuplicateKeys consumes one JSON value and fails on duplicate object
+// keys at any depth, including inside input_override, because a duplicated
+// key such as {"permission":{"decision":"deny"},"permission":null} would
+// otherwise drop the decision the consumer intended. Envelope keys also
+// collide when they differ only by folding, matching how encoding/json
+// resolves struct fields, so "Permission" cannot override "permission".
 func rejectDuplicateKeys(decoder *json.Decoder, depth int, matching keyMatching) error {
 	if depth > maxResponseJSONDepth {
 		return xerrors.New("response JSON exceeds supported nesting depth")
