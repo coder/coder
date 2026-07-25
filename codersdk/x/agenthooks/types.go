@@ -2,7 +2,11 @@
 // lifecycle hooks. The protocol, including SchemaVersion 1, has no
 // backward-compatibility guarantee.
 //
-// Delivery is at-least-once because Coder persists no hook dispatch state.
+// Coder persists no hook dispatch state, so delivery is best-effort and may
+// duplicate. A failed dispatch is never queued for redelivery; hooks are fail
+// closed, so the operation that raised the event fails instead. Consumers must
+// therefore tolerate duplicates without assuming every event arrives.
+//
 // A retried HTTP attempt reuses its Meta.DispatchID, so consumers deduplicate
 // transport retries by that ID. A repeated logical event gets a new ID, so
 // keep side effects keyed on the event's own identifiers, such as tool_use_id,

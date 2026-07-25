@@ -76,8 +76,8 @@ func newError(class Result, dispatchID uuid.UUID, err error) error {
 	return &Error{Class: class, DispatchID: dispatchID, Err: err}
 }
 
-// Dispatcher delivers lifecycle hook attempts. It keeps no delivery decision
-// state; delivery is at-least-once and consumers own decision state.
+// Dispatcher delivers lifecycle hook attempts. It keeps no delivery or
+// decision state, so delivery is best-effort and consumers own both.
 type Dispatcher struct {
 	logger       slog.Logger
 	client       *http.Client
