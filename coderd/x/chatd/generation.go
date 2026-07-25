@@ -1394,7 +1394,9 @@ func (s *taskStarter) finishGenerationTurn(
 		return s.finishGenerationError(ctx, machine, input, err, fence)
 	}
 	nudgeKey := stopNudgeKey(messages)
-	continueTurn := response.GetModelContext() != "" && input.StopNudges.claim(nudgeKey)
+	// Prompt conversion drops whitespace-only text parts, so a blank
+	// model context would buy a continuation that nudges nothing.
+	continueTurn := strings.TrimSpace(response.GetModelContext()) != "" && input.StopNudges.claim(nudgeKey)
 
 	var committed database.Chat
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
