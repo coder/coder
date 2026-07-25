@@ -38,8 +38,7 @@ type Request struct {
 	Data json.RawMessage `json:"data"`
 }
 
-// Meta carries the dispatch identity and chat reference sent with every
-// event.
+// Meta identifies a hook dispatch and its chat.
 type Meta struct {
 	DispatchID    uuid.UUID `json:"dispatch_id"`
 	SchemaVersion int       `json:"schema_version"`
@@ -70,16 +69,15 @@ type UserPromptSubmitData struct {
 	Parts  json.RawMessage `json:"parts,omitempty"`
 }
 
-// PreToolUseData describes the tool call Coder is about to run.
-// ToolInput holds the tool's JSON arguments.
+// PreToolUseData describes a tool call before execution.
 type PreToolUseData struct {
 	ToolUseID string          `json:"tool_use_id"`
 	ToolName  string          `json:"tool_name"`
 	ToolInput json.RawMessage `json:"tool_input"`
 }
 
-// PostToolUseData reports a finished tool call. ToolResponse carries the
-// tool output, or ToolError the failure message.
+// PostToolUseData describes a completed tool call, carrying either
+// ToolResponse or ToolError.
 type PostToolUseData struct {
 	ToolUseID    string          `json:"tool_use_id"`
 	ToolName     string          `json:"tool_name"`

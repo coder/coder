@@ -46,11 +46,9 @@ func SignClaims(secret []byte, claims Claims) (string, error) {
 	return token, nil
 }
 
-// Verify checks the HS256 bearer token in an Authorization header against
-// the shared secret and returns its claims. It validates the signature,
-// the JWT type header, the required claims, and the validity window.
-// Binding a token to a specific request body and URL is the caller's job:
-// see NewHTTPHandler.
+// Verify authenticates an HS256 bearer token and validates its JWT header,
+// required claims, and validity window. Request binding remains the caller's
+// responsibility; see NewHTTPHandler.
 func Verify(authzHeader string, secret []byte) (Claims, error) {
 	if len(secret) < MinSecretLen {
 		return Claims{}, xerrors.Errorf("secret must be at least %d bytes", MinSecretLen)
