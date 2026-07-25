@@ -135,7 +135,8 @@ A failure during generation moves the chat to the error state and records the di
 A failed prompt dispatch for an existing idle chat can also move that chat to the error state even though the API request is rejected.
 If the first `user_prompt_submit` dispatch fails during chat creation, Coder rejects the request and doesn't create the chat.
 If `post_tool_use` fails for a client-submitted tool result, Coder rejects the submission without committing the results, and the client can resubmit them after the consumer recovers.
-If `post_tool_use` fails for a tool that Coder already executed, Coder commits the tool result first so the transcript reflects the completed side effect, then moves the chat to the error state.
+If a hook dispatch fails after Coder has already executed one or more tools in a batch, Coder commits the tool results first so the transcript reflects the completed side effects, then moves the chat to the error state.
+This covers a failed `post_tool_use` for an executed tool and a failed `user_prompt_submit` for a subagent spawn, where the spawn is refused but the tools that ran alongside it keep their results.
 
 Dispatch precedes persistence, so a delivered event doesn't guarantee that the operation commits.
 Coder checks admission before dispatching, but concurrent requests can still fail admission afterward, for example two sends racing for the last queue slot or duplicate submissions of the same tool results.

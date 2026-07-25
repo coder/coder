@@ -131,6 +131,11 @@ func (t *Trigger) PostToolUseResults(
 		if !ok || toolResult.ProviderExecuted {
 			continue
 		}
+		// A hook dispatch failure means admission was refused, so the tool
+		// never ran and there is no use to post-process.
+		if dispatchFailureFromResult(toolResult) != nil {
+			continue
+		}
 		msg, err := postToolUseMessage(toolResult)
 		if err != nil {
 			if firstErr == nil {

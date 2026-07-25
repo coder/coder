@@ -839,6 +839,7 @@ func (s *taskStarter) executeLocalTools(
 		modelName = prepared.Model.Model()
 	}
 	var outcome chatloop.ToolExecutionOutcome
+	var spawnDispatchErr error
 	if len(preflight.Allowed) > 0 {
 		outcome, err = chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
 			Tools:              prepared.Tools,
@@ -860,10 +861,11 @@ func (s *taskStarter) executeLocalTools(
 			return xerrors.Errorf("execute local tools: %w", err)
 		}
 		// Subagent spawn admission dispatches user_prompt_submit inside
-		// the tool run; its failure surfaces as a tool result error and
-		// must fail the step instead of committing.
+		// the tool run; its failure surfaces as a tool result error. The
+		// step still commits so a sibling tool that already ran keeps its
+		// result and is not re-executed, and the turn fails afterwards.
 		if hookErr := chathooks.DispatchFailureFromResults(outcome.Step.Content); hookErr != nil {
-			return chathooks.GenerationDispatchError(agenthooks.EventUserPromptSubmit, hookErr)
+			spawnDispatchErr = chathooks.GenerationDispatchError(agenthooks.EventUserPromptSubmit, hookErr)
 		}
 	}
 	postResults, postDispatchErr := s.server.hooks.PostToolUseResults(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), outcome.Step.Content)
@@ -891,7 +893,19 @@ func (s *taskStarter) executeLocalTools(
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
 	var postCommitErr error
-	if postDispatchErr != nil {
+	switch {
+	case spawnDispatchErr != nil:
+		// Spawn admission is the causal root: post_tool_use only ran
+		// because the batch reached execution at all.
+		postCommitErr = spawnDispatchErr
+		if postDispatchErr != nil {
+			s.opts.Logger.Warn(ctx, "post_tool_use hook dispatch failed alongside spawn admission",
+				slog.F("chat_id", input.ChatID),
+				slog.F("worker_id", input.WorkerID),
+				slog.Error(postDispatchErr),
+			)
+		}
+	case postDispatchErr != nil:
 		postCommitErr = chathooks.GenerationDispatchError(agenthooks.EventPostToolUse, postDispatchErr)
 	}
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages, generationCommitHooks{
