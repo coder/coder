@@ -195,6 +195,8 @@ export type ChatStore = {
 	// server never mentioned is still in flight; one it mentioned and then
 	// dropped was deleted.
 	hasObservedQueuedMessageID: (id: number) => boolean;
+	setActiveChatID: (chatID: string | null) => void;
+	getActiveChatID: () => string | null;
 	// Counts server-reported status events, including repeats of the
 	// current value, so a caller can tell that the server spoke during a
 	// request even when the status did not change.
@@ -240,6 +242,7 @@ export const createChatStore = (): ChatStore => {
 	// server event cannot trigger a re-render.
 	let observedQueuedMessageIDs = new Set<number>();
 	let serverChatStatusVersion = 0;
+	let activeChatID: string | null = null;
 	const listeners = new Set<() => void>();
 
 	const emit = (): void => {
@@ -571,6 +574,10 @@ export const createChatStore = (): ChatStore => {
 				chatStatus: status,
 			}));
 		},
+		setActiveChatID: (chatID) => {
+			activeChatID = chatID;
+		},
+		getActiveChatID: () => activeChatID,
 		getServerChatStatusVersion: () => serverChatStatusVersion,
 		applyServerChatStatus: (status) => {
 			serverChatStatusVersion++;

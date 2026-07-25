@@ -318,6 +318,7 @@ export const useChatStore = (
 	}, [chatRecord?.status, store, pendingStatusResync]);
 
 	useEffect(() => {
+		store.setActiveChatID(chatID ?? null);
 		queuedMessagesHydratedChatIDRef.current = null;
 		wsQueueUpdateReceivedRef.current = false;
 		wsStatusReceivedRef.current = false;
@@ -388,6 +389,7 @@ export const useChatStore = (
 
 		store.resetTransientState();
 		activeChatIDRef.current = chatID ?? null;
+		store.setActiveChatID(chatID ?? null);
 
 		if (!chatID || !initialDataLoaded || aiGatewayDisabled) {
 			return;
@@ -745,6 +747,7 @@ export const useChatStore = (
 				clearTimeout(partsFlushTimer);
 			}
 			activeChatIDRef.current = null;
+			store.setActiveChatID(null);
 		};
 	}, [
 		aiGatewayDisabled,
