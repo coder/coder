@@ -1169,6 +1169,7 @@ const AgentChatPage: FC = () => {
 		chatID: agentId,
 		chatMessages: chatMessagesList,
 		chatRecord,
+		chatRecordUpdatedAt: chatQuery.dataUpdatedAt,
 		chatMessagesData,
 		chatQueuedMessages,
 		setChatErrorReason,
@@ -1741,7 +1742,7 @@ const AgentChatPage: FC = () => {
 		// Prefer the full inserted batch: queued sends can insert
 		// messages beyond the user row, such as a promoted queue head
 		// on an errored chat, and a stream reconnect keyed on the
-		// highest cached ID would skip them, so upsert unconditionally.
+		// highest cached ID would skip them, so upsert while this chat is active.
 		const insertedMessages =
 			response.messages ?? (response.message ? [response.message] : []);
 		if (insertedMessages.length > 0) {

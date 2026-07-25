@@ -34,11 +34,10 @@ import type { FC, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChat, MockChatMessage } from "#/testHelpers/chatEntities";
+import { MockChat } from "#/testHelpers/chatEntities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import {
-	createChatStore,
 	selectChatStatus,
 	selectIsAwaitingFirstStreamChunk,
 	selectMessagesByID,
@@ -263,38 +262,6 @@ afterEach(() => {
 	vi.useRealTimers();
 	vi.restoreAllMocks();
 	vi.mocked(watchChat).mockReset();
-});
-
-describe("createChatStore", () => {
-	it("guards send response mutations by active chat", () => {
-		const store = createChatStore();
-		const sendChatID = "chat-old";
-		const activeMessage = {
-			...MockChatMessage,
-			id: 1,
-			chat_id: "chat-new",
-			content: [{ type: "text" as const, text: "New chat message" }],
-		};
-		const staleResponseMessage = {
-			...MockChatMessage,
-			id: 2,
-			chat_id: sendChatID,
-			content: [{ type: "text" as const, text: "Old chat message" }],
-		};
-
-		store.setActiveChatID(sendChatID);
-		store.setActiveChatID("chat-new");
-		store.replaceMessages([activeMessage]);
-		store.setChatStatus("waiting");
-
-		if (store.getActiveChatID() === sendChatID) {
-			store.upsertDurableMessages([staleResponseMessage]);
-			store.setChatStatus("running");
-		}
-
-		expect(store.getSnapshot().orderedMessageIDs).toEqual([activeMessage.id]);
-		expect(store.getSnapshot().chatStatus).toBe("waiting");
-	});
 });
 
 describe("useChatStore", () => {
@@ -2330,13 +2297,17 @@ describe("useChatStore", () => {
 		const queryClient = createTestQueryClient();
 		const wrapper = createWrapper(queryClient);
 
-		const initialProps: { status: TypesGen.ChatStatus } = { status: "waiting" };
+		const initialProps: { status: TypesGen.ChatStatus; updatedAt: number } = {
+			status: "waiting",
+			updatedAt: 1,
+		};
 		const { result, rerender } = renderHook(
-			({ status }: { status: TypesGen.ChatStatus }) => {
+			({ status, updatedAt }: typeof initialProps) => {
 				const { store, acceptServerChatStatus } = useChatStore({
 					chatID,
 					chatMessages: [],
 					chatRecord: { ...buildChat(chatID), status },
+					chatRecordUpdatedAt: updatedAt,
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
@@ -2369,35 +2340,35 @@ describe("useChatStore", () => {
 		await waitFor(() => {
 			expect(result.current.chatStatus).toBe("running");
 		});
-		rerender({ status: "error" });
+		rerender({ status: "error", updatedAt: 1 });
 		expect(result.current.chatStatus).toBe("running");
 
-		// A failed request opts back in, so the next refetch applies.
 		act(() => {
 			result.current.acceptServerChatStatus();
 		});
-		rerender({ status: "waiting" });
-		rerender({ status: "error" });
+		rerender({ status: "waiting", updatedAt: 1 });
+		expect(result.current.chatStatus).toBe("running");
+		rerender({ status: "error", updatedAt: 2 });
 		await waitFor(() => {
 			expect(result.current.chatStatus).toBe("error");
 		});
 	});
 
-	it("hydrates a refetched status that never changed value", async () => {
+	it("hydrates an unchanged status after a successful refetch", async () => {
 		const chatID = "chat-resync-same";
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 		const queryClient = createTestQueryClient();
 		const wrapper = createWrapper(queryClient);
+		const chatRecord = { ...buildChat(chatID), status: "error" as const };
 
-		// The cache already holds "error" while the socket pushes "running",
-		// so opting back in must apply the cached value without it changing.
-		const { result } = renderHook(
-			() => {
+		const { result, rerender } = renderHook(
+			({ updatedAt }: { updatedAt: number }) => {
 				const { store, acceptServerChatStatus } = useChatStore({
 					chatID,
 					chatMessages: [],
-					chatRecord: { ...buildChat(chatID), status: "error" },
+					chatRecord,
+					chatRecordUpdatedAt: updatedAt,
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
@@ -2412,7 +2383,7 @@ describe("useChatStore", () => {
 					chatStatus: useChatSelector(store, selectChatStatus),
 				};
 			},
-			{ wrapper },
+			{ wrapper, initialProps: { updatedAt: 1 } },
 		);
 
 		await waitFor(() => {
@@ -2432,6 +2403,8 @@ describe("useChatStore", () => {
 		act(() => {
 			result.current.acceptServerChatStatus();
 		});
+		expect(result.current.chatStatus).toBe("running");
+		rerender({ updatedAt: 2 });
 		await waitFor(() => {
 			expect(result.current.chatStatus).toBe("error");
 		});
