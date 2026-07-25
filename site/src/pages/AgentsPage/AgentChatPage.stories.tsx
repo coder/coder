@@ -2925,3 +2925,48 @@ export const QueuedSendPromotesPreviousHead: Story = {
 		expect(await canvas.findByTestId("live-activity-slot")).toBeVisible();
 	},
 };
+
+/** A send rejected with the structured 502 hook-dispatch-failure body must
+ *  render the lifecycle-hook title and the server's detail text, not the
+ *  generic request-failure fallback. */
+export const SendRejectedByHookDispatchFailure: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Hook failure",
+				status: "waiting",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+		spyOn(API.experimental, "createChatMessage").mockRejectedValue({
+			isAxiosError: true,
+			response: {
+				status: 502,
+				data: {
+					message: "Lifecycle hook dispatch failed.",
+					detail: "Dispatch 0f2c1f3e timed out after 1.5s.",
+					kind: "hook_dispatch_failed",
+				},
+			},
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.type(editor, "Trigger the hook failure");
+		await userEvent.keyboard("{Enter}");
+
+		expect(await canvas.findByText("Lifecycle hook failed")).toBeVisible();
+		expect(
+			await canvas.findByText("Dispatch 0f2c1f3e timed out after 1.5s."),
+		).toBeVisible();
+		expect(canvas.queryByText("Request failed")).not.toBeInTheDocument();
+	},
+};

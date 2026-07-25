@@ -48,6 +48,8 @@ export const getErrorTitle = (
 			return "Provider disabled";
 		case "content_filter":
 			return "Response blocked";
+		case "hook_dispatch_failed":
+			return "Lifecycle hook failed";
 		default:
 			return mode === "retry" ? "Retrying request" : "Request failed";
 	}
