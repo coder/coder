@@ -943,41 +943,11 @@ func (tx *Tx) CompleteRequiresAction(input CompleteRequiresActionInput) (Complet
 	if err != nil {
 		return CompleteRequiresActionResult{}, err
 	}
-	submitted := make(map[string]ToolResultInput, len(input.Results))
-	for _, r := range input.Results {
-		if _, dup := submitted[r.ToolCallID]; dup {
-			return CompleteRequiresActionResult{}, newTransitionErrorWithCause(
-				TransitionCompleteRequiresAction, from,
-				&ToolResultValidationError{Cause: ErrToolResultDuplicate, ToolCallID: r.ToolCallID},
-				"duplicate tool_call_id submitted",
-			)
-		}
-		if !json.Valid(r.Output) {
-			return CompleteRequiresActionResult{}, newTransitionErrorWithCause(
-				TransitionCompleteRequiresAction, from,
-				&ToolResultValidationError{Cause: ErrToolResultInvalidJSON, ToolCallID: r.ToolCallID},
-				"tool result output is not valid JSON",
-			)
-		}
-		submitted[r.ToolCallID] = r
-	}
-	for id := range pending {
-		if _, ok := submitted[id]; !ok {
-			return CompleteRequiresActionResult{}, newTransitionErrorWithCause(
-				TransitionCompleteRequiresAction, from,
-				&ToolResultValidationError{Cause: ErrToolResultMissing, ToolCallID: id},
-				"submitted tool results do not match pending tool calls",
-			)
-		}
-	}
-	for id := range submitted {
-		if _, ok := pending[id]; !ok {
-			return CompleteRequiresActionResult{}, newTransitionErrorWithCause(
-				TransitionCompleteRequiresAction, from,
-				&ToolResultValidationError{Cause: ErrToolResultUnexpected, ToolCallID: id},
-				"submitted tool_call_id does not match a pending dynamic tool call",
-			)
-		}
+	if invalid := ValidateToolResults(input.Results, pending); invalid != nil {
+		return CompleteRequiresActionResult{}, newTransitionErrorWithCause(
+			TransitionCompleteRequiresAction, from, invalid,
+			toolResultTransitionMessage(invalid.Cause),
+		)
 	}
 	messages := make([]Message, 0, len(input.Results))
 	for _, r := range input.Results {
@@ -1018,6 +988,21 @@ func (tx *Tx) CompleteRequiresAction(input CompleteRequiresActionInput) (Complet
 	return CompleteRequiresActionResult{
 		InsertedMessages: inserted,
 	}, nil
+}
+
+func toolResultTransitionMessage(cause error) string {
+	switch {
+	case errors.Is(cause, ErrToolResultDuplicate):
+		return "duplicate tool_call_id submitted"
+	case errors.Is(cause, ErrToolResultInvalidJSON):
+		return "tool result output is not valid JSON"
+	case errors.Is(cause, ErrToolResultMissing):
+		return "submitted tool results do not match pending tool calls"
+	case errors.Is(cause, ErrToolResultUnexpected):
+		return "submitted tool_call_id does not match a pending dynamic tool call"
+	default:
+		return "submitted tool results are invalid"
+	}
 }
 
 // AcquireInput configures [Tx.Acquire].
