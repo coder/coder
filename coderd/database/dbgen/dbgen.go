@@ -145,7 +145,7 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 	})
 	require.NoError(t, err, "insert chat message")
 	require.Len(t, msgs, 1)
-	return msgs[0]
+	return database.ChatMessage(msgs[0])
 }
 
 const (

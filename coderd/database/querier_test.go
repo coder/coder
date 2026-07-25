@@ -12212,6 +12212,73 @@ func TestInsertChatMessages(t *testing.T) {
 	})
 }
 
+func TestGetChatMessagesByChatIDOrdersByID(t *testing.T) {
+	t.Parallel()
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := context.Background()
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		CreatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true},
+	})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+	})
+
+	const count = 3
+	inserted, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           slices.Repeat([]uuid.UUID{owner.ID}, count),
+		ModelConfigID:       slices.Repeat([]uuid.UUID{modelCfg.ID}, count),
+		Role:                slices.Repeat([]database.ChatMessageRole{database.ChatMessageRoleUser}, count),
+		ContentVersion:      slices.Repeat([]int16{chatprompt.CurrentContentVersion}, count),
+		Visibility:          slices.Repeat([]database.ChatMessageVisibility{database.ChatMessageVisibilityBoth}, count),
+		Content:             []string{`"first"`, `"second"`, `"third"`},
+		InputTokens:         make([]int64, count),
+		OutputTokens:        make([]int64, count),
+		TotalTokens:         make([]int64, count),
+		ReasoningTokens:     make([]int64, count),
+		CacheCreationTokens: make([]int64, count),
+		CacheReadTokens:     make([]int64, count),
+		ContextLimit:        make([]int64, count),
+		Compressed:          make([]bool, count),
+		TotalCostMicros:     make([]int64, count),
+		RuntimeMs:           make([]int64, count),
+	})
+	require.NoError(t, err)
+	require.Len(t, inserted, count)
+
+	// Invert created_at against id order so an ordering that leads with
+	// created_at returns the batch backwards.
+	for i, message := range inserted {
+		_, err := sqlDB.ExecContext(ctx,
+			"UPDATE chat_messages SET created_at = $1 WHERE id = $2",
+			message.CreatedAt.Add(time.Duration(count-i)*time.Minute), message.ID)
+		require.NoError(t, err)
+	}
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+
+	insertedIDs := make([]int64, len(inserted))
+	for i, message := range inserted {
+		insertedIDs[i] = message.ID
+	}
+	readIDs := make([]int64, len(messages))
+	for i, message := range messages {
+		readIDs[i] = message.ID
+	}
+	require.Equal(t, insertedIDs, readIDs)
+}
+
 func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 	t.Parallel()
 
@@ -12294,7 +12361,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
-		return results[0]
+		return database.ChatMessage(results[0])
 	}
 
 	msgIDs := func(msgs []database.ChatMessage) []int64 {
@@ -17173,7 +17240,7 @@ func TestGetChatsSearch(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, msgs, 1)
-		return msgs[0]
+		return database.ChatMessage(msgs[0])
 	}
 
 	linkPR := func(chatID uuid.UUID, url, state, prTitle string, prNumber int32, gitRemoteOrigin string) {

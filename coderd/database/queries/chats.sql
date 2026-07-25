@@ -386,6 +386,9 @@ WHERE
     AND deleted = false;
 
 -- name: GetChatMessagesByChatID :many
+-- Ordered by id to match the @after_id cursor. created_at is the transaction
+-- start time, so it can disagree with append order when a transaction takes the
+-- chat row lock later than one that started after it.
 SELECT
     *
 FROM
@@ -396,7 +399,7 @@ WHERE
     AND visibility IN ('user', 'both')
     AND deleted = false
 ORDER BY
-    created_at ASC;
+    id ASC;
 
 -- name: GetChatMessagesByRevisionForStream :many
 SELECT
@@ -868,6 +871,9 @@ SELECT *
 FROM chats_expanded;
 
 -- name: InsertChatMessages :many
+-- Returns the inserted rows in input array order. Ids are allocated before the
+-- insert and the k-th smallest is assigned to input index k, so callers may
+-- index the result positionally.
 WITH batch AS (
     SELECT
         (
@@ -900,48 +906,67 @@ updated_chat AS (
             chats.last_model_config_id IS DISTINCT FROM COALESCE(batch.last_model_config_id, chats.last_model_config_id)
             OR chats.last_reasoning_effort IS DISTINCT FROM COALESCE(batch.last_reasoning_effort, chats.last_reasoning_effort)
         )
+),
+allocated AS MATERIALIZED (
+    -- Numbering the ids by value, rather than by the order nextval produced
+    -- them, is what makes ordinal k always the k-th smallest id. MATERIALIZED
+    -- is redundant while nextval is volatile, and pins that if it changes.
+    SELECT
+        id,
+        (ROW_NUMBER() OVER (ORDER BY id))::int AS ord
+    FROM (
+        SELECT nextval('chat_messages_id_seq') AS id
+        FROM generate_series(1, cardinality(@role::chat_message_role[]))
+    ) s
+),
+inserted AS (
+    INSERT INTO chat_messages (
+        id,
+        chat_id,
+        created_by,
+        model_config_id,
+        reasoning_effort,
+        role,
+        content,
+        content_version,
+        visibility,
+        input_tokens,
+        output_tokens,
+        total_tokens,
+        reasoning_tokens,
+        cache_creation_tokens,
+        cache_read_tokens,
+        context_limit,
+        compressed,
+        total_cost_micros,
+        runtime_ms
+    )
+    SELECT
+        allocated.id,
+        @chat_id::uuid,
+        NULLIF((@created_by::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
+        NULLIF((@model_config_id::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
+        NULLIF((@reasoning_effort::text[])[allocated.ord], '')::chat_reasoning_effort,
+        (@role::chat_message_role[])[allocated.ord],
+        (@content::text[])[allocated.ord]::jsonb,
+        (@content_version::smallint[])[allocated.ord],
+        (@visibility::chat_message_visibility[])[allocated.ord],
+        NULLIF((@input_tokens::bigint[])[allocated.ord], 0),
+        NULLIF((@output_tokens::bigint[])[allocated.ord], 0),
+        NULLIF((@total_tokens::bigint[])[allocated.ord], 0),
+        NULLIF((@reasoning_tokens::bigint[])[allocated.ord], 0),
+        NULLIF((@cache_creation_tokens::bigint[])[allocated.ord], 0),
+        NULLIF((@cache_read_tokens::bigint[])[allocated.ord], 0),
+        NULLIF((@context_limit::bigint[])[allocated.ord], 0),
+        (@compressed::boolean[])[allocated.ord],
+        NULLIF((@total_cost_micros::bigint[])[allocated.ord], 0),
+        NULLIF((@runtime_ms::bigint[])[allocated.ord], 0)
+    FROM allocated
+    RETURNING *
 )
-INSERT INTO chat_messages (
-    chat_id,
-    created_by,
-    model_config_id,
-    reasoning_effort,
-    role,
-    content,
-    content_version,
-    visibility,
-    input_tokens,
-    output_tokens,
-    total_tokens,
-    reasoning_tokens,
-    cache_creation_tokens,
-    cache_read_tokens,
-    context_limit,
-    compressed,
-    total_cost_micros,
-    runtime_ms
-)
-SELECT
-    @chat_id::uuid,
-    NULLIF(UNNEST(@created_by::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
-    NULLIF(UNNEST(@model_config_id::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
-    NULLIF(UNNEST(@reasoning_effort::text[]), '')::chat_reasoning_effort,
-    UNNEST(@role::chat_message_role[]),
-    UNNEST(@content::text[])::jsonb,
-    UNNEST(@content_version::smallint[]),
-    UNNEST(@visibility::chat_message_visibility[]),
-    NULLIF(UNNEST(@input_tokens::bigint[]), 0),
-    NULLIF(UNNEST(@output_tokens::bigint[]), 0),
-    NULLIF(UNNEST(@total_tokens::bigint[]), 0),
-    NULLIF(UNNEST(@reasoning_tokens::bigint[]), 0),
-    NULLIF(UNNEST(@cache_creation_tokens::bigint[]), 0),
-    NULLIF(UNNEST(@cache_read_tokens::bigint[]), 0),
-    NULLIF(UNNEST(@context_limit::bigint[]), 0),
-    UNNEST(@compressed::boolean[]),
-    NULLIF(UNNEST(@total_cost_micros::bigint[]), 0),
-    NULLIF(UNNEST(@runtime_ms::bigint[]), 0)
-RETURNING
-    *;
+SELECT *
+FROM inserted
+ORDER BY id;
 
 -- name: UpdateChatByID :one
 WITH updated_chat AS (

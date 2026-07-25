@@ -8126,7 +8126,7 @@ WHERE
     AND visibility IN ('user', 'both')
     AND deleted = false
 ORDER BY
-    created_at ASC
+    id ASC
 `
 
 type GetChatMessagesByChatIDParams struct {
@@ -8134,6 +8134,9 @@ type GetChatMessagesByChatIDParams struct {
 	AfterID int64     `db:"after_id" json:"after_id"`
 }
 
+// Ordered by id to match the @after_id cursor. created_at is the transaction
+// start time, so it can disagree with append order when a transaction takes the
+// chat row lock later than one that started after it.
 func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMessagesByChatIDParams) ([]ChatMessage, error) {
 	rows, err := q.db.QueryContext(ctx, getChatMessagesByChatID, arg.ChatID, arg.AfterID)
 	if err != nil {
@@ -10375,7 +10378,7 @@ WITH batch AS (
     SELECT
         (
             SELECT val
-            FROM UNNEST($3::uuid[])
+            FROM UNNEST($1::uuid[])
                 WITH ORDINALITY AS t(val, ord)
             WHERE val != '00000000-0000-0000-0000-000000000000'::uuid
             ORDER BY ord DESC
@@ -10383,7 +10386,7 @@ WITH batch AS (
         ) AS last_model_config_id,
         (
             SELECT NULLIF(val, '')::chat_reasoning_effort
-            FROM UNNEST($4::text[])
+            FROM UNNEST($2::text[])
                 WITH ORDINALITY AS t(val, ord)
             WHERE val != ''
             ORDER BY ord DESC
@@ -10398,61 +10401,80 @@ updated_chat AS (
         last_reasoning_effort = COALESCE(batch.last_reasoning_effort, chats.last_reasoning_effort)
     FROM batch
     WHERE
-        chats.id = $1::uuid
+        chats.id = $3::uuid
         AND (
             chats.last_model_config_id IS DISTINCT FROM COALESCE(batch.last_model_config_id, chats.last_model_config_id)
             OR chats.last_reasoning_effort IS DISTINCT FROM COALESCE(batch.last_reasoning_effort, chats.last_reasoning_effort)
         )
+),
+allocated AS MATERIALIZED (
+    -- Numbering the ids by value, rather than by the order nextval produced
+    -- them, is what makes ordinal k always the k-th smallest id. MATERIALIZED
+    -- is redundant while nextval is volatile, and pins that if it changes.
+    SELECT
+        id,
+        (ROW_NUMBER() OVER (ORDER BY id))::int AS ord
+    FROM (
+        SELECT nextval('chat_messages_id_seq') AS id
+        FROM generate_series(1, cardinality($4::chat_message_role[]))
+    ) s
+),
+inserted AS (
+    INSERT INTO chat_messages (
+        id,
+        chat_id,
+        created_by,
+        model_config_id,
+        reasoning_effort,
+        role,
+        content,
+        content_version,
+        visibility,
+        input_tokens,
+        output_tokens,
+        total_tokens,
+        reasoning_tokens,
+        cache_creation_tokens,
+        cache_read_tokens,
+        context_limit,
+        compressed,
+        total_cost_micros,
+        runtime_ms
+    )
+    SELECT
+        allocated.id,
+        $3::uuid,
+        NULLIF(($5::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
+        NULLIF(($1::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
+        NULLIF(($2::text[])[allocated.ord], '')::chat_reasoning_effort,
+        ($4::chat_message_role[])[allocated.ord],
+        ($6::text[])[allocated.ord]::jsonb,
+        ($7::smallint[])[allocated.ord],
+        ($8::chat_message_visibility[])[allocated.ord],
+        NULLIF(($9::bigint[])[allocated.ord], 0),
+        NULLIF(($10::bigint[])[allocated.ord], 0),
+        NULLIF(($11::bigint[])[allocated.ord], 0),
+        NULLIF(($12::bigint[])[allocated.ord], 0),
+        NULLIF(($13::bigint[])[allocated.ord], 0),
+        NULLIF(($14::bigint[])[allocated.ord], 0),
+        NULLIF(($15::bigint[])[allocated.ord], 0),
+        ($16::boolean[])[allocated.ord],
+        NULLIF(($17::bigint[])[allocated.ord], 0),
+        NULLIF(($18::bigint[])[allocated.ord], 0)
+    FROM allocated
+    RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
 )
-INSERT INTO chat_messages (
-    chat_id,
-    created_by,
-    model_config_id,
-    reasoning_effort,
-    role,
-    content,
-    content_version,
-    visibility,
-    input_tokens,
-    output_tokens,
-    total_tokens,
-    reasoning_tokens,
-    cache_creation_tokens,
-    cache_read_tokens,
-    context_limit,
-    compressed,
-    total_cost_micros,
-    runtime_ms
-)
-SELECT
-    $1::uuid,
-    NULLIF(UNNEST($2::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
-    NULLIF(UNNEST($3::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
-    NULLIF(UNNEST($4::text[]), '')::chat_reasoning_effort,
-    UNNEST($5::chat_message_role[]),
-    UNNEST($6::text[])::jsonb,
-    UNNEST($7::smallint[]),
-    UNNEST($8::chat_message_visibility[]),
-    NULLIF(UNNEST($9::bigint[]), 0),
-    NULLIF(UNNEST($10::bigint[]), 0),
-    NULLIF(UNNEST($11::bigint[]), 0),
-    NULLIF(UNNEST($12::bigint[]), 0),
-    NULLIF(UNNEST($13::bigint[]), 0),
-    NULLIF(UNNEST($14::bigint[]), 0),
-    NULLIF(UNNEST($15::bigint[]), 0),
-    UNNEST($16::boolean[]),
-    NULLIF(UNNEST($17::bigint[]), 0),
-    NULLIF(UNNEST($18::bigint[]), 0)
-RETURNING
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+SELECT id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+FROM inserted
+ORDER BY id
 `
 
 type InsertChatMessagesParams struct {
-	ChatID              uuid.UUID               `db:"chat_id" json:"chat_id"`
-	CreatedBy           []uuid.UUID             `db:"created_by" json:"created_by"`
 	ModelConfigID       []uuid.UUID             `db:"model_config_id" json:"model_config_id"`
 	ReasoningEffort     []string                `db:"reasoning_effort" json:"reasoning_effort"`
+	ChatID              uuid.UUID               `db:"chat_id" json:"chat_id"`
 	Role                []ChatMessageRole       `db:"role" json:"role"`
+	CreatedBy           []uuid.UUID             `db:"created_by" json:"created_by"`
 	Content             []string                `db:"content" json:"content"`
 	ContentVersion      []int16                 `db:"content_version" json:"content_version"`
 	Visibility          []ChatMessageVisibility `db:"visibility" json:"visibility"`
@@ -10468,13 +10490,43 @@ type InsertChatMessagesParams struct {
 	RuntimeMs           []int64                 `db:"runtime_ms" json:"runtime_ms"`
 }
 
-func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessagesParams) ([]ChatMessage, error) {
+type InsertChatMessagesRow struct {
+	ID                  int64                   `db:"id" json:"id"`
+	ChatID              uuid.UUID               `db:"chat_id" json:"chat_id"`
+	ModelConfigID       uuid.NullUUID           `db:"model_config_id" json:"model_config_id"`
+	CreatedAt           time.Time               `db:"created_at" json:"created_at"`
+	Role                ChatMessageRole         `db:"role" json:"role"`
+	Content             pqtype.NullRawMessage   `db:"content" json:"content"`
+	Visibility          ChatMessageVisibility   `db:"visibility" json:"visibility"`
+	InputTokens         sql.NullInt64           `db:"input_tokens" json:"input_tokens"`
+	OutputTokens        sql.NullInt64           `db:"output_tokens" json:"output_tokens"`
+	TotalTokens         sql.NullInt64           `db:"total_tokens" json:"total_tokens"`
+	ReasoningTokens     sql.NullInt64           `db:"reasoning_tokens" json:"reasoning_tokens"`
+	CacheCreationTokens sql.NullInt64           `db:"cache_creation_tokens" json:"cache_creation_tokens"`
+	CacheReadTokens     sql.NullInt64           `db:"cache_read_tokens" json:"cache_read_tokens"`
+	ContextLimit        sql.NullInt64           `db:"context_limit" json:"context_limit"`
+	Compressed          bool                    `db:"compressed" json:"compressed"`
+	CreatedBy           uuid.NullUUID           `db:"created_by" json:"created_by"`
+	ContentVersion      int16                   `db:"content_version" json:"content_version"`
+	TotalCostMicros     sql.NullInt64           `db:"total_cost_micros" json:"total_cost_micros"`
+	RuntimeMs           sql.NullInt64           `db:"runtime_ms" json:"runtime_ms"`
+	Deleted             bool                    `db:"deleted" json:"deleted"`
+	ProviderResponseID  sql.NullString          `db:"provider_response_id" json:"provider_response_id"`
+	Revision            int64                   `db:"revision" json:"revision"`
+	ReasoningEffort     NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
+	SearchTsv           interface{}             `db:"search_tsv" json:"search_tsv"`
+}
+
+// Returns the inserted rows in input array order. Ids are allocated before the
+// insert and the k-th smallest is assigned to input index k, so callers may
+// index the result positionally.
+func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessagesParams) ([]InsertChatMessagesRow, error) {
 	rows, err := q.db.QueryContext(ctx, insertChatMessages,
-		arg.ChatID,
-		pq.Array(arg.CreatedBy),
 		pq.Array(arg.ModelConfigID),
 		pq.Array(arg.ReasoningEffort),
+		arg.ChatID,
 		pq.Array(arg.Role),
+		pq.Array(arg.CreatedBy),
 		pq.Array(arg.Content),
 		pq.Array(arg.ContentVersion),
 		pq.Array(arg.Visibility),
@@ -10493,9 +10545,9 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ChatMessage
+	var items []InsertChatMessagesRow
 	for rows.Next() {
-		var i ChatMessage
+		var i InsertChatMessagesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ChatID,
