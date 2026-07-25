@@ -169,6 +169,8 @@ func New(
 	}
 }
 
+// Enabled reports whether a hook URL is configured. A nil dispatcher reads
+// as disabled so callers can hold one unconditionally.
 func (d *Dispatcher) Enabled() bool {
 	return d != nil && d.hookURL != ""
 }
@@ -185,11 +187,6 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (agenthooks.Resp
 
 	startedAt := time.Now()
 	dispatchID := uuid.New()
-	// One deadline bounds capacity waiting and both post attempts so a
-	// saturated semaphore cannot extend the dispatch past the configured
-	// timeout.
-	ctx, cancel := context.WithTimeout(ctx, d.timeout)
-	defer cancel()
 	wait := min(d.timeout, capacityWaitLimit)
 	if wait < 0 {
 		wait = 0
@@ -197,6 +194,9 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (agenthooks.Resp
 	capacityTimer := time.NewTimer(wait)
 	defer capacityTimer.Stop()
 
+	// The capacity wait runs against its own timer rather than a dispatch
+	// deadline, so a timeout shorter than capacityWaitLimit cannot make the
+	// over-capacity and caller-cancellation cases race.
 	select {
 	case d.semaphore <- struct{}{}:
 		defer func() { <-d.semaphore }()
@@ -207,6 +207,11 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (agenthooks.Resp
 		outcome := dispatchOutcome{result: ResultOverCapacity, err: context.DeadlineExceeded}
 		return agenthooks.Response{}, dispatchID, d.finish(ctx, event, dispatchID, startedAt, outcome)
 	}
+
+	// Both post attempts share whatever remains of the configured timeout so
+	// that waiting for capacity cannot extend the dispatch past it.
+	ctx, cancel := context.WithTimeout(ctx, d.timeout-time.Since(startedAt))
+	defer cancel()
 
 	response, outcome := d.prepareAndPost(ctx, event, dispatchID)
 	if err := d.finish(ctx, event, dispatchID, startedAt, outcome); err != nil {

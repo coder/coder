@@ -1298,8 +1298,7 @@ export const AgentHookMaxRequestBodyBytes = 10485760; // 10 MiB
 
 // From agenthooks/types.go
 /**
- * Meta carries the dispatch identity and chat reference sent with every
- * event.
+ * Meta identifies a hook dispatch and its chat.
  */
 export interface AgentHookMeta extends AgentHookChatRef {
 	readonly dispatch_id: string;
@@ -1340,8 +1339,8 @@ export interface AgentHookPostCompactData {}
 
 // From agenthooks/types.go
 /**
- * PostToolUseData reports a finished tool call. ToolResponse carries the
- * tool output, or ToolError the failure message.
+ * PostToolUseData describes a completed tool call, carrying either
+ * ToolResponse or ToolError.
  */
 export interface AgentHookPostToolUseData {
 	readonly tool_use_id: string;
@@ -1358,8 +1357,7 @@ export interface AgentHookPreCompactData {}
 
 // From agenthooks/types.go
 /**
- * PreToolUseData describes the tool call Coder is about to run.
- * ToolInput holds the tool's JSON arguments.
+ * PreToolUseData describes a tool call before execution.
  */
 export interface AgentHookPreToolUseData {
 	readonly tool_use_id: string;

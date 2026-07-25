@@ -56,11 +56,8 @@ func WithTrustForwardedHeaders() HandlerOption {
 	}
 }
 
-// NewHTTPHandler serves hook requests by routing each event to the
-// matching callback in hooks. It accepts POST only, verifies the bearer
-// token with Verify, then binds it to the request by checking the body
-// digest, audience, schema version, dispatch ID, event type, and chat ID
-// against the claims.
+// NewHTTPHandler verifies hook POSTs, binds their claims to each request,
+// and routes events to their configured callbacks.
 func NewHTTPHandler(secret []byte, hooks Hooks, opts ...HandlerOption) http.Handler {
 	var options handlerOptions
 	for _, opt := range opts {

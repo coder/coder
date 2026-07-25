@@ -450,6 +450,27 @@ func TestDispatcherOverCapacity(t *testing.T) {
 	assertDispatchErrorClass(t, err, ResultOverCapacity)
 }
 
+func TestDispatcherCanceledContextAtCapacityReturnsTimeout(t *testing.T) {
+	t.Parallel()
+
+	event := newTestEvent(t, agenthooks.EventStop, agenthooks.StopData{})
+	dispatcher := newTestDispatcher(t, nil, "https://unused.test", testutil.WaitLong)
+	for range maxConcurrentDispatches {
+		dispatcher.semaphore <- struct{}{}
+	}
+	defer func() {
+		for range maxConcurrentDispatches {
+			<-dispatcher.semaphore
+		}
+	}()
+
+	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
+	cancel()
+	_, _, err := dispatcher.Dispatch(ctx, event)
+	require.ErrorIs(t, err, context.Canceled)
+	assertDispatchErrorClass(t, err, ResultTimeout)
+}
+
 func TestDispatcherCanceledContextReturnsTimeout(t *testing.T) {
 	t.Parallel()
 
