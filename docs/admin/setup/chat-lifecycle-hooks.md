@@ -44,8 +44,9 @@ Rotation is a hard cutover: Coder signs with exactly one secret, so dispatches f
 Rotate during a maintenance window, or temporarily set `CODER_CHAT_HOOK_ENABLED=false` for the cutover if blocked chats are worse than unreviewed ones for your deployment.
 Coder requires the configured URL to use HTTPS.
 A TLS terminator can forward the request to a consumer over plain HTTP on a trusted local network.
-The proxy must set `X-Forwarded-Proto: https` and either preserve the original `Host` header or carry it in `X-Forwarded-Host` for the SDK handler's audience check.
-The SDK handler ignores forwarded headers unless the consumer opts in with `agenthooks.WithTrustForwardedHeaders`, because the audience check is then only as strong as the proxy boundary: the proxy must strip or overwrite client-supplied forwarded headers, and the consumer must not be reachable except through the proxy.
+Configure the consumer with the same `CODER_CHAT_HOOK_URL` value, because that URL is the audience Coder signs into every dispatch.
+The consumer compares the `aud` claim against its configured audience and rejects a mismatch.
+It derives nothing from the request URL, the `Host` header, or forwarding headers, so the number of proxy hops in front of it doesn't affect the check.
 
 ## Handle lifecycle events
 
@@ -89,6 +90,7 @@ A consumer must apply all of the following checks before it uses the body:
 
 The Go consumer SDK in `codersdk/x/agenthooks` implements the wire types, JWT verification, body binding, audience checks, and event routing.
 Use `agenthooks.NewHTTPHandler` to build an `http.Handler` from callbacks for the events your consumer handles.
+Pass the deployment's `CODER_CHAT_HOOK_URL` as the expected audience, because a handler built without one rejects every request.
 Pass `agenthooks.WithExpectedIssuer` with the deployment ID associated with the secret to enforce the `iss` check.
 Without it, `NewHTTPHandler` accepts any non-empty `iss` signed with the shared secret, so use a secret dedicated to one deployment or always set the expected issuer.
 
@@ -187,6 +189,7 @@ Run the consumer from a Coder source checkout:
 CODER_AGENTHOOKS_SECRET='<shared-secret>' \
   go run ./scripts/agenthooks-server \
   --listen 127.0.0.1:8081 \
+  --audience 'https://hooks.example.com' \
   --log-only=true
 ```
 
@@ -197,7 +200,7 @@ Agent hooks server listening on 127.0.0.1:8081
 ```
 
 The reference server accepts optional TLS certificate and key paths.
-For local testing with plain HTTP, place an HTTPS reverse proxy in front of it because `CODER_CHAT_HOOK_URL` accepts only HTTPS URLs, and pass `--trust-forwarded-headers` so the audience check uses the proxy's forwarded scheme and host.
+For local testing with plain HTTP, place an HTTPS reverse proxy in front of it because `CODER_CHAT_HOOK_URL` accepts only HTTPS URLs, and pass the proxy's URL as `--audience`.
 Run `go run ./scripts/agenthooks-server --help` for all flags and environment variable names.
 
 ## Audit dispatches
