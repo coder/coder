@@ -2410,6 +2410,62 @@ describe("useChatStore", () => {
 		});
 	});
 
+	it("keeps a websocket status delivered while the resync refetch is in flight", async () => {
+		const chatID = "chat-resync-ws-race";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+		const chatRecord = { ...buildChat(chatID), status: "error" as const };
+
+		const { result, rerender } = renderHook(
+			({ updatedAt }: { updatedAt: number }) => {
+				const { store, acceptServerChatStatus } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord,
+					chatRecordUpdatedAt: updatedAt,
+					chatMessagesData: {
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: () => {},
+					clearChatErrorReason: () => {},
+				});
+				return {
+					acceptServerChatStatus,
+					chatStatus: useChatSelector(store, selectChatStatus),
+				};
+			},
+			{ wrapper, initialProps: { updatedAt: 1 } },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		act(() => {
+			result.current.acceptServerChatStatus();
+		});
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "running" },
+			});
+		});
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+		});
+
+		rerender({ updatedAt: 2 });
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+		});
+	});
+
 	it("sets chatStatus to error and populates streamError on error event", async () => {
 		immediateAnimationFrame();
 
