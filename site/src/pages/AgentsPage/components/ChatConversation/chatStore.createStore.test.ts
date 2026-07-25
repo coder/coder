@@ -529,6 +529,34 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
 	});
 
+	it("tracks authoritative queue and status versions for in-flight requests", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		expect(store.getAuthoritativeQueueVersion()).toBe(0);
+		store.applyAuthoritativeQueuedMessages([a, b]);
+		const afterApply = store.getAuthoritativeQueueVersion();
+		expect(afterApply).toBeGreaterThan(0);
+
+		// Optimistic writes are not server observations.
+		store.setQueuedMessages([b]);
+		expect(store.getAuthoritativeQueueVersion()).toBe(afterApply);
+
+		// An ignored stale snapshot is not an observation either.
+		store.markQueuedMessagePromoted(a.id);
+		store.applyAuthoritativeQueuedMessages([a, b]);
+		expect(store.getAuthoritativeQueueVersion()).toBe(afterApply);
+
+		expect(store.getChatStatusVersion()).toBe(0);
+		store.setChatStatus("running");
+		expect(store.getChatStatusVersion()).toBe(1);
+		store.setChatStatus("running");
+		expect(store.getChatStatusVersion()).toBe(1);
+		store.setChatStatus("error");
+		expect(store.getChatStatusVersion()).toBe(2);
+	});
+
 	it("unsuppressQueuedMessageID clears a promoted marker after a failed promotion", () => {
 		const store = createChatStore();
 		const a = makeQueuedMessage(1, "A");
