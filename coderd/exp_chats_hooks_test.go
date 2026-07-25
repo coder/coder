@@ -139,14 +139,14 @@ func TestChatPromptHookContextHiddenFromAPI(t *testing.T) {
 	t.Parallel()
 
 	const secret = "test-hook-secret-32-bytes-minimum!!"
-	consumer := httptest.NewServer(agenthooks.NewHTTPHandler([]byte(secret), agenthooks.Hooks{
+	consumer := newHookConsumer(t, secret, agenthooks.Hooks{
 		UserPromptSubmit: func(context.Context, agenthooks.Meta, agenthooks.UserPromptSubmitData) (agenthooks.Response, error) {
 			return agenthooks.Response{
 				ModelContext: "prompt context",
 				UserMessage:  "prompt notice",
 			}, nil
 		},
-	}))
+	})
 	t.Cleanup(consumer.Close)
 
 	client, _ := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
@@ -217,7 +217,7 @@ func TestChatLifecycleHooksWorkedExample(t *testing.T) {
 	recordHook := func(event agenthooks.EventType) {
 		hookEvents <- event
 	}
-	consumer := httptest.NewServer(agenthooks.NewHTTPHandler([]byte(secret), agenthooks.Hooks{
+	consumer := newHookConsumer(t, secret, agenthooks.Hooks{
 		SessionStart: func(context.Context, agenthooks.Meta, agenthooks.SessionStartData) (agenthooks.Response, error) {
 			recordHook(agenthooks.EventSessionStart)
 			return agenthooks.Response{}, nil
@@ -254,7 +254,7 @@ func TestChatLifecycleHooksWorkedExample(t *testing.T) {
 			recordHook(agenthooks.EventStop)
 			return agenthooks.Response{}, nil
 		},
-	}))
+	})
 	t.Cleanup(consumer.Close)
 
 	client, db := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
@@ -370,7 +370,7 @@ func TestChatHooksFileLinksAfterPromptOverride(t *testing.T) {
 		}
 		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
 	})
-	consumer := httptest.NewServer(agenthooks.NewHTTPHandler([]byte(secret), agenthooks.Hooks{
+	consumer := newHookConsumer(t, secret, agenthooks.Hooks{
 		UserPromptSubmit: func(_ context.Context, _ agenthooks.Meta, data agenthooks.UserPromptSubmitData) (agenthooks.Response, error) {
 			if strings.Contains(data.Prompt, "REDACTME") {
 				return agenthooks.Response{Permission: &agenthooks.Permission{
@@ -380,7 +380,7 @@ func TestChatHooksFileLinksAfterPromptOverride(t *testing.T) {
 			}
 			return agenthooks.Response{}, nil
 		},
-	}))
+	})
 	t.Cleanup(consumer.Close)
 
 	client, api := newChatClientWithAPI(t, func(opts *coderdtest.Options) {
@@ -457,7 +457,7 @@ func TestChatHookNoticeMessagesInResponses(t *testing.T) {
 		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
 	})
 
-	consumer := httptest.NewServer(agenthooks.NewHTTPHandler([]byte(secret), agenthooks.Hooks{
+	consumer := newHookConsumer(t, secret, agenthooks.Hooks{
 		SessionStart: func(context.Context, agenthooks.Meta, agenthooks.SessionStartData) (agenthooks.Response, error) {
 			return agenthooks.Response{UserMessage: "session notice"}, nil
 		},
@@ -468,7 +468,7 @@ func TestChatHookNoticeMessagesInResponses(t *testing.T) {
 			}
 			return response, nil
 		},
-	}))
+	})
 	t.Cleanup(consumer.Close)
 
 	client, db := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
@@ -571,4 +571,17 @@ func TestChatHookNoticeMessagesInResponses(t *testing.T) {
 		}
 	}
 	require.True(t, sessionNoticeFound)
+}
+
+// newHookConsumer serves hooks with its own URL as the configured audience,
+// which is the value Coder signs when it dispatches there. The listener is
+// allocated first because httptest.NewServer builds its handler before the
+// server has a URL.
+func newHookConsumer(t *testing.T, secret string, hooks agenthooks.Hooks) *httptest.Server {
+	t.Helper()
+
+	server := httptest.NewUnstartedServer(nil)
+	server.Config.Handler = agenthooks.NewHTTPHandler([]byte(secret), "http://"+server.Listener.Addr().String(), hooks)
+	server.Start()
+	return server
 }

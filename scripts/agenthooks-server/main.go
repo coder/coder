@@ -24,12 +24,12 @@ import (
 
 type config struct {
 	listen          string
+	audience        string
 	secret          string
 	issuer          string
 	tlsCert         string
 	tlsKey          string
 	logOnly         bool
-	trustForwarded  bool
 	denyToolPattern string
 	redactPrompt    string
 }
@@ -121,6 +121,11 @@ func run() error {
 	}
 	if cfg.secret == "" {
 		return xerrors.New("secret is required through --secret or CODER_AGENTHOOKS_SECRET")
+	}
+	// The bind address is not the audience: it may be a wildcard or an
+	// ephemeral port, and behind a proxy the signed audience is the proxy URL.
+	if cfg.audience == "" {
+		return xerrors.New("audience is required through --audience or CODER_AGENTHOOKS_AUDIENCE")
 	}
 	if len(cfg.secret) < agenthooks.MinSecretLen {
 		return xerrors.Errorf("secret must be at least %d bytes", agenthooks.MinSecretLen)
@@ -251,10 +256,7 @@ func run() error {
 	if cfg.issuer != "" {
 		handlerOpts = append(handlerOpts, agenthooks.WithExpectedIssuer(cfg.issuer))
 	}
-	if cfg.trustForwarded {
-		handlerOpts = append(handlerOpts, agenthooks.WithTrustForwardedHeaders())
-	}
-	handler := agenthooks.NewHTTPHandler([]byte(cfg.secret), consumerHooks, handlerOpts...)
+	handler := agenthooks.NewHTTPHandler([]byte(cfg.secret), cfg.audience, consumerHooks, handlerOpts...)
 	server := &http.Server{
 		Addr:              cfg.listen,
 		Handler:           handler,
@@ -284,20 +286,15 @@ func parseFlags() (config, error) {
 	if err != nil {
 		return config{}, err
 	}
-	trustForwarded, err := envBool("CODER_AGENTHOOKS_TRUST_FORWARDED_HEADERS", false)
-	if err != nil {
-		return config{}, err
-	}
 	var cfg config
 	cfg.logOnly = logOnly
-	cfg.trustForwarded = trustForwarded
 	flag.StringVar(&cfg.listen, "listen", envOrDefault("CODER_AGENTHOOKS_LISTEN", "127.0.0.1:8081"), "Listen address (CODER_AGENTHOOKS_LISTEN)")
+	flag.StringVar(&cfg.audience, "audience", os.Getenv("CODER_AGENTHOOKS_AUDIENCE"), "Expected aud claim, which is the deployment's CODER_CHAT_HOOK_URL, required (CODER_AGENTHOOKS_AUDIENCE)")
 	flag.StringVar(&cfg.secret, "secret", os.Getenv("CODER_AGENTHOOKS_SECRET"), "Shared HS256 secret, required (CODER_AGENTHOOKS_SECRET)")
 	flag.StringVar(&cfg.issuer, "issuer", os.Getenv("CODER_AGENTHOOKS_ISSUER"), "Expected iss claim, normally the Coder deployment ID (CODER_AGENTHOOKS_ISSUER)")
 	flag.StringVar(&cfg.tlsCert, "tls-cert", os.Getenv("CODER_AGENTHOOKS_TLS_CERT"), "TLS certificate path (CODER_AGENTHOOKS_TLS_CERT)")
 	flag.StringVar(&cfg.tlsKey, "tls-key", os.Getenv("CODER_AGENTHOOKS_TLS_KEY"), "TLS private key path (CODER_AGENTHOOKS_TLS_KEY)")
 	flag.BoolVar(&cfg.logOnly, "log-only", cfg.logOnly, "Return an empty response for every event (CODER_AGENTHOOKS_LOG_ONLY)")
-	flag.BoolVar(&cfg.trustForwarded, "trust-forwarded-headers", cfg.trustForwarded, "Trust X-Forwarded-Proto/Host for the audience check; enable only behind a trusted proxy (CODER_AGENTHOOKS_TRUST_FORWARDED_HEADERS)")
 	flag.StringVar(&cfg.denyToolPattern, "deny-tool-pattern", os.Getenv("CODER_AGENTHOOKS_DENY_TOOL_PATTERN"), "Example regexp for denied tool names (CODER_AGENTHOOKS_DENY_TOOL_PATTERN)")
 	flag.StringVar(&cfg.redactPrompt, "redact-prompt-pattern", os.Getenv("CODER_AGENTHOOKS_REDACT_PROMPT_PATTERN"), "Example regexp to redact in prompts (CODER_AGENTHOOKS_REDACT_PROMPT_PATTERN)")
 	flag.Parse()

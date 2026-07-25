@@ -22,6 +22,10 @@ import (
 
 var testSecret = []byte("0123456789abcdef0123456789abcdef")
 
+// testAudience is the URL the handler is configured to accept, kept
+// independent of the test server address it is reached on.
+const testAudience = "https://hooks.example.com"
+
 func TestSignClaimsVerify(t *testing.T) {
 	t.Parallel()
 
@@ -213,7 +217,7 @@ func TestHTTPHandlerRoutesEvents(t *testing.T) {
 			called := false
 			var h agenthooks.Hooks
 			test.install(t, &h, &called)
-			server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, h))
+			server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, testAudience, h))
 			t.Cleanup(server.Close)
 
 			response := postEvent(t, server.URL, test.event, test.data, nil, nil)
@@ -232,7 +236,7 @@ func TestHTTPHandlerUnencodableResponseFailsClosed(t *testing.T) {
 
 	// An empty 200 reads as allow, so a response that cannot be marshaled
 	// must not reach the dispatcher as one.
-	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{
+	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, testAudience, agenthooks.Hooks{
 		Stop: func(context.Context, agenthooks.Meta, agenthooks.StopData) (agenthooks.Response, error) {
 			return agenthooks.Response{
 				Permission: &agenthooks.Permission{
@@ -252,7 +256,7 @@ func TestHTTPHandlerUnencodableResponseFailsClosed(t *testing.T) {
 func TestHTTPHandlerNoOpHookDoesNotDecodeData(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
+	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, testAudience, agenthooks.Hooks{}))
 	t.Cleanup(server.Close)
 	response := postEvent(t, server.URL, agenthooks.EventStop, "unused", nil, nil)
 	defer response.Body.Close()
@@ -305,7 +309,7 @@ func TestHTTPHandlerRejectsMismatches(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
+			server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, testAudience, agenthooks.Hooks{}))
 			t.Cleanup(server.Close)
 			response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, test.updateRequest, test.updateClaims)
 			defer response.Body.Close()
@@ -319,6 +323,7 @@ func TestHTTPHandlerExpectedIssuer(t *testing.T) {
 
 	server := httptest.NewServer(agenthooks.NewHTTPHandler(
 		testSecret,
+		testAudience,
 		agenthooks.Hooks{},
 		agenthooks.WithExpectedIssuer("deployment-a"),
 	))
@@ -340,61 +345,59 @@ func TestHTTPHandlerExpectedIssuer(t *testing.T) {
 func TestHTTPHandlerAcceptsTrailingSlashAudience(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
+	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, testAudience, agenthooks.Hooks{}))
 	t.Cleanup(server.Close)
 	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
-		claims.Audience = server.URL + "/"
+		claims.Audience = testAudience + "/"
 	})
 	defer response.Body.Close()
 	require.Equal(t, http.StatusOK, response.StatusCode)
 }
 
-func TestHTTPHandlerHonorsForwardedProto(t *testing.T) {
+func TestHTTPHandlerRejectsRequestDerivedAudience(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}, agenthooks.WithTrustForwardedHeaders()))
-	t.Cleanup(server.Close)
-	httpsAudience := "https" + strings.TrimPrefix(server.URL, "http")
-	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
-		claims.Audience = httpsAudience
-	}, func(r *http.Request) {
-		r.Header.Set("X-Forwarded-Proto", "https, http")
-	})
-	defer response.Body.Close()
-	require.Equal(t, http.StatusOK, response.StatusCode)
+	// Every request-controlled source of an audience names an attacker host, so
+	// a token minted for another listener sharing this secret would pass an
+	// audience check that reads any of them.
+	const spoofed = "https://hooks.attacker.example"
+	handler := agenthooks.NewHTTPHandler(testSecret, testAudience, agenthooks.Hooks{})
+	body, token := signedEvent(t, spoofed, agenthooks.EventStop, agenthooks.StopData{}, nil, nil)
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, spoofed, bytes.NewReader(body))
+	require.NoError(t, err)
+	request.Host = "hooks.attacker.example"
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("X-Forwarded-Proto", "https")
+	request.Header.Set("X-Forwarded-Host", "hooks.attacker.example")
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
 }
 
-func TestHTTPHandlerHonorsForwardedHost(t *testing.T) {
+func TestHTTPHandlerWithoutAudienceRejectsEveryRequest(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}, agenthooks.WithTrustForwardedHeaders()))
+	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, "", agenthooks.Hooks{}))
 	t.Cleanup(server.Close)
-	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
-		claims.Audience = "https://hooks.example.com"
-	}, func(r *http.Request) {
-		r.Header.Set("X-Forwarded-Proto", "https")
-		r.Header.Set("X-Forwarded-Host", "hooks.example.com, internal-lb")
-	})
+	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, nil)
 	defer response.Body.Close()
-	require.Equal(t, http.StatusOK, response.StatusCode)
+	require.Equal(t, http.StatusInternalServerError, response.StatusCode)
 }
 
-func TestHTTPHandlerIgnoresForwardedHeadersByDefault(t *testing.T) {
-	t.Parallel()
+func postEvent(t *testing.T, target string, eventType agenthooks.EventType, data any, updateRequest func(*agenthooks.Request), updateClaims func(*agenthooks.Claims)) *http.Response {
+	t.Helper()
 
-	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
-	t.Cleanup(server.Close)
-	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, func(claims *agenthooks.Claims) {
-		claims.Audience = "https://hooks.example.com"
-	}, func(r *http.Request) {
-		r.Header.Set("X-Forwarded-Proto", "https")
-		r.Header.Set("X-Forwarded-Host", "hooks.example.com")
-	})
-	defer response.Body.Close()
-	require.Equal(t, http.StatusBadRequest, response.StatusCode)
+	body, token := signedEvent(t, testAudience, eventType, data, updateRequest, updateClaims)
+	httpRequest, err := http.NewRequestWithContext(t.Context(), http.MethodPost, target, bytes.NewReader(body))
+	require.NoError(t, err)
+	httpRequest.Header.Set("Authorization", "Bearer "+token)
+	response, err := http.DefaultClient.Do(httpRequest)
+	require.NoError(t, err)
+	return response
 }
 
-func postEvent(t *testing.T, target string, eventType agenthooks.EventType, data any, updateRequest func(*agenthooks.Request), updateClaims func(*agenthooks.Claims), updateHTTPRequest ...func(*http.Request)) *http.Response {
+func signedEvent(t *testing.T, audience string, eventType agenthooks.EventType, data any, updateRequest func(*agenthooks.Request), updateClaims func(*agenthooks.Claims)) ([]byte, string) {
 	t.Helper()
 
 	dataJSON, err := json.Marshal(data)
@@ -411,7 +414,7 @@ func postEvent(t *testing.T, target string, eventType agenthooks.EventType, data
 		},
 		Data: dataJSON,
 	}
-	claims := validClaims(t, target, eventType, &request)
+	claims := validClaims(t, audience, eventType, &request)
 	if updateRequest != nil {
 		updateRequest(&request)
 	}
@@ -424,15 +427,7 @@ func postEvent(t *testing.T, target string, eventType agenthooks.EventType, data
 	}
 	token, err := agenthooks.SignClaims(testSecret, claims)
 	require.NoError(t, err)
-	httpRequest, err := http.NewRequestWithContext(t.Context(), http.MethodPost, target, bytes.NewReader(body))
-	require.NoError(t, err)
-	httpRequest.Header.Set("Authorization", "Bearer "+token)
-	for _, update := range updateHTTPRequest {
-		update(httpRequest)
-	}
-	response, err := http.DefaultClient.Do(httpRequest)
-	require.NoError(t, err)
-	return response
+	return body, token
 }
 
 func validClaims(t *testing.T, audience string, eventType agenthooks.EventType, request *agenthooks.Request) agenthooks.Claims {
@@ -460,7 +455,7 @@ func validClaims(t *testing.T, audience string, eventType agenthooks.EventType, 
 func TestHTTPHandlerRejectsOversizedBody(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{}))
+	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, testAudience, agenthooks.Hooks{}))
 	t.Cleanup(server.Close)
 
 	// A correctly signed body over the limit must be rejected by size
