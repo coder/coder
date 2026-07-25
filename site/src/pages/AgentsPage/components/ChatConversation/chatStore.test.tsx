@@ -2410,6 +2410,70 @@ describe("useChatStore", () => {
 		});
 	});
 
+	it("ignores a resync armed by a request from a chat the user left", async () => {
+		const leftChatID = "chat-resync-left";
+		const activeChatID = "chat-resync-active";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+
+		const { result, rerender } = renderHook(
+			({ chatID, updatedAt }: { chatID: string; updatedAt: number }) => {
+				const { store, acceptServerChatStatus } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: { ...buildChat(chatID), status: "waiting" },
+					chatRecordUpdatedAt: updatedAt,
+					chatMessagesData: {
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: () => {},
+					clearChatErrorReason: () => {},
+				});
+				return {
+					acceptServerChatStatus,
+					chatStatus: useChatSelector(store, selectChatStatus),
+				};
+			},
+			{
+				wrapper,
+				initialProps: { chatID: leftChatID, updatedAt: 1 },
+			},
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(leftChatID, undefined);
+		});
+		// The in-flight request holds the callback from the render it started in.
+		const staleAcceptServerChatStatus = result.current.acceptServerChatStatus;
+
+		rerender({ chatID: activeChatID, updatedAt: 5 });
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(activeChatID, undefined);
+		});
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: activeChatID,
+				status: { status: "running" },
+			});
+		});
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+		});
+
+		act(() => {
+			staleAcceptServerChatStatus();
+		});
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+		});
+	});
+
 	it("keeps a websocket status delivered while the resync refetch is in flight", async () => {
 		const chatID = "chat-resync-ws-race";
 		const mockSocket = createMockSocket();
