@@ -140,9 +140,8 @@ export type ChatStoreState = {
 	// the running-case promote, where the backend reorders the
 	// queued message to the front before auto-promoting it.
 	suppressedQueuedMessageIDs: ReadonlySet<number>;
-	// Suppressed IDs whose queue row the server has provably deleted,
-	// because the send response carried the promoted user row. A
-	// snapshot that still lists one predates that promotion.
+	// IDs confirmed deleted from the queue because the send response
+	// contained their promoted user rows.
 	promotedQueuedMessageIDs: ReadonlySet<number>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 };
@@ -172,7 +171,7 @@ export type ChatStore = {
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 	) => void;
 	suppressQueuedMessageID: (id: number) => void;
-	// Suppresses id and records that its queue row is already gone.
+	// Suppresses id and records that its queue row is already deleted.
 	markQueuedMessagePromoted: (id: number) => void;
 	unsuppressQueuedMessageID: (id: number) => void;
 	clearSuppressedQueuedMessageIDs: () => void;
@@ -412,9 +411,8 @@ export const createChatStore = (): ChatStore => {
 		applyAuthoritativeQueuedMessages: (queuedMessages) => {
 			const incoming = queuedMessages ?? [];
 			setState((current) => {
-				// A snapshot listing an ID whose row the server already
-				// deleted predates that deletion, so applying it would both
-				// revert the queue and drop messages queued since.
+				// A snapshot containing a confirmed promoted ID predates its queue
+				// deletion. Applying it would also drop newer queued messages.
 				if (
 					incoming.some((message) =>
 						current.promotedQueuedMessageIDs.has(message.id),

@@ -233,8 +233,8 @@ export const runPromoteQueuedMessage = async (params: {
 	}
 };
 
-// promotedHeadID must be the queue head captured before the send because
-// queue updates can rotate the current head before the response arrives.
+// Use the pre-send queue head because queue updates may rotate it before
+// the response arrives.
 export const reconcilePromotedQueueHead = (
 	store: Pick<
 		ChatStore,
@@ -258,8 +258,7 @@ export const reconcilePromotedQueueHead = (
 			? [...remaining, queuedTail]
 			: remaining;
 	store.batch(() => {
-		// The response carried the promoted user row, so the server has
-		// already deleted its queue row.
+		// The promoted user row proves the server deleted its queue row.
 		store.markQueuedMessagePromoted(promotedHeadID);
 		store.setQueuedMessages(next);
 	});

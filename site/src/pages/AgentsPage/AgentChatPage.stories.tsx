@@ -2923,7 +2923,6 @@ export const QueuedSendPromotesPreviousHead: Story = {
 			expect(canvas.getAllByText("Follow-up prompt")).toHaveLength(1);
 			expect(timeline.queryByText("Follow-up prompt")).not.toBeInTheDocument();
 		});
-		// Promotion starts a turn, so the Thinking indicator replaces the error.
 		expect(await canvas.findByTestId("live-activity-slot")).toBeVisible();
 	},
 };
