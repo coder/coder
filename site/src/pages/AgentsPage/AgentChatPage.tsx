@@ -1137,6 +1137,7 @@ const AgentChatPage: FC = () => {
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const {
 		store,
+		acceptServerChatStatus,
 		clearStreamError,
 		setCacheQueuedMessages,
 		upsertCacheMessages,
@@ -1639,6 +1640,7 @@ const AgentChatPage: FC = () => {
 					// A failed edit can park the chat in error server-side
 					// (hook dispatch failures); refresh so the status is not
 					// stale if the websocket event is missed.
+					acceptServerChatStatus();
 					void queryClient.invalidateQueries({
 						queryKey: chatKey(agentId),
 						exact: true,
@@ -1689,6 +1691,7 @@ const AgentChatPage: FC = () => {
 		} catch (error) {
 			handleUsageLimitError(error);
 			// Refresh chat details in case the failed request changed server state.
+			acceptServerChatStatus();
 			void queryClient.invalidateQueries({
 				queryKey: chatKey(agentId),
 				exact: true,
