@@ -4208,10 +4208,13 @@ func TestWaitAgentErrorStatusReturnsStructuredPayload(t *testing.T) {
 	require.Equal(t, "provider overloaded", result["last_error"])
 	require.Equal(t, "partial progress", result["report"])
 	require.Equal(t, subagentTypeGeneral, result["type"])
+	require.Equal(t, string(codersdk.ChatErrorKindGeneric), result["last_error_kind"])
+	require.Equal(t, false, result["last_error_retryable"])
+	require.NotContains(t, result, "last_error_detail")
 	require.NotContains(t, result, "timed_out")
 }
 
-func TestSubagentLastErrorMessage(t *testing.T) {
+func TestSubagentLastError(t *testing.T) {
 	t.Parallel()
 
 	rawJSON := func(s string) pqtype.NullRawMessage {
@@ -4219,9 +4222,10 @@ func TestSubagentLastErrorMessage(t *testing.T) {
 	}
 
 	cases := []struct {
-		name string
-		raw  pqtype.NullRawMessage
-		want string
+		name        string
+		raw         pqtype.NullRawMessage
+		want        string
+		wantDecoded bool
 	}{
 		{name: "Invalid", raw: pqtype.NullRawMessage{}, want: ""},
 		// Unrecognized payloads must not leak raw stored bytes into
@@ -4229,48 +4233,57 @@ func TestSubagentLastErrorMessage(t *testing.T) {
 		{name: "NotChatError", raw: rawJSON(`"oops"`), want: ""},
 		{name: "EmptyObject", raw: rawJSON(`{}`), want: ""},
 		{
-			name: "MessageOnly",
-			raw:  rawJSON(`{"message":"provider overloaded"}`),
-			want: "provider overloaded",
+			name:        "MessageOnly",
+			raw:         rawJSON(`{"message":"provider overloaded"}`),
+			want:        "provider overloaded",
+			wantDecoded: true,
 		},
 		{
-			name: "DetailReplacesGenericMessage",
-			raw:  rawJSON(`{"message":"The chat request failed unexpectedly.","detail":"reasoning model ` + "`max`" + ` not supported"}`),
-			want: "reasoning model `max` not supported",
+			name:        "DetailReplacesGenericMessage",
+			raw:         rawJSON(`{"message":"The chat request failed unexpectedly.","detail":"reasoning model ` + "`max`" + ` not supported"}`),
+			want:        "reasoning model `max` not supported",
+			wantDecoded: true,
 		},
 		{
-			name: "DetailOnly",
-			raw:  rawJSON(`{"detail":"reasoning model ` + "`max`" + ` not supported"}`),
-			want: "reasoning model `max` not supported",
+			name:        "DetailOnly",
+			raw:         rawJSON(`{"detail":"reasoning model ` + "`max`" + ` not supported"}`),
+			want:        "reasoning model `max` not supported",
+			wantDecoded: true,
 		},
 		{
-			name: "DetailAppendedToMeaningfulMessage",
-			raw:  rawJSON(`{"kind":"config","message":"Vercel AI Gateway rejected the model configuration.","detail":"unknown model slug"}`),
-			want: "Vercel AI Gateway rejected the model configuration. (unknown model slug)",
+			name:        "DetailAppendedToMeaningfulMessage",
+			raw:         rawJSON(`{"kind":"config","message":"Vercel AI Gateway rejected the model configuration.","detail":"unknown model slug"}`),
+			want:        "Vercel AI Gateway rejected the model configuration. (unknown model slug)",
+			wantDecoded: true,
 		},
 		// Detail passes through exactly as the chat UI renders it,
 		// including auth details, provider request IDs, and long
 		// opaque diagnostic tokens.
 		{
-			name: "AuthKindDetailPreserved",
-			raw:  rawJSON(`{"kind":"auth","message":"Authentication with Anthropic failed.","detail":"401 invalid x-api-key"}`),
-			want: "Authentication with Anthropic failed. (401 invalid x-api-key)",
+			name:        "AuthKindDetailPreserved",
+			raw:         rawJSON(`{"kind":"auth","message":"Authentication with Anthropic failed.","detail":"401 invalid x-api-key"}`),
+			want:        "Authentication with Anthropic failed. (401 invalid x-api-key)",
+			wantDecoded: true,
 		},
 		{
-			name: "RequestIDPreserved",
-			raw:  rawJSON(`{"kind":"generic","message":"The chat request failed unexpectedly.","detail":"upstream error (request id req_0a1b2c3d4e5f6a7b8c9d)"}`),
-			want: "upstream error (request id req_0a1b2c3d4e5f6a7b8c9d)",
+			name:        "RequestIDPreserved",
+			raw:         rawJSON(`{"kind":"generic","message":"The chat request failed unexpectedly.","detail":"upstream error (request id req_0a1b2c3d4e5f6a7b8c9d)"}`),
+			want:        "upstream error (request id req_0a1b2c3d4e5f6a7b8c9d)",
+			wantDecoded: true,
 		},
 		{
-			name: "ModelSlugPreserved",
-			raw:  rawJSON(`{"kind":"generic","message":"The chat request failed unexpectedly.","detail":"model claude-haiku-4-5-20251001 is not available"}`),
-			want: "model claude-haiku-4-5-20251001 is not available",
+			name:        "ModelSlugPreserved",
+			raw:         rawJSON(`{"kind":"generic","message":"The chat request failed unexpectedly.","detail":"model claude-haiku-4-5-20251001 is not available"}`),
+			want:        "model claude-haiku-4-5-20251001 is not available",
+			wantDecoded: true,
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.want, subagentLastErrorMessage(tc.raw))
+			decoded, message := subagentLastError(tc.raw)
+			require.Equal(t, tc.want, message)
+			require.Equal(t, tc.wantDecoded, decoded != nil)
 		})
 	}
 }
@@ -4311,6 +4324,9 @@ func TestWaitAgentErrorStatusSurfacesLastErrorDetail(t *testing.T) {
 	require.Equal(t, child.ID.String(), result["chat_id"])
 	require.Equal(t, "reasoning model `max` not supported", result["last_error"])
 	require.Equal(t, "partial progress", result["report"])
+	require.Equal(t, string(codersdk.ChatErrorKindGeneric), result["last_error_kind"])
+	require.Equal(t, false, result["last_error_retryable"])
+	require.Equal(t, "reasoning model `max` not supported", result["last_error_detail"])
 }
 
 func TestWaitAgentTimeoutGapCompletesWithError(t *testing.T) {
@@ -4366,6 +4382,9 @@ func TestWaitAgentTimeoutGapCompletesWithError(t *testing.T) {
 	require.Equal(t, "partial progress", m["report"])
 	require.Equal(t, child.ID.String(), m["chat_id"])
 	require.Equal(t, subagentTypeGeneral, m["type"])
+	require.Equal(t, string(codersdk.ChatErrorKindGeneric), m["last_error_kind"])
+	require.Equal(t, false, m["last_error_retryable"])
+	require.NotContains(t, m, "last_error_detail")
 	require.NotContains(t, m, "timed_out")
 }
 
@@ -4412,7 +4431,7 @@ func TestWaitAgentTimeoutGapSurfacesLastErrorDetail(t *testing.T) {
 		Detail:    "reasoning model `max` not supported",
 		Kind:      codersdk.ChatErrorKindGeneric,
 		Provider:  "vercel",
-		Retryable: false,
+		Retryable: true,
 	})
 	insertAssistantMessage(t, db, child.ID, model.ID, "partial progress")
 
@@ -4425,6 +4444,9 @@ func TestWaitAgentTimeoutGapSurfacesLastErrorDetail(t *testing.T) {
 	require.Equal(t, "reasoning model `max` not supported", m["last_error"])
 	require.Equal(t, "partial progress", m["report"])
 	require.Equal(t, child.ID.String(), m["chat_id"])
+	require.Equal(t, string(codersdk.ChatErrorKindGeneric), m["last_error_kind"])
+	require.Equal(t, true, m["last_error_retryable"])
+	require.Equal(t, "reasoning model `max` not supported", m["last_error_detail"])
 	require.NotContains(t, m, "timed_out")
 }
 
@@ -4456,9 +4478,12 @@ func TestWaitAgentErrorStatusUnrecognizedLastError(t *testing.T) {
 	), false)
 
 	// Unrecognized payloads fall back to the status reason instead of
-	// leaking raw stored bytes.
+	// leaking raw stored bytes, and omit the structured fields.
 	require.Equal(t, string(database.ChatStatusError), result["status"])
 	require.Equal(t, "agent reached error status", result["last_error"])
+	require.NotContains(t, result, "last_error_kind")
+	require.NotContains(t, result, "last_error_retryable")
+	require.NotContains(t, result, "last_error_detail")
 }
 
 func listAgentsChatIDs(t *testing.T, result map[string]any) []string {
