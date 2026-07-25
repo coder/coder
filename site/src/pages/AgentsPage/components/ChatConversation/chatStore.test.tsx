@@ -2350,6 +2350,60 @@ describe("useChatStore", () => {
 		});
 	});
 
+	it("hydrates a refetched status that never changed value", async () => {
+		const chatID = "chat-resync-same";
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+
+		// The cache already holds "error" while the socket pushes "running",
+		// so opting back in must apply the cached value without it changing.
+		const { result } = renderHook(
+			() => {
+				const { store, acceptServerChatStatus } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: { ...buildChat(chatID), status: "error" },
+					chatMessagesData: {
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					acceptServerChatStatus,
+					chatStatus: useChatSelector(store, selectChatStatus),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "running" },
+			});
+		});
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+		});
+
+		act(() => {
+			result.current.acceptServerChatStatus();
+		});
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("error");
+		});
+	});
+
 	it("sets chatStatus to error and populates streamError on error event", async () => {
 		immediateAnimationFrame();
 
