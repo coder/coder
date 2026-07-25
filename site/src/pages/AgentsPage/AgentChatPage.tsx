@@ -17,6 +17,7 @@ import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import {
+	API,
 	type ChatPlanModeOrClear,
 	type CreateChatMessageRequestWithClearablePlanMode,
 	watchWorkspace,
@@ -287,6 +288,43 @@ export const reconcilePromotedQueueHead = (
 		store.setQueuedMessages(next);
 	});
 	return next;
+};
+
+const fetchChatMessages = (chatID: string) =>
+	API.experimental.getChatMessages(chatID);
+
+// A promoted head is suppressed locally, but another tab can queue or
+// promote concurrently, so only the server knows the resulting queue.
+// The uncursored request is required: queued_messages is returned only
+// for page 0.
+export const settlePromotedQueueHead = async (
+	store: Pick<
+		ChatStore,
+		"getAuthoritativeQueueVersion" | "applyPromoteRefetchQueuedMessages"
+	>,
+	chatID: string,
+	promotedHeadID: number,
+	fetchMessages: (chatID: string) => Promise<TypesGen.ChatMessagesResponse>,
+): Promise<readonly TypesGen.ChatQueuedMessage[] | undefined> => {
+	const baselineVersion = store.getAuthoritativeQueueVersion();
+	let response: TypesGen.ChatMessagesResponse;
+	try {
+		response = await fetchMessages(chatID);
+	} catch {
+		// Convergence is best effort; the next queue_update corrects it.
+		return undefined;
+	}
+	const queuedMessages = response.queued_messages ?? [];
+	if (
+		!store.applyPromoteRefetchQueuedMessages(
+			promotedHeadID,
+			queuedMessages,
+			baselineVersion,
+		)
+	) {
+		return undefined;
+	}
+	return queuedMessages;
 };
 
 export async function submitEditAndScroll({
@@ -1777,6 +1815,18 @@ const AgentChatPage: FC = () => {
 					) {
 						store.clearStreamState();
 						store.setChatStatus("running");
+					}
+					if (isActiveChat && queueHeadIDBeforeSend !== undefined) {
+						void settlePromotedQueueHead(
+							store,
+							agentId,
+							queueHeadIDBeforeSend,
+							fetchChatMessages,
+						).then((settled) => {
+							if (settled) {
+								setCacheQueuedMessages(settled);
+							}
+						});
 					}
 				}
 			}

@@ -15,6 +15,7 @@ import {
 	reconcilePromotedQueueHead,
 	restoreOptimisticRequestSnapshot,
 	runPromoteQueuedMessage,
+	settlePromotedQueueHead,
 	submitEditAndScroll,
 	useConversationEditingState,
 	waitForPendingChatSettingsSyncs,
@@ -421,6 +422,52 @@ describe("reconcilePromotedQueueHead", () => {
 		expect(snapshot.queuedMessages).toEqual([]);
 		expect(snapshot.suppressedQueuedMessageIDs.size).toBe(0);
 		expect(reconciled).toBeUndefined();
+	});
+});
+
+describe("settlePromotedQueueHead", () => {
+	const buildQueuedMessage = (id: number, text: string): ChatQueuedMessage => ({
+		...MockChatQueuedMessage,
+		id,
+		content: [{ type: "text", text }],
+	});
+	const chatID = "chat-abc-123";
+
+	it("restores a head the server still has queued", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+
+		const settled = await settlePromotedQueueHead(
+			store,
+			chatID,
+			a.id,
+			async () => ({ messages: [], has_more: false, queued_messages: [a, b] }),
+		);
+
+		expect(settled?.map((m) => m.id)).toEqual([a.id, b.id]);
+		expect(store.getSnapshot().queuedMessages.map((m) => m.id)).toEqual([
+			a.id,
+			b.id,
+		]);
+	});
+
+	it("leaves the queue alone when the fetch fails", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+
+		const settled = await settlePromotedQueueHead(store, chatID, a.id, () =>
+			Promise.reject(new Error("offline")),
+		);
+
+		expect(settled).toBeUndefined();
+		expect(store.getSnapshot().queuedMessages.map((m) => m.id)).toEqual([b.id]);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(true);
 	});
 });
 

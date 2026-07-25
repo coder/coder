@@ -188,6 +188,18 @@ export type ChatStore = {
 	applyAuthoritativeQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 	) => void;
+	// Counts authoritative queue snapshots, including the ones discarded as
+	// stale, so a caller can tell that the server spoke during a request.
+	getAuthoritativeQueueVersion: () => number;
+	// Applies a snapshot fetched specifically to settle promotedID, whose
+	// promotion markers this clears. Returns false without applying when
+	// another authoritative snapshot landed after baselineVersion, since
+	// that one is newer.
+	applyPromoteRefetchQueuedMessages: (
+		promotedID: number,
+		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
+		baselineVersion: number,
+	) => boolean;
 	suppressQueuedMessageID: (id: number) => void;
 	// Suppresses id and records that its queue row is already deleted.
 	markQueuedMessagePromoted: (id: number) => void;
@@ -241,6 +253,7 @@ export const createChatStore = (): ChatStore => {
 	// Bookkeeping, deliberately outside the rendered state so observing a
 	// server event cannot trigger a re-render.
 	let observedQueuedMessageIDs = new Set<number>();
+	let authoritativeQueueVersion = 0;
 	let serverChatStatusVersion = 0;
 	let activeChatID: string | null = null;
 	const listeners = new Set<() => void>();
@@ -445,6 +458,7 @@ export const createChatStore = (): ChatStore => {
 		},
 		applyAuthoritativeQueuedMessages: (queuedMessages) => {
 			const incoming = queuedMessages ?? [];
+			authoritativeQueueVersion++;
 			for (const message of incoming) {
 				observedQueuedMessageIDs.add(message.id);
 			}
@@ -499,6 +513,43 @@ export const createChatStore = (): ChatStore => {
 					promotedQueuedMessageIDs: nextPromoted,
 				};
 			});
+		},
+		getAuthoritativeQueueVersion: () => authoritativeQueueVersion,
+		applyPromoteRefetchQueuedMessages: (
+			promotedID,
+			queuedMessages,
+			baselineVersion,
+		) => {
+			if (authoritativeQueueVersion !== baselineVersion) {
+				return false;
+			}
+			const incoming = queuedMessages ?? [];
+			authoritativeQueueVersion++;
+			for (const message of incoming) {
+				observedQueuedMessageIDs.add(message.id);
+			}
+			setState((current) => {
+				const suppressed = new Set(current.suppressedQueuedMessageIDs);
+				suppressed.delete(promotedID);
+				const promoted = new Set(current.promotedQueuedMessageIDs);
+				promoted.delete(promotedID);
+				const filtered =
+					suppressed.size === 0
+						? incoming
+						: incoming.filter((message) => !suppressed.has(message.id));
+				return {
+					...current,
+					queuedMessages: chatQueuedMessagesEqualByID(
+						current.queuedMessages,
+						filtered,
+					)
+						? current.queuedMessages
+						: filtered,
+					suppressedQueuedMessageIDs: suppressed,
+					promotedQueuedMessageIDs: promoted,
+				};
+			});
+			return true;
 		},
 		hasObservedQueuedMessageID: (id) => observedQueuedMessageIDs.has(id),
 		suppressQueuedMessageID: (id) => {

@@ -551,6 +551,49 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		expect(store.getSnapshot().chatStatus).toBe("error");
 	});
 
+	it("restores a promoted head that a fresh snapshot still queues", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		const baseline = store.getAuthoritativeQueueVersion();
+
+		// Another tab re-queued A, so the server still lists it.
+		expect(
+			store.applyPromoteRefetchQueuedMessages(a.id, [a, b], baseline),
+		).toBe(true);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([a.id, b.id]);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
+	});
+
+	it("ignores a promote refetch that a newer snapshot already superseded", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		const c = makeQueuedMessage(3, "C");
+
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		const baseline = store.getAuthoritativeQueueVersion();
+
+		// A queue_update lands while the refetch is in flight. It is
+		// discarded as stale, but it still counts as the server speaking.
+		store.applyAuthoritativeQueuedMessages([a, b, c]);
+
+		expect(
+			store.applyPromoteRefetchQueuedMessages(a.id, [a, b], baseline),
+		).toBe(false);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([b.id]);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(true);
+	});
+
 	it("unsuppressQueuedMessageID clears a promoted marker after a failed promotion", () => {
 		const store = createChatStore();
 		const a = makeQueuedMessage(1, "A");

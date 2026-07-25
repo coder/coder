@@ -2908,18 +2908,25 @@ export const QueuedSendPromotesPreviousHead: Story = {
 			created_at: "2024-01-01T00:01:00Z",
 			content: [{ type: "text", text: "Queued head prompt" }],
 		};
+		// The post-promotion convergence fetch: the server confirms the
+		// promoted head is gone and the follow-up is queued.
+		const followUp: TypesGen.ChatQueuedMessage = {
+			...MockChatQueuedMessage,
+			id: 43,
+			chat_id: CHAT_ID,
+			content: [{ type: "text", text: "Follow-up prompt" }],
+		};
+		spyOn(API.experimental, "getChatMessages").mockResolvedValue({
+			...promotedQueueHeadMessages,
+			queued_messages: [followUp],
+		});
 		const sendSpy = spyOn(
 			API.experimental,
 			"createChatMessage",
 		).mockResolvedValue({
 			queued: true,
 			messages: [promotedHead],
-			queued_message: {
-				...MockChatQueuedMessage,
-				id: 43,
-				chat_id: CHAT_ID,
-				content: [{ type: "text", text: "Follow-up prompt" }],
-			},
+			queued_message: followUp,
 		});
 
 		expect(await canvas.findByText("Queued head prompt")).toBeVisible();
