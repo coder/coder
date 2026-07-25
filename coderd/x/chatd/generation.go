@@ -319,6 +319,13 @@ func unresolvedToolCallsFromHistory(
 	return localCalls, dynamicCalls, nil
 }
 
+// exclusiveBatchRejected reports whether the exclusive-tool policy will
+// reject the whole batch, which mirrors the condition chatloop applies
+// when it decides that nothing in the batch may execute.
+func exclusiveBatchRejected(toolCalls []fantasy.ToolCallContent, exclusiveToolNames map[string]bool) bool {
+	return len(toolCalls) > 1 && hasExclusiveToolCall(toolCalls, exclusiveToolNames)
+}
+
 func hasExclusiveToolCall(toolCalls []fantasy.ToolCallContent, exclusiveToolNames map[string]bool) bool {
 	if len(exclusiveToolNames) == 0 {
 		return false
@@ -808,9 +815,17 @@ func (s *taskStarter) executeLocalTools(
 	prepared generationPrepared,
 	decision generationDecision,
 ) error {
-	preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), decision.localToolCalls)
-	if err != nil {
-		return chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
+	// A batch that mixes an exclusive tool with other tools is rejected
+	// whole and executes nothing, so no call is gated. Removing hook
+	// denials from it first would leave the exclusive call looking alone
+	// and let it run.
+	preflight := chathooks.PreToolUseExecutionResult{Allowed: decision.localToolCalls}
+	if !exclusiveBatchRejected(decision.localToolCalls, prepared.ExclusiveToolNames) {
+		var preflightErr error
+		preflight, preflightErr = s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), decision.localToolCalls)
+		if preflightErr != nil {
+			return chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, preflightErr)
+		}
 	}
 	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
