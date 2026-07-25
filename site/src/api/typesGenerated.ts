@@ -1297,6 +1297,10 @@ export interface AgentHookHooks {
 export const AgentHookMaxRequestBodyBytes = 10485760; // 10 MiB
 
 // From agenthooks/types.go
+/**
+ * Meta carries the dispatch identity and chat reference sent with every
+ * event.
+ */
 export interface AgentHookMeta extends AgentHookChatRef {
 	readonly dispatch_id: string;
 	readonly schema_version: number;
@@ -1329,9 +1333,16 @@ export const AgentHookPermissionDecisions: AgentHookPermissionDecision[] = [
 ];
 
 // From agenthooks/types.go
+/**
+ * PostCompactData is empty; Meta identifies the compacted chat.
+ */
 export interface AgentHookPostCompactData {}
 
 // From agenthooks/types.go
+/**
+ * PostToolUseData reports a finished tool call. ToolResponse carries the
+ * tool output, or ToolError the failure message.
+ */
 export interface AgentHookPostToolUseData {
 	readonly tool_use_id: string;
 	readonly tool_name: string;
@@ -1340,9 +1351,16 @@ export interface AgentHookPostToolUseData {
 }
 
 // From agenthooks/types.go
+/**
+ * PreCompactData is empty; Meta identifies the chat being compacted.
+ */
 export interface AgentHookPreCompactData {}
 
 // From agenthooks/types.go
+/**
+ * PreToolUseData describes the tool call Coder is about to run.
+ * ToolInput holds the tool's JSON arguments.
+ */
 export interface AgentHookPreToolUseData {
 	readonly tool_use_id: string;
 	readonly tool_name: string;
@@ -1364,7 +1382,9 @@ export interface AgentHookRequest {
  * Response carries a consumer's decision and optional injected content.
  * Permission is honored for user_prompt_submit and pre_tool_use only.
  * user_prompt_submit folds injected content into the submitted message.
- * A denied pre_tool_use folds ModelContext into its synthetic tool result.
+ * A denied pre_tool_use yields a synthetic tool result carrying only the
+ * policy text and any Reason; ModelContext persists separately as
+ * model-only transcript content that never reaches clients.
  */
 export interface AgentHookResponse {
 	readonly permission?: AgentHookPermission;
@@ -1379,11 +1399,18 @@ export interface AgentHookResponse {
 export const AgentHookSchemaVersion = 1;
 
 // From agenthooks/types.go
+/**
+ * SessionStartData reports why a chat session started. Source is
+ * "startup", "resume", or "clear".
+ */
 export interface AgentHookSessionStartData {
 	readonly source: string;
 }
 
 // From agenthooks/types.go
+/**
+ * StopData is empty; Meta identifies the chat that stopped.
+ */
 export interface AgentHookStopData {}
 
 // From agenthooks/types.go

@@ -18,6 +18,7 @@ import (
 // SchemaVersion is the current lifecycle hook request schema version.
 const SchemaVersion = 1
 
+// EventType names a lifecycle event carried by a hook request.
 type EventType string
 
 const (
@@ -37,6 +38,8 @@ type Request struct {
 	Data json.RawMessage `json:"data"`
 }
 
+// Meta carries the dispatch identity and chat reference sent with every
+// event.
 type Meta struct {
 	DispatchID    uuid.UUID `json:"dispatch_id"`
 	SchemaVersion int       `json:"schema_version"`
@@ -54,6 +57,8 @@ type ChatRef struct {
 	RootChatID *uuid.UUID `json:"root_chat_id,omitempty"`
 }
 
+// SessionStartData reports why a chat session started. Source is
+// "startup", "resume", or "clear".
 type SessionStartData struct {
 	Source string `json:"source"`
 }
@@ -65,12 +70,16 @@ type UserPromptSubmitData struct {
 	Parts  json.RawMessage `json:"parts,omitempty"`
 }
 
+// PreToolUseData describes the tool call Coder is about to run.
+// ToolInput holds the tool's JSON arguments.
 type PreToolUseData struct {
 	ToolUseID string          `json:"tool_use_id"`
 	ToolName  string          `json:"tool_name"`
 	ToolInput json.RawMessage `json:"tool_input"`
 }
 
+// PostToolUseData reports a finished tool call. ToolResponse carries the
+// tool output, or ToolError the failure message.
 type PostToolUseData struct {
 	ToolUseID    string          `json:"tool_use_id"`
 	ToolName     string          `json:"tool_name"`
@@ -78,16 +87,21 @@ type PostToolUseData struct {
 	ToolError    string          `json:"tool_error,omitempty"`
 }
 
+// PreCompactData is empty; Meta identifies the chat being compacted.
 type PreCompactData struct{}
 
+// PostCompactData is empty; Meta identifies the compacted chat.
 type PostCompactData struct{}
 
+// StopData is empty; Meta identifies the chat that stopped.
 type StopData struct{}
 
 // Response carries a consumer's decision and optional injected content.
 // Permission is honored for user_prompt_submit and pre_tool_use only.
 // user_prompt_submit folds injected content into the submitted message.
-// A denied pre_tool_use folds ModelContext into its synthetic tool result.
+// A denied pre_tool_use yields a synthetic tool result carrying only the
+// policy text and any Reason; ModelContext persists separately as
+// model-only transcript content that never reaches clients.
 type Response struct {
 	Permission   *Permission `json:"permission,omitempty"`
 	ModelContext string      `json:"model_context,omitempty"`
@@ -101,6 +115,7 @@ type Permission struct {
 	InputOverride json.RawMessage    `json:"input_override,omitempty"`
 }
 
+// PermissionDecision is a consumer's verdict on mutable hook input.
 type PermissionDecision string
 
 const (
@@ -121,6 +136,7 @@ type Claims struct {
 	BodySHA256 string    `json:"body_sha256"`
 }
 
+// ChatID returns the chat ID encoded in the "coder:chat:<id>" subject.
 func (c Claims) ChatID() (uuid.UUID, error) {
 	value, ok := strings.CutPrefix(c.Subject, "coder:chat:")
 	if !ok {
