@@ -135,6 +135,7 @@ export const useChatStore = (
 	const wsStatusReceivedRef = useRef(false);
 	const [pendingStatusResync, setPendingStatusResync] = useState(false);
 	const pendingStatusResyncUpdatedAtRef = useRef<number | null>(null);
+	const pendingStatusResyncVersionRef = useRef<number | null>(null);
 	const activeChatIDRef = useRef<string | null>(null);
 	const prevChatIDRef = useRef<string | undefined>(chatID);
 	// Snapshot of the chatMessages elements from the last sync effect
@@ -313,9 +314,17 @@ export const useChatStore = (
 			if (armedAt === null || chatRecordUpdatedAt <= armedAt) {
 				return;
 			}
-			store.setChatStatus(chatRecord?.status ?? null);
+			// A websocket status delivered while the refetch was in flight is
+			// newer than its response, so the resync must not undo it.
+			const wsAdvanced =
+				store.getServerChatStatusVersion() !==
+				pendingStatusResyncVersionRef.current;
+			if (!wsAdvanced) {
+				store.setChatStatus(chatRecord?.status ?? null);
+				wsStatusReceivedRef.current = false;
+			}
 			pendingStatusResyncUpdatedAtRef.current = null;
-			wsStatusReceivedRef.current = false;
+			pendingStatusResyncVersionRef.current = null;
 			setPendingStatusResync(false);
 			return;
 		}
@@ -333,6 +342,7 @@ export const useChatStore = (
 		wsQueueUpdateReceivedRef.current = false;
 		wsStatusReceivedRef.current = false;
 		pendingStatusResyncUpdatedAtRef.current = null;
+		pendingStatusResyncVersionRef.current = null;
 		setPendingStatusResync(false);
 		store.setQueuedMessages([]);
 		// Suppression entries are scoped to the current chat; clear
@@ -781,6 +791,8 @@ export const useChatStore = (
 		// otherwise makes the refetched one inert.
 		acceptServerChatStatus: () => {
 			pendingStatusResyncUpdatedAtRef.current = chatRecordUpdatedAt;
+			pendingStatusResyncVersionRef.current =
+				store.getServerChatStatusVersion();
 			setPendingStatusResync(true);
 		},
 		setCacheQueuedMessages: (queuedMessages) => {
