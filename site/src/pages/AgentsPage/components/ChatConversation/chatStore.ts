@@ -173,9 +173,11 @@ export type ChatStore = {
 	suppressQueuedMessageID: (id: number) => void;
 	// Suppresses id and records that its queue row is already deleted.
 	markQueuedMessagePromoted: (id: number) => void;
-	// Counters for detecting that the server reported a newer queue or
-	// status while a request was in flight.
-	getAuthoritativeQueueVersion: () => number;
+	// Reports whether any authoritative snapshot has listed id. A tail the
+	// server never mentioned is still in flight; one it mentioned and then
+	// dropped was deleted.
+	hasObservedQueuedMessageID: (id: number) => boolean;
+	// Detects that the server reported a newer status mid-request.
 	getChatStatusVersion: () => number;
 	unsuppressQueuedMessageID: (id: number) => void;
 	clearSuppressedQueuedMessageIDs: () => void;
@@ -214,7 +216,7 @@ export const createChatStore = (): ChatStore => {
 	let state = createInitialState();
 	// Bookkeeping, deliberately outside the rendered state so observing a
 	// server event cannot trigger a re-render.
-	let authoritativeQueueVersion = 0;
+	let observedQueuedMessageIDs = new Set<number>();
 	let chatStatusVersion = 0;
 	const listeners = new Set<() => void>();
 
@@ -418,6 +420,9 @@ export const createChatStore = (): ChatStore => {
 		},
 		applyAuthoritativeQueuedMessages: (queuedMessages) => {
 			const incoming = queuedMessages ?? [];
+			for (const message of incoming) {
+				observedQueuedMessageIDs.add(message.id);
+			}
 			setState((current) => {
 				// A snapshot containing a confirmed promoted ID predates its queue
 				// deletion. Applying it would also drop newer queued messages.
@@ -428,7 +433,6 @@ export const createChatStore = (): ChatStore => {
 				) {
 					return current;
 				}
-				authoritativeQueueVersion++;
 				let nextSuppressed = current.suppressedQueuedMessageIDs;
 				if (current.suppressedQueuedMessageIDs.size > 0) {
 					const incomingIDs = new Set(incoming.map((message) => message.id));
@@ -471,7 +475,7 @@ export const createChatStore = (): ChatStore => {
 				};
 			});
 		},
-		getAuthoritativeQueueVersion: () => authoritativeQueueVersion,
+		hasObservedQueuedMessageID: (id) => observedQueuedMessageIDs.has(id),
 		getChatStatusVersion: () => chatStatusVersion,
 		suppressQueuedMessageID: (id) => {
 			setState((current) => {
@@ -522,6 +526,7 @@ export const createChatStore = (): ChatStore => {
 			});
 		},
 		clearSuppressedQueuedMessageIDs: () => {
+			observedQueuedMessageIDs = new Set();
 			setState((current) => {
 				if (
 					current.suppressedQueuedMessageIDs.size === 0 &&

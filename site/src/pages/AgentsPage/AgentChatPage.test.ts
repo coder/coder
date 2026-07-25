@@ -343,6 +343,34 @@ describe("reconcilePromotedQueueHead", () => {
 		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
 	});
 
+	it("keeps the response tail when a stale snapshot arrived mid-request", () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		const c = buildQueuedMessage(3, "C");
+		// A pre-send snapshot lands while the POST is in flight; it cannot
+		// mention the tail the send just created.
+		store.setQueuedMessages([a]);
+		store.applyAuthoritativeQueuedMessages([a, b]);
+
+		const next = reconcilePromotedQueueHead(store, [userMessage], a.id, c);
+
+		expect(next?.map((m) => m.id)).toEqual([b.id, c.id]);
+	});
+
+	it("drops the response tail once the server reported and removed it", () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const c = buildQueuedMessage(3, "C");
+		// The server acknowledged the tail, then a later snapshot deleted it.
+		store.applyAuthoritativeQueuedMessages([a, c]);
+		store.applyAuthoritativeQueuedMessages([a]);
+
+		const next = reconcilePromotedQueueHead(store, [userMessage], a.id, c);
+
+		expect(next).toEqual([]);
+	});
+
 	it("omits the response tail when a newer queue update was observed", () => {
 		const store = createChatStore();
 		const a = buildQueuedMessage(1, "A");
