@@ -54,6 +54,8 @@ func TestCompactionHooksHintAndPostCommitResponses(t *testing.T) {
 	// post_compact runs before its effects commit with the compaction step.
 	require.False(t, postSawCommitted.Load())
 	require.Equal(t, int32(1), fixture.compactionCalls.Load())
+	require.Equal(t, int32(2), fixture.streamCalls.Load(),
+		"automatic compaction continues the turn, and hook effects must not suppress that")
 
 	userMessages := chatMessages(fixture.ctx, t, fixture.db, fixture.chat.ID)
 	promptMessages, err := fixture.db.GetChatMessagesForPromptByChatID(fixture.ctx, fixture.chat.ID)
@@ -113,11 +115,100 @@ func TestPostCompactHookFailureKeepsCompaction(t *testing.T) {
 	require.Contains(t, lastError, "hook dispatch failed: post_compact: http_error")
 }
 
+func TestManualCompactionPostCompactEffects(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		postCompact    string
+		wantFollowUp   bool
+		wantVisibleMsg string
+	}{
+		{
+			name:           "user message resumes generation",
+			postCompact:    `{"user_message":"compaction complete"}`,
+			wantFollowUp:   true,
+			wantVisibleMsg: "compaction complete",
+		},
+		{
+			name:         "model context alone finishes the turn",
+			postCompact:  `{"model_context":"post compact context"}`,
+			wantFollowUp: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, ps := dbtestutil.NewDB(t)
+			var streamCalls atomic.Int32
+			var compactionCalls atomic.Int32
+			anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+				body := anthropicRequestBody(t, *req)
+				if !req.Stream {
+					if strings.Contains(body, "You are performing a context compaction") {
+						compactionCalls.Add(1)
+						return anthropicCompactionResponse("manual hook compaction summary")
+					}
+					return chattest.AnthropicNonStreamingResponse("title")
+				}
+				// Low usage keeps automatic compaction out of the way, so
+				// only the manual request can trigger one.
+				streamCalls.Add(1)
+				return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunksWithCacheUsage(chattest.AnthropicUsage{
+					InputTokens:  10,
+					OutputTokens: 5,
+				}, "assistant answer")...)
+			})
+			user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+			model = updateChatModelCompressionThreshold(t, db, model, 100, 70)
+
+			consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var request agenthooks.Request
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+				body := `{}`
+				if request.Type == agenthooks.EventPostCompact {
+					body = test.postCompact
+				}
+				_, err := w.Write([]byte(body))
+				require.NoError(t, err)
+			}))
+			t.Cleanup(consumer.Close)
+
+			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+				cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+			})
+			chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello from the user")
+			chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+			require.Equal(t, int32(1), streamCalls.Load())
+
+			_, err := server.CompactChat(ctx, chat)
+			require.NoError(t, err)
+			chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+			require.False(t, chat.LastError.Valid)
+			require.Equal(t, int32(1), compactionCalls.Load())
+
+			wantStreams := int32(1)
+			if test.wantFollowUp {
+				wantStreams = 2
+			}
+			require.Equal(t, wantStreams, streamCalls.Load())
+			if test.wantVisibleMsg != "" {
+				messages := chatMessages(ctx, t, db, chat.ID)
+				require.True(t, hasMessageText(t, messages, test.wantVisibleMsg, database.ChatMessageVisibilityUser))
+			}
+		})
+	}
+}
+
 type compactionHookFixture struct {
 	ctx              context.Context
 	db               database.Store
 	chat             database.Chat
 	compactionCalls  *atomic.Int32
+	streamCalls      *atomic.Int32
 	preCompactCalls  *atomic.Int32
 	postCompactCalls *atomic.Int32
 }
@@ -212,6 +303,7 @@ func startCompactionHookChat(
 		db:               db,
 		chat:             chat,
 		compactionCalls:  &compactionCalls,
+		streamCalls:      &streamCalls,
 		preCompactCalls:  &preCompactCalls,
 		postCompactCalls: &postCompactCalls,
 	}
