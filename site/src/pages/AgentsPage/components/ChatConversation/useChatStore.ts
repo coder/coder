@@ -612,7 +612,7 @@ export const useChatStore = (
 
 							wsStatusReceivedRef.current = true;
 							store.clearRetryState();
-							store.setChatStatus(nextStatus);
+							store.applyServerChatStatus(nextStatus);
 							if (nextStatus === "waiting") {
 								discardBufferedParts();
 							}
@@ -631,7 +631,7 @@ export const useChatStore = (
 								kind: "generic",
 								message: "Chat processing failed.",
 							};
-							store.setChatStatus("error");
+							store.applyServerChatStatus("error");
 							store.setStreamError(reason);
 							store.clearRetryState();
 							setChatErrorReasonEvent(chatID, reason);
