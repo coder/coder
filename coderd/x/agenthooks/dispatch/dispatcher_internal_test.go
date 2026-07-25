@@ -159,6 +159,30 @@ func TestDispatcherAllowInputOverride(t *testing.T) {
 	require.JSONEq(t, `{"path":"after"}`, string(response.Permission.InputOverride))
 }
 
+func TestDispatcherAllowsCaseDistinctOverrideKeys(t *testing.T) {
+	t.Parallel()
+
+	// Tool schemas are case-sensitive, so "URL" and "url" are distinct
+	// properties even though the response envelope folds its own keys.
+	event := newTestEvent(t, agenthooks.EventPreToolUse, agenthooks.PreToolUseData{
+		ToolUseID: "call_" + uuid.NewString(),
+		ToolName:  "fetch",
+		ToolInput: json.RawMessage(`{"url":"before"}`),
+	})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte(`{"permission":{"decision":"allow","input_override":{"URL":"upper","url":"lower"}}}`))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	response, _, err := newTestDispatcher(t, server.Client(), server.URL, time.Second).Dispatch(
+		testutil.Context(t, testutil.WaitLong), event,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, response.Permission)
+	require.JSONEq(t, `{"URL":"upper","url":"lower"}`, string(response.Permission.InputOverride))
+}
+
 func TestDispatcherTimeoutNoRetry(t *testing.T) {
 	t.Parallel()
 
@@ -329,6 +353,13 @@ func TestDispatcherProtocolErrors(t *testing.T) {
 			eventType:    agenthooks.EventPreToolUse,
 			data:         agenthooks.PreToolUseData{ToolUseID: "call_typo", ToolName: "run_command", ToolInput: json.RawMessage(`{"cmd":"ls"}`)},
 			responseBody: []byte(`{"permision":{"decision":"deny"}}`),
+		},
+		{
+			name:      "duplicate key inside input_override",
+			eventType: agenthooks.EventPreToolUse,
+			data:      agenthooks.PreToolUseData{ToolUseID: "call_dup_override", ToolName: "run_command", ToolInput: json.RawMessage(`{"cmd":"ls"}`)},
+			// Exact duplicates stay rejected at any depth.
+			responseBody: []byte(`{"permission":{"decision":"allow","input_override":{"url":"a","url":"b"}}}`),
 		},
 		{
 			name:      "unicode-folded duplicate permission key",
