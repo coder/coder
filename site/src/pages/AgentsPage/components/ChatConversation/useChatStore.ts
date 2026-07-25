@@ -788,6 +788,12 @@ export const useChatStore = (
 		// socket is down, and the socket having already delivered a status
 		// otherwise makes the refetched one inert.
 		acceptServerChatStatus: () => {
+			// A request that resolves after the user navigates away belongs to
+			// the previous chat, whose freshness and status are unrelated to
+			// the one now displayed by this shared store.
+			if (store.getActiveChatID() !== (chatID ?? null)) {
+				return;
+			}
 			pendingStatusResyncUpdatedAtRef.current = chatRecordUpdatedAt;
 			pendingStatusResyncVersionRef.current =
 				store.getServerChatStatusVersion();
