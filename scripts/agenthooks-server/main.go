@@ -72,37 +72,54 @@ func newConsumerState() *consumerState {
 	}
 }
 
-func (s *consumerState) rememberedDecision(chatID, toolUseID string) (agenthooks.Response, bool) {
+// decidePreToolUse resolves one pre_tool_use delivery and reports whether the
+// response was already remembered. The lookup, the policy decision, and the
+// store share one lock, so concurrent duplicate deliveries of the same
+// tool_use_id cannot each decide and then overwrite each other.
+func (s *consumerState) decidePreToolUse(chatID, toolUseID, toolName string, logOnly bool, denyTool *regexp.Regexp) (agenthooks.Response, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	response, ok := s.preToolDecisions[chatID+"\x00"+toolUseID]
-	return response, ok
-}
+	key := chatID + "\x00" + toolUseID
+	if response, ok := s.preToolDecisions[key]; ok {
+		return response, true
+	}
 
-func (s *consumerState) rememberDecision(chatID, toolUseID string, response agenthooks.Response, deniedTool string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	var response agenthooks.Response
+	deniedTool := ""
+	switch {
+	case logOnly:
+	case s.isBlockedLocked(chatID, toolName):
+		response = agenthooks.Response{Permission: &agenthooks.Permission{
+			Decision: agenthooks.PermissionDeny,
+			Reason:   "use of this tool is blocked for this chat",
+		}}
+	case denyTool != nil && denyTool.MatchString(toolName):
+		deniedTool = toolName
+		response = agenthooks.Response{Permission: &agenthooks.Permission{
+			Decision: agenthooks.PermissionDeny,
+			Reason:   "use of this tool is denied by this deployment's policy",
+		}}
+	}
+
 	if len(s.preToolDecisions) >= maxRememberedDecisions {
 		// Both maps grow per chat, so evict them together to keep a
 		// long-running consumer bounded.
 		s.preToolDecisions = make(map[string]agenthooks.Response)
 		s.blockedTools = make(map[string]map[string]struct{})
 	}
-	s.preToolDecisions[chatID+"\x00"+toolUseID] = response
-	if deniedTool == "" {
-		return
+	s.preToolDecisions[key] = response
+	if deniedTool != "" {
+		blocked := s.blockedTools[chatID]
+		if blocked == nil {
+			blocked = make(map[string]struct{})
+			s.blockedTools[chatID] = blocked
+		}
+		blocked[deniedTool] = struct{}{}
 	}
-	blocked := s.blockedTools[chatID]
-	if blocked == nil {
-		blocked = make(map[string]struct{})
-		s.blockedTools[chatID] = blocked
-	}
-	blocked[deniedTool] = struct{}{}
+	return response, false
 }
 
-func (s *consumerState) isBlocked(chatID, toolName string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *consumerState) isBlockedLocked(chatID, toolName string) bool {
 	_, ok := s.blockedTools[chatID][toolName]
 	return ok
 }
@@ -207,31 +224,9 @@ func run() error {
 			entry.ToolUseID = data.ToolUseID
 			entry.ToolName = data.ToolName
 			entry.ToolInput = data.ToolInput
-			if response, ok := state.rememberedDecision(entry.ChatID, data.ToolUseID); ok {
-				entry.Duplicate = true
-				return response, logEvent(entry)
-			}
-			if err := logEvent(entry); err != nil {
-				return agenthooks.Response{}, err
-			}
-			var response agenthooks.Response
-			deniedTool := ""
-			switch {
-			case cfg.logOnly:
-			case state.isBlocked(entry.ChatID, data.ToolName):
-				response = agenthooks.Response{Permission: &agenthooks.Permission{
-					Decision: agenthooks.PermissionDeny,
-					Reason:   "use of this tool is blocked for this chat",
-				}}
-			case denyTool != nil && denyTool.MatchString(data.ToolName):
-				deniedTool = data.ToolName
-				response = agenthooks.Response{Permission: &agenthooks.Permission{
-					Decision: agenthooks.PermissionDeny,
-					Reason:   "use of this tool is denied by this deployment's policy",
-				}}
-			}
-			state.rememberDecision(entry.ChatID, data.ToolUseID, response, deniedTool)
-			return response, nil
+			response, duplicate := state.decidePreToolUse(entry.ChatID, data.ToolUseID, data.ToolName, cfg.logOnly, denyTool)
+			entry.Duplicate = duplicate
+			return response, logEvent(entry)
 		},
 		PostToolUse: func(_ context.Context, meta agenthooks.Meta, data agenthooks.PostToolUseData) (agenthooks.Response, error) {
 			entry := baseEvent(agenthooks.EventPostToolUse, meta)
