@@ -376,9 +376,11 @@ func TestSubagentSpawnHookDispatchFailureFailsTurn(t *testing.T) {
 	require.Contains(t, chatLastErrorMessage(failed.LastError), "hook dispatch failed: user_prompt_submit: http_error")
 
 	messages := chatMessages(ctx, t, db, chat.ID)
-	require.Len(t, messages, 2)
+	require.Len(t, messages, 3)
 	require.Equal(t, database.ChatMessageRoleUser, messages[0].Role)
 	require.Equal(t, database.ChatMessageRoleAssistant, messages[1].Role)
+	require.Equal(t, database.ChatMessageRoleTool, messages[2].Role)
+	require.Contains(t, string(messages[2].Content.RawMessage), "lifecycle hook returned HTTP status 500")
 
 	chats, err := db.GetChats(ctx, database.GetChatsParams{
 		OwnedOnly: true,
