@@ -238,7 +238,11 @@ export const runPromoteQueuedMessage = async (params: {
 export const reconcilePromotedQueueHead = (
 	store: Pick<
 		ChatStore,
-		"batch" | "getSnapshot" | "setQueuedMessages" | "markQueuedMessagePromoted"
+		| "batch"
+		| "getSnapshot"
+		| "setQueuedMessages"
+		| "markQueuedMessagePromoted"
+		| "hasObservedQueuedMessageID"
 	>,
 	insertedMessages: readonly TypesGen.ChatMessage[],
 	promotedHeadID: number | undefined,
@@ -253,10 +257,14 @@ export const reconcilePromotedQueueHead = (
 	const remaining = store
 		.getSnapshot()
 		.queuedMessages.filter((message) => message.id !== promotedHeadID);
-	const next =
-		queuedTail && !remaining.some((message) => message.id === queuedTail.id)
-			? [...remaining, queuedTail]
-			: remaining;
+	// Append the tail only while the server has never reported it. Once a
+	// snapshot has listed it, its later absence means it was deleted, so
+	// re-adding it would resurrect a phantom row.
+	const tailPending =
+		queuedTail !== undefined &&
+		!remaining.some((message) => message.id === queuedTail.id) &&
+		!store.hasObservedQueuedMessageID(queuedTail.id);
+	const next = tailPending ? [...remaining, queuedTail] : remaining;
 	store.batch(() => {
 		// The promoted user row proves the server deleted its queue row.
 		store.markQueuedMessagePromoted(promotedHeadID);
@@ -1678,7 +1686,6 @@ const AgentChatPage: FC = () => {
 
 		// Capture the queue head before sending because an errored chat may promote it.
 		const queueHeadIDBeforeSend = store.getSnapshot().queuedMessages[0]?.id;
-		const queueVersionBeforeSend = store.getAuthoritativeQueueVersion();
 		const statusVersionBeforeSend = store.getChatStatusVersion();
 
 		// Don't clear stream state before the POST completes.
@@ -1723,16 +1730,11 @@ const AgentChatPage: FC = () => {
 			store.upsertDurableMessages(insertedMessages);
 			upsertCacheMessages(insertedMessages);
 			if (response.queued) {
-				// A queue update during the request already accounts for the
-				// tail, and may have deleted it, so merging it back would
-				// resurrect a phantom entry.
-				const sawNewerQueue =
-					store.getAuthoritativeQueueVersion() !== queueVersionBeforeSend;
 				const reconciledQueue = reconcilePromotedQueueHead(
 					store,
 					insertedMessages,
 					queueHeadIDBeforeSend,
-					sawNewerQueue ? undefined : response.queued_message,
+					response.queued_message,
 				);
 				if (reconciledQueue) {
 					setCacheQueuedMessages(reconciledQueue);
