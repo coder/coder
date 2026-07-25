@@ -34,10 +34,11 @@ import type { FC, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatMessage } from "#/testHelpers/chatEntities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import {
+	createChatStore,
 	selectChatStatus,
 	selectIsAwaitingFirstStreamChunk,
 	selectMessagesByID,
@@ -262,6 +263,38 @@ afterEach(() => {
 	vi.useRealTimers();
 	vi.restoreAllMocks();
 	vi.mocked(watchChat).mockReset();
+});
+
+describe("createChatStore", () => {
+	it("guards send response mutations by active chat", () => {
+		const store = createChatStore();
+		const sendChatID = "chat-old";
+		const activeMessage = {
+			...MockChatMessage,
+			id: 1,
+			chat_id: "chat-new",
+			content: [{ type: "text" as const, text: "New chat message" }],
+		};
+		const staleResponseMessage = {
+			...MockChatMessage,
+			id: 2,
+			chat_id: sendChatID,
+			content: [{ type: "text" as const, text: "Old chat message" }],
+		};
+
+		store.setActiveChatID(sendChatID);
+		store.setActiveChatID("chat-new");
+		store.replaceMessages([activeMessage]);
+		store.setChatStatus("waiting");
+
+		if (store.getActiveChatID() === sendChatID) {
+			store.upsertDurableMessages([staleResponseMessage]);
+			store.setChatStatus("running");
+		}
+
+		expect(store.getSnapshot().orderedMessageIDs).toEqual([activeMessage.id]);
+		expect(store.getSnapshot().chatStatus).toBe("waiting");
+	});
 });
 
 describe("useChatStore", () => {
