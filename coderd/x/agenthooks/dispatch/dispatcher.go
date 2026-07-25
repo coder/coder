@@ -446,6 +446,10 @@ func foldJSONName(name string) string {
 	return string(folded)
 }
 
+// foldedInputOverride is the canonical form of the one envelope field whose
+// contents are opaque pass-through data.
+var foldedInputOverride = foldJSONName("input_override")
+
 // keyMatching selects how object keys are compared for duplicates.
 type keyMatching int
 
@@ -494,7 +498,9 @@ func rejectDuplicateKeys(decoder *json.Decoder, depth int, matching keyMatching)
 			}
 			seen[canonical] = struct{}{}
 			nested := matching
-			if key == "input_override" {
+			// The decoder binds this field case-insensitively, so the
+			// boundary must be detected the same way.
+			if matching == keyMatchingFolded && canonical == foldedInputOverride {
 				nested = keyMatchingExact
 			}
 			if err := rejectDuplicateKeys(decoder, depth+1, nested); err != nil {
@@ -551,6 +557,11 @@ func validateResponse(eventType agenthooks.EventType, response agenthooks.Respon
 }
 
 func validateUserPromptSubmitOverride(input json.RawMessage) error {
+	// This override is decoded into a struct rather than passed through, so
+	// it needs the same folded duplicate check as the response envelope.
+	if err := rejectDuplicateKeys(json.NewDecoder(bytes.NewReader(input)), 0, keyMatchingFolded); err != nil {
+		return xerrors.Errorf("user_prompt_submit input_override: %w", err)
+	}
 	var override struct {
 		Prompt *string `json:"prompt"`
 	}
