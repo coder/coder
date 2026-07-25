@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -171,36 +170,18 @@ func loadDynamicPostToolUseState(
 	return state, err
 }
 
+// validateSubmittedToolResults rejects invalid results before hook dispatch,
+// using the same rules as CompleteRequiresAction.
 func validateSubmittedToolResults(results []codersdk.ToolResult, toolNames map[string]string) error {
-	submitted := make(map[string]struct{}, len(results))
+	inputs := make([]chatstate.ToolResultInput, 0, len(results))
 	for _, result := range results {
-		if _, ok := submitted[result.ToolCallID]; ok {
-			return &ToolResultValidationError{
-				Message: "Duplicate tool_call_id in results.",
-				Detail:  fmt.Sprintf("Duplicate tool call ID %q.", result.ToolCallID),
-			}
-		}
-		if !json.Valid(result.Output) {
-			return &ToolResultValidationError{
-				Message: "Tool result output must be valid JSON.",
-				Detail:  fmt.Sprintf("Output for tool call %q is not valid JSON.", result.ToolCallID),
-			}
-		}
-		if _, ok := toolNames[result.ToolCallID]; !ok {
-			return &ToolResultValidationError{
-				Message: "Unexpected tool result.",
-				Detail:  fmt.Sprintf("No pending tool call with ID %q.", result.ToolCallID),
-			}
-		}
-		submitted[result.ToolCallID] = struct{}{}
+		inputs = append(inputs, chatstate.ToolResultInput{
+			ToolCallID: result.ToolCallID,
+			Output:     result.Output,
+		})
 	}
-	for toolCallID := range toolNames {
-		if _, ok := submitted[toolCallID]; !ok {
-			return &ToolResultValidationError{
-				Message: "Missing tool result.",
-				Detail:  fmt.Sprintf("Missing result for tool call %q.", toolCallID),
-			}
-		}
+	if invalid := chatstate.ValidateToolResults(inputs, toolNames); invalid != nil {
+		return translateToolResultValidationError(invalid)
 	}
 	return nil
 }
