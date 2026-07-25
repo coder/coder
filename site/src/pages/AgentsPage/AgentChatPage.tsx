@@ -7,6 +7,7 @@ import {
 	useState,
 } from "react";
 
+import type { QueryClient } from "react-query";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -17,7 +18,6 @@ import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import {
-	API,
 	type ChatPlanModeOrClear,
 	type CreateChatMessageRequestWithClearablePlanMode,
 	watchWorkspace,
@@ -32,6 +32,7 @@ import {
 	chatModelConfigs,
 	chatModels,
 	chatProviderConfigs,
+	chatQueueConvergence,
 	compactChat,
 	createChatMessage,
 	deleteChatQueuedMessage,
@@ -290,13 +291,11 @@ export const reconcilePromotedQueueHead = (
 	return next;
 };
 
-const fetchChatMessages = (chatID: string) =>
-	API.experimental.getChatMessages(chatID);
+const fetchChatMessages = (queryClient: QueryClient) => (chatID: string) =>
+	queryClient.fetchQuery(chatQueueConvergence(chatID));
 
 // A promoted head is suppressed locally, but another tab can queue or
 // promote concurrently, so only the server knows the resulting queue.
-// The uncursored request is required: queued_messages is returned only
-// for page 0.
 export const settlePromotedQueueHead = async (
 	store: Pick<
 		ChatStore,
@@ -1822,7 +1821,7 @@ const AgentChatPage: FC = () => {
 							store,
 							agentId,
 							queueHeadIDBeforeSend,
-							fetchChatMessages,
+							fetchChatMessages(queryClient),
 						).then((settled) => {
 							if (settled) {
 								setCacheQueuedMessages(settled);

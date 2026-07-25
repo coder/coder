@@ -188,8 +188,9 @@ export type ChatStore = {
 	applyAuthoritativeQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 	) => void;
-	// Counts authoritative queue snapshots, including the ones discarded as
-	// stale, so a caller can tell that the server spoke during a request.
+	// Counts accepted authoritative queue snapshots, so a caller can tell that
+	// newer server state landed during a request. Snapshots discarded as stale
+	// do not count, since discarding one leaves the caller's data fresher.
 	getAuthoritativeQueueVersion: () => number;
 	// Applies a snapshot fetched specifically to settle promotedID, whose
 	// promotion markers this clears. Returns false without applying when
@@ -459,20 +460,21 @@ export const createChatStore = (): ChatStore => {
 		},
 		applyAuthoritativeQueuedMessages: (queuedMessages) => {
 			const incoming = queuedMessages ?? [];
-			authoritativeQueueVersion++;
 			for (const message of incoming) {
 				observedQueuedMessageIDs.add(message.id);
 			}
+			// A snapshot containing a confirmed promoted ID predates its queue
+			// deletion. Applying it would also drop newer queued messages, and
+			// counting it would discard the fresher refetch racing it.
+			if (
+				incoming.some((message) =>
+					state.promotedQueuedMessageIDs.has(message.id),
+				)
+			) {
+				return;
+			}
+			authoritativeQueueVersion++;
 			setState((current) => {
-				// A snapshot containing a confirmed promoted ID predates its queue
-				// deletion. Applying it would also drop newer queued messages.
-				if (
-					incoming.some((message) =>
-						current.promotedQueuedMessageIDs.has(message.id),
-					)
-				) {
-					return current;
-				}
 				let nextSuppressed = current.suppressedQueuedMessageIDs;
 				if (current.suppressedQueuedMessageIDs.size > 0) {
 					const incomingIDs = new Set(incoming.map((message) => message.id));

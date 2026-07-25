@@ -590,9 +590,9 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		store.markQueuedMessagePromoted(a.id);
 		const baseline = store.getAuthoritativeQueueVersion();
 
-		// A queue_update lands while the refetch is in flight. It is
-		// discarded as stale, but it still counts as the server speaking.
-		store.applyAuthoritativeQueuedMessages([a, b, c]);
+		// An accepted queue_update lands while the refetch is in flight, so it
+		// is newer than the response the refetch is about to deliver.
+		store.applyAuthoritativeQueuedMessages([b, c]);
 
 		expect(
 			store.applyPromoteRefetchQueuedMessages(
@@ -604,8 +604,37 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		).toBe(false);
 		expect(
 			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([b.id]);
-		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(true);
+		).toEqual([b.id, c.id]);
+		// Accepting the snapshot already settled the promotion.
+		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
+	});
+
+	it("still applies a promote refetch after a stale snapshot was discarded", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		const c = makeQueuedMessage(3, "C");
+
+		store.setActiveChatID(testChatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		const baseline = store.getAuthoritativeQueueVersion();
+
+		// This snapshot predates the promotion, so it is discarded and must not
+		// supersede the refetch, which is the only way C becomes visible.
+		store.applyAuthoritativeQueuedMessages([a, b, c]);
+
+		expect(
+			store.applyPromoteRefetchQueuedMessages(
+				testChatID,
+				a.id,
+				[b, c],
+				baseline,
+			),
+		).toBe(true);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([b.id, c.id]);
 	});
 
 	it("ignores a promote refetch that resolves after switching chats", () => {
