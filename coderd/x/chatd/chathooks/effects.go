@@ -22,7 +22,7 @@ import (
 // and the user message becomes a system-role, user-visible notice row.
 func EventMessages(result *Result, modelConfigID uuid.UUID) ([]chatstate.Message, error) {
 	messages := make([]chatstate.Message, 0, 2)
-	if result.GetModelContext() != "" {
+	if strings.TrimSpace(result.GetModelContext()) != "" {
 		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(result.ModelContext)})
 		if err != nil {
 			return nil, xerrors.Errorf("marshal hook model context: %w", err)
