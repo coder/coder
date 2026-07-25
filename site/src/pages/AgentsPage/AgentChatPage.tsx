@@ -238,7 +238,7 @@ export const runPromoteQueuedMessage = async (params: {
 export const reconcilePromotedQueueHead = (
 	store: Pick<
 		ChatStore,
-		"batch" | "getSnapshot" | "setQueuedMessages" | "suppressQueuedMessageID"
+		"batch" | "getSnapshot" | "setQueuedMessages" | "markQueuedMessagePromoted"
 	>,
 	insertedMessages: readonly TypesGen.ChatMessage[],
 	promotedHeadID: number | undefined,
@@ -258,7 +258,9 @@ export const reconcilePromotedQueueHead = (
 			? [...remaining, queuedTail]
 			: remaining;
 	store.batch(() => {
-		store.suppressQueuedMessageID(promotedHeadID);
+		// The response carried the promoted user row, so the server has
+		// already deleted its queue row.
+		store.markQueuedMessagePromoted(promotedHeadID);
 		store.setQueuedMessages(next);
 	});
 	return next;
