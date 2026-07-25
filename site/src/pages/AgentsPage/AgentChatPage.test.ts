@@ -437,6 +437,7 @@ describe("settlePromotedQueueHead", () => {
 		const store = createChatStore();
 		const a = buildQueuedMessage(1, "A");
 		const b = buildQueuedMessage(2, "B");
+		store.setActiveChatID(chatID);
 		store.setQueuedMessages([b]);
 		store.markQueuedMessagePromoted(a.id);
 
@@ -458,6 +459,7 @@ describe("settlePromotedQueueHead", () => {
 		const store = createChatStore();
 		const a = buildQueuedMessage(1, "A");
 		const b = buildQueuedMessage(2, "B");
+		store.setActiveChatID(chatID);
 		store.setQueuedMessages([b]);
 		store.markQueuedMessagePromoted(a.id);
 
@@ -468,6 +470,29 @@ describe("settlePromotedQueueHead", () => {
 		expect(settled).toBeUndefined();
 		expect(store.getSnapshot().queuedMessages.map((m) => m.id)).toEqual([b.id]);
 		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(true);
+	});
+
+	it("discards a response that resolves after navigating to another chat", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		store.setActiveChatID(chatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+
+		const settled = await settlePromotedQueueHead(
+			store,
+			chatID,
+			a.id,
+			async () => {
+				store.setActiveChatID("chat-other");
+				store.setQueuedMessages([]);
+				return { messages: [], has_more: false, queued_messages: [a, b] };
+			},
+		);
+
+		expect(settled).toBeUndefined();
+		expect(store.getSnapshot().queuedMessages).toEqual([]);
 	});
 });
 

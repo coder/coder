@@ -34,6 +34,8 @@ const makeQueuedMessage = (
 		content: [{ type: "text", text }],
 	}) as TypesGen.ChatQueuedMessage;
 
+const testChatID = "chat-1";
+
 // ---------------------------------------------------------------------------
 // replaceMessages
 // ---------------------------------------------------------------------------
@@ -556,13 +558,19 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		const a = makeQueuedMessage(1, "A");
 		const b = makeQueuedMessage(2, "B");
 
+		store.setActiveChatID(testChatID);
 		store.setQueuedMessages([b]);
 		store.markQueuedMessagePromoted(a.id);
 		const baseline = store.getAuthoritativeQueueVersion();
 
 		// Another tab re-queued A, so the server still lists it.
 		expect(
-			store.applyPromoteRefetchQueuedMessages(a.id, [a, b], baseline),
+			store.applyPromoteRefetchQueuedMessages(
+				testChatID,
+				a.id,
+				[a, b],
+				baseline,
+			),
 		).toBe(true);
 		expect(
 			store.getSnapshot().queuedMessages.map((message) => message.id),
@@ -577,6 +585,7 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		const b = makeQueuedMessage(2, "B");
 		const c = makeQueuedMessage(3, "C");
 
+		store.setActiveChatID(testChatID);
 		store.setQueuedMessages([b]);
 		store.markQueuedMessagePromoted(a.id);
 		const baseline = store.getAuthoritativeQueueVersion();
@@ -586,12 +595,41 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		store.applyAuthoritativeQueuedMessages([a, b, c]);
 
 		expect(
-			store.applyPromoteRefetchQueuedMessages(a.id, [a, b], baseline),
+			store.applyPromoteRefetchQueuedMessages(
+				testChatID,
+				a.id,
+				[a, b],
+				baseline,
+			),
 		).toBe(false);
 		expect(
 			store.getSnapshot().queuedMessages.map((message) => message.id),
 		).toEqual([b.id]);
 		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(true);
+	});
+
+	it("ignores a promote refetch that resolves after switching chats", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		store.setActiveChatID(testChatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		const baseline = store.getAuthoritativeQueueVersion();
+
+		store.setActiveChatID("chat-other");
+		store.setQueuedMessages([]);
+
+		expect(
+			store.applyPromoteRefetchQueuedMessages(
+				testChatID,
+				a.id,
+				[a, b],
+				baseline,
+			),
+		).toBe(false);
+		expect(store.getSnapshot().queuedMessages).toEqual([]);
 	});
 
 	it("unsuppressQueuedMessageID clears a promoted marker after a failed promotion", () => {

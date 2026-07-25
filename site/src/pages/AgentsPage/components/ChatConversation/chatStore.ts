@@ -193,9 +193,10 @@ export type ChatStore = {
 	getAuthoritativeQueueVersion: () => number;
 	// Applies a snapshot fetched specifically to settle promotedID, whose
 	// promotion markers this clears. Returns false without applying when
-	// another authoritative snapshot landed after baselineVersion, since
-	// that one is newer.
+	// chatID is no longer active, or when another authoritative snapshot
+	// landed after baselineVersion, since that one is newer.
 	applyPromoteRefetchQueuedMessages: (
+		chatID: string,
 		promotedID: number,
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 		baselineVersion: number,
@@ -516,10 +517,17 @@ export const createChatStore = (): ChatStore => {
 		},
 		getAuthoritativeQueueVersion: () => authoritativeQueueVersion,
 		applyPromoteRefetchQueuedMessages: (
+			chatID,
 			promotedID,
 			queuedMessages,
 			baselineVersion,
 		) => {
+			// A request that resolves after the user navigates away carries the
+			// previous chat's queue, which is unrelated to the one now displayed
+			// by this shared store.
+			if (activeChatID !== chatID) {
+				return false;
+			}
 			if (authoritativeQueueVersion !== baselineVersion) {
 				return false;
 			}

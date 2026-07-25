@@ -311,12 +311,13 @@ export const settlePromotedQueueHead = async (
 	try {
 		response = await fetchMessages(chatID);
 	} catch {
-		// Convergence is best effort; the next queue_update corrects it.
+		// Convergence is best effort; a later authoritative update can correct it.
 		return undefined;
 	}
 	const queuedMessages = response.queued_messages ?? [];
 	if (
 		!store.applyPromoteRefetchQueuedMessages(
+			chatID,
 			promotedHeadID,
 			queuedMessages,
 			baselineVersion,
