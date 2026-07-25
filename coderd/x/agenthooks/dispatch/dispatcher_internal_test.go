@@ -169,8 +169,10 @@ func TestDispatcherAllowsCaseDistinctOverrideKeys(t *testing.T) {
 		ToolName:  "fetch",
 		ToolInput: json.RawMessage(`{"url":"before"}`),
 	})
+	// The envelope key is folded by the decoder, so the boundary detection
+	// must fold too or the case-distinct override below is wrongly rejected.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, err := w.Write([]byte(`{"permission":{"decision":"allow","input_override":{"URL":"upper","url":"lower"}}}`))
+		_, err := w.Write([]byte(`{"permission":{"decision":"allow","INPUT_OVERRIDE":{"URL":"upper","url":"lower"}}}`))
 		assert.NoError(t, err)
 	}))
 	t.Cleanup(server.Close)
@@ -353,6 +355,13 @@ func TestDispatcherProtocolErrors(t *testing.T) {
 			eventType:    agenthooks.EventPreToolUse,
 			data:         agenthooks.PreToolUseData{ToolUseID: "call_typo", ToolName: "run_command", ToolInput: json.RawMessage(`{"cmd":"ls"}`)},
 			responseBody: []byte(`{"permision":{"decision":"deny"}}`),
+		},
+		{
+			name:      "folded duplicate in prompt override",
+			eventType: agenthooks.EventUserPromptSubmit,
+			data:      agenthooks.UserPromptSubmitData{Prompt: "original"},
+			// This override is struct-decoded, so folding applies to it.
+			responseBody: []byte(`{"permission":{"decision":"allow","input_override":{"prompt":"approved","Prompt":"different"}}}`),
 		},
 		{
 			name:      "duplicate key inside input_override",
