@@ -2328,7 +2328,9 @@ func (p *Server) InterruptChat(
 // must be idle (waiting); the worker then generates and commits the
 // compaction summary through the normal generation loop, bypassing
 // the usage threshold, and the chat returns to waiting with no
-// assistant follow-up.
+// assistant follow-up unless a post_compact hook commits a
+// user-visible message, which leaves the history incomplete and
+// resumes generation.
 //
 // Returns the post-transition chat and an error so callers can map
 // state conflicts deliberately: archived chats return ErrChatArchived,
