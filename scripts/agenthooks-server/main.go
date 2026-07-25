@@ -50,9 +50,9 @@ type eventLog struct {
 }
 
 // consumerState demonstrates consumer-owned hook state. Coder persists no
-// hook decisions and delivery is at-least-once, so consumers that need
-// memory keep it themselves, keyed by the stable payload identifiers:
-// chat_id, the event type, and tool_use_id.
+// hook decisions and delivery is best-effort, so consumers that need memory
+// keep it themselves, keyed by the stable payload identifiers: chat_id, the
+// event type, and tool_use_id.
 type consumerState struct {
 	mu sync.Mutex
 	// preToolDecisions reuses responses for duplicate (chat_id, tool_use_id)
