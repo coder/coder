@@ -2297,6 +2297,7 @@ describe("useChatStore", () => {
 		const queryClient = createTestQueryClient();
 		const wrapper = createWrapper(queryClient);
 
+		const initialProps: { status: TypesGen.ChatStatus } = { status: "waiting" };
 		const { result, rerender } = renderHook(
 			({ status }: { status: TypesGen.ChatStatus }) => {
 				const { store, acceptServerChatStatus } = useChatStore({
@@ -2317,7 +2318,7 @@ describe("useChatStore", () => {
 					chatStatus: useChatSelector(store, selectChatStatus),
 				};
 			},
-			{ wrapper, initialProps: { status: "waiting" as TypesGen.ChatStatus } },
+			{ wrapper, initialProps },
 		);
 
 		await waitFor(() => {
