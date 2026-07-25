@@ -402,7 +402,7 @@ func (d *Dispatcher) post(
 // silently misread as allow: unknown fields (misspelled keys), duplicate
 // object keys (Go keeps the last value), and trailing JSON values.
 func decodeResponse(trimmed []byte, response *agenthooks.Response) error {
-	if err := rejectDuplicateKeys(json.NewDecoder(bytes.NewReader(trimmed)), 0); err != nil {
+	if err := rejectDuplicateKeys(json.NewDecoder(bytes.NewReader(trimmed)), 0, keyMatchingFolded); err != nil {
 		return err
 	}
 	decoder := json.NewDecoder(bytes.NewReader(trimmed))
@@ -452,7 +452,19 @@ func foldJSONName(name string) string {
 // otherwise drop the decision the consumer intended. Keys are compared
 // case-insensitively because encoding/json matches struct fields that way,
 // so "Permission" would silently override "permission".
-func rejectDuplicateKeys(decoder *json.Decoder, depth int) error {
+// keyMatching selects how object keys are compared for duplicates.
+type keyMatching int
+
+const (
+	// keyMatchingFolded mirrors encoding/json struct-field matching, used
+	// for the typed response envelope.
+	keyMatchingFolded keyMatching = iota
+	// keyMatchingExact is used inside input_override, which is opaque data
+	// for a case-sensitive tool schema.
+	keyMatchingExact
+)
+
+func rejectDuplicateKeys(decoder *json.Decoder, depth int, matching keyMatching) error {
 	if depth > maxResponseJSONDepth {
 		return xerrors.New("response JSON exceeds supported nesting depth")
 	}
@@ -473,12 +485,19 @@ func rejectDuplicateKeys(decoder *json.Decoder, depth int) error {
 				return err
 			}
 			key, _ := keyToken.(string)
-			folded := foldJSONName(key)
-			if _, dup := seen[folded]; dup {
+			canonical := key
+			if matching == keyMatchingFolded {
+				canonical = foldJSONName(key)
+			}
+			if _, dup := seen[canonical]; dup {
 				return xerrors.Errorf("duplicate key %q", key)
 			}
-			seen[folded] = struct{}{}
-			if err := rejectDuplicateKeys(decoder, depth+1); err != nil {
+			seen[canonical] = struct{}{}
+			nested := matching
+			if key == "input_override" {
+				nested = keyMatchingExact
+			}
+			if err := rejectDuplicateKeys(decoder, depth+1, nested); err != nil {
 				return err
 			}
 		}
@@ -486,7 +505,7 @@ func rejectDuplicateKeys(decoder *json.Decoder, depth int) error {
 		return err
 	case '[':
 		for decoder.More() {
-			if err := rejectDuplicateKeys(decoder, depth+1); err != nil {
+			if err := rejectDuplicateKeys(decoder, depth+1, matching); err != nil {
 				return err
 			}
 		}
