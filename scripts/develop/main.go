@@ -718,8 +718,8 @@ func preflight(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 	// matching the original develop.sh. Prints helpful install
 	// instructions on failure and exits non-zero.
 	libSh := filepath.Join(cfg.projectRoot, "scripts", "lib.sh")
-	libCheck := exec.CommandContext(ctx, "bash", "-c", //nolint:gosec // libSh is a project-relative path, not user input
-		"source "+libSh+" && dependencies curl git go jq make pnpm")
+	libCheck := exec.CommandContext(ctx, "bash", "-c",
+		`source "$1" && dependencies curl git go jq make pnpm`, "bash", libSh)
 	libCheck.Stdout = os.Stderr
 	libCheck.Stderr = os.Stderr
 	if err := libCheck.Run(); err != nil {
