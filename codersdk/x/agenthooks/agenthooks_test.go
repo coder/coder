@@ -227,6 +227,28 @@ func TestHTTPHandlerRoutesEvents(t *testing.T) {
 	}
 }
 
+func TestHTTPHandlerUnencodableResponseFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	// An empty 200 reads as allow, so a response that cannot be marshaled
+	// must not reach the dispatcher as one.
+	server := httptest.NewServer(agenthooks.NewHTTPHandler(testSecret, agenthooks.Hooks{
+		Stop: func(context.Context, agenthooks.Meta, agenthooks.StopData) (agenthooks.Response, error) {
+			return agenthooks.Response{
+				Permission: &agenthooks.Permission{
+					Decision:      agenthooks.PermissionDeny,
+					InputOverride: json.RawMessage(`{invalid`),
+				},
+			}, nil
+		},
+	}))
+	t.Cleanup(server.Close)
+
+	response := postEvent(t, server.URL, agenthooks.EventStop, agenthooks.StopData{}, nil, nil)
+	defer response.Body.Close()
+	require.Equal(t, http.StatusInternalServerError, response.StatusCode)
+}
+
 func TestHTTPHandlerNoOpHookDoesNotDecodeData(t *testing.T) {
 	t.Parallel()
 
