@@ -297,6 +297,9 @@ func (d *Dispatcher) prepareAndPost(ctx context.Context, event Event, dispatchID
 		return agenthooks.Response{}, outcome
 	}
 	if err := validateResponse(event.Type, response); err != nil {
+		// Drop the rejected response so its decision, override, and context
+		// values are not observed as if they had been applied.
+		outcome.response = agenthooks.Response{}
 		outcome.result = ResultProtocolError
 		outcome.err = err
 		return agenthooks.Response{}, outcome
