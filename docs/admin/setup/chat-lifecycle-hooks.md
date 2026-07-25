@@ -140,7 +140,8 @@ Coder checks admission before dispatching, but concurrent requests can still fai
 The consumer then observes an event for a request that Coder rejects, and the rejected request doesn't persist a prompt or tool result.
 Treat events as attempt notifications rather than proof of a committed operation, and key idempotent tool-event processing on `tool_use_id`.
 
-Delivery is at least once.
+Delivery is best-effort and can duplicate.
+Coder never queues a failed dispatch for redelivery, so plan for duplicates without assuming every event arrives.
 Coder retries one connection failure per dispatch with the same JWT, so use `dispatch_id` to recognize a repeated HTTP attempt and return the same response.
 Coder also re-dispatches the same logical event with a new `dispatch_id` whenever an operation runs again, for example when a chat recovers after a crash and retries a pending tool call, or when a user retries a turn that failed before committing.
 Every non-provider-executed tool call is validated through a fresh `pre_tool_use` dispatch; Coder never reuses an earlier decision on the consumer's behalf.
