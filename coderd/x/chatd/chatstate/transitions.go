@@ -65,8 +65,7 @@ func CreateChat(
 }
 
 // CreateChatWithID creates a chat using a caller-minted ID so
-// admission-time work (such as lifecycle hook dispatch) can reference
-// the chat before it exists.
+// admission-time work can reference the chat before it exists.
 func CreateChatWithID(
 	ctx context.Context,
 	store database.Store,
