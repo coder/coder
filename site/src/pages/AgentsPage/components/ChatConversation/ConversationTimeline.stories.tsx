@@ -469,6 +469,40 @@ export const LifecycleHookNoticeOnUserMessage: Story = {
 	},
 };
 
+export const LifecycleHookNoticeAfterEditedMessage: Story = {
+	args: {
+		...defaultArgs,
+		editingMessageId: 1,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "prompt being edited" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "user",
+				content: [
+					{ type: "text", text: "later prompt" },
+					{
+						type: "hook-notice",
+						text: "Deployment context was added: [policy](http://localhost:3000/policy)",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("prompt being edited")).toBeVisible();
+		const link = canvas.getByRole("link", { name: "policy" });
+		link.focus();
+		expect(link).not.toHaveFocus();
+	},
+};
+
 export const DurableListTemplatesToolLifecycle: Story = {
 	args: {
 		...defaultArgs,
