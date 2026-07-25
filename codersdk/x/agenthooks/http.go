@@ -103,8 +103,16 @@ func NewHTTPHandler(secret []byte, expectedAudience string, hooks Hooks, opts ..
 			return
 		}
 
+		// Marshal before writing: streaming the encode would emit a 200
+		// with a truncated body on failure, and the dispatcher reads an
+		// empty 200 as allow, so a malformed deny would fail open.
+		encoded, err := json.Marshal(response)
+		if err != nil {
+			http.Error(rw, "encode response", http.StatusInternalServerError)
+			return
+		}
 		rw.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(rw).Encode(response); err != nil {
+		if _, err := rw.Write(encoded); err != nil {
 			return
 		}
 	})
