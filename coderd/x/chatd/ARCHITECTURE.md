@@ -915,7 +915,7 @@ The consumer can observe activity, add model-only or user-visible context, repla
 
 Lifecycle hooks fail closed. If the consumer cannot be reached or returns an invalid response, Coder stops the triggering operation rather than continuing without the consumer's decision. Affected chats can enter an error state until the consumer recovers or hooks are disabled.
 
-Coder stores no hook-specific dispatch or decision state. Delivery is at least once, so the consumer owns durable policy state, audit records, and deduplication based on stable event identifiers.
+Coder stores no hook-specific dispatch or decision state. Delivery is best-effort and can duplicate, and a failed dispatch is never redelivered, so the consumer owns durable policy state, audit records, and deduplication based on stable event identifiers.
 
 # Stream loop
 
