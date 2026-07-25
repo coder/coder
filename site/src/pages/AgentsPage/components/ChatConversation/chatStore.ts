@@ -177,8 +177,12 @@ export type ChatStore = {
 	// server never mentioned is still in flight; one it mentioned and then
 	// dropped was deleted.
 	hasObservedQueuedMessageID: (id: number) => boolean;
-	// Detects that the server reported a newer status mid-request.
-	getChatStatusVersion: () => number;
+	// Counts server-reported status events, including repeats of the
+	// current value, so a caller can tell that the server spoke during a
+	// request even when the status did not change.
+	getServerChatStatusVersion: () => number;
+	// Records a server-reported status; always counts as an observation.
+	applyServerChatStatus: (status: TypesGen.ChatStatus | null) => void;
 	unsuppressQueuedMessageID: (id: number) => void;
 	clearSuppressedQueuedMessageIDs: () => void;
 	setChatStatus: (status: TypesGen.ChatStatus | null) => void;
@@ -217,7 +221,7 @@ export const createChatStore = (): ChatStore => {
 	// Bookkeeping, deliberately outside the rendered state so observing a
 	// server event cannot trigger a re-render.
 	let observedQueuedMessageIDs = new Set<number>();
-	let chatStatusVersion = 0;
+	let serverChatStatusVersion = 0;
 	const listeners = new Set<() => void>();
 
 	const emit = (): void => {
@@ -476,7 +480,6 @@ export const createChatStore = (): ChatStore => {
 			});
 		},
 		hasObservedQueuedMessageID: (id) => observedQueuedMessageIDs.has(id),
-		getChatStatusVersion: () => chatStatusVersion,
 		suppressQueuedMessageID: (id) => {
 			setState((current) => {
 				if (current.suppressedQueuedMessageIDs.has(id)) {
@@ -545,7 +548,17 @@ export const createChatStore = (): ChatStore => {
 			if (state.chatStatus === status) {
 				return;
 			}
-			chatStatusVersion++;
+			setState((current) => ({
+				...current,
+				chatStatus: status,
+			}));
+		},
+		getServerChatStatusVersion: () => serverChatStatusVersion,
+		applyServerChatStatus: (status) => {
+			serverChatStatusVersion++;
+			if (state.chatStatus === status) {
+				return;
+			}
 			setState((current) => ({
 				...current,
 				chatStatus: status,

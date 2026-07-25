@@ -553,16 +553,23 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		expect(store.hasObservedQueuedMessageID(a.id)).toBe(false);
 	});
 
-	it("tracks chat status versions for in-flight requests", () => {
+	it("counts every server status report, including repeats", () => {
 		const store = createChatStore();
 
-		expect(store.getChatStatusVersion()).toBe(0);
+		expect(store.getServerChatStatusVersion()).toBe(0);
+
+		// Optimistic writes are not server reports.
 		store.setChatStatus("running");
-		expect(store.getChatStatusVersion()).toBe(1);
-		store.setChatStatus("running");
-		expect(store.getChatStatusVersion()).toBe(1);
-		store.setChatStatus("error");
-		expect(store.getChatStatusVersion()).toBe(2);
+		expect(store.getServerChatStatusVersion()).toBe(0);
+
+		store.applyServerChatStatus("error");
+		expect(store.getServerChatStatusVersion()).toBe(1);
+		expect(store.getSnapshot().chatStatus).toBe("error");
+
+		// A repeat of the current value is still the server speaking.
+		store.applyServerChatStatus("error");
+		expect(store.getServerChatStatusVersion()).toBe(2);
+		expect(store.getSnapshot().chatStatus).toBe("error");
 	});
 
 	it("unsuppressQueuedMessageID clears a promoted marker after a failed promotion", () => {
