@@ -4,8 +4,8 @@
 > Chat lifecycle hooks are an experimental feature.
 > The feature requires the `agent-lifecycle-hooks` experiment, and the consumer contract (including the request schema and JWT claims) may change or be removed in any release without a compatibility guarantee.
 
-This reference is for Coder deployment administrators who need to apply an external policy service to the agent loop.
-It covers deployment configuration, the consumer contract, failure behavior, and rollout.
+This guide is for Coder deployment administrators who need to apply an external policy service to the agent loop.
+Work through it to configure the deployment, handle events in a consumer, recover from dispatch failures, and roll out enforcement.
 
 Chat lifecycle hooks send events from the agent loop to 1 deployment-wide webhook endpoint.
 The configured consumer can observe all 7 lifecycle events, add model or user context, replace mutable input, or deny selected actions.
@@ -54,6 +54,8 @@ The JSON body contains `type`, `meta`, and event-specific `data`.
 The `meta` object includes `dispatch_id`, `schema_version`, `chat_id`, `owner_id`, and optional workspace and turn IDs.
 Events from subagent chats also carry `parent_chat_id` and `root_chat_id` so a consumer can correlate a subagent subtree with the user-facing conversation and apply the parent's policy context.
 The current `schema_version` is `1`.
+
+Handle the events your policy needs, using the data Coder sends with each one:
 
 | Event                | When Coder sends it                                                 | Decision-relevant data                                                 |
 |----------------------|---------------------------------------------------------------------|------------------------------------------------------------------------|
@@ -185,6 +187,12 @@ CODER_AGENTHOOKS_SECRET='<shared-secret>' \
   go run ./scripts/agenthooks-server \
   --listen 127.0.0.1:8081 \
   --log-only=true
+```
+
+The server confirms the listener and then stays in the foreground, printing 1 JSON object per event it receives:
+
+```output
+Agent hooks server listening on 127.0.0.1:8081
 ```
 
 The reference server accepts optional TLS certificate and key paths.
