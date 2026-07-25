@@ -233,6 +233,29 @@ export const runPromoteQueuedMessage = async (params: {
 	}
 };
 
+const buildPromotedQueueReconciliation = (
+	queuedMessages: readonly TypesGen.ChatQueuedMessage[],
+	insertedMessages: readonly TypesGen.ChatMessage[],
+	promotedHeadID: number | undefined,
+	queuedTail: TypesGen.ChatQueuedMessage | undefined,
+	hasObservedQueuedMessageID: (id: number) => boolean,
+): readonly TypesGen.ChatQueuedMessage[] | undefined => {
+	if (promotedHeadID === undefined) {
+		return undefined;
+	}
+	if (!insertedMessages.some((message) => message.role === "user")) {
+		return undefined;
+	}
+	const remaining = queuedMessages.filter(
+		(message) => message.id !== promotedHeadID,
+	);
+	const tailPending =
+		queuedTail !== undefined &&
+		!remaining.some((message) => message.id === queuedTail.id) &&
+		!hasObservedQueuedMessageID(queuedTail.id);
+	return tailPending ? [...remaining, queuedTail] : remaining;
+};
+
 // Use the pre-send queue head because queue updates may rotate it before
 // the response arrives.
 export const reconcilePromotedQueueHead = (
@@ -248,23 +271,16 @@ export const reconcilePromotedQueueHead = (
 	promotedHeadID: number | undefined,
 	queuedTail: TypesGen.ChatQueuedMessage | undefined,
 ): readonly TypesGen.ChatQueuedMessage[] | undefined => {
-	if (promotedHeadID === undefined) {
-		return undefined;
+	const next = buildPromotedQueueReconciliation(
+		store.getSnapshot().queuedMessages,
+		insertedMessages,
+		promotedHeadID,
+		queuedTail,
+		store.hasObservedQueuedMessageID,
+	);
+	if (!next || promotedHeadID === undefined) {
+		return next;
 	}
-	if (!insertedMessages.some((message) => message.role === "user")) {
-		return undefined;
-	}
-	const remaining = store
-		.getSnapshot()
-		.queuedMessages.filter((message) => message.id !== promotedHeadID);
-	// Append the tail only while the server has never reported it. Once a
-	// snapshot has listed it, its later absence means it was deleted, so
-	// re-adding it would resurrect a phantom row.
-	const tailPending =
-		queuedTail !== undefined &&
-		!remaining.some((message) => message.id === queuedTail.id) &&
-		!store.hasObservedQueuedMessageID(queuedTail.id);
-	const next = tailPending ? [...remaining, queuedTail] : remaining;
 	store.batch(() => {
 		// The promoted user row proves the server deleted its queue row.
 		store.markQueuedMessagePromoted(promotedHeadID);
@@ -1685,7 +1701,8 @@ const AgentChatPage: FC = () => {
 		scrollToBottomRef.current?.();
 
 		// Capture the queue head before sending because an errored chat may promote it.
-		const queueHeadIDBeforeSend = store.getSnapshot().queuedMessages[0]?.id;
+		const queuedMessagesBeforeSend = store.getSnapshot().queuedMessages;
+		const queueHeadIDBeforeSend = queuedMessagesBeforeSend[0]?.id;
 		const statusVersionBeforeSend = store.getServerChatStatusVersion();
 
 		// Don't clear stream state before the POST completes.
@@ -1705,10 +1722,11 @@ const AgentChatPage: FC = () => {
 			});
 			throw error;
 		}
+		const isActiveChat = store.getActiveChatID() === agentId;
 		// When the server accepts the message immediately (not
 		// queued), clear the stream so the timeline updates without
 		// waiting for the WebSocket stream.
-		if (!response.queued) {
+		if (!response.queued && isActiveChat) {
 			store.clearStreamState();
 			// Optimistically set status to "running" so the
 			// Thinking indicator appears immediately.
@@ -1727,22 +1745,35 @@ const AgentChatPage: FC = () => {
 		const insertedMessages =
 			response.messages ?? (response.message ? [response.message] : []);
 		if (insertedMessages.length > 0) {
-			store.upsertDurableMessages(insertedMessages);
 			upsertCacheMessages(insertedMessages);
+			if (isActiveChat) {
+				store.upsertDurableMessages(insertedMessages);
+			}
 			if (response.queued) {
-				const reconciledQueue = reconcilePromotedQueueHead(
-					store,
-					insertedMessages,
-					queueHeadIDBeforeSend,
-					response.queued_message,
-				);
+				const reconciledQueue = isActiveChat
+					? reconcilePromotedQueueHead(
+							store,
+							insertedMessages,
+							queueHeadIDBeforeSend,
+							response.queued_message,
+						)
+					: buildPromotedQueueReconciliation(
+							queuedMessagesBeforeSend,
+							insertedMessages,
+							queueHeadIDBeforeSend,
+							response.queued_message,
+							() => false,
+						);
 				if (reconciledQueue) {
 					setCacheQueuedMessages(reconciledQueue);
 					// A promoted head means a turn just started, so clear the
 					// stale error status before the status websocket event
 					// arrives. A status event during the request is already
 					// newer than this optimistic value.
-					if (store.getServerChatStatusVersion() === statusVersionBeforeSend) {
+					if (
+						isActiveChat &&
+						store.getServerChatStatusVersion() === statusVersionBeforeSend
+					) {
 						store.clearStreamState();
 						store.setChatStatus("running");
 					}
