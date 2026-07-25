@@ -158,6 +158,10 @@ export type ChatStoreState = {
 	// the running-case promote, where the backend reorders the
 	// queued message to the front before auto-promoting it.
 	suppressedQueuedMessageIDs: ReadonlySet<number>;
+	// Suppressed IDs whose queue row the server has provably deleted,
+	// because the send response carried the promoted user row. A
+	// snapshot that still lists one predates that promotion.
+	promotedQueuedMessageIDs: ReadonlySet<number>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 };
 
@@ -186,6 +190,8 @@ export type ChatStore = {
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 	) => void;
 	suppressQueuedMessageID: (id: number) => void;
+	// Suppresses id and records that its queue row is already gone.
+	markQueuedMessagePromoted: (id: number) => void;
 	unsuppressQueuedMessageID: (id: number) => void;
 	clearSuppressedQueuedMessageIDs: () => void;
 	setChatStatus: (status: TypesGen.ChatStatus | null) => void;
@@ -215,6 +221,7 @@ const createInitialState = (): ChatStoreState => ({
 	reconnectState: null,
 	queuedMessages: [],
 	suppressedQueuedMessageIDs: new Set(),
+	promotedQueuedMessageIDs: new Set(),
 	subagentStatusOverrides: new Map(),
 });
 
@@ -423,6 +430,16 @@ export const createChatStore = (): ChatStore => {
 		applyAuthoritativeQueuedMessages: (queuedMessages) => {
 			const incoming = queuedMessages ?? [];
 			setState((current) => {
+				// A snapshot listing an ID whose row the server already
+				// deleted predates that deletion, so applying it would both
+				// revert the queue and drop messages queued since.
+				if (
+					incoming.some((message) =>
+						current.promotedQueuedMessageIDs.has(message.id),
+					)
+				) {
+					return current;
+				}
 				let nextSuppressed = current.suppressedQueuedMessageIDs;
 				if (current.suppressedQueuedMessageIDs.size > 0) {
 					const incomingIDs = new Set(incoming.map((message) => message.id));
@@ -449,13 +466,19 @@ export const createChatStore = (): ChatStore => {
 				);
 				const sameSuppressed =
 					nextSuppressed === current.suppressedQueuedMessageIDs;
-				if (sameQueue && sameSuppressed) {
+				const nextPromoted =
+					current.promotedQueuedMessageIDs.size === 0
+						? current.promotedQueuedMessageIDs
+						: new Set<number>();
+				const samePromoted = nextPromoted === current.promotedQueuedMessageIDs;
+				if (sameQueue && sameSuppressed && samePromoted) {
 					return current;
 				}
 				return {
 					...current,
 					queuedMessages: sameQueue ? current.queuedMessages : filtered,
 					suppressedQueuedMessageIDs: nextSuppressed,
+					promotedQueuedMessageIDs: nextPromoted,
 				};
 			});
 		},
@@ -469,22 +492,57 @@ export const createChatStore = (): ChatStore => {
 				return { ...current, suppressedQueuedMessageIDs: next };
 			});
 		},
-		unsuppressQueuedMessageID: (id) => {
+		markQueuedMessagePromoted: (id) => {
 			setState((current) => {
-				if (!current.suppressedQueuedMessageIDs.has(id)) {
+				if (
+					current.suppressedQueuedMessageIDs.has(id) &&
+					current.promotedQueuedMessageIDs.has(id)
+				) {
 					return current;
 				}
-				const next = new Set(current.suppressedQueuedMessageIDs);
-				next.delete(id);
-				return { ...current, suppressedQueuedMessageIDs: next };
+				const suppressed = new Set(current.suppressedQueuedMessageIDs);
+				suppressed.add(id);
+				const promoted = new Set(current.promotedQueuedMessageIDs);
+				promoted.add(id);
+				return {
+					...current,
+					suppressedQueuedMessageIDs: suppressed,
+					promotedQueuedMessageIDs: promoted,
+				};
+			});
+		},
+		unsuppressQueuedMessageID: (id) => {
+			setState((current) => {
+				if (
+					!current.suppressedQueuedMessageIDs.has(id) &&
+					!current.promotedQueuedMessageIDs.has(id)
+				) {
+					return current;
+				}
+				const suppressed = new Set(current.suppressedQueuedMessageIDs);
+				suppressed.delete(id);
+				const promoted = new Set(current.promotedQueuedMessageIDs);
+				promoted.delete(id);
+				return {
+					...current,
+					suppressedQueuedMessageIDs: suppressed,
+					promotedQueuedMessageIDs: promoted,
+				};
 			});
 		},
 		clearSuppressedQueuedMessageIDs: () => {
 			setState((current) => {
-				if (current.suppressedQueuedMessageIDs.size === 0) {
+				if (
+					current.suppressedQueuedMessageIDs.size === 0 &&
+					current.promotedQueuedMessageIDs.size === 0
+				) {
 					return current;
 				}
-				return { ...current, suppressedQueuedMessageIDs: new Set() };
+				return {
+					...current,
+					suppressedQueuedMessageIDs: new Set(),
+					promotedQueuedMessageIDs: new Set(),
+				};
 			});
 		},
 		setChatStatus: (status) => {
