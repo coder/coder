@@ -508,24 +508,32 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
 	});
 
-	it("tracks authoritative queue and status versions for in-flight requests", () => {
+	it("records queued IDs the server has reported", () => {
 		const store = createChatStore();
 		const a = makeQueuedMessage(1, "A");
 		const b = makeQueuedMessage(2, "B");
+		const c = makeQueuedMessage(3, "C");
 
-		expect(store.getAuthoritativeQueueVersion()).toBe(0);
+		expect(store.hasObservedQueuedMessageID(a.id)).toBe(false);
 		store.applyAuthoritativeQueuedMessages([a, b]);
-		const afterApply = store.getAuthoritativeQueueVersion();
-		expect(afterApply).toBeGreaterThan(0);
+		expect(store.hasObservedQueuedMessageID(a.id)).toBe(true);
+		expect(store.hasObservedQueuedMessageID(b.id)).toBe(true);
 
-		// Optimistic writes are not server observations.
-		store.setQueuedMessages([b]);
-		expect(store.getAuthoritativeQueueVersion()).toBe(afterApply);
+		// A later snapshot dropping A does not unlearn that A existed.
+		store.applyAuthoritativeQueuedMessages([b]);
+		expect(store.hasObservedQueuedMessageID(a.id)).toBe(true);
 
-		// An ignored stale snapshot is not an observation either.
-		store.markQueuedMessagePromoted(a.id);
-		store.applyAuthoritativeQueuedMessages([a, b]);
-		expect(store.getAuthoritativeQueueVersion()).toBe(afterApply);
+		// Optimistic writes are not server reports.
+		store.setQueuedMessages([b, c]);
+		expect(store.hasObservedQueuedMessageID(c.id)).toBe(false);
+
+		// Observations are per-chat.
+		store.clearSuppressedQueuedMessageIDs();
+		expect(store.hasObservedQueuedMessageID(a.id)).toBe(false);
+	});
+
+	it("tracks chat status versions for in-flight requests", () => {
+		const store = createChatStore();
 
 		expect(store.getChatStatusVersion()).toBe(0);
 		store.setChatStatus("running");
