@@ -87,11 +87,12 @@ export function isChatUsageLimitExceededResponse(
 export function isChatHookDispatchFailedResponse(
 	value: unknown,
 ): value is TypesGen.ChatHookDispatchFailedResponse {
-	if (value == null || typeof value !== "object") {
-		return false;
-	}
-	const obj = value as Record<string, unknown>;
-	return obj.kind === "hook_dispatch_failed";
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		"kind" in value &&
+		value.kind === "hook_dispatch_failed"
+	);
 }
 
 /**
