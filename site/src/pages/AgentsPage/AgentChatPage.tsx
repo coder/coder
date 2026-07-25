@@ -1686,7 +1686,7 @@ const AgentChatPage: FC = () => {
 
 		// Capture the queue head before sending because an errored chat may promote it.
 		const queueHeadIDBeforeSend = store.getSnapshot().queuedMessages[0]?.id;
-		const statusVersionBeforeSend = store.getChatStatusVersion();
+		const statusVersionBeforeSend = store.getServerChatStatusVersion();
 
 		// Don't clear stream state before the POST completes.
 		// For queued sends the WebSocket status events handle
@@ -1742,7 +1742,7 @@ const AgentChatPage: FC = () => {
 					// stale error status before the status websocket event
 					// arrives. A status event during the request is already
 					// newer than this optimistic value.
-					if (store.getChatStatusVersion() === statusVersionBeforeSend) {
+					if (store.getServerChatStatusVersion() === statusVersionBeforeSend) {
 						store.clearStreamState();
 						store.setChatStatus("running");
 					}
