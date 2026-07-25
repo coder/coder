@@ -191,6 +191,10 @@ export type ChatStore = {
 	suppressQueuedMessageID: (id: number) => void;
 	// Suppresses id and records that its queue row is already deleted.
 	markQueuedMessagePromoted: (id: number) => void;
+	// Counters for detecting that the server reported a newer queue or
+	// status while a request was in flight.
+	getAuthoritativeQueueVersion: () => number;
+	getChatStatusVersion: () => number;
 	unsuppressQueuedMessageID: (id: number) => void;
 	clearSuppressedQueuedMessageIDs: () => void;
 	setChatStatus: (status: TypesGen.ChatStatus | null) => void;
@@ -226,6 +230,10 @@ const createInitialState = (): ChatStoreState => ({
 
 export const createChatStore = (): ChatStore => {
 	let state = createInitialState();
+	// Bookkeeping, deliberately outside the rendered state so observing a
+	// server event cannot trigger a re-render.
+	let authoritativeQueueVersion = 0;
+	let chatStatusVersion = 0;
 	const listeners = new Set<() => void>();
 
 	const emit = (): void => {
@@ -438,6 +446,7 @@ export const createChatStore = (): ChatStore => {
 				) {
 					return current;
 				}
+				authoritativeQueueVersion++;
 				let nextSuppressed = current.suppressedQueuedMessageIDs;
 				if (current.suppressedQueuedMessageIDs.size > 0) {
 					const incomingIDs = new Set(incoming.map((message) => message.id));
@@ -480,6 +489,8 @@ export const createChatStore = (): ChatStore => {
 				};
 			});
 		},
+		getAuthoritativeQueueVersion: () => authoritativeQueueVersion,
+		getChatStatusVersion: () => chatStatusVersion,
 		suppressQueuedMessageID: (id) => {
 			setState((current) => {
 				if (current.suppressedQueuedMessageIDs.has(id)) {
@@ -547,6 +558,7 @@ export const createChatStore = (): ChatStore => {
 			if (state.chatStatus === status) {
 				return;
 			}
+			chatStatusVersion++;
 			setState((current) => ({
 				...current,
 				chatStatus: status,

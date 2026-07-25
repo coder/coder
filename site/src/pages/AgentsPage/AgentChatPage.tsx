@@ -1676,6 +1676,8 @@ const AgentChatPage: FC = () => {
 
 		// Capture the queue head before sending because an errored chat may promote it.
 		const queueHeadIDBeforeSend = store.getSnapshot().queuedMessages[0]?.id;
+		const queueVersionBeforeSend = store.getAuthoritativeQueueVersion();
+		const statusVersionBeforeSend = store.getChatStatusVersion();
 
 		// Don't clear stream state before the POST completes.
 		// For queued sends the WebSocket status events handle
@@ -1718,19 +1720,27 @@ const AgentChatPage: FC = () => {
 			store.upsertDurableMessages(insertedMessages);
 			upsertCacheMessages(insertedMessages);
 			if (response.queued) {
+				// A queue update during the request already accounts for the
+				// tail, and may have deleted it, so merging it back would
+				// resurrect a phantom entry.
+				const sawNewerQueue =
+					store.getAuthoritativeQueueVersion() !== queueVersionBeforeSend;
 				const reconciledQueue = reconcilePromotedQueueHead(
 					store,
 					insertedMessages,
 					queueHeadIDBeforeSend,
-					response.queued_message,
+					sawNewerQueue ? undefined : response.queued_message,
 				);
 				if (reconciledQueue) {
 					setCacheQueuedMessages(reconciledQueue);
-					// A promoted head means a turn just started; clear the
-					// stale error status so the Thinking indicator can show
-					// before the status websocket event arrives.
-					store.clearStreamState();
-					store.setChatStatus("running");
+					// A promoted head means a turn just started, so clear the
+					// stale error status before the status websocket event
+					// arrives. A status event during the request is already
+					// newer than this optimistic value.
+					if (store.getChatStatusVersion() === statusVersionBeforeSend) {
+						store.clearStreamState();
+						store.setChatStatus("running");
+					}
 				}
 			}
 		}
