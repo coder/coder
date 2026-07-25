@@ -343,6 +343,24 @@ describe("reconcilePromotedQueueHead", () => {
 		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
 	});
 
+	it("omits the response tail when a newer queue update was observed", () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		// The caller withholds the tail once it has seen a newer queue,
+		// because that snapshot may already have deleted it.
+		store.setQueuedMessages([a]);
+
+		const next = reconcilePromotedQueueHead(
+			store,
+			[userMessage],
+			a.id,
+			undefined,
+		);
+
+		expect(next).toEqual([]);
+		expect(store.getSnapshot().queuedMessages).toEqual([]);
+	});
+
 	it("does nothing when no user row was inserted", () => {
 		const store = createChatStore();
 		const a = buildQueuedMessage(1, "A");
