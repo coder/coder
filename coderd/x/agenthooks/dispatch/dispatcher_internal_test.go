@@ -331,6 +331,14 @@ func TestDispatcherProtocolErrors(t *testing.T) {
 			responseBody: []byte(`{"permision":{"decision":"deny"}}`),
 		},
 		{
+			name:      "case-folded duplicate permission key",
+			eventType: agenthooks.EventPreToolUse,
+			data:      agenthooks.PreToolUseData{ToolUseID: "call_fold", ToolName: "run_command", ToolInput: json.RawMessage(`{"cmd":"ls"}`)},
+			// encoding/json matches fields case-insensitively and keeps the
+			// last value, so this would otherwise decode as an empty allow.
+			responseBody: []byte(`{"permission":{"decision":"deny"},"Permission":null}`),
+		},
+		{
 			name:         "duplicate permission key",
 			eventType:    agenthooks.EventPreToolUse,
 			data:         agenthooks.PreToolUseData{ToolUseID: "call_dup", ToolName: "run_command", ToolInput: json.RawMessage(`{"cmd":"ls"}`)},

@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -419,7 +420,9 @@ const maxResponseJSONDepth = 128
 // rejectDuplicateKeys consumes one JSON value and fails on duplicate object
 // keys at any depth, including inside input_override, because a duplicated
 // key such as {"permission":{"decision":"deny"},"permission":null} would
-// otherwise drop the decision the consumer intended.
+// otherwise drop the decision the consumer intended. Keys are compared
+// case-insensitively because encoding/json matches struct fields that way,
+// so "Permission" would silently override "permission".
 func rejectDuplicateKeys(decoder *json.Decoder, depth int) error {
 	if depth > maxResponseJSONDepth {
 		return xerrors.New("response JSON exceeds supported nesting depth")
@@ -441,10 +444,11 @@ func rejectDuplicateKeys(decoder *json.Decoder, depth int) error {
 				return err
 			}
 			key, _ := keyToken.(string)
-			if _, dup := seen[key]; dup {
+			folded := strings.ToLower(key)
+			if _, dup := seen[folded]; dup {
 				return xerrors.Errorf("duplicate key %q", key)
 			}
-			seen[key] = struct{}{}
+			seen[folded] = struct{}{}
 			if err := rejectDuplicateKeys(decoder, depth+1); err != nil {
 				return err
 			}
