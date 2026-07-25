@@ -131,6 +131,7 @@ export const useChatStore = (
 	// stale value like "waiting", causing shouldApplyMessagePart()
 	// to drop all incoming parts.
 	const wsStatusReceivedRef = useRef(false);
+	const [pendingStatusResync, setPendingStatusResync] = useState(false);
 	const activeChatIDRef = useRef<string | null>(null);
 	const prevChatIDRef = useRef<string | undefined>(chatID);
 	// Snapshot of the chatMessages elements from the last sync effect
@@ -306,10 +307,15 @@ export const useChatStore = (
 		// a status event yet. Once the WS is the authoritative
 		// source, a stale REST refetch must not overwrite the
 		// fresher WS-delivered value.
-		if (!wsStatusReceivedRef.current) {
+		if (!wsStatusReceivedRef.current || pendingStatusResync) {
 			store.setChatStatus(chatRecord?.status ?? null);
 		}
-	}, [chatRecord?.status, store]);
+		// A resync must apply the cached status even when its value never
+		// changed, which happens when the store drifted ahead of it.
+		if (pendingStatusResync) {
+			setPendingStatusResync(false);
+		}
+	}, [chatRecord?.status, store, pendingStatusResync]);
 
 	useEffect(() => {
 		queuedMessagesHydratedChatIDRef.current = null;
@@ -759,6 +765,7 @@ export const useChatStore = (
 		// otherwise makes the refetched one inert.
 		acceptServerChatStatus: () => {
 			wsStatusReceivedRef.current = false;
+			setPendingStatusResync(true);
 		},
 		setCacheQueuedMessages: (queuedMessages) => {
 			writeQueuedMessagesToCache(queryClient, chatID, queuedMessages);
