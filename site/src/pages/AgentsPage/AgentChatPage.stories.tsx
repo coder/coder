@@ -2916,14 +2916,14 @@ export const QueuedSendPromotesPreviousHead: Story = {
 			expect(sendSpy).toHaveBeenCalledTimes(1);
 		});
 
-		// The promoted head moves from the queue into the transcript and
-		// the new send replaces it as the only queued row.
+		const timeline = within(await canvas.findByTestId("conversation-timeline"));
 		await waitFor(() => {
+			expect(timeline.getByText("Queued head prompt")).toBeVisible();
 			expect(canvas.getAllByText("Queued head prompt")).toHaveLength(1);
 			expect(canvas.getAllByText("Follow-up prompt")).toHaveLength(1);
+			expect(timeline.queryByText("Follow-up prompt")).not.toBeInTheDocument();
 		});
-		// The promotion started a turn: the Thinking indicator replaces
-		// the stale error state.
+		// Promotion starts a turn, so the Thinking indicator replaces the error.
 		expect(await canvas.findByTestId("live-activity-slot")).toBeVisible();
 	},
 };
