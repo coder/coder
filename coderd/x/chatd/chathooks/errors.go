@@ -80,30 +80,38 @@ func GenerationDispatchError(eventType agenthooks.EventType, dispatchErr error) 
 // whose chain contains a hook dispatch failure. Tools that dispatch
 // lifecycle hooks inside Run (subagent spawn admission) must fail
 // closed, but the tool loop persists Run errors as ordinary tool
-// results the model can ignore, so the step has to be failed before
-// commit instead.
+// results the model can ignore, so the turn has to be failed even
+// though the step commits.
 func DispatchFailureFromResults(content []fantasy.Content) error {
 	for _, block := range content {
 		toolResult, ok := asToolResultContent(block)
 		if !ok {
 			continue
 		}
-		var resultErr error
-		switch output := toolResult.Result.(type) {
-		case fantasy.ToolResultOutputContentError:
-			resultErr = output.Error
-		case *fantasy.ToolResultOutputContentError:
-			if output != nil {
-				resultErr = output.Error
-			}
-		}
-		if resultErr != nil {
-			if _, ok := errors.AsType[*dispatch.Error](resultErr); ok {
-				return resultErr
-			}
+		if resultErr := dispatchFailureFromResult(toolResult); resultErr != nil {
+			return resultErr
 		}
 	}
 	return nil
+}
+
+func dispatchFailureFromResult(toolResult fantasy.ToolResultContent) error {
+	var resultErr error
+	switch output := toolResult.Result.(type) {
+	case fantasy.ToolResultOutputContentError:
+		resultErr = output.Error
+	case *fantasy.ToolResultOutputContentError:
+		if output != nil {
+			resultErr = output.Error
+		}
+	}
+	if resultErr == nil {
+		return nil
+	}
+	if _, ok := errors.AsType[*dispatch.Error](resultErr); !ok {
+		return nil
+	}
+	return resultErr
 }
 
 func asToolResultContent(block fantasy.Content) (fantasy.ToolResultContent, bool) {

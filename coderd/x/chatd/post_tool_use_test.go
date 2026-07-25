@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -419,6 +420,98 @@ func TestPostToolUseHookFailureCommitsResultThenErrors(t *testing.T) {
 	require.Equal(t, int32(1), postCalls.Load())
 	lastError := chatLastErrorMessage(failed.LastError)
 	require.Contains(t, lastError, "hook dispatch failed: post_tool_use: http_error")
+}
+
+func TestSubagentSpawnHookDispatchFailureCommitsSiblingResults(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		chunk := chattest.OpenAIToolCallChunk("read_file", `{"path":"/tmp/sibling.txt"}`)
+		chunk.Choices[0].ToolCalls[0].ID = "call_sibling"
+		spawn := chattest.OpenAIToolCallChunk("spawn_agent", `{"type":"general","prompt":"child admission prompt"}`).Choices[0].ToolCalls[0]
+		spawn.ID = "call_spawn"
+		spawn.Index = 1
+		chunk.Choices[0].ToolCalls = append(chunk.Choices[0].ToolCalls, spawn)
+		return chattest.OpenAIStreamingResponse(chunk)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	var mu sync.Mutex
+	var postToolUseIDs []string
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request agenthooks.Request
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		switch request.Type {
+		case agenthooks.EventUserPromptSubmit:
+			data := decodeHookData[agenthooks.UserPromptSubmitData](t, request)
+			if data.Prompt == "child admission prompt" {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		case agenthooks.EventPostToolUse:
+			data := decodeHookData[agenthooks.PostToolUseData](t, request)
+			mu.Lock()
+			postToolUseIDs = append(postToolUseIDs, data.ToolUseID)
+			mu.Unlock()
+		}
+		_, err := w.Write([]byte(`{}`))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(consumer.Close)
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), gomock.Any(), int64(1), int64(0), gomock.Any()).
+		Return(workspacesdk.ReadFileLinesResponse{
+			Success: true, FileSize: 7, TotalLines: 1, LinesRead: 1, Content: "sibling",
+		}, nil)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "spawn-hook-failure-siblings",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("read a file and spawn a child"),
+		},
+	})
+	require.NoError(t, err)
+	failed := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+	require.Contains(t, chatLastErrorMessage(failed.LastError), "hook dispatch failed: user_prompt_submit: http_error")
+
+	messages := chatMessages(ctx, t, db, chat.ID)
+	require.Len(t, messages, 4)
+	require.Equal(t, database.ChatMessageRoleTool, messages[2].Role)
+	require.Equal(t, database.ChatMessageRoleTool, messages[3].Role)
+	sibling := string(messages[2].Content.RawMessage)
+	require.Contains(t, sibling, "call_sibling")
+	require.Contains(t, sibling, "sibling")
+	spawn := string(messages[3].Content.RawMessage)
+	require.Contains(t, spawn, "call_spawn")
+	require.Contains(t, spawn, "lifecycle hook returned HTTP status 500")
+
+	mu.Lock()
+	dispatched := slices.Clone(postToolUseIDs)
+	mu.Unlock()
+	require.Equal(t, []string{"call_sibling"}, dispatched,
+		"the spawn tool never ran, so it has no use to post-process")
 }
 
 func TestPostToolUseHookFailureDispatchesRemainingResults(t *testing.T) {
