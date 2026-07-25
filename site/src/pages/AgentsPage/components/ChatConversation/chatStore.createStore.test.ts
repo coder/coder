@@ -561,17 +561,14 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		store.setActiveChatID(testChatID);
 		store.setQueuedMessages([b]);
 		store.markQueuedMessagePromoted(a.id);
-		const baseline = store.getAuthoritativeQueueVersion();
+		const baseline = store.getQueueConvergenceFence();
 
 		// Another tab re-queued A, so the server still lists it.
 		expect(
-			store.applyPromoteRefetchQueuedMessages(
-				testChatID,
-				a.id,
-				[a, b],
-				baseline,
-			),
-		).toBe(true);
+			store
+				.applyPromoteRefetchQueuedMessages(testChatID, a.id, [a, b], baseline)
+				?.map((message) => message.id),
+		).toEqual([a.id, b.id]);
 		expect(
 			store.getSnapshot().queuedMessages.map((message) => message.id),
 		).toEqual([a.id, b.id]);
@@ -588,7 +585,7 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		store.setActiveChatID(testChatID);
 		store.setQueuedMessages([b]);
 		store.markQueuedMessagePromoted(a.id);
-		const baseline = store.getAuthoritativeQueueVersion();
+		const baseline = store.getQueueConvergenceFence();
 
 		// An accepted queue_update lands while the refetch is in flight, so it
 		// is newer than the response the refetch is about to deliver.
@@ -601,7 +598,7 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 				[a, b],
 				baseline,
 			),
-		).toBe(false);
+		).toBeUndefined();
 		expect(
 			store.getSnapshot().queuedMessages.map((message) => message.id),
 		).toEqual([b.id, c.id]);
@@ -618,7 +615,7 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		store.setActiveChatID(testChatID);
 		store.setQueuedMessages([b]);
 		store.markQueuedMessagePromoted(a.id);
-		const baseline = store.getAuthoritativeQueueVersion();
+		const baseline = store.getQueueConvergenceFence();
 
 		// This snapshot predates the promotion, so it is discarded and must not
 		// supersede the refetch, which is the only way C becomes visible.
@@ -631,7 +628,7 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 				[b, c],
 				baseline,
 			),
-		).toBe(true);
+		).toEqual([b, c]);
 		expect(
 			store.getSnapshot().queuedMessages.map((message) => message.id),
 		).toEqual([b.id, c.id]);
@@ -645,7 +642,7 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		store.setActiveChatID(testChatID);
 		store.setQueuedMessages([b]);
 		store.markQueuedMessagePromoted(a.id);
-		const baseline = store.getAuthoritativeQueueVersion();
+		const baseline = store.getQueueConvergenceFence();
 
 		store.setActiveChatID("chat-other");
 		store.setQueuedMessages([]);
@@ -657,8 +654,89 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 				[a, b],
 				baseline,
 			),
-		).toBe(false);
+		).toBeUndefined();
 		expect(store.getSnapshot().queuedMessages).toEqual([]);
+	});
+
+	it("ignores a promote refetch spanning a round trip back to the same chat", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		store.setActiveChatID(testChatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		const baseline = store.getQueueConvergenceFence();
+
+		// No authoritative snapshot lands during the round trip, so only the
+		// activations themselves can strand the request.
+		store.setActiveChatID("chat-other");
+		store.setActiveChatID(testChatID);
+
+		expect(
+			store.applyPromoteRefetchQueuedMessages(
+				testChatID,
+				a.id,
+				[a, b],
+				baseline,
+			),
+		).toBeUndefined();
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([b.id]);
+	});
+
+	it("ignores a promote refetch naming another chat even at a matching fence", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		store.setActiveChatID(testChatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+
+		// A caller that captured the fence too late would otherwise pass the
+		// ordering check while carrying another chat's queue.
+		expect(
+			store.applyPromoteRefetchQueuedMessages(
+				"chat-other",
+				a.id,
+				[a, b],
+				store.getQueueConvergenceFence(),
+			),
+		).toBeUndefined();
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([b.id]);
+	});
+
+	it("returns the queue it applied, not the raw snapshot", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		const c = makeQueuedMessage(3, "C");
+
+		store.setActiveChatID(testChatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		// An overlapping explicit promotion suppresses C without deleting it
+		// server-side, so the refetched snapshot still lists it.
+		store.suppressQueuedMessageID(c.id);
+		const baseline = store.getQueueConvergenceFence();
+
+		expect(
+			store
+				.applyPromoteRefetchQueuedMessages(
+					testChatID,
+					a.id,
+					[a, b, c],
+					baseline,
+				)
+				?.map((message) => message.id),
+		).toEqual([a.id, b.id]);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([a.id, b.id]);
 	});
 
 	it("unsuppressQueuedMessageID clears a promoted marker after a failed promotion", () => {

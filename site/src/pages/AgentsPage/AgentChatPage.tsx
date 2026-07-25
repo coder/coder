@@ -299,13 +299,13 @@ const fetchChatMessages = (queryClient: QueryClient) => (chatID: string) =>
 export const settlePromotedQueueHead = async (
 	store: Pick<
 		ChatStore,
-		"getAuthoritativeQueueVersion" | "applyPromoteRefetchQueuedMessages"
+		"getQueueConvergenceFence" | "applyPromoteRefetchQueuedMessages"
 	>,
 	chatID: string,
 	promotedHeadID: number,
 	fetchMessages: (chatID: string) => Promise<TypesGen.ChatMessagesResponse>,
 ): Promise<readonly TypesGen.ChatQueuedMessage[] | undefined> => {
-	const baselineVersion = store.getAuthoritativeQueueVersion();
+	const baselineFence = store.getQueueConvergenceFence();
 	let response: TypesGen.ChatMessagesResponse;
 	try {
 		response = await fetchMessages(chatID);
@@ -313,18 +313,12 @@ export const settlePromotedQueueHead = async (
 		// Convergence is best effort; a later authoritative update can correct it.
 		return undefined;
 	}
-	const queuedMessages = response.queued_messages ?? [];
-	if (
-		!store.applyPromoteRefetchQueuedMessages(
-			chatID,
-			promotedHeadID,
-			queuedMessages,
-			baselineVersion,
-		)
-	) {
-		return undefined;
-	}
-	return queuedMessages;
+	return store.applyPromoteRefetchQueuedMessages(
+		chatID,
+		promotedHeadID,
+		response.queued_messages ?? [],
+		baselineFence,
+	);
 };
 
 export async function submitEditAndScroll({

@@ -188,20 +188,21 @@ export type ChatStore = {
 	applyAuthoritativeQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 	) => void;
-	// Counts accepted authoritative queue snapshots, so a caller can tell that
-	// newer server state landed during a request. Snapshots discarded as stale
-	// do not count, since discarding one leaves the caller's data fresher.
-	getAuthoritativeQueueVersion: () => number;
+	// Advances whenever an in-flight convergence request goes stale: an accepted
+	// authoritative snapshot, or a change of active chat. Snapshots discarded as
+	// stale do not advance it, since discarding one leaves the caller's data
+	// fresher.
+	getQueueConvergenceFence: () => number;
 	// Applies a snapshot fetched specifically to settle promotedID, whose
-	// promotion markers this clears. Returns false without applying when
-	// chatID is no longer active, or when another authoritative snapshot
-	// landed after baselineVersion, since that one is newer.
+	// promotion markers this clears. Returns the queue actually applied, which
+	// the caller should mirror into its cache, or undefined when chatID is no
+	// longer active or the fence moved past baselineFence.
 	applyPromoteRefetchQueuedMessages: (
 		chatID: string,
 		promotedID: number,
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
-		baselineVersion: number,
-	) => boolean;
+		baselineFence: number,
+	) => readonly TypesGen.ChatQueuedMessage[] | undefined;
 	suppressQueuedMessageID: (id: number) => void;
 	// Suppresses id and records that its queue row is already deleted.
 	markQueuedMessagePromoted: (id: number) => void;
@@ -255,7 +256,7 @@ export const createChatStore = (): ChatStore => {
 	// Bookkeeping, deliberately outside the rendered state so observing a
 	// server event cannot trigger a re-render.
 	let observedQueuedMessageIDs = new Set<number>();
-	let authoritativeQueueVersion = 0;
+	let queueConvergenceFence = 0;
 	let serverChatStatusVersion = 0;
 	let activeChatID: string | null = null;
 	const listeners = new Set<() => void>();
@@ -473,7 +474,7 @@ export const createChatStore = (): ChatStore => {
 			) {
 				return;
 			}
-			authoritativeQueueVersion++;
+			queueConvergenceFence++;
 			setState((current) => {
 				let nextSuppressed = current.suppressedQueuedMessageIDs;
 				if (current.suppressedQueuedMessageIDs.size > 0) {
@@ -517,49 +518,47 @@ export const createChatStore = (): ChatStore => {
 				};
 			});
 		},
-		getAuthoritativeQueueVersion: () => authoritativeQueueVersion,
+		getQueueConvergenceFence: () => queueConvergenceFence,
 		applyPromoteRefetchQueuedMessages: (
 			chatID,
 			promotedID,
 			queuedMessages,
-			baselineVersion,
+			baselineFence,
 		) => {
-			// A request that resolves after the user navigates away carries the
-			// previous chat's queue, which is unrelated to the one now displayed
-			// by this shared store.
+			// The fence covers ordering, including navigation. This identity check
+			// additionally keeps a response that names another chat out of the
+			// shared store even if its caller captured the fence incorrectly.
 			if (activeChatID !== chatID) {
-				return false;
+				return undefined;
 			}
-			if (authoritativeQueueVersion !== baselineVersion) {
-				return false;
+			if (queueConvergenceFence !== baselineFence) {
+				return undefined;
 			}
 			const incoming = queuedMessages ?? [];
-			authoritativeQueueVersion++;
+			queueConvergenceFence++;
 			for (const message of incoming) {
 				observedQueuedMessageIDs.add(message.id);
 			}
-			setState((current) => {
-				const suppressed = new Set(current.suppressedQueuedMessageIDs);
-				suppressed.delete(promotedID);
-				const promoted = new Set(current.promotedQueuedMessageIDs);
-				promoted.delete(promotedID);
-				const filtered =
-					suppressed.size === 0
-						? incoming
-						: incoming.filter((message) => !suppressed.has(message.id));
-				return {
-					...current,
-					queuedMessages: chatQueuedMessagesEqualByID(
-						current.queuedMessages,
-						filtered,
-					)
-						? current.queuedMessages
-						: filtered,
-					suppressedQueuedMessageIDs: suppressed,
-					promotedQueuedMessageIDs: promoted,
-				};
-			});
-			return true;
+			const suppressed = new Set(state.suppressedQueuedMessageIDs);
+			suppressed.delete(promotedID);
+			const promoted = new Set(state.promotedQueuedMessageIDs);
+			promoted.delete(promotedID);
+			const applied =
+				suppressed.size === 0
+					? incoming
+					: incoming.filter((message) => !suppressed.has(message.id));
+			setState((current) => ({
+				...current,
+				queuedMessages: chatQueuedMessagesEqualByID(
+					current.queuedMessages,
+					applied,
+				)
+					? current.queuedMessages
+					: applied,
+				suppressedQueuedMessageIDs: suppressed,
+				promotedQueuedMessageIDs: promoted,
+			}));
+			return applied;
 		},
 		hasObservedQueuedMessageID: (id) => observedQueuedMessageIDs.has(id),
 		suppressQueuedMessageID: (id) => {
@@ -636,7 +635,13 @@ export const createChatStore = (): ChatStore => {
 			}));
 		},
 		setActiveChatID: (chatID) => {
+			if (activeChatID === chatID) {
+				return;
+			}
 			activeChatID = chatID;
+			// Leaving a chat strands any convergence request issued for it, so a
+			// later return to the same chat cannot revive one.
+			queueConvergenceFence++;
 		},
 		getActiveChatID: () => activeChatID,
 		getServerChatStatusVersion: () => serverChatStatusVersion,

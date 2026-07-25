@@ -472,6 +472,32 @@ describe("settlePromotedQueueHead", () => {
 		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(true);
 	});
 
+	it("returns the filtered queue the store applied", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		const c = buildQueuedMessage(3, "C");
+		store.setActiveChatID(chatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		// An overlapping explicit promotion suppresses C, which the server has
+		// not deleted yet, so the caller must not cache it back.
+		store.suppressQueuedMessageID(c.id);
+
+		const settled = await settlePromotedQueueHead(
+			store,
+			chatID,
+			a.id,
+			async () => ({
+				messages: [],
+				has_more: false,
+				queued_messages: [a, b, c],
+			}),
+		);
+
+		expect(settled?.map((m) => m.id)).toEqual([a.id, b.id]);
+	});
+
 	it("discards a response that resolves after navigating to another chat", async () => {
 		const store = createChatStore();
 		const a = buildQueuedMessage(1, "A");
