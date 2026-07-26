@@ -52,11 +52,8 @@ func CountWorkspaceCapableUsers(ctx context.Context, logger slog.Logger, db data
 		return 0, xerrors.Errorf("get active users authorization roles: %w", err)
 	}
 
-	// Subjects are deduplicated on a hash of their canonical JSON form:
-	// the user ID is normalized to countingSubjectID and the roles and
-	// groups are sorted, so users whose subjects are equivalent share one
-	// authorization verdict. Evaluation cost scales with the number of
-	// unique subjects, not the number of users.
+	// Users with equivalent canonical subjects share one authorization
+	// verdict, so evaluation cost scales with unique subjects, not users.
 	capableBySignature := make(map[[sha256.Size]byte]bool)
 	var count int64
 	for _, row := range rows {
@@ -102,9 +99,7 @@ func CountWorkspaceCapableUsers(ctx context.Context, logger slog.Logger, db data
 	return count, nil
 }
 
-// countingSubject builds the canonical evaluation subject for a user:
-// the normalized subject ID, sorted deduplicated roles and groups, and
-// the unrestricted scope.
+// countingSubject builds the canonical evaluation subject for a user.
 func countingSubject(roleNames []rbac.RoleIdentifier, groups []string) rbac.Subject {
 	slices.SortFunc(roleNames, func(a, b rbac.RoleIdentifier) int {
 		return strings.Compare(a.String(), b.String())
@@ -124,10 +119,8 @@ func countingSubject(roleNames []rbac.RoleIdentifier, groups []string) rbac.Subj
 	}
 }
 
-// authorizationSignature returns a hash of the subject's JSON form. Two
-// users with equal signatures are interchangeable for workspace-create
-// evaluation: every subject field, including any added later, is part of
-// the key.
+// authorizationSignature returns a hash of the subject's JSON form;
+// every subject field, including any added later, is part of the key.
 func authorizationSignature(subject rbac.Subject) ([sha256.Size]byte, error) {
 	var sig [sha256.Size]byte
 	hash := sha256.New()
@@ -151,12 +144,9 @@ func canCreateWorkspace(ctx context.Context, db database.Store, authorizer rbac.
 	subject.Roles = roles
 	subject = subject.WithCachedASTValue()
 
-	// A site-wide grant (e.g. the owner role) authorizes creation in any
-	// organization, and the any-organization policy form resolves to the
-	// maximum per-org vote across the subject's memberships, so it also
-	// subsumes per-organization checks: it allows exactly when some
-	// InOrg(id) check would. This also covers users who belong to zero
-	// organizations.
+	// The any-organization form allows exactly when some per-organization
+	// check would (the policy takes the maximum vote across the subject's
+	// memberships), and also covers users who belong to zero organizations.
 	return authorizer.Authorize(ctx, subject, policy.ActionCreate,
 		rbac.ResourceWorkspace.AnyOrganization().WithOwner(subject.ID)) == nil, nil
 }
