@@ -42,8 +42,7 @@ export const BaseInfraSelectStep: FC<BaseInfraSelectStepProps> = ({
 				Select your infrastructure foundation.
 			</TemplateBuilderSubtitle>
 
-			{/* 420px accounts for navbar, page header, card padding, tab bar, and nav controls */}
-			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[calc(100vh-420px)] overflow-y-auto">
+			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 				{bases.map((base) => (
 					<TemplateCard
 						key={base.id}

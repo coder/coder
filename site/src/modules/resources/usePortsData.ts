@@ -33,7 +33,7 @@ export interface PortsData {
 }
 
 /**
- * Used by both the workspace port-forward button and the AgentsPage right-panel
+ * Used by both the workspace port-forward button and the agents page right-panel
  * ports menu so they stay on the same query keys and refresh cadence.
  */
 export const usePortsData = (

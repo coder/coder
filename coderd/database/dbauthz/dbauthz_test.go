@@ -1917,6 +1917,17 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpdateChatLastTurnSummary(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
 	}))
+	s.Run("UpdateChatSummary", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.UpdateChatSummaryParams{
+			ID:                     chat.ID,
+			ExpectedHistoryVersion: chat.HistoryVersion,
+			Summary:                sql.NullString{String: "summarized the whole chat", Valid: true},
+		}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatSummary(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
+	}))
 	s.Run("UpdateChatLastReadMessageID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpdateChatLastReadMessageIDParams{
@@ -6998,7 +7009,6 @@ func (s *MethodTestSuite) TestAIBridge() {
 	s.Run("GetUserAIBudgetOverride", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
 		override := testutil.Fake(s.T(), faker, database.UserAIBudgetOverride{UserID: user.ID})
-		dbm.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil).AnyTimes()
 		dbm.EXPECT().GetUserAIBudgetOverride(gomock.Any(), user.ID).Return(override, nil).AnyTimes()
 		check.Args(user.ID).Asserts(user, policy.ActionRead).Returns(override)
 	}))
@@ -7006,9 +7016,15 @@ func (s *MethodTestSuite) TestAIBridge() {
 	s.Run("GetHighestGroupAIBudgetByUser", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
 		row := testutil.Fake(s.T(), faker, database.GetHighestGroupAIBudgetByUserRow{})
-		dbm.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil).AnyTimes()
 		dbm.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), user.ID).Return(row, nil).AnyTimes()
 		check.Args(user.ID).Asserts(user, policy.ActionRead).Returns(row)
+	}))
+
+	s.Run("GetUserEveryoneFallbackGroup", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		group := testutil.Fake(s.T(), faker, database.Group{})
+		dbm.EXPECT().GetUserEveryoneFallbackGroup(gomock.Any(), user.ID).Return(group.ID, nil).AnyTimes()
+		check.Args(user.ID).Asserts(user, policy.ActionRead).Returns(group.ID)
 	}))
 
 	s.Run("UpsertUserAIBudgetOverride", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -7615,5 +7631,50 @@ func TestAsChatd(t *testing.T) {
 		// Cannot access provisioner daemons.
 		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceProvisionerDaemon)
 		require.Error(t, err, "provisioner daemon read should be denied")
+	})
+}
+
+func TestAsExternalAuthChecker(t *testing.T) {
+	t.Parallel()
+
+	ctx := dbauthz.AsExternalAuthCoordinator(context.Background())
+	actor, ok := dbauthz.ActorFromContext(ctx)
+	require.True(t, ok, "actor must be present")
+
+	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+	t.Run("AllowedActions", func(t *testing.T) {
+		t.Parallel()
+
+		// Reading and refreshing a user's external auth link requires personal
+		// read and update on the user resource.
+		for _, action := range []policy.Action{
+			policy.ActionReadPersonal, policy.ActionUpdatePersonal,
+		} {
+			err := auth.Authorize(ctx, actor, action, rbac.ResourceUser)
+			require.NoError(t, err, "user %s should be allowed", action)
+		}
+	})
+
+	t.Run("DeniedActions", func(t *testing.T) {
+		t.Parallel()
+
+		// No general user read/write, only personal external auth access.
+		for _, action := range []policy.Action{
+			policy.ActionRead, policy.ActionCreate,
+			policy.ActionUpdate, policy.ActionDelete,
+		} {
+			err := auth.Authorize(ctx, actor, action, rbac.ResourceUser)
+			require.Error(t, err, "user %s should be denied", action)
+		}
+
+		// Unlike AsSystemRestricted, this actor cannot read other resources.
+		for _, res := range []rbac.Object{
+			rbac.ResourceWorkspace, rbac.ResourceTemplate,
+			rbac.ResourceApiKey, rbac.ResourceOrganization,
+		} {
+			err := auth.Authorize(ctx, actor, policy.ActionRead, res)
+			require.Error(t, err, "%s read should be denied", res.Type)
+		}
 	})
 }

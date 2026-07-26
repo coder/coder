@@ -74,12 +74,6 @@ type recordedOpenAIRequest struct {
 	ContentLength int64
 }
 
-func testAPIKeyID(t testing.TB, db database.Store, userID uuid.UUID) string {
-	t.Helper()
-	key, _ := dbgen.APIKey(t, db, database.APIKey{ID: uuid.NewString(), UserID: userID})
-	return key.ID
-}
-
 func chatAIGatewayTransportFactoryPointer(factory aibridge.TransportFactory) *atomic.Pointer[aibridge.TransportFactory] {
 	var factoryPtr atomic.Pointer[aibridge.TransportFactory]
 	factoryPtr.Store(&factory)
@@ -770,7 +764,6 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 		codersdk.ChatMessageText("inspect the codebase"),
 	})
 	require.NoError(t, err)
-	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
 	createdExplore, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
@@ -794,7 +787,6 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 				ContentVersion: chatprompt.CurrentContentVersion,
 				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 				ModelConfigID:  uuid.NullUUID{UUID: webSearchModel.ID, Valid: true},
-				APIKeyID:       sql.NullString{String: apiKey.ID, Valid: true},
 			},
 		},
 	})
@@ -1601,175 +1593,6 @@ func TestUpdateChatHeartbeatsRequiresOwnership(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, ids, 1)
 	require.Equal(t, chat.ID, ids[0])
-}
-
-func TestCreateChatPersistsSyntheticAPIKeyIDOnInitialUserMessage(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
-	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID:     org.ID,
-		OwnerID:            user.ID,
-		Title:              "create-chat-synthetic-api-key-id",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	require.Equal(t, database.ChatMessageRoleUser, messages[0].Role)
-	require.True(t, messages[0].APIKeyID.Valid)
-	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
-		UserID:    user.ID,
-		TokenName: chatd.GatewayTokenName(user.ID),
-	})
-	require.NoError(t, err)
-	require.Equal(t, gatewayKey.ID, messages[0].APIKeyID.String)
-}
-
-func TestSendMessagePersistsSyntheticAPIKeyIDOnUserMessage(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
-
-	chat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
-		Title:             "send-message-synthetic-api-key-id",
-	})
-
-	result, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:    chat.ID,
-		CreatedBy: user.ID,
-		Content: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("message with synthetic api key id"),
-		},
-	})
-	require.NoError(t, err)
-	require.False(t, result.Queued)
-	require.True(t, result.Message.APIKeyID.Valid)
-	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
-		UserID:    user.ID,
-		TokenName: chatd.GatewayTokenName(user.ID),
-	})
-	require.NoError(t, err)
-	require.Equal(t, gatewayKey.ID, result.Message.APIKeyID.String)
-
-	stored, err := db.GetChatMessageByID(ctx, result.Message.ID)
-	require.NoError(t, err)
-	require.True(t, stored.APIKeyID.Valid)
-	require.Equal(t, gatewayKey.ID, stored.APIKeyID.String)
-}
-
-func TestSendMessagePersistsSyntheticAPIKeyIDOnQueuedUserMessage(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
-	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID:     org.ID,
-		OwnerID:            user.ID,
-		Title:              "queue-synthetic-api-key-id",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-	})
-	require.NoError(t, err)
-
-	result, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:       chat.ID,
-		CreatedBy:    user.ID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")},
-		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
-	})
-	require.NoError(t, err)
-	require.True(t, result.Queued)
-	require.NotNil(t, result.QueuedMessage)
-
-	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
-		UserID:    user.ID,
-		TokenName: chatd.GatewayTokenName(user.ID),
-	})
-	require.NoError(t, err)
-	require.True(t, result.QueuedMessage.APIKeyID.Valid)
-	require.Equal(t, gatewayKey.ID, result.QueuedMessage.APIKeyID.String)
-
-	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Len(t, queued, 1)
-	require.True(t, queued[0].APIKeyID.Valid)
-	require.Equal(t, gatewayKey.ID, queued[0].APIKeyID.String)
-}
-
-func TestEditMessagePersistsSyntheticAPIKeyIDOnReplacement(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
-	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID:     org.ID,
-		OwnerID:            user.ID,
-		Title:              "edit-synthetic-api-key-id",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("original")},
-	})
-	require.NoError(t, err)
-
-	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	require.NoError(t, err)
-	require.Len(t, messages, 1)
-
-	result, err := replica.EditMessage(ctx, chatd.EditMessageOptions{
-		ChatID:          chat.ID,
-		EditedMessageID: messages[0].ID,
-		CreatedBy:       user.ID,
-		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
-	})
-	require.NoError(t, err)
-
-	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
-		UserID:    user.ID,
-		TokenName: chatd.GatewayTokenName(user.ID),
-	})
-	require.NoError(t, err)
-	require.True(t, result.Message.APIKeyID.Valid)
-	require.Equal(t, gatewayKey.ID, result.Message.APIKeyID.String)
-
-	stored, err := db.GetChatMessageByID(ctx, result.Message.ID)
-	require.NoError(t, err)
-	require.True(t, stored.APIKeyID.Valid)
-	require.Equal(t, gatewayKey.ID, stored.APIKeyID.String)
 }
 
 func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
@@ -2773,7 +2596,6 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 		codersdk.ChatMessageText("hello"),
 	})
 	require.NoError(t, err)
-	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
 	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
@@ -2789,7 +2611,6 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 				ContentVersion: chatprompt.CurrentContentVersion,
 				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
-				APIKeyID:       sql.NullString{String: apiKey.ID, Valid: true},
 			},
 		},
 	})
@@ -2867,7 +2688,6 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 		codersdk.ChatMessageText("hello"),
 	})
 	require.NoError(t, err)
-	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
 	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
@@ -2882,7 +2702,6 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 				ContentVersion: chatprompt.CurrentContentVersion,
 				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
-				APIKeyID:       sql.NullString{String: apiKey.ID, Valid: true},
 			},
 		},
 	})
@@ -5459,11 +5278,6 @@ func TestActiveServer_RoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
-		UserID:    user.ID,
-		TokenName: chatd.GatewayTokenName(user.ID),
-	})
-	require.NoError(t, err)
 	contextContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
 		Type:                 codersdk.ChatMessagePartTypeContextFile,
 		ContextFileAgentID:   uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
@@ -5473,9 +5287,9 @@ func TestActiveServer_RoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
 		ContextFileDirectory: "/home/coder/project",
 	}})
 	require.NoError(t, err)
-	_, err = db.InsertChatMessages(ctx, chatd.BuildSingleUserChatMessageInsertParams(
+	_, err = db.InsertChatMessages(ctx, chatd.BuildSingleChatMessageInsertParams(
 		chat.ID,
-		gatewayKey.ID,
+		database.ChatMessageRoleUser,
 		contextContent,
 		database.ChatMessageVisibilityBoth,
 		model.ID,
@@ -5497,14 +5311,17 @@ func TestActiveServer_RoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
 	chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
 	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
 	require.False(t, chatResult.LastError.Valid)
+	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    user.ID,
+		TokenName: chatd.GatewayTokenName(user.ID),
+	})
+	require.NoError(t, err)
 
 	messages := chatMessages(ctx, t, db, chat.ID)
 	promptMessages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 	require.NoError(t, err)
 	compressed := compressedChatSummarizedMessages(t, append(promptMessages, messages...))
 	require.Len(t, compressed.summaries, 1)
-	require.True(t, compressed.summaries[0].APIKeyID.Valid)
-	require.Equal(t, gatewayKey.ID, compressed.summaries[0].APIKeyID.String)
 
 	requests := factory.RequestsSnapshot()
 	require.NotEmpty(t, requests)
@@ -5840,6 +5657,245 @@ func TestActiveServer_Compaction(t *testing.T) {
 		testutil.Eventually(ctx, t, func(context.Context) bool {
 			return len(logSink.Entries(isCompactionFailureLog)) > 0
 		}, testutil.IntervalFast)
+	})
+}
+
+func TestCompactChat(t *testing.T) {
+	t.Parallel()
+
+	setupAtLimitChat := func(
+		t *testing.T,
+		status database.ChatStatus,
+		compactable bool,
+	) (context.Context, database.Store, *chatd.Server, database.Chat) {
+		t.Helper()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		server := newTestServer(t, db, ps, uuid.New())
+
+		_, err := db.UpsertChatUsageLimitConfig(ctx, database.UpsertChatUsageLimitConfigParams{
+			Enabled:            true,
+			DefaultLimitMicros: 100,
+			Period:             string(codersdk.ChatUsageLimitPeriodDay),
+		})
+		require.NoError(t, err)
+
+		spendChat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+		})
+		spendContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("spent usage"),
+		})
+		require.NoError(t, err)
+		dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:          spendChat.ID,
+			ModelConfigID:   uuid.NullUUID{UUID: model.ID, Valid: true},
+			Role:            database.ChatMessageRoleAssistant,
+			ContentVersion:  chatprompt.CurrentContentVersion,
+			Content:         spendContent,
+			TotalCostMicros: sql.NullInt64{Int64: 100, Valid: true},
+		})
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+			Status:            status,
+		})
+		if compactable {
+			assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("assistant response"),
+			})
+			require.NoError(t, err)
+			dbgen.ChatMessage(t, db, database.ChatMessage{
+				ChatID:         chat.ID,
+				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+				Role:           database.ChatMessageRoleAssistant,
+				ContentVersion: chatprompt.CurrentContentVersion,
+				Content:        assistantContent,
+			})
+		}
+
+		return ctx, db, server, chat
+	}
+
+	t.Run("usage limit rejects compactable idle chat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, db, server, chat := setupAtLimitChat(t, database.ChatStatusWaiting, true)
+		_, err := server.CompactChat(ctx, chat)
+
+		var limitErr *chatd.UsageLimitExceededError
+		require.ErrorAs(t, err, &limitErr)
+		refreshed, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusWaiting, refreshed.Status)
+		require.False(t, refreshed.CompactionRequestedAt.Valid)
+	})
+
+	t.Run("nothing to compact precedes usage limit", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, _, server, chat := setupAtLimitChat(t, database.ChatStatusWaiting, false)
+		_, err := server.CompactChat(ctx, chat)
+
+		require.ErrorIs(t, err, chatd.ErrNothingToCompact)
+		var limitErr *chatd.UsageLimitExceededError
+		require.False(t, errors.As(err, &limitErr))
+	})
+
+	t.Run("state conflict precedes usage limit", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, _, server, chat := setupAtLimitChat(t, database.ChatStatusRunning, true)
+		_, err := server.CompactChat(ctx, chat)
+
+		require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed)
+		var limitErr *chatd.UsageLimitExceededError
+		require.False(t, errors.As(err, &limitErr))
+	})
+}
+
+func TestActiveServer_ManualCompaction(t *testing.T) {
+	t.Parallel()
+
+	const compactionSummary = "manual compaction summary"
+
+	t.Run("compacts below threshold and returns to waiting", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		var streamCount atomic.Int32
+		var compactionRequests atomic.Int32
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			body := anthropicRequestBody(t, *req)
+			if !req.Stream {
+				if strings.Contains(body, "You are performing a context compaction") {
+					compactionRequests.Add(1)
+					require.Contains(t, body, "hello from the user")
+					return anthropicCompactionResponse(compactionSummary)
+				}
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			streamCount.Add(1)
+			// Low usage: far below the 70% threshold so only a
+			// manual request can trigger compaction.
+			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunksWithCacheUsage(chattest.AnthropicUsage{
+				InputTokens:  10,
+				OutputTokens: 5,
+			}, "assistant answer")...)
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+		model = updateChatModelCompressionThreshold(t, db, model, 100, 70)
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello from the user")
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.Equal(t, int32(1), streamCount.Load())
+		require.Equal(t, int32(0), compactionRequests.Load())
+		preCompactionMessageCount := len(chatMessages(ctx, t, db, chat.ID))
+
+		compacted, err := server.CompactChat(ctx, chat)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusRunning, compacted.Status)
+		require.True(t, compacted.CompactionRequestedAt.Valid)
+
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.False(t, chat.LastError.Valid)
+		require.False(t, chat.CompactionRequestedAt.Valid,
+			"compaction commit must consume the request marker")
+		require.Equal(t, int32(1), compactionRequests.Load(), "one forced compaction call")
+		require.Equal(t, int32(1), streamCount.Load(),
+			"manual compaction must not trigger an assistant follow-up")
+
+		messages := chatMessages(ctx, t, db, chat.ID)
+		promptMessages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		compressed := compressedChatSummarizedMessages(t, append(promptMessages, messages...))
+		require.Len(t, compressed.results, 1)
+		resultPart := singlePartOfType(t, compressed.results[0], codersdk.ChatMessagePartTypeToolResult)
+		require.Equal(t, "chat_summarized", resultPart.ToolName)
+		var result map[string]any
+		require.NoError(t, json.Unmarshal(resultPart.Result, &result))
+		require.Equal(t, "manual", result["source"])
+		require.Equal(t, compactionSummary, result["summary"])
+		// The commit inserts the summary triplet: a hidden model-only
+		// boundary (visible only through the prompt query) plus the
+		// user-visible tool call/result pair.
+		require.Len(t, compressed.summaries, 1,
+			"prompt history contains the compressed summary boundary")
+		require.Len(t, compressed.calls, 1)
+		require.Len(t, messages, preCompactionMessageCount+2,
+			"user-visible history grows by the summary tool call/result pair")
+
+		// A second /compact with nothing new to summarize is
+		// rejected before any LLM call.
+		_, err = server.CompactChat(ctx, chat)
+		require.ErrorIs(t, err, chatd.ErrNothingToCompact)
+		require.Equal(t, int32(1), compactionRequests.Load())
+
+		// The chat still works: a follow-up message continues from
+		// the compacted summary.
+		_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:        chat.ID,
+			CreatedBy:     user.ID,
+			ModelConfigID: model.ID,
+			Content: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("continue after manual compaction"),
+			},
+		})
+		require.NoError(t, err)
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.False(t, chat.LastError.Valid)
+		require.Equal(t, int32(2), streamCount.Load())
+	})
+
+	t.Run("busy chat rejects manual compaction", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		release := make(chan struct{})
+		releaseOnce := sync.OnceFunc(func() { close(release) })
+		streamStarted := make(chan struct{}, 1)
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			if !req.Stream {
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			select {
+			case streamStarted <- struct{}{}:
+			default:
+			}
+			// Hold the generation open so the chat stays running.
+			<-release
+			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("done")...)
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
+		// Registered after newActiveTestServer so this cleanup runs
+		// before server shutdown: a failed assertion must not leave
+		// shutdown waiting on the blocked stream.
+		t.Cleanup(releaseOnce)
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "stay busy")
+		// Wait for the generation to reach the blocked LLM call: the
+		// chat is then running with an owning worker.
+		testutil.TryReceive(ctx, t, streamStarted)
+
+		_, err := server.CompactChat(ctx, chat)
+		require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed)
+
+		releaseOnce()
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 	})
 }
 
@@ -6779,7 +6835,6 @@ func userMessageForTest(
 		ContentVersion: chatprompt.CurrentContentVersion,
 		ModelConfigID:  uuid.NullUUID{UUID: modelID, Valid: true},
 		CreatedBy:      uuid.NullUUID{UUID: createdBy, Valid: true},
-		APIKeyID:       sql.NullString{String: apiKeyID, Valid: apiKeyID != ""},
 	}
 }
 
@@ -8357,29 +8412,15 @@ func insertChatMessageParts(
 	t.Helper()
 	content, err := chatprompt.MarshalParts(parts)
 	require.NoError(t, err)
-	var params database.InsertChatMessagesParams
-	if role == database.ChatMessageRoleUser {
-		apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: createdBy})
-		params = chatd.BuildSingleUserChatMessageInsertParams(
-			chatID,
-			apiKey.ID,
-			content,
-			database.ChatMessageVisibilityBoth,
-			modelID,
-			chatprompt.CurrentContentVersion,
-			createdBy,
-		)
-	} else {
-		params = chatd.BuildSingleChatMessageInsertParams(
-			chatID,
-			role,
-			content,
-			database.ChatMessageVisibilityBoth,
-			modelID,
-			chatprompt.CurrentContentVersion,
-			createdBy,
-		)
-	}
+	params := chatd.BuildSingleChatMessageInsertParams(
+		chatID,
+		role,
+		content,
+		database.ChatMessageVisibilityBoth,
+		modelID,
+		chatprompt.CurrentContentVersion,
+		createdBy,
+	)
 	messages, err := db.InsertChatMessages(ctx, params)
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
@@ -10211,12 +10252,11 @@ func seedAIGatewayOpenAITestDependencies(
 	t *testing.T,
 	db database.Store,
 	openAIURL string,
-) (database.User, database.Organization, database.AIProvider, database.ChatModelConfig, database.APIKey) {
+) (database.User, database.Organization, database.AIProvider, database.ChatModelConfig) {
 	t.Helper()
 
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
-	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         user.ID,
 		OrganizationID: org.ID,
@@ -10239,7 +10279,7 @@ func seedAIGatewayOpenAITestDependencies(
 	})
 	require.NoError(t, err)
 
-	return user, org, provider, model, apiKey
+	return user, org, provider, model
 }
 
 func TestProcessChat_RoutingUsesDelegatedAPIKey(t *testing.T) {
@@ -10258,7 +10298,7 @@ func TestProcessChat_RoutingUsesDelegatedAPIKey(t *testing.T) {
 	})
 	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 
-	user, org, provider, model, _ := seedAIGatewayOpenAITestDependencies(t, db, openAIURL)
+	user, org, provider, model := seedAIGatewayOpenAITestDependencies(t, db, openAIURL)
 
 	creator := newTestServer(t, db, ps, uuid.New())
 	chat, err := creator.CreateChat(ctx, chatd.CreateOptions{
@@ -10269,11 +10309,6 @@ func TestProcessChat_RoutingUsesDelegatedAPIKey(t *testing.T) {
 		InitialUserContent: []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("say hello"),
 		},
-	})
-	require.NoError(t, err)
-	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
-		UserID:    user.ID,
-		TokenName: chatd.GatewayTokenName(user.ID),
 	})
 	require.NoError(t, err)
 
@@ -10292,6 +10327,11 @@ func TestProcessChat_RoutingUsesDelegatedAPIKey(t *testing.T) {
 	chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
 	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
 	require.False(t, chatResult.LastError.Valid)
+	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    user.ID,
+		TokenName: chatd.GatewayTokenName(user.ID),
+	})
+	require.NoError(t, err)
 
 	requests := factory.RequestsSnapshot()
 	require.NotEmpty(t, requests)
@@ -10324,7 +10364,7 @@ func TestProcessChat_RoutingPreservesAPIKeyAfterWorkspaceContext(t *testing.T) {
 		return chattest.OpenAINonStreamingResponse(`{"title":"AI Gateway Workspace"}`)
 	})
 	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
-	user, org, provider, model, _ := seedAIGatewayOpenAITestDependencies(t, db, openAIURL)
+	user, org, provider, model := seedAIGatewayOpenAITestDependencies(t, db, openAIURL)
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
 	creator := newTestServer(t, db, ps, uuid.New())
@@ -10337,11 +10377,6 @@ func TestProcessChat_RoutingPreservesAPIKeyAfterWorkspaceContext(t *testing.T) {
 		InitialUserContent: []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("use the workspace context"),
 		},
-	})
-	require.NoError(t, err)
-	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
-		UserID:    user.ID,
-		TokenName: chatd.GatewayTokenName(user.ID),
 	})
 	require.NoError(t, err)
 
@@ -10374,6 +10409,11 @@ func TestProcessChat_RoutingPreservesAPIKeyAfterWorkspaceContext(t *testing.T) {
 	pinned, err := db.ListChatContextResourcesByChatID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.NotEmpty(t, pinned, "workspace context should be pinned to the chat")
+	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    user.ID,
+		TokenName: chatd.GatewayTokenName(user.ID),
+	})
+	require.NoError(t, err)
 
 	requests := factory.RequestsSnapshot()
 	require.NotEmpty(t, requests)
@@ -12189,7 +12229,6 @@ func TestPromoteQueuedPreservesReasoningEffort(t *testing.T) {
 		Content:         content.RawMessage,
 		ModelConfigID:   uuid.NullUUID{UUID: model.ID, Valid: true},
 		ReasoningEffort: database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true},
-		APIKeyID:        sql.NullString{String: testAPIKeyID(t, db, user.ID), Valid: true},
 		CreatedBy:       user.ID,
 	})
 	require.NoError(t, err)

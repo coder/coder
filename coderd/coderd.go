@@ -166,7 +166,7 @@ type Options struct {
 	Pubsub           pubsub.Pubsub
 	// ReplicaSyncPubsub is used explicitly to instantiate the replicasync manager downstream if it exists.
 	// All other consumers of pubsub should reference Options.Pubsub.
-	ReplicaSyncPubsub *pubsub.PGPubsub
+	ReplicaSyncPubsub pubsub.Pubsub
 	RuntimeConfig     *runtimeconfig.Manager
 
 	// CacheDir is used for caching files served by the API.
@@ -1431,6 +1431,7 @@ func New(options *Options) *API {
 					r.Get("/git", api.watchChatGit)
 				})
 				r.Post("/interrupt", api.interruptChat)
+				r.Post("/compact", api.compactChat)
 				r.Post("/reconcile-invalid", api.reconcileInvalidChatState)
 				r.Post("/tool-results", api.postChatToolResults)
 				r.Post("/title/regenerate", api.regenerateChatTitle)
@@ -1815,6 +1816,7 @@ func New(options *Options) *API {
 						r.Put("/gitsshkey", api.regenerateGitSSHKey)
 						r.Route("/secrets", func(r chi.Router) {
 							r.Post("/", api.postUserSecret)
+							r.Post("/batch", api.postUserSecretsBatch)
 							r.Get("/", api.getUserSecrets)
 							r.Route("/{name}", func(r chi.Router) {
 								r.Get("/", api.getUserSecret)

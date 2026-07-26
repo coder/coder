@@ -217,18 +217,16 @@ func TestSyntheticAPIKeyDeletionDoesNotMutateChatState(t *testing.T) {
 				OwnerID:           user.ID,
 				LastModelConfigID: model.ID,
 			})
-			message := dbgen.ChatMessage(t, db, database.ChatMessage{
+			dbgen.ChatMessage(t, db, database.ChatMessage{
 				ChatID:        chat.ID,
 				CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
 				ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 				Role:          database.ChatMessageRoleUser,
-				APIKeyID:      sql.NullString{String: syntheticID, Valid: true},
 			})
-			queued, err := db.InsertChatQueuedMessage(t.Context(), database.InsertChatQueuedMessageParams{
+			_, err = db.InsertChatQueuedMessage(t.Context(), database.InsertChatQueuedMessageParams{
 				ChatID:        chat.ID,
 				Content:       json.RawMessage(`[]`),
 				ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
-				APIKeyID:      sql.NullString{String: syntheticID, Valid: true},
 			})
 			require.NoError(t, err)
 
@@ -246,16 +244,6 @@ func TestSyntheticAPIKeyDeletionDoesNotMutateChatState(t *testing.T) {
 			require.Equal(t, before.HistoryVersion, after.HistoryVersion)
 			require.Equal(t, before.QueueVersion, after.QueueVersion)
 			require.Equal(t, before.GenerationAttempt, after.GenerationAttempt)
-
-			stored, err := db.GetChatMessageByID(t.Context(), message.ID)
-			require.NoError(t, err)
-			require.Equal(t, sql.NullString{String: syntheticID, Valid: true}, stored.APIKeyID)
-			storedQueued, err := db.GetChatQueuedMessageByID(t.Context(), database.GetChatQueuedMessageByIDParams{
-				ID:     queued.ID,
-				ChatID: chat.ID,
-			})
-			require.NoError(t, err)
-			require.Equal(t, sql.NullString{String: syntheticID, Valid: true}, storedQueued.APIKeyID)
 
 			remintedID, err := server.ensureSyntheticAPIKeyID(t.Context(), user.ID)
 			require.NoError(t, err)

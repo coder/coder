@@ -3976,6 +3976,84 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
+// @Summary Compact chat
+// @ID compact-chat
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param chat path string true "Chat ID" format(uuid)
+// @Produce json
+// @Success 200 {object} codersdk.Chat
+// @Router /api/experimental/chats/{chat}/compact [post]
+// @x-apidocgen {"skip": true}
+// @Description Experimental: this endpoint is subject to change.
+// @Description Requests a manual context compaction on an idle chat. The
+// @Description compaction runs asynchronously through the chat worker and
+// @Description bypasses the automatic usage threshold.
+func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	chat := httpmw.ChatParam(r)
+	chatID := chat.ID
+	logger := api.Logger.Named("chat_compact").With(slog.F("chat_id", chatID))
+
+	if !api.requireChatDaemon(ctx, rw) {
+		return
+	}
+
+	// Compaction triggers LLM inference, requiring update permission
+	// on the org-scoped chat resource.
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Only the chat owner may trigger compaction. Org admins pass the
+	// RBAC check above (org-level ActionUpdate), but compaction runs
+	// inference with the owner's delegated credentials.
+	if apiKey.UserID != chat.OwnerID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner may compact the chat.",
+		})
+		return
+	}
+
+	updated, err := api.chatDaemon.CompactChat(ctx, chat)
+	if err != nil {
+		if maybeWriteLimitErr(ctx, rw, err) {
+			return
+		}
+		if writeCommonChatMutationError(ctx, rw, err, "Cannot compact an archived chat.") {
+			return
+		}
+		switch {
+		case errors.Is(err, chatd.ErrNothingToCompact):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Nothing to compact.",
+				Detail:  "The chat has no conversation to summarize after the latest compaction.",
+			})
+		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
+			// Covers every non-waiting state: running, interrupting,
+			// requires-action, and error. "Busy" would misdescribe an
+			// errored chat, so keep the message state-neutral.
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Cannot compact the chat in its current state.",
+				Detail:  "Compaction is only available while the chat is idle.",
+			})
+		default:
+			logger.Error(ctx, "failed to compact chat", slog.Error(err))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to compact chat.",
+				Detail:  err.Error(),
+			})
+		}
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updated, nil, nil))
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
 // @Summary Reconcile invalid chat state
 // @ID reconcile-invalid-chat-state
 // @Security CoderSessionToken

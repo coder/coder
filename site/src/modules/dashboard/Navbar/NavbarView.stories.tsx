@@ -30,11 +30,15 @@ const meta: Meta<typeof NavbarView> = {
 	component: NavbarView,
 	args: {
 		user: MockUserOwner,
-		canViewAuditLog: true,
-		canViewDeployment: true,
-		canViewHealth: true,
-		canViewAISettings: true,
-		canViewOrganizations: true,
+		adminPermissions: {
+			canViewDeployment: true,
+			canViewOrganizations: true,
+			canViewAISettings: true,
+			canViewAuditLog: true,
+			canViewConnectionLog: true,
+			canViewAIBridge: true,
+			canViewHealth: true,
+		},
 		canCreateChat: true,
 		supportLinks: [],
 	},
@@ -56,11 +60,9 @@ export const ForAdmin: Story = {
 export const ForAuditor: Story = {
 	args: {
 		user: MockUserMember,
-		canViewAuditLog: true,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewAISettings: false,
-		canViewOrganizations: false,
+		adminPermissions: {
+			canViewAuditLog: true,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -73,11 +75,10 @@ export const ForAuditor: Story = {
 export const ForOrgAdmin: Story = {
 	args: {
 		user: MockUserMember,
-		canViewAuditLog: true,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewAISettings: false,
-		canViewOrganizations: true,
+		adminPermissions: {
+			canViewAuditLog: true,
+			canViewOrganizations: true,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -89,11 +90,9 @@ export const ForOrgAdmin: Story = {
 
 export const ForSingleOrgOSSAdmin: Story = {
 	args: {
-		canViewAuditLog: false,
-		canViewOrganizations: false,
-		canViewConnectionLog: false,
-		canViewAIBridge: false,
-		canViewAISettings: false,
+		adminPermissions: {
+			canViewDeployment: true,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -106,11 +105,7 @@ export const ForSingleOrgOSSAdmin: Story = {
 export const ForMember: Story = {
 	args: {
 		user: MockUserMember,
-		canViewAuditLog: false,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewAISettings: false,
-		canViewOrganizations: false,
+		adminPermissions: {},
 		canCreateChat: false,
 	},
 };
@@ -118,11 +113,7 @@ export const ForMember: Story = {
 export const ForMemberWithAgentsAccess: Story = {
 	args: {
 		user: MockUserMember,
-		canViewAuditLog: false,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewAISettings: false,
-		canViewOrganizations: false,
+		adminPermissions: {},
 		canCreateChat: true,
 	},
 };
@@ -141,11 +132,7 @@ export const IdleTasks: Story = {
 export const SupportLinks: Story = {
 	args: {
 		user: MockUserMember,
-		canViewAuditLog: false,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewAISettings: false,
-		canViewOrganizations: false,
+		adminPermissions: {},
 		supportLinks: [
 			{
 				name: "This is a bug",
@@ -182,11 +169,7 @@ export const SupportLinks: Story = {
 export const DefaultSupportLinks: Story = {
 	args: {
 		user: MockUserMember,
-		canViewAuditLog: false,
-		canViewDeployment: false,
-		canViewHealth: false,
-		canViewAISettings: false,
-		canViewOrganizations: false,
+		adminPermissions: {},
 		supportLinks: [
 			{ icon: "docs", name: "Documentation", target: "" },
 			{ icon: "bug", name: "Report a bug", target: "" },

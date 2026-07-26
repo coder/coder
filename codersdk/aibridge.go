@@ -34,12 +34,14 @@ type AIGroupBudget struct {
 	LimitSource      AIBudgetLimitSource `json:"limit_source"`
 }
 
-// UserAIBudgetSummary is the effective AI budget for a user. When no
-// budget applies, all fields except UserID are null.
+// UserAIBudgetSummary is the effective AI budget for a user. When no budget
+// applies, the effective group falls back to the Everyone group with a null
+// limit and source.
 type UserAIBudgetSummary struct {
 	UserID uuid.UUID `json:"user_id" format:"uuid"`
-	// EffectiveGroupID is the group the spend is attributed to. Null when
-	// no budget applies.
+	// EffectiveGroupID is the group the spend is attributed to, falling back to
+	// the Everyone group when no budget applies. Null only when the user has no
+	// organization membership.
 	EffectiveGroupID *uuid.UUID `json:"effective_group_id" format:"uuid"`
 	// SpendLimitMicros is the effective spend limit in micro-units.
 	// Null when no budget applies to the user (unlimited).
@@ -101,9 +103,9 @@ type GroupMembersAISpend struct {
 type GroupMemberAISpend struct {
 	UserID uuid.UUID `json:"user_id" format:"uuid"`
 	// EffectiveGroupID is the user's effective budget group within the queried
-	// group's organization. Null when no effective budget group is visible in
-	// this organization, including when the user's budget resolves to a group
-	// in another organization.
+	// group's organization, falling back to the Everyone group when no budget
+	// applies. Null when the effective group belongs to a different organization
+	// than the queried group.
 	EffectiveGroupID *uuid.UUID `json:"effective_group_id" format:"uuid"`
 	// GroupBudget is the budget when the queried group is this user's
 	// effective budget source. Null when the user's budget resolves to another
@@ -125,8 +127,13 @@ type AIBridgeSession struct {
 	EndedAt           *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	Threads           int64                            `json:"threads"`
 	TokenUsageSummary AIBridgeSessionTokenUsageSummary `json:"token_usage_summary"`
-	LastPrompt        *string                          `json:"last_prompt,omitempty"`
-	LastActiveAt      time.Time                        `json:"last_active_at" format:"date-time"`
+	// NetworkCalls summarizes the Agent Firewall network calls made during the
+	// session. A nil value means the session did not pass through Agent
+	// Firewall, so network call monitoring was not active, which the UI
+	// surfaces as "Disabled".
+	NetworkCalls *AIBridgeSessionNetworkCallSummary `json:"network_calls,omitempty"`
+	LastPrompt   *string                            `json:"last_prompt,omitempty"`
+	LastActiveAt time.Time                          `json:"last_active_at" format:"date-time"`
 }
 
 type AIBridgeSessionTokenUsageSummary struct {
@@ -134,6 +141,14 @@ type AIBridgeSessionTokenUsageSummary struct {
 	OutputTokens          int64 `json:"output_tokens"`
 	CacheReadInputTokens  int64 `json:"cache_read_input_tokens"`
 	CacheWriteInputTokens int64 `json:"cache_write_input_tokens"`
+}
+
+// AIBridgeSessionNetworkCallSummary aggregates the Agent Firewall network
+// calls made during a session. Blocked counts calls denied by the firewall
+// allow-list.
+type AIBridgeSessionNetworkCallSummary struct {
+	Total   int64 `json:"total"`
+	Blocked int64 `json:"blocked"`
 }
 
 type AIBridgeListSessionsResponse struct {

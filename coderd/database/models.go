@@ -4970,6 +4970,8 @@ type Chat struct {
 	PlanMode                 NullChatPlanMode        `db:"plan_mode" json:"plan_mode"`
 	ClientType               ChatClientType          `db:"client_type" json:"client_type"`
 	LastTurnSummary          sql.NullString          `db:"last_turn_summary" json:"last_turn_summary"`
+	Summary                  sql.NullString          `db:"summary" json:"summary"`
+	SummaryGeneratedAt       sql.NullTime            `db:"summary_generated_at" json:"summary_generated_at"`
 	SnapshotVersion          int64                   `db:"snapshot_version" json:"snapshot_version"`
 	HistoryVersion           int64                   `db:"history_version" json:"history_version"`
 	QueueVersion             int64                   `db:"queue_version" json:"queue_version"`
@@ -4986,6 +4988,7 @@ type Chat struct {
 	ContextDirtySince        sql.NullTime            `db:"context_dirty_since" json:"context_dirty_since"`
 	ContextDirtyResources    pqtype.NullRawMessage   `db:"context_dirty_resources" json:"context_dirty_resources"`
 	ContextError             string                  `db:"context_error" json:"context_error"`
+	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
@@ -5119,7 +5122,6 @@ type ChatMessage struct {
 	RuntimeMs           sql.NullInt64         `db:"runtime_ms" json:"runtime_ms"`
 	Deleted             bool                  `db:"deleted" json:"deleted"`
 	ProviderResponseID  sql.NullString        `db:"provider_response_id" json:"provider_response_id"`
-	APIKeyID            sql.NullString        `db:"api_key_id" json:"api_key_id"`
 	Revision            int64                 `db:"revision" json:"revision"`
 	// Stores the selected effort for the turn triggered by this message.
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
@@ -5151,7 +5153,6 @@ type ChatQueuedMessage struct {
 	Content       json.RawMessage `db:"content" json:"content"`
 	CreatedAt     time.Time       `db:"created_at" json:"created_at"`
 	ModelConfigID uuid.NullUUID   `db:"model_config_id" json:"model_config_id"`
-	APIKeyID      sql.NullString  `db:"api_key_id" json:"api_key_id"`
 	Position      int64           `db:"position" json:"position"`
 	CreatedBy     uuid.UUID       `db:"created_by" json:"created_by"`
 	// Stores the selected effort until the queued row is promoted.
@@ -5209,6 +5210,10 @@ type ChatTable struct {
 	ContextError string `db:"context_error" json:"context_error"`
 	// Stores the most recent message effort once per-turn selection is wired.
 	LastReasoningEffort NullChatReasoningEffort `db:"last_reasoning_effort" json:"last_reasoning_effort"`
+	// Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.
+	CompactionRequestedAt sql.NullTime   `db:"compaction_requested_at" json:"compaction_requested_at"`
+	Summary               sql.NullString `db:"summary" json:"summary"`
+	SummaryGeneratedAt    sql.NullTime   `db:"summary_generated_at" json:"summary_generated_at"`
 }
 
 type ChatUsageLimitConfig struct {
