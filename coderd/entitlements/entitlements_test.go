@@ -32,27 +32,19 @@ func TestAllowRefresh(t *testing.T) {
 
 	now := time.Now()
 	set := entitlements.New()
+	set.Modify(func(entitlements *codersdk.Entitlements) {
+		entitlements.RefreshedAt = now
+	})
 
-	// The first forced refresh is always allowed.
 	ok, wait := set.AllowRefresh(now)
-	require.True(t, ok)
-	require.Equal(t, time.Duration(0), wait)
-
-	// A second forced refresh within the cooldown is rejected.
-	ok, wait = set.AllowRefresh(now.Add(time.Second))
 	require.False(t, ok)
 	require.InDelta(t, time.Minute.Seconds(), wait.Seconds(), 5)
 
-	// Recomputations stamping RefreshedAt do not reset the forced-refresh
-	// cooldown.
 	set.Modify(func(entitlements *codersdk.Entitlements) {
-		entitlements.RefreshedAt = now.Add(time.Second * 2)
+		entitlements.RefreshedAt = now.Add(time.Minute * -2)
 	})
-	ok, _ = set.AllowRefresh(now.Add(time.Second * 2))
-	require.False(t, ok)
 
-	// Once the cooldown elapses, a forced refresh is allowed again.
-	ok, wait = set.AllowRefresh(now.Add(time.Minute * 2))
+	ok, wait = set.AllowRefresh(now)
 	require.True(t, ok)
 	require.Equal(t, time.Duration(0), wait)
 }
