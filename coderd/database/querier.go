@@ -342,11 +342,9 @@ type sqlcQuerier interface {
 	GetActivePresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error)
 	GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	// Returns the authorization roles (site and org-scoped, including implied
-	// member roles and organization default roles) for every active, non-deleted
-	// user who is neither a system user nor a service account, matching the
-	// GetActiveUserCount population. Group memberships are not returned, so the
-	// results only support authorization decisions on objects without ACLs:
-	// groups influence authorization solely through object ACL matching.
+	// member roles and organization default roles) and the group memberships
+	// for every active, non-deleted user who is neither a system user nor a
+	// service account, matching the GetActiveUserCount population.
 	GetActiveUsersAuthorizationRoles(ctx context.Context) ([]GetActiveUsersAuthorizationRolesRow, error)
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
 	// For PG Coordinator HTMLDebug
