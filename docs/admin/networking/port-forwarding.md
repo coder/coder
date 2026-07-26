@@ -78,35 +78,50 @@ where each segment of hostnames must not exceed 63 characters. If your app
 name, agent name, workspace name and username exceed 63 characters in the
 hostname, port forwarding via the dashboard will not work.
 
-### From an coder_app resource
+### From a `coder_app` resource
 
-One way to port forward is to configure a `coder_app` resource in the
-workspace's template. This approach shows a visual application icon in the
-dashboard. See the following `coder_app` example for a Node React app and note
-the `subdomain` and `share` settings:
+Configure a `coder_app` resource in the workspace template to show an application button in the dashboard.
+When a workspace exposes several browser-based services, define the services in a map and create the applications with `for_each`.
+Use `display_name` to label each button and `group` to organize related applications:
 
 ```tf
-# node app
-resource "coder_app" "node-react-app" {
-  agent_id  = coder_agent.dev.id
-  slug      = "node-react-app"
-  icon      = "https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg"
-  url       = "http://localhost:3000"
-  subdomain = true
-  share     = "authenticated"
-
-  healthcheck {
-    url       = "http://localhost:3000/healthz"
-    interval  = 10
-    threshold = 30
+locals {
+  workspace_apps = {
+    frontend = {
+      display_name = "Frontend"
+      group        = "Frontend"
+      port         = 3000
+    }
+    api = {
+      display_name = "API"
+      group        = "Backend"
+      port         = 4000
+    }
+    storybook = {
+      display_name = "Storybook"
+      group        = "Tooling"
+      port         = 6006
+    }
   }
+}
 
+resource "coder_app" "workspace" {
+  for_each = local.workspace_apps
+
+  agent_id     = coder_agent.dev.id
+  slug         = each.key
+  display_name = each.value.display_name
+  group        = each.value.group
+  url          = "http://localhost:${each.value.port}"
+  subdomain    = true
+  share        = "owner"
 }
 ```
 
-Valid `share` values include `owner` - private to the user, `authenticated` -
-accessible by any user authenticated to the Coder deployment, and `public` -
-accessible by users outside of the Coder deployment.
+`coder_app` resources expose HTTP or HTTPS applications.
+Use Coder Desktop, the `coder port-forward` command, or SSH for raw TCP services such as databases.
+
+Valid `share` values include `owner` (private to the user), `authenticated` (accessible by any user authenticated to the Coder deployment), and `public` (accessible without authentication).
 
 ![Port forwarding from an app in the UI](../../images/networking/portforwarddashboard.png)
 
