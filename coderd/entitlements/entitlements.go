@@ -88,18 +88,6 @@ func (l *Set) Update(ctx context.Context, fetch func(context.Context) (codersdk.
 // AllowRefresh returns whether the entitlements are allowed to be refreshed.
 // If it returns false, that means it was recently refreshed and the caller should
 // wait the returned duration before trying again.
-//
-// TODO: This rate-limits forced refreshes against RefreshedAt, which is
-// stamped by every entitlement recomputation (the periodic
-// EntitlementsUpdateInterval tick, license add/delete, and pubsub-triggered
-// recomputations from other replicas), not just forced ones. Any recent
-// recomputation therefore rejects a forced refresh even if the user never
-// forced one. Tracking the last forced refresh in this struct instead is not
-// enough: the cooldown must be deployment-wide, or with multiple replicas
-// behind a load balancer each replica grants its own budget and repeated
-// requests are inconsistently allowed or rejected depending on routing. A
-// proper fix needs a shared, atomically-claimed timestamp (e.g. a
-// site_configs row).
 func (l *Set) AllowRefresh(now time.Time) (bool, time.Duration) {
 	l.entitlementsMu.RLock()
 	defer l.entitlementsMu.RUnlock()
