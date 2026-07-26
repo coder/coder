@@ -655,11 +655,9 @@ WHERE
 
 -- name: GetActiveUsersAuthorizationRoles :many
 -- Returns the authorization roles (site and org-scoped, including implied
--- member roles and organization default roles) for every active, non-deleted
--- user who is neither a system user nor a service account, matching the
--- GetActiveUserCount population. Group memberships are not returned, so the
--- results only support authorization decisions on objects without ACLs:
--- groups influence authorization solely through object ACL matching.
+-- member roles and organization default roles) and the group memberships
+-- for every active, non-deleted user who is neither a system user nor a
+-- service account, matching the GetActiveUserCount population.
 WITH org_roles AS (
 	SELECT
 		organization_members.user_id,
@@ -685,6 +683,15 @@ WITH org_roles AS (
 		) AS org_role
 	GROUP BY
 		organization_members.user_id
+),
+user_groups AS (
+	SELECT
+		group_members.user_id,
+		array_agg(group_members.group_id :: text) AS groups
+	FROM
+		group_members
+	GROUP BY
+		group_members.user_id
 )
 SELECT
 	users.id,
@@ -693,10 +700,12 @@ SELECT
 		array_append(users.rbac_roles, 'member'),
 		-- Users with no org memberships have no org_roles row.
 		coalesce(org_roles.roles, ARRAY[]::text[])
-	) :: text[] AS roles
+	) :: text[] AS roles,
+	coalesce(user_groups.groups, ARRAY[]::text[]) :: text[] AS groups
 FROM
 	users
 	LEFT JOIN org_roles ON org_roles.user_id = users.id
+	LEFT JOIN user_groups ON user_groups.user_id = users.id
 WHERE
 	users.status = 'active'::user_status
 	AND users.deleted = false
