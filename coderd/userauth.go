@@ -1140,7 +1140,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		http.SetCookie(rw, cookie)
 	}
 
-	redirect = uriFromURL(redirect)
+	redirect = httpapi.SafeRedirectPath(redirect)
 	if api.GithubOAuth2Config.DeviceFlowEnabled {
 		// In the device flow, the redirect is handled client-side.
 		httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2DeviceFlowCallbackResponse{
@@ -1574,7 +1574,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	redirect := state.Redirect
 	// Strip the host if it exists on the URL to prevent
 	// any nefarious redirects.
-	redirect = uriFromURL(redirect)
+	redirect = httpapi.SafeRedirectPath(redirect)
 	http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
 }
 

@@ -1160,9 +1160,10 @@ class ApiMethods {
 
 	getTemplateVersionExternalAuth = async (
 		versionId: string,
+		userId = "me",
 	): Promise<TypesGen.TemplateVersionExternalAuth[]> => {
 		const response = await this.axios.get(
-			`/api/v2/templateversions/${versionId}/external-auth`,
+			`/api/v2/templateversions/${versionId}/external-auth?user_id=${userId}`,
 		);
 
 		return response.data;
@@ -3437,6 +3438,12 @@ class ExperimentalApiMethods {
 	getChat = async (chatId: string): Promise<TypesGen.Chat> => {
 		const response = await this.axios.get<TypesGen.Chat>(
 			`/api/experimental/chats/${chatId}`,
+		);
+		return response.data;
+	};
+	getChatCost = async (chatId: string): Promise<TypesGen.ChatCost> => {
+		const response = await this.axios.get<TypesGen.ChatCost>(
+			`/api/experimental/chats/${chatId}/cost`,
 		);
 		return response.data;
 	};

@@ -1,30 +1,21 @@
 import type { FC } from "react";
-import { Link } from "react-router";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
-	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import {
+	AdminSettingsItems,
 	type AdminSettingsPermissions,
-	canViewAdminSettings,
-	getAdminSettingsItems,
-} from "./adminSettings";
+} from "./AdminSettings";
 
-type DeploymentDropdownProps = AdminSettingsPermissions;
+type AdminSettingsDropdownProps = { permissions: AdminSettingsPermissions };
 
-export const DeploymentDropdown: FC<DeploymentDropdownProps> = (
+export const AdminSettingsDropdown: FC<AdminSettingsDropdownProps> = ({
 	permissions,
-) => {
-	if (!canViewAdminSettings(permissions)) {
-		return null;
-	}
-
-	const items = getAdminSettingsItems(permissions);
-
+}) => {
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
@@ -36,11 +27,7 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = (
 
 			<DropdownMenuContent align="end" className="w-[180px] min-w-auto">
 				<nav>
-					{items.map((item) => (
-						<DropdownMenuItem key={item.to} asChild>
-							<Link to={item.to}>{item.label}</Link>
-						</DropdownMenuItem>
-					))}
+					<AdminSettingsItems permissions={permissions} />
 				</nav>
 			</DropdownMenuContent>
 		</DropdownMenu>

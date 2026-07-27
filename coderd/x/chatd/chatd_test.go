@@ -6353,7 +6353,6 @@ func TestActiveServer_BasicAssistantGenerationAndPromptPreparation(t *testing.T)
 	// TestInterruptTask_PartialAssistantKeepsAttemptRuntime.
 	requireTextPart(t, last, "done")
 
-	requests = newAnthropicRequestRecorder()
 	server = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
 	})
@@ -6368,9 +6367,10 @@ func TestActiveServer_BasicAssistantGenerationAndPromptPreparation(t *testing.T)
 	require.NoError(t, err)
 	waitForChatStatus(ctx, t, db, planChat.ID, database.ChatStatusWaiting)
 
-	planRequests := filterAnthropicStreamingRequests(requests.all())
-	require.Len(t, planRequests, 1)
-	toolNames = anthropicRequestToolNames(planRequests[0])
+	allGenerationRequests := filterAnthropicStreamingRequests(requests.all())
+	require.Len(t, allGenerationRequests, len(generationRequests)+1)
+	planRequest := allGenerationRequests[len(generationRequests)]
+	toolNames = anthropicRequestToolNames(planRequest)
 	require.Contains(t, toolNames, "read_file")
 	require.NotContains(t, toolNames, "write_file")
 }

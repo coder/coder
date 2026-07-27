@@ -40,3 +40,30 @@ coderd/database/queries/ai_provider_keys.sql @ibetitsmike @johnstcn
 coderd/database/queries/aicostcontrol.sql @ibetitsmike @johnstcn
 codersdk/aiproviders.go @ibetitsmike @johnstcn
 codersdk/aiproviders_bedrock.go @ibetitsmike @johnstcn
+
+# Documentation content and docs-specific tooling are owned by the docs team so
+# that @coder/docs is automatically requested for review on documentation
+# changes. Paths are anchored to the repo root.
+/docs/ @coder/docs
+/offlinedocs/ @coder/docs
+
+# Prose and Markdown linting configuration.
+/.vale.ini @coder/docs
+/.markdownlint.jsonc @coder/docs
+/.markdownlint-cli2.jsonc @coder/docs
+
+# Reference-docs generators (CLI, API, audit log, and Prometheus metrics docs)
+# and their shared helper.
+scripts/clidocgen/ @coder/docs
+scripts/apidocgen/ @coder/docs
+scripts/auditdocgen/ @coder/docs
+scripts/metricsdocgen/ @coder/docs
+scripts/docgenenv/ @coder/docs
+
+# Docs-specific CI workflows. These sit under .github/ (owned above by
+# @jdomeracki-coder), so the docs team is added as a co-owner to keep both
+# parties notified of changes.
+.github/workflows/doc-check.yaml @jdomeracki-coder @coder/docs
+.github/workflows/docs-preview.yaml @jdomeracki-coder @coder/docs
+.github/workflows/deploy-docs.yaml @jdomeracki-coder @coder/docs
+.github/workflows/weekly-docs.yaml @jdomeracki-coder @coder/docs

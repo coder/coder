@@ -152,6 +152,7 @@ const baseChatFields = {
 	has_unread: false,
 	client_type: "ui",
 	last_turn_summary: null,
+	summary: null,
 	children: [],
 } as const;
 

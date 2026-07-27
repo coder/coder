@@ -2164,6 +2164,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
+      "summary": "string",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
@@ -2257,6 +2258,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
+  "summary": "string",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
@@ -2298,6 +2300,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `root_chat_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `shared`                | boolean                                                         | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
 | `status`                | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
+| `summary`               | string                                                          | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
 | `title`                 | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `updated_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `warnings`              | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
@@ -2513,6 +2516,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |---------------|--------|----------|--------------|-------------------------------------------------------------------------------------------------------------------|
 | `description` | string | false    |              | Description is the tool's human-readable summary; may be empty.                                                   |
 | `name`        | string | false    |              | Name is the tool name with the "<server>__" prefix the agent adds stripped, so it reads as the server exposes it. |
+
+## codersdk.ChatCost
+
+```json
+{
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "priced_message_count": 0,
+  "total_cost_micros": 0,
+  "unpriced_messages_having_usage_count": 0
+}
+```
+
+### Properties
+
+| Name                                   | Type    | Required | Restrictions | Description |
+|----------------------------------------|---------|----------|--------------|-------------|
+| `chat_id`                              | string  | false    |              |             |
+| `priced_message_count`                 | integer | false    |              |             |
+| `total_cost_micros`                    | integer | false    |              |             |
+| `unpriced_messages_having_usage_count` | integer | false    |              |             |
 
 ## codersdk.ChatDiffContents
 
@@ -4042,6 +4065,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
     "status": "waiting",
+    "summary": "string",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
     "warnings": [
@@ -4078,9 +4102,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                          |
-|-----------------------------------------------------------------------------------------------------------------------------------|
-| `action_required`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
+| Value(s)                                                                                                                                                 |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `chat_summary_change`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
 
 ## codersdk.ClusterConfig
 
@@ -7908,6 +7932,22 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `refresh`            | integer | false    |              |             |
 | `threshold_database` | integer | false    |              |             |
 
+## codersdk.ImportUserSecretsRequest
+
+```json
+{
+  "content": "string",
+  "format": "env"
+}
+```
+
+### Properties
+
+| Name      | Type                                                     | Required | Restrictions | Description |
+|-----------|----------------------------------------------------------|----------|--------------|-------------|
+| `content` | string                                                   | true     |              |             |
+| `format`  | [codersdk.SecretsFileFormat](#codersdksecretsfileformat) | true     |              |             |
+
 ## codersdk.InboxNotification
 
 ```json
@@ -11369,6 +11409,20 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `hostname_suffix`    | string | false    |              | Hostname suffix is the suffix to append to workspace names for SSH hostnames.                                         |
 | `ssh_config_options` | object | false    |              |                                                                                                                       |
 | » `[any property]`   | string | false    |              |                                                                                                                       |
+
+## codersdk.SecretsFileFormat
+
+```json
+"env"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)              |
+|-----------------------|
+| `env`, `json`, `yaml` |
 
 ## codersdk.ServerSentEvent
 

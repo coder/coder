@@ -1679,6 +1679,11 @@ export interface Chat {
 	readonly plan_mode?: ChatPlanMode;
 	readonly last_error?: ChatError;
 	readonly last_turn_summary: string | null;
+	/**
+	 * Summary is the persisted whole-chat summary, generated in the background.
+	 * It is nil until the first summary has been produced.
+	 */
+	readonly summary: string | null;
 	readonly diff_status?: ChatDiffStatus;
 	readonly created_at: string;
 	readonly updated_at: string;
@@ -1942,6 +1947,20 @@ export interface ChatContextTool {
 
 // From codersdk/chats.go
 /**
+ * ChatCost is the cumulative cost for a selected chat's subtree: the
+ * chat itself plus every descendant (subagent) chat it spawned. A root
+ * chat therefore reports its whole tree, while a subagent reports only
+ * its own spend plus any nested subagents.
+ */
+export interface ChatCost {
+	readonly chat_id: string;
+	readonly total_cost_micros: number;
+	readonly priced_message_count: number;
+	readonly unpriced_messages_having_usage_count: number;
+}
+
+// From codersdk/chats.go
+/**
  * ChatCostChatBreakdown contains per-root-chat cost aggregation.
  */
 export interface ChatCostChatBreakdown {
@@ -1983,7 +2002,7 @@ export interface ChatCostSummary {
 	readonly end_date: string;
 	readonly total_cost_micros: number;
 	readonly priced_message_count: number;
-	readonly unpriced_message_count: number;
+	readonly unpriced_messages_having_usage_count: number;
 	readonly total_input_tokens: number;
 	readonly total_output_tokens: number;
 	readonly total_cache_read_tokens: number;
@@ -3434,6 +3453,7 @@ export interface ChatWatchEvent {
 // From codersdk/chats.go
 export type ChatWatchEventKind =
 	| "action_required"
+	| "chat_summary_change"
 	| "context_dirty"
 	| "created"
 	| "deleted"
@@ -3444,6 +3464,7 @@ export type ChatWatchEventKind =
 
 export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 	"action_required",
+	"chat_summary_change",
 	"context_dirty",
 	"created",
 	"deleted",
@@ -5450,6 +5471,16 @@ export interface IDPSyncMapping<ResourceIdType extends string> {
 	 * The ID of the Coder resource the user should be added to
 	 */
 	readonly Gets: ResourceIdType;
+}
+
+// From codersdk/usersecrets.go
+/**
+ * ImportUserSecretsRequest is the payload for the bulk secret import
+ * endpoint. Content is the raw file bytes and Format selects the parser.
+ */
+export interface ImportUserSecretsRequest {
+	readonly format: SecretsFileFormat;
+	readonly content: string;
 }
 
 // From codersdk/inboxnotification.go
