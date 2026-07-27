@@ -8,6 +8,7 @@ import { Spinner } from "../Spinner/Spinner";
 interface FileUploadProps {
 	isUploading: boolean;
 	onUpload: (file: File) => void;
+	onUnsupportedFile?: (file: File) => void;
 	onRemove?: () => void;
 	file?: File;
 	removeLabel: string;
@@ -19,6 +20,7 @@ interface FileUploadProps {
 export const FileUpload: FC<FileUploadProps> = ({
 	isUploading,
 	onUpload,
+	onUnsupportedFile,
 	onRemove,
 	file,
 	removeLabel,
@@ -26,7 +28,7 @@ export const FileUpload: FC<FileUploadProps> = ({
 	description,
 	extensions,
 }) => {
-	const fileDrop = useFileDrop(onUpload, extensions);
+	const fileDrop = useFileDrop(onUpload, extensions, onUnsupportedFile);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const clickable = useClickable<HTMLDivElement>(() =>
 		inputRef.current?.click(),
@@ -102,6 +104,7 @@ export const FileUpload: FC<FileUploadProps> = ({
 const useFileDrop = (
 	callback: (file: File) => void,
 	extensions?: string[],
+	onUnsupportedFile?: (file: File) => void,
 ): {
 	onDragOver: (e: DragEvent<HTMLDivElement>) => void;
 	onDrop: (e: DragEvent<HTMLDivElement>) => void;
@@ -127,7 +130,10 @@ const useFileDrop = (
 
 		if (extension && extensions.includes(extension)) {
 			callback(file);
+			return;
 		}
+
+		onUnsupportedFile?.(file);
 	};
 
 	return {

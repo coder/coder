@@ -260,6 +260,7 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 									isUploading={isImporting}
 									file={importFile}
 									onUpload={handleImportFile}
+									onUnsupportedFile={handleImportFile}
 									onRemove={() => {
 										setImportFile(undefined);
 										setImportError(undefined);
@@ -556,7 +557,7 @@ type ImportSecretsErrorProps = {
 const ImportSecretsError: FC<ImportSecretsErrorProps> = ({ error }) => {
 	const validations = getImportSecretValidations(error);
 	if (validations.length === 0) {
-		return <ErrorAlert error={error} />;
+		return <ErrorAlert error={error} showDebugDetail={false} />;
 	}
 
 	return (
