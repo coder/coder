@@ -9,12 +9,14 @@ import {
 import { createDeferred } from "#/testHelpers/deferred";
 import { MockUserOwner, MockWorkspace } from "#/testHelpers/entities";
 import {
+	buildInactiveChatQueueReconciliation,
 	draftInputStorageKeyPrefix,
 	getPersistedDraftInputValue,
 	getWorkspaceOptionsWithLinkedWorkspace,
 	reconcilePromotedQueueHead,
 	restoreOptimisticRequestSnapshot,
 	runPromoteQueuedMessage,
+	settlePromotedQueueHead,
 	submitEditAndScroll,
 	useConversationEditingState,
 	waitForPendingChatSettingsSyncs,
@@ -421,6 +423,147 @@ describe("reconcilePromotedQueueHead", () => {
 		expect(snapshot.queuedMessages).toEqual([]);
 		expect(snapshot.suppressedQueuedMessageIDs.size).toBe(0);
 		expect(reconciled).toBeUndefined();
+	});
+});
+
+describe("buildInactiveChatQueueReconciliation", () => {
+	const buildQueuedMessage = (id: number, text: string): ChatQueuedMessage => ({
+		...MockChatQueuedMessage,
+		id,
+		content: [{ type: "text", text }],
+	});
+	const userMessage: ChatMessage = {
+		...MockChatMessage,
+		id: 42,
+		role: "user",
+	};
+
+	it("keeps a message queued while the send was in flight", () => {
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		const c = buildQueuedMessage(3, "C");
+
+		const next = buildInactiveChatQueueReconciliation(
+			[a, b, c],
+			[a, b],
+			[userMessage],
+			a.id,
+			undefined,
+		);
+
+		expect(next?.map((m) => m.id)).toEqual([b.id, c.id]);
+	});
+
+	it("falls back to the pre-send queue when nothing is cached", () => {
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+
+		const next = buildInactiveChatQueueReconciliation(
+			undefined,
+			[a, b],
+			[userMessage],
+			a.id,
+			undefined,
+		);
+
+		expect(next?.map((m) => m.id)).toEqual([b.id]);
+	});
+});
+
+describe("settlePromotedQueueHead", () => {
+	const buildQueuedMessage = (id: number, text: string): ChatQueuedMessage => ({
+		...MockChatQueuedMessage,
+		id,
+		content: [{ type: "text", text }],
+	});
+	const chatID = "chat-abc-123";
+
+	it("restores a head the server still has queued", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		store.setActiveChatID(chatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+
+		const settled = await settlePromotedQueueHead(
+			store,
+			chatID,
+			a.id,
+			async () => ({ messages: [], has_more: false, queued_messages: [a, b] }),
+		);
+
+		expect(settled?.map((m) => m.id)).toEqual([a.id, b.id]);
+		expect(store.getSnapshot().queuedMessages.map((m) => m.id)).toEqual([
+			a.id,
+			b.id,
+		]);
+	});
+
+	it("leaves the queue alone when the fetch fails", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		store.setActiveChatID(chatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+
+		const settled = await settlePromotedQueueHead(store, chatID, a.id, () =>
+			Promise.reject(new Error("offline")),
+		);
+
+		expect(settled).toBeUndefined();
+		expect(store.getSnapshot().queuedMessages.map((m) => m.id)).toEqual([b.id]);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(true);
+	});
+
+	it("returns the filtered queue the store applied", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		const c = buildQueuedMessage(3, "C");
+		store.setActiveChatID(chatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		// An overlapping explicit promotion suppresses C, which the server has
+		// not deleted yet, so the caller must not cache it back.
+		store.suppressQueuedMessageID(c.id);
+
+		const settled = await settlePromotedQueueHead(
+			store,
+			chatID,
+			a.id,
+			async () => ({
+				messages: [],
+				has_more: false,
+				queued_messages: [a, b, c],
+			}),
+		);
+
+		expect(settled?.map((m) => m.id)).toEqual([a.id, b.id]);
+	});
+
+	it("discards a response that resolves after navigating to another chat", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		store.setActiveChatID(chatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+
+		const settled = await settlePromotedQueueHead(
+			store,
+			chatID,
+			a.id,
+			async () => {
+				store.setActiveChatID("chat-other");
+				store.setQueuedMessages([]);
+				return { messages: [], has_more: false, queued_messages: [a, b] };
+			},
+		);
+
+		expect(settled).toBeUndefined();
+		expect(store.getSnapshot().queuedMessages).toEqual([]);
 	});
 });
 
