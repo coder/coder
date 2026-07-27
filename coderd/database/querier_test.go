@@ -2083,6 +2083,13 @@ func TestProxyByHostname(t *testing.T) {
 			matchProxyName:    "",
 		},
 		{
+			name:              "RejectAccessURLTLDPrefix",
+			testHostname:      "one.coder.co",
+			allowAccessURL:    true,
+			allowWildcardHost: false,
+			matchProxyName:    "",
+		},
+		{
 			name:              "MatchWildcard",
 			testHostname:      "something.wildcard.one.coder.com",
 			allowAccessURL:    true,
