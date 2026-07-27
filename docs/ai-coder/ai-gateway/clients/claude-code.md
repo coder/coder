@@ -81,7 +81,7 @@ module "claude-code" {
   workdir           = "/path/to/project"  # Set to your project directory
   ai_prompt         = data.coder_task.me.prompt
 
-  # Route through AI Gateway (AI Governance)
+  # Route through AI Gateway
   enable_ai_gateway = true
 }
 ```
