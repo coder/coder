@@ -37,24 +37,17 @@ func IsConnectionError(err error) bool {
 		return true
 	}
 
-	// Only codes that can result from transient peer or transport conditions
-	// are safe to retry. Protocol failures must remain terminal.
+	// net/http bundles its own HTTP/2 implementation with unexported error
+	// types, and net/http/h2_error.go bridges only the struct form of a
+	// stream error to this package's type. A pointer target never matches,
+	// and GOAWAY errors have no such bridge.
 	var streamErr http2.StreamError
-	if errors.As(err, &streamErr) && isTransientHTTP2Error(streamErr.Code) {
-		return true
-	}
-	var streamErrPtr *http2.StreamError
-	if errors.As(err, &streamErrPtr) && isTransientHTTP2Error(streamErrPtr.Code) {
-		return true
-	}
-	var goAwayErr http2.GoAwayError
-	if errors.As(err, &goAwayErr) && isTransientHTTP2Error(goAwayErr.ErrCode) {
-		return true
-	}
-	var goAwayErrPtr *http2.GoAwayError
-	return errors.As(err, &goAwayErrPtr) && isTransientHTTP2Error(goAwayErrPtr.ErrCode)
+	return errors.As(err, &streamErr) && isTransientHTTP2Error(streamErr.Code)
 }
 
+// isTransientHTTP2Error reports whether an HTTP/2 error code can result from a
+// transient peer or transport condition. Deterministic protocol failures stay
+// terminal so a malformed consumer response is not retried.
 func isTransientHTTP2Error(code http2.ErrCode) bool {
 	switch code {
 	case http2.ErrCodeNo,

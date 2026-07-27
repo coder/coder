@@ -39,16 +39,16 @@ func TestIsConnectionError(t *testing.T) {
 
 	for _, err := range []error{
 		http2.StreamError{Code: http2.ErrCodeNo},
-		&http2.StreamError{Code: http2.ErrCodeInternal},
+		http2.StreamError{Code: http2.ErrCodeInternal},
 		http2.StreamError{Code: http2.ErrCodeRefusedStream},
-		&http2.StreamError{Code: http2.ErrCodeCancel},
-		http2.GoAwayError{ErrCode: http2.ErrCodeEnhanceYourCalm},
-		&http2.GoAwayError{ErrCode: http2.ErrCodeInternal},
+		http2.StreamError{Code: http2.ErrCodeCancel},
+		http2.StreamError{Code: http2.ErrCodeEnhanceYourCalm},
+		xerrors.Errorf("read response: %w", http2.StreamError{Code: http2.ErrCodeInternal}),
 	} {
 		require.True(t, xnet.IsConnectionError(err), err)
 	}
 	require.False(t, xnet.IsConnectionError(http2.StreamError{Code: http2.ErrCodeProtocol}))
-	require.False(t, xnet.IsConnectionError(&http2.GoAwayError{ErrCode: http2.ErrCodeProtocol}))
+	require.False(t, xnet.IsConnectionError(http2.StreamError{Code: http2.ErrCodeFlowControl}))
 }
 
 func TestIsConnectionErrorHTTPResponseAbort(t *testing.T) {
