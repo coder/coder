@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -658,4 +659,90 @@ func TestIntegrationRecordsUpstreamError(t *testing.T) {
 		require.True(t, intc.ErrorMessage.Valid, "interception %s should record an error message", intc.ID)
 		require.NotEmpty(t, intc.ErrorMessage.String)
 	}
+}
+
+// TestIntegrationServiceAccount verifies that a service account can route
+// traffic through the bridge and that the interception is recorded under
+// its identity.
+func TestIntegrationServiceAccount(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	mockOpenAI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+  "id": "chatcmpl-test",
+  "object": "chat.completion",
+  "created": 1753343279,
+  "model": "gpt-4.1",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "test response"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 10,
+    "completion_tokens": 5,
+    "total_tokens": 15
+  }
+}`))
+	}))
+	t.Cleanup(mockOpenAI.Close)
+
+	db, ps := dbtestutil.NewDB(t)
+	client, _, api, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{Database: db, Pubsub: ps},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureServiceAccounts: 1,
+			},
+		},
+	})
+
+	saClient, sa := coderdtest.CreateAnotherUserMutators(t, client, firstUser.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+		r.ServiceAccount = true
+	})
+	apiKey, err := saClient.CreateToken(ctx, "me", codersdk.CreateTokenRequest{
+		TokenName: fmt.Sprintf("test-key-%d", time.Now().UnixNano()),
+		Lifetime:  time.Hour,
+		Scope:     codersdk.APIKeyScopeCoderAll,
+	})
+	require.NoError(t, err)
+
+	aiBridgeClient, err := api.AGPL.CreateInMemoryAIBridgeServer(ctx)
+	require.NoError(t, err)
+
+	logger := testutil.Logger(t)
+	providers := []aibridge.Provider{
+		aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL, KeyPool: singleKeyPool(t, config.ProviderOpenAI, "test-key")}),
+	}
+	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, nil, testTracer)
+	require.NoError(t, err)
+
+	srv, err := aibridged.New(ctx, pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
+		return aiBridgeClient, nil
+	}, logger, testTracer)
+	require.NoError(t, err, "create new aibridged")
+	t.Cleanup(func() { _ = srv.Shutdown(ctx) })
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "/openai/v1/chat/completions", bytes.NewBufferString(`{"messages":[{"role":"user","content":"test"}],"model":"gpt-4.1","stream":false}`))
+	require.NoError(t, err)
+	req.Header.Add("Authorization", "Bearer "+apiKey.Key)
+	req.Header.Add("Accept", "application/json")
+
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	intcs, err := db.GetAIBridgeInterceptions(ctx)
+	require.NoError(t, err)
+	require.Len(t, intcs, 1)
+	require.Equal(t, sa.ID, intcs[0].InitiatorID)
 }

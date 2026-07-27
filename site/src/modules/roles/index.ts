@@ -21,6 +21,8 @@ export const roleDescriptions: Record<string, string> = {
 		"Organization auditor can access audit logs for this organization.",
 	"organization-workspace-creation-ban":
 		"Prevents this user from creating new workspaces in this organization.",
+	"organization-workspace-access":
+		"Grants the ability to create and use workspaces in this organization.",
 	member:
 		"Everybody is a member. This is a shared and default role for all users.",
 };
