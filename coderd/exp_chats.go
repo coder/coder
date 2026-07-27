@@ -7579,12 +7579,6 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	if req.Enabled != nil {
 		enabled = *req.Enabled
 	}
-
-	// Prevent enabling models without a provider.
-	if enabled && !aiProviderID.Valid {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Cannot enable a model without a provider."})
-		return
-	}
 	isDefault := existing.IsDefault
 	if req.IsDefault != nil {
 		isDefault = *req.IsDefault
