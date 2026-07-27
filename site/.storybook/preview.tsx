@@ -1,7 +1,9 @@
 import "../src/index.css";
 import "../src/theme/globalFonts";
+import { isPixel } from "@coder/pixel-storybook/storyapi";
 import { DecoratorHelpers } from "@storybook/addon-themes";
 import type { Decorator, Parameters } from "@storybook/react-vite";
+import { MotionConfig } from "motion/react";
 import { StrictMode } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";
@@ -120,4 +122,15 @@ const withTheme: Decorator = (Story, context) => {
 	);
 };
 
-export const decorators: Decorator[] = [withRouter, withQuery, withTheme];
+const withStaticMotion: Decorator = (Story) => (
+	<MotionConfig skipAnimations={isPixel()}>
+		<Story />
+	</MotionConfig>
+);
+
+export const decorators: Decorator[] = [
+	withRouter,
+	withQuery,
+	withTheme,
+	withStaticMotion,
+];

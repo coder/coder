@@ -1,3 +1,4 @@
+import { isPixel } from "@coder/pixel-storybook/storyapi";
 import {
 	CodeIcon,
 	DatabaseIcon,
@@ -27,6 +28,8 @@ const ICONS: FloatingIcon[] = [
 	{ name: "template", icon: LayoutTemplateIcon, x: 28, y: -8, delay: 2.0 },
 ];
 
+const DOT_DELAYS = [0, 0.2, 0.4];
+
 /**
  * Full-area animated loader displayed while the template builder compose
  * API call is in flight. Shows floating icon boxes, an indeterminate progress
@@ -34,6 +37,11 @@ const ICONS: FloatingIcon[] = [
  * label.
  */
 export const BuildingTemplateLoader: FC = () => {
+	// The icon and dot loops end blank (icons offscreen, dots faded out), so a
+	// Pixel capture, which holds animations at their final keyframe, would record
+	// an empty loader. Hold them at a representative frame instead.
+	const frozen = isPixel();
+
 	return (
 		<div
 			className="relative flex flex-col items-center justify-end w-full min-h-[480px] overflow-hidden"
@@ -50,10 +58,14 @@ export const BuildingTemplateLoader: FC = () => {
 							left: `calc(50% + ${x}%)`,
 							top: `calc(50% + ${y}%)`,
 						}}
-						animate={{
-							y: ["-100vh", "0vh", "0vh", "0vh", "-100vh", "-100vh"],
-							opacity: [0, 1, 1, 0, 0, 0],
-						}}
+						animate={
+							frozen
+								? { y: "0vh", opacity: 1 }
+								: {
+										y: ["-100vh", "0vh", "0vh", "0vh", "-100vh", "-100vh"],
+										opacity: [0, 1, 1, 0, 0, 0],
+									}
+						}
 						transition={{
 							duration: 7,
 							delay,
@@ -88,38 +100,20 @@ export const BuildingTemplateLoader: FC = () => {
 				<p className="flex items-center gap-0.5 text-xs leading-[18px] text-content-secondary">
 					<span>Building your template</span>
 					<span className="inline-flex gap-0.5">
-						<motion.span
-							animate={{ opacity: [0, 1, 1, 0] }}
-							transition={{
-								duration: 1.5,
-								repeat: Number.POSITIVE_INFINITY,
-								times: [0, 0.2, 0.8, 1],
-							}}
-						>
-							.
-						</motion.span>
-						<motion.span
-							animate={{ opacity: [0, 1, 1, 0] }}
-							transition={{
-								duration: 1.5,
-								delay: 0.2,
-								repeat: Number.POSITIVE_INFINITY,
-								times: [0, 0.2, 0.8, 1],
-							}}
-						>
-							.
-						</motion.span>
-						<motion.span
-							animate={{ opacity: [0, 1, 1, 0] }}
-							transition={{
-								duration: 1.5,
-								delay: 0.4,
-								repeat: Number.POSITIVE_INFINITY,
-								times: [0, 0.2, 0.8, 1],
-							}}
-						>
-							.
-						</motion.span>
+						{DOT_DELAYS.map((delay) => (
+							<motion.span
+								key={delay}
+								animate={frozen ? { opacity: 1 } : { opacity: [0, 1, 1, 0] }}
+								transition={{
+									duration: 1.5,
+									delay,
+									repeat: Number.POSITIVE_INFINITY,
+									times: [0, 0.2, 0.8, 1],
+								}}
+							>
+								.
+							</motion.span>
+						))}
 					</span>
 				</p>
 			</div>
