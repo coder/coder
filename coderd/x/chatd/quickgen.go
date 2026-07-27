@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -1169,6 +1170,145 @@ func countSentenceTerminators(text string) int {
 		}
 	}
 	return count
+}
+
+// markdownLinkRe matches inline links and images so snippet extraction
+// can keep the link text and drop the URL.
+var markdownLinkRe = regexp.MustCompile(`!?\[([^\]]*)\]\([^)]*\)`)
+
+func subagentReportSummarySnippet(report string) string {
+	paragraph := firstReportParagraph(report)
+	if paragraph == "" {
+		return ""
+	}
+	return boundSnippetSentences(
+		paragraph,
+		subagentReportSummaryMaxSentences,
+		subagentReportSummaryMaxRunes,
+	)
+}
+
+func firstReportParagraph(report string) string {
+	var paragraph []string
+	inFence := false
+	for line := range strings.Lines(report) {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			if !inFence && len(paragraph) > 0 {
+				break
+			}
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
+		}
+		if trimmed == "" || isMarkdownStructureLine(trimmed) {
+			if len(paragraph) > 0 {
+				break
+			}
+			continue
+		}
+		content := stripInlineMarkdown(stripLineMarkers(trimmed))
+		if content == "" {
+			if len(paragraph) > 0 {
+				break
+			}
+			continue
+		}
+		paragraph = append(paragraph, content)
+	}
+	return strings.TrimSpace(strings.Join(paragraph, " "))
+}
+
+func isMarkdownStructureLine(trimmed string) bool {
+	if strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "|") {
+		return true
+	}
+	// Horizontal rules: at least three of the same marker character
+	// and nothing else.
+	if len(trimmed) >= 3 && strings.Trim(trimmed, "-") == "" {
+		return true
+	}
+	if len(trimmed) >= 3 && strings.Trim(trimmed, "*") == "" {
+		return true
+	}
+	if len(trimmed) >= 3 && strings.Trim(trimmed, "_") == "" {
+		return true
+	}
+	return false
+}
+
+func stripLineMarkers(trimmed string) string {
+	for {
+		next := trimmed
+		next = strings.TrimPrefix(next, ">")
+		if rest, ok := trimListMarker(next); ok {
+			next = rest
+		}
+		next = strings.TrimSpace(next)
+		if next == trimmed {
+			return trimmed
+		}
+		trimmed = next
+	}
+}
+
+// trimListMarker strips one leading bullet ("- ", "* ", "+ "), ordered
+// ("1. ", "1) "), or task-list ("[ ] ", "[x] ") marker.
+func trimListMarker(line string) (string, bool) {
+	for _, marker := range []string{"- ", "* ", "+ ", "[ ] ", "[x] ", "[X] "} {
+		if rest, ok := strings.CutPrefix(line, marker); ok {
+			return rest, true
+		}
+	}
+	digits := 0
+	for _, r := range line {
+		if r < '0' || r > '9' {
+			break
+		}
+		digits++
+	}
+	if digits > 0 && len(line) > digits+1 &&
+		(line[digits] == '.' || line[digits] == ')') && line[digits+1] == ' ' {
+		return line[digits+2:], true
+	}
+	return line, false
+}
+
+func stripInlineMarkdown(text string) string {
+	text = markdownLinkRe.ReplaceAllString(text, "$1")
+	replacer := strings.NewReplacer("**", "", "__", "", "~~", "", "`", "")
+	return strings.TrimSpace(replacer.Replace(text))
+}
+
+func boundSnippetSentences(text string, maxSentences, maxRunes int) string {
+	runes := []rune(text)
+	sentences := 0
+	lastEnd := 0
+	for i, r := range runes {
+		if r != '.' && r != '!' && r != '?' {
+			continue
+		}
+		if i != len(runes)-1 && !unicode.IsSpace(runes[i+1]) {
+			continue
+		}
+		if i+1 > maxRunes {
+			break
+		}
+		lastEnd = i + 1
+		sentences++
+		if sentences >= maxSentences {
+			break
+		}
+	}
+	if lastEnd > 0 {
+		return strings.TrimSpace(string(runes[:lastEnd]))
+	}
+	if len(runes) <= maxRunes {
+		return text
+	}
+	return strings.TrimSpace(string(runes[:maxRunes-1])) + "…"
 }
 
 const turnStatusLabelPrompt = "You write compact chat status labels for a sidebar or push notification. " +

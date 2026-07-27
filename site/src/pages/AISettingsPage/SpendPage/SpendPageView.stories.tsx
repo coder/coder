@@ -64,7 +64,7 @@ const mockCostSummary = {
 	end_date: "2026-03-12T00:00:00Z",
 	total_cost_micros: 2_500_000,
 	priced_message_count: 40,
-	unpriced_message_count: 2,
+	unpriced_messages_having_usage_count: 2,
 	total_input_tokens: 200_000,
 	total_output_tokens: 300_000,
 	total_cache_read_tokens: 10_000,

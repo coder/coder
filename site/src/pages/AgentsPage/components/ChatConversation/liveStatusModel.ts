@@ -21,7 +21,6 @@ export type LiveStatusModel =
 			message: string;
 			attempt: number;
 			provider?: string;
-			delayMs?: number;
 			retryingAt?: string;
 	  } & LiveStatusBase)
 	| ({
@@ -76,7 +75,6 @@ const toRetryingLiveStatus = (
 	message: retryState.error,
 	attempt: retryState.attempt,
 	provider: retryState.provider,
-	delayMs: retryState.delayMs,
 	retryingAt: retryState.retryingAt,
 });
 

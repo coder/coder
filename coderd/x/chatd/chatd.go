@@ -4381,6 +4381,12 @@ func (p *Server) maybeFinalizeTurnStatusLabelAndPush(
 	logger slog.Logger,
 ) {
 	if chat.ParentChatID.Valid {
+		// Subagent chats skip turn status labels and generated
+		// summaries, but a successful turn's final report doubles as
+		// the chat summary so subagents are not summary-less.
+		if status == database.ChatStatusWaiting {
+			p.storeSubagentReportSummaryAsync(ctx, chat, logger)
+		}
 		return
 	}
 
@@ -4505,17 +4511,6 @@ func (p *Server) dispatchSuccessfulTurnPush(
 	p.dispatchPush(ctx, chat, pushBody, database.ChatStatusWaiting, logger)
 }
 
-func (p *Server) maybeClearLastTurnSummaryAsync(
-	ctx context.Context,
-	chat database.Chat,
-	logger slog.Logger,
-) {
-	if chat.ParentChatID.Valid {
-		return
-	}
-	p.clearLastTurnSummaryAsync(ctx, chat, logger)
-}
-
 func (p *Server) setLastTurnSummaryAsync(
 	ctx context.Context,
 	chat database.Chat,
@@ -4624,6 +4619,15 @@ const (
 	chatSummaryWorkTimeout     = 120 * time.Second
 	chatSummaryGenerateTimeout = 60 * time.Second
 	chatSummaryWriteTimeout    = 5 * time.Second
+
+	// Subagent summaries reuse the final report instead of generating
+	// text, so their work timeout only covers two database round trips.
+	subagentReportSummaryTimeout = 15 * time.Second
+	// Bound the extracted report snippet near the 1-3 sentence
+	// generated summaries that root chats get, so subagent and parent
+	// summary panels read the same.
+	subagentReportSummaryMaxRunes     = 300
+	subagentReportSummaryMaxSentences = 3
 )
 
 // maybeGenerateChatSummaryAsync launches best-effort whole-chat summary
@@ -4807,6 +4811,45 @@ func (p *Server) updateChatSummary(
 	updatedChat := chat
 	updatedChat.Summary = sqlSummary
 	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindChatSummaryChange, nil)
+}
+
+func (p *Server) storeSubagentReportSummaryAsync(
+	ctx context.Context,
+	chat database.Chat,
+	logger slog.Logger,
+) {
+	summaryCtx, stopSummaryCtx := p.inflightContext(ctx)
+	if err := p.goInflight(func() {
+		defer stopSummaryCtx()
+		p.storeSubagentReportSummary(summaryCtx, chat, logger)
+	}); err != nil {
+		stopSummaryCtx()
+		logger.Debug(context.WithoutCancel(ctx), "skipped subagent report summary",
+			slog.F("chat_id", chat.ID), slog.Error(err))
+	}
+}
+
+func (p *Server) storeSubagentReportSummary(
+	ctx context.Context,
+	chat database.Chat,
+	logger slog.Logger,
+) {
+	ctx, cancel := context.WithTimeout(ctx, subagentReportSummaryTimeout)
+	defer cancel()
+
+	//nolint:gocritic // Narrow daemon access for best-effort summary writes.
+	authCtx := dbauthz.AsChatd(ctx)
+	report, err := latestSubagentAssistantMessage(authCtx, p.db, chat.ID)
+	if err != nil {
+		logger.Debug(ctx, "failed to load subagent report for summary",
+			slog.F("chat_id", chat.ID), slog.Error(err))
+		return
+	}
+	summary := subagentReportSummarySnippet(report)
+	if summary == "" {
+		return
+	}
+	p.updateChatSummary(ctx, logger, chat, chat.HistoryVersion, summary)
 }
 
 func (p *Server) webpushConfigured() bool {

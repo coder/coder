@@ -161,6 +161,31 @@ it the Coder server.
 CODER_SCIM_AUTH_HEADER="your-api-key"
 ```
 
+### SCIM 2.0 handler
+
+Coder includes an opt-in SCIM 2.0 handler that follows [RFC 7644](https://datatracker.ietf.org/doc/html/rfc7644) and has been verified against an external SCIM 2.0 compliance suite.
+It supports the following:
+
+- User provisioning and deprovisioning
+- User listing
+
+To opt in, set:
+
+```dotenv
+CODER_SCIM_USE_LEGACY=false
+```
+
+This is also available as the `--scim-use-legacy` server flag and the `scimUseLegacy` YAML option.
+Changing it requires a restart of the Coder server.
+
+Behavior notes:
+
+- Coder never hard-deletes users. `DELETE /scim/v2/Users/{id}` and deactivation (`active: false`) both [suspend](../index.md#suspend-a-user) the user.
+- Re-activating or re-creating a previously suspended user places them in the dormant state, and they become active again on their next login.
+- Usernames are immutable. Attempts to change `userName` via `PUT` or `PATCH` return a `mutability` error.
+
+The SCIM 2.0 handler will eventually become the default behavior.
+
 ## TLS
 
 If your OpenID Connect provider requires client TLS certificates for

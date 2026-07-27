@@ -43,7 +43,7 @@ export const getQueuedMessageInfo = (
 	const fileBlocks = content.filter((p) => p.type === "file");
 	const textParts: string[] = [];
 	for (const part of content) {
-		if (part.type === "text" && part.text?.trim()) {
+		if (part.type === "text" && part.text.trim()) {
 			textParts.push(part.text);
 		}
 	}
