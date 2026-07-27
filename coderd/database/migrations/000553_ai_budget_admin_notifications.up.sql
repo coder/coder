@@ -11,7 +11,7 @@ INSERT INTO notification_templates (
 )
 VALUES (
     '2a7b0ac1-00e1-4625-9cd5-1e5933972c77',
-    'AI Budget Warning (Admin)',
+    'User Approaching AI Budget Limit',
     E'{{.Labels.username}} is approaching their {{.Labels.period}} AI budget limit',
     $$User **{{.Labels.username}}** has used more than {{.Labels.threshold}}% of their {{.Labels.period}} AI budget ({{.Labels.limit}}).
 
@@ -42,7 +42,7 @@ INSERT INTO notification_templates (
 )
 VALUES (
     '0bafe0ea-a78b-4217-ad05-1ef12e92e025',
-    'AI Budget Limit Reached (Admin)',
+    'User Reached AI Budget Limit',
     E'{{.Labels.username}} has reached their {{.Labels.period}} AI budget limit',
     $$User **{{.Labels.username}}** has reached their {{.Labels.period}} AI budget limit ({{.Labels.limit}}). Subsequent requests will be blocked.
 
