@@ -65,6 +65,23 @@ func TestFilterError(t *testing.T) {
 		require.ErrorContains(t, err, "object types must be uniform")
 	})
 
+	t.Run("NonPositiveThreshold", func(t *testing.T) {
+		t.Parallel()
+
+		auth := NewAuthorizer(prometheus.NewRegistry())
+		subject := Subject{
+			ID:     uuid.NewString(),
+			Roles:  RoleIdentifiers{},
+			Groups: []string{},
+			Scope:  ScopeAll,
+		}
+
+		for _, threshold := range []int{0, -1} {
+			_, err := Filter(context.Background(), auth, subject, policy.ActionRead, []Object{ResourceWorkspace}, threshold)
+			require.ErrorContains(t, err, "prepareThreshold must be positive")
+		}
+	})
+
 	t.Run("CancelledContext", func(t *testing.T) {
 		t.Parallel()
 

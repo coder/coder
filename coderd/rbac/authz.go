@@ -228,6 +228,12 @@ const DefaultFilterThreshold = 10
 // Ideally the 'CompileToSQL' is used instead for large sets. This cost scales
 // linearly with the number of objects passed in.
 func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, action policy.Action, objects []O, prepareThreshold int) ([]O, error) {
+	if prepareThreshold <= 0 {
+		// A non-positive threshold would force the Prepare path for every
+		// non-empty input, the opposite of what a caller passing 0 as a stand-in
+		// for "default" expects. Fail loudly on an authorization function.
+		return nil, xerrors.New("prepareThreshold must be positive; pass DefaultFilterThreshold")
+	}
 	if len(objects) == 0 {
 		// Nothing to filter
 		return objects, nil

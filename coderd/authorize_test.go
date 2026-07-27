@@ -224,4 +224,53 @@ func TestCheckPermissions(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, expected, map[string]bool(resp))
 	})
+
+	// A single (read, workspace) group past the batching threshold mixing
+	// resource_id checks (concrete workspaces fetched via the maxFetch path)
+	// with org-scoped checks (synthetic org-level objects). The member owns the
+	// fetched workspace so those keys are allowed, but cannot read all org
+	// workspaces so the org-scoped keys are denied. Both object shapes must map
+	// back to the correct per-key verdict through the one prepared query.
+	t.Run("CheckAuthorization/MixedGroup", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		t.Cleanup(cancel)
+
+		workspace := coderdtest.CreateWorkspace(t, memberClient, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, memberClient, workspace.LatestBuild.ID)
+
+		grouped := make(map[string]codersdk.AuthorizationCheck)
+		expected := make(map[string]bool)
+		// resource_id checks are capped at maxFetch (10); the member owns the
+		// workspace, so reading it is allowed.
+		for i := 0; i < 10; i++ {
+			key := fmt.Sprintf("read-own-workspace-%d", i)
+			grouped[key] = codersdk.AuthorizationCheck{
+				Object: codersdk.AuthorizationObject{
+					ResourceType: codersdk.ResourceWorkspace,
+					ResourceID:   workspace.ID.String(),
+				},
+				Action: "read",
+			}
+			expected[key] = true
+		}
+		// Org-scoped checks push the (read, workspace) group past the threshold.
+		// A member cannot read every workspace in the org, so these are denied.
+		for i := 0; i < 45; i++ {
+			key := fmt.Sprintf("read-org-workspace-%d", i)
+			grouped[key] = codersdk.AuthorizationCheck{
+				Object: codersdk.AuthorizationObject{
+					ResourceType:   codersdk.ResourceWorkspace,
+					OrganizationID: adminUser.OrganizationID.String(),
+				},
+				Action: "read",
+			}
+			expected[key] = false
+		}
+
+		resp, err := memberClient.AuthCheck(ctx, codersdk.AuthorizationRequest{Checks: grouped})
+		require.NoError(t, err)
+		require.Equal(t, expected, map[string]bool(resp))
+	})
 }

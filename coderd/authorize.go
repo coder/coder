@@ -312,15 +312,23 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	for group, checks := range groups {
-		// Default to denied; Filter returns only the checks the subject may act
-		// on. On an unexpected Filter error, leaving the group denied matches the
-		// prior behavior of reporting false when Authorize returned any error.
-		for _, c := range checks {
-			response[c.key] = false
-		}
 		allowed, err := rbac.Filter(ctx, api.Authorizer, auth, group.action, checks, authcheckFilterThreshold)
 		if err != nil {
-			continue
+			// A Filter error is never a per-object denial: per-object rejections
+			// are filtered out inside Filter, so only Prepare failures and context
+			// errors reach here. Reporting the group as denied would hide an
+			// evaluation failure behind a "not permitted" answer, so surface it.
+			if ctx.Err() != nil {
+				// The client went away or the request was cancelled; there is no
+				// useful response to write and nothing worth logging.
+				return
+			}
+			httpapi.InternalServerError(rw, xerrors.Errorf("authorize %q %q: %w", group.action, group.objectType, err))
+			return
+		}
+		// Default to denied, then mark the checks Filter allowed.
+		for _, c := range checks {
+			response[c.key] = false
 		}
 		for _, c := range allowed {
 			response[c.key] = true
