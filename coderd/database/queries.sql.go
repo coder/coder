@@ -30241,6 +30241,8 @@ type GetActiveUsersAuthorizationRolesRow struct {
 // member roles and organization default roles) and the group memberships
 // for every active, non-deleted user who is neither a system user nor a
 // service account, matching the GetActiveUserCount population.
+// Must stay semantically in sync with GetAuthorizationUserRoles;
+// TestGetActiveUsersAuthorizationRolesParity enforces this.
 func (q *sqlQuerier) GetActiveUsersAuthorizationRoles(ctx context.Context) ([]GetActiveUsersAuthorizationRolesRow, error) {
 	rows, err := q.db.QueryContext(ctx, getActiveUsersAuthorizationRoles)
 	if err != nil {
@@ -30336,6 +30338,9 @@ type GetAuthorizationUserRolesRow struct {
 
 // This function returns roles for authorization purposes. Implied member roles
 // are included.
+// Must stay semantically in sync with GetActiveUsersAuthorizationRoles
+// (implied member roles, org default roles, groups);
+// TestGetActiveUsersAuthorizationRolesParity enforces this.
 func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error) {
 	row := q.db.QueryRowContext(ctx, getAuthorizationUserRoles, userID)
 	var i GetAuthorizationUserRolesRow
