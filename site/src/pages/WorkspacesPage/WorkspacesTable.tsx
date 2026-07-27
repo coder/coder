@@ -67,6 +67,7 @@ import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import {
 	getTerminalHref,
 	getVSCodeHref,
+	isExternalAppUrlInvalid,
 	openAppInNewWindow,
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
@@ -804,6 +805,20 @@ const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 		workspace,
 		agent,
 	});
+
+	// A malformed external app URL can't be opened. Render a non-navigating
+	// icon with an explanatory tooltip instead of a broken link.
+	if (isExternalAppUrlInvalid(app)) {
+		return (
+			<BaseIconLink
+				key={app.id}
+				label={`${link.label} has an invalid URL`}
+				onClick={() => {}}
+			>
+				<ExternalImage src={app.icon ?? "/icon/widgets.svg"} />
+			</BaseIconLink>
+		);
+	}
 
 	return (
 		<BaseIconLink

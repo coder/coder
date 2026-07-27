@@ -21,6 +21,7 @@ import { useProxy } from "#/contexts/ProxyContext";
 import {
 	isAppBlockedByMissingWildcard,
 	isExternalApp,
+	isExternalAppUrlInvalid,
 	needsSessionToken,
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
@@ -110,6 +111,23 @@ export const AppLink: FC<AppLinkProps> = ({
 					documentation
 				</Link>{" "}
 				for more details
+			</>
+		);
+	}
+
+	if (isExternalAppUrlInvalid(app)) {
+		canClick = false;
+		icon = (
+			<CircleAlertIcon
+				aria-hidden="true"
+				className="size-icon-sm text-content-warning"
+			/>
+		);
+		primaryTooltip = (
+			<>
+				This app has an invalid URL and can't be opened. Ask your template
+				administrator to fix the app's <code>url</code> in the template's{" "}
+				<code>coder_app</code> configuration.
 			</>
 		);
 	}

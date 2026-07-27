@@ -117,9 +117,16 @@ export const getAppHref = (
 	{ path, token, workspace, agent, host }: GetAppHrefParams,
 ): string => {
 	if (isExternalApp(app)) {
-		const appProtocol = new URL(app.url).protocol;
-		const isAllowedProtocol =
-			ALLOWED_EXTERNAL_APP_PROTOCOLS.includes(appProtocol);
+		let isAllowedProtocol = false;
+		try {
+			isAllowedProtocol = ALLOWED_EXTERNAL_APP_PROTOCOLS.includes(
+				new URL(app.url).protocol,
+			);
+		} catch {
+			// The URL is unparseable. Leave isAllowedProtocol false and return
+			// the raw URL. Consumers disable the button via
+			// isExternalAppUrlInvalid, so the href is never followed.
+		}
 
 		return needsSessionToken(app) && isAllowedProtocol
 			? app.url.replaceAll(SESSION_TOKEN_PLACEHOLDER, token ?? "")
@@ -177,6 +184,23 @@ export const needsSessionToken = (app: ExternalWorkspaceApp) => {
  */
 export const isWorkspaceAppEmbeddable = (app: WorkspaceApp): boolean => {
 	return !app.hidden && !isExternalApp(app) && !app.command;
+};
+
+/**
+ * True when an external app has a URL that cannot be parsed by the URL
+ * constructor, so it cannot be launched. Template authors sometimes set a bare
+ * string with no scheme, which would otherwise crash the page during render.
+ */
+export const isExternalAppUrlInvalid = (app: WorkspaceApp): boolean => {
+	if (!isExternalApp(app)) {
+		return false;
+	}
+	try {
+		new URL(app.url);
+		return false;
+	} catch {
+		return true;
+	}
 };
 
 /**
