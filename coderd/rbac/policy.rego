@@ -220,8 +220,8 @@ is_org_member if {
 default org_member := 0
 
 # Known org: allow when the subject owns the object and a member-level
-# permission allows it. `role_member_allowed_orgs` already folds in the
-# org-level deny (see POLICY.md "Known-org asymmetry"), and its value is fully
+# permission allows it. The allowed set folds in the org-level deny as a ground
+# set difference (see POLICY.md "Known-org asymmetry"), and its value is fully
 # known at partial-evaluation time, so the unknown org id appears in only one
 # positive membership test and the decision never branches on it. The count
 # guard keeps an empty set from emitting an unsatisfiable residual.
