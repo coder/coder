@@ -1,12 +1,11 @@
-import Checkbox from "@mui/material/Checkbox";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import * as Yup from "yup";
 import { EnterpriseBadge } from "#/components/Badges/Badges";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { FormFields } from "#/components/Form/Form";
+import { FormField } from "#/components/FormField/FormField";
 import {
 	HelpPopover,
 	HelpPopoverContent,
@@ -16,6 +15,8 @@ import {
 	HelpPopoverText,
 	HelpPopoverTitle,
 } from "#/components/HelpPopover/HelpPopover";
+import { Label } from "#/components/Label/Label";
+import { Textarea } from "#/components/Textarea/Textarea";
 import type { PublishVersionData } from "#/pages/TemplateVersionEditorPage/types";
 import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
@@ -53,6 +54,7 @@ export const PublishTemplateVersionDialog: FC<
 		onSubmit: onConfirm,
 	});
 	const getFieldHelpers = getFormHelpers(form, publishingError);
+	const messageField = getFieldHelpers("message");
 	const handleClose = () => {
 		form.resetForm();
 		onClose();
@@ -76,48 +78,56 @@ export const PublishTemplateVersionDialog: FC<
 					<div className="flex flex-col gap-4">
 						<p>You are about to publish a new version of this template.</p>
 						<FormFields>
-							<TextField
-								{...getFieldHelpers("name")}
+							<FormField
+								field={getFieldHelpers("name")}
 								label="Version name"
 								autoFocus
 								disabled={isPublishing}
 							/>
 
-							<TextField
-								{...getFieldHelpers("message")}
-								label="Message"
-								placeholder="Write a short message about the changes you made..."
-								disabled={isPublishing}
-								multiline
-								rows={5}
-							/>
+							<div className="flex flex-col gap-2">
+								<Label htmlFor={messageField.id}>Message</Label>
+								<Textarea
+									id={messageField.id}
+									name={messageField.name}
+									value={messageField.value}
+									onChange={messageField.onChange}
+									onBlur={messageField.onBlur}
+									placeholder="Write a short message about the changes you made..."
+									disabled={isPublishing}
+									rows={5}
+									aria-invalid={messageField.error}
+								/>
+								{messageField.helperText && (
+									<span className="text-xs text-content-secondary">
+										{messageField.helperText}
+									</span>
+								)}
+							</div>
 
 							<div className="flex flex-row gap-4">
-								<FormControlLabel
-									label="Promote to active version"
-									control={
-										<Checkbox
-											size="small"
-											checked={form.values.isActiveVersion}
-											onChange={async (e) => {
-												await form.setFieldValue(
-													"isActiveVersion",
-													e.target.checked,
-												);
-											}}
-											name="isActiveVersion"
-										/>
-									}
-								/>
+								<label
+									htmlFor="isActiveVersion"
+									className="flex items-center gap-2 text-sm text-content-primary"
+								>
+									<Checkbox
+										id="isActiveVersion"
+										name="isActiveVersion"
+										checked={form.values.isActiveVersion}
+										onCheckedChange={async (checked) => {
+											await form.setFieldValue(
+												"isActiveVersion",
+												checked === true,
+											);
+										}}
+									/>
+									<span>Promote to active version</span>
+								</label>
 
 								<HelpPopover>
 									<HelpPopoverIconTrigger />
 
-									{/**
-									 * 2025-09-03 - Without disablePortal, the tooltip will render under the dialog;
-									 * this prop may not need to be set when we switch away from MuiDialog
-									 */}
-									<HelpPopoverContent disablePortal>
+									<HelpPopoverContent>
 										<HelpPopoverTitle>Active versions</HelpPopoverTitle>
 										<HelpPopoverText>
 											Templates can enforce that the active version be used for

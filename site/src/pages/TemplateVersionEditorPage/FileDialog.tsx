@@ -1,6 +1,7 @@
-import TextField from "@mui/material/TextField";
 import { type ChangeEvent, type FC, useState } from "react";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
 import { type FileTree, isFolder, validatePath } from "#/utils/filetree";
 
 interface CreateFileDialogProps {
@@ -63,23 +64,27 @@ export const CreateFileDialog: FC<CreateFileDialogProps> = ({
 						Specify the path to a file to be created. This path can contain
 						slashes too.
 					</p>
-					<TextField
-						autoFocus
-						onKeyDown={(event) => {
-							if (event.key === "Enter") {
-								handleConfirm();
-							}
-						}}
-						error={Boolean(error)}
-						helperText={error}
-						name="file-path"
-						autoComplete="off"
-						id="file-path"
-						placeholder="example.tf"
-						value={pathValue}
-						onChange={handleChange}
-						label="File Path"
-					/>
+					<div className="flex flex-col gap-2">
+						<Label htmlFor="file-path">File Path</Label>
+						<Input
+							autoFocus
+							onKeyDown={(event) => {
+								if (event.key === "Enter") {
+									handleConfirm();
+								}
+							}}
+							aria-invalid={Boolean(error)}
+							name="file-path"
+							autoComplete="off"
+							id="file-path"
+							placeholder="example.tf"
+							value={pathValue}
+							onChange={handleChange}
+						/>
+						{error && (
+							<span className="text-xs text-content-destructive">{error}</span>
+						)}
+					</div>
 				</div>
 			}
 		/>
@@ -184,23 +189,27 @@ export const RenameFileDialog: FC<RenameFileDialogProps> = ({
 						Rename <strong>{filename}</strong> to something else. This path can
 						contain slashes too!
 					</p>
-					<TextField
-						autoFocus
-						onKeyDown={(event) => {
-							if (event.key === "Enter") {
-								handleConfirm();
-							}
-						}}
-						error={Boolean(error)}
-						helperText={error}
-						name="file-path"
-						autoComplete="off"
-						id="file-path"
-						placeholder={filename}
-						value={pathValue}
-						onChange={handleChange}
-						label="File Path"
-					/>
+					<div className="flex flex-col gap-2">
+						<Label htmlFor="file-path">File Path</Label>
+						<Input
+							autoFocus
+							onKeyDown={(event) => {
+								if (event.key === "Enter") {
+									handleConfirm();
+								}
+							}}
+							aria-invalid={Boolean(error)}
+							name="file-path"
+							autoComplete="off"
+							id="file-path"
+							placeholder={filename}
+							value={pathValue}
+							onChange={handleChange}
+						/>
+						{error && (
+							<span className="text-xs text-content-destructive">{error}</span>
+						)}
+					</div>
 				</div>
 			}
 		/>

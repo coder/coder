@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import { SliderPicker, TwitterPicker } from "react-color";
@@ -13,6 +12,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
+import { Textarea } from "#/components/Textarea/Textarea";
 import { AnnouncementBannerView } from "#/modules/dashboard/AnnouncementBanners/AnnouncementBannerView";
 import { getFormHelpers } from "#/utils/formUtils";
 
@@ -40,6 +40,9 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 		onSubmit: (banner) => onUpdate(banner),
 	});
 	const bannerFieldHelpers = getFormHelpers(bannerForm);
+	const messageField = bannerFieldHelpers("message", {
+		helperText: "Markdown bold, italics, and links are supported.",
+	});
 
 	const [showHuePicker, setShowHuePicker] = useState(false);
 
@@ -70,17 +73,21 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 						<h4 className="m-0 mb-2 text-base font-semibold text-content-primary">
 							Message
 						</h4>
-						<TextField
-							{...bannerFieldHelpers("message", {
-								helperText: "Markdown bold, italics, and links are supported.",
-							})}
-							fullWidth
-							multiline
-							inputProps={{
-								"aria-label": "Message",
-								placeholder: "Enter a message for the banner",
-							}}
+						<Textarea
+							id={messageField.id}
+							name={messageField.name}
+							value={messageField.value}
+							onChange={messageField.onChange}
+							onBlur={messageField.onBlur}
+							aria-label="Message"
+							aria-invalid={messageField.error}
+							placeholder="Enter a message for the banner"
 						/>
+						{messageField.helperText && (
+							<p className="m-0 mt-1 text-xs text-content-secondary">
+								{messageField.helperText}
+							</p>
+						)}
 					</div>
 					<div>
 						<h4 className="m-0 mb-2 text-base font-semibold text-content-primary">

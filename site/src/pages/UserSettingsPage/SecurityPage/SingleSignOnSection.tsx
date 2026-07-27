@@ -1,5 +1,4 @@
 import Link from "@mui/material/Link";
-import TextField from "@mui/material/TextField";
 import { CircleCheckIcon, KeyIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation } from "react-query";
@@ -15,6 +14,8 @@ import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -273,26 +274,28 @@ const ConfirmLoginTypeChangeModal: FC<ConfirmLoginTypeChangeModalProps> = ({
 						After changing your login type, you will not be able to change it
 						again. Are you sure you want to proceed and change your login type?
 					</p>
-					<TextField
-						autoFocus
-						onKeyDown={(event) => {
-							if (event.key === "Enter") {
-								handleConfirm();
-							}
-						}}
-						error={Boolean(error)}
-						helperText={
-							error
-								? getErrorMessage(error, "Your password is incorrect")
-								: undefined
-						}
-						name="confirm-password"
-						id="confirm-password"
-						value={password}
-						onChange={(e) => setPassword(e.currentTarget.value)}
-						label="Confirm your password"
-						type="password"
-					/>
+					<div className="flex flex-col gap-2">
+						<Label htmlFor="confirm-password">Confirm your password</Label>
+						<Input
+							autoFocus
+							onKeyDown={(event) => {
+								if (event.key === "Enter") {
+									handleConfirm();
+								}
+							}}
+							aria-invalid={Boolean(error)}
+							name="confirm-password"
+							id="confirm-password"
+							value={password}
+							onChange={(e) => setPassword(e.currentTarget.value)}
+							type="password"
+						/>
+						{Boolean(error) && (
+							<span className="text-xs text-content-destructive">
+								{getErrorMessage(error, "Your password is incorrect")}
+							</span>
+						)}
+					</div>
 				</div>
 			}
 		/>
