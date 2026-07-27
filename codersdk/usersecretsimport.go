@@ -388,6 +388,14 @@ func parseYAMLSecrets(content string) ([]secretEntry, error) {
 		if keyNode.Kind != yaml.ScalarNode || (keyNode.Tag != "" && keyNode.Tag != "!!str") {
 			return nil, xerrors.New("YAML keys must be strings")
 		}
+		// An alias reference is a distinct node kind, so it is reported
+		// separately from a nested mapping or sequence. Expansion is prevented
+		// elsewhere: decoding into a yaml.Node never follows aliases, and a
+		// billion-laughs document is rejected at its first anchor definition by
+		// the non-scalar check below.
+		if valNode.Kind == yaml.AliasNode {
+			return nil, xerrors.Errorf("value for key %q must be a literal string; YAML aliases are not supported", keyNode.Value)
+		}
 		if valNode.Kind != yaml.ScalarNode {
 			return nil, xerrors.Errorf("value for key %q must be a string, not a nested mapping or sequence", keyNode.Value)
 		}

@@ -198,6 +198,11 @@ func TestParseSecretsFileYAMLErrors(t *testing.T) {
 		{name: "NonMappingSequence", content: "- a\n- b", errMsg: "must be a mapping"},
 		{name: "NestedMapping", content: "OUTER:\n  inner: x", errMsg: "nested mapping or sequence"},
 		{name: "SequenceValue", content: "LIST:\n  - a\n  - b", errMsg: "nested mapping or sequence"},
+		{name: "AliasValue", content: "A: &a \"x\"\nB: *a", errMsg: `value for key "B" must be a literal string; YAML aliases are not supported`},
+		// In this document the anchor is a mapping, so the anchor definition is
+		// rejected first. A scalar-anchored merge key is instead caught by the
+		// key check, because "<<" carries the "!!merge" tag.
+		{name: "MergeKey", content: "BASE: &base\n  x: \"1\"\n<<: *base", errMsg: `value for key "BASE" must be a string, not a nested mapping or sequence`},
 		{name: "IntValue", content: "PORT: 8080", errMsg: "must be a string"},
 		{name: "BoolValue", content: "FLAG: true", errMsg: "must be a string"},
 		{name: "NullValue", content: "KEY: null", errMsg: "must be a string"},
@@ -219,9 +224,45 @@ func TestParseSecretsFileYAMLErrors(t *testing.T) {
 func TestParseSecretsFileYAMLAlias(t *testing.T) {
 	t.Parallel()
 
-	_, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatYAML, "a: &a \"x\"\nb: *a\n")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "must be a string")
+	t.Run("AliasReferenceRejected", func(t *testing.T) {
+		t.Parallel()
+		_, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatYAML, "A: &a \"x\"\nB: *a\n")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `value for key "B" must be a literal string; YAML aliases are not supported`)
+	})
+
+	// An anchor on a scalar is only a label on a string, so the value is
+	// imported normally. An alias that references it is rejected without being
+	// resolved.
+	t.Run("AnchorOnScalarImported", func(t *testing.T) {
+		t.Parallel()
+		reqs, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatYAML, "A: &a \"x\"\n")
+		require.NoError(t, err)
+		require.Equal(t, []codersdk.CreateUserSecretRequest{
+			{Name: "A", EnvName: "A", Value: "x"},
+		}, reqs)
+	})
+
+	// The bomb is rejected at its first anchor definition, before any alias
+	// node is reached. Non-expansion itself is structural: parseYAMLSecrets
+	// decodes into a yaml.Node, which yaml.v3 fills without following aliases.
+	t.Run("AliasBombRejected", func(t *testing.T) {
+		t.Parallel()
+		var sb strings.Builder
+		sb.WriteString(`L0: &l0 ["x","x","x","x","x","x","x","x","x"]` + "\n")
+		prev := "l0"
+		for i := range 9 {
+			cur := fmt.Sprintf("l%d", i+1)
+			refs := strings.TrimSuffix(strings.Repeat("*"+prev+",", 9), ",")
+			sb.WriteString(fmt.Sprintf("L%d: &%s [%s]\n", i+1, cur, refs))
+			prev = cur
+		}
+		sb.WriteString(fmt.Sprintf("BOOM: *%s\n", prev))
+
+		_, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatYAML, sb.String())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `value for key "L0" must be a string, not a nested mapping or sequence`)
+	})
 }
 
 func TestParseSecretsFileYAMLMultiDocument(t *testing.T) {
