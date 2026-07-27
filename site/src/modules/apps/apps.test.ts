@@ -8,7 +8,7 @@ import {
 	getAppHref,
 	getVSCodeHref,
 	isAppBlockedByMissingWildcard,
-	isExternalAppUrlValid,
+	isAppUrlValid,
 	isWorkspaceAppEmbeddable,
 	openAppInNewWindow,
 	SESSION_TOKEN_PLACEHOLDER,
@@ -215,27 +215,25 @@ describe("getAppHref", () => {
 
 describe("isExternalAppUrlValid", () => {
 	it("returns false for an external app with an unparseable URL", () => {
-		expect(
-			isExternalAppUrlValid(buildApp({ external: true, url: "my-repo" })),
-		).toBe(false);
+		expect(isAppUrlValid(buildApp({ external: true, url: "my-repo" }))).toBe(
+			false,
+		);
 	});
 
 	it("returns true for an external app with a valid HTTP URL", () => {
 		expect(
-			isExternalAppUrlValid(
-				buildApp({ external: true, url: "https://example.com" }),
-			),
+			isAppUrlValid(buildApp({ external: true, url: "https://example.com" })),
 		).toBe(true);
 	});
 
 	it("returns true for an external app with a valid custom scheme", () => {
 		expect(
-			isExternalAppUrlValid(buildApp({ external: true, url: "vscode://open" })),
+			isAppUrlValid(buildApp({ external: true, url: "vscode://open" })),
 		).toBe(true);
 	});
 
 	it("returns true for non-external apps", () => {
-		expect(isExternalAppUrlValid(buildApp({ external: false }))).toBe(true);
+		expect(isAppUrlValid(buildApp({ external: false }))).toBe(true);
 	});
 });
 

@@ -192,7 +192,7 @@ export const isWorkspaceAppEmbeddable = (app: WorkspaceApp): boolean => {
  * cannot be launched. Template authors sometimes set a bare string with no
  * scheme, which would otherwise crash the page during render.
  */
-export const isExternalAppUrlValid = (app: WorkspaceApp): boolean => {
+export const isAppUrlValid = (app: WorkspaceApp): boolean => {
 	if (!isExternalApp(app)) {
 		return true;
 	}

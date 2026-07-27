@@ -20,8 +20,8 @@ import {
 import { useProxy } from "#/contexts/ProxyContext";
 import {
 	isAppBlockedByMissingWildcard,
+	isAppUrlValid,
 	isExternalApp,
-	isExternalAppUrlValid,
 	needsSessionToken,
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
@@ -115,7 +115,7 @@ export const AppLink: FC<AppLinkProps> = ({
 		);
 	}
 
-	if (!isExternalAppUrlValid(app)) {
+	if (!isAppUrlValid(app)) {
 		canClick = false;
 		icon = (
 			<CircleAlertIcon
