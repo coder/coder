@@ -119,8 +119,8 @@ type Server struct {
 	budgetPolicy codersdk.AIBudgetPolicy
 	// budgetPeriod is the deployment-configured budgeting period used to
 	// derive the window over which user AI spend is aggregated.
-	budgetPeriod codersdk.AIBudgetPeriod
-	clock        quartz.Clock
+	budgetPeriod  codersdk.AIBudgetPeriod
+	clock         quartz.Clock
 	notifEnqueuer notifications.Enqueuer
 }
 
