@@ -31,6 +31,8 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
@@ -55,6 +57,9 @@ var (
 	ErrAmbiguousAuth = xerrors.New("both key and key_id set; exactly one required")
 
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
+
+	ErrNoAIGatewayAccess     = xerrors.New("no AI Gateway access")
+	ErrAuthorizationInternal = xerrors.New("internal error during authorization")
 )
 
 const (
@@ -89,6 +94,8 @@ type store interface {
 	// Authorizer-related queries.
 	GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error)
+	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error)
+	CustomRoles(ctx context.Context, arg database.CustomRolesParams) ([]database.CustomRole, error)
 
 	// ProviderConfigurator-related queries. InTx wraps the provider and key
 	// reads in a single read-only transaction; AcquireLock serializes against
@@ -106,6 +113,7 @@ type Server struct {
 	lifecycleCtx        context.Context
 	store               store
 	pubsub              pubsub.Pubsub
+	authorizer          rbac.Authorizer
 	logger              slog.Logger
 	externalAuthConfigs map[string]*externalauth.Config
 
@@ -126,6 +134,7 @@ type Server struct {
 type Options struct {
 	Store         store
 	Pubsub        pubsub.Pubsub
+	Authorizer    rbac.Authorizer
 	AISeatTracker aiseats.SeatTracker
 
 	AccessURL           string
@@ -152,6 +161,7 @@ func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
 		lifecycleCtx:        lifecycleCtx,
 		store:               opts.Store,
 		pubsub:              opts.Pubsub,
+		authorizer:          opts.Authorizer,
 		logger:              opts.Logger,
 		externalAuthConfigs: eac,
 		structuredLogging:   opts.GatewayCfg.StructuredLogging.Value(),
@@ -761,6 +771,19 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}
 	if user.IsSystem {
 		return nil, ErrSystemUser
+	}
+
+	// The initiator must hold permission to create AI Bridge
+	// interceptions.
+	subject, _, err := httpmw.UserRBACSubject(ctx, s.store, key.UserID, key.ScopeSet())
+	if err != nil {
+		s.logger.Error(ctx, "failed to build authorization subject", slog.F("user_id", key.UserID), slog.Error(err))
+		return nil, ErrAuthorizationInternal
+	}
+	if err := s.authorizer.Authorize(ctx, subject, policy.ActionCreate,
+		rbac.ResourceAibridgeInterception.WithOwner(subject.ID)); err != nil {
+		s.logger.Warn(ctx, "user lacks AI Gateway access", slog.F("user_id", key.UserID), slog.Error(err))
+		return nil, ErrNoAIGatewayAccess
 	}
 
 	return &proto.IsAuthorizedResponse{

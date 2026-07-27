@@ -47,6 +47,8 @@ import (
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -57,6 +59,20 @@ import (
 
 var requiredExperiments = []codersdk.Experiment{
 	codersdk.ExperimentMCPServerHTTP, codersdk.ExperimentOAuth2,
+}
+
+// expectMemberRoles mocks the role lookup with only the site member role,
+// which grants the interception create permission. Expansion stays within
+// built-in roles, so no CustomRoles mock is needed.
+func expectMemberRoles(db *dbmock.MockStore, user database.User) {
+	db.EXPECT().GetAuthorizationUserRoles(gomock.Any(), user.ID).Times(1).Return(database.GetAuthorizationUserRolesRow{
+		ID:       user.ID,
+		Username: user.Username,
+		Email:    user.Email,
+		Status:   user.Status,
+		Roles:    []string{"member"},
+		Groups:   []string{},
+	}, nil)
 }
 
 // TestAuthorization validates the authorization logic.
@@ -73,6 +89,9 @@ func TestAuthorization(t *testing.T) {
 		// invalid values, it should just mutate them directly.
 		mocksFn     func(db *dbmock.MockStore, apiKey database.APIKey, user database.User)
 		expectedErr error
+		// ignoreLogErrors allows cases whose store failures are logged at
+		// error level, which the test logger otherwise fails on.
+		ignoreLogErrors bool
 	}{
 		{
 			name:        "invalid key format",
@@ -147,10 +166,114 @@ func TestAuthorization(t *testing.T) {
 			},
 		},
 		{
+			name:        "no ai gateway access",
+			expectedErr: aibridgedserver.ErrNoAIGatewayAccess,
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+				// No roles, so the interception create permission is absent.
+				db.EXPECT().GetAuthorizationUserRoles(gomock.Any(), user.ID).Times(1).Return(database.GetAuthorizationUserRolesRow{
+					ID:       user.ID,
+					Username: user.Username,
+					Email:    user.Email,
+					Status:   user.Status,
+					Roles:    []string{},
+					Groups:   []string{},
+				}, nil)
+			},
+		},
+		{
+			name:            "role lookup failure",
+			expectedErr:     aibridgedserver.ErrAuthorizationInternal,
+			ignoreLogErrors: true,
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+				db.EXPECT().GetAuthorizationUserRoles(gomock.Any(), user.ID).Times(1).Return(database.GetAuthorizationUserRolesRow{}, sql.ErrConnDone)
+			},
+		},
+		{
+			name:            "role expansion failure",
+			expectedErr:     aibridgedserver.ErrAuthorizationInternal,
+			ignoreLogErrors: true,
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+				// organization-member is not a built-in role, so
+				// expansion falls through to a CustomRoles lookup.
+				db.EXPECT().GetAuthorizationUserRoles(gomock.Any(), user.ID).Times(1).Return(database.GetAuthorizationUserRolesRow{
+					ID:       user.ID,
+					Username: user.Username,
+					Email:    user.Email,
+					Status:   user.Status,
+					Roles: []string{
+						"member",
+						fmt.Sprintf("organization-member:%s", uuid.NewString()),
+					},
+					Groups: []string{},
+				}, nil)
+				db.EXPECT().CustomRoles(gomock.Any(), gomock.Any()).Times(1).Return(nil, sql.ErrConnDone)
+			},
+		},
+		{
 			name: "valid",
 			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
 				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+				expectMemberRoles(db, user)
+			},
+		},
+		{
+			// A service account's interception create permission also comes
+			// from the site member role. Its organization-service-account
+			// role is DB-backed, so expansion goes through CustomRoles.
+			name: "valid service account",
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				orgID := uuid.New()
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+				db.EXPECT().GetAuthorizationUserRoles(gomock.Any(), user.ID).Times(1).Return(database.GetAuthorizationUserRolesRow{
+					ID:       user.ID,
+					Username: user.Username,
+					Email:    user.Email,
+					Status:   user.Status,
+					Roles: []string{
+						"member",
+						fmt.Sprintf("organization-service-account:%s", orgID),
+					},
+					Groups: []string{},
+				}, nil)
+				db.EXPECT().CustomRoles(gomock.Any(), gomock.Any()).Times(1).Return([]database.CustomRole{{
+					Name:              rbac.RoleOrgServiceAccount(),
+					OrganizationID:    uuid.NullUUID{UUID: orgID, Valid: true},
+					MemberPermissions: rolestore.ConvertPermissionsToDB(rbac.OrgServiceAccountPermissions(rbac.OrgSettings{}).Member),
+				}}, nil)
+			},
+		},
+		{
+			// An application_connect-scoped key has no interception create
+			// permission, so authorization denies it despite the member
+			// grant.
+			name:        "application connect scope denied",
+			expectedErr: aibridgedserver.ErrNoAIGatewayAccess,
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				apiKey.Scopes = []database.APIKeyScope{database.ApiKeyScopeCoderApplicationConnect}
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+				expectMemberRoles(db, user)
+			},
+		},
+		{
+			// A narrow allow list does not include the interception
+			// resource, so authorization denies it despite the member
+			// grant.
+			name:        "narrow allow list denied",
+			expectedErr: aibridgedserver.ErrNoAIGatewayAccess,
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				apiKey.AllowList = database.AllowList{{Type: rbac.ResourceWorkspace.Type, ID: uuid.NewString()}}
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+				expectMemberRoles(db, user)
 			},
 		},
 	}
@@ -162,6 +285,9 @@ func TestAuthorization(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			db := dbmock.NewMockStore(ctrl)
 			logger := testutil.Logger(t)
+			if tc.ignoreLogErrors {
+				logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			}
 
 			// Make a fake user and an API key for the mock calls.
 			now := dbtime.Now()
@@ -199,6 +325,7 @@ func TestAuthorization(t *testing.T) {
 				UpdatedAt: now,
 				LoginType: database.LoginTypePassword,
 				Scopes:    []database.APIKeyScope{database.ApiKeyScopeCoderAll},
+				AllowList: database.AllowList{{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol}},
 				TokenName: "",
 			}
 			if tc.key == "" {
@@ -212,6 +339,7 @@ func TestAuthorization(t *testing.T) {
 
 			srv, err := aibridgedserver.NewServer(t.Context(), aibridgedserver.Options{
 				Store:         db,
+				Authorizer:    rbac.NewStrictAuthorizer(prometheus.NewRegistry()),
 				AISeatTracker: agplaiseats.Noop{},
 				AccessURL:     "/",
 				GatewayCfg:    codersdk.AIBridgeConfig{},
@@ -257,6 +385,7 @@ func TestAuthorization_Delegated(t *testing.T) {
 			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
 				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+				expectMemberRoles(db, user)
 			},
 		},
 		{
@@ -291,6 +420,7 @@ func TestAuthorization_Delegated(t *testing.T) {
 				apiKey.HashedSecret = []byte("not-the-real-hash")
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
 				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+				expectMemberRoles(db, user)
 			},
 		},
 		{
@@ -374,6 +504,7 @@ func TestAuthorization_Delegated(t *testing.T) {
 				UpdatedAt:       now,
 				LoginType:       database.LoginTypePassword,
 				Scopes:          []database.APIKeyScope{database.ApiKeyScopeCoderAll},
+				AllowList:       database.AllowList{{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol}},
 			}
 
 			if tc.mocksFn != nil {
@@ -382,6 +513,7 @@ func TestAuthorization_Delegated(t *testing.T) {
 
 			srv, err := aibridgedserver.NewServer(t.Context(), aibridgedserver.Options{
 				Store:         db,
+				Authorizer:    rbac.NewStrictAuthorizer(prometheus.NewRegistry()),
 				AISeatTracker: agplaiseats.Noop{},
 				AccessURL:     "/",
 				GatewayCfg:    codersdk.AIBridgeConfig{},
@@ -579,6 +711,7 @@ func TestIsBudgetExceeded(t *testing.T) {
 
 			srv, err := aibridgedserver.NewServer(t.Context(), aibridgedserver.Options{
 				Store:         db,
+				Authorizer:    rbac.NewStrictAuthorizer(prometheus.NewRegistry()),
 				AISeatTracker: agplaiseats.Noop{},
 				AccessURL:     "/",
 				GatewayCfg:    codersdk.AIBridgeConfig{},
@@ -635,6 +768,7 @@ func TestIsBudgetExceeded_Enforcement(t *testing.T) {
 
 		srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 			Store:         authzDB,
+			Authorizer:    rbac.NewStrictAuthorizer(prometheus.NewRegistry()),
 			AISeatTracker: agplaiseats.Noop{},
 			AccessURL:     "/",
 			GatewayCfg:    codersdk.AIBridgeConfig{},
@@ -850,6 +984,7 @@ func TestGetMCPServerConfigs(t *testing.T) {
 			accessURL := "https://my-cool-deployment.com"
 			srv, err := aibridgedserver.NewServer(t.Context(), aibridgedserver.Options{
 				Store:         db,
+				Authorizer:    rbac.NewStrictAuthorizer(prometheus.NewRegistry()),
 				AISeatTracker: agplaiseats.Noop{},
 				AccessURL:     accessURL,
 				GatewayCfg: codersdk.AIBridgeConfig{
@@ -899,6 +1034,7 @@ func TestGetMCPServerAccessTokensBatch(t *testing.T) {
 	// Given: 2 external auth configured with MCP and 1 without.
 	srv, err := aibridgedserver.NewServer(t.Context(), aibridgedserver.Options{
 		Store:         db,
+		Authorizer:    rbac.NewStrictAuthorizer(prometheus.NewRegistry()),
 		AISeatTracker: agplaiseats.Noop{},
 		AccessURL:     "/",
 		GatewayCfg:    codersdk.AIBridgeConfig{},
@@ -1509,6 +1645,78 @@ func TestRecordInterception(t *testing.T) {
 			},
 		},
 	)
+}
+
+// countingSeatTracker records the number of RecordUsage calls.
+type countingSeatTracker struct {
+	calls atomic.Int64
+}
+
+func (c *countingSeatTracker) RecordUsage(context.Context, uuid.UUID, agplaiseats.Reason) {
+	c.calls.Add(1)
+}
+
+// TestRecordInterceptionAISeat verifies that bridge usage claims an AI
+// Governance seat only when the seat exclusion experiment is disabled.
+func TestRecordInterceptionAISeat(t *testing.T) {
+	t.Parallel()
+
+	newRequest := func() *proto.RecordInterceptionRequest {
+		return &proto.RecordInterceptionRequest{
+			Id:          uuid.NewString(),
+			ApiKeyId:    uuid.NewString(),
+			InitiatorId: uuid.NewString(),
+			Provider:    "anthropic",
+			Model:       "claude-4-opus",
+			StartedAt:   timestamppb.Now(),
+		}
+	}
+
+	cases := []struct {
+		name          string
+		experiments   []codersdk.Experiment
+		expectedCalls int64
+	}{
+		{
+			name:          "experiment off records a seat",
+			experiments:   requiredExperiments,
+			expectedCalls: 1,
+		},
+		{
+			name:          "seat exclusion skips the seat",
+			experiments:   append([]codersdk.Experiment{codersdk.ExperimentAIGatewaySeatExclusion}, requiredExperiments...),
+			expectedCalls: 0,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Any()).
+				Return(database.AIBridgeInterception{}, nil)
+
+			tracker := &countingSeatTracker{}
+			ctx := testutil.Context(t, testutil.WaitLong)
+			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+				Store:         db,
+				Authorizer:    rbac.NewStrictAuthorizer(prometheus.NewRegistry()),
+				AISeatTracker: tracker,
+				AccessURL:     "/",
+				GatewayCfg:    codersdk.AIBridgeConfig{},
+				Experiments:   tc.experiments,
+				Logger:        testutil.Logger(t),
+				Clock:         quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			_, err = srv.RecordInterception(ctx, newRequest())
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedCalls, tracker.calls.Load())
+		})
+	}
 }
 
 func TestRecordInterceptionEnded(t *testing.T) {
@@ -2242,6 +2450,7 @@ func TestRecordTokenUsageAuthorized(t *testing.T) {
 	// The server runs every store call as subjectAibridged via the authzDB.
 	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 		Store:         authzDB,
+		Authorizer:    rbac.NewStrictAuthorizer(prometheus.NewRegistry()),
 		AISeatTracker: agplaiseats.Noop{},
 		AccessURL:     "/",
 		GatewayCfg:    codersdk.AIBridgeConfig{},
@@ -2634,6 +2843,7 @@ func testRecordMethod[Req any, Resp any](
 			ctx := testutil.Context(t, testutil.WaitLong)
 			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 				Store:         db,
+				Authorizer:    rbac.NewStrictAuthorizer(prometheus.NewRegistry()),
 				AISeatTracker: agplaiseats.Noop{},
 				AccessURL:     "/",
 				GatewayCfg:    codersdk.AIBridgeConfig{},
@@ -2963,6 +3173,7 @@ func TestStructuredLogging(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitLong)
 			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 				Store:         db,
+				Authorizer:    rbac.NewStrictAuthorizer(prometheus.NewRegistry()),
 				AISeatTracker: agplaiseats.Noop{},
 				AccessURL:     "/",
 				GatewayCfg: codersdk.AIBridgeConfig{
@@ -3015,6 +3226,7 @@ func TestInferredThreadsByToolCalls(t *testing.T) {
 
 	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 		Store:         db,
+		Authorizer:    rbac.NewStrictAuthorizer(prometheus.NewRegistry()),
 		AISeatTracker: agplaiseats.Noop{},
 		AccessURL:     "/",
 		GatewayCfg:    codersdk.AIBridgeConfig{},
@@ -3119,6 +3331,7 @@ func TestRecordToolUsageProviderItemID(t *testing.T) {
 
 	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 		Store:         db,
+		Authorizer:    rbac.NewStrictAuthorizer(prometheus.NewRegistry()),
 		AISeatTracker: agplaiseats.Noop{},
 		AccessURL:     "/",
 		GatewayCfg:    codersdk.AIBridgeConfig{},
@@ -3257,6 +3470,7 @@ func TestGetAIProviders(t *testing.T) {
 
 	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 		Store:         db,
+		Authorizer:    rbac.NewStrictAuthorizer(prometheus.NewRegistry()),
 		AISeatTracker: agplaiseats.Noop{},
 		AccessURL:     "/",
 		GatewayCfg:    codersdk.AIBridgeConfig{},
@@ -3327,6 +3541,7 @@ func TestGetAIProvidersBlocksOnSeedLock(t *testing.T) {
 
 	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 		Store:         db,
+		Authorizer:    rbac.NewStrictAuthorizer(prometheus.NewRegistry()),
 		AISeatTracker: agplaiseats.Noop{},
 		AccessURL:     "/",
 		GatewayCfg:    codersdk.AIBridgeConfig{},
@@ -3415,6 +3630,7 @@ func TestWatchAIProviders(t *testing.T) {
 
 	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 		Store:         db,
+		Authorizer:    rbac.NewStrictAuthorizer(prometheus.NewRegistry()),
 		Pubsub:        ps,
 		AISeatTracker: agplaiseats.Noop{},
 		AccessURL:     "/",
@@ -3461,6 +3677,7 @@ func TestWatchAIProvidersSignalsOnDeliveryError(t *testing.T) {
 
 	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 		Store:         db,
+		Authorizer:    rbac.NewStrictAuthorizer(prometheus.NewRegistry()),
 		Pubsub:        ps,
 		AISeatTracker: agplaiseats.Noop{},
 		AccessURL:     "/",
@@ -3511,6 +3728,7 @@ func TestWatchAIProvidersStopsOnLifecycleCancel(t *testing.T) {
 	defer lifecycleCancel()
 	srv, err := aibridgedserver.NewServer(lifecycleCtx, aibridgedserver.Options{
 		Store:         db,
+		Authorizer:    rbac.NewStrictAuthorizer(prometheus.NewRegistry()),
 		Pubsub:        ps,
 		AISeatTracker: agplaiseats.Noop{},
 		AccessURL:     "/",
