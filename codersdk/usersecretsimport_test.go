@@ -253,7 +253,8 @@ func TestParseSecretsFileYAMLMultiDocument(t *testing.T) {
 // regardless of input (the fuzz engine catches panics automatically); (2) on
 // success the result is well-formed: at least one entry, at most
 // MaxUserSecretsPerUserCount entries, EnvName is empty or equals Name for every
-// entry, and all keys unique. On error the returned slice must be nil/empty.
+// entry, and all keys unique. It also checks that ParseSecretsFileEntries
+// agrees with ParseSecretsFile and reports sane lines.
 func FuzzParseSecretsFile(f *testing.F) {
 	// env - valid
 	f.Add("env", "KEY=value")
@@ -318,6 +319,28 @@ func FuzzParseSecretsFile(f *testing.F) {
 			_, dup := seen[req.Name]
 			require.False(t, dup, "duplicate key %q in result", req.Name)
 			seen[req.Name] = struct{}{}
+		}
+
+		entries, err := codersdk.ParseSecretsFileEntries(codersdk.SecretsFileFormat(format), content)
+		require.NoError(t, err)
+		require.Len(t, entries, len(reqs))
+
+		// Lines never exceed the number of lines in the input, and env entries
+		// are reported in strictly increasing line order because each entry
+		// comes from its own line. JSON carries no line information.
+		maxLine := 1 + strings.Count(content, "\n")
+		prevLine := 0
+		for i, entry := range entries {
+			require.Equal(t, reqs[i], entry.Request)
+			require.GreaterOrEqual(t, entry.Line, 0)
+			require.LessOrEqual(t, entry.Line, maxLine)
+			switch codersdk.SecretsFileFormat(format) {
+			case codersdk.SecretsFileFormatEnv:
+				require.Greater(t, entry.Line, prevLine, "env lines must strictly increase")
+				prevLine = entry.Line
+			case codersdk.SecretsFileFormatJSON:
+				require.Zero(t, entry.Line, "JSON entries carry no line")
+			}
 		}
 	})
 }
@@ -386,6 +409,161 @@ func TestParseSecretsFileGeneralErrors(t *testing.T) {
 			_, err := codersdk.ParseSecretsFile(tt.format, tt.content)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "no secrets found")
+		})
+	}
+}
+
+func TestParseSecretsFileEntriesEnv(t *testing.T) {
+	t.Parallel()
+
+	content := strings.Join([]string{
+		"# full-line comment",
+		"",
+		"FIRST=one",
+		"   # indented comment",
+		"export SECOND=two",
+		"\t",
+		"export\tTHIRD=three",
+		"MY-TOKEN=dash",
+		"bad/name=slash",
+	}, "\n")
+
+	entries, err := codersdk.ParseSecretsFileEntries(codersdk.SecretsFileFormatEnv, content)
+	require.NoError(t, err)
+	require.Equal(t, []codersdk.ParsedSecret{
+		{Request: codersdk.CreateUserSecretRequest{Name: "FIRST", EnvName: "FIRST", Value: "one"}, Line: 3},
+		{Request: codersdk.CreateUserSecretRequest{Name: "SECOND", EnvName: "SECOND", Value: "two"}, Line: 5},
+		{Request: codersdk.CreateUserSecretRequest{Name: "THIRD", EnvName: "THIRD", Value: "three"}, Line: 7},
+		// Keys that are not valid env names keep their original spelling and
+		// import without an EnvName.
+		{Request: codersdk.CreateUserSecretRequest{Name: "MY-TOKEN", Value: "dash"}, Line: 8},
+		{Request: codersdk.CreateUserSecretRequest{Name: "bad/name", Value: "slash"}, Line: 9},
+	}, entries)
+}
+
+// A BOM and CRLF endings must not shift line attribution.
+func TestParseSecretsFileEntriesEnvCRLFAndBOM(t *testing.T) {
+	t.Parallel()
+
+	entries, err := codersdk.ParseSecretsFileEntries(codersdk.SecretsFileFormatEnv, "\ufeff# c\r\nA=1\r\n")
+	require.NoError(t, err)
+	require.Equal(t, []codersdk.ParsedSecret{
+		{Request: codersdk.CreateUserSecretRequest{Name: "A", EnvName: "A", Value: "1"}, Line: 2},
+	}, entries)
+}
+
+func TestParseSecretsFileEntriesJSON(t *testing.T) {
+	t.Parallel()
+
+	entries, err := codersdk.ParseSecretsFileEntries(codersdk.SecretsFileFormatJSON, "{\n\"A\":\"1\",\n\"MY-TOKEN\":\"2\",\n\"bad/name\":\"3\"\n}")
+	require.NoError(t, err)
+	// JSON carries no line information, so Line is 0 for every entry.
+	require.Equal(t, []codersdk.ParsedSecret{
+		{Request: codersdk.CreateUserSecretRequest{Name: "A", EnvName: "A", Value: "1"}, Line: 0},
+		{Request: codersdk.CreateUserSecretRequest{Name: "MY-TOKEN", Value: "2"}, Line: 0},
+		{Request: codersdk.CreateUserSecretRequest{Name: "bad/name", Value: "3"}, Line: 0},
+	}, entries)
+}
+
+func TestParseSecretsFileEntriesYAML(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		content string
+		want    []codersdk.ParsedSecret
+	}{
+		{
+			name:    "BlockMapping",
+			content: "# a comment\n\nA: one\nMY-TOKEN: two\nbad/name: three\n",
+			want: []codersdk.ParsedSecret{
+				{Request: codersdk.CreateUserSecretRequest{Name: "A", EnvName: "A", Value: "one"}, Line: 3},
+				{Request: codersdk.CreateUserSecretRequest{Name: "MY-TOKEN", Value: "two"}, Line: 4},
+				{Request: codersdk.CreateUserSecretRequest{Name: "bad/name", Value: "three"}, Line: 5},
+			},
+		},
+		{
+			// Keys in a flow mapping share a line, so Line does not uniquely
+			// identify an entry.
+			name:    "FlowMapping",
+			content: "{A: '1', B: '2'}\n",
+			want: []codersdk.ParsedSecret{
+				{Request: codersdk.CreateUserSecretRequest{Name: "A", EnvName: "A", Value: "1"}, Line: 1},
+				{Request: codersdk.CreateUserSecretRequest{Name: "B", EnvName: "B", Value: "2"}, Line: 1},
+			},
+		},
+		{
+			// A block scalar value pushes the following key several lines down.
+			name:    "BlockScalar",
+			content: "A: |\n  l1\n  l2\nB: '2'\n",
+			want: []codersdk.ParsedSecret{
+				{Request: codersdk.CreateUserSecretRequest{Name: "A", EnvName: "A", Value: "l1\nl2\n"}, Line: 1},
+				{Request: codersdk.CreateUserSecretRequest{Name: "B", EnvName: "B", Value: "2"}, Line: 4},
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			entries, err := codersdk.ParseSecretsFileEntries(codersdk.SecretsFileFormatYAML, tc.content)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, entries)
+		})
+	}
+}
+
+// ParseSecretsFile must keep returning exactly the requests carried by
+// ParseSecretsFileEntries, in the same order.
+func TestParseSecretsFileMatchesEntries(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		format  codersdk.SecretsFileFormat
+		content string
+	}{
+		{name: "Env", format: codersdk.SecretsFileFormatEnv, content: "# c\nA=1\nMY-TOKEN=2\n"},
+		{name: "JSON", format: codersdk.SecretsFileFormatJSON, content: `{"A":"1","MY-TOKEN":"2"}`},
+		{name: "YAML", format: codersdk.SecretsFileFormatYAML, content: "A: '1'\nMY-TOKEN: '2'\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			reqs, err := codersdk.ParseSecretsFile(tc.format, tc.content)
+			require.NoError(t, err)
+			entries, err := codersdk.ParseSecretsFileEntries(tc.format, tc.content)
+			require.NoError(t, err)
+			require.Len(t, reqs, len(entries))
+			for i, entry := range entries {
+				assert.Equal(t, entry.Request, reqs[i])
+			}
+		})
+	}
+}
+
+// ParseSecretsFileEntries must reject the same inputs as ParseSecretsFile,
+// including parse-time line citations and duplicate keys.
+func TestParseSecretsFileEntriesErrors(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		format  codersdk.SecretsFileFormat
+		content string
+		errMsgs []string
+	}{
+		{name: "EnvDuplicate", format: codersdk.SecretsFileFormatEnv, content: "DUP=a\nDUP=b", errMsgs: []string{"duplicate key", "line 2"}},
+		{name: "JSONNumberValue", format: codersdk.SecretsFileFormatJSON, content: `{"A":1}`, errMsgs: []string{"must be a string"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			entries, err := codersdk.ParseSecretsFileEntries(tc.format, tc.content)
+			require.Error(t, err)
+			require.Empty(t, entries)
+			for _, msg := range tc.errMsgs {
+				assert.Contains(t, err.Error(), msg)
+			}
 		})
 	}
 }

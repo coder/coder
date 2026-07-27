@@ -31,12 +31,52 @@ type secretEntry struct {
 	line  int
 }
 
+// ParsedSecret is one entry of a parsed secrets file together with the source
+// location it came from, so callers can name the offending entry when
+// per-entry validation fails.
+//
+// @typescript-ignore ParsedSecret
+type ParsedSecret struct {
+	// Request is the entry as it will be created. Request.Name is the file key
+	// after whitespace and quoting are stripped; Request.EnvName is empty when
+	// that key is not a valid env name.
+	Request CreateUserSecretRequest
+	// Line is the 1-based line the key appears on in the source file, or 0 when
+	// the format carries no line information. Callers must omit the line when
+	// it is 0 rather than printing a placeholder.
+	//
+	// Env files report the line the KEY=VALUE pair was read from. YAML reports
+	// the line of the key node, which is not a unique discriminator: keys in a
+	// flow mapping all share one line, and a block scalar value pushes the next
+	// key several lines down. JSON reports 0; encoding/json exposes only byte
+	// offsets, and mapping those back to lines is not worth the complexity for
+	// a format users do not hand-edit line by line.
+	Line int
+}
+
 // ParseSecretsFile parses a secrets file into CreateUserSecretRequests.
 // It checks structure and duplicate keys; per-entry validation is left to
 // ValidateCreateUserSecretRequest. EnvName is set only when the key passes
 // env-name validation (best-effort; keys like MY-TOKEN or PATH get an empty
 // EnvName so they are still imported without env injection).
+//
+// Use ParseSecretsFileEntries when the caller needs the source line of each
+// entry.
 func ParseSecretsFile(format SecretsFileFormat, content string) ([]CreateUserSecretRequest, error) {
+	parsed, err := ParseSecretsFileEntries(format, content)
+	if err != nil {
+		return nil, err
+	}
+	reqs := make([]CreateUserSecretRequest, 0, len(parsed))
+	for _, p := range parsed {
+		reqs = append(reqs, p.Request)
+	}
+	return reqs, nil
+}
+
+// ParseSecretsFileEntries parses a secrets file like ParseSecretsFile and also
+// reports each entry's source line where the format provides one.
+func ParseSecretsFileEntries(format SecretsFileFormat, content string) ([]ParsedSecret, error) {
 	if len(content) > MaxSecretsFileBytes {
 		return nil, xerrors.Errorf("secrets file exceeds the maximum allowed size of %d bytes", MaxSecretsFileBytes)
 	}
@@ -80,7 +120,7 @@ func ParseSecretsFile(format SecretsFileFormat, content string) ([]CreateUserSec
 		return nil, err
 	}
 
-	reqs := make([]CreateUserSecretRequest, 0, len(entries))
+	parsed := make([]ParsedSecret, 0, len(entries))
 	for _, e := range entries {
 		req := CreateUserSecretRequest{Name: e.key, Value: e.value}
 		// env_name uses a partial unique index (WHERE env_name != ''),
@@ -88,9 +128,9 @@ func ParseSecretsFile(format SecretsFileFormat, content string) ([]CreateUserSec
 		if UserSecretEnvNameValid(e.key) == nil {
 			req.EnvName = e.key
 		}
-		reqs = append(reqs, req)
+		parsed = append(parsed, ParsedSecret{Request: req, Line: e.line})
 	}
-	return reqs, nil
+	return parsed, nil
 }
 
 // Duplicate keys are rejected up front (citing the line for env files)
