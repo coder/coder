@@ -518,24 +518,35 @@ func userSecretLimitResponse(err error) (codersdk.Response, bool) {
 	return codersdk.Response{}, false
 }
 
+// userSecretConflictDetail is the single wording for a conflict on each
+// uniqueness dimension, keyed by the field it is reported under.
+func userSecretConflictDetail(field string) string {
+	switch field {
+	case codersdk.UserSecretNameField:
+		return "Name is already in use."
+	case codersdk.UserSecretEnvNameField:
+		return "Environment variable name is already in use."
+	case codersdk.UserSecretFilePathField:
+		return "File path is already in use."
+	default:
+		return "Already in use."
+	}
+}
+
 func userSecretConflictValidationErrors(err error) []codersdk.ValidationError {
+	var field string
 	switch {
 	case database.IsUniqueViolation(err, database.UniqueUserSecretsUserNameIndex):
-		return []codersdk.ValidationError{{
-			Field:  codersdk.UserSecretNameField,
-			Detail: "name already in use",
-		}}
+		field = codersdk.UserSecretNameField
 	case database.IsUniqueViolation(err, database.UniqueUserSecretsUserEnvNameIndex):
-		return []codersdk.ValidationError{{
-			Field:  codersdk.UserSecretEnvNameField,
-			Detail: "environment variable already in use",
-		}}
+		field = codersdk.UserSecretEnvNameField
 	case database.IsUniqueViolation(err, database.UniqueUserSecretsUserFilePathIndex):
-		return []codersdk.ValidationError{{
-			Field:  codersdk.UserSecretFilePathField,
-			Detail: "file path already in use",
-		}}
+		field = codersdk.UserSecretFilePathField
 	default:
 		return nil
 	}
+	return []codersdk.ValidationError{{
+		Field:  field,
+		Detail: userSecretConflictDetail(field),
+	}}
 }

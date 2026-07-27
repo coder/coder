@@ -190,7 +190,7 @@ func TestImportUserSecretsConflict(t *testing.T) {
 		Content: "BRANDNEW=x\nEXISTING=collision",
 	})
 	validation := requireSecretValidation(t, err, http.StatusConflict, "secrets[1].name")
-	assert.Equal(t, "name already in use", validation.Detail)
+	assert.Equal(t, "Name is already in use.", validation.Detail)
 
 	// Only the pre-existing secret should remain; BRANDNEW must not be created.
 	listed, err := client.UserSecrets(ctx, codersdk.Me)

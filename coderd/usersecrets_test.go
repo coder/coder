@@ -96,7 +96,7 @@ func TestPostUserSecret(t *testing.T) {
 			Name:  "dup-secret",
 			Value: "value2",
 		})
-		requireSecretValidationEqualsError(t, err, http.StatusConflict, "name", "name already in use")
+		requireSecretValidationEqualsError(t, err, http.StatusConflict, "name", "Name is already in use.")
 	})
 
 	t.Run("DuplicateEnvName", func(t *testing.T) {
@@ -115,7 +115,7 @@ func TestPostUserSecret(t *testing.T) {
 			Value:   "value2",
 			EnvName: "DUPLICATE_ENV",
 		})
-		requireSecretValidationEqualsError(t, err, http.StatusConflict, "env_name", "environment variable already in use")
+		requireSecretValidationEqualsError(t, err, http.StatusConflict, "env_name", "Environment variable name is already in use.")
 	})
 
 	t.Run("DuplicateFilePath", func(t *testing.T) {
@@ -134,7 +134,7 @@ func TestPostUserSecret(t *testing.T) {
 			Value:    "value2",
 			FilePath: "/tmp/dup-file",
 		})
-		requireSecretValidationEqualsError(t, err, http.StatusConflict, "file_path", "file path already in use")
+		requireSecretValidationEqualsError(t, err, http.StatusConflict, "file_path", "File path is already in use.")
 	})
 
 	t.Run("InvalidEnvName", func(t *testing.T) {
@@ -374,7 +374,7 @@ func TestPatchUserSecret(t *testing.T) {
 		_, err = client.UpdateUserSecret(ctx, codersdk.Me, "conflict-env-2", codersdk.UpdateUserSecretRequest{
 			EnvName: &taken,
 		})
-		requireSecretValidationEqualsError(t, err, http.StatusConflict, "env_name", "environment variable already in use")
+		requireSecretValidationEqualsError(t, err, http.StatusConflict, "env_name", "Environment variable name is already in use.")
 	})
 
 	t.Run("ConflictFilePath", func(t *testing.T) {
@@ -398,7 +398,7 @@ func TestPatchUserSecret(t *testing.T) {
 		_, err = client.UpdateUserSecret(ctx, codersdk.Me, "conflict-fp-2", codersdk.UpdateUserSecretRequest{
 			FilePath: &taken,
 		})
-		requireSecretValidationEqualsError(t, err, http.StatusConflict, "file_path", "file path already in use")
+		requireSecretValidationEqualsError(t, err, http.StatusConflict, "file_path", "File path is already in use.")
 	})
 
 	t.Run("InvalidEnvName", func(t *testing.T) {
