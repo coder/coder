@@ -213,7 +213,7 @@ describe("getAppHref", () => {
 	});
 });
 
-describe("isExternalAppUrlValid", () => {
+describe("isAppUrlValid", () => {
 	it("returns false for an external app with an unparseable URL", () => {
 		expect(isAppUrlValid(buildApp({ external: true, url: "my-repo" }))).toBe(
 			false,

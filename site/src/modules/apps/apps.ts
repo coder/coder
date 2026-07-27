@@ -125,7 +125,7 @@ export const getAppHref = (
 		} catch {
 			// The URL is unparseable. Leave isAllowedProtocol false and return
 			// the raw URL. Consumers disable the button via
-			// isExternalAppUrlValid, so the href is never followed.
+			// isAppUrlValid, so the href is never followed.
 		}
 
 		return needsSessionToken(app) && isAllowedProtocol
