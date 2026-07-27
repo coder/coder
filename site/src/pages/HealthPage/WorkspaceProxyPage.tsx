@@ -42,7 +42,7 @@ const WorkspaceProxyPage: FC = () => {
 
 			<Main>
 				{workspace_proxy.error && (
-					<Alert severity="error" prominent>
+					<Alert severity="error" prominent dismissible>
 						{workspace_proxy.error}
 					</Alert>
 				)}
@@ -53,6 +53,7 @@ const WorkspaceProxyPage: FC = () => {
 							key={warning.code}
 							severity="warning"
 							prominent
+							dismissible
 						>
 							{warning.message}
 						</Alert>

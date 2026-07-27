@@ -31,7 +31,7 @@ const ProvisionerDaemonsPage: FC = () => {
 
 			<Main>
 				{daemons.error && (
-					<Alert severity="error" prominent>
+					<Alert severity="error" prominent dismissible>
 						{daemons.error}
 					</Alert>
 				)}
@@ -41,6 +41,7 @@ const ProvisionerDaemonsPage: FC = () => {
 							actions={<HealthMessageDocsLink {...warning} />}
 							key={warning.code}
 							severity="warning"
+							dismissible
 						>
 							{warning.message}
 						</Alert>
