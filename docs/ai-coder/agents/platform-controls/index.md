@@ -80,13 +80,13 @@ agent toward the correct infrastructure without requiring developers to
 understand template selection at all.
 
 Administrators can also restrict which templates are available to agents
-using the template allowlist at **Agents** > **Settings** >
-**Manage Agents** > **Templates**. When the allowlist is configured, the
-agent can only see and provision workspaces from the selected templates.
-When the allowlist is empty, all templates are available. This is separate
-from what developers see when manually creating workspaces, so you can apply
-stricter policies to agent-created workspaces without affecting the manual
-workspace experience.
+using each template's **Allow Coder Agents** setting, either on the
+template's settings page or at **Agents** > **Settings** >
+**Manage Agents** > **Templates**. Templates allow agents by default; when
+the setting is disabled, the agent cannot see or provision workspaces from
+that template. This is separate from what developers see when manually
+creating workspaces, so you can apply stricter policies to agent-created
+workspaces without affecting the manual workspace experience.
 
 See [Template Optimization](./template-optimization.md) for best practices on writing
 discoverable descriptions, restricting template visibility, configuring network
