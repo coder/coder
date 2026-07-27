@@ -1355,8 +1355,11 @@ export async function createUser(
 	const passwordField = page.locator("input[name=password]");
 	await passwordField.fill(password);
 	await page.getByRole("button", { name: /save/i }).click();
-	await expect(page.getByText(/created successfully/)).toBeVisible();
 
+	// Creation success redirects back to the Users page and adds the user to
+	// the table. We assert on those deterministic outcomes rather than the
+	// success toast, which auto-dismisses and races with the redirect. The
+	// toast itself is covered by the CreateUserPage stories.
 	await expect(page).toHaveTitle("Users - Coder");
 	const addedRow = page.locator("tr", { hasText: email });
 	await expect(addedRow).toBeVisible();
