@@ -412,14 +412,15 @@ const CreateWorkspacePage: FC = () => {
 				onDeny={() => setMode("form")}
 			/>
 
-			{shouldShowLoader ? (
-				<Loader />
-			) : permissionsQuery.isError ? (
-				// The view reads the permission results unconditionally, so a
-				// failed check renders an error instead of the form.
+			{loadFormDataError ? (
+				// The view reads the template and permission results
+				// unconditionally, so render query failures as a page-level
+				// error instead of the form.
 				<Margins>
-					<ErrorAlert error={permissionsQuery.error} className="my-4" />
+					<ErrorAlert error={loadFormDataError} className="my-4" />
 				</Margins>
+			) : shouldShowLoader ? (
+				<Loader />
 			) : (
 				<RequirePermission isFeatureVisible={canCreateWorkspace}>
 					<CreateWorkspacePageView
@@ -436,7 +437,6 @@ const CreateWorkspacePage: FC = () => {
 							wsError ||
 							createWorkspaceMutation.error ||
 							autoCreateError ||
-							loadFormDataError ||
 							autoCreateWorkspaceMutation.error
 						}
 						resetMutation={createWorkspaceMutation.reset}

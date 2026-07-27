@@ -707,6 +707,23 @@ describe("CreateWorkspacePage", () => {
 		});
 	});
 
+	describe("Load Errors", () => {
+		it("shows an error instead of the loader when the template fails to load", async () => {
+			vi.spyOn(API, "getTemplateByName").mockRejectedValue(
+				new Error("failed to load template"),
+			);
+
+			renderCreateWorkspacePage();
+
+			expect(
+				await screen.findByRole("heading", {
+					name: /failed to load template/i,
+				}),
+			).toBeInTheDocument();
+			expect(screen.queryByTestId("loader")).not.toBeInTheDocument();
+		});
+	});
+
 	describe("Form Submission", () => {
 		it("creates workspace with correct parameters", async () => {
 			const parameters = [
