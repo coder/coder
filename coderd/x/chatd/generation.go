@@ -490,24 +490,8 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		var actionErr error
 		switch decision.kind {
 		case generationActionEnterRequiresAction:
-			toolCalls := make([]fantasy.ToolCallContent, 0, len(decision.pendingDynamicToolCalls))
-			for _, toolCall := range decision.pendingDynamicToolCalls {
-				toolCalls = append(toolCalls, fantasy.ToolCallContent{
-					ToolCallID: toolCall.ToolCallID,
-					ToolName:   toolCall.ToolName,
-					Input:      toolCall.Args,
-				})
-			}
-			preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), toolCalls)
-			if err != nil {
-				cleanup()
-				return s.finishGenerationError(ctx, machine, input, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err), generationAttemptNotRequired)
-			}
-			if len(preflight.Denied) == 0 {
-				cleanup()
-				return s.enterRequiresAction(ctx, machine, input, prepared, preflight)
-			}
-			actionErr = s.commitPreToolUseDeniedResults(ctx, machine, input, prepared, preflight)
+			cleanup()
+			return s.enterRequiresAction(ctx, machine, input)
 		case generationActionFinishTurn:
 			cleanup()
 			return s.finishGenerationTurn(ctx, machine, input, decision, generationAttemptNotRequired)
@@ -758,6 +742,11 @@ func (s *taskStarter) generateAssistant(
 	if len(outcome.Step.Content) == 0 {
 		return s.finishGenerationTurn(ctx, machine, input, generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, requireGenerationAttempt(attempt.number))
 	}
+	preflight, err := s.admitStepToolCalls(ctx, input, prepared, outcome.Step.Content)
+	if err != nil {
+		return err
+	}
+	outcome.Step.Content = chathooks.ApplyAdmittedToolCalls(outcome.Step.Content, preflight)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:      prepared.ModelConfigID,
 		modelCallConfig:    prepared.ModelConfig,
@@ -769,43 +758,45 @@ func (s *taskStarter) generateAssistant(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
+	messages, err = appendHookResultMessages(messages, preflight.Results, prepared.ModelConfigID)
+	if err != nil {
+		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+	}
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionGenerateAssistant, messages, generationCommitHooks{})
 }
 
-func (s *taskStarter) commitPreToolUseDeniedResults(
+// admitStepToolCalls dispatches pre_tool_use for the calls the provider just
+// produced, before the step is persisted, so the committed assistant row
+// carries the input that will actually run. Execution then consumes the
+// admitted call from history without dispatching again.
+//
+// A batch the exclusive-tool policy rejects whole executes nothing, so it is
+// not submitted: removing a denial from it would leave the exclusive call
+// looking alone and let it run. Ambiguous builtin input is filtered the same
+// way execution filters it, so consumers only decide calls that could run.
+func (s *taskStarter) admitStepToolCalls(
 	ctx context.Context,
-	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
 	prepared generationPrepared,
-	preflight chathooks.PreToolUseExecutionResult,
-) error {
-	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
+	content []fantasy.Content,
+) (chathooks.PreToolUseExecutionResult, error) {
+	if !s.server.hooks.Enabled() {
+		return chathooks.PreToolUseExecutionResult{}, nil
+	}
+	toolCalls := chathooks.PendingToolCalls(content)
+	if len(toolCalls) == 0 || exclusiveBatchRejected(toolCalls, prepared.ExclusiveToolNames) {
+		return chathooks.PreToolUseExecutionResult{}, nil
+	}
+	unambiguous, ambiguous := partitionAmbiguousToolCalls(prepared, toolCalls)
+	preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), unambiguous)
 	if err != nil {
-		return xerrors.Errorf("begin generation attempt: %w", err)
+		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
-	defer attempt.closeEpisode()
-	content := make([]fantasy.Content, 0, len(preflight.Denied))
-	for _, denied := range preflight.Denied {
-		content = append(content, denied)
+	if err := validateOverriddenToolInputs(prepared, preflight); err != nil {
+		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
-	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
-		modelConfigID:      prepared.ModelConfigID,
-		modelCallConfig:    prepared.ModelConfig,
-		step:               stepDataFromPersisted(chatloop.PersistedStep{Content: content}),
-		toolNameToConfigID: prepared.ToolNameToConfigID,
-		logger:             s.opts.Logger,
-		contentVersion:     chatprompt.CurrentContentVersion,
-	})
-	if err != nil {
-		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
-	}
-	messages, err = applyHookResultMessages(messages, preflight.Results, prepared.ModelConfigID)
-	if err != nil {
-		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
-	}
-	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages, generationCommitHooks{
-		Overrides: preflight.Overrides,
-	})
+	preflight.Denied = append(preflight.Denied, ambiguous...)
+	return preflight, nil
 }
 
 func (s *taskStarter) executeLocalTools(
@@ -816,21 +807,12 @@ func (s *taskStarter) executeLocalTools(
 	decision generationDecision,
 ) error {
 	// A batch that mixes an exclusive tool with other tools is rejected
-	// whole and executes nothing, so no call is gated. Removing hook
-	// denials from it first would leave the exclusive call looking alone
-	// and let it run.
-	preflight := chathooks.PreToolUseExecutionResult{Allowed: decision.localToolCalls}
+	// whole and executes nothing, so nothing in it is filtered first: that
+	// would leave the exclusive call looking alone and let it run.
+	allowed := decision.localToolCalls
+	var denied []fantasy.ToolResultContent
 	if !exclusiveBatchRejected(decision.localToolCalls, prepared.ExclusiveToolNames) {
-		unambiguous, ambiguous := partitionAmbiguousToolCalls(prepared, decision.localToolCalls)
-		var preflightErr error
-		preflight, preflightErr = s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), unambiguous)
-		if preflightErr != nil {
-			return chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, preflightErr)
-		}
-		if err := validateOverriddenToolInputs(prepared, preflight); err != nil {
-			return chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
-		}
-		preflight.Denied = append(preflight.Denied, ambiguous...)
+		allowed, denied = partitionAmbiguousToolCalls(prepared, decision.localToolCalls)
 	}
 	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
@@ -845,12 +827,12 @@ func (s *taskStarter) executeLocalTools(
 	}
 	var outcome chatloop.ToolExecutionOutcome
 	var spawnDispatchErr error
-	if len(preflight.Allowed) > 0 {
+	if len(allowed) > 0 {
 		outcome, err = chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
 			Tools:              prepared.Tools,
 			ActiveTools:        prepared.ActiveTools,
 			ProviderTools:      prepared.ProviderTools,
-			ToolCalls:          preflight.Allowed,
+			ToolCalls:          allowed,
 			ExclusiveToolNames: prepared.ExclusiveToolNames,
 			BuiltinToolNames:   prepared.BuiltinToolNames,
 			ModelProvider:      provider,
@@ -874,8 +856,8 @@ func (s *taskStarter) executeLocalTools(
 		}
 	}
 	postResults, postDispatchErr := s.server.hooks.PostToolUseResults(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), outcome.Step.Content)
-	for _, denied := range preflight.Denied {
-		outcome.Step.Content = append(outcome.Step.Content, denied)
+	for _, result := range denied {
+		outcome.Step.Content = append(outcome.Step.Content, result)
 	}
 	chathooks.RestoreToolCallOrder(outcome.Step.Content, decision.localToolCalls)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
@@ -886,10 +868,6 @@ func (s *taskStarter) executeLocalTools(
 		logger:             s.opts.Logger,
 		contentVersion:     chatprompt.CurrentContentVersion,
 	})
-	if err != nil {
-		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
-	}
-	messages, err = applyHookResultMessages(messages, preflight.Results, prepared.ModelConfigID)
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
@@ -914,7 +892,6 @@ func (s *taskStarter) executeLocalTools(
 		postCommitErr = chathooks.GenerationDispatchError(agenthooks.EventPostToolUse, postDispatchErr)
 	}
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages, generationCommitHooks{
-		Overrides:       preflight.Overrides,
 		PostCommitError: postCommitErr,
 	})
 }
@@ -1118,7 +1095,6 @@ func (s *taskStarter) beginGenerationAttempt(
 }
 
 type generationCommitHooks struct {
-	Overrides       map[string]json.RawMessage
 	PostCommitError error
 }
 
@@ -1159,9 +1135,6 @@ func (s *taskStarter) commitGenerationStep(
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForGeneration(ctx, store, input, requireGenerationAttempt(attempt)); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
-		}
-		if err := chathooks.ReplacePersistedToolCallInputs(ctx, tx, input.ChatID, commitHooks.Overrides); err != nil {
-			return err
 		}
 		commitResult, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages:                 messages.Messages,
@@ -1219,35 +1192,14 @@ func (s *taskStarter) enterRequiresAction(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
-	prepared generationPrepared,
-	preflight chathooks.PreToolUseExecutionResult,
 ) error {
-	messages, err := applyHookResultMessages(stepMessagesForCommit{}, preflight.Results, prepared.ModelConfigID)
-	if err != nil {
-		return err
-	}
 	var committed database.Chat
-	insertedMessages := []runnerActionMessage{}
-	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForTask(ctx, store, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
-		if err := chathooks.ReplacePersistedToolCallInputs(ctx, tx, input.ChatID, preflight.Overrides); err != nil {
-			return err
-		}
-		var inserted []database.ChatMessage
-		if len(messages.Messages) > 0 {
-			result, err := tx.CommitStep(chatstate.CommitStepInput{Messages: messages.Messages})
-			if err != nil {
-				return xerrors.Errorf("tx.CommitStep: %w", err)
-			}
-			inserted = result.InsertedMessages
-		}
 		if _, err := tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{}); err != nil {
 			return xerrors.Errorf("tx.EnterRequiresAction: %w", err)
-		}
-		for _, message := range inserted {
-			insertedMessages = append(insertedMessages, runnerActionMessage{ID: message.ID, Role: codersdk.ChatMessageRole(message.Role)})
 		}
 		chat, err := store.GetChatByID(ctx, input.ChatID)
 		if err != nil {
@@ -1263,10 +1215,9 @@ func (s *taskStarter) enterRequiresAction(
 		return xerrors.Errorf("publish watch and route: %w", err)
 	}
 	return s.afterGenerationOutcome(ctx, generationOutcome{
-		Chat:             committed,
-		Kind:             runnerActionKindEnterRequiresAction,
-		WatchEventKind:   codersdk.ChatWatchEventKindActionRequired,
-		InsertedMessages: insertedMessages,
+		Chat:           committed,
+		Kind:           runnerActionKindEnterRequiresAction,
+		WatchEventKind: codersdk.ChatWatchEventKindActionRequired,
 	})
 }
 
