@@ -879,10 +879,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
 				Labels: map[string]string{
-					"created_account_name":      "ci-bot",
-					"created_account_user_name": "CI Bot",
-					"initiator":                 "rob",
-					"account_type":              "service",
+					"created_account_name": "ci-bot",
+					"initiator":            "rob",
+					"account_type":         "service",
 				},
 			},
 		},
