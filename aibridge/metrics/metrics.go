@@ -8,6 +8,8 @@ import (
 var baseLabels = []string{"provider", "model"}
 
 const (
+	PrometheusMetricPrefix = "coder_ai_gateway_"
+
 	InterceptionCountStatusFailed    = "failed"
 	InterceptionCountStatusCompleted = "completed"
 )
