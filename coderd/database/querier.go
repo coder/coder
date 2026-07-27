@@ -266,11 +266,9 @@ type sqlcQuerier interface {
 	// These were most likely created via 'coder login' as the prebuilds user.
 	ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error
 	// Returns per-user, per-group, per-model, per-provider aggregated AI spend for
-	// @organization_id over the [period_start, period_end) window, built from raw
-	// AI Gateway token usage rather than the daily spend rollup. Spend is
+	// @organization_id over the [period_start, period_end) window. Spend is
 	// attributed through the token usage's effective group, and rows are bucketed
 	// by the token usage created_at, matching how ai_user_daily_spend is derived.
-	// Only token usage with an effective group in the organization is included.
 	ExportOrganizationAISpend(ctx context.Context, arg ExportOrganizationAISpendParams) ([]ExportOrganizationAISpendRow, error)
 	FavoriteWorkspace(ctx context.Context, id uuid.UUID) error
 	FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentMemoryResourceMonitor, error)

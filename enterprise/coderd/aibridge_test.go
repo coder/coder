@@ -3738,7 +3738,7 @@ func requestAISpendExport(ctx context.Context, t *testing.T, client *codersdk.Cl
 func TestExportOrganizationAISpend(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Gating", func(t *testing.T) {
+	t.Run("Enablement", func(t *testing.T) {
 		t.Parallel()
 
 		cases := []struct {
@@ -3776,181 +3776,13 @@ func TestExportOrganizationAISpend(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitLong)
 
 				//nolint:gocritic // Owner role is irrelevant; the request is blocked before RBAC.
-				_, err := client.ExportOrganizationAISpend(ctx, owner.OrganizationID, codersdk.AISpendExportOptions{})
+				_, err := client.ExportOrganizationAISpend(ctx, owner.OrganizationID, codersdk.AISpendPeriodWindow{})
 				var sdkErr *codersdk.Error
 				require.ErrorAs(t, err, &sdkErr)
 				require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 				require.Contains(t, sdkErr.Message, tc.wantMsgContains)
 			})
 		}
-	})
-
-	t.Run("DefaultsToCurrentMonthAndAggregates", func(t *testing.T) {
-		t.Parallel()
-
-		clock := quartz.NewMock(t)
-		db, ps := dbtestutil.NewDB(t)
-		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
-			GroupName: "export-default-group",
-			Clock:     clock,
-			Database:  db,
-			Pubsub:    ps,
-		})
-		ctx := testutil.Context(t, testutil.WaitLong)
-		clock.Set(time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC))
-		inMonth := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
-		prevMonth := time.Date(2026, time.February, 20, 8, 0, 0, 0, time.UTC)
-		groupID := uuid.NullUUID{UUID: group.ID, Valid: true}
-
-		// Two claude-4 interceptions for the same user aggregate into one row.
-		for _, tu := range []database.InsertAIBridgeTokenUsageParams{
-			{InputTokens: 100, OutputTokens: 50, CacheReadInputTokens: 10, CacheWriteInputTokens: 5, CostMicros: sql.NullInt64{Int64: 1000, Valid: true}},
-			{InputTokens: 200, OutputTokens: 100, CacheReadInputTokens: 20, CacheWriteInputTokens: 10, CostMicros: sql.NullInt64{Int64: 2000, Valid: true}},
-		} {
-			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-				InitiatorID: targetUser.ID, Provider: "anthropic", Model: "claude-4", StartedAt: inMonth,
-			}, nil)
-			tu.InterceptionID = intc.ID
-			tu.CreatedAt = inMonth
-			tu.EffectiveGroupID = groupID
-			dbgen.AIBridgeTokenUsage(t, db, tu)
-		}
-
-		// A different model produces a separate row.
-		gptIntc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: targetUser.ID, Provider: "openai", Model: "gpt-4", StartedAt: inMonth,
-		}, nil)
-		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-			InterceptionID: gptIntc.ID, CreatedAt: inMonth, EffectiveGroupID: groupID,
-			InputTokens: 500, OutputTokens: 250, CostMicros: sql.NullInt64{Int64: 5000, Valid: true},
-		})
-
-		// Previous-month usage is outside the default window.
-		prevIntc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: targetUser.ID, Provider: "anthropic", Model: "claude-4", StartedAt: prevMonth,
-		}, nil)
-		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-			InterceptionID: prevIntc.ID, CreatedAt: prevMonth, EffectiveGroupID: groupID,
-			InputTokens: 999, CostMicros: sql.NullInt64{Int64: 9999, Valid: true},
-		})
-
-		// Usage with no effective group is excluded.
-		nullIntc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: targetUser.ID, Provider: "openai", Model: "gpt-4", StartedAt: inMonth,
-		}, nil)
-		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-			InterceptionID: nullIntc.ID, CreatedAt: inMonth,
-			InputTokens: 888, CostMicros: sql.NullInt64{Int64: 8888, Valid: true},
-		})
-
-		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, nil)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusOK, res.StatusCode)
-		require.Equal(t, "text/csv", res.Header.Get("Content-Type"))
-		require.Contains(t, res.Header.Get("Content-Disposition"), "ai-spend-export.csv")
-
-		records := readAISpendExportResponse(t, res)
-		require.Equal(t, aiSpendExportCSVHeaderForTest, records[0])
-		require.Len(t, records, 3) // header + 2 data rows
-
-		userID := targetUser.ID.String()
-		groupStr := group.ID.String()
-		orgStr := group.OrganizationID.String()
-		wantStart := "2026-03-01T00:00:00Z"
-		wantEnd := "2026-04-01T00:00:00Z"
-		// Ordered by provider then model: anthropic/claude-4, then openai/gpt-4.
-		require.Equal(t, []string{userID, groupStr, orgStr, "claude-4", "anthropic", "300", "150", "30", "15", "3000", wantStart, wantEnd}, records[1])
-		require.Equal(t, []string{userID, groupStr, orgStr, "gpt-4", "openai", "500", "250", "0", "0", "5000", wantStart, wantEnd}, records[2])
-	})
-
-	t.Run("CustomPeriodHalfOpen", func(t *testing.T) {
-		t.Parallel()
-
-		clock := quartz.NewMock(t)
-		db, ps := dbtestutil.NewDB(t)
-		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
-			GroupName: "export-custom-group",
-			Clock:     clock,
-			Database:  db,
-			Pubsub:    ps,
-		})
-		ctx := testutil.Context(t, testutil.WaitLong)
-		clock.Set(time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC))
-		groupID := uuid.NullUUID{UUID: group.ID, Valid: true}
-
-		start := time.Date(2026, time.March, 10, 0, 0, 0, 0, time.UTC)
-		end := time.Date(2026, time.March, 11, 0, 0, 0, 0, time.UTC)
-
-		// At start (inclusive): included. At end (exclusive): excluded.
-		for _, at := range []time.Time{start, end} {
-			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-				InitiatorID: targetUser.ID, Provider: "anthropic", Model: "claude-4", StartedAt: at,
-			}, nil)
-			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-				InterceptionID: intc.ID, CreatedAt: at, EffectiveGroupID: groupID,
-				InputTokens: 100, CostMicros: sql.NullInt64{Int64: 1000, Valid: true},
-			})
-		}
-
-		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, map[string]string{
-			"period_start": start.Format(time.RFC3339Nano),
-			"period_end":   end.Format(time.RFC3339Nano),
-		})
-		defer res.Body.Close()
-		require.Equal(t, http.StatusOK, res.StatusCode)
-
-		records := readAISpendExportResponse(t, res)
-		require.Len(t, records, 2) // header + only the start-boundary row
-		require.Equal(t, "1000", records[1][9])
-		require.Equal(t, start.Format(time.RFC3339), records[1][10])
-		require.Equal(t, end.Format(time.RFC3339), records[1][11])
-	})
-
-	t.Run("ExcludesNullEffectiveGroup", func(t *testing.T) {
-		t.Parallel()
-
-		clock := quartz.NewMock(t)
-		db, ps := dbtestutil.NewDB(t)
-		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
-			GroupName: "export-null-group",
-			Clock:     clock,
-			Database:  db,
-			Pubsub:    ps,
-		})
-		ctx := testutil.Context(t, testutil.WaitLong)
-		clock.Set(time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC))
-		at := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
-
-		// Usage attributed to a group is included.
-		groupedIntc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: targetUser.ID, Provider: "anthropic", Model: "claude-4", StartedAt: at,
-		}, nil)
-		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-			InterceptionID: groupedIntc.ID, CreatedAt: at,
-			EffectiveGroupID: uuid.NullUUID{UUID: group.ID, Valid: true},
-			InputTokens:      100, CostMicros: sql.NullInt64{Int64: 1000, Valid: true},
-		})
-
-		// Usage with no effective group must be excluded entirely, so its
-		// tokens and cost never reach the CSV.
-		nullIntc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: targetUser.ID, Provider: "anthropic", Model: "claude-4", StartedAt: at,
-		}, nil)
-		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-			InterceptionID: nullIntc.ID, CreatedAt: at,
-			InputTokens: 500, CostMicros: sql.NullInt64{Int64: 5000, Valid: true},
-		})
-
-		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, nil)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusOK, res.StatusCode)
-
-		records := readAISpendExportResponse(t, res)
-		// Only the grouped row is present; the null-group usage is dropped, so
-		// both the row count and the aggregated values exclude it.
-		require.Len(t, records, 2)              // header + single grouped row
-		require.Equal(t, "100", records[1][5])  // input_tokens
-		require.Equal(t, "1000", records[1][9]) // cost_micros
 	})
 
 	t.Run("PeriodValidation", func(t *testing.T) {
@@ -4019,6 +3851,240 @@ func TestExportOrganizationAISpend(t *testing.T) {
 				require.Equal(t, tc.wantStatus, res.StatusCode)
 			})
 		}
+	})
+
+	t.Run("DefaultsToCurrentMonthAndAggregates", func(t *testing.T) {
+		t.Parallel()
+
+		clock := quartz.NewMock(t)
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-default-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clock.Set(time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC))
+		inMonth := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
+		groupID := uuid.NullUUID{UUID: group.ID, Valid: true}
+
+		// Two claude-4 interceptions for the same user aggregate into one row.
+		for _, tu := range []database.InsertAIBridgeTokenUsageParams{
+			{InputTokens: 100, OutputTokens: 50, CacheReadInputTokens: 10, CacheWriteInputTokens: 5, CostMicros: sql.NullInt64{Int64: 1000, Valid: true}},
+			{InputTokens: 200, OutputTokens: 100, CacheReadInputTokens: 20, CacheWriteInputTokens: 10, CostMicros: sql.NullInt64{Int64: 2000, Valid: true}},
+		} {
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID: targetUser.ID, Provider: "anthropic", Model: "claude-4", StartedAt: inMonth,
+			}, nil)
+			tu.InterceptionID = intc.ID
+			tu.CreatedAt = inMonth
+			tu.EffectiveGroupID = groupID
+			dbgen.AIBridgeTokenUsage(t, db, tu)
+		}
+
+		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, nil)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Equal(t, "text/csv", res.Header.Get("Content-Type"))
+		require.Contains(t, res.Header.Get("Content-Disposition"), "ai-spend-export.csv")
+
+		records := readAISpendExportResponse(t, res)
+		require.Equal(t, aiSpendExportCSVHeaderForTest, records[0])
+		require.Len(t, records, 2) // header + single aggregated row
+
+		// The default window echoes the current UTC month.
+		require.Equal(t, []string{
+			targetUser.ID.String(), group.ID.String(), group.OrganizationID.String(),
+			"claude-4", "anthropic", "300", "150", "30", "15", "3000",
+			"2026-03-01T00:00:00Z", "2026-04-01T00:00:00Z",
+		}, records[1])
+	})
+
+	t.Run("SeparateRowPerModel", func(t *testing.T) {
+		t.Parallel()
+
+		clock := quartz.NewMock(t)
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-per-model-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clock.Set(time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC))
+		inMonth := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
+		groupID := uuid.NullUUID{UUID: group.ID, Valid: true}
+
+		// Usage for two different models produces one row each.
+		claudeIntc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: targetUser.ID, Provider: "anthropic", Model: "claude-4", StartedAt: inMonth,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: claudeIntc.ID, CreatedAt: inMonth, EffectiveGroupID: groupID,
+			InputTokens: 100, OutputTokens: 50, CostMicros: sql.NullInt64{Int64: 1000, Valid: true},
+		})
+		gptIntc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: targetUser.ID, Provider: "openai", Model: "gpt-4", StartedAt: inMonth,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: gptIntc.ID, CreatedAt: inMonth, EffectiveGroupID: groupID,
+			InputTokens: 500, OutputTokens: 250, CostMicros: sql.NullInt64{Int64: 5000, Valid: true},
+		})
+
+		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, nil)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		records := readAISpendExportResponse(t, res)
+		require.Len(t, records, 3) // header + one row per model
+
+		userID := targetUser.ID.String()
+		groupStr := group.ID.String()
+		orgStr := group.OrganizationID.String()
+		wantStart := "2026-03-01T00:00:00Z"
+		wantEnd := "2026-04-01T00:00:00Z"
+		// Ordered by provider then model: anthropic/claude-4, then openai/gpt-4.
+		require.Equal(t, []string{userID, groupStr, orgStr, "claude-4", "anthropic", "100", "50", "0", "0", "1000", wantStart, wantEnd}, records[1])
+		require.Equal(t, []string{userID, groupStr, orgStr, "gpt-4", "openai", "500", "250", "0", "0", "5000", wantStart, wantEnd}, records[2])
+	})
+
+	t.Run("PreviousMonthExcluded", func(t *testing.T) {
+		t.Parallel()
+
+		clock := quartz.NewMock(t)
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-prev-month-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clock.Set(time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC))
+		inMonth := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
+		prevMonth := time.Date(2026, time.February, 20, 8, 0, 0, 0, time.UTC)
+		groupID := uuid.NullUUID{UUID: group.ID, Valid: true}
+
+		// Current-month usage is included.
+		intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: targetUser.ID, Provider: "anthropic", Model: "claude-4", StartedAt: inMonth,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: intc.ID, CreatedAt: inMonth, EffectiveGroupID: groupID,
+			InputTokens: 100, CostMicros: sql.NullInt64{Int64: 1000, Valid: true},
+		})
+
+		// Previous-month usage falls outside the default window and is excluded.
+		prevIntc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: targetUser.ID, Provider: "anthropic", Model: "claude-4", StartedAt: prevMonth,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: prevIntc.ID, CreatedAt: prevMonth, EffectiveGroupID: groupID,
+			InputTokens: 999, CostMicros: sql.NullInt64{Int64: 9999, Valid: true},
+		})
+
+		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, nil)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		records := readAISpendExportResponse(t, res)
+		// Only the current-month usage is present, so its values exclude the
+		// previous month.
+		require.Len(t, records, 2)              // header + current-month row
+		require.Equal(t, "100", records[1][5])  // input_tokens
+		require.Equal(t, "1000", records[1][9]) // cost_micros
+	})
+
+	t.Run("ExcludesNullEffectiveGroup", func(t *testing.T) {
+		t.Parallel()
+
+		clock := quartz.NewMock(t)
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-null-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clock.Set(time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC))
+		at := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
+
+		// Usage attributed to a group is included.
+		groupedIntc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: targetUser.ID, Provider: "anthropic", Model: "claude-4", StartedAt: at,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: groupedIntc.ID, CreatedAt: at,
+			EffectiveGroupID: uuid.NullUUID{UUID: group.ID, Valid: true},
+			InputTokens:      100, CostMicros: sql.NullInt64{Int64: 1000, Valid: true},
+		})
+
+		// Usage with no effective group must be excluded entirely, so its
+		// tokens and cost never reach the CSV.
+		nullIntc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: targetUser.ID, Provider: "anthropic", Model: "claude-4", StartedAt: at,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: nullIntc.ID, CreatedAt: at,
+			InputTokens: 500, CostMicros: sql.NullInt64{Int64: 5000, Valid: true},
+		})
+
+		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, nil)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		records := readAISpendExportResponse(t, res)
+		// Only the grouped row is present; the null-group usage is dropped, so
+		// both the row count and the aggregated values exclude it.
+		require.Len(t, records, 2)              // header + single grouped row
+		require.Equal(t, "100", records[1][5])  // input_tokens
+		require.Equal(t, "1000", records[1][9]) // cost_micros
+	})
+
+	t.Run("CustomPeriodHalfOpen", func(t *testing.T) {
+		t.Parallel()
+
+		clock := quartz.NewMock(t)
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-custom-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clock.Set(time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC))
+		groupID := uuid.NullUUID{UUID: group.ID, Valid: true}
+
+		start := time.Date(2026, time.March, 10, 0, 0, 0, 0, time.UTC)
+		end := time.Date(2026, time.March, 11, 0, 0, 0, 0, time.UTC)
+
+		// At start (inclusive): included. At end (exclusive): excluded.
+		for _, at := range []time.Time{start, end} {
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID: targetUser.ID, Provider: "anthropic", Model: "claude-4", StartedAt: at,
+			}, nil)
+			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+				InterceptionID: intc.ID, CreatedAt: at, EffectiveGroupID: groupID,
+				InputTokens: 100, CostMicros: sql.NullInt64{Int64: 1000, Valid: true},
+			})
+		}
+
+		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, map[string]string{
+			"period_start": start.Format(time.RFC3339Nano),
+			"period_end":   end.Format(time.RFC3339Nano),
+		})
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		records := readAISpendExportResponse(t, res)
+		require.Len(t, records, 2) // header + only the start-boundary row
+		require.Equal(t, "1000", records[1][9])
+		require.Equal(t, start.Format(time.RFC3339), records[1][10])
+		require.Equal(t, end.Format(time.RFC3339), records[1][11])
 	})
 }
 
@@ -4098,7 +4164,7 @@ func TestExportOrganizationAISpendRoleAccess(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
 
-			body, err := tc.client.ExportOrganizationAISpend(ctx, owner.OrganizationID, codersdk.AISpendExportOptions{})
+			body, err := tc.client.ExportOrganizationAISpend(ctx, owner.OrganizationID, codersdk.AISpendPeriodWindow{})
 			if tc.wantErr {
 				var sdkErr *codersdk.Error
 				require.ErrorAs(t, err, &sdkErr)

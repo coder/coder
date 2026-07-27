@@ -474,9 +474,6 @@ func (r GetGroupMembersAISpendRow) RBACObject() rbac.Object {
 	return rbac.ResourceGroupMember.WithID(r.UserID).InOrg(r.OrganizationID).WithOwner(r.UserID.String())
 }
 
-// ExportOrganizationAISpendRow is authorized per row like group member spend:
-// admins with org-wide group member read see every row, while a regular member
-// only matches rows they own (WithOwner), so they see only their own spend.
 func (r ExportOrganizationAISpendRow) RBACObject() rbac.Object {
 	return rbac.ResourceGroupMember.WithID(r.UserID).InOrg(r.OrganizationID).WithOwner(r.UserID.String())
 }

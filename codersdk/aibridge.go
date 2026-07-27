@@ -369,20 +369,12 @@ func (c *Client) AIBridgeListClients(ctx context.Context) ([]string, error) {
 	return clients, json.NewDecoder(res.Body).Decode(&clients)
 }
 
-// AISpendExportOptions bounds the period exported by ExportOrganizationAISpend.
-// Both bounds are optional and interpreted as UTC; zero values fall back to the
-// current budget period on the server.
-type AISpendExportOptions struct {
-	// PeriodStart is the inclusive lower bound of the export window.
-	PeriodStart time.Time
-	// PeriodEnd is the exclusive upper bound of the export window.
-	PeriodEnd time.Time
-}
-
 // ExportOrganizationAISpend returns a CSV of per-user, per-group, per-model,
-// per-provider AI spend for the organization over the requested period. The
-// caller is responsible for closing the returned ReadCloser.
-func (c *Client) ExportOrganizationAISpend(ctx context.Context, organization uuid.UUID, opts AISpendExportOptions) (io.ReadCloser, error) {
+// per-provider AI spend for the organization over the requested period. Both
+// bounds are optional and interpreted as UTC, and zero values fall back to the
+// current budget period on the server. The caller is responsible for closing
+// the returned ReadCloser.
+func (c *Client) ExportOrganizationAISpend(ctx context.Context, organization uuid.UUID, opts AISpendPeriodWindow) (io.ReadCloser, error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/organizations/%s/ai/spend/export", organization.String()),
 		nil,

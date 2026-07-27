@@ -2572,11 +2572,9 @@ type ExportOrganizationAISpendRow struct {
 }
 
 // Returns per-user, per-group, per-model, per-provider aggregated AI spend for
-// @organization_id over the [period_start, period_end) window, built from raw
-// AI Gateway token usage rather than the daily spend rollup. Spend is
+// @organization_id over the [period_start, period_end) window. Spend is
 // attributed through the token usage's effective group, and rows are bucketed
 // by the token usage created_at, matching how ai_user_daily_spend is derived.
-// Only token usage with an effective group in the organization is included.
 func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOrganizationAISpendParams) ([]ExportOrganizationAISpendRow, error) {
 	rows, err := q.db.QueryContext(ctx, exportOrganizationAISpend, arg.OrganizationID, arg.PeriodStart, arg.PeriodEnd)
 	if err != nil {

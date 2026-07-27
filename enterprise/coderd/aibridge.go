@@ -1040,9 +1040,9 @@ var aiSpendExportCSVHeader = []string{
 
 // aiSpendExportPeriod resolves the export window from the request. When neither
 // start nor end is supplied it defaults to the current UTC monthly budget
-// period. Both bounds must be supplied together and are interpreted as UTC; an
-// explicit window must be non-empty and span at most 31 days. On invalid input
-// it writes the error response and returns ok=false.
+// period. Both bounds must be supplied together and are interpreted as UTC, and
+// an explicit window must be non-empty and span at most 31 days. On invalid
+// input it writes the error response and returns ok=false.
 func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter, r *http.Request) (start, end time.Time, ok bool) {
 	query := r.URL.Query()
 	hasStart := query.Has("period_start")
@@ -1096,7 +1096,7 @@ func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter,
 		cutoff := api.Clock.Now().Add(-retention)
 		if start.Before(cutoff) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Query parameter \"period_start\" is older than the configured AI Gateway data retention window.",
+				Message: fmt.Sprintf("Query parameter \"period_start\" is older than the configured AI Gateway data retention window (%s).", retention),
 			})
 			return time.Time{}, time.Time{}, false
 		}
@@ -1146,9 +1146,6 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 	start := periodStart.UTC().Format(time.RFC3339)
 	end := periodEnd.UTC().Format(time.RFC3339)
 
-	// Build the full CSV in memory so the response is sent once with a
-	// Content-Length, and so a write error surfaces as a 500 before any
-	// status is written. The row count is bounded by the 31-day period cap.
 	var buf bytes.Buffer
 	cw := csv.NewWriter(&buf)
 	if err := cw.Write(aiSpendExportCSVHeader); err != nil {
