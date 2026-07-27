@@ -232,16 +232,13 @@ secret value.
 See [How your secrets reach a workspace](#how-your-secrets-reach-a-workspace)
 for what happens to running workspaces when you delete a secret.
 
-For full command details, see [`coder secret`](../reference/cli/secret.md) and
-the [Secrets API reference](../reference/api/secrets.md).
-
 ## Import secrets from a file
 
 If you keep secrets in a dotenv file, a flat JSON object, or a flat YAML
 mapping, you can import the whole file instead of creating each secret
 individually:
 
-1. On the [**Secrets** page](#manage-secrets-from-the-dashboard), select
+1. Go to the [**Secrets** page](#manage-secrets-from-the-dashboard) and select
    **Add secret**.
 1. Drop or select a `.env`, `.json`, `.yaml`, or `.yml` file in the upload
    area. Coder imports the file as soon as you choose it.
@@ -255,9 +252,13 @@ API_KEY=abc123
 DATABASE_URL=postgres://user:pass@db.internal/app
 ```
 
+In JSON and YAML files, every value must be a string. Quote numeric and
+boolean values, for example `"PORT": "8080"`.
+
 The import is all or nothing. If any entry fails validation, conflicts with
 an existing secret, or exceeds a [limit](#limits), Coder cancels the import
-and creates no secrets.
+and creates no secrets. The file must also be 1 MiB or smaller and contain no
+more than 50 keys.
 
 Keys that are not valid environment variable names, such as `MY-TOKEN` or the
 reserved name `PATH`, are imported without an environment variable target.
@@ -266,3 +267,6 @@ variable or file target.
 
 To import secrets programmatically, use the
 [Secrets API](../reference/api/secrets.md#import-user-secrets-from-a-file).
+
+For full command details, see [`coder secret`](../reference/cli/secret.md) and
+the [Secrets API reference](../reference/api/secrets.md).
