@@ -1,4 +1,3 @@
-import { isPixel } from "@coder/pixel-storybook";
 import type { MotionProps } from "motion/react";
 import { MotionConfig, motion } from "motion/react";
 import type { ElementType, JSX } from "react";
@@ -43,15 +42,10 @@ const ShimmerComponent = ({
 
 	const dynamicSpread = (children?.length ?? 0) * spread;
 
-	// Pixel screenshots are taken once the DOM stops mutating. Animating the
-	// gradient rewrites the element's inline style on every frame, so a capture
-	// never sees a settled DOM.
-	const animate = isPixel() ? undefined : { backgroundPosition: "0% center" };
-
 	return (
 		<MotionConfig reducedMotion="user">
 			<MotionComponent
-				animate={animate}
+				animate={{ backgroundPosition: "0% center" }}
 				className={cn(
 					"relative inline-block bg-[length:250%_100%,auto] bg-clip-text text-transparent",
 					"[--bg:linear-gradient(90deg,#0000_calc(50%-var(--spread)),hsl(var(--surface-primary)),#0000_calc(50%+var(--spread)))] [background-repeat:no-repeat,padding-box]",
