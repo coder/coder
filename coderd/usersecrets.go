@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -121,7 +122,7 @@ func (api *API) postUserSecretsBatch(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reqs, err := codersdk.ParseSecretsFile(req.Format, req.Content)
+	entries, err := codersdk.ParseSecretsFileEntries(req.Format, req.Content)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to parse secrets file.",
@@ -132,18 +133,70 @@ func (api *API) postUserSecretsBatch(rw http.ResponseWriter, r *http.Request) {
 
 	// Validate every entry and accumulate all errors so the caller can
 	// fix the whole file in one round-trip. Each field is prefixed with
-	// the entry index, e.g. "secrets[2].env_name".
+	// the entry index, e.g. "secrets[2].env_name", and each detail names
+	// the source key (and line, where the format has one) so the caller
+	// does not have to count entries to locate the problem.
 	var validations []codersdk.ValidationError
-	for i, sreq := range reqs {
-		for _, v := range codersdk.ValidateCreateUserSecretRequest(sreq) {
+	for i, entry := range entries {
+		for _, v := range codersdk.ValidateCreateUserSecretRequest(entry.Request) {
 			validations = append(validations, codersdk.ValidationError{
 				Field:  fmt.Sprintf("secrets[%d].%s", i, v.Field),
-				Detail: v.Detail,
+				Detail: fmt.Sprintf("Secret %s: %s", userSecretEntryLabel(entry), v.Detail),
 			})
 		}
 	}
 	if len(validations) > 0 {
 		writeUserSecretValidationErrors(ctx, rw, http.StatusBadRequest, validations)
+		return
+	}
+
+	// Enumerate every entry that collides with an already-stored secret
+	// before opening the transaction, so re-importing a file that collides
+	// on ten keys reports all ten at once instead of one per round-trip.
+	// The unique indexes stay the authority: two concurrent imports can
+	// both pass this check, so the insert loop below still maps a
+	// uniqueness violation to the same 409.
+	//
+	// ListUserSecrets returns metadata only, with no value column, so these
+	// rows can serve a secret-count pre-flight but not the per-user byte
+	// budgets, which the trigger computes from sum(octet_length(value)).
+	// Conflicts also short-circuit here, so a file that both collides and
+	// exceeds a cap reports only the conflict.
+	existing, err := api.Database.ListUserSecrets(ctx, user.ID)
+	if err != nil {
+		if httpapi.IsUnauthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error importing secrets.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if conflicts := userSecretImportConflicts(entries, existing); len(conflicts) > 0 {
+		writeUserSecretImportConflictErrors(ctx, rw, conflicts)
+		return
+	}
+
+	// Reject a file that cannot fit before opening the transaction, so the
+	// caller learns their headroom instead of getting a trigger error pinned to
+	// whichever entry happened to reach the cap. Running after the conflict
+	// check means every entry here is new, so len(existing)+len(entries) is the
+	// resulting count. It also keeps a colliding file reporting its duplicates:
+	// re-importing keys the user already has needs no keys removed.
+	//
+	// The trigger stays the authority. Concurrent imports can both pass this
+	// check, and it deliberately covers only the count, not the two byte
+	// budgets described above.
+	if overflow := len(existing) + len(entries) - codersdk.MaxUserSecretsPerUserCount; overflow > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "User secrets limit reached.",
+			Detail: fmt.Sprintf(
+				"You have %d of %d secrets and this file contains %d, so remove at least %d.",
+				len(existing), codersdk.MaxUserSecretsPerUserCount, len(entries), overflow,
+			),
+		})
 		return
 	}
 
@@ -154,7 +207,8 @@ func (api *API) postUserSecretsBatch(rw http.ResponseWriter, r *http.Request) {
 	var created []database.UserSecret
 	failedIndex := -1
 	err = api.Database.InTx(func(tx database.Store) error {
-		for i, sreq := range reqs {
+		for i, entry := range entries {
+			sreq := entry.Request
 			s, txErr := tx.CreateUserSecret(ctx, database.CreateUserSecretParams{
 				ID:          uuid.New(),
 				UserID:      user.ID,
@@ -177,17 +231,20 @@ func (api *API) postUserSecretsBatch(rw http.ResponseWriter, r *http.Request) {
 		index := failedIndex
 
 		if conflicts := userSecretConflictValidationErrors(err); len(conflicts) > 0 {
+			// A conflict reaching the unique indexes lost a race with a
+			// concurrent write, so attribute it to the entry that hit it.
 			if index >= 0 {
 				for i := range conflicts {
+					conflicts[i].Detail = fmt.Sprintf("Secret %s: %s", userSecretEntryLabel(entries[index]), conflicts[i].Detail)
 					conflicts[i].Field = fmt.Sprintf("secrets[%d].%s", index, conflicts[i].Field)
 				}
 			}
-			writeUserSecretValidationErrors(ctx, rw, http.StatusConflict, conflicts)
+			writeUserSecretImportConflictErrors(ctx, rw, conflicts)
 			return
 		}
 		if resp, ok := userSecretLimitResponse(err); ok {
 			if index >= 0 {
-				resp.Detail = fmt.Sprintf("Entry secrets[%d] (%q): %s", index, reqs[index].Name, resp.Detail)
+				resp.Detail = fmt.Sprintf("Entry secrets[%d] (%s): %s", index, userSecretEntryLabel(entries[index]), resp.Detail)
 			}
 			httpapi.Write(ctx, rw, http.StatusBadRequest, resp)
 			return
@@ -449,11 +506,103 @@ func (api *API) deleteUserSecret(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// maxUserSecretLabelNameRunes bounds how much of an offending key is echoed in
+// a per-entry error detail. Names may exceed MaxUserSecretNameLength (that is
+// itself a validation failure), and an oversized key produces both a name and a
+// value error, so echoing keys in full lets a 1 MiB import return a
+// multi-megabyte response.
+const maxUserSecretLabelNameRunes = 64
+
+// userSecretEntryLabel names an imported entry by its parsed key and, when the
+// file format tracks one, its line. Formats without line information (JSON)
+// omit the line rather than reporting a placeholder. Only the parsed key is
+// echoed, never Request.Value. Malformed input can cause the parser to read
+// value material as a key, so the key is truncated.
+func userSecretEntryLabel(entry codersdk.ParsedSecret) string {
+	name := entry.Request.Name
+	if r := []rune(name); len(r) > maxUserSecretLabelNameRunes {
+		name = string(r[:maxUserSecretLabelNameRunes]) + "..."
+	}
+	if entry.Line > 0 {
+		return fmt.Sprintf("%q on line %d", name, entry.Line)
+	}
+	return fmt.Sprintf("%q", name)
+}
+
 func writeUserSecretValidationErrors(ctx context.Context, rw http.ResponseWriter, status int, validations []codersdk.ValidationError) {
 	httpapi.Write(ctx, rw, status, codersdk.Response{
 		Message:     "Validation failed.",
 		Validations: validations,
 	})
+}
+
+// writeUserSecretImportConflictErrors reports an import that collides with
+// secrets the user already has. Import uses a conflict-specific title because
+// the response lists entries from a batch; single-create and update keep the
+// "Validation failed." title their clients already match on.
+func writeUserSecretImportConflictErrors(ctx context.Context, rw http.ResponseWriter, conflicts []codersdk.ValidationError) {
+	httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+		Message:     "Some secrets already exist.",
+		Validations: conflicts,
+	})
+}
+
+// userSecretImportConflicts reports the entries that collide with the user's
+// existing secrets, across all three uniqueness dimensions.
+//
+// Dimensions that resolve to the same stored secret are reported once. A
+// wholesale re-import collides on both the name and the env_name of one stored
+// row, and naming that row twice adds nothing. Dimensions that resolve to
+// different stored rows are independent problems, so all of them are reported:
+// otherwise clearing one collision only reveals the next on a later request,
+// which is the round-trip cost this enumeration exists to remove.
+//
+// The env_name and file_path unique indexes are partial and exclude the empty
+// string, so empty values never collide. See migration 000357.
+func userSecretImportConflicts(entries []codersdk.ParsedSecret, existing []database.ListUserSecretsRow) []codersdk.ValidationError {
+	names := make(map[string]uuid.UUID, len(existing))
+	envNames := make(map[string]uuid.UUID, len(existing))
+	filePaths := make(map[string]uuid.UUID, len(existing))
+	for _, secret := range existing {
+		names[secret.Name] = secret.ID
+		if secret.EnvName != "" {
+			envNames[secret.EnvName] = secret.ID
+		}
+		if secret.FilePath != "" {
+			filePaths[secret.FilePath] = secret.ID
+		}
+	}
+
+	var conflicts []codersdk.ValidationError
+	for i, entry := range entries {
+		req := entry.Request
+		dimensions := []struct {
+			field string
+			value string
+			owner map[string]uuid.UUID
+		}{
+			{codersdk.UserSecretNameField, req.Name, names},
+			{codersdk.UserSecretEnvNameField, req.EnvName, envNames},
+			{codersdk.UserSecretFilePathField, req.FilePath, filePaths},
+		}
+
+		var reported []uuid.UUID
+		for _, dimension := range dimensions {
+			if dimension.value == "" {
+				continue
+			}
+			id, ok := dimension.owner[dimension.value]
+			if !ok || slices.Contains(reported, id) {
+				continue
+			}
+			reported = append(reported, id)
+			conflicts = append(conflicts, codersdk.ValidationError{
+				Field:  fmt.Sprintf("secrets[%d].%s", i, dimension.field),
+				Detail: fmt.Sprintf("Secret %s: %s", userSecretEntryLabel(entry), userSecretConflictDetail(dimension.field)),
+			})
+		}
+	}
+	return conflicts
 }
 
 func updateUserSecretValidationErrors(req codersdk.UpdateUserSecretRequest) []codersdk.ValidationError {
