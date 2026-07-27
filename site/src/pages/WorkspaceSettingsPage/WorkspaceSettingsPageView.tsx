@@ -1,9 +1,10 @@
 import type { ComponentProps, FC } from "react";
 import type { Workspace } from "#/api/typesGenerated";
 import {
-	PageHeader,
-	PageHeaderTitle,
-} from "#/components/PageHeader/PageHeader";
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { WorkspaceSettingsForm } from "./WorkspaceSettingsForm";
 
 type WorkspaceSettingsPageViewProps = {
@@ -20,10 +21,13 @@ export const WorkspaceSettingsPageView: FC<WorkspaceSettingsPageViewProps> = ({
 	workspace,
 }) => {
 	return (
-		<>
-			<PageHeader className="pt-0">
-				<PageHeaderTitle>Workspace Settings</PageHeaderTitle>
-			</PageHeader>
+		<div className="flex flex-col gap-12">
+			<SettingsHeader>
+				<SettingsHeaderTitle>General</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Update the name and automatic update behavior for this workspace.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
 			<WorkspaceSettingsForm
 				error={error}
@@ -31,6 +35,6 @@ export const WorkspaceSettingsPageView: FC<WorkspaceSettingsPageViewProps> = ({
 				onCancel={onCancel}
 				onSubmit={onSubmit}
 			/>
-		</>
+		</div>
 	);
 };

@@ -34,12 +34,14 @@ type AIGroupBudget struct {
 	LimitSource      AIBudgetLimitSource `json:"limit_source"`
 }
 
-// UserAIBudgetSummary is the effective AI budget for a user. When no
-// budget applies, all fields except UserID are null.
+// UserAIBudgetSummary is the effective AI budget for a user. When no budget
+// applies, the effective group falls back to the Everyone group with a null
+// limit and source.
 type UserAIBudgetSummary struct {
 	UserID uuid.UUID `json:"user_id" format:"uuid"`
-	// EffectiveGroupID is the group the spend is attributed to. Null when
-	// no budget applies.
+	// EffectiveGroupID is the group the spend is attributed to, falling back to
+	// the Everyone group when no budget applies. Null only when the user has no
+	// organization membership.
 	EffectiveGroupID *uuid.UUID `json:"effective_group_id" format:"uuid"`
 	// SpendLimitMicros is the effective spend limit in micro-units.
 	// Null when no budget applies to the user (unlimited).
@@ -101,9 +103,9 @@ type GroupMembersAISpend struct {
 type GroupMemberAISpend struct {
 	UserID uuid.UUID `json:"user_id" format:"uuid"`
 	// EffectiveGroupID is the user's effective budget group within the queried
-	// group's organization. Null when no effective budget group is visible in
-	// this organization, including when the user's budget resolves to a group
-	// in another organization.
+	// group's organization, falling back to the Everyone group when no budget
+	// applies. Null when the effective group belongs to a different organization
+	// than the queried group.
 	EffectiveGroupID *uuid.UUID `json:"effective_group_id" format:"uuid"`
 	// GroupBudget is the budget when the queried group is this user's
 	// effective budget source. Null when the user's budget resolves to another

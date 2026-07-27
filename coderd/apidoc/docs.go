@@ -8934,6 +8934,13 @@ const docTemplate = `{
                         "name": "templateversion",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Owner to report external auth state for. Defaults to the requesting user.",
+                        "name": "user_id",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -11079,6 +11086,73 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UserSecret"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/users/{user}/secrets/batch": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Secrets"
+                ],
+                "summary": "Import user secrets from a file",
+                "operationId": "import-user-secrets-from-a-file",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Import secrets request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ImportUserSecretsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.UserSecret"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -17074,6 +17148,10 @@ const docTemplate = `{
                 "status": {
                     "$ref": "#/definitions/codersdk.ChatStatus"
                 },
+                "summary": {
+                    "description": "Summary is the persisted whole-chat summary, generated in the background.\nIt is nil until the first summary has been produced.",
+                    "type": "string"
+                },
                 "title": {
                     "type": "string"
                 },
@@ -18205,6 +18283,7 @@ const docTemplate = `{
             "enum": [
                 "status_change",
                 "summary_change",
+                "chat_summary_change",
                 "title_change",
                 "created",
                 "deleted",
@@ -18215,6 +18294,7 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ChatWatchEventKindStatusChange",
                 "ChatWatchEventKindSummaryChange",
+                "ChatWatchEventKindChatSummaryChange",
                 "ChatWatchEventKindTitleChange",
                 "ChatWatchEventKindCreated",
                 "ChatWatchEventKindDeleted",
@@ -20486,7 +20566,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "effective_group_id": {
-                    "description": "EffectiveGroupID is the user's effective budget group within the queried\ngroup's organization. Null when no effective budget group is visible in\nthis organization, including when the user's budget resolves to a group\nin another organization.",
+                    "description": "EffectiveGroupID is the user's effective budget group within the queried\ngroup's organization, falling back to the Everyone group when no budget\napplies. Null when the effective group belongs to a different organization\nthan the queried group.",
                     "type": "string",
                     "format": "uuid"
                 },
@@ -20631,6 +20711,21 @@ const docTemplate = `{
                 },
                 "threshold_database": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.ImportUserSecretsRequest": {
+            "type": "object",
+            "required": [
+                "content",
+                "format"
+            ],
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "format": {
+                    "$ref": "#/definitions/codersdk.SecretsFileFormat"
                 }
             }
         },
@@ -23713,6 +23808,19 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.SecretsFileFormat": {
+            "type": "string",
+            "enum": [
+                "env",
+                "json",
+                "yaml"
+            ],
+            "x-enum-varnames": [
+                "SecretsFileFormatEnv",
+                "SecretsFileFormatJSON",
+                "SecretsFileFormatYAML"
+            ]
+        },
         "codersdk.ServerSentEvent": {
             "type": "object",
             "properties": {
@@ -26099,7 +26207,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "effective_group_id": {
-                    "description": "EffectiveGroupID is the group the spend is attributed to. Null when\nno budget applies.",
+                    "description": "EffectiveGroupID is the group the spend is attributed to, falling back to\nthe Everyone group when no budget applies. Null only when the user has no\norganization membership.",
                     "type": "string",
                     "format": "uuid"
                 },

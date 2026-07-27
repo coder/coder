@@ -117,6 +117,80 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/secrets \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Import user secrets from a file
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/users/{user}/secrets/batch \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/users/{user}/secrets/batch`
+
+> Body parameter
+
+```json
+{
+  "content": "string",
+  "format": "env"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                             | Required | Description              |
+|--------|------|----------------------------------------------------------------------------------|----------|--------------------------|
+| `user` | path | string                                                                           | true     | User ID, username, or me |
+| `body` | body | [codersdk.ImportUserSecretsRequest](schemas.md#codersdkimportusersecretsrequest) | true     | Import secrets request   |
+
+### Example responses
+
+> 201 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "description": "string",
+    "env_name": "string",
+    "file_path": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "updated_at": "2019-08-24T14:15:22Z"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                                 | Description              | Schema                                                        |
+|--------|-------------------------------------------------------------------------|--------------------------|---------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                  | array of [codersdk.UserSecret](schemas.md#codersdkusersecret) |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)        | Bad Request              | [codersdk.Response](schemas.md#codersdkresponse)              |
+| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)           | Conflict                 | [codersdk.Response](schemas.md#codersdkresponse)              |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse)              |
+
+<h3 id="import-user-secrets-from-a-file-responseschema">Response Schema</h3>
+
+Status Code **201**
+
+| Name            | Type              | Required | Restrictions | Description |
+|-----------------|-------------------|----------|--------------|-------------|
+| `[array item]`  | array             | false    |              |             |
+| `» created_at`  | string(date-time) | false    |              |             |
+| `» description` | string            | false    |              |             |
+| `» env_name`    | string            | false    |              |             |
+| `» file_path`   | string            | false    |              |             |
+| `» id`          | string(uuid)      | false    |              |             |
+| `» name`        | string            | false    |              |             |
+| `» updated_at`  | string(date-time) | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get a user secret by name
 
 ### Code samples

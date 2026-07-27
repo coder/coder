@@ -1816,6 +1816,7 @@ func New(options *Options) *API {
 						r.Put("/gitsshkey", api.regenerateGitSSHKey)
 						r.Route("/secrets", func(r chi.Router) {
 							r.Post("/", api.postUserSecret)
+							r.Post("/batch", api.postUserSecretsBatch)
 							r.Get("/", api.getUserSecrets)
 							r.Route("/{name}", func(r chi.Router) {
 								r.Get("/", api.getUserSecret)

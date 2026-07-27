@@ -24,6 +24,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { formatProviderLabel } from "#/utils/aiProviders";
 import { cn } from "#/utils/cn";
 import { ProviderIcon } from "./ChatModelAdminPanel/ProviderIcon";
 
@@ -278,17 +279,20 @@ export const UserCompactionThresholdSettings: FC<
 								draftValue === "100" && drafts[modelConfig.id] !== undefined;
 							const rowError = rowErrors[modelConfig.id];
 							const modelName = modelConfig.display_name || modelConfig.model;
+							const provider =
+								providerTypeByID.get(modelConfig.ai_provider_id) ?? "";
+							const providerLabel = formatProviderLabel(provider);
 
 							return (
 								<TableRow key={modelConfig.id}>
 									<TableCell className="text-sm font-medium text-content-primary">
-										<Badge size="sm" variant="default" className="w-fit">
-											<ProviderIcon
-												provider={
-													providerTypeByID.get(modelConfig.ai_provider_id) ?? ""
-												}
-												className="size-4"
-											/>
+										<Badge
+											size="sm"
+											variant="default"
+											className="w-fit"
+											aria-label={`${providerLabel} ${modelName}`}
+										>
+											<ProviderIcon provider={provider} className="size-4" />
 											{modelName}
 										</Badge>
 										{rowError && (
