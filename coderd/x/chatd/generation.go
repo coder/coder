@@ -131,11 +131,10 @@ var errCompactionStillOverLimit = chaterror.WithClassification(
 )
 
 type generationDecision struct {
-	kind                    generationActionKind
-	localToolCalls          []fantasy.ToolCallContent
-	pendingDynamicToolCalls []pendingDynamicToolCall
-	finishReason            generationFinishReason
-	promotedMessageID       int64
+	kind              generationActionKind
+	localToolCalls    []fantasy.ToolCallContent
+	finishReason      generationFinishReason
+	promotedMessageID int64
 	// forced marks a compact action triggered by a manual
 	// compaction request rather than the usage threshold.
 	forced bool
@@ -201,12 +200,11 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 					Input:      dynamicCall.Args,
 				})
 			}
-			dynamicCalls = nil
 		}
-		return generationDecision{kind: generationActionExecuteLocalTools, localToolCalls: localCalls, pendingDynamicToolCalls: dynamicCalls}, nil
+		return generationDecision{kind: generationActionExecuteLocalTools, localToolCalls: localCalls}, nil
 	}
 	if len(dynamicCalls) > 0 {
-		return generationDecision{kind: generationActionEnterRequiresAction, pendingDynamicToolCalls: dynamicCalls}, nil
+		return generationDecision{kind: generationActionEnterRequiresAction}, nil
 	}
 
 	// A manual compaction request wins over every non-tool decision:
@@ -321,7 +319,9 @@ func unresolvedToolCallsFromHistory(
 
 // exclusiveBatchRejected reports whether the exclusive-tool policy will
 // reject the whole batch, which mirrors the condition chatloop applies
-// when it decides that nothing in the batch may execute.
+// when it decides that nothing in the batch may execute. Callers must ask
+// before filtering the batch, because dropping calls from it can leave the
+// exclusive call alone and admissible.
 func exclusiveBatchRejected(toolCalls []fantasy.ToolCallContent, exclusiveToolNames map[string]bool) bool {
 	return len(toolCalls) > 1 && hasExclusiveToolCall(toolCalls, exclusiveToolNames)
 }
@@ -765,15 +765,6 @@ func (s *taskStarter) generateAssistant(
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionGenerateAssistant, messages, generationCommitHooks{})
 }
 
-// admitStepToolCalls dispatches pre_tool_use for the calls the provider just
-// produced, before the step is persisted, so the committed assistant row
-// carries the input that will actually run. Execution then consumes the
-// admitted call from history without dispatching again.
-//
-// A batch the exclusive-tool policy rejects whole executes nothing, so it is
-// not submitted: removing a denial from it would leave the exclusive call
-// looking alone and let it run. Ambiguous builtin input is filtered the same
-// way execution filters it, so consumers only decide calls that could run.
 func (s *taskStarter) admitStepToolCalls(
 	ctx context.Context,
 	input chatWorkerTaskStartInput,
@@ -806,9 +797,6 @@ func (s *taskStarter) executeLocalTools(
 	prepared generationPrepared,
 	decision generationDecision,
 ) error {
-	// A batch that mixes an exclusive tool with other tools is rejected
-	// whole and executes nothing, so nothing in it is filtered first: that
-	// would leave the exclusive call looking alone and let it run.
 	allowed := decision.localToolCalls
 	var denied []fantasy.ToolResultContent
 	if !exclusiveBatchRejected(decision.localToolCalls, prepared.ExclusiveToolNames) {

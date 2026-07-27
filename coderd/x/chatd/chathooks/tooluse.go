@@ -150,23 +150,21 @@ func (t *Trigger) PostToolUseResults(
 	return results, firstErr
 }
 
-// ApplyAdmittedToolCalls rewrites the step's tool-call inputs to the values
-// pre_tool_use admitted and appends the synthetic denial results, so the step
-// is persisted with the input the tool runs with.
+// ApplyAdmittedToolCalls applies admitted inputs before persistence and
+// appends denial results.
 func ApplyAdmittedToolCalls(content []fantasy.Content, preflight PreToolUseExecutionResult) []fantasy.Content {
-	admitted := make(map[string]fantasy.ToolCallContent, len(preflight.Allowed))
-	for _, toolCall := range preflight.Allowed {
-		admitted[toolCall.ToolCallID] = toolCall
+	if len(preflight.Overrides) == 0 && len(preflight.Denied) == 0 {
+		return content
 	}
 	rewritten := make([]fantasy.Content, 0, len(content)+len(preflight.Denied))
 	for _, block := range content {
-		toolCall, ok := asToolCallContent(block)
+		toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block)
 		if !ok {
 			rewritten = append(rewritten, block)
 			continue
 		}
-		if replacement, found := admitted[toolCall.ToolCallID]; found {
-			toolCall.Input = replacement.Input
+		if input, found := preflight.Overrides[toolCall.ToolCallID]; found {
+			toolCall.Input = string(input)
 		}
 		rewritten = append(rewritten, toolCall)
 	}
@@ -176,22 +174,12 @@ func ApplyAdmittedToolCalls(content []fantasy.Content, preflight PreToolUseExecu
 	return rewritten
 }
 
-func asToolCallContent(block fantasy.Content) (fantasy.ToolCallContent, bool) {
-	if tc, ok := fantasy.AsContentType[fantasy.ToolCallContent](block); ok {
-		return tc, true
-	}
-	if tc, ok := fantasy.AsContentType[*fantasy.ToolCallContent](block); ok && tc != nil {
-		return *tc, true
-	}
-	return fantasy.ToolCallContent{}, false
-}
-
-// PendingToolCalls lists the tool calls a step leaves for Coder to run.
-// Provider-executed calls run inside the provider, so hooks never see them.
+// PendingToolCalls returns the calls a step leaves for Coder to run. Hooks
+// never see provider-executed calls because the provider runs them itself.
 func PendingToolCalls(content []fantasy.Content) []fantasy.ToolCallContent {
 	toolCalls := make([]fantasy.ToolCallContent, 0, len(content))
 	for _, block := range content {
-		toolCall, ok := asToolCallContent(block)
+		toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block)
 		if !ok || toolCall.ProviderExecuted {
 			continue
 		}
