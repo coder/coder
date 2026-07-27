@@ -70,7 +70,7 @@ const mockAnalyticsSummary: TypesGen.ChatCostSummary = {
 	end_date: "2026-03-12T00:00:00Z",
 	total_cost_micros: 1_500_000,
 	priced_message_count: 12,
-	unpriced_message_count: 1,
+	unpriced_messages_having_usage_count: 1,
 	total_input_tokens: 123_456,
 	total_output_tokens: 654_321,
 	total_cache_read_tokens: 9_876,

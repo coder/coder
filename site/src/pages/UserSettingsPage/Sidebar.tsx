@@ -1,4 +1,3 @@
-import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import {
 	Sidebar as BaseSidebar,
 	SettingsSidebarNavItem,
@@ -40,16 +39,7 @@ export const Sidebar: React.FC = () => {
 					SSH Keys
 				</SettingsSidebarNavItem>
 				<SettingsSidebarNavItem href="tokens">Tokens</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="secrets">
-					<span className="flex min-w-0 items-center gap-2">
-						<span>Secrets</span>
-						<FeatureStageBadge
-							aria-hidden="true"
-							contentType="beta"
-							size="sm"
-						/>
-					</span>
-				</SettingsSidebarNavItem>
+				<SettingsSidebarNavItem href="secrets">Secrets</SettingsSidebarNavItem>
 				<SettingsSidebarNavItem href="notifications">
 					Notifications
 				</SettingsSidebarNavItem>

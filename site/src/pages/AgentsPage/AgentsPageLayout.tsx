@@ -20,6 +20,7 @@ import {
 	applyChatArchiveStateToCaches,
 	archiveChat,
 	cancelChatListRefetches,
+	chatCostKey,
 	chatDiffContentsKey,
 	chatKey,
 	chatModelConfigs,
@@ -58,6 +59,7 @@ import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { isActiveChatStatus } from "./components/ChatConversation/chatStore";
 import {
 	ChatsSidebar,
 	isSettingsView,
@@ -123,6 +125,34 @@ export const shouldInvalidateFilteredChatList = (
 	eventKind: TypesGen.ChatWatchEventKind,
 ): boolean =>
 	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
+
+// Chat IDs whose cost queries must refetch after a watch event, or an
+// empty array when the event cannot change any cost. Cost accrues while
+// a chat generates, so refetch when a status change lands in a
+// non-active status. The cost endpoint sums the requested chat's
+// subtree (GetChatModelUsageCostByChatID walks parent_chat_id), so a
+// subagent going idle must also refresh its ancestors' rolled-up
+// totals. The watch payload only carries the immediate parent and the
+// root, which covers every ancestor for nesting up to two levels deep;
+// deeper intermediate ancestors are refreshed by the query staleTime.
+export const chatCostIdsToInvalidate = (
+	chat: TypesGen.Chat,
+	eventKind: TypesGen.ChatWatchEventKind,
+): readonly string[] => {
+	if (eventKind !== "status_change" || isActiveChatStatus(chat.status)) {
+		return [];
+	}
+	// root_chat_id is self-referential on root chats and parent_chat_id
+	// equals root_chat_id at depth one; the set dedupes both cases.
+	const ids = new Set([chat.id]);
+	if (chat.parent_chat_id) {
+		ids.add(chat.parent_chat_id);
+	}
+	if (chat.root_chat_id) {
+		ids.add(chat.root_chat_id);
+	}
+	return [...ids];
+};
 
 const AgentsPageLayout: FC = () => {
 	useAgentsPWA();
@@ -652,6 +682,15 @@ const AgentsPageLayout: FC = () => {
 						});
 						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
 							void invalidateChatListQueries(queryClient);
+						}
+						for (const costChatId of chatCostIdsToInvalidate(
+							updatedChat,
+							chatEvent.kind,
+						)) {
+							void queryClient.invalidateQueries({
+								queryKey: chatCostKey(costChatId),
+								exact: true,
+							});
 						}
 						if (chatEvent.kind === "context_dirty") {
 							// The watch payload carries only the lightweight
