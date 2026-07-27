@@ -567,12 +567,12 @@ func ResponseErrorFromKeyPool(keyPoolErr *keypool.Error) *ResponseError {
 		return nil
 	}
 	switch keyPoolErr.Kind {
-	case keypool.ErrorKindPermanent:
+	case keypool.ErrorKindPermanent, keypool.ErrorKindUnauthorized:
 		return newResponseError(
 			keyPoolErr.Error(),
 			string(constant.ValueOf[constant.APIError]()),
 			http.StatusBadGateway,
-			keyPoolErr.RetryAfter,
+			0,
 		)
 	case keypool.ErrorKindRateLimited:
 		return newResponseError(
