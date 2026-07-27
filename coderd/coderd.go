@@ -1704,6 +1704,7 @@ func New(options *Options) *API {
 				r.Get("/modules", api.templateBuilderModules)
 				r.Post("/compose", api.templateBuilderCompose)
 				r.Post("/compose/template", api.templateBuilderCreateTemplate)
+				r.Post("/sessions", api.templateBuilderSession)
 			})
 		}
 

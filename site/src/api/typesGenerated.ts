@@ -8807,6 +8807,28 @@ export interface TemplateBuilderModulesResponse {
 }
 
 // From codersdk/templatebuilder.go
+export type TemplateBuilderSessionEventType =
+	| "compose_completion"
+	| "wizard_entry";
+
+export const TemplateBuilderSessionEventTypes: TemplateBuilderSessionEventType[] =
+	["compose_completion", "wizard_entry"];
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderSessionRequest is the request body for
+ * POST /api/v2/templatebuilder/sessions.
+ */
+export interface TemplateBuilderSessionRequest {
+	readonly session_id: string;
+	readonly event_type: TemplateBuilderSessionEventType;
+	readonly base_template_id?: string;
+	readonly module_ids?: readonly string[];
+	readonly duration_seconds?: number;
+	readonly success?: boolean;
+}
+
+// From codersdk/templatebuilder.go
 export type TemplateBuilderVariableType = "bool" | "number" | "string";
 
 export const TemplateBuilderVariableTypes: TemplateBuilderVariableType[] = [
