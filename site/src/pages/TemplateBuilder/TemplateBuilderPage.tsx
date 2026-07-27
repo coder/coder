@@ -36,13 +36,15 @@ const TemplateBuilderPage: FC = () => {
 		!builderDisabled && !isLoading && permissions.createTemplates;
 
 	// Report wizard_entry once the builder is ready and accessible.
-	const reportSession = sessionMutation.mutate;
 	useEffect(() => {
 		if (!wizardReady) {
 			return;
 		}
-		reportSession({ session_id: sessionId, event_type: "wizard_entry" });
-	}, [wizardReady, reportSession, sessionId]);
+		sessionMutation.mutate({
+			session_id: sessionId,
+			event_type: "wizard_entry",
+		});
+	}, [wizardReady, sessionMutation.mutate, sessionId]);
 
 	const basesQuery = useQuery({
 		...templateBuilderBases(),
@@ -85,16 +87,20 @@ const TemplateBuilderPage: FC = () => {
 		const req = toCreateTemplateRequest(state);
 		const durationSeconds = (Date.now() - state.enteredAt) / 1000;
 
+		const reportCompletion = (success: boolean) => {
+			sessionMutation.mutate({
+				session_id: state.sessionId,
+				event_type: "compose_completion",
+				base_template_id: state.baseTemplateId ?? undefined,
+				module_ids: state.modules.map((m) => m.id),
+				duration_seconds: durationSeconds,
+				success,
+			});
+		};
+
 		createMutation.mutate(req, {
 			onSuccess: (resp) => {
-				sessionMutation.mutate({
-					session_id: state.sessionId,
-					event_type: "compose_completion",
-					base_template_id: state.baseTemplateId ?? undefined,
-					module_ids: state.modules.map((m) => m.id),
-					duration_seconds: durationSeconds,
-					success: true,
-				});
+				reportCompletion(true);
 				const t = resp.template;
 				navigate(
 					`${getLink(linkToTemplate(t.organization_name, t.name))}/files`,
@@ -102,14 +108,7 @@ const TemplateBuilderPage: FC = () => {
 				);
 			},
 			onError: () => {
-				sessionMutation.mutate({
-					session_id: state.sessionId,
-					event_type: "compose_completion",
-					base_template_id: state.baseTemplateId ?? undefined,
-					module_ids: state.modules.map((m) => m.id),
-					duration_seconds: durationSeconds,
-					success: false,
-				});
+				reportCompletion(false);
 			},
 		});
 	};
