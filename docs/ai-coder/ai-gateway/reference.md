@@ -2,19 +2,21 @@
 
 > [!NOTE]
 > AI Gateway requires the [AI Governance Add-On](../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on cannot access AI Gateway.
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
 
 ## Deployment topologies
 
 AI Gateway can run inside `coderd` or as a standalone data-plane service.
-Both topologies use the same Gateway request handling and keep `coderd` as the source of truth for Coder API key validation, provider configuration, and AI session records.
+Both topologies run the same Gateway request handling and keep `coderd` as the source of truth for Coder API key validation, provider configuration, and AI session records.
+They differ in how requests are routed to the Gateway.
 
 ### Embedded Gateway
 
 By default, `coder server` runs an in-memory Gateway instance in the `coderd` process.
-AI clients send requests to the Coder access URL.
+AI clients send requests to `<Coder access URL>/api/v2/ai-gateway/<provider-name>/`.
 The embedded Gateway uses the same control RPC as a standalone deployment, over an in-process transport rather than a network connection.
-It does not use an AI Gateway key and does not negotiate an API version.
+It does not use a Gateway key and does not negotiate an API version.
 
 The following diagram shows the embedded topology:
 
@@ -30,7 +32,7 @@ The control connection carries:
 - Coder API key validation, which resolves each request to an active Coder user.
 - Provider configuration, plus a change signal when the provider set changes.
 - AI session records.
-- (deprecated) The configuration and access tokens used by [injected MCP](./mcp.md).
+- **Deprecated**: the configuration and access tokens used by [injected MCP](./mcp.md).
 
 Standalone replicas do not own authoritative database state.
 They keep ephemeral provider snapshots, request caches, provider key pools, and metrics in memory, and emit their own logs and traces.
