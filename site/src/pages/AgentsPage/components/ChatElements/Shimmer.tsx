@@ -37,34 +37,21 @@ const ShimmerComponent = ({
 	duration = 2,
 	spread = 2,
 }: TextShimmerProps) => {
-	// Pixel screenshots are taken once the DOM stops mutating. The shimmer
-	// rewrites inline styles on every frame, so a capture never sees a settled
-	// DOM and the resulting baseline is nondeterministic. Render static text
-	// instead while a capture is in progress.
-	if (isPixel()) {
-		return (
-			<Component
-				className={cn(
-					"relative inline-block text-content-secondary",
-					className,
-				)}
-			>
-				{children}
-			</Component>
-		);
-	}
-
 	const MotionComponent = getMotionComponent(
 		Component as keyof JSX.IntrinsicElements,
 	);
 
 	const dynamicSpread = (children?.length ?? 0) * spread;
 
+	// Pixel screenshots are taken once the DOM stops mutating. Animating the
+	// gradient rewrites the element's inline style on every frame, so a capture
+	// never sees a settled DOM.
+	const animate = isPixel() ? undefined : { backgroundPosition: "0% center" };
+
 	return (
 		<MotionConfig reducedMotion="user">
 			<MotionComponent
-				data-pixel="ignore"
-				animate={{ backgroundPosition: "0% center" }}
+				animate={animate}
 				className={cn(
 					"relative inline-block bg-[length:250%_100%,auto] bg-clip-text text-transparent",
 					"[--bg:linear-gradient(90deg,#0000_calc(50%-var(--spread)),hsl(var(--surface-primary)),#0000_calc(50%+var(--spread)))] [background-repeat:no-repeat,padding-box]",
