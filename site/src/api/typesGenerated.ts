@@ -6423,9 +6423,17 @@ export const OAuth2ProviderResponseTypes: OAuth2ProviderResponseType[] = [
 // From codersdk/oauth2.go
 /**
  * OAuth2ProviderSettings controls deployment-wide OAuth2 provider behavior.
+ *
+ * DynamicClientRegistrationEnabled is a pointer so a PUT can omit it to leave
+ * the current value unchanged, rather than a decoded zero value silently
+ * resetting it to false. This matters once a second field lands in this
+ * struct (e.g. a future initial-access-token requirement): a client built
+ * against an older, single-field version of this struct would otherwise
+ * always encode the newer field's zero value, silently clearing it on every
+ * unrelated update. GET always returns a non-nil value.
  */
 export interface OAuth2ProviderSettings {
-	readonly dynamic_client_registration_enabled: boolean;
+	readonly dynamic_client_registration_enabled?: boolean;
 }
 
 // From codersdk/client.go

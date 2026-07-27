@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -231,7 +232,7 @@ func (api *API) oauth2ProviderSettings(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2ProviderSettings{
-		DynamicClientRegistrationEnabled: enabled,
+		DynamicClientRegistrationEnabled: ptr.Ref(enabled),
 	})
 }
 
@@ -259,6 +260,7 @@ func (api *API) putOAuth2ProviderSettings(rw http.ResponseWriter, r *http.Reques
 	})
 	defer commitAudit()
 
+	var resolvedEnabled bool
 	err := api.Database.InTx(func(tx database.Store) error {
 		oldEnabled, err := tx.GetOAuth2DCREnabled(ctx)
 		if err != nil {
@@ -268,12 +270,21 @@ func (api *API) putOAuth2ProviderSettings(rw http.ResponseWriter, r *http.Reques
 			DynamicClientRegistrationEnabled: oldEnabled,
 		}
 
-		if err := tx.UpsertOAuth2DCREnabled(ctx, req.DynamicClientRegistrationEnabled); err != nil {
-			return err
+		// A nil field means the caller omitted it, leave the current value
+		// alone rather than overwrite it with a decoded zero value. This
+		// matters once a second field lands in this struct: an older client
+		// that only knows about this field must not silently clear a newer
+		// one it never sent.
+		resolvedEnabled = oldEnabled
+		if req.DynamicClientRegistrationEnabled != nil {
+			resolvedEnabled = *req.DynamicClientRegistrationEnabled
+			if err := tx.UpsertOAuth2DCREnabled(ctx, resolvedEnabled); err != nil {
+				return err
+			}
 		}
 		aReq.New = database.OAuth2ProviderSettings{
 			ID:                               uuid.New(),
-			DynamicClientRegistrationEnabled: req.DynamicClientRegistrationEnabled,
+			DynamicClientRegistrationEnabled: resolvedEnabled,
 		}
 		return nil
 	}, &database.TxOptions{TxIdentifier: "update_oauth2_provider_settings"})
@@ -285,7 +296,9 @@ func (api *API) putOAuth2ProviderSettings(rw http.ResponseWriter, r *http.Reques
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, req)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2ProviderSettings{
+		DynamicClientRegistrationEnabled: ptr.Ref(resolvedEnabled),
+	})
 }
 
 // @Summary Get OAuth2 client configuration (RFC 7592)

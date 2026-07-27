@@ -1462,7 +1462,7 @@ func TestOAuth2DynamicClientRegistrationDisabled(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = client.PutOAuth2ProviderSettings(ctx, codersdk.OAuth2ProviderSettings{
-		DynamicClientRegistrationEnabled: false,
+		DynamicClientRegistrationEnabled: ptr.Ref(false),
 	})
 	require.NoError(t, err)
 

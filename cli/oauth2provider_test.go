@@ -56,7 +56,8 @@ func TestOAuth2ProviderDCR(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			settings, err := client.OAuth2ProviderSettings(ctx)
 			require.NoError(t, err)
-			require.Equal(t, tt.expectValue, settings.DynamicClientRegistrationEnabled)
+			require.NotNil(t, settings.DynamicClientRegistrationEnabled, "GET must always return a concrete value")
+			require.Equal(t, tt.expectValue, *settings.DynamicClientRegistrationEnabled)
 		})
 	}
 }

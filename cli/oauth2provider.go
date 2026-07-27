@@ -5,6 +5,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
@@ -77,7 +78,7 @@ func (r *RootCmd) oauth2ProviderDCRToggle(action dcrToggleAction) *serpent.Comma
 			}
 
 			_, err = client.PutOAuth2ProviderSettings(inv.Context(), codersdk.OAuth2ProviderSettings{
-				DynamicClientRegistrationEnabled: enabled,
+				DynamicClientRegistrationEnabled: ptr.Ref(enabled),
 			})
 			if err != nil {
 				return xerrors.Errorf("unable to %s dynamic client registration: %w", verb, err)

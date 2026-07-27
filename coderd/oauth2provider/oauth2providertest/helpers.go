@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -85,7 +86,7 @@ func EnableDCR(t *testing.T, client *codersdk.Client) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	_, err := client.PutOAuth2ProviderSettings(ctx, codersdk.OAuth2ProviderSettings{
-		DynamicClientRegistrationEnabled: true,
+		DynamicClientRegistrationEnabled: ptr.Ref(true),
 	})
 	require.NoError(t, err, "failed to enable dynamic client registration")
 }
