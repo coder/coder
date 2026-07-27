@@ -252,6 +252,51 @@ func TestDispatcherRetriesConnectionErrorWithSameJTI(t *testing.T) {
 	require.Equal(t, event.ChatID, chatID)
 }
 
+func TestDispatcherRetriesHTTP2AbortWithSameDispatchID(t *testing.T) {
+	t.Parallel()
+
+	event := newTestEvent(t, agenthooks.EventPostCompact, agenthooks.PostCompactData{})
+	type attemptIdentity struct {
+		jti        uuid.UUID
+		dispatchID uuid.UUID
+	}
+	identities := make(chan attemptIdentity, 2)
+	var attempts atomic.Int32
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, 2, r.ProtoMajor)
+		body, err := io.ReadAll(r.Body)
+		assert.NoError(t, err)
+		claims, err := agenthooks.Verify(r.Header.Get("Authorization"), []byte(testSecret))
+		assert.NoError(t, err)
+		var request agenthooks.Request
+		assert.NoError(t, json.Unmarshal(body, &request))
+		identities <- attemptIdentity{jti: claims.JTI, dispatchID: request.Meta.DispatchID}
+
+		if attempts.Add(1) == 1 {
+			_, err = w.Write([]byte(`{"partial":`))
+			assert.NoError(t, err)
+			assert.NoError(t, http.NewResponseController(w).Flush())
+			panic(http.ErrAbortHandler)
+		}
+		_, err = w.Write([]byte(`{}`))
+		assert.NoError(t, err)
+	}))
+	server.EnableHTTP2 = true
+	server.StartTLS()
+	t.Cleanup(server.Close)
+
+	_, dispatchID, err := newTestDispatcher(t, server.Client(), server.URL, time.Second).Dispatch(
+		testutil.Context(t, testutil.WaitLong), event,
+	)
+	require.NoError(t, err)
+	require.Equal(t, int32(2), attempts.Load())
+	first := <-identities
+	second := <-identities
+	require.Equal(t, first, second)
+	require.Equal(t, dispatchID, first.jti)
+	require.Equal(t, dispatchID, first.dispatchID)
+}
+
 func TestDispatcherRetriesMidBodyConnectionError(t *testing.T) {
 	t.Parallel()
 

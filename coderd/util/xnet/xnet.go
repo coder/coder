@@ -7,6 +7,8 @@ import (
 	"io"
 	"net"
 	"syscall"
+
+	"golang.org/x/net/http2"
 )
 
 // IsTimeoutError reports whether err indicates the peer did not respond in
@@ -31,5 +33,37 @@ func IsConnectionError(err error) bool {
 		return true
 	}
 	var opErr *net.OpError
-	return errors.As(err, &opErr)
+	if errors.As(err, &opErr) {
+		return true
+	}
+
+	// Only codes that can result from transient peer or transport conditions
+	// are safe to retry. Protocol failures must remain terminal.
+	var streamErr http2.StreamError
+	if errors.As(err, &streamErr) && isTransientHTTP2Error(streamErr.Code) {
+		return true
+	}
+	var streamErrPtr *http2.StreamError
+	if errors.As(err, &streamErrPtr) && isTransientHTTP2Error(streamErrPtr.Code) {
+		return true
+	}
+	var goAwayErr http2.GoAwayError
+	if errors.As(err, &goAwayErr) && isTransientHTTP2Error(goAwayErr.ErrCode) {
+		return true
+	}
+	var goAwayErrPtr *http2.GoAwayError
+	return errors.As(err, &goAwayErrPtr) && isTransientHTTP2Error(goAwayErrPtr.ErrCode)
+}
+
+func isTransientHTTP2Error(code http2.ErrCode) bool {
+	switch code {
+	case http2.ErrCodeNo,
+		http2.ErrCodeInternal,
+		http2.ErrCodeRefusedStream,
+		http2.ErrCodeCancel,
+		http2.ErrCodeEnhanceYourCalm:
+		return true
+	default:
+		return false
+	}
 }
