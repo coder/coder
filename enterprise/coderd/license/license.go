@@ -63,8 +63,9 @@ func Entitlements(
 	//
 	// TODO: when the workspace-capable-licensing experiment is removed, a
 	// nil authorizer must become a hard dev error rather than a silent
-	// fallback to active-user counting, with tests selecting the legacy
-	// mode explicitly instead of passing nil.
+	// fallback to active-user counting. Tests already pass a real
+	// authorizer; only the dedicated nil-fallback tests rely on this
+	// branch.
 	countingMode := UserCountingModeActive
 	if experiments.Enabled(codersdk.ExperimentWorkspaceCapableLicensing) {
 		if authorizer == nil {
