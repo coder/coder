@@ -503,6 +503,7 @@ func TestClassify_PatternCoverage(t *testing.T) {
 		{name: "QuotaLiteral", err: "quota", wantKind: codersdk.ChatErrorKindUsageLimit, wantRetry: false},
 		{name: "BillingLiteral", err: "billing", wantKind: codersdk.ChatErrorKindUsageLimit, wantRetry: false},
 		{name: "InsufficientQuotaLiteral", err: "insufficient_quota", wantKind: codersdk.ChatErrorKindUsageLimit, wantRetry: false},
+		{name: "AIBudgetLiteral", err: "status 429: AI budget of US$10.00 exceeded", wantKind: codersdk.ChatErrorKindUsageLimit, wantRetry: false},
 		{name: "PaymentRequiredLiteral", err: "payment required", wantKind: codersdk.ChatErrorKindUsageLimit, wantRetry: false},
 		{name: "ForbiddenLiteral", err: "forbidden", wantKind: codersdk.ChatErrorKindAuth, wantRetry: false},
 		{name: "InvalidModelLiteral", err: "invalid model", wantKind: codersdk.ChatErrorKindConfig, wantRetry: false},
