@@ -2045,6 +2045,16 @@ func TestProxyByHostname(t *testing.T) {
 			accessURL:        "https://two.coder.com",
 			wildcardHostname: "*--suffix.two.coder.com",
 		},
+		{
+			name:             "three",
+			accessURL:        "https://three.coder.com:8443",
+			wildcardHostname: "*.wildcard.three.coder.com",
+		},
+		{
+			name:             "four",
+			accessURL:        "https://four.coder.com/",
+			wildcardHostname: "*.wildcard.four.coder.com",
+		},
 	}
 	for _, p := range proxies {
 		dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{
@@ -2074,6 +2084,20 @@ func TestProxyByHostname(t *testing.T) {
 			allowAccessURL:    true,
 			allowWildcardHost: true,
 			matchProxyName:    "one",
+		},
+		{
+			name:              "MatchAccessURLWithPort",
+			testHostname:      "three.coder.com",
+			allowAccessURL:    true,
+			allowWildcardHost: false,
+			matchProxyName:    "three",
+		},
+		{
+			name:              "MatchAccessURLWithTrailingSlash",
+			testHostname:      "four.coder.com",
+			allowAccessURL:    true,
+			allowWildcardHost: false,
+			matchProxyName:    "four",
 		},
 		{
 			name:              "RejectAccessURLPrefix",
