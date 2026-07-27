@@ -168,7 +168,7 @@ Some rules apply to every format, and each format then adds its own.
 
 Every key becomes a secret whose name is the key.
 When the key is also a valid environment variable name, Coder sets the secret's environment variable target to that same key.
-Key order is preserved, and imported secrets get no description and no file target.
+Key order is preserved, and imported secrets get no description and no file target, both of which you can add later by editing the secret.
 Every key must have a non-empty value.
 A key with an empty value, such as `DEBUG=` or `{"DEBUG": ""}`, fails the entire import, and it's the most common import failure.
 Duplicate keys are rejected rather than resolved in favor of the last one.
@@ -180,6 +180,7 @@ Inline comments aren't stripped, so `PASS=abc#123` stores `abc#123`.
 > [!IMPORTANT]
 > An unquoted dotenv value keeps everything after the `=`, so `PASS=abc # note` stores `abc # note` and the secret is silently wrong.
 > The same text after a quoted value is an error instead, so `PASS="abc" # note` fails with an "unexpected data after closing double quote" error.
+> Put the comment on its own line above the key to keep it out of the value.
 
 `$VAR` and `${VAR}` aren't expanded, and Coder stores the literal text.
 That's deliberate, because secret values often contain `$`.
@@ -219,7 +220,7 @@ An anchor on a string value is imported as an ordinary secret, but no other entr
 A key has to be valid as a secret name, and separately as an environment variable name.
 The two rules have different consequences.
 
-Keys that contain `/`, `?`, or `#`, keys that are empty or only whitespace, and keys with leading or trailing whitespace aren't valid secret names, and they fail the entire import.
+Keys that contain `/`, `?`, or `#`, keys that are empty or only whitespace, keys with leading or trailing whitespace, and keys longer than 255 characters aren't valid secret names, and they fail the entire import.
 
 Keys that are valid secret names but not valid environment variable names are imported without an environment variable target, so they aren't injected into any workspace.
 A key isn't a valid environment variable name when it contains a character outside `A-Z`, `a-z`, `0-9`, and `_`, starts with a digit, is longer than 256 bytes, or is reserved.
@@ -243,6 +244,7 @@ A 50-key file therefore fails if you own any secrets at all.
 The per-secret and combined byte caps apply as well, including the env-injected budget, because an import sets an environment variable target for every key that is a valid environment variable name.
 
 Uniqueness is enforced separately on the secret name, the environment variable name, and the file path, and any conflict aborts the whole import.
+Every colliding key is reported at once, so you don't have to re-import to find the next one.
 A key can therefore collide with the environment variable of an existing secret that has a different name, and the fix is to change the other secret's environment variable target.
 Secret names are case-sensitive, so importing `API_KEY` doesn't conflict with an existing `api_key`, and you end up with 2 secrets that hold the same value.
 
@@ -255,8 +257,8 @@ Errors appear in the dialog, and the dialog stays open so you can fix the file a
 Errors come in 3 shapes:
 
 - Parse errors name the line for a dotenv file, for example a line with no `=` or a duplicate key, and name the offending key for JSON and YAML.
-- Per-entry validation and conflict errors use a field path such as `secrets[1].value`.
-- Limit errors name the key that tripped the cap.
+- Per-entry validation and conflict errors use a field path such as `secrets[1].value`, and name the key, plus the line for dotenv and YAML.
+- Limit errors name the key that tripped a byte cap, and report your remaining headroom when the file would push you past the 50-secret cap.
 
 The index in a field path is zero-based and counts the entries the parser found, so it isn't a line number.
 Blank lines and comments are skipped.
