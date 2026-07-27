@@ -27,8 +27,7 @@ const CustomRolesPage: FC = () => {
 		organization: string;
 	};
 	const { organization, organizationPermissions } = useOrganizationSettings();
-	const { experiments, entitlements } = useDashboard();
-	const defaultRolesEnabled = experiments.includes("minimum-implicit-member");
+	const { entitlements } = useDashboard();
 	const defaultRolesEntitled =
 		entitlements.features.multiple_organizations.enabled;
 
@@ -98,7 +97,6 @@ const CustomRolesPage: FC = () => {
 					canDeleteOrgRole={organizationPermissions?.deleteOrgRoles ?? false}
 					canEditDefaultRoles={organizationPermissions?.editSettings ?? false}
 					isCustomRolesEnabled={isCustomRolesEnabled}
-					defaultRolesEnabled={defaultRolesEnabled}
 					defaultRolesEntitled={defaultRolesEntitled}
 					availableOrgRoles={organizationRolesQuery.data}
 					isUpdatingDefaultRoles={updateOrganizationMutation.isPending}
