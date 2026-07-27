@@ -264,7 +264,14 @@ func run() error {
 		_ = server.Close()
 	}()
 
-	_, _ = fmt.Fprintf(os.Stderr, "Agent hooks server listening on %s\n", cfg.listen)
+	mode := "enforcing"
+	if cfg.logOnly {
+		mode = "log-only"
+	}
+	_, _ = fmt.Fprintf(os.Stderr, "Agent hooks server listening on %s in %s mode\n", cfg.listen, mode)
+	if cfg.logOnly && (cfg.denyToolPattern != "" || cfg.redactPrompt != "") {
+		_, _ = fmt.Fprintln(os.Stderr, "Warning: log-only mode ignores -deny-tool-pattern and -redact-prompt-pattern; pass -log-only=false to act on them")
+	}
 	if cfg.tlsCert != "" {
 		err = server.ListenAndServeTLS(cfg.tlsCert, cfg.tlsKey)
 	} else {
@@ -289,9 +296,9 @@ func parseFlags() (config, error) {
 	flag.StringVar(&cfg.issuer, "issuer", os.Getenv("CODER_AGENTHOOKS_ISSUER"), "Expected iss claim, normally the Coder deployment ID (CODER_AGENTHOOKS_ISSUER)")
 	flag.StringVar(&cfg.tlsCert, "tls-cert", os.Getenv("CODER_AGENTHOOKS_TLS_CERT"), "TLS certificate path (CODER_AGENTHOOKS_TLS_CERT)")
 	flag.StringVar(&cfg.tlsKey, "tls-key", os.Getenv("CODER_AGENTHOOKS_TLS_KEY"), "TLS private key path (CODER_AGENTHOOKS_TLS_KEY)")
-	flag.BoolVar(&cfg.logOnly, "log-only", cfg.logOnly, "Return an empty response for every event (CODER_AGENTHOOKS_LOG_ONLY)")
-	flag.StringVar(&cfg.denyToolPattern, "deny-tool-pattern", os.Getenv("CODER_AGENTHOOKS_DENY_TOOL_PATTERN"), "Example regexp for denied tool names (CODER_AGENTHOOKS_DENY_TOOL_PATTERN)")
-	flag.StringVar(&cfg.redactPrompt, "redact-prompt-pattern", os.Getenv("CODER_AGENTHOOKS_REDACT_PROMPT_PATTERN"), "Example regexp to redact in prompts (CODER_AGENTHOOKS_REDACT_PROMPT_PATTERN)")
+	flag.BoolVar(&cfg.logOnly, "log-only", cfg.logOnly, "Return an empty response for every event, on by default (CODER_AGENTHOOKS_LOG_ONLY)")
+	flag.StringVar(&cfg.denyToolPattern, "deny-tool-pattern", os.Getenv("CODER_AGENTHOOKS_DENY_TOOL_PATTERN"), "Example regexp for denied tool names, requires -log-only=false (CODER_AGENTHOOKS_DENY_TOOL_PATTERN)")
+	flag.StringVar(&cfg.redactPrompt, "redact-prompt-pattern", os.Getenv("CODER_AGENTHOOKS_REDACT_PROMPT_PATTERN"), "Example regexp to redact in prompts, requires -log-only=false to override the prompt (CODER_AGENTHOOKS_REDACT_PROMPT_PATTERN)")
 	flag.Parse()
 	return cfg, nil
 }
