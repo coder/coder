@@ -2076,6 +2076,13 @@ func TestProxyByHostname(t *testing.T) {
 			matchProxyName:    "one",
 		},
 		{
+			name:              "RejectAccessURLPrefix",
+			testHostname:      "one.coder",
+			allowAccessURL:    true,
+			allowWildcardHost: false,
+			matchProxyName:    "",
+		},
+		{
 			name:              "MatchWildcard",
 			testHostname:      "something.wildcard.one.coder.com",
 			allowAccessURL:    true,
@@ -2083,11 +2090,25 @@ func TestProxyByHostname(t *testing.T) {
 			matchProxyName:    "one",
 		},
 		{
+			name:              "RejectWildcardHostnamePrefix",
+			testHostname:      "something.wildcard.one.coder",
+			allowAccessURL:    false,
+			allowWildcardHost: true,
+			matchProxyName:    "",
+		},
+		{
 			name:              "MatchSuffix",
 			testHostname:      "something--suffix.two.coder.com",
 			allowAccessURL:    true,
 			allowWildcardHost: true,
 			matchProxyName:    "two",
+		},
+		{
+			name:              "RejectSuffixHostnamePrefix",
+			testHostname:      "something--suffix.two.coder",
+			allowAccessURL:    false,
+			allowWildcardHost: true,
+			matchProxyName:    "",
 		},
 		{
 			name:              "ValidateHostname/1",
