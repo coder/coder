@@ -2420,10 +2420,16 @@ func TestRecordTokenUsageBudgetNotifications(t *testing.T) {
 				Return(database.AIUserDailySpend{}, nil)
 			db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
 				Return(database.GetUserAISpendSinceRow{SpendMicros: tc.newSpend}, nil)
-			// The group is looked up once per crossing that notifies.
-			db.EXPECT().GetGroupByID(gomock.Any(), groupID).
-				Return(database.Group{ID: groupID, Name: "Engineering"}, nil).
-				Times(len(tc.wantTemplates))
+			// The group and user are resolved once per interception that
+			// notifies, regardless of how many thresholds it crosses.
+			if len(tc.wantTemplates) > 0 {
+				db.EXPECT().GetGroupByID(gomock.Any(), groupID).
+					Return(database.Group{ID: groupID, Name: "Engineering"}, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), intc.InitiatorID).
+					Return(database.User{ID: intc.InitiatorID, Username: "bob"}, nil)
+				// No admins configured, so only the user is notified.
+				db.EXPECT().GetUsers(gomock.Any(), gomock.Any()).Return(nil, nil)
+			}
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
@@ -2514,6 +2520,10 @@ func TestRecordTokenUsageBudgetNotificationAcrossPeriodBoundary(t *testing.T) {
 		})
 	db.EXPECT().GetGroupByID(gomock.Any(), groupID).
 		Return(database.Group{ID: groupID, Name: "Engineering"}, nil)
+	db.EXPECT().GetUserByID(gomock.Any(), intc.InitiatorID).
+		Return(database.User{ID: intc.InitiatorID, Username: "bob"}, nil)
+	// No admins configured, so only the user is notified.
+	db.EXPECT().GetUsers(gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	clock := quartz.NewMock(t)
 	clock.Set(processedAt)
@@ -2693,6 +2703,150 @@ func TestRecordTokenUsageBudgetNotificationZeroLimit(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Empty(t, enq.Sent(), "a zero spend limit must not produce a notification")
+}
+
+// TestRecordTokenUsageBudgetAdminNotification verifies that crossing a budget
+// threshold also notifies deployment owners and user admins, and that the
+// affected user is not double-notified as an admin.
+func TestRecordTokenUsageBudgetAdminNotification(t *testing.T) {
+	t.Parallel()
+
+	const (
+		dollar          int64 = 1_000_000    // micros per USD dollar
+		spendLimit      int64 = 100 * dollar // $100 limit (100% threshold)
+		warnAt          int64 = 85 * dollar  // $85 (85% of the limit)
+		inputPrice      int64 = dollar       // $1 per million tokens
+		tokensPerDollar int64 = 1_000_000    // 1,000,000 tokens = $1 at the price above
+	)
+	now := time.Date(2026, 6, 25, 14, 30, 0, 0, time.UTC)
+
+	cases := []struct {
+		name              string
+		useOverride       bool
+		inputTokens       int64
+		newSpend          int64
+		wantThreshold     string
+		wantLimitSource   string
+		wantUserTemplate  uuid.UUID
+		wantAdminTemplate uuid.UUID
+	}{
+		{
+			// A $1 interception takes spend to warnAt ($85): pre ($84) < warnAt <= post.
+			name:              "warning",
+			inputTokens:       tokensPerDollar,
+			newSpend:          warnAt,
+			wantThreshold:     "85",
+			wantLimitSource:   string(codersdk.AIBudgetLimitSourceGroup),
+			wantUserTemplate:  notifications.TemplateAIBudgetWarningUser,
+			wantAdminTemplate: notifications.TemplateAIBudgetWarningAdmin,
+		},
+		{
+			// A $5 interception takes spend from $95 to the $100 limit, so the limit threshold is crossed.
+			name:              "limit reached",
+			inputTokens:       5 * tokensPerDollar,
+			newSpend:          spendLimit,
+			wantThreshold:     "100",
+			wantLimitSource:   string(codersdk.AIBudgetLimitSourceGroup),
+			wantUserTemplate:  notifications.TemplateAIBudgetLimitReachedUser,
+			wantAdminTemplate: notifications.TemplateAIBudgetLimitReachedAdmin,
+		},
+		{
+			// A per-user override supplies the limit, so limit_source is user_override.
+			name:              "warning, per-user override",
+			useOverride:       true,
+			inputTokens:       tokensPerDollar,
+			newSpend:          warnAt,
+			wantThreshold:     "85",
+			wantLimitSource:   string(codersdk.AIBudgetLimitSourceUserOverride),
+			wantUserTemplate:  notifications.TemplateAIBudgetWarningUser,
+			wantAdminTemplate: notifications.TemplateAIBudgetWarningAdmin,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			price := &database.AIModelPrice{
+				InputPrice: sql.NullInt64{Int64: inputPrice, Valid: true},
+			}
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			enq := &notificationstest.FakeEnqueuer{}
+
+			intc := newTestInterception(uuid.New())
+			groupID := uuid.New()
+
+			admin := database.GetUsersRow{ID: uuid.New(), Username: "admin1"}
+			// The affected user is also an admin; they must not receive the admin copy.
+			selfAdmin := database.GetUsersRow{ID: intc.InitiatorID, Username: "bob"}
+
+			// Whether the limit comes from a group budget or a per-user override, the
+			// spend is attributed to the same effective group, so the group lookup and
+			// notifications are identical apart from the limit_source label.
+			if tc.useOverride {
+				override := &database.UserAIBudgetOverride{GroupID: groupID, SpendLimitMicros: spendLimit}
+				expectTokenUsageCostLookups(db, intc, override, nil, nil, price)
+			} else {
+				group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: spendLimit}
+				expectTokenUsageCostLookups(db, intc, nil, group, nil, price)
+			}
+			db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+				func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
+			)
+			db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).
+				Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: intc.ID}, nil)
+			db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
+				Return(database.AIUserDailySpend{}, nil)
+			db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
+				Return(database.GetUserAISpendSinceRow{SpendMicros: tc.newSpend}, nil)
+			db.EXPECT().GetGroupByID(gomock.Any(), groupID).
+				Return(database.Group{ID: groupID, Name: "Engineering"}, nil)
+			db.EXPECT().GetUserByID(gomock.Any(), intc.InitiatorID).
+				Return(database.User{ID: intc.InitiatorID, Username: "bob"}, nil)
+			db.EXPECT().GetUsers(gomock.Any(), database.GetUsersParams{
+				RbacRole: []string{codersdk.RoleOwner, codersdk.RoleUserAdmin},
+			}).Return([]database.GetUsersRow{admin, selfAdmin}, nil)
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+				Store:         db,
+				AISeatTracker: agplaiseats.Noop{},
+				AccessURL:     "/",
+				GatewayCfg:    codersdk.AIBridgeConfig{},
+				Experiments:   requiredExperiments,
+				Enqueuer:      enq,
+				Logger:        testutil.Logger(t),
+				Clock:         quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+				InterceptionId: intc.ID.String(),
+				MsgId:          "msg_123",
+				InputTokens:    tc.inputTokens,
+				CreatedAt:      timestamppb.New(now),
+			})
+			require.NoError(t, err)
+
+			// The user who crossed the threshold gets the user-facing notification.
+			userSent := enq.Sent(notificationstest.WithTemplateID(tc.wantUserTemplate))
+			require.Len(t, userSent, 1)
+			require.Equal(t, intc.InitiatorID, userSent[0].UserID)
+
+			// The admin (but not the affected user, who is also an admin) gets the
+			// admin notification naming the affected user.
+			adminSent := enq.Sent(notificationstest.WithTemplateID(tc.wantAdminTemplate))
+			require.Len(t, adminSent, 1)
+			require.Equal(t, admin.ID, adminSent[0].UserID)
+			require.Equal(t, "bob", adminSent[0].Labels["username"])
+			require.Equal(t, tc.wantThreshold, adminSent[0].Labels["threshold"])
+			require.Equal(t, "$100.00", adminSent[0].Labels["limit"])
+			require.Equal(t, "Engineering", adminSent[0].Labels["effective_group_name"])
+			require.Equal(t, tc.wantLimitSource, adminSent[0].Labels["limit_source"])
+		})
+	}
 }
 
 // newTestInterception returns an interception with a fixed initiator, provider,

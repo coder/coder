@@ -84,6 +84,7 @@ type store interface {
 	GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
 	GetUserAISpendSince(ctx context.Context, arg database.GetUserAISpendSinceParams) (database.GetUserAISpendSinceRow, error)
 	GetGroupByID(ctx context.Context, id uuid.UUID) (database.Group, error)
+	GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error)
 
 	// MCPConfigurator-related queries.
 	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error)
@@ -433,14 +434,10 @@ func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIB
 		return err
 	}
 
-	for _, crossing := range crossings {
-		if err := s.notifyBudgetThresholdCrossing(ctx, crossing); err != nil {
-			s.logger.Error(ctx, "failed to send AI budget notification",
-				slog.F("user_id", crossing.userID),
-				slog.F("group_id", crossing.effectiveGroupID),
-				slog.F("threshold_percent", crossing.thresholdPercent),
-				slog.Error(err))
-		}
+	if err := s.notifyBudgetThresholdCrossings(ctx, crossings); err != nil {
+		s.logger.Error(ctx, "failed to send AI budget notifications",
+			slog.F("initiator_id", intc.InitiatorID),
+			slog.Error(err))
 	}
 	return nil
 }

@@ -72,6 +72,8 @@ var (
 
 // AI cost control related events.
 var (
-	TemplateAIBudgetWarningUser      = uuid.MustParse("b5db9597-de2a-4dea-87e9-25cee6906b86")
-	TemplateAIBudgetLimitReachedUser = uuid.MustParse("cdcf2ecd-f003-4169-9800-abb2661ea522")
+	TemplateAIBudgetWarningUser       = uuid.MustParse("b5db9597-de2a-4dea-87e9-25cee6906b86")
+	TemplateAIBudgetLimitReachedUser  = uuid.MustParse("cdcf2ecd-f003-4169-9800-abb2661ea522")
+	TemplateAIBudgetWarningAdmin      = uuid.MustParse("2a7b0ac1-00e1-4625-9cd5-1e5933972c77")
+	TemplateAIBudgetLimitReachedAdmin = uuid.MustParse("0bafe0ea-a78b-4217-ad05-1ef12e92e025")
 )
