@@ -373,9 +373,6 @@ export const BlockList: FC<{
 							</div>
 						);
 					case "tool-group": {
-						// Blocks reference tools by ID, so a group can
-						// resolve to nothing while the stream is still
-						// filling in the tools it points at.
 						const [firstGroupTool, ...restGroupTools] = block.ids
 							.map((id) => toolByID.get(id))
 							.filter((tool) => tool !== undefined);
