@@ -36,7 +36,7 @@ func (p *Pool) MarkKeyOnStatus(
 		}
 		if key.applyCooldown(cooldown, reason) {
 			if p.metrics != nil {
-				p.metrics.KeyPoolStateTransitions.WithLabelValues(p.providerName, reason.metricLabel()).Inc()
+				p.metrics.KeyPoolStateTransitions.WithLabelValues(p.providerName, string(reason)).Inc()
 			}
 			logger.Info(ctx, "key marked temporary",
 				slog.F("provider", p.providerName),

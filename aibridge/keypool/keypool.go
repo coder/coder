@@ -78,33 +78,18 @@ const defaultCooldown = 60 * time.Second
 
 // cooldownReason records why a key entered its current cooldown. It is
 // meaningful only while the cooldown is active.
-type cooldownReason int
+type cooldownReason string
 
 const (
 	// cooldownRateLimited means the current cooldown was triggered by a
 	// rate-limit response (HTTP 429).
-	cooldownRateLimited cooldownReason = iota
+	cooldownRateLimited cooldownReason = "rate_limited"
 	// cooldownUnauthorized means the current cooldown was triggered by an
 	// authentication failure (HTTP 401).
-	cooldownUnauthorized
+	cooldownUnauthorized cooldownReason = "unauthorized"
 )
 
-// metricLabel returns the Prometheus label value for the reason, used on
-// key-pool state-transition metrics.
-func (r cooldownReason) metricLabel() string {
-	if r == cooldownUnauthorized {
-		return reasonUnauthorized
-	}
-	return reasonRateLimited
-}
-
-// Metric label values for the key pool failover metrics.
 const (
-	// Reasons for a key_pool_state_transitions_total event.
-	reasonRateLimited  = "rate_limited"
-	reasonUnauthorized = "unauthorized"
-
-	// Outcomes for a key_pool_exhaustions_total event.
 	outcomeRateLimited = "rate_limited"
 	outcomeAuthFailed  = "auth_failed"
 )
