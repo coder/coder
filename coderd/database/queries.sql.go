@@ -5574,6 +5574,41 @@ func (q *sqlQuerier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (
 	return i, err
 }
 
+const getChatModelConfigByIDIncludeDeleted = `-- name: GetChatModelConfigByIDIncludeDeleted :one
+SELECT
+    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
+FROM
+    chat_model_configs
+WHERE
+    id = $1::uuid
+`
+
+// Returns the config even when soft-deleted. Historical chat messages keep
+// referencing configs that a model re-sync has since deleted, and replay
+// sanitization needs the producing provider identity for those rows.
+func (q *sqlQuerier) GetChatModelConfigByIDIncludeDeleted(ctx context.Context, id uuid.UUID) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, getChatModelConfigByIDIncludeDeleted, id)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Model,
+		&i.DisplayName,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.Enabled,
+		&i.IsDefault,
+		&i.Deleted,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
+		&i.Options,
+		&i.AIProviderID,
+	)
+	return i, err
+}
+
 const getChatModelConfigs = `-- name: GetChatModelConfigs :many
 SELECT
     cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id

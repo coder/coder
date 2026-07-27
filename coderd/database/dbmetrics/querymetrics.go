@@ -1697,6 +1697,14 @@ func (m queryMetricsStore) GetChatModelConfigByID(ctx context.Context, id uuid.U
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatModelConfigByIDIncludeDeleted(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatModelConfigByIDIncludeDeleted(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatModelConfigByIDIncludeDeleted").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatModelConfigByIDIncludeDeleted").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatModelConfigs(ctx context.Context) ([]database.ChatModelConfig, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatModelConfigs(ctx)
