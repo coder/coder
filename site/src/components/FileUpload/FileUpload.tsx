@@ -1,5 +1,11 @@
 import { CloudUploadIcon, FolderIcon, TrashIcon } from "lucide-react";
-import { type DragEvent, type FC, type ReactNode, useRef } from "react";
+import {
+	type DragEvent,
+	type FC,
+	type ReactNode,
+	useRef,
+	useState,
+} from "react";
 import { Button } from "#/components/Button/Button";
 import { useClickable } from "#/hooks/useClickable";
 import { cn } from "#/utils/cn";
@@ -8,6 +14,9 @@ import { Spinner } from "../Spinner/Spinner";
 interface FileUploadProps {
 	isUploading: boolean;
 	onUpload: (file: File) => void;
+	// Called instead of onUpload when a dropped file's extension is not in
+	// `extensions`. Without it, such drops are ignored.
+	onUnsupportedFile?: (file: File) => void;
 	onRemove?: () => void;
 	file?: File;
 	removeLabel: string;
@@ -19,6 +28,7 @@ interface FileUploadProps {
 export const FileUpload: FC<FileUploadProps> = ({
 	isUploading,
 	onUpload,
+	onUnsupportedFile,
 	onRemove,
 	file,
 	removeLabel,
@@ -26,7 +36,11 @@ export const FileUpload: FC<FileUploadProps> = ({
 	description,
 	extensions,
 }) => {
-	const fileDrop = useFileDrop(onUpload, extensions);
+	const { isDragActive, ...fileDrop } = useFileDrop(
+		onUpload,
+		extensions,
+		onUnsupportedFile,
+	);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const clickable = useClickable<HTMLDivElement>(() =>
 		inputRef.current?.click(),
@@ -56,9 +70,11 @@ export const FileUpload: FC<FileUploadProps> = ({
 		<>
 			<div
 				data-testid="drop-zone"
+				data-drag-active={isDragActive}
 				className={cn(
 					"flex cursor-pointer items-center justify-center rounded-lg border-2",
 					"border-dashed border-border p-12 hover:bg-surface-primary",
+					isDragActive && "border-border-secondary bg-surface-primary",
 					isUploading && "pointer-events-none opacity-75",
 				)}
 				{...clickable}
@@ -102,16 +118,39 @@ export const FileUpload: FC<FileUploadProps> = ({
 const useFileDrop = (
 	callback: (file: File) => void,
 	extensions?: string[],
+	onUnsupportedFile?: (file: File) => void,
 ): {
+	isDragActive: boolean;
 	onDragOver: (e: DragEvent<HTMLDivElement>) => void;
+	onDragLeave: (e: DragEvent<HTMLDivElement>) => void;
 	onDrop: (e: DragEvent<HTMLDivElement>) => void;
 } => {
+	const [isDragActive, setIsDragActive] = useState(false);
+
 	const onDragOver = (e: DragEvent<HTMLDivElement>) => {
 		e.preventDefault();
+		// dragover fires continuously, and text or link drags cannot be uploaded.
+		if (isDragActive || !e.dataTransfer.types.includes("Files")) {
+			return;
+		}
+		setIsDragActive(true);
+	};
+
+	const onDragLeave = (e: DragEvent<HTMLDivElement>) => {
+		// dragleave also fires when the pointer moves onto a descendant, which
+		// would flicker the drag state off and on.
+		if (
+			e.relatedTarget instanceof Node &&
+			e.currentTarget.contains(e.relatedTarget)
+		) {
+			return;
+		}
+		setIsDragActive(false);
 	};
 
 	const onDrop = (e: DragEvent<HTMLDivElement>) => {
 		e.preventDefault();
+		setIsDragActive(false);
 		const file = e.dataTransfer.files[0] as File | undefined;
 
 		if (!file) {
@@ -127,11 +166,16 @@ const useFileDrop = (
 
 		if (extension && extensions.includes(extension)) {
 			callback(file);
+			return;
 		}
+
+		onUnsupportedFile?.(file);
 	};
 
 	return {
+		isDragActive,
 		onDragOver,
+		onDragLeave,
 		onDrop,
 	};
 };

@@ -68,6 +68,8 @@ const emptyValues: SecretFormValues = {
 
 const infoText = "Secret values cannot be retrieved once saved.";
 export const SAVED_SECRET_VALUE_DISPLAY = "••••••••••••••••••••";
+export const UNSUPPORTED_SECRETS_FILE_MESSAGE =
+	"Unsupported file type. Import a .env, .json, .yaml, or .yml file.";
 
 export const SecretDialog: FC<SecretDialogProps> = ({
 	open,
@@ -145,8 +147,7 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 		const format = secretsFileFormatFromFilename(file.name);
 		if (!format) {
 			setImportError({
-				message:
-					"Unsupported file type. Import a .env, .json, .yaml, or .yml file.",
+				message: UNSUPPORTED_SECRETS_FILE_MESSAGE,
 			});
 			return;
 		}
@@ -260,6 +261,9 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 									isUploading={isImporting}
 									file={importFile}
 									onUpload={handleImportFile}
+									// Dropped files with an unsupported extension surface the
+									// same inline error as files chosen from the picker.
+									onUnsupportedFile={handleImportFile}
 									onRemove={() => {
 										setImportFile(undefined);
 										setImportError(undefined);

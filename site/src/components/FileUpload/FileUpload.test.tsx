@@ -44,3 +44,36 @@ test("accepts files with the correct extension", async () => {
 	});
 	expect(onUpload).not.toHaveBeenCalled();
 });
+
+test("reports dropped files with an unsupported extension", async () => {
+	const onUpload = vi.fn();
+	const onUnsupportedFile = vi.fn();
+
+	renderComponent(
+		<FileUpload
+			isUploading={false}
+			onUpload={onUpload}
+			onUnsupportedFile={onUnsupportedFile}
+			removeLabel="Remove file"
+			title="Upload file"
+			extensions={["env", "json"]}
+		/>,
+	);
+
+	const dropZone = screen.getByTestId("drop-zone");
+
+	const unsupportedFile = new File([""], "bad.txt");
+	fireEvent.drop(dropZone, {
+		dataTransfer: { files: [unsupportedFile] },
+	});
+	expect(onUnsupportedFile).toHaveBeenCalledWith(unsupportedFile);
+	expect(onUpload).not.toHaveBeenCalled();
+
+	onUnsupportedFile.mockClear();
+	const envFile = new File([""], "file.env");
+	fireEvent.drop(dropZone, {
+		dataTransfer: { files: [envFile] },
+	});
+	expect(onUpload).toHaveBeenCalledWith(envFile);
+	expect(onUnsupportedFile).not.toHaveBeenCalled();
+});

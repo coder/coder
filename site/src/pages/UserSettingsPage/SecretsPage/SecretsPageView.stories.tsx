@@ -11,7 +11,10 @@ import {
 	MockUserSecrets,
 	mockApiError,
 } from "#/testHelpers/entities";
-import { SAVED_SECRET_VALUE_DISPLAY } from "./SecretDialog";
+import {
+	SAVED_SECRET_VALUE_DISPLAY,
+	UNSUPPORTED_SECRETS_FILE_MESSAGE,
+} from "./SecretDialog";
 import { SecretsPageView } from "./SecretsPageView";
 
 const visibleSecrets = MockUserSecrets.slice(0, 4);
@@ -682,19 +685,19 @@ export const ImportSecretsUnsupportedFile: Story = {
 	play: async ({ canvasElement, args }) => {
 		const onImportSecrets = args.onImportSecrets as ImportSecretsMock;
 		onImportSecrets.mockClear();
-		const unsupportedError =
-			"Unsupported file type. Import a .env, .json, .yaml, or .yml file.";
 		const { user, dialog, body } = await uploadImportFile(
 			canvasElement,
 			new File(["not a secret"], "bad.txt", { type: "text/plain" }),
 		);
 
-		const importError = await dialog.findByText(unsupportedError);
+		const importError = await dialog.findByText(
+			UNSUPPORTED_SECRETS_FILE_MESSAGE,
+		);
 		expect(importError).toBeVisible();
 		expect(onImportSecrets).not.toHaveBeenCalled();
 
 		await user.click(dialog.getByRole("button", { name: "Remove file" }));
-		expect(dialog.queryByText(unsupportedError)).toBeNull();
+		expect(dialog.queryByText(UNSUPPORTED_SECRETS_FILE_MESSAGE)).toBeNull();
 		await user.upload(
 			dialog.getByTestId("file-upload"),
 			new File(["A=1"], "secrets.env", { type: "text/plain" }),
