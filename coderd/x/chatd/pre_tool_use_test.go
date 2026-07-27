@@ -115,9 +115,6 @@ func TestPreToolUseHookAllow(t *testing.T) {
 	}
 }
 
-// The provider's original tool input must never reach the database. A hook
-// override is applied before the assistant row is inserted, so the persisted
-// row is written once and no row ever carries an input that did not run.
 func TestPreToolUseHookOverrideIsPersistedOnceNeverTheOriginal(t *testing.T) {
 	t.Parallel()
 
@@ -527,9 +524,6 @@ func TestPreToolUseHookDispatchFailure(t *testing.T) {
 	}
 }
 
-// A dispatch failure fails the step before the assistant row or any hook
-// effect is committed, so a retry re-dispatches every sibling call and commits
-// each transcript effect exactly once.
 func TestPreToolUseHookErrorRetryRedispatchesSiblings(t *testing.T) {
 	t.Parallel()
 
@@ -718,9 +712,6 @@ func TestPreToolUseHookSettledDecisionDispatchesFresh(t *testing.T) {
 	require.Equal(t, int32(2), hookCalls.Load())
 }
 
-// Tool calls are admitted while the assistant step is generated, so a call
-// already committed to history was admitted before it was persisted. Executing
-// it consumes the admitted input rather than dispatching a second decision.
 func TestPreToolUseHookHistoryPendingCallExecutesAsAdmitted(t *testing.T) {
 	t.Parallel()
 
