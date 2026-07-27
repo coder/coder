@@ -46,7 +46,10 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
-import type { AutofillBuildParameter } from "#/utils/richParameters";
+import {
+	type AutofillBuildParameter,
+	isValidParameterOption,
+} from "#/utils/richParameters";
 
 interface DynamicParameterProps {
 	parameter: PreviewParameter;
@@ -707,43 +710,6 @@ export const getInitialParameterValues = (
 
 const validValue = (value: NullHCLString) => {
 	return value.valid ? value.value : "";
-};
-
-const isValidParameterOption = (
-	previewParam: PreviewParameter,
-	buildParam: WorkspaceBuildParameter,
-) => {
-	// multi-select is the only list(string) type with options
-	if (previewParam.form_type === "multi-select") {
-		let values: string[] = [];
-		try {
-			const parsed = JSON.parse(buildParam.value);
-			if (Array.isArray(parsed)) {
-				values = parsed;
-			}
-		} catch {
-			return false;
-		}
-
-		if (previewParam.options.length > 0) {
-			const validValues = previewParam.options.map(
-				(option) => option.value.value,
-			);
-			return values.some((value) => validValues.includes(value));
-		}
-		return false;
-	}
-
-	// For parameters with options (dropdown, radio)
-	if (previewParam.options.length > 0) {
-		const validValues = previewParam.options.map(
-			(option) => option.value.value,
-		);
-		return validValues.includes(buildParam.value);
-	}
-
-	// For parameters without options (input,textarea,switch,checkbox,tag-select)
-	return true;
 };
 
 export const useValidationSchemaForDynamicParameters = (

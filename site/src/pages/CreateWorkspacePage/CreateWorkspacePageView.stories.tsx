@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, within } from "storybook/test";
+import { useState } from "react";
+import { expect, screen, userEvent, within } from "storybook/test";
 import { DetailedError } from "#/api/errors";
 import type { Preset, PreviewParameter } from "#/api/typesGenerated";
 import { chromatic } from "#/testHelpers/chromatic";
@@ -97,6 +98,26 @@ const parameterInput: PreviewParameter = {
 	required: true,
 	order: 0,
 	ephemeral: false,
+};
+
+const conditionalParameter: PreviewParameter = {
+	...parameterInput,
+	name: "app_name",
+	display_name: "App Name",
+	description: "A name for the conditionally enabled app",
+	value: { valid: true, value: "" },
+	default_value: { valid: true, value: "" },
+	order: 1,
+};
+
+const countParameter: PreviewParameter = {
+	...parameterInput,
+	name: "app_count",
+	display_name: "App Count",
+	description: "The number of apps to create",
+	type: "number",
+	value: { valid: true, value: "0" },
+	default_value: { valid: true, value: "0" },
 };
 
 const parameterDropdown: PreviewParameter = {
@@ -355,6 +376,38 @@ export const WithParameters: Story = {
 					"This story demonstrates a workspace creation form with presets and a variety of parameter types including text inputs, dropdowns, sliders, switches, radio buttons, multi-select, textarea, and checkboxes.",
 			},
 		},
+	},
+};
+
+export const WithConditionalUrlAutofill: Story = {
+	args: {
+		parameters: [countParameter],
+		autofillParameters: [
+			{ name: conditionalParameter.name, value: "Admin", source: "url" },
+		],
+	},
+	render: (args) => {
+		const [parameters, setParameters] = useState(args.parameters);
+		return (
+			<CreateWorkspacePageView
+				{...args}
+				parameters={parameters}
+				sendMessage={(values) => {
+					args.sendMessage(values);
+					if (values[countParameter.name] === "1") {
+						setParameters([...args.parameters, conditionalParameter]);
+					}
+				}}
+			/>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const countInput = canvas.getByLabelText(/app count/i);
+		await userEvent.clear(countInput);
+		await userEvent.type(countInput, "1");
+		await expect(canvas.findByDisplayValue("Admin")).resolves.toBeVisible();
+		expect(canvas.getByText("URL Autofill")).toBeVisible();
 	},
 };
 

@@ -1,5 +1,6 @@
 import * as Yup from "yup";
 import type {
+	PreviewParameter,
 	TemplateVersionParameter,
 	WorkspaceBuildParameter,
 } from "#/api/typesGenerated";
@@ -48,6 +49,41 @@ const isValidValue = (
 ) => {
 	if (templateParam.options.length > 0) {
 		const validValues = templateParam.options.map((option) => option.value);
+		return validValues.includes(buildParam.value);
+	}
+
+	return true;
+};
+
+export const isValidParameterOption = (
+	previewParam: PreviewParameter,
+	buildParam: WorkspaceBuildParameter,
+) => {
+	// multi-select is the only list(string) type with options
+	if (previewParam.form_type === "multi-select") {
+		let values: string[] = [];
+		try {
+			const parsed = JSON.parse(buildParam.value);
+			if (Array.isArray(parsed)) {
+				values = parsed;
+			}
+		} catch {
+			return false;
+		}
+
+		if (previewParam.options.length > 0) {
+			const validValues = previewParam.options.map(
+				(option) => option.value.value,
+			);
+			return values.some((value) => validValues.includes(value));
+		}
+		return false;
+	}
+
+	if (previewParam.options.length > 0) {
+		const validValues = previewParam.options.map(
+			(option) => option.value.value,
+		);
 		return validValues.includes(buildParam.value);
 	}
 
