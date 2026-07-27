@@ -414,6 +414,10 @@ export const ExecuteDeniedByHook: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Failed to run cat \/etc\/secrets/)).toBeVisible();
+		expect(
+			canvas.queryByText(/Ran cat \/etc\/secrets/),
+		).not.toBeInTheDocument();
 		await expect(
 			canvas.getByRole("img", {
 				name: /blocked by an external policy/,

@@ -463,7 +463,11 @@ export const LifecycleHookNoticeOnUserMessage: Story = {
 		const notice = canvas.getByRole("note");
 		expect(notice).toBeVisible();
 		expect(within(notice).getByText("Lifecycle hook")).toBeVisible();
-		expect(canvas.getByText("original prompt")).toBeVisible();
+		const prompt = canvas.getByText("original prompt");
+		expect(prompt).toBeVisible();
+		expect(
+			prompt.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
 		const link = within(notice).getByRole("link", { name: "policy" });
 		expect(link).toHaveAttribute("href", "https://proxy.example.com/policy");
 	},

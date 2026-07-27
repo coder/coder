@@ -96,6 +96,20 @@ export function isChatHookDispatchFailedResponse(
 }
 
 /**
+ * Runtime guard for the structured 403 hook-denial response.
+ */
+export function isChatHookDeniedResponse(
+	value: unknown,
+): value is TypesGen.ChatHookDeniedResponse {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		"kind" in value &&
+		value.kind === "hook_denied"
+	);
+}
+
+/**
  * Build a user-friendly usage-limit message from structured 409
  * response data. Falls back to a generic message if structured
  * fields are missing or invalid.

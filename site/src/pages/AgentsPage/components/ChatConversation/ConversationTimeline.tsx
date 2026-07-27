@@ -650,14 +650,6 @@ const ChatMessageItem = memo<{
 				)}
 				inert={isAfterEditingMessage ? true : undefined}
 			>
-				{parsed.hookNotices.map((notice, index) => (
-					<LifecycleHookNotice
-						key={`${message.id}-hook-notice-${index}`}
-						urlTransform={urlTransform}
-					>
-						{notice}
-					</LifecycleHookNotice>
-				))}
 				<ConversationItem {...conversationItemProps}>
 					{isUser ? (
 						<UserMessageContent
@@ -702,6 +694,14 @@ const ChatMessageItem = memo<{
 						</Message>
 					)}
 				</ConversationItem>
+				{parsed.hookNotices.map((notice, index) => (
+					<LifecycleHookNotice
+						key={`${message.id}-hook-notice-${index}`}
+						urlTransform={urlTransform}
+					>
+						{notice}
+					</LifecycleHookNotice>
+				))}
 				{!hideActions &&
 					(displayState.hasCopyableContent ||
 						(isUser && onEditUserMessage)) && (
