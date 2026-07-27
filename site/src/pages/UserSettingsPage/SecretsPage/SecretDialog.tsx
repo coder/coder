@@ -6,11 +6,12 @@ import {
 	isApiError,
 	isApiErrorResponse,
 } from "#/api/errors";
-import type {
-	CreateUserSecretRequest,
-	ImportUserSecretsRequest,
-	UpdateUserSecretRequest,
-	UserSecret,
+import {
+	type CreateUserSecretRequest,
+	type ImportUserSecretsRequest,
+	MaxSecretsFileBytes,
+	type UpdateUserSecretRequest,
+	type UserSecret,
 } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -135,6 +136,9 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 	};
 
 	const handleImportFile = (file: File) => {
+		if (isImporting) {
+			return;
+		}
 		setImportError(undefined);
 		setImportFile(file);
 
@@ -143,6 +147,12 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 			setImportError({
 				message:
 					"Unsupported file type. Import a .env, .json, .yaml, or .yml file.",
+			});
+			return;
+		}
+		if (file.size > MaxSecretsFileBytes) {
+			setImportError({
+				message: "File is too large. Import a file of 1 MiB or smaller.",
 			});
 			return;
 		}

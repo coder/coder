@@ -649,8 +649,8 @@ export const ImportSecretsValidationError: Story = {
 				message: "Validation failed.",
 				validations: [
 					{
-						field: "secrets[1].env_name",
-						detail: "PATH is a reserved environment variable name",
+						field: "secrets[1].value",
+						detail: "Value is required.",
 					},
 				],
 			});
@@ -661,19 +661,15 @@ export const ImportSecretsValidationError: Story = {
 		onImportSecrets.mockClear();
 		const { dialog } = await uploadImportFile(
 			canvasElement,
-			new File(["PATH=/usr/bin"], "secrets.env", { type: "text/plain" }),
+			new File(["A=1\nB="], "secrets.env", { type: "text/plain" }),
 		);
 
 		await waitFor(() => expect(onImportSecrets).toHaveBeenCalledTimes(1));
 		await waitFor(() =>
-			expect(dialog.getByText("secrets[1].env_name")).toBeVisible(),
+			expect(dialog.getByText("secrets[1].value")).toBeVisible(),
 		);
-		expect(
-			dialog.getByText("PATH is a reserved environment variable name"),
-		).toBeVisible();
-		await expect(
-			dialog.getByRole("heading", { name: "Add secret" }),
-		).toBeVisible();
+		expect(dialog.getByText("Value is required.")).toBeVisible();
+		expect(dialog.getByRole("heading", { name: "Add secret" })).toBeVisible();
 	},
 };
 
@@ -688,21 +684,22 @@ export const ImportSecretsUnsupportedFile: Story = {
 		onImportSecrets.mockClear();
 		const unsupportedError =
 			"Unsupported file type. Import a .env, .json, .yaml, or .yml file.";
-		const { user, dialog } = await uploadImportFile(
+		const { user, dialog, body } = await uploadImportFile(
 			canvasElement,
 			new File(["not a secret"], "bad.txt", { type: "text/plain" }),
 		);
 
 		const importError = await dialog.findByText(unsupportedError);
-		await waitFor(() => expect(importError).toBeVisible());
+		expect(importError).toBeVisible();
 		expect(onImportSecrets).not.toHaveBeenCalled();
 
 		await user.click(dialog.getByRole("button", { name: "Remove file" }));
+		expect(dialog.queryByText(unsupportedError)).toBeNull();
 		await user.upload(
 			dialog.getByTestId("file-upload"),
 			new File(["A=1"], "secrets.env", { type: "text/plain" }),
 		);
 		await waitFor(() => expect(onImportSecrets).toHaveBeenCalledTimes(1));
-		expect(dialog.queryByText(unsupportedError)).toBeNull();
+		await waitForDialogToClose(body);
 	},
 };
