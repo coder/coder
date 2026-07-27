@@ -120,6 +120,45 @@ func TestGenerateAssistant_ContentFilterRefusal(t *testing.T) {
 		require.Equal(t, "The response was blocked.", classified.Detail)
 	})
 
+	t.Run("ReasoningOnlyContentSurfacesTerminalError", func(t *testing.T) {
+		t.Parallel()
+
+		model := &chattest.FakeModel{
+			ProviderName: "anthropic",
+			ModelName:    "test-model",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeReasoningStart, ID: "reasoning-1"},
+					{Type: fantasy.StreamPartTypeReasoningDelta, ID: "reasoning-1", Delta: "planning next steps"},
+					{Type: fantasy.StreamPartTypeReasoningEnd, ID: "reasoning-1"},
+					{
+						Type:         fantasy.StreamPartTypeFinish,
+						FinishReason: fantasy.FinishReasonContentFilter,
+						ProviderMetadata: refusalProviderMetadataForTest(
+							"harmful_content", "The response was blocked.",
+						),
+					},
+				}), nil
+			},
+		}
+
+		outcome, err := GenerateAssistant(context.Background(), GenerateAssistantOptions{
+			Model: model,
+			Messages: []fantasy.Message{
+				textMessage(fantasy.MessageRoleUser, "hello"),
+			},
+		})
+		require.ErrorIs(t, err, ErrContentFiltered)
+		require.Empty(t, outcome.Step.Content)
+
+		classified := chaterror.Classify(err)
+		require.Equal(t, codersdk.ChatErrorKindContentFilter, classified.Kind)
+		require.Equal(t, "anthropic", classified.Provider)
+		require.False(t, classified.Retryable)
+		require.Equal(t, "Anthropic blocked this response under its content policy (harmful_content).", classified.Message)
+		require.Equal(t, "The response was blocked.", classified.Detail)
+	})
+
 	t.Run("PartialContentIsPersistedNotErrored", func(t *testing.T) {
 		t.Parallel()
 

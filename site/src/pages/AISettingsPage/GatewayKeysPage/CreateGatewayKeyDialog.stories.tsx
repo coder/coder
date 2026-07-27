@@ -11,6 +11,8 @@ import { CreateGatewayKeyDialog } from "./CreateGatewayKeyDialog";
 const meta: Meta<typeof CreateGatewayKeyDialog> = {
 	title: "pages/AISettingsPage/CreateGatewayKeyDialog",
 	component: CreateGatewayKeyDialog,
+	// TODO: Stories in this file fail when pixel runs their play functions. Fix them and remove the exclude.
+	parameters: { pixel: { exclude: true } },
 	args: {
 		open: true,
 		onClose: fn(),

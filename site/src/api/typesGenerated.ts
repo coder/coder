@@ -1679,6 +1679,11 @@ export interface Chat {
 	readonly plan_mode?: ChatPlanMode;
 	readonly last_error?: ChatError;
 	readonly last_turn_summary: string | null;
+	/**
+	 * Summary is the persisted whole-chat summary, generated in the background.
+	 * It is nil until the first summary has been produced.
+	 */
+	readonly summary: string | null;
 	readonly diff_status?: ChatDiffStatus;
 	readonly created_at: string;
 	readonly updated_at: string;
@@ -3434,6 +3439,7 @@ export interface ChatWatchEvent {
 // From codersdk/chats.go
 export type ChatWatchEventKind =
 	| "action_required"
+	| "chat_summary_change"
 	| "context_dirty"
 	| "created"
 	| "deleted"
@@ -3444,6 +3450,7 @@ export type ChatWatchEventKind =
 
 export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 	"action_required",
+	"chat_summary_change",
 	"context_dirty",
 	"created",
 	"deleted",
@@ -5213,9 +5220,9 @@ export interface GroupMemberAISpend {
 	readonly user_id: string;
 	/**
 	 * EffectiveGroupID is the user's effective budget group within the queried
-	 * group's organization. Null when no effective budget group is visible in
-	 * this organization, including when the user's budget resolves to a group
-	 * in another organization.
+	 * group's organization, falling back to the Everyone group when no budget
+	 * applies. Null when the effective group belongs to a different organization
+	 * than the queried group.
 	 */
 	readonly effective_group_id: string | null;
 	/**
@@ -5450,6 +5457,16 @@ export interface IDPSyncMapping<ResourceIdType extends string> {
 	 * The ID of the Coder resource the user should be added to
 	 */
 	readonly Gets: ResourceIdType;
+}
+
+// From codersdk/usersecrets.go
+/**
+ * ImportUserSecretsRequest is the payload for the bulk secret import
+ * endpoint. Content is the raw file bytes and Format selects the parser.
+ */
+export interface ImportUserSecretsRequest {
+	readonly format: SecretsFileFormat;
+	readonly content: string;
 }
 
 // From codersdk/inboxnotification.go
@@ -9907,14 +9924,16 @@ export interface UserAIBudgetOverride {
 
 // From codersdk/aibridge.go
 /**
- * UserAIBudgetSummary is the effective AI budget for a user. When no
- * budget applies, all fields except UserID are null.
+ * UserAIBudgetSummary is the effective AI budget for a user. When no budget
+ * applies, the effective group falls back to the Everyone group with a null
+ * limit and source.
  */
 export interface UserAIBudgetSummary {
 	readonly user_id: string;
 	/**
-	 * EffectiveGroupID is the group the spend is attributed to. Null when
-	 * no budget applies.
+	 * EffectiveGroupID is the group the spend is attributed to, falling back to
+	 * the Everyone group when no budget applies. Null only when the user has no
+	 * organization membership.
 	 */
 	readonly effective_group_id: string | null;
 	/**

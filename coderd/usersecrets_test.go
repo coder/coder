@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -205,6 +206,22 @@ func TestPostUserSecret(t *testing.T) {
 		})
 		requireSecretValidationContainsError(t, err, http.StatusBadRequest, "value", "must not exceed")
 	})
+}
+
+func TestPostUserSecretForbiddenForAnotherUser(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+	owner := coderdtest.CreateFirstUser(t, client)
+	memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleAuditor())
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	_, err := memberClient.CreateUserSecret(ctx, owner.UserID.String(), codersdk.CreateUserSecretRequest{
+		Name:  "forbidden",
+		Value: "value",
+	})
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 }
 
 func TestGetUserSecrets(t *testing.T) {

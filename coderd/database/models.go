@@ -4970,6 +4970,8 @@ type Chat struct {
 	PlanMode                 NullChatPlanMode        `db:"plan_mode" json:"plan_mode"`
 	ClientType               ChatClientType          `db:"client_type" json:"client_type"`
 	LastTurnSummary          sql.NullString          `db:"last_turn_summary" json:"last_turn_summary"`
+	Summary                  sql.NullString          `db:"summary" json:"summary"`
+	SummaryGeneratedAt       sql.NullTime            `db:"summary_generated_at" json:"summary_generated_at"`
 	SnapshotVersion          int64                   `db:"snapshot_version" json:"snapshot_version"`
 	HistoryVersion           int64                   `db:"history_version" json:"history_version"`
 	QueueVersion             int64                   `db:"queue_version" json:"queue_version"`
@@ -5209,7 +5211,9 @@ type ChatTable struct {
 	// Stores the most recent message effort once per-turn selection is wired.
 	LastReasoningEffort NullChatReasoningEffort `db:"last_reasoning_effort" json:"last_reasoning_effort"`
 	// Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.
-	CompactionRequestedAt sql.NullTime `db:"compaction_requested_at" json:"compaction_requested_at"`
+	CompactionRequestedAt sql.NullTime   `db:"compaction_requested_at" json:"compaction_requested_at"`
+	Summary               sql.NullString `db:"summary" json:"summary"`
+	SummaryGeneratedAt    sql.NullTime   `db:"summary_generated_at" json:"summary_generated_at"`
 }
 
 type ChatUsageLimitConfig struct {

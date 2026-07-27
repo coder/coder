@@ -8,13 +8,19 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
+import { useQuery } from "react-query";
 import { Link, useLocation } from "react-router";
+import { chatModelConfigs } from "#/api/queries/chats";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { safeBuildAgentChatPath } from "../../../utils/navigation";
 import { Response } from "../Response";
 import { useDesktopPanel } from "./DesktopPanelContext";
 import { InlineDesktopPreview } from "./InlineDesktopPreview";
 import { RecordingPreview } from "./RecordingPreview";
+import {
+	resolveSpawnModelDisplay,
+	type SpawnModelDisplay,
+} from "./spawnModelDisplay";
 import type { SubagentAction, SubagentDescriptor } from "./subagentDescriptor";
 import { ToolCall } from "./ToolCall";
 import { isSubagentSuccessStatus, type ToolStatus } from "./utils";
@@ -65,6 +71,7 @@ function getSubagentLabel(
 	descriptor: SubagentDescriptor,
 	title: string,
 	isTimeout: boolean,
+	modelDisplay: SpawnModelDisplay,
 ): React.ReactNode {
 	if (showDesktopPreview && toolStatus === "running") {
 		return "Using the computer...";
@@ -87,10 +94,22 @@ function getSubagentLabel(
 			: toolStatus === "error"
 				? "error"
 				: "running";
+	const modelDetails = [
+		modelDisplay.modelLabel,
+		modelDisplay.effortLabel ? `${modelDisplay.effortLabel} thinking` : "",
+	]
+		.filter(Boolean)
+		.join(", ");
 	return (
 		<>
 			{SUBAGENT_VERBS[descriptor.action][phase]}
 			<span className="opacity-60">{title}</span>
+			{modelDetails && (
+				<>
+					{" "}
+					with <span className="opacity-60">{modelDetails}</span>
+				</>
+			)}
 		</>
 	);
 }
@@ -179,6 +198,19 @@ export const SubagentTool: React.FC<{
 	const location = useLocation();
 	const [expanded, setExpanded] = useState(false);
 	const { desktopChatId, onOpenDesktop } = useDesktopPanel();
+	const wantsModelDisplay =
+		descriptor.action === "spawn" && Boolean(descriptor.modelConfigId);
+	const modelConfigsQuery = useQuery({
+		...chatModelConfigs(),
+		enabled: wantsModelDisplay,
+	});
+	const modelDisplay: SpawnModelDisplay = wantsModelDisplay
+		? resolveSpawnModelDisplay({
+				configs: modelConfigsQuery.data,
+				modelConfigId: descriptor.modelConfigId,
+				reasoningEffort: descriptor.reasoningEffort,
+			})
+		: {};
 	const hasPrompt = Boolean(prompt?.trim());
 	const hasMessage = Boolean(message?.trim());
 	const hasReport = Boolean(report?.trim());
@@ -213,6 +245,7 @@ export const SubagentTool: React.FC<{
 							descriptor,
 							title,
 							isTimeout,
+							modelDisplay,
 						)}
 					</ToolCall.Label>
 					<ToolCall.Chevron />

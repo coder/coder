@@ -3243,7 +3243,7 @@ export const MockGroup3: TypesGen.Group = {
 	total_member_count: 2,
 };
 
-const MockEveryoneGroup: TypesGen.Group = {
+export const MockEveryoneGroup: TypesGen.Group = {
 	// The "Everyone" group must have the same ID as a the organization it belongs
 	// to.
 	id: MockOrganization.id,
