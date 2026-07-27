@@ -188,7 +188,9 @@ func TestSuccessfulChildChatOutcomeStoresReportSummaryWithoutPush(t *testing.T) 
 		logger:            slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		webpushDispatcher: dispatcher,
 		// deriveFinalTurnRunResult resolves the chat model once the
-		// child has an assistant message, which requires the cache.
+		// child has an assistant message, which requires the cache and
+		// the clock used to mint the synthetic gateway API key.
+		clock:       quartz.NewReal(),
 		configCache: newChatConfigCache(context.Background(), db, quartz.NewReal()),
 	}
 	require.NoError(t, server.afterGenerationOutcome(ctx, generationOutcome{
