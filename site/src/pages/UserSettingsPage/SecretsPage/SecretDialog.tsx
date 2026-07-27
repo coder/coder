@@ -557,10 +557,12 @@ type ImportSecretsErrorProps = {
 
 // ImportSecretsError lists per-entry validation failures by field path
 // (e.g. secrets[1].env_name), and falls back to ErrorAlert otherwise.
+// The debug payloads only restate the message and detail already shown, plus
+// an Axios settle stack trace that means nothing to the person importing.
 const ImportSecretsError: FC<ImportSecretsErrorProps> = ({ error }) => {
 	const validations = getImportSecretValidations(error);
 	if (validations.length === 0) {
-		return <ErrorAlert error={error} />;
+		return <ErrorAlert error={error} showDebugDetail={false} />;
 	}
 
 	return (
