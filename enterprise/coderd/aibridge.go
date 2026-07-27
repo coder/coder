@@ -1033,7 +1033,7 @@ func (api *API) organizationGroupsAISpend(rw http.ResponseWriter, r *http.Reques
 
 // aiSpendExportCSVHeader is the CSV column order for the AI spend export.
 var aiSpendExportCSVHeader = []string{
-	"user", "group", "organization", "model", "provider",
+	"user", "group", "organization", "model", "provider", "provider_name",
 	"input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens",
 	"cost_micros", "period_start", "period_end",
 }
@@ -1160,6 +1160,7 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 			row.OrganizationID.String(),
 			row.Model,
 			row.Provider,
+			row.ProviderName,
 			strconv.FormatInt(row.InputTokens, 10),
 			strconv.FormatInt(row.OutputTokens, 10),
 			strconv.FormatInt(row.CacheReadTokens, 10),

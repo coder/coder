@@ -2532,6 +2532,7 @@ SELECT
 	groups.organization_id AS organization_id,
 	ai.model AS model,
 	ai.provider AS provider,
+	ai.provider_name AS provider_name,
 	COALESCE(SUM(tu.input_tokens), 0)::BIGINT AS input_tokens,
 	COALESCE(SUM(tu.output_tokens), 0)::BIGINT AS output_tokens,
 	COALESCE(SUM(tu.cache_read_input_tokens), 0)::BIGINT AS cache_read_tokens,
@@ -2548,8 +2549,9 @@ GROUP BY
 	tu.effective_group_id,
 	groups.organization_id,
 	ai.model,
-	ai.provider
-ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.model
+	ai.provider,
+	ai.provider_name
+ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model
 `
 
 type ExportOrganizationAISpendParams struct {
@@ -2564,6 +2566,7 @@ type ExportOrganizationAISpendRow struct {
 	OrganizationID   uuid.UUID     `db:"organization_id" json:"organization_id"`
 	Model            string        `db:"model" json:"model"`
 	Provider         string        `db:"provider" json:"provider"`
+	ProviderName     string        `db:"provider_name" json:"provider_name"`
 	InputTokens      int64         `db:"input_tokens" json:"input_tokens"`
 	OutputTokens     int64         `db:"output_tokens" json:"output_tokens"`
 	CacheReadTokens  int64         `db:"cache_read_tokens" json:"cache_read_tokens"`
@@ -2590,6 +2593,7 @@ func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOr
 			&i.OrganizationID,
 			&i.Model,
 			&i.Provider,
+			&i.ProviderName,
 			&i.InputTokens,
 			&i.OutputTokens,
 			&i.CacheReadTokens,

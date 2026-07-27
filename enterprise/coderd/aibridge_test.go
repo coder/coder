@@ -3875,7 +3875,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 			{InputTokens: 200, OutputTokens: 100, CacheReadInputTokens: 20, CacheWriteInputTokens: 10, CostMicros: sql.NullInt64{Int64: 2000, Valid: true}},
 		} {
 			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-				InitiatorID: targetUser.ID, Provider: "anthropic", Model: "claude-4", StartedAt: inMonth,
+				InitiatorID: targetUser.ID, Provider: "anthropic", ProviderName: "anthropic-prod", Model: "claude-4", StartedAt: inMonth,
 			}, nil)
 			tu.InterceptionID = intc.ID
 			tu.CreatedAt = inMonth
@@ -3896,7 +3896,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		// The default window echoes the current UTC month.
 		require.Equal(t, []string{
 			targetUser.ID.String(), group.ID.String(), group.OrganizationID.String(),
-			"claude-4", "anthropic", "300", "150", "30", "15", "3000",
+			"claude-4", "anthropic", "anthropic-prod", "300", "150", "30", "15", "3000",
 			"2026-03-01T00:00:00Z", "2026-04-01T00:00:00Z",
 		}, records[1])
 	})
@@ -3919,14 +3919,14 @@ func TestExportOrganizationAISpend(t *testing.T) {
 
 		// Usage for two different models produces one row each.
 		claudeIntc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: targetUser.ID, Provider: "anthropic", Model: "claude-4", StartedAt: inMonth,
+			InitiatorID: targetUser.ID, Provider: "anthropic", ProviderName: "anthropic-prod", Model: "claude-4", StartedAt: inMonth,
 		}, nil)
 		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
 			InterceptionID: claudeIntc.ID, CreatedAt: inMonth, EffectiveGroupID: groupID,
 			InputTokens: 100, OutputTokens: 50, CostMicros: sql.NullInt64{Int64: 1000, Valid: true},
 		})
 		gptIntc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: targetUser.ID, Provider: "openai", Model: "gpt-4", StartedAt: inMonth,
+			InitiatorID: targetUser.ID, Provider: "openai", ProviderName: "openai-prod", Model: "gpt-4", StartedAt: inMonth,
 		}, nil)
 		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
 			InterceptionID: gptIntc.ID, CreatedAt: inMonth, EffectiveGroupID: groupID,
@@ -3946,8 +3946,8 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		wantStart := "2026-03-01T00:00:00Z"
 		wantEnd := "2026-04-01T00:00:00Z"
 		// Ordered by provider then model: anthropic/claude-4, then openai/gpt-4.
-		require.Equal(t, []string{userID, groupStr, orgStr, "claude-4", "anthropic", "100", "50", "0", "0", "1000", wantStart, wantEnd}, records[1])
-		require.Equal(t, []string{userID, groupStr, orgStr, "gpt-4", "openai", "500", "250", "0", "0", "5000", wantStart, wantEnd}, records[2])
+		require.Equal(t, []string{userID, groupStr, orgStr, "claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000", wantStart, wantEnd}, records[1])
+		require.Equal(t, []string{userID, groupStr, orgStr, "gpt-4", "openai", "openai-prod", "500", "250", "0", "0", "5000", wantStart, wantEnd}, records[2])
 	})
 
 	t.Run("PreviousMonthExcluded", func(t *testing.T) {
@@ -3992,9 +3992,9 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		records := readAISpendExportResponse(t, res)
 		// Only the current-month usage is present, so its values exclude the
 		// previous month.
-		require.Len(t, records, 2)              // header + current-month row
-		require.Equal(t, "100", records[1][5])  // input_tokens
-		require.Equal(t, "1000", records[1][9]) // cost_micros
+		require.Len(t, records, 2)               // header + current-month row
+		require.Equal(t, "100", records[1][6])   // input_tokens
+		require.Equal(t, "1000", records[1][10]) // cost_micros
 	})
 
 	t.Run("ExcludesNullEffectiveGroup", func(t *testing.T) {
@@ -4039,9 +4039,9 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		records := readAISpendExportResponse(t, res)
 		// Only the grouped row is present; the null-group usage is dropped, so
 		// both the row count and the aggregated values exclude it.
-		require.Len(t, records, 2)              // header + single grouped row
-		require.Equal(t, "100", records[1][5])  // input_tokens
-		require.Equal(t, "1000", records[1][9]) // cost_micros
+		require.Len(t, records, 2)               // header + single grouped row
+		require.Equal(t, "100", records[1][6])   // input_tokens
+		require.Equal(t, "1000", records[1][10]) // cost_micros
 	})
 
 	t.Run("CustomPeriodHalfOpen", func(t *testing.T) {
@@ -4082,15 +4082,15 @@ func TestExportOrganizationAISpend(t *testing.T) {
 
 		records := readAISpendExportResponse(t, res)
 		require.Len(t, records, 2) // header + only the start-boundary row
-		require.Equal(t, "1000", records[1][9])
-		require.Equal(t, start.Format(time.RFC3339), records[1][10])
-		require.Equal(t, end.Format(time.RFC3339), records[1][11])
+		require.Equal(t, "1000", records[1][10])
+		require.Equal(t, start.Format(time.RFC3339), records[1][11])
+		require.Equal(t, end.Format(time.RFC3339), records[1][12])
 	})
 }
 
 // aiSpendExportCSVHeaderForTest mirrors the handler's CSV column order.
 var aiSpendExportCSVHeaderForTest = []string{
-	"user", "group", "organization", "model", "provider",
+	"user", "group", "organization", "model", "provider", "provider_name",
 	"input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens",
 	"cost_micros", "period_start", "period_end",
 }

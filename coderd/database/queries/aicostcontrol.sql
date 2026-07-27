@@ -317,6 +317,7 @@ SELECT
 	groups.organization_id AS organization_id,
 	ai.model AS model,
 	ai.provider AS provider,
+	ai.provider_name AS provider_name,
 	COALESCE(SUM(tu.input_tokens), 0)::BIGINT AS input_tokens,
 	COALESCE(SUM(tu.output_tokens), 0)::BIGINT AS output_tokens,
 	COALESCE(SUM(tu.cache_read_input_tokens), 0)::BIGINT AS cache_read_tokens,
@@ -333,5 +334,6 @@ GROUP BY
 	tu.effective_group_id,
 	groups.organization_id,
 	ai.model,
-	ai.provider
-ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.model;
+	ai.provider,
+	ai.provider_name
+ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model;
