@@ -43,6 +43,7 @@ BEGIN
 	SET agents_allowed = (id = ANY(parsed_ids));
 END $$;
 
+-- As usual, recreate the view so templates.* is expanded to include the new column.
 DROP VIEW template_with_names;
 
 CREATE VIEW template_with_names AS
