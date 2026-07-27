@@ -778,6 +778,11 @@ func (s *taskStarter) admitStepToolCalls(
 	if len(toolCalls) == 0 || exclusiveBatchRejected(toolCalls, prepared.ExclusiveToolNames) {
 		return chathooks.PreToolUseExecutionResult{}, nil
 	}
+	// Check the full batch first: a call removed below still occupies its ID
+	// in the step, so filtering before this would hide the collision.
+	if err := chathooks.RejectDuplicateToolUseIDs(toolCalls); err != nil {
+		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
+	}
 	unambiguous, ambiguous := partitionAmbiguousToolCalls(prepared, toolCalls)
 	preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), unambiguous)
 	if err != nil {

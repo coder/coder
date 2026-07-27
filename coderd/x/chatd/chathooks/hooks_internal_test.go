@@ -83,11 +83,11 @@ func TestSessionStartDispatchSources(t *testing.T) {
 func TestRejectDuplicateToolUseIDs(t *testing.T) {
 	t.Parallel()
 
-	require.NoError(t, rejectDuplicateToolUseIDs([]fantasy.ToolCallContent{
+	require.NoError(t, RejectDuplicateToolUseIDs([]fantasy.ToolCallContent{
 		{ToolCallID: "first", ToolName: "read_file", Input: `{}`},
 		{ToolCallID: "second", ToolName: "execute", Input: `{}`},
 	}))
-	require.ErrorContains(t, rejectDuplicateToolUseIDs([]fantasy.ToolCallContent{
+	require.ErrorContains(t, RejectDuplicateToolUseIDs([]fantasy.ToolCallContent{
 		{ToolCallID: "duplicate", ToolName: "read_file", Input: `{}`},
 		{ToolCallID: "duplicate", ToolName: "execute", Input: `{}`},
 	}), "duplicate tool use ID")

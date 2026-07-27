@@ -12,10 +12,11 @@ import (
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 )
 
-// rejectDuplicateToolUseIDs fails closed because hook consumers key
-// decisions by tool-use ID; a duplicated ID in one step makes decisions
-// unattributable.
-func rejectDuplicateToolUseIDs(toolCalls []fantasy.ToolCallContent) error {
+// RejectDuplicateToolUseIDs fails closed because hook consumers key decisions
+// by tool-use ID; a duplicated ID in one step makes decisions unattributable.
+// Callers must check the complete set of pending calls before removing any,
+// because a filtered-out duplicate still shares its ID with a synthetic result.
+func RejectDuplicateToolUseIDs(toolCalls []fantasy.ToolCallContent) error {
 	seen := make(map[string]struct{}, len(toolCalls))
 	for _, toolCall := range toolCalls {
 		if toolCall.ProviderExecuted {
@@ -49,7 +50,7 @@ func (t *Trigger) PreflightPendingToolCalls(
 	result := PreToolUseExecutionResult{
 		Allowed: make([]fantasy.ToolCallContent, 0, len(toolCalls)),
 	}
-	if err := rejectDuplicateToolUseIDs(toolCalls); err != nil {
+	if err := RejectDuplicateToolUseIDs(toolCalls); err != nil {
 		return PreToolUseExecutionResult{}, err
 	}
 
