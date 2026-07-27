@@ -216,6 +216,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 		Object.keys(modelConfigFormBuildResult.fieldErrors).length > 0;
 	const enabledToggleDisabled =
 		isSaving ||
+		!editingModel?.ai_provider_id ||
+		!selectedProviderState?.providerConfig ||
 		(editingModel?.is_default === true && editingModel.enabled === true);
 	const setDefaultDisabled =
 		isSaving ||

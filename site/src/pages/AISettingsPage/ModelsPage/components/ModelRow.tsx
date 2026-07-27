@@ -11,6 +11,7 @@ type ModelRowProps = {
 	model: ChatModelConfig;
 	providerLabel: string;
 	providerTypeByID: ReadonlyMap<string, string>;
+	hasProvider: boolean;
 	onClick: () => void;
 };
 
@@ -25,10 +26,13 @@ export const ModelRow: FC<ModelRowProps> = ({
 	model,
 	providerLabel,
 	providerTypeByID,
+	hasProvider,
 	onClick,
 }) => {
 	const clickableProps = useClickableTableRow({ onClick });
 	const displayName = model.display_name || model.model;
+	// Models without a provider should always be shown as disabled
+	const isEffectivelyEnabled = model.enabled && hasProvider;
 
 	return (
 		<TableRow {...clickableProps}>
@@ -62,7 +66,7 @@ export const ModelRow: FC<ModelRowProps> = ({
 					className="block truncate text-sm font-medium leading-6 text-content-secondary"
 					title={providerLabel}
 				>
-					{providerLabel || "N/A"}
+					{hasProvider ? providerLabel : "Unset"}
 				</span>
 			</TableCell>
 			<TableCell className="min-w-0">
@@ -72,7 +76,7 @@ export const ModelRow: FC<ModelRowProps> = ({
 			</TableCell>
 			<TableCell>
 				<Badge variant="default">
-					{model.enabled ? "Enabled" : "Disabled"}
+					{isEffectivelyEnabled ? "Enabled" : "Disabled"}
 				</Badge>
 			</TableCell>
 			<TableCell className="w-10 text-center">
