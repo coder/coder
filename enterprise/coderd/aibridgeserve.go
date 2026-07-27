@@ -138,6 +138,7 @@ func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 		Store:               api.Database,
 		Pubsub:              api.AGPL.Pubsub,
 		AISeatTracker:       api.AGPL.AISeatTracker,
+		Enqueuer:            api.AGPL.NotificationsEnqueuer,
 		AccessURL:           api.AccessURL.String(),
 		GatewayCfg:          api.DeploymentValues.AI.BridgeConfig,
 		ExternalAuthConfigs: api.ExternalAuthConfigs,
