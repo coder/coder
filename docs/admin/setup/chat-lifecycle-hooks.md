@@ -135,6 +135,17 @@ For a denied `pre_tool_use`, the synthetic denied tool result stays visible to b
 Other hook effects become ordinary transcript messages with audience-specific visibility, except that a `pre_compact` `model_context` guides the compaction summary instead of entering the transcript.
 Coder dispatches `user_prompt_submit` exactly once per submission, when the prompt is admitted (sent, queued, edited, or used to create a chat or subagent), and applies the response effects to the final stored prompt content.
 
+### When tool calls are admitted
+
+Coder dispatches `pre_tool_use` once per tool call, after the model finishes proposing it and before the assistant message is stored. The stored message therefore carries the input the tool actually runs with, and stored message content is never rewritten afterwards.
+
+Two consequences follow:
+
+- Clients stream the model's proposed tool input while the dispatch is in flight, then converge on the stored input once the message is committed. A rewritten call briefly displays the original input.
+- A tool call that is already in chat history was admitted before it was stored, so Coder executes it with the stored input instead of dispatching a second decision. If a consumer's policy changes between those two points, the change applies to later calls, not to calls already admitted.
+
+The per-chat debug endpoint records what the model proposed, including tool input that a consumer replaced. It reports provider behavior and is not part of the chat transcript.
+
 ## Plan failure recovery
 
 Lifecycle hooks are fail closed.

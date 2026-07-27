@@ -115,6 +115,76 @@ func TestPreToolUseHookAllow(t *testing.T) {
 	}
 }
 
+// The provider's original tool input must never reach the database. A hook
+// override is applied before the assistant row is inserted, so the persisted
+// row is written once and no row ever carries an input that did not run.
+func TestPreToolUseHookOverrideIsPersistedOnceNeverTheOriginal(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	var modelCalls atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if modelCalls.Add(1) == 1 {
+			chunk := chattest.OpenAIToolCallChunk("read_file", `{"path":"/tmp/secret.txt"}`)
+			chunk.Choices[0].ToolCalls[0].ID = "call_override"
+			return chattest.OpenAIStreamingResponse(chunk)
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	consumer := preToolUseConsumer(t, func(data agenthooks.PreToolUseData) string {
+		require.JSONEq(t, `{"path":"/tmp/secret.txt"}`, string(data.ToolInput))
+		return `{"permission":{"decision":"allow","input_override":{"path":"/tmp/public.txt"}}}`
+	})
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), "/tmp/public.txt", int64(1), int64(0), gomock.Any()).
+		Return(workspacesdk.ReadFileLinesResponse{
+			Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data",
+		}, nil).
+		Times(1)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "pre-tool-use-override-persisted-once",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("read the file"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	call := requireToolCallPart(t, chatToolParts(ctx, t, db, chat.ID), "read_file")
+	require.JSONEq(t, `{"path":"/tmp/public.txt"}`, string(call.Args))
+
+	messages := chatMessages(ctx, t, db, chat.ID)
+	promptMessages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	for _, message := range append(messages, promptMessages...) {
+		require.NotContains(t, string(message.Content.RawMessage), "/tmp/secret.txt")
+	}
+}
+
 func TestPreToolUseHookDeny(t *testing.T) {
 	t.Parallel()
 
@@ -377,112 +447,6 @@ func TestPreToolUseHookDynamicAllowResponse(t *testing.T) {
 	require.True(t, foundNotice)
 }
 
-func TestPreToolUseHookRepeatedToolCallIDDispatchesFresh(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	db, ps := dbtestutil.NewDB(t)
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
-	})
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
-
-	const toolUseID = "call_repeated"
-	toolInput := `{"path":"/tmp/dup.txt"}`
-	userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("resume")})
-	require.NoError(t, err)
-	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
-		AgentID:           uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
-		LastModelConfigID: model.ID,
-		Title:             "repeated-tool-call-id",
-		ClientType:        database.ChatClientTypeApi,
-		InitialMessages: []chatstate.Message{
-			{
-				Role:           database.ChatMessageRoleUser,
-				Content:        userContent,
-				Visibility:     database.ChatMessageVisibilityBoth,
-				ContentVersion: chatprompt.CurrentContentVersion,
-				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
-				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
-			},
-		},
-	})
-	require.NoError(t, err)
-	chatID := created.Chat.ID
-	toolCallContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
-		Type:       codersdk.ChatMessagePartTypeToolCall,
-		ToolCallID: toolUseID,
-		ToolName:   "read_file",
-		Args:       json.RawMessage(toolInput),
-	}})
-	require.NoError(t, err)
-	toolResultContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
-		Type:       codersdk.ChatMessagePartTypeToolResult,
-		ToolCallID: toolUseID,
-		ToolName:   "read_file",
-		Result:     json.RawMessage(`{"output":"data"}`),
-	}})
-	require.NoError(t, err)
-	machine := chatstate.NewChatMachine(db, ps, chatID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{
-			{
-				Role:           database.ChatMessageRoleAssistant,
-				Content:        toolCallContent,
-				Visibility:     database.ChatMessageVisibilityBoth,
-				ContentVersion: chatprompt.CurrentContentVersion,
-				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
-			},
-			{
-				Role:           database.ChatMessageRoleTool,
-				Content:        toolResultContent,
-				Visibility:     database.ChatMessageVisibilityBoth,
-				ContentVersion: chatprompt.CurrentContentVersion,
-				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
-			},
-			{
-				Role:           database.ChatMessageRoleAssistant,
-				Content:        toolCallContent,
-				Visibility:     database.ChatMessageVisibilityBoth,
-				ContentVersion: chatprompt.CurrentContentVersion,
-				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
-			},
-		}})
-		return err
-	}))
-
-	var hookCalls atomic.Int32
-	consumer := preToolUseConsumer(t, func(data agenthooks.PreToolUseData) string {
-		hookCalls.Add(1)
-		require.Equal(t, toolUseID, data.ToolUseID)
-		return `{"permission":{"decision":"deny","reason":"repeated call"}}`
-	})
-
-	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
-	})
-	server.Start()
-	waitForChatStatus(ctx, t, db, chatID, database.ChatStatusWaiting)
-
-	require.Equal(t, int32(1), hookCalls.Load(), "the repeated occurrence must dispatch fresh")
-	denied := 0
-	for _, part := range chatToolParts(ctx, t, db, chatID) {
-		if part.Type == codersdk.ChatMessagePartTypeToolResult && part.IsError &&
-			strings.Contains(string(part.Result), "repeated call") {
-			denied++
-		}
-	}
-	require.Equal(t, 1, denied, "the repeated call must persist the fresh deny result")
-}
-
 func TestPreToolUseHookDispatchFailure(t *testing.T) {
 	t.Parallel()
 
@@ -557,15 +521,14 @@ func TestPreToolUseHookDispatchFailure(t *testing.T) {
 			lastError := chatLastErrorMessage(failed.LastError)
 			require.Contains(t, lastError, "hook dispatch failed: pre_tool_use: "+tt.result)
 			messages := chatMessages(ctx, t, db, chat.ID)
-			require.Len(t, messages, 2)
+			require.Len(t, messages, 1)
 			require.Equal(t, database.ChatMessageRoleUser, messages[0].Role)
-			require.Equal(t, database.ChatMessageRoleAssistant, messages[1].Role)
 		})
 	}
 }
 
-// A dispatch failure fails tool execution before any hook effect is
-// committed, so a retry re-dispatches every sibling call and commits
+// A dispatch failure fails the step before the assistant row or any hook
+// effect is committed, so a retry re-dispatches every sibling call and commits
 // each transcript effect exactly once.
 func TestPreToolUseHookErrorRetryRedispatchesSiblings(t *testing.T) {
 	t.Parallel()
@@ -653,7 +616,7 @@ func TestPreToolUseHookErrorRetryRedispatchesSiblings(t *testing.T) {
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
 	require.Equal(t, int32(1), firstCalls.Load())
 	require.Equal(t, int32(1), secondCalls.Load())
-	require.Len(t, chatMessages(ctx, t, db, chat.ID), 2)
+	require.Len(t, chatMessages(ctx, t, db, chat.ID), 1)
 
 	failSecond.Store(false)
 	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
@@ -755,17 +718,18 @@ func TestPreToolUseHookSettledDecisionDispatchesFresh(t *testing.T) {
 	require.Equal(t, int32(2), hookCalls.Load())
 }
 
-func TestPreToolUseHookResumeFallback(t *testing.T) {
+// Tool calls are admitted while the assistant step is generated, so a call
+// already committed to history was admitted before it was persisted. Executing
+// it consumes the admitted input rather than dispatching a second decision.
+func TestPreToolUseHookHistoryPendingCallExecutesAsAdmitted(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, ps := dbtestutil.NewDB(t)
-	var modelCalls atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("title")
 		}
-		modelCalls.Add(1)
 		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
 	})
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
@@ -782,15 +746,14 @@ func TestPreToolUseHookResumeFallback(t *testing.T) {
 	})
 
 	var hookCalls atomic.Int32
-	consumer := preToolUseConsumer(t, func(data agenthooks.PreToolUseData) string {
+	consumer := preToolUseConsumer(t, func(agenthooks.PreToolUseData) string {
 		hookCalls.Add(1)
-		require.Equal(t, "call_resume_fallback", data.ToolUseID)
 		return `{"permission":{"decision":"allow","input_override":{"path":"/tmp/resume.txt"}}}`
 	})
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 	setupToolExecutionAgentConn(t, mockConn)
-	mockConn.EXPECT().ReadFileLines(gomock.Any(), "/tmp/resume.txt", int64(1), int64(0), gomock.Any()).
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), "/tmp/original.txt", int64(1), int64(0), gomock.Any()).
 		Return(workspacesdk.ReadFileLinesResponse{
 			Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data",
 		}, nil).
@@ -807,10 +770,9 @@ func TestPreToolUseHookResumeFallback(t *testing.T) {
 	server.Start()
 	waitForChatStatus(ctx, t, db, chatID, database.ChatStatusWaiting)
 
-	require.Equal(t, int32(1), hookCalls.Load())
-	require.Equal(t, int32(1), modelCalls.Load())
+	require.Zero(t, hookCalls.Load())
 	call := requireToolCallPart(t, chatToolParts(ctx, t, db, chatID), "read_file")
-	require.JSONEq(t, `{"path":"/tmp/resume.txt"}`, string(call.Args))
+	require.JSONEq(t, `{"path":"/tmp/original.txt"}`, string(call.Args))
 	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chatID), "read_file")
 	require.False(t, result.IsError)
 }

@@ -1,18 +1,13 @@
 package chathooks
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 
 	"charm.land/fantasy"
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 )
@@ -155,44 +150,54 @@ func (t *Trigger) PostToolUseResults(
 	return results, firstErr
 }
 
-func ReplacePersistedToolCallInputs(
-	ctx context.Context,
-	tx *chatstate.Tx,
-	chatID uuid.UUID,
-	overrides map[string]json.RawMessage,
-) error {
-	if len(overrides) == 0 {
-		return nil
+// ApplyAdmittedToolCalls rewrites the step's tool-call inputs to the values
+// pre_tool_use admitted and appends the synthetic denial results, so the step
+// is persisted with the input the tool runs with.
+func ApplyAdmittedToolCalls(content []fantasy.Content, preflight PreToolUseExecutionResult) []fantasy.Content {
+	admitted := make(map[string]fantasy.ToolCallContent, len(preflight.Allowed))
+	for _, toolCall := range preflight.Allowed {
+		admitted[toolCall.ToolCallID] = toolCall
 	}
-	assistant, err := tx.Store().GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
-		ChatID: chatID,
-		Role:   database.ChatMessageRoleAssistant,
-	})
-	if err != nil {
-		return xerrors.Errorf("get assistant message for tool override: %w", err)
-	}
-	parts, err := chatprompt.ParseContent(assistant)
-	if err != nil {
-		return xerrors.Errorf("parse assistant message for tool override: %w", err)
-	}
-	changed := false
-	for i := range parts {
-		if override, ok := overrides[parts[i].ToolCallID]; ok && parts[i].Type == codersdk.ChatMessagePartTypeToolCall && !bytes.Equal(parts[i].Args, override) {
-			parts[i].Args = override
-			changed = true
+	rewritten := make([]fantasy.Content, 0, len(content)+len(preflight.Denied))
+	for _, block := range content {
+		toolCall, ok := asToolCallContent(block)
+		if !ok {
+			rewritten = append(rewritten, block)
+			continue
 		}
+		if replacement, found := admitted[toolCall.ToolCallID]; found {
+			toolCall.Input = replacement.Input
+		}
+		rewritten = append(rewritten, toolCall)
 	}
-	if !changed {
-		return nil
+	for _, denied := range preflight.Denied {
+		rewritten = append(rewritten, denied)
 	}
-	content, err := chatprompt.MarshalParts(parts)
-	if err != nil {
-		return xerrors.Errorf("marshal assistant message with tool override: %w", err)
+	return rewritten
+}
+
+func asToolCallContent(block fantasy.Content) (fantasy.ToolCallContent, bool) {
+	if tc, ok := fantasy.AsContentType[fantasy.ToolCallContent](block); ok {
+		return tc, true
 	}
-	if err := tx.UpdateMessageContent(assistant.ID, content.RawMessage); err != nil {
-		return xerrors.Errorf("update assistant message with tool override: %w", err)
+	if tc, ok := fantasy.AsContentType[*fantasy.ToolCallContent](block); ok && tc != nil {
+		return *tc, true
 	}
-	return nil
+	return fantasy.ToolCallContent{}, false
+}
+
+// PendingToolCalls lists the tool calls a step leaves for Coder to run.
+// Provider-executed calls run inside the provider, so hooks never see them.
+func PendingToolCalls(content []fantasy.Content) []fantasy.ToolCallContent {
+	toolCalls := make([]fantasy.ToolCallContent, 0, len(content))
+	for _, block := range content {
+		toolCall, ok := asToolCallContent(block)
+		if !ok || toolCall.ProviderExecuted {
+			continue
+		}
+		toolCalls = append(toolCalls, toolCall)
+	}
+	return toolCalls
 }
 
 func DynamicPostToolUseMessage(result codersdk.ToolResult, toolName string) Message {
