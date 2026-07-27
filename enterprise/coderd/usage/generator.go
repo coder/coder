@@ -27,7 +27,11 @@ const (
 	AgentRuntimeWindow = 7 * 24 * time.Hour
 	// AgentRuntimeEligibilityLag is how long after a bucket closes before it
 	// becomes eligible for generation, giving replicas time to commit
-	// in-flight chat messages with timestamps inside the bucket.
+	// in-flight chat messages with timestamps inside the bucket. This
+	// assumes chat message inserts commit within the lag of their
+	// statement-time created_at; a message committing later than the lag
+	// after its bucket closes lands in an already-sealed bucket and its
+	// runtime is dropped (undercount-only).
 	AgentRuntimeEligibilityLag = 5 * time.Minute
 	// agentRuntimeJitter staggers replicas after each hour boundary so one
 	// is likely to complete the work before others attempt it.
@@ -94,7 +98,7 @@ func (g *Generator) run(ctx context.Context) {
 
 	// The random initial delay staggers replicas that start simultaneously.
 	//nolint:gosec // Jitter does not need cryptographic randomness.
-	delay := time.Minute + time.Duration(rand.Int63n(int64(4*time.Minute)))
+	delay := time.Minute + time.Duration(rand.Int63n(int64(agentRuntimeJitter)))
 	for {
 		timer := g.clock.NewTimer(delay, generatorTimerName)
 
@@ -115,14 +119,19 @@ func (g *Generator) run(ctx context.Context) {
 			g.log.Warn(ctx, "generate agent runtime usage events", slog.Error(err))
 		}
 
-		_, delay = nextTick(g.clock.Now(), AgentRuntimeInterval, agentRuntimeJitter)
-		delay += AgentRuntimeEligibilityLag
+		// Wake at the next eligibility instant (hour boundary + lag), not
+		// the next hour boundary. Computing the tick against the
+		// lag-shifted clock keeps a bucket whose eligibility is still
+		// pending in this hour (e.g. a pass that ran just before HH:05)
+		// from waiting a whole extra hour.
+		_, delay = nextTick(g.clock.Now().Add(-AgentRuntimeEligibilityLag), AgentRuntimeInterval, agentRuntimeJitter)
 	}
 }
 
 // generateAgentRuntimeEvents inserts one hb_agent_runtime_v1 event per
-// missing hourly bucket in the trailing window. Any error aborts the current
-// tick; the next tick rescans the whole window, so failures self-heal.
+// missing hourly bucket in the trailing window. Per-bucket errors skip only
+// that bucket; the next tick rescans the whole window, so transient failures
+// self-heal.
 func (g *Generator) generateAgentRuntimeEvents(ctx context.Context) error {
 	now := g.clock.Now().UTC()
 	// Bucket [H, H+1) becomes eligible at H + interval + lag.
@@ -139,6 +148,12 @@ func (g *Generator) generateAgentRuntimeEvents(ctx context.Context) error {
 	if err != nil {
 		return xerrors.Errorf("list existing agent runtime events: %w", err)
 	}
+	// A row marks its bucket complete regardless of publish outcome. If
+	// Tallyman permanently rejects an event, its bucket is never
+	// regenerated (a re-insert under the deterministic ID would be a no-op
+	// anyway); recovery is manual. The release gate (Tallyman must accept
+	// this event type before coderd ships it) is what keeps permanent
+	// rejections exceptional.
 	existing := make(map[time.Time]struct{}, len(existingTimes))
 	for _, ts := range existingTimes {
 		// created_at is always the exact bucket start for this event type;
@@ -146,37 +161,57 @@ func (g *Generator) generateAgentRuntimeEvents(ctx context.Context) error {
 		existing[ts.UTC().Truncate(AgentRuntimeInterval)] = struct{}{}
 	}
 
-	var filled int
+	var filled, failed int
 	for bucket := earliest; !bucket.After(latestEligible); bucket = bucket.Add(AgentRuntimeInterval) {
 		if _, ok := existing[bucket]; ok {
 			continue
 		}
-
-		runtimeMs, err := g.db.GetTotalChatMessageRuntimeMsInRange(ctx, database.GetTotalChatMessageRuntimeMsInRangeParams{
-			StartTime: bucket,
-			EndTime:   bucket.Add(AgentRuntimeInterval),
-		})
-		if err != nil {
-			return xerrors.Errorf("sum chat message runtime for bucket %s: %w", bucket, err)
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
 
-		// The deterministic ID makes concurrent inserts of the same bucket
-		// idempotent, and created_at is the bucket start (not the insertion
-		// time) so daily rollups attribute backfilled hours to the correct
-		// day.
-		id := string(usagetypes.UsageEventTypeHBAgentRuntimeV1) + ":" + bucket.Format(cronDateFormat)
-		err = g.ins.InsertHeartbeatUsageEvent(ctx, g.db, id, bucket, usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs})
+		err := g.generateBucket(ctx, bucket)
 		if err != nil {
-			return xerrors.Errorf("insert agent runtime event for bucket %s: %w", bucket, err)
+			// Skip only the failed bucket so one bad bucket (e.g. an
+			// invalid runtime sum) cannot stall every later bucket until
+			// it ages out of the window.
+			g.log.Warn(ctx, "generate agent runtime usage event for bucket",
+				slog.F("bucket", bucket),
+				slog.Error(err),
+			)
+			failed++
+			continue
 		}
 		filled++
 	}
-	if filled > 0 {
+	if filled > 0 || failed > 0 {
 		g.log.Info(ctx, "generated agent runtime usage events",
 			slog.F("buckets_filled", filled),
+			slog.F("buckets_failed", failed),
 			slog.F("window_start", earliest),
 			slog.F("latest_eligible", latestEligible),
 		)
+	}
+	return nil
+}
+
+// generateBucket computes and inserts the event for a single hourly bucket.
+func (g *Generator) generateBucket(ctx context.Context, bucket time.Time) error {
+	runtimeMs, err := g.db.GetTotalChatMessageRuntimeMsInRange(ctx, database.GetTotalChatMessageRuntimeMsInRangeParams{
+		StartTime: bucket,
+		EndTime:   bucket.Add(AgentRuntimeInterval),
+	})
+	if err != nil {
+		return xerrors.Errorf("sum chat message runtime: %w", err)
+	}
+
+	// The deterministic ID makes concurrent inserts of the same bucket
+	// idempotent, and created_at is the bucket start (not the insertion
+	// time) so daily rollups attribute backfilled hours to the correct day.
+	id := string(usagetypes.UsageEventTypeHBAgentRuntimeV1) + ":" + bucket.Format(cronDateFormat)
+	err = g.ins.InsertHeartbeatUsageEvent(ctx, g.db, id, bucket, usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs})
+	if err != nil {
+		return xerrors.Errorf("insert usage event: %w", err)
 	}
 	return nil
 }

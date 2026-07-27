@@ -3,6 +3,7 @@ package usage_test
 import (
 	"context"
 	"database/sql"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -26,6 +28,19 @@ import (
 // generatorTimerName must match the tag the Generator passes to
 // clock.NewTimer so tests can trap its timers.
 const generatorTimerName = "agent-runtime-generator"
+
+// warnSink counts log entries at Warn or above. The generator downgrades
+// per-bucket failures to Warn logs (which slogtest tolerates), so tests that
+// must prove the error paths stayed quiet assert on this counter instead.
+type warnSink struct{ count atomic.Int64 }
+
+func (s *warnSink) LogEntry(_ context.Context, e slog.SinkEntry) {
+	if e.Level >= slog.LevelWarn {
+		s.count.Add(1)
+	}
+}
+
+func (*warnSink) Sync() {}
 
 // generatorHarness runs the generator against a dbauthz-wrapped store so the
 // tests also verify that the usage publisher subject holds the permissions
@@ -197,18 +212,35 @@ func TestGenerator(t *testing.T) {
 	}), runtimes)
 	require.Equal(t, "hb_agent_runtime_v1:2025-03-10_10:00:00", ids[bucketA])
 
-	// The next tick fires shortly after the next hour boundary (15:00), once
-	// bucket [14:00, 15:00) is eligible.
+	// The next tick fires at bucket C's eligibility instant (14:05 plus
+	// jitter), in the same hour the first pass ran, rather than waiting for
+	// the next hour boundary.
 	fireTime := clock.Now().Add(call.Duration)
-	require.Equal(t, time.Date(2025, 3, 10, 15, 0, 0, 0, time.UTC), fireTime.Truncate(usage.AgentRuntimeInterval))
+	require.Equal(t, startTime, fireTime.Truncate(usage.AgentRuntimeInterval))
 	require.GreaterOrEqual(t, fireTime.Sub(fireTime.Truncate(usage.AgentRuntimeInterval)), usage.AgentRuntimeEligibilityLag)
 	clock.Advance(call.Duration).MustWait(ctx)
 	call = trap.MustWait(ctx)
 	call.MustRelease(ctx)
 
-	// The second tick fills only the two newly-eligible buckets: C (13:00)
-	// and the idle 14:00. The window's start advanced by an hour, but the
-	// bucket at the old windowFirst is kept (rows are never deleted).
+	// The second tick fills only the newly-eligible bucket C (13:00). The
+	// window's start advanced by an hour, but the bucket at the old
+	// windowFirst is kept (rows are never deleted).
+	runtimes, _ = h.fetchRuntimeEvents(ctx, t)
+	require.Equal(t, expectedBuckets(windowFirst, windowLast.Add(time.Hour), map[time.Time]int64{
+		bucketA: 7000,
+		bucketB: 8000,
+		bucketC: 32000,
+	}), runtimes)
+
+	// The third tick fires after the next hour boundary (15:05 plus jitter)
+	// and fills the idle 14:00 bucket.
+	fireTime = clock.Now().Add(call.Duration)
+	require.Equal(t, startTime.Add(time.Hour), fireTime.Truncate(usage.AgentRuntimeInterval))
+	require.GreaterOrEqual(t, fireTime.Sub(fireTime.Truncate(usage.AgentRuntimeInterval)), usage.AgentRuntimeEligibilityLag)
+	clock.Advance(call.Duration).MustWait(ctx)
+	call = trap.MustWait(ctx)
+	call.MustRelease(ctx)
+
 	runtimes, _ = h.fetchRuntimeEvents(ctx, t)
 	require.Equal(t, expectedBuckets(windowFirst, windowLast.Add(2*time.Hour), map[time.Time]int64{
 		bucketA: 7000,
@@ -293,7 +325,11 @@ func TestGeneratorConcurrentReplicas(t *testing.T) {
 	startTime := time.Date(2025, 3, 10, 14, 0, 0, 0, time.UTC)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	log := slogtest.Make(t, nil)
+	// If insert idempotency regressed (e.g. ON CONFLICT DO NOTHING was
+	// dropped), the losing replica's inserts would error and surface as
+	// Warn logs, which slogtest alone would not catch.
+	sink := &warnSink{}
+	log := slogtest.Make(t, nil).AppendSinks(sink)
 	h := newGeneratorHarness(t)
 
 	bucketA := time.Date(2025, 3, 10, 10, 0, 0, 0, time.UTC)
@@ -329,11 +365,64 @@ func TestGeneratorConcurrentReplicas(t *testing.T) {
 	}
 
 	// fetchRuntimeEvents fails on duplicate buckets; the expected map proves
-	// both replicas raced without erroring or double-inserting.
+	// both replicas raced without double-inserting, and the warn counter
+	// proves the duplicate inserts were deduplicated rather than rejected
+	// with errors.
 	runtimes, _ := h.fetchRuntimeEvents(ctx, t)
 	require.Equal(t, expectedBuckets(
 		startTime.Add(-usage.AgentRuntimeWindow),
 		startTime.Add(-2*time.Hour),
 		map[time.Time]int64{bucketA: 1000},
 	), runtimes)
+	require.Zero(t, sink.count.Load(), "no replica may log Warn or above during the race")
+}
+
+// TestGeneratorPoisonBucket verifies that a bucket which fails
+// deterministically on every tick does not stall generation of later
+// buckets.
+func TestGeneratorPoisonBucket(t *testing.T) {
+	t.Parallel()
+
+	startTime := time.Date(2025, 3, 10, 14, 0, 0, 0, time.UTC)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	sink := &warnSink{}
+	log := slogtest.Make(t, nil).AppendSinks(sink)
+	h := newGeneratorHarness(t)
+	clock := quartz.NewMock(t)
+	clock.Set(startTime)
+
+	var (
+		poisonBucket = time.Date(2025, 3, 10, 10, 0, 0, 0, time.UTC)
+		laterBucket  = time.Date(2025, 3, 10, 11, 0, 0, 0, time.UTC)
+	)
+	// Nothing prevents a negative runtime_ms row in the database, and a
+	// negative sum fails event validation on every tick.
+	h.insertRuntimeMessage(ctx, t, h.chat.ID, -5, poisonBucket.Add(10*time.Minute), false)
+	h.insertRuntimeMessage(ctx, t, h.chat.ID, 1000, laterBucket.Add(10*time.Minute), false)
+
+	trap := clock.Trap().NewTimer(generatorTimerName)
+	defer trap.Close()
+
+	gen := usage.NewGenerator(clock, log, h.authzDB, usage.NewDBInserter())
+	gen.Start(ctx)
+	defer gen.Close()
+
+	call := trap.MustWait(ctx)
+	call.MustRelease(ctx)
+	clock.Advance(call.Duration).MustWait(ctx)
+	call = trap.MustWait(ctx)
+	call.MustRelease(ctx)
+
+	// Every bucket except the poison bucket is generated, including buckets
+	// after it, and the failure is logged.
+	runtimes, _ := h.fetchRuntimeEvents(ctx, t)
+	expected := expectedBuckets(
+		startTime.Add(-usage.AgentRuntimeWindow),
+		startTime.Add(-2*time.Hour),
+		map[time.Time]int64{laterBucket: 1000},
+	)
+	delete(expected, poisonBucket)
+	require.Equal(t, expected, runtimes)
+	require.NotZero(t, sink.count.Load(), "the poison bucket failure must be logged")
 }

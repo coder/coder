@@ -74,15 +74,14 @@ func TestInserter(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		clock := quartz.NewMock(t)
-		inserter := usage.NewDBInserter(usage.InserterWithClock(clock))
+		inserter := usage.NewDBInserter()
 
+		// Heartbeat inserts must store the provided id and createdAt
+		// verbatim.
 		event := usagetypes.HBAgentRuntime{RuntimeMs: 1234}
 		eventJSON := jsoninate(t, event)
 		id := "hb_agent_runtime_v1:2025-01-02_03:00:00"
 		createdAt := time.Date(2025, 1, 2, 3, 0, 0, 0, time.UTC)
-		// Prove the provided createdAt is stored rather than clock.Now().
-		clock.Set(createdAt.Add(30 * time.Hour))
 
 		db.EXPECT().InsertUsageEvent(gomock.Any(), gomock.Any()).DoAndReturn(
 			func(ctx interface{}, params database.InsertUsageEventParams) error {
