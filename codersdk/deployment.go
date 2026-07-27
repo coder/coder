@@ -612,6 +612,22 @@ var AIBudgetPeriods = []string{
 	string(AIBudgetPeriodMonth),
 }
 
+// Adjective renders the period as the adjective used in user-facing text (e.g. "monthly").
+func (p AIBudgetPeriod) Adjective() string {
+	switch p {
+	case "day":
+		return "daily"
+	case "week":
+		return "weekly"
+	case AIBudgetPeriodMonth:
+		return "monthly"
+	case "year":
+		return "yearly"
+	default:
+		return string(p)
+	}
+}
+
 // NewAIBudgetPeriodFromString converts s to an AIBudgetPeriod, falling back to
 // AIBudgetPeriodMonth when s is empty or not a recognized period.
 func NewAIBudgetPeriodFromString(s string) AIBudgetPeriod {
