@@ -70,6 +70,13 @@ Handle the events your policy needs, using the data Coder sends with each one:
 
 Provider-executed tools don't produce `pre_tool_use` or `post_tool_use` events because the provider executes them outside Coder's tool runtime.
 
+For `pre_tool_use`, `tool_input` carries the model's JSON bytes with key spelling and order preserved, so a policy can read them exactly as the model wrote them.
+Coder's built-in tools decode that JSON with Go, which matches property names case-insensitively and keeps the last match, so `{"path":"/allowed","PATH":"/secret"}` could make a policy approve `/allowed` while the tool opens `/secret`.
+Coder rejects a built-in tool call whose input repeats a key or spells a schema property with different capitalization, before dispatching `pre_tool_use`.
+This check doesn't cover dynamic and MCP tools, because the client and the workspace agent execute those calls rather than coderd.
+A policy that gates them must validate their input itself.
+`edit_files` also reads the deprecated `search` and `replace` aliases when `old_text` and `new_text` are absent, so a policy that gates edit content must inspect both spellings.
+
 For `user_prompt_submit`, `prompt` concatenates the original submitted text parts, and `parts` carries the original structured message, including non-text parts such as file references.
 These values are captured before the consumer's override or injected context changes the stored prompt.
 A consumer that gates prompt content must inspect `parts`.
@@ -116,6 +123,7 @@ Permission rules depend on the event:
   Coder stores and sends the replacement prompt instead of the original prompt.
 - For `pre_tool_use`, `allow` requires `input_override` containing the replacement tool input.
   Coder persists the replacement with the tool call and executes the tool with it.
+  An override for a built-in tool must not repeat a key or vary the capitalization of a schema property; an ambiguous override fails the dispatch closed because the model can't correct it.
   Nothing marks the call as rewritten in the chat, so the model may misattribute the changed behavior; a consumer that rewrites input should also return `user_message` explaining the change.
 - For either event, `deny` blocks the input and must not include `input_override`.
   A denied prompt isn't persisted: Coder rejects the submission and surfaces any returned `user_message` in the rejection, ignoring `model_context`.
@@ -147,7 +155,8 @@ Delivery is best-effort and can duplicate.
 Coder never queues a failed dispatch for redelivery, so plan for duplicates without assuming every event arrives.
 Coder retries one connection failure per dispatch with the same JWT, so use `dispatch_id` to recognize a repeated HTTP attempt and return the same response.
 Coder also re-dispatches the same logical event with a new `dispatch_id` whenever an operation runs again, for example when a chat recovers after a crash and retries a pending tool call, or when a user retries a turn that failed before committing.
-Every non-provider-executed tool call is validated through a fresh `pre_tool_use` dispatch; Coder never reuses an earlier decision on the consumer's behalf.
+Every tool call that reaches execution is validated through a fresh `pre_tool_use` dispatch; Coder never reuses an earlier decision on the consumer's behalf.
+Calls that Coder rejects before execution, such as ambiguous input or a batch that mixes an exclusive tool with other calls, produce an error result for the model without a dispatch.
 
 Use event-specific identifiers for logical duplicates:
 
@@ -197,7 +206,7 @@ CODER_AGENTHOOKS_SECRET='<shared-secret>' \
 The server confirms the listener and then stays in the foreground, printing 1 JSON object per event it receives:
 
 ```output
-Agent hooks server listening on 127.0.0.1:8081
+Agent hooks server listening on 127.0.0.1:8081 in log-only mode
 ```
 
 The reference server accepts optional TLS certificate and key paths.
