@@ -7,7 +7,6 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import { Link } from "#/components/Link/Link";
 import {
 	SettingsHeader,
@@ -99,11 +98,7 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 					</div>
 				}
 			>
-				<SettingsHeaderTitle
-					tooltip={<FeatureStageBadge contentType="beta" size="md" />}
-				>
-					Secrets
-				</SettingsHeaderTitle>
+				<SettingsHeaderTitle>Secrets</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Secrets with an environment variable or file path are injected into
 					workspaces you own when they start. Each environment variable and file
