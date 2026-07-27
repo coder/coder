@@ -69,6 +69,9 @@ func TestUserSecretNameValid(t *testing.T) {
 		input   string
 		wantErr bool
 		errMsg  string
+		// exactErrMsg asserts errMsg is the whole message rather than a
+		// substring of it.
+		exactErrMsg bool
 	}{
 		{name: "Simple", input: "github-token"},
 		{name: "WithUnderscore", input: "github_token"},
@@ -80,6 +83,54 @@ func TestUserSecretNameValid(t *testing.T) {
 		{name: "Slash", input: "foo/bar", wantErr: true, errMsg: "must not contain"},
 		{name: "Question", input: "foo?bar", wantErr: true, errMsg: "must not contain"},
 		{name: "Fragment", input: "foo#bar", wantErr: true, errMsg: "must not contain"},
+
+		// Length cap. The cap counts runes, so a multibyte name of
+		// MaxUserSecretNameLength characters is accepted even though it
+		// occupies more bytes than the cap.
+		{name: "JustUnderLengthLimit", input: strings.Repeat("a", codersdk.MaxUserSecretNameLength-1)},
+		{name: "ExactlyAtLengthLimit", input: strings.Repeat("a", codersdk.MaxUserSecretNameLength)},
+		{
+			name:        "OverLengthLimit",
+			input:       strings.Repeat("a", codersdk.MaxUserSecretNameLength+1),
+			wantErr:     true,
+			errMsg:      "Name must be 255 characters or fewer.",
+			exactErrMsg: true,
+		},
+		{name: "MultibyteExactlyAtLengthLimit", input: strings.Repeat("é", codersdk.MaxUserSecretNameLength)},
+		{
+			name:        "MultibyteOverLengthLimit",
+			input:       strings.Repeat("é", codersdk.MaxUserSecretNameLength+1),
+			wantErr:     true,
+			errMsg:      "Name must be 255 characters or fewer.",
+			exactErrMsg: true,
+		},
+
+		// Ordering. Every case here exceeds the length cap, so each one
+		// distinguishes the length check from the check before or after
+		// it: whitespace-only and leading-whitespace names report their
+		// whitespace problem, and an oversized name containing a route
+		// separator reports its length.
+		{
+			name:        "WhitespaceOnlyOverLengthLimit",
+			input:       strings.Repeat(" ", codersdk.MaxUserSecretNameLength+1),
+			wantErr:     true,
+			errMsg:      "Name is required.",
+			exactErrMsg: true,
+		},
+		{
+			name:        "LeadingWhitespaceOverLengthLimit",
+			input:       " " + strings.Repeat("a", codersdk.MaxUserSecretNameLength+1),
+			wantErr:     true,
+			errMsg:      "Name must not have leading or trailing whitespace.",
+			exactErrMsg: true,
+		},
+		{
+			name:        "OverLengthLimitWithSlash",
+			input:       strings.Repeat("a", codersdk.MaxUserSecretNameLength) + "/b",
+			wantErr:     true,
+			errMsg:      "Name must be 255 characters or fewer.",
+			exactErrMsg: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -89,7 +140,11 @@ func TestUserSecretNameValid(t *testing.T) {
 			if tt.wantErr {
 				assert.Error(t, err)
 				if tt.errMsg != "" {
-					assert.Contains(t, err.Error(), tt.errMsg)
+					if tt.exactErrMsg {
+						assert.EqualError(t, err, tt.errMsg)
+					} else {
+						assert.Contains(t, err.Error(), tt.errMsg)
+					}
 				}
 			} else {
 				assert.NoError(t, err)

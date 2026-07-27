@@ -3,6 +3,7 @@ package codersdk
 import (
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"golang.org/x/xerrors"
 )
@@ -104,6 +105,18 @@ const MaxUserSecretValueBytes = 24 * 1024 // 24 KiB
 // interact with the env_bytes aggregate (which is itself an
 // approximate budget; see MaxUserSecretsPerUserCount).
 const MaxUserSecretEnvNameLength = 256
+
+// MaxUserSecretNameLength caps the length of a secret name, measured in
+// runes rather than bytes. The name column is TEXT, so this cap exists to
+// bound API input and keep names displayable rather than to satisfy a
+// storage limit. Counting runes keeps the cap consistent with the
+// user-facing message, which is stated in characters, and still bounds
+// the stored size at 1020 bytes worst case (4 bytes per rune).
+//
+// This differs from MaxUserSecretEnvNameLength, which counts bytes.
+// Env names are restricted to ASCII by posixEnvNameRegex, so runes and
+// bytes are equivalent there; names accept arbitrary UTF-8.
+const MaxUserSecretNameLength = 255
 
 var (
 	// posixEnvNameRegex matches valid POSIX environment variable names:
@@ -241,6 +254,12 @@ func ValidateCreateUserSecretRequest(req CreateUserSecretRequest) []ValidationEr
 
 // UserSecretNameValid validates a user secret name. Names are used in
 // API route path segments, so they must not include route separators.
+//
+// Checks run in a fixed order and only the first failure is reported:
+// presence, leading and trailing whitespace, length, then route
+// separators. A name that is both oversized and contains a route
+// separator reports its length, while one with surrounding whitespace
+// reports the whitespace regardless of its length.
 func UserSecretNameValid(s string) error {
 	if strings.TrimSpace(s) == "" {
 		return xerrors.New("Name is required.")
@@ -248,6 +267,10 @@ func UserSecretNameValid(s string) error {
 
 	if strings.TrimSpace(s) != s {
 		return xerrors.New("Name must not have leading or trailing whitespace.")
+	}
+
+	if utf8.RuneCountInString(s) > MaxUserSecretNameLength {
+		return xerrors.Errorf("Name must be %d characters or fewer.", MaxUserSecretNameLength)
 	}
 
 	if strings.ContainsAny(s, "/?#") {
