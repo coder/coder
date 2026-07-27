@@ -3906,11 +3906,65 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		require.Equal(t, end.Format(time.RFC3339), records[1][11])
 	})
 
+	t.Run("ExcludesNullEffectiveGroup", func(t *testing.T) {
+		t.Parallel()
+
+		clock := quartz.NewMock(t)
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-null-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clock.Set(time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC))
+		at := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
+
+		// Usage attributed to a group is included.
+		groupedIntc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: targetUser.ID, Provider: "anthropic", Model: "claude-4", StartedAt: at,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: groupedIntc.ID, CreatedAt: at,
+			EffectiveGroupID: uuid.NullUUID{UUID: group.ID, Valid: true},
+			InputTokens:      100, CostMicros: sql.NullInt64{Int64: 1000, Valid: true},
+		})
+
+		// Usage with no effective group must be excluded entirely, so its
+		// tokens and cost never reach the CSV.
+		nullIntc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: targetUser.ID, Provider: "anthropic", Model: "claude-4", StartedAt: at,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: nullIntc.ID, CreatedAt: at,
+			InputTokens: 500, CostMicros: sql.NullInt64{Int64: 5000, Valid: true},
+		})
+
+		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, nil)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		records := readAISpendExportResponse(t, res)
+		// Only the grouped row is present; the null-group usage is dropped, so
+		// both the row count and the aggregated values exclude it.
+		require.Len(t, records, 2)              // header + single grouped row
+		require.Equal(t, "100", records[1][5])  // input_tokens
+		require.Equal(t, "1000", records[1][9]) // cost_micros
+	})
+
 	t.Run("PeriodValidation", func(t *testing.T) {
 		t.Parallel()
 
-		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "export-period-validation-group"})
+		clock := quartz.NewMock(t)
+		clock.Set(time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC))
+		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-period-validation-group",
+			Clock:     clock,
+		})
 		start := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+		// Older than the default 60d retention window relative to the clock.
+		beforeRetention := time.Date(2025, time.December, 1, 0, 0, 0, 0, time.UTC)
 
 		cases := []struct {
 			name       string
@@ -3946,6 +4000,13 @@ func TestExportOrganizationAISpend(t *testing.T) {
 				name:       "MaxPeriodAllowed",
 				params:     map[string]string{"period_start": start.Format(time.RFC3339Nano), "period_end": start.AddDate(0, 0, 31).Format(time.RFC3339Nano)},
 				wantStatus: http.StatusOK,
+			},
+			{
+				// period_start predates the retention window, so the raw
+				// token usage would be purged and results incomplete.
+				name:       "BeforeRetentionWindow",
+				params:     map[string]string{"period_start": beforeRetention.Format(time.RFC3339Nano), "period_end": beforeRetention.AddDate(0, 0, 1).Format(time.RFC3339Nano)},
+				wantStatus: http.StatusBadRequest,
 			},
 		}
 		for _, tc := range cases {

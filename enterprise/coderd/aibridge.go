@@ -1048,52 +1048,67 @@ func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter,
 	hasStart := query.Has("period_start")
 	hasEnd := query.Has("period_end")
 
-	if !hasStart && !hasEnd {
+	switch {
+	case !hasStart && !hasEnd:
 		window, err := api.currentAIBudgetWindow()
 		if err != nil {
 			api.Logger.Error(ctx, "failed to compute AI budget period", slog.Error(err))
 			httpapi.InternalServerError(rw, err)
 			return time.Time{}, time.Time{}, false
 		}
-		return window.Start, window.End, true
-	}
-
-	if hasStart != hasEnd {
+		start, end = window.Start, window.End
+	case hasStart != hasEnd:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Query parameters \"period_start\" and \"period_end\" must be provided together.",
 		})
 		return time.Time{}, time.Time{}, false
+	default:
+		parser := httpapi.NewQueryParamParser()
+		start = parser.Time3339Nano(query, time.Time{}, "period_start")
+		end = parser.Time3339Nano(query, time.Time{}, "period_end")
+		parser.ErrorExcessParams(query)
+		if len(parser.Errors) > 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Query parameters have invalid values.",
+				Validations: parser.Errors,
+			})
+			return time.Time{}, time.Time{}, false
+		}
+		if !start.Before(end) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Query parameter \"period_start\" must be before \"period_end\".",
+			})
+			return time.Time{}, time.Time{}, false
+		}
+		if end.Sub(start) > maxAISpendExportPeriod {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Query period must not exceed 31 days.",
+			})
+			return time.Time{}, time.Time{}, false
+		}
 	}
 
-	parser := httpapi.NewQueryParamParser()
-	start = parser.Time3339Nano(query, time.Time{}, "period_start")
-	end = parser.Time3339Nano(query, time.Time{}, "period_end")
-	parser.ErrorExcessParams(query)
-	if len(parser.Errors) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Query parameters have invalid values.",
-			Validations: parser.Errors,
-		})
-		return time.Time{}, time.Time{}, false
+	// The export is built from raw AI Gateway token usage, which is purged once
+	// it is older than the configured retention duration. A period that begins
+	// before the retention window would return missing or partial rows, so
+	// reject it rather than silently exporting incomplete data.
+	if retention := api.DeploymentValues.AI.BridgeConfig.Retention.Value(); retention > 0 {
+		cutoff := api.Clock.Now().Add(-retention)
+		if start.Before(cutoff) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Query parameter \"period_start\" is older than the configured AI Gateway data retention window.",
+			})
+			return time.Time{}, time.Time{}, false
+		}
 	}
-	if !start.Before(end) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Query parameter \"period_start\" must be before \"period_end\".",
-		})
-		return time.Time{}, time.Time{}, false
-	}
-	if end.Sub(start) > maxAISpendExportPeriod {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Query period must not exceed 31 days.",
-		})
-		return time.Time{}, time.Time{}, false
-	}
+
 	return start, end, true
 }
 
 // @Summary Export organization AI spend as CSV
 // @Description Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.
 // @Description The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days; when both are omitted the current UTC monthly period is used.
+// @Description period_start must fall within the configured AI Gateway data retention window, since older token usage is purged and would produce incomplete results.
 // @ID export-organization-ai-spend-as-csv
 // @Security CoderSessionToken
 // @Produce text/csv
