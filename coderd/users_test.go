@@ -1131,6 +1131,7 @@ func TestNotifyCreatedUser(t *testing.T) {
 		require.Equal(t, firstUser.UserID, sent[0].UserID)
 		require.Contains(t, sent[0].Targets, user.ID)
 		require.Equal(t, user.Username, sent[0].Labels["created_account_name"])
+		require.Equal(t, "user", sent[0].Labels["account_type"])
 
 		require.IsType(t, map[string]any{}, sent[0].Data["user"])
 		userData := sent[0].Data["user"].(map[string]any)
