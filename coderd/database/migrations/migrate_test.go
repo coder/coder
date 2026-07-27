@@ -1717,9 +1717,9 @@ func TestMigration000546ChatHistoryAPIKeyConstraints(t *testing.T) {
 	}
 }
 
-// TestMigration000551AuditOAuth2ProviderSettingsEnumInSingleTxn reproduces
+// TestMigration000552AuditOAuth2ProviderSettingsEnumInSingleTxn reproduces
 // the production upgrade path, where every pending migration in a deploy
-// runs inside a single transaction (see pgTxnDriver). 000551 adds
+// runs inside a single transaction (see pgTxnDriver). 000552 adds
 // 'oauth2_provider_settings' to the resource_type enum via ALTER TYPE ...
 // ADD VALUE. Postgres forbids using an enum value added by ADD VALUE within
 // the same transaction that added it, so this confirms the audit write path
@@ -1727,16 +1727,16 @@ func TestMigration000546ChatHistoryAPIKeyConstraints(t *testing.T) {
 // PUT to the DCR settings endpoint) can use the new value immediately after
 // the migration transaction commits, and that pre-existing audit data from
 // before the upgrade survives untouched.
-func TestMigration000551AuditOAuth2ProviderSettingsEnumInSingleTxn(t *testing.T) {
+func TestMigration000552AuditOAuth2ProviderSettingsEnumInSingleTxn(t *testing.T) {
 	t.Parallel()
 
 	sqlDB := testSQLDB(t)
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
-	// Apply everything through 550 and commit, simulating a deployment
+	// Apply everything through 551 and commit, simulating a deployment
 	// that was already running the previous release, with real
-	// pre-existing audit data, before the upgrade that adds 551.
-	applyMigrationsInTxn(ctx, t, sqlDB, 1, 550)
+	// pre-existing audit data, before the upgrade that adds 552.
+	applyMigrationsInTxn(ctx, t, sqlDB, 1, 551)
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	preUpgradeLogID := uuid.New()
@@ -1753,9 +1753,9 @@ func TestMigration000551AuditOAuth2ProviderSettingsEnumInSingleTxn(t *testing.T)
 	)
 	require.NoError(t, err)
 
-	// Apply 551 in the same single transaction production uses for the
+	// Apply 552 in the same single transaction production uses for the
 	// whole pending batch.
-	applyMigrationsInTxn(ctx, t, sqlDB, 551, 551)
+	applyMigrationsInTxn(ctx, t, sqlDB, 552, 552)
 
 	// Pre-existing audit data survives the upgrade untouched.
 	var resourceTarget string
