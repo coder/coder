@@ -80,6 +80,30 @@ func TestCron(t *testing.T) {
 	})
 }
 
+// TestUsagePublisherCanInsertHeartbeats wraps a mock database with
+// dbauthz to verify that the AsUsagePublisher subject can insert
+// heartbeat usage events; the cron performs its inserts under this
+// subject, so a missing usage_event create permission would make every
+// heartbeat insert fail authz at runtime.
+func TestUsagePublisherCanInsertHeartbeats(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	db.EXPECT().Wrappers().Return([]string{}).AnyTimes()
+	db.EXPECT().InsertUsageEvent(gomock.Any(), gomock.Any()).Return(nil)
+
+	authz := rbac.NewStrictAuthorizer(prometheus.NewRegistry())
+	authzDB := dbauthz.New(db, authz, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+	//nolint:gocritic // Testing the usage publisher subject is the point.
+	ctx := dbauthz.AsUsagePublisher(testutil.Context(t, testutil.WaitLong))
+	inserter := usage.NewDBInserter()
+	err := inserter.InsertHeartbeatUsageEvent(ctx, authzDB, "hb_ai_seats_v1:2025-01-01_00:00:00", usagetypes.HBAISeats{Count: 1})
+	require.NoError(t, err)
+}
+
 // TestAISeatsHeartbeat checks that AISeatsHeartbeat returns the
 // correct event type and count. It wraps a mock database with dbauthz
 // to verify that the AsUsagePublisher subject has the required

@@ -666,9 +666,9 @@ var (
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceLicense.Type: {policy.ActionRead},
 					rbac.ResourceAiSeat.Type:  {policy.ActionRead}, // Required for GetActiveAISeatCount.
-					// The usage publisher doesn't create events, just
-					// reads/processes them.
-					rbac.ResourceUsageEvent.Type: {policy.ActionRead, policy.ActionUpdate},
+					// Create is required by the usage cron, which inserts
+					// heartbeat events under this subject.
+					rbac.ResourceUsageEvent.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
