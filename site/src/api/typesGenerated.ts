@@ -1947,6 +1947,20 @@ export interface ChatContextTool {
 
 // From codersdk/chats.go
 /**
+ * ChatCost is the cumulative cost for a selected chat's subtree: the
+ * chat itself plus every descendant (subagent) chat it spawned. A root
+ * chat therefore reports its whole tree, while a subagent reports only
+ * its own spend plus any nested subagents.
+ */
+export interface ChatCost {
+	readonly chat_id: string;
+	readonly total_cost_micros: number;
+	readonly priced_message_count: number;
+	readonly unpriced_messages_having_usage_count: number;
+}
+
+// From codersdk/chats.go
+/**
  * ChatCostChatBreakdown contains per-root-chat cost aggregation.
  */
 export interface ChatCostChatBreakdown {
@@ -1988,7 +2002,7 @@ export interface ChatCostSummary {
 	readonly end_date: string;
 	readonly total_cost_micros: number;
 	readonly priced_message_count: number;
-	readonly unpriced_message_count: number;
+	readonly unpriced_messages_having_usage_count: number;
 	readonly total_input_tokens: number;
 	readonly total_output_tokens: number;
 	readonly total_cache_read_tokens: number;
@@ -8790,6 +8804,28 @@ export interface TemplateBuilderModuleVariable {
  */
 export interface TemplateBuilderModulesResponse {
 	readonly modules: readonly TemplateBuilderModule[];
+}
+
+// From codersdk/templatebuilder.go
+export type TemplateBuilderSessionEventType =
+	| "compose_completion"
+	| "wizard_entry";
+
+export const TemplateBuilderSessionEventTypes: TemplateBuilderSessionEventType[] =
+	["compose_completion", "wizard_entry"];
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderSessionRequest is the request body for
+ * POST /api/v2/templatebuilder/sessions.
+ */
+export interface TemplateBuilderSessionRequest {
+	readonly session_id: string;
+	readonly event_type: TemplateBuilderSessionEventType;
+	readonly base_template_id?: string;
+	readonly module_ids?: readonly string[];
+	readonly duration_seconds?: number;
+	readonly success?: boolean;
 }
 
 // From codersdk/templatebuilder.go

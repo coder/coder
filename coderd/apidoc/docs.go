@@ -580,6 +580,42 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/experimental/chats/{chat}/cost": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat cost",
+                "operationId": "get-chat-cost",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatCost"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/experimental/chats/{chat}/diff": {
             "get": {
                 "description": "Experimental: this endpoint is subject to change.",
@@ -7765,6 +7801,39 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.TemplateBuilderModulesResponse"
                         }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/templatebuilder/sessions": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "TemplateBuilder"
+                ],
+                "summary": "Report a template builder session event",
+                "operationId": "report-a-template-builder-session-event",
+                "parameters": [
+                    {
+                        "description": "Session event",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateBuilderSessionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -17271,6 +17340,24 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatCost": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "priced_message_count": {
+                    "type": "integer"
+                },
+                "total_cost_micros": {
+                    "type": "integer"
+                },
+                "unpriced_messages_having_usage_count": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.ChatDiffContents": {
             "type": "object",
             "properties": {
@@ -24690,6 +24777,56 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.TemplateBuilderModule"
                     }
+                }
+            }
+        },
+        "codersdk.TemplateBuilderSessionEventType": {
+            "type": "string",
+            "enum": [
+                "wizard_entry",
+                "compose_completion"
+            ],
+            "x-enum-varnames": [
+                "TemplateBuilderSessionEventWizardEntry",
+                "TemplateBuilderSessionEventComposeCompletion"
+            ]
+        },
+        "codersdk.TemplateBuilderSessionRequest": {
+            "type": "object",
+            "required": [
+                "event_type",
+                "session_id"
+            ],
+            "properties": {
+                "base_template_id": {
+                    "type": "string"
+                },
+                "duration_seconds": {
+                    "type": "number"
+                },
+                "event_type": {
+                    "enum": [
+                        "wizard_entry",
+                        "compose_completion"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.TemplateBuilderSessionEventType"
+                        }
+                    ]
+                },
+                "module_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "session_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "success": {
+                    "type": "boolean"
                 }
             }
         },

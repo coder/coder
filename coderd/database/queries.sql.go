@@ -7557,7 +7557,7 @@ SELECT
                 OR cm.cache_creation_tokens IS NOT NULL
                 OR cm.cache_read_tokens IS NOT NULL
             )
-    )::bigint AS unpriced_message_count,
+    )::bigint AS unpriced_messages_having_usage_count,
     COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
     COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
     COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
@@ -7581,14 +7581,14 @@ type GetChatCostSummaryParams struct {
 }
 
 type GetChatCostSummaryRow struct {
-	TotalCostMicros          int64 `db:"total_cost_micros" json:"total_cost_micros"`
-	PricedMessageCount       int64 `db:"priced_message_count" json:"priced_message_count"`
-	UnpricedMessageCount     int64 `db:"unpriced_message_count" json:"unpriced_message_count"`
-	TotalInputTokens         int64 `db:"total_input_tokens" json:"total_input_tokens"`
-	TotalOutputTokens        int64 `db:"total_output_tokens" json:"total_output_tokens"`
-	TotalCacheReadTokens     int64 `db:"total_cache_read_tokens" json:"total_cache_read_tokens"`
-	TotalCacheCreationTokens int64 `db:"total_cache_creation_tokens" json:"total_cache_creation_tokens"`
-	TotalRuntimeMs           int64 `db:"total_runtime_ms" json:"total_runtime_ms"`
+	TotalCostMicros                  int64 `db:"total_cost_micros" json:"total_cost_micros"`
+	PricedMessageCount               int64 `db:"priced_message_count" json:"priced_message_count"`
+	UnpricedMessagesHavingUsageCount int64 `db:"unpriced_messages_having_usage_count" json:"unpriced_messages_having_usage_count"`
+	TotalInputTokens                 int64 `db:"total_input_tokens" json:"total_input_tokens"`
+	TotalOutputTokens                int64 `db:"total_output_tokens" json:"total_output_tokens"`
+	TotalCacheReadTokens             int64 `db:"total_cache_read_tokens" json:"total_cache_read_tokens"`
+	TotalCacheCreationTokens         int64 `db:"total_cache_creation_tokens" json:"total_cache_creation_tokens"`
+	TotalRuntimeMs                   int64 `db:"total_runtime_ms" json:"total_runtime_ms"`
 }
 
 // Aggregate cost summary for a single user within a date range.
@@ -7599,7 +7599,7 @@ func (q *sqlQuerier) GetChatCostSummary(ctx context.Context, arg GetChatCostSumm
 	err := row.Scan(
 		&i.TotalCostMicros,
 		&i.PricedMessageCount,
-		&i.UnpricedMessageCount,
+		&i.UnpricedMessagesHavingUsageCount,
 		&i.TotalInputTokens,
 		&i.TotalOutputTokens,
 		&i.TotalCacheReadTokens,
@@ -8361,6 +8361,67 @@ func (q *sqlQuerier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]Get
 		return nil, err
 	}
 	return items, nil
+}
+
+const getChatModelUsageCostByChatID = `-- name: GetChatModelUsageCostByChatID :one
+WITH RECURSIVE target AS (
+    SELECT $1::uuid AS chat_id
+), subtree AS (
+    SELECT chat_id AS id FROM target
+    UNION ALL
+    SELECT c.id
+    FROM chats c
+    JOIN subtree s ON c.parent_chat_id = s.id
+), costs AS (
+    SELECT
+        COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+        COUNT(*) FILTER (
+            WHERE cm.total_cost_micros IS NOT NULL
+        )::bigint AS priced_message_count,
+        COUNT(*) FILTER (
+            WHERE cm.total_cost_micros IS NULL
+                AND (
+                    cm.input_tokens IS NOT NULL
+                    OR cm.output_tokens IS NOT NULL
+                    OR cm.reasoning_tokens IS NOT NULL
+                    OR cm.cache_creation_tokens IS NOT NULL
+                    OR cm.cache_read_tokens IS NOT NULL
+                )
+        )::bigint AS unpriced_messages_having_usage_count
+    FROM chat_messages cm
+    JOIN subtree s ON s.id = cm.chat_id
+    WHERE cm.role = 'assistant'
+)
+SELECT
+    t.chat_id,
+    costs.total_cost_micros,
+    costs.priced_message_count,
+    costs.unpriced_messages_having_usage_count
+FROM target t
+CROSS JOIN costs
+`
+
+type GetChatModelUsageCostByChatIDRow struct {
+	ChatID                           uuid.UUID `db:"chat_id" json:"chat_id"`
+	TotalCostMicros                  int64     `db:"total_cost_micros" json:"total_cost_micros"`
+	PricedMessageCount               int64     `db:"priced_message_count" json:"priced_message_count"`
+	UnpricedMessagesHavingUsageCount int64     `db:"unpriced_messages_having_usage_count" json:"unpriced_messages_having_usage_count"`
+}
+
+// Assistant-message cost rolled up over the requested chat's subtree: the
+// chat itself plus every descendant reachable through parent_chat_id. A
+// root chat therefore reports its whole tree, while a subagent chat
+// reports only its own spend plus any nested subagents it spawned.
+func (q *sqlQuerier) GetChatModelUsageCostByChatID(ctx context.Context, chatID uuid.UUID) (GetChatModelUsageCostByChatIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatModelUsageCostByChatID, chatID)
+	var i GetChatModelUsageCostByChatIDRow
+	err := row.Scan(
+		&i.ChatID,
+		&i.TotalCostMicros,
+		&i.PricedMessageCount,
+		&i.UnpricedMessagesHavingUsageCount,
+	)
+	return i, err
 }
 
 const getChatQueuedMessageByID = `-- name: GetChatQueuedMessageByID :one

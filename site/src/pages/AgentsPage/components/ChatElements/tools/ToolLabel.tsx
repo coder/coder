@@ -1,57 +1,6 @@
 import type React from "react";
 import { getPathBasename } from "../../../utils/path";
-import {
-	getProvidedSubagentTitle,
-	getSubagentDescriptor,
-} from "./subagentDescriptor";
 import { asRecord, asString, humanizeMCPToolName, parseArgs } from "./utils";
-
-const renderSubagentLabel = (
-	name: string,
-	args: unknown,
-	result: unknown,
-): React.ReactNode | null => {
-	const descriptor = getSubagentDescriptor({ name, args, result });
-	if (!descriptor) {
-		return null;
-	}
-
-	const providedTitle = getProvidedSubagentTitle({ args, result });
-	const fallbackTitle = descriptor.fallbackTitle;
-	const text = (() => {
-		switch (descriptor.action) {
-			case "spawn":
-				if (providedTitle) {
-					return `Spawning ${providedTitle}`;
-				}
-				if (descriptor.variant === "explore") {
-					return "Spawning Explore agent…";
-				}
-				if (descriptor.variant === "computer_use") {
-					return "Spawning computer use sub-agent…";
-				}
-				return `Spawning ${fallbackTitle}…`;
-			case "wait":
-				return providedTitle
-					? `Waiting for ${providedTitle}`
-					: `Waiting for ${fallbackTitle}…`;
-			case "message":
-				return providedTitle
-					? `Messaging ${providedTitle}`
-					: `Messaging ${fallbackTitle}…`;
-			case "interrupt":
-				return providedTitle
-					? `Interrupting ${providedTitle}`
-					: `Interrupting ${fallbackTitle}`;
-			case "list":
-				return providedTitle
-					? `Listing ${providedTitle}`
-					: `Listing ${fallbackTitle}`;
-		}
-	})();
-
-	return <span className="truncate text-[13px]">{text}</span>;
-};
 
 export const ToolLabel: React.FC<{
 	name: string;
@@ -61,14 +10,6 @@ export const ToolLabel: React.FC<{
 }> = ({ name, args, result, mcpSlug }) => {
 	const parsed = parseArgs(args);
 	const parsedResult = asRecord(result);
-	const subagentLabel = renderSubagentLabel(
-		name,
-		parsed ?? args,
-		parsedResult ?? result,
-	);
-	if (subagentLabel) {
-		return subagentLabel;
-	}
 
 	switch (name) {
 		case "execute": {

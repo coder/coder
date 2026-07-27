@@ -1,14 +1,9 @@
 import { asString } from "../runtimeTypeUtils";
 import { parseArgs } from "./utils";
 
-export type SubagentAction =
-	| "spawn"
-	| "wait"
-	| "message"
-	| "interrupt"
-	| "list";
+export type SubagentAction = "spawn" | "wait" | "message" | "interrupt";
 export type SubagentVariant = "general" | "explore" | "computer_use";
-export type SubagentIconKind = "bot" | "monitor";
+type SubagentIconKind = "bot" | "monitor";
 
 export type SubagentDescriptor = {
 	action: SubagentAction;
@@ -59,11 +54,6 @@ const actionByToolName: Record<string, SubagentAction> = {
 	// Legacy persisted tool name kept so old chat histories still render.
 	close_agent: "interrupt",
 	interrupt_agent: "interrupt",
-	// list_agents is a subagent tool but renders through
-	// ListAgentsRenderer, not SubagentRenderer. The "list" action
-	// exists for isSubagentToolName classification and ToolIcon
-	// dispatch, not for the SubagentRenderer label machinery.
-	list_agents: "list",
 };
 
 const variantBySpawnToolName: Record<string, SubagentVariant> = {

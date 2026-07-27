@@ -2612,6 +2612,12 @@ class ApiMethods {
 		return response.data;
 	};
 
+	recordTemplateBuilderSession = async (
+		req: TypesGen.TemplateBuilderSessionRequest,
+	): Promise<void> => {
+		await this.axios.post("/api/v2/templatebuilder/sessions", req);
+	};
+
 	uploadFile = async (file: File): Promise<TypesGen.UploadResponse> => {
 		const response = await this.axios.post("/api/v2/files", file, {
 			headers: { "Content-Type": file.type },
@@ -3438,6 +3444,12 @@ class ExperimentalApiMethods {
 	getChat = async (chatId: string): Promise<TypesGen.Chat> => {
 		const response = await this.axios.get<TypesGen.Chat>(
 			`/api/experimental/chats/${chatId}`,
+		);
+		return response.data;
+	};
+	getChatCost = async (chatId: string): Promise<TypesGen.ChatCost> => {
+		const response = await this.axios.get<TypesGen.ChatCost>(
+			`/api/experimental/chats/${chatId}/cost`,
 		);
 		return response.data;
 	};

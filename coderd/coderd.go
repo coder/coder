@@ -1420,6 +1420,7 @@ func New(options *Options) *API {
 				})
 				r.Get("/", api.getChat)
 				r.Patch("/", api.patchChat)
+				r.Get("/cost", api.getChatCost)
 				r.Get("/messages", api.getChatMessages)
 				r.Post("/messages", api.postChatMessages)
 				r.Patch("/messages/{message}", api.patchChatMessage)
@@ -1703,6 +1704,7 @@ func New(options *Options) *API {
 				r.Get("/modules", api.templateBuilderModules)
 				r.Post("/compose", api.templateBuilderCompose)
 				r.Post("/compose/template", api.templateBuilderCreateTemplate)
+				r.Post("/sessions", api.templateBuilderSession)
 			})
 		}
 

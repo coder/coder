@@ -938,11 +938,11 @@ func (s *MethodTestSuite) TestChats() {
 			EndDate:   time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC),
 		}
 		row := database.GetChatCostSummaryRow{
-			TotalCostMicros:      987,
-			PricedMessageCount:   12,
-			UnpricedMessageCount: 2,
-			TotalInputTokens:     400,
-			TotalOutputTokens:    800,
+			TotalCostMicros:                  987,
+			PricedMessageCount:               12,
+			UnpricedMessagesHavingUsageCount: 2,
+			TotalInputTokens:                 400,
+			TotalOutputTokens:                800,
 		}
 		dbm.EXPECT().GetChatCostSummary(gomock.Any(), arg).Return(row, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(arg.OwnerID.String()).AnyOrganization(), policy.ActionRead).Returns(row)
@@ -1068,6 +1068,13 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().GetChatMessagesByChatID(gomock.Any(), arg).Return(msgs, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(msgs)
+	}))
+	s.Run("GetChatModelUsageCostByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		row := database.GetChatModelUsageCostByChatIDRow{ChatID: chat.ID, TotalCostMicros: 1000, PricedMessageCount: 2}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().GetChatModelUsageCostByChatID(gomock.Any(), chat.ID).Return(row, nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(row)
 	}))
 	s.Run("GetChatMessagesByChatIDAscPaginated", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})

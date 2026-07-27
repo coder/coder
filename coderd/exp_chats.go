@@ -1654,18 +1654,18 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	response := codersdk.ChatCostSummary{
-		StartDate:                startDate,
-		EndDate:                  endDate,
-		TotalCostMicros:          summary.TotalCostMicros,
-		PricedMessageCount:       summary.PricedMessageCount,
-		UnpricedMessageCount:     summary.UnpricedMessageCount,
-		TotalInputTokens:         summary.TotalInputTokens,
-		TotalOutputTokens:        summary.TotalOutputTokens,
-		TotalCacheReadTokens:     summary.TotalCacheReadTokens,
-		TotalCacheCreationTokens: summary.TotalCacheCreationTokens,
-		TotalRuntimeMs:           summary.TotalRuntimeMs,
-		ByModel:                  modelBreakdowns,
-		ByChat:                   chatBreakdowns,
+		StartDate:                        startDate,
+		EndDate:                          endDate,
+		TotalCostMicros:                  summary.TotalCostMicros,
+		PricedMessageCount:               summary.PricedMessageCount,
+		UnpricedMessagesHavingUsageCount: summary.UnpricedMessagesHavingUsageCount,
+		TotalInputTokens:                 summary.TotalInputTokens,
+		TotalOutputTokens:                summary.TotalOutputTokens,
+		TotalCacheReadTokens:             summary.TotalCacheReadTokens,
+		TotalCacheCreationTokens:         summary.TotalCacheCreationTokens,
+		TotalRuntimeMs:                   summary.TotalRuntimeMs,
+		ByModel:                          modelBreakdowns,
+		ByChat:                           chatBreakdowns,
 	}
 	if usageStatus != nil {
 		response.UsageLimit = usageStatus
@@ -2413,6 +2413,47 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 		Messages:       convertChatMessages(messages),
 		QueuedMessages: convertChatQueuedMessages(queuedMessages),
 		HasMore:        hasMore,
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Get chat cost
+// @ID get-chat-cost
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Success 200 {object} codersdk.ChatCost
+// @Router /api/experimental/chats/{chat}/cost [get]
+// @Description Experimental: this endpoint is subject to change.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) getChatCost(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	// The query rolls up the requested chat's subtree, so a root chat
+	// reports itself plus all subagents while a subagent reports only
+	// its own spend (plus any nested subagents it spawned).
+	row, err := api.Database.GetChatModelUsageCostByChatID(ctx, chat.ID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat cost.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatCost{
+		ChatID:                           row.ChatID,
+		TotalCostMicros:                  row.TotalCostMicros,
+		PricedMessageCount:               row.PricedMessageCount,
+		UnpricedMessagesHavingUsageCount: row.UnpricedMessagesHavingUsageCount,
 	})
 }
 

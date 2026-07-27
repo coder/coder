@@ -2517,6 +2517,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `description` | string | false    |              | Description is the tool's human-readable summary; may be empty.                                                   |
 | `name`        | string | false    |              | Name is the tool name with the "<server>__" prefix the agent adds stripped, so it reads as the server exposes it. |
 
+## codersdk.ChatCost
+
+```json
+{
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "priced_message_count": 0,
+  "total_cost_micros": 0,
+  "unpriced_messages_having_usage_count": 0
+}
+```
+
+### Properties
+
+| Name                                   | Type    | Required | Restrictions | Description |
+|----------------------------------------|---------|----------|--------------|-------------|
+| `chat_id`                              | string  | false    |              |             |
+| `priced_message_count`                 | integer | false    |              |             |
+| `total_cost_micros`                    | integer | false    |              |             |
+| `unpriced_messages_having_usage_count` | integer | false    |              |             |
+
 ## codersdk.ChatDiffContents
 
 ```json
@@ -12593,6 +12613,52 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Name      | Type                                                                      | Required | Restrictions | Description |
 |-----------|---------------------------------------------------------------------------|----------|--------------|-------------|
 | `modules` | array of [codersdk.TemplateBuilderModule](#codersdktemplatebuildermodule) | false    |              |             |
+
+## codersdk.TemplateBuilderSessionEventType
+
+```json
+"wizard_entry"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                             |
+|--------------------------------------|
+| `compose_completion`, `wizard_entry` |
+
+## codersdk.TemplateBuilderSessionRequest
+
+```json
+{
+  "base_template_id": "string",
+  "duration_seconds": 0,
+  "event_type": "wizard_entry",
+  "module_ids": [
+    "string"
+  ],
+  "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82",
+  "success": true
+}
+```
+
+### Properties
+
+| Name               | Type                                                                                 | Required | Restrictions | Description |
+|--------------------|--------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `base_template_id` | string                                                                               | false    |              |             |
+| `duration_seconds` | number                                                                               | false    |              |             |
+| `event_type`       | [codersdk.TemplateBuilderSessionEventType](#codersdktemplatebuildersessioneventtype) | true     |              |             |
+| `module_ids`       | array of string                                                                      | false    |              |             |
+| `session_id`       | string                                                                               | true     |              |             |
+| `success`          | boolean                                                                              | false    |              |             |
+
+#### Enumerated Values
+
+| Property     | Value(s)                             |
+|--------------|--------------------------------------|
+| `event_type` | `compose_completion`, `wizard_entry` |
 
 ## codersdk.TemplateBuilderVariableType
 
