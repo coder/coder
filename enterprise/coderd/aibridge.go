@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -25,6 +26,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -915,8 +918,8 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 		slog.F("period_end", periodWindow.End),
 	)
 
-	policy := codersdk.NewAIBudgetPolicyFromString(api.DeploymentValues.AI.BridgeConfig.BudgetPolicy)
-	effectiveGroup, ok, err := budget.ResolveUserEffectiveGroup(ctx, api.Database, user.ID, policy)
+	budgetPolicy := codersdk.NewAIBudgetPolicyFromString(api.DeploymentValues.AI.BridgeConfig.BudgetPolicy)
+	effectiveGroup, ok, err := budget.ResolveUserEffectiveGroup(ctx, api.Database, user.ID, budgetPolicy)
 	if err != nil {
 		logger.Error(ctx, "failed to resolve user AI budget", slog.Error(err))
 		httpapi.InternalServerError(rw, err)
@@ -1031,25 +1034,52 @@ func (api *API) organizationGroupsAISpend(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-// aiSpendExportCSVHeader is the CSV column order for the AI spend export.
-var aiSpendExportCSVHeader = []string{
-	"user", "group", "organization", "model", "provider", "provider_name",
+// AISpendExportCSVHeader is the CSV column order for the AI spend export.
+var AISpendExportCSVHeader = []string{
+	"user_id", "username", "group_id", "group_name", "organization_id", "organization_name",
+	"model", "provider", "provider_name",
 	"input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens",
 	"cost_micros", "period_start", "period_end",
 }
 
+// csvFormulaPrefixes are the leading characters a spreadsheet treats as the
+// start of a formula rather than text.
+const csvFormulaPrefixes = "=+-@\t\r"
+
+// escapeCSVCell prefixes a leading formula character with a single quote, which
+// spreadsheets strip on display, so the value renders as its original text
+// instead of being evaluated.
+func escapeCSVCell(value string) string {
+	if value == "" || !strings.ContainsRune(csvFormulaPrefixes, rune(value[0])) {
+		return value
+	}
+	return "'" + value
+}
+
 // aiSpendExportPeriod resolves the export window from the request. When neither
 // start nor end is supplied it defaults to the current UTC monthly budget
-// period. Both bounds must be supplied together and are interpreted as UTC, and
-// an explicit window must be non-empty and span at most 31 days. On invalid
-// input it writes the error response and returns ok=false.
+// period, narrowed to the retention window. Both bounds must be supplied
+// together and are interpreted as UTC, and an explicit window must be non-empty,
+// span at most 31 days, and begin within the retention window. On invalid input
+// it writes the error response and returns ok=false.
 func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter, r *http.Request) (start, end time.Time, ok bool) {
 	query := r.URL.Query()
 	hasStart := query.Has("period_start")
 	hasEnd := query.Has("period_end")
 
+	// retentionStart is the oldest token usage still available, since anything
+	// older has been purged. A retention of zero disables purging.
+	retention := api.DeploymentValues.AI.BridgeConfig.Retention.Value()
+	hasRetention := retention > 0
+	var retentionStart time.Time
+	if hasRetention {
+		retentionStart = api.Clock.Now().Add(-retention)
+	}
+
 	switch {
 	case !hasStart && !hasEnd:
+		// No period was requested, so start at the budget period or the
+		// retention window, whichever is later.
 		window, err := api.currentAIBudgetWindow()
 		if err != nil {
 			api.Logger.Error(ctx, "failed to compute AI budget period", slog.Error(err))
@@ -1057,12 +1087,16 @@ func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter,
 			return time.Time{}, time.Time{}, false
 		}
 		start, end = window.Start, window.End
+		if hasRetention && start.Before(retentionStart) {
+			start = retentionStart
+		}
 	case hasStart != hasEnd:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Query parameters \"period_start\" and \"period_end\" must be provided together.",
 		})
 		return time.Time{}, time.Time{}, false
 	default:
+		// The caller asked for this period, so validate it.
 		parser := httpapi.NewQueryParamParser()
 		start = parser.Time3339Nano(query, time.Time{}, "period_start")
 		end = parser.Time3339Nano(query, time.Time{}, "period_end")
@@ -1086,15 +1120,8 @@ func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter,
 			})
 			return time.Time{}, time.Time{}, false
 		}
-	}
-
-	// The export is built from raw AI Gateway token usage, which is purged once
-	// it is older than the configured retention duration. A period that begins
-	// before the retention window would return missing or partial rows, so
-	// reject it rather than silently exporting incomplete data.
-	if retention := api.DeploymentValues.AI.BridgeConfig.Retention.Value(); retention > 0 {
-		cutoff := api.Clock.Now().Add(-retention)
-		if start.Before(cutoff) {
+		// Fail if the period starts before the oldest retained data
+		if hasRetention && start.Before(retentionStart) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: fmt.Sprintf("Query parameter \"period_start\" is older than the configured AI Gateway data retention window (%s).", retention),
 			})
@@ -1107,8 +1134,9 @@ func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter,
 
 // @Summary Export organization AI spend as CSV
 // @Description Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.
-// @Description The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days; when both are omitted the current UTC monthly period is used.
-// @Description period_start must fall within the configured AI Gateway data retention window, since older token usage is purged and would produce incomplete results.
+// @Description The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
+// @Description An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.
+// @Description Requires organization-level administrator permissions.
 // @ID export-organization-ai-spend-as-csv
 // @Security CoderSessionToken
 // @Produce text/csv
@@ -1122,6 +1150,13 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
 	logger := api.Logger.With(slog.F("organization_id", org.ID))
+
+	// The export aggregates the whole organization, so require organization-wide
+	// read rather than letting the per-row filter narrow it to the caller.
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceGroupMember.InOrg(org.ID)) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	periodStart, periodEnd, ok := api.aiSpendExportPeriod(ctx, rw, r)
 	if !ok {
@@ -1148,7 +1183,7 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 
 	var buf bytes.Buffer
 	cw := csv.NewWriter(&buf)
-	if err := cw.Write(aiSpendExportCSVHeader); err != nil {
+	if err := cw.Write(AISpendExportCSVHeader); err != nil {
 		logger.Error(ctx, "failed to write AI spend export header", slog.Error(err))
 		httpapi.InternalServerError(rw, err)
 		return
@@ -1156,11 +1191,14 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 	for _, row := range rows {
 		if err := cw.Write([]string{
 			row.UserID.String(),
+			escapeCSVCell(row.Username),
 			row.GroupID.UUID.String(),
+			escapeCSVCell(row.GroupName),
 			row.OrganizationID.String(),
-			row.Model,
-			row.Provider,
-			row.ProviderName,
+			escapeCSVCell(row.OrganizationName),
+			escapeCSVCell(row.Model),
+			escapeCSVCell(row.Provider),
+			escapeCSVCell(row.ProviderName),
 			strconv.FormatInt(row.InputTokens, 10),
 			strconv.FormatInt(row.OutputTokens, 10),
 			strconv.FormatInt(row.CacheReadTokens, 10),
@@ -1181,8 +1219,12 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	rw.Header().Set("Content-Type", "text/csv")
-	rw.Header().Set("Content-Disposition", "attachment; filename=\"ai-spend-export.csv\"")
+	// Name the file after the organization and period so separate exports stay
+	// distinguishable once downloaded.
+	filename := fmt.Sprintf("ai-spend-export-%s-%s-to-%s.csv",
+		org.Name, periodStart.UTC().Format(time.DateOnly), periodEnd.UTC().Format(time.DateOnly))
+	rw.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	rw.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
 	rw.Header().Set("Content-Length", strconv.Itoa(buf.Len()))
 	rw.WriteHeader(http.StatusOK)
 	if _, err := rw.Write(buf.Bytes()); err != nil {

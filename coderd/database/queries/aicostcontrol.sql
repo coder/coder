@@ -313,8 +313,11 @@ ORDER BY effective_group_id;
 -- by the token usage created_at, matching how ai_user_daily_spend is derived.
 SELECT
 	ai.initiator_id AS user_id,
+	users.username AS username,
 	tu.effective_group_id AS group_id,
+	groups.name AS group_name,
 	groups.organization_id AS organization_id,
+	organizations.name AS organization_name,
 	ai.model AS model,
 	ai.provider AS provider,
 	ai.provider_name AS provider_name,
@@ -325,14 +328,19 @@ SELECT
 	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros
 FROM aibridge_token_usages tu
 JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+JOIN users ON users.id = ai.initiator_id
 JOIN groups ON groups.id = tu.effective_group_id
+JOIN organizations ON organizations.id = groups.organization_id
 WHERE groups.organization_id = @organization_id
 	AND tu.created_at >= @period_start::timestamptz
 	AND tu.created_at < @period_end::timestamptz
 GROUP BY
 	ai.initiator_id,
+	users.username,
 	tu.effective_group_id,
+	groups.name,
 	groups.organization_id,
+	organizations.name,
 	ai.model,
 	ai.provider,
 	ai.provider_name

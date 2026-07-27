@@ -2528,8 +2528,11 @@ func (q *sqlQuerier) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid
 const exportOrganizationAISpend = `-- name: ExportOrganizationAISpend :many
 SELECT
 	ai.initiator_id AS user_id,
+	users.username AS username,
 	tu.effective_group_id AS group_id,
+	groups.name AS group_name,
 	groups.organization_id AS organization_id,
+	organizations.name AS organization_name,
 	ai.model AS model,
 	ai.provider AS provider,
 	ai.provider_name AS provider_name,
@@ -2540,14 +2543,19 @@ SELECT
 	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros
 FROM aibridge_token_usages tu
 JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+JOIN users ON users.id = ai.initiator_id
 JOIN groups ON groups.id = tu.effective_group_id
+JOIN organizations ON organizations.id = groups.organization_id
 WHERE groups.organization_id = $1
 	AND tu.created_at >= $2::timestamptz
 	AND tu.created_at < $3::timestamptz
 GROUP BY
 	ai.initiator_id,
+	users.username,
 	tu.effective_group_id,
+	groups.name,
 	groups.organization_id,
+	organizations.name,
 	ai.model,
 	ai.provider,
 	ai.provider_name
@@ -2562,8 +2570,11 @@ type ExportOrganizationAISpendParams struct {
 
 type ExportOrganizationAISpendRow struct {
 	UserID           uuid.UUID     `db:"user_id" json:"user_id"`
+	Username         string        `db:"username" json:"username"`
 	GroupID          uuid.NullUUID `db:"group_id" json:"group_id"`
+	GroupName        string        `db:"group_name" json:"group_name"`
 	OrganizationID   uuid.UUID     `db:"organization_id" json:"organization_id"`
+	OrganizationName string        `db:"organization_name" json:"organization_name"`
 	Model            string        `db:"model" json:"model"`
 	Provider         string        `db:"provider" json:"provider"`
 	ProviderName     string        `db:"provider_name" json:"provider_name"`
@@ -2589,8 +2600,11 @@ func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOr
 		var i ExportOrganizationAISpendRow
 		if err := rows.Scan(
 			&i.UserID,
+			&i.Username,
 			&i.GroupID,
+			&i.GroupName,
 			&i.OrganizationID,
+			&i.OrganizationName,
 			&i.Model,
 			&i.Provider,
 			&i.ProviderName,

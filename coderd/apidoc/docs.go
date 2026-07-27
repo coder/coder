@@ -580,6 +580,42 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/experimental/chats/{chat}/cost": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat cost",
+                "operationId": "get-chat-cost",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatCost"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/experimental/chats/{chat}/diff": {
             "get": {
                 "description": "Experimental: this endpoint is subject to change.",
@@ -4754,7 +4790,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/ai/spend/export": {
             "get": {
-                "description": "Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days; when both are omitted the current UTC monthly period is used.\nperiod_start must fall within the configured AI Gateway data retention window, since older token usage is purged and would produce incomplete results.",
+                "description": "Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.\nRequires organization-level administrator permissions.",
                 "produces": [
                     "text/csv"
                 ],
@@ -17348,6 +17384,24 @@ const docTemplate = `{
                 "name": {
                     "description": "Name is the tool name with the \"\u003cserver\u003e__\" prefix the agent adds\nstripped, so it reads as the server exposes it.",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatCost": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "priced_message_count": {
+                    "type": "integer"
+                },
+                "total_cost_micros": {
+                    "type": "integer"
+                },
+                "unpriced_messages_having_usage_count": {
+                    "type": "integer"
                 }
             }
         },
