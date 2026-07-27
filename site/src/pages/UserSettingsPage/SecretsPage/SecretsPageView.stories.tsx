@@ -29,6 +29,7 @@ const meta: Meta<typeof SecretsPageView> = {
 		onCreateSecret: fn(),
 		onUpdateSecret: fn(),
 		onDeleteSecret: fn(),
+		onToggleSecretEnabled: fn(),
 	},
 };
 
@@ -44,6 +45,9 @@ type UpdateSecretMock = ReturnType<
 >;
 type DeleteSecretMock = ReturnType<
 	typeof fn<(secret: UserSecret) => Promise<void> | void>
+>;
+type ToggleSecretEnabledMock = ReturnType<
+	typeof fn<(secret: UserSecret, enabled: boolean) => Promise<void> | void>
 >;
 
 const waitForDialogToClose = async (body: ReturnType<typeof within>) => {
@@ -596,5 +600,71 @@ export const CreateMutationErrorDisplay: Story = {
 		await user.click(dialog.getByRole("button", { name: "Cancel" }));
 		await waitForDialogToClose(body);
 		expectNoValueField(body);
+	},
+};
+
+export const ToggleEnabledSubmit: Story = {
+	args: {
+		onToggleSecretEnabled: fn<
+			(secret: UserSecret, enabled: boolean) => Promise<void>
+		>(async () => {}),
+	},
+	play: async ({ canvasElement, args }) => {
+		const onToggleSecretEnabled =
+			args.onToggleSecretEnabled as ToggleSecretEnabledMock;
+		onToggleSecretEnabled.mockClear();
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const secret = findVisibleSecretByName("EXAMPLE_TOKEN");
+
+		const toggle = canvas.getByRole("switch", {
+			name: `Toggle secret ${secret.name}`,
+		});
+		await expect(toggle).toBeChecked();
+		await user.click(toggle);
+
+		await waitFor(() => expect(onToggleSecretEnabled).toHaveBeenCalledTimes(1));
+		expect(onToggleSecretEnabled).toHaveBeenCalledWith(secret, false);
+	},
+};
+
+export const ToggleEnabledMutationErrorDisplay: Story = {
+	args: {
+		onToggleSecretEnabled: fn<
+			(secret: UserSecret, enabled: boolean) => Promise<void>
+		>(async () => {
+			throw mockApiError({ message: "Failed to disable secret." });
+		}),
+	},
+	play: async ({ canvasElement, args }) => {
+		const onToggleSecretEnabled =
+			args.onToggleSecretEnabled as ToggleSecretEnabledMock;
+		onToggleSecretEnabled.mockClear();
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const secret = findVisibleSecretByName("EXAMPLE_TOKEN");
+
+		const toggle = canvas.getByRole("switch", {
+			name: `Toggle secret ${secret.name}`,
+		});
+		await user.click(toggle);
+
+		await waitFor(() => expect(onToggleSecretEnabled).toHaveBeenCalledTimes(1));
+		// Handler rejected; the parent owns the secret state so the switch
+		// remains checked in this story where no state change is applied.
+		await expect(toggle).toBeChecked();
+	},
+};
+
+export const ToggleEnabledDisabledForTargetlessSecret: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const secret = findVisibleSecretByName("SERVICE_PASSWORD");
+
+		const toggle = canvas.getByRole("switch", {
+			name: `Toggle secret ${secret.name}`,
+		});
+		await expect(toggle).not.toBeChecked();
+		await expect(toggle).toBeDisabled();
 	},
 };
