@@ -319,7 +319,7 @@ func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 			// errors reach here. Reporting the group as denied would hide an
 			// evaluation failure behind a "not permitted" answer, so surface it.
 			if ctx.Err() != nil {
-				// The client went away or the request was cancelled; there is no
+				// The client went away or the request was canceled; there is no
 				// useful response to write and nothing worth logging.
 				return
 			}
