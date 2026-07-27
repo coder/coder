@@ -245,6 +245,66 @@ func TestPreToolUseHookMalformedToolInputStaysRecoverable(t *testing.T) {
 	require.False(t, failed.LastError.Valid, "the turn must not fail as a hook dispatch error")
 }
 
+// Duplicate tool-use IDs make a hook decision unattributable, so the batch
+// must be rejected even when filtering would otherwise hide the duplication.
+func TestPreToolUseHookDuplicateToolUseIDWithMalformedSiblingFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		first := chattest.OpenAIToolCallChunk("read_file", `{"path":`)
+		first.Choices[0].ToolCalls[0].ID = "call_duplicate"
+		second := chattest.OpenAIToolCallChunk("read_file", `{"path":"/tmp/allowed.txt"}`).Choices[0].ToolCalls[0]
+		second.ID = "call_duplicate"
+		second.Index = 1
+		first.Choices[0].ToolCalls = append(first.Choices[0].ToolCalls, second)
+		return chattest.OpenAIStreamingResponse(first)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	var hookCalls atomic.Int32
+	consumer := preToolUseConsumer(t, func(agenthooks.PreToolUseData) string {
+		hookCalls.Add(1)
+		return `{}`
+	})
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "pre-tool-use-duplicate-id",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("read the files"),
+		},
+	})
+	require.NoError(t, err)
+	failed := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+
+	require.Zero(t, hookCalls.Load(), "a duplicated ID must be rejected before any dispatch")
+	var chatErr codersdk.ChatError
+	require.NoError(t, json.Unmarshal(failed.LastError.RawMessage, &chatErr))
+	require.Contains(t, chatErr.Message, "duplicate tool use ID")
+}
+
 func TestPreToolUseHookDeny(t *testing.T) {
 	t.Parallel()
 
