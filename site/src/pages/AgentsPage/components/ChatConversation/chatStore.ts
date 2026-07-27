@@ -188,6 +188,21 @@ export type ChatStore = {
 	applyAuthoritativeQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 	) => void;
+	// Advances whenever an in-flight convergence request goes stale: an accepted
+	// authoritative snapshot, or a change of active chat. Snapshots discarded as
+	// stale do not advance it, since discarding one leaves the caller's data
+	// fresher.
+	getQueueConvergenceFence: () => number;
+	// Applies a snapshot fetched specifically to settle promotedID, whose
+	// promotion markers this clears. Returns the queue actually applied, which
+	// the caller should mirror into its cache, or undefined when chatID is no
+	// longer active or the fence moved past baselineFence.
+	applyPromoteRefetchQueuedMessages: (
+		chatID: string,
+		promotedID: number,
+		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
+		baselineFence: number,
+	) => readonly TypesGen.ChatQueuedMessage[] | undefined;
 	suppressQueuedMessageID: (id: number) => void;
 	// Suppresses id and records that its queue row is already deleted.
 	markQueuedMessagePromoted: (id: number) => void;
@@ -241,6 +256,7 @@ export const createChatStore = (): ChatStore => {
 	// Bookkeeping, deliberately outside the rendered state so observing a
 	// server event cannot trigger a re-render.
 	let observedQueuedMessageIDs = new Set<number>();
+	let queueConvergenceFence = 0;
 	let serverChatStatusVersion = 0;
 	let activeChatID: string | null = null;
 	const listeners = new Set<() => void>();
@@ -448,16 +464,18 @@ export const createChatStore = (): ChatStore => {
 			for (const message of incoming) {
 				observedQueuedMessageIDs.add(message.id);
 			}
+			// A snapshot containing a confirmed promoted ID predates its queue
+			// deletion. Applying it would also drop newer queued messages, and
+			// counting it would discard the fresher refetch racing it.
+			if (
+				incoming.some((message) =>
+					state.promotedQueuedMessageIDs.has(message.id),
+				)
+			) {
+				return;
+			}
+			queueConvergenceFence++;
 			setState((current) => {
-				// A snapshot containing a confirmed promoted ID predates its queue
-				// deletion. Applying it would also drop newer queued messages.
-				if (
-					incoming.some((message) =>
-						current.promotedQueuedMessageIDs.has(message.id),
-					)
-				) {
-					return current;
-				}
 				let nextSuppressed = current.suppressedQueuedMessageIDs;
 				if (current.suppressedQueuedMessageIDs.size > 0) {
 					const incomingIDs = new Set(incoming.map((message) => message.id));
@@ -499,6 +517,48 @@ export const createChatStore = (): ChatStore => {
 					promotedQueuedMessageIDs: nextPromoted,
 				};
 			});
+		},
+		getQueueConvergenceFence: () => queueConvergenceFence,
+		applyPromoteRefetchQueuedMessages: (
+			chatID,
+			promotedID,
+			queuedMessages,
+			baselineFence,
+		) => {
+			// The fence covers ordering, including navigation. This identity check
+			// additionally keeps a response that names another chat out of the
+			// shared store even if its caller captured the fence incorrectly.
+			if (activeChatID !== chatID) {
+				return undefined;
+			}
+			if (queueConvergenceFence !== baselineFence) {
+				return undefined;
+			}
+			const incoming = queuedMessages ?? [];
+			queueConvergenceFence++;
+			for (const message of incoming) {
+				observedQueuedMessageIDs.add(message.id);
+			}
+			const suppressed = new Set(state.suppressedQueuedMessageIDs);
+			suppressed.delete(promotedID);
+			const promoted = new Set(state.promotedQueuedMessageIDs);
+			promoted.delete(promotedID);
+			const applied =
+				suppressed.size === 0
+					? incoming
+					: incoming.filter((message) => !suppressed.has(message.id));
+			setState((current) => ({
+				...current,
+				queuedMessages: chatQueuedMessagesEqualByID(
+					current.queuedMessages,
+					applied,
+				)
+					? current.queuedMessages
+					: applied,
+				suppressedQueuedMessageIDs: suppressed,
+				promotedQueuedMessageIDs: promoted,
+			}));
+			return applied;
 		},
 		hasObservedQueuedMessageID: (id) => observedQueuedMessageIDs.has(id),
 		suppressQueuedMessageID: (id) => {
@@ -575,7 +635,13 @@ export const createChatStore = (): ChatStore => {
 			}));
 		},
 		setActiveChatID: (chatID) => {
+			if (activeChatID === chatID) {
+				return;
+			}
 			activeChatID = chatID;
+			// Leaving a chat strands any convergence request issued for it, so a
+			// later return to the same chat cannot revive one.
+			queueConvergenceFence++;
 		},
 		getActiveChatID: () => activeChatID,
 		getServerChatStatusVersion: () => serverChatStatusVersion,

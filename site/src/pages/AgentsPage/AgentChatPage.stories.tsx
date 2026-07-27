@@ -2908,18 +2908,31 @@ export const QueuedSendPromotesPreviousHead: Story = {
 			created_at: "2024-01-01T00:01:00Z",
 			content: [{ type: "text", text: "Queued head prompt" }],
 		};
+		const followUp: TypesGen.ChatQueuedMessage = {
+			...MockChatQueuedMessage,
+			id: 43,
+			chat_id: CHAT_ID,
+			content: [{ type: "text", text: "Follow-up prompt" }],
+		};
+		// Another tab queued this while the send was in flight, so only the
+		// post-promotion convergence fetch can reveal it.
+		const otherTabPrompt: TypesGen.ChatQueuedMessage = {
+			...MockChatQueuedMessage,
+			id: 44,
+			chat_id: CHAT_ID,
+			content: [{ type: "text", text: "Other tab prompt" }],
+		};
+		spyOn(API.experimental, "getChatMessages").mockResolvedValue({
+			...promotedQueueHeadMessages,
+			queued_messages: [followUp, otherTabPrompt],
+		});
 		const sendSpy = spyOn(
 			API.experimental,
 			"createChatMessage",
 		).mockResolvedValue({
 			queued: true,
 			messages: [promotedHead],
-			queued_message: {
-				...MockChatQueuedMessage,
-				id: 43,
-				chat_id: CHAT_ID,
-				content: [{ type: "text", text: "Follow-up prompt" }],
-			},
+			queued_message: followUp,
 		});
 
 		expect(await canvas.findByText("Queued head prompt")).toBeVisible();
@@ -2938,6 +2951,8 @@ export const QueuedSendPromotesPreviousHead: Story = {
 			expect(canvas.getAllByText("Queued head prompt")).toHaveLength(1);
 			expect(canvas.getAllByText("Follow-up prompt")).toHaveLength(1);
 			expect(timeline.queryByText("Follow-up prompt")).not.toBeInTheDocument();
+			expect(canvas.getByText("Other tab prompt")).toBeVisible();
+			expect(timeline.queryByText("Other tab prompt")).not.toBeInTheDocument();
 		});
 		expect(await canvas.findByTestId("live-activity-slot")).toBeVisible();
 	},

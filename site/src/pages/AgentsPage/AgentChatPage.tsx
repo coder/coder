@@ -7,6 +7,7 @@ import {
 	useState,
 } from "react";
 
+import type { QueryClient } from "react-query";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -31,6 +32,7 @@ import {
 	chatModelConfigs,
 	chatModels,
 	chatProviderConfigs,
+	chatQueueConvergence,
 	compactChat,
 	createChatMessage,
 	deleteChatQueuedMessage,
@@ -256,6 +258,24 @@ const buildPromotedQueueReconciliation = (
 	return tailPending ? [...remaining, queuedTail] : remaining;
 };
 
+// A chat the user navigated away from has no live store to read, so the
+// cached queue is the freshest view of it. Falling back to the pre-send
+// snapshot would drop messages queued while the send was in flight.
+export const buildInactiveChatQueueReconciliation = (
+	cachedQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
+	queuedMessagesBeforeSend: readonly TypesGen.ChatQueuedMessage[],
+	insertedMessages: readonly TypesGen.ChatMessage[],
+	promotedHeadID: number | undefined,
+	queuedTail: TypesGen.ChatQueuedMessage | undefined,
+): readonly TypesGen.ChatQueuedMessage[] | undefined =>
+	buildPromotedQueueReconciliation(
+		cachedQueuedMessages ?? queuedMessagesBeforeSend,
+		insertedMessages,
+		promotedHeadID,
+		queuedTail,
+		() => false,
+	);
+
 // Use the pre-send queue head because queue updates may rotate it before
 // the response arrives.
 export const reconcilePromotedQueueHead = (
@@ -287,6 +307,36 @@ export const reconcilePromotedQueueHead = (
 		store.setQueuedMessages(next);
 	});
 	return next;
+};
+
+const fetchChatMessages = (queryClient: QueryClient) => (chatID: string) =>
+	queryClient.fetchQuery(chatQueueConvergence(chatID));
+
+// A promoted head is suppressed locally, but another tab can queue or
+// promote concurrently, so only the server knows the resulting queue.
+export const settlePromotedQueueHead = async (
+	store: Pick<
+		ChatStore,
+		"getQueueConvergenceFence" | "applyPromoteRefetchQueuedMessages"
+	>,
+	chatID: string,
+	promotedHeadID: number,
+	fetchMessages: (chatID: string) => Promise<TypesGen.ChatMessagesResponse>,
+): Promise<readonly TypesGen.ChatQueuedMessage[] | undefined> => {
+	const baselineFence = store.getQueueConvergenceFence();
+	let response: TypesGen.ChatMessagesResponse;
+	try {
+		response = await fetchMessages(chatID);
+	} catch {
+		// Convergence is best effort; a later authoritative update can correct it.
+		return undefined;
+	}
+	return store.applyPromoteRefetchQueuedMessages(
+		chatID,
+		promotedHeadID,
+		response.queued_messages ?? [],
+		baselineFence,
+	);
 };
 
 export async function submitEditAndScroll({
@@ -1164,6 +1214,7 @@ const AgentChatPage: FC = () => {
 		acceptServerChatStatus,
 		clearStreamError,
 		setCacheQueuedMessages,
+		getCacheQueuedMessages,
 		upsertCacheMessages,
 	} = useChatStore({
 		chatID: agentId,
@@ -1758,12 +1809,12 @@ const AgentChatPage: FC = () => {
 							queueHeadIDBeforeSend,
 							response.queued_message,
 						)
-					: buildPromotedQueueReconciliation(
+					: buildInactiveChatQueueReconciliation(
+							getCacheQueuedMessages(),
 							queuedMessagesBeforeSend,
 							insertedMessages,
 							queueHeadIDBeforeSend,
 							response.queued_message,
-							() => false,
 						);
 				if (reconciledQueue) {
 					setCacheQueuedMessages(reconciledQueue);
@@ -1777,6 +1828,18 @@ const AgentChatPage: FC = () => {
 					) {
 						store.clearStreamState();
 						store.setChatStatus("running");
+					}
+					if (isActiveChat && queueHeadIDBeforeSend !== undefined) {
+						void settlePromotedQueueHead(
+							store,
+							agentId,
+							queueHeadIDBeforeSend,
+							fetchChatMessages(queryClient),
+						).then((settled) => {
+							if (settled) {
+								setCacheQueuedMessages(settled);
+							}
+						});
 					}
 				}
 			}

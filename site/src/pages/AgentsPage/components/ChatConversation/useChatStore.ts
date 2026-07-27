@@ -65,6 +65,18 @@ const writeQueuedMessagesToCache = (
 	});
 };
 
+const readQueuedMessagesFromCache = (
+	queryClient: QueryClient,
+	chatID: string | undefined,
+): readonly TypesGen.ChatQueuedMessage[] | undefined => {
+	if (!chatID) {
+		return undefined;
+	}
+	return queryClient.getQueryData<
+		InfiniteData<TypesGen.ChatMessagesResponse> | undefined
+	>(chatMessagesKey(chatID))?.pages[0]?.queued_messages;
+};
+
 const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
 	attempt: Math.max(1, retry.attempt),
 	error: retry.error.trim() || "Retrying request shortly.",
@@ -101,6 +113,9 @@ export const useChatStore = (
 	setCacheQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 	) => void;
+	getCacheQueuedMessages: () =>
+		| readonly TypesGen.ChatQueuedMessage[]
+		| undefined;
 	upsertCacheMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
 } => {
 	const {
@@ -804,6 +819,8 @@ export const useChatStore = (
 		setCacheQueuedMessages: (queuedMessages) => {
 			writeQueuedMessagesToCache(queryClient, chatID, queuedMessages);
 		},
+		getCacheQueuedMessages: () =>
+			readQueuedMessagesFromCache(queryClient, chatID),
 		upsertCacheMessages,
 	};
 };
