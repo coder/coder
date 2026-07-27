@@ -78,55 +78,65 @@ For full setup, refer to [AI Gateway Proxy setup](./ai-gateway-proxy/setup.md).
 
 AI Gateway keys are scoped to the Coder deployment.
 A [standalone AI Gateway](./standalone.md) uses one of these keys to connect to `coderd`.
-The built-in Owner role can create, list, and delete these keys.
-A site-level custom role can also manage them when it has the corresponding `ai_gateway_key` permissions.
+Only the built-in Owner role can create, list, and delete these keys.
+Coder custom roles are organization-scoped and cannot grant the site-level `ai_gateway_key` permissions.
 
 Create a key with a descriptive name:
 
-```console
+```sh
 coder ai-gateway keys create standalone-production
 ```
 
 The command displays the plaintext key once.
 Save it immediately in your secret manager because Coder cannot retrieve it later.
-Coder stores only a visible prefix and a SHA-256 hash of the secret.
+Coder never stores the secret itself, only a visible prefix for display and a SHA-256 hash used for authentication.
 
-Configure the standalone process with exactly 1 of the following options:
+Names must be unique, 64 characters or fewer, and use only lowercase letters, numbers, and non-consecutive hyphens.
+Gateway keys do not expire and cannot be scoped or restricted.
+
+Configure the standalone process with either of the following options, but not both:
 
 - `CODER_AI_GATEWAY_KEY` or `--key` supplies the key directly.
 - `CODER_AI_GATEWAY_KEY_FILE` or `--key-file` reads the key from a file.
 
 A user login and `CODER_SESSION_TOKEN` are not used by `coder ai-gateway start`.
-The same Gateway key can authenticate multiple replicas. Separate keys make it easier to rotate or revoke each deployment independently.
+The same Gateway key can authenticate multiple replicas.
+Separate keys make it easier to rotate or revoke each deployment independently.
 
-List keys and their most recent usage heartbeat:
+List keys and the most recent heartbeat for each:
 
-```console
+```sh
 coder ai-gateway keys list
 ```
 
-A replica records a heartbeat when it connects and updates the timestamp every 60 seconds while the session remains active.
+A replica records a heartbeat when its control connection is established, then refreshes it every 60 seconds while that connection is active.
+The heartbeat reports control-connection liveness rather than client request volume.
+Coder stores one timestamp per key, so replicas that share a key cannot be distinguished.
 
-For command options, refer to the generated CLI reference for [creating](../../reference/cli/ai-gateway_keys_create.md), [listing](../../reference/cli/ai-gateway_keys_list.md), and [deleting](../../reference/cli/ai-gateway_keys_delete.md) Gateway keys.
+For usage and flags, refer to the generated CLI reference for [creating](../../reference/cli/ai-gateway_keys_create.md), [listing](../../reference/cli/ai-gateway_keys_list.md), and [deleting](../../reference/cli/ai-gateway_keys_delete.md) Gateway keys.
 
 ### Rotate a Gateway key
 
-Rotate a key without interrupting traffic:
+Rotate a key with a rolling restart.
+Run more than 1 replica behind a load balancer so client traffic continues during the rollout:
 
 1. Create a new Gateway key.
-1. Update the Secret, environment variable, or key file used by every replica.
+1. Update the Kubernetes Secret, environment variable, or key file used by every replica.
 1. Restart or roll out the standalone deployment so every replica uses the new key.
 1. Verify readiness and confirm that the new key has a recent heartbeat.
 1. Delete the old key.
 
 Delete a key by name or ID:
 
-```console
+```sh
 coder ai-gateway keys delete standalone-production
 ```
 
+Add `--yes` to skip the confirmation prompt in automation.
+
 Deleting a key rejects new connections immediately.
-An existing session closes after a later heartbeat detects the deletion. Gateway may retry connecting with the same key, that attempt will be rejected.
+An established session closes when its next heartbeat detects the deletion, within 60 seconds.
+The replica then tries to reconnect, receives HTTP 401, and treats that as fatal: the process exits non-zero rather than retrying.
 Stop or update every replica before deleting its key for an orderly rotation.
 
 ## Authenticate to upstream providers
