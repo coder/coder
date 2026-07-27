@@ -74,13 +74,13 @@ func (e *ResponseError) ToResponse() *http.Response {
 // a developer-facing ResponseError shaped for the OpenAI API.
 func ResponseErrorFromKeyPool(keyPoolErr *keypool.Error) *ResponseError {
 	switch keyPoolErr.Kind {
-	case keypool.ErrorKindPermanent:
+	case keypool.ErrorKindPermanent, keypool.ErrorKindUnauthorized:
 		return NewResponseError(
 			keyPoolErr.Error(),
 			OpenAIErrTypeAPI,
 			OpenAIErrCodeServer,
 			http.StatusBadGateway,
-			keyPoolErr.RetryAfter,
+			0,
 		)
 	case keypool.ErrorKindRateLimited:
 		return NewResponseError(
