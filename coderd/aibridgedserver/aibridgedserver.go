@@ -435,7 +435,7 @@ func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIB
 	}
 
 	if err := s.notifyBudgetThresholdCrossings(ctx, crossings); err != nil {
-		s.logger.Warn(ctx, "failed to send AI budget notifications",
+		s.logger.Error(ctx, "failed to send AI budget notifications",
 			slog.F("initiator_id", intc.InitiatorID),
 			slog.Error(err))
 	}
