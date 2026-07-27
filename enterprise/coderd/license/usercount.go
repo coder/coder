@@ -20,9 +20,11 @@ import (
 )
 
 // countingSubjectID replaces the real user ID in every evaluated subject
-// and on the object owner. The policy only ever compares the subject ID
-// to the object owner, so setting both to the same value preserves the
-// outcome while making subjects with equal roles and groups byte-identical.
+// and on the object owner. The substitution is safe because the policy
+// only ever compares the subject ID to the object owner, and the
+// evaluated object is synthetic with no user or group ACL lists, so no
+// other rule can reference a real ID. Subjects with equal roles and
+// groups are therefore byte-identical.
 var countingSubjectID = uuid.MustParse("ad966897-b805-4a2c-8dab-3cfcbba0a683").String()
 
 // CountWorkspaceCapableUsers returns the number of active users the RBAC

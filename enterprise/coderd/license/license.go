@@ -60,9 +60,18 @@ func Entitlements(
 	// Workspace-capable licensing counts only users the RBAC engine
 	// authorizes to create workspaces. The mode alone decides whether the
 	// counting function below is invoked.
+	//
+	// TODO: when the workspace-capable-licensing experiment is removed, a
+	// nil authorizer must become a hard dev error rather than a silent
+	// fallback to active-user counting, with tests selecting the legacy
+	// mode explicitly instead of passing nil.
 	countingMode := UserCountingModeActive
-	if experiments.Enabled(codersdk.ExperimentWorkspaceCapableLicensing) && authorizer != nil {
-		countingMode = UserCountingModeWorkspaceCapable
+	if experiments.Enabled(codersdk.ExperimentWorkspaceCapableLicensing) {
+		if authorizer == nil {
+			logger.Warn(ctx, "workspace-capable licensing experiment is enabled but no authorizer is configured, counting all active users")
+		} else {
+			countingMode = UserCountingModeWorkspaceCapable
+		}
 	}
 
 	// nolint:gocritic // Getting active AI seat count is a system function.
@@ -223,15 +232,16 @@ type userLimitSelection struct {
 // license's counting mode. A candidate satisfied by its count wins over
 // any unsatisfied one.
 //
-// For example, with 250 active users of whom 90 are workspace-capable, a
-// deployment holding a 200-seat non-addon license and a 100-seat AI
-// Governance license is compliant: the non-addon pair is over
-// (250 > 200), but the addon pair is satisfied (90 <= 100) and is
-// selected. With 180 active users of whom 150 are workspace-capable, the
-// same licenses select the non-addon pair instead (180 <= 200 while
-// 150 > 100). Neither license's limit is ever paired with the other's
-// count: 90 capable users against the 200-seat limit, or 180 active
-// users against the 100-seat limit, are not considered.
+// For example, a deployment holding a 200-seat non-addon license and a
+// 100-seat AI Governance license:
+//
+//	active | capable | 200-seat pair | 100-seat pair | selected
+//	   250 |      90 | over          | satisfied     | addon:     90/100
+//	   180 |     150 | satisfied     | over          | non-addon: 180/200
+//
+// Neither license's limit is ever paired with the other's count: 90
+// capable users against the 200-seat limit, or 180 active users against
+// the 100-seat limit, are not considered.
 //
 // When an addon candidate is selected, the capable count overwrites
 // featureArguments.ActiveUserCount, which the FeatureUserLimit feature's

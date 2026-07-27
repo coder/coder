@@ -594,6 +594,9 @@ WHERE
 -- name: GetAuthorizationUserRoles :one
 -- This function returns roles for authorization purposes. Implied member roles
 -- are included.
+-- Must stay semantically in sync with GetActiveUsersAuthorizationRoles
+-- (implied member roles, org default roles, groups);
+-- TestGetActiveUsersAuthorizationRolesParity enforces this.
 SELECT
 	-- username and email are returned just to help for logging purposes
 	-- status is used to enforce 'suspended' users, as all roles are ignored
@@ -658,6 +661,8 @@ WHERE
 -- member roles and organization default roles) and the group memberships
 -- for every active, non-deleted user who is neither a system user nor a
 -- service account, matching the GetActiveUserCount population.
+-- Must stay semantically in sync with GetAuthorizationUserRoles;
+-- TestGetActiveUsersAuthorizationRolesParity enforces this.
 WITH org_roles AS (
 	SELECT
 		organization_members.user_id,
