@@ -124,7 +124,7 @@
 		"@babel/core": "7.29.7",
 		"@babel/plugin-syntax-typescript": "7.29.7",
 		"@biomejs/biome": "2.4.10",
-		"@coder/pixel-storybook": "0.2.2",
+		"@coder/pixel-storybook": "github:coder/pixel-storybook#162da26573fd628b42a9dc6d7c2bd0f2d26b31eb",
 		"@octokit/types": "12.6.0",
 		"@playwright/test": "1.50.1",
 		"@rolldown/plugin-babel": "0.2.3",
@@ -227,6 +227,7 @@
 			"storybook-addon-remix-react-router"
 		],
 		"onlyBuiltDependencies": [
+			"@coder/pixel-storybook",
 			"esbuild",
 			"odiff-bin",
 			"ssh2"
