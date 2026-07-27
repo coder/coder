@@ -409,6 +409,10 @@ func TestInterruptTask_PartialAssistantKeepsAttemptRuntime(t *testing.T) {
 		GenerationAttempt: acquired.GenerationAttempt,
 	}
 	require.NoError(t, buffer.CreateEpisode(key))
+	// Prompt preparation and attempt bookkeeping run before the
+	// provider stream opens and must not be billed.
+	clock.Advance(3 * time.Second)
+	require.NoError(t, buffer.StartModelInvocation(key))
 	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("partial answer")))
 	clock.Advance(1500 * time.Millisecond)
 	interrupting := f.interruptChat(t, chat.ID)
@@ -429,6 +433,48 @@ func TestInterruptTask_PartialAssistantKeepsAttemptRuntime(t *testing.T) {
 	assistant := messages[len(messages)-2]
 	require.Equal(t, database.ChatMessageRoleAssistant, assistant.Role)
 	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, assistant.RuntimeMs)
+}
+
+func TestInterruptTask_PartialAssistantWithoutModelInvocationHasNoRuntime(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	chat := f.createRunningChat(t)
+	workerID := uuid.New()
+	runnerID := uuid.New()
+	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	recorder := newTaskSideEffectRecorder()
+	clock := quartz.NewMock(t)
+	starter := newTestTaskStarterWithClock(t, f, recorder, clock)
+	buffer := starter.opts.MessagePartBuffer
+	key := messagepartbuffer.Key{
+		ChatID:            chat.ID,
+		HistoryVersion:    acquired.HistoryVersion,
+		GenerationAttempt: acquired.GenerationAttempt,
+	}
+	// A local tool execution batch never opens a provider stream, so
+	// its wall time is not billable even though it publishes parts.
+	require.NoError(t, buffer.CreateEpisode(key))
+	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("partial answer")))
+	clock.Advance(1500 * time.Millisecond)
+	interrupting := f.interruptChat(t, chat.ID)
+
+	err := starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
+		ChatID:            chat.ID,
+		WorkerID:          workerID,
+		RunnerID:          runnerID,
+		HistoryVersion:    interrupting.HistoryVersion,
+		GenerationAttempt: interrupting.GenerationAttempt,
+		Status:            database.ChatStatusInterrupting,
+	})
+	require.NoError(t, err)
+
+	messages, err := f.db.GetChatMessagesByChatID(testutil.Context(t, testutil.WaitShort), database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(messages), 3)
+	assistant := messages[len(messages)-2]
+	require.Equal(t, database.ChatMessageRoleAssistant, assistant.Role)
+	require.False(t, assistant.RuntimeMs.Valid)
 }
 
 func TestRequiresActionTimeout_ExpiredCancelsOnly(t *testing.T) {

@@ -76,13 +76,15 @@ type PersistedStep struct {
 	// Runtime is the wall-clock duration of the model invocation
 	// that produced this step's content, measured from just before
 	// the provider stream is opened until the stream is fully
-	// consumed. It is persisted as chat_messages.runtime_ms, the
-	// billable "active generation" time that usage reporting sums.
-	// Steps without a model invocation (local tool execution
-	// batches) leave it zero, which persists as NULL: tool wall
-	// time includes idle waits such as wait_agent polling a
-	// sub-agent chat that already bills its own model invocations,
-	// so billing it would double count.
+	// consumed. Interrupted attempts bill the same window, ending
+	// where the interrupt closed the stream. It is persisted as
+	// chat_messages.runtime_ms, the billable "active generation"
+	// time that usage reporting sums; that column's comment is the
+	// canonical definition. Steps without a model invocation (local
+	// tool execution batches) leave it zero, which persists as
+	// NULL: tool wall time includes idle waits such as wait_agent
+	// polling a sub-agent chat that already bills its own model
+	// invocations, so billing it would double count.
 	Runtime time.Duration
 	// PendingDynamicToolCalls lists tool calls that target
 	// dynamic tools. When non-empty the chatloop exits with
@@ -225,6 +227,11 @@ type GenerateAssistantOptions struct {
 	ProviderOptions      fantasy.ProviderOptions
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
+	// OnModelStreamStart runs immediately before the provider stream is
+	// opened, at the instant PersistedStep.Runtime starts measuring. It
+	// lets callers record the billable window's start out of band, so an
+	// interrupted attempt bills the same window a completed step reports.
+	OnModelStreamStart func()
 	Logger             slog.Logger
 	Metrics            *Metrics
 }
@@ -313,6 +320,11 @@ type GenerateCompactionOptions struct {
 
 	// Clock measures the summary call duration. Nil uses a real clock.
 	Clock quartz.Clock
+
+	// OnModelStreamStart runs immediately before the summary model call,
+	// at the instant CompactionResult.Runtime starts measuring. See
+	// GenerateAssistantOptions.OnModelStreamStart.
+	OnModelStreamStart func()
 }
 
 // ProviderTool pairs a provider-native tool definition with an
@@ -408,6 +420,9 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	}
 
 	stepStart := opts.Clock.Now()
+	if opts.OnModelStreamStart != nil {
+		opts.OnModelStreamStart()
+	}
 	stepCtx := chatdebug.ReuseStep(ctx)
 	attempt, streamErr := guardedStream(
 		stepCtx,

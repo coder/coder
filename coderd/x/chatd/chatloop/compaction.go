@@ -181,12 +181,15 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		clock = quartz.NewReal()
 	}
 	summaryStart := clock.Now()
+	if opts.OnModelStreamStart != nil {
+		opts.OnModelStreamStart()
+	}
 	summary, err := generateCompactionSummary(ctx, opts.Model, opts.Messages, config)
 	if err != nil {
 		publishCompactionError(config, "failed to generate compaction summary")
 		return CompactionResult{}, err
 	}
-	runtime := clock.Since(summaryStart)
+	summaryRuntime := clock.Since(summaryStart)
 	if summary == "" {
 		publishCompactionError(config, "compaction produced an empty summary")
 		return CompactionResult{}, xerrors.New("compaction produced an empty summary")
@@ -202,7 +205,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		UsagePercent:     usagePercent,
 		ContextTokens:    contextTokens,
 		ContextLimit:     contextLimit,
-		Runtime:          runtime,
+		Runtime:          summaryRuntime,
 	}
 	if config.PublishMessagePart != nil && config.ToolCallID != "" {
 		resultJSON, _ := json.Marshal(map[string]any{

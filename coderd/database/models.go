@@ -5117,7 +5117,7 @@ type ChatMessage struct {
 	CreatedBy           uuid.NullUUID         `db:"created_by" json:"created_by"`
 	ContentVersion      int16                 `db:"content_version" json:"content_version"`
 	TotalCostMicros     sql.NullInt64         `db:"total_cost_micros" json:"total_cost_micros"`
-	// Wall-clock milliseconds of the model invocation that produced the message content: assistant steps and compaction summaries, including interrupted partials. NULL when no model invocation produced the row (user messages, tool results; local tool execution is not counted). Billing source of truth for Coder Agents runtime: usage reporting sums it over created_at ranges.
+	// Wall-clock milliseconds of the model invocation that produced the message content: assistant steps and compaction summaries, including interrupted partials, which measure from the provider stream opening until the interrupt closed it. NULL when no model invocation produced the row (user messages, tool results; local tool execution is not counted) or when the invocation rounded down to zero milliseconds. Billing source of truth for Coder Agents runtime: usage reporting sums it over created_at ranges.
 	RuntimeMs          sql.NullInt64  `db:"runtime_ms" json:"runtime_ms"`
 	Deleted            bool           `db:"deleted" json:"deleted"`
 	ProviderResponseID sql.NullString `db:"provider_response_id" json:"provider_response_id"`

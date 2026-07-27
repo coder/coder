@@ -101,6 +101,34 @@ func TestBuildCommitStepMessages_LocalToolResultsBecomeToolMessages(t *testing.T
 	require.JSONEq(t, `{"stdout":"/tmp"}`, string(toolParts[0].Result))
 }
 
+// A step with no model invocation (a local tool execution batch) must
+// persist runtime_ms NULL: its wall time is not billable.
+func TestBuildCommitStepMessages_ZeroRuntimeLeavesRuntimeNull(t *testing.T) {
+	t.Parallel()
+
+	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		step: stepData{
+			Content: []fantasy.Content{
+				fantasy.ToolCallContent{ToolCallID: "call-1", ToolName: "execute", Input: `{"cmd":"pwd"}`},
+				fantasy.ToolResultContent{
+					ToolCallID: "call-1",
+					ToolName:   "execute",
+					Result:     fantasy.ToolResultOutputContentText{Text: `{"stdout":"/tmp"}`},
+				},
+			},
+			Runtime: 0,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 2)
+	require.Equal(t, database.ChatMessageRoleAssistant, got.Messages[0].Role)
+	require.False(t, got.Messages[0].RuntimeMs.Valid)
+	require.False(t, got.Messages[1].RuntimeMs.Valid)
+}
+
 func TestBuildCommitStepMessages_ProviderExecutedResultsStayAssistantContent(t *testing.T) {
 	t.Parallel()
 
@@ -248,6 +276,34 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 	require.Equal(t, codersdk.ChatMessagePartTypeToolResult, resultPart.Type)
 	require.Equal(t, "summary-1", resultPart.ToolCallID)
 	require.JSONEq(t, `{"summary":"user report","source":"automatic","threshold_percent":70,"usage_percent":81.5,"context_tokens":815,"context_limit_tokens":1000}`, string(resultPart.Result))
+}
+
+// A compaction that never reached the summary model call carries no
+// runtime, so its assistant row must persist runtime_ms NULL.
+func TestBuildCompactionMessages_ZeroRuntimeLeavesRuntimeNull(t *testing.T) {
+	t.Parallel()
+
+	got, err := buildCompactionMessages(buildCompactionMessagesInput{
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		toolCallID:     "summary-1",
+		toolName:       "chat_summarized",
+		compaction: compactionOutcome{
+			SystemSummary:    "system summary",
+			SummaryReport:    "user report",
+			ThresholdPercent: 70,
+			UsagePercent:     81.5,
+			ContextTokens:    815,
+			ContextLimit:     1000,
+			Runtime:          0,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 3)
+	require.Equal(t, database.ChatMessageRoleAssistant, got.Messages[1].Role)
+	for i := range got.Messages {
+		require.False(t, got.Messages[i].RuntimeMs.Valid)
+	}
 }
 
 func TestCurrentTurnStepCount_ExcludesCompressedCompactionMessages(t *testing.T) {

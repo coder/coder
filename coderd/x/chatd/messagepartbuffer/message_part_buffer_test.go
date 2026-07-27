@@ -99,7 +99,7 @@ func TestBuffer_CloseEpisodeIdempotent(t *testing.T) {
 	require.NoError(t, buffer.CloseEpisode(key))
 }
 
-func TestBuffer_EpisodeDuration(t *testing.T) {
+func TestBuffer_ModelInvocationDuration(t *testing.T) {
 	t.Parallel()
 
 	clock := quartz.NewMock(t)
@@ -107,25 +107,40 @@ func TestBuffer_EpisodeDuration(t *testing.T) {
 	defer buffer.Close()
 
 	key := testEpisodeKey()
-	require.Zero(t, buffer.EpisodeDuration(key), "unknown episode has no duration")
+	require.Zero(t, buffer.ModelInvocationDuration(key), "unknown episode has no duration")
+	require.ErrorIs(t, buffer.StartModelInvocation(key), messagepartbuffer.ErrEpisodeNotFound)
 
 	require.NoError(t, buffer.CreateEpisode(key))
-	require.Zero(t, buffer.EpisodeDuration(key), "open episode has no duration")
+	// Attempt setup happens before the provider stream opens and is
+	// not billable.
+	clock.Advance(time.Second)
+	require.NoError(t, buffer.StartModelInvocation(key))
+	require.Zero(t, buffer.ModelInvocationDuration(key), "open episode has no duration")
 
 	clock.Advance(1500 * time.Millisecond)
 	require.NoError(t, buffer.CloseEpisode(key))
-	require.Equal(t, 1500*time.Millisecond, buffer.EpisodeDuration(key))
+	require.Equal(t, 1500*time.Millisecond, buffer.ModelInvocationDuration(key))
 
-	// A second close must not move the recorded span.
+	// A second close must not move the recorded span, and a closed
+	// episode no longer accepts an invocation start.
 	clock.Advance(time.Second)
 	require.NoError(t, buffer.CloseEpisode(key))
-	require.Equal(t, 1500*time.Millisecond, buffer.EpisodeDuration(key))
+	require.ErrorIs(t, buffer.StartModelInvocation(key), messagepartbuffer.ErrEpisodeClosed)
+	require.Equal(t, 1500*time.Millisecond, buffer.ModelInvocationDuration(key))
+
+	// Episodes that never open a provider stream, such as local tool
+	// execution batches, report no duration.
+	toolBatch := testEpisodeKey()
+	require.NoError(t, buffer.CreateEpisode(toolBatch))
+	clock.Advance(time.Second)
+	require.NoError(t, buffer.CloseEpisode(toolBatch))
+	require.Zero(t, buffer.ModelInvocationDuration(toolBatch))
 
 	// Episodes created implicitly by CloseEpisode never started a
 	// generation attempt, so they report no duration.
 	implicit := testEpisodeKey()
 	require.NoError(t, buffer.CloseEpisode(implicit))
-	require.Zero(t, buffer.EpisodeDuration(implicit))
+	require.Zero(t, buffer.ModelInvocationDuration(implicit))
 }
 
 func TestBuffer_SubscribeExistingReplaysThenStreamsLiveParts(t *testing.T) {

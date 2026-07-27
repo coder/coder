@@ -626,6 +626,7 @@ func (s *taskStarter) generateAssistant(
 		ModelConfig:          prepared.ModelConfig,
 		ProviderOptions:      prepared.ProviderOptions,
 		PublishMessagePart:   attempt.publish,
+		OnModelStreamStart:   attempt.startModelInvocation,
 		Logger:               s.opts.Logger,
 		Clock:                s.opts.Clock,
 		Metrics:              s.server.metrics,
@@ -752,6 +753,7 @@ func (s *taskStarter) generateCompaction(
 		)
 	}
 	compactionOpts.PublishMessagePart = attempt.publish
+	compactionOpts.OnModelStreamStart = attempt.startModelInvocation
 	compactionOpts.Source = source
 	compactionOpts.Force = source == chatloop.CompactionSourceManual
 	compactionOpts.Clock = s.opts.Clock
@@ -823,6 +825,11 @@ type generationAttempt struct {
 	number int64
 	// publish streams a message part into the attempt's buffer episode.
 	publish func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
+	// startModelInvocation marks the start of the attempt's billable
+	// model invocation window on the buffer episode, so an interrupt
+	// can bill the window the step would have reported. It is always
+	// non-nil when beginGenerationAttempt succeeds.
+	startModelInvocation func()
 	// closeEpisode closes the attempt's buffer episode. It is always
 	// non-nil when beginGenerationAttempt succeeds.
 	closeEpisode func()
@@ -865,6 +872,9 @@ func (s *taskStarter) beginGenerationAttempt(
 		number: attempt,
 		publish: func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 			_ = s.opts.MessagePartBuffer.AddPart(key, role, part)
+		},
+		startModelInvocation: func() {
+			_ = s.opts.MessagePartBuffer.StartModelInvocation(key)
 		},
 		closeEpisode: func() {
 			_ = s.opts.MessagePartBuffer.CloseEpisode(key)

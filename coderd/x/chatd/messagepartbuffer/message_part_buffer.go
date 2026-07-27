@@ -97,10 +97,11 @@ type Buffer struct {
 
 type episodeState struct {
 	created bool
-	// createdAt is set only by CreateEpisode, not by the implicit
-	// creation in CloseEpisode or by subscriber placeholders, so it
-	// marks when the generation attempt actually started.
-	createdAt      time.Time
+	// modelStartedAt is stamped by StartModelInvocation when the
+	// episode's provider stream is opened. It is zero for episodes
+	// that never invoke a model, such as local tool execution
+	// batches.
+	modelStartedAt time.Time
 	closed         bool
 	closedAt       time.Time
 	closedHeapItem *closedEpisodeItem
@@ -189,14 +190,37 @@ func (b *Buffer) CreateEpisode(key Key) error {
 	if b.closed {
 		return ErrMessagePartBufferClosed
 	}
-	now := b.opts.Clock.Now("message-part-buffer", "create")
-	b.gcClosedEpisodesLocked(now)
+	b.gcClosedEpisodesLocked(b.opts.Clock.Now("message-part-buffer", "create"))
 	episode := b.getOrCreateEpisodeLocked(key)
 	if episode.created {
 		return ErrEpisodeExists
 	}
 	episode.markCreated()
-	episode.createdAt = now
+	return nil
+}
+
+// StartModelInvocation stamps the instant the episode opens its provider
+// stream, which starts the episode's billable model invocation window.
+//
+// Callers stamp it at the same instant a completed step starts measuring
+// its runtime, so an interrupted attempt bills the same window the step
+// would have reported had it finished. A repeat call re-stamps the start:
+// only the most recent invocation is billed, which errs toward
+// undercounting.
+func (b *Buffer) StartModelInvocation(key Key) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
+		return ErrMessagePartBufferClosed
+	}
+	episode, err := b.getEpisodeLocked(key)
+	if err != nil {
+		return err
+	}
+	if episode.closed {
+		return ErrEpisodeClosed
+	}
+	episode.modelStartedAt = b.opts.Clock.Now("message-part-buffer", "model-invocation-start")
 	return nil
 }
 
@@ -272,17 +296,17 @@ func (b *Buffer) GetParts(key Key) ([]Part, error) {
 	return slices.Clone(episode.parts), nil
 }
 
-// EpisodeDuration returns the wall-clock span between CreateEpisode and
-// CloseEpisode. It returns 0 when the episode is unknown, was created
-// implicitly by CloseEpisode, or is not closed yet.
-func (b *Buffer) EpisodeDuration(key Key) time.Duration {
+// ModelInvocationDuration returns the wall-clock span between
+// StartModelInvocation and CloseEpisode. It returns 0 when the episode is
+// unknown, never opened a provider stream, or is not closed yet.
+func (b *Buffer) ModelInvocationDuration(key Key) time.Duration {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	episode := b.episodes[key]
-	if episode == nil || episode.createdAt.IsZero() || !episode.closed {
+	if episode == nil || episode.modelStartedAt.IsZero() || !episode.closed {
 		return 0
 	}
-	return episode.closedAt.Sub(episode.createdAt)
+	return episode.closedAt.Sub(episode.modelStartedAt)
 }
 
 // SubscribeToEpisode replays existing parts and streams new parts.
