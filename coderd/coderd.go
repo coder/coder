@@ -1420,6 +1420,7 @@ func New(options *Options) *API {
 				})
 				r.Get("/", api.getChat)
 				r.Patch("/", api.patchChat)
+				r.Get("/cost", api.getChatCost)
 				r.Get("/messages", api.getChatMessages)
 				r.Post("/messages", api.postChatMessages)
 				r.Patch("/messages/{message}", api.patchChatMessage)
@@ -1816,6 +1817,7 @@ func New(options *Options) *API {
 						r.Put("/gitsshkey", api.regenerateGitSSHKey)
 						r.Route("/secrets", func(r chi.Router) {
 							r.Post("/", api.postUserSecret)
+							r.Post("/batch", api.postUserSecretsBatch)
 							r.Get("/", api.getUserSecrets)
 							r.Route("/{name}", func(r chi.Router) {
 								r.Get("/", api.getUserSecret)

@@ -21,6 +21,7 @@ import { useQuery } from "react-query";
 import { appearanceSettings } from "#/api/queries/users";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import themes, { baseModeFor, CONCRETE_THEMES, type Theme } from "#/theme";
+import { AppearanceProvider } from "#/theme/appearance";
 import {
 	migrateLegacyPreference,
 	resolveActiveThemeName,
@@ -81,7 +82,9 @@ export const ThemeOverride: FC<ThemeOverrideProps> = ({ theme, children }) => {
 			<MuiThemeProvider theme={theme}>
 				<EmotionThemeProvider theme={theme}>
 					<CssBaseline enableColorScheme />
-					{children}
+					<AppearanceProvider externalImages={theme.externalImages}>
+						{children}
+					</AppearanceProvider>
 				</EmotionThemeProvider>
 			</MuiThemeProvider>
 		</CacheProvider>

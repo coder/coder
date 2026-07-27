@@ -1,4 +1,4 @@
-package v1
+package main
 
 import (
 	"context"
@@ -18,8 +18,8 @@ import (
 // here. Safe operations (file writes, fetches, editor) are
 // called directly.
 type ReleaseExecutor interface {
-	// CreateTag creates an annotated (optionally signed) git tag.
-	CreateTag(ctx context.Context, tag, ref, message string, sign bool) error
+	// CreateTag creates an annotated git tag.
+	CreateTag(ctx context.Context, tag, ref, message string) error
 	// PushTag pushes a tag to the origin remote.
 	PushTag(ctx context.Context, tag string) error
 	// TriggerWorkflow dispatches the release.yaml GitHub Actions
@@ -30,14 +30,8 @@ type ReleaseExecutor interface {
 // liveExecutor performs real operations.
 type liveExecutor struct{}
 
-//nolint:revive // sign flag is part of the ReleaseExecutor interface contract.
-func (e *liveExecutor) CreateTag(_ context.Context, tag, ref, message string, sign bool) error {
-	args := []string{"tag", "-a"}
-	if sign {
-		args = append(args, "-s")
-	}
-	args = append(args, tag, "-m", message, ref)
-	return gitRun(args...)
+func (*liveExecutor) CreateTag(_ context.Context, tag, ref, message string) error {
+	return gitRun("tag", "-a", tag, "-m", message, ref)
 }
 
 func (*liveExecutor) PushTag(_ context.Context, tag string) error {
@@ -70,13 +64,8 @@ type dryRunExecutor struct {
 	w io.Writer
 }
 
-//nolint:revive // sign flag is part of the ReleaseExecutor interface contract.
-func (e *dryRunExecutor) CreateTag(_ context.Context, tag, ref, message string, sign bool) error {
-	signFlag := ""
-	if sign {
-		signFlag = "-s "
-	}
-	_, _ = fmt.Fprintf(e.w, "[DRYRUN] would run: git tag %s-a %s -m %q %s\n", signFlag, tag, message, ref)
+func (e *dryRunExecutor) CreateTag(_ context.Context, tag, ref, message string) error {
+	_, _ = fmt.Fprintf(e.w, "[DRYRUN] would run: git tag -a %s -m %q %s\n", tag, message, ref)
 	return nil
 }
 

@@ -456,6 +456,11 @@ type sqlcQuerier interface {
 	// Returns all model configurations for telemetry snapshot collection.
 	// deleted = false guarantees ai_provider_id is non-null, so INNER JOIN is safe.
 	GetChatModelConfigsForTelemetry(ctx context.Context) ([]GetChatModelConfigsForTelemetryRow, error)
+	// Assistant-message cost rolled up over the requested chat's subtree: the
+	// chat itself plus every descendant reachable through parent_chat_id. A
+	// root chat therefore reports its whole tree, while a subagent chat
+	// reports only its own spend plus any nested subagents it spawned.
+	GetChatModelUsageCostByChatID(ctx context.Context, chatID uuid.UUID) (GetChatModelUsageCostByChatIDRow, error)
 	// GetChatPersonalModelOverridesEnabled returns whether users may configure
 	// personal chat model overrides. It defaults to false when unset.
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)

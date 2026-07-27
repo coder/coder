@@ -122,6 +122,7 @@ const OrganizationSettingsLayout: FC = () => {
 					</BreadcrumbList>
 				</Breadcrumb>
 				<div className="h-px border-none bg-border" />
+
 				<Suspense fallback={<Loader />}>
 					<Outlet />
 				</Suspense>

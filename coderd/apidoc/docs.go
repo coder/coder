@@ -580,6 +580,42 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/experimental/chats/{chat}/cost": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat cost",
+                "operationId": "get-chat-cost",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatCost"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/experimental/chats/{chat}/diff": {
             "get": {
                 "description": "Experimental: this endpoint is subject to change.",
@@ -8872,6 +8908,13 @@ const docTemplate = `{
                         "name": "templateversion",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Owner to report external auth state for. Defaults to the requesting user.",
+                        "name": "user_id",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -11017,6 +11060,73 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.UserSecret"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/users/{user}/secrets/batch": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Secrets"
+                ],
+                "summary": "Import user secrets from a file",
+                "operationId": "import-user-secrets-from-a-file",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Import secrets request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ImportUserSecretsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.UserSecret"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -17197,6 +17307,24 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatCost": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "priced_message_count": {
+                    "type": "integer"
+                },
+                "total_cost_micros": {
+                    "type": "integer"
+                },
+                "unpriced_messages_having_usage_count": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.ChatDiffContents": {
             "type": "object",
             "properties": {
@@ -20578,6 +20706,21 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ImportUserSecretsRequest": {
+            "type": "object",
+            "required": [
+                "content",
+                "format"
+            ],
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "format": {
+                    "$ref": "#/definitions/codersdk.SecretsFileFormat"
+                }
+            }
+        },
         "codersdk.InboxNotification": {
             "type": "object",
             "properties": {
@@ -23646,6 +23789,19 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "codersdk.SecretsFileFormat": {
+            "type": "string",
+            "enum": [
+                "env",
+                "json",
+                "yaml"
+            ],
+            "x-enum-varnames": [
+                "SecretsFileFormatEnv",
+                "SecretsFileFormatJSON",
+                "SecretsFileFormatYAML"
+            ]
         },
         "codersdk.ServerSentEvent": {
             "type": "object",
