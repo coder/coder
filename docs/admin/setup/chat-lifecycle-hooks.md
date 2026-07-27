@@ -167,7 +167,7 @@ Coder never queues a failed dispatch for redelivery, so plan for duplicates with
 Coder retries one connection failure per dispatch with the same JWT, so use `dispatch_id` to recognize a repeated HTTP attempt and return the same response.
 Coder also re-dispatches the same logical event with a new `dispatch_id` whenever an operation runs again, for example when a chat recovers after a crash and retries a pending tool call, or when a user retries a turn that failed before committing.
 Every tool call that reaches execution is validated through a fresh `pre_tool_use` dispatch; Coder never reuses an earlier decision on the consumer's behalf.
-Calls that Coder rejects before execution, such as ambiguous input or a batch that mixes an exclusive tool with other calls, produce an error result for the model without a dispatch.
+Calls that Coder rejects before execution, such as input that isn't valid JSON, ambiguous input, or a batch that mixes an exclusive tool with other calls, produce an error result for the model without a dispatch.
 
 Use event-specific identifiers for logical duplicates:
 

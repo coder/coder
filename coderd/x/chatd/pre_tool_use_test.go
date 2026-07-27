@@ -182,6 +182,69 @@ func TestPreToolUseHookOverrideIsPersistedOnceNeverTheOriginal(t *testing.T) {
 	}
 }
 
+// Malformed tool input cannot be represented in a hook payload, so it must
+// become a tool error the model can retry rather than failing the turn.
+func TestPreToolUseHookMalformedToolInputStaysRecoverable(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	var modelCalls atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if modelCalls.Add(1) == 1 {
+			chunk := chattest.OpenAIToolCallChunk("read_file", `{"path":`)
+			chunk.Choices[0].ToolCalls[0].ID = "call_malformed"
+			return chattest.OpenAIStreamingResponse(chunk)
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("recovered")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	var hookCalls atomic.Int32
+	consumer := preToolUseConsumer(t, func(agenthooks.PreToolUseData) string {
+		hookCalls.Add(1)
+		return `{}`
+	})
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "pre-tool-use-malformed-input",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("read the file"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	require.Zero(t, hookCalls.Load(), "unrepresentable input must not reach the consumer")
+	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chat.ID), "read_file")
+	require.True(t, result.IsError)
+
+	failed, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.False(t, failed.LastError.Valid, "the turn must not fail as a hook dispatch error")
+}
+
 func TestPreToolUseHookDeny(t *testing.T) {
 	t.Parallel()
 
