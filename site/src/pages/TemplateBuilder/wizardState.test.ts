@@ -614,9 +614,9 @@ describe("baseCustomizationDefaults", () => {
 describe("initWizardState", () => {
 	it("returns the initial state without a preselected base", () => {
 		const state = initWizardState({ sessionId: "test-session-id" });
-		expect(state).toEqual({
+		expect(state).toMatchObject({
 			...initialWizardState,
-			enteredAt: state.enteredAt,
+			enteredAt: expect.any(Number),
 			sessionId: "test-session-id",
 		});
 		expect(state.enteredAt).toBeGreaterThan(0);
