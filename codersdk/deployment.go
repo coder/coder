@@ -5260,6 +5260,7 @@ const (
 	ExperimentNATSPubsub                Experiment = "nats_pubsub"                 // Enables embedded NATS pubsub.
 	ExperimentMinimumImplicitMember     Experiment = "minimum-implicit-member"     // Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
+	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
 	ExperimentAIGatewayCostControl      Experiment = "ai-gateway-cost-control"     // Enables AI Gateway cost control functionality.
 	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
 	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
@@ -5287,6 +5288,8 @@ func (e Experiment) DisplayName() string {
 		return "Gateway Accounts (minimum implicit member)"
 	case ExperimentWorkspaceCapableLicensing:
 		return "Workspace-Capable Licensing"
+	case ExperimentAIGatewaySeatExclusion:
+		return "AI Gateway Seat Exclusion"
 	case ExperimentAIGatewayCostControl:
 		return "AI Gateway Cost Control"
 	case ExperimentChatAdvisor:
@@ -5313,6 +5316,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentMinimumImplicitMember,
 	ExperimentWorkspaceCapableLicensing,
+	ExperimentAIGatewaySeatExclusion,
 	ExperimentAIGatewayCostControl,
 	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,
