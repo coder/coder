@@ -24,7 +24,9 @@ import type {
 	MinimalUser,
 	Workspace,
 } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
+import { Margins } from "#/components/Margins/Margins";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useExternalAuth } from "#/hooks/useExternalAuth";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -96,6 +98,9 @@ const CreateWorkspacePage: FC = () => {
 		}),
 		enabled: Boolean(templateQuery.data),
 	});
+	const canCreateWorkspace = Boolean(
+		permissionsQuery.data?.createWorkspaceForUserID,
+	);
 
 	const templateVersionQuery = useQuery({
 		...templateVersion(realizedVersionId ?? ""),
@@ -311,12 +316,14 @@ const CreateWorkspacePage: FC = () => {
 
 	let autoCreateReady =
 		mode === "auto" &&
+		canCreateWorkspace &&
 		hasAllRequiredExternalAuth &&
 		autoCreateConsented &&
 		presetResolved;
 
 	const showAutoCreateConsent =
 		mode === "auto" &&
+		canCreateWorkspace &&
 		!autoCreateConsented &&
 		!autoCreateError &&
 		presetResolved;
@@ -407,15 +414,14 @@ const CreateWorkspacePage: FC = () => {
 
 			{shouldShowLoader ? (
 				<Loader />
+			) : permissionsQuery.isError ? (
+				// The view reads the permission results unconditionally, so a
+				// failed check renders an error instead of the form.
+				<Margins>
+					<ErrorAlert error={permissionsQuery.error} className="my-4" />
+				</Margins>
 			) : (
-				<RequirePermission
-					// An errored permission check is not a denial; render the
-					// page so the request error is surfaced instead.
-					isFeatureVisible={
-						permissionsQuery.isError ||
-						Boolean(permissionsQuery.data?.createWorkspaceForUserID)
-					}
-				>
+				<RequirePermission isFeatureVisible={canCreateWorkspace}>
 					<CreateWorkspacePageView
 						mode={mode}
 						defaultName={defaultName}

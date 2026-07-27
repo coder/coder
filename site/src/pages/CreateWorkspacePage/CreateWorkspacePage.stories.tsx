@@ -247,3 +247,37 @@ export const PermissionDenied: Story = {
 		).toBeNull();
 	},
 };
+
+/**
+ * A user without workspace-create permission following a ?mode=auto link is
+ * blocked by the RequirePermission dialog without seeing the auto-create
+ * consent dialog.
+ */
+export const PermissionDeniedAutoMode: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					organization: MockTemplate.organization_name,
+					template: MockTemplate.name,
+				},
+				searchParams: { mode: "auto" },
+			},
+			routing: {
+				path: "/templates/:organization/:template/workspace",
+			},
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API, "checkAuthorization").mockResolvedValue({
+			createWorkspaceForUserID: false,
+			createWorkspaceForAny: false,
+			canUpdateTemplate: false,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await body.findByText(/you don't have permission to view this page/i);
+		expect(body.queryByText(/automatic workspace creation/i)).toBeNull();
+	},
+};

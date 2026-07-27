@@ -639,6 +639,74 @@ describe("CreateWorkspacePage", () => {
 		});
 	});
 
+	describe("Permissions", () => {
+		const deniedPermissions = {
+			createWorkspaceForUserID: false,
+			createWorkspaceForAny: false,
+			canUpdateTemplate: false,
+		};
+
+		it("blocks the form behind a permission dialog when the user cannot create workspaces", async () => {
+			vi.spyOn(API, "checkAuthorization").mockResolvedValue(deniedPermissions);
+
+			const { mockPublisher } = await renderPageWithSocket({});
+			await expectSocketHandshake({ mockPublisher, parameters: [] });
+
+			expect(
+				await screen.findByText(/you don't have permission to view this page/i),
+			).toBeInTheDocument();
+			expect(
+				screen.queryByRole("form", { name: /create workspace/i }),
+			).not.toBeInTheDocument();
+		});
+
+		it("blocks auto-creation without showing the consent dialog when the user cannot create workspaces", async () => {
+			vi.spyOn(API, "checkAuthorization").mockResolvedValue(deniedPermissions);
+			const autoCreateSpy = vi.spyOn(API, "createWorkspace");
+
+			const { mockPublisher } = await renderPageWithSocket({
+				route: `/templates/${MockTemplate.name}/workspace?mode=auto`,
+			});
+			await expectSocketHandshake({ mockPublisher, parameters: [] });
+
+			expect(
+				await screen.findByText(/you don't have permission to view this page/i),
+			).toBeInTheDocument();
+			expect(
+				screen.queryByText(/automatic workspace creation/i),
+			).not.toBeInTheDocument();
+			expect(autoCreateSpy).not.toHaveBeenCalled();
+		});
+
+		it("shows an error instead of the form when the permission check fails", async () => {
+			// Only reject the page's own check batch; the auth provider also
+			// calls checkAuthorization and must keep resolving.
+			vi.spyOn(API, "checkAuthorization").mockImplementation(
+				async ({ checks }) => {
+					if ("createWorkspaceForUserID" in checks) {
+						throw new Error("failed to check authorization");
+					}
+					return {};
+				},
+			);
+
+			const { mockPublisher } = await renderPageWithSocket({});
+			await expectSocketHandshake({ mockPublisher, parameters: [] });
+
+			expect(
+				await screen.findByRole("heading", {
+					name: /failed to check authorization/i,
+				}),
+			).toBeInTheDocument();
+			expect(
+				screen.queryByRole("form", { name: /create workspace/i }),
+			).not.toBeInTheDocument();
+			expect(
+				screen.queryByText(/you don't have permission to view this page/i),
+			).not.toBeInTheDocument();
+		});
+	});
+
 	describe("Form Submission", () => {
 		it("creates workspace with correct parameters", async () => {
 			const parameters = [
