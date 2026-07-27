@@ -145,18 +145,42 @@ type shortTextCandidate struct {
 	providerOptions fantasy.ProviderOptions
 }
 
-func selectPreferredConfiguredShortTextModelConfig(
-	configs []database.GetEnabledChatModelConfigsRow,
+// enabledModelConfigsRow is the row shape shared by the enabled-model
+// list queries (the deployment-wide and per-org variants generate
+// distinct Go types with identical fields).
+// TODO(mafredri): remove after CODAGT-709 M3 (org-scoping cutover),
+// when only the per-org variant remains and the selector is
+// de-generified.
+type enabledModelConfigsRow interface {
+	database.GetEnabledChatModelConfigsRow | database.GetEnabledChatModelConfigsByOrganizationRow
+}
+
+// enabledModelConfigFields extracts the two fields the selector needs
+// off either generated row type.
+func enabledModelConfigFields[T enabledModelConfigsRow](row T) (string, database.ChatModelConfig) {
+	switch row := any(row).(type) {
+	case database.GetEnabledChatModelConfigsRow:
+		return row.Provider, row.ChatModelConfig
+	case database.GetEnabledChatModelConfigsByOrganizationRow:
+		return row.Provider, row.ChatModelConfig
+	}
+	// Unreachable: the constraint is a closed union.
+	return "", database.ChatModelConfig{}
+}
+
+func selectPreferredConfiguredShortTextModelConfig[T enabledModelConfigsRow](
+	configs []T,
 ) (database.ChatModelConfig, bool) {
 	for _, preferred := range preferredTitleModels {
 		for _, config := range configs {
-			if chatprovider.NormalizeProvider(config.Provider) != preferred.provider {
+			provider, modelConfig := enabledModelConfigFields(config)
+			if chatprovider.NormalizeProvider(provider) != preferred.provider {
 				continue
 			}
-			if !strings.EqualFold(strings.TrimSpace(config.ChatModelConfig.Model), preferred.model) {
+			if !strings.EqualFold(strings.TrimSpace(modelConfig.Model), preferred.model) {
 				continue
 			}
-			return config.ChatModelConfig, true
+			return modelConfig, true
 		}
 	}
 	return database.ChatModelConfig{}, false

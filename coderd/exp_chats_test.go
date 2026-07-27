@@ -302,6 +302,34 @@ func insertAssistantCostMessage(
 func TestPostChats(t *testing.T) {
 	t.Parallel()
 
+	t.Run("SuccessNonDefaultOrgUsesDeploymentDefault", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// A member of a non-default org cannot read the default
+		// organization object, but omitting model_config_id must still
+		// resolve the deployment default while every config lives there.
+		org := dbgen.Organization(t, db, database.Organization{IsDefault: false})
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, org.ID, rbac.ScopedRoleAgentsAccess(org.ID))
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: org.ID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "hello from a non-default org",
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, modelConfig.ID, chat.LastModelConfigID)
+	})
+
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 
@@ -4050,6 +4078,90 @@ func TestCreateChatModelConfig(t *testing.T) {
 			}
 		}
 		require.Equal(t, []uuid.UUID{claimed.ID}, defaults)
+	})
+
+	t.Run("SuccessCustomDeploymentConfigRole", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// dbauthz rejects site-permission roles on the authorized
+		// querier; seed the role through the raw store, as persisted
+		// site custom roles exist in production deployments.
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Database = rawDB
+			opts.Pubsub = pubsub
+		})
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		nonDefaultOrg := dbgen.Organization(t, rawDB, database.Organization{IsDefault: false})
+
+		// A custom site role holding only deployment-config permissions
+		// passes the route gate but cannot read the default organization
+		// object; the default-org resolution is an internal step and must
+		// not require caller-held organization read. The owning org is a
+		// label on the role; the site permissions apply deployment-wide.
+		role, err := rawDB.InsertCustomRole(ctx, database.InsertCustomRoleParams{
+			Name:           testutil.GetRandomName(t),
+			DisplayName:    "Deployment Config Admin",
+			OrganizationID: uuid.NullUUID{UUID: nonDefaultOrg.ID, Valid: true},
+			SitePermissions: database.CustomRolePermissions{
+				{
+					ResourceType: rbac.ResourceDeploymentConfig.Type,
+					Action:       policy.ActionRead,
+				},
+				{
+					ResourceType: rbac.ResourceDeploymentConfig.Type,
+					Action:       policy.ActionUpdate,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
+		// An existing deployment default keeps the create off the
+		// self-promotion path, which is a separate system-scoped
+		// authorization requirement.
+		_ = createChatModelConfig(t, client)
+
+		// A member of a non-default org cannot read the default
+		// organization object; the implicit organization-member role
+		// grants organization read only within its own org.
+		adminClientRaw, adminUser := coderdtest.CreateAnotherUser(
+			t,
+			client.Client,
+			nonDefaultOrg.ID,
+		)
+		_, err = client.Client.UpdateOrganizationMemberRoles(
+			ctx,
+			nonDefaultOrg.ID,
+			adminUser.ID.String(),
+			codersdk.UpdateRoles{Roles: []string{role.Name}},
+		)
+		require.NoError(t, err)
+		adminClient := codersdk.NewExperimentalClient(adminClientRaw)
+
+		contextLimit := int64(4096)
+		modelConfig, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &aiProvider.ID,
+			Model:        "gpt-4o-mini",
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+
+		defaultOrg, err := rawDB.GetDefaultOrganization(ctx)
+		require.NoError(t, err)
+		row, err := rawDB.GetChatModelConfigByID(ctx, modelConfig.ID)
+		require.NoError(t, err)
+		require.Equal(t, defaultOrg.ID, row.OrganizationID)
+		require.False(t, row.IsDefault)
+		require.Equal(
+			t,
+			database.ChatACL{
+				defaultOrg.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+			},
+			row.GroupACL,
+		)
+		require.Equal(t, database.ChatACL{}, row.UserACL)
 	})
 
 	t.Run("RejectsNegativePricing", func(t *testing.T) {
