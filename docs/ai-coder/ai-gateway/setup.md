@@ -14,7 +14,7 @@ If AI traffic needs dedicated compute, independent scaling, or a separate networ
 
 ## Activation
 
-AI Gateway feature must be enabled in the Coder deployment configuration before
+The AI Gateway feature must be enabled in the Coder deployment configuration before
 embedded or standalone Gateway instances can serve authenticated traffic.
 
 _AI Gateway is enabled by default as of v2.34._
@@ -27,8 +27,8 @@ coder server --ai-gateway-enabled=true
 ```
 
 A standalone process does not read `CODER_AI_GATEWAY_ENABLED` from its own environment.
-However, this setting must remain enabled on `coderd`. It is required for Gateway keys management
-endpoints to work and for standalone replicas to connect to the control plane.
+However, this setting must remain enabled on `coderd`.
+It is required for Gateway key management endpoints to work and for standalone replicas to connect to the control plane.
 
 ## Configure Providers
 

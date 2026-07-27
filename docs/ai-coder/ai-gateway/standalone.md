@@ -20,12 +20,12 @@ However, this setting must remain enabled on `coderd` for Gateway key management
 ## Create a Gateway key
 
 Each standalone replica uses a Gateway key to authenticate and establish its control connection to `coderd`.
-Gateway key management requires site-level `ai_gateway_key` permissions, which the built-in Owner role includes by default.
-A site-level custom role can also manage keys when granted the corresponding permissions.
+Gateway key management requires site-level `ai_gateway_key` permissions, which only the built-in Owner role includes.
+Coder custom roles are organization-scoped and cannot grant site-level permissions.
 
 Log in to the Coder CLI as an Owner or another user with these permissions, then create a dedicated key for the standalone deployment:
 
-```console
+```sh
 coder login https://coder.example.com
 coder ai-gateway keys create standalone-production
 ```
@@ -39,7 +39,7 @@ For independent rotation and revocation, use a separate key for each standalone 
 
 Set the Coder URL, Gateway key, and listener address, then start the Gateway:
 
-```console
+```sh
 export CODER_URL=https://coder.example.com
 export CODER_AI_GATEWAY_KEY='<AI Gateway key>'
 export CODER_AI_GATEWAY_HTTP_ADDRESS=0.0.0.0:4001
@@ -68,7 +68,7 @@ Install Helm if you use the chart.
 
 Create a namespace and store the Gateway key in a Kubernetes Secret:
 
-```console
+```sh
 kubectl create namespace coder-ai-gateway
 kubectl create secret generic coder-ai-gateway-key \
   --namespace coder-ai-gateway \
@@ -97,13 +97,13 @@ If Coder requires client mTLS, also configure `aigateway.coderTLS.clientSecret`.
 The chart defaults to one replica, a `ClusterIP` Service, and a data-plane listener on port 4001.
 It also enables a separate Prometheus listener on port 2112.
 
-For the complete chart configuration, including private CAs, mTLS, Ingress, Kubernetes Gateway API, and additional manifests, see the [AI Gateway Helm chart README](../../../helm/ai-gateway/README.md).
+For the complete chart configuration, including private CAs, mTLS, Ingress, Kubernetes Gateway API, and additional manifests, refer to the [AI Gateway Helm chart README](../../../helm/ai-gateway/README.md).
 
 ### Install the Helm chart
 
 Install the chart version that matches the Coder control plane from GitHub Container Registry:
 
-```console
+```sh
 helm install ai-gateway \
   oci://ghcr.io/coder/chart/coder-ai-gateway \
   --namespace coder-ai-gateway \
@@ -119,7 +119,7 @@ If you need to run different `coderd` and Gateway versions, refer to [Version co
 
 Wait for the Deployment to become available:
 
-```console
+```sh
 kubectl rollout status deployment/coder-ai-gateway \
   --namespace coder-ai-gateway \
   --timeout=5m
@@ -137,7 +137,7 @@ After the initial provider load succeeds, readiness returns when the connection 
 
 Port-forward the Service to inspect both endpoints:
 
-```console
+```sh
 kubectl port-forward \
   --namespace coder-ai-gateway \
   service/coder-ai-gateway \
@@ -146,14 +146,14 @@ kubectl port-forward \
 
 In another terminal, run:
 
-```console
+```sh
 curl --fail http://127.0.0.1:4001/healthz
 curl --fail http://127.0.0.1:4001/readyz
 ```
 
 List Gateway keys and verify that the key has a recent heartbeat:
 
-```console
+```sh
 coder ai-gateway keys list
 ```
 
@@ -172,7 +172,7 @@ Configure its target to use the standalone Service, Ingress, `HTTPRoute`, or loa
 
 If you installed the Helm chart, get the exact in-cluster Service URL from the chart notes:
 
-```console
+```sh
 helm get notes ai-gateway --namespace coder-ai-gateway
 ```
 
@@ -275,21 +275,22 @@ To return traffic to the embedded Gateway:
 
 Delete the key with:
 
-```console
+```sh
 coder ai-gateway keys delete standalone-production
 ```
 
 Deleting a key prevents new connections immediately.
-When an existing connection detects the deletion during a later heartbeat, it closes, and the standalone Gateway attempts to reconnect.
+An established connection closes when its next heartbeat detects the deletion, within 60 seconds.
+The replica then tries to reconnect, receives HTTP 401, and treats that as fatal: the process exits non-zero rather than retrying.
 Stop the deployment before deleting its key.
 
 ## Version compatibility
 
 The standalone Gateway image does not need to match the `coderd` image version exactly.
 The components can connect when their AI Gateway API versions are compatible, and `coderd` checks compatibility whenever a Gateway replica connects.
-For the compatibility rules and the rejection response, refer to [Version compatibility](./reference.md#version-compatibility) in the AI Gateway reference.
 
-A Gateway replica can run behind `coderd`, but never ahead of it, so sequence changes that move both components:
+A replica may run at the same API version as `coderd` or an earlier minor version of the same major version, but never a newer one.
+Sequence changes that move both components:
 
 - To upgrade, upgrade `coderd` first, then roll out the standalone Gateway release.
 - To roll back, roll back the standalone Gateway first, then roll back `coderd`.
