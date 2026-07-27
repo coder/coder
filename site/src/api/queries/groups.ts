@@ -64,6 +64,13 @@ export const getGroupMembersAISpendQueryKey = (
 	userIds: readonly string[],
 ) => ["group", groupId, "members", "aiSpend", [...userIds].sort()];
 
+export const isGroupMembersAISpendQueryKey = (
+	queryKey: readonly unknown[],
+): boolean =>
+	queryKey[0] === "group" &&
+	queryKey[2] === "members" &&
+	queryKey[3] === "aiSpend";
+
 export const groupMembersAISpend = (
 	groupId: string,
 	userIds: readonly string[],
