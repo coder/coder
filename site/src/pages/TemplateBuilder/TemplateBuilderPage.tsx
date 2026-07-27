@@ -43,6 +43,27 @@ const TemplateBuilderPage: FC = () => {
 		});
 	}, [sessionMutation.mutate, sessionId]);
 
+	// Report compose_completion when the create request settles. Duration
+	// is captured at submit time so it measures wizard usage, not the
+	// create request round trip.
+	const reportCompletion = useCallback(
+		(
+			state: TemplateBuilderWizardState,
+			success: boolean,
+			durationSeconds: number,
+		) => {
+			sessionMutation.mutate({
+				session_id: state.sessionId,
+				event_type: "compose_completion",
+				base_template_id: state.baseTemplateId ?? undefined,
+				module_ids: state.modules.map((m) => m.id),
+				duration_seconds: durationSeconds,
+				success,
+			});
+		},
+		[sessionMutation.mutate],
+	);
+
 	useEffect(() => {
 		if (!wizardReady) {
 			return;
@@ -91,20 +112,9 @@ const TemplateBuilderPage: FC = () => {
 		const req = toCreateTemplateRequest(state);
 		const durationSeconds = (Date.now() - state.enteredAt) / 1000;
 
-		const reportCompletion = (success: boolean) => {
-			sessionMutation.mutate({
-				session_id: state.sessionId,
-				event_type: "compose_completion",
-				base_template_id: state.baseTemplateId ?? undefined,
-				module_ids: state.modules.map((m) => m.id),
-				duration_seconds: durationSeconds,
-				success,
-			});
-		};
-
 		createMutation.mutate(req, {
 			onSuccess: (resp) => {
-				reportCompletion(true);
+				reportCompletion(state, true, durationSeconds);
 				const t = resp.template;
 				navigate(
 					`${getLink(linkToTemplate(t.organization_name, t.name))}/files`,
@@ -112,7 +122,7 @@ const TemplateBuilderPage: FC = () => {
 				);
 			},
 			onError: () => {
-				reportCompletion(false);
+				reportCompletion(state, false, durationSeconds);
 			},
 		});
 	};
