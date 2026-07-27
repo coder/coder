@@ -2405,7 +2405,6 @@ describe("useChatStore", () => {
 			error: "upstream timeout",
 			kind: "timeout",
 			provider: "anthropic",
-			delayMs: 5000,
 			retryingAt: "2025-01-01T00:01:00.000Z",
 		});
 	});
@@ -2471,7 +2470,6 @@ describe("useChatStore", () => {
 				error: "rate limited",
 				kind: "rate_limit",
 				provider: "anthropic",
-				delayMs: 3000,
 				retryingAt: "2025-01-01T00:00:30.000Z",
 			});
 		});
@@ -2551,7 +2549,6 @@ describe("useChatStore", () => {
 				error: "rate limited",
 				kind: "rate_limit",
 				provider: "anthropic",
-				delayMs: 3000,
 				retryingAt: "2025-01-01T00:00:30.000Z",
 			});
 		});

@@ -32,7 +32,6 @@ const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
 	error: retry.error.trim() || "Retrying request shortly.",
 	kind: retry.kind ?? "generic",
 	provider: retry.provider?.trim() || undefined,
-	delayMs: retry.delay_ms,
 	retryingAt: retry.retrying_at.trim() || undefined,
 });
 
@@ -556,9 +555,8 @@ export const useChatStore = (
 								pendingMessages.push(message);
 							}
 							if (
-								message.id !== undefined &&
-								(lastMessageIdRef.current === undefined ||
-									message.id > lastMessageIdRef.current)
+								lastMessageIdRef.current === undefined ||
+								message.id > lastMessageIdRef.current
 							) {
 								lastMessageIdRef.current = message.id;
 							}
