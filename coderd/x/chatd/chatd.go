@@ -1518,7 +1518,7 @@ func (p *Server) SendMessage(
 	return result, nil
 }
 
-func (p *Server) checkUsageLimit(_ context.Context, _ database.Store, _ uuid.UUID, _ uuid.NullUUID) error {
+func (*Server) checkUsageLimit(_ context.Context, _ database.Store, _ uuid.UUID, _ uuid.NullUUID) error {
 	return nil
 }
 
