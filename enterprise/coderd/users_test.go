@@ -11,6 +11,8 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/codersdk"
@@ -640,6 +642,43 @@ func TestEnterprisePostUser(t *testing.T) {
 		require.Empty(t, user.Email)
 		require.Equal(t, "service-acct-ok", user.Username)
 		require.Equal(t, codersdk.UserStatusDormant, user.Status)
+	})
+
+	t.Run("ServiceAccount/NotifiesAdminsAsServiceAccount", func(t *testing.T) {
+		t.Parallel()
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				NotificationsEnqueuer: notifyEnq,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureServiceAccounts: 1,
+				},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Notifications skip the initiator, so the notified admin must be
+		// someone other than the creator.
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleUserAdmin())
+		notifyEnq.Clear()
+
+		//nolint:gocritic
+		serviceAccount, err := userAdminClient.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{first.OrganizationID},
+			Username:        "service-acct-notify",
+			UserLoginType:   codersdk.LoginTypeNone,
+			ServiceAccount:  true,
+		})
+		require.NoError(t, err)
+
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateUserAccountCreated))
+		require.NotEmpty(t, sent)
+		require.Equal(t, serviceAccount.Username, sent[0].Labels["created_account_name"])
+		require.Equal(t, "service", sent[0].Labels["account_type"])
 	})
 
 	t.Run("ServiceAccount/WithEmail", func(t *testing.T) {

@@ -867,6 +867,22 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					"created_account_name":      "bobby",
 					"created_account_user_name": "William Tables",
 					"initiator":                 "rob",
+					"account_type":              "user",
+				},
+			},
+		},
+		{
+			name: "TemplateServiceAccountCreated",
+			id:   notifications.TemplateUserAccountCreated,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"created_account_name":      "ci-bot",
+					"created_account_user_name": "CI Bot",
+					"initiator":                 "rob",
+					"account_type":              "service",
 				},
 			},
 		},

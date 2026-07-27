@@ -2038,6 +2038,13 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		return user, xerrors.Errorf("find user admins: %w", err)
 	}
 
+	// account_type drives the wording of the notification, so a service
+	// account is not announced as a user account.
+	accountType := "user"
+	if user.IsServiceAccount {
+		accountType = "service"
+	}
+
 	for _, u := range userAdmins {
 		if u.ID == user.ID {
 			// If the new user is an admin, don't notify them about themselves.
@@ -2052,6 +2059,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 				"created_account_name":      user.Username,
 				"created_account_user_name": user.Name,
 				"initiator":                 req.accountCreatorName,
+				"account_type":              accountType,
 			},
 			map[string]any{
 				"user": map[string]any{"id": user.ID, "name": user.Name, "email": user.Email},
