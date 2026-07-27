@@ -189,10 +189,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (agenthooks.Resp
 
 	startedAt := time.Now()
 	dispatchID := uuid.New()
-	wait := min(d.timeout, capacityWaitLimit)
-	if wait < 0 {
-		wait = 0
-	}
+	wait := max(min(d.timeout, capacityWaitLimit), 0)
 	capacityTimer := time.NewTimer(wait)
 	defer capacityTimer.Stop()
 
@@ -215,11 +212,11 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event Event) (agenthooks.Resp
 	ctx, cancel := context.WithTimeout(ctx, d.timeout-time.Since(startedAt))
 	defer cancel()
 
-	response, outcome := d.prepareAndPost(ctx, event, dispatchID)
+	outcome := d.prepareAndPost(ctx, event, dispatchID)
 	if err := d.finish(ctx, event, dispatchID, startedAt, outcome); err != nil {
 		return agenthooks.Response{}, dispatchID, err
 	}
-	return response, dispatchID, nil
+	return outcome.response, dispatchID, nil
 }
 
 func (d *Dispatcher) finish(
@@ -253,10 +250,10 @@ type dispatchOutcome struct {
 	err      error
 }
 
-func (d *Dispatcher) prepareAndPost(ctx context.Context, event Event, dispatchID uuid.UUID) (agenthooks.Response, dispatchOutcome) {
+func (d *Dispatcher) prepareAndPost(ctx context.Context, event Event, dispatchID uuid.UUID) dispatchOutcome {
 	data, err := marshalEventData(event)
 	if err != nil {
-		return agenthooks.Response{}, dispatchOutcome{result: ResultProtocolError, err: err}
+		return dispatchOutcome{result: ResultProtocolError, err: err}
 	}
 	request := agenthooks.Request{
 		Type: event.Type,
@@ -269,7 +266,7 @@ func (d *Dispatcher) prepareAndPost(ctx context.Context, event Event, dispatchID
 	}
 	body, err := json.Marshal(request)
 	if err != nil {
-		return agenthooks.Response{}, dispatchOutcome{result: ResultProtocolError, err: xerrors.Errorf("marshal request: %w", err)}
+		return dispatchOutcome{result: ResultProtocolError, err: xerrors.Errorf("marshal request: %w", err)}
 	}
 
 	digest := sha256.Sum256(body)
@@ -286,7 +283,7 @@ func (d *Dispatcher) prepareAndPost(ctx context.Context, event Event, dispatchID
 		BodySHA256: hex.EncodeToString(digest[:]),
 	})
 	if err != nil {
-		return agenthooks.Response{}, dispatchOutcome{result: ResultProtocolError, err: xerrors.Errorf("sign request: %w", err)}
+		return dispatchOutcome{result: ResultProtocolError, err: xerrors.Errorf("sign request: %w", err)}
 	}
 
 	response, result, err := d.post(ctx, body, token)
@@ -296,7 +293,7 @@ func (d *Dispatcher) prepareAndPost(ctx context.Context, event Event, dispatchID
 		err:      err,
 	}
 	if err != nil {
-		return agenthooks.Response{}, outcome
+		return outcome
 	}
 	if err := validateResponse(event.Type, response); err != nil {
 		// Drop the rejected response so its decision, override, and context
@@ -304,12 +301,12 @@ func (d *Dispatcher) prepareAndPost(ctx context.Context, event Event, dispatchID
 		outcome.response = agenthooks.Response{}
 		outcome.result = ResultProtocolError
 		outcome.err = err
-		return agenthooks.Response{}, outcome
+		return outcome
 	}
 	if response.Permission != nil && response.Permission.Decision == agenthooks.PermissionDeny {
 		outcome.result = ResultDenied
 	}
-	return response, outcome
+	return outcome
 }
 
 func (d *Dispatcher) post(
@@ -468,6 +465,9 @@ const (
 // otherwise drop the decision the consumer intended. Envelope keys also
 // collide when they differ only by folding, matching how encoding/json
 // resolves struct fields, so "Permission" cannot override "permission".
+//
+// CLEANUP: json/v2 removes the need for this. It matches names case-sensitively
+// and RejectDuplicateNames rejects exact duplicates.
 func rejectDuplicateKeys(decoder *json.Decoder, depth int, matching keyMatching) error {
 	if depth > maxResponseJSONDepth {
 		return xerrors.New("response JSON exceeds supported nesting depth")
