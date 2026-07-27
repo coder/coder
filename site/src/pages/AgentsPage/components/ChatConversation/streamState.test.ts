@@ -696,7 +696,6 @@ describe("applyMessagePartToStreamState", () => {
 			name: "bash",
 			args: { command: "rm -rf /" },
 			result: { error: "permission denied" },
-			isError: true,
 			status: "error",
 		});
 	});

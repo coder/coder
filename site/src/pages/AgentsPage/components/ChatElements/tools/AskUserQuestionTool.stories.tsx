@@ -458,8 +458,7 @@ export const ReadOnlyPreviousCall: Story = {
 
 export const ErrorState: Story = {
 	args: {
-		status: "completed",
-		isError: true,
+		status: "error",
 		result: "The planning agent could not deliver follow-up questions.",
 	},
 	play: async ({ canvasElement }) => {

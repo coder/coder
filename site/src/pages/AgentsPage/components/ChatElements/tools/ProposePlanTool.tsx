@@ -13,14 +13,13 @@ import { getPathBasename } from "../../../utils/path";
 import { Response } from "../Response";
 import { TranscriptRow } from "../TranscriptRow";
 import { ToolCall } from "./ToolCall";
-import type { ToolStatus } from "./utils";
+import { foldResultFailure, type ToolStatus } from "./utils";
 
 export const ProposePlanTool: React.FC<{
 	content?: string;
 	fileID?: string;
 	path: string;
 	status: ToolStatus;
-	isError: boolean;
 	errorMessage?: string;
 	onImplementPlan?: () => Promise<void> | void;
 }> = ({
@@ -28,7 +27,6 @@ export const ProposePlanTool: React.FC<{
 	fileID,
 	path,
 	status,
-	isError,
 	errorMessage,
 	onImplementPlan,
 }) => {
@@ -57,7 +55,9 @@ export const ProposePlanTool: React.FC<{
 		: (fileQuery.data ?? "");
 	const isRunning = status === "running";
 	const filename = getPathBasename(path || "PLAN.md") || "PLAN.md";
-	const effectiveError = isError || Boolean(fetchError);
+	// A plan whose body could not be fetched is as unusable as one the
+	// tool never produced.
+	const effectiveStatus = foldResultFailure(status, Boolean(fetchError));
 	const effectiveErrorMessage = errorMessage || fetchError;
 	const hasDisplayContent = displayContent.trim().length > 0;
 	const implementPlanMutation = useMutation({
@@ -67,8 +67,7 @@ export const ProposePlanTool: React.FC<{
 		},
 	});
 	const canImplementPlan =
-		status === "completed" &&
-		!effectiveError &&
+		effectiveStatus === "completed" &&
 		!fetchLoading &&
 		hasDisplayContent &&
 		Boolean(onImplementPlan);
@@ -76,8 +75,7 @@ export const ProposePlanTool: React.FC<{
 	return (
 		<div className="w-full">
 			<ToolCall.Root
-				status={status}
-				isError={effectiveError}
+				status={effectiveStatus}
 				errorMessage={effectiveErrorMessage || "Failed to propose plan"}
 				hasContent={false}
 			>
@@ -127,7 +125,7 @@ export const ProposePlanTool: React.FC<{
 				</>
 			) : (
 				!fetchLoading &&
-				!effectiveError && (
+				effectiveStatus !== "error" && (
 					<p className="text-[13px] text-content-secondary italic">
 						No plan content.
 					</p>

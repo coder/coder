@@ -40,6 +40,7 @@ import {
 	asString,
 	buildEditDiff,
 	DIFFS_FONT_STYLE,
+	foldResultFailure,
 	formatModelIntentLabel,
 	formatResultOutput,
 	formatToolInput,
@@ -64,7 +65,6 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	status?: ToolStatus;
 	args?: unknown;
 	result?: unknown;
-	isError?: boolean;
 	killedBySignal?: "kill" | "terminate";
 	/** Maps sub-agent chat IDs to their titles, built from transcript metadata. */
 	subagentTitles?: Map<string, string>;
@@ -99,7 +99,6 @@ type ToolRendererProps = {
 	status: ToolStatus;
 	args: unknown;
 	result: unknown;
-	isError: boolean;
 	killedBySignal?: "kill" | "terminate";
 	subagentTitles?: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
@@ -215,7 +214,6 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	status,
 	args,
 	result,
-	isError,
 	killedBySignal,
 	modelIntent,
 	parsedCommands,
@@ -227,7 +225,6 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 			command={data.command}
 			transcriptBlocks={data.transcriptBlocks}
 			status={status}
-			isError={isError}
 			errorText={data.errorText}
 			durationMs={data.durationMs}
 			isBackgrounded={data.isBackgrounded}
@@ -242,7 +239,6 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 	status,
 	result,
-	isError,
 	killedBySignal,
 	shellToolDisplayMode,
 }) => {
@@ -256,9 +252,8 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 	return (
 		<ProcessOutputTool
 			output={output}
-			isRunning={status === "running"}
+			status={status}
 			exitCode={exitCode}
-			isError={isError}
 			errorMessage={errorMessage || undefined}
 			killedBySignal={killedBySignal}
 			shellToolDisplayMode={shellToolDisplayMode}
@@ -266,24 +261,11 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const ReadFileRenderer: FC<ToolRendererProps> = ({
-	status,
-	args,
-	result,
-	isError,
-}) => (
-	<ReadFileTool
-		{...getReadFileToolData({ args, result, isError })}
-		status={status}
-	/>
+const ReadFileRenderer: FC<ToolRendererProps> = ({ status, args, result }) => (
+	<ReadFileTool {...getReadFileToolData({ args, result })} status={status} />
 );
 
-const ReadSkillRenderer: FC<ToolRendererProps> = ({
-	status,
-	args,
-	result,
-	isError,
-}) => {
+const ReadSkillRenderer: FC<ToolRendererProps> = ({ status, args, result }) => {
 	const parsedArgs = parseArgs(args);
 	const skillName = parsedArgs ? asString(parsedArgs.name) : "";
 	const rec = asRecord(result);
@@ -294,7 +276,6 @@ const ReadSkillRenderer: FC<ToolRendererProps> = ({
 			label={skillName ? `skill ${skillName}` : "skill"}
 			body={body}
 			status={status}
-			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
 		/>
 	);
@@ -304,7 +285,6 @@ const ReadSkillFileRenderer: FC<ToolRendererProps> = ({
 	status,
 	args,
 	result,
-	isError,
 }) => {
 	const parsedArgs = parseArgs(args);
 	const skillName = parsedArgs ? asString(parsedArgs.name) : "";
@@ -321,7 +301,6 @@ const ReadSkillFileRenderer: FC<ToolRendererProps> = ({
 			label={label}
 			body={content}
 			status={status}
-			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
 		/>
 	);
@@ -331,7 +310,6 @@ const WriteFileRenderer: FC<ToolRendererProps> = ({
 	status,
 	args,
 	result,
-	isError,
 	codeDiffDisplayMode,
 }) => {
 	const parsedArgs = parseArgs(args);
@@ -344,7 +322,6 @@ const WriteFileRenderer: FC<ToolRendererProps> = ({
 			path={path || "file"}
 			diff={writeFileDiff}
 			status={status}
-			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
 			codeDiffDisplayMode={codeDiffDisplayMode}
 		/>
@@ -355,7 +332,6 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 	status,
 	args,
 	result,
-	isError,
 	codeDiffDisplayMode,
 }) => {
 	const rec = asRecord(result);
@@ -363,21 +339,21 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 	// On error, render no diff: the agent rejected the edit, so a
 	// synthetic args-derived diff would misrepresent it as applied.
 	const serverResults = parseServerEditResults(result);
-	const editDiffs = isError
-		? editFiles.map(() => null)
-		: editFiles.map((file) => {
-				const entry = serverResults?.find((d) => d.path === file.path);
-				return entry
-					? parseServerEditDiffText(entry.diff)
-					: buildEditDiff(file.path, file.edits);
-			});
+	const editDiffs =
+		status === "error"
+			? editFiles.map(() => null)
+			: editFiles.map((file) => {
+					const entry = serverResults?.find((d) => d.path === file.path);
+					return entry
+						? parseServerEditDiffText(entry.diff)
+						: buildEditDiff(file.path, file.edits);
+				});
 
 	return (
 		<EditFilesTool
 			files={editFiles}
 			diffs={editDiffs}
 			status={status}
-			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
 			codeDiffDisplayMode={codeDiffDisplayMode}
 		/>
@@ -386,16 +362,11 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 
 // Once the tool finishes, the result becomes a JSON object
 // with workspace metadata.
-const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
-	status,
-	result,
-	isError,
-}) => {
+const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({ status, result }) => {
 	const rec = asRecord(result);
 	const wsName = rec ? asString(rec.workspace_name) : "";
 	const buildId = rec ? asString(rec.build_id) : undefined;
 	const resultJson = rec ? JSON.stringify(rec, null, 2) : "";
-	const hasErrorInResult = Boolean(rec?.error);
 	const created = rec?.created !== false;
 	const quotaTitle = getWorkspaceQuotaTitle(rec);
 
@@ -403,8 +374,7 @@ const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
 		<CreateWorkspaceTool
 			workspaceName={wsName}
 			resultJson={resultJson}
-			status={status}
-			isError={isError || hasErrorInResult}
+			status={foldResultFailure(status, Boolean(rec?.error))}
 			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
 			buildId={buildId}
 			created={created}
@@ -418,7 +388,6 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 	status,
 	args,
 	result,
-	isError,
 	subagentTitles,
 	subagentVariants,
 	showDesktopPreviews = true,
@@ -471,17 +440,14 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		title = rawTitle;
 	}
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
-	const subagentToolStatus = mapSubagentStatusToToolStatus(
-		subagentStatus,
-		status,
-	);
-	let subagentIsError = subagentToolStatus === "error";
-	if (!subagentIsError) {
-		const toolFailed = status === "error" || isError;
-		if (toolFailed && !subagentCompleted) {
-			subagentIsError = true;
-		}
-	}
+	// The tool-call status is authoritative for failure: a failed
+	// spawn/await call is finished, even when the result body's
+	// sub-agent snapshot still reports the sub-agent as active.
+	const subagentToolStatus: ToolStatus =
+		status === "error" && !subagentCompleted
+			? "error"
+			: mapSubagentStatusToToolStatus(subagentStatus, status);
+	const subagentFailed = subagentToolStatus === "error";
 
 	// Detect timeout from the result. A timed-out wait_agent
 	// returns a structured payload with timed_out: true
@@ -491,7 +457,7 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 	let isTimeout = false;
 	if (rec && rec.timed_out === true) {
 		isTimeout = true;
-	} else if (subagentIsError) {
+	} else if (subagentFailed) {
 		const timedOutInResult = resultStr.toLowerCase().includes("timed out");
 		const timedOutInError = errorStr.toLowerCase().includes("timed out");
 		if (timedOutInResult || timedOutInError) {
@@ -509,7 +475,6 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 			message={subagentMessage || undefined}
 			report={chatId ? report || undefined : undefined}
 			toolStatus={subagentToolStatus}
-			isError={subagentIsError}
 			isTimeout={isTimeout}
 			showDesktopPreview={
 				Boolean(chatId) &&
@@ -522,11 +487,7 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const ListTemplatesRenderer: FC<ToolRendererProps> = ({
-	status,
-	result,
-	isError,
-}) => {
+const ListTemplatesRenderer: FC<ToolRendererProps> = ({ status, result }) => {
 	const rec = asRecord(result);
 	const templates = rec && Array.isArray(rec.templates) ? rec.templates : [];
 	const count = rec
@@ -538,17 +499,12 @@ const ListTemplatesRenderer: FC<ToolRendererProps> = ({
 			templates={templates}
 			count={count}
 			status={status}
-			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
 		/>
 	);
 };
 
-const ListAgentsRenderer: FC<ToolRendererProps> = ({
-	status,
-	result,
-	isError,
-}) => {
+const ListAgentsRenderer: FC<ToolRendererProps> = ({ status, result }) => {
 	const rec = asRecord(result);
 	const agents = rec && Array.isArray(rec.agents) ? rec.agents : [];
 	const total = rec
@@ -560,11 +516,10 @@ const ListAgentsRenderer: FC<ToolRendererProps> = ({
 			agents={agents}
 			total={total}
 			status={status}
-			isError={isError}
 			errorMessage={
 				rec
 					? asString(rec.error || rec.message)
-					: typeof result === "string" && isError
+					: typeof result === "string" && status === "error"
 						? result
 						: undefined
 			}
@@ -572,11 +527,7 @@ const ListAgentsRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const ReadTemplateRenderer: FC<ToolRendererProps> = ({
-	status,
-	result,
-	isError,
-}) => {
+const ReadTemplateRenderer: FC<ToolRendererProps> = ({ status, result }) => {
 	const rec = asRecord(result);
 	const templateRec = rec ? asRecord(rec.template) : undefined;
 	const name = templateRec
@@ -587,7 +538,6 @@ const ReadTemplateRenderer: FC<ToolRendererProps> = ({
 		<ReadTemplateTool
 			templateName={name}
 			status={status}
-			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
 		/>
 	);
@@ -597,7 +547,6 @@ const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 	status,
 	args,
 	result,
-	isError,
 }) => {
 	const rec = asRecord(result);
 	const summary =
@@ -614,7 +563,6 @@ const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 		<ChatSummarizedTool
 			summary={summary}
 			status={status}
-			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
 			source={source || undefined}
 		/>
@@ -625,7 +573,6 @@ const AskUserQuestionRenderer: FC<ToolRendererProps> = ({
 	args,
 	status,
 	result,
-	isError,
 	onSendAskUserQuestionResponse,
 	isChatCompleted,
 	isLatestAskUserQuestion,
@@ -646,13 +593,12 @@ const AskUserQuestionRenderer: FC<ToolRendererProps> = ({
 	const errorMessage =
 		(resultRecord
 			? asString(resultRecord.error || resultRecord.message)
-			: "") || (typeof result === "string" && isError ? result : "");
+			: "") || (typeof result === "string" && status === "error" ? result : "");
 
 	return (
 		<AskUserQuestionTool
 			questions={questions}
 			status={status}
-			isError={isError}
 			errorMessage={errorMessage || undefined}
 			onSubmitAnswer={onSendAskUserQuestionResponse}
 			isChatCompleted={isChatCompleted}
@@ -666,7 +612,6 @@ const ProposePlanRenderer: FC<ToolRendererProps> = ({
 	args,
 	status,
 	result,
-	isError,
 	onImplementPlan,
 }) => {
 	const parsedArgs = parseArgs(args);
@@ -674,10 +619,11 @@ const ProposePlanRenderer: FC<ToolRendererProps> = ({
 	const rec = asRecord(result);
 	const content = rec && "content" in rec ? asString(rec.content) : undefined;
 	const fileID = rec && "file_id" in rec ? asString(rec.file_id) : undefined;
-	const errorMessage = isError
-		? (rec ? asString(rec.error || rec.message) : undefined) ||
-			(typeof result === "string" ? result : undefined)
-		: undefined;
+	const errorMessage =
+		status === "error"
+			? (rec ? asString(rec.error || rec.message) : undefined) ||
+				(typeof result === "string" ? result : undefined)
+			: undefined;
 
 	return (
 		<ProposePlanTool
@@ -685,24 +631,18 @@ const ProposePlanRenderer: FC<ToolRendererProps> = ({
 			fileID={fileID}
 			path={path}
 			status={status}
-			isError={isError}
 			errorMessage={errorMessage}
 			onImplementPlan={onImplementPlan}
 		/>
 	);
 };
 
-const AdvisorRenderer: FC<ToolRendererProps> = ({
-	args,
-	status,
-	result,
-	isError,
-}) => {
+const AdvisorRenderer: FC<ToolRendererProps> = ({ args, status, result }) => {
 	const parsedArgs = parseArgs(args);
 	const question = parsedArgs ? asString(parsedArgs.question) : "";
 	const rec = asRecord(result);
 	const rawResultType = rec ? asString(rec.type) : "";
-	const hasError = status === "error" || isError;
+	const hasError = status === "error";
 	const advice = rec
 		? asString(rec.advice)
 		: typeof result === "string" && !hasError
@@ -730,8 +670,7 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 	return (
 		<AdvisorTool
 			question={question}
-			status={status}
-			isError={hasError}
+			status={foldResultFailure(status, resolvedResultType === "error")}
 			resultType={resolvedResultType}
 			advice={advice}
 			errorMessage={errorMessage || undefined}
@@ -741,11 +680,7 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const ComputerRenderer: FC<ToolRendererProps> = ({
-	status,
-	result,
-	isError,
-}) => {
+const ComputerRenderer: FC<ToolRendererProps> = ({ status, result }) => {
 	let imageData = "";
 	let mimeType = "image/png";
 	let text = "";
@@ -798,7 +733,6 @@ const ComputerRenderer: FC<ToolRendererProps> = ({
 			mimeType={mimeType}
 			text={text}
 			status={status}
-			isError={isError}
 		/>
 	);
 };
@@ -900,7 +834,6 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	status,
 	args,
 	result,
-	isError,
 	mcpServerConfigId,
 	mcpServers,
 	modelIntent,
@@ -935,7 +868,6 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	return (
 		<ToolCall.Root
 			status={status}
-			isError={isError}
 			errorMessage={errorMessage || fallbackErrorMessage}
 			hasContent={hasContent}
 		>
@@ -970,41 +902,33 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 };
 
 // ---------------------------------------------------------------------------
-// process_signal promotes soft failures (success=false
-// in the result body, isError=false at protocol level) so the generic
-// renderer shows the error indicator and tooltip.
+// process_signal reports failures as success=false in the result body rather
+// than as a protocol error, so fold that into the status for the generic
+// renderer.
 // ---------------------------------------------------------------------------
 
 const ProcessSignalRenderer: FC<ToolRendererProps> = (props) => {
 	const rec = asRecord(props.result);
-	const isSoftFailure =
-		!props.isError &&
-		props.status !== "running" &&
-		rec !== null &&
-		!rec.success;
 	return (
-		<GenericToolRenderer {...props} isError={props.isError || isSoftFailure} />
+		<GenericToolRenderer
+			{...props}
+			status={foldResultFailure(props.status, rec !== null && !rec.success)}
+		/>
 	);
 };
 
-const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
-	status,
-	result,
-	isError,
-}) => {
+const StartWorkspaceRenderer: FC<ToolRendererProps> = ({ status, result }) => {
 	const rec = asRecord(result);
 	const wsName = rec ? asString(rec.workspace_name) : "";
 	const buildId = rec ? asString(rec.build_id) : undefined;
-	const hasErrorInResult = Boolean(rec?.error);
 	const noBuild = Boolean(rec?.no_build);
 	const quotaTitle = getWorkspaceQuotaTitle(rec);
 
 	return (
 		<StartWorkspaceTool
-			status={status}
+			status={foldResultFailure(status, Boolean(rec?.error))}
 			buildId={buildId}
 			workspaceName={wsName}
-			isError={isError || hasErrorInResult}
 			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
 			noBuild={noBuild}
 			labelOverride={quotaTitle}
@@ -1048,7 +972,6 @@ export const Tool = memo(
 		status = "completed",
 		args,
 		result,
-		isError = false,
 		killedBySignal,
 		subagentTitles,
 		subagentVariants,
@@ -1093,7 +1016,6 @@ export const Tool = memo(
 					status={status}
 					args={args}
 					result={result}
-					isError={isError}
 					killedBySignal={killedBySignal}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}

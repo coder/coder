@@ -42,11 +42,9 @@ const ReadFileContent: React.FC<{
 export const getReadFileToolData = ({
 	args,
 	result,
-	isError,
 }: {
 	args?: unknown;
 	result?: unknown;
-	isError: boolean;
 }) => {
 	const parsedArgs = parseArgs(args);
 	const path = parsedArgs ? asString(parsedArgs.path).trim() : "";
@@ -54,7 +52,6 @@ export const getReadFileToolData = ({
 	return {
 		path: path || "file",
 		content: rec ? asString(rec.content).trim() : "",
-		isError,
 		errorMessage: rec ? asString(rec.error || rec.message) : undefined,
 	};
 };
@@ -67,19 +64,11 @@ export const ReadFileTool: React.FC<{
 	path: string;
 	content: string;
 	status: ToolStatus;
-	isError: boolean;
 	errorMessage?: string;
 	expanded?: boolean;
 	onExpandedChange?: (expanded: boolean) => void;
-}> = ({
-	path,
-	content,
-	status,
-	isError,
-	errorMessage,
-	expanded,
-	onExpandedChange,
-}) => {
+}> = ({ path, content, status, errorMessage, expanded, onExpandedChange }) => {
+	const isError = status === "error";
 	const hasContent = content.length > 0 || isError;
 	const isRunning = status === "running";
 	const filename = getPathBasename(path);
@@ -89,7 +78,6 @@ export const ReadFileTool: React.FC<{
 		<ToolCall.Root
 			className="w-full"
 			status={status}
-			isError={isError}
 			errorMessage={errorMessage || "Failed to read file"}
 			hasContent={hasContent}
 			expanded={expanded}

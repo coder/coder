@@ -16,13 +16,16 @@ import {
 	resolveAgentDisplayState,
 } from "./displayMode";
 import { ToolCall } from "./ToolCall";
-import { COLLAPSED_OUTPUT_HEIGHT, signalTooltipLabel } from "./utils";
+import {
+	COLLAPSED_OUTPUT_HEIGHT,
+	signalTooltipLabel,
+	type ToolStatus,
+} from "./utils";
 
 type ProcessOutputToolProps = {
 	output: string;
-	isRunning: boolean;
+	status: ToolStatus;
 	exitCode: number | null;
-	isError: boolean;
 	errorMessage?: string;
 	killedBySignal?: "kill" | "terminate";
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
@@ -54,14 +57,15 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = (props) => {
 
 const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 	output,
-	isRunning,
+	status,
 	exitCode,
-	isError,
 	errorMessage,
 	killedBySignal,
 	defaultView,
 	outputInitiallyFullyExpanded,
 }) => {
+	const isRunning = status === "running";
+	const isError = status === "error";
 	const [outputFullyExpanded, setOutputFullyExpanded] = useState(
 		outputInitiallyFullyExpanded,
 	);
@@ -83,8 +87,7 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 	return (
 		<ToolCall.Root
 			className="group/proc w-full"
-			status={isRunning ? "running" : isError ? "error" : "completed"}
-			isError={isError}
+			status={status}
 			errorMessage={errorMessage || "Failed to read process output"}
 			hasContent={hasOutput}
 			defaultView={defaultView}

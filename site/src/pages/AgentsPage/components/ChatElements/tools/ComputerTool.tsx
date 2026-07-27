@@ -16,9 +16,8 @@ export const ComputerTool: React.FC<{
 	mimeType: string;
 	text: string;
 	status: ToolStatus;
-	isError: boolean;
 	errorMessage?: string;
-}> = ({ imageData, mimeType, text, status, isError, errorMessage }) => {
+}> = ({ imageData, mimeType, text, status, errorMessage }) => {
 	const [showLightbox, setShowLightbox] = useState(false);
 	const isRunning = status === "running";
 	const hasImage = imageData.length > 0;
@@ -30,7 +29,6 @@ export const ComputerTool: React.FC<{
 		<ToolCall.Root
 			className="w-full"
 			status={status}
-			isError={isError}
 			errorMessage={errorMessage || "Failed to take screenshot"}
 			hasContent={hasContent}
 			defaultExpanded={hasImage}

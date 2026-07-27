@@ -71,7 +71,6 @@ const useToolCallContext = () => {
 type ToolCallRootProps = Omit<ComponentPropsWithoutRef<"div">, "children"> & {
 	children: ReactNode;
 	status: ToolStatus;
-	isError?: boolean;
 	errorMessage?: string;
 	hasContent?: boolean;
 	defaultExpanded?: boolean;
@@ -93,7 +92,6 @@ type ToolCallRootProps = Omit<ComponentPropsWithoutRef<"div">, "children"> & {
 const Root: FC<ToolCallRootProps> = ({
 	children,
 	status,
-	isError = false,
 	errorMessage,
 	hasContent = true,
 	defaultExpanded = false,
@@ -120,7 +118,7 @@ const Root: FC<ToolCallRootProps> = ({
 	const expanded = view !== "collapsed";
 	const collapsible = hasContent;
 	const active = status === "running";
-	const failed = status !== "running" && (isError || status === "error");
+	const failed = status === "error";
 	const onToggle = () => {
 		const nextView: ToolCallView = expanded ? "collapsed" : "expanded";
 		if (controlledView === undefined) {

@@ -13,7 +13,6 @@ const meta: Meta<typeof ExecuteTool> = {
 	component: ExecuteTool,
 	args: {
 		status: "completed",
-		isError: false,
 		transcriptBlocks: [],
 	},
 };
@@ -119,8 +118,7 @@ export const Running: Story = {
 export const ErrorOutput: Story = {
 	args: {
 		command: "make build",
-		status: "completed",
-		isError: true,
+		status: "error",
 		transcriptBlocks: [
 			{
 				kind: "output",
@@ -139,7 +137,6 @@ export const ConnectionError: Story = {
 	args: {
 		command: "ls -la",
 		status: "error",
-		isError: true,
 		shellToolDisplayMode: "auto",
 		transcriptBlocks: [{ kind: "error", text: stoppedWorkspaceError }],
 	},

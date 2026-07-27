@@ -131,6 +131,17 @@ export const formatShellDurationMs = (
 export const normalizeStatus = (status: string): string =>
 	status.trim().toLowerCase();
 
+/**
+ * Folds a failure that is only visible in the tool result body (or in a
+ * follow-up fetch) into the tool status, so `status` stays the single
+ * representation of failure. A running call stays running: its partial
+ * result body can already carry error fields.
+ */
+export const foldResultFailure = (
+	status: ToolStatus,
+	failedInResult: boolean,
+): ToolStatus => (status === "running" || !failedInResult ? status : "error");
+
 export const isSubagentSuccessStatus = (status: string): boolean => {
 	switch (normalizeStatus(status)) {
 		case "completed":

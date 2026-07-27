@@ -8,7 +8,6 @@ type ReadFileItem = {
 	path: string;
 	content: string;
 	status: MergedTool["status"];
-	isError: boolean;
 	errorMessage?: string;
 };
 
@@ -28,7 +27,7 @@ export const ReadFilesTool: FC<{
 	);
 	const items = tools.map(getReadFileItem);
 	const isRunning = tools.some((tool) => tool.status === "running");
-	const isError = tools.some((tool) => tool.isError);
+	const isError = tools.some((tool) => tool.status === "error");
 	const hasContent = items.length > 0;
 	const label = isRunning
 		? `Reading ${tools.length} files…`
@@ -40,7 +39,6 @@ export const ReadFilesTool: FC<{
 			<ToolCall.Root
 				className="w-full"
 				status={isRunning ? "running" : isError ? "error" : "completed"}
-				isError={isError}
 				errorMessage={errorMessage || "Failed to read one or more files"}
 				hasContent={hasContent}
 				expanded={expanded}
@@ -55,7 +53,6 @@ export const ReadFilesTool: FC<{
 									path={item.path}
 									content={item.content}
 									status={item.status}
-									isError={item.isError}
 									errorMessage={item.errorMessage}
 									expanded={expandedFileIDs.has(item.id)}
 									onExpandedChange={(nextExpanded) => {

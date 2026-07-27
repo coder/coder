@@ -8,9 +8,8 @@ export const ReadSkillTool: React.FC<{
 	label: string;
 	body: string;
 	status: ToolStatus;
-	isError: boolean;
 	errorMessage?: string;
-}> = ({ label, body, status, isError, errorMessage }) => {
+}> = ({ label, body, status, errorMessage }) => {
 	const hasContent = body.length > 0;
 	const isRunning = status === "running";
 
@@ -18,7 +17,6 @@ export const ReadSkillTool: React.FC<{
 		<ToolCall.Root
 			className="w-full"
 			status={status}
-			isError={isError}
 			errorMessage={errorMessage || "Failed to read skill"}
 			hasContent={hasContent}
 		>

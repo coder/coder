@@ -25,14 +25,14 @@ export const WriteFileTool: React.FC<{
 	path: string;
 	diff: FileDiffMetadata | null;
 	status: ToolStatus;
-	isError: boolean;
 	errorMessage?: string;
 	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
-}> = ({ path, diff, status, isError, errorMessage, codeDiffDisplayMode }) => {
+}> = ({ path, diff, status, errorMessage, codeDiffDisplayMode }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
 	const hasDiff = diff !== null;
 	const isRunning = status === "running";
+	const isError = status === "error";
 	const displayState = resolveAgentDisplayState(
 		codeDiffDisplayMode,
 		WRITE_FILE_AUTO_DISPLAY_STATE,
@@ -55,7 +55,6 @@ export const WriteFileTool: React.FC<{
 			key={`${codeDiffDisplayMode ?? "auto"}:${WRITE_FILE_AUTO_DISPLAY_STATE}`}
 			className="w-full"
 			status={status}
-			isError={isError}
 			errorMessage={errorMessage || "Failed to write file"}
 			hasContent={showDiff || Boolean(errorDetail)}
 			defaultView={displayState}

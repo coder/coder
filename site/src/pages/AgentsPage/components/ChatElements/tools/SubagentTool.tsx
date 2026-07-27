@@ -118,14 +118,12 @@ function getSubagentLabel(
 const SubagentStatusIcon: React.FC<{
 	subagentStatus: string;
 	toolStatus: ToolStatus;
-	isError: boolean;
 	isTimeout: boolean;
 	iconKind?: SubagentDescriptor["iconKind"];
 	showDesktopPreview?: boolean;
 }> = ({
 	subagentStatus,
 	toolStatus,
-	isError,
 	isTimeout,
 	iconKind = "bot",
 	showDesktopPreview = false,
@@ -135,7 +133,7 @@ const SubagentStatusIcon: React.FC<{
 	if (isTimeout && !subagentCompleted) {
 		return <ClockIcon className="size-4 shrink-0 stroke-[1.5] text-current" />;
 	}
-	if ((isError && !subagentCompleted) || toolStatus === "error") {
+	if (toolStatus === "error") {
 		return <CircleXIcon className="size-4 shrink-0 text-current" />;
 	}
 	if (toolStatus === "running") {
@@ -166,7 +164,6 @@ export const SubagentTool: React.FC<{
 	message?: string;
 	report?: string;
 	toolStatus: ToolStatus;
-	isError: boolean;
 	isTimeout?: boolean;
 	/** Show an inline VNC desktop preview (for computer-use subagents). */
 	showDesktopPreview?: boolean;
@@ -183,7 +180,6 @@ export const SubagentTool: React.FC<{
 	message,
 	report,
 	toolStatus,
-	isError,
 	isTimeout = false,
 	showDesktopPreview,
 	recordingFileId,
@@ -215,7 +211,6 @@ export const SubagentTool: React.FC<{
 		<ToolCall.Root
 			className="w-full"
 			status={toolStatus}
-			isError={isError}
 			hasContent={hasExpandableContent}
 			expanded={expanded}
 			onExpandedChange={setExpanded}
@@ -226,7 +221,6 @@ export const SubagentTool: React.FC<{
 						<SubagentStatusIcon
 							subagentStatus={subagentStatus}
 							toolStatus={toolStatus}
-							isError={isError}
 							isTimeout={isTimeout}
 							iconKind={descriptor.iconKind}
 							showDesktopPreview={showDesktopPreview}

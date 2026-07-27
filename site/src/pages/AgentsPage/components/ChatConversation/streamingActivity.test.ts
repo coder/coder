@@ -51,7 +51,6 @@ const streamState = (blocks: StreamState["blocks"]): StreamState => ({
 const tool = (status: MergedTool["status"]): MergedTool => ({
 	id: status,
 	name: "read_file",
-	isError: false,
 	status,
 });
 

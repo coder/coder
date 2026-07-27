@@ -89,8 +89,8 @@ export const SuccessTerminate: Story = {
 
 /**
  * Backend errorResult() wraps failures in NewTextResponse (not
- * NewTextErrorResponse), so isError stays false. The renderer
- * detects this via the success=false field.
+ * NewTextErrorResponse), so the protocol status stays "completed".
+ * The renderer detects this via the success=false field.
  */
 export const SoftFailureKill: Story = {
 	args: {
@@ -128,12 +128,11 @@ export const SoftFailureTerminate: Story = {
 
 /**
  * Protocol-level error from NewTextErrorResponse (e.g. missing
- * args). isError is true, result is a plain string.
+ * args). The status is "error", result is a plain string.
  */
 export const ProtocolError: Story = {
 	args: {
-		status: "completed",
-		isError: true,
+		status: "error",
 		args: { process_id: "", signal: "kill" },
 		result: "process_id is required",
 	},
@@ -148,8 +147,7 @@ export const ProtocolError: Story = {
  */
 export const ProtocolErrorStructured: Story = {
 	args: {
-		status: "completed",
-		isError: true,
+		status: "error",
 		args: { process_id: PROCESS_ID, signal: "terminate" },
 		result: {
 			success: false,

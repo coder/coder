@@ -221,8 +221,7 @@ export const EmptyAdvice: Story = {
 
 export const BlankError: Story = {
 	args: {
-		status: "completed",
-		isError: true,
+		status: "error",
 		args: { question: sampleQuestion },
 		result: {
 			type: "error",
@@ -277,8 +276,8 @@ export const StatusErrorWithStringResult: Story = {
 };
 
 // Exercises the plain-string result branch in AdvisorRenderer (Tool.tsx),
-// where a non-object `result` is treated as raw advice text when
-// `isError` is false.
+// where a non-object `result` is treated as raw advice text when the
+// tool call did not fail.
 export const PlainStringResult: Story = {
 	args: {
 		status: "completed",

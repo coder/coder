@@ -243,7 +243,6 @@ const buildParsedReadFileEntry = ({
 	status,
 	content = "",
 	errorMessage,
-	isError = status === "error",
 }: {
 	messageId: number;
 	toolId: string;
@@ -251,7 +250,6 @@ const buildParsedReadFileEntry = ({
 	status: "completed" | "error" | "running";
 	content?: string;
 	errorMessage?: string;
-	isError?: boolean;
 }): ParsedMessageEntry => {
 	const args = { path };
 	const result =
@@ -287,7 +285,6 @@ const buildParsedReadFileEntry = ({
 					name: "read_file",
 					args,
 					result,
-					isError,
 					status,
 				},
 			],
@@ -2368,7 +2365,6 @@ export const ToolDisplayModesFromPreferences: Story = {
 							name: "execute",
 							args: { command: "pnpm test" },
 							result: { output: "tests passed" },
-							isError: false,
 							status: "completed",
 						},
 						{
@@ -2388,7 +2384,6 @@ export const ToolDisplayModesFromPreferences: Story = {
 								],
 							},
 							result: { ok: true },
-							isError: false,
 							status: "completed",
 						},
 					],

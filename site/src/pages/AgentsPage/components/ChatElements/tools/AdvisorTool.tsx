@@ -12,7 +12,6 @@ export type AdvisorToolResultType = "advice" | "limit_reached" | "error";
 type AdvisorToolProps = {
 	question: string;
 	status: ToolStatus;
-	isError: boolean;
 	resultType?: AdvisorToolResultType;
 	advice?: string;
 	errorMessage?: string;
@@ -30,7 +29,6 @@ const EMPTY_ADVICE_MESSAGE = "Advisor returned no guidance.";
 export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 	question,
 	status,
-	isError,
 	resultType,
 	advice,
 	errorMessage,
@@ -43,7 +41,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 	const effectiveErrorMessage = errorMessage?.trim() || FALLBACK_ERROR;
 	const isRunning = status === "running";
 	const showLimitReached = resultType === "limit_reached";
-	const showError = isError || resultType === "error";
+	const showError = status === "error";
 
 	const headerStatus = showLimitReached ? (
 		<TriangleAlertIcon className="mt-0.5 size-3.5 shrink-0 text-content-warning" />
@@ -57,7 +55,6 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 		<ToolCall.Root
 			className="w-full"
 			status={status}
-			isError={showError}
 			errorMessage={effectiveErrorMessage}
 			hasContent
 			defaultExpanded

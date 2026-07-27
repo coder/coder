@@ -73,7 +73,6 @@ const readFileTool = (id: string): MergedTool => ({
 	name: "read_file",
 	args: readFileArgs(id),
 	result: { content: id },
-	isError: false,
 	status: "completed",
 });
 
@@ -137,7 +136,6 @@ const executeMessage = (messageID: number): ParsedMessageEntry => {
 		id: "execute-1",
 		name: "execute",
 		args,
-		isError: false,
 		status: "completed",
 	};
 	return entry({
@@ -207,7 +205,6 @@ describe("deriveMessageDisplayState", () => {
 			id: "execute-1",
 			name: "execute",
 			args: { command: "pnpm test" },
-			isError: false,
 			status: "completed",
 		};
 		const message = buildMessage(
@@ -234,7 +231,6 @@ describe("deriveMessageDisplayState", () => {
 			id: "execute-1",
 			name: "execute",
 			args: { command: "pnpm test" },
-			isError: false,
 			status: "completed",
 		};
 		const message = buildMessage(
@@ -372,7 +368,6 @@ describe("deriveMessageDisplayState", () => {
 							id: "tool-1",
 							name: "execute",
 							args: { command: "pnpm test" },
-							isError: false,
 							status: "completed",
 						},
 					],
@@ -392,7 +387,6 @@ describe("deriveMessageDisplayState", () => {
 					id: "wait-1",
 					name: "wait_agent",
 					args: {},
-					isError: false,
 					status: "running",
 				},
 			],
@@ -454,7 +448,6 @@ describe("buildDisplayMessages", () => {
 					count: "1",
 					templates: '[{"name":"docker","display_name":"Docker"}]',
 				},
-				isError: false,
 				status: "completed",
 				mcpServerConfigId: undefined,
 				modelIntent: undefined,

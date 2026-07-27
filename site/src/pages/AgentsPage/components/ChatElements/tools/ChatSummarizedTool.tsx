@@ -13,10 +13,9 @@ import type { ToolStatus } from "./utils";
 export const ChatSummarizedTool: React.FC<{
 	summary: string;
 	status: ToolStatus;
-	isError: boolean;
 	errorMessage?: string;
 	source?: string;
-}> = ({ summary, status, isError, errorMessage, source }) => {
+}> = ({ summary, status, errorMessage, source }) => {
 	const hasSummary = summary.trim().length > 0;
 	const isRunning = status === "running";
 	const isManual = source === "manual";
@@ -25,7 +24,6 @@ export const ChatSummarizedTool: React.FC<{
 		<ToolCall.Root
 			className="w-full"
 			status={status}
-			isError={isError}
 			errorMessage={errorMessage || "Failed to summarize conversation"}
 			hasContent={hasSummary}
 		>

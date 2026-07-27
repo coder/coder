@@ -27,7 +27,6 @@ type ExecuteToolProps = {
 	command: string;
 	transcriptBlocks: readonly ExecuteTranscriptBlock[];
 	status: ToolStatus;
-	isError: boolean;
 	errorText?: string;
 	durationMs?: number;
 	isBackgrounded?: boolean;
@@ -41,7 +40,6 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 	command,
 	transcriptBlocks,
 	status,
-	isError,
 	errorText,
 	durationMs,
 	isBackgrounded = false,
@@ -59,13 +57,13 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 			? "preview"
 			: "collapsed";
 	const isRunning = status === "running";
+	const isError = status === "error";
 	const durationLabel = formatShellDurationMs(durationMs);
 	const { commandLabel, durationSuffix } = getShellCommandLine({
 		command,
 		modelIntent,
 		parsedCommands,
 		durationLabel,
-		isRunning,
 		isError,
 	});
 	const defaultView = resolveAgentDisplayState(
@@ -78,7 +76,6 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 			key={`${shellToolDisplayMode ?? "auto"}:${autoDisplayState}`}
 			className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-sans font-normal text-xs leading-5"
 			status={status}
-			isError={isError}
 			errorMessage={errorText || "Command failed"}
 			hasContent
 			defaultView={defaultView}
@@ -136,7 +133,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 				<ShellTranscriptBody
 					command={command}
 					transcriptBlocks={transcriptBlocks}
-					isError={isError}
+					failed={isError}
 				/>
 			</ToolCall.Content>
 		</ToolCall.Root>
@@ -148,7 +145,6 @@ type ShellCommandLineInput = {
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
 	durationLabel: string;
-	isRunning: boolean;
 	isError: boolean;
 };
 
@@ -157,7 +153,6 @@ const getShellCommandLine = ({
 	modelIntent,
 	parsedCommands,
 	durationLabel,
-	isRunning,
 	isError,
 }: ShellCommandLineInput): { commandLabel: string; durationSuffix: string } => {
 	const intentLabel = sanitizeExecuteModelIntent(modelIntent, command);
@@ -169,7 +164,7 @@ const getShellCommandLine = ({
 	let commandLabel = intentLabel
 		? `${intentLabel} using ${commandDisplay}`
 		: `Ran ${commandDisplay}`;
-	if (!isRunning && isError) {
+	if (isError) {
 		commandLabel = `Failed to run ${commandDisplay}`;
 	}
 
@@ -182,8 +177,8 @@ const getShellCommandLine = ({
 const ShellTranscriptBody: React.FC<{
 	command: string;
 	transcriptBlocks: readonly ExecuteTranscriptBlock[];
-	isError: boolean;
-}> = ({ command, transcriptBlocks, isError }) => {
+	failed: boolean;
+}> = ({ command, transcriptBlocks, failed }) => {
 	return (
 		<ScrollArea
 			className="col-start-1 col-span-2 mt-2 rounded-xl bg-surface-secondary/60 text-2xs"
@@ -202,7 +197,7 @@ const ShellTranscriptBody: React.FC<{
 						key={block.kind}
 						className={cn(
 							"m-0 mt-4 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs font-normal leading-5",
-							block.kind === "error" || isError
+							block.kind === "error" || failed
 								? "text-content-destructive"
 								: "text-content-secondary",
 						)}

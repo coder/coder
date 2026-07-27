@@ -51,7 +51,6 @@ export const Failed: Story = {
 	render: () => (
 		<ToolCall.Root
 			status="error"
-			isError
 			errorMessage="Failed to read file"
 			hasContent={false}
 		>
@@ -66,29 +65,6 @@ export const Failed: Story = {
 		).toBeVisible();
 		expect(
 			canvas.queryByRole("img", { name: "Tool call running" }),
-		).not.toBeInTheDocument();
-	},
-};
-
-export const RunningWithBackendError: Story = {
-	render: () => (
-		<ToolCall.Root
-			status="running"
-			isError
-			errorMessage="Failed to read file"
-			hasContent={false}
-		>
-			<ToolCall.Header iconName="read_file" label="Reading README.md" />
-		</ToolCall.Root>
-	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Reading README.md")).toBeVisible();
-		expect(
-			canvas.getByRole("img", { name: "Tool call running" }),
-		).toBeVisible();
-		expect(
-			canvas.queryByRole("img", { name: "Failed to read file" }),
 		).not.toBeInTheDocument();
 	},
 };
