@@ -72,6 +72,7 @@ export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
 			? "The template for this workspace requires automatic updates."
 			: undefined,
 	});
+	const automaticUpdatesHelperId = `${automaticUpdatesField.id}-helper`;
 
 	return (
 		<HorizontalForm onSubmit={form.handleSubmit} data-testid="form">
@@ -126,6 +127,11 @@ export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
 									automaticUpdatesField.error && "border-border-destructive",
 								)}
 								aria-invalid={automaticUpdatesField.error}
+								aria-describedby={
+									automaticUpdatesField.helperText
+										? automaticUpdatesHelperId
+										: undefined
+								}
 							>
 								<SelectValue />
 							</SelectTrigger>
@@ -139,6 +145,7 @@ export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
 						</Select>
 						{automaticUpdatesField.helperText && (
 							<span
+								id={automaticUpdatesHelperId}
 								className={cn(
 									"text-xs",
 									automaticUpdatesField.error
