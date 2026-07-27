@@ -1,7 +1,8 @@
 # Authentication
 
 > [!NOTE]
-> AI Gateway requires the [AI Governance Add-On](../ai-governance.md).
+> AI Gateway is part of [AI Governance](../ai-governance.md), which is
+> included with a Premium license.
 
 AI Gateway authenticates clients with the same Coder API token
 that a user already uses against the rest of the Coder API.
