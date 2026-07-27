@@ -28,6 +28,8 @@ interface ScheduleDialogProps
 	readonly dormantWorkspacesToBeDeletedInWeek: number;
 	readonly updateDormantWorkspaces: (confirm: boolean) => void;
 	readonly updateInactiveWorkspaces: (confirm: boolean) => void;
+	readonly dormantWorkspacesChecked: boolean;
+	readonly inactiveWorkspacesChecked: boolean;
 	readonly dormantValueChanged: boolean;
 	readonly deletionValueChanged: boolean;
 }
@@ -47,6 +49,8 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 	dormantWorkspacesToBeDeletedInWeek,
 	updateDormantWorkspaces,
 	updateInactiveWorkspaces,
+	dormantWorkspacesChecked,
+	inactiveWorkspacesChecked,
 	dormantValueChanged,
 	deletionValueChanged,
 }) => {
@@ -99,6 +103,7 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 							>
 								<Checkbox
 									id="prevent-dormancy"
+									checked={inactiveWorkspacesChecked}
 									onCheckedChange={(checked) => {
 										updateInactiveWorkspaces(checked === true);
 									}}
@@ -135,6 +140,7 @@ export const ScheduleDialog: FC<ScheduleDialogProps> = ({
 							>
 								<Checkbox
 									id="prevent-deletion"
+									checked={dormantWorkspacesChecked}
 									onCheckedChange={(checked) => {
 										updateDormantWorkspaces(checked === true);
 									}}
