@@ -815,40 +815,41 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 // IsBudgetExceeded reports whether the user's AI spend has reached their
 // effective limit over [periodStart, now], where periodStart is the start of
 // the current deployment-configured budget period.
-func (s *Server) IsBudgetExceeded(ctx context.Context, in *proto.IsBudgetExceededRequest) (_ *proto.IsBudgetExceededResponse, retErr error) {
+func (s *Server) IsBudgetExceeded(ctx context.Context, in *proto.IsBudgetExceededRequest) (resp *proto.IsBudgetExceededResponse, retErr error) {
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
 	start := s.clock.Now()
-	outcome := "allowed"
 	defer func() {
-		if s.metrics != nil {
-			s.metrics.EnforcementDuration.WithLabelValues(outcome).Observe(s.clock.Since(start).Seconds())
+		if s.metrics == nil {
+			return
 		}
+		outcome := "allowed"
+		switch {
+		case retErr != nil:
+			outcome = "error"
+		case resp != nil && resp.Exceeded:
+			outcome = "blocked"
+		}
+		s.metrics.EnforcementDuration.WithLabelValues(outcome).Observe(s.clock.Since(start).Seconds())
 	}()
 
 	userID, err := uuid.Parse(in.GetUserId())
 	if err != nil {
-		outcome = "error"
 		return nil, xerrors.Errorf("invalid user_id %q: %w", in.GetUserId(), err)
 	}
 
 	periodWindow, err := budget.CurrentPeriod(s.clock.Now(), s.budgetPeriod)
 	if err != nil {
-		outcome = "error"
 		return nil, xerrors.Errorf("compute AI budget period: %w", err)
 	}
 
 	userBudget, err := s.checkUserAIBudget(ctx, userID, periodWindow.Start)
 	if err != nil {
-		outcome = "error"
 		return nil, err
 	}
-	if userBudget.Exceeded {
-		outcome = "blocked"
-		if s.metrics != nil {
-			s.metrics.BlockedRequests.WithLabelValues(userBudget.GroupID.String()).Inc()
-		}
+	if userBudget.Exceeded && s.metrics != nil {
+		s.metrics.BlockedRequests.WithLabelValues(userBudget.GroupID.String()).Inc()
 	}
 	return &proto.IsBudgetExceededResponse{
 		Exceeded:         userBudget.Exceeded,

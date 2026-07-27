@@ -27,8 +27,8 @@ type Metrics struct {
 	BlockedRequests *prometheus.CounterVec
 	// Users currently over their AI budget. Updated periodically.
 	BlockedUsers *prometheus.GaugeVec
-	// Recorded requests for which no model price was found.
-	UnpricedRequests *prometheus.CounterVec
+	// Recorded token-usage records for which no model price was found.
+	UnpricedTokenUsageRecords *prometheus.CounterVec
 	// Duration of budget enforcement checks.
 	EnforcementDuration *prometheus.HistogramVec
 }
@@ -51,10 +51,10 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Help:      "The number of users currently over their AI budget.",
 		}, []string{"group_id"}),
 		// Pessimistic cardinality: 3 providers, 5 models = up to 15.
-		UnpricedRequests: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+		UnpricedTokenUsageRecords: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Subsystem: "cost_control",
-			Name:      "unpriced_requests_total",
-			Help: "The number of recorded AI requests for which no model price was found " +
+			Name:      "unpriced_token_usage_records_total",
+			Help: "The number of recorded AI token-usage records for which no model price was found " +
 				"(provider: anthropic, openai, copilot).",
 		}, []string{"provider", "model"}),
 		// Pessimistic cardinality: 3 outcomes, 11 buckets + 3 extra series
@@ -64,8 +64,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "enforcement_duration_seconds",
 			Help: "The duration of AI budget enforcement checks, in seconds " +
 				"(outcome: allowed, blocked, error).",
-			Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
-			// Native histogram config.
+			Buckets:                         []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
 			NativeHistogramBucketFactor:     1.1,
 			NativeHistogramMaxBucketNumber:  100,
 			NativeHistogramMinResetDuration: time.Hour,
@@ -75,11 +74,12 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 	}
 }
 
-// RecordBlockedUsers periodically updates the blocked_users gauge from the
-// database until ctx is canceled. The returned function stops the collector
-// and waits for it to exit. It is a no-op returning a no-op closer when m is
-// nil, so callers need not nil-check.
-func (m *Metrics) RecordBlockedUsers(ctx context.Context, logger slog.Logger, clk quartz.Clock, db database.Store, budgetPeriod codersdk.AIBudgetPeriod, interval time.Duration) func() {
+// StartBlockedUsersCollector periodically updates the blocked_users gauge from
+// the database until ctx is canceled. A non-positive interval uses the 5m
+// default. The returned function stops the collector and waits for it to exit.
+// It is a no-op returning a no-op closer when m is nil, so callers need not
+// nil-check.
+func (m *Metrics) StartBlockedUsersCollector(ctx context.Context, logger slog.Logger, clk quartz.Clock, db database.Store, budgetPeriod codersdk.AIBudgetPeriod, interval time.Duration) func() {
 	if m == nil {
 		return func() {}
 	}
@@ -93,14 +93,16 @@ func (m *Metrics) RecordBlockedUsers(ctx context.Context, logger slog.Logger, cl
 	go func() {
 		defer close(done)
 		defer ticker.Stop()
+		// Update immediately so the gauge is populated at startup rather than
+		// absent for a full interval.
 		for {
+			if err := m.updateBlockedUsers(ctx, clk, db, budgetPeriod); err != nil {
+				logger.Error(ctx, "update blocked_users gauge", slog.Error(err))
+			}
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-			}
-			if err := m.updateBlockedUsers(ctx, clk, db, budgetPeriod); err != nil {
-				logger.Error(ctx, "update blocked_users gauge", slog.Error(err))
 			}
 		}
 	}()

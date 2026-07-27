@@ -423,7 +423,7 @@ func TestIsBudgetExceeded(t *testing.T) {
 	cases := []struct {
 		name              string
 		userIDStr         string
-		setupMocks        func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse
+		setupMocks        func(db *dbmock.MockStore, userID uuid.UUID) (resp *proto.IsBudgetExceededResponse, blockedGroupID uuid.UUID)
 		wantErrContains   string
 		wantMetricOutcome string
 	}{
@@ -437,7 +437,7 @@ func TestIsBudgetExceeded(t *testing.T) {
 		{
 			// No override and no group budget resolves: pass-through.
 			name: "no budget configured returns not exceeded",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
 				db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), userID).
@@ -445,14 +445,14 @@ func TestIsBudgetExceeded(t *testing.T) {
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         false,
 					SpendLimitMicros: nil,
-				}
+				}, uuid.Nil
 			},
 			wantMetricOutcome: "allowed",
 		},
 		{
 			// Group budget resolves, spend below limit (spend 500 < limit 1000): pass-through.
 			name: "under limit returns not exceeded",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
 				groupID := uuid.New()
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
@@ -463,14 +463,14 @@ func TestIsBudgetExceeded(t *testing.T) {
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         false,
 					SpendLimitMicros: ptr.Ref(int64(1_000)),
-				}
+				}, uuid.Nil
 			},
 			wantMetricOutcome: "allowed",
 		},
 		{
 			// Group budget resolves, spend at limit (spend 1000 == limit 1000): blocked.
 			name: "at limit returns exceeded",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
 				groupID := uuid.New()
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
@@ -481,7 +481,7 @@ func TestIsBudgetExceeded(t *testing.T) {
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         true,
 					SpendLimitMicros: ptr.Ref(int64(1_000)),
-				}
+				}, groupID
 			},
 			wantMetricOutcome: "blocked",
 		},
@@ -489,7 +489,7 @@ func TestIsBudgetExceeded(t *testing.T) {
 			// Limit of 0 is a valid "block-all" setting, distinct from
 			// "no budget configured": blocked.
 			name: "zero limit blocks all requests",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
 				groupID := uuid.New()
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
@@ -500,14 +500,14 @@ func TestIsBudgetExceeded(t *testing.T) {
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         true,
 					SpendLimitMicros: ptr.Ref(int64(0)),
-				}
+				}, groupID
 			},
 			wantMetricOutcome: "blocked",
 		},
 		{
 			// Group budget resolves, spend above limit (spend 1500 > limit 1000): blocked.
 			name: "over limit returns exceeded",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
 				groupID := uuid.New()
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
@@ -518,7 +518,7 @@ func TestIsBudgetExceeded(t *testing.T) {
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         true,
 					SpendLimitMicros: ptr.Ref(int64(1_000)),
-				}
+				}, groupID
 			},
 			wantMetricOutcome: "blocked",
 		},
@@ -526,7 +526,7 @@ func TestIsBudgetExceeded(t *testing.T) {
 			// User override wins, group lookup skipped, spend aggregated against
 			// the override's group (spend 600 > limit 500): blocked.
 			name: "user override wins over group budget",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
 				overrideGroupID := uuid.New()
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{
@@ -540,17 +540,17 @@ func TestIsBudgetExceeded(t *testing.T) {
 				return &proto.IsBudgetExceededResponse{
 					Exceeded:         true,
 					SpendLimitMicros: ptr.Ref(int64(500)),
-				}
+				}, overrideGroupID
 			},
 			wantMetricOutcome: "blocked",
 		},
 		{
 			// Unexpected error from budget override lookup propagates.
 			name: "budget resolution error propagates",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{}, sql.ErrConnDone)
-				return nil
+				return nil, uuid.Nil
 			},
 			wantErrContains:   "resolve effective AI budget",
 			wantMetricOutcome: "error",
@@ -558,14 +558,14 @@ func TestIsBudgetExceeded(t *testing.T) {
 		{
 			// Error from spend aggregation propagates (fail-closed).
 			name: "spend aggregation error propagates",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) (*proto.IsBudgetExceededResponse, uuid.UUID) {
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
 				db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), userID).
 					Return(database.GetHighestGroupAIBudgetByUserRow{GroupID: uuid.New(), SpendLimitMicros: 1_000}, nil)
 				db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
 					Return(database.GetUserAISpendSinceRow{}, sql.ErrConnDone)
-				return nil
+				return nil, uuid.Nil
 			},
 			wantErrContains:   "get user AI spend",
 			wantMetricOutcome: "error",
@@ -587,8 +587,9 @@ func TestIsBudgetExceeded(t *testing.T) {
 			}
 
 			var wantResp *proto.IsBudgetExceededResponse
+			var blockedGroupID uuid.UUID
 			if tc.setupMocks != nil {
-				wantResp = tc.setupMocks(db, userID)
+				wantResp, blockedGroupID = tc.setupMocks(db, userID)
 			}
 
 			reg := prometheus.NewRegistry()
@@ -619,6 +620,11 @@ func TestIsBudgetExceeded(t *testing.T) {
 				wantBlocked = 1
 			}
 			require.Equal(t, wantBlocked, promtest.CollectAndCount(metrics.BlockedRequests))
+			if wantBlocked == 1 {
+				require.Equal(t, 1, promhelp.CounterValue(t, reg,
+					"cost_control_blocked_requests_total",
+					prometheus.Labels{"group_id": blockedGroupID.String()}))
+			}
 
 			if tc.wantErrContains != "" {
 				require.Error(t, err)
@@ -1742,9 +1748,9 @@ func TestRecordTokenUsage(t *testing.T) {
 					db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
 						Return(database.GetUserAISpendSinceRow{SpendMicros: wantCost}, nil)
 				},
-				// A priced model does not increment unpriced_requests_total.
+				// A priced model does not increment unpriced_token_usage_records_total.
 				assertMetrics: func(t *testing.T, reg *prometheus.Registry) {
-					require.Nil(t, promhelp.MetricValue(t, reg, "cost_control_unpriced_requests_total",
+					require.Nil(t, promhelp.MetricValue(t, reg, "cost_control_unpriced_token_usage_records_total",
 						prometheus.Labels{"provider": "anthropic", "model": "claude-sonnet-4-6"}))
 				},
 			},
@@ -1889,9 +1895,9 @@ func TestRecordTokenUsage(t *testing.T) {
 					// Spend update is skipped because cost is NULL.
 					db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).Times(0)
 				},
-				// A missing price row increments unpriced_requests_total.
+				// A missing price row increments unpriced_token_usage_records_total.
 				assertMetrics: func(t *testing.T, reg *prometheus.Registry) {
-					require.Equal(t, 1, promhelp.CounterValue(t, reg, "cost_control_unpriced_requests_total",
+					require.Equal(t, 1, promhelp.CounterValue(t, reg, "cost_control_unpriced_token_usage_records_total",
 						prometheus.Labels{"provider": "anthropic", "model": "claude-sonnet-4-6"}))
 				},
 			},
@@ -2069,9 +2075,9 @@ func TestRecordTokenUsage(t *testing.T) {
 					// Spend update is skipped because cost is NULL.
 					db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).Times(0)
 				},
-				// A missing price row increments unpriced_requests_total.
+				// A missing price row increments unpriced_token_usage_records_total.
 				assertMetrics: func(t *testing.T, reg *prometheus.Registry) {
-					require.Equal(t, 1, promhelp.CounterValue(t, reg, "cost_control_unpriced_requests_total",
+					require.Equal(t, 1, promhelp.CounterValue(t, reg, "cost_control_unpriced_token_usage_records_total",
 						prometheus.Labels{"provider": "anthropic", "model": "claude-sonnet-4-6"}))
 				},
 			},

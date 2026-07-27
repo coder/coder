@@ -1,7 +1,6 @@
 package aibridgedserver
 
 import (
-	"context"
 	"database/sql"
 	"testing"
 	"time"
@@ -90,7 +89,7 @@ func TestUpdateBlockedUsers(t *testing.T) {
 			// When: the gauge is updated once per round.
 			var err error
 			for range tt.rounds {
-				err = m.updateBlockedUsers(context.Background(), clk, db, codersdk.AIBudgetPeriodMonth)
+				err = m.updateBlockedUsers(t.Context(), clk, db, codersdk.AIBudgetPeriodMonth)
 			}
 
 			// Then: the query error propagates, or the gauge holds the final
@@ -108,7 +107,7 @@ func TestUpdateBlockedUsers(t *testing.T) {
 	}
 }
 
-func TestRecordBlockedUsers(t *testing.T) {
+func TestStartBlockedUsersCollector(t *testing.T) {
 	t.Parallel()
 
 	t.Run("NilReceiverNoop", func(t *testing.T) {
@@ -118,7 +117,7 @@ func TestRecordBlockedUsers(t *testing.T) {
 		var m *Metrics
 
 		// When: the collector is started.
-		closeFn := m.RecordBlockedUsers(context.Background(), testutil.Logger(t), quartz.NewMock(t), nil, codersdk.AIBudgetPeriodMonth, time.Minute)
+		closeFn := m.StartBlockedUsersCollector(t.Context(), testutil.Logger(t), quartz.NewMock(t), nil, codersdk.AIBudgetPeriodMonth, time.Minute)
 
 		// Then: the returned closer is a no-op and does not panic.
 		require.NotPanics(t, closeFn)
@@ -139,7 +138,7 @@ func TestRecordBlockedUsers(t *testing.T) {
 				{GroupID: groupA, OverBudgetUsers: 4},
 			}, nil).AnyTimes()
 
-		closeFn := m.RecordBlockedUsers(ctx, testutil.Logger(t), clk, db, codersdk.AIBudgetPeriodMonth, time.Minute)
+		closeFn := m.StartBlockedUsersCollector(ctx, testutil.Logger(t), clk, db, codersdk.AIBudgetPeriodMonth, time.Minute)
 		defer closeFn()
 
 		// When: the ticker fires.

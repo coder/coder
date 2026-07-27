@@ -1188,7 +1188,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				coderAPI.AIGatewayServerMetrics = aibridgedserver.NewMetrics(costControlReg)
 				if vals.Prometheus.Enable {
 					budgetPeriod := codersdk.NewAIBudgetPeriodFromString(vals.AI.BridgeConfig.BudgetPeriod)
-					closeBlockedUsersFunc := coderAPI.AIGatewayServerMetrics.RecordBlockedUsers(
+					closeBlockedUsersFunc := coderAPI.AIGatewayServerMetrics.StartBlockedUsersCollector(
 						ctx, logger.Named("aigateway_cost_control_metrics"), quartz.NewReal(),
 						coderAPI.Database, budgetPeriod, 0,
 					)

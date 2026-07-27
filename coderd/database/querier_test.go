@@ -13906,17 +13906,24 @@ func TestGetOverBudgetUsersPerGroup(t *testing.T) {
 
 	periodStart := dbtime.Now().UTC().Truncate(24 * time.Hour)
 
-	// seedSpend attributes micros of spend to (user, effectiveGroup) within the
-	// current period.
-	seedSpend := func(t *testing.T, ctx context.Context, db database.Store, userID, effectiveGroupID uuid.UUID, micros int64) {
+	// seedSpendOnDay attributes micros of spend to (user, effectiveGroup) on a
+	// specific day.
+	seedSpendOnDay := func(t *testing.T, ctx context.Context, db database.Store, userID, effectiveGroupID uuid.UUID, day time.Time, micros int64) {
 		t.Helper()
 		_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
 			UserID:           userID,
 			EffectiveGroupID: effectiveGroupID,
-			Day:              periodStart,
+			Day:              day,
 			CostMicros:       micros,
 		})
 		require.NoError(t, err)
+	}
+
+	// seedSpend attributes micros of spend to (user, effectiveGroup) within the
+	// current period.
+	seedSpend := func(t *testing.T, ctx context.Context, db database.Store, userID, effectiveGroupID uuid.UUID, micros int64) {
+		t.Helper()
+		seedSpendOnDay(t, ctx, db, userID, effectiveGroupID, periodStart, micros)
 	}
 
 	tests := []struct {
@@ -14051,6 +14058,22 @@ func TestGetOverBudgetUsersPerGroup(t *testing.T) {
 					seedSpend(t, ctx, db, user.ID, group.ID, 2_000_000)
 				}
 				return []database.GetOverBudgetUsersPerGroupRow{{GroupID: group.ID, OverBudgetUsers: 2}}
+			},
+		},
+		{
+			// Spend on days before the period start is excluded, so a user whose
+			// only over-limit spend predates the period is not counted.
+			name: "SpendBeforePeriodNotCounted",
+			setup: func(t *testing.T, ctx context.Context, db database.Store) []database.GetOverBudgetUsersPerGroupRow {
+				user := dbgen.User(t, db, database.User{})
+				org := dbgen.Organization(t, db, database.Organization{})
+				group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+				dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: user.ID})
+				_, err := db.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{GroupID: group.ID, SpendLimitMicros: 1_000_000})
+				require.NoError(t, err)
+				seedSpendOnDay(t, ctx, db, user.ID, group.ID, periodStart.AddDate(0, 0, -1), 1_500_000)
+				return nil
 			},
 		},
 	}

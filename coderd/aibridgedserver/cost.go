@@ -74,7 +74,7 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 		s.logger.Debug(ctx, "no price found for model, recording token usage with NULL cost",
 			slog.F("provider", intc.Provider), slog.F("model", intc.Model))
 		if s.metrics != nil {
-			s.metrics.UnpricedRequests.WithLabelValues(intc.Provider, intc.Model).Inc()
+			s.metrics.UnpricedTokenUsageRecords.WithLabelValues(intc.Provider, intc.Model).Inc()
 		}
 		return result, nil
 	case err != nil:
