@@ -53,11 +53,11 @@ export const ProposePlanTool: React.FC<{
 	const displayContent = hasInlineContent
 		? (inlineContent ?? "")
 		: (fileQuery.data ?? "");
-	const isRunning = status === "running";
 	const filename = getPathBasename(path || "PLAN.md") || "PLAN.md";
 	// A plan whose body could not be fetched is as unusable as one the
 	// tool never produced.
 	const effectiveStatus = foldResultFailure(status, Boolean(fetchError));
+	const isRunning = effectiveStatus === "running";
 	const effectiveErrorMessage = errorMessage || fetchError;
 	const hasDisplayContent = displayContent.trim().length > 0;
 	const implementPlanMutation = useMutation({

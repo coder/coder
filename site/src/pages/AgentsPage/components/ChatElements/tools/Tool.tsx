@@ -49,7 +49,6 @@ import {
 	getFileViewerOptionsNoHeader,
 	getWriteFileDiff,
 	humanizeMCPToolName,
-	isSubagentSuccessStatus,
 	mapSubagentStatusToToolStatus,
 	parseArgs,
 	parseEditFilesArgs,
@@ -439,14 +438,10 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 	if (rawTitle) {
 		title = rawTitle;
 	}
-	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
-	// The tool-call status is authoritative for failure: a failed
-	// spawn/await call is finished, even when the result body's
-	// sub-agent snapshot still reports the sub-agent as active.
-	const subagentToolStatus: ToolStatus =
-		status === "error" && !subagentCompleted
-			? "error"
-			: mapSubagentStatusToToolStatus(subagentStatus, status);
+	const subagentToolStatus = mapSubagentStatusToToolStatus(
+		subagentStatus,
+		status,
+	);
 	const subagentFailed = subagentToolStatus === "error";
 
 	// Detect timeout from the result. A timed-out wait_agent
@@ -900,12 +895,6 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 		</ToolCall.Root>
 	);
 };
-
-// ---------------------------------------------------------------------------
-// process_signal reports failures as success=false in the result body rather
-// than as a protocol error, so fold that into the status for the generic
-// renderer.
-// ---------------------------------------------------------------------------
 
 const ProcessSignalRenderer: FC<ToolRendererProps> = (props) => {
 	const rec = asRecord(props.result);

@@ -132,10 +132,10 @@ export const normalizeStatus = (status: string): string =>
 	status.trim().toLowerCase();
 
 /**
- * Folds a failure that is only visible in the tool result body (or in a
- * follow-up fetch) into the tool status, so `status` stays the single
- * representation of failure. A running call stays running: its partial
- * result body can already carry error fields.
+ * Folds a failure the tool reports in-band (an `error` field or
+ * `success: false` in the result body) into its status. A running call stays
+ * running: only the advisor streams a partial result body, so a mid-stream
+ * body that parses as a failure is noise rather than a verdict.
  */
 export const foldResultFailure = (
 	status: ToolStatus,
@@ -173,6 +173,11 @@ export const mapSubagentStatusToToolStatus = (
 	}
 	if (isSubagentSuccessStatus(normalized)) {
 		return "completed";
+	}
+	if (fallback === "error") {
+		// A failed call is finished, so a stale snapshot cannot put the row
+		// back into a running state.
+		return "error";
 	}
 	if (isSubagentRunningStatus(normalized)) {
 		// If the tool call itself has already completed, don't

@@ -190,11 +190,24 @@ describe("mapSubagentStatusToToolStatus", () => {
 		);
 	});
 
-	it("maps running statuses to running when fallback is not completed", () => {
+	it("maps running statuses to running when the call has not failed", () => {
 		expect(mapSubagentStatusToToolStatus("pending", "running")).toBe("running");
-		expect(mapSubagentStatusToToolStatus("running", "error")).toBe("running");
 		expect(mapSubagentStatusToToolStatus("awaiting", "running")).toBe(
 			"running",
+		);
+	});
+
+	it("keeps a failed call failed even with a running subagent status", () => {
+		// The snapshot describes the sub-agent, not the call. A failed
+		// spawn/await call is finished, so it cannot read as running.
+		expect(mapSubagentStatusToToolStatus("running", "error")).toBe("error");
+	});
+
+	it("prefers a successful snapshot over a failed call", () => {
+		// Pins guard order: the success check must run before the
+		// failed-call check.
+		expect(mapSubagentStatusToToolStatus("completed", "error")).toBe(
+			"completed",
 		);
 	});
 
