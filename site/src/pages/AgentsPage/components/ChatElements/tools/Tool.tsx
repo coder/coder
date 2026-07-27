@@ -654,9 +654,7 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({ args, status, result }) => {
 				: undefined;
 	const errorMessage =
 		(rec ? asString(rec.error || rec.message) : "") ||
-		(typeof result === "string" && (hasError || resolvedResultType === "error")
-			? result
-			: "");
+		(typeof result === "string" && hasError ? result : "");
 	const advisorModel = rec ? asString(rec.advisor_model) : "";
 	const remainingUses = rec
 		? asNumber(rec.remaining_uses, { parseString: true })
@@ -666,7 +664,9 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({ args, status, result }) => {
 		<AdvisorTool
 			question={question}
 			status={foldResultFailure(status, resolvedResultType === "error")}
-			resultType={resolvedResultType}
+			resultType={
+				resolvedResultType === "error" ? undefined : resolvedResultType
+			}
 			advice={advice}
 			errorMessage={errorMessage || undefined}
 			advisorModel={advisorModel || undefined}
