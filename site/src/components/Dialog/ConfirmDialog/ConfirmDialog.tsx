@@ -10,7 +10,7 @@ import {
 } from "#/components/Dialog/Dialog";
 import { Spinner } from "#/components/Spinner/Spinner";
 
-export type ConfirmDialogType = "delete" | "info" | "success";
+type ConfirmDialogType = "delete" | "info" | "success";
 
 interface ConfirmDialogTypeConfig {
 	confirmText: ReactNode;
