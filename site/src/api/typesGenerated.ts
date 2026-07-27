@@ -5823,6 +5823,21 @@ export const MaxUserSecretEnvNameLength = 256;
 
 // From codersdk/usersecretvalidation.go
 /**
+ * MaxUserSecretNameLength caps the length of a secret name, measured in
+ * runes rather than bytes. The name column is TEXT, so this cap exists to
+ * bound API input and keep names displayable rather than to satisfy a
+ * storage limit. Counting runes keeps the cap consistent with the
+ * user-facing message, which is stated in characters, and still bounds
+ * the stored size at 1020 bytes worst case (4 bytes per rune).
+ *
+ * This differs from MaxUserSecretEnvNameLength, which counts bytes.
+ * Env names are restricted to ASCII by posixEnvNameRegex, so runes and
+ * bytes are equivalent there; names accept arbitrary UTF-8.
+ */
+export const MaxUserSecretNameLength = 255;
+
+// From codersdk/usersecretvalidation.go
+/**
  * MaxUserSecretValueBytes is the maximum number of bytes for a
  * single secret value. It is enforced in two places:
  *

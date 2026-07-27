@@ -722,7 +722,7 @@ func TestImportUserSecretsLimits(t *testing.T) {
 func envImportContent(n int) string {
 	var content strings.Builder
 	for i := 1; i <= n; i++ {
-		fmt.Fprintf(&content, "NEAR_%d=x\n", i)
+		_, _ = fmt.Fprintf(&content, "NEAR_%d=x\n", i)
 	}
 	return content.String()
 }
@@ -971,9 +971,7 @@ func TestImportUserSecretsPerEntryErrorNameTruncated(t *testing.T) {
 	var sb strings.Builder
 	for i := 0; i < entries; i++ {
 		suffix := fmt.Sprintf("%06d", i)
-		sb.WriteString(strings.Repeat("a", keyLen-len(suffix)))
-		sb.WriteString(suffix)
-		sb.WriteString("=\n")
+		_, _ = fmt.Fprintf(&sb, "%s%s=\n", strings.Repeat("a", keyLen-len(suffix)), suffix)
 	}
 	content := sb.String()
 	require.LessOrEqual(t, len(content), codersdk.MaxSecretsFileBytes)
