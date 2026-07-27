@@ -23,7 +23,7 @@ This limit is a per-user override.
 
 AI budget period: {{.Labels.period_start}} - {{.Labels.period_end}}$$,
     '[]'::jsonb,
-    'AI Cost Control Events',
+    'AI Cost Control Admin Events',
     NULL,
     'system'::notification_template_kind,
     true
@@ -54,7 +54,7 @@ This limit is a per-user override.
 
 AI budget period: {{.Labels.period_start}} - {{.Labels.period_end}}$$,
     '[]'::jsonb,
-    'AI Cost Control Events',
+    'AI Cost Control Admin Events',
     NULL,
     'system'::notification_template_kind,
     true
