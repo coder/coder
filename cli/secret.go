@@ -5,8 +5,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/dustin/go-humanize"
 	"github.com/dustin/go-humanize/english"
@@ -235,9 +237,10 @@ func (r *RootCmd) secretImport() *serpent.Command {
 		Use:   "import <file>",
 		Short: "Import secrets from a file",
 		Long: strings.Join([]string{
-			"Every key in the file becomes a secret that is injected as an environment variable of the same name.",
+			"Every key in the file becomes a secret.",
+			"Keys allowed as environment variable names are injected into workspaces under the same name.",
 			"The import is all or nothing, and existing secrets are never overwritten.",
-			"Pass - to read the file from stdin.",
+			"Pass - to read the file from non-interactive stdin (pipe or redirect).",
 		}, " "),
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
@@ -271,10 +274,14 @@ func (r *RootCmd) secretImport() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			// Parse before sending so that a file picked by mistake, such as a
-			// private key, never leaves the machine.
-			if _, err := codersdk.ParseSecretsFile(format, string(content)); err != nil {
+			// Parse and validate before sending so that a file picked by mistake,
+			// such as a private key, never leaves the machine.
+			requests, err := codersdk.ParseSecretsFile(format, string(content))
+			if err != nil {
 				return xerrors.Errorf("parse %q: %w", path, err)
+			}
+			if err := validateImportedSecrets(requests); err != nil {
+				return xerrors.Errorf("validate %q: %w", path, err)
 			}
 
 			secrets, err := client.ImportUserSecrets(inv.Context(), codersdk.Me, codersdk.ImportUserSecretsRequest{
@@ -314,6 +321,9 @@ func secretsFileFormatFromPath(path string) (codersdk.SecretsFileFormat, error) 
 // reads more than one byte past the limit the server accepts.
 func readSecretsFile(inv *serpent.Invocation, path string) ([]byte, error) {
 	reader := inv.Stdin
+	if path == "-" && isTTYIn(inv) {
+		return nil, xerrors.New("secrets file must be provided via non-interactive stdin (pipe or redirect)")
+	}
 	if path != "-" {
 		file, err := os.Open(path)
 		if err != nil {
@@ -330,7 +340,23 @@ func readSecretsFile(inv *serpent.Invocation, path string) ([]byte, error) {
 	if len(content) > codersdk.MaxSecretsFileBytes {
 		return nil, xerrors.Errorf("secrets file exceeds the maximum allowed size of %d bytes", codersdk.MaxSecretsFileBytes)
 	}
+	if !utf8.Valid(content) {
+		return nil, xerrors.New("secrets file must contain valid UTF-8")
+	}
 	return content, nil
+}
+
+func validateImportedSecrets(requests []codersdk.CreateUserSecretRequest) error {
+	var validationErrors []string
+	for i, request := range requests {
+		for _, validation := range codersdk.ValidateCreateUserSecretRequest(request) {
+			validationErrors = append(validationErrors, fmt.Sprintf("secret %d (%q) %s: %s", i+1, request.Name, validation.Field, validation.Detail))
+		}
+	}
+	if len(validationErrors) > 0 {
+		return xerrors.New(strings.Join(validationErrors, "; "))
+	}
+	return nil
 }
 
 // warnSecretsWithoutEnvName reports imported secrets whose key is not a valid
@@ -340,7 +366,7 @@ func warnSecretsWithoutEnvName(w io.Writer, secrets []codersdk.UserSecret) {
 	names := make([]string, 0, len(secrets))
 	for _, secret := range secrets {
 		if secret.EnvName == "" {
-			names = append(names, secret.Name)
+			names = append(names, strconv.Quote(secret.Name))
 		}
 	}
 	if len(names) == 0 {
@@ -350,7 +376,7 @@ func warnSecretsWithoutEnvName(w io.Writer, secrets []codersdk.UserSecret) {
 	cliui.Warn(w,
 		fmt.Sprintf("%s imported without an environment variable name: %s",
 			english.Plural(len(names), "secret", ""), strings.Join(names, ", ")),
-		"Set one with `coder secret update <name> --env <ENV_NAME>` to inject them into workspaces.",
+		"Set each with `coder secret update <name> --env <ENV_NAME>` to inject it into workspaces.",
 	)
 }
 

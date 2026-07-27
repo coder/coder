@@ -3,9 +3,12 @@ package cli_test
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -694,42 +697,61 @@ func TestSecretImport(t *testing.T) {
 		require.ErrorContains(t, err, "set --input-format to one of: env, json, yaml")
 	})
 
-	t.Run("RejectsMalformedFileBeforeSending", func(t *testing.T) {
+	t.Run("RejectsLocalErrorsBeforeSending", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+		tests := []struct {
+			name    string
+			content []byte
+			wantErr string
+		}{
+			{name: "Malformed", content: []byte("ALPHA=a\nNOEQUALS\n"), wantErr: "line 2: expected KEY=VALUE"},
+			{name: "InvalidUTF8", content: []byte{'A', 'L', 'P', 'H', 'A', '=', 0xff}, wantErr: "must contain valid UTF-8"},
+			{name: "InvalidEntry", content: []byte("ALPHA=a\nBETA=\n"), wantErr: `secret 2 ("BETA") value: Value is required.`},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 
-		path := writeSecretsFile(t, "secrets.env", "ALPHA=a\nNOEQUALS\n")
-		inv, root := clitest.New(t, "secret", "import", path)
-		clitest.SetupConfig(t, client, root)
+				var requests atomic.Int64
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					requests.Add(1)
+					w.WriteHeader(http.StatusInternalServerError)
+				}))
+				defer server.Close()
 
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		err := inv.WithContext(ctx).Run()
-		require.ErrorContains(t, err, "line 2: expected KEY=VALUE")
-		// The request wrapper is absent, so the file was never uploaded.
-		require.NotContains(t, err.Error(), "import secrets from")
+				client := codersdk.New(must(url.Parse(server.URL)))
+				client.SetSessionToken("test-token")
+				path := filepath.Join(t.TempDir(), "secrets.env")
+				require.NoError(t, os.WriteFile(path, tt.content, 0o600))
+				inv, root := clitest.New(t, "secret", "import", path)
+				clitest.SetupConfig(t, client, root)
+
+				err := inv.Run()
+				require.ErrorContains(t, err, tt.wantErr)
+				require.Zero(t, requests.Load(), "expected no API request")
+			})
+		}
 	})
 
-	t.Run("CreatesNothingWhenAnEntryIsInvalid", func(t *testing.T) {
+	t.Run("RejectsTTYStdin", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+		var requests atomic.Int64
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			requests.Add(1)
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		defer server.Close()
 
-		// An empty value parses but fails server-side validation, which
-		// rejects the whole batch.
-		path := writeSecretsFile(t, "secrets.env", "ALPHA=a\nBETA=\n")
-		inv, root := clitest.New(t, "secret", "import", path)
+		client := codersdk.New(must(url.Parse(server.URL)))
+		client.SetSessionToken("test-token")
+		inv, root := clitest.New(t, "--force-tty", "secret", "import", "-", "--input-format", "env")
 		clitest.SetupConfig(t, client, root)
 
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		err := inv.WithContext(ctx).Run()
-		require.ErrorContains(t, err, "import secrets from")
-
-		secrets, err := client.UserSecrets(ctx, codersdk.Me)
-		require.NoError(t, err)
-		require.Empty(t, secrets)
+		err := inv.Run()
+		require.ErrorContains(t, err, "secrets file must be provided via non-interactive stdin (pipe or redirect)")
+		require.Zero(t, requests.Load(), "expected no API request")
 	})
 
 	t.Run("WarnsAboutKeysWithoutEnvNames", func(t *testing.T) {
@@ -749,7 +771,7 @@ func TestSecretImport(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		require.NoError(t, inv.WithContext(ctx).Run())
 		require.Contains(t, output.Stdout(), "Imported 3 secrets.")
-		require.Contains(t, output.Stderr(), "2 secrets imported without an environment variable name: PATH, MY-TOKEN")
+		require.Contains(t, output.Stderr(), `2 secrets imported without an environment variable name: "PATH", "MY-TOKEN"`)
 
 		secret, err := client.UserSecretByName(ctx, codersdk.Me, "PATH")
 		require.NoError(t, err)

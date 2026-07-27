@@ -12,7 +12,7 @@ coder secret import [flags] <file>
 ## Description
 
 ```console
-Every key in the file becomes a secret that is injected as an environment variable of the same name. The import is all or nothing, and existing secrets are never overwritten. Pass - to read the file from stdin.
+Every key in the file becomes a secret. Keys allowed as environment variable names are injected into workspaces under the same name. The import is all or nothing, and existing secrets are never overwritten. Pass - to read the file from non-interactive stdin (pipe or redirect).
 ```
 
 ## Options

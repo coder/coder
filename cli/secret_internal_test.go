@@ -202,6 +202,16 @@ func TestReadSecretsFile(t *testing.T) {
 	})
 }
 
+func TestWarnSecretsWithoutEnvNameEscapesNames(t *testing.T) {
+	t.Parallel()
+
+	var stderr bytes.Buffer
+	warnSecretsWithoutEnvName(&stderr, []codersdk.UserSecret{{Name: "\x1b[31mBAD"}})
+
+	require.Contains(t, stderr.String(), `"\x1b[31mBAD"`)
+	require.NotContains(t, stderr.String(), "\x1b[31mBAD")
+}
+
 func newSecretTestInvocation(t *testing.T, stdin io.Reader, stderr io.Writer) *serpent.Invocation {
 	t.Helper()
 
