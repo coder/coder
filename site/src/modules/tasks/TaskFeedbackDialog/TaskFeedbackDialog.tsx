@@ -1,6 +1,6 @@
 import { useFormik } from "formik";
 import { FrownIcon, MehIcon, SmileIcon } from "lucide-react";
-import type { FC, HTMLProps, ReactNode } from "react";
+import type { ComponentProps, FC, HTMLProps, ReactNode } from "react";
 import { useMutation } from "react-query";
 import { toast } from "sonner";
 import {
@@ -27,16 +27,13 @@ type TaskFeedbackFormValues = {
 	comment: string;
 };
 
-type TaskFeedbackDialogProps = {
-	open: boolean;
+type TaskFeedbackDialogProps = ComponentProps<typeof Dialog> & {
 	taskId: string;
-	onOpenChange?: (open: boolean) => void;
 };
 
 export const TaskFeedbackDialog: FC<TaskFeedbackDialogProps> = ({
 	taskId,
-	open,
-	onOpenChange,
+	...dialogProps
 }) => {
 	const {
 		mutate: createFeedback,
@@ -68,7 +65,7 @@ export const TaskFeedbackDialog: FC<TaskFeedbackDialogProps> = ({
 	const isRateSelected = Boolean(formik.values.rate);
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
+		<Dialog {...dialogProps}>
 			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>Task feedback</DialogTitle>

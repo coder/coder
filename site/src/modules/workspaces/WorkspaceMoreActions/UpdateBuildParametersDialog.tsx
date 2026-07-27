@@ -1,5 +1,5 @@
 import { css } from "@emotion/css";
-import Dialog from "@mui/material/Dialog";
+import Dialog, { type DialogProps } from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
@@ -20,8 +20,7 @@ import {
 	useValidationSchemaForRichParameters,
 } from "#/utils/richParameters";
 
-type UpdateBuildParametersDialogProps = {
-	open: boolean;
+type UpdateBuildParametersDialogProps = DialogProps & {
 	onClose: () => void;
 	onUpdate: (buildParameters: WorkspaceBuildParameter[]) => void;
 	missedParameters: TemplateVersionParameter[];
@@ -29,7 +28,7 @@ type UpdateBuildParametersDialogProps = {
 
 export const UpdateBuildParametersDialog: FC<
 	UpdateBuildParametersDialogProps
-> = ({ missedParameters, onUpdate, open, onClose }) => {
+> = ({ missedParameters, onUpdate, ...dialogProps }) => {
 	const form = useFormik({
 		initialValues: {
 			rich_parameter_values: getInitialRichParameterValues(missedParameters),
@@ -47,8 +46,7 @@ export const UpdateBuildParametersDialog: FC<
 
 	return (
 		<Dialog
-			open={open}
-			onClose={onClose}
+			{...dialogProps}
 			scroll="body"
 			aria-labelledby="update-build-parameters-title"
 			maxWidth="xs"
@@ -101,7 +99,7 @@ export const UpdateBuildParametersDialog: FC<
 					variant="outline"
 					className="w-full"
 					type="button"
-					onClick={onClose}
+					onClick={dialogProps.onClose}
 				>
 					Cancel
 				</Button>
